@@ -16,6 +16,8 @@
 #include <QtCore/QLoggingCategory>
 #include <QtCore/QThread>
 
+#include <utility>
+
 #include "../Profile.h"
 
 #if defined(Q_OS_WIN)
@@ -58,6 +60,31 @@ bool blockingInvokeMethod(
     QGenericArgument val7 = QGenericArgument(),
     QGenericArgument val8 = QGenericArgument(),
     QGenericArgument val9 = QGenericArgument());
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+// Qt 6.5 made Q_ARG/Q_RETURN_ARG produce typed argument wrappers rather than
+// QGenericArgument/QGenericReturnArgument. Preserve the existing diagnostics
+// while forwarding those wrappers to Qt's variadic invokeMethod overload.
+template <typename... Args>
+bool blockingInvokeMethod(
+    const char* callingFunction, QObject* context, const char* member, Args&&... args) {
+    auto currentThread = QThread::currentThread();
+    if (currentThread == qApp->thread()) {
+        qCWarning(thread_safety) << "BlockingQueuedConnection invoked on main thread from " << callingFunction;
+        return QMetaObject::invokeMethod(context, member, Qt::BlockingQueuedConnection,
+                                         std::forward<Args>(args)...);
+    }
+
+    QString forbiddenThread = isBlockingForbiddenThread(currentThread);
+    if (!forbiddenThread.isEmpty()) {
+        qCWarning(thread_safety) << "BlockingQueuedConnection invoked on forbidden thread " << forbiddenThread;
+    }
+
+    PROFILE_RANGE(app, callingFunction);
+    return QMetaObject::invokeMethod(context, member, Qt::BlockingQueuedConnection,
+                                     std::forward<Args>(args)...);
+}
+#endif
 
 // handling unregistered functions
 template <typename Func, typename ReturnType>

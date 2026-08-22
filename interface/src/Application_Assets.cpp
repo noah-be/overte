@@ -16,6 +16,7 @@
 #include "Application.h"
 
 #include <QQuickItem>
+#include <QRegularExpression>
 #include <QTemporaryDir>
 
 #include <AddressManager.h>
@@ -25,7 +26,9 @@
 #include "ArchiveDownloadInterface.h"
 #include "InterfaceLogging.h"
 #include "Menu.h"
+#if !defined(Q_OS_IOS)
 #include "ModelPackager.h"
+#endif
 
 static const QString SVO_EXTENSION = ".svo";
 static const QString SVO_JSON_EXTENSION = ".svo.json";
@@ -171,7 +174,7 @@ void Application::addAssetToWorld(QString path, QString zipFile, bool isZip) {
     QString mapping;
     QString filename = filenameFromPath(path);
     if (isZip) {
-        QString assetName = zipFile.section("/", -1).remove(QRegExp("[.]zip(.*)$"));
+        QString assetName = zipFile.section("/", -1).remove(QRegularExpression(QStringLiteral("[.]zip(.*)$")));
         QString assetFolder = path.section("model_repo/", -1);
         mapping = "/" + assetName + "/" + assetFolder;
     } else {
@@ -339,7 +342,9 @@ void Application::handleUnzip(QString zipFile, QStringList unzipFile, bool autoA
 }
 
 void Application::packageModel() {
+#if !defined(Q_OS_IOS)
     ModelPackager::package();
+#endif
 }
 
 void Application::addAssetToWorldCheckModelSize() {

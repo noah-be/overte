@@ -18,6 +18,7 @@
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonArray>
 #include <QtCore/QJsonObject>
+#include <QtCore/QRegularExpression>
 #include <QtCore/QStandardPaths>
 #include <QtCore/QVariant>
 
@@ -26,13 +27,14 @@
 
 QVariantMap HifiConfigVariantMap::mergeCLParametersWithJSONConfig(const QStringList& argumentList) {
 
-    QMultiMap<QString, QVariant> mergedMap;
+    QVariantMap mergedMap;
 
     // Add anything in the CL parameter list to the variant map.
     // Take anything with a dash in it as a key, and the values after it as the value.
 
     const QString DASHED_KEY_REGEX_STRING = "(^-{1,2})([\\w-]+)";
-    QRegExp dashedKeyRegex(DASHED_KEY_REGEX_STRING);
+    const QRegularExpression dashedKeyRegex(
+        QRegularExpression::anchoredPattern(DASHED_KEY_REGEX_STRING));
 
     int keyIndex = argumentList.indexOf(dashedKeyRegex);
     int nextKeyIndex = 0;
@@ -43,7 +45,7 @@ QVariantMap HifiConfigVariantMap::mergeCLParametersWithJSONConfig(const QStringL
     while (keyIndex != -1) {
         if (argumentList[keyIndex] != CONFIG_FILE_OPTION) {
             // we have a key - look forward to see how many values associate to it
-            QString key = dashedKeyRegex.cap(2);
+            QString key = dashedKeyRegex.match(argumentList[keyIndex]).captured(2);
 
             nextKeyIndex = argumentList.indexOf(dashedKeyRegex, keyIndex + 1);
 

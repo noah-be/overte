@@ -30,7 +30,18 @@ void CompositeHUD::run(const RenderContextPointer& renderContext, const gpu::Fra
         if (inputs) {
             batch.setFramebuffer(inputs);
         }
-        if (renderContext->args->_hudOperator) {
+#if defined(Q_OS_IOS)
+        const auto presentProbe = qEnvironmentVariable("OVERTE_IOS_PRESENT_PROBE");
+        // Resample probes must observe the framebuffer before the HUD pass.
+        // The HUD uses that same framebuffer in place, so drawing it here
+        // would overwrite and invalidate every earlier presentation probe.
+        const bool bypassHUD = presentProbe == "resample" ||
+            presentProbe == "tone-solid" || presentProbe == "tone-uv" ||
+            presentProbe == "tone-sample";
+#else
+        constexpr bool bypassHUD = false;
+#endif
+        if (!bypassHUD && renderContext->args->_hudOperator) {
             renderContext->args->_hudOperator(batch, renderContext->args->_hudTexture);
         }
     });

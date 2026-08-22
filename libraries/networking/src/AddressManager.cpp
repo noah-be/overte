@@ -18,7 +18,7 @@
 #include <QClipboard>
 #include <QDebug>
 #include <QJsonDocument>
-#include <QRegExp>
+#include <QRegularExpression>
 #include <QStringList>
 #include <QThread>
 
@@ -259,8 +259,10 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
         lookupUrl.setScheme(URL_SCHEME_OVERTE);
     }
 
-    static const QRegExp PORT_REGEX = QRegExp("\\d{1,5}(\\/.*)?");
-    if(!lookupUrl.scheme().isEmpty() && lookupUrl.host().isEmpty() && PORT_REGEX.exactMatch(lookupUrl.path())) {
+    static const QRegularExpression PORT_REGEX {
+        QRegularExpression::anchoredPattern("\\d{1,5}(\\/.*)?")
+    };
+    if (!lookupUrl.scheme().isEmpty() && lookupUrl.host().isEmpty() && PORT_REGEX.match(lookupUrl.path()).hasMatch()) {
         // this is in the form somewhere:<port>, convert it to hifi://somewhere:<port>
         lookupUrl = QUrl(URL_SCHEME_OVERTE + "://" + lookupUrl.toString());
     }
@@ -280,7 +282,9 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
 
         if (lookupUrl.host().isEmpty()) {
             // this was in the form hifi:/somewhere or hifi:somewhere.  Fix it by making it hifi://somewhere
-            static const QRegExp HIFI_SCHEME_REGEX = QRegExp(URL_SCHEME_OVERTE + ":\\/{0,2}", Qt::CaseInsensitive);
+            static const QRegularExpression HIFI_SCHEME_REGEX {
+                URL_SCHEME_OVERTE + ":\\/{0,2}", QRegularExpression::CaseInsensitiveOption
+            };
             lookupUrl = QUrl(lookupUrl.toString().replace(HIFI_SCHEME_REGEX, URL_SCHEME_OVERTE + "://"));
         }
 
@@ -429,8 +433,11 @@ bool isPossiblePlaceName(QString possiblePlaceName) {
     static const int MAXIMUM_PLACENAME_LENGTH = 64;
     if (possiblePlaceName.toLower() != LOCALHOST &&
         length >= MINIMUM_PLACENAME_LENGTH && length <= MAXIMUM_PLACENAME_LENGTH) {
-        const QRegExp PLACE_NAME_REGEX = QRegExp("^[0-9A-Za-z](([0-9A-Za-z]|[-_](?![-_]))*[^\\W_]$|$)");
-        result = PLACE_NAME_REGEX.indexIn(possiblePlaceName) == 0;
+        static const QRegularExpression PLACE_NAME_REGEX {
+            "^[0-9A-Za-z](([0-9A-Za-z]|[-_](?![-_]))*[^\\W_]$|$)"
+        };
+        const auto match = PLACE_NAME_REGEX.match(possiblePlaceName);
+        result = match.hasMatch() && match.capturedStart() == 0;
     }
     return result;
 }
@@ -677,14 +684,15 @@ bool AddressManager::handleNetworkAddress(const QString& lookupString, LookupTri
     const QString HOSTNAME_REGEX_STRING = "^((?:[A-Z0-9]|[A-Z0-9][A-Z0-9\\-]{0,61}[A-Z0-9])"
         "(?:\\.(?:[A-Z0-9]|[A-Z0-9][A-Z0-9\\-]{0,61}[A-Z0-9]))+|localhost)(?::(\\d{1,5}))?$";
 
-    QRegExp ipAddressRegex(IP_ADDRESS_REGEX_STRING);
+    const QRegularExpression ipAddressRegex(QRegularExpression::anchoredPattern(IP_ADDRESS_REGEX_STRING));
+    const auto ipAddressMatch = ipAddressRegex.match(lookupString);
 
-    if (ipAddressRegex.indexIn(lookupString) != -1) {
-        QString domainIPString = ipAddressRegex.cap(1);
+    if (ipAddressMatch.hasMatch()) {
+        QString domainIPString = ipAddressMatch.captured(1);
 
         quint16 domainPort = 0;
-        if (!ipAddressRegex.cap(2).isEmpty()) {
-            domainPort = (quint16) ipAddressRegex.cap(2).toInt();
+        if (!ipAddressMatch.captured(2).isEmpty()) {
+            domainPort = (quint16) ipAddressMatch.captured(2).toInt();
         }
 
         emit lookupResultsFinished();
@@ -699,15 +707,19 @@ bool AddressManager::handleNetworkAddress(const QString& lookupString, LookupTri
         return true;
     }
 
-    QRegExp hostnameRegex(HOSTNAME_REGEX_STRING, Qt::CaseInsensitive);
+    const QRegularExpression hostnameRegex(
+        QRegularExpression::anchoredPattern(HOSTNAME_REGEX_STRING),
+        QRegularExpression::CaseInsensitiveOption
+    );
+    const auto hostnameMatch = hostnameRegex.match(lookupString);
 
-    if (hostnameRegex.indexIn(lookupString) != -1) {
-        QString domainHostname = hostnameRegex.cap(1);
+    if (hostnameMatch.hasMatch()) {
+        QString domainHostname = hostnameMatch.captured(1);
 
         quint16 domainPort = 0;
 
-        if (!hostnameRegex.cap(2).isEmpty()) {
-            domainPort = (quint16)hostnameRegex.cap(2).toInt();
+        if (!hostnameMatch.captured(2).isEmpty()) {
+            domainPort = (quint16)hostnameMatch.captured(2).toInt();
         }
 
         emit lookupResultsFinished();
@@ -730,9 +742,9 @@ bool AddressManager::handleNetworkAddress(const QString& lookupString, LookupTri
 bool AddressManager::handleDomainID(const QString& host) {
     const QString UUID_REGEX_STRING = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
-    QRegExp domainIDRegex(UUID_REGEX_STRING, Qt::CaseInsensitive);
+    const QRegularExpression domainIDRegex(UUID_REGEX_STRING, QRegularExpression::CaseInsensitiveOption);
 
-    return (domainIDRegex.indexIn(host) != -1);
+    return domainIDRegex.match(host).hasMatch();
 }
 
 void AddressManager::handlePath(const QString& path, LookupTrigger trigger, bool wasPathOnly) {
@@ -763,13 +775,14 @@ bool AddressManager::handleViewpoint(const QString& viewpointString, bool should
         FLOAT_REGEX_STRING + SPACED_COMMA_REGEX_STRING + FLOAT_REGEX_STRING + SPACED_COMMA_REGEX_STRING +
         FLOAT_REGEX_STRING + "\\s*$";
 
-    QRegExp positionRegex(POSITION_REGEX_STRING);
+    const QRegularExpression positionRegex(POSITION_REGEX_STRING);
+    const auto positionMatch = positionRegex.match(viewpointString);
 
-    if (positionRegex.indexIn(viewpointString) != -1) {
+    if (positionMatch.hasMatch()) {
         // we have at least a position, so emit our signal to say we need to change position
-        glm::vec3 newPosition(positionRegex.cap(1).toFloat(),
-                              positionRegex.cap(2).toFloat(),
-                              positionRegex.cap(3).toFloat());
+        glm::vec3 newPosition(positionMatch.captured(1).toFloat(),
+                              positionMatch.captured(2).toFloat(),
+                              positionMatch.captured(3).toFloat());
 
         // We need to use definitelyPathOnly, pathString and _newHostLookupPath to determine if the current address
         // should be stored in the history before we ask for a position/orientation change. A relative path that was
@@ -788,24 +801,26 @@ bool AddressManager::handleViewpoint(const QString& viewpointString, bool should
         if (!isNaN(newPosition)) {
             glm::quat newOrientation;
 
-            QRegExp orientationRegex(QUAT_REGEX_STRING);
+            const QRegularExpression orientationRegex(QUAT_REGEX_STRING);
 
             bool orientationChanged = false;
 
             // we may also have an orientation
-            if (viewpointString[positionRegex.matchedLength() - 1] == QChar('/')
-                && orientationRegex.indexIn(viewpointString, positionRegex.matchedLength() - 1) != -1) {
+            if (viewpointString[positionMatch.capturedEnd() - 1] == QChar('/')) {
+                const auto orientationMatch = orientationRegex.match(viewpointString, positionMatch.capturedEnd() - 1);
+                if (orientationMatch.hasMatch()) {
 
-                newOrientation = glm::normalize(glm::quat(orientationRegex.cap(4).toFloat(),
-                                                          orientationRegex.cap(1).toFloat(),
-                                                          orientationRegex.cap(2).toFloat(),
-                                                          orientationRegex.cap(3).toFloat()));
+                    newOrientation = glm::normalize(glm::quat(orientationMatch.captured(4).toFloat(),
+                                                              orientationMatch.captured(1).toFloat(),
+                                                              orientationMatch.captured(2).toFloat(),
+                                                              orientationMatch.captured(3).toFloat()));
 
-                if (!isNaN(newOrientation.x) && !isNaN(newOrientation.y) && !isNaN(newOrientation.z)
-                    && !isNaN(newOrientation.w)) {
-                    orientationChanged = true;
-                } else {
-                    qCDebug(networking) << "Orientation parsed from lookup string is invalid. Won't use for location change.";
+                    if (!isNaN(newOrientation.x) && !isNaN(newOrientation.y) && !isNaN(newOrientation.z)
+                        && !isNaN(newOrientation.w)) {
+                        orientationChanged = true;
+                    } else {
+                        qCDebug(networking) << "Orientation parsed from lookup string is invalid. Won't use for location change.";
+                    }
                 }
             }
 
@@ -829,10 +844,11 @@ const QString GET_USER_LOCATION = "/api/v1/users/%1/location";
 bool AddressManager::handleUsername(const QString& lookupString) {
     const QString USERNAME_REGEX_STRING = "^@(\\S+)";
 
-    QRegExp usernameRegex(USERNAME_REGEX_STRING);
+    const QRegularExpression usernameRegex(USERNAME_REGEX_STRING);
+    const auto usernameMatch = usernameRegex.match(lookupString);
 
-    if (usernameRegex.indexIn(lookupString) != -1) {
-        goToUser(usernameRegex.cap(1));
+    if (usernameMatch.hasMatch()) {
+        goToUser(usernameMatch.captured(1));
         return true;
     }
 

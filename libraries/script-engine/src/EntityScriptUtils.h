@@ -14,6 +14,7 @@
 #ifndef hifi_EntityScriptUtils_h
 #define hifi_EntityScriptUtils_h
 #include <QMetaEnum>
+#include <QObject>
 
 class EntityScriptStatus_ : public QObject {
     Q_OBJECT

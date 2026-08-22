@@ -12,6 +12,9 @@
 #include "KeyboardMouseDevice.h"
 
 #include <QtGui/QTouchEvent>
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QEventPoint>
+#endif
 #include <QGestureEvent>
 #include <QGuiApplication>
 #include <QWindow>
@@ -23,9 +26,49 @@
 
 const char* TouchscreenDevice::NAME = "Touchscreen";
 
+namespace {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+using OverteTouchscreenPoint = QEventPoint;
+#else
+using OverteTouchscreenPoint = QTouchEvent::TouchPoint;
+#endif
+
+const QList<OverteTouchscreenPoint>& touchscreenPoints(const QTouchEvent* event) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return event->points();
+#else
+    return event->touchPoints();
+#endif
+}
+
+QPointF touchscreenPosition(const OverteTouchscreenPoint& point) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return point.position();
+#else
+    return point.pos();
+#endif
+}
+
+QScreen* touchscreenScreen(const QTouchEvent* event, const OverteTouchscreenPoint& point) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    QScreen* screen = QGuiApplication::screenAt(point.globalPosition().toPoint());
+    return screen ? screen : QGuiApplication::primaryScreen();
+#else
+    return event->window() && event->window()->screen()
+        ? event->window()->screen()
+        : QGuiApplication::primaryScreen();
+#endif
+}
+}
+
 bool TouchscreenDevice::isSupported() const {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    for (const auto* touchDevice : QInputDevice::devices()) {
+        if (touchDevice->type() == QInputDevice::DeviceType::TouchScreen) {
+#else
     for (auto touchDevice : QTouchDevice::devices()) {
         if (touchDevice->type() == QTouchDevice::TouchScreen) {
+#endif
             return true;
         }
     }
@@ -73,11 +116,12 @@ void TouchscreenDevice::InputDevice::focusOutEvent() {
 }
 
 void TouchscreenDevice::touchBeginEvent(const QTouchEvent* event) {
-    const QTouchEvent::TouchPoint& point = event->touchPoints().at(0);
-    _firstTouchVec = glm::vec2(point.pos().x(), point.pos().y());
+    const auto& point = touchscreenPoints(event).at(0);
+    const auto position = touchscreenPosition(point);
+    _firstTouchVec = glm::vec2(position.x(), position.y());
     KeyboardMouseDevice::enableTouch(false);
-    QScreen* eventScreen = event->window()->screen();
-    if (_screenDPI != eventScreen->physicalDotsPerInch()) {
+    QScreen* eventScreen = touchscreenScreen(event, point);
+    if (eventScreen && _screenDPI != eventScreen->physicalDotsPerInch()) {
         _screenDPIScale.x = (float)eventScreen->physicalDotsPerInchX();
         _screenDPIScale.y = (float)eventScreen->physicalDotsPerInchY();
         _screenDPI = eventScreen->physicalDotsPerInch();
@@ -90,9 +134,10 @@ void TouchscreenDevice::touchEndEvent(const QTouchEvent* event) {
 }
 
 void TouchscreenDevice::touchUpdateEvent(const QTouchEvent* event) {
-    const QTouchEvent::TouchPoint& point = event->touchPoints().at(0);
-    _currentTouchVec = glm::vec2(point.pos().x(), point.pos().y());
-    _touchPointCount = event->touchPoints().count();
+    const auto& points = touchscreenPoints(event);
+    const auto position = touchscreenPosition(points.at(0));
+    _currentTouchVec = glm::vec2(position.x(), position.y());
+    _touchPointCount = points.count();
 }
 
 void TouchscreenDevice::touchGestureEvent(const QGestureEvent* event) {

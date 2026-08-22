@@ -53,7 +53,8 @@ class PicoWorldStateTests(unittest.TestCase):
         )
         local_read = load_body.index("PICO_SERVERLESS_TRACE localRead")
         local_prepare = load_body.index(
-            "prepareServerlessDomainContents(domainURL, domainData, namedPaths)"
+            "prepareServerlessDomainContents(domainURL, domainData, namedPaths)",
+            local_read,
         )
         self.assertLess(
             load_body.index("_picoServerlessSceneImportInProgress = true", local_read),

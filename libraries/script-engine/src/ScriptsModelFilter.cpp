@@ -26,7 +26,12 @@ bool ScriptsModelFilter::lessThan(const QModelIndex& left, const QModelIndex& ri
 }
 
 bool ScriptsModelFilter::filterAcceptsRow(int sourceRow, const QModelIndex& sourceParent) const {
-    if (!filterRegExp().isEmpty()) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    const bool hasFilter = !filterRegularExpression().pattern().isEmpty();
+#else
+    const bool hasFilter = !filterRegExp().isEmpty();
+#endif
+    if (hasFilter) {
         ScriptsModel* scriptsModel = static_cast<ScriptsModel*>(sourceModel());
         TreeNodeBase* node = scriptsModel->getFolderNodes(
             static_cast<TreeNodeFolder*>(scriptsModel->getTreeNodeFromIndex(sourceParent))).at(sourceRow);

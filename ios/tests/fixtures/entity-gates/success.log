@@ -1,0 +1,6 @@
+Overte OVERTE_IOS_ENTITY_GATE domain_list_connected domain= 123e4567-e89b-12d3-a456-426614174000 session= 123e4567-e89b-12d3-a456-426614174001
+Overte OVERTE_IOS_ENTITY_GATE entity_server_active node= 123e4567-e89b-12d3-a456-426614174002
+Overte OVERTE_IOS_ENTITY_GATE entity_query_sent node= 123e4567-e89b-12d3-a456-426614174002 bytes= 144
+Overte OVERTE_IOS_ENTITY_GATE entity_data_received node= 123e4567-e89b-12d3-a456-426614174002 bytes= 1200
+Overte OVERTE_IOS_ENTITY_GATE entity_tree_nonempty entity= {123e4567-e89b-12d3-a456-426614174003}
+Overte OVERTE_IOS_ENTITY_GATE render_handoff entity= {123e4567-e89b-12d3-a456-426614174003}

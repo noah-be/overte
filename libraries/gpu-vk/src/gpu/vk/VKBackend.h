@@ -20,6 +20,8 @@
 #include <utility>
 #include <list>
 #include <array>
+#include <set>
+#include <string>
 
 #include <gpu/Forward.h>
 #include <gpu/Context.h>
@@ -190,6 +192,7 @@ protected:
 
     void preUpdateTransform();
     void transferTransformState(const Batch& batch);
+    uint32_t getDrawCallInfoBinding() const;
 
 protected:
     struct InputStageState {
@@ -392,6 +395,8 @@ public:
     const std::string& getVersion() const override;
     void downloadFramebuffer(const FramebufferPointer& srcFramebuffer, const Vec4i& region, QImage& destImage) final;
     void setDrawCommandBuffer(VkCommandBuffer commandBuffer);
+    // Finish the final renderer pass before the platform swapchain transfer.
+    void finishPresentRendering();
     size_t getNumInputBuffers() const { return _input._invalidBuffers.size(); }
     VkDescriptorImageInfo getDefaultTextureDescriptorInfo();
     // Used by GPU frame player to move camera around
@@ -522,11 +527,29 @@ public:
     // Called after frame finishes rendering. Cleans up and puts frame data object back to the pool.
     void recyclePreviousFrame();
     void waitForGPU();
+#if defined(Q_OS_IOS)
+    void persistIOSDiagnosticSubmit(uint64_t submitId);
+    void retireIOSDiagnosticSubmit();
+#endif
 
+#if !defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)
     void releaseExternalTexture(GLuint id, const Texture::ExternalRecycler& recycler);
+#endif
 
     // VKTODO: quick hack
     VKFramebuffer *_outputTexture{ nullptr };
+#if defined(Q_OS_IOS)
+    // Runtime-selectable presentation boundaries let one simulator binary
+    // distinguish renderer output failures without another full client build.
+    VKFramebuffer* _resampleOutputTexture{ nullptr };
+    VKFramebuffer* _compositeHUDOutputTexture{ nullptr };
+    VKTexture* _toneMappingInputTexture{ nullptr };
+    VKFramebuffer* resolvePresentFramebuffer(const FramebufferPointer& framebuffer);
+    std::set<std::string> _iosCurrentUntrustedPipelines;
+    std::set<std::string> _iosSubmittedUntrustedPipelines;
+    std::set<std::string> _iosHealthyPipelines;
+    std::set<std::string> _iosQuarantinedPipelines;
+#endif
 protected:
     struct TextureManagementStageState {
         bool _sparseCapable{ false };
@@ -559,8 +582,10 @@ protected:
     std::vector<VkWriteDescriptorSet> storageVkWriteDescriptorSets;
     std::vector<VkDescriptorBufferInfo> storageVkDescriptorBufferInfo;
 
+#if !defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)
     std::mutex _externalTexturesMutex;
     std::list<std::pair<GLuint, Texture::ExternalRecycler>> _externalTexturesTrash;
+#endif
 
     // Logical device, application's view of the physical device (GPU)
     // VkPipeline cache object

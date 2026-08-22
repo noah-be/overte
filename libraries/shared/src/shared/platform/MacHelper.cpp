@@ -9,7 +9,7 @@
 
 #include "../PlatformHelper.h"
 
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
 #include <IOKit/IOMessage.h>
 #include <IOKit/pwr_mgt/IOPMLib.h>
 
@@ -66,5 +66,16 @@ void PlatformHelper::setup() {
     DependencyManager::set<PlatformHelper, MacHelper>();
 }
 
-#endif
+#elif defined(Q_OS_IOS)
 
+// iOS lifecycle notifications are delivered by the application delegate.
+// The macOS IOKit system-power service is unavailable in the iOS SDK, so keep
+// the shared dependency present without claiming desktop sleep/wake events.
+class IOSPlatformHelper : public PlatformHelper {
+};
+
+void PlatformHelper::setup() {
+    DependencyManager::set<PlatformHelper, IOSPlatformHelper>();
+}
+
+#endif

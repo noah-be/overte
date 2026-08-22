@@ -15,6 +15,7 @@
 #define hifi_EntityScriptClient_h
 
 #include <QtCore/QSharedPointer>
+#include <QtCore/QObject>
 
 #include <ClientServerUtils.h>
 #include <LimitedNodeList.h>

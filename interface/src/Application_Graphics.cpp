@@ -17,13 +17,21 @@
 
 #include <memory>
 
+#include <QtCore/QRegularExpression>
 #include <QtQml/QQmlContext>
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QtGui/QActionGroup>
+#else
+#include <QtWidgets/QActionGroup>
+#endif
 
 #include <AudioScriptingInterface.h>
 #include <display-plugins/CompositorHelper.h>
 #include <ErrorDialog.h>
 #include <FramebufferCache.h>
+#if !defined(Q_OS_IOS)
 #include <gl/GLHelpers.h>
+#endif
 #include <input-plugins/KeyboardMouseDevice.h>
 #include <input-plugins/TouchscreenDevice.h>
 #include <input-plugins/TouchscreenVirtualPadDevice.h>
@@ -45,13 +53,17 @@
 #include <ui/ResourceImageItem.h>
 #include <ui/TabletScriptingInterface.h>
 #include <ui/types/ContextAwareProfile.h>
+#if !defined(Q_OS_IOS)
 #include <ui/UpdateDialog.h>
+#endif
 #ifndef USE_GL
 #include <vk/VKWindow.h>
 #endif
 
 #include "DeadlockWatchdog.h"
+#ifdef USE_GL
 #include "GLCanvas.h"
+#endif
 #include "InterfaceLogging.h"
 #include "LODManager.h"
 #include "Menu.h"
@@ -60,9 +72,14 @@
 #if defined(Q_OS_ANDROID)
 #include "AndroidHelper.h"
 #endif
+#if defined(Q_OS_IOS)
+#include "IOSTouchUiMetrics.h"
+#endif
 
+#if !defined(Q_OS_IOS)
 Q_GUI_EXPORT void qt_gl_set_global_share_context(QOpenGLContext *context);
 Q_GUI_EXPORT QOpenGLContext *qt_gl_global_share_context();
+#endif
 
 static const QString SYSTEM_TABLET = "com.highfidelity.interface.tablet.system";
 
@@ -89,10 +106,14 @@ void Application::initializeGL() {
     // When loading QtWebEngineWidgets, it creates a global share context on startup.
     // We have to account for this possibility by checking here for an existing
     // global share context
-    auto globalShareContext = qt_gl_global_share_context();
+    QOpenGLContext* globalShareContext { nullptr };
+#if !defined(Q_OS_IOS)
+    globalShareContext = qt_gl_global_share_context();
+#endif
 
-#if !defined(DISABLE_QML)
+#if !defined(DISABLE_QML) && !defined(Q_OS_IOS)
     // Build a shared canvas / context for the Chromium processes
+    // iOS does not link Qt WebEngine, so it has no Chromium helper process.
     if (!globalShareContext) {
         // Chromium rendering uses some GL functions that prevent nSight from capturing
         // frames, so we only create the shared context if nsight is NOT active.
@@ -131,8 +152,11 @@ void Application::initializeGL() {
         qCWarning(interfaceapp, "Unable to make window context current");
     }
 
-    // Populate the global OpenGL context based on the information for the primary window GL context
+    // Populate desktop/Android OpenGL diagnostics from the primary context.
+    // MoltenVK has no GL context to describe on iOS.
+#if !defined(Q_OS_IOS)
     gl::ContextInfo::get(true);
+#endif
 
 #if !defined(DISABLE_QML)
     QStringList chromiumFlags;
@@ -140,12 +164,14 @@ void Application::initializeGL() {
     // Bug 21993: disable microphone and camera input
     //chromiumFlags << "--use-fake-device-for-media-stream";
 
-    // Disable signed distance field font rendering on ATI/AMD GPUs, due to
+    // Disable signed distance field font rendering on ATI/AMD desktop GPUs, due to
     // https://highfidelity.manuscript.com/f/cases/13677/Text-showing-up-white-on-Marketplace-app
+#if !defined(Q_OS_IOS)
     std::string vendor{ (const char*)glGetString(GL_VENDOR) };
     if ((vendor.find("AMD") != std::string::npos) || (vendor.find("ATI") != std::string::npos)) {
         chromiumFlags << "--disable-distance-field-text";
     }
+#endif
 
     // Ensure all Qt webengine processes launched from us have the appropriate command line flags
     if (!chromiumFlags.empty()) {
@@ -153,13 +179,24 @@ void Application::initializeGL() {
     }
 #endif
 
+#if !defined(Q_OS_IOS)
     if (!globalShareContext) {
         globalShareContext = _primaryWidget->qglContext();
         qt_gl_set_global_share_context(globalShareContext);
     }
+#endif
 
     // Build a shared canvas / context for the QML rendering
 #if !defined(DISABLE_QML)
+#if defined(Q_OS_IOS)
+    const hifi::qml::OffscreenSurface::SharedGraphicsContext qmlContext {
+        hifi::qml::OffscreenSurface::SharedGraphicsContext::Backend::Unsupported,
+        nullptr,
+    };
+    if (!OffscreenQmlSurface::configureSharedGraphicsContext(qmlContext)) {
+        qCritical() << "Offscreen QML rendering is disabled on iOS until a native QRhi context lease is implemented";
+    }
+#else
     {
         OffscreenGLCanvas* qmlShareContext = new OffscreenGLCanvas();
         qmlShareContext->setObjectName("QmlShareContext");
@@ -174,12 +211,15 @@ void Application::initializeGL() {
         }
     }
 #endif
+#endif
 
     // Build an offscreen GL context for the main thread.
     _primaryWidget->makeCurrent();
+#if !defined(Q_OS_IOS)
     glClearColor(0.2f, 0.2f, 0.2f, 1);
     glClear(GL_COLOR_BUFFER_BIT);
     _primaryWidget->swapBuffers(); //VKTODO
+#endif
 
     _graphicsEngine->initializeGPU(_primaryWidget);
 }
@@ -221,8 +261,13 @@ static void addDisplayPluginToMenu(const DisplayPluginPointer& displayPlugin, in
         displayPluginGroup->setExclusive(true);
     }
     auto parent = menu->getMenu(MenuOption::OutputMenu);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    const QKeySequence shortcut(Qt::CTRL | static_cast<Qt::Key>(Qt::Key_0 + index));
+#else
+    const QKeySequence shortcut(Qt::CTRL + (Qt::Key_0 + index));
+#endif
     auto action = menu->addActionToQMenuAndActionHash(parent,
-        name, QKeySequence(Qt::CTRL + (Qt::Key_0 + index)), qApp,
+        name, shortcut, qApp,
         SLOT(updateDisplayMode()),
         QAction::NoRole, Menu::UNSPECIFIED_POSITION, groupingMenu);
 
@@ -243,12 +288,14 @@ void Application::initializeUi() {
         auto newValidator = [=](const QUrl& url) -> bool {
             QString allowlistPrefix = "[ALLOWLIST ENTITY SCRIPTS]";
             QList<QString> safeURLS = { "" };
-            safeURLS += qEnvironmentVariable("EXTRA_ALLOWLIST").trimmed().split(QRegExp("\\s*,\\s*"), Qt::SkipEmptyParts);
+            safeURLS += qEnvironmentVariable("EXTRA_ALLOWLIST").trimmed().split(
+                QRegularExpression(QStringLiteral("\\s*,\\s*")), Qt::SkipEmptyParts);
 
             // PULL SAFEURLS FROM INTERFACE.JSON Settings
 
             QVariant raw = Setting::Handle<QVariant>("private/settingsSafeURLS").get();
-            QStringList settingsSafeURLS = raw.toString().trimmed().split(QRegExp("\\s*[,\r\n]+\\s*"), Qt::SkipEmptyParts);
+            QStringList settingsSafeURLS = raw.toString().trimmed().split(
+                QRegularExpression(QStringLiteral("\\s*[,\r\n]+\\s*")), Qt::SkipEmptyParts);
             safeURLS += settingsSafeURLS;
 
             // END PULL SAFEURLS FROM INTERFACE.JSON Settings
@@ -275,7 +322,9 @@ void Application::initializeUi() {
     ErrorDialog::registerType();
     LoginDialog::registerType();
     Tooltip::registerType();
+#if !defined(Q_OS_IOS)
     UpdateDialog::registerType();
+#endif
 
     QmlContextCallback platformInfoCallback = [](QQmlContext* context) {
         context->setContextProperty("PlatformInfo", new PlatformInfoScriptingInterface());
@@ -293,6 +342,9 @@ void Application::initializeUi() {
     OffscreenQmlSurface::addAllowlistContextHandler({
         QUrl{ "hifi/tts/TTS.qml" }
     }, ttsCallback);
+#if defined(Q_OS_IOS)
+    registerIOSTouchUiMetricsQmlType();
+#endif
     qmlRegisterType<ResourceImageItem>("Hifi", 1, 0, "ResourceImageItem");
     qmlRegisterType<Preference>("Hifi", 1, 0, "Preference");
     qmlRegisterType<WebBrowserSuggestionsEngine>("HifiWeb", 1, 0, "WebBrowserSuggestionsEngine");

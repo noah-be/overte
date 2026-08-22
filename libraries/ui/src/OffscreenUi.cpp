@@ -119,15 +119,29 @@ bool OffscreenUi::shouldSwallowShortcut(QEvent* event) {
     return false;
 }
 
-static QTouchDevice _touchDevice;
-OffscreenUi::OffscreenUi() {
+namespace {
+OffscreenTouchDevice& offscreenUiTouchDevice() {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    static OffscreenTouchDevice device(
+        QStringLiteral("OffscreenUiTouchDevice"), 0x4f56545549LL,
+        QInputDevice::DeviceType::TouchScreen, QPointingDevice::PointerType::Finger,
+        QInputDevice::Capability::Position, 4, 0);
+#else
+    static OffscreenTouchDevice device;
     static std::once_flag once;
     std::call_once(once, [&] {
-        _touchDevice.setCapabilities(QTouchDevice::Position);
-        _touchDevice.setType(QTouchDevice::TouchScreen);
-        _touchDevice.setName("OffscreenUiTouchDevice");
-        _touchDevice.setMaximumTouchPoints(4);
+        device.setCapabilities(QTouchDevice::Position);
+        device.setType(QTouchDevice::TouchScreen);
+        device.setName("OffscreenUiTouchDevice");
+        device.setMaximumTouchPoints(4);
     });
+#endif
+    return device;
+}
+}
+
+OffscreenUi::OffscreenUi() {
+    (void)offscreenUiTouchDevice();
 
     auto pointerManager = DependencyManager::get<PointerManager>();
     connect(pointerManager.data(), &PointerManager::hoverBeginHUD, this, &OffscreenUi::hoverBeginEvent);
@@ -140,15 +154,15 @@ OffscreenUi::OffscreenUi() {
 }
 
 void OffscreenUi::hoverBeginEvent(const PointerEvent& event) {
-    OffscreenQmlSurface::hoverBeginEvent(event, _touchDevice);
+    OffscreenQmlSurface::hoverBeginEvent(event, offscreenUiTouchDevice());
 }
 
 void OffscreenUi::hoverEndEvent(const PointerEvent& event) {
-    OffscreenQmlSurface::hoverEndEvent(event, _touchDevice);
+    OffscreenQmlSurface::hoverEndEvent(event, offscreenUiTouchDevice());
 }
 
 void OffscreenUi::handlePointerEvent(const PointerEvent& event) {
-    OffscreenQmlSurface::handlePointerEvent(event, _touchDevice);
+    OffscreenQmlSurface::handlePointerEvent(event, offscreenUiTouchDevice());
 }
 
 QObject* OffscreenUi::getFlags() {

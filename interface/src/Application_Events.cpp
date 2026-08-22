@@ -33,7 +33,9 @@
 #include <ui/DialogsManager.h>
 
 #include "AudioClient.h"
+#ifdef USE_GL
 #include "GLCanvas.h"
+#endif
 #include "Menu.h"
 
 #if defined(Q_OS_ANDROID)
@@ -197,7 +199,7 @@ bool Application::eventFilter(QObject* object, QEvent* event) {
         return true;
     }
 
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
     // On Mac OS, Cmd+LeftClick is treated as a RightClick (more specifically, it seems to
     // be Cmd+RightClick without the modifier being dropped). Starting in Qt 5.12, only
     // on Mac, the MouseButtonRelease event for these mouse presses is sent to the top
@@ -303,6 +305,11 @@ void Application::onPresent(quint32 frameCount) {
 void Application::activeChanged(Qt::ApplicationState state) {
     switch (state) {
         case Qt::ApplicationActive:
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+            if (!_isForeground && !_aboutToQuit && _startUpFinished) {
+                enterForeground();
+            }
+#endif
             _isForeground = true;
             if (!_aboutToQuit && _startUpFinished) {
                 getRefreshRateManager().setRefreshRateRegime(RefreshRateManager::RefreshRateRegime::FOCUS_ACTIVE);
@@ -314,6 +321,12 @@ void Application::activeChanged(Qt::ApplicationState state) {
             // Mobile platforms reach these explicit background states after
             // leaving the app. Do not keep reporting the client as foreground
             // merely because neither state enters the switch default.
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+            if (_isForeground && !_aboutToQuit && _startUpFinished) {
+                beforeEnterBackground();
+                enterBackground();
+            }
+#endif
             _isForeground = false;
             break;
         case Qt::ApplicationInactive:
@@ -349,7 +362,7 @@ void Application::windowMinimizedChanged(bool minimized) {
 
 void Application::keyPressEvent(QKeyEvent* event) {
     if (!event->isAutoRepeat()) {
-        _keysPressed.insert(event->key(), *event);
+        _keysPressed.insert(event->key(), event->text());
     }
 
 #if defined(ANDROID_APP_PHONE_INTERFACE)
@@ -646,10 +659,10 @@ void Application::synthesizeKeyReleasEvents() {
     // synthesize events for keys currently pressed, since we may not get their release events
     // Because our key event handlers may manipulate _keysPressed, lets swap the keys pressed into a local copy,
     // clearing the existing list.
-    QHash<int, QKeyEvent> keysPressed;
+    QHash<int, QString> keysPressed;
     std::swap(keysPressed, _keysPressed);
-    for (auto& ev : keysPressed) {
-        QKeyEvent synthesizedEvent { QKeyEvent::KeyRelease, ev.key(), Qt::NoModifier, ev.text() };
+    for (auto it = keysPressed.cbegin(); it != keysPressed.cend(); ++it) {
+        QKeyEvent synthesizedEvent { QKeyEvent::KeyRelease, it.key(), Qt::NoModifier, it.value() };
         keyReleaseEvent(&synthesizedEvent);
     }
 }
@@ -737,7 +750,7 @@ void Application::mousePressEvent(QMouseEvent* event) {
         return;
     }
 
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
     // Fix for OSX right click dragging on window when coming from a native window
     bool isFocussed = hasFocus();
     if (!isFocussed && event->button() == Qt::MouseButton::RightButton) {

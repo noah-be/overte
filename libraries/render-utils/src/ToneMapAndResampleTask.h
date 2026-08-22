@@ -76,8 +76,8 @@ private:
     // Class describing the uniform buffer with all the parameters common to the tone mapping shaders
     class Parameters {
     public:
-        float _twoPowExposure = 1.0f;
-        int _toneCurve = (int)TonemappingCurve::SRGB;
+        glm::vec4 _texcoordTransform { 0.0f, 0.0f, 1.0f, 1.0f };
+        glm::vec4 _toneMapping { 1.0f, (float)TonemappingCurve::SRGB, 0.0f, 0.0f };
 
         Parameters() {}
     };

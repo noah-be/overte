@@ -15,6 +15,16 @@
 #include <QtGui/qevent.h>
 
 #include <QTouchEvent>
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QtGui/QEventPoint>
+#include <QtGui/QPointingDevice>
+using OffscreenTouchDevice = QPointingDevice;
+using OffscreenTouchPoint = QEventPoint;
+#else
+#include <QtGui/QTouchDevice>
+using OffscreenTouchDevice = QTouchDevice;
+using OffscreenTouchPoint = QTouchEvent::TouchPoint;
+#endif
 
 #include <ScriptEngine.h>
 #include <PointerEvent.h>
@@ -81,9 +91,9 @@ private slots:
     void onFocusObjectChanged(QObject* newFocus) override;
 
 public slots:
-    void hoverBeginEvent(const PointerEvent& event, class QTouchDevice& device);
-    void hoverEndEvent(const PointerEvent& event, class QTouchDevice& device);
-    bool handlePointerEvent(const PointerEvent& event, class QTouchDevice& device, bool release = false);
+    void hoverBeginEvent(const PointerEvent& event, OffscreenTouchDevice& device);
+    void hoverEndEvent(const PointerEvent& event, OffscreenTouchDevice& device);
+    bool handlePointerEvent(const PointerEvent& event, OffscreenTouchDevice& device, bool release = false);
     void changeAudioOutputDevice(const QString& deviceName, bool isHtmlUpdate = false);
     void forceHtmlAudioOutputDeviceUpdate();
     void forceQmlAudioOutputDeviceUpdate();
@@ -94,7 +104,7 @@ private:
     QQuickItem* _currentFocusItem { nullptr };
 
     struct TouchState {
-        QTouchEvent::TouchPoint touchPoint;
+        OffscreenTouchPoint touchPoint;
         bool hovering { false };
         bool pressed { false };
     };

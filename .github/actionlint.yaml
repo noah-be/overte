@@ -16,3 +16,5 @@ self-hosted-runner:
     - depot-windows-202?-??
     - depot-macos-latest
     - depot-macos-??
+    # Dedicated protected runner with one paired physical iPad.
+    - overte-ios-ipad

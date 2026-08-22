@@ -39,7 +39,7 @@ protected:
     void emitClosing();
 
 public slots:
-    virtual void resizeFramebuffer();
+    virtual bool resizeFramebuffer();
 
 protected:
     void resizeEvent(QResizeEvent* event) override;
@@ -48,6 +48,7 @@ protected:
     void setupDepthStencil();
     void setupFramebuffers();
     void createCommandBuffers();
+    void recreateDrawCommandBuffers();
     void vulkanCleanup(); // Called by the context before backend is destroyed.
 
 public:

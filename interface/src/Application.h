@@ -367,11 +367,13 @@ public:
     void shareSnapshot(const QString& filename, const QUrl& href = QUrl(""));
 
 
-#if defined(Q_OS_ANDROID)
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS) || defined(OVERTE_IOS)
     void beforeEnterBackground();
     void enterBackground();
     void enterForeground();
+#if defined(Q_OS_ANDROID)
     void toggleAwayMode();
+#endif
 #endif
 
 signals:
@@ -856,7 +858,7 @@ private:
 
 
     // Events
-    QHash<int, QKeyEvent> _keysPressed;
+    QHash<int, QString> _keysPressed;
 #if defined(ANDROID_APP_PHONE_INTERFACE)
     // Tracks a Back press consumed by phone screen-space UI so the matching
     // release is not exposed to scripts or treated as an app-backgrounding key.

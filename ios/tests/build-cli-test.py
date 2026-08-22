@@ -1,0 +1,528 @@
+#!/usr/bin/env python3
+"""Exercise the iOS build CLI on Linux with deterministic Apple-tool shims."""
+
+# Copyright 2026 Overte e.V.
+# SPDX-License-Identifier: Apache-2.0
+
+from __future__ import annotations
+
+import json
+import os
+import plistlib
+import shutil
+import stat
+import struct
+import subprocess
+import tempfile
+from pathlib import Path
+
+
+IOS_ROOT = Path(__file__).resolve().parents[1]
+SOURCE_ROOT = IOS_ROOT.parent
+BUILD_SCRIPT = IOS_ROOT / "build-ios.sh"
+
+
+def make_executable(path: Path, body: str) -> None:
+    path.write_text("#!/usr/bin/env bash\nset -euo pipefail\n" + body, encoding="utf-8")
+    path.chmod(path.stat().st_mode | stat.S_IXUSR)
+
+
+def run_cli(environment: dict[str, str], *arguments: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [str(BUILD_SCRIPT), *arguments],
+        cwd=SOURCE_ROOT,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+
+def arm64_simulator_macho() -> bytes:
+    build_version = struct.pack("<IIIIII", 0x32, 24, 7, 0, 0, 0)
+    header = struct.pack(
+        "<IiiIIIII",
+        0xFEEDFACF,
+        0x0100000C,
+        0,
+        2,
+        1,
+        len(build_version),
+        0,
+        0,
+    )
+    return header + build_version + b"fixture"
+
+
+def main() -> None:
+    build_script_text = BUILD_SCRIPT.read_text(encoding="utf-8")
+    assert '"${client_graph_arguments[@]}"' not in build_script_text
+    assert '"${configure_arguments[@]}"' in build_script_text
+    assert "Keep this array unconditionally non-empty" in build_script_text
+
+    with tempfile.TemporaryDirectory(prefix="overte-ios-cli-") as temporary:
+        root = Path(temporary)
+        shims = root / "bin"
+        shims.mkdir()
+        log = root / "tool.log"
+        sdk = root / "iPhone.sdk"
+        sdk.mkdir()
+
+        make_executable(shims / "uname", 'echo Darwin\n')
+        make_executable(
+            shims / "xcodebuild",
+            'printf "Xcode %s\\nBuild version TEST\\n" "${FAKE_XCODE_VERSION:-26.2}"\n',
+        )
+        make_executable(
+            shims / "xcrun",
+            'case "$*" in\n'
+            '  dwarfdump\\ --uuid*)\n'
+            '    if [[ "$*" == *".dSYM/"* ]]; then uuid="${FAKE_DSYM_UUID:-$FAKE_APP_UUID}"; '
+            'else uuid="$FAKE_APP_UUID"; fi\n'
+            '    printf "UUID: %s (arm64) %s\\n" "$uuid" "${@: -1}" ;;\n'
+            '  dsymutil\\ *)\n'
+            '    [[ "${FAKE_DSYMUTIL_FAIL:-0}" == "0" ]] || exit 65\n'
+            '    [[ "${3:-}" == "-o" && -n "${4:-}" ]] || exit 64\n'
+            '    mkdir -p "$4/Contents/Resources/DWARF"\n'
+            '    printf "generated fixture DWARF" > "$4/Contents/Resources/DWARF/Overte"\n'
+            '    printf "dsymutil <%s> <-o> <%s>\\n" "$2" "$4" >> "$FAKE_TOOL_LOG" ;;\n'
+            '  *--show-sdk-version*) echo "${FAKE_SDK_VERSION:-26.1}" ;;\n'
+            '  *--show-sdk-path*) echo "$FAKE_SDK_PATH" ;;\n'
+            '  *) echo "unexpected xcrun invocation: $*" >&2; exit 64 ;;\n'
+            'esac\n',
+        )
+        make_executable(
+            shims / "cmake",
+            'if [[ "${1:-}" == "--version" ]]; then\n'
+            '  echo "cmake version ${FAKE_CMAKE_VERSION:-3.30.1}"\n'
+            'else\n'
+            '  printf "cmake" >> "$FAKE_TOOL_LOG"\n'
+            '  printf " <%s>" "$@" >> "$FAKE_TOOL_LOG"\n'
+            '  printf "\\n" >> "$FAKE_TOOL_LOG"\n'
+            'fi\n',
+        )
+        make_executable(
+            shims / "conan",
+            'if [[ "${1:-}" == "--version" ]]; then\n'
+            '  echo "Conan version ${FAKE_CONAN_VERSION:-2.25.2}"\n'
+            'else\n'
+            '  printf "conan" >> "$FAKE_TOOL_LOG"\n'
+            '  printf " <%s>" "$@" >> "$FAKE_TOOL_LOG"\n'
+            '  printf " sdk-device=<%s> sdk-simulator=<%s>\\n" '
+            '"${OVERTE_IOS_DEVICE_SDK_PATH:-}" "${OVERTE_IOS_SIMULATOR_SDK_PATH:-}" '
+            '>> "$FAKE_TOOL_LOG"\n'
+            "  echo '{\"graph\":{\"nodes\":{\"0\":{\"ref\":\"overte-ios-dependencies/0.1\","
+            "\"context\":\"host\",\"settings\":{\"os\":\"iOS\"},\"options\":{}}}}}'\n"
+            'fi\n',
+        )
+        make_executable(
+            shims / "lipo",
+            '[[ "${FAKE_LIPO_FAIL:-0}" == "0" ]]\n',
+        )
+        make_executable(
+            shims / "ditto",
+            'destination="${@: -1}"\nmkdir -p "$(dirname "$destination")"\ntouch "$destination"\n',
+        )
+
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "PATH": f"{shims}{os.pathsep}{environment['PATH']}",
+                "FAKE_SDK_PATH": str(sdk),
+                "FAKE_TOOL_LOG": str(log),
+                "FAKE_APP_UUID": "87810988-b99f-37df-b30d-599a85a641b6",
+            }
+        )
+
+        qt_root = root / "qt-ios"
+        (qt_root / "lib/cmake/Qt6").mkdir(parents=True)
+        (qt_root / "lib/cmake/Qt6/Qt6Config.cmake").touch()
+        (qt_root / "lib/cmake/Qt6/qt.toolchain.cmake").touch()
+        (qt_root / "lib/cmake/Qt6/Qt6ConfigVersionImpl.cmake").write_text(
+            'set(PACKAGE_VERSION "6.11.1")\n', encoding="utf-8"
+        )
+        (qt_root / "bin").mkdir()
+        make_executable(
+            qt_root / "bin/qt-cmake",
+            'printf "qt-cmake" >> "$FAKE_TOOL_LOG"\n'
+            'printf " <%s>" "$@" >> "$FAKE_TOOL_LOG"\n'
+            'printf "\\n" >> "$FAKE_TOOL_LOG"\n',
+        )
+        environment["OVERTE_IOS_QT_ROOT"] = str(qt_root)
+
+        moltenvk_root = root / "MoltenVK"
+        (moltenvk_root / "MoltenVK/include/vulkan").mkdir(parents=True)
+        (moltenvk_root / "MoltenVK/include/vulkan/vulkan.h").touch()
+        simulator_slice = moltenvk_root / "MoltenVK/static/MoltenVK.xcframework/ios-arm64_x86_64-simulator"
+        simulator_slice.mkdir(parents=True)
+        (simulator_slice / "libMoltenVK.a").touch()
+        device_slice = moltenvk_root / "MoltenVK/static/MoltenVK.xcframework/ios-arm64"
+        device_slice.mkdir(parents=True)
+        (device_slice / "libMoltenVK.a").touch()
+        environment["OVERTE_IOS_MOLTENVK_ROOT"] = str(moltenvk_root)
+
+        v8_root = root / "v8-ios"
+        (v8_root / "include/node").mkdir(parents=True)
+        (v8_root / "include/node/v8.h").touch()
+        (v8_root / "lib").mkdir()
+        (v8_root / "lib/libnode.a").touch()
+        environment["OVERTE_IOS_V8_ROOT"] = str(v8_root)
+
+        doctor = run_cli(
+            environment,
+            "doctor",
+            "--platform",
+            "simulator",
+            "--require-qt",
+            "--require-v8",
+            "--require-moltenvk",
+        )
+        assert doctor.returncode == 0, doctor.stderr
+        assert "iOS build environment is ready" in doctor.stdout
+        assert "Python:" in doctor.stdout
+        assert "Static non-JIT V8:" in doctor.stdout
+
+        wrong_slice = run_cli(environment | {"FAKE_LIPO_FAIL": "1"}, "doctor", "--require-v8")
+        assert wrong_slice.returncode == 1
+        assert "does not contain arm64" in wrong_slice.stderr
+
+        outdated_environment = environment | {"FAKE_XCODE_VERSION": "25.4"}
+        outdated = run_cli(outdated_environment, "doctor")
+        assert outdated.returncode == 1
+        assert "Xcode 26 or newer is required" in outdated.stderr
+
+        wrong_conan_environment = environment | {"FAKE_CONAN_VERSION": "2.26.0"}
+        wrong_conan = run_cli(wrong_conan_environment, "doctor")
+        assert wrong_conan.returncode == 1
+        assert "required for the audited graph" in wrong_conan.stderr
+
+        qt_version_file = qt_root / "lib/cmake/Qt6/Qt6ConfigVersionImpl.cmake"
+        qt_version_file.write_text('set(PACKAGE_VERSION "6.10.3")\n', encoding="utf-8")
+        outdated_qt = run_cli(environment, "doctor", "--require-qt")
+        assert outdated_qt.returncode == 1
+        assert "Qt 6.11.1 or newer is required" in outdated_qt.stderr
+        qt_version_file.write_text('set(PACKAGE_VERSION "6.11.1")\n', encoding="utf-8")
+
+        qt_toolchain_file = qt_root / "lib/cmake/Qt6/qt.toolchain.cmake"
+        qt_toolchain_file.unlink()
+        missing_qt_toolchain = run_cli(environment, "doctor", "--require-qt")
+        assert missing_qt_toolchain.returncode == 1
+        assert "Qt6/qt.toolchain.cmake" in missing_qt_toolchain.stderr
+        qt_toolchain_file.touch()
+
+        invalid_bundle = run_cli(environment, "doctor", "--bundle-id", "not valid")
+        assert invalid_bundle.returncode == 1
+        assert "invalid bundle identifier" in invalid_bundle.stderr
+
+        invalid_team = run_cli(environment, "doctor", "--development-team", "short")
+        assert invalid_team.returncode == 1
+        assert "exactly 10" in invalid_team.stderr
+
+        invalid_configuration = run_cli(environment, "doctor", "--configuration", "../Release")
+        assert invalid_configuration.returncode == 1
+        assert "invalid Xcode configuration" in invalid_configuration.stderr
+
+        log.write_text("", encoding="utf-8")
+        configured = run_cli(
+            environment,
+            "configure",
+            "--platform",
+            "device",
+            "--development-team",
+            "ABCDE12345",
+            "--bundle-id",
+            "org.overte.interface.devtest",
+        )
+        assert configured.returncode == 0, configured.stderr
+        invocation = log.read_text(encoding="utf-8")
+        assert f"<-S> <{SOURCE_ROOT}>" in invocation
+        assert "<-DCMAKE_SYSTEM_NAME=iOS>" in invocation
+        assert "<-DOVERTE_IOS_BOOTSTRAP_ONLY=ON>" in invocation
+        assert "<-DOVERTE_IOS_ENABLE_SIGNING=ON>" in invocation
+        assert "<-DOVERTE_IOS_DEVELOPMENT_TEAM=ABCDE12345>" in invocation
+        assert "<-DOVERTE_IOS_BUNDLE_IDENTIFIER=org.overte.interface.devtest>" in invocation
+
+        client_build = root / "client-build"
+        (client_build / "conan").mkdir(parents=True)
+        (client_build / "conan/conan_toolchain.cmake").touch()
+        log.write_text("", encoding="utf-8")
+        client_graph = run_cli(
+            environment,
+            "configure",
+            "--platform",
+            "device",
+            "--build-dir",
+            str(client_build),
+            "--client-graph",
+        )
+        assert client_graph.returncode == 0, client_graph.stderr
+        invocation = log.read_text(encoding="utf-8")
+        assert invocation.startswith("qt-cmake "), invocation
+        assert "<-DOVERTE_IOS_BOOTSTRAP_ONLY=OFF>" in invocation
+        assert "<-DOVERTE_IOS_BUNDLE_IDENTIFIER=org.overte.interface.dev>" in invocation
+        assert f"<-DQT_CHAINLOAD_TOOLCHAIN_FILE={client_build}/conan/conan_toolchain.cmake>" in invocation
+        assert "<-DCMAKE_TOOLCHAIN_FILE=" not in invocation
+        assert "<-DCMAKE_PREFIX_PATH=" not in invocation
+        assert invocation.count("TOOLCHAIN_FILE=") == 1, invocation
+
+        compiler_launcher = shims / "sccache"
+        make_executable(compiler_launcher, "exit 0\n")
+        log.write_text("", encoding="utf-8")
+        cached_client_graph = run_cli(
+            environment | {"OVERTE_IOS_COMPILER_LAUNCHER": str(compiler_launcher)},
+            "configure",
+            "--platform",
+            "device",
+            "--build-dir",
+            str(client_build),
+            "--client-graph",
+        )
+        assert cached_client_graph.returncode == 0, cached_client_graph.stderr
+        invocation = log.read_text(encoding="utf-8")
+        assert f"<-DCMAKE_XCODE_ATTRIBUTE_C_COMPILER_LAUNCHER={compiler_launcher}>" in invocation
+        assert "<-DCMAKE_XCODE_ATTRIBUTE_CLANG_ENABLE_MODULES=NO>" in invocation
+        assert "<-DCMAKE_XCODE_ATTRIBUTE_COMPILER_INDEX_STORE_ENABLE=NO>" in invocation
+        assert "<-DCMAKE_XCODE_ATTRIBUTE_CLANG_USE_RESPONSE_FILE=NO>" in invocation
+
+        missing_launcher = run_cli(
+            environment | {"OVERTE_IOS_COMPILER_LAUNCHER": str(root / "missing-sccache")},
+            "configure",
+            "--platform",
+            "device",
+            "--build-dir",
+            str(client_build),
+            "--client-graph",
+        )
+        assert missing_launcher.returncode == 1
+        assert "OVERTE_IOS_COMPILER_LAUNCHER is not executable" in missing_launcher.stderr
+
+        missing_client_toolchain = run_cli(
+            environment,
+            "configure",
+            "--build-dir",
+            str(root / "missing-client-build"),
+            "--client-graph",
+        )
+        assert missing_client_toolchain.returncode == 1
+        assert "run deps first" in missing_client_toolchain.stderr
+
+        invalid_client_command = run_cli(environment, "build", "--client-graph")
+        assert invalid_client_command.returncode == 1
+        assert "only valid with the configure command" in invalid_client_command.stderr
+
+        log.write_text("", encoding="utf-8")
+        bootstrap_build = run_cli(
+            environment,
+            "build",
+            "--build-dir",
+            str(root / "bootstrap-build"),
+        )
+        assert bootstrap_build.returncode == 0, bootstrap_build.stderr
+        invocation = log.read_text(encoding="utf-8")
+        assert "<-DOVERTE_IOS_BOOTSTRAP_ONLY=ON>" in invocation
+        assert "<-DOVERTE_IOS_BUNDLE_IDENTIFIER=org.overte.bootstrap.dev>" in invocation
+        assert "<--target> <OverteIOSBootstrap>" in invocation
+
+        integrated_build = root / "integrated-package"
+        integrated_app = integrated_build / "interface/Release-iphonesimulator/Overte.app"
+        integrated_app.mkdir(parents=True)
+        with (integrated_app / "Info.plist").open("wb") as stream:
+            plistlib.dump(
+                {
+                    "CFBundleIdentifier": "org.overte.interface.dev",
+                    "CFBundleExecutable": "Overte",
+                    "CFBundleDisplayName": "Overte",
+                    "CFBundleName": "Overte",
+                    "CFBundlePackageType": "APPL",
+                    "CFBundleShortVersionString": "0.1.0",
+                    "CFBundleVersion": "1",
+                    "CFBundleSupportedPlatforms": ["iPhoneSimulator"],
+                    "DTPlatformName": "iphonesimulator",
+                    "LSRequiresIPhoneOS": True,
+                    "MinimumOSVersion": "17.0",
+                    "UIDeviceFamily": [1, 2],
+                    "UIRequiredDeviceCapabilities": ["arm64"],
+                    "CFBundleURLTypes": [
+                        {"CFBundleURLSchemes": ["hifi", "hifiapp"]}
+                    ],
+                },
+                stream,
+            )
+        (integrated_app / "Overte").write_bytes(arm64_simulator_macho())
+        (integrated_app / "Overte").chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+        shutil.copy2(
+            SOURCE_ROOT / "ios/resources/PrivacyInfo.xcprivacy",
+            integrated_app / "PrivacyInfo.xcprivacy",
+        )
+        integrated_dwarf = (
+            integrated_build
+            / "interface/Release-iphonesimulator/Overte.app.dSYM/Contents/Resources/DWARF/Overte"
+        )
+        integrated_dwarf.parent.mkdir(parents=True)
+        integrated_dwarf.write_bytes(b"fixture DWARF")
+        integrated_package = run_cli(
+            environment | {"OVERTE_IOS_ARTIFACT_SEQUENCE": "42"},
+            "package-client",
+            "--platform",
+            "simulator",
+            "--configuration",
+            "Release",
+            "--build-dir",
+            str(integrated_build),
+        )
+        assert integrated_package.returncode == 0, integrated_package.stderr
+        artifact_root = SOURCE_ROOT / "build-ios/artifacts"
+        integrated_manifest = json.loads(
+            (artifact_root / "0042-OverteIOSClient-Release-simulator.json").read_text(encoding="utf-8")
+        )
+        assert integrated_manifest["buildNumber"] == 42
+        assert integrated_manifest["product"] == "overte-ios-integrated-client"
+        assert integrated_manifest["signing"] == {
+            "embeddedProvisioningProfile": False,
+            "applicationIdentifier": None,
+            "getTaskAllow": None,
+        }
+        assert integrated_manifest["artifact"].startswith("0042-")
+        assert integrated_manifest["debugSymbols"] == {
+            "artifact": "0042-OverteIOSClient-Release-simulator-symbols.zip",
+            "sha256": integrated_manifest["debugSymbols"]["sha256"],
+            "uuid": environment["FAKE_APP_UUID"],
+            "format": "dSYM",
+            "architecture": "arm64",
+        }
+        assert len(integrated_manifest["debugSymbols"]["sha256"]) == 64
+        assert (artifact_root / integrated_manifest["debugSymbols"]["artifact"]).is_file()
+        assert integrated_manifest["windowsVm"]["sharedFolderRelativePath"] == integrated_manifest["artifact"]
+        latest = json.loads(
+            (artifact_root / "LATEST-OverteIOSClient.json").read_text(encoding="utf-8")
+        )
+        assert latest == integrated_manifest
+        for generated in artifact_root.glob("0042-OverteIOSClient-*"):
+            generated.unlink()
+        (artifact_root / "LATEST-OverteIOSClient.json").unlink()
+        (artifact_root / "LATEST-OverteIOSClient.txt").unlink()
+
+        mismatched_symbols = run_cli(
+            environment
+            | {
+                "OVERTE_IOS_ARTIFACT_SEQUENCE": "44",
+                "FAKE_DSYM_UUID": "123e4567-e89b-12d3-a456-426614174000",
+            },
+            "package-client",
+            "--platform",
+            "simulator",
+            "--configuration",
+            "Release",
+            "--build-dir",
+            str(integrated_build),
+        )
+        assert mismatched_symbols.returncode == 1
+        assert "dSYM does not match" in mismatched_symbols.stderr
+
+        integrated_dwarf.unlink()
+        generated_symbols = run_cli(
+            environment | {"OVERTE_IOS_ARTIFACT_SEQUENCE": "45"},
+            "package-client",
+            "--platform",
+            "simulator",
+            "--configuration",
+            "Release",
+            "--build-dir",
+            str(integrated_build),
+        )
+        assert generated_symbols.returncode == 0, generated_symbols.stderr
+        assert integrated_dwarf.read_bytes() == b"generated fixture DWARF"
+        assert f"dsymutil <{integrated_app / 'Overte'}> <-o>" in log.read_text(encoding="utf-8")
+        for generated in artifact_root.glob("0045-OverteIOSClient-*"):
+            generated.unlink()
+        (artifact_root / "LATEST-OverteIOSClient.json").unlink()
+        (artifact_root / "LATEST-OverteIOSClient.txt").unlink()
+
+        integrated_dwarf.unlink()
+        failed_symbol_generation = run_cli(
+            environment
+            | {
+                "OVERTE_IOS_ARTIFACT_SEQUENCE": "46",
+                "FAKE_DSYMUTIL_FAIL": "1",
+            },
+            "package-client",
+            "--platform",
+            "simulator",
+            "--configuration",
+            "Release",
+            "--build-dir",
+            str(integrated_build),
+        )
+        assert failed_symbol_generation.returncode == 1
+        assert "could not generate the Release integrated client dSYM" in failed_symbol_generation.stderr
+        integrated_dwarf.parent.mkdir(parents=True, exist_ok=True)
+        integrated_dwarf.write_bytes(b"fixture DWARF")
+
+        with (integrated_app / "PrivacyInfo.xcprivacy").open("wb") as stream:
+            plistlib.dump({"NSPrivacyTracking": True}, stream)
+        rejected_privacy = run_cli(
+            environment | {"OVERTE_IOS_ARTIFACT_SEQUENCE": "43"},
+            "package-client",
+            "--platform",
+            "simulator",
+            "--configuration",
+            "Release",
+            "--build-dir",
+            str(integrated_build),
+        )
+        assert rejected_privacy.returncode == 1
+        assert "privacy manifest failed the audited contract" in rejected_privacy.stderr
+
+        unnumbered_client = run_cli(
+            environment | {"OVERTE_IOS_ARTIFACT_SEQUENCE": "0"},
+            "package-client",
+            "--build-dir",
+            str(integrated_build),
+        )
+        assert unnumbered_client.returncode == 1
+        assert "positive OVERTE_IOS_ARTIFACT_SEQUENCE" in unnumbered_client.stderr
+
+        log.write_text("", encoding="utf-8")
+        dependencies = run_cli(
+            environment,
+            "deps",
+            "--platform",
+            "simulator",
+            "--build-dir",
+            str(root / "dependency-build"),
+        )
+        assert dependencies.returncode == 0, dependencies.stderr
+        invocation = log.read_text(encoding="utf-8")
+        assert (
+            "conan <remote> <add> <overte> "
+            "<https://artifactory.overte.org/artifactory/api/conan/overte>"
+        ) in invocation
+        assert "conan <install>" in invocation
+        assert f"<--profile:build={IOS_ROOT}/conan/profiles/macos-arm64>" in invocation
+        assert "sdk-simulator=<" + str(sdk) + ">" in invocation
+        sbom = json.loads(
+            (root / "dependency-build/conan/sbom.cdx.json").read_text(encoding="utf-8")
+        )
+        assert sbom["bomFormat"] == "CycloneDX"
+
+        clean_target = SOURCE_ROOT / "build-ios/custom-host-contract"
+        clean_target.mkdir(parents=True, exist_ok=True)
+        preview = run_cli(
+            environment, "clean", "--build-dir", "build-ios/custom-host-contract"
+        )
+        assert preview.returncode == 0 and clean_target.exists()
+        assert "Run again with --confirm" in preview.stdout
+        removal = run_cli(
+            environment,
+            "clean",
+            "--build-dir",
+            "build-ios/custom-host-contract",
+            "--confirm",
+        )
+        assert removal.returncode == 0 and not clean_target.exists()
+
+    print("PASS iOS build CLI shim tests")
+
+
+if __name__ == "__main__":
+    main()

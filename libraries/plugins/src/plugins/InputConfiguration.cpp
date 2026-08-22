@@ -23,8 +23,7 @@ InputConfiguration::InputConfiguration() {
 QStringList InputConfiguration::inputPlugins() {
     if (QThread::currentThread() != thread()) {
         QStringList result;
-        BLOCKING_INVOKE_METHOD(this, "inputPlugins",
-                                  Q_RETURN_ARG(QStringList, result));
+        BLOCKING_INVOKE_METHOD(this, [this] { return inputPlugins(); }, &result);
         return result;
     }
 
@@ -45,8 +44,7 @@ QStringList InputConfiguration::inputPlugins() {
 QStringList InputConfiguration::activeInputPlugins() {
     if (QThread::currentThread() != thread()) {
         QStringList result;
-        BLOCKING_INVOKE_METHOD(this, "activeInputPlugins",
-                                   Q_RETURN_ARG(QStringList, result));
+        BLOCKING_INVOKE_METHOD(this, [this] { return activeInputPlugins(); }, &result);
         return result;
     }
 
@@ -68,9 +66,7 @@ QStringList InputConfiguration::activeInputPlugins() {
 QString InputConfiguration::configurationLayout(QString pluginName) {
     if (QThread::currentThread() != thread()) {
         QString result;
-        BLOCKING_INVOKE_METHOD(this, "configurationLayout",
-                                  Q_RETURN_ARG(QString, result),
-                                  Q_ARG(QString, pluginName));
+        BLOCKING_INVOKE_METHOD(this, [this, pluginName] { return configurationLayout(pluginName); }, &result);
         return result;
     }
 
@@ -85,9 +81,9 @@ QString InputConfiguration::configurationLayout(QString pluginName) {
 
 void InputConfiguration::setConfigurationSettings(QJsonObject configurationSettings, QString pluginName) {
     if (QThread::currentThread() != thread()) {
-        BLOCKING_INVOKE_METHOD(this, "setConfigurationSettings",
-                                  Q_ARG(QJsonObject, configurationSettings),
-                                  Q_ARG(QString, pluginName));
+        BLOCKING_INVOKE_METHOD(this, [this, configurationSettings, pluginName] {
+            setConfigurationSettings(configurationSettings, pluginName);
+        });
         return;
     }
 
@@ -101,9 +97,7 @@ void InputConfiguration::setConfigurationSettings(QJsonObject configurationSetti
 QJsonObject InputConfiguration::configurationSettings(QString pluginName) {
     if (QThread::currentThread() != thread()) {
         QJsonObject result;
-        BLOCKING_INVOKE_METHOD(this, "configurationSettings",
-                                  Q_RETURN_ARG(QJsonObject, result),
-                                  Q_ARG(QString, pluginName));
+        BLOCKING_INVOKE_METHOD(this, [this, pluginName] { return configurationSettings(pluginName); }, &result);
         return result;
     }
 
@@ -117,7 +111,7 @@ QJsonObject InputConfiguration::configurationSettings(QString pluginName) {
 
 void InputConfiguration::calibratePlugin(QString pluginName) {
     if (QThread::currentThread() != thread()) {
-        BLOCKING_INVOKE_METHOD(this, "calibratePlugin");
+        BLOCKING_INVOKE_METHOD(this, [this, pluginName] { calibratePlugin(pluginName); });
         return;
     }
 
@@ -131,9 +125,8 @@ void InputConfiguration::calibratePlugin(QString pluginName) {
 
 bool InputConfiguration::uncalibratePlugin(QString pluginName) {
     if (QThread::currentThread() != thread()) {
-        bool result;
-        BLOCKING_INVOKE_METHOD(this, "uncalibratePlugin",
-                                  Q_ARG(bool, result));
+        bool result { false };
+        BLOCKING_INVOKE_METHOD(this, [this, pluginName] { return uncalibratePlugin(pluginName); }, &result);
         return result;
     }
 

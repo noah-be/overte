@@ -18,6 +18,7 @@
 #define hifi_ScriptCache_h
 
 #include <mutex>
+#include <QtCore/QObject>
 #include <DependencyManager.h>
 
 using contentAvailableCallback = std::function<void(const QString& scriptOrURL, const QString& contents, bool isURL, bool contentAvailable, const QString& status)>;

@@ -19,8 +19,6 @@
 #include <QtCore/QUrl>
 #include <QtCore/QCoreApplication>
 #include <QGuiApplication>
-#include <qpa/qplatformnativeinterface.h>
-#include <QtX11Extras/QX11Info>
 
 #include <QtGui/QKeyEvent>
 #include <QtGui/QPaintEngine>
@@ -148,7 +146,11 @@ bool VKWidget::event(QEvent* event) {
     return QWidget::event(event);
 }
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+bool VKWidget::nativeEvent(const QByteArray &eventType, void *message, qintptr *result) {
+#else
 bool VKWidget::nativeEvent(const QByteArray &eventType, void *message, long *result) {
+#endif
 #ifdef Q_OS_WIN32
     MSG* win32message = static_cast<MSG*>(message);
     switch (win32message->message) {

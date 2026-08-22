@@ -50,7 +50,11 @@ public:
     [[nodiscard]] QVariant inputMethodQuery(Qt::InputMethodQuery query) const override;
 
 protected:
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override;
+#else
     bool nativeEvent(const QByteArray &eventType, void *message, long *result) override;
+#endif
     bool event(QEvent* event) override;
     gl::OffscreenContext* _context { nullptr };
 

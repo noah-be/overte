@@ -27,7 +27,7 @@ public:
     void close();
 
 private:
-    void addHeader(const QAudioFormat& audioFormat);
+    void addHeader(const QAudioFormat& audioFormat, int sampleSize);
     QFile _file;
 };
 

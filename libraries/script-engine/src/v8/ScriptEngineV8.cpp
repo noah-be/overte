@@ -21,6 +21,7 @@
 #include <QtCore/QCoreApplication>
 #include <QtCore/QEventLoop>
 #include <QtCore/QFileInfo>
+#include <QtCore/QMetaType>
 #include <QtCore/QTimer>
 #include <QtCore/QThread>
 #include <QtCore/QRegularExpression>
@@ -208,7 +209,12 @@ ScriptEngineV8::ScriptEngineV8(ScriptManager *manager) : ScriptEngine(manager), 
         // --assert-types
 
         v8::V8::InitializeICU();
-#ifdef OVERTE_V8_MEMORY_DEBUG
+#ifdef Q_OS_IOS
+        // iOS applications cannot rely on writable executable memory. Keep
+        // this runtime gate even when the supplied V8 archive was built with
+        // JIT support disabled, so a packaging mistake fails closed.
+        v8::V8::SetFlagsFromString("--stack-size=256 --jitless --no-expose-wasm");
+#elif defined(OVERTE_V8_MEMORY_DEBUG)
         v8::V8::SetFlagsFromString("--stack-size=256 --track_gc_object_stats --assert-types");
 #else
         v8::V8::SetFlagsFromString("--stack-size=256");
@@ -997,9 +1003,9 @@ Q_INVOKABLE ScriptValue ScriptEngineV8::evaluate(const ScriptProgramPointer& pro
         qCDebug(scriptengine_v8) << "*** WARNING *** ScriptEngineV8::evaluate() called on wrong thread [" << QThread::currentThread() << "], invoking on correct thread [" << thread() << "] "
             "sourceCode:" << sourceCode << " fileName:" << fileName;
 #endif
-        BLOCKING_INVOKE_METHOD(this, "evaluate",
-                                  Q_RETURN_ARG(ScriptValue, result),
-                                  Q_ARG(const ScriptProgramPointer&, program));
+        BLOCKING_INVOKE_METHOD(this, [this, program] {
+            return evaluate(program);
+        }, &result);
         return result;
     }
     _evaluatingCounter++;
@@ -1381,7 +1387,11 @@ ScriptValue ScriptEngineV8::create(int type, const void* ptr) {
     Q_ASSERT(_v8Isolate->IsCurrent());
     v8::HandleScope handleScope(_v8Isolate);
     v8::Context::Scope contextScope(getContext());
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    QVariant variant(QMetaType(type), ptr);
+#else
     QVariant variant(type, ptr);
+#endif
     V8ScriptValue scriptValue = castVariantToValue(variant);
     return ScriptValue(new ScriptValueV8Wrapper(this, std::move(scriptValue)));
 }

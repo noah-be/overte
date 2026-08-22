@@ -8,7 +8,7 @@ setup_hifi_library(Network WebSockets)
 
 target_zlib()
 target_v8()
-if (NOT ANDROID)
+if (NOT ANDROID AND NOT IOS)
   target_quazip()
 endif ()
 

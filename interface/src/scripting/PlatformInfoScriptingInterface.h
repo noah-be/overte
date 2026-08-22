@@ -68,7 +68,8 @@ public slots:
     /*@jsdoc
      * Gets the operating system type.
      * @function PlatformInfo.getOperatingSystemType
-     * @returns {string} The operating system type: <code>"WINDOWS"</code>, <code>"MACOS"</code>, or <code>"UNKNOWN"</code>.
+     * @returns {string} The operating system type: <code>"WINDOWS"</code>, <code>"MACOS"</code>,
+     *     <code>"IOS"</code>, or <code>"UNKNOWN"</code>.
      * @deprecated This function is deprecated and will be removed.
      *     Use <code>JSON.parse({@link PlatformInfo.getComputer|PlatformInfo.getComputer()}).OS</code> instead.
      */

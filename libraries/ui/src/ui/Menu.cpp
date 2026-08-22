@@ -10,7 +10,6 @@
 
 #include <QtCore/QThread>
 #include <QtCore/QDebug>
-#include <QtWidgets/QShortcut>
 
 #include <SettingHandle.h>
 #include <shared/QtHelpers.h>

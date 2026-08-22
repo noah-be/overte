@@ -244,3 +244,41 @@ void ShapeManagerTests::addCompoundShape() {
     QCOMPARE(shapeManager.getNumShapes(), 0);
     QCOMPARE(shapeManager.getNumReferences(info), 0);
 }
+
+void ShapeManagerTests::rejectEmptyHullShapes() {
+    ShapeInfo::PointList emptyPoints;
+    ShapeInfo::PointCollection emptyCollection;
+    emptyCollection.push_back(emptyPoints);
+
+    ShapeManager shapeManager;
+    ShapeInfo simpleHullInfo;
+    simpleHullInfo.setParams(SHAPE_TYPE_SIMPLE_HULL, glm::vec3(1.0f));
+    simpleHullInfo.setPointCollection(emptyCollection);
+    QVERIFY(shapeManager.getShape(simpleHullInfo) == nullptr);
+
+    ShapeInfo compoundInfo;
+    compoundInfo.setParams(SHAPE_TYPE_COMPOUND, glm::vec3(1.0f));
+    compoundInfo.setPointCollection(emptyCollection);
+    QVERIFY(shapeManager.getShape(compoundInfo) == nullptr);
+
+    emptyCollection.push_back(emptyPoints);
+    compoundInfo.setPointCollection(emptyCollection);
+    QVERIFY(shapeManager.getShape(compoundInfo) == nullptr);
+    QCOMPARE(shapeManager.getNumShapes(), 0);
+
+    ShapeInfo::PointList tetrahedron;
+    tetrahedron.push_back(glm::vec3(1.0f, 1.0f, 1.0f));
+    tetrahedron.push_back(glm::vec3(1.0f, -1.0f, -1.0f));
+    tetrahedron.push_back(glm::vec3(-1.0f, 1.0f, -1.0f));
+    tetrahedron.push_back(glm::vec3(-1.0f, -1.0f, 1.0f));
+    emptyCollection.push_back(tetrahedron);
+    compoundInfo.setPointCollection(emptyCollection);
+
+    const btCollisionShape* shape = shapeManager.getShape(compoundInfo);
+    QVERIFY(shape != nullptr);
+    QCOMPARE(shape->getShapeType(), (int)COMPOUND_SHAPE_PROXYTYPE);
+    const auto compoundShape = static_cast<const btCompoundShape*>(shape);
+    QCOMPARE(compoundShape->getNumChildShapes(), 1);
+    QVERIFY(shapeManager.releaseShape(shape));
+    shapeManager.collectGarbage();
+}

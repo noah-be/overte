@@ -1,0 +1,296 @@
+name: iOS bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      integrated:
+        description: Provision validated Qt checkpoints and run the integrated full-client build
+        required: false
+        type: boolean
+        default: false
+      world_evidence:
+        description: Build the Full Client simulator and capture serverless/online world screenshots
+        required: false
+        type: boolean
+        default: false
+      world_runtime_case:
+        description: Limit an opted-in world build to one simulator case
+        required: false
+        type: choice
+        default: all
+        options:
+          - all
+          - iphone-serverless
+          - iphone-online
+          - ipad-serverless
+          - ipad-online
+  push:
+    branches:
+      - apple-ios
+    paths:
+      - 'CMakeLists.txt'
+      - '.github/workflows/ios-bootstrap.yml'
+      - 'cmake/QtCompat.cmake'
+      - 'cmake/init.cmake'
+      - 'cmake/compiler.cmake'
+      - 'cmake/macros/SetupHifiLibrary.cmake'
+      - 'cmake/macros/SetupHifiProject.cmake'
+      - 'cmake/macros/SetupHifiTestCase.cmake'
+      - 'cmake/macros/TargetV8.cmake'
+      - 'cmake/macros/TargetVulkan.cmake'
+      - 'cmake/modules/FindMoltenVK.cmake'
+      - 'interface/CMakeLists.txt'
+      - 'interface/resources/qml/**'
+      - 'interface/src/IOSTouchUiMetrics.*'
+      - 'interface/src/AboutUtil.cpp'
+      - 'interface/src/main.cpp'
+      - 'libraries/script-engine/src/v8/ScriptEngineV8.cpp'
+      - 'libraries/shared/src/shared/FileUtils.cpp'
+      - 'libraries/ui/src/**'
+      - 'libraries/vk/**'
+      - 'ios/**'
+      - '!**/*.md'
+  pull_request:
+    paths:
+      - 'CMakeLists.txt'
+      - '.github/workflows/ios-bootstrap.yml'
+      - 'cmake/QtCompat.cmake'
+      - 'cmake/init.cmake'
+      - 'cmake/compiler.cmake'
+      - 'cmake/macros/SetupHifiLibrary.cmake'
+      - 'cmake/macros/SetupHifiProject.cmake'
+      - 'cmake/macros/SetupHifiTestCase.cmake'
+      - 'cmake/macros/TargetV8.cmake'
+      - 'cmake/macros/TargetVulkan.cmake'
+      - 'cmake/modules/FindMoltenVK.cmake'
+      - 'interface/CMakeLists.txt'
+      - 'interface/resources/qml/**'
+      - 'interface/src/IOSTouchUiMetrics.*'
+      - 'interface/src/AboutUtil.cpp'
+      - 'interface/src/main.cpp'
+      - 'libraries/script-engine/src/v8/ScriptEngineV8.cpp'
+      - 'libraries/shared/src/shared/FileUtils.cpp'
+      - 'libraries/ui/src/**'
+      - 'libraries/vk/**'
+      - 'ios/**'
+      - '!**/*.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  # Device, world-evidence, and lightweight smoke runs own disjoint build
+  # trees/cache namespaces.  Serialize duplicate writers within each mode,
+  # without making a long device build block independent world acceptance.
+  group: >-
+    ios-bootstrap-${{ github.ref }}-${{
+      (github.event_name == 'workflow_dispatch' && inputs.world_evidence && 'world') ||
+      (github.event_name == 'workflow_dispatch' && inputs.integrated && 'integrated') ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[ios-worlds]') && 'world') ||
+      (github.event_name == 'push' &&
+       (contains(github.event.head_commit.message, '[qt-source]') ||
+        contains(github.event.head_commit.message, '[ios-integrated]')) && 'integrated') ||
+      'smoke'
+    }}
+  cancel-in-progress: false
+
+jobs:
+  provision-qt-ios:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.integrated) ||
+      (github.event_name == 'push' &&
+       (contains(github.event.head_commit.message, '[qt-source]') ||
+        contains(github.event.head_commit.message, '[ios-integrated]')))
+    uses: ./.github/workflows/ios-qt-source.yml
+    permissions:
+      actions: write
+      contents: read
+
+  integrated-ios-after-qt:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.integrated) ||
+      (github.event_name == 'push' &&
+       (contains(github.event.head_commit.message, '[qt-source]') ||
+        contains(github.event.head_commit.message, '[ios-integrated]')))
+    needs: provision-qt-ios
+    permissions:
+      actions: write
+      contents: read
+    uses: ./.github/workflows/ios-integrated.yml
+    with:
+      qt_host_cache_key: ${{ needs.provision-qt-ios.outputs.qt_host_cache_key }}
+      qt_ios_cache_key: ${{ needs.provision-qt-ios.outputs.qt_ios_cache_key }}
+      qt_host_artifact_prefix: ${{ needs.provision-qt-ios.outputs.qt_host_artifact_prefix }}
+      qt_ios_artifact_prefix: ${{ needs.provision-qt-ios.outputs.qt_ios_artifact_prefix }}
+
+  world-runtime-evidence:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.world_evidence) ||
+      (github.event_name == 'push' &&
+       contains(github.event.head_commit.message, '[ios-worlds]'))
+    needs: host-contracts
+    permissions:
+      actions: write
+      contents: read
+    uses: ./.github/workflows/ios-world-runtime.yml
+    with:
+      runtime_case: ${{ inputs.world_runtime_case || 'all' }}
+
+  host-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out requested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Run Linux preparation contracts
+        run: ios/tests/run-tests.sh
+
+  simulator:
+    if: >-
+      !(github.event_name == 'workflow_dispatch' && inputs.integrated) &&
+      !(github.event_name == 'workflow_dispatch' && inputs.world_evidence) &&
+      (github.event_name != 'push' ||
+       (!contains(github.event.head_commit.message, '[ios-integrated]') &&
+        !contains(github.event.head_commit.message, '[ios-worlds]')))
+    needs: host-contracts
+    runs-on: macos-26
+    timeout-minutes: 35
+    steps:
+      - name: Check out requested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Verify Xcode environment
+        run: ios/build-ios.sh doctor --platform simulator
+
+      - name: Build unsigned simulator app
+        run: ios/build-ios.sh build --platform simulator --configuration Debug
+
+      - name: Verify app bundle
+        run: |
+          ios/ci/verify-app.sh \
+            build-ios/simulator/ios/Debug-iphonesimulator/OverteIOSBootstrap.app
+
+      - name: Select simulator coverage
+        id: simulator-scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          families=iphone
+          if [[ "$EVENT_NAME" != pull_request ]]; then
+            families="iphone ipad"
+          elif git diff --name-only "$BASE_SHA" "$GITHUB_SHA" -- \
+            | grep -Eq '^(ios/|interface/resources/qml/|libraries/ui/|scripts/system/settings/)'; then
+            families="iphone ipad"
+          fi
+          printf 'families=%s\n' "$families" >> "$GITHUB_OUTPUT"
+
+      - name: Launch required simulators
+        env:
+          OVERTE_IOS_SIMULATOR_LAUNCH_TIMEOUT_SECONDS: 600
+        run: |
+          ios/ci/simulator-smoke.sh \
+            build-ios/simulator/ios/Debug-iphonesimulator/OverteIOSBootstrap.app \
+            org.overte.bootstrap.dev \
+            build-ios/diagnostics \
+            "${{ steps.simulator-scope.outputs.families }}"
+
+      - name: Upload simulator failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: overte-ios-simulator-diagnostics-${{ github.run_id }}
+          path: build-ios/diagnostics
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Package unsigned simulator app
+        run: ios/build-ios.sh package --platform simulator --configuration Debug
+
+      - name: Upload simulator artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ github.run_number }}-overte-ios-bootstrap-simulator-${{ github.run_id }}
+          path: |
+            build-ios/artifacts/*-OverteIOSBootstrap-Debug-simulator.zip
+            build-ios/artifacts/*-OverteIOSBootstrap-Debug-simulator.json
+          if-no-files-found: error
+          retention-days: 7
+
+  unsigned-device-sdk:
+    if: >-
+      !(github.event_name == 'workflow_dispatch' && inputs.integrated) &&
+      !(github.event_name == 'workflow_dispatch' && inputs.world_evidence) &&
+      (github.event_name != 'push' ||
+       (!contains(github.event.head_commit.message, '[ios-integrated]') &&
+        !contains(github.event.head_commit.message, '[ios-worlds]')))
+    needs: host-contracts
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - name: Check out requested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Verify device SDK environment
+        run: ios/build-ios.sh doctor --platform device
+
+      - name: Compile and package unsigned arm64 device app
+        run: ios/build-ios.sh package --platform device --configuration Debug
+
+      - name: Verify unsigned device app bundle
+        run: |
+          ios/ci/verify-app.sh \
+            build-ios/device/ios/Debug-iphoneos/OverteIOSBootstrap.app \
+            org.overte.bootstrap.dev \
+            iphoneos
+
+      - name: Verify unsigned device IPA
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import zipfile
+
+          root = pathlib.Path("build-ios/artifacts")
+          manifests = list(root.glob("*-OverteIOSBootstrap-Debug-device-unsigned.json"))
+          assert len(manifests) == 1, manifests
+          manifest_path = manifests[0]
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          ipa = root / manifest["artifact"]
+          assert manifest["platform"] == "iphoneos"
+          assert manifest["architecture"] == "arm64"
+          assert manifest["signed"] is False
+          assert manifest["requiresSigning"] is True
+          assert manifest["buildNumber"] == ${{ github.run_number }}
+          assert hashlib.sha256(ipa.read_bytes()).hexdigest() == manifest["sha256"]
+          required = {
+              "Payload/OverteIOSBootstrap.app/Info.plist",
+              "Payload/OverteIOSBootstrap.app/OverteIOSBootstrap",
+              "Payload/OverteIOSBootstrap.app/PrivacyInfo.xcprivacy",
+              "Payload/OverteIOSBootstrap.app/default.metallib",
+          }
+          with zipfile.ZipFile(ipa) as archive:
+              assert archive.testzip() is None
+              names = set(archive.namelist())
+          assert required <= names, required - names
+          print(f"Verified unsigned device IPA: {ipa}")
+          PY
+
+      - name: Upload unsigned device IPA
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ github.run_number }}-overte-ios-device-unsigned-${{ github.run_id }}
+          path: |
+            build-ios/artifacts/*-OverteIOSBootstrap-Debug-device-unsigned.ipa
+            build-ios/artifacts/*-OverteIOSBootstrap-Debug-device-unsigned.json
+          if-no-files-found: error
+          retention-days: 7

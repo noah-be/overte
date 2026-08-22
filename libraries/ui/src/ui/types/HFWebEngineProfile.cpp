@@ -17,7 +17,7 @@
 
 #include "RequestFilters.h"
 
-#if !defined(Q_OS_ANDROID)
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
 
 static const QString QML_WEB_ENGINE_STORAGE_NAME = "qmlWebEngine";
 

@@ -7,6 +7,12 @@ SPDX-License-Identifier: Apache-2.0
 
 # Build macOS
 
+> **Port status:** This 2022 guide documents the legacy build and is retained
+> for historical context. Do not install the macOS 10.12 SDK into a current
+> Xcode. The active Conan 2 bootstrap is documented in
+> [docs/macos/PORT_STATUS.md](docs/macos/PORT_STATUS.md). Start with
+> `macos/build-macos.sh doctor` and `macos/build-macos.sh all`.
+
 *Last Updated on September 8, 2022*
 
 Please read the [general build guide](BUILD.md) for information on dependencies required for all platforms. This will include the necessary environment variables to customize your build. Only macOS specific instructions are found in this document.

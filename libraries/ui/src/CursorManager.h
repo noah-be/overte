@@ -9,6 +9,7 @@
 #pragma once
 #include <stdint.h>
 #include <DependencyManager.h>
+#include <QtCore/QObject>
 
 #include <GLMHelpers.h>
 
@@ -70,5 +71,4 @@ namespace Cursor {
         QMap<uint16_t, QString> ICONS;
     };
 }
-
 

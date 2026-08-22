@@ -16,6 +16,7 @@
 #include <QFileDialog>
 #include <QFormLayout>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QStandardPaths>
 
 ModelSelector::ModelSelector() {
@@ -53,7 +54,8 @@ void ModelSelector::browse() {
                                                     "Model files (*.fst *.fbx)");
     QFileInfo fileInfo(filename);
     
-    if (fileInfo.isFile() && fileInfo.completeSuffix().contains(QRegExp("fst|fbx|FST|FBX"))) {
+    if (fileInfo.isFile() && fileInfo.completeSuffix().contains(
+            QRegularExpression(QStringLiteral("fst|fbx|FST|FBX")))) {
         _modelFile = fileInfo;
         _browseButton->setText(fileInfo.fileName());
         lastModelBrowseLocation.set(fileInfo.path());

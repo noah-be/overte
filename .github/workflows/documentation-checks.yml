@@ -29,11 +29,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
         with:
-          # The PR merge commit and its parents are enough for BASE_SHA...HEAD.
-          # Avoid fetching every branch and tag in this large repository.
+          # The exact base tree is fetched below; avoid fetching every
+          # intervening commit, branch, and tag in this large repository.
           fetch-depth: 2
           persist-credentials: false
       - name: Check changed documentation
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: python3 tests/check-documentation.py --base "$BASE_SHA"
+        run: |
+          git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null || \
+            git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          python3 tests/check-documentation.py --base "$BASE_SHA"

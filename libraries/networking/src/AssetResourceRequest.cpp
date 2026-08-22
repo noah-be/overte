@@ -12,6 +12,7 @@
 #include "AssetResourceRequest.h"
 
 #include <QtCore/QLoggingCategory>
+#include <QtCore/QRegularExpression>
 
 #include <Trace.h>
 #include <Profile.h>
@@ -49,8 +50,10 @@ AssetResourceRequest::~AssetResourceRequest() {
 bool AssetResourceRequest::urlIsAssetHash(const QUrl& url) {
     static const QString ATP_HASH_REGEX_STRING { "^atp:([A-Fa-f0-9]{64})(\\.[\\w]+)?$" };
 
-    QRegExp hashRegex { ATP_HASH_REGEX_STRING };
-    return hashRegex.exactMatch(url.toString());
+    static const QRegularExpression hashRegex {
+        QRegularExpression::anchoredPattern(ATP_HASH_REGEX_STRING)
+    };
+    return hashRegex.match(url.toString()).hasMatch();
 }
 
 void AssetResourceRequest::doSend() {
@@ -219,4 +222,3 @@ void AssetResourceRequest::onDownloadProgress(qint64 bytesReceived, qint64 bytes
         _lastProgressDebug = now;
     }
 }
-

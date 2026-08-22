@@ -16,13 +16,18 @@
 
 #include <cmath>
 
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 #include <QDesktopWidget>
+#endif
 #include <QDesktopServices>
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QDateTime>
 #include <QSaveFile>
 #include <QStandardPaths>
+#include <QTimer>
+#include <QUrlQuery>
 #include <QtGui/QClipboard>
 #include <QtNetwork/QLocalSocket>
 #include <QtNetwork/QLocalServer>
@@ -56,13 +61,16 @@
 #include <DomainAccountManager.h>
 #include <EntityScriptServerLogClient.h>
 #include <FramebufferCache.h>
+#if !defined(Q_OS_IOS)
 #include <gl/GLHelpers.h>
+#endif
 #include <GPUIdent.h>
 #include <graphics-scripting/GraphicsScriptingInterface.h>
 #include <hfm/ModelFormatRegistry.h>
 #include <input-plugins/InputPlugin.h>
 #include <input-plugins/KeyboardMouseDevice.h>
 #include <LocationScriptingInterface.h>
+#include <shared/IOSRuntimeLogging.h>
 #include <LogHandler.h>
 #include <MainWindow.h>
 #include <MessagesClient.h>
@@ -127,7 +135,9 @@
 #include <ui/OffscreenQmlSurfaceCache.h>
 #include <ui/Snapshot.h>
 #include <ui/SnapshotAnimated.h>
+#if !defined(Q_OS_IOS)
 #include <ui/StandAloneJSConsole.h>
+#endif
 #include <ui/Stats.h>
 #include <ui/ToolbarScriptingInterface.h>
 #include <UserActivityLogger.h>
@@ -138,12 +148,14 @@
 #include "ApplicationEventHandler.h"
 #include "AudioClient.h"
 #include "DeadlockWatchdog.h"
+#ifdef USE_GL
 #include "GLCanvas.h"
+#endif
 #include "LocationBookmarks.h"
 #include "LODManager.h"
 #include "Menu.h"
 #include "ResourceRequestObserver.h"
-#if defined(Q_OS_MAC) || defined(Q_OS_WIN)
+#if (defined(Q_OS_MAC) && !defined(Q_OS_IOS)) || defined(Q_OS_WIN)
 #include "SpeechRecognizer.h"
 #endif
 #include "Util.h"
@@ -161,7 +173,7 @@ extern "C" {
 }
 #endif
 
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
 // On Mac OS, disable App Nap to prevent audio glitches while running in the background
 #include "AppNapDisabler.h"
 static AppNapDisabler appNapDisabler;   // disabled, while in scope
@@ -236,7 +248,11 @@ Application::Application(
 ) :
     QApplication(argc, argv),
 #ifdef USE_GL
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     _window(new MainWindow(desktop())),
+#else
+    _window(new MainWindow()),
+#endif
 #else
     _vkWindow(new VKWindow()),
     _vkWindowWrapper(QWidget::createWindowContainer(_vkWindow)),
@@ -604,7 +620,7 @@ void Application::registerScriptEngineWithApplicationServices(ScriptManagerPoint
 
     scriptEngine->registerGlobalObject(sgp, "Camera", &_myCamera);
 
-#if defined(Q_OS_MAC) || defined(Q_OS_WIN)
+#if (defined(Q_OS_MAC) && !defined(Q_OS_IOS)) || defined(Q_OS_WIN)
     scriptEngine->registerGlobalObject(sgp, "SpeechRecognizer", DependencyManager::get<SpeechRecognizer>().data());
 #endif
 
@@ -806,7 +822,7 @@ void Application::shareSnapshot(const QString& path, const QUrl& href) {
     });
 }
 
-#if defined(Q_OS_ANDROID)
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS) || defined(OVERTE_IOS)
 void Application::beforeEnterBackground() {
 #if defined(ANDROID_APP_PICO_INTERFACE)
     qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE beforeEnterBackground"
@@ -824,8 +840,9 @@ void Application::enterBackground() {
                               "stop", Qt::BlockingQueuedConnection);
 // Quest only supports one plugin which can't be deactivated currently
 #if !defined(ANDROID_APP_QUEST_INTERFACE)
-    if (getActiveDisplayPlugin()->isActive()) {
-        getActiveDisplayPlugin()->deactivate();
+    auto displayPlugin = getActiveDisplayPlugin();
+    if (displayPlugin && displayPlugin->isActive()) {
+        displayPlugin->deactivate();
     }
 #endif
 }
@@ -843,10 +860,12 @@ void Application::enterForeground() {
     nodeList->setSendDomainServerCheckInEnabled(true);
 }
 
+#if defined(Q_OS_ANDROID)
 void Application::toggleAwayMode(){
     QKeyEvent event = QKeyEvent (QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
     QCoreApplication::sendEvent (this, &event);
 }
+#endif
 #endif
 
 // FIXME?  perhaps two, one for the main thread and one for the offscreen UI rendering thread?
@@ -1048,6 +1067,10 @@ bool Application::prepareServerlessDomainContents(const QUrl& domainURL, const Q
         return false;
     }
 
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+    beginIOSRuntimeEntityEvidence();
+#endif
+
     const QUuid serverlessSessionID = QUuid::createUuid();
     myAvatar->setSessionUUID(serverlessSessionID);
     auto nodeList = DependencyManager::get<NodeList>();
@@ -1061,7 +1084,23 @@ bool Application::prepareServerlessDomainContents(const QUrl& domainURL, const Q
     nodeList->setPermissions(permissions);
 
     tmpTree->reaverageOctreeElements();
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+    const auto importedEntityIDs = tmpTree->sendEntities(
+        _entityEditSender.get(), getEntities()->getTree(), "domain", 0, 0, 0);
+    QStringList importedEntities;
+    importedEntities.reserve(importedEntityIDs.size());
+    for (const auto& entityID : importedEntityIDs) {
+        importedEntities.push_back(entityID.toString());
+    }
+    setExpectedIOSRuntimeEntities(importedEntities);
+    if (iosRuntimeRenderDiagnosticsEnabled()) {
+        logIOSRuntimeMarker("OVERTE_IOS_ENTITY_TRACE stage=import",
+                            "mode=", iosRuntimeRenderDiagnosticMode(),
+                            "mapped_entities=", importedEntities.size());
+    }
+#else
     tmpTree->sendEntities(_entityEditSender.get(), getEntities()->getTree(), "domain", 0, 0, 0);
+#endif
     namedPaths = tmpTree->getNamedPaths();
 
     // we must manually eraseAllOctreeElements(false) else the tmpTree will mem-leak
@@ -1084,6 +1123,32 @@ void Application::loadServerlessDomain(QUrl domainURL) {
     if (domainURL.isEmpty()) {
         return;
     }
+#if defined(Q_OS_IOS)
+    const auto scheduleServerlessRootViewpoint = [this, domainURL](
+            const std::map<QString, QString>& namedPaths) {
+        // AddressManager asks for the root path immediately after changing the
+        // domain URL. A synchronous local import can complete before that path
+        // request, and iOS startup can subsequently restore the avatar's old
+        // position. Re-apply the authored root once the current event turn has
+        // completed. An explicit location query remains authoritative.
+        if (QUrlQuery(domainURL).hasQueryItem(QStringLiteral("location"))) {
+            return;
+        }
+        const auto root = namedPaths.find(QStringLiteral("/"));
+        if (root == namedPaths.end() || root->second.isEmpty()) {
+            return;
+        }
+        const QString viewpoint = root->second;
+        QTimer::singleShot(0, this, [viewpoint] {
+            const bool applied = DependencyManager::get<AddressManager>()->goToViewpointForPath(
+                viewpoint, QStringLiteral("/"));
+            if (QCoreApplication::arguments().contains(QStringLiteral("--ios-world-evidence"))) {
+                logIOSRuntimeMarker("OVERTE_IOS_WORLD_GATE serverless_viewpoint_applied",
+                                    "success=", applied ? QStringLiteral("1") : QStringLiteral("0"));
+            }
+        });
+    };
+#endif
 #if defined(ANDROID_APP_PICO_INTERFACE)
     const auto finishPicoServerlessImport = [this] {
         _picoServerlessSceneImportInProgress = false;
@@ -1101,6 +1166,48 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         }
     };
     _picoServerlessLoadFailed = false;
+#endif
+
+#if defined(Q_OS_IOS)
+    // Bundled serverless worlds are local files. Loading them through the
+    // asynchronous ResourceManager leaves a startup race where DomainHandler's
+    // empty teardown URL can retire the request before its callback runs. Read
+    // the expanded local file on this application-thread call instead; remote
+    // URL schemes continue through the generation-guarded request below.
+    const QUrl localDomainURL = PathUtils::expandToLocalDataAbsolutePath(domainURL);
+    if (localDomainURL.isLocalFile()) {
+        QFile domainFile(localDomainURL.toLocalFile());
+        if (!domainFile.open(QIODevice::ReadOnly)) {
+            os_log_error(OS_LOG_DEFAULT,
+                         "OVERTE_IOS_WORLD_GATE serverless_local_open_failed");
+            return;
+        }
+        const QByteArray domainData = domainFile.readAll();
+        std::map<QString, QString> namedPaths;
+        if (!prepareServerlessDomainContents(domainURL, domainData, namedPaths)) {
+            os_log_error(OS_LOG_DEFAULT,
+                         "OVERTE_IOS_WORLD_GATE serverless_local_parse_failed");
+            return;
+        }
+        auto nodeList = DependencyManager::get<NodeList>();
+        nodeList->getDomainHandler().connectedToServerless(namedPaths);
+        setIsServerlessMode(true);
+#if defined(Q_OS_IOS)
+        scheduleServerlessRootViewpoint(namedPaths);
+#endif
+        _octreeProcessor->getFullSceneReceivedCounter()++;
+        if (QCoreApplication::arguments().contains(QStringLiteral("--ios-world-evidence"))) {
+            const QUrl tutorialURL(QStringLiteral("file:///~/serverless/tutorial.json"));
+            const QString scene = (domainURL == tutorialURL || localDomainURL ==
+                    PathUtils::expandToLocalDataAbsolutePath(tutorialURL))
+                ? QStringLiteral("serverless_tutorial")
+                : QStringLiteral("unsupported");
+            logIOSRuntimeMarker("OVERTE_IOS_WORLD_GATE serverless_import_committed",
+                                "scene=", scene);
+        }
+        logIOSRuntimeEntityEvidence(commitIOSRuntimeEntityEvidence());
+        return;
+    }
 #endif
 
 #if defined(ANDROID_APP_PICO_INTERFACE)
@@ -1199,7 +1306,28 @@ void Application::loadServerlessDomain(QUrl domainURL) {
             // before the signal leaves Pico's physics handoff blocked at
             // RECEIVING_WORLD indefinitely.
             setIsServerlessMode(true);
+#if defined(Q_OS_IOS)
+            scheduleServerlessRootViewpoint(namedPaths);
+#endif
             _octreeProcessor->getFullSceneReceivedCounter()++;
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+            qInfo().noquote() << "OVERTE_MACOS_ENTITY_GATE serverless_import_committed"
+                              << "url=" << domainURL.toString();
+#endif
+#if defined(Q_OS_IOS)
+            if (QCoreApplication::arguments().contains(QStringLiteral("--ios-world-evidence"))) {
+                const QUrl tutorialURL(QStringLiteral("file:///~/serverless/tutorial.json"));
+                const QString scene = (domainURL == tutorialURL ||
+                        domainURL == PathUtils::expandToLocalDataAbsolutePath(tutorialURL))
+                    ? QStringLiteral("serverless_tutorial")
+                    : QStringLiteral("unsupported");
+                logIOSRuntimeMarker("OVERTE_IOS_WORLD_GATE serverless_import_committed",
+                                    "scene=", scene);
+            }
+#endif
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+            logIOSRuntimeEntityEvidence(commitIOSRuntimeEntityEvidence());
+#endif
 #if defined(ANDROID_APP_PICO_INTERFACE)
             _picoServerlessSceneURL = domainURL;
             _picoServerlessSceneImportCommitted = true;
@@ -1705,9 +1833,9 @@ void Application::loadSettings(const QCommandLineParser& parser) {
     // dictated that we should be in first person
     Menu::getInstance()->setIsOptionChecked(MenuOption::FirstPersonLookAt, isFirstPerson);
     Menu::getInstance()->setIsOptionChecked(MenuOption::ThirdPerson, !isFirstPerson);
-#if defined(ANDROID_APP_PHONE_INTERFACE)
-    // The native desktop menu bar is neither reachable nor appropriate in
-    // Android's fullscreen activity. Phone controls live in the touch UI.
+#if defined(Q_OS_IOS) || defined(ANDROID_APP_PHONE_INTERFACE)
+    // The native desktop menu bar is neither reachable nor appropriate in a
+    // fullscreen mobile client. Mobile controls live in the touch UI.
     Menu::getInstance()->setVisible(false);
 #else
     Menu::getInstance()->setVisible(_menuBarVisible.get());
@@ -2007,7 +2135,8 @@ void Application::nodeActivated(SharedNodePointer node) {
 
             if (nodeList->getThisNodeCanWriteAssets()) {
                 // call reload on the shown asset browser dialog to get the mappings (if permissions allow)
-                auto assetDialog = offscreenUi ? offscreenUi->getRootItem()->findChild<QQuickItem*>("AssetServer") : nullptr;
+                auto rootItem = offscreenUi->getRootItem();
+                auto assetDialog = rootItem ? rootItem->findChild<QQuickItem*>("AssetServer") : nullptr;
                 if (assetDialog) {
                     QMetaObject::invokeMethod(assetDialog, "reload");
                 }
@@ -2024,6 +2153,14 @@ void Application::nodeActivated(SharedNodePointer node) {
     if (node->getType() == NodeType::EntityServer) {
         _queryExpiry = SteadyClock::now();
         _octreeQuery.incrementConnectionID();
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+        qInfo().noquote() << "OVERTE_MACOS_ENTITY_GATE entity_server_active"
+                          << "node=" << node->getUUID().toString(QUuid::WithoutBraces);
+#endif
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+        logIOSRuntimeMarker("OVERTE_IOS_ENTITY_GATE entity_server_active",
+                            "node=", node->getUUID().toString(QUuid::WithoutBraces));
+#endif
 
         if  (!_failedToConnectToEntityServer) {
             _entityServerConnectionTimer.stop();
@@ -2101,7 +2238,8 @@ void Application::nodeKilled(SharedNodePointer node) {
 
 #if !defined(DISABLE_QML)
         auto offscreenUi = getOffscreenUI();
-        auto assetDialog = offscreenUi ? offscreenUi->getRootItem()->findChild<QQuickItem*>("AssetServer") : nullptr;
+        auto rootItem = offscreenUi ? offscreenUi->getRootItem() : nullptr;
+        auto assetDialog = rootItem ? rootItem->findChild<QQuickItem*>("AssetServer") : nullptr;
 
         if (assetDialog) {
             // call reload on the shown asset browser dialog
@@ -2114,7 +2252,12 @@ void Application::nodeKilled(SharedNodePointer node) {
 void Application::handleSandboxStatus(QNetworkReply* reply) {
     PROFILE_RANGE(render, __FUNCTION__);
 
-    bool sandboxIsRunning = SandboxUtils::readStatus(reply->readAll());
+    bool sandboxIsRunning = reply ? SandboxUtils::readStatus(reply->readAll()) : false;
+#if defined(Q_OS_IOS)
+    if (!reply && QCoreApplication::arguments().contains(QStringLiteral("--ios-world-evidence"))) {
+        logIOSRuntimeMarker("OVERTE_IOS_WORLD_DIAGNOSTIC sandbox_probe_skipped=unsupported_platform");
+    }
+#endif
 
     enum HandControllerType {
         Vive,
@@ -2317,7 +2460,9 @@ void Application::cleanupBeforeQuit() {
     // These classes hold ScriptEnginePointers, so they must be destroyed before ScriptEngines
     // Must be done after shutdownScripting in case any scripts try to access these things
     {
+#if !defined(Q_OS_IOS)
         DependencyManager::destroy<StandAloneJSConsole>();
+#endif
         EntityTreePointer tree = getEntities()->getTree();
         tree->setSimulation(nullptr);
         DependencyManager::destroy<EntityTreeRenderer>();
@@ -2541,11 +2686,11 @@ void Application::idle() {
 #endif
             }
 
-#if !defined(ANDROID_APP_PHONE_INTERFACE)
+#if !defined(ANDROID_APP_PHONE_INTERFACE) && !defined(Q_OS_IOS)
             // Desktop GPU drivers can be replaced or rolled back by the user,
-            // so the blocklist warning is actionable there. Android GPU
+            // so the blocklist warning is actionable there. Mobile GPU
             // drivers are delivered with the OS and the desktop warning is
-            // misleading (and poorly sized) in the phone activity.
+            // not actionable there.
             QString os = platform::getComputer()[platform::keys::computer::OS].dump().c_str();
             os = os.replace("\"", "");
             GPUIdent* gpuIdent = GPUIdent::getInstance();
@@ -3067,7 +3212,10 @@ void Application::update(float deltaTime) {
         // The committed local import is authoritative. Domain/EntityTree
         // serverless flags can be reset by a delayed disconnect from the
         // previously configured online startup domain.
-        const bool physicsServerless = _picoServerlessSceneImportCommitted ||
+        const bool physicsServerless =
+#if defined(ANDROID_APP_PICO_INTERFACE)
+            _picoServerlessSceneImportCommitted ||
+#endif
             isServerlessMode() || physicsDomainHandler.isServerless();
         bool serverlessImportReady { true };
 #if defined(ANDROID_APP_PICO_INTERFACE)
@@ -4012,6 +4160,33 @@ void Application::update(float deltaTime) {
     {
         QMutexLocker viewLocker(&_viewMutex);
         _myCamera.loadViewFrustum(_viewFrustum);
+
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+        if (iosRuntimeRenderDiagnosticsEnabled()) {
+            const auto evidence = iosRuntimeEntityEvidenceSnapshot();
+            if (evidence.committed) {
+                static int diagnosticFrame { 0 };
+                ++diagnosticFrame;
+                if (diagnosticFrame == 1 || diagnosticFrame == 60 || diagnosticFrame == 180) {
+                    const auto& cameraPosition = _viewFrustum.getPosition();
+                    const auto& cameraDirection = _viewFrustum.getDirection();
+                    const auto avatarPosition = getMyAvatar()->getWorldPosition();
+                    logIOSRuntimeMarker("OVERTE_IOS_ENTITY_TRACE stage=camera",
+                                        "sample=", diagnosticFrame,
+                                        "mode=", iosRuntimeRenderDiagnosticMode(),
+                                        "expected=", evidence.expected,
+                                        "renderables=", evidence.renderables,
+                                        "scene=", evidence.scene,
+                                        "drawn=", evidence.drawn,
+                                        "camera=", cameraPosition.x, cameraPosition.y, cameraPosition.z,
+                                        "direction=", cameraDirection.x, cameraDirection.y, cameraDirection.z,
+                                        "avatar=", avatarPosition.x, avatarPosition.y, avatarPosition.z,
+                                        "near=", _viewFrustum.getNearClip(),
+                                        "far=", _viewFrustum.getFarClip());
+                }
+            }
+        }
+#endif
 
         _conicalViews.clear();
         _conicalViews.push_back(_viewFrustum);

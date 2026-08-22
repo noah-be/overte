@@ -12,6 +12,7 @@
 #ifndef hifi_ScriptHighlighting_h
 #define hifi_ScriptHighlighting_h
 
+#include <QRegularExpression>
 #include <QSyntaxHighlighter>
 
 class ScriptHighlighting : public QSyntaxHighlighter {
@@ -34,14 +35,14 @@ protected:
     void formatTrueFalse(const QString& text);
 
 private:
-    QRegExp _alphacharRegex;
-    QRegExp _keywordRegex;
-    QRegExp _quotedTextRegex;
-    QRegExp _multiLineCommentBegin;
-    QRegExp _multiLineCommentEnd;
-    QRegExp _numberRegex;
-    QRegExp _singleLineComment;
-    QRegExp _truefalseRegex;
+    QRegularExpression _alphacharRegex;
+    QRegularExpression _keywordRegex;
+    QRegularExpression _quotedTextRegex;
+    QRegularExpression _multiLineCommentBegin;
+    QRegularExpression _multiLineCommentEnd;
+    QRegularExpression _numberRegex;
+    QRegularExpression _singleLineComment;
+    QRegularExpression _truefalseRegex;
 };
 
 #endif // hifi_ScriptHighlighting_h

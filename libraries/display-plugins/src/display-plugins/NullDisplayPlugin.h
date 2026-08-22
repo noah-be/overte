@@ -17,7 +17,8 @@ public:
 
     glm::uvec2 getRecommendedRenderSize() const override;
     void submitFrame(const gpu::FramePointer& newFrame) override;
-    void copyTextureToQuickFramebuffer(NetworkTexturePointer source, QOpenGLFramebufferObject* target, GLsync* fenceSync) override {};
+    bool copyTextureToQuickFramebuffer(NetworkTexturePointer source,
+                                       const QuickTextureCopyTarget& target) override { return false; };
     void pluginUpdate() override {};
 private:
     static const QString NAME;

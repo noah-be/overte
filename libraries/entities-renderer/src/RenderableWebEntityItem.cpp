@@ -13,7 +13,6 @@
 
 #include <QtCore/QTimer>
 #include <QtGui/QOpenGLContext>
-#include <QtGui/QTouchDevice>
 #include <QtQuick/QQuickItem>
 #include <QtQuick/QQuickWindow>
 #include <QtQml/QQmlContext>
@@ -59,7 +58,26 @@ static uint8_t YOUTUBE_MAX_FPS = 30;
 static std::atomic<uint32_t> _currentWebCount(0);
 static const uint32_t MAX_CONCURRENT_WEB_VIEWS = 20;
 
-static QTouchDevice _touchDevice;
+namespace {
+OffscreenTouchDevice& webEntityTouchDevice() {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    static OffscreenTouchDevice device(
+        QStringLiteral("WebEntityRendererTouchDevice"), 0x4f5654574542LL,
+        QInputDevice::DeviceType::TouchScreen, QPointingDevice::PointerType::Finger,
+        QInputDevice::Capability::Position, 4, 0);
+#else
+    static OffscreenTouchDevice device;
+    static std::once_flag once;
+    std::call_once(once, [&] {
+        device.setCapabilities(QTouchDevice::Position);
+        device.setType(QTouchDevice::TouchScreen);
+        device.setName("WebEntityRendererTouchDevice");
+        device.setMaximumTouchPoints(4);
+    });
+#endif
+    return device;
+}
+}
 
 static uint8_t CUSTOM_PIPELINE_NUMBER;
 // transparent, forward, shadow, fade
@@ -139,10 +157,7 @@ WebEntityRenderer::WebEntityRenderer(const EntityItemPointer& entity) : Parent(e
     static std::once_flag once;
     std::call_once(once, [&]{
         CUSTOM_PIPELINE_NUMBER = render::ShapePipeline::registerCustomShapePipelineFactory(webPipelineFactory);
-        _touchDevice.setCapabilities(QTouchDevice::Position);
-        _touchDevice.setType(QTouchDevice::TouchScreen);
-        _touchDevice.setName("WebEntityRendererTouchDevice");
-        _touchDevice.setMaximumTouchPoints(4);
+        (void)webEntityTouchDevice();
     });
     _geometryId = DependencyManager::get<GeometryCache>()->allocateID();
 
@@ -475,7 +490,7 @@ void WebEntityRenderer::hoverEnterEntity(const PointerEvent& event) {
         if (_webSurface) {
             PointerEvent webEvent = event;
             webEvent.setPos2D(event.getPos2D() * (METERS_TO_INCHES * _dpi));
-            _webSurface->hoverBeginEvent(webEvent, _touchDevice);
+            _webSurface->hoverBeginEvent(webEvent, webEntityTouchDevice());
         }
     });
 }
@@ -495,7 +510,7 @@ void WebEntityRenderer::hoverLeaveEntity(const PointerEvent& event) {
         if (_webSurface) {
             PointerEvent webEvent = event;
             webEvent.setPos2D(event.getPos2D() * (METERS_TO_INCHES * _dpi));
-            _webSurface->hoverEndEvent(webEvent, _touchDevice);
+            _webSurface->hoverEndEvent(webEvent, webEntityTouchDevice());
         }
     });
 }
@@ -517,7 +532,7 @@ void WebEntityRenderer::handlePointerEvent(const PointerEvent& event) {
 void WebEntityRenderer::handlePointerEventAsTouch(const PointerEvent& event) {
     PointerEvent webEvent = event;
     webEvent.setPos2D(event.getPos2D() * (METERS_TO_INCHES * _dpi));
-    _webSurface->handlePointerEvent(webEvent, _touchDevice);
+    _webSurface->handlePointerEvent(webEvent, webEntityTouchDevice());
 }
 
 void WebEntityRenderer::handlePointerEventAsMouse(const PointerEvent& event) {

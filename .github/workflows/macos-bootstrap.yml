@@ -1,0 +1,117 @@
+# Copyright 2026 Overte e.V.
+# SPDX-License-Identifier: Apache-2.0
+
+name: macOS bootstrap
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [apple-macos]
+    paths:
+      - '.github/workflows/macos-bootstrap.yml'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'conanfile.py'
+      - 'docs/macos/**'
+      - 'interface/**'
+      - 'libraries/**'
+      - 'macos/**'
+      - 'plugins/**'
+      - '!**/*.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-bootstrap-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  client-opengl-x86_64:
+    runs-on: macos-15-intel
+    timeout-minutes: 180
+    env:
+      CONAN_HOME: ${{ github.workspace }}/.conan2
+      OVERTE_MACOS_ARCH: x86_64
+      OVERTE_MACOS_BUILD_TYPE: RelWithDebInfo
+      OVERTE_MACOS_QT_SOURCE: aqt
+      MACOSX_DEPLOYMENT_TARGET: '11.0'
+    steps:
+      - name: Check out requested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install build tools
+        run: |
+          python3 -m venv build-tooling-venv
+          build-tooling-venv/bin/pip install 'conan>=2,<3' 'aqtinstall>=3,<4'
+          echo "$GITHUB_WORKSPACE/build-tooling-venv/bin" >> "$GITHUB_PATH"
+          export PATH="$GITHUB_WORKSPACE/build-tooling-venv/bin:$PATH"
+          conan --version
+
+      - name: Check host toolchain
+        run: macos/build-macos.sh doctor
+
+      - name: Cache Conan packages
+        id: conan-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            ${{ env.CONAN_HOME }}/p
+            ${{ env.CONAN_HOME }}/sources
+          key: macos-x86_64-qt-aqt-${{ hashFiles('conanfile.py', 'macos/conan/**') }}
+          restore-keys: |
+            macos-x86_64-qt-aqt-
+
+      - name: Resolve dependencies
+        run: macos/build-macos.sh deps
+
+      - name: Save partial or complete Conan cache
+        if: always() && steps.conan-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            ${{ env.CONAN_HOME }}/p
+            ${{ env.CONAN_HOME }}/sources
+          key: macos-x86_64-qt-aqt-${{ hashFiles('conanfile.py', 'macos/conan/**') }}-${{ github.run_id }}
+
+      - name: Configure and build client
+        run: macos/build-macos.sh build
+
+      - name: Verify application bundle
+        run: |
+          app="$(find build -type d -name Overte.app -print -quit)"
+          test -n "$app"
+          test -x "$app/Contents/MacOS/Overte"
+          test -f "$app/Contents/Info.plist"
+          plutil -lint "$app/Contents/Info.plist"
+
+      - name: Run serverless entity smoke
+        run: |
+          app="$(find build -type d -name Overte.app -print -quit)"
+          macos/ci/serverless-smoke.sh "$app" build/macos-smoke
+
+      - name: Run online entity smoke
+        run: |
+          app="$(find build -type d -name Overte.app -print -quit)"
+          macos/ci/online-smoke.sh "$app" build/macos-online-smoke
+
+      - name: Upload smoke diagnostics
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: overte-macos-smoke-${{ github.run_id }}
+          path: |
+            build/macos-smoke
+            build/macos-online-smoke
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload application bundle
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: overte-macos-x86_64-${{ github.run_id }}
+          path: build/interface/Overte.app
+          if-no-files-found: error
+          retention-days: 7

@@ -10,18 +10,17 @@
 //
 
 #include "WebBrowserSuggestionsEngine.h"
-#include "qregexp.h"
 
 #include <qbuffer.h>
 #include <qcoreapplication.h>
 #include <qlocale.h>
 #include <qnetworkrequest.h>
 #include <qnetworkreply.h>
-#include <qregexp.h>
 #include <qstringlist.h>
 
 #include <QUrlQuery>
 #include <QJsonDocument>
+#include <QMetaType>
 
 #include <NetworkAccessManager.h>
 
@@ -67,7 +66,12 @@ void WebBrowserSuggestionsEngine::suggestionsFinished(QNetworkReply *reply) {
     QJsonDocument json = QJsonDocument::fromJson(response, &err);
     const QVariant res = json.toVariant();
 
-    if (err.error != QJsonParseError::NoError || res.type() != QVariant::List) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    const bool isSuggestionList = res.metaType().id() == QMetaType::QVariantList;
+#else
+    const bool isSuggestionList = res.type() == QVariant::List;
+#endif
+    if (err.error != QJsonParseError::NoError || !isSuggestionList) {
         return;
     }
 

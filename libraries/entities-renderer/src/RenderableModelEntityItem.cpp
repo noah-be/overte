@@ -385,9 +385,9 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
 
         // the way OBJ files get read, each section under a "g" line is its own meshPart.  We only expect
         // to find one actual "mesh" (with one or more meshParts in it), but we loop over the meshes, just in case.
-        foreach (const HFMMesh& mesh, collisionGeometry.meshes) {
+        for (const HFMMesh& mesh : collisionGeometry.meshes) {
             // each meshPart is a convex hull
-            foreach (const HFMMeshPart &meshPart, mesh.parts) {
+            for (const HFMMeshPart& meshPart : mesh.parts) {
                 pointCollection.push_back(QVector<glm::vec3>());
                 ShapeInfo::PointList& pointsInPart = pointCollection[i];
 
@@ -465,7 +465,8 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
                 pointCollection[i][j] = scaleToFit * (pointCollection[i][j] + offset) - registrationOffset;
             }
         }
-        shapeInfo.setParams(type, 0.5f * extents, getCompoundShapeURL() + model->getSnapModelToRegistrationPoint());
+        shapeInfo.setParams(type, 0.5f * extents,
+            getCompoundShapeURL() + QChar(static_cast<ushort>(model->getSnapModelToRegistrationPoint())));
         adjustShapeInfoByRegistration(shapeInfo, model->getSnapModelToRegistrationPoint());
     } else if (type >= SHAPE_TYPE_SIMPLE_HULL && type <= SHAPE_TYPE_STATIC_MESH) {
         updateModelBounds();
@@ -698,7 +699,8 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
             }
         }
 
-        shapeInfo.setParams(type, 0.5f * extents.size(), getModelURL() + model->getSnapModelToRegistrationPoint());
+        shapeInfo.setParams(type, 0.5f * extents.size(),
+            getModelURL() + QChar(static_cast<ushort>(model->getSnapModelToRegistrationPoint())));
         adjustShapeInfoByRegistration(shapeInfo, model->getSnapModelToRegistrationPoint());
     } else {
         EntityItem::computeShapeInfo(shapeInfo);

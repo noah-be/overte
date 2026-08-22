@@ -15,7 +15,9 @@
 
 #include <QtCore/QThread>
 #include <NumericalConstants.h>
+#if !defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)
 #include <gl/GLHelpers.h>
+#endif
 
 #include "VKBackend.h"
 #include "vk/Allocation.h"
@@ -622,6 +624,7 @@ VKStrictResourceTexture::~VKStrictResourceTexture() {
     recycler.trashVmaAllocation(_vmaAllocation);
 }
 
+#if !defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)
 void VKExternalTexture::createTexture(VKBackend &backend) {
     auto device = backend.getContext().device;
 
@@ -931,6 +934,7 @@ VkDescriptorImageInfo VKExternalTexture::getDescriptorImageInfo() {
     result.imageView = _vkImageView;
     return result;
 }
+#endif
 
 Size VKResourceTexture::copyMipFaceFromTexture(uint16_t sourceMip, uint16_t targetMip, uint8_t face, VkCommandBuffer &copyCmd) {
     if (!_gpuObject.isStoredMipFaceAvailable(sourceMip)) {

@@ -23,6 +23,9 @@
 #include <stdexcept>
 #include <fstream>
 #include <algorithm>
+#if defined(__APPLE__)
+#include <os/log.h>
+#endif
 #if defined(_WIN32)
 #include <windows.h>
 #include <fcntl.h>
@@ -46,6 +49,20 @@
     {                                                                                                    \
         LOGE("Fatal : VkResult is \" %s \" in %s at line %d", vks::tools::errorString(res).c_str(), __FILE__, __LINE__); \
         assert(res == VK_SUCCESS);                                                                        \
+    }                                                                                                    \
+}
+#elif defined(VK_USE_PLATFORM_METAL_EXT)
+#define VK_CHECK_RESULT(f)                                                                                \
+{                                                                                                        \
+    VkResult res = (f);                                                                                   \
+    if (res != VK_SUCCESS)                                                                                \
+    {                                                                                                    \
+        std::string message = "Fatal iOS Vulkan result: " + vks::tools::errorString(res) +               \
+            " (" + std::to_string(static_cast<int>(res)) + ") in " + __FILE__ +                         \
+            " at line " + std::to_string(__LINE__);                                                      \
+        os_log_fault(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_FATAL %{public}s", message.c_str());            \
+        std::cerr << "OVERTE_IOS_VULKAN_FATAL " << message << "\n" << std::flush;                        \
+        throw std::runtime_error(message);                                                               \
     }                                                                                                    \
 }
 #else

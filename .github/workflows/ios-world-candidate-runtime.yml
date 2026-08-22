@@ -1,0 +1,348 @@
+name: iOS world candidate runtime
+
+on:
+  push:
+    branches:
+      - apple-ios
+    paths:
+      - '.github/ios-world-runtime-candidate.json'
+      - '.github/workflows/ios-world-candidate-runtime.yml'
+      - 'ios/ci/interface-world-simulator-smoke.sh'
+      - 'ios/tools/validate-world-*.py'
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: Run containing the verified simulator candidate
+        required: true
+        type: string
+      candidate_revision:
+        description: Exact 40-character candidate source revision
+        required: true
+        type: string
+      candidate_artifact:
+        description: Exact verified simulator candidate artifact name
+        required: true
+        type: string
+      present_probe:
+        description: Optional iOS presentation boundary probe
+        required: false
+        default: ''
+        type: string
+      runtime_case:
+        description: Optional single runtime case; all runs final acceptance
+        required: false
+        default: all
+        type: choice
+        options:
+          - all
+          - iphone-serverless
+          - iphone-online
+          - ipad-serverless
+          - ipad-online
+      stack_sample_seconds:
+        description: Optional early stack snapshot delay for a targeted diagnostic
+        required: false
+        default: '0'
+        type: string
+      synchronous_queue_submits:
+        description: Optional MoltenVK queue-submit A/B diagnostic (empty, 0 or 1)
+        required: false
+        default: ''
+        type: string
+      render_diagnostic:
+        description: Reusable no-rebuild entity rendering diagnostic mode
+        required: false
+        default: trace
+        type: choice
+        options:
+          - trace
+          - cpu-cull-off
+          - gpu-cull-off
+          - depth-off
+          - full-scissor
+          - reset-format
+          - camera-first-person
+          - camera-independent
+          - off
+      gpu_trace:
+        description: Capture one Metal GPU frame after the world gates
+        required: false
+        default: false
+        type: boolean
+      capture_sigsegv:
+        description: Run the targeted case under LLDB and preserve the first SIGSEGV
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ios-world-candidate-runtime-${{ github.ref }}-${{ inputs.present_probe || 'default' }}
+  cancel-in-progress: false
+
+jobs:
+  runtime:
+    runs-on: macos-26
+    timeout-minutes: 150
+    env:
+      OVERTE_IOS_WORLD_DIAGNOSTICS_DIR: ${{ github.workspace }}/build-ios/world-raw-diagnostics
+    steps:
+      - name: Check out current runtime harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          ref: apple-ios
+          persist-credentials: false
+
+      - name: Resolve and validate requested candidate identity
+        id: request
+        env:
+          REQUESTED_PRESENT_PROBE: ${{ inputs.present_probe || '' }}
+          REQUESTED_RUNTIME_CASE: ${{ inputs.runtime_case || 'all' }}
+          REQUESTED_STACK_SAMPLE_SECONDS: ${{ inputs.stack_sample_seconds || '0' }}
+          REQUESTED_SYNCHRONOUS_QUEUE_SUBMITS: ${{ inputs.synchronous_queue_submits || '' }}
+          REQUESTED_RENDER_DIAGNOSTIC: ${{ inputs.render_diagnostic || 'trace' }}
+          REQUESTED_GPU_TRACE: ${{ inputs.gpu_trace && '1' || '0' }}
+          REQUESTED_CAPTURE_SIGSEGV: ${{ inputs.capture_sigsegv && '1' || '0' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ '${{ github.event_name }}' == workflow_dispatch ]]; then
+            run_id='${{ inputs.candidate_run_id }}'
+            revision='${{ inputs.candidate_revision }}'
+            artifact='${{ inputs.candidate_artifact }}'
+          else
+            candidate="$(python3 - <<'PY'
+          import json, pathlib
+          data = json.loads(pathlib.Path('.github/ios-world-runtime-candidate.json').read_text())
+          print(data.get('runId', ''))
+          print(data.get('revision', ''))
+          print(data.get('artifact', ''))
+          PY
+            )"
+            run_id="$(printf '%s\n' "$candidate" | sed -n '1p')"
+            revision="$(printf '%s\n' "$candidate" | sed -n '2p')"
+            artifact="$(printf '%s\n' "$candidate" | sed -n '3p')"
+          fi
+          probe="$REQUESTED_PRESENT_PROBE"
+          case "$probe" in
+            ''|swapchain-green|tone-input|tone-solid|tone-uv|tone-sample|frame|resample|composite) ;;
+            *) echo "unsupported presentation probe: $probe" >&2; exit 64 ;;
+          esac
+          runtime_case="$REQUESTED_RUNTIME_CASE"
+          case "$runtime_case" in
+            all|iphone-serverless|iphone-online|ipad-serverless|ipad-online) ;;
+            *) echo "unsupported runtime case: $runtime_case" >&2; exit 64 ;;
+          esac
+          [[ "$REQUESTED_STACK_SAMPLE_SECONDS" =~ ^[0-9]+$ ]] && \
+            ((10#$REQUESTED_STACK_SAMPLE_SECONDS <= 1200))
+          [[ -z "$REQUESTED_SYNCHRONOUS_QUEUE_SUBMITS" || \
+             "$REQUESTED_SYNCHRONOUS_QUEUE_SUBMITS" == 0 || \
+             "$REQUESTED_SYNCHRONOUS_QUEUE_SUBMITS" == 1 ]]
+          case "$REQUESTED_RENDER_DIAGNOSTIC" in
+            off|trace|cpu-cull-off|gpu-cull-off|depth-off|full-scissor|reset-format|camera-first-person|camera-independent) ;;
+            *) echo "unsupported render diagnostic: $REQUESTED_RENDER_DIAGNOSTIC" >&2; exit 64 ;;
+          esac
+          [[ "$REQUESTED_GPU_TRACE" == 0 || "$REQUESTED_GPU_TRACE" == 1 ]]
+          [[ "$REQUESTED_CAPTURE_SIGSEGV" == 0 || "$REQUESTED_CAPTURE_SIGSEGV" == 1 ]]
+          if [[ "$REQUESTED_GPU_TRACE" == 1 && "$runtime_case" == all ]]; then
+            echo "Metal GPU capture requires one targeted runtime case" >&2
+            exit 64
+          fi
+          if [[ "$REQUESTED_GPU_TRACE" == 1 && "$REQUESTED_CAPTURE_SIGSEGV" == 1 ]]; then
+            echo "Metal GPU capture and LLDB capture must run separately" >&2
+            exit 64
+          fi
+          if [[ "$REQUESTED_CAPTURE_SIGSEGV" == 1 ]]; then
+            case "$runtime_case" in
+              iphone-online|ipad-online) ;;
+              *) echo "SIGSEGV capture requires a targeted iPhone or iPad online case" >&2; exit 64 ;;
+            esac
+          fi
+          if [[ -n "$probe" && "$runtime_case" != all ]]; then
+            echo "presentation probes cannot be combined with a targeted runtime case" >&2
+            exit 64
+          fi
+          [[ "$run_id" =~ ^[1-9][0-9]*$ ]]
+          [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$artifact" == "overte-ios-world-candidate-v2-${revision}-${run_id}" ]]
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+          echo "artifact=$artifact" >> "$GITHUB_OUTPUT"
+          echo "probe=$probe" >> "$GITHUB_OUTPUT"
+          echo "runtime_case=$runtime_case" >> "$GITHUB_OUTPUT"
+          echo "stack_sample_seconds=$REQUESTED_STACK_SAMPLE_SECONDS" >> "$GITHUB_OUTPUT"
+          echo "synchronous_queue_submits=$REQUESTED_SYNCHRONOUS_QUEUE_SUBMITS" >> "$GITHUB_OUTPUT"
+          echo "render_diagnostic=$REQUESTED_RENDER_DIAGNOSTIC" >> "$GITHUB_OUTPUT"
+          echo "gpu_trace=$REQUESTED_GPU_TRACE" >> "$GITHUB_OUTPUT"
+          echo "capture_sigsegv=$REQUESTED_CAPTURE_SIGSEGV" >> "$GITHUB_OUTPUT"
+
+      - name: Download verified simulator candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ steps.request.outputs.artifact }}
+          path: build-ios/runtime-artifact
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.request.outputs.run_id }}
+
+      - name: Verify and unpack exact candidate
+        id: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="$(find build-ios/runtime-artifact -maxdepth 1 \
+            -name '*-OverteIOSClient-Release-simulator.json' -print)"
+          archive="$(find build-ios/runtime-artifact -maxdepth 1 \
+            -name '*-OverteIOSClient-Release-simulator.zip' -print)"
+          symbols="$(find build-ios/runtime-artifact -maxdepth 1 \
+            -name '*-OverteIOSClient-Release-simulator-symbols.zip' -print)"
+          [[ -f "$manifest" && -f "$archive" && -f "$symbols" ]]
+          cp -- "$manifest" build-ios/runtime-artifact/LATEST-OverteIOSClient.json
+          python3 - "$manifest" > build-ios/runtime-artifact/LATEST-OverteIOSClient.txt <<'PY'
+          import json, pathlib, sys
+          payload = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          artifact = payload.get('artifact', '')
+          if pathlib.Path(artifact).name != artifact or not artifact:
+              raise SystemExit('unsafe artifact name in candidate manifest')
+          print(artifact)
+          PY
+          sha="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sha256"])' "$manifest")"
+          python3 ios/tools/verify-runtime-candidate.py build-ios/runtime-artifact \
+            --mode simulator \
+            --expected-source-revision '${{ steps.request.outputs.revision }}' \
+            --expected-sha256 "$sha"
+          mkdir -p build-ios/runtime-candidate build-ios/runtime-symbols
+          ditto -x -k "$archive" build-ios/runtime-candidate
+          ditto -x -k "$symbols" build-ios/runtime-symbols
+          app="$(find build-ios/runtime-candidate -type d -name Overte.app -prune -print)"
+          dsym="$(find build-ios/runtime-symbols -type d -name Overte.app.dSYM -prune -print)"
+          [[ -d "$app" && -d "$dsym" ]]
+          app="$GITHUB_WORKSPACE/$app"
+          dsym="$GITHUB_WORKSPACE/$dsym"
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+          echo "dsym=$dsym" >> "$GITHUB_OUTPUT"
+          echo "manifest=$manifest" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          bundle_id="$(plutil -extract CFBundleIdentifier raw "$app/Info.plist")"
+          echo "bundle_id=$bundle_id" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve current overte_hub domain identity
+        id: online-world
+        if: ${{ steps.request.outputs.probe == '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(mktemp "${TMPDIR:-/tmp}/overte-place.XXXXXX")"
+          trap 'rm -f "$response"' EXIT
+          curl --fail --silent --show-error --retry 3 --max-time 30 \
+            https://mv.overte.org/server/api/v1/places/overte_hub > "$response"
+          domain="$(python3 - "$response" <<'PY'
+          import json, pathlib, re, sys
+          payload = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          place = payload.get("data", {}).get("place", {})
+          domain = place.get("domain", {})
+          value = str(domain.get("id", "")).lower()
+          if payload.get("status") != "success" or place.get("name") != "overte_hub" or domain.get("active") is not True:
+              raise SystemExit("overte_hub is not active")
+          if re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", value) is None:
+              raise SystemExit("overte_hub returned an invalid UUID")
+          print(value)
+          PY
+          )"
+          echo "domain=$domain" >> "$GITHUB_OUTPUT"
+
+      - name: Select stable CoreSimulator tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          developer_dir=/Applications/Xcode_26.5.app/Contents/Developer
+          [[ "$(DEVELOPER_DIR="$developer_dir" xcodebuild -version | awk '/Build version/{print $3}')" == 17F42 ]]
+          echo "DEVELOPER_DIR=$developer_dir" >> "$GITHUB_ENV"
+
+      - name: Load serverless and online worlds with screenshots
+        env:
+          OVERTE_IOS_WORLD_SYMBOL_BUNDLE: ${{ steps.candidate.outputs.dsym }}
+          OVERTE_IOS_PRESENT_PROBE: ${{ steps.request.outputs.probe }}
+          ONLINE_DOMAIN: ${{ steps.online-world.outputs.domain }}
+          PRESENT_PROBE: ${{ steps.request.outputs.probe }}
+          RUNTIME_CASE: ${{ steps.request.outputs.runtime_case }}
+          OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS: ${{ steps.request.outputs.stack_sample_seconds }}
+          OVERTE_IOS_WORLD_MVK_SYNCHRONOUS_QUEUE_SUBMITS: ${{ steps.request.outputs.synchronous_queue_submits }}
+          OVERTE_IOS_WORLD_RENDER_DIAGNOSTIC: ${{ steps.request.outputs.render_diagnostic }}
+          OVERTE_IOS_WORLD_GPU_TRACE: ${{ steps.request.outputs.gpu_trace }}
+          CAPTURE_SIGSEGV: ${{ steps.request.outputs.capture_sigsegv }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence=build-ios/world-evidence
+          mkdir -p "$evidence"
+          if [[ "$CAPTURE_SIGSEGV" == 1 ]]; then
+            diagnostics=build-ios/world-raw-diagnostics
+            mkdir -p "$diagnostics"
+            family="${RUNTIME_CASE%%-*}"
+            OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE=0 \
+            OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS=0 \
+            OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER=1 \
+            OVERTE_IOS_LLDB_TIMEOUT_SECONDS=600 \
+              ios/ci/interface-world-simulator-lldb.sh \
+                '${{ steps.candidate.outputs.app }}' '${{ steps.candidate.outputs.dsym }}' \
+                '${{ steps.candidate.outputs.bundle_id }}' "$family" \
+                '${{ steps.request.outputs.revision }}' '${{ steps.candidate.outputs.sha }}' \
+                "$diagnostics" online "$ONLINE_DOMAIN"
+          elif [[ -n "$PRESENT_PROBE" ]]; then
+            OVERTE_IOS_WORLD_CAPTURE_ONLY=1 \
+              ios/ci/interface-world-simulator-smoke.sh \
+                '${{ steps.candidate.outputs.app }}' '${{ steps.candidate.outputs.bundle_id }}' \
+                iphone serverless - "$evidence"
+          elif [[ "$RUNTIME_CASE" == all ]]; then
+            for family in iphone ipad; do
+              ios/ci/interface-world-simulator-smoke.sh \
+                '${{ steps.candidate.outputs.app }}' '${{ steps.candidate.outputs.bundle_id }}' \
+                "$family" serverless - "$evidence"
+              ios/ci/interface-world-simulator-smoke.sh \
+                '${{ steps.candidate.outputs.app }}' '${{ steps.candidate.outputs.bundle_id }}' \
+                "$family" online "$ONLINE_DOMAIN" "$evidence"
+            done
+            python3 ios/tools/validate-world-evidence-set.py "$evidence" \
+              --candidate-manifest '${{ steps.candidate.outputs.manifest }}' \
+              --source-revision '${{ steps.request.outputs.revision }}' \
+              --candidate-sha256 '${{ steps.candidate.outputs.sha }}' \
+              --output build-ios/world-evidence-set.json
+          else
+            family="${RUNTIME_CASE%%-*}"
+            scenario="${RUNTIME_CASE#*-}"
+            if [[ "$scenario" == serverless ]]; then
+              ios/ci/interface-world-simulator-smoke.sh \
+                '${{ steps.candidate.outputs.app }}' '${{ steps.candidate.outputs.bundle_id }}' \
+                "$family" serverless - "$evidence"
+            else
+              ios/ci/interface-world-simulator-smoke.sh \
+                '${{ steps.candidate.outputs.app }}' '${{ steps.candidate.outputs.bundle_id }}' \
+                "$family" online "$ONLINE_DOMAIN" "$evidence"
+            fi
+          fi
+
+      - name: Upload world evidence
+        if: success()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: overte-ios-runtime-only-evidence-${{ github.run_id }}
+          path: |
+            build-ios/world-evidence
+            build-ios/world-evidence-set.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload runtime-only failures
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: overte-ios-runtime-only-failures-${{ github.run_id }}
+          path: |
+            build-ios/world-evidence
+            build-ios/world-raw-diagnostics
+          if-no-files-found: warn
+          retention-days: 14

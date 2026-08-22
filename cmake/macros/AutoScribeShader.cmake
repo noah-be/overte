@@ -424,7 +424,11 @@ macro(AUTOSCRIBE_SHADER_LIBS)
         set(SPIRV_CROSS_DIR "$ENV{SPIRV_CROSS_DIR}")
         set(SPIRV_TOOLS_DIR "$ENV{SPIRV_TOOLS_DIR}")
     else()
-        include(${CMAKE_BINARY_DIR}/cmake/ConanToolsDirs.cmake)
+        if(IOS)
+            include(${CMAKE_BINARY_DIR}/conan/cmake/ConanToolsDirs.cmake)
+        else()
+            include(${CMAKE_BINARY_DIR}/cmake/ConanToolsDirs.cmake)
+        endif()
     endif()
 
     message(STATUS "Shader processing start")
@@ -500,9 +504,29 @@ macro(AUTOSCRIBE_SHADER_LIBS)
     endif()
 
 
+    # Xcode exports every custom-command input and output into the shell phase
+    # environment. The complete shader graph exceeds Darwin's ARG_MAX, while
+    # shadergen already consumes the authoritative command manifest itself.
+    if (IOS)
+        set(AUTOSCRIBE_SHADERGEN_OUTPUTS ${CMAKE_CURRENT_BINARY_DIR}/shadergen.stamp)
+        set(AUTOSCRIBE_SHADERGEN_DEPENDS
+            ${AUTOSCRIBE_SHADERGEN_COMMANDS_FILE}
+            ${AUTOSCRIBE_SHADER_HEADERS}
+            ${CMAKE_SOURCE_DIR}/tools/shadergen.py)
+        set(AUTOSCRIBE_SHADERGEN_FINISH
+            COMMAND ${CMAKE_COMMAND} -E touch ${AUTOSCRIBE_SHADERGEN_OUTPUTS})
+    else()
+        set(AUTOSCRIBE_SHADERGEN_OUTPUTS ${SCRIBED_SHADERS} ${SPIRV_SHADERS} ${REFLECTED_SHADERS})
+        set(AUTOSCRIBE_SHADERGEN_DEPENDS
+            ${AUTOSCRIBE_SHADER_HEADERS}
+            ${CMAKE_SOURCE_DIR}/tools/shadergen.py
+            ${ALL_SCRIBE_SHADERS})
+        set(AUTOSCRIBE_SHADERGEN_FINISH "")
+    endif()
+
     # A custom python script which will generate all our shader artifacts
     add_custom_command(
-        OUTPUT ${SCRIBED_SHADERS} ${SPIRV_SHADERS} ${REFLECTED_SHADERS}
+        OUTPUT ${AUTOSCRIBE_SHADERGEN_OUTPUTS}
         COMMENT "Generating/updating shaders"
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/shadergen.py
             --commands ${AUTOSCRIBE_SHADERGEN_COMMANDS_FILE}
@@ -513,9 +537,10 @@ macro(AUTOSCRIBE_SHADER_LIBS)
             --build-dir ${CMAKE_CURRENT_BINARY_DIR}
             --source-dir ${CMAKE_SOURCE_DIR}
             ${EXTRA_SHADERGEN_ARGS}
-        DEPENDS ${AUTOSCRIBE_SHADER_HEADERS} ${CMAKE_SOURCE_DIR}/tools/shadergen.py ${ALL_SCRIBE_SHADERS})
+        ${AUTOSCRIBE_SHADERGEN_FINISH}
+        DEPENDS ${AUTOSCRIBE_SHADERGEN_DEPENDS})
 
-    add_custom_target(shadergen DEPENDS ${SCRIBED_SHADERS} ${SPIRV_SHADERS} ${REFLECTED_SHADERS})
+    add_custom_target(shadergen DEPENDS ${AUTOSCRIBE_SHADERGEN_OUTPUTS})
     set_target_properties(shadergen PROPERTIES FOLDER "Shaders")
 
     # Custom targets required to force generation of the shaders via scribe

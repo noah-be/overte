@@ -1,0 +1,14 @@
+# Copyright 2026 Overte e.V.
+# SPDX-License-Identifier: Apache-2.0
+
+# Native build-machine profile for the pinned macos-26 arm64 runner. This is
+# intentionally separate from the iOS host profile: Conan uses it for tools
+# that must execute on the runner while cross-compiling the target graph.
+[settings]
+os=Macos
+arch=armv8
+compiler=apple-clang
+compiler.version=17
+compiler.libcxx=libc++
+compiler.cppstd=20
+build_type=Release

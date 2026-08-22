@@ -15,6 +15,9 @@
 #include <gl/GLHelpers.h>
 
 #include <QtQuick/QQuickWindow>
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QtQuick/QQuickOpenGLUtils>
+#endif
 
 #include <shared/NsightHelpers.h>
 #include "Profiling.h"
@@ -148,7 +151,7 @@ void RenderEventHandler::qmlRender(bool sceneGraphSync) {
             glClear(GL_COLOR_BUFFER_BIT);
         } else {
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-            _shared->setRenderTarget(_fbo, _currentSize);
+            _shared->setRenderTarget(_fbo, texture, _currentSize);
 
             // workaround for https://highfidelity.atlassian.net/browse/BUGZ-1119
             {
@@ -170,7 +173,11 @@ void RenderEventHandler::qmlRender(bool sceneGraphSync) {
         // Fence will be used in another thread / context, so a flush is required
         glFlush();
         _shared->updateTextureAndFence({ texture, fence });
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        QQuickOpenGLUtils::resetOpenGLState();
+#else
         _shared->_quickWindow->resetOpenGLState();
+#endif
     }
     gl::globalRelease();
 }

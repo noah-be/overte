@@ -1,0 +1,466 @@
+# Copyright 2026 Overte e.V.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Provision Qt iOS source cache
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_sdk:
+        description: Build the Qt target for a physical device or Apple Silicon simulator
+        required: true
+        default: iphoneos
+        type: choice
+        options:
+          - iphoneos
+          - iphonesimulator
+  workflow_call:
+    inputs:
+      target_sdk:
+        description: Exact Xcode SDK for the Qt target tree
+        required: false
+        default: iphoneos
+        type: string
+    outputs:
+      qt_host_cache_key:
+        description: Deterministic cache key containing the validated macOS Qt host tools
+        value: ${{ jobs.qt-ios-source.outputs.qt_host_cache_key }}
+      qt_ios_cache_key:
+        description: Deterministic cache key containing the validated Qt iOS target tree
+        value: ${{ jobs.qt-ios-source.outputs.qt_ios_cache_key }}
+      qt_host_artifact_prefix:
+        description: Durable artifact namespace containing the validated macOS Qt host tools
+        value: ${{ jobs.qt-ios-source.outputs.qt_host_artifact_prefix }}
+      qt_ios_artifact_prefix:
+        description: Durable artifact namespace containing the validated Qt iOS target tree
+        value: ${{ jobs.qt-ios-source.outputs.qt_ios_artifact_prefix }}
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: ios-qt-source-macos26-arm64-${{ inputs.target_sdk }}
+  cancel-in-progress: false
+
+jobs:
+  qt-ios-source:
+    runs-on: macos-26
+    timeout-minutes: 365
+    outputs:
+      qt_host_cache_key: ${{ steps.cache-key.outputs.host }}
+      qt_ios_cache_key: ${{ steps.cache-key.outputs.ios }}
+      qt_host_artifact_prefix: ${{ steps.cache-key.outputs.host_artifact_prefix }}
+      qt_ios_artifact_prefix: ${{ steps.cache-key.outputs.ios_artifact_prefix }}
+    env:
+      QT_WORK_ROOT: ${{ github.workspace }}/build-ios/qt-work
+      QT_INSTALL_ROOT: ${{ github.workspace }}/build-ios/qt-install/qt
+      SCCACHE_DIR: ${{ github.workspace }}/build-ios/sccache
+      OVERTE_COMPILER_WATCHDOG_DIAGNOSTICS: ${{ github.workspace }}/build-ios/compiler-watchdog-diagnostics
+      SCCACHE_CACHE_SIZE: 256M
+      SCCACHE_BASEDIRS: ${{ github.workspace }}
+      SCCACHE_CLIENT_SIDE: "1"
+      SCCACHE_MULTILEVEL_CHAIN: disk,gha
+      SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: all
+      SCCACHE_GHA_ENABLED: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install pinned per-object remote compiler checkpoint
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        with:
+          version: v0.17.0
+          disable_annotations: true
+
+      # Shell steps do not receive GitHub's ephemeral cache-service credentials.
+      # Export them from a JavaScript action, whose process does, so sccache's GHA
+      # backend can persist each successful object before the job finishes.
+      - name: Export remote compiler checkpoint credentials
+        uses: actions/github-script@d746ffe35508b1917358783b479e04febd2b8f71 # v9.0.0
+        with:
+          script: |
+            const cacheUrl = process.env.ACTIONS_RESULTS_URL || process.env.ACTIONS_CACHE_URL;
+            const runtimeToken = process.env.ACTIONS_RUNTIME_TOKEN;
+            if (!cacheUrl || !runtimeToken) {
+              core.setFailed("GitHub Actions cache-service credentials are unavailable");
+              return;
+            }
+            core.setSecret(runtimeToken);
+            core.exportVariable("SCCACHE_GHA_CACHE_URL", cacheUrl);
+            core.exportVariable("SCCACHE_GHA_RUNTIME_TOKEN", runtimeToken);
+
+      - name: Verify source-build host tests
+        run: |
+          python3 ios/tools/tests/test-prepare-qt-ios.py
+          python3 ios/tools/tests/test-build-qt-ios-from-source.py
+
+      - name: Select deterministic cache key
+        id: cache-key
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcode_build="$(xcodebuild -version | awk '/Build version/{print $3}')"
+          target_sdk="${{ inputs.target_sdk }}"
+          [[ "$target_sdk" == iphoneos || "$target_sdk" == iphonesimulator ]]
+          device_sdk_version="$(xcrun --sdk iphoneos --show-sdk-version)"
+          sdk_version="$(xcrun --sdk "$target_sdk" --show-sdk-version)"
+          # Keep the already validated host cache stable across target-only
+          # configure fixes. Bump this only when host configure inputs change.
+          host_plan_hash="f7a0f4a6a8d51a462a14c9b51e1595338d023f4fd06a0a134aeadbf07a9bce18"
+          # Host validation semantics have not changed. Preserve its proven
+          # durable key while target-only validation becomes stricter.
+          host_validator_hash="cb986644c5f67162982d39b4c00cebde2ce17fa43ce75ae97c95680360de1b8a"
+          if [[ "$target_sdk" == iphoneos ]]; then
+            # The new SDK selector preserves the previously audited device
+            # configure semantics, so keep its durable checkpoint identity.
+            ios_plan_hash="ec28efd87d92f1d3076c099bcc048407eb918eb9664fd5b3f033d9108839bb70"
+            ios_validator_hash="$host_validator_hash"
+          else
+            ios_plan_hash="$(shasum -a 256 ios/versions.env ios/tools/build-qt-ios-from-source.sh | shasum -a 256 | awk '{print $1}')"
+            ios_validator_hash="$(shasum -a 256 ios/tools/prepare-qt-ios.sh | awk '{print $1}')"
+          fi
+          host_base="${RUNNER_ARCH}-xcode-${xcode_build}-iphoneos-${device_sdk_version}-${host_plan_hash}"
+          ios_base="${RUNNER_ARCH}-xcode-${xcode_build}-${target_sdk}-${sdk_version}-${ios_plan_hash}"
+          host_key="overte-qt-host-v2-${host_base}-contract-${host_validator_hash}"
+          ios_key="overte-qt-ios-v2-${ios_base}-contract-${ios_validator_hash}"
+          host_artifact_hash="$(printf '%s' "$host_key" | shasum -a 256 | cut -c1-32)"
+          ios_artifact_hash="$(printf '%s' "$ios_key" | shasum -a 256 | cut -c1-32)"
+          echo "host=$host_key" >> "$GITHUB_OUTPUT"
+          echo "ios=$ios_key" >> "$GITHUB_OUTPUT"
+          echo "host_artifact_prefix=overte-qt-host-checkpoint-v1-${host_artifact_hash}" >> "$GITHUB_OUTPUT"
+          echo "ios_artifact_prefix=overte-qt-ios-checkpoint-v1-${ios_artifact_hash}" >> "$GITHUB_OUTPUT"
+          echo "sccache_prefix=overte-qt-sccache-v2-${ios_base}-" >> "$GITHUB_OUTPUT"
+          echo "sccache_prune_prefix=overte-qt-sccache-v2-${RUNNER_ARCH}-" >> "$GITHUB_OUTPUT"
+          remote_namespace="overte-qt-objects-v1-${ios_base}"
+          echo "SCCACHE_GHA_VERSION=$remote_namespace" >> "$GITHUB_ENV"
+
+      - name: Verify remote compiler checkpoint before the long build
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "${SCCACHE_GHA_CACHE_URL:-}" ]] || { echo "remote cache URL missing" >&2; exit 1; }
+          [[ -n "${SCCACHE_GHA_RUNTIME_TOKEN:-}" ]] || { echo "remote cache token missing" >&2; exit 1; }
+          [[ "${SCCACHE_GHA_ENABLED:-}" == "true" ]] || { echo "remote cache backend disabled" >&2; exit 1; }
+          [[ -n "${SCCACHE_GHA_VERSION:-}" ]] || { echo "remote cache namespace missing" >&2; exit 1; }
+          probe_dir="$GITHUB_WORKSPACE/build-ios/sccache-remote-probe"
+          mkdir -p "$probe_dir"
+          trap 'rm -rf "$probe_dir"' EXIT
+          printf '%s\n' \
+            "const char overte_sccache_remote_probe[] = \"${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}\";" \
+            > "$probe_dir/probe.c"
+          sccache --stop-server >/dev/null 2>&1 || true
+          sccache --zero-stats
+          sccache /usr/bin/clang -c "$probe_dir/probe.c" -o "$probe_dir/probe.o"
+          sccache --show-stats --stats-format=json > "$probe_dir/stats.json"
+          python3 - "$probe_dir/stats.json" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          stats = payload.get("stats", payload)
+          requests = int(stats.get("requests_executed", stats.get("compile_requests", 0)))
+          write_errors = int(stats.get("cache_write_errors", 0))
+          writes = int(stats.get("cache_writes", 0))
+          remote_levels = [level for level in stats.get("multi_level", [])
+                           if "gha" in str(level.get("name", "")).lower()]
+          if requests < 1:
+              raise SystemExit("remote checkpoint probe did not reach sccache")
+          if write_errors:
+              raise SystemExit(f"remote checkpoint probe reported {write_errors} write errors")
+          if writes < 1:
+              raise SystemExit("remote checkpoint probe produced no cache writes")
+          if len(remote_levels) != 1 or int(remote_levels[0].get("writes", 0)) < 1:
+              raise SystemExit("remote checkpoint probe did not write to the GHA cache level")
+          if int(remote_levels[0].get("write_failures", 0)):
+              raise SystemExit("remote checkpoint probe reported a GHA cache write failure")
+          PY
+          sccache --stop-server
+
+      - name: Restore validated Qt host tools
+        id: host-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.QT_INSTALL_ROOT }}/macos
+          key: ${{ steps.cache-key.outputs.host }}
+
+      - name: Restore validated Qt iOS target
+        id: ios-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.QT_INSTALL_ROOT }}/ios
+          key: ${{ steps.cache-key.outputs.ios }}
+
+      - name: Probe validated Qt host artifact fallback
+        id: host-artifact-probe
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py probe \
+            --artifact-prefix "${{ steps.cache-key.outputs.host_artifact_prefix }}" \
+            --expected-repository-id "${{ github.repository_id }}" \
+            --expected-branch "${{ github.ref_name }}" \
+            --max-age-days 21 \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Probe validated Qt iOS artifact fallback
+        id: ios-artifact-probe
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py probe \
+            --artifact-prefix "${{ steps.cache-key.outputs.ios_artifact_prefix }}" \
+            --expected-repository-id "${{ github.repository_id }}" \
+            --expected-branch "${{ github.ref_name }}" \
+            --max-age-days 21 \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Restore validated Qt host artifact fallback
+        id: host-artifact
+        if: steps.host-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py restore \
+            --artifact-prefix "${{ steps.cache-key.outputs.host_artifact_prefix }}" \
+            --kind host \
+            --cache-key "${{ steps.cache-key.outputs.host }}" \
+            --expected-repository-id "${{ github.repository_id }}" \
+            --expected-branch "${{ github.ref_name }}" \
+            --install-root "$QT_INSTALL_ROOT" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Restore validated Qt iOS artifact fallback
+        id: ios-artifact
+        if: steps.ios-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py restore \
+            --artifact-prefix "${{ steps.cache-key.outputs.ios_artifact_prefix }}" \
+            --kind ios \
+            --cache-key "${{ steps.cache-key.outputs.ios }}" \
+            --expected-repository-id "${{ github.repository_id }}" \
+            --expected-branch "${{ github.ref_name }}" \
+            --install-root "$QT_INSTALL_ROOT" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Validate exact restored components
+        if: >-
+          (steps.host-cache.outputs.cache-hit == 'true' || steps.host-artifact.outputs.restored == 'true') &&
+          (steps.ios-cache.outputs.cache-hit == 'true' || steps.ios-artifact.outputs.restored == 'true')
+        run: |
+          ios/tools/prepare-qt-ios.sh validate \
+            "$QT_INSTALL_ROOT/ios" "$QT_INSTALL_ROOT/macos"
+
+      - name: Install source-build prerequisites
+        if: >-
+          (steps.host-cache.outputs.cache-hit != 'true' && steps.host-artifact.outputs.restored != 'true') ||
+          (steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true')
+        run: brew install cmake ninja
+
+      - name: Verify or download pinned Qt source archive
+        if: >-
+          (steps.host-cache.outputs.cache-hit != 'true' && steps.host-artifact.outputs.restored != 'true') ||
+          (steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true')
+        run: |
+          ios/tools/build-qt-ios-from-source.sh \
+            --work-root "$QT_WORK_ROOT" \
+            --install-root "$QT_INSTALL_ROOT" \
+            --target-sdk "${{ inputs.target_sdk }}" \
+            --stage source
+
+      - name: Restore compiler recovery cache
+        if: >-
+          (steps.host-cache.outputs.cache-hit != 'true' && steps.host-artifact.outputs.restored != 'true') ||
+          (steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true')
+        id: sccache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: ${{ steps.cache-key.outputs.sccache_prefix }}${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ${{ steps.cache-key.outputs.sccache_prefix }}
+
+      - name: Build Qt host tools
+        if: steps.host-cache.outputs.cache-hit != 'true' && steps.host-artifact.outputs.restored != 'true'
+        run: |
+          ios/tools/build-qt-ios-from-source.sh \
+            --work-root "$QT_WORK_ROOT" \
+            --install-root "$QT_INSTALL_ROOT" \
+            --target-sdk "${{ inputs.target_sdk }}" \
+            --stage host
+
+      - name: Validate Qt host tools
+        run: ios/tools/prepare-qt-ios.sh validate-host "$QT_INSTALL_ROOT/macos"
+
+      - name: Create validated Qt host artifact checkpoint
+        if: steps.host-artifact-probe.outputs.fresh != 'true'
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py create \
+            --prefix "$QT_INSTALL_ROOT/macos" \
+            --kind host \
+            --cache-key "${{ steps.cache-key.outputs.host }}" \
+            --producer-repository-id "${{ github.repository_id }}" \
+            --producer-branch "${{ github.ref_name }}" \
+            --output-dir build-ios/qt-host-checkpoint
+
+      - name: Upload validated Qt host artifact checkpoint
+        if: steps.host-artifact-probe.outputs.fresh != 'true'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ steps.cache-key.outputs.host_artifact_prefix }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build-ios/qt-host-checkpoint/checkpoint.tar.gz
+            build-ios/qt-host-checkpoint/manifest.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+      - name: Save validated Qt host tools immediately
+        if: steps.host-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.QT_INSTALL_ROOT }}/macos
+          key: ${{ steps.cache-key.outputs.host }}
+
+      - name: Build Qt iOS target
+        id: qt-ios-build
+        if: steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true'
+        run: |
+          ios/tools/build-qt-ios-from-source.sh \
+            --work-root "$QT_WORK_ROOT" \
+            --install-root "$QT_INSTALL_ROOT" \
+            --target-sdk "${{ inputs.target_sdk }}" \
+            --stage ios
+
+      - name: Validate restored or built Qt
+        run: |
+          ios/tools/prepare-qt-ios.sh validate \
+            "$QT_INSTALL_ROOT/ios" "$QT_INSTALL_ROOT/macos"
+
+      - name: Create validated Qt iOS artifact checkpoint
+        if: steps.ios-artifact-probe.outputs.fresh != 'true'
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py create \
+            --prefix "$QT_INSTALL_ROOT/ios" \
+            --kind ios \
+            --cache-key "${{ steps.cache-key.outputs.ios }}" \
+            --producer-repository-id "${{ github.repository_id }}" \
+            --producer-branch "${{ github.ref_name }}" \
+            --output-dir build-ios/qt-ios-checkpoint
+
+      - name: Upload validated Qt iOS artifact checkpoint
+        if: steps.ios-artifact-probe.outputs.fresh != 'true'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ steps.cache-key.outputs.ios_artifact_prefix }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build-ios/qt-ios-checkpoint/checkpoint.tar.gz
+            build-ios/qt-ios-checkpoint/manifest.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+      - name: Save validated Qt iOS target immediately
+        if: steps.ios-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.QT_INSTALL_ROOT }}/ios
+          key: ${{ steps.cache-key.outputs.ios }}
+
+      - name: Report compiler-cache statistics
+        if: >-
+          always() &&
+          ((steps.host-cache.outputs.cache-hit != 'true' && steps.host-artifact.outputs.restored != 'true') ||
+           (steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true'))
+        run: |
+          mkdir -p build-ios/compiler-watchdog-diagnostics
+          sccache --show-stats --stats-format=json \
+            > build-ios/compiler-watchdog-diagnostics/sccache-stats.json || true
+          sccache --show-stats || true
+
+      - name: Verify successful Qt build was remotely checkpointed
+        if: >-
+          success() && steps.qt-ios-build.outcome == 'success' &&
+          steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true'
+        run: |
+          python3 - build-ios/compiler-watchdog-diagnostics/sccache-stats.json <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          stats = payload.get("stats", payload)
+
+          def total(counter):
+              if not isinstance(counter, dict):
+                  return 0
+              counts = counter.get("counts", {})
+              return sum((counts or counter.get("adv_counts", {})).values())
+
+          requests = int(stats.get("requests_executed", stats.get("compile_requests", 0)))
+          cacheable = total(stats.get("cache_hits", {})) + total(stats.get("cache_misses", {}))
+          write_errors = int(stats.get("cache_write_errors", 0))
+          remote_levels = [level for level in stats.get("multi_level", [])
+                           if "gha" in str(level.get("name", "")).lower()]
+          if requests < 1 or cacheable < 1:
+              raise SystemExit("Qt build produced no reusable compiler checkpoint entries")
+          if write_errors:
+              raise SystemExit(f"remote compiler checkpoint reported {write_errors} write errors")
+          if len(remote_levels) != 1:
+              raise SystemExit("Qt build did not expose exactly one remote GHA cache level")
+          remote_activity = (int(remote_levels[0].get("writes", 0)) +
+                             int(remote_levels[0].get("hits", 0)))
+          if remote_activity < 1:
+              raise SystemExit("Qt build produced neither remote GHA hits nor writes")
+          if int(remote_levels[0].get("write_failures", 0)):
+              raise SystemExit("remote GHA compiler checkpoint reported write failures")
+          PY
+
+      - name: Upload compiler stall diagnostics
+        if: failure() && !cancelled()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: qt-compiler-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.OVERTE_COMPILER_WATCHDOG_DIAGNOSTICS }}
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop compiler-cache server before recovery snapshot
+        if: >-
+          failure() && steps.sccache.outcome == 'success' &&
+          ((steps.host-cache.outputs.cache-hit != 'true' && steps.host-artifact.outputs.restored != 'true') ||
+           (steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true'))
+        run: sccache --stop-server || true
+
+      - name: Save compiler recovery cache after a build failure
+        if: >-
+          failure() && steps.sccache.outcome == 'success' && steps.sccache.outputs.cache-hit != 'true' &&
+          ((steps.host-cache.outputs.cache-hit != 'true' && steps.host-artifact.outputs.restored != 'true') ||
+           (steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true'))
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: ${{ steps.cache-key.outputs.sccache_prefix }}${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Prune superseded Qt compiler recovery caches
+        if: failure() && steps.sccache.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CACHE_PREFIX: ${{ steps.cache-key.outputs.sccache_prune_prefix }}
+        run: |
+          gh cache list --repo "$GITHUB_REPOSITORY" --key "$CACHE_PREFIX" --limit 100 \
+            --json id,createdAt,ref \
+            --jq '[.[] | select(.ref == env.GITHUB_REF)] | sort_by(.createdAt) | reverse | .[1:] | .[].id' |
+          while IFS= read -r cache_id; do
+            [[ -n "$cache_id" ]] || continue
+            gh cache delete "$cache_id" --repo "$GITHUB_REPOSITORY"
+          done

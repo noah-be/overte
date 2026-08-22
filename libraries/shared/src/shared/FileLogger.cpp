@@ -16,6 +16,7 @@
 
 #include <QtCore/QDateTime>
 #include <QtCore/QDir>
+#include <QtCore/QRegularExpression>
 #include <QtGui/QDesktopServices>
 
 #include "FileUtils.h"
@@ -46,7 +47,9 @@ static const QString DATETIME_FORMAT = "yyyy-MM-dd_hh.mm.ss";
 static const QString LOGS_DIRECTORY = "Logs";
 static const QString DATETIME_WILDCARD = "20[0-9][0-9]-[01][0-9]-[0-3][0-9]_[0-2][0-9]\\.[0-6][0-9]\\.[0-6][0-9]";
 static const QString SESSION_WILDCARD = "[0-9a-z]{8}(-[0-9a-z]{4}){3}-[0-9a-z]{12}";
-static QRegExp LOG_FILENAME_REGEX { "overte-log_" + DATETIME_WILDCARD + "(_" + SESSION_WILDCARD + ")?\\.txt" };
+static const QRegularExpression LOG_FILENAME_REGEX {
+    QRegularExpression::anchoredPattern("overte-log_" + DATETIME_WILDCARD + "(_" + SESSION_WILDCARD + ")?\\.txt")
+};
 static QUuid SESSION_ID;
 
 // Max log size is 10 MiB. We send log files to our crash reporter, so we want to keep this relatively
@@ -103,7 +106,7 @@ void FilePersistThread::rollFileIfNecessary(QFile& file, bool force, bool notify
         qint64 totalSizeOfDir = 0;
         QFileInfoList filesInDir = logDir.entryInfoList();
         for (auto& fileInfo : filesInDir) {
-            if (!LOG_FILENAME_REGEX.exactMatch(fileInfo.fileName())) {
+            if (!LOG_FILENAME_REGEX.match(fileInfo.fileName()).hasMatch()) {
                 continue;
             }
             totalSizeOfDir += fileInfo.size();

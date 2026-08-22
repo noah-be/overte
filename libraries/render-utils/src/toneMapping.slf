@@ -43,8 +43,8 @@
 <@include render-utils/ShaderConstants.h@>
 
 struct ToneMappingParams {
-    float _2powExp;
-    int _toneCurve;
+    vec4 _texcoordTransform;
+    vec4 _toneMapping;
 };
 
 const float GAMMA_22 = 2.2;
@@ -58,10 +58,10 @@ UNIFORM_BUFFER(RENDER_UTILS_BUFFER_TM_PARAMS, toneMappingParamsBuffer) {
     ToneMappingParams params;
 };
 float getTwoPowExposure() {
-    return params._2powExp;
+    return params._toneMapping.x;
 }
 int getToneCurve() {
-    return params._toneCurve;
+    return int(params._toneMapping.y);
 }
 
 TEXTURE(RENDER_UTILS_TEXTURE_TM_COLOR, sampler2D, colorMap);
@@ -79,12 +79,26 @@ vec3 changeLuminance(vec3 colorIn, float luminanceOut) {
 }
 
 void main(void) {
+    vec2 transformedTexCoord = varTexCoord0 * params._texcoordTransform.zw + params._texcoordTransform.xy;
+    int probeStage = int(params._toneMapping.z);
+    if (probeStage == 1) {
+        outFragColor = vec4(1.0, 0.0, 1.0, 1.0);
+        return;
+    }
+    if (probeStage == 2) {
+        outFragColor = vec4(transformedTexCoord, 0.0, 1.0);
+        return;
+    }
 <@if HIFI_USE_MIRRORED@>
-    vec4 fragColorRaw = texture(colorMap, vec2(1.0 - varTexCoord0.x, varTexCoord0.y));
+    vec4 fragColorRaw = texture(colorMap, vec2(1.0 - transformedTexCoord.x, transformedTexCoord.y));
 <@else@>
-    vec4 fragColorRaw = texture(colorMap, varTexCoord0);
+    vec4 fragColorRaw = texture(colorMap, transformedTexCoord);
 <@endif@>
     vec3 fragColor = fragColorRaw.xyz;
+    if (probeStage == 3) {
+        outFragColor = vec4(fragColor, 1.0);
+        return;
+    }
 
     vec3 srcColor = fragColor * getTwoPowExposure();
 

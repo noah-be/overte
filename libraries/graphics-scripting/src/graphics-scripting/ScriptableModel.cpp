@@ -21,6 +21,21 @@
 
 // #define SCRIPTABLE_MESH_DEBUG 1
 
+namespace {
+QString outlineWidthModeName(uint8_t mode) {
+    switch (mode) {
+        case 0:
+            return QStringLiteral("none");
+        case 1:
+            return QStringLiteral("worldCoordinates");
+        case 2:
+            return QStringLiteral("screenCoordinates");
+        default:
+            return {};
+    }
+}
+}
+
 scriptable::ScriptableMaterial& scriptable::ScriptableMaterial::operator=(const scriptable::ScriptableMaterial& material) {
     name = material.name;
     model = material.model;
@@ -179,7 +194,7 @@ scriptable::ScriptableMaterial::ScriptableMaterial(const graphics::MaterialPoint
                 parametricRimFresnelPower = material->getParametricRimFresnelPower();
                 parametricRimLift = material->getParametricRimLift();
                 rimLightingMix = material->getRimLightingMix();
-                outlineWidthMode = material->getOutlineWidthMode();
+                outlineWidthMode = outlineWidthModeName(material->getOutlineWidthMode());
                 outlineWidth = material->getOutlineWidth();
                 outline = material->getOutline();
                 uvAnimationScrollXSpeed = material->getUVAnimationScrollXSpeed();

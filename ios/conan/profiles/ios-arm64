@@ -1,0 +1,29 @@
+# Copyright 2026 Overte e.V.
+# SPDX-License-Identifier: Apache-2.0
+
+[settings]
+os=iOS
+os.version=17.0
+os.sdk=iphoneos
+arch=armv8
+compiler=apple-clang
+compiler.version=17
+compiler.libcxx=libc++
+compiler.cppstd=20
+build_type=Release
+
+[conf]
+# Dependency packages are single-architecture static libraries. Ninja avoids
+# Xcode treating incidental upstream command-line tools as unsigned iOS apps.
+# The final Overte application is still generated explicitly with Xcode.
+tools.cmake.cmaketoolchain:generator=Ninja
+tools.build:cflags=["-falign-functions=32", "-fPIC"]
+tools.build:cxxflags=["-falign-functions=32", "-fPIC"]
+{% set sdk_path = os.getenv("OVERTE_IOS_DEVICE_SDK_PATH", "") %}
+{% if sdk_path %}
+tools.apple:sdk_path={{ sdk_path }}
+{% endif %}
+
+[options]
+*:shared=False
+*:fPIC=True

@@ -9,6 +9,7 @@
 #pragma once
 #include <stdint.h>
 #include <DependencyManager.h>
+#include <QtCore/QObject>
 
 #include <GLMHelpers.h>
 
@@ -75,5 +76,4 @@ namespace VirtualPad {
         std::map<Button, glm::vec2> _buttonsPositions;
     };
 }
-
 

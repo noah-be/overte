@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://overte.org/schemas/ios-device-result-v1.json",
+  "title": "Overte iOS physical-device acceptance result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "formFactor", "device", "build", "results"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "formFactor": { "enum": ["iphone", "ipad"] },
+    "device": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "osVersion"],
+      "properties": {
+        "model": { "type": "string", "minLength": 1 },
+        "osVersion": { "type": "string", "pattern": "^[0-9]+(?:[.][0-9]+)+$" }
+      }
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceRevision", "bundleSha256", "xcode", "sdk"],
+      "properties": {
+        "sourceRevision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "bundleSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "xcode": { "type": "string", "minLength": 1 },
+        "sdk": { "type": "string", "minLength": 1 }
+      }
+    },
+    "results": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "outcome", "evidence", "notes"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "outcome": { "enum": ["pass", "fail", "blocked"] },
+          "evidence": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "uniqueItems": true
+          },
+          "notes": { "type": "string" }
+        }
+      }
+    }
+  }
+}

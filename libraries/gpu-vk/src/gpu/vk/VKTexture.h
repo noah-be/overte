@@ -378,6 +378,7 @@ protected:
 };
 
 
+#if !defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)
 class VKExternalTexture: public VKTexture {
     friend class VKBackend;
 
@@ -425,6 +426,7 @@ protected:
     GLuint _openGLId = 0;
     GLuint _openGLSourceId = 0;
 };
+#endif
 
 } }
 

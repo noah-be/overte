@@ -13,17 +13,25 @@
 #ifndef hifi_DialogsManager_h
 #define hifi_DialogsManager_h
 
+#include <QtCore/QObject>
 #include <QPointer>
 
 #include <DependencyManager.h>
 
+#if !defined(Q_OS_IOS)
 #include "HMDToolsDialog.h"
+#else
+class HMDToolsDialog;
+#endif
+#if !defined(Q_OS_IOS)
 #include "TestingDialog.h"
+#else
+class TestingDialog;
+#endif
 
 class LodToolsDialog;
 class OctreeStatsDialog;
 class ScriptEditorWindow;
-class TestingDialog;
 class DomainConnectionDialog;
 
 class DialogsManager : public QObject, public Dependency {

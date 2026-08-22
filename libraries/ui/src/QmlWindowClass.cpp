@@ -13,6 +13,7 @@
 #include <mutex>
 
 #include <QtCore/QThread>
+#include <QtCore/QMetaType>
 
 #include <QtQuick/QQuickItem>
 #include <QtQml/QQmlContext>
@@ -138,7 +139,7 @@ void QmlWindowClass::initQml(QVariantMap properties) {
     };
 
     auto contextInitLambda = [&](QQmlContext* context) {
-#if !defined(Q_OS_ANDROID)
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
         // If the restricted flag is on, override the FileTypeProfile and HFWebEngineProfile objects in the 
         // QML surface root context with local ones
         ContextAwareProfile::restrictContext(context, _restricted);
@@ -200,7 +201,12 @@ void QmlWindowClass::emitWebEvent(const QVariant& webMessage) {
         const QString RAISE_KEYBOARD = "_RAISE_KEYBOARD";
         const QString RAISE_KEYBOARD_NUMERIC = "_RAISE_KEYBOARD_NUMERIC";
         const QString LOWER_KEYBOARD = "_LOWER_KEYBOARD";
-        QString messageString = webMessage.type() == QVariant::String ? webMessage.toString() : "";
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        const bool isStringMessage = webMessage.metaType().id() == QMetaType::QString;
+#else
+        const bool isStringMessage = webMessage.type() == QVariant::String;
+#endif
+        QString messageString = isStringMessage ? webMessage.toString() : "";
         if (messageString.left(RAISE_KEYBOARD.length()) == RAISE_KEYBOARD) {
             QQuickItem *quickItem = asQuickItem();
             if (quickItem) {

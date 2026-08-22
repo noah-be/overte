@@ -31,7 +31,9 @@ void FileResourceRequest::doSend() {
     int fileSize = 0;
     QString filename;
     if (_url.scheme() == URL_SCHEME_QRC) {
-        filename = ":/" + _url.path();
+        // QUrl::path() already starts with '/'. Prefixing another slash would
+        // turn qrc:///foo into the invalid QFile resource path ://foo.
+        filename = ":" + _url.path();
     } else {
         filename = PathUtils::expandToLocalDataAbsolutePath(_url).toLocalFile();
         // sometimes on windows, we see the toLocalFile() return null,

@@ -1,0 +1,934 @@
+# Copyright 2026 Overte e.V.
+# SPDX-License-Identifier: Apache-2.0
+
+name: iOS Full Client world runtime evidence
+
+on:
+  workflow_call:
+    inputs:
+      runtime_case:
+        description: Run all acceptance cases or one focused simulator case
+        required: false
+        type: string
+        default: all
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-world-runtime-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  qt-simulator:
+    name: Qt simulator checkpoint
+    uses: ./.github/workflows/ios-qt-source.yml
+    permissions:
+      actions: write
+      contents: read
+    with:
+      target_sdk: iphonesimulator
+
+  v8-simulator:
+    name: Static JITless V8 simulator checkpoint
+    runs-on: macos-26
+    timeout-minutes: 245
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      cache-key: ${{ steps.v8-key.outputs.key }}
+      artifact-prefix: ${{ steps.v8-key.outputs.artifact-prefix }}
+    env:
+      OVERTE_IOS_V8_PLATFORM: simulator
+      OVERTE_IOS_V8_ROOT: ${{ github.workspace }}/build-ios/external-simulator/v8-ios
+      OVERTE_IOS_V8_WORK_ROOT: ${{ github.workspace }}/build-ios/v8-simulator-work
+      SCCACHE_DIR: ${{ github.workspace }}/build-ios/v8-simulator-sccache
+      SCCACHE_CACHE_SIZE: 512M
+      SCCACHE_BASEDIRS: ${{ github.workspace }}
+      SCCACHE_CLIENT_SIDE: "1"
+      SCCACHE_IDLE_TIMEOUT: "0"
+      SCCACHE_MULTILEVEL_CHAIN: disk,gha
+      SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: l0
+      SCCACHE_GHA_ENABLED: "true"
+      IOS_RUNNER_TELEMETRY_DIR: ${{ github.workspace }}/build-ios/v8-simulator-telemetry
+      OVERTE_COMPILER_WATCHDOG_DIAGNOSTICS: ${{ github.workspace }}/build-ios/v8-simulator-watchdog
+    steps:
+      - name: Check out requested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install pinned V8 compiler checkpoint
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        with:
+          version: v0.17.0
+          disable_annotations: true
+
+      - name: Export V8 remote compiler checkpoint credentials
+        uses: actions/github-script@d746ffe35508b1917358783b479e04febd2b8f71 # v9.0.0
+        with:
+          script: |
+            const cacheUrl = process.env.ACTIONS_RESULTS_URL || process.env.ACTIONS_CACHE_URL;
+            const runtimeToken = process.env.ACTIONS_RUNTIME_TOKEN;
+            if (!cacheUrl || !runtimeToken) {
+              core.setFailed("GitHub Actions cache-service credentials are unavailable");
+              return;
+            }
+            core.setSecret(runtimeToken);
+            core.exportVariable("SCCACHE_GHA_CACHE_URL", cacheUrl);
+            core.exportVariable("SCCACHE_GHA_RUNTIME_TOKEN", runtimeToken);
+
+      - name: Select deterministic simulator V8 key
+        id: v8-key
+        run: |
+          set -euo pipefail
+          xcode_build="$(xcodebuild -version | awk '/Build version/{print $3}')"
+          sdk_version="$(xcrun --sdk iphonesimulator --show-sdk-version)"
+          sdk_build="$(xcrun --sdk iphonesimulator --show-sdk-build-version)"
+          xcode_clang="$(xcrun --sdk iphonesimulator --find clang)"
+          compiler_version="$("$xcode_clang" --version | head -n 1)"
+          compiler_sha256="$(shasum -a 256 "$xcode_clang" | awk '{print $1}')"
+          mkdir -p "$IOS_RUNNER_TELEMETRY_DIR"
+          python3 ios/tools/v8-build-plan.py identity \
+            --platform simulator \
+            --runner-arch "$RUNNER_ARCH" \
+            --xcode-build "$xcode_build" \
+            --sdk-version "$sdk_version" \
+            --sdk-build "$sdk_build" \
+            --compiler-version "$compiler_version" \
+            --compiler-sha256 "$compiler_sha256" \
+            --json-output "$IOS_RUNNER_TELEMETRY_DIR/build-identity.json" \
+            --github-output "$GITHUB_OUTPUT"
+          identity="$(awk -F= '$1 == "identity" { print $2 }' "$GITHUB_OUTPUT" | tail -n 1)"
+          test -n "$identity"
+          echo "SCCACHE_GHA_VERSION=overte-v8-ios-objects-v2-${identity}" >> "$GITHUB_ENV"
+          echo "SCCACHE_C_CUSTOM_CACHE_BUSTER=${identity}" >> "$GITHUB_ENV"
+
+          source ios/v8-legacy-checkpoints.env
+          legacy_compatible=false
+          if [[ "$RUNNER_ARCH" == "$OVERTE_IOS_V8_LEGACY_SIMULATOR_RUNNER_ARCH" &&
+                "$xcode_build" == "$OVERTE_IOS_V8_LEGACY_SIMULATOR_XCODE_BUILD" &&
+                "$sdk_version" == "$OVERTE_IOS_V8_LEGACY_SIMULATOR_SDK_VERSION" ]]; then
+            legacy_compatible=true
+          fi
+          echo "legacy-compatible=$legacy_compatible" >> "$GITHUB_OUTPUT"
+          echo "legacy-cache-key=$OVERTE_IOS_V8_LEGACY_SIMULATOR_CACHE_KEY" >> "$GITHUB_OUTPUT"
+          echo "legacy-artifact-prefix=$OVERTE_IOS_V8_LEGACY_SIMULATOR_ARTIFACT_PREFIX" >> "$GITHUB_OUTPUT"
+          echo "legacy-library-sha256=$OVERTE_IOS_V8_LEGACY_SIMULATOR_LIBRARY_SHA256" >> "$GITHUB_OUTPUT"
+          echo "V8 checkpoint key: overte-v8-ios-v2-${identity}"
+          echo "V8 identity inputs: platform=simulator arch=arm64 xcode=$xcode_build sdk=$sdk_version sdk_build=$sdk_build compiler=$compiler_version"
+
+      - name: Restore validated simulator V8 cache
+        id: v8-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.OVERTE_IOS_V8_ROOT }}
+          key: ${{ steps.v8-key.outputs.key }}
+
+      - name: Probe durable simulator V8 checkpoint
+        id: v8-artifact-probe
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py probe \
+            --artifact-prefix "${{ steps.v8-key.outputs.artifact-prefix }}" \
+            --expected-repository-id "${{ github.repository_id }}" \
+            --expected-branch "${{ github.ref_name }}" \
+            --max-age-days 75 \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Restore durable simulator V8 checkpoint
+        id: v8-artifact
+        if: steps.v8-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py restore \
+            --artifact-prefix "${{ steps.v8-key.outputs.artifact-prefix }}" \
+            --kind v8 \
+            --cache-key "${{ steps.v8-key.outputs.key }}" \
+            --expected-repository-id "${{ github.repository_id }}" \
+            --expected-branch "${{ github.ref_name }}" \
+            --max-age-days 75 \
+            --install-root "${{ github.workspace }}/build-ios/external-simulator" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Restore reviewed legacy simulator V8 checkpoint for v2 promotion
+        id: v8-legacy-artifact
+        if: steps.v8-cache.outputs.cache-hit != 'true' && steps.v8-artifact.outputs.restored != 'true' && steps.v8-key.outputs.legacy-compatible == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py restore \
+            --artifact-prefix "${{ steps.v8-key.outputs.legacy-artifact-prefix }}" \
+            --kind v8 \
+            --cache-key "${{ steps.v8-key.outputs.legacy-cache-key }}" \
+            --expected-repository-id "${{ github.repository_id }}" \
+            --expected-branch "${{ github.ref_name }}" \
+            --max-age-days 21 \
+            --install-root "${{ github.workspace }}/build-ios/external-simulator" \
+            --github-output "$GITHUB_OUTPUT"
+          if [[ "$(awk -F= '$1 == "restored" { print $2 }' "$GITHUB_OUTPUT" | tail -n 1)" == true ]]; then
+            actual_sha="$(shasum -a 256 "$OVERTE_IOS_V8_ROOT/lib/libv8_monolith.a" | awk '{print $1}')"
+            [[ "$actual_sha" == "${{ steps.v8-key.outputs.legacy-library-sha256 }}" ]] || {
+              echo "reviewed legacy simulator V8 library digest mismatch" >&2
+              exit 1
+            }
+            ios/tools/build-v8-ios.sh stamp-identity
+          fi
+
+      - name: Restore simulator V8 compiler recovery checkpoint
+        id: v8-sccache
+        if: steps.v8-cache.outputs.cache-hit != 'true' && steps.v8-artifact.outputs.restored != 'true' && steps.v8-legacy-artifact.outputs.restored != 'true'
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: ${{ steps.v8-key.outputs.sccache-prefix }}${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ${{ steps.v8-key.outputs.sccache-prefix }}
+
+      - name: Report simulator V8 checkpoint decision
+        run: |
+          if [[ "${{ steps.v8-cache.outputs.cache-hit }}" == true ]]; then
+            source=actions-cache
+            reason="exact output identity hit"
+          elif [[ "${{ steps.v8-artifact.outputs.restored }}" == true ]]; then
+            source=durable-artifact
+            reason="Actions cache was evicted; exact validated artifact restored"
+          elif [[ "${{ steps.v8-legacy-artifact.outputs.restored }}" == true ]]; then
+            source=reviewed-legacy-promotion
+            reason="v2 namespace migration used the exact reviewed v1 library digest"
+          else
+            source=rebuild
+            reason="no compatible complete output checkpoint was available"
+          fi
+          echo "V8 checkpoint source=$source"
+          echo "V8 rebuild reason=$reason"
+          echo "V8 output cache hit=${{ steps.v8-cache.outputs.cache-hit }}"
+          echo "V8 output matched key=${{ steps.v8-cache.outputs.cache-matched-key }}"
+          echo "V8 compiler cache hit=${{ steps.v8-sccache.outputs.cache-hit }}"
+          echo "V8 compiler matched key=${{ steps.v8-sccache.outputs.cache-matched-key }}"
+
+      - name: Build pinned simulator V8
+        id: v8-build
+        if: steps.v8-cache.outputs.cache-hit != 'true' && steps.v8-artifact.outputs.restored != 'true' && steps.v8-legacy-artifact.outputs.restored != 'true'
+        continue-on-error: true
+        run: |
+          mkdir -p "$IOS_RUNNER_TELEMETRY_DIR" build-ios/v8-simulator-raw-diagnostics
+          sccache --stop-server || true
+          sccache --start-server
+          sccache --show-stats --stats-format=json > "$IOS_RUNNER_TELEMETRY_DIR/sccache-before.json"
+          echo "Simulator V8 sccache state before rebuild:"
+          sccache --show-stats
+          python3 ios/ci/report-sccache-stats.py \
+            "$IOS_RUNNER_TELEMETRY_DIR/sccache-before.json" \
+            --cache-dir "$SCCACHE_DIR" --phase before
+          sccache --zero-stats
+          python3 ios/ci/runner-telemetry.py \
+            --phase v8-simulator-build \
+            --log "$IOS_RUNNER_TELEMETRY_DIR/build.jsonl" \
+            --output-log build-ios/v8-simulator-raw-diagnostics/build.log \
+            --diagnostics-dir "$IOS_RUNNER_TELEMETRY_DIR/stall" \
+            --compiler-live-log "$IOS_RUNNER_TELEMETRY_DIR/compiler-live.jsonl" \
+            --compiler-diagnostics-dir "$OVERTE_COMPILER_WATCHDOG_DIAGNOSTICS" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 300 \
+            --inactivity-timeout 1200 --max-runtime 12900 \
+            --watch work="$OVERTE_IOS_V8_WORK_ROOT" \
+            --watch output="$OVERTE_IOS_V8_ROOT" -- \
+            env OVERTE_IOS_V8_COMPILER_LAUNCHER="$GITHUB_WORKSPACE/ios/ci/xcode-compiler-launcher.sh" \
+              ios/tools/build-v8-ios.sh build
+
+      - name: Snapshot and stop simulator V8 compiler checkpoint
+        if: ${{ always() && !cancelled() && steps.v8-build.outcome != 'skipped' }}
+        run: |
+          sccache --show-stats --stats-format=json > "$IOS_RUNNER_TELEMETRY_DIR/sccache-stats.json"
+          echo "Simulator V8 sccache state after rebuild:"
+          sccache --show-stats
+          python3 ios/ci/report-sccache-stats.py \
+            "$IOS_RUNNER_TELEMETRY_DIR/sccache-stats.json" \
+            --cache-dir "$SCCACHE_DIR" --phase after --require-activity
+          sccache --stop-server
+
+      - name: Save simulator V8 compiler recovery checkpoint
+        if: ${{ always() && !cancelled() && steps.v8-build.outcome != 'skipped' && steps.v8-sccache.outputs.cache-hit != 'true' }}
+        continue-on-error: true
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: ${{ steps.v8-key.outputs.sccache-prefix }}${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Require successful simulator V8 build
+        if: ${{ always() && steps.v8-build.outcome == 'failure' }}
+        run: exit 1
+
+      - name: Validate simulator V8 target
+        run: ios/tools/build-v8-ios.sh validate
+
+      - name: Create durable simulator V8 checkpoint
+        if: steps.v8-artifact-probe.outputs.fresh != 'true'
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py create \
+            --prefix "$OVERTE_IOS_V8_ROOT" \
+            --kind v8 \
+            --cache-key "${{ steps.v8-key.outputs.key }}" \
+            --producer-repository-id "${{ github.repository_id }}" \
+            --producer-branch "${{ github.ref_name }}" \
+            --output-dir build-ios/v8-simulator-checkpoint
+
+      - name: Upload durable simulator V8 checkpoint
+        if: steps.v8-artifact-probe.outputs.fresh != 'true'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ steps.v8-key.outputs.artifact-prefix }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build-ios/v8-simulator-checkpoint/checkpoint.tar.gz
+            build-ios/v8-simulator-checkpoint/manifest.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+
+      - name: Save validated simulator V8 cache
+        if: steps.v8-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.OVERTE_IOS_V8_ROOT }}
+          key: ${{ steps.v8-key.outputs.key }}
+
+      - name: Sanitize simulator V8 failure log
+        if: failure()
+        run: |
+          mkdir -p build-ios/v8-simulator-upload-diagnostics
+          if [[ -f build-ios/v8-simulator-raw-diagnostics/build.log ]]; then
+            python3 ios/tools/sanitize-ci-log.py \
+              build-ios/v8-simulator-raw-diagnostics/build.log \
+              build-ios/v8-simulator-upload-diagnostics/build.log
+          fi
+
+      - name: Upload simulator V8 telemetry
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: v8-ios-simulator-telemetry-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.IOS_RUNNER_TELEMETRY_DIR }}
+            ${{ env.OVERTE_COMPILER_WATCHDOG_DIAGNOSTICS }}
+            build-ios/v8-simulator-upload-diagnostics
+          if-no-files-found: ignore
+          retention-days: 14
+
+  world-runtime:
+    name: Build and verify serverless and online worlds
+    needs: [qt-simulator, v8-simulator]
+    runs-on: macos-26
+    timeout-minutes: 245
+    permissions:
+      actions: write
+      contents: read
+    env:
+      OVERTE_IOS_QT_ROOT: ${{ github.workspace }}/build-ios/qt-install/qt/ios
+      OVERTE_IOS_QT_HOST_ROOT: ${{ github.workspace }}/build-ios/qt-install/qt/macos
+      OVERTE_IOS_V8_PLATFORM: simulator
+      OVERTE_IOS_V8_ROOT: ${{ github.workspace }}/build-ios/external-simulator/v8-ios
+      OVERTE_IOS_MOLTENVK_ROOT: ${{ github.workspace }}/build-ios/external/MoltenVK
+      CONAN_HOME: ${{ github.workspace }}/build-ios/conan-home
+      SCCACHE_DIR: ${{ github.workspace }}/build-ios/world-client-sccache
+      SCCACHE_CACHE_SIZE: 512M
+      SCCACHE_IDLE_TIMEOUT: "0"
+      SCCACHE_BASEDIRS: ${{ github.workspace }}
+      SCCACHE_CLIENT_SIDE: "1"
+      SCCACHE_MULTILEVEL_CHAIN: disk,gha
+      SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: all
+      SCCACHE_GHA_ENABLED: "true"
+      IOS_RUNNER_TELEMETRY_DIR: ${{ github.workspace }}/build-ios/world-runner-telemetry
+      OVERTE_COMPILER_WATCHDOG_DIAGNOSTICS: ${{ github.workspace }}/build-ios/world-compiler-watchdog
+      OVERTE_IOS_WORLD_DIAGNOSTICS_DIR: ${{ github.workspace }}/build-ios/world-raw-diagnostics
+    steps:
+      - name: Check out requested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install pinned full-client compiler checkpoint
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        with:
+          version: v0.17.0
+          disable_annotations: true
+
+      - name: Export full-client remote checkpoint credentials
+        uses: actions/github-script@d746ffe35508b1917358783b479e04febd2b8f71 # v9.0.0
+        with:
+          script: |
+            const cacheUrl = process.env.ACTIONS_RESULTS_URL || process.env.ACTIONS_CACHE_URL;
+            const runtimeToken = process.env.ACTIONS_RUNTIME_TOKEN;
+            if (!cacheUrl || !runtimeToken) {
+              core.setFailed("GitHub Actions cache-service credentials are unavailable");
+              return;
+            }
+            core.setSecret(runtimeToken);
+            core.exportVariable("SCCACHE_GHA_CACHE_URL", cacheUrl);
+            core.exportVariable("SCCACHE_GHA_RUNTIME_TOKEN", runtimeToken);
+
+      - name: Restore simulator Qt host tools
+        id: qt-host-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ github.workspace }}/build-ios/qt-install/qt/macos
+          key: ${{ needs.qt-simulator.outputs.qt_host_cache_key }}
+
+      - name: Restore durable simulator Qt host fallback
+        id: qt-host-artifact
+        if: steps.qt-host-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py restore \
+            --artifact-prefix "${{ needs.qt-simulator.outputs.qt_host_artifact_prefix }}" \
+            --kind host \
+            --cache-key "${{ needs.qt-simulator.outputs.qt_host_cache_key }}" \
+            --expected-repository-id "${{ github.repository_id }}" \
+            --expected-branch "${{ github.ref_name }}" \
+            --install-root "${{ github.workspace }}/build-ios/qt-install/qt" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Restore simulator Qt target
+        id: qt-target-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ github.workspace }}/build-ios/qt-install/qt/ios
+          key: ${{ needs.qt-simulator.outputs.qt_ios_cache_key }}
+
+      - name: Restore durable simulator Qt target fallback
+        id: qt-target-artifact
+        if: steps.qt-target-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py restore \
+            --artifact-prefix "${{ needs.qt-simulator.outputs.qt_ios_artifact_prefix }}" \
+            --kind ios \
+            --cache-key "${{ needs.qt-simulator.outputs.qt_ios_cache_key }}" \
+            --expected-repository-id "${{ github.repository_id }}" \
+            --expected-branch "${{ github.ref_name }}" \
+            --install-root "${{ github.workspace }}/build-ios/qt-install/qt" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Validate simulator Qt provenance
+        run: |
+          test "${{ steps.qt-host-cache.outputs.cache-hit }}" = true \
+            || test "${{ steps.qt-host-artifact.outputs.restored }}" = true
+          test "${{ steps.qt-target-cache.outputs.cache-hit }}" = true \
+            || test "${{ steps.qt-target-artifact.outputs.restored }}" = true
+          ios/tools/prepare-qt-ios.sh validate "$OVERTE_IOS_QT_ROOT" "$OVERTE_IOS_QT_HOST_ROOT"
+          grep -Eq 'set\(QT_OSX_ARCHITECTURES "arm64"' \
+            "$OVERTE_IOS_QT_ROOT/lib/cmake/Qt6/qt.toolchain.cmake"
+          plan="$(ios/tools/build-qt-ios-from-source.sh \
+            --work-root "$GITHUB_WORKSPACE/build-ios/qt-plan-work" \
+            --install-root "$GITHUB_WORKSPACE/build-ios/qt-plan-install" \
+            --target-sdk iphonesimulator --print-plan)"
+          expected="$(sed -n 's/^IOS_PLAN_ID=//p' <<< "$plan")"
+          [[ -n "$expected" ]]
+          grep -Fxq "$expected" "$OVERTE_IOS_QT_ROOT/.overte-qt-ios-plan-id"
+
+      - name: Restore simulator V8 cache
+        id: v8-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.OVERTE_IOS_V8_ROOT }}
+          key: ${{ needs.v8-simulator.outputs.cache-key }}
+
+      - name: Restore durable simulator V8 fallback
+        id: v8-artifact
+        if: steps.v8-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py restore \
+            --artifact-prefix "${{ needs.v8-simulator.outputs.artifact-prefix }}" \
+            --kind v8 \
+            --cache-key "${{ needs.v8-simulator.outputs.cache-key }}" \
+            --expected-repository-id "${{ github.repository_id }}" \
+            --expected-branch "${{ github.ref_name }}" \
+            --install-root "${{ github.workspace }}/build-ios/external-simulator" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Validate simulator V8 provenance
+        run: |
+          test "${{ steps.v8-cache.outputs.cache-hit }}" = true \
+            || test "${{ steps.v8-artifact.outputs.restored }}" = true
+          ios/tools/build-v8-ios.sh validate
+
+      - name: Restore pinned MoltenVK
+        id: moltenvk-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.OVERTE_IOS_MOLTENVK_ROOT }}
+          key: overte-moltenvk-ios-simulator-v1-${{ runner.arch }}-${{ hashFiles('ios/moltenvk-simulator.env') }}
+
+      - name: Download and verify pinned MoltenVK
+        if: steps.moltenvk-cache.outputs.cache-hit != 'true'
+        run: |
+          source ios/moltenvk-simulator.env
+          mkdir -p build-ios/external
+          archive="build-ios/external/${OVERTE_IOS_MOLTENVK_SIMULATOR_ARCHIVE}.partial"
+          curl --fail --location --retry 3 \
+            "https://github.com/KhronosGroup/MoltenVK/releases/download/v${OVERTE_IOS_MOLTENVK_VERSION}/${OVERTE_IOS_MOLTENVK_SIMULATOR_ARCHIVE}" \
+            --output "$archive"
+          printf '%s  %s\n' "$OVERTE_IOS_MOLTENVK_SIMULATOR_SHA256" "$archive" | shasum -a 256 --check
+          tar -xf "$archive" -C build-ios/external
+          rm "$archive"
+
+      - name: Save validated MoltenVK
+        if: steps.moltenvk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.OVERTE_IOS_MOLTENVK_ROOT }}
+          key: overte-moltenvk-ios-simulator-v1-${{ runner.arch }}-${{ hashFiles('ios/moltenvk-simulator.env') }}
+
+      - name: Bootstrap pinned Conan tooling
+        run: ios/build-ios.sh bootstrap
+
+      - name: Select simulator Conan checkpoint
+        id: conan-key
+        run: |
+          set -euo pipefail
+          xcode_build="$(xcodebuild -version | awk '/Build version/{print $3}')"
+          sdk_version="$(xcrun --sdk iphonesimulator --show-sdk-version)"
+          graph_hash="$(shasum -a 256 ios/conanfile.py ios/dependencies.json ios/versions.env \
+            ios/conan/recipes/onetbb/conanfile.py ios/conan/recipes/onetbb/conandata.yml \
+            ios/conan/recipes/webrtc-audio-processing/conanfile.py \
+            ios/conan/recipes/webrtc-audio-processing/conandata.yml \
+            ios/conan/profiles/ios-simulator-arm64 ios/conan/profiles/macos-arm64 | \
+            shasum -a 256 | awk '{print $1}')"
+          key="overte-ios-conan-simulator-v1-${RUNNER_ARCH}-xcode-${xcode_build}-iphonesimulator-${sdk_version}-${graph_hash}"
+          artifact_hash="$(printf '%s' "$key" | shasum -a 256 | cut -c1-32)"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "partial-prefix=${key}-partial-" >> "$GITHUB_OUTPUT"
+          echo "artifact-prefix=overte-ios-conan-simulator-checkpoint-v1-${artifact_hash}" >> "$GITHUB_OUTPUT"
+          namespace="$(printf '%s\n%s\n%s\n%s\n' \
+            "${{ needs.qt-simulator.outputs.qt_ios_cache_key }}" \
+            "${{ needs.v8-simulator.outputs.cache-key }}" "$key" \
+            "overte-moltenvk-ios-simulator-v1-${{ runner.arch }}-${{ hashFiles('ios/moltenvk-simulator.env') }}" | \
+            shasum -a 256 | awk '{print $1}')"
+          echo "namespace=$namespace" >> "$GITHUB_OUTPUT"
+          echo "SCCACHE_GHA_VERSION=overte-ios-world-client-objects-v1-${namespace}" >> "$GITHUB_ENV"
+          echo "SCCACHE_C_CUSTOM_CACHE_BUSTER=${namespace}" >> "$GITHUB_ENV"
+
+      - name: Restore validated simulator Conan packages
+        id: conan-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.CONAN_HOME }}
+          key: ${{ steps.conan-key.outputs.key }}
+
+      - name: Probe durable simulator Conan checkpoint
+        id: conan-artifact-probe
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py probe \
+            --artifact-prefix "${{ steps.conan-key.outputs.artifact-prefix }}" \
+            --expected-repository-id "${{ github.repository_id }}" \
+            --expected-branch "${{ github.ref_name }}" \
+            --max-age-days 21 \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Restore durable simulator Conan checkpoint
+        id: conan-artifact
+        if: steps.conan-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py restore \
+            --artifact-prefix "${{ steps.conan-key.outputs.artifact-prefix }}" \
+            --kind conan \
+            --cache-key "${{ steps.conan-key.outputs.key }}" \
+            --expected-repository-id "${{ github.repository_id }}" \
+            --expected-branch "${{ github.ref_name }}" \
+            --install-root "${{ github.workspace }}/build-ios" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Restore partial simulator Conan checkpoint
+        id: conan-partial
+        if: steps.conan-cache.outputs.cache-hit != 'true' && steps.conan-artifact.outputs.restored != 'true'
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.CONAN_HOME }}
+          key: ${{ steps.conan-key.outputs.partial-prefix }}${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            ${{ steps.conan-key.outputs.partial-prefix }}
+
+      - name: Resolve audited simulator dependencies
+        id: conan-dependencies
+        continue-on-error: true
+        run: |
+          source build-ios/tooling-venv/bin/activate
+          mkdir -p "$IOS_RUNNER_TELEMETRY_DIR" build-ios/world-raw-diagnostics
+          python3 ios/ci/runner-telemetry.py \
+            --phase conan-simulator-dependencies \
+            --log "$IOS_RUNNER_TELEMETRY_DIR/conan.jsonl" \
+            --output-log build-ios/world-raw-diagnostics/conan.log \
+            --diagnostics-dir "$IOS_RUNNER_TELEMETRY_DIR/conan-stall" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 1200 --max-runtime 7200 \
+            --watch conan="$CONAN_HOME" --watch graph=build-ios/simulator/conan -- \
+            ios/build-ios.sh deps --platform simulator --graphics-toolchain
+
+      - name: Save partial simulator Conan checkpoint
+        if: ${{ always() && !cancelled() && steps.conan-dependencies.outcome == 'failure' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.CONAN_HOME }}
+          key: ${{ steps.conan-key.outputs.partial-prefix }}${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Require resolved simulator dependencies
+        if: ${{ always() && steps.conan-dependencies.outcome == 'failure' }}
+        run: exit 1
+
+      - name: Validate and compact simulator Conan packages
+        run: |
+          source build-ios/tooling-venv/bin/activate
+          conan cache check-integrity "*"
+          conan cache clean "*" --build --temp
+          conan cache check-integrity "*"
+
+      - name: Create durable simulator Conan checkpoint
+        if: steps.conan-artifact-probe.outputs.fresh != 'true'
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py create \
+            --prefix "$CONAN_HOME" --kind conan \
+            --cache-key "${{ steps.conan-key.outputs.key }}" \
+            --producer-repository-id "${{ github.repository_id }}" \
+            --producer-branch "${{ github.ref_name }}" \
+            --output-dir build-ios/conan-simulator-checkpoint
+
+      - name: Upload durable simulator Conan checkpoint
+        if: steps.conan-artifact-probe.outputs.fresh != 'true'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ steps.conan-key.outputs.artifact-prefix }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build-ios/conan-simulator-checkpoint/checkpoint.tar.gz
+            build-ios/conan-simulator-checkpoint/manifest.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+      - name: Save validated simulator Conan packages
+        if: steps.conan-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.CONAN_HOME }}
+          key: ${{ steps.conan-key.outputs.key }}
+
+      - name: Verify simulator toolchain
+        run: |
+          ios/build-ios.sh doctor --platform simulator --require-qt --require-moltenvk
+          ios/tools/build-v8-ios.sh validate
+
+      - name: Restore local Full Client compiler fallback
+        id: client-sccache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: overte-ios-world-client-local-v1-${{ steps.conan-key.outputs.namespace }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            overte-ios-world-client-local-v1-${{ steps.conan-key.outputs.namespace }}-${{ github.sha }}-
+            overte-ios-world-client-local-v1-${{ steps.conan-key.outputs.namespace }}-
+
+      - name: Restore incremental Full Client build tree
+        id: client-build-tree
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            build-ios/simulator
+            !build-ios/simulator/conan
+          key: overte-ios-world-build-tree-v1-${{ steps.conan-key.outputs.namespace }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            overte-ios-world-build-tree-v1-${{ steps.conan-key.outputs.namespace }}-${{ github.sha }}-
+            overte-ios-world-build-tree-v1-${{ steps.conan-key.outputs.namespace }}-
+
+      - name: Start full-client simulator compiler checkpoint
+        run: |
+          sccache --stop-server || true
+          sccache --start-server
+          sccache --zero-stats
+
+      - name: Configure Full Client simulator graph
+        id: client-configure
+        run: |
+          source build-ios/tooling-venv/bin/activate
+          compiler_launcher="$GITHUB_WORKSPACE/ios/ci/xcode-compiler-launcher.sh"
+          python3 ios/ci/runner-telemetry.py \
+            --phase client-simulator-configure \
+            --log "$IOS_RUNNER_TELEMETRY_DIR/configure.jsonl" \
+            --output-log build-ios/world-raw-diagnostics/configure.log \
+            --diagnostics-dir "$IOS_RUNNER_TELEMETRY_DIR/configure-stall" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 900 --max-runtime 1800 \
+            --watch build=build-ios/simulator --watch conan="$CONAN_HOME" -- \
+            env OVERTE_IOS_COMPILER_LAUNCHER="$compiler_launcher" \
+              ios/build-ios.sh configure --platform simulator --client-graph
+          settings="$(xcodebuild -project build-ios/simulator/Overte.xcodeproj \
+            -target Overte -configuration Release -sdk iphonesimulator -showBuildSettings)"
+          grep -F "C_COMPILER_LAUNCHER = $compiler_launcher" <<< "$settings"
+          grep -F 'CLANG_ENABLE_MODULES = NO' <<< "$settings"
+          grep -F 'COMPILER_INDEX_STORE_ENABLE = NO' <<< "$settings"
+          grep -F 'CLANG_USE_RESPONSE_FILE = NO' <<< "$settings"
+
+      - name: Verify Xcode compiler checkpoint before long simulator build
+        run: |
+          smoke_dir="build-ios/world-sccache-smoke"
+          compiler_launcher="$GITHUB_WORKSPACE/ios/ci/xcode-compiler-launcher.sh"
+          cmake -S ios/tests/fixtures/xcode-sccache -B "$smoke_dir" -G Xcode \
+            "-DCMAKE_XCODE_ATTRIBUTE_C_COMPILER_LAUNCHER=$compiler_launcher" \
+            "-DCMAKE_C_FLAGS=-DOVERTE_WORLD_SCCACHE_PROBE=${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}" \
+            -DCMAKE_XCODE_ATTRIBUTE_CLANG_ENABLE_MODULES=NO \
+            -DCMAKE_XCODE_ATTRIBUTE_COMPILER_INDEX_STORE_ENABLE=NO \
+            -DCMAKE_XCODE_ATTRIBUTE_CLANG_USE_RESPONSE_FILE=NO
+          sccache --zero-stats
+          cmake --build "$smoke_dir" --config Release --target overte-xcode-sccache-smoke
+          sccache --show-stats --stats-format=json > build-ios/world-raw-diagnostics/sccache-smoke.json
+          python3 - build-ios/world-raw-diagnostics/sccache-smoke.json <<'PY'
+          import json
+          import pathlib
+          import sys
+          stats = json.loads(pathlib.Path(sys.argv[1]).read_text()).get("stats", {})
+          requests = int(stats.get("requests_executed", stats.get("compile_requests", 0)))
+          writes = int(stats.get("cache_writes", 0))
+          write_errors = int(stats.get("cache_write_errors", 0))
+          remote = [item for item in stats.get("multi_level", [])
+                    if "gha" in str(item.get("name", "")).lower()]
+          if requests < 1 or writes < 1 or write_errors:
+              raise SystemExit("simulator compiler checkpoint probe was not reusable")
+          if len(remote) != 1 or int(remote[0].get("writes", 0)) < 1 or int(remote[0].get("write_failures", 0)):
+              raise SystemExit("simulator compiler checkpoint did not reach remote storage")
+          PY
+          cmake -E remove_directory "$smoke_dir"
+          sccache --zero-stats
+
+      - name: Build Full Client simulator
+        id: client-build
+        continue-on-error: true
+        run: |
+          python3 ios/ci/runner-telemetry.py \
+            --phase client-simulator-build \
+            --log "$IOS_RUNNER_TELEMETRY_DIR/build.jsonl" \
+            --output-log build-ios/world-raw-diagnostics/build.log \
+            --diagnostics-dir "$IOS_RUNNER_TELEMETRY_DIR/build-stall" \
+            --compiler-live-log "$IOS_RUNNER_TELEMETRY_DIR/compiler-live.jsonl" \
+            --compiler-diagnostics-dir "$OVERTE_COMPILER_WATCHDOG_DIAGNOSTICS" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 300 \
+            --inactivity-timeout 1200 --max-runtime 12900 \
+            --watch build=build-ios/simulator --watch conan="$CONAN_HOME" \
+            --watch sccache="$SCCACHE_DIR" -- \
+            cmake --build build-ios/simulator --config Release \
+              --parallel "$(sysctl -n hw.logicalcpu)" --target Overte -- \
+              -showBuildTimingSummary
+
+      - name: Snapshot and stop Full Client simulator checkpoint
+        if: ${{ always() && !cancelled() && steps.client-build.outcome != 'skipped' }}
+        run: |
+          sccache --show-stats --stats-format=json > build-ios/world-raw-diagnostics/sccache-stats.json
+          sccache --show-stats
+          sccache --stop-server
+          python3 ios/ci/report-sccache-stats.py \
+            build-ios/world-raw-diagnostics/sccache-stats.json \
+            --cache-dir "$SCCACHE_DIR" --phase after --require-activity \
+            --max-remote-write-failure-rate 0.10
+
+      - name: Save local Full Client compiler fallback
+        if: ${{ always() && !cancelled() && steps.client-build.outcome != 'skipped' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ env.SCCACHE_DIR }}
+          key: overte-ios-world-client-local-v1-${{ steps.conan-key.outputs.namespace }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Save incremental Full Client build tree
+        if: ${{ steps.client-build.outcome == 'success' }}
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            build-ios/simulator
+            !build-ios/simulator/conan
+          key: overte-ios-world-build-tree-v1-${{ steps.conan-key.outputs.namespace }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Require successful Full Client simulator build
+        if: ${{ always() && steps.client-build.outcome == 'failure' }}
+        run: exit 1
+
+      - name: Package and verify simulator candidate
+        id: candidate
+        env:
+          OVERTE_IOS_ARTIFACT_SEQUENCE: ${{ github.run_number }}
+        run: |
+          source build-ios/tooling-venv/bin/activate
+          ios/build-ios.sh package-client --platform simulator --configuration Release
+          manifest="$(find build-ios/artifacts -maxdepth 1 -name '*-OverteIOSClient-Release-simulator.json' -print)"
+          [[ -f "$manifest" && "$(printf '%s\n' "$manifest" | wc -l | tr -d ' ')" == 1 ]]
+          sha="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sha256"])' "$manifest")"
+          python3 ios/tools/verify-runtime-candidate.py build-ios/artifacts \
+            --mode simulator --expected-source-revision "$GITHUB_SHA" \
+            --expected-sha256 "$sha" --github-output "$GITHUB_OUTPUT"
+          echo "manifest=$manifest" >> "$GITHUB_OUTPUT"
+
+      - name: Preserve verified simulator candidate before runtime
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: overte-ios-world-candidate-v2-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            build-ios/artifacts/*-OverteIOSClient-Release-simulator.zip
+            build-ios/artifacts/*-OverteIOSClient-Release-simulator-symbols.zip
+            build-ios/artifacts/*-OverteIOSClient-Release-simulator.json
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+      - name: Resolve current overte_hub domain identity
+        id: online-world
+        if: ${{ inputs.runtime_case == 'all' || endsWith(inputs.runtime_case, '-online') }}
+        run: |
+          response="$(mktemp "${TMPDIR:-/tmp}/overte-place.XXXXXX")"
+          trap 'rm -f "$response"' EXIT
+          curl --fail --silent --show-error --retry 3 --max-time 30 \
+            https://mv.overte.org/server/api/v1/places/overte_hub > "$response"
+          domain="$(python3 - "$response" <<'PY'
+          import json
+          import pathlib
+          import re
+          import sys
+          payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          place = payload.get("data", {}).get("place", {})
+          domain = place.get("domain", {})
+          identifier = str(domain.get("id", "")).lower()
+          if payload.get("status") != "success" or place.get("name") != "overte_hub":
+              raise SystemExit("overte_hub place lookup did not resolve the requested place")
+          if domain.get("active") is not True:
+              raise SystemExit("overte_hub is not currently active")
+          if re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", identifier) is None:
+              raise SystemExit("overte_hub returned an invalid domain UUID")
+          print(identifier)
+          PY
+          )"
+          echo "domain=$domain" >> "$GITHUB_OUTPUT"
+
+      - name: Select stable CoreSimulator installation tools
+        run: |
+          set -euo pipefail
+          developer_dir=/Applications/Xcode_26.5.app/Contents/Developer
+          test -x "$developer_dir/usr/bin/xcodebuild"
+          xcode_build="$(DEVELOPER_DIR="$developer_dir" xcodebuild -version | awk '/Build version/{print $3}')"
+          [[ "$xcode_build" == 17F42 ]]
+          DEVELOPER_DIR="$developer_dir" xcrun simctl list runtimes --json >/dev/null
+          echo "DEVELOPER_DIR=$developer_dir" >> "$GITHUB_ENV"
+          echo "Using Xcode 26.5 ($xcode_build) CoreSimulator tools to avoid the Xcode 26.6 IXErrorDomain-13 regression"
+
+      - name: Load serverless and online worlds with screenshots
+        env:
+          ONLINE_DOMAIN: ${{ steps.online-world.outputs.domain }}
+          RUNTIME_CASE: ${{ inputs.runtime_case }}
+        run: |
+          set -euo pipefail
+          app="build-ios/simulator/interface/Release-iphonesimulator/Overte.app"
+          bundle_id="${{ steps.candidate.outputs.bundle_id }}"
+          evidence="build-ios/world-evidence"
+          mkdir -p "$evidence"
+          case "$RUNTIME_CASE" in
+            all)
+              for family in iphone ipad; do
+                ios/ci/interface-world-simulator-smoke.sh \
+                  "$app" "$bundle_id" "$family" serverless - "$evidence"
+                ios/ci/interface-world-simulator-smoke.sh \
+                  "$app" "$bundle_id" "$family" online "$ONLINE_DOMAIN" "$evidence"
+              done
+              python3 ios/tools/validate-world-evidence-set.py "$evidence" \
+                --candidate-manifest "${{ steps.candidate.outputs.manifest }}" \
+                --source-revision "$GITHUB_SHA" \
+                --candidate-sha256 "${{ steps.candidate.outputs.sha256 }}" \
+                --output build-ios/world-evidence-set.json
+              ;;
+            iphone-serverless|iphone-online|ipad-serverless|ipad-online)
+              family="${RUNTIME_CASE%%-*}"
+              scenario="${RUNTIME_CASE#*-}"
+              if [[ "$scenario" == serverless ]]; then
+                ios/ci/interface-world-simulator-smoke.sh \
+                  "$app" "$bundle_id" "$family" serverless - "$evidence"
+              else
+                ios/ci/interface-world-simulator-smoke.sh \
+                  "$app" "$bundle_id" "$family" online "$ONLINE_DOMAIN" "$evidence"
+              fi
+              ;;
+            *)
+              echo "unsupported world runtime case: $RUNTIME_CASE" >&2
+              exit 64
+              ;;
+          esac
+
+      - name: Upload world screenshot evidence
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ github.run_number }}-overte-ios-world-evidence-${{ github.run_id }}
+          path: |
+            build-ios/world-evidence/*.png
+            build-ios/world-evidence/*-screenshot.json
+            build-ios/world-evidence/*-runtime.json
+            build-ios/world-evidence-set.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Preserve runtime failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ github.run_number }}-overte-ios-world-failures-${{ github.run_id }}
+          path: build-ios/world-evidence/*-failure.png
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Sanitize world-build failure diagnostics
+        if: failure()
+        run: |
+          mkdir -p build-ios/world-upload-diagnostics
+          symbol_binary="build-ios/simulator/interface/Release-iphonesimulator/Overte.app.dSYM/Contents/Resources/DWARF/Overte"
+          if [[ -f "$symbol_binary" ]]; then
+            for crash in build-ios/world-raw-diagnostics/*-overte-crash-report.log; do
+              [[ -s "$crash" ]] || continue
+              symbolicated="${crash%-overte-crash-report.log}-symbolicated-crash.json"
+              if ! python3 ios/tools/symbolicate-simulator-crash.py \
+                "$crash" "$symbol_binary" "$symbolicated"; then
+                rm -f "$symbolicated"
+                echo "::warning::Overte symbolication was not applicable; preserving sanitized raw crash diagnostics"
+              fi
+            done
+          fi
+          for source in build-ios/world-raw-diagnostics/*.log \
+            build-ios/world-raw-diagnostics/*.json; do
+            [[ -f "$source" ]] || continue
+            python3 ios/tools/sanitize-ci-log.py "$source" \
+              "build-ios/world-upload-diagnostics/$(basename "$source")"
+          done
+          for source_dir in build-ios/world-raw-diagnostics/*-moltenvk-shaders; do
+            [[ -d "$source_dir" ]] || continue
+            destination="build-ios/world-upload-diagnostics/$(basename "$source_dir")"
+            if ! python3 ios/tools/prepare-moltenvk-diagnostics.py \
+              "$source_dir" "$destination"; then
+              rm -rf "$destination"
+              echo "::warning::MoltenVK diagnostics failed validation and will not be uploaded"
+            fi
+          done
+
+      - name: Upload world-build diagnostics and telemetry
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ github.run_number }}-ios-world-runtime-telemetry-${{ github.run_id }}
+          path: |
+            ${{ env.IOS_RUNNER_TELEMETRY_DIR }}
+            ${{ env.OVERTE_COMPILER_WATCHDOG_DIAGNOSTICS }}
+            build-ios/world-upload-diagnostics
+          if-no-files-found: ignore
+          retention-days: 14

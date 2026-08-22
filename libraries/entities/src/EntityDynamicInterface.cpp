@@ -93,6 +93,18 @@ variables.  These argument variables are used by the code which is run when bull
 
 #include "EntityItem.h"
 
+namespace {
+
+bool isVariantMap(const QVariant& value) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return value.metaType().id() == QMetaType::QVariantMap;
+#else
+    return value.type() == QVariant::Map;
+#endif
+}
+
+} // namespace
+
 /*@jsdoc
  * <p>An entity action may be one of the following types:</p>
  * <table>
@@ -217,7 +229,7 @@ glm::vec3 EntityDynamicInterface::extractVec3Argument(QString objectName, QVaria
     }
 
     QVariant resultV = arguments[argumentName];
-    if (resultV.type() != (QVariant::Type) QMetaType::QVariantMap) {
+    if (!isVariantMap(resultV)) {
         qCDebug(entities) << objectName << "argument" << argumentName << "must be a map";
         ok = false;
         return glm::vec3(0.0f);
@@ -266,7 +278,7 @@ glm::quat EntityDynamicInterface::extractQuatArgument(QString objectName, QVaria
     }
 
     QVariant resultV = arguments[argumentName];
-    if (resultV.type() != (QVariant::Type) QMetaType::QVariantMap) {
+    if (!isVariantMap(resultV)) {
         qCDebug(entities) << objectName << "argument" << argumentName << "must be a map, not" << resultV.typeName();
         ok = false;
         return glm::quat();

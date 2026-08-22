@@ -49,7 +49,11 @@ if (APPLE)
   set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "NO")
 endif()
 
-if (UNIX)
+if (IOS)
+  # Native code in an iOS application is a closed, signed graph. Overte
+  # libraries and plug-ins are therefore linked into the application.
+  set(BUILD_SHARED_LIBS OFF)
+elseif (UNIX)
   # Static libs result in duplicated constructor and destructor calls on Linux
   # and crashes on exit, and perhaps loss of global state on plugin loads.
   #

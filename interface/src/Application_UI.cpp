@@ -16,6 +16,9 @@
 #include "Application.h"
 
 #include <QtQml/QQmlContext>
+#if defined(Q_OS_IOS)
+#include <QtGui/QInputMethod>
+#endif
 #include <QStyle>
 #include <QStyleFactory>
 #if defined(Q_OS_WIN)
@@ -74,11 +77,17 @@
 #include <ui/AvatarInputs.h>
 #include <ui/DialogsManager.h>
 #include <ui/DomainConnectionModel.h>
+#if !defined(Q_OS_IOS)
 #include <ui/EntityScriptServerLogDialog.h>
+#endif
 #include <ui/Keyboard.h>
+#if !defined(Q_OS_IOS)
 #include <ui/LogDialog.h>
+#endif
 #include <ui/LoginDialog.h>
+#if !defined(Q_OS_IOS)
 #include <ui/OctreeStatsDialog.h>
+#endif
 #include <ui/OctreeStatsProvider.h>
 #include <ui/Snapshot.h>
 #include <ui/Stats.h>
@@ -91,11 +100,13 @@
 #include "AboutUtil.h"
 #include "ArchiveDownloadInterface.h"
 #include "AudioClient.h"
+#ifdef USE_GL
 #include "GLCanvas.h"
+#endif
 #include "LocationBookmarks.h"
 #include "LODManager.h"
 #include "ResourceRequestObserver.h"
-#if defined(Q_OS_MAC) || defined(Q_OS_WIN)
+#if (defined(Q_OS_MAC) && !defined(Q_OS_IOS)) || defined(Q_OS_WIN)
 #include "SpeechRecognizer.h"
 #endif
 
@@ -525,7 +536,7 @@ void Application::loadScriptURLDialog() const {
 }
 
 void Application::toggleLogDialog() {
-#ifndef ANDROID_APP_QUEST_INTERFACE
+#if !defined(ANDROID_APP_QUEST_INTERFACE) && !defined(Q_OS_IOS)
     if (getLoginDialogPoppedUp()) {
         return;
     }
@@ -555,6 +566,7 @@ void Application::toggleLogDialog() {
 }
 
 void Application::recreateLogWindow(int keepOnTop) {
+#if !defined(Q_OS_IOS)
     _keepLogWindowOnTop.set(keepOnTop != 0);
     if (_logDialog) {
         bool toggle = _logDialog->isVisible();
@@ -565,9 +577,13 @@ void Application::recreateLogWindow(int keepOnTop) {
             toggleLogDialog();
         }
     }
+#else
+    Q_UNUSED(keepOnTop)
+#endif
 }
 
 void Application::toggleEntityScriptServerLogDialog() {
+#if !defined(Q_OS_IOS)
     if (! _entityScriptServerLogDialog) {
         _entityScriptServerLogDialog = new EntityScriptServerLogDialog(nullptr);
     }
@@ -577,6 +593,7 @@ void Application::toggleEntityScriptServerLogDialog() {
     } else {
         _entityScriptServerLogDialog->show();
     }
+#endif
 }
 
 void Application::showAssetServerWidget(QString filePath) {
@@ -916,7 +933,7 @@ void Application::onDesktopRootContextCreated(QQmlContext* surfaceContext) {
     surfaceContext->setContextProperty("UserActivityLogger", DependencyManager::get<UserActivityLoggerScriptingInterface>().data());
     surfaceContext->setContextProperty("Camera", &_myCamera);
 
-#if defined(Q_OS_MAC) || defined(Q_OS_WIN)
+#if (defined(Q_OS_MAC) && !defined(Q_OS_IOS)) || defined(Q_OS_WIN)
     surfaceContext->setContextProperty("SpeechRecognizer", DependencyManager::get<SpeechRecognizer>().data());
 #endif
 
@@ -966,7 +983,14 @@ void Application::onDesktopRootContextCreated(QQmlContext* surfaceContext) {
         surfaceContext->setContextProperty("Steam", new SteamScriptingInterface(engine, steamClient.get()));
     }
 
-    _window->setMenuBar(new Menu());
+    auto* menu = new Menu();
+    _window->setMenuBar(menu);
+#if defined(Q_OS_IOS)
+    // onDesktopRootContextCreated replaces the menu that was hidden during
+    // Application startup. Hide this final instance at the point where it is
+    // installed so QMainWindow cannot expose desktop chrome on iPhone/iPad.
+    menu->hide();
+#endif
 }
 
 void Application::showDesktop() {}
@@ -990,7 +1014,7 @@ bool Application::askToSetAvatarUrl(const QString& url) {
     }
 
     // Download the FST file, to attempt to determine its model type
-    QVariantHash fstMapping = FSTReader::downloadMapping(url);
+    auto fstMapping = FSTReader::downloadMapping(url);
 
     FSTReader::ModelType modelType = FSTReader::predictModelType(fstMapping);
 
@@ -1159,7 +1183,9 @@ bool Application::initMenu() {
 
 void Application::pauseUntilLoginDetermined() {
     if (QThread::currentThread() != qApp->thread()) {
-        QMetaObject::invokeMethod(this, "pauseUntilLoginDetermined");
+        QMetaObject::invokeMethod(this, [this] {
+            pauseUntilLoginDetermined();
+        }, Qt::QueuedConnection);
         return;
     }
 
@@ -1218,15 +1244,31 @@ void Application::pauseUntilLoginDetermined() {
     // From now on, it's permissible to call resumeAfterLoginDialogActionTaken()
     _resumeAfterLoginDialogActionTaken_SafeToRun = true;
 
+#if defined(Q_OS_IOS)
+    // The desktop QML path normally resumes when keyboardFocusActive is
+    // emitted. That signal is not guaranteed on iOS and the offscreen desktop
+    // is not a prerequisite for loading a world. Queue the one-shot resume so
+    // main.cpp can finish initialize() and apply --url/overrideEntry before
+    // navigation is selected. The iOS resume path below deliberately avoids
+    // the desktop-only toolbar proxy.
+    if (_noLoginSuggestion || _resumeAfterLoginDialogActionTaken_WasPostponed) {
+        QMetaObject::invokeMethod(this, [this] {
+            resumeAfterLoginDialogActionTaken();
+        }, Qt::QueuedConnection);
+    }
+#else
     if (_resumeAfterLoginDialogActionTaken_WasPostponed) {
         // resumeAfterLoginDialogActionTaken() was already called, but it aborted. Now it's safe to call it again.
         resumeAfterLoginDialogActionTaken();
     }
+#endif
 }
 
 void Application::resumeAfterLoginDialogActionTaken() {
     if (QThread::currentThread() != qApp->thread()) {
-        QMetaObject::invokeMethod(this, "resumeAfterLoginDialogActionTaken");
+        QMetaObject::invokeMethod(this, [this] {
+            resumeAfterLoginDialogActionTaken();
+        }, Qt::QueuedConnection);
         return;
     }
 
@@ -1244,13 +1286,26 @@ void Application::resumeAfterLoginDialogActionTaken() {
     _resumeAfterLoginDialogActionTaken_Completed = true;
 
 #if !defined(DISABLE_QML)
+#if defined(Q_OS_IOS)
+    // The desktop toolbar is optional and may never be created by the iOS
+    // offscreen-QML path. Mobile world startup must not depend on it.
+    getApplicationCompositor().getReticleInterface()->setAllowMouseCapture(true);
+    getApplicationCompositor().getReticleInterface()->setVisible(true);
+#else
     if (!isHMDMode() && getDesktopTabletBecomesToolbarSetting()) {
         auto toolbar = DependencyManager::get<ToolbarScriptingInterface>()->getToolbar("com.highfidelity.interface.toolbar.system");
-        toolbar->writeProperty("visible", true);
+        if (toolbar) {
+            toolbar->writeProperty("visible", true);
+        } else {
+            qCWarning(interfaceapp) << "System toolbar is unavailable while resuming; using the reticle fallback";
+            getApplicationCompositor().getReticleInterface()->setAllowMouseCapture(true);
+            getApplicationCompositor().getReticleInterface()->setVisible(true);
+        }
     } else {
         getApplicationCompositor().getReticleInterface()->setAllowMouseCapture(true);
         getApplicationCompositor().getReticleInterface()->setVisible(true);
     }
+#endif
 
     updateSystemTabletMode();
 #endif
@@ -1297,6 +1352,15 @@ void Application::resumeAfterLoginDialogActionTaken() {
     // restart domain handler.
     nodeList->getDomainHandler().resetting();
 
+#if defined(Q_OS_IOS)
+    // iOS cannot host Overte's companion desktop Sandbox process, so waiting
+    // for http://localhost:60332/status only delays (or can indefinitely block)
+    // the startup URL. Preserve the asynchronous startup boundary while
+    // deterministically selecting the supported "sandbox absent" path.
+    QMetaObject::invokeMethod(this, [this] {
+        handleSandboxStatus(nullptr);
+    }, Qt::QueuedConnection);
+#else
     QVariant testProperty = property(hifi::properties::TEST);
     if (testProperty.isValid()) {
         const auto testScript = property(hifi::properties::TEST).toUrl();
@@ -1311,13 +1375,28 @@ void Application::resumeAfterLoginDialogActionTaken() {
         auto reply = SandboxUtils::getStatus();
         connect(reply, &QNetworkReply::finished, this, [this, reply] { handleSandboxStatus(reply); });
     }
+#endif
 
     auto menu = Menu::getInstance();
+#if defined(Q_OS_IOS)
+    // The offscreen desktop can focus a hidden QML text field while it is
+    // finishing startup. That would leave UIKit's keyboard over the native
+    // render surface even though no dialog is visible on iOS. Restore focus to
+    // the render widget, dismiss the input method, and keep the final menu
+    // instance hidden after all desktop initialization has completed.
+    menu->hide();
+    _primaryWidget->setFocus();
+    if (auto* inputMethod = QGuiApplication::inputMethod()) {
+        inputMethod->hide();
+    }
+    qInfo().noquote() << "OVERTE_IOS_UI_POLICY menu_hidden=1 keyboard_hidden=1";
+#else
     menu->getMenu("Edit")->setVisible(true);
     menu->getMenu("View")->setVisible(true);
     menu->getMenu("Navigate")->setVisible(true);
     menu->getMenu("Settings")->setVisible(true);
     menu->getMenu("Developer")->setVisible(_developerMenuVisible);
+#endif
     _myCamera.setMode(_previousCameraMode);
     cameraModeChanged();
     _startUpFinished = true;
@@ -1338,10 +1417,12 @@ void Application::updateDialogs(float deltaTime) const {
     PerformanceWarning warn(showWarnings, "Application::updateDialogs()");
     auto dialogsManager = DependencyManager::get<DialogsManager>();
 
+#if !defined(Q_OS_IOS)
     QPointer<OctreeStatsDialog> octreeStatsDialog = dialogsManager->getOctreeStatsDialog();
     if (octreeStatsDialog) {
         octreeStatsDialog->update();
     }
+#endif
 }
 
 void Application::maybeToggleMenuVisible(QMouseEvent* event) const {
@@ -1390,7 +1471,7 @@ bool Application::shouldCaptureMouse() const {
 void Application::checkChangeCursor() {
     QMutexLocker locker(&_changeCursorLock);
     if (_cursorNeedsChanging) {
-#ifdef Q_OS_MAC
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
         auto cursorTarget = _window; // OSX doesn't seem to provide for hiding the cursor only on the GL widget
 #else
         // On windows and linux, hiding the top level cursor also means it's invisible when hovering over the
@@ -1505,6 +1586,11 @@ void Application::setMenuBarVisible(bool visible) {
         return;
     }
 
+#if defined(Q_OS_IOS)
+    // Scripts and persisted desktop settings must not reveal native desktop
+    // chrome over the fullscreen iOS render surface.
+    visible = false;
+#endif
     auto* menuBar = qApp->getWindow()->menuBar();
     bool wasVisible = menuBar->isVisible();
 

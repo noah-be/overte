@@ -21,7 +21,6 @@
 
 #include <GLMHelpers.h>
 
-#include <gl/OffscreenGLCanvas.h>
 #include <shared/ReadWriteLockable.h>
 #include <NetworkingConstants.h>
 #include <MetaverseAPI.h>
@@ -86,13 +85,22 @@ size_t OffscreenSurface::getUsedTextureMemory() {
     return SharedObject::getTextureCache().getUsedTextureMemory();
 }
 
+bool OffscreenSurface::configureSharedGraphicsContext(const SharedGraphicsContext& context) {
+    if (context.backend != SharedGraphicsContext::Backend::OpenGL || !context.handle) {
+        return false;
+    }
+
+    setSharedContext(static_cast<QOpenGLContext*>(context.handle));
+    return true;
+}
+
 void OffscreenSurface::setSharedContext(QOpenGLContext* sharedContext) {
     SharedObject::setSharedContext(sharedContext);
 }
 
 std::function<void(uint32_t, void*)> OffscreenSurface::getDiscardLambda() {
     return [](uint32_t texture, void* fence) {
-        SharedObject::getTextureCache().releaseTexture({ texture, static_cast<GLsync>(fence) });
+        SharedObject::getTextureCache().releaseTexture({ texture, fence });
     };
 }
 

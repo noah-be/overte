@@ -36,7 +36,7 @@ glm::vec3 parseVec3(const QString& string) {
     glm::vec3 value;
     for (int i = 0; i < 3; i++) {
         // duplicate last value if there aren't three elements
-        value[i] = elements.at(min(i, elements.size() - 1)).trimmed().toFloat();
+        value[i] = elements.at(min(static_cast<decltype(elements.size())>(i), elements.size() - 1)).trimmed().toFloat();
     }
     return value;
 }
@@ -260,7 +260,9 @@ typedef QPair<int, float> WeightedIndex;
 
 void addBlendshapes(const ExtractedBlendshape& extracted, const QList<WeightedIndex>& indices, ExtractedMesh& extractedMesh) {
     foreach (const WeightedIndex& index, indices) {
-        extractedMesh.mesh.blendshapes.resize(max(extractedMesh.mesh.blendshapes.size(), index.first + 1));
+        extractedMesh.mesh.blendshapes.resize(max(
+            extractedMesh.mesh.blendshapes.size(),
+            static_cast<decltype(extractedMesh.mesh.blendshapes.size())>(index.first + 1)));
         extractedMesh.blendshapeIndexMaps.resize(extractedMesh.mesh.blendshapes.size());
         HFMBlendshape& blendshape = extractedMesh.mesh.blendshapes[index.first];
         QHash<int, int>& blendshapeIndexMap = extractedMesh.blendshapeIndexMaps[index.first];
@@ -419,7 +421,7 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
 
     std::map<QString, HFMLight> lights;
 
-    hifi::VariantMultiHash blendshapeMappings = mapping.value("bs").toHash();
+    hifi::VariantMultiHash blendshapeMappings(mapping.value("bs").toHash());
 
     QMultiHash<hifi::ByteArray, WeightedIndex> blendshapeIndices;
     for (int i = 0;; i++) {
@@ -1392,7 +1394,8 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
     }
 
     // NOTE: shapeVertices are in joint-frame
-    hfmModel.shapeVertices.resize(std::max(1, hfmModel.joints.size()) );
+    hfmModel.shapeVertices.resize(std::max(
+        static_cast<decltype(hfmModel.joints.size())>(1), hfmModel.joints.size()));
 
     hfmModel.bindExtents.reset();
     hfmModel.meshExtents.reset();
