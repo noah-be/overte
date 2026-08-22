@@ -70,6 +70,7 @@ using the separately authorized Sideloadly signing and installation path. See
 
 - [Complete build guide](BUILD.md)
 - [Testing](TESTING.md)
+- [Touch UI architecture and validation](TOUCH_UI.md)
 - [Troubleshooting](TROUBLESHOOTING.md)
 - [Security and privacy](SECURITY_AND_PRIVACY.md)
 - [Continuous integration](CI.md)
