@@ -167,12 +167,13 @@
         var entities = Entities.findEntities(MyAvatar.position, 16384);
         latestInventory = inspectEntityInventory(entities, 64);
         var resources = queueState();
-        if (snapshotStage === "waiting" &&
-                latestInventory.loaded_visible_model_count > 0) {
+        if (snapshotStage === "waiting" && latestInventory.visible_model_count > 0) {
             if (visibleGeometryReadyAt === 0) {
-                // Require a sustained visually-ready model state and a
-                // subsequently presented frame before accepting the scene.
-                visibleGeometryReadyAt = Date.now() + 5000;
+                // Apple's virtualized software renderer can present primitive
+                // frames before spending several minutes inside the first
+                // real model draw. Delay the present gate until that measured
+                // pipeline has started, then require a newer completed frame.
+                visibleGeometryReadyAt = Date.now() + 300000;
                 readyPresentBaseline = finiteNumber(Test.getPresentCount());
                 print("OVERTE_MACOS_SMOKE visible_geometry_ready count=" +
                     latestInventory.visible_renderable_count + " models=" +

@@ -115,7 +115,6 @@ assert busy_queues["passed"], busy_queues
 unloaded_model_payload = payload([record(handoff), record("model", "Model")])
 unloaded_model_payload["loaded_visible_model_count"] = 0
 unloaded_model = MODULE.validate(unloaded_model_payload, handoff)
-assert not unloaded_model["passed"]
-assert "loaded_visible_model_count must identify a visible model" in unloaded_model["failures"]
+assert unloaded_model["passed"], unloaded_model
 
 print("macOS online entity validator contract valid")

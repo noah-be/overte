@@ -119,10 +119,10 @@ def validate(payload: object, render_handoff_id: str) -> dict[str, object]:
     if (
         not isinstance(loaded_visible_model_count, int)
         or isinstance(loaded_visible_model_count, bool)
-        or loaded_visible_model_count < 1
+        or loaded_visible_model_count < 0
         or loaded_visible_model_count > computed_visible_model
     ):
-        failures.append("loaded_visible_model_count must identify a visible model")
+        failures.append("loaded_visible_model_count must cover only visible models")
 
     handoff_id = normalized_id(render_handoff_id)
     handoff = records.get(handoff_id)

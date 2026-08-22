@@ -75,7 +75,7 @@ function createRun() {
 
     function requestSnapshot() {
         script.interval();
-        clock.now += 5000;
+        clock.now += 300000;
         script.interval();
         assert.strictEqual(windowObject.snapshotName, "macos-online-smoke.png");
     }
