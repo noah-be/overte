@@ -349,6 +349,8 @@ require_text "$cmake" 'add_subdirectory\("\$\{CMAKE_SOURCE_DIR\}/interface"' \
     'phone native target includes the main Interface client'
 require_text "$cmake" 'src/PhoneUrlHandler\.cpp' \
     'CMake includes the runtime deep-link bridge'
+reject_text phone/apps/phoneInterface/src/PhoneUrlHandler.cpp 'TabletScriptingInterface\.h' \
+    'phone JNI bridge avoids the tablet implementation header dependency graph'
 
 require_text "$manifest" 'android\.hardware\.touchscreen' \
     'manifest requires a touchscreen'

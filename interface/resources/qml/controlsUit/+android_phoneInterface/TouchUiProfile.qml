@@ -1,5 +1,5 @@
 import QtQuick 2.7
-import ".." as SharedControls
+import controlsUit 1.0 as SharedControls
 
 // Android Phone is the first device adapter for the universal touch UI. New
 // devices should add one equivalent profile rather than copy feature screens.
