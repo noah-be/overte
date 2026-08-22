@@ -258,14 +258,6 @@ int main(int argc, const char* argv[]) {
         "macosTestLightweightEntities",
         "In an explicit macOS test script, render streamed zones and primitive shapes only."
     );
-    QCommandLineOption macosTestRepresentativeEntitiesOption(
-        "macosTestRepresentativeEntities",
-        "In an explicit macOS test script, render environmental entities and one moderate streamed model."
-    );
-    QCommandLineOption macosTestDisableEntityScriptsOption(
-        "macosTestDisableEntityScripts",
-        "In an explicit macOS test script, do not execute scripts attached to streamed entities."
-    );
     QCommandLineOption systemCursorOption(
         "system-cursor",
         "Use the default system cursor."
@@ -423,8 +415,6 @@ int main(int argc, const char* argv[]) {
     parser.addOption(disableWatchdogOption);
     parser.addOption(disableLocalAvatarOption);
     parser.addOption(macosTestLightweightEntitiesOption);
-    parser.addOption(macosTestRepresentativeEntitiesOption);
-    parser.addOption(macosTestDisableEntityScriptsOption);
     parser.addOption(systemCursorOption);
     parser.addOption(concurrentDownloadsOption);
     parser.addOption(avatarURLOption);

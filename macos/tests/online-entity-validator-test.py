@@ -80,7 +80,15 @@ for environmental_type in ("Zone", "Light", "Material"):
         record(handoff, environmental_type), record("model", "Model")
     ]), handoff)
     assert not environmental["passed"], environmental
-    assert "render-handoff entity is not a model" in environmental["failures"]
+    assert (
+        "render-handoff entity does not affect visible geometry"
+        in environmental["failures"]
+    )
+
+primitive_handoff = MODULE.validate(payload([
+    record(handoff, "Shape"), record("model", "Model")
+]), handoff)
+assert primitive_handoff["passed"], primitive_handoff
 
 zone_handoff = MODULE.validate(payload([
     record(handoff, "Zone"), record("visible-model", "Model")

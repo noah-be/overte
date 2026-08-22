@@ -10,8 +10,6 @@
 #ifndef hifi_GlobalAppProperties_h
 #define hifi_GlobalAppProperties_h
 
-#include <QString>
-
 namespace hifi { namespace properties {
 
     extern const char* CRASHED;
@@ -22,7 +20,6 @@ namespace hifi { namespace properties {
     extern const char* TEST;
     extern const char* DISABLE_LOCAL_AVATAR;
     extern const char* MACOS_TEST_LIGHTWEIGHT_ENTITIES;
-    extern const char* MACOS_TEST_REPRESENTATIVE_ENTITIES;
     extern const char* TRACING;
     extern const char* HMD;
     extern const char* APP_LOCAL_DATA_PATH;
@@ -45,9 +42,6 @@ namespace hifi { namespace properties {
 
     void setGraphicsAPI(GraphicsAPI api);
     GraphicsAPI getGraphicsAPI();
-
-    void setMacOSTestRepresentativeEntityID(const QString& entityID);
-    QString getMacOSTestRepresentativeEntityID();
 
 } }
 

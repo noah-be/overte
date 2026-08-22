@@ -14,7 +14,6 @@
 #include <QtCore/QThread>
 
 #include <shared/FileUtils.h>
-#include <shared/GlobalAppProperties.h>
 #include <shared/QtHelpers.h>
 #include <DependencyManager.h>
 #include <display-plugins/DisplayPlugin.h>
@@ -255,10 +254,6 @@ bool TestScriptingInterface::isTextureLoadingComplete() {
 quint32 TestScriptingInterface::getPresentCount() const {
     const auto displayPlugin = qApp->getActiveDisplayPlugin();
     return displayPlugin ? displayPlugin->presentCount() : 0;
-}
-
-QString TestScriptingInterface::getMacOSRepresentativeEntityID() const {
-    return hifi::properties::getMacOSTestRepresentativeEntityID();
 }
 
 bool TestScriptingInterface::isServerlessSceneImportComplete() const {

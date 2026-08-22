@@ -1014,7 +1014,7 @@ for source, token in (
 for inventory_contract in (
     "macos-online-entities.json",
     "validate-online-entities.py",
-    "representative_model_id",
+    "render_handoff_id",
     "--render-handoff-id",
     "--min-color-buckets 16",
     "--max-dominant-color-ratio 0.55",
@@ -1022,10 +1022,6 @@ for inventory_contract in (
 ):
     if inventory_contract not in online_smoke:
         raise SystemExit(f"online smoke must correlate its rendered entity: {inventory_contract}")
-if "web_entity_qml_paused" in online_smoke:
-    raise SystemExit(
-        "online lightweight mode must not require a Web renderer that it intentionally filters"
-    )
 for marker in (set(ONLINE_CONTRACT) - {"lightweight_primitive_handoff"}) | {"render_handoff"}:
     if marker not in online_smoke:
         raise SystemExit(f"online smoke runner does not require {marker}")
@@ -1035,11 +1031,18 @@ transition_smoke = (ROOT / "macos/ci/transition-smoke.sh").read_text(
 transition_script = (ROOT / "macos/tests/transition-smoke.js").read_text(
     encoding="utf-8"
 )
-if "macosTestDisableEntityScripts" not in online_smoke or \
-        "entity_scripts_skipped" not in online_smoke:
-    raise SystemExit(
-        "online smoke must isolate arbitrary public entity scripts before rendering"
-    )
+for production_path_forbidden in (
+    "--disableLocalAvatar",
+    "--macosTestDisableEntityScripts",
+    "--macosTestRepresentativeEntities",
+    "--macosTestLightweightEntities",
+    "--defaultScriptsOverride",
+):
+    if production_path_forbidden in online_smoke:
+        raise SystemExit(
+            "online smoke must preserve the production application path: "
+            f"{production_path_forbidden}"
+        )
 for completion_contract in (
     "macos-online-smoke-completion.json",
     "--completion-file",
@@ -1063,19 +1066,6 @@ for smoke_name, smoke_source in (("serverless/online transition", transition_smo
                 f"{smoke_name} smoke must activate the explicit lightweight "
                 f"render mode: {lightweight_runner_contract}"
             )
-if "--macosTestLightweightEntities" in online_smoke:
-    raise SystemExit("online smoke must render the complete streamed model scene")
-for representative_contract in (
-    "--macosTestRepresentativeEntities",
-    "representative_entity_filter_active",
-    "diagnostic_light=",
-    "representative_camera=",
-):
-    if representative_contract not in online_smoke:
-        raise SystemExit(
-            f"online smoke must render a representative Hub model: {representative_contract}"
-        )
-
 global_properties_header = (
     ROOT / "libraries/shared/src/shared/GlobalAppProperties.h"
 ).read_text(encoding="utf-8")
@@ -1096,19 +1086,6 @@ for lightweight_property_contract in (
         )
 if main_source.count('"macosTestLightweightEntities"') != 1:
     raise SystemExit("macOS lightweight entity test flag must be declared exactly once")
-for representative_property_contract in (
-    "MACOS_TEST_REPRESENTATIVE_ENTITIES",
-    '"overte.macosTestRepresentativeEntities"',
-):
-    if representative_property_contract not in (
-            global_properties_header + global_properties_source):
-        raise SystemExit(
-            "missing macOS representative entity property: "
-            f"{representative_property_contract}"
-        )
-if main_source.count('"macosTestRepresentativeEntities"') != 1:
-    raise SystemExit("macOS representative entity test flag must be declared exactly once")
-
 lightweight_helper = entity_renderer_source.split(
     "bool macOSLightweightEntityTestEnabled()", 1
 )[1].split("bool isLightweightMacOSEntityType", 1)[0]
@@ -1155,37 +1132,6 @@ if entity_renderer_source.index("processedIds.insert(entityID)") > entity_render
     raise SystemExit("macOS test filter must skip complex entities before scene submission")
 if 'parser.isSet("macosTestLightweightEntities")' not in application_setup_source:
     raise SystemExit("Interface must transfer the macOS lightweight test flag to the app")
-if 'parser.isSet("macosTestRepresentativeEntities")' not in application_setup_source:
-    raise SystemExit("Interface must transfer the macOS representative test flag to the app")
-for representative_filter_contract in (
-    "macOSRepresentativeEntityTestEnabled()",
-    "representative_model_selected",
-    "representativeModelID.isNull()",
-    "std::dynamic_pointer_cast<ModelEntityItem>(entity)",
-    "entity->getType() == EntityTypes::Light",
-    "entity->getType() == EntityTypes::Material",
-    "entity->getBoundingRadius() >= 1.5f",
-    "entity->getBoundingRadius() <= 3.0f",
-    'modelURL.contains("/surfboard-3/", Qt::CaseInsensitive)',
-    '!modelURL.endsWith(".glb", Qt::CaseInsensitive)',
-    '"radius=" << entity->getBoundingRadius()',
-    '"url=" << modelURL',
-):
-    if representative_filter_contract not in entity_renderer_source:
-        raise SystemExit(
-            f"macOS representative entity filter missing: {representative_filter_contract}"
-        )
-hub_copy = json.loads((
-    ROOT / "android/vr/pico/world-copies/overte-hub-pico4-ultra.json"
-).read_text(encoding="utf-8"))
-representative_hub_models = [
-    entity for entity in hub_copy["Entities"]
-    if str(entity.get("id", "")).strip("{}").lower() ==
-    "8e578011-e135-4a20-8c23-23719b047f6b"
-]
-if len(representative_hub_models) != 1 or \
-        "/surfboard-3/" not in representative_hub_models[0].get("modelURL", ""):
-    raise SystemExit("macOS representative model must remain a real versioned Hub entity")
 lightweight_handoff = entity_renderer_source.split(
     '"OVERTE_MACOS_ENTITY_GATE lightweight_primitive_handoff"', 1
 )[0].rsplit("static bool loggedFirstLightweightPrimitiveHandoff", 1)[1]
@@ -1204,14 +1150,6 @@ for smoke_name, smoke_source in (("serverless", smoke), ("online", online_smoke)
         raise SystemExit(
             f"{smoke_name} smoke must leave stall sampling to the external supervisor"
         )
-    if "--disableLocalAvatar" not in smoke_source:
-        raise SystemExit(
-            f"{smoke_name} smoke must isolate scene rendering from the local avatar"
-        )
-    if '--defaultScriptsOverride "file://$default_scripts_override"' not in smoke_source:
-        raise SystemExit(
-            f"{smoke_name} smoke must isolate the scene from persisted system scripts"
-        )
     for timeout_contract in (
         "run-process-with-timeout.py",
         "OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS",
@@ -1227,6 +1165,15 @@ for smoke_name, smoke_source in (("serverless", smoke), ("online", online_smoke)
             raise SystemExit(
                 f"{smoke_name} smoke is missing timeout contract: {timeout_contract}"
             )
+for serverless_isolation_contract in (
+    "--disableLocalAvatar",
+    '--defaultScriptsOverride "file://$default_scripts_override"',
+):
+    if serverless_isolation_contract not in smoke:
+        raise SystemExit(
+            "serverless fixture isolation is missing: "
+            f"{serverless_isolation_contract}"
+        )
 
 runtime_supervisor = (
     ROOT / "macos/tools/run-process-with-timeout.py"
@@ -1295,45 +1242,58 @@ for inventory_contract in (
 ):
     if inventory_contract not in online_script:
         raise SystemExit(f"online smoke script lacks entity inventory: {inventory_contract}")
-for script_name, script_source, snapshot_name, stage_contracts in (
-    (
-        "serverless",
-        serverless_script,
-        "macos-serverless-smoke.png",
-        (
-            "warmup_snapshot=", 'snapshotStage = "final"', "5000",
-            "Test.isServerlessSceneImportComplete()",
-            "Test.getPresentCount() >= cooldownPresentCount + 2",
-            "fixture_reset_during_cooldown",
-        ),
-    ),
-    (
-        "online",
-        online_script,
-        "macos-online-smoke.png",
-        ('snapshotStage = "capturing"', "One completed frame is the online rendering proof"),
-    ),
+for render_contract in (
+    "Render.renderMethod = 1",
+    "Render.shadowsEnabled = false",
+    "Render.ambientOcclusionEnabled = false",
+    "Render.antialiasingMode = 0",
+    "Render.viewportResolutionScale = 1.0",
+    'Render.getConfig("RenderMainView.PreparePrimaryBufferForward").numSamples = 1',
+    "Scene.shouldRenderAvatars = false",
+    "Script.stop()",
+    "macos-serverless-smoke.png",
+    "warmup_snapshot=",
+    'snapshotStage = "final"',
+    "Test.isServerlessSceneImportComplete()",
+    "Test.getPresentCount() >= cooldownPresentCount + 2",
+    "fixture_reset_during_cooldown",
 ):
-    for render_contract in (
-        "Render.renderMethod = 1",
-        "Render.shadowsEnabled = false",
-        "Render.ambientOcclusionEnabled = false",
-        "Render.antialiasingMode = 0",
-        "Render.viewportResolutionScale = 1.0",
-        'Render.getConfig("RenderMainView.PreparePrimaryBufferForward").numSamples = 1',
-        "Scene.shouldRenderAvatars = false",
-        "Script.stop()",
-        snapshot_name,
-    ) + stage_contracts:
-        if render_contract not in script_source:
-            raise SystemExit(
-                f"{script_name} smoke lacks deterministic rendering contract: {render_contract}"
-            )
-    if script_source.index("Render.renderMethod = 1") > script_source.index(
-        "Window.takeSnapshot"
-    ):
+    if render_contract not in serverless_script:
         raise SystemExit(
-            f"{script_name} smoke must apply its render profile before taking a snapshot"
+            f"serverless smoke lacks deterministic fixture contract: {render_contract}"
+        )
+if serverless_script.index("Render.renderMethod = 1") > serverless_script.index(
+    "Window.takeSnapshot"
+):
+    raise SystemExit("serverless smoke must configure its fixture before capture")
+
+for observational_contract in (
+    "Script.stop()",
+    "macos-online-smoke.png",
+    'snapshotStage = "capturing"',
+    "resourcesIdle(resources)",
+    "Test.isTextureLoadingComplete()",
+    "Test.getPresentCount()",
+    "Entities.isLoaded(entityID)",
+):
+    if observational_contract not in online_script:
+        raise SystemExit(
+            f"online smoke lacks production observation contract: {observational_contract}"
+        )
+for forbidden_online_mutation in (
+    "Render.renderMethod",
+    "Render.shadowsEnabled",
+    "Scene.shouldRenderAvatars",
+    "Camera.mode =",
+    "Camera.position =",
+    "Camera.orientation =",
+    "Entities.addEntity",
+    "Entities.deleteEntity",
+):
+    if forbidden_online_mutation in online_script:
+        raise SystemExit(
+            "online smoke must not mutate the production scene: "
+            f"{forbidden_online_mutation}"
         )
 for environmental_type in ("Zone", "Light", "Material"):
     if f"{environmental_type}: true" not in online_script:
@@ -1357,11 +1317,11 @@ for online_entity_classification_contract in (
         )
 for online_timing_contract in (
     "snapshot_complete=",
-    "visibleGeometryReadyAt = Date.now()",
-    "latestInventory.visible_model_count > 0",
+    "fullSceneReadyAt = Date.now() + 5000",
+    "latestInventory.loaded_visible_model_count > 0",
     "Entities.isLoaded(entityID)",
-    "Entities.isLoaded(selectedModelID)",
-    "Vec3.multiplyQbyV(properties.rotation, smallestAxis)",
+    "resourcesIdle(resources)",
+    "Test.isTextureLoadingComplete()",
     "Test.getPresentCount()",
     "saveEntityInventory(latestInventory)",
     "snapshotSettleDeadline = Date.now() + 300000",
@@ -2082,22 +2042,8 @@ for overwrite_trace_contract in (
         raise SystemExit(
             f"macOS post-tone-map overwrite tracing missing: {overwrite_trace_contract}"
         )
-for paused_hud_contract in (
-    "#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)",
-    "QCoreApplication::instance()",
-    "application->property(hifi::properties::TEST).isValid()",
-):
-    if paused_hud_contract not in render_hud_layer:
-        raise SystemExit(f"macOS paused desktop HUD guard missing: {paused_hud_contract}")
-paused_hud_guard = render_hud_layer.split(
-    "application->property(hifi::properties::TEST).isValid()", 1
-)[1].split("#endif", 1)[0]
-if "return;" not in paused_hud_guard:
-    raise SystemExit("macOS scene tests must skip the deliberately paused desktop HUD")
-if render_hud_layer.index("application->property(hifi::properties::TEST).isValid()") > render_hud_layer.index(
-    'gpu::doInBatch("CompositeHUD"'
-):
-    raise SystemExit("macOS paused desktop HUD must be rejected before its composite batch")
+if "properties::TEST" in render_hud_layer or "desktop_qml_paused" in render_hud_layer:
+    raise SystemExit("HUD compositing must not change merely because a test script is active")
 for diagnostic_token in ("OVERTE_MACOS_TONEMAP_PARAMS", "sizeof(Parameters)", "exposure_scale="):
     if diagnostic_token not in tone_map_source:
         raise SystemExit(f"tone-map runtime diagnostics missing: {diagnostic_token}")
@@ -2122,25 +2068,20 @@ if main_source.count('"disableLocalAvatar"') != 1:
     raise SystemExit("the local-avatar suppression option must be declared exactly once")
 if "parser.addOption(disableLocalAvatarOption);" not in main_source:
     raise SystemExit("the local-avatar suppression option is not registered")
-if main_source.count('"macosTestDisableEntityScripts"') != 1:
-    raise SystemExit("the macOS entity-script isolation option must be declared exactly once")
-if "parser.addOption(macosTestDisableEntityScriptsOption);" not in main_source:
-    raise SystemExit("the macOS entity-script isolation option is not registered")
-
-entity_script_isolation = application_setup_source.split(
+entity_script_setup = application_setup_source.split(
     "DependencyManager::set<InterfaceParentFinder>();", 1
 )[1].split("DependencyManager::set<CompositorHelper>", 1)[0]
-for contract in (
-    "Q_OS_MAC",
-    "!defined(Q_OS_IOS)",
-    'parser.isSet("testScript")',
-    'parser.isSet("macosTestDisableEntityScripts")',
-    "!macosTestDisableEntityScripts",
-    "OVERTE_MACOS_RENDER_PHASE entity_scripts_skipped",
-    "DependencyManager::set<EntityTreeRenderer>(true, qApp, qApp)",
+if "DependencyManager::set<EntityTreeRenderer>(true, qApp, qApp)" not in entity_script_setup:
+    raise SystemExit("application startup must enable the production entity-script lifecycle")
+for removed_entity_script_override in (
+    "macosTestDisableEntityScripts",
+    "entity_scripts_skipped",
 ):
-    if contract not in entity_script_isolation:
-        raise SystemExit(f"macOS entity-script isolation contract missing: {contract}")
+    if removed_entity_script_override in main_source + application_setup_source:
+        raise SystemExit(
+            "test scripts must not disable production entity scripts: "
+            f"{removed_entity_script_override}"
+        )
 
 packet_sender_setup = application_setup_source.split(
     "auto entityScriptingInterface = DependencyManager::get<EntityScriptingInterface>();\n"
@@ -2218,15 +2159,12 @@ application_setup = (ROOT / "interface/src/Application_Setup.cpp").read_text(
 local_input_gate = application_setup.split(
     "// Preload Tablet sounds", 1
 )[1].split("// Needs to happen later", 1)[0]
-for local_input_contract in (
-    "Q_OS_MAC",
-    "property(hifi::properties::TEST).isValid()",
-    "local_input_models_skipped",
-    "DependencyManager::get<Keyboard>()->createKeyboard()",
-):
-    if local_input_contract not in local_input_gate:
+if "DependencyManager::get<Keyboard>()->createKeyboard()" not in local_input_gate:
+    raise SystemExit("test runs must initialize the production keyboard/input models")
+for local_input_override in ("properties::TEST", "local_input_models_skipped"):
+    if local_input_override in local_input_gate:
         raise SystemExit(
-            f"macOS runtime isolation contract missing: {local_input_contract}"
+            f"test runs must not suppress production input models: {local_input_override}"
         )
 
 gl41_backend = (ROOT / "libraries/gpu-gl/src/gpu/gl41/GL41Backend.cpp").read_text(
@@ -2324,24 +2262,16 @@ for smoke_source in (smoke, online_smoke):
 application_graphics = (
     ROOT / "interface/src/Application_Graphics.cpp"
 ).read_text(encoding="utf-8")
-if "#include <shared/GlobalAppProperties.h>" not in application_graphics:
-    raise SystemExit("macOS test UI isolation must declare hifi application properties")
 desktop_setup = application_graphics.split(
     "auto offscreenUi = getOffscreenUI();", 1
 )[1].split("connect(_window", 1)[0]
-for desktop_contract in (
-    "Q_OS_MAC",
-    "property(hifi::properties::TEST).isValid()",
-    "offscreenUi->pause()",
-    "desktop_qml_paused",
-    "offscreenUi->resume()",
-):
-    if desktop_contract not in desktop_setup:
-        raise SystemExit(f"macOS test UI isolation missing: {desktop_contract}")
-if desktop_setup.index("offscreenUi->pause()") > desktop_setup.index(
-    "offscreenUi->createDesktop"
-):
-    raise SystemExit("macOS scene tests must pause QML before its render thread starts")
+if "offscreenUi->resume()" not in desktop_setup:
+    raise SystemExit("desktop QML must run on the normal application path")
+for desktop_test_override in ("properties::TEST", "desktop_qml_paused"):
+    if desktop_test_override in desktop_setup:
+        raise SystemExit(
+            f"test scripts must not pause desktop QML: {desktop_test_override}"
+        )
 
 application_setup = (
     ROOT / "interface/src/Application_Setup.cpp"
@@ -2349,29 +2279,16 @@ application_setup = (
 web_surface_setup = application_setup.split(
     "WebEntityRenderer::setAcquireWebSurfaceOperator", 1
 )[1].split("WebEntityRenderer::setReleaseWebSurfaceOperator", 1)[0]
-for web_surface_contract in (
-    "Q_OS_MAC",
-    "!defined(Q_OS_IOS)",
-    "property(hifi::properties::TEST).isValid()",
-    "webSurface->pause()",
-    "std::once_flag",
+for web_surface_test_override in (
+    "properties::TEST",
+    "pauseWebSurfaceForSceneTest",
     "web_entity_qml_paused",
 ):
-    if web_surface_contract not in web_surface_setup:
+    if web_surface_test_override in web_surface_setup:
         raise SystemExit(
-            f"macOS Web entity test isolation missing: {web_surface_contract}"
+            "test scripts must not pause production Web entities: "
+            f"{web_surface_test_override}"
         )
-if web_surface_setup.index("webSurface->pause()") > web_surface_setup.index(
-    "webSurface->load(url)"
-):
-    raise SystemExit("macOS scene tests must pause Web QML before its first load")
-if web_surface_setup.count("webSurface->pause()") != 2:
-    raise SystemExit("both cached and uncached macOS Web surfaces must be paused")
-uncached_web_surface_setup = web_surface_setup.split(
-    "new OffscreenQmlSurface()", 1
-)[1].split("webSurface->load(url)", 1)[0]
-if "webSurface->pause()" not in uncached_web_surface_setup:
-    raise SystemExit("uncached macOS Web surfaces must be paused before load")
 
 shared_object_header = (
     ROOT / "libraries/qml/src/qml/impl/SharedObject.h"

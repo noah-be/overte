@@ -138,11 +138,11 @@ def validate(payload: object, render_handoff_id: str) -> dict[str, object]:
     else:
         handoff_type = handoff.get("type")
         handoff_visible = handoff.get("visible")
-        if handoff_type != "Model":
-            failures.append("render-handoff entity is not a model")
+        if handoff_type in NON_VISIBLE_GEOMETRY_TYPES:
+            failures.append("render-handoff entity does not affect visible geometry")
         if handoff_visible is not True:
             failures.append("render-handoff entity is not visible")
-        if handoff.get("loaded") is not True:
+        if handoff_type == "Model" and handoff.get("loaded") is not True:
             failures.append("render-handoff model is not loaded")
 
     return {

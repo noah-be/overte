@@ -45,7 +45,6 @@
 #include <ScriptEngines.h>
 #include <ScriptManager.h>
 #include <EntitySimulation.h>
-#include <ModelEntityItem.h>
 #include <ZoneRenderer.h>
 #include <PhysicalEntitySimulation.h>
 
@@ -64,12 +63,6 @@ bool macOSLightweightEntityTestEnabled() {
     auto application = QCoreApplication::instance();
     return application && application->property(hifi::properties::TEST).isValid() &&
         application->property(hifi::properties::MACOS_TEST_LIGHTWEIGHT_ENTITIES).toBool();
-}
-
-bool macOSRepresentativeEntityTestEnabled() {
-    auto application = QCoreApplication::instance();
-    return application && application->property(hifi::properties::TEST).isValid() &&
-        application->property(hifi::properties::MACOS_TEST_REPRESENTATIVE_ENTITIES).toBool();
 }
 
 bool isLightweightMacOSEntityType(EntityTypes::EntityType type) {
@@ -625,42 +618,6 @@ void EntityTreeRenderer::addPendingEntities(const render::ScenePointer& scene, r
             auto entityID = entity->getEntityItemID();
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
             const bool lightweightEntityTest = macOSLightweightEntityTestEnabled();
-            const bool representativeEntityTest = macOSRepresentativeEntityTestEnabled();
-            if (representativeEntityTest) {
-                static bool loggedRepresentativeFilter { false };
-                static EntityItemID representativeModelID;
-                if (!loggedRepresentativeFilter) {
-                    loggedRepresentativeFilter = true;
-                    qInfo().noquote()
-                        << "OVERTE_MACOS_RENDER_PHASE representative_entity_filter_active";
-                }
-                bool keepEntity = isLightweightMacOSEntityType(entity->getType()) ||
-                    entity->getType() == EntityTypes::Light ||
-                    entity->getType() == EntityTypes::Material;
-                auto modelEntity = std::dynamic_pointer_cast<ModelEntityItem>(entity);
-                const auto modelURL = modelEntity ? modelEntity->getModelURL() : QString();
-                if (modelEntity &&
-                        entity->getEntityHostType() == entity::HostType::DOMAIN &&
-                        entity->getBoundingRadius() >= 1.5f &&
-                        entity->getBoundingRadius() <= 3.0f &&
-                        modelURL.contains("/surfboard-3/", Qt::CaseInsensitive) &&
-                        !modelURL.endsWith(".glb", Qt::CaseInsensitive)) {
-                    if (representativeModelID.isNull()) {
-                        representativeModelID = entityID;
-                        hifi::properties::setMacOSTestRepresentativeEntityID(entityID.toString());
-                        qInfo().noquote()
-                            << "OVERTE_MACOS_RENDER_PHASE representative_model_selected"
-                            << "entity=" << entityID.toString()
-                            << "radius=" << entity->getBoundingRadius()
-                            << "url=" << modelURL;
-                    }
-                    keepEntity = entityID == representativeModelID;
-                }
-                if (!keepEntity) {
-                    processedIds.insert(entityID);
-                    continue;
-                }
-            }
             if (lightweightEntityTest) {
                 static bool loggedLightweightFilter { false };
                 if (!loggedLightweightFilter) {

@@ -4,109 +4,19 @@
 (function () {
     "use strict";
 
-    // Match the supported desktop scene path. The local avatar and default
-    // client scripts are disabled by the runner before they can submit
-    // unrelated skinned or overlay pipelines. The runner also disables
-    // streamed entity scripts before EntityTreeRenderer creates its script
-    // engines: public scripts can create unrelated local models and make the
-    // hosted software renderer compile pipelines outside this test's scope.
-    Render.renderMethod = 1;
-    Render.shadowsEnabled = false;
-    Render.hazeEnabled = false;
-    Render.bloomEnabled = false;
-    Render.ambientOcclusionEnabled = false;
-    Render.localLightingEnabled = true;
-    Render.proceduralMaterialsEnabled = false;
-    Render.antialiasingMode = 0;
-    Render.viewportResolutionScale = 1.0;
-    Render.getConfig("RenderMainView.PreparePrimaryBufferForward").numSamples = 1;
-    Scene.shouldRenderAvatars = false;
-
-    // The hosted Intel runner exposes Apple's software OpenGL renderer.  A
-    // public-domain model pipeline has been measured taking just over three
-    // minutes per pipeline to compile there even though the process remains
-    // CPU-active. A real Hub frame has required multiple serial pipelines, so
-    // keep the in-app deadline below the external 1200-second supervisor.
+    // This script is deliberately observational. It must not change the
+    // camera, scene contents, avatar visibility, or rendering preferences.
+    // The captured image is evidence of the production Hub path, not a scene
+    // assembled for the test.
     var deadline = Date.now() + 1140000;
     var snapshotStage = "waiting";
     var snapshotSettleDeadline = 0;
     var snapshotPendingReported = false;
-    var visibleGeometryReadyAt = 0;
+    var fullSceneReadyAt = 0;
     var readyPresentBaseline = 0;
     var snapshotPath = "";
     var latestInventory = null;
     var completed = false;
-    var diagnosticLightID = null;
-    var representativeCameraFramed = false;
-
-    function representativeModelID() {
-        return String(Test.getMacOSRepresentativeEntityID() || "");
-    }
-
-    function frameRepresentativeModel() {
-        if (representativeCameraFramed) {
-            return true;
-        }
-        var entityID = representativeModelID();
-        if (!entityID) {
-            return false;
-        }
-        var properties = Entities.getEntityProperties(entityID, [
-            "type", "visible", "position", "dimensions", "rotation"
-        ]);
-        if (String(properties.type) !== "Model" || properties.visible === false) {
-            return false;
-        }
-        var position = plainVector(properties.position);
-        var dimensions = plainVector(properties.dimensions);
-        var distance = Math.max(4, dimensions.x * 1.5,
-            dimensions.y * 1.5, dimensions.z * 1.5);
-        var smallestAxis = dimensions.x <= dimensions.y && dimensions.x <= dimensions.z ?
-            { x: 1, y: 0, z: 0 } : dimensions.y <= dimensions.z ?
-            { x: 0, y: 1, z: 0 } : { x: 0, y: 0, z: 1 };
-        var viewDirection = Vec3.multiplyQbyV(properties.rotation, smallestAxis);
-        var target = {
-            x: position.x,
-            y: position.y + dimensions.y * 0.15,
-            z: position.z
-        };
-        var cameraPosition = {
-            x: target.x + finiteNumber(viewDirection.x) * distance,
-            y: target.y + finiteNumber(viewDirection.y) * distance,
-            z: target.z + finiteNumber(viewDirection.z) * distance
-        };
-        var cameraUp = Math.abs(finiteNumber(viewDirection.y)) > 0.9 ?
-            { x: 1, y: 0, z: 0 } : { x: 0, y: 1, z: 0 };
-        Camera.mode = "independent";
-        Camera.position = cameraPosition;
-        Camera.orientation = Quat.lookAt(cameraPosition, target, cameraUp);
-        representativeCameraFramed = true;
-        print("OVERTE_MACOS_SMOKE representative_camera=" + entityID +
-            " distance=" + distance + " smallest_axis=" + JSON.stringify(smallestAxis));
-        return true;
-    }
-
-    function ensureDiagnosticLight() {
-        if (diagnosticLightID) {
-            return;
-        }
-        var cameraPosition = Camera.position;
-        diagnosticLightID = Entities.addEntity({
-            type: "Light",
-            name: "macOS online smoke camera light",
-            position: {
-                x: finiteNumber(cameraPosition.x),
-                y: finiteNumber(cameraPosition.y) + 3,
-                z: finiteNumber(cameraPosition.z)
-            },
-            dimensions: { x: 80, y: 80, z: 80 },
-            color: { red: 255, green: 245, blue: 230 },
-            intensity: 3,
-            falloffRadius: 20,
-            isSpotlight: false
-        }, "local");
-        print("OVERTE_MACOS_SMOKE diagnostic_light=" + diagnosticLightID);
-    }
 
     function finiteNumber(value) {
         value = Number(value);
@@ -144,6 +54,7 @@
             ]);
             var type = String(properties.type || "Unknown");
             var visible = properties.visible !== false;
+            var loaded = visible && type === "Model" && Entities.isLoaded(entityID);
             typeCounts[type] = (typeCounts[type] || 0) + 1;
             if (visible && !nonVisibleGeometryTypes[type]) {
                 visibleRenderableCount += 1;
@@ -151,7 +62,6 @@
             if (visible && primitiveTypes[type]) {
                 visiblePrimitiveCount += 1;
             }
-            var loaded = visible && type === "Model" && Entities.isLoaded(entityID);
             if (visible && type === "Model") {
                 visibleModelCount += 1;
                 if (loaded) {
@@ -191,6 +101,15 @@
         };
     }
 
+    function resourcesIdle(resources) {
+        return resources.downloads === 0 &&
+            resources.downloads_pending === 0 &&
+            resources.processing === 0 &&
+            resources.processing_pending === 0 &&
+            resources.texture_pending_mb === 0 &&
+            Test.isTextureLoadingComplete();
+    }
+
     function saveEntityInventory(inventory) {
         Test.saveObject(inventory, "macos-online-entities.json");
         print("OVERTE_MACOS_SMOKE online_inventory captured=" + inventory.captured_count +
@@ -205,22 +124,15 @@
         }
         completed = true;
         print("OVERTE_MACOS_SMOKE " + (success ? "passed " : "failed ") + detail);
-        // A successful snapshot can leave the app's main thread blocked in Qt
-        // render synchronization after the script finishes. Persist the
-        // sentinel only after that concrete proof exists. On failure, leave
-        // the process to the outer bounded supervisor so it captures a macOS
-        // sample before terminating the renderer instead of stopping early
-        // with no stack evidence.
+        // Persist success only after the snapshot callback proves that the PNG
+        // was written. Failure remains available to the external supervisor
+        // for a correlated macOS process sample.
         if (success) {
             Test.saveObject({
                 schema_version: 1,
                 ready_for_external_validation: true,
                 script_success: true
             }, "macos-online-smoke-completion.json");
-        }
-        if (diagnosticLightID) {
-            Entities.deleteEntity(diagnosticLightID);
-            diagnosticLightID = null;
         }
         Script.stop();
     }
@@ -244,58 +156,38 @@
         var entities = Entities.findEntities(MyAvatar.position, 16384);
         latestInventory = inspectEntityInventory(entities, 64);
         var resources = queueState();
-        if (snapshotStage === "waiting" && latestInventory.visible_model_count > 0) {
-            if (!frameRepresentativeModel()) {
-                return;
-            }
-            ensureDiagnosticLight();
-            var selectedModelID = representativeModelID();
-            if (visibleGeometryReadyAt === 0 && selectedModelID &&
-                    Entities.isLoaded(selectedModelID)) {
-                // Apple's virtualized software renderer can present primitive
-                // frames while the selected model is still downloading. Only
-                // begin the render gate once that exact Hub model is loaded,
-                // then require a newer completed frame containing its draw.
-                visibleGeometryReadyAt = Date.now();
+        var productionSceneReady = latestInventory.loaded_visible_model_count > 0 &&
+            resourcesIdle(resources);
+
+        if (snapshotStage === "waiting" && productionSceneReady) {
+            if (fullSceneReadyAt === 0) {
+                // Require a stable fully loaded interval and then a newer
+                // presented frame. Neither condition changes application state.
+                fullSceneReadyAt = Date.now() + 5000;
                 readyPresentBaseline = finiteNumber(Test.getPresentCount());
-                print("OVERTE_MACOS_SMOKE representative_model_loaded=" +
-                    selectedModelID + " visible_geometry_ready count=" +
+                print("OVERTE_MACOS_SMOKE full_scene_ready count=" +
                     latestInventory.visible_renderable_count + " models=" +
                     latestInventory.visible_model_count + " loaded_models=" +
                     latestInventory.loaded_visible_model_count + " queues=" +
                     JSON.stringify(resources));
             }
         } else if (snapshotStage === "waiting") {
-            visibleGeometryReadyAt = 0;
+            fullSceneReadyAt = 0;
         }
-        if (snapshotStage === "waiting" && visibleGeometryReadyAt !== 0 &&
-                Date.now() >= visibleGeometryReadyAt &&
+
+        if (snapshotStage === "waiting" && fullSceneReadyAt !== 0 &&
+                Date.now() >= fullSceneReadyAt &&
                 finiteNumber(Test.getPresentCount()) > readyPresentBaseline) {
-            // Record the complete nearby scene snapshot once. Polling stays
-            // cheap above, while the final inventory correlates a streamed
-            // primitive handoff with at least one visible domain primitive.
             latestInventory = inspectEntityInventory(entities, entities.length);
             latestInventory.resource_queues = resources;
             latestInventory.present_count = finiteNumber(Test.getPresentCount());
             saveEntityInventory(latestInventory);
             snapshotStage = "capturing";
             print("OVERTE_MACOS_SMOKE online_entities=" + entities.length);
-            // One completed frame is the online rendering proof. Waiting for
-            // a second capture lets unrelated late domain assets enqueue new
-            // pipelines; Apple's virtualized software renderer may spend
-            // minutes compiling those after the scene is already visible.
             Window.takeSnapshot(false, false, 16 / 9, "macos-online-smoke.png");
-            // On Apple's software GL runner the PNG writer can complete while
-            // the main-thread stillSnapshotTaken callback remains queued
-            // behind active domain-script setup. The shell is authoritative:
-            // after this bounded settle it requires and decodes the PNG before
-            // accepting the run. A timely callback still finishes earlier.
-            // A content-heavy public domain can keep Apple's virtualized
-            // software renderer busy after the lightweight primitive handoff.
-            // The preceding successful run produced the PNG inside this wider
-            // budget even though its Qt callback remained queued.
             snapshotSettleDeadline = Date.now() + 300000;
         }
+
         if (snapshotStage === "capturing" && snapshotSettleDeadline !== 0 &&
                 Date.now() >= snapshotSettleDeadline && !snapshotPendingReported) {
             snapshotPendingReported = true;

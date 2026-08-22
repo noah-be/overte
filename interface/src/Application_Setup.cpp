@@ -279,8 +279,6 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
     qApp->setProperty(hifi::properties::MACOS_TEST_LIGHTWEIGHT_ENTITIES,
                       parser.isSet("macosTestLightweightEntities"));
-    qApp->setProperty(hifi::properties::MACOS_TEST_REPRESENTATIVE_ENTITIES,
-                      parser.isSet("macosTestRepresentativeEntities"));
 #endif
 
     bool suppressPrompt = parser.isSet("suppress-settings-reset");
@@ -466,20 +464,7 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     DependencyManager::set<UserInputMapper>();
     DependencyManager::set<controller::ScriptingInterface, ControllerScriptingInterface>();
     DependencyManager::set<InterfaceParentFinder>();
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
-    const bool macosTestDisableEntityScripts = parser.isSet("testScript") &&
-        parser.isSet("macosTestDisableEntityScripts");
-    DependencyManager::set<EntityTreeRenderer>(!macosTestDisableEntityScripts, qApp, qApp);
-    if (macosTestDisableEntityScripts) {
-        // Public domains can attach arbitrary client entity scripts which in
-        // turn create unrelated local models.  The online entity smoke tests
-        // streaming and scene submission, so isolate it from those scripts
-        // before EntityTreeRenderer creates their script engines.
-        qCInfo(interfaceapp) << "OVERTE_MACOS_RENDER_PHASE entity_scripts_skipped";
-    }
-#else
     DependencyManager::set<EntityTreeRenderer>(true, qApp, qApp);
-#endif
     DependencyManager::set<CompositorHelper>();
     DependencyManager::set<OffscreenQmlSurfaceCache>();
     DependencyManager::set<EntityScriptClient>();
@@ -1451,19 +1436,7 @@ void Application::initialize(const QCommandLineParser &parser) {
     // Preload Tablet sounds
     DependencyManager::get<EntityScriptingInterface>()->setEntityTree(qApp->getEntities()->getTree());
     DependencyManager::get<TabletScriptingInterface>()->preloadSounds();
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
-    if (property(hifi::properties::TEST).isValid()) {
-        // Disabled desktop stylus pointers still create two local model
-        // entities. Apple's virtualized software renderer can spend minutes
-        // compiling their first pipeline and block a scene test before its
-        // explicit URL is processed. They are unrelated to entity rendering.
-        qCInfo(interfaceapp) << "OVERTE_MACOS_RENDER_PHASE local_input_models_skipped";
-    } else {
-        DependencyManager::get<Keyboard>()->createKeyboard();
-    }
-#else
     DependencyManager::get<Keyboard>()->createKeyboard();
-#endif
 
     // Needs to happen later in the constructor as it depends on some other things being set up
     _discordPresence = new DiscordPresence();
@@ -1964,17 +1937,9 @@ void Application::setupSignalsAndOperators() {
 
         render::entities::WebEntityRenderer::setAcquireWebSurfaceOperator([=](const QString& url, bool htmlContent, QSharedPointer<OffscreenQmlSurface>& webSurface, bool& cachedWebSurface) {
             bool isTablet = url == TabletScriptingInterface::QML;
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
-            const bool pauseWebSurfaceForSceneTest = property(hifi::properties::TEST).isValid();
-#endif
             if (htmlContent) {
                 webSurface = DependencyManager::get<OffscreenQmlSurfaceCache>()->acquire(render::entities::WebEntityRenderer::QML);
                 cachedWebSurface = true;
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
-                if (pauseWebSurfaceForSceneTest) {
-                    webSurface->pause();
-                }
-#endif
                 auto rootItemLoadedFunctor = [url, webSurface] {
                     webSurface->getRootItem()->setProperty(render::entities::WebEntityRenderer::URL_PROPERTY, url);
                 };
@@ -1994,11 +1959,6 @@ void Application::setupSignalsAndOperators() {
                         delete webSurface;
                     });
                 });
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
-                if (pauseWebSurfaceForSceneTest) {
-                    webSurface->pause();
-                }
-#endif
                 auto rootItemLoadedFunctor = [webSurface, url, isTablet] {
                     Application::setupQmlSurface(webSurface->getSurfaceContext(), isTablet || url == LOGIN_DIALOG.toString() || url == AVATAR_INPUTS_BAR_QML.toString() ||
                        url == BUBBLE_ICON_QML.toString());
@@ -2014,18 +1974,6 @@ void Application::setupSignalsAndOperators() {
             const uint8_t DEFAULT_MAX_FPS = 10;
             const uint8_t TABLET_FPS = 90;
             webSurface->setMaxFps(isTablet ? TABLET_FPS : DEFAULT_MAX_FPS);
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
-            if (pauseWebSurfaceForSceneTest) {
-                // Web3DSurface shares Apple's virtualized software OpenGL
-                // context with the scene. Its initial RenderSync can wait on
-                // a multi-minute native pipeline compile and prevent the main
-                // thread from saving an already completed scene snapshot.
-                static std::once_flag loggedWebEntityQmlPause;
-                std::call_once(loggedWebEntityQmlPause, [] {
-                    qCInfo(interfaceapp) << "OVERTE_MACOS_RENDER_PHASE web_entity_qml_paused";
-                });
-            }
-#endif
         });
         render::entities::WebEntityRenderer::setReleaseWebSurfaceOperator([=](QSharedPointer<OffscreenQmlSurface>& webSurface, bool& cachedWebSurface, std::vector<QMetaObject::Connection>& connections) {
             QQuickItem* rootItem = webSurface->getRootItem();

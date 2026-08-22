@@ -9,15 +9,8 @@
 #include "GlobalAppProperties.h"
 
 #include <QtCore/QtGlobal>
-#include <QMutex>
-#include <QMutexLocker>
 
 namespace hifi { namespace properties {
-
-    namespace {
-        QMutex MACOS_TEST_REPRESENTATIVE_ENTITY_MUTEX;
-        QString MACOS_TEST_REPRESENTATIVE_ENTITY_ID;
-    }
 
     const char* CRASHED = "com.highfidelity.crashed";
     const char* STEAM = "com.highfidelity.launchedFromSteam";
@@ -27,7 +20,6 @@ namespace hifi { namespace properties {
     const char* TEST = "com.highfidelity.test";
     const char* DISABLE_LOCAL_AVATAR = "overte.disableLocalAvatar";
     const char* MACOS_TEST_LIGHTWEIGHT_ENTITIES = "overte.macosTestLightweightEntities";
-    const char* MACOS_TEST_REPRESENTATIVE_ENTITIES = "overte.macosTestRepresentativeEntities";
     const char* TRACING = "com.highfidelity.tracing";
     const char* HMD = "com.highfidelity.hmd";
     const char* APP_LOCAL_DATA_PATH = "com.highfidelity.appLocalDataPath";
@@ -56,16 +48,6 @@ namespace hifi { namespace properties {
 
     GraphicsAPI getGraphicsAPI() {
         return GRAPHICS_API;
-    }
-
-    void setMacOSTestRepresentativeEntityID(const QString& entityID) {
-        QMutexLocker locker(&MACOS_TEST_REPRESENTATIVE_ENTITY_MUTEX);
-        MACOS_TEST_REPRESENTATIVE_ENTITY_ID = entityID;
-    }
-
-    QString getMacOSTestRepresentativeEntityID() {
-        QMutexLocker locker(&MACOS_TEST_REPRESENTATIVE_ENTITY_MUTEX);
-        return MACOS_TEST_REPRESENTATIVE_ENTITY_ID;
     }
 
 } }

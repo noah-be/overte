@@ -12,12 +12,21 @@ if (!scriptPath) {
     throw new Error("usage: node online-smoke-script-test.js online-smoke.js");
 }
 const source = fs.readFileSync(scriptPath, "utf8");
+for (const forbiddenMutation of [
+    "Render.renderMethod", "Render.shadowsEnabled", "Scene.shouldRenderAvatars",
+    "Camera.mode =", "Camera.position =", "Camera.orientation =",
+    "Entities.addEntity", "Entities.deleteEntity"
+]) {
+    assert(!source.includes(forbiddenMutation),
+        "online smoke must not mutate production state: " + forbiddenMutation);
+}
 
 function createRun() {
     const clock = { now: 1000 };
     const operations = [];
     const saved = [];
-    let representativeLoaded = true;
+    let modelLoaded = true;
+    let texturesComplete = true;
     const script = {
         stopped: false,
         interval: null,
@@ -35,12 +44,9 @@ function createRun() {
     };
     const context = {
         Date: { now: () => clock.now },
-        Render: { getConfig() { return {}; } },
-        Scene: {},
         Test: {
             getPresentCount() { return clock.now; },
-            getMacOSRepresentativeEntityID() { return "representative-model"; },
-            isTextureLoadingComplete() { return true; },
+            isTextureLoadingComplete() { return texturesComplete; },
             saveObject(value, name) {
                 operations.push("save:" + name);
                 saved.push({ value, name });
@@ -57,13 +63,8 @@ function createRun() {
         },
         Window: windowObject,
         Entities: {
-            findEntities() { return ["primitive"]; },
-            addEntity(properties, hostType) {
-                operations.push("add:" + properties.name + ":" + hostType);
-                return "diagnostic-light";
-            },
-            deleteEntity(id) { operations.push("delete:" + id); },
-            isLoaded(id) { return id !== "representative-model" || representativeLoaded; },
+            findEntities() { return ["model"]; },
+            isLoaded() { return modelLoaded; },
             getEntityProperties() {
                 return {
                     type: "Model",
@@ -75,9 +76,6 @@ function createRun() {
             }
         },
         MyAvatar: { position: { x: 10, y: 20, z: 30 } },
-        Camera: { mode: "first person", position: { x: 10, y: 20, z: 30 } },
-        Vec3: { multiplyQbyV(_rotation, vector) { return vector; } },
-        Quat: { lookAt() { return { x: 0, y: 0, z: 0, w: 1 }; } },
         print() {}
     };
     vm.runInNewContext(source, context, { filename: scriptPath });
@@ -86,7 +84,7 @@ function createRun() {
 
     function requestSnapshot() {
         script.interval();
-        clock.now += 1;
+        clock.now += 5000;
         script.interval();
         assert.strictEqual(windowObject.snapshotName, "macos-online-smoke.png");
     }
@@ -98,21 +96,22 @@ function createRun() {
         saved,
         script,
         windowObject,
-        setRepresentativeLoaded(value) { representativeLoaded = value; }
+        setModelLoaded(value) { modelLoaded = value; },
+        setTexturesComplete(value) { texturesComplete = value; }
     };
 }
 
 {
     const run = createRun();
-    run.setRepresentativeLoaded(false);
+    run.setModelLoaded(false);
     run.script.interval();
     run.clock.now += 300000;
     run.script.interval();
     assert.strictEqual(run.windowObject.snapshotName, null,
-        "an unloaded representative Hub model must never produce a screenshot");
-    run.setRepresentativeLoaded(true);
+        "an unloaded production Hub model must never produce a screenshot");
+    run.setModelLoaded(true);
     run.script.interval();
-    run.clock.now += 1;
+    run.clock.now += 5000;
     run.script.interval();
     assert.strictEqual(run.windowObject.snapshotName, "macos-online-smoke.png");
 }
@@ -120,7 +119,7 @@ function createRun() {
 {
     const run = createRun();
     run.requestSnapshot();
-    assert(run.operations.includes("add:macOS online smoke camera light:local"));
+    assert(!run.operations.some((operation) => operation.startsWith("add:")));
     run.windowObject.snapshotHandler("/tmp/macos-online-smoke.png");
     const completion = run.saved.find((entry) =>
         entry.name === "macos-online-smoke-completion.json");
@@ -134,6 +133,16 @@ function createRun() {
     run.script.interval();
     assert.strictEqual(run.saved.filter((entry) =>
         entry.name === "macos-online-smoke-completion.json").length, 1);
+}
+
+{
+    const run = createRun();
+    run.setTexturesComplete(false);
+    run.script.interval();
+    run.clock.now += 5000;
+    run.script.interval();
+    assert.strictEqual(run.windowObject.snapshotName, null,
+        "a production scene with pending textures must never produce a screenshot");
 }
 
 {
