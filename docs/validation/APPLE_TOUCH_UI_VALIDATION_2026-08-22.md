@@ -49,6 +49,14 @@ experimental integrated Qt/Overte client or every Universal Touch UI screen.
 4. No Apple runtime defect was reproduced by the bootstrap simulator and
    device-SDK gates. Full-client and physical-device coverage remains open, so
    this is not a claim that no such defects exist.
+5. **Apple-specific privacy contract:** the physical-device result schema
+   required publication of a device model even though acceptance needs only the
+   form factor and OS version. Commit `f2cac492ca` removes that field and rejects
+   private device metadata in result records.
+6. **Apple-specific Fedora handoff readiness:** commit `b5ce2ec916` adds a strict
+   Full Client Sideloadly verifier, privacy-filtered Fedora syslog capture, and a
+   22-case iPad result generator. Their mock contracts and the complete iOS host
+   suite pass without hardware.
 
 ## Toolchain, parallelism, and caches
 
@@ -70,6 +78,10 @@ experimental integrated Qt/Overte client or every Universal Touch UI screen.
   not run after the requested reduction to one iPhone bootstrap smoke; its
   checked-in GitHub workflow retains content-addressed Qt checkpoint/cache
   restoration for a future run.
+- Fedora already provides the `libimobiledevice` libraries and `usbmuxd`.
+  `libimobiledevice-utils` is still required for `idevice_id` and
+  `idevicesyslog`; automatic installation stopped safely because `sudo` needs an
+  interactive local password.
 
 ## Artifact checksums (SHA-256)
 
@@ -135,3 +147,6 @@ personal information.
 - Complete iPadOS acceptance remains pending even though the unsigned device SDK
   build passed. No serial number, UDID, model, or user identity may enter logs or
   committed evidence.
+- Fedora live-capture doctor: requires local installation of
+  `libimobiledevice-utils`; all command, redaction, timeout, privacy, and artifact
+  behavior is already covered by hardware-free mocks.
