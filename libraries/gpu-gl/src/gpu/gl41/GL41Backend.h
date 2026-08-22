@@ -36,6 +36,10 @@ public:
     static const GLint RESOURCE_TRANSFER_EXTRA_TEX_UNIT { 33 };
     static const GLint RESOURCE_BUFFER_TEXBUF_TEX_UNIT { 34 };
     static const GLint RESOURCE_BUFFER_SLOT0_TEX_UNIT { 35 };
+    // Slots 2 and 3 carry the signed integer light-cluster buffers used by
+    // GLSL 4.1. Other resource-buffer slots retain their float format.
+    static const uint32_t INTEGER_RESOURCE_BUFFER_FIRST_SLOT { 2 };
+    static const uint32_t INTEGER_RESOURCE_BUFFER_SLOT_COUNT { 2 };
 
     explicit GL41Backend(bool syncCache) : Parent(syncCache) {}
     GL41Backend() : Parent() {}
@@ -139,7 +143,7 @@ protected:
 
     GLuint getBufferID(const Buffer& buffer) override;
     GLuint getBufferIDUnsynced(const Buffer& buffer) override;
-    GLuint getResourceBufferID(const Buffer& buffer);
+    GLuint getResourceBufferID(const Buffer& buffer, bool integerFormat);
     GLBuffer* syncGPUObject(const Buffer& buffer) override;
 
     GLTexture* syncGPUObject(const TexturePointer& texture) override;

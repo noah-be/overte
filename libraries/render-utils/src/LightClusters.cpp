@@ -14,6 +14,7 @@
 #include <gpu/Context.h>
 #include <shaders/Shaders.h>
 #include <graphics/ShaderConstants.h>
+#include <shared/GlobalAppProperties.h>
 
 #include "RenderUtilsLogging.h"
 #include "render-utils/ShaderConstants.h"
@@ -28,6 +29,38 @@ namespace ru {
 namespace gr {
     using graphics::slot::texture::Texture;
     using graphics::slot::buffer::Buffer;
+}
+
+namespace {
+constexpr uint32_t LIGHT_CLUSTER_GRID_RESOURCE_SLOT { 2 };
+constexpr uint32_t LIGHT_CLUSTER_CONTENT_RESOURCE_SLOT { 3 };
+
+bool useGL41LightClusterTextureBuffers() {
+    return hifi::properties::getGraphicsAPI() == hifi::properties::GraphicsAPI::GL41;
+}
+}
+
+void bindLightClusterBuffers(gpu::Batch& batch, const LightClustersPointer& lightClusters) {
+    batch.setUniformBuffer(ru::Buffer::LightClusterFrustumGrid, lightClusters->_frustumGridBuffer);
+    if (useGL41LightClusterTextureBuffers()) {
+        batch.setUniformBuffer(ru::Buffer::LightClusterGrid, nullptr);
+        batch.setUniformBuffer(ru::Buffer::LightClusterContent, nullptr);
+        batch.setResourceBuffer(LIGHT_CLUSTER_GRID_RESOURCE_SLOT, lightClusters->_clusterGridBuffer._buffer);
+        batch.setResourceBuffer(LIGHT_CLUSTER_CONTENT_RESOURCE_SLOT, lightClusters->_clusterContentBuffer._buffer);
+    } else {
+        batch.setResourceBuffer(LIGHT_CLUSTER_GRID_RESOURCE_SLOT, nullptr);
+        batch.setResourceBuffer(LIGHT_CLUSTER_CONTENT_RESOURCE_SLOT, nullptr);
+        batch.setUniformBuffer(ru::Buffer::LightClusterGrid, lightClusters->_clusterGridBuffer);
+        batch.setUniformBuffer(ru::Buffer::LightClusterContent, lightClusters->_clusterContentBuffer);
+    }
+}
+
+void unbindLightClusterBuffers(gpu::Batch& batch) {
+    batch.setUniformBuffer(ru::Buffer::LightClusterFrustumGrid, nullptr);
+    batch.setUniformBuffer(ru::Buffer::LightClusterGrid, nullptr);
+    batch.setUniformBuffer(ru::Buffer::LightClusterContent, nullptr);
+    batch.setResourceBuffer(LIGHT_CLUSTER_GRID_RESOURCE_SLOT, nullptr);
+    batch.setResourceBuffer(LIGHT_CLUSTER_CONTENT_RESOURCE_SLOT, nullptr);
 }
 
 FrustumGrid::FrustumGrid(const FrustumGrid& source) :
@@ -694,12 +727,9 @@ void DebugLightClusters::run(const render::RenderContextPointer& renderContext, 
         // Then the actual ClusterGrid attributes
         batch.setModelTransform(Transform());
 
-        // Bind the Light CLuster data strucutre
-        // FIXME consolidate code with DeferredLightingEffect logic that does the same thing
+        // Bind the light-cluster data structure.
         batch.setUniformBuffer(gr::Buffer::Light, lightClusters->_lightStage->getLightArrayBuffer());
-        batch.setUniformBuffer(ru::Buffer::LightClusterFrustumGrid, lightClusters->_frustumGridBuffer);
-        batch.setUniformBuffer(ru::Buffer::LightClusterGrid, lightClusters->_clusterGridBuffer);
-        batch.setUniformBuffer(ru::Buffer::LightClusterContent, lightClusters->_clusterContentBuffer);
+        bindLightClusterBuffers(batch, lightClusters);
 
         if (doDrawClusterFromDepth) {
             batch.setPipeline(getDrawClusterFromDepthPipeline());
@@ -746,9 +776,7 @@ void DebugLightClusters::run(const render::RenderContextPointer& renderContext, 
         }
 
         drawGridAndCleanBatch.setUniformBuffer(gr::Buffer::Light, nullptr);
-        drawGridAndCleanBatch.setUniformBuffer(ru::Buffer::LightClusterFrustumGrid, nullptr);
-        drawGridAndCleanBatch.setUniformBuffer(ru::Buffer::LightClusterGrid, nullptr);
-        drawGridAndCleanBatch.setUniformBuffer(ru::Buffer::LightClusterContent, nullptr);
+        unbindLightClusterBuffers(drawGridAndCleanBatch);
 
         drawGridAndCleanBatch.setResourceTexture(ru::Texture::DeferredColor, nullptr);
         drawGridAndCleanBatch.setResourceTexture(ru::Texture::DeferredNormal, nullptr);

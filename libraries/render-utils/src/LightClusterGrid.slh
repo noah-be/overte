@@ -11,6 +11,7 @@
 <@def RENDER_LIGHT_CLUSTER_GRID_SLH@>
 
 <@include render-utils/ShaderConstants.h@>
+<@include gpu/ShaderConstants.h@>
 
 struct FrustumGrid {
     float frustumNear;
@@ -46,19 +47,21 @@ float projection_getFar(mat4 projection) {
 
 // end of hybrid include
 
-<@if GLPROFILE == MAC_GL @>
-#define GRID_NUM_ELEMENTS 4096
-#define GRID_INDEX_TYPE ivec4
-#define GRID_FETCH_BUFFER(i) i / 4][i % 4
-<@else@>
-#define GRID_NUM_ELEMENTS 4096
-#define GRID_INDEX_TYPE ivec4
-#define GRID_FETCH_BUFFER(i) i / 4][i % 4
+#ifdef GPU_GL410
+INTEGER_RESOURCE_BUFFER(GPU_RESOURCE_BUFFER_SLOT2_TEXTURE, clusterGridBuffer);
+INTEGER_RESOURCE_BUFFER(GPU_RESOURCE_BUFFER_SLOT3_TEXTURE, clusterContentBuffer);
 
-<!#define GRID_NUM_ELEMENTS 16384
-#define GRID_INDEX_TYPE int
-#define GRID_FETCH_BUFFER(i) i!>
-<@endif@>
+int clusterGrid_fetchGrid(int index) {
+    return texelFetch(clusterGridBuffer, index).x;
+}
+
+int clusterGrid_fetchContent(int index) {
+    return texelFetch(clusterContentBuffer, index).x;
+}
+#else
+#define GRID_NUM_ELEMENTS 4096
+#define GRID_INDEX_TYPE ivec4
+#define GRID_FETCH_BUFFER(i) i / 4][i % 4
 
 UNIFORM_BUFFER(RENDER_UTILS_BUFFER_LIGHT_CLUSTER_GRID, clusterGridBuffer) {
     GRID_INDEX_TYPE _clusterGridTable[GRID_NUM_ELEMENTS];
@@ -67,9 +70,14 @@ UNIFORM_BUFFER(RENDER_UTILS_BUFFER_LIGHT_CLUSTER_GRID, clusterGridBuffer) {
 UNIFORM_BUFFER(RENDER_UTILS_BUFFER_LIGHT_CLUSTER_CONTENT, clusterContentBuffer) {
     GRID_INDEX_TYPE _clusterGridContent[GRID_NUM_ELEMENTS];
 };
+#endif
 
 ivec3 clusterGrid_getCluster(int index) {
+#ifdef GPU_GL410
+    int clusterDesc = clusterGrid_fetchGrid(index);
+#else
     int clusterDesc = _clusterGridTable[GRID_FETCH_BUFFER(index)];
+#endif
     int numPointLights = 0xFF & (clusterDesc >> 16);
     int numSpotLights = 0xFF & (clusterDesc >> 24);
     int contentOffset = 0xFFFF & (clusterDesc);
@@ -78,11 +86,11 @@ ivec3 clusterGrid_getCluster(int index) {
 
 int clusterGrid_getClusterLightId(int index, int offset) {
     int elementIndex = offset + index;
-    /*
-    int element = _clusterGridContent[GRID_FETCH_BUFFER(elementIndex)];
-    return element;
-    */
+#ifdef GPU_GL410
+    int element = clusterGrid_fetchContent(elementIndex >> 1);
+#else
     int element = _clusterGridContent[GRID_FETCH_BUFFER((elementIndex >> 1))];
+#endif
     return (element >> (16 * int((elementIndex & 0x00000001) == 1))) & 0x0000FFFF;
 }
 

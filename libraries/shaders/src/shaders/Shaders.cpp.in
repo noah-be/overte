@@ -242,12 +242,16 @@ static const std::string TYPE_KEY{ "type" };
 std::unordered_set<std::string> populateBufferTextureSet(const nlohmann::json& input) {
     std::unordered_set<std::string> result;
     static const std::string SAMPLER_BUFFER{ "samplerBuffer" };
+    static const std::string INT_SAMPLER_BUFFER{ "isamplerBuffer" };
+    static const std::string UINT_SAMPLER_BUFFER{ "usamplerBuffer" };
     auto arraySize = input.size();
     for (size_t i = 0; i < arraySize; ++i) {
         auto entry = input[i];
         std::string name = entry[NAME_KEY];
         std::string type = entry[TYPE_KEY];
-        if (type == SAMPLER_BUFFER) {
+        if (type == SAMPLER_BUFFER ||
+                type == INT_SAMPLER_BUFFER ||
+                type == UINT_SAMPLER_BUFFER) {
             result.insert(name);
         }
     }

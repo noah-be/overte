@@ -2170,6 +2170,69 @@ for local_input_override in ("properties::TEST", "local_input_models_skipped"):
 gl41_backend = (ROOT / "libraries/gpu-gl/src/gpu/gl41/GL41Backend.cpp").read_text(
     encoding="utf-8"
 )
+gl41_buffer = (
+    ROOT / "libraries/gpu-gl/src/gpu/gl41/GL41BackendBuffer.cpp"
+).read_text(encoding="utf-8")
+light_cluster_shader = (
+    ROOT / "libraries/render-utils/src/LightClusterGrid.slh"
+).read_text(encoding="utf-8")
+light_clusters_source = (
+    ROOT / "libraries/render-utils/src/LightClusters.cpp"
+).read_text(encoding="utf-8")
+gl410_header = (
+    ROOT / "libraries/shaders/headers/410/header.glsl"
+).read_text(encoding="utf-8")
+shader_loader_template = (
+    ROOT / "libraries/shaders/src/shaders/Shaders.cpp.in"
+).read_text(encoding="utf-8")
+for cluster_buffer_contract in (
+    "#ifdef GPU_GL410",
+    "INTEGER_RESOURCE_BUFFER(GPU_RESOURCE_BUFFER_SLOT2_TEXTURE, clusterGridBuffer)",
+    "INTEGER_RESOURCE_BUFFER(GPU_RESOURCE_BUFFER_SLOT3_TEXTURE, clusterContentBuffer)",
+    "texelFetch(clusterGridBuffer, index).x",
+    "texelFetch(clusterContentBuffer, index).x",
+):
+    if cluster_buffer_contract not in light_cluster_shader:
+        raise SystemExit(
+            f"GLSL 4.1 light-cluster texture-buffer contract missing: {cluster_buffer_contract}"
+        )
+for cluster_binding_contract in (
+    "GraphicsAPI::GL41",
+    "setResourceBuffer(LIGHT_CLUSTER_GRID_RESOURCE_SLOT",
+    "setResourceBuffer(LIGHT_CLUSTER_CONTENT_RESOURCE_SLOT",
+    "bindLightClusterBuffers",
+    "unbindLightClusterBuffers",
+):
+    if cluster_binding_contract not in light_clusters_source:
+        raise SystemExit(
+            f"GLSL 4.1 light-cluster binding contract missing: {cluster_binding_contract}"
+        )
+for integer_buffer_contract in (
+    "GL_R32I",
+    "INTEGER_RESOURCE_BUFFER_FIRST_SLOT",
+    "getTexBufferId(bool integerFormat)",
+):
+    if integer_buffer_contract not in gl41_buffer + (
+        ROOT / "libraries/gpu-gl/src/gpu/gl41/GL41Backend.h"
+    ).read_text(encoding="utf-8"):
+        raise SystemExit(
+            f"GLSL 4.1 signed resource-buffer support missing: {integer_buffer_contract}"
+        )
+if "uniform isamplerBuffer NAME" not in gl410_header:
+    raise SystemExit("GLSL 4.1 must declare signed integer resource buffers")
+for signed_sampler_type in ('"isamplerBuffer"', '"usamplerBuffer"'):
+    if signed_sampler_type not in shader_loader_template:
+        raise SystemExit(
+            f"shader reflection must retain integer texture buffers: {signed_sampler_type}"
+        )
+for lit_shader in (
+    ROOT / "libraries/render-utils/src/simple.slf",
+    ROOT / "libraries/render-utils/src/model.slf",
+):
+    if "evalLocalLighting" not in lit_shader.read_text(encoding="utf-8"):
+        raise SystemExit(
+            f"GLSL 4.1 cluster storage fix must preserve local lighting: {lit_shader.name}"
+        )
 gl_backend_output = (
     ROOT / "libraries/gpu-gl-common/src/gpu/gl/GLBackendOutput.cpp"
 ).read_text(encoding="utf-8")

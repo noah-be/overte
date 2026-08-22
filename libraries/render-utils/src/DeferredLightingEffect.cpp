@@ -98,10 +98,7 @@ void DeferredLightingEffect::setupLocalLightsBatch(gpu::Batch& batch, const Ligh
 
     // Bind the global list of lights and the visible lights this frame
     batch.setUniformBuffer(gr::Buffer::Light, lightClusters->_lightStage->getLightArrayBuffer());
-
-    batch.setUniformBuffer(ru::Buffer::LightClusterFrustumGrid, lightClusters->_frustumGridBuffer);
-    batch.setUniformBuffer(ru::Buffer::LightClusterGrid, lightClusters->_clusterGridBuffer);
-    batch.setUniformBuffer(ru::Buffer::LightClusterContent, lightClusters->_clusterContentBuffer);
+    bindLightClusterBuffers(batch, lightClusters);
 }
 
 void DeferredLightingEffect::setupLocalLightsBatch(gpu::Batch& batch) {
@@ -115,17 +112,12 @@ void DeferredLightingEffect::setupLocalLightsBatch(gpu::Batch& batch) {
 
     // Bind the global list of lights and the visible lights this frame
     batch.setUniformBuffer(gr::Buffer::Light, lightClusters->_lightStage->getLightArrayBuffer());
-
-    batch.setUniformBuffer(ru::Buffer::LightClusterFrustumGrid, lightClusters->_frustumGridBuffer);
-    batch.setUniformBuffer(ru::Buffer::LightClusterGrid, lightClusters->_clusterGridBuffer);
-    batch.setUniformBuffer(ru::Buffer::LightClusterContent, lightClusters->_clusterContentBuffer);
+    bindLightClusterBuffers(batch, lightClusters);
 }
 
 void DeferredLightingEffect::unsetLocalLightsBatch(gpu::Batch& batch) {
     batch.setUniformBuffer(gr::Buffer::Light, nullptr);
-    batch.setUniformBuffer(ru::Buffer::LightClusterGrid, nullptr);
-    batch.setUniformBuffer(ru::Buffer::LightClusterContent, nullptr);
-    batch.setUniformBuffer(ru::Buffer::LightClusterFrustumGrid, nullptr);
+    unbindLightClusterBuffers(batch);
 }
 
 static void loadLightProgram(int programId, bool lightVolume, gpu::PipelinePointer& pipeline) {
@@ -535,9 +527,7 @@ void RenderDeferredCleanup::run(const render::RenderContextPointer& renderContex
         //     batch.setUniformBuffer(LIGHTING_MODEL_BUFFER_SLOT, nullptr);
         batch.setUniformBuffer(ru::Buffer::DeferredFrameTransform, nullptr);
 
-        batch.setUniformBuffer(ru::Buffer::LightClusterFrustumGrid, nullptr);
-        batch.setUniformBuffer(ru::Buffer::LightClusterGrid, nullptr);
-        batch.setUniformBuffer(ru::Buffer::LightClusterContent, nullptr);
+        unbindLightClusterBuffers(batch);
 
         // Restore the lighting with velocity framebuffer so that following stages, like drawing the background, can get motion vectors.
         batch.setFramebuffer(deferredFramebuffer->getLightingWithVelocityFramebuffer());

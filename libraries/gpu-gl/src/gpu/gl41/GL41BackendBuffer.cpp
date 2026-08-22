@@ -25,6 +25,12 @@ namespace gpu {
                         backend->releaseTexture(_texBuffer, 0);
                     }
                 }
+                if (_integerTexBuffer) {
+                    auto backend = _backend.lock();
+                    if (backend) {
+                        backend->releaseTexture(_integerTexBuffer, 0);
+                    }
+                }
             }
 
         public:
@@ -62,16 +68,18 @@ namespace gpu {
 
             // REsource BUffer are implemented with TextureBuffer 
             GLuint _texBuffer { 0 };
-            GLuint getTexBufferId() {
-                if (!_texBuffer) {
-                    glGenTextures(1, &_texBuffer);
+            GLuint _integerTexBuffer { 0 };
+            GLuint getTexBufferId(bool integerFormat) {
+                auto& texBuffer = integerFormat ? _integerTexBuffer : _texBuffer;
+                if (!texBuffer) {
+                    glGenTextures(1, &texBuffer);
                     glActiveTexture(GL_TEXTURE0 + GL41Backend::RESOURCE_BUFFER_TEXBUF_TEX_UNIT);
-                    glBindTexture(GL_TEXTURE_BUFFER, _texBuffer);
-                    glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, _buffer);
+                    glBindTexture(GL_TEXTURE_BUFFER, texBuffer);
+                    glTexBuffer(GL_TEXTURE_BUFFER, integerFormat ? GL_R32I : GL_RGBA32F, _buffer);
                     glBindTexture(GL_TEXTURE_BUFFER, 0);
                     (void)CHECK_GL_ERROR();
                 }
-                return _texBuffer;
+                return texBuffer;
             }
         };
     }
@@ -90,10 +98,10 @@ GLuint GL41Backend::getBufferIDUnsynced(const Buffer& buffer) {
     return GL41Buffer::getIdUnsynced<GL41Buffer>(*this, buffer);
 }
 
-GLuint GL41Backend::getResourceBufferID(const Buffer& buffer) {
+GLuint GL41Backend::getResourceBufferID(const Buffer& buffer, bool integerFormat) {
     auto* object = GL41Buffer::sync<GL41Buffer>(*this, buffer);
     if (object) {
-        return object->getTexBufferId();
+        return object->getTexBufferId(integerFormat);
     } else {
         return 0;
     }
@@ -104,7 +112,9 @@ GLBuffer* GL41Backend::syncGPUObject(const Buffer& buffer) {
 }
 
 bool GL41Backend::bindResourceBuffer(uint32_t slot, const BufferPointer& buffer) {
-    GLuint texBuffer = GL41Backend::getResourceBufferID((*buffer));
+    const bool integerFormat = slot >= INTEGER_RESOURCE_BUFFER_FIRST_SLOT &&
+        slot < INTEGER_RESOURCE_BUFFER_FIRST_SLOT + INTEGER_RESOURCE_BUFFER_SLOT_COUNT;
+    GLuint texBuffer = GL41Backend::getResourceBufferID((*buffer), integerFormat);
     if (texBuffer) {
         glActiveTexture(GL_TEXTURE0 + GL41Backend::RESOURCE_BUFFER_SLOT0_TEX_UNIT + slot); 
         glBindTexture(GL_TEXTURE_BUFFER, texBuffer);
