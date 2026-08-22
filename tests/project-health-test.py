@@ -26,6 +26,12 @@ def tracked(*patterns: str) -> list[Path]:
 class ProjectHealthTests(unittest.TestCase):
     maxDiff = None
 
+    def test_tablet_button_import_supports_keyboard_focus(self):
+        source = ROOT / "interface/resources/qml/hifi/tablet/TabletButton.qml"
+        first_line = source.read_text(encoding="utf-8").splitlines()[0]
+        self.assertRegex(first_line, r"^import QtQuick 2\.(?:[1-9]|[1-9][0-9]+)$")
+        self.assertIn("activeFocusOnTab:", source.read_text(encoding="utf-8"))
+
     def test_all_python_files_compile(self):
         python2_allowlist = {
             Path("tools/bake-tools/bake.py"),
