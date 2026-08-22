@@ -355,6 +355,11 @@ jobs:
       - name: Run serverless entity smoke
         id: serverless-smoke
         continue-on-error: true
+        env:
+          # Hosted Intel runners use Apple's software OpenGL renderer. A single
+          # production draw can take several minutes there, so keep the runtime
+          # rerun above the observed 900-second active-render timeout.
+          OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '1800'
         run: |
           app="$(cat build/runtime-artifact/app-path.txt)"
           python3 macos/ci/runner-telemetry.py \
@@ -362,7 +367,7 @@ jobs:
             --log build/macos-runtime-telemetry/serverless.jsonl \
             --diagnostics-dir build/macos-runtime-telemetry/serverless-stall \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 900 --max-runtime 1020 \
+            --inactivity-timeout 1800 --max-runtime 1920 \
             --watch smoke=build/macos-smoke -- \
             macos/ci/serverless-smoke.sh "$app" build/macos-smoke
 
