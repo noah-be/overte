@@ -283,9 +283,8 @@ jobs:
             diagnostics=build-ios/world-raw-diagnostics
             mkdir -p "$diagnostics"
             family="${RUNTIME_CASE%%-*}"
-            OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE=1 \
-            OVERTE_IOS_LLDB_ATTACH_GATE=render_handoff \
-            OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS=0 \
+            OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE=0 \
+            OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS=3 \
             OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER=0 \
             OVERTE_IOS_LLDB_TIMEOUT_SECONDS=600 \
               ios/ci/interface-world-simulator-lldb.sh \

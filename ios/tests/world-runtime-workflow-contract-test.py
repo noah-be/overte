@@ -69,8 +69,8 @@ for token in (
     assert token in RUNTIME_ONLY, f"runtime-only candidate contract missing: {token}"
 for token in (
     "iphone-online|ipad-online",
-    "OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE=1",
-    "OVERTE_IOS_LLDB_ATTACH_GATE=render_handoff",
+    "OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE=0",
+    "OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS=3",
     'family="${RUNTIME_CASE%%-*}"',
     "'${{ steps.candidate.outputs.bundle_id }}' \"$family\"",
 ):
