@@ -59,7 +59,8 @@
         }
         var position = plainVector(properties.position);
         var dimensions = plainVector(properties.dimensions);
-        var distance = Math.max(6, dimensions.x * 2, dimensions.y * 2, dimensions.z * 2);
+        var distance = Math.max(4, dimensions.x * 1.5,
+            dimensions.y * 1.5, dimensions.z * 1.5);
         var smallestAxis = dimensions.x <= dimensions.y && dimensions.x <= dimensions.z ?
             { x: 1, y: 0, z: 0 } : dimensions.y <= dimensions.z ?
             { x: 0, y: 1, z: 0 } : { x: 0, y: 0, z: 1 };
@@ -100,7 +101,7 @@
             },
             dimensions: { x: 80, y: 80, z: 80 },
             color: { red: 255, green: 245, blue: 230 },
-            intensity: 12,
+            intensity: 3,
             falloffRadius: 20,
             isSpotlight: false
         }, "local");
