@@ -66,8 +66,9 @@
             y: target.y,
             z: target.z + distance
         };
-        MyAvatar.position = cameraPosition;
-        MyAvatar.orientation = Quat.lookAt(cameraPosition, target, { x: 0, y: 1, z: 0 });
+        Camera.mode = "independent";
+        Camera.position = cameraPosition;
+        Camera.orientation = Quat.lookAt(cameraPosition, target, { x: 0, y: 1, z: 0 });
         representativeCameraFramed = true;
         print("OVERTE_MACOS_SMOKE representative_camera=" + entityID +
             " distance=" + distance);
@@ -78,14 +79,14 @@
         if (diagnosticLightID) {
             return;
         }
-        var avatarPosition = MyAvatar.position;
+        var cameraPosition = Camera.position;
         diagnosticLightID = Entities.addEntity({
             type: "Light",
             name: "macOS online smoke camera light",
             position: {
-                x: finiteNumber(avatarPosition.x),
-                y: finiteNumber(avatarPosition.y) + 3,
-                z: finiteNumber(avatarPosition.z)
+                x: finiteNumber(cameraPosition.x),
+                y: finiteNumber(cameraPosition.y) + 3,
+                z: finiteNumber(cameraPosition.z)
             },
             dimensions: { x: 80, y: 80, z: 80 },
             color: { red: 255, green: 245, blue: 230 },

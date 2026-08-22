@@ -1012,7 +1012,7 @@ for source, token in (
 for inventory_contract in (
     "macos-online-entities.json",
     "validate-online-entities.py",
-    "render_handoff_id",
+    "representative_model_id",
     "--render-handoff-id",
     "--min-color-buckets 16",
     "--max-dominant-color-ratio 0.55",

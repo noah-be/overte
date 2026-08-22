@@ -106,10 +106,10 @@ grep -Fq "OVERTE_MACOS_SMOKE passed" "$log" || {
 }
 [[ -s "$snapshot" ]] || { echo "online snapshot is missing or empty" >&2; exit 1; }
 [[ -s "$entity_inventory" ]] || { echo "online entity inventory is missing" >&2; exit 1; }
-render_handoff_id="$(sed -nE 's/.*OVERTE_MACOS_ENTITY_GATE render_handoff entity= \{([^}]*)\}.*/\1/p' "$log" | tail -n 1)"
-[[ -n "$render_handoff_id" ]] || { echo "online render-handoff entity ID is missing" >&2; exit 1; }
+representative_model_id="$(sed -nE 's/.*OVERTE_MACOS_RENDER_PHASE representative_model_selected entity= \{([^}]*)\}.*/\1/p' "$log" | tail -n 1)"
+[[ -n "$representative_model_id" ]] || { echo "online representative model entity ID is missing" >&2; exit 1; }
 python3 "$source_root/macos/tools/validate-online-entities.py" "$entity_inventory" \
-    --render-handoff-id "$render_handoff_id" --result "$entity_validation"
+    --render-handoff-id "$representative_model_id" --result "$entity_validation"
 python3 "$source_root/macos/tools/validate-screenshot.py" "$snapshot" \
     --result "$screenshot_result" --min-color-buckets 16 \
     --max-dominant-color-ratio 0.55 --min-edge-ratio 0.003

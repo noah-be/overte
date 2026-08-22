@@ -73,6 +73,7 @@ function createRun() {
             }
         },
         MyAvatar: { position: { x: 10, y: 20, z: 30 } },
+        Camera: { mode: "first person", position: { x: 10, y: 20, z: 30 } },
         Quat: { lookAt() { return { x: 0, y: 0, z: 0, w: 1 }; } },
         print() {}
     };
