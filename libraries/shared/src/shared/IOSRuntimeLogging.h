@@ -12,9 +12,15 @@
 
 #include <QtCore/QByteArray>
 #include <QtCore/QDebug>
+#include <QtCore/QFile>
+#include <QtCore/QFileInfo>
+#include <QtCore/QJsonArray>
+#include <QtCore/QJsonDocument>
+#include <QtCore/QJsonObject>
 #include <QtCore/QSet>
 #include <QtCore/QString>
 #include <QtCore/QStringList>
+#include <QtCore/QStandardPaths>
 
 #if defined(Q_OS_IOS)
 #include <os/log.h>
@@ -82,8 +88,93 @@ inline void beginIOSRuntimeEntityEvidence() {
     state.drawnEntities.clear();
 }
 
+// Physical iOS devices cannot receive simulator-style launch environment
+// variables, and CFPreferences may retain externally replaced plist values
+// until the device restarts. Read an ordinary Documents file once per process
+// instead. HouseArrest/AFC can replace this file between app launches without
+// resigning, reinstalling, rebuilding, or rebooting the device.
+inline const QString& iosRuntimeDiagnosticConfigPath() {
+    static const QString path = [] {
+        const auto overridePath = qgetenv("OVERTE_IOS_DIAGNOSTIC_CONFIG").trimmed();
+        if (!overridePath.isEmpty()) {
+            return QString::fromUtf8(overridePath);
+        }
+        return QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) +
+            QStringLiteral("/overte-ios-render-diagnostics.json");
+    }();
+    return path;
+}
+
+inline const QJsonObject& iosRuntimeDiagnosticConfig() {
+    static const QJsonObject config = [] {
+        QFile file(iosRuntimeDiagnosticConfigPath());
+        if (!file.open(QIODevice::ReadOnly)) {
+            return QJsonObject {};
+        }
+        QJsonParseError error;
+        const auto document = QJsonDocument::fromJson(file.readAll(), &error);
+        if (error.error != QJsonParseError::NoError || !document.isObject()) {
+            return QJsonObject {};
+        }
+        return document.object();
+    }();
+    return config;
+}
+
+inline QStringList iosRuntimeDiagnosticStringList(const char* key) {
+    QStringList values;
+    const auto array = iosRuntimeDiagnosticConfig().value(QString::fromUtf8(key)).toArray();
+    for (const auto& value : array) {
+        if (value.isString() && !value.toString().isEmpty()) {
+            values.push_back(value.toString());
+        }
+    }
+    return values;
+}
+
+inline bool iosRuntimeDiagnosticBool(const char* key, bool defaultValue = false) {
+    const auto value = iosRuntimeDiagnosticConfig().value(QString::fromUtf8(key));
+    return value.isBool() ? value.toBool() : defaultValue;
+}
+
+inline int iosRuntimeDiagnosticInt(const char* key, int defaultValue,
+                                   int minimum, int maximum) {
+    const auto value = iosRuntimeDiagnosticConfig().value(QString::fromUtf8(key));
+    if (!value.isDouble()) {
+        return defaultValue;
+    }
+    return qBound(minimum, value.toInt(defaultValue), maximum);
+}
+
+inline QSet<int> iosRuntimeDiagnosticIntSet(const char* key,
+                                           int minimum = 0,
+                                           int maximum = 0x7fffffff) {
+    QSet<int> values;
+    const auto array = iosRuntimeDiagnosticConfig().value(QString::fromUtf8(key)).toArray();
+    for (const auto& value : array) {
+        if (value.isDouble()) {
+            const auto number = value.toInt(minimum - 1);
+            if (number >= minimum && number <= maximum) {
+                values.insert(number);
+            }
+        }
+    }
+    return values;
+}
+
 inline const QByteArray& iosRuntimeRenderDiagnosticMode() {
-    static const QByteArray mode = qgetenv("OVERTE_IOS_RENDER_DIAGNOSTIC").trimmed().toLower();
+    static const QByteArray mode = [] {
+        const auto environmentMode = qgetenv("OVERTE_IOS_RENDER_DIAGNOSTIC").trimmed().toLower();
+        if (!environmentMode.isEmpty()) {
+            return environmentMode;
+        }
+        return iosRuntimeDiagnosticConfig()
+            .value(QStringLiteral("renderDiagnosticMode"))
+            .toString()
+            .trimmed()
+            .toLower()
+            .toUtf8();
+    }();
     return mode;
 }
 

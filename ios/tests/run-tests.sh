@@ -72,6 +72,7 @@ readonly rendering_contracts=(
     ios-opengles-compatibility-link-test.py
     ios-render-forensics-contract-test.py
     ios-rendering-backend-contract-test.py
+    ios-vulkan-buffer-safety-contract-test.py
     ios-vulkan-buffer-upload-barrier-test.py
     ios-vulkan-device-creation-contract-test.py
     ios-vulkan-external-texture-gate-test.py

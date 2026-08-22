@@ -149,6 +149,9 @@ protected:
         std::array<SaveTransform, gpu::Batch::MAX_TRANSFORM_SAVE_SLOT_COUNT> _savedTransforms;
 
         mutable std::map<std::string, VkDeviceSize> _drawCallInfoOffsets;
+        std::vector<VkDeviceSize> _unnamedDrawCallInfoOffsets;
+        std::vector<uint32_t> _unnamedDrawCallInfoElementCounts;
+        std::vector<int> _unnamedDrawCallInfoSourceIndices;
 
         //uint32_t _objectBufferTexture{ 0 };
         size_t _cameraUboSize{ 0 };
@@ -516,6 +519,7 @@ protected:
 
     void initTransform();
     void initDefaultTexture();
+    void initDefaultBuffer();
 
     // Gets a frame data object from the pool and sets _currentFrame to point to it.
     // Needs to be called before frame command buffers creation starts
@@ -549,6 +553,30 @@ public:
     std::set<std::string> _iosSubmittedUntrustedPipelines;
     std::set<std::string> _iosHealthyPipelines;
     std::set<std::string> _iosQuarantinedPipelines;
+    std::set<std::string> _iosQuarantinedBatchNames;
+    std::set<std::string> _iosQuarantinedVertexShaders;
+    std::set<std::string> _iosQuarantinedFragmentShaders;
+    std::set<std::string> _iosQuarantinedShaderPairs;
+    std::set<std::string> _iosQuarantinedDrawCommands;
+    std::set<std::string> _iosQuarantinedNamedCalls;
+    std::set<std::string> _iosQuarantinedBatchCommands;
+    std::set<std::string> _iosTracedBatchNames;
+    std::set<std::string> _iosTracedVertexShaders;
+    std::set<std::string> _iosTracedFragmentShaders;
+    std::set<std::string> _iosTracedShaderPairs;
+    std::set<std::string> _iosTracedNamedCalls;
+    std::set<std::string> _iosFallbackTextureSources;
+    std::set<int> _iosFallbackUniformBindings;
+    std::set<int> _iosFallbackStorageBindings;
+    std::set<int> _iosFallbackTextureBindings;
+    bool _iosTraceAllDraws { false };
+    bool _iosTraceCurrentDraw { false };
+    bool _iosPersistSubmitCandidates { true };
+    size_t _iosBatchTraceLimit { 2048 };
+    size_t _iosPipelineTraceLimit { 8192 };
+    size_t _iosDrawTraceLimit { 512 };
+    uint64_t _iosDrawOrdinal { 0 };
+    uint64_t _iosExecuteDrawOrdinalLimit { 0 };
 #endif
 protected:
     struct TextureManagementStageState {
@@ -595,6 +623,9 @@ protected:
     std::shared_ptr<gpu::Texture> _defaultTexture;
     VKTexture* _defaultTextureVk{ nullptr };
     VkDescriptorImageInfo _defaultTextureImageInfo{};
+    std::shared_ptr<gpu::Buffer> _defaultBuffer;
+    VKBuffer* _defaultBufferVk{ nullptr };
+    VkDescriptorBufferInfo _defaultBufferInfo{};
     std::shared_ptr<gpu::Texture> _defaultSkyboxTexture;
     VKTexture* _defaultSkyboxTextureVk{ nullptr };
     VkDescriptorImageInfo _defaultSkyboxTextureImageInfo{};

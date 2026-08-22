@@ -55,6 +55,14 @@ void DrawBackgroundStage::run(const render::RenderContextPointer& renderContext,
 
             // If we're using forward rendering, we need to calculate haze
             if (forward) {
+                // skybox_forward.frag reads the key light while evaluating
+                // haze. Bind the semantic input explicitly instead of relying
+                // on state left by an earlier batch.
+                const auto lightStage = args->_scene->getStage<LightStage>();
+                if (lightStage) {
+                    DeferredLightingEffect::setupKeyLightBatch(
+                        args, batch, lightStage->_currentFrame);
+                }
                 const auto& hazeStage = args->_scene->getStage<HazeStage>();
                 if (hazeStage && hazeFrame->_elements.size() > 0) {
                     const auto& hazePointer = hazeStage->getElement(hazeFrame->_elements.front());
@@ -65,6 +73,9 @@ void DrawBackgroundStage::run(const render::RenderContextPointer& renderContext,
             }
 
             skybox->render(batch, args->getViewFrustum(), forward, _transformSlot);
+            if (forward) {
+                DeferredLightingEffect::unsetKeyLightBatch(batch);
+            }
         });
         args->_batch = nullptr;
     }

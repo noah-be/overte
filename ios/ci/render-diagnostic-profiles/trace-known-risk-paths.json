@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "renderDiagnosticMode": "trace",
+  "traceAllDraws": false,
+  "traceDrawLimit": 512,
+  "traceBatchNames": [
+    "DrawBackgroundStage::run",
+    "DrawForward::run"
+  ],
+  "traceShaderPairs": [
+    "textured_particle.vert|textured_particle_translucent_forward.frag",
+    "model.vert|model_translucent_forward.frag",
+    "skybox.vert|skybox_forward.frag"
+  ],
+  "persistSubmitCandidates": true
+}
