@@ -643,6 +643,7 @@ void EntityTreeRenderer::addPendingEntities(const render::ScenePointer& scene, r
                         entity->getEntityHostType() == entity::HostType::DOMAIN &&
                         entity->getBoundingRadius() >= 1.5f &&
                         entity->getBoundingRadius() <= 3.0f &&
+                        modelURL.contains("/surfboard-3/", Qt::CaseInsensitive) &&
                         !modelURL.endsWith(".glb", Qt::CaseInsensitive)) {
                     if (representativeModelID.isNull()) {
                         representativeModelID = entityID;

@@ -1164,6 +1164,7 @@ for representative_filter_contract in (
     "entity->getType() == EntityTypes::Material",
     "entity->getBoundingRadius() >= 1.5f",
     "entity->getBoundingRadius() <= 3.0f",
+    'modelURL.contains("/surfboard-3/", Qt::CaseInsensitive)',
     '!modelURL.endsWith(".glb", Qt::CaseInsensitive)',
     '"radius=" << entity->getBoundingRadius()',
     '"url=" << modelURL',
@@ -1172,6 +1173,17 @@ for representative_filter_contract in (
         raise SystemExit(
             f"macOS representative entity filter missing: {representative_filter_contract}"
         )
+hub_copy = json.loads((
+    ROOT / "android/vr/pico/world-copies/overte-hub-pico4-ultra.json"
+).read_text(encoding="utf-8"))
+representative_hub_models = [
+    entity for entity in hub_copy["Entities"]
+    if str(entity.get("id", "")).strip("{}").lower() ==
+    "8e578011-e135-4a20-8c23-23719b047f6b"
+]
+if len(representative_hub_models) != 1 or \
+        "/surfboard-3/" not in representative_hub_models[0].get("modelURL", ""):
+    raise SystemExit("macOS representative model must remain a real versioned Hub entity")
 lightweight_handoff = entity_renderer_source.split(
     '"OVERTE_MACOS_ENTITY_GATE lightweight_primitive_handoff"', 1
 )[0].rsplit("static bool loggedFirstLightweightPrimitiveHandoff", 1)[1]
