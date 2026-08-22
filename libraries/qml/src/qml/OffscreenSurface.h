@@ -22,6 +22,7 @@
 #include <QtQml/QJSValue>
 
 class QWindow;
+class QImage;
 class QOpenGLContext;
 class QQmlContext;
 class QQmlEngine;
@@ -49,6 +50,7 @@ public:
         enum class Backend {
             Unsupported,
             OpenGL,
+            Software,
         };
 
         Backend backend { Backend::Unsupported };
@@ -97,6 +99,9 @@ public:
     // when the texture is safe to read.
     // Returns false if no new texture is available
     bool fetchTexture(TextureAndFence& textureAndFence);
+    // Software-rendered Qt Quick frames are used on iOS, where MoltenVK cannot
+    // import the legacy external OpenGL texture produced by this subsystem.
+    bool fetchImage(QImage& image);
 
     static std::function<void(uint32_t, void*)> getDiscardLambda();
     static size_t getUsedTextureMemory();

@@ -9,9 +9,11 @@
 //
 
 #include "RenderableWebEntityItem.h"
+#include <array>
 #include <atomic>
 
 #include <QtCore/QTimer>
+#include <QtGui/QImage>
 #include <QtGui/QOpenGLContext>
 #include <QtQuick/QQuickItem>
 #include <QtQuick/QQuickWindow>
@@ -28,6 +30,9 @@
 #include <ui/TabletScriptingInterface.h>
 #include <EntityScriptingInterface.h>
 #include <shared/LocalFileAccessGate.h>
+#if defined(Q_OS_IOS)
+#include <shared/IOSRuntimeLogging.h>
+#endif
 
 #include "EntitiesRendererLogging.h"
 #include <NetworkingConstants.h>
@@ -161,8 +166,16 @@ WebEntityRenderer::WebEntityRenderer(const EntityItemPointer& entity) : Parent(e
     });
     _geometryId = DependencyManager::get<GeometryCache>()->allocateID();
 
+#if defined(Q_OS_IOS)
+    const std::array<gpu::Byte, 4> transparentPixel { 0, 0, 0, 0 };
+    _texture = gpu::Texture::createStrict(gpu::Element::COLOR_RGBA_32, 1, 1, 1);
+    _texture->setStoredMipFormat(gpu::Element::COLOR_RGBA_32);
+    _texture->assignStoredMip(0, transparentPixel.size(), transparentPixel.data());
+    _texture->setSource("WebEntityRendererSoftware");
+#else
     _texture = gpu::Texture::createExternal(OffscreenQmlSurface::getDiscardLambda());
     _texture->setSource(__FUNCTION__);
+#endif
 
     _contentType = ContentType::HtmlContent;
     buildWebSurface(entity, "");
@@ -369,15 +382,23 @@ void WebEntityRenderer::doRender(RenderArgs* args) {
     });
 
     // Try to update the texture
-    OffscreenQmlSurface::TextureAndFence newTextureAndFence;
     QSize windowSize;
     bool newTextureAvailable = false;
+#if defined(Q_OS_IOS)
+    QImage newImage;
+#else
+    OffscreenQmlSurface::TextureAndFence newTextureAndFence;
+#endif
     if (!resultWithReadLock<bool>([&] {
         if (!_webSurface) {
             return false;
         }
 
+#if defined(Q_OS_IOS)
+        newTextureAvailable = _webSurface->fetchImage(newImage);
+#else
         newTextureAvailable = _webSurface->fetchTexture(newTextureAndFence);
+#endif
         windowSize = _webSurface->size();
         return true;
     })) {
@@ -385,11 +406,37 @@ void WebEntityRenderer::doRender(RenderArgs* args) {
     }
 
     if (newTextureAvailable) {
+#if defined(Q_OS_IOS)
+        const QImage rgbaImage = newImage.convertToFormat(QImage::Format_RGBA8888);
+        if (rgbaImage.isNull() || rgbaImage.width() <= 0 || rgbaImage.height() <= 0) {
+            return;
+        }
+        auto texture = gpu::Texture::createStrict(
+            gpu::Element::COLOR_RGBA_32,
+            static_cast<uint16_t>(rgbaImage.width()),
+            static_cast<uint16_t>(rgbaImage.height()),
+            1);
+        texture->setStoredMipFormat(gpu::Element::COLOR_RGBA_32);
+        texture->assignStoredMip(
+            0,
+            static_cast<gpu::Size>(rgbaImage.sizeInBytes()),
+            reinterpret_cast<const gpu::Byte*>(rgbaImage.constBits()));
+        texture->setSource("WebEntityRendererSoftware");
+        _texture = std::move(texture);
+        if (!_softwareFrameReported) {
+            _softwareFrameReported = true;
+            logIOSRuntimeMarker(
+                "OVERTE_IOS_QML_FRAME_GATE stage=cpu-frame-uploaded",
+                "size=", rgbaImage.size(),
+                "source=", _sourceURL);
+        }
+#else
         _texture->setExternalTexture(newTextureAndFence.first, newTextureAndFence.second);
         _texture->setSize(windowSize.width(), windowSize.height());
         _texture->setOriginalSize(windowSize.width(), windowSize.height());
         // FIXME: external textures do not currently support modifying their samplers
         // _texture->setSampler(sampler);
+#endif
     }
 
     static const glm::vec2 texMin(0.0f), texMax(1.0f), topLeft(-0.5f), bottomRight(0.5f);

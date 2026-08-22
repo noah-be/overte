@@ -634,3 +634,11 @@ endif()
 
 # tell CMake to exclude ui_console.h for policy CMP0071
 set_property(SOURCE ui_console.h PROPERTY SKIP_AUTOMOC ON)
+
+# Overte predates qt_add_executable(), so Qt cannot finalize the executable and
+# import its static QML plugins automatically. iOS uses a static Qt build; scan
+# the Interface QML tree after every target/link relationship is known and link
+# the generated plugin imports into the application.
+if(IOS AND OVERTE_QT_MAJOR EQUAL 6)
+  qt6_import_qml_plugins(${TARGET_NAME})
+endif()

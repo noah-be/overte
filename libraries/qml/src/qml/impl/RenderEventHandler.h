@@ -12,6 +12,7 @@
 #include <QtCore/QObject>
 #include <QtCore/QThread>
 #include <QtGui/qevent.h>
+#include <QtGui/QImage>
 
 #include <GLMHelpers.h>
 #include <gl/OffscreenGLCanvas.h>
@@ -53,6 +54,7 @@ private:
     SharedObject* const _shared;
     OffscreenGLCanvas _canvas;
     QSize _currentSize;
+    QImage _softwareImage;
 
     uint32_t _fbo{ 0 };
     uint32_t _depthStencil{ 0 };

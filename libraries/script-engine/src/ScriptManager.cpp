@@ -852,6 +852,21 @@ void ScriptManager::init() {
     scriptEngine->registerGlobalObject(sgp, "Mat4", _mat4Library.get());
     scriptEngine->registerGlobalObject(sgp, "Uuid", _uuidLibrary.get());
 
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+    {
+        const auto global = scriptEngine->globalObject();
+        const auto scriptApi = global.property("Script");
+        const auto quatApi = global.property("Quat");
+        qInfo().nospace()
+            << "OVERTE_IOS_SCRIPT_API_GATE context=" << getContext()
+            << " script_require=" << scriptApi.property("require").isFunction()
+            << " script_load=" << scriptApi.property("load").isFunction()
+            << " script_include=" << scriptApi.property("include").isFunction()
+            << " script_set_interval=" << scriptApi.property("setInterval").isFunction()
+            << " quat_from_vec3_degrees=" << quatApi.property("fromVec3Degrees").isFunction();
+    }
+#endif
+
     if (_context != NETWORKLESS_TEST_SCRIPT) {
         // This requires networking, we want to avoid the need for it in test scripts
         scriptEngine->registerGlobalObject(sgp, "Messages", DependencyManager::get<MessagesClient>().data());

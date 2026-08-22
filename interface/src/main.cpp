@@ -39,6 +39,8 @@
 #include <shared/IOSRuntimeLogging.h>
 
 #ifdef Q_OS_IOS
+#include <QtCore/QPluginLoader>
+#include <QtCore/QSet>
 #include <QtWebView/QtWebView>
 #endif
 
@@ -51,6 +53,26 @@
 #include "Profile.h"
 #include "LogHandler.h"
 #include "RunningMarker.h"
+
+#ifdef Q_OS_IOS
+static void logIOSStaticQmlPluginGate() {
+    QSet<QString> pluginClasses;
+    for (const auto& plugin : QPluginLoader::staticPlugins()) {
+        const auto className = plugin.metaData().value(QStringLiteral("className")).toString();
+        if (!className.isEmpty()) {
+            pluginClasses.insert(className);
+        }
+    }
+
+    qInfo().nospace()
+        << "OVERTE_IOS_QML_PLUGIN_GATE static_plugin_count=" << pluginClasses.size()
+        << " qtquick2=" << pluginClasses.contains(QStringLiteral("QtQuick2Plugin"))
+        << " qtquick_controls2=" << pluginClasses.contains(QStringLiteral("QtQuickControls2Plugin"))
+        << " qtquick_templates2=" << pluginClasses.contains(QStringLiteral("QtQuickTemplates2Plugin"))
+        << " qtquick_layouts=" << pluginClasses.contains(QStringLiteral("QtQuickLayoutsPlugin"))
+        << " qtqml_models=" << pluginClasses.contains(QStringLiteral("QtQmlModelsPlugin"));
+}
+#endif
 
 #ifdef Q_OS_WIN
 #include <Windows.h>
@@ -509,6 +531,10 @@ int main(int argc, const char* argv[]) {
                This is known to happen on Windows if QT_NO_DEBUG isn't set by us.");
 #endif
     Application app(argcExtended, const_cast<char**>(argvExtended.data()), startupTime);
+
+#ifdef Q_OS_IOS
+    logIOSStaticQmlPluginGate();
+#endif
 
     if (parser.isSet("abortAfterStartup")) {
         return 99;

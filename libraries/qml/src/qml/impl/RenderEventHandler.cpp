@@ -8,6 +8,8 @@
 
 #include "RenderEventHandler.h"
 
+#include <mutex>
+
 #ifndef DISABLE_QML
 
 #include <gl/Config.h>
@@ -17,6 +19,7 @@
 #include <QtQuick/QQuickWindow>
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 #include <QtQuick/QQuickOpenGLUtils>
+#include <QtQuick/QQuickRenderTarget>
 #endif
 
 #include <shared/NsightHelpers.h>
@@ -27,6 +30,11 @@
 #include "../Logging.h"
 
 using namespace hifi::qml::impl;
+
+// Qt Quick render controls share process-global scene-graph state. Several
+// cached surfaces can initialize on different render threads at startup, so
+// serialize this narrow operation (also done by the upstream Qt 6 migration).
+static std::mutex renderControlInitMutex;
 
 bool RenderEventHandler::event(QEvent* e) {
     switch (static_cast<OffscreenEvent::Type>(e->type())) {
@@ -54,6 +62,10 @@ bool RenderEventHandler::event(QEvent* e) {
 
 RenderEventHandler::RenderEventHandler(SharedObject* shared, QThread* targetThread) :
         _shared(shared) {
+    if (SharedObject::isSoftwareRendering()) {
+        moveToThread(targetThread);
+        return;
+    }
     // Create the GL canvas in the same thread as the share canvas
     if (!_canvas.create(SharedObject::getSharedContext())) {
         qFatal("Unable to create new offscreen GL context");
@@ -64,7 +76,15 @@ RenderEventHandler::RenderEventHandler(SharedObject* shared, QThread* targetThre
 }
 
 void RenderEventHandler::onInitalize() {
+    const std::lock_guard<std::mutex> initializeLock(renderControlInitMutex);
     if (_shared->isQuit()) {
+        return;
+    }
+
+    if (SharedObject::isSoftwareRendering()) {
+        resize();
+        _shared->initializeRenderControl(nullptr);
+        _initialized = true;
         return;
     }
 
@@ -80,6 +100,22 @@ void RenderEventHandler::resize() {
     PROFILE_RANGE(render_qml_gl, __FUNCTION__);
     auto targetSize = _shared->getSize();
     if (_currentSize != targetSize) {
+        if (SharedObject::isSoftwareRendering()) {
+            _shared->releaseTextureAndFence();
+            _currentSize = targetSize;
+            if (!_currentSize.isEmpty()) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+                _softwareImage = QImage(_currentSize, QImage::Format_RGBA8888_Premultiplied);
+                _softwareImage.fill(Qt::transparent);
+                _shared->_quickWindow->setRenderTarget(
+                    QQuickRenderTarget::fromPaintDevice(&_softwareImage));
+#endif
+            } else {
+                _softwareImage = QImage {};
+            }
+            return;
+        }
+
         auto& offscreenTextures = SharedObject::getTextureCache();
         // Release hold on the textures of the old size
         if (_currentSize != QSize()) {
@@ -122,6 +158,26 @@ void RenderEventHandler::onRenderSync() {
 
 void RenderEventHandler::qmlRender(bool sceneGraphSync) {
     if (_shared->isQuit()) {
+        return;
+    }
+
+    if (SharedObject::isSoftwareRendering()) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        resize();
+        _shared->_renderControl->beginFrame();
+        if (!_shared->preRender(sceneGraphSync)) {
+            _shared->_renderControl->endFrame();
+            return;
+        }
+
+        if (!_softwareImage.isNull()) {
+            _softwareImage.fill(Qt::transparent);
+            _shared->_renderControl->render();
+            _shared->_lastRenderTime = usecTimestampNow();
+            _shared->updateImage(_softwareImage);
+        }
+        _shared->_renderControl->endFrame();
+#endif
         return;
     }
 
@@ -184,6 +240,12 @@ void RenderEventHandler::qmlRender(bool sceneGraphSync) {
 
 void RenderEventHandler::onQuit() {
     if (_initialized) {
+        if (SharedObject::isSoftwareRendering()) {
+            _shared->shutdownRendering(_currentSize);
+            moveToThread(qApp->thread());
+            QThread::currentThread()->quit();
+            return;
+        }
         if (_canvas.getContext() != QOpenGLContextWrapper::currentContext()) {
             qFatal("QML rendering context not current on render thread");
         }

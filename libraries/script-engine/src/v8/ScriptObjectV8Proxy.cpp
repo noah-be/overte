@@ -306,10 +306,10 @@ void ScriptObjectV8Proxy::investigate() {
         }
 
         PropertyDef& propDef = _props.insert(idx, PropertyDef(prop.name(), idx)).value();
-        _propNameMap.insert(prop.name(), &propDef);
         propDef.flags = ScriptValue::Undeletable | ScriptValue::PropertyGetter | ScriptValue::PropertySetter |
                         ScriptValue::QObjectMember;
         if (prop.isConstant()) propDef.flags |= ScriptValue::ReadOnly;
+        _propNameMap.insert(prop.name(), propDef);
     }
 
     // discover methods
@@ -357,7 +357,7 @@ void ScriptObjectV8Proxy::investigate() {
                 SignalDef& signalDef = _signals.insert(idx, SignalDef(szName, idx)).value();
                 signalDef.name = szName;
                 signalDef.signal = method;
-                _signalNameMap.insert(szName, &signalDef);
+                _signalNameMap.insert(szName, signalDef);
                 methodNames.insert(szName, idx);
             } else {
                 int originalMethodId = nameLookup.value();
@@ -384,7 +384,7 @@ void ScriptObjectV8Proxy::investigate() {
                 methodDef.name = szName;
                 methodDef.numMaxParams = parameterCount;
                 methodDef.methods.append(method);
-                _methodNameMap.insert(szName, &methodDef);
+                _methodNameMap.insert(szName, methodDef);
                 methodNames.insert(szName, idx);
             } else {
                 int originalMethodId = nameLookup.value();
@@ -450,16 +450,16 @@ ScriptObjectV8Proxy::QueryFlags ScriptObjectV8Proxy::queryProperty(const V8Scrip
     // check for methods
     MethodNameMap::const_iterator method = _methodNameMap.find(nameStr);
     if (method != _methodNameMap.cend()) {
-        const MethodDef* methodDef = method.value();
-        *id = methodDef->_id | METHOD_TYPE;
+        const MethodDef& methodDef = method.value();
+        *id = methodDef._id | METHOD_TYPE;
         return flags & (HandlesReadAccess | HandlesWriteAccess);
     }
 
     // check for properties
     PropertyNameMap::const_iterator prop = _propNameMap.find(nameStr);
     if (prop != _propNameMap.cend()) {
-        const PropertyDef* propDef = prop.value();
-        *id = propDef->_id | PROPERTY_TYPE;
+        const PropertyDef& propDef = prop.value();
+        *id = propDef._id | PROPERTY_TYPE;
         return flags & (HandlesReadAccess | HandlesWriteAccess);
     }
 
@@ -1060,26 +1060,35 @@ void ScriptMethodV8Proxy::call(const v8::FunctionCallbackInfo<v8::Value>& argume
                 qScriptArgLists[i].append(ScriptValue(new ScriptValueV8Wrapper(_engine, V8ScriptValue(_engine, argVal))));
                 qGenArgsVectors[i][arg] = QGenericArgument("ScriptValue", &qScriptArgLists[i].back());
             } else if (methodArgTypeId == QMetaType::QVariant) {
-                QVariant varArgVal;
-                if (!_engine->castValueToVariant(V8ScriptValue(_engine, argVal), varArgVal, methodArgTypeId)) {
+                qVarArgLists[i].emplace_back();
+                if (!_engine->castValueToVariant(V8ScriptValue(_engine, argVal), qVarArgLists[i].back(), methodArgTypeId)) {
                     conversionFailures++;
+                    qVarArgLists[i].pop_back();
                 } else {
-                    qVarArgLists[i].append(varArgVal);
                     qGenArgsVectors[i][arg] = QGenericArgument("QVariant", &qVarArgLists[i].back());
                 }
             } else {
-                QVariant varArgVal;
-                if (!_engine->castValueToVariant(V8ScriptValue(_engine, argVal), varArgVal, methodArgTypeId)) {
+                qVarArgLists[i].emplace_back();
+                if (!_engine->castValueToVariant(V8ScriptValue(_engine, argVal), qVarArgLists[i].back(), methodArgTypeId)) {
                     conversionFailures++;
+                    qVarArgLists[i].pop_back();
                 } else {
-                    qVarArgLists[i].append(varArgVal);
                     const QVariant& converted = qVarArgLists[i].back();
                     conversionPenaltyScore += _engine->computeCastPenalty(V8ScriptValue(_engine, argVal), methodArgTypeId);
 
                     // a lot of type conversion assistance thanks to https://stackoverflow.com/questions/28457819/qt-invoke-method-with-qvariant
                     // A const_cast is needed because calling data() would detach the QVariant.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+                    // Qt 6 canonicalizes a registered typedef's QVariant name while MOC keeps the spelling from the
+                    // invokable declaration. QMetaMethod::invoke rejects the canonical name even though both names
+                    // describe the same metatype. Pass the formal spelling because castValueToVariant() already used
+                    // the formal parameter's metatype ID to construct converted.
+                    const char* argumentTypeName = meta.parameterTypeName(arg);
+#else
+                    const char* argumentTypeName = QMetaType::typeName(converted.userType());
+#endif
                     qGenArgsVectors[i][arg] =
-                        QGenericArgument(QMetaType::typeName(converted.userType()), const_cast<void*>(converted.constData()));
+                        QGenericArgument(argumentTypeName, const_cast<void*>(converted.constData()));
                 }
             }
         }

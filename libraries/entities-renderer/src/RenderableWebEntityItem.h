@@ -91,6 +91,9 @@ private:
     QSharedPointer<OffscreenQmlSurface> _webSurface { nullptr };
     bool _cachedWebSurface { false };
     gpu::TexturePointer _texture;
+#if defined(Q_OS_IOS)
+    bool _softwareFrameReported { false };
+#endif
     QString _tryingToBuildURL;
 
     glm::u8vec3 _color;

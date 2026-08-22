@@ -309,10 +309,33 @@ void ScriptEngineTests::testSignalWithException() {
     QVERIFY(exceptionCount >= 3);
 }
 
+void ScriptEngineTests::testScriptApiMethodDiscovery() {
+    QString script =
+        "print([typeof Script.load, typeof Script.include, typeof Script.require, "
+        "typeof Script.setInterval, typeof Script.stop].join(','));"
+        "Script.stop(true);";
+
+    QString printed;
+    auto sm = makeManager(script, "testScriptApiMethodDiscovery.js");
+    auto scopeGuard = sm->engine()->getScopeGuard();
+
+    connect(sm.get(), &ScriptManager::printedMessage, [&printed](const QString& message, const QString& engineName) {
+        printed = message;
+    });
+
+    sm->run();
+
+    QVERIFY(!sm->getUncaughtException());
+    QCOMPARE(printed, QString("function,function,function,function,function"));
+}
+
 void ScriptEngineTests::testQuat() {
     QString script =
         "var x;\n"
         "print(JSON.stringify(Quat.IDENTITY));\n"
+        "var wizardRotation = Quat.fromVec3Degrees({ x: -58, y: 0, z: 0 });\n"
+        "print(wizardRotation && Math.abs(wizardRotation.x + 0.48481) < 0.001 && "
+            "Math.abs(wizardRotation.w - 0.87462) < 0.001 ? 'quat-alias-ok' : 'quat-alias-bad');\n"
         "print(JSON.stringify(Quat.safeEulerAngles(Quat.IDENTITY)));\n"
         "print(JSON.stringify(Quat.getUp(Quat.IDENTITY)));\n"
         "print(JSON.stringify(Quat.getUp(x)));\n"
@@ -321,6 +344,7 @@ void ScriptEngineTests::testQuat() {
     int printCount = 0;
     QStringList answers{
         "{\"x\":0,\"y\":0,\"z\":0,\"w\":1}",
+        "quat-alias-ok",
         "{\"x\":0,\"y\":0,\"z\":0}",
         "{\"x\":0,\"y\":1,\"z\":0}",
         ""
@@ -340,4 +364,3 @@ void ScriptEngineTests::testQuat() {
 
     sm->run();
 }
-

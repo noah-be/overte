@@ -383,6 +383,13 @@ void entities::TextPayload::render(RenderArgs* args) {
         return;
     }
 
+    // Qt 6 can classify a world-text item as faded before its fade pipeline is
+    // available. Calling the fade setters with a null pipeline crashes instead
+    // of merely omitting that transient frame (upstream Qt 6 migration fix).
+    if (!forward && ShapeKey(args->_itemShapeKey).isFaded() && !args->_shapePipeline) {
+        return;
+    }
+
     bool usePrimaryFrustum = args->_renderMode == RenderArgs::RenderMode::SHADOW_RENDER_MODE || args->_mirrorDepth > 0;
     transform.setRotation(BillboardModeHelpers::getBillboardRotation(transform.getTranslation(), transform.getRotation(), textRenderable->_billboardMode,
         usePrimaryFrustum ? BillboardModeHelpers::getPrimaryViewFrustumPosition() : args->getViewFrustum().getPosition()));

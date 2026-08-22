@@ -12,6 +12,7 @@
 #include <QtCore/QWaitCondition>
 #include <QtCore/QMutex>
 #include <QtCore/QSize>
+#include <QtGui/QImage>
 
 #include "TextureCache.h"
 
@@ -40,6 +41,8 @@ class SharedObject : public QObject {
 public:
     static void setSharedContext(QOpenGLContext* context);
     static QOpenGLContext* getSharedContext();
+    static void setSoftwareRendering();
+    static bool isSoftwareRendering();
     static TextureCache& getTextureCache();
 
     SharedObject();
@@ -65,6 +68,7 @@ public:
     void resume();
     bool isPaused() const;
     bool fetchTexture(TextureAndFence& textureAndFence);
+    bool fetchImage(QImage& image);
     void addToDeletionList(QObject* object);
 
 private:
@@ -89,11 +93,13 @@ private:
     void onTimer();
     void onAboutToQuit();
     void updateTextureAndFence(const TextureAndFence& newTextureAndFence);
+    void updateImage(const QImage& image);
 
     QList<QPointer<QObject>> _deletionList;
 
     // Texture management
     TextureAndFence _latestTextureAndFence { 0, 0 };
+    QImage _latestImage;
     QQuickItem* _rootItem { nullptr };
     QQuickWindow* _quickWindow { nullptr };
     QQmlContext* _qmlContext { nullptr };

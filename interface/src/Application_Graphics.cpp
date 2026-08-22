@@ -74,6 +74,7 @@
 #endif
 #if defined(Q_OS_IOS)
 #include "IOSTouchUiMetrics.h"
+#include <shared/IOSRuntimeLogging.h>
 #endif
 
 #if !defined(Q_OS_IOS)
@@ -190,11 +191,13 @@ void Application::initializeGL() {
 #if !defined(DISABLE_QML)
 #if defined(Q_OS_IOS)
     const hifi::qml::OffscreenSurface::SharedGraphicsContext qmlContext {
-        hifi::qml::OffscreenSurface::SharedGraphicsContext::Backend::Unsupported,
+        hifi::qml::OffscreenSurface::SharedGraphicsContext::Backend::Software,
         nullptr,
     };
     if (!OffscreenQmlSurface::configureSharedGraphicsContext(qmlContext)) {
-        qCritical() << "Offscreen QML rendering is disabled on iOS until a native QRhi context lease is implemented";
+        qCritical() << "Unable to configure the iOS software offscreen QML renderer";
+    } else {
+        logIOSRuntimeMarker("OVERTE_IOS_QML_BACKEND backend=software transfer=cpu-vulkan");
     }
 #else
     {

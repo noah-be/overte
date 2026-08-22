@@ -15,7 +15,7 @@ import "../inputDeviceButton" as InputDeviceButton
 import stylesUit 1.0 as HifiStylesUit
 import TabletScriptingInterface 1.0
 import QtGraphicalEffects 1.0
-import "qrc:////qml//hifi//models" as HifiModels  // Absolute path so the same code works everywhere.
+import "qrc:/qml/hifi/models" as HifiModels  // Absolute path so the same code works everywhere.
 
 Rectangle {
     id: root

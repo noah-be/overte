@@ -86,6 +86,10 @@ size_t OffscreenSurface::getUsedTextureMemory() {
 }
 
 bool OffscreenSurface::configureSharedGraphicsContext(const SharedGraphicsContext& context) {
+    if (context.backend == SharedGraphicsContext::Backend::Software) {
+        SharedObject::setSoftwareRendering();
+        return true;
+    }
     if (context.backend != SharedGraphicsContext::Backend::OpenGL || !context.handle) {
         return false;
     }
@@ -117,6 +121,10 @@ bool OffscreenSurface::fetchTexture(TextureAndFence& textureAndFence) {
     bool result = _sharedObject->fetchTexture(typedTextureAndFence);
     textureAndFence = typedTextureAndFence;
     return result;
+}
+
+bool OffscreenSurface::fetchImage(QImage& image) {
+    return _sharedObject->fetchImage(image);
 }
 
 void OffscreenSurface::resize(const QSize& newSize_) {
