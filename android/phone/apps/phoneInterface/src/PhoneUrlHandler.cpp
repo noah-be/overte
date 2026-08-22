@@ -14,11 +14,9 @@
 #include <QThread>
 #include <QVariantMap>
 
-#include <DependencyManager.h>
 #include "AndroidHelper.h"
 #include "PhonePendingHandoff.h"
 #include "PhoneTouchUiMetrics.h"
-#include "ui/TabletScriptingInterface.h"
 #include "ui/PhoneDialogRouter.h"
 
 namespace {
@@ -124,11 +122,9 @@ private:
         if (!_hasPending || !AndroidHelper::instance().isLoadComplete()) {
             return;
         }
-        auto tablet = DependencyManager::get<TabletScriptingInterface>();
-        if (!tablet) {
+        if (!phone::updateTouchUiRuntimeMetrics(touchUiMetricsMap(_pending))) {
             return;
         }
-        tablet->setTouchUiRuntimeMetrics(touchUiMetricsMap(_pending));
         _hasPending = false;
     }
 

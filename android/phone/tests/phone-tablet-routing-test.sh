@@ -35,12 +35,20 @@ require "$tablet_header" '#if defined\(ANDROID_APP_PHONE_INTERFACE\)' \
     'the screen-space presenter API is restricted to the phone client'
 require "$phone_ui_profile" 'safeInsetLeft:[[:space:]]*runtimeMetricsAvailable[[:space:]]*\?[[:space:]]*runtimeMetrics[.]safeInsetLeft[[:space:]]*:[[:space:]]*25' \
     'the phone profile prefers live left safety geometry with a startup fallback'
+require "$phone_ui_profile" '^import controlsUit 1[.]0 as SharedControls$' \
+    'the selected Android profile resolves its base type through the logical controls module'
 require "$activity" 'WindowInsets[.]Type[.]displayCutout\(\)' \
     'Android display cutouts feed the shared safe-area profile'
 require "$activity" 'WindowInsets[.]Type[.]ime\(\)' \
     'Android software-keyboard geometry feeds the shared profile'
 require "$native_handler" 'PhoneInterfaceActivity_nativeUpdateTouchUiMetrics' \
     'JNI accepts live touch-surface metrics from Android'
+require "$native_handler" 'phone::updateTouchUiRuntimeMetrics' \
+    'JNI routes touch metrics through the minimal phone UI boundary'
+require "$phone_router" 'bool updateTouchUiRuntimeMetrics\(const QVariantMap& metrics\);' \
+    'the Android entry point avoids the tablet implementation header graph'
+require "$dialogs" 'bool phone::updateTouchUiRuntimeMetrics\(const QVariantMap& metrics\)' \
+    'the minimal phone UI boundary delegates inside the Interface target'
 require "$tablet_source" 'root->property\("screenSpaceSafeInsetLeft"\)' \
     'the native presenter reads safe-area geometry from the selected UI profile'
 require "$tablet_source" '_desktopWindow->setPosition\(leftInset,[[:space:]]*topInset\)' \

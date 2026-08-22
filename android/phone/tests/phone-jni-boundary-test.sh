@@ -28,7 +28,8 @@ require "$handler" 'return invoked && consumed \? JNI_TRUE : JNI_FALSE' 'Back re
 require "$handler" 'PhoneInterfaceActivity_nativeUpdateTouchUiMetrics' 'JNI exports the runtime touch-metrics bridge'
 require "$handler" 'TouchUiMetrics::fromUntrusted' 'JNI sanitizes runtime geometry before exposing it to Qt'
 require "$handler" 'PendingTouchUiMetricsDelivery' 'native startup retains the latest accepted touch-metrics snapshot'
-require "$handler" 'setTouchUiRuntimeMetrics' 'runtime metrics reach the shared Tablet/QML host boundary'
+require "$handler" 'phone::updateTouchUiRuntimeMetrics' \
+    'runtime metrics delegate through the Android phone UI router'
 require "$compat" 'QtNativeInputConnection_finishComposingText' 'finish-composition ABI export remains present'
 require "$compat" 'QtNativeInputConnection_updateCursorPosition' 'cursor-update ABI export remains present'
 if ! awk '/^  fast:/{inside=1} /^  contracts:/{inside=0} inside' "$workflow" |

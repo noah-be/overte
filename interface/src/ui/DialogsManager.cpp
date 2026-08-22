@@ -202,6 +202,19 @@ bool phone::closeTopmostDialog() {
 #endif
 }
 
+bool phone::updateTouchUiRuntimeMetrics(const QVariantMap& metrics) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    auto tablet = DependencyManager::get<TabletScriptingInterface>();
+    if (!tablet) {
+        return false;
+    }
+    tablet->setTouchUiRuntimeMetrics(metrics);
+    return true;
+#else
+    return false;
+#endif
+}
+
 // #######: TODO: Domain version of toggleLoginDialog()?
 
 // #######: TODO: Domain version of hideLoginDialog()?
