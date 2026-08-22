@@ -34,15 +34,31 @@ namespace gr {
 namespace {
 constexpr uint32_t LIGHT_CLUSTER_GRID_RESOURCE_SLOT { 2 };
 constexpr uint32_t LIGHT_CLUSTER_CONTENT_RESOURCE_SLOT { 3 };
+constexpr uint32_t LOCAL_LIGHT_RESOURCE_SLOT { 4 };
 
-bool useGL41LightClusterTextureBuffers() {
+bool useGL41LocalLightTextureBuffers() {
     return hifi::properties::getGraphicsAPI() == hifi::properties::GraphicsAPI::GL41;
 }
 }
 
+void bindLocalLightBuffer(gpu::Batch& batch, const gpu::BufferPointer& lightBuffer) {
+    if (useGL41LocalLightTextureBuffers()) {
+        batch.setUniformBuffer(gr::Buffer::Light, nullptr);
+        batch.setResourceBuffer(LOCAL_LIGHT_RESOURCE_SLOT, lightBuffer);
+    } else {
+        batch.setResourceBuffer(LOCAL_LIGHT_RESOURCE_SLOT, nullptr);
+        batch.setUniformBuffer(gr::Buffer::Light, lightBuffer);
+    }
+}
+
+void unbindLocalLightBuffer(gpu::Batch& batch) {
+    batch.setUniformBuffer(gr::Buffer::Light, nullptr);
+    batch.setResourceBuffer(LOCAL_LIGHT_RESOURCE_SLOT, nullptr);
+}
+
 void bindLightClusterBuffers(gpu::Batch& batch, const LightClustersPointer& lightClusters) {
     batch.setUniformBuffer(ru::Buffer::LightClusterFrustumGrid, lightClusters->_frustumGridBuffer);
-    if (useGL41LightClusterTextureBuffers()) {
+    if (useGL41LocalLightTextureBuffers()) {
         batch.setUniformBuffer(ru::Buffer::LightClusterGrid, nullptr);
         batch.setUniformBuffer(ru::Buffer::LightClusterContent, nullptr);
         batch.setResourceBuffer(LIGHT_CLUSTER_GRID_RESOURCE_SLOT, lightClusters->_clusterGridBuffer._buffer);
@@ -728,7 +744,7 @@ void DebugLightClusters::run(const render::RenderContextPointer& renderContext, 
         batch.setModelTransform(Transform());
 
         // Bind the light-cluster data structure.
-        batch.setUniformBuffer(gr::Buffer::Light, lightClusters->_lightStage->getLightArrayBuffer());
+        bindLocalLightBuffer(batch, lightClusters->_lightStage->getLightArrayBuffer());
         bindLightClusterBuffers(batch, lightClusters);
 
         if (doDrawClusterFromDepth) {
@@ -775,7 +791,7 @@ void DebugLightClusters::run(const render::RenderContextPointer& renderContext, 
             drawGridAndCleanBatch.drawInstanced(summedDims.x, gpu::LINES, 24, 0);
         }
 
-        drawGridAndCleanBatch.setUniformBuffer(gr::Buffer::Light, nullptr);
+        unbindLocalLightBuffer(drawGridAndCleanBatch);
         unbindLightClusterBuffers(drawGridAndCleanBatch);
 
         drawGridAndCleanBatch.setResourceTexture(ru::Texture::DeferredColor, nullptr);

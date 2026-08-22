@@ -115,8 +115,10 @@ public:
 
 using LightClustersPointer = std::shared_ptr<LightClusters>;
 
-// GLSL 4.1 reads the two large, dynamically indexed cluster tables through
-// integer texture buffers. Newer backends keep using uniform buffers.
+// GLSL 4.1 reads dynamically indexed local-light data through texture buffers.
+// Newer backends keep using uniform buffers.
+void bindLocalLightBuffer(gpu::Batch& batch, const gpu::BufferPointer& lightBuffer);
+void unbindLocalLightBuffer(gpu::Batch& batch);
 void bindLightClusterBuffers(gpu::Batch& batch, const LightClustersPointer& lightClusters);
 void unbindLightClusterBuffers(gpu::Batch& batch);
 

@@ -13,6 +13,7 @@
 <@def MODEL_LIGHT_SLH@>
 
 <@include graphics/ShaderConstants.h@>
+<@include gpu/ShaderConstants.h@>
 <@include graphics/LightVolume.shared.slh@>
 <@include graphics/LightIrradiance.shared.slh@>
 
@@ -63,12 +64,25 @@ float getLightAmbientMapNumMips(LightAmbient l) { return l._ambientInfo.y; }
 
 
 <@if N@>
+#ifdef GPU_GL410
+RESOURCE_BUFFER(GPU_RESOURCE_BUFFER_SLOT4_TEXTURE, lightBuffer);
+Light getLight(int index) {
+    int texel = index * 4;
+    Light result;
+    result.volume.positionRadius = texelFetch(lightBuffer, texel);
+    result.volume.directionSpotCos = texelFetch(lightBuffer, texel + 1);
+    result.irradiance.colorIntensity = texelFetch(lightBuffer, texel + 2);
+    result.irradiance.attenuation = texelFetch(lightBuffer, texel + 3);
+    return result;
+}
+#else
 UNIFORM_BUFFER(GRAPHICS_BUFFER_LIGHT, lightBuffer) {
     Light lightArray[<$N$>];
 };
 Light getLight(int index) {
     return lightArray[index];
 }
+#endif
 
 <@else@>
 UNIFORM_BUFFER(GRAPHICS_BUFFER_KEY_LIGHT, keyLightBuffer) {
