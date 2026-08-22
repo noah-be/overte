@@ -36,6 +36,24 @@ parts of the universal touch stack. Physical IME, cutout, fold, TalkBack and
 GPU behavior must be recorded with `TOUCH_DEVICE_VALIDATION.md`; a host pass is
 not presented as a device result.
 
+## Adapter boundary
+
+Android Phone supplies platform behavior to the shared touch UI through three
+explicit adapter layers:
+
+- `interface/resources/qml/controlsUit/+android_phoneInterface/TouchUiProfile.qml`
+  maps Android Phone capabilities and runtime values into the shared profile;
+- `android/phone/apps/phoneInterface/src/PhoneTouchUiMetrics.h` exposes the
+  normalized values read-only as `Tablet.touchUiRuntimeMetrics`; and
+- `android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneTouchUiMetricsPolicy.java`
+  normalizes Activity measurements before they cross the native Tablet boundary.
+
+Feature policy and layouts remain in the shared touch QML. New Android-specific
+copies should be limited to genuine platform integration; they must not fork a
+layout merely for a phone or tablet model. The common architecture and ownership
+rules are described in
+[`docs/interface/universal-touch-ui.md`](../../../docs/interface/universal-touch-ui.md).
+
 ## Phone/tablet integration
 
 The current `android-phone` integration point is merged. The
