@@ -46,8 +46,15 @@ for token in (
     "scissor=",
     '== "reset-format"',
     '== "full-scissor"',
+    "for (const auto& binding : bindingMap)",
+    "sets.reserve(bindingMap.size())",
+    "OVERTE_IOS_VULKAN_DESCRIPTOR fallback=texture",
 ):
     assert token in backend, f"Vulkan draw diagnostic missing {token}"
+
+assert "for (size_t i = 0; i < _resource._textures.size(); i++)" not in backend, (
+    "descriptor writes must cover every reflected texture binding"
+)
 for token in (
     '== "gpu-cull-off"',
     '== "depth-off"',

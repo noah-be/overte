@@ -934,20 +934,25 @@ void VKBackend::updateVkDescriptorWriteSetsTexture(const Cache::PipelineLayout &
     // VKTODO: renderer leaves unbound texture slots, and that's not allowed on Vulkan
     // VKTODO: can be used for "verification mode" later
     // VKTODO: it looks like renderer tends to bind buffers that should not be bound at given point? Or maybe I'm missing reset somewhere
-    const auto& vertexReflection = layout.vertexReflection;
-    const auto& fragmentReflection = layout.fragmentReflection;
-
     const auto &bindingMap = layout.textureBindingMap;
 
     // Allocation is expensive, so vectors are allocated once in the backend class.
     std::vector<VkWriteDescriptorSet> &sets = textureVkWriteDescriptorSets;
     std::vector<VkDescriptorImageInfo> &imageInfos = textureVkDescriptorBufferInfo;
     sets.clear();
-    sets.reserve(_resource._textures.size());
+    sets.reserve(bindingMap.size());
     imageInfos.clear();
-    imageInfos.reserve(_resource._textures.size()); // This is to avoid vector reallocation and changing pointer addresses
-    for (size_t i = 0; i < _resource._textures.size(); i++) {
-        if (_resource._textures[i].texture && (vertexReflection.validTexture(i) || fragmentReflection.validTexture(i))) {
+    imageInfos.reserve(bindingMap.size()); // This is to avoid vector reallocation and changing pointer addresses
+    // Iterate the shader layout, not the currently bound resource array.  A
+    // freshly allocated Vulkan descriptor set must initialize every binding
+    // declared by its layout.  Leaving a reflected binding unwritten can turn
+    // into a null GPU address on Apple hardware even when a simulator happens
+    // to tolerate it.
+    for (const auto& binding : bindingMap) {
+        const size_t i = binding.first;
+        const bool hasBoundTexture = i < _resource._textures.size() &&
+            _resource._textures[i].texture;
+        if (hasBoundTexture) {
             // VKTODO: move vulkan texture creation to the transfer parts
             VKTexture* texture = syncGPUObject(_resource._textures[i].texture);
             VkDescriptorImageInfo imageInfo{};
@@ -986,24 +991,22 @@ void VKBackend::updateVkDescriptorWriteSetsTexture(const Cache::PipelineLayout &
             descriptorWriteSet.pImageInfo = &imageInfos.back();
             sets.push_back(descriptorWriteSet);
         } else {
-            auto binding = bindingMap.find(i);
-            if (binding != bindingMap.end()) {
-                // VKTODO: fill unbound but needed slots with default texture
-                VkWriteDescriptorSet descriptorWriteSet{};
-                descriptorWriteSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-                descriptorWriteSet.dstSet = VK_NULL_HANDLE;
-                descriptorWriteSet.dstBinding = i;
-                descriptorWriteSet.dstArrayElement = 0;
-                descriptorWriteSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-                descriptorWriteSet.descriptorCount = 1;
-                descriptorWriteSet.pImageInfo = &_defaultTextureImageInfo;
-                if (i == render_utils::slot::texture::Skybox) {
-                    descriptorWriteSet.pImageInfo = &_defaultSkyboxTextureImageInfo;
-                } else {
-                    descriptorWriteSet.pImageInfo = &_defaultTextureImageInfo;
-                }
-                sets.push_back(descriptorWriteSet);
-            }
+            VkWriteDescriptorSet descriptorWriteSet{};
+            descriptorWriteSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWriteSet.dstSet = VK_NULL_HANDLE;
+            descriptorWriteSet.dstBinding = static_cast<uint32_t>(i);
+            descriptorWriteSet.dstArrayElement = 0;
+            descriptorWriteSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            descriptorWriteSet.descriptorCount = 1;
+            descriptorWriteSet.pImageInfo = i == render_utils::slot::texture::Skybox
+                ? &_defaultSkyboxTextureImageInfo
+                : &_defaultTextureImageInfo;
+            sets.push_back(descriptorWriteSet);
+#if defined(Q_OS_IOS)
+            os_log_info(OS_LOG_DEFAULT,
+                        "OVERTE_IOS_VULKAN_DESCRIPTOR fallback=texture binding=%zu required=%zu bound=%zu",
+                        i, bindingMap.size(), _resource._textures.size());
+#endif
         }
     }
 
