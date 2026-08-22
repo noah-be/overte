@@ -46,6 +46,12 @@ class ProjectHealthTests(unittest.TestCase):
         self.assertIn("prioritizeTap: presentation.touchOptimized", home)
         self.assertIn("preventStealing: touchMetrics.directTouch", menu)
 
+    def test_shared_text_field_owns_its_style_constants(self):
+        source = (ROOT / "interface/resources/qml/controlsUit/TextField.qml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("HifiConstants { id: hifi }", source)
+
     def test_all_python_files_compile(self):
         python2_allowlist = {
             Path("tools/bake-tools/bake.py"),
