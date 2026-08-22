@@ -84,11 +84,12 @@ direct-touch target size.
 
 A platform host observes surface geometry, safe areas, configuration, keyboard
 and input-device changes. It validates those measurements before publishing
-them through the read-only `Tablet.touchUiRuntimeMetrics` property. The
-selected profile consumes that property, and `TabletScriptingInterface`
-resizes an open screen-space tablet to the usable surface. Rotation, window
-resizing, keyboard visibility and input-device changes therefore update the
-open UI without rebuilding feature screens.
+them through a platform-owned, read-only boundary. Android Phone publishes the
+snapshot through `Tablet.touchUiRuntimeMetrics`; an Apple host may instead
+expose a native QML singleton. The selected `TouchUiProfile.qml` maps that
+boundary to the platform-neutral profile properties. Rotation, window resizing,
+keyboard visibility and input-device changes therefore update the open UI
+without rebuilding feature screens.
 
 Direct-touch text entry uses the platform input method when available. The
 legacy QML keyboard remains available to offscreen hosts. Forms provide
@@ -115,7 +116,8 @@ duplicated platform QML.
 1. Add one selector-backed `TouchUiProfile.qml` adapter for the platform.
 2. Feed validated surface, safe-area, scale, IME and input capabilities into
    that adapter. Reuse `Tablet.touchUiRuntimeMetrics` only when the host owns an
-   equally trusted native measurement boundary.
+   equally trusted native measurement boundary; otherwise expose a small
+   platform-specific read-only provider and map it in the profile.
 3. Keep feature flags in the adapter and layout policy in shared metrics or a
    feature configuration. Do not add device-model checks to feature QML.
 4. Run the host device matrix and its physical validation procedure, adding a
