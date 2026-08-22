@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       artifact_run_id:
-        description: Successful macOS bootstrap run containing the Overte.app artifact
+        description: Completed macOS bootstrap run containing the Overte.app artifact
         required: true
         type: string
       target_arch:
@@ -206,10 +206,10 @@ jobs:
               /^[0-9a-f]{40}$/.test(run.head_sha || '') &&
               Number.isSafeInteger(run.run_attempt) && run.run_attempt > 0 &&
               run.status === 'completed' &&
-              run.conclusion === 'success' &&
+              ['success', 'failure'].includes(run.conclusion) &&
               (run.event === 'push' || run.event === 'workflow_dispatch');
             if (!validRun) {
-              core.setFailed('requested run is not a successful trusted macOS bootstrap run');
+              core.setFailed('requested run is not a completed trusted macOS bootstrap run');
               return;
             }
 

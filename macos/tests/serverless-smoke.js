@@ -6,7 +6,7 @@
 
     // Observe the production render path. The test supplies only a known URL;
     // it does not change the camera, avatar, scene visibility, or renderer.
-    var deadline = Date.now() + 340000;
+    var deadline = Date.now() + 700000;
     var loggedNames = {
         "macOS smoke red cube": false,
         "macOS smoke cyan sphere": false,

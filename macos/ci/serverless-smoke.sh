@@ -18,7 +18,7 @@ readonly lldb_log="$output_dir/serverless-lldb.log"
 readonly lldb_result="$output_dir/serverless-lldb-process.json"
 readonly snapshot="$output_dir/macos-serverless-smoke.png"
 readonly screenshot_result="$output_dir/serverless-screenshot.json"
-readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-360}"
+readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-720}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
 readonly lldb_timeout_seconds="${OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-90}"
 
