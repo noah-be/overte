@@ -155,9 +155,11 @@ jobs:
             echo "Metal GPU capture and LLDB capture must run separately" >&2
             exit 64
           fi
-          if [[ "$REQUESTED_CAPTURE_SIGSEGV" == 1 && "$runtime_case" != iphone-online ]]; then
-            echo "SIGSEGV capture is restricted to the targeted iPhone online case" >&2
-            exit 64
+          if [[ "$REQUESTED_CAPTURE_SIGSEGV" == 1 ]]; then
+            case "$runtime_case" in
+              iphone-online|ipad-online) ;;
+              *) echo "SIGSEGV capture requires a targeted iPhone or iPad online case" >&2; exit 64 ;;
+            esac
           fi
           if [[ -n "$probe" && "$runtime_case" != all ]]; then
             echo "presentation probes cannot be combined with a targeted runtime case" >&2
@@ -280,12 +282,15 @@ jobs:
           if [[ "$CAPTURE_SIGSEGV" == 1 ]]; then
             diagnostics=build-ios/world-raw-diagnostics
             mkdir -p "$diagnostics"
-            OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE=0 \
-            OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER=1 \
+            family="${RUNTIME_CASE%%-*}"
+            OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE=1 \
+            OVERTE_IOS_LLDB_ATTACH_GATE=render_handoff \
+            OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS=0 \
+            OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER=0 \
             OVERTE_IOS_LLDB_TIMEOUT_SECONDS=600 \
               ios/ci/interface-world-simulator-lldb.sh \
                 '${{ steps.candidate.outputs.app }}' '${{ steps.candidate.outputs.dsym }}' \
-                '${{ steps.candidate.outputs.bundle_id }}' iphone \
+                '${{ steps.candidate.outputs.bundle_id }}' "$family" \
                 '${{ steps.request.outputs.revision }}' '${{ steps.candidate.outputs.sha }}' \
                 "$diagnostics" online "$ONLINE_DOMAIN"
           elif [[ -n "$PRESENT_PROBE" ]]; then

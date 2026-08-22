@@ -42,7 +42,7 @@ mvk_trace_vulkan_calls="${OVERTE_IOS_LLDB_MVK_TRACE_VULKAN_CALLS:-6}"
 simulator_boot_timeout="${OVERTE_IOS_LLDB_SIMULATOR_BOOT_TIMEOUT_SECONDS:-120}"
 
 [[ -d "$app_path" && "$app_path" == *.app && -x "$app_path/Overte" ]] || {
-    echo "usage: $0 APP_PATH DSYM_BUNDLE BUNDLE_ID iphone SOURCE_REVISION CANDIDATE_SHA256 OUTPUT_DIR" >&2
+    echo "usage: $0 APP_PATH DSYM_BUNDLE BUNDLE_ID iphone|ipad SOURCE_REVISION CANDIDATE_SHA256 OUTPUT_DIR [serverless|online] [DESTINATION]" >&2
     exit 2
 }
 [[ -d "$symbol_bundle" && "$symbol_bundle" == *.dSYM ]] || {
@@ -53,7 +53,10 @@ simulator_boot_timeout="${OVERTE_IOS_LLDB_SIMULATOR_BOOT_TIMEOUT_SECONDS:-120}"
     echo "invalid bundle identifier" >&2
     exit 2
 }
-[[ "$family" == iphone ]] || { echo "the focused LLDB run requires the iPhone simulator" >&2; exit 2; }
+[[ "$family" == iphone || "$family" == ipad ]] || {
+    echo "the focused LLDB run requires an iPhone or iPad simulator" >&2
+    exit 2
+}
 [[ "$source_revision" =~ ^[0-9a-f]{40}$ ]] || { echo "invalid source revision" >&2; exit 2; }
 [[ "$candidate_sha256" =~ ^[0-9a-f]{64}$ ]] || { echo "invalid candidate SHA-256" >&2; exit 2; }
 [[ -n "$output_dir" ]] || { echo "output directory is required" >&2; exit 2; }
@@ -147,9 +150,10 @@ for diagnostic_path in "$app_path" "$symbol_bundle" "$output_dir"; do
 done
 
 mkdir -p "$output_dir"
-readonly lldb_log="$output_dir/iphone-serverless-lldb.log"
-readonly application_log="$output_dir/iphone-serverless-lldb-application.log"
-readonly result_log="$output_dir/iphone-serverless-lldb-result.log"
+readonly diagnostic_stem="${family}-${scenario}"
+readonly lldb_log="$output_dir/${diagnostic_stem}-lldb.log"
+readonly application_log="$output_dir/${diagnostic_stem}-lldb-application.log"
+readonly result_log="$output_dir/${diagnostic_stem}-lldb-result.log"
 for destination in "$lldb_log" "$application_log" "$result_log"; do
     [[ ! -e "$destination" ]] || { echo "LLDB diagnostic destination already exists" >&2; exit 2; }
 done
@@ -169,7 +173,7 @@ readonly state_commands="$temp_root/world-state.lldb"
 readonly startup_commands="$temp_root/startup-trace.lldb"
 readonly world_gate_log="$temp_root/world-gate.log"
 readonly world_gate_stderr="$temp_root/world-gate.stderr"
-readonly runtime_log="$output_dir/iphone-serverless-unified.log"
+readonly runtime_log="$output_dir/${diagnostic_stem}-unified.log"
 readonly runtime_log_stderr="$temp_root/runtime-unified.stderr"
 
 : > "$app_stdout"
@@ -281,6 +285,7 @@ finish() {
     {
         printf 'schema=overte-ios-lldb-result-v1\n'
         printf 'mode=simulator-%s\n' "$scenario"
+        printf 'family=%s\n' "$family"
         printf 'source_revision=%s\n' "$source_revision"
         printf 'candidate_sha256=%s\n' "$candidate_sha256"
         printf 'xcode_build=%s\n' "$xcode_build"
@@ -343,7 +348,7 @@ data_container="$(run_bounded "application data container" 30 xcrun simctl get_a
     echo "application data container is unavailable" >&2
     exit 1
 }
-mvk_dump_root="$data_container/tmp/overte-mvk-shaders-iphone-serverless-lldb"
+mvk_dump_root="$data_container/tmp/overte-mvk-shaders-${diagnostic_stem}-lldb"
 [[ ! -e "$mvk_dump_root" ]] || { echo "MoltenVK dump path already exists" >&2; exit 1; }
 mkdir "$mvk_dump_root"
 chmod 0700 "$mvk_dump_root"

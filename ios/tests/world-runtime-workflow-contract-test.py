@@ -61,12 +61,21 @@ for token in (
     "OVERTE_IOS_WORLD_RENDER_DIAGNOSTIC: ${{ steps.request.outputs.render_diagnostic }}",
     "OVERTE_IOS_WORLD_GPU_TRACE: ${{ steps.request.outputs.gpu_trace }}",
     "interface-world-simulator-lldb.sh",
-    "OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER=1",
+    "OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER=0",
     'elif [[ "$RUNTIME_CASE" == all ]]',
     'family="${RUNTIME_CASE%%-*}"',
     "''|swapchain-green|tone-input|tone-solid|tone-uv|tone-sample|frame|resample|composite",
 ):
     assert token in RUNTIME_ONLY, f"runtime-only candidate contract missing: {token}"
+for token in (
+    "iphone-online|ipad-online",
+    "OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE=1",
+    "OVERTE_IOS_LLDB_ATTACH_GATE=render_handoff",
+    'family="${RUNTIME_CASE%%-*}"',
+    "'${{ steps.candidate.outputs.bundle_id }}' \"$family\"",
+):
+    assert token in RUNTIME_ONLY, f"targeted iPad LLDB contract missing: {token}"
+assert '[[ "$family" == iphone || "$family" == ipad ]]' in LLDB
 assert "ref: apple-ios" in RUNTIME_ONLY
 assert "package-client" not in RUNTIME_ONLY and "cmake --build" not in RUNTIME_ONLY
 assert "SIMCTL_CHILD_OVERTE_IOS_PRESENT_PROBE=$OVERTE_IOS_PRESENT_PROBE" in SMOKE

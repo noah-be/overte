@@ -21,7 +21,15 @@ CANDIDATE_SHA256 = "a" * 64
 UUID = "12345678-1234-1234-1234-1234567890AB"
 
 
-def invoke(app: Path, symbols: Path, output: Path, environment: dict[str, str]):
+def invoke(
+    app: Path,
+    symbols: Path,
+    output: Path,
+    environment: dict[str, str],
+    family: str = "iphone",
+    scenario: str = "serverless",
+    destination: str = "-",
+):
     launch_marker = environment.get("FAKE_LAUNCH_MARKER")
     if launch_marker:
         Path(launch_marker).unlink(missing_ok=True)
@@ -31,10 +39,12 @@ def invoke(app: Path, symbols: Path, output: Path, environment: dict[str, str]):
             str(app),
             str(symbols),
             "org.overte.interface.dev",
-            "iphone",
+            family,
             SOURCE_REVISION,
             CANDIDATE_SHA256,
             str(output),
+            scenario,
+            destination,
         ],
         cwd=ROOT,
         env=environment,
@@ -177,7 +187,8 @@ fi
     device_fixture = {
         "devices": {
             "com.apple.CoreSimulator.SimRuntime.iOS-26-5": [
-                {"name": "iPhone 17", "udid": "private-udid", "isAvailable": True}
+                {"name": "iPhone 17", "udid": "private-udid", "isAvailable": True},
+                {"name": "iPad (A16)", "udid": "tablet-udid", "isAvailable": True},
             ]
         }
     }
@@ -226,6 +237,27 @@ fi
     )
     assert "startup-trace.lldb" not in commands
     assert "simctl terminate" in commands and "simctl shutdown" in commands
+
+    command_log.write_text("", encoding="utf-8")
+    ipad_output = root / "ipad-online"
+    ipad = invoke(
+        app,
+        symbols,
+        ipad_output,
+        base_environment,
+        family="ipad",
+        scenario="online",
+        destination="123e4567-e89b-12d3-a456-426614174000",
+    )
+    assert ipad.returncode == 1, (ipad.stdout, ipad.stderr)
+    ipad_result = (ipad_output / "ipad-online-lldb-result.log").read_text(
+        encoding="utf-8"
+    )
+    assert "capture_status=captured_sigsegv" in ipad_result
+    assert "family=ipad" in ipad_result
+    ipad_commands = command_log.read_text(encoding="utf-8")
+    assert "simctl bootstatus tablet-udid -b" in ipad_commands
+    assert " tablet-udid org.overte.interface.dev --url hifi://overte_hub " in ipad_commands
 
     command_log.write_text("", encoding="utf-8")
     retry_count = root / "retry-count.txt"
