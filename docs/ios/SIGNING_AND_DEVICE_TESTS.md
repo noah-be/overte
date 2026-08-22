@@ -114,11 +114,21 @@ The required cases are machine-readable in
 `ios/tests/device-acceptance.json`. Run every case on at least one supported
 iPhone and one supported iPad. Record:
 
-- source revision, Xcode build, SDK, OS, device model, and app bundle hash;
+- source revision, Xcode build, SDK, OS, and app bundle hash;
 - pass, fail, or blocked status for each case;
 - peak memory and thermal state for the endurance cases;
 - screenshots or logs for visual and lifecycle failures; and
 - the exact signing identity's team, never its private material.
+
+Do not place the device model, serial number, UDID, device name, Apple account,
+or user identity in committed result or evidence files. The form factor and OS
+version provide the required compatibility context without publishing a device
+fingerprint.
+
+For Fedora-side physical-iPad logging after manual Sideloadly installation, use
+`ios/tools/fedora-ipad-log.py` as documented in `IPAD_REMOTE_TESTING.md`. The
+macOS `xcrun devicectl` executor remains an optional protected-runner path; it is
+not required for the Fedora/Sideloadly workflow.
 
 A simulator result cannot satisfy a `deviceOnly` case. An App Store upload is a
 separate externally approved release action and is not performed by the build

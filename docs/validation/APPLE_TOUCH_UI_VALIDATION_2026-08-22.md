@@ -89,8 +89,11 @@ in this protocol.
 
 ## Physical iPad manual touch journey
 
-Use a development-signed integrated client built from the recorded revision.
-Before recording evidence, remove device identifiers and personal information.
+Use a Sideloadly-signed integrated Full Client built from the recorded revision.
+Verify the unsigned handoff with `ios/tools/verify-sideload-handoff.py`, record a
+new checksum for the signed derivative, and capture only filtered Fedora logs
+with `ios/tools/fedora-ipad-log.py`. Do not record device identifiers, model, or
+personal information.
 
 1. Cold-launch in portrait and confirm every edge respects the safe area; open
    and close the tablet using touch only.
@@ -122,10 +125,10 @@ Before recording evidence, remove device identifiers and personal information.
 - Integrated Qt/Overte full-client simulator Touch UI: requires opting into the
   expensive integrated GitHub workflow and its validated Qt checkpoints; this
   was intentionally not run after the scope was reduced to one iPhone bootstrap.
-- Physical iPad automated smoke/lifecycle: requires an attached, trusted,
-  unlocked, developer-mode iPad on an authorized macOS/Xcode host, a development
-  signing team/profile, and permission to install/launch the test bundle.
-- Physical iPad manual journey: same device/signing prerequisites plus a human
+- Physical iPad automated smoke/lifecycle: the macOS executor is unavailable;
+  Fedora can capture and validate logs after a complete Full Client IPA has been
+  signed and installed manually through Sideloadly.
+- Physical iPad manual journey: requires that IPA, a trusted/unlocked iPad, and a human
   observer; Split View/Stage Manager, external-input, Dynamic Type, VoiceOver,
   camera/microphone, thermal, and background-suspension observations are
   device-only.
