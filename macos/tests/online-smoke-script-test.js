@@ -69,12 +69,14 @@ function createRun() {
                     type: "Model",
                     visible: true,
                     position: { x: 1, y: 2, z: 3 },
-                    dimensions: { x: 1, y: 1, z: 1 }
+                    dimensions: { x: 1, y: 0.25, z: 3 },
+                    rotation: { x: 0, y: 0, z: 0, w: 1 }
                 };
             }
         },
         MyAvatar: { position: { x: 10, y: 20, z: 30 } },
         Camera: { mode: "first person", position: { x: 10, y: 20, z: 30 } },
+        Vec3: { multiplyQbyV(_rotation, vector) { return vector; } },
         Quat: { lookAt() { return { x: 0, y: 0, z: 0, w: 1 }; } },
         print() {}
     };

@@ -52,7 +52,7 @@
             return false;
         }
         var properties = Entities.getEntityProperties(entityID, [
-            "type", "visible", "position", "dimensions"
+            "type", "visible", "position", "dimensions", "rotation"
         ]);
         if (String(properties.type) !== "Model" || properties.visible === false) {
             return false;
@@ -60,22 +60,28 @@
         var position = plainVector(properties.position);
         var dimensions = plainVector(properties.dimensions);
         var distance = Math.max(6, dimensions.x * 2, dimensions.y * 2, dimensions.z * 2);
+        var smallestAxis = dimensions.x <= dimensions.y && dimensions.x <= dimensions.z ?
+            { x: 1, y: 0, z: 0 } : dimensions.y <= dimensions.z ?
+            { x: 0, y: 1, z: 0 } : { x: 0, y: 0, z: 1 };
+        var viewDirection = Vec3.multiplyQbyV(properties.rotation, smallestAxis);
         var target = {
             x: position.x,
             y: position.y + dimensions.y * 0.15,
             z: position.z
         };
         var cameraPosition = {
-            x: target.x,
-            y: target.y,
-            z: target.z + distance
+            x: target.x + finiteNumber(viewDirection.x) * distance,
+            y: target.y + finiteNumber(viewDirection.y) * distance,
+            z: target.z + finiteNumber(viewDirection.z) * distance
         };
+        var cameraUp = Math.abs(finiteNumber(viewDirection.y)) > 0.9 ?
+            { x: 1, y: 0, z: 0 } : { x: 0, y: 1, z: 0 };
         Camera.mode = "independent";
         Camera.position = cameraPosition;
-        Camera.orientation = Quat.lookAt(cameraPosition, target, { x: 0, y: 1, z: 0 });
+        Camera.orientation = Quat.lookAt(cameraPosition, target, cameraUp);
         representativeCameraFramed = true;
         print("OVERTE_MACOS_SMOKE representative_camera=" + entityID +
-            " distance=" + distance);
+            " distance=" + distance + " smallest_axis=" + JSON.stringify(smallestAxis));
         return true;
     }
 

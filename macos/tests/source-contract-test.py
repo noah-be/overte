@@ -1359,6 +1359,7 @@ for online_timing_contract in (
     "latestInventory.visible_model_count > 0",
     "Entities.isLoaded(entityID)",
     "Entities.isLoaded(selectedModelID)",
+    "Vec3.multiplyQbyV(properties.rotation, smallestAxis)",
     "Test.getPresentCount()",
     "saveEntityInventory(latestInventory)",
     "snapshotSettleDeadline = Date.now() + 300000",
