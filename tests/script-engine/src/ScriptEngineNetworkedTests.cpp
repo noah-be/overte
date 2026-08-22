@@ -172,6 +172,24 @@ void ScriptEngineNetworkedTests::testEntityApiMethodDiscovery() {
     QCOMPARE(printed, QString("function,function,function"));
 }
 
+void ScriptEngineNetworkedTests::testEntityApiInvocation() {
+    auto sm = makeManager(
+        "var properties = Entities.getEntityProperties("
+        "    '{00000000-0000-0000-0000-000000000000}', ['type']);"
+        "print(typeof properties);"
+        "Script.stop(true);", "testEntityApiInvocation.js");
+    QString printed;
+
+    connect(sm.get(), &ScriptManager::printedMessage, [&printed](const QString& message, const QString& engineName) {
+        printed = message;
+    });
+
+    sm->run();
+
+    QVERIFY(!sm->getUncaughtException());
+    QCOMPARE(printed, QString("object"));
+}
+
 void ScriptEngineNetworkedTests::testRequire() {
     auto sm = makeManager(
         "print(\"Starting\");"

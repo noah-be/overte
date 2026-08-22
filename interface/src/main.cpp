@@ -70,7 +70,11 @@ static void logIOSStaticQmlPluginGate() {
         << " qtquick_controls2=" << pluginClasses.contains(QStringLiteral("QtQuickControls2Plugin"))
         << " qtquick_templates2=" << pluginClasses.contains(QStringLiteral("QtQuickTemplates2Plugin"))
         << " qtquick_layouts=" << pluginClasses.contains(QStringLiteral("QtQuickLayoutsPlugin"))
-        << " qtqml_models=" << pluginClasses.contains(QStringLiteral("QtQmlModelsPlugin"));
+        << " qtqml_models=" << pluginClasses.contains(QStringLiteral("QtQmlModelsPlugin"))
+        << " qt5compat_graphical_effects="
+        << pluginClasses.contains(QStringLiteral("QtGraphicalEffectsPlugin"))
+        << " qt5compat_graphical_effects_private="
+        << pluginClasses.contains(QStringLiteral("QtGraphicalEffectsPrivatePlugin"));
 }
 #endif
 

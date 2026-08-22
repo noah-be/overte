@@ -18,6 +18,13 @@ SCRIPT_TEST = ROOT / "tests/script-engine/src/ScriptEngineTests.cpp"
 NETWORKED_TEST = ROOT / "tests/script-engine/src/ScriptEngineNetworkedTests.cpp"
 WIZARD_LOADER = ROOT / "interface/resources/serverless/Scripts/wizardLoader.js"
 WIZARD_QML = ROOT / "interface/resources/serverless/Scripts/Wizard.qml"
+KEYBOARD_QML = ROOT / "interface/resources/qml/controlsUit/Keyboard.qml"
+WEB3D_SURFACE_QML = ROOT / "interface/resources/qml/+android_interface/Web3DSurface.qml"
+MOBILE_DESKTOP_QML = ROOT / "interface/resources/qml/hifi/+android_interface/Desktop.qml"
+TABLET_QUERY_DIALOG_QML = ROOT / "interface/resources/qml/dialogs/TabletQueryDialog.qml"
+SCROLLING_WINDOW_QML = ROOT / "interface/resources/qml/windows/ScrollingWindow.qml"
+WINDOWS_QML = ROOT / "interface/resources/qml/windows"
+QT_IOS_SOURCE_BUILD = ROOT / "ios/tools/build-qt-ios-from-source.sh"
 
 
 def test_name_lookup_maps_do_not_retain_qhash_value_pointers() -> None:
@@ -35,12 +42,21 @@ def test_name_lookup_maps_do_not_retain_qhash_value_pointers() -> None:
         assert insertion in source
 
 
-def test_qt6_invocation_uses_the_formal_moc_parameter_name() -> None:
+def test_qt6_invocation_retains_the_formal_moc_parameter_name() -> None:
     source = PROXY_SOURCE.read_text(encoding="utf-8")
 
-    assert "const char* argumentTypeName = meta.parameterTypeName(arg);" in source
-    assert "QGenericArgument(argumentTypeName, const_cast<void*>(converted.constData()))" in source
+    assert "QVector< QVector<QByteArray> > qArgTypeNameVectors;" in source
+    assert "qArgTypeNameVectors[i].resize(numArgs);" in source
+    assert "QByteArray& argumentTypeName = qArgTypeNameVectors[i][arg];" in source
+    assert "argumentTypeName = meta.parameterTypeName(arg);" in source
+    assert "argumentTypeName.constData()" in source
+    assert "const char* argumentTypeName = meta.parameterTypeName(arg);" not in source
     assert "qVarArgLists[i].emplace_back();" in source
+    assert "invokeWithGenericArguments" in source
+    assert "QGenericArgument(arguments[0])" in source
+    assert "QGenericReturnArgument(meta.typeName(), &result)" in source
+    assert "Q_RETURN_ARG(ScriptValue, result)" not in source
+    assert "meta.invoke(qobject" not in source
 
 
 def test_device_logs_expose_script_api_readiness() -> None:
@@ -71,8 +87,32 @@ def test_static_qml_plugins_are_imported_and_reported_on_ios() -> None:
         "QtQuickTemplates2Plugin",
         "QtQuickLayoutsPlugin",
         "QtQmlModelsPlugin",
+        "QtGraphicalEffectsPlugin",
+        "QtGraphicalEffectsPrivatePlugin",
     ):
         assert plugin in main
+
+
+def test_device_observed_startup_qml_is_ported_to_qt6() -> None:
+    qt_source_build = QT_IOS_SOURCE_BUILD.read_text(encoding="utf-8")
+    keyboard = KEYBOARD_QML.read_text(encoding="utf-8")
+    web3d_surface = WEB3D_SURFACE_QML.read_text(encoding="utf-8")
+    mobile_desktop = MOBILE_DESKTOP_QML.read_text(encoding="utf-8")
+    tablet_query_dialog = TABLET_QUERY_DIALOG_QML.read_text(encoding="utf-8")
+    scrolling_window = SCROLLING_WINDOW_QML.read_text(encoding="utf-8")
+
+    assert "qt5compat" in qt_source_build
+    assert "import QtGraphicalEffects" not in keyboard
+    assert "import Qt5Compat.GraphicalEffects" not in keyboard
+    assert "import Qt5Compat.GraphicalEffects" in scrolling_window
+    for path in WINDOWS_QML.glob("*.qml"):
+        assert "import QtGraphicalEffects" not in path.read_text(encoding="utf-8")
+    assert 'property string scriptUrl: ""' in web3d_surface
+    assert "property string scriptUrl: null" not in web3d_surface
+    assert "import QtQuick.Controls 2.3" in mobile_desktop
+    assert "import QtQuick.Controls 1.4" not in mobile_desktop
+    assert "import QtQuick.Dialogs as OriginalDialogs" in tablet_query_dialog
+    assert "import QtQuick.Dialogs 1.2" not in tablet_query_dialog
 
 
 def test_runtime_regressions_cover_the_observed_ipad_failures() -> None:
@@ -83,6 +123,8 @@ def test_runtime_regressions_cover_the_observed_ipad_failures() -> None:
     assert "Quat.fromVec3Degrees({ x: -58, y: 0, z: 0 })" in script_test
     assert "testEntityApiMethodDiscovery" in networked_test
     assert "typeof Entities.getEntityProperties" in networked_test
+    assert "testEntityApiInvocation" in networked_test
+    assert "Entities.getEntityProperties(" in networked_test
 
     wizard_loader = WIZARD_LOADER.read_text(encoding="utf-8")
     wizard_qml = WIZARD_QML.read_text(encoding="utf-8")
@@ -96,8 +138,9 @@ def test_runtime_regressions_cover_the_observed_ipad_failures() -> None:
 
 if __name__ == "__main__":
     test_name_lookup_maps_do_not_retain_qhash_value_pointers()
-    test_qt6_invocation_uses_the_formal_moc_parameter_name()
+    test_qt6_invocation_retains_the_formal_moc_parameter_name()
     test_device_logs_expose_script_api_readiness()
     test_static_qml_plugins_are_imported_and_reported_on_ios()
+    test_device_observed_startup_qml_is_ported_to_qt6()
     test_runtime_regressions_cover_the_observed_ipad_failures()
     print("iOS Qt 6 script bridge contract checks passed")

@@ -30,6 +30,7 @@ private slots:
     void testScriptRequire();
     void testRequireInfinite();
     void testEntityApiMethodDiscovery();
+    void testEntityApiInvocation();
 
 
 private:
