@@ -640,5 +640,15 @@ set_property(SOURCE ui_console.h PROPERTY SKIP_AUTOMOC ON)
 # the Interface QML tree after every target/link relationship is known and link
 # the generated plugin imports into the application.
 if(IOS AND OVERTE_QT_MAJOR EQUAL 6)
-  qt6_import_qml_plugins(${TARGET_NAME})
+  # Qt's importer uses the keyword target_link_libraries() signature, while
+  # this legacy executable consistently uses the plain signature. Scan and
+  # own the plugin usage requirements on an interface target, then attach that
+  # target to Overte with its existing plain signature.
+  add_library(overte-ios-qml-plugin-imports INTERFACE)
+  set_target_properties(overte-ios-qml-plugin-imports PROPERTIES
+    QT_QML_MODULE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/overte-ios-qml-plugin-imports"
+    QT_QML_MODULE_TARGET_PATH "overte-ios-qml-plugin-imports")
+  target_link_libraries(overte-ios-qml-plugin-imports INTERFACE Qt6::Qml)
+  qt6_import_qml_plugins(overte-ios-qml-plugin-imports)
+  target_link_libraries(${TARGET_NAME} overte-ios-qml-plugin-imports)
 endif()

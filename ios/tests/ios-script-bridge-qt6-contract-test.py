@@ -60,7 +60,10 @@ def test_static_qml_plugins_are_imported_and_reported_on_ios() -> None:
     main = INTERFACE_MAIN.read_text(encoding="utf-8")
 
     assert "if(IOS AND OVERTE_QT_MAJOR EQUAL 6)" in cmake
-    assert "qt6_import_qml_plugins(${TARGET_NAME})" in cmake
+    assert "add_library(overte-ios-qml-plugin-imports INTERFACE)" in cmake
+    assert "qt6_import_qml_plugins(overte-ios-qml-plugin-imports)" in cmake
+    assert "target_link_libraries(${TARGET_NAME} overte-ios-qml-plugin-imports)" in cmake
+    assert "qt6_import_qml_plugins(${TARGET_NAME})" not in cmake
     assert "OVERTE_IOS_QML_PLUGIN_GATE" in main
     for plugin in (
         "QtQuick2Plugin",
