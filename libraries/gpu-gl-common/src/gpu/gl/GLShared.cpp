@@ -245,7 +245,7 @@ void getCurrentGLState(State::Data& state) {
     {
         GLint mask = 0xFFFFFFFF;
         if (glIsEnabled(GL_SAMPLE_MASK)) {
-            glGetIntegerv(GL_SAMPLE_MASK, &mask);
+            glGetIntegeri_v(GL_SAMPLE_MASK_VALUE, 0, &mask);
             state.sampleMask = mask;
         }
         state.sampleMask = mask;
@@ -309,5 +309,4 @@ void clientWait() {
 
 
 using namespace gpu;
-
 

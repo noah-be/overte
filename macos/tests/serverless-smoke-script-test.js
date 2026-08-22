@@ -37,8 +37,6 @@ const window = {
 };
 const context = {
     Date: { now: () => clock.now },
-    Render: { getConfig() { return {}; } },
-    Scene: {},
     Script: script,
     Window: window,
     Test: {
@@ -65,46 +63,38 @@ assert.deepStrictEqual(snapshots, [],
 
 state.importComplete = true;
 script.interval();
-assert.deepStrictEqual(snapshots, ["macos-serverless-warmup.png"]);
-window.handler("/tmp/macos-serverless-warmup.png");
+assert.deepStrictEqual(snapshots, [],
+    "readiness must begin a stable production-frame interval before capture");
 
 clock.now += 5000;
 state.presentCount += 1;
 script.interval();
-assert.strictEqual(snapshots.length, 1,
+assert.strictEqual(snapshots.length, 0,
     "one present must not certify the post-import scene");
 
 state.importComplete = false;
 script.interval();
 assert(output.some((line) => line.includes("fixture_reset_during_cooldown")));
-assert.strictEqual(snapshots.length, 1,
+assert.strictEqual(snapshots.length, 0,
     "an invalidated import must restart the visual warmup");
 
 state.fixtures = false;
 state.importComplete = true;
 script.interval();
-assert.strictEqual(snapshots.length, 1,
+assert.strictEqual(snapshots.length, 0,
     "remembered fixture names must not substitute for current entities");
 
 state.fixtures = true;
 script.interval();
-assert.deepStrictEqual(snapshots, [
-    "macos-serverless-warmup.png",
-    "macos-serverless-warmup.png"
-]);
-window.handler("/tmp/macos-serverless-warmup.png");
+assert.deepStrictEqual(snapshots, []);
 clock.now += 4999;
 state.presentCount += 2;
 script.interval();
-assert.strictEqual(snapshots.length, 2,
+assert.strictEqual(snapshots.length, 0,
     "the final snapshot must retain the complete cooldown");
 clock.now += 1;
 script.interval();
-assert.deepStrictEqual(snapshots, [
-    "macos-serverless-warmup.png",
-    "macos-serverless-warmup.png",
-    "macos-serverless-smoke.png"
-]);
+assert.deepStrictEqual(snapshots, ["macos-serverless-smoke.png"]);
 window.handler("/tmp/macos-serverless-smoke.png");
 assert.strictEqual(script.stopped, true);
 assert(output.some((line) => line.includes("cooldown_complete presents=2")));

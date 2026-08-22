@@ -229,6 +229,9 @@ void GL41FixedAllocationTexture::allocateStorage() const {
                 }
             }
         }
+
+        glTexParameteri(_target, GL_TEXTURE_BASE_LEVEL, 0);
+        glTexParameteri(_target, GL_TEXTURE_MAX_LEVEL, numMips - 1);
     } else {
         const auto dimensions = _gpuObject.getDimensions();
         if (!_gpuObject.isArray()) {
@@ -237,12 +240,14 @@ void GL41FixedAllocationTexture::allocateStorage() const {
             glTexImage3DMultisample(GL_TEXTURE_2D_MULTISAMPLE_ARRAY, numSamples, texelFormat.internalFormat, dimensions.x, dimensions.y, dimensions.z, GL_FALSE);
         }
     }
-
-    glTexParameteri(_target, GL_TEXTURE_BASE_LEVEL, 0);
-    glTexParameteri(_target, GL_TEXTURE_MAX_LEVEL, numMips - 1);
 }
 
 void GL41FixedAllocationTexture::syncSampler(const Sampler& sampler) const {
+    // Multisample texture targets do not accept sampler or mip-level
+    // parameters. Their sampling behavior is fixed by the multisample image.
+    if (_gpuObject.isMultisample()) {
+        return;
+    }
     Parent::syncSampler(sampler);
     glTexParameterf(_target, GL_TEXTURE_MIN_LOD, (float)sampler.getMinMip());
     glTexParameterf(_target, GL_TEXTURE_MAX_LOD, (sampler.getMaxMip() == Sampler::MAX_MIP_LEVEL ? 1000.0f : sampler.getMaxMip()));

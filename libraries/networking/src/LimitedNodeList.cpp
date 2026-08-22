@@ -47,16 +47,6 @@
 
 static Setting::Handle<quint16> LIMITED_NODELIST_LOCAL_PORT("LimitedNodeList.LocalPort", 0);
 
-static quint64 nodeSilenceThresholdMsecs() {
-    bool valid { false };
-    const int testSeconds = qEnvironmentVariableIntValue(
-        "OVERTE_TEST_NETWORK_SILENCE_SECONDS", &valid);
-    if (valid && testSeconds >= 10 && testSeconds <= 3600) {
-        return static_cast<quint64>(testSeconds) * 1000;
-    }
-    return NODE_SILENCE_THRESHOLD_MSECS;
-}
-
 using namespace std::chrono_literals;
 static const std::chrono::milliseconds CONNECTION_RATE_INTERVAL_MS = 1s;
 
@@ -94,7 +84,7 @@ LimitedNodeList::LimitedNodeList(int socketListenPort, int dtlsListenPort) :
 
     QTimer* silentNodeTimer = new QTimer(this);
     connect(silentNodeTimer, &QTimer::timeout, this, &LimitedNodeList::removeSilentNodes);
-    silentNodeTimer->start(nodeSilenceThresholdMsecs());
+    silentNodeTimer->start(NODE_SILENCE_THRESHOLD_MSECS);
 
     const int CONNECTION_STATS_SAMPLE_INTERVAL_MSECS = 1000;
     QTimer* statsSampleTimer = new QTimer(this);
@@ -923,8 +913,7 @@ void LimitedNodeList::removeSilentNodes() {
         node->getMutex().lock();
 
         if (!node->isForcedNeverSilent()
-            && (usecTimestampNow() - node->getLastHeardMicrostamp()) >
-                (nodeSilenceThresholdMsecs() * USECS_PER_MSEC)) {
+            && (usecTimestampNow() - node->getLastHeardMicrostamp()) > (NODE_SILENCE_THRESHOLD_MSECS * USECS_PER_MSEC)) {
             // call the NodeHash erase to get rid of this node
             _localIDMap.unsafe_erase(node->getLocalID());
             it = _nodeHash.unsafe_erase(it);

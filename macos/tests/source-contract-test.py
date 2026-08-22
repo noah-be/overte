@@ -926,7 +926,6 @@ ONLINE_CONTRACT = {
     "entity_server_active": "interface/src/Application.cpp",
     "entity_query_sent": "interface/src/Application_Entities.cpp",
     "entity_data_received": "interface/src/octree/OctreePacketProcessor.cpp",
-    "lightweight_primitive_handoff": "libraries/entities-renderer/src/EntityTreeRenderer.cpp",
 }
 
 for marker, relative in (CONTRACT | ONLINE_CONTRACT).items():
@@ -1004,13 +1003,18 @@ assert "hifi://overte_hub" in online_smoke, "online smoke must target the active
 assert "URL_SCHEME_OVERTE" in online_smoke, "online smoke must document its compatibility scheme"
 assert "overte://overte_hub" not in online_smoke, "unsupported product-name scheme must not silently no-op"
 assert "overte://welcome" not in online_smoke, "the retired welcome place must not be used"
-for source, token in (
-    (online_smoke, "OVERTE_TEST_NETWORK_SILENCE_SECONDS=1200"),
-    (domain_handler_source, "silentDomainCheckinLimit()"),
-    (limited_node_list_source, "nodeSilenceThresholdMsecs()"),
+for forbidden_network_override in (
+    "OVERTE_TEST_NETWORK_SILENCE_SECONDS",
+    "silentDomainCheckinLimit()",
+    "nodeSilenceThresholdMsecs()",
 ):
-    if token not in source:
-        raise SystemExit(f"online software-renderer network grace missing: {token}")
+    if forbidden_network_override in (
+        online_smoke + domain_handler_source + limited_node_list_source
+    ):
+        raise SystemExit(
+            "online smoke must retain production network timeout behavior: "
+            f"{forbidden_network_override}"
+        )
 for inventory_contract in (
     "macos-online-entities.json",
     "validate-online-entities.py",
@@ -1022,7 +1026,7 @@ for inventory_contract in (
 ):
     if inventory_contract not in online_smoke:
         raise SystemExit(f"online smoke must correlate its rendered entity: {inventory_contract}")
-for marker in (set(ONLINE_CONTRACT) - {"lightweight_primitive_handoff"}) | {"render_handoff"}:
+for marker in set(ONLINE_CONTRACT) | {"entity_tree_nonempty", "render_handoff"}:
     if marker not in online_smoke:
         raise SystemExit(f"online smoke runner does not require {marker}")
 transition_smoke = (ROOT / "macos/ci/transition-smoke.sh").read_text(
@@ -1031,18 +1035,23 @@ transition_smoke = (ROOT / "macos/ci/transition-smoke.sh").read_text(
 transition_script = (ROOT / "macos/tests/transition-smoke.js").read_text(
     encoding="utf-8"
 )
-for production_path_forbidden in (
-    "--disableLocalAvatar",
-    "--macosTestDisableEntityScripts",
-    "--macosTestRepresentativeEntities",
-    "--macosTestLightweightEntities",
-    "--defaultScriptsOverride",
+for smoke_name, smoke_source in (
+    ("serverless", smoke),
+    ("online", online_smoke),
+    ("serverless/online transition", transition_smoke),
 ):
-    if production_path_forbidden in online_smoke:
-        raise SystemExit(
-            "online smoke must preserve the production application path: "
-            f"{production_path_forbidden}"
-        )
+    for production_path_forbidden in (
+        "--disableLocalAvatar",
+        "--macosTestDisableEntityScripts",
+        "--macosTestRepresentativeEntities",
+        "--macosTestLightweightEntities",
+        "--defaultScriptsOverride",
+    ):
+        if production_path_forbidden in smoke_source:
+            raise SystemExit(
+                f"{smoke_name} smoke must preserve the production application path: "
+                f"{production_path_forbidden}"
+            )
 for completion_contract in (
     "macos-online-smoke-completion.json",
     "--completion-file",
@@ -1056,93 +1065,20 @@ if "disableEntityScripts" in transition_smoke or "entity_scripts_disabled" in tr
     raise SystemExit(
         "serverless/online transition smoke must retain the production entity-script lifecycle"
     )
-for smoke_name, smoke_source in (("serverless/online transition", transition_smoke),):
-    for lightweight_runner_contract in (
-        "--macosTestLightweightEntities",
-        "lightweight_entity_filter_active",
-    ):
-        if lightweight_runner_contract not in smoke_source:
-            raise SystemExit(
-                f"{smoke_name} smoke must activate the explicit lightweight "
-                f"render mode: {lightweight_runner_contract}"
-            )
-global_properties_header = (
-    ROOT / "libraries/shared/src/shared/GlobalAppProperties.h"
-).read_text(encoding="utf-8")
-global_properties_source = (
-    ROOT / "libraries/shared/src/shared/GlobalAppProperties.cpp"
-).read_text(encoding="utf-8")
-main_source = (ROOT / "interface/src/main.cpp").read_text(encoding="utf-8")
-for lightweight_property_contract in (
+for removed_lightweight_override in (
     "MACOS_TEST_LIGHTWEIGHT_ENTITIES",
-    '"overte.macosTestLightweightEntities"',
+    "macosTestLightweightEntities",
+    "macOSLightweightEntityTestEnabled",
+    "isLightweightMacOSEntityType",
+    "lightweight_entity_filter_active",
+    "lightweight_primitive_handoff",
 ):
-    if lightweight_property_contract not in (
-        global_properties_header + global_properties_source
+    if removed_lightweight_override in (
+        main_source + application_setup_source + entity_renderer_source
     ):
         raise SystemExit(
-            "missing macOS lightweight entity property: "
-            f"{lightweight_property_contract}"
-        )
-if main_source.count('"macosTestLightweightEntities"') != 1:
-    raise SystemExit("macOS lightweight entity test flag must be declared exactly once")
-lightweight_helper = entity_renderer_source.split(
-    "bool macOSLightweightEntityTestEnabled()", 1
-)[1].split("bool isLightweightMacOSEntityType", 1)[0]
-for lightweight_helper_contract in (
-    "property(hifi::properties::TEST).isValid()",
-    "hifi::properties::MACOS_TEST_LIGHTWEIGHT_ENTITIES",
-):
-    if lightweight_helper_contract not in lightweight_helper:
-        raise SystemExit(
-            "macOS lightweight entity helper missing: "
-            f"{lightweight_helper_contract}"
-        )
-
-lightweight_types = entity_renderer_source.split(
-    "bool isLightweightMacOSEntityType", 1
-)[1].split("bool isPrimitiveEntityType", 1)[0]
-for lightweight_type_contract in (
-    "EntityTypes::Box",
-    "EntityTypes::Sphere",
-    "EntityTypes::Shape",
-    "EntityTypes::Zone",
-):
-    if lightweight_type_contract not in lightweight_types:
-        raise SystemExit(
-            "macOS lightweight entity type missing: "
-            f"{lightweight_type_contract}"
-        )
-
-lightweight_filter = entity_renderer_source.split(
-    "const bool lightweightEntityTest = macOSLightweightEntityTestEnabled();", 1
-)[1].split("// Path to the parent transforms", 1)[0]
-for lightweight_filter_contract in (
-    "processedIds.insert(entityID)",
-    "lightweight_entity_filter_active",
-):
-    if lightweight_filter_contract not in lightweight_filter:
-        raise SystemExit(
-            "macOS lightweight entity filter missing: "
-            f"{lightweight_filter_contract}"
-        )
-if entity_renderer_source.index("processedIds.insert(entityID)") > entity_renderer_source.index(
-    "EntityRenderer::addToScene"
-):
-    raise SystemExit("macOS test filter must skip complex entities before scene submission")
-if 'parser.isSet("macosTestLightweightEntities")' not in application_setup_source:
-    raise SystemExit("Interface must transfer the macOS lightweight test flag to the app")
-lightweight_handoff = entity_renderer_source.split(
-    '"OVERTE_MACOS_ENTITY_GATE lightweight_primitive_handoff"', 1
-)[0].rsplit("static bool loggedFirstLightweightPrimitiveHandoff", 1)[1]
-for handoff_contract in (
-    "entity->getEntityHostType() == entity::HostType::DOMAIN",
-    "isPrimitiveEntityType(entity->getType())",
-):
-    if handoff_contract not in lightweight_handoff:
-        raise SystemExit(
-            "macOS lightweight handoff must identify a streamed domain primitive: "
-            f"{handoff_contract}"
+            "test code must not filter the production entity scene: "
+            f"{removed_lightweight_override}"
         )
 
 for smoke_name, smoke_source in (("serverless", smoke), ("online", online_smoke)):
@@ -1165,16 +1101,6 @@ for smoke_name, smoke_source in (("serverless", smoke), ("online", online_smoke)
             raise SystemExit(
                 f"{smoke_name} smoke is missing timeout contract: {timeout_contract}"
             )
-for serverless_isolation_contract in (
-    "--disableLocalAvatar",
-    '--defaultScriptsOverride "file://$default_scripts_override"',
-):
-    if serverless_isolation_contract not in smoke:
-        raise SystemExit(
-            "serverless fixture isolation is missing: "
-            f"{serverless_isolation_contract}"
-        )
-
 runtime_supervisor = (
     ROOT / "macos/tools/run-process-with-timeout.py"
 ).read_text(encoding="utf-8")
@@ -1199,7 +1125,7 @@ for crash_report_location in (
     if crash_report_location not in runtime_supervisor:
         raise SystemExit(f"runtime crash-report search missing: {crash_report_location}")
 for smoke_name, smoke_source, maximum, cleanup_contract in (
-    ("serverless", smoke, 720, 'rm -f "$snapshot" "$warmup_snapshot" "$screenshot_result"'),
+    ("serverless", smoke, 720, 'rm -f "$snapshot" "$screenshot_result"'),
     ("online", online_smoke, 1200, 'rm -f "$snapshot" "$screenshot_result"'),
 ):
     default_timeout = re.search(
@@ -1243,17 +1169,9 @@ for inventory_contract in (
     if inventory_contract not in online_script:
         raise SystemExit(f"online smoke script lacks entity inventory: {inventory_contract}")
 for render_contract in (
-    "Render.renderMethod = 1",
-    "Render.shadowsEnabled = false",
-    "Render.ambientOcclusionEnabled = false",
-    "Render.antialiasingMode = 0",
-    "Render.viewportResolutionScale = 1.0",
-    'Render.getConfig("RenderMainView.PreparePrimaryBufferForward").numSamples = 1',
-    "Scene.shouldRenderAvatars = false",
     "Script.stop()",
     "macos-serverless-smoke.png",
-    "warmup_snapshot=",
-    'snapshotStage = "final"',
+    'snapshotStage = "capturing"',
     "Test.isServerlessSceneImportComplete()",
     "Test.getPresentCount() >= cooldownPresentCount + 2",
     "fixture_reset_during_cooldown",
@@ -1262,10 +1180,22 @@ for render_contract in (
         raise SystemExit(
             f"serverless smoke lacks deterministic fixture contract: {render_contract}"
         )
-if serverless_script.index("Render.renderMethod = 1") > serverless_script.index(
-    "Window.takeSnapshot"
+for forbidden_serverless_mutation in (
+    "Render.renderMethod",
+    "Render.shadowsEnabled",
+    "Scene.shouldRenderAvatars",
+    "Scene.shouldRenderEntities",
+    "Camera.mode =",
+    "Camera.position =",
+    "Camera.orientation =",
+    "Entities.addEntity",
+    "Entities.deleteEntity",
 ):
-    raise SystemExit("serverless smoke must configure its fixture before capture")
+    if forbidden_serverless_mutation in serverless_script:
+        raise SystemExit(
+            "serverless smoke must not mutate the production render path: "
+            f"{forbidden_serverless_mutation}"
+        )
 
 for observational_contract in (
     "Script.stop()",
@@ -1344,23 +1274,37 @@ if 'finish(true, "snapshot_settle_elapsed")' in online_script:
 
 for transition_geometry_contract in (
     "visibleGeometryCount",
-    "state.visibleGeometryCount > 0",
     '" visible_geometry="',
     "Date.now() + 420000",
-    "onlineSnapshotSettleDeadline = Date.now() + 150000",
-    "online_snapshot_callback_deferred",
-    "returnToServerless",
-    "resetFixtureView",
-    "MyAvatar.position = { x: 0, y: 1.6, z: 0 }",
-    'Camera.mode = "first person"',
-    "initial_warmup_snapshot",
-    "final_warmup_snapshot",
+    "state.loadedVisibleModelCount > 0",
+    "Test.isTextureLoadingComplete()",
+    "resourcesIdle()",
+    "stableFrameReady()",
+    "Test.getPresentCount()",
     "Date.now() + 5000",
 ):
     if transition_geometry_contract not in transition_script:
         raise SystemExit(
             "transition smoke must wait for visible online geometry: "
             f"{transition_geometry_contract}"
+        )
+for forbidden_transition_mutation in (
+    "Render.renderMethod",
+    "Render.shadowsEnabled",
+    "Scene.shouldRenderAvatars",
+    "Scene.shouldRenderEntities",
+    "Camera.mode =",
+    "Camera.position =",
+    "Camera.orientation =",
+    "MyAvatar.position =",
+    "MyAvatar.orientation =",
+    "Entities.addEntity",
+    "Entities.deleteEntity",
+):
+    if forbidden_transition_mutation in transition_script:
+        raise SystemExit(
+            "transition smoke must not mutate the production render path: "
+            f"{forbidden_transition_mutation}"
         )
 if "fixture_entities=3" not in serverless_script:
     raise SystemExit("serverless smoke must identify the exact three fixture entities")
@@ -1838,7 +1782,6 @@ for transition_contract in (
     "AddressManager.handleLookupString(localScene)",
     "state.fixtureCount === 0",
     'AddressManager.protocol === "file"',
-    "online_rendering_paused",
     "initial_fixture_entities=3",
     "online_entities=",
     "returned_fixture_entities=3",
@@ -1846,10 +1789,6 @@ for transition_contract in (
 ):
     if transition_contract not in transition_script:
         raise SystemExit(f"macOS transition script missing: {transition_contract}")
-if "!AddressManager.isConnected" in transition_script:
-    raise SystemExit(
-        "serverless transition must remain connected and use its file protocol as the mode gate"
-    )
 returning_serverless_gate = transition_script.split(
     'stage === "returning_serverless"', 1
 )[1].split(") {", 1)[0]
@@ -1862,14 +1801,6 @@ for transition_contract in (
         raise SystemExit(
             f"returning serverless gate missing: {transition_contract}"
         )
-if transition_script.index("Scene.shouldRenderEntities = false") > transition_script.index(
-    "AddressManager.handleLookupString(localScene)"
-):
-    raise SystemExit("online entity frames must pause before returning to serverless")
-if transition_script.index("Scene.shouldRenderEntities = true") > transition_script.index(
-    'Window.takeSnapshot(false, false, 16 / 9, "macos-transition-final.png")'
-):
-    raise SystemExit("serverless entities must resume before the final render proof")
 
 process_domain_list = node_list_source.split("void NodeList::processDomainList", 1)[1].split(
     "void NodeList::", 1
@@ -2128,9 +2059,6 @@ for contract in (
 ):
     if contract not in avatar_manager_source:
         raise SystemExit(f"missing AvatarManager local-avatar gate: {contract}")
-if "serverless smoke submitted an unexpected skinned model draw" not in smoke:
-    raise SystemExit("serverless smoke must reject local-avatar DQ model draws")
-
 application_ui_source = (ROOT / "interface/src/Application_UI.cpp").read_text(
     encoding="utf-8"
 )
@@ -2233,6 +2161,61 @@ for lit_shader in (
         raise SystemExit(
             f"GLSL 4.1 cluster storage fix must preserve local lighting: {lit_shader.name}"
         )
+for backend_name, relative, fixed_type, parameter_call, multisample_call in (
+    (
+        "GL41",
+        "libraries/gpu-gl/src/gpu/gl41/GL41BackendTexture.cpp",
+        "GL41FixedAllocationTexture",
+        "glTexParameteri",
+        "glTexImage2DMultisample(",
+    ),
+    (
+        "GL45",
+        "libraries/gpu-gl/src/gpu/gl45/GL45BackendTexture.cpp",
+        "GL45FixedAllocationTexture",
+        "glTextureParameteri",
+        "glTextureStorage2DMultisample(",
+    ),
+    (
+        "GLES",
+        "libraries/gpu-gl/src/gpu/gles/GLESBackendTexture.cpp",
+        "GLESFixedAllocationTexture",
+        "glTexParameteri",
+        "glTexStorage2DMultisample(",
+    ),
+):
+    backend_texture = (ROOT / relative).read_text(encoding="utf-8")
+    allocation = backend_texture.split(
+        f"void {fixed_type}::allocateStorage() const", 1
+    )[1].split(f"void {fixed_type}::syncSampler", 1)[0]
+    texture_argument = "_id" if backend_name == "GL45" else "_target"
+    for mip_parameter in ("GL_TEXTURE_BASE_LEVEL", "GL_TEXTURE_MAX_LEVEL"):
+        parameter_token = f"{parameter_call}({texture_argument}, {mip_parameter}"
+        if (
+            "if (!_gpuObject.isMultisample())" not in allocation
+            or allocation.index(parameter_token) > allocation.index(multisample_call)
+        ):
+            raise SystemExit(
+                f"{backend_name} must not set {mip_parameter} on multisample textures"
+            )
+    sampler_sync = backend_texture.split(
+        f"void {fixed_type}::syncSampler", 1
+    )[1].split("// Renderbuffer attachment textures", 1)[0]
+    if (
+        "if (_gpuObject.isMultisample())" not in sampler_sync
+        or sampler_sync.index("if (_gpuObject.isMultisample())")
+        > sampler_sync.index("Parent::syncSampler(sampler)")
+    ):
+        raise SystemExit(
+            f"{backend_name} must skip sampler parameters for multisample textures"
+        )
+gl_shared = (
+    ROOT / "libraries/gpu-gl-common/src/gpu/gl/GLShared.cpp"
+).read_text(encoding="utf-8")
+if "glGetIntegeri_v(GL_SAMPLE_MASK_VALUE, 0, &mask)" not in gl_shared:
+    raise SystemExit("GL state sync must query the indexed sample-mask value")
+if "glGetIntegerv(GL_SAMPLE_MASK, &mask)" in gl_shared:
+    raise SystemExit("GL state sync must not query a capability enum as integer state")
 gl_backend_output = (
     ROOT / "libraries/gpu-gl-common/src/gpu/gl/GLBackendOutput.cpp"
 ).read_text(encoding="utf-8")

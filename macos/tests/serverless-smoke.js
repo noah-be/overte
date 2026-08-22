@@ -4,27 +4,9 @@
 (function () {
     "use strict";
 
-    // Keep the visual gate deterministic and tractable on GitHub's Intel
-    // runner, which exposes Apple's software OpenGL renderer.
-    // The local avatar is suppressed before scene submission. Keep the normal
-    // desktop forward path at native resolution so this smoke also covers the
-    // final color/resampling path without a test-only downscale.
-    Render.renderMethod = 1;
-    Render.shadowsEnabled = false;
-    Render.hazeEnabled = false;
-    Render.bloomEnabled = false;
-    Render.ambientOcclusionEnabled = false;
-    Render.localLightingEnabled = false;
-    Render.proceduralMaterialsEnabled = false;
-    Render.antialiasingMode = 0;
-    Render.viewportResolutionScale = 1.0;
-    Render.getConfig("RenderMainView.PreparePrimaryBufferForward").numSamples = 1;
-    Scene.shouldRenderAvatars = false;
-
-    // The GitHub Intel runner exposes Apple's software OpenGL renderer.  Its
-    // first scene frame can spend several minutes compiling the complete
-    // shader set before the queued snapshot reaches the present thread.
-    var deadline = Date.now() + 180000;
+    // Observe the production render path. The test supplies only a known URL;
+    // it does not change the camera, avatar, scene visibility, or renderer.
+    var deadline = Date.now() + 340000;
     var loggedNames = {
         "macOS smoke red cube": false,
         "macOS smoke cyan sphere": false,
@@ -49,12 +31,7 @@
             finish(false, "snapshot_save_failed");
             return;
         }
-        if (snapshotStage === "warmup") {
-            snapshotStage = "cooldown";
-            cooldownStartedAt = Date.now();
-            cooldownPresentCount = Test.getPresentCount();
-            print("OVERTE_MACOS_SMOKE warmup_snapshot=" + path);
-        } else if (snapshotStage === "final") {
+        if (snapshotStage === "capturing") {
             finish(true, "snapshot=" + path);
         }
     });
@@ -86,9 +63,10 @@
         });
         var importComplete = Test.isServerlessSceneImportComplete();
         if (fixtureComplete && importComplete && snapshotStage === "waiting") {
-            snapshotStage = "warmup";
+            snapshotStage = "cooldown";
+            cooldownStartedAt = Date.now();
+            cooldownPresentCount = Test.getPresentCount();
             print("OVERTE_MACOS_SMOKE fixture_entities=3");
-            Window.takeSnapshot(false, false, 16 / 9, "macos-serverless-warmup.png");
         } else if (snapshotStage === "cooldown" && (!fixtureComplete || !importComplete)) {
             snapshotStage = "waiting";
             cooldownStartedAt = 0;
@@ -96,7 +74,7 @@
         } else if (snapshotStage === "cooldown" && importComplete &&
                 Date.now() - cooldownStartedAt >= 5000 &&
                 Test.getPresentCount() >= cooldownPresentCount + 2) {
-            snapshotStage = "final";
+            snapshotStage = "capturing";
             print("OVERTE_MACOS_SMOKE cooldown_complete presents=" +
                 (Test.getPresentCount() - cooldownPresentCount));
             Window.takeSnapshot(false, false, 16 / 9, "macos-serverless-smoke.png");

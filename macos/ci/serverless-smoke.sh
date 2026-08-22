@@ -10,7 +10,6 @@ readonly output_dir="${2:-$source_root/build/macos-smoke}"
 readonly executable="$app/Contents/MacOS/Overte"
 readonly scene="$source_root/macos/tests/fixtures/serverless-render.json"
 readonly test_script="$source_root/macos/tests/serverless-smoke.js"
-readonly default_scripts_override="$source_root/macos/tests/fixtures/no-default-scripts.js"
 readonly log="$output_dir/serverless.log"
 readonly process_result="$output_dir/serverless-process.json"
 readonly process_sample="$output_dir/serverless.sample.txt"
@@ -18,7 +17,6 @@ readonly crash_report="$output_dir/serverless.crash.ips"
 readonly lldb_log="$output_dir/serverless-lldb.log"
 readonly lldb_result="$output_dir/serverless-lldb-process.json"
 readonly snapshot="$output_dir/macos-serverless-smoke.png"
-readonly warmup_snapshot="$output_dir/macos-serverless-warmup.png"
 readonly screenshot_result="$output_dir/serverless-screenshot.json"
 readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-360}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
@@ -29,14 +27,11 @@ export OVERTE_MACOS_GL_DIAGNOSTICS=1
 [[ "$(uname -s)" == Darwin ]] || { echo "serverless smoke requires macOS" >&2; exit 1; }
 [[ -x "$executable" ]] || { echo "missing executable: $executable" >&2; exit 1; }
 [[ -f "$scene" ]] || { echo "missing scene fixture: $scene" >&2; exit 1; }
-[[ -f "$default_scripts_override" ]] || { echo "missing default script override: $default_scripts_override" >&2; exit 1; }
 mkdir -p "$output_dir"
-rm -f "$snapshot" "$warmup_snapshot" "$screenshot_result"
+rm -f "$snapshot" "$screenshot_result"
 
 readonly -a app_command=(
     "$executable" --allowMultipleInstances --no-login-suggestion --disableWatchdog --display Desktop
-    --disableLocalAvatar
-    --defaultScriptsOverride "file://$default_scripts_override"
     --url "file://$scene" --testScript "$test_script"
     --testResultsLocation "$output_dir" --quitWhenFinished
 )
@@ -69,16 +64,6 @@ for marker in serverless_import_committed entity_tree_nonempty render_handoff; d
         exit 1
     }
 done
-for marker in local_avatar_skipped local_avatar_scene_submission_skipped; do
-    grep -Fq "OVERTE_MACOS_RENDER_PHASE $marker" "$log" || {
-        echo "missing local-avatar isolation gate: $marker" >&2
-        exit 1
-    }
-done
-if grep -Eq 'OVERTE_MACOS_GL_DRAW begin.*model_.*deformeddq' "$log"; then
-    echo "serverless smoke submitted an unexpected skinned model draw" >&2
-    exit 1
-fi
 grep -Fq "OVERTE_MACOS_SMOKE passed" "$log" || {
     echo "serverless smoke script did not pass" >&2
     exit 1

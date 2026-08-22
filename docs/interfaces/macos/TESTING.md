@@ -21,46 +21,29 @@ macos/ci/serverless-smoke.sh build/interface/Overte.app build/macos-smoke
 macos/ci/online-smoke.sh build/interface/Overte.app build/macos-online-smoke
 ```
 
-The serverless gate requires a populated entity tree and render handoff from the
-deterministic three-entity fixture. It validates a 1380x776-or-larger PNG,
-non-black content, opacity and contrast, red/cyan pixel populations, and their
-expected left/right placement. The fixture names alone are not readiness:
-the import must be committed, all three entities must still exist after the
-warm-up capture, and at least two new display presents plus a five-second
-cooldown must complete before the acceptance image is requested. The online
-domain refresh timer is stopped before a serverless import starts so a delayed
-lookup retry cannot clear or re-import the scene while it is being validated.
-The online gate additionally requires directory,
-entity-server, query, receive, and render progress before accepting a non-empty
-image. Immediately before capture it writes the complete nearby entity
-inventory. A domain-hosted Box, Sphere, or Shape render-handoff UUID must occur
-in that inventory, and the same inventory must contain at least one visible
-primitive. The correlated protocol, tree, primitive-render, inventory, and
-image gates prevent local helper entities or entity scripts from substituting
-for an entity streamed by the domain's entity server. A passing process exit
-without every marker and the correlated inventory is not acceptance. The
-script writes its controlled-completion sentinel only after Qt reports a
-nonempty saved-snapshot path. A still-pending or failed callback never becomes
-success evidence; the outer 600-second supervisor instead captures a macOS
-thread sample before terminating the renderer, and the shell fails closed.
+The serverless gate opens a deterministic three-entity URL through the normal
+application path. It does not override render preferences, camera state,
+avatar visibility, default scripts, or scene visibility. The fixture names
+alone are not readiness: the import must be committed, all three entities must
+remain present, and at least two new display presents plus a five-second stable
+interval must complete before the single evidence image is requested. The PNG
+check proves that both colored fixture entities reached the normal final frame.
 
-The hosted Intel runner exposes Apple's software OpenGL renderer. Compiling the
-public Hub's complete model and text pipeline can take many minutes per shader,
-even while the runner remains CPU-active. The smoke runner therefore passes the
-explicit `--macosTestLightweightEntities` option together with its test script.
-Only in that combination, scene submission is limited to Zones and primitive
-Box, Sphere, and Shape entities. Network decoding, the complete entity tree,
-and inventory remain active. The online smoke additionally opts out of client
-entity-script engines before `EntityTreeRenderer` initializes: arbitrary public
-scripts can create unrelated local models which bypass the streamed-entity
-filter and monopolize the hosted software shader compiler. The local avatar and
-default client scripts are also suppressed; complex Web entities remain in the
-inventory but never instantiate their WebEngine surface in this mode. Normal
-application launches and the serverless-to-online transition test never enable
-the entity-script isolation and retain the production lifecycle. Consequently,
-this virtual-runner gate proves online connectivity, entity streaming,
-primitive scene submission, and visible OpenGL output; it does not replace
-full-scene model/Web/entity-script validation on a physical Mac.
+The online gate likewise leaves the complete production scene untouched. It
+requires directory, entity-server, query, receive, entity-tree, and render
+progress, at least one loaded visible model, idle resource queues, completed texture loads,
+a stable interval, and a newer presented frame. Immediately before capture it
+writes the complete nearby entity inventory. The script writes its controlled
+completion sentinel only after Qt reports a nonempty saved-snapshot path. A
+pending or failed callback never becomes success evidence; the outer supervisor
+captures a macOS thread sample on a timeout and the shell fails closed.
+
+The hosted Intel runner exposes Apple's software OpenGL renderer, but the smoke
+tests do not compensate by filtering entities or lowering graphics settings.
+Slow or failed full-scene rendering is treated as an application defect. The
+same rule applies to the optional serverless-online-serverless transition: it
+navigates between known URLs while retaining production scripts, avatar,
+camera, entity scene, materials, and renderer preferences.
 
 ## Performance and stability
 
@@ -218,8 +201,8 @@ profile screenshot could contain only the sky; a hermetic image with that
 failure mode is now rejected by the regression suite.
 
 Online connectivity acceptance remains separate from loading performance. The
-loading benchmark intentionally does **not** enable the lightweight entity
-filter. Its [navigation telemetry contract](ONLINE_LOADING_TELEMETRY.md)
+loading benchmark also exercises the complete production entity scene without
+a test-only entity filter. Its [navigation telemetry contract](ONLINE_LOADING_TELEMETRY.md)
 defines the sanitized event state machine used by the analyzer. It runs cold
 and immediately repeated warm processes against the same
 isolated resource cache and can compare the desktop default with 16 concurrent

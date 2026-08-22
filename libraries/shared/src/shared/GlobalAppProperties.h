@@ -19,7 +19,6 @@ namespace hifi { namespace properties {
     extern const char* STANDALONE;
     extern const char* TEST;
     extern const char* DISABLE_LOCAL_AVATAR;
-    extern const char* MACOS_TEST_LIGHTWEIGHT_ENTITIES;
     extern const char* TRACING;
     extern const char* HMD;
     extern const char* APP_LOCAL_DATA_PATH;

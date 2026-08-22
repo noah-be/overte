@@ -29,7 +29,6 @@ readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15
 readonly lldb_timeout_seconds="${OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-90}"
 
 export OVERTE_MACOS_GL_DIAGNOSTICS=1
-export OVERTE_TEST_NETWORK_SILENCE_SECONDS=1200
 
 [[ "$(uname -s)" == Darwin ]] || { echo "online smoke requires macOS" >&2; exit 1; }
 [[ -x "$executable" ]] || { echo "missing executable: $executable" >&2; exit 1; }
@@ -68,7 +67,7 @@ fi
 [[ $status -eq 0 ]] || { echo "Overte supervisor exited with status $status" >&2; exit "$status"; }
 python3 "$source_root/macos/tools/validate-online-smoke-completion.py" \
     "$completion" "$process_result" --result "$completion_validation"
-for marker in domain_list_connected entity_server_active entity_query_sent entity_data_received render_handoff; do
+for marker in domain_list_connected entity_server_active entity_query_sent entity_data_received entity_tree_nonempty render_handoff; do
     grep -Fq "OVERTE_MACOS_ENTITY_GATE $marker" "$log" || {
         echo "missing online runtime gate: $marker" >&2
         exit 1

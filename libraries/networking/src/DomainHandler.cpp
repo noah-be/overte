@@ -668,16 +668,6 @@ void DomainHandler::processDomainServerConnectionDeniedPacket(QSharedPointer<Rec
 
 static const int SILENT_DOMAIN_TRAFFIC_DROP_MIN = 2;
 
-static int silentDomainCheckinLimit() {
-    bool valid { false };
-    const int testSeconds = qEnvironmentVariableIntValue(
-        "OVERTE_TEST_NETWORK_SILENCE_SECONDS", &valid);
-    if (valid && testSeconds >= 10 && testSeconds <= 3600) {
-        return testSeconds;
-    }
-    return MAX_SILENT_DOMAIN_SERVER_CHECK_INS;
-}
-
 bool DomainHandler::checkInPacketTimeout() {
     ++_checkInPacketsSinceLastReply;
 
@@ -687,17 +677,14 @@ bool DomainHandler::checkInPacketTimeout() {
 
     auto nodeList = DependencyManager::get<NodeList>();
 
-    const int checkinLimit = silentDomainCheckinLimit();
-    const int trafficDropLimit = checkinLimit == MAX_SILENT_DOMAIN_SERVER_CHECK_INS
-        ? SILENT_DOMAIN_TRAFFIC_DROP_MIN : checkinLimit;
-    if (_checkInPacketsSinceLastReply > trafficDropLimit) {
+    if (_checkInPacketsSinceLastReply > SILENT_DOMAIN_TRAFFIC_DROP_MIN) {
         qCDebug(networking_ice) << _checkInPacketsSinceLastReply << "seconds since last domain list request, squelching traffic";
         nodeList->setDropOutgoingNodeTraffic(true);
     }
 
-    if (_checkInPacketsSinceLastReply > checkinLimit) {
+    if (_checkInPacketsSinceLastReply > MAX_SILENT_DOMAIN_SERVER_CHECK_INS) {
 
-        // We have not heard back before the active production or test limit.
+        // we haven't heard back from DS in MAX_SILENT_DOMAIN_SERVER_CHECK_INS
         // so emit our signal that says that
 
 #ifdef DEBUG_EVENT_QUEUE

@@ -345,6 +345,9 @@ void GL45FixedAllocationTexture::allocateStorage() const {
         } else {
             glTextureStorage3D(_id, mips, texelFormat.internalFormat, dimensions.x, dimensions.y, numSlices);
         }
+
+        glTextureParameteri(_id, GL_TEXTURE_BASE_LEVEL, 0);
+        glTextureParameteri(_id, GL_TEXTURE_MAX_LEVEL, mips - 1);
     } else {
         if (!_gpuObject.isArray()) {
             glTextureStorage2DMultisample(_id, numSamples, texelFormat.internalFormat, dimensions.x, dimensions.y, GL_FALSE);
@@ -353,12 +356,14 @@ void GL45FixedAllocationTexture::allocateStorage() const {
             glTextureStorage3DMultisample(_id, numSamples, texelFormat.internalFormat, dimensions.x, dimensions.y, numSlices, GL_FALSE);
         }
     }
-
-    glTextureParameteri(_id, GL_TEXTURE_BASE_LEVEL, 0);
-    glTextureParameteri(_id, GL_TEXTURE_MAX_LEVEL, mips - 1);
 }
 
 void GL45FixedAllocationTexture::syncSampler(const Sampler& sampler) const {
+    // Multisample texture targets do not accept sampler or mip-level
+    // parameters. Their sampling behavior is fixed by the multisample image.
+    if (_gpuObject.isMultisample()) {
+        return;
+    }
     Parent::syncSampler(sampler);
     glTextureParameterf(_id, GL_TEXTURE_MIN_LOD, (float)sampler.getMinMip());
     glTextureParameterf(_id, GL_TEXTURE_MAX_LOD, (sampler.getMaxMip() == Sampler::MAX_MIP_LEVEL ? 1000.f : sampler.getMaxMip()));
