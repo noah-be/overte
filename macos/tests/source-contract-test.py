@@ -1066,6 +1066,7 @@ if "--macosTestLightweightEntities" in online_smoke:
 for representative_contract in (
     "--macosTestRepresentativeEntities",
     "representative_entity_filter_active",
+    "diagnostic_light=",
 ):
     if representative_contract not in online_smoke:
         raise SystemExit(

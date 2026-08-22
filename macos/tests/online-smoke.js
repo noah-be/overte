@@ -36,6 +36,29 @@
     var snapshotPath = "";
     var latestInventory = null;
     var completed = false;
+    var diagnosticLightID = null;
+
+    function ensureDiagnosticLight() {
+        if (diagnosticLightID) {
+            return;
+        }
+        var avatarPosition = MyAvatar.position;
+        diagnosticLightID = Entities.addEntity({
+            type: "Light",
+            name: "macOS online smoke camera light",
+            position: {
+                x: finiteNumber(avatarPosition.x),
+                y: finiteNumber(avatarPosition.y) + 3,
+                z: finiteNumber(avatarPosition.z)
+            },
+            dimensions: { x: 80, y: 80, z: 80 },
+            color: { red: 255, green: 245, blue: 230 },
+            intensity: 12,
+            falloffRadius: 20,
+            isSpotlight: false
+        }, "local");
+        print("OVERTE_MACOS_SMOKE diagnostic_light=" + diagnosticLightID);
+    }
 
     function finiteNumber(value) {
         value = Number(value);
@@ -145,6 +168,10 @@
                 script_success: true
             }, "macos-online-smoke-completion.json");
         }
+        if (diagnosticLightID) {
+            Entities.deleteEntity(diagnosticLightID);
+            diagnosticLightID = null;
+        }
         Script.stop();
     }
 
@@ -169,6 +196,7 @@
         var resources = queueState();
         if (snapshotStage === "waiting" && latestInventory.visible_model_count > 0) {
             if (visibleGeometryReadyAt === 0) {
+                ensureDiagnosticLight();
                 // Apple's virtualized software renderer can present primitive
                 // frames before spending several minutes inside the first
                 // real model draw. Delay the present gate until that measured

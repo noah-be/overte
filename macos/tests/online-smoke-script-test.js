@@ -56,6 +56,11 @@ function createRun() {
         Window: windowObject,
         Entities: {
             findEntities() { return ["primitive"]; },
+            addEntity(properties, hostType) {
+                operations.push("add:" + properties.name + ":" + hostType);
+                return "diagnostic-light";
+            },
+            deleteEntity(id) { operations.push("delete:" + id); },
             isLoaded() { return true; },
             getEntityProperties() {
                 return {
@@ -66,7 +71,7 @@ function createRun() {
                 };
             }
         },
-        MyAvatar: { position: {} },
+        MyAvatar: { position: { x: 10, y: 20, z: 30 } },
         print() {}
     };
     vm.runInNewContext(source, context, { filename: scriptPath });
@@ -86,6 +91,7 @@ function createRun() {
 {
     const run = createRun();
     run.requestSnapshot();
+    assert(run.operations.includes("add:macOS online smoke camera light:local"));
     run.windowObject.snapshotHandler("/tmp/macos-online-smoke.png");
     const completion = run.saved.find((entry) =>
         entry.name === "macos-online-smoke-completion.json");

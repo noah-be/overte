@@ -92,6 +92,10 @@ grep -Fq "OVERTE_MACOS_RENDER_PHASE representative_entity_filter_active" "$log" 
     echo "representative online entity filter was not active" >&2
     exit 1
 }
+grep -Fq "OVERTE_MACOS_SMOKE diagnostic_light=" "$log" || {
+    echo "online deterministic camera light was not created" >&2
+    exit 1
+}
 grep -Fq "OVERTE_MACOS_SMOKE passed" "$log" || {
     echo "online smoke script did not pass" >&2
     exit 1
