@@ -51,7 +51,10 @@
 
 const int INVALID_PORT = -1;
 
-const quint64 NODE_SILENCE_THRESHOLD_MSECS = 10 * 1000;
+// A client can spend tens of seconds in a single renderer or script callback
+// on constrained hardware.  Domain nodes must survive long enough for queued
+// packet handling and the first entity query to run after such a stall.
+const quint64 NODE_SILENCE_THRESHOLD_MSECS = 120 * 1000;
 
 static const size_t DEFAULT_MAX_CONNECTION_RATE { std::numeric_limits<size_t>::max() };
 
