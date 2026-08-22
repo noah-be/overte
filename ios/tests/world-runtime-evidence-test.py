@@ -142,6 +142,17 @@ def online_log(domain: str = DOMAIN) -> str:
     ) + "\n"
 
 
+def serverless_trace_log() -> str:
+    return "\n".join(
+        (
+            "Overte OVERTE_IOS_WORLD_GATE navigation_requested kind= serverless destination= serverless_tutorial",
+            "Overte OVERTE_IOS_ENTITY_TRACE stage=cpu_cull sample= 3 mode= trace detail= 0 input= 75 output= 21 skip= false expected= 40 scene= 169 drawn= 10",
+            "Overte OVERTE_IOS_ENTITY_TRACE stage=gpu_draw target=1 sample=1 mode=trace batch=DrawForward::run format=present clip_finite=1",
+            "Overte OVERTE_IOS_ENTITY_TRACE stage=camera sample= 180 mode= trace expected= 40 renderables= 1 scene= 169 drawn= 10 camera= 1983.85 1994.92 1993.73 direction= 0.93882 0 0.344408 avatar= 1985.26 1994.25 1994.25 near= 0.08 far= 16384",
+        )
+    ) + "\n"
+
+
 with tempfile.TemporaryDirectory(prefix="overte-ios-world-evidence-test-") as directory:
     root = Path(directory)
     screenshot = root / "world.png"
@@ -216,6 +227,40 @@ with tempfile.TemporaryDirectory(prefix="overte-ios-world-evidence-test-") as di
         root / "serverless-early-viewpoint.json",
     )
     assert early_viewpoint.returncode == 0, early_viewpoint.stderr
+
+    trace_log = root / "serverless-trace.log"
+    trace_log.write_text(serverless_trace_log(), encoding="utf-8")
+    trace_result_path = root / "serverless-trace-runtime.json"
+    trace_result = run_runtime(
+        trace_log,
+        screenshot,
+        serverless_screenshot_report,
+        "serverless",
+        "serverless_tutorial",
+        trace_result_path,
+    )
+    assert trace_result.returncode == 0, trace_result.stderr
+    trace_payload = json.loads(trace_result_path.read_text(encoding="utf-8"))
+    assert trace_payload["runtime"]["evidenceMode"] == "committed-render-trace"
+    assert len(trace_payload["runtime"]["evidence"]) == 3
+
+    origin_trace = root / "serverless-origin-trace.log"
+    origin_trace.write_text(
+        serverless_trace_log().replace(
+            "camera= 1983.85 1994.92 1993.73 direction= 0.93882 0 0.344408 avatar= 1985.26 1994.25 1994.25",
+            "camera= 0 0 0 direction= 0.93882 0 0.344408 avatar= 0 0 0",
+        ),
+        encoding="utf-8",
+    )
+    rejected_origin = run_runtime(
+        origin_trace,
+        screenshot,
+        serverless_screenshot_report,
+        "serverless",
+        "serverless_tutorial",
+        root / "serverless-origin-trace.json",
+    )
+    assert rejected_origin.returncode == 1, rejected_origin.stderr
 
     for label, content in (
         ("wrong-scene", serverless_log("different_scene")),

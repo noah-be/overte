@@ -103,6 +103,16 @@ ONLINE_LOG = "\n".join(
         "Overte OVERTE_IOS_VULKAN_PRESENT output_ready=1 source=1206x2334 target=1206x2334",
     )
 ) + "\n"
+SERVERLESS_TRACE_LOG = LOG_STREAM_FILTER_BANNER + "\n".join(
+    (
+        "Overte OVERTE_IOS_WORLD_GATE navigation_requested kind= serverless destination= serverless_tutorial",
+        "Overte OVERTE_IOS_ENTITY_TRACE stage=cpu_cull sample= 3 mode= trace detail= 0 input= 75 output= 21 skip= false expected= 40 scene= 169 drawn= 10",
+        "Overte OVERTE_IOS_ENTITY_TRACE stage=gpu_draw target=1 sample=1 mode=trace batch=DrawForward::run format=present clip_finite=1",
+        "Overte OVERTE_IOS_ENTITY_TRACE stage=camera sample= 180 mode= trace expected= 40 renderables= 1 scene= 169 drawn= 10 camera= 1983.85 1994.92 1993.73 direction= 0.93882 0 0.344408 avatar= 1985.26 1994.25 1994.25 near= 0.08 far= 16384",
+        "Overte OVERTE_IOS_VULKAN_DRAW batch=Resample::run stage=draw_pass_complete",
+        "Overte OVERTE_IOS_VULKAN_DRAW batch=CompositeHUD stage=draw_pass_complete",
+    )
+) + "\n"
 
 
 def invoke(
@@ -523,6 +533,26 @@ printf '%s\n' "${FAKE_HOST_METAL_LOG:-synthetic host Metal postmortem}"
         )
     )
     assert retained_runtime["runtime"]["accepted"] is True
+
+    trace_fallback_output = root / "serverless-trace-fallback"
+    trace_fallback = invoke(
+        app,
+        trace_fallback_output,
+        {**environment, "FAKE_PROCESS_LOG": SERVERLESS_TRACE_LOG},
+        "ipad",
+        "serverless",
+        "-",
+    )
+    assert trace_fallback.returncode == 0, (
+        trace_fallback.stdout,
+        trace_fallback.stderr,
+    )
+    trace_runtime = json.loads(
+        (trace_fallback_output / "ipad-serverless-runtime.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert trace_runtime["runtime"]["evidenceMode"] == "committed-render-trace"
 
     wrong_domain_output = root / "wrong-domain"
     wrong_domain = invoke(

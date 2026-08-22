@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import math
 from pathlib import Path
 import re
 import sys
@@ -23,6 +24,10 @@ UUID = re.compile(
 )
 WORLD_FIELD = re.compile(r"\b(kind|destination|scene|success)=\s*([^\s]+)")
 ENTITY_FIELD = re.compile(r"\b(domain|entity)=\s*([^\s]+)")
+TRACE_FIELD = re.compile(
+    r"\b(expected|renderables|scene|drawn|output|target|format|clip_finite)=\s*([^\s]+)"
+)
+FLOAT = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
 
 
 def load_entity_validator():
@@ -57,7 +62,9 @@ def require_navigation(lines: list[str], scenario: str, destination: str) -> int
     return index
 
 
-def validate_serverless(lines: list[str], navigation_index: int, destination: str) -> dict[str, object]:
+def validate_serverless_gates(
+    lines: list[str], navigation_index: int, destination: str
+) -> dict[str, object]:
     def find_after(prefix: str, expected_name: str, cursor: int) -> tuple[int, dict[str, str]]:
         for index in range(cursor, len(lines)):
             parsed = marker(lines[index], prefix)
@@ -121,6 +128,110 @@ def validate_serverless(lines: list[str], navigation_index: int, destination: st
     ]
     evidence.sort(key=lambda item: int(item["line"]))
     return {"accepted": True, "evidence": evidence}
+
+
+def trace_marker(line: str) -> tuple[str, dict[str, str]] | None:
+    match = re.search(r"\bOVERTE_IOS_ENTITY_TRACE\s+stage=([a-z_]+)", line)
+    if match is None:
+        return None
+    return match.group(1), dict(TRACE_FIELD.findall(line))
+
+
+def positive(fields: dict[str, str], *names: str) -> bool:
+    try:
+        return all(int(fields[name]) > 0 for name in names)
+    except (KeyError, ValueError):
+        return False
+
+
+def vector(line: str, name: str) -> tuple[float, float, float] | None:
+    match = re.search(rf"\b{re.escape(name)}=\s*({FLOAT})\s+({FLOAT})\s+({FLOAT})(?:\s|$)", line)
+    if match is None:
+        return None
+    values = tuple(float(value) for value in match.groups())
+    return values if all(math.isfinite(value) for value in values) else None
+
+
+def validate_serverless_trace(lines: list[str], navigation_index: int) -> dict[str, object]:
+    """Accept repeated committed render traces when Apple drops early one-shot gates."""
+    cpu = gpu = camera = None
+    for index in range(navigation_index + 1, len(lines)):
+        parsed = trace_marker(lines[index])
+        if parsed is None:
+            continue
+        stage, fields = parsed
+        if (
+            cpu is None
+            and stage == "cpu_cull"
+            and positive(fields, "expected", "scene", "drawn", "output")
+        ):
+            cpu = (index, fields)
+        elif (
+            gpu is None
+            and stage == "gpu_draw"
+            and fields.get("target") == "1"
+            and fields.get("format") == "present"
+            and fields.get("clip_finite") == "1"
+        ):
+            gpu = (index, fields)
+        elif (
+            camera is None
+            and stage == "camera"
+            and positive(fields, "expected", "renderables", "scene", "drawn")
+        ):
+            camera_position = vector(lines[index], "camera")
+            avatar_position = vector(lines[index], "avatar")
+            direction = vector(lines[index], "direction")
+            if camera_position is None or avatar_position is None or direction is None:
+                continue
+            # The bundled tutorial is authored near (2000, 2000, 2000).  Both
+            # positions must therefore be well clear of the former physics
+            # reset at the origin, close to one another, and have a real view
+            # direction.  This binds the fallback to the fixed viewpoint path.
+            separation = math.dist(camera_position, avatar_position)
+            if (
+                max(abs(value) for value in camera_position) <= 100.0
+                or max(abs(value) for value in avatar_position) <= 100.0
+                or separation >= 100.0
+                or math.sqrt(sum(value * value for value in direction)) < 0.5
+            ):
+                continue
+            camera = (index, fields)
+
+    if cpu is None:
+        raise ValueError("missing committed serverless CPU render trace")
+    if gpu is None:
+        raise ValueError("missing finite serverless world GPU draw trace")
+    if camera is None:
+        raise ValueError("missing stable serverless viewpoint trace")
+
+    evidence = [
+        {"gate": "serverless_trace_committed", "line": cpu[0] + 1, "fields": cpu[1]},
+        {"gate": "serverless_trace_world_draw", "line": gpu[0] + 1, "fields": gpu[1]},
+        {"gate": "serverless_trace_viewpoint", "line": camera[0] + 1, "fields": camera[1]},
+    ]
+    evidence.sort(key=lambda item: int(item["line"]))
+    return {"accepted": True, "evidenceMode": "committed-render-trace", "evidence": evidence}
+
+
+def validate_serverless(lines: list[str], navigation_index: int, destination: str) -> dict[str, object]:
+    # Explicit contradictory gates are never masked by fallback diagnostics.
+    for line in lines[navigation_index + 1 :]:
+        parsed = marker(line, WORLD_PREFIX)
+        if parsed and parsed[0] == "serverless_import_committed":
+            if parsed[1].get("scene") != destination:
+                raise ValueError("serverless import committed a different scene")
+        if parsed and parsed[0] == "serverless_viewpoint_applied":
+            if parsed[1] != {"success": "1"}:
+                raise ValueError("serverless root viewpoint was not applied")
+
+    try:
+        return validate_serverless_gates(lines, navigation_index, destination)
+    except ValueError as gate_error:
+        try:
+            return validate_serverless_trace(lines, navigation_index)
+        except ValueError as trace_error:
+            raise gate_error from trace_error
 
 
 def validate_online(

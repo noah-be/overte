@@ -695,6 +695,7 @@ world_progress_summary() {
     if [[ "$scenario" == serverless ]]; then
         runtime_log_contains 'OVERTE_IOS_WORLD_GATE[[:space:]]+serverless_import_committed' && observed+=(import)
         runtime_log_contains 'OVERTE_IOS_WORLD_GATE[[:space:]]+serverless_viewpoint_applied[[:space:]]+success=[[:space:]]+1' && observed+=(viewpoint)
+        serverless_trace_evidence_ready && observed+=(trace)
     else
         runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+domain_list_connected' && observed+=(domain)
         runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_server_active' && observed+=(server)
@@ -736,6 +737,22 @@ renderer_output_observed() {
         runtime_log_contains 'OVERTE_IOS_VULKAN_DRAW[[:space:]]+batch=Resample::run[[:space:]]+stage=draw_pass_complete' &&
             runtime_log_contains 'OVERTE_IOS_VULKAN_DRAW[[:space:]]+batch=CompositeHUD[[:space:]]+stage=draw_pass_complete'
     }
+}
+
+serverless_trace_evidence_ready() {
+    # Apple unified logging can drop a short interval of one-shot messages even
+    # while the surrounding stream remains connected. These later, repeatedly
+    # sampled traces are emitted only after serverless evidence is committed.
+    # Together they prove decoded entities reached CPU culling, a finite world
+    # draw reached the GPU, and the authored camera/avatar state survived.
+    runtime_log_contains 'OVERTE_IOS_ENTITY_TRACE[[:space:]]+stage=cpu_cull.*output=[[:space:]]*[1-9][0-9]*.*expected=[[:space:]]*[1-9][0-9]*.*scene=[[:space:]]*[1-9][0-9]*.*drawn=[[:space:]]*[1-9][0-9]*' &&
+        runtime_log_contains 'OVERTE_IOS_ENTITY_TRACE[[:space:]]+stage=gpu_draw[[:space:]]+target=1.*format=present.*clip_finite=1' &&
+        runtime_log_contains 'OVERTE_IOS_ENTITY_TRACE[[:space:]]+stage=camera.*expected=[[:space:]]*[1-9][0-9]*.*renderables=[[:space:]]*[1-9][0-9]*.*scene=[[:space:]]*[1-9][0-9]*.*drawn=[[:space:]]*[1-9][0-9]*'
+}
+
+serverless_handoff_observed() {
+    runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' ||
+        serverless_trace_evidence_ready
 }
 
 report_missing_world_gates() {
@@ -790,7 +807,7 @@ retain_acceptance_markers() {
     for source in "$raw_log" "$app_stdout" "$app_stderr" "$log_snapshot" \
             "$camera_state_log" "$camera_file_log"; do
         [[ -s "$source" ]] || continue
-        sed -nE 's/^.*(OVERTE_IOS_((WORLD|ENTITY)_GATE|CAMERA_DIAGNOSTIC)[[:space:]]+.*)$/\1/p' \
+        sed -nE 's/^.*(OVERTE_IOS_((WORLD|ENTITY)_GATE|CAMERA_DIAGNOSTIC|ENTITY_TRACE)[[:space:]]+.*)$/\1/p' \
             "$source" >> "$marker_log"
     done
     awk '!seen[$0]++' "$marker_log" > "$marker_log.next"
@@ -1171,10 +1188,14 @@ while :; do
             renderer_output_observed && ready=1
     elif runtime_log_contains 'OVERTE_IOS_WORLD_GATE[[:space:]]+navigation_requested'; then
         if [[ "$scenario" == serverless ]]; then
-            runtime_log_contains 'OVERTE_IOS_WORLD_GATE[[:space:]]+serverless_import_committed' && \
-            runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_tree_nonempty' && \
-            runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' && \
-            runtime_log_contains 'OVERTE_IOS_WORLD_GATE[[:space:]]+serverless_viewpoint_applied[[:space:]]+success=[[:space:]]+1' && ready=1
+            if runtime_log_contains 'OVERTE_IOS_WORLD_GATE[[:space:]]+serverless_import_committed' && \
+                    runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_tree_nonempty' && \
+                    runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' && \
+                    runtime_log_contains 'OVERTE_IOS_WORLD_GATE[[:space:]]+serverless_viewpoint_applied[[:space:]]+success=[[:space:]]+1'; then
+                ready=1
+            elif serverless_trace_evidence_ready; then
+                ready=1
+            fi
         else
             runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+domain_list_connected' && \
             runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+entity_server_active' && \
@@ -1249,7 +1270,8 @@ if [[ "$capture_only" == 0 ]]; then
     next_live_update="$framebuffer_wait_started"
     live_log "phase=framebuffer-wait"
     while :; do
-        if runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff' && \
+        if { [[ "$scenario" != serverless ]] || serverless_handoff_observed; } && \
+                { [[ "$scenario" != online ]] || runtime_log_contains 'OVERTE_IOS_ENTITY_GATE[[:space:]]+render_handoff'; } && \
                 renderer_output_observed; then
             if ((10#$stack_sample_delay > 0)) && ((!startup_stack_captured)); then
                 capture_startup_stack
