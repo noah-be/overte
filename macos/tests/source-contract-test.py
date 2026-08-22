@@ -1147,6 +1147,27 @@ for smoke_name, smoke_source, maximum, cleanup_contract in (
 
 serverless_script = (ROOT / "macos/tests/serverless-smoke.js").read_text(encoding="utf-8")
 online_script = (ROOT / "macos/tests/online-smoke.js").read_text(encoding="utf-8")
+address_manager = (
+    ROOT / "libraries/networking/src/AddressManager.cpp"
+).read_text(encoding="utf-8")
+address_manager_header = (
+    ROOT / "libraries/networking/src/AddressManager.h"
+).read_text(encoding="utf-8")
+for place_lookup_retry_contract in (
+    "QNetworkReply::RemoteHostClosedError",
+    "QNetworkReply::TimeoutError",
+    "API_LOOKUP_MAX_RETRIES = 3",
+    "QTimer::singleShot",
+    "_activePlaceLookup == placeName",
+    "attemptPlaceNameLookup(placeName, overridePath, trigger, nextRetryCount)",
+):
+    if place_lookup_retry_contract not in address_manager:
+        raise SystemExit(
+            "macOS production place lookup must recover from transient network errors: "
+            f"{place_lookup_retry_contract}"
+        )
+if "int retryCount = 0" not in address_manager_header:
+    raise SystemExit("macOS production place lookup retry must remain bounded per request")
 subprocess.run(
     [
         "node",

@@ -21,6 +21,7 @@
 #include <QRegularExpression>
 #include <QStringList>
 #include <QThread>
+#include <QTimer>
 
 #include <BuildInfo.h>
 #include <GLMHelpers.h>
@@ -37,6 +38,13 @@
 const QString REDIRECT_HIFI_ADDRESS = NetworkingConstants::REDIRECT_HIFI_ADDRESS;
 const QString ADDRESS_MANAGER_SETTINGS_GROUP = "AddressManager";
 const QString SETTINGS_CURRENT_ADDRESS_KEY = "address";
+
+namespace {
+const char API_LOOKUP_PLACE_NAME_KEY[] = "api_lookup_place_name";
+const char API_LOOKUP_RETRY_COUNT_KEY[] = "api_lookup_retry_count";
+constexpr int API_LOOKUP_MAX_RETRIES = 3;
+constexpr int API_LOOKUP_RETRY_DELAY_MS = 1000;
+}
 
 const QString DEFAULT_OVERTE_ADDRESS = (!BuildInfo::PRELOADED_STARTUP_LOCATION.isEmpty())
                                        ? BuildInfo::PRELOADED_STARTUP_LOCATION
@@ -248,6 +256,10 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
 
     QUrl lookupUrl = lookupUrlIn;
 
+    // Any explicit navigation supersedes a delayed retry from an earlier
+    // directory-services place lookup.
+    _activePlaceLookup.clear();
+
     if (!lookupUrl.host().isEmpty() && !lookupUrl.path().isEmpty()) {
         // Assignment clients ping for empty url until assigned. Don't spam.
         qCDebug(networking) << "Trying to go to URL" << lookupUrl.toString();
@@ -457,6 +469,8 @@ const QString DATA_OBJECT_DOMAIN_KEY = "domain";
 
 
 void AddressManager::handleAPIResponse(QNetworkReply* requestReply) {
+    _activePlaceLookup.clear();
+
     QJsonObject responseObject = QJsonDocument::fromJson(requestReply->readAll()).object();
     QJsonObject dataObject = responseObject["data"].toObject();
 
@@ -625,7 +639,40 @@ void AddressManager::goToAddressFromObject(const QVariantMap& dataObject, const 
 void AddressManager::handleAPIError(QNetworkReply* errorReply) {
     qCDebug(networking) << "AddressManager API error -" << errorReply->error() << "-" << errorReply->errorString();
 
-    if (errorReply->error() == QNetworkReply::ContentNotFoundError) {
+    const auto error = errorReply->error();
+    const QString placeName = errorReply->property(API_LOOKUP_PLACE_NAME_KEY).toString();
+    const int retryCount = errorReply->property(API_LOOKUP_RETRY_COUNT_KEY).toInt();
+    const bool transientPlaceLookupError = !placeName.isEmpty() &&
+        (error == QNetworkReply::RemoteHostClosedError ||
+         error == QNetworkReply::TimeoutError ||
+         error == QNetworkReply::TemporaryNetworkFailureError ||
+         error == QNetworkReply::NetworkSessionFailedError);
+
+    if (transientPlaceLookupError && retryCount < API_LOOKUP_MAX_RETRIES &&
+            _activePlaceLookup == placeName) {
+        const QString overridePath = errorReply->property(OVERRIDE_PATH_KEY).toString();
+        const auto trigger = static_cast<LookupTrigger>(
+            errorReply->property(LOOKUP_TRIGGER_KEY).toInt());
+        const int nextRetryCount = retryCount + 1;
+        const int retryDelay = API_LOOKUP_RETRY_DELAY_MS << retryCount;
+
+        qCWarning(networking) << "Retrying transient place lookup for" << placeName
+                              << "in" << retryDelay << "ms, retry" << nextRetryCount
+                              << "of" << API_LOOKUP_MAX_RETRIES;
+        QTimer::singleShot(retryDelay, this,
+            [this, placeName, overridePath, trigger, nextRetryCount] {
+                if (_activePlaceLookup == placeName) {
+                    attemptPlaceNameLookup(placeName, overridePath, trigger, nextRetryCount);
+                }
+            });
+        return;
+    }
+
+    if (_activePlaceLookup == placeName) {
+        _activePlaceLookup.clear();
+    }
+
+    if (error == QNetworkReply::ContentNotFoundError) {
         // if this is a lookup that has no result, don't keep re-trying it
         _previousAPILookup.clear();
 
@@ -635,9 +682,14 @@ void AddressManager::handleAPIError(QNetworkReply* errorReply) {
     emit lookupResultsFinished();
 }
 
-void AddressManager::attemptPlaceNameLookup(const QString& lookupString, const QString& overridePath, LookupTrigger trigger) {
+void AddressManager::attemptPlaceNameLookup(const QString& lookupString, const QString& overridePath,
+                                            LookupTrigger trigger, int retryCount) {
     // assume this is a place name and see if we can get any info on it
     QVariantMap requestParams;
+
+    _activePlaceLookup = lookupString;
+    requestParams.insert(API_LOOKUP_PLACE_NAME_KEY, lookupString);
+    requestParams.insert(API_LOOKUP_RETRY_COUNT_KEY, retryCount);
 
     // if the user asked for a specific path with this lookup then keep it with the request so we can use it later
     if (!overridePath.isEmpty()) {
