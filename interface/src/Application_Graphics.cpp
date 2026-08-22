@@ -365,8 +365,8 @@ void Application::initializeUi() {
 
 #if !defined(DISABLE_QML)
     offscreenUi->setProxyWindow(_window->windowHandle());
-#if defined(ANDROID_APP_PHONE_INTERFACE)
-    // The phone desktop is composited full-screen at its native logical size;
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
+    // The mobile desktop is composited full-screen at its native logical size;
     // its mip chain is never sampled and only adds memory and update work.
     offscreenUi->setGenerateMips(false);
 #endif

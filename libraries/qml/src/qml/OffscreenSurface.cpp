@@ -11,6 +11,11 @@
 #include <unordered_map>
 
 #include <QtCore/QThread>
+#if defined(Q_OS_IOS)
+#include <QtCore/QDir>
+#include <QtCore/QFileInfo>
+#include <QtCore/QStandardPaths>
+#endif
 #include <QtQml/QtQml>
 #include <QtQml/QQmlEngine>
 #include <QtQml/QQmlComponent>
@@ -22,6 +27,9 @@
 #include <GLMHelpers.h>
 
 #include <shared/ReadWriteLockable.h>
+#if defined(Q_OS_IOS)
+#include <shared/IOSRuntimeLogging.h>
+#endif
 #include <NetworkingConstants.h>
 #include <MetaverseAPI.h>
 
@@ -58,6 +66,48 @@ static uvec2 clampSize(const uvec2& size, uint32_t maxDimension) {
 static QSize clampSize(const QSize& qsize, uint32_t maxDimension) {
     return fromGlm(clampSize(toGlm(qsize), maxDimension));
 }
+
+#if defined(Q_OS_IOS)
+static QUrl resolveIOSQmlOverride(const QUrl& source) {
+    if (source.scheme() != URL_SCHEME_QRC) {
+        return source;
+    }
+
+    QDir overrideRoot(QDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation))
+        .filePath(QStringLiteral("OverteQmlOverrides")));
+    const QFileInfo enableFile(overrideRoot.filePath(QStringLiteral(".enabled")));
+    if (!overrideRoot.exists() || !enableFile.isFile() || enableFile.isSymLink()) {
+        return source;
+    }
+
+    QString relativePath = source.path();
+    while (relativePath.startsWith(QLatin1Char('/'))) {
+        relativePath.remove(0, 1);
+    }
+    const QFileInfo candidate(overrideRoot.filePath(relativePath));
+    if (!candidate.isFile() || candidate.isSymLink()) {
+        return source;
+    }
+
+    const QString canonicalRoot = QFileInfo(overrideRoot.absolutePath()).canonicalFilePath();
+    const QString canonicalCandidate = candidate.canonicalFilePath();
+    if (canonicalRoot.isEmpty() || canonicalCandidate.isEmpty() ||
+            !canonicalCandidate.startsWith(canonicalRoot + QDir::separator())) {
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_QML_OVERRIDE_GATE stage=rejected",
+            "requested=", source,
+            "candidate=", candidate.absoluteFilePath());
+        return source;
+    }
+
+    const QUrl resolved = QUrl::fromLocalFile(canonicalCandidate);
+    logIOSRuntimeMarker(
+        "OVERTE_IOS_QML_OVERRIDE_GATE stage=active",
+        "requested=", source,
+        "resolved=", resolved);
+    return resolved;
+}
+#endif
 
 const QmlContextObjectCallback OffscreenSurface::DEFAULT_CONTEXT_OBJECT_CALLBACK = [](QQmlContext*, QQuickItem*) {};
 const QmlContextCallback OffscreenSurface::DEFAULT_CONTEXT_CALLBACK = [](QQmlContext*) {};
@@ -371,9 +421,15 @@ void OffscreenSurface::loadInternal(const QUrl& qmlSource,
     }
 
     QUrl finalQmlSource = qmlSource;
-    if ((qmlSource.isRelative() && !qmlSource.isEmpty()) || qmlSource.scheme() == QLatin1String("file")) {
-        finalQmlSource = getSurfaceContext()->resolvedUrl(qmlSource);
+    if ((finalQmlSource.isRelative() && !finalQmlSource.isEmpty()) || finalQmlSource.scheme() == QLatin1String("file")) {
+        finalQmlSource = getSurfaceContext()->resolvedUrl(finalQmlSource);
     }
+#if defined(Q_OS_IOS)
+    // Resolve relative application resources first so both qrc:/... callers
+    // and paths such as hifi/tablet/TabletHome.qml can use the same reviewed
+    // Documents override tree.
+    finalQmlSource = resolveIOSQmlOverride(finalQmlSource);
+#endif
 
     if (!getRootItem()) {
         _sharedObject->setObjectName(finalQmlSource.toString());

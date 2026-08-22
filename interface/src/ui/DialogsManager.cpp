@@ -63,7 +63,7 @@ void DialogsManager::maybeCreateDialog(QPointer<T>& member) {
 }
 
 void DialogsManager::showAddressBar() {
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
     AddressBarDialog::show();
     setAddressBarVisible(true);
     return;
@@ -84,7 +84,7 @@ void DialogsManager::showAddressBar() {
 }
 
 void DialogsManager::hideAddressBar() {
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
     AddressBarDialog::hide();
     qApp->setKeyboardFocusEntity(UNKNOWN_ENTITY_ID);
     setAddressBarVisible(false);
@@ -170,7 +170,7 @@ void DialogsManager::showLoginDialog() {
 }
 
 void DialogsManager::hideLoginDialog() {
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
     LoginDialog::hidePhoneDialog();
 #else
     LoginDialog::hide();
@@ -184,7 +184,7 @@ void DialogsManager::showDomainLoginDialog(const QString& domain) {
 }
 
 bool DialogsManager::closePhoneDialog() {
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
     auto offscreenUi = DependencyManager::get<OffscreenUi>();
     if (offscreenUi && offscreenUi->isVisible("LoginDialog")) {
         QGuiApplication::inputMethod()->hide();
@@ -206,7 +206,7 @@ bool DialogsManager::closePhoneDialog() {
 }
 
 bool phone::closeTopmostDialog() {
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
     auto dialogs = DependencyManager::get<DialogsManager>();
     return dialogs && dialogs->closePhoneDialog();
 #else

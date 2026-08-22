@@ -9,7 +9,19 @@ HEADER = (ROOT / "interface/src/IOSTouchUiMetrics.h").read_text()
 SOURCE = (ROOT / "interface/src/IOSTouchUiMetrics.mm").read_text()
 PROFILE = (ROOT / "interface/resources/qml/controlsUit/+ios/TouchUiProfile.qml").read_text()
 GRAPHICS = (ROOT / "interface/src/Application_Graphics.cpp").read_text()
+APPLICATION_UI = (ROOT / "interface/src/Application_UI.cpp").read_text()
 SELECTORS = (ROOT / "libraries/shared/src/shared/FileUtils.cpp").read_text()
+TABLET_HEADER = (ROOT / "libraries/ui/src/ui/TabletScriptingInterface.h").read_text()
+TABLET_SOURCE = (ROOT / "libraries/ui/src/ui/TabletScriptingInterface.cpp").read_text()
+LOGIN_HEADER = (ROOT / "interface/src/ui/LoginDialog.h").read_text()
+LOGIN_SOURCE = (ROOT / "interface/src/ui/LoginDialog.cpp").read_text()
+DIALOGS = (ROOT / "interface/src/ui/DialogsManager.cpp").read_text()
+BUTTON = (ROOT / "interface/resources/qml/controlsUit/Button.qml").read_text()
+DESKTOP = (ROOT / "interface/resources/qml/desktop/Desktop.qml").read_text()
+WRAPPED_MENU = (ROOT / "interface/resources/qml/controls/WrappedMenu.qml").read_text()
+VR_MENU = (ROOT / "libraries/ui/src/VrMenu.cpp").read_text()
+IOS_STATS = (ROOT / "interface/resources/qml/+ios/Stats.qml").read_text()
+PHONE_LOGIN = (ROOT / "interface/resources/qml/LoginDialog/+android_phoneInterface/LinkAccountBody.qml").read_text()
 
 for metric in (
     "safeInsetLeft", "safeInsetTop", "safeInsetRight", "safeInsetBottom",
@@ -37,5 +49,51 @@ assert 'qmlRegisterSingletonType<IOSTouchUiMetrics>' in SOURCE
 assert "registerIOSTouchUiMetricsQmlType();" in GRAPHICS
 assert 'extraSelectors << "ios" << "mobile" << "touch"' in SELECTORS
 assert "android_phoneInterface" in SELECTORS
+assert 'import ".." as SharedControls' in PROFILE
+assert "SharedControls.TouchUiProfileBase" in PROFILE
 
-print("iOS touch UI adapter contract valid: live UIKit geometry and centralized capabilities")
+mobile_guard = "defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)"
+assert mobile_guard in TABLET_HEADER
+assert mobile_guard in TABLET_SOURCE
+assert "touchUiAutoOpenTablet" in TABLET_SOURCE
+assert "OVERTE_IOS_TOUCH_UI_GATE stage=metrics-ready" in TABLET_SOURCE
+assert "OVERTE_IOS_TOUCH_UI_GATE stage=tablet-visible" in TABLET_SOURCE
+assert "OVERTE_IOS_TOUCH_UI_GATE stage=button-registered" in TABLET_SOURCE
+assert mobile_guard in LOGIN_HEADER
+assert mobile_guard in LOGIN_SOURCE
+assert mobile_guard in DIALOGS
+assert "defined(Q_OS_ANDROID) || defined(Q_OS_IOS)" in APPLICATION_UI
+assert "scriptEngines->loadDefaultScripts();" in APPLICATION_UI
+assert "defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)" in GRAPHICS
+assert 'Qt.platform.os === "android" || Qt.platform.os === "ios"' in BUTTON
+
+assert "OverteControls.WrappedMenu" in DESKTOP
+assert "addMenuWrap" in WRAPPED_MENU and "addItemWrap" in WRAPPED_MENU
+assert 'loadUrl(PathUtils::qmlUrl("controls/WrappedMenu.qml"))' in VR_MENU
+assert 'loadFromModule("QtQuick.Controls", "MenuItem")' in VR_MENU
+assert 'loadFromModule("QtQuick.Controls", "MenuSeparator")' in VR_MENU
+
+assert "Position:" in IOS_STATS
+assert "Present:" in IOS_STATS
+assert "Entities local/server:" in IOS_STATS
+assert "GPU memory tex/buf:" in IOS_STATS
+assert 'iosRuntimeDiagnosticBool("statsOverlay", true)' in APPLICATION_UI
+assert 'iosRuntimeDiagnosticBool("statsOverlayExpanded", true)' in APPLICATION_UI
+
+for startup_qml in (
+    PROFILE,
+    BUTTON,
+    DESKTOP,
+    WRAPPED_MENU,
+    PHONE_LOGIN,
+    IOS_STATS,
+    (ROOT / "interface/resources/qml/controlsUit/TextField.qml").read_text(),
+    (ROOT / "interface/resources/qml/hifi/tablet/TabletHome.qml").read_text(),
+    (ROOT / "interface/resources/qml/hifi/tablet/TabletMenu.qml").read_text(),
+    (ROOT / "interface/resources/qml/hifi/tablet/TabletMenuItem.qml").read_text(),
+    (ROOT / "interface/resources/qml/hifi/tablet/TabletMenuStack.qml").read_text(),
+):
+    assert "import QtQuick.Controls 1." not in startup_qml
+    assert "import QtQuick.Controls.Styles 1." not in startup_qml
+
+print("iOS touch UI adapter contract valid: UIKit metrics, screen-space host, Qt 6 menus, mobile dialogs and expanded diagnostics")

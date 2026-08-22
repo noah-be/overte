@@ -12,6 +12,7 @@ Item {
     signal windowClosed();
     
     property bool shown: true
+    property bool geometrySignalConnected: false
 
     onShownChanged: {
         bar.visible = shown;
@@ -39,11 +40,18 @@ Item {
 
     Component.onCompleted: {
         relocateAndResize(parent.width, parent.height);
-        Window.geometryChanged.connect(onWindowGeometryChanged); // In devices with bars appearing at startup we should listen for this
+        if (typeof Window !== "undefined" && Window.geometryChanged &&
+                typeof Window.geometryChanged.connect === "function") {
+            Window.geometryChanged.connect(onWindowGeometryChanged);
+            geometrySignalConnected = true;
+        }
     }
 
     Component.onDestruction: {
-        Window.geometryChanged.disconnect(onWindowGeometryChanged);
+        if (geometrySignalConnected && typeof Window !== "undefined" &&
+                Window.geometryChanged && typeof Window.geometryChanged.disconnect === "function") {
+            Window.geometryChanged.disconnect(onWindowGeometryChanged);
+        }
     }
 
     

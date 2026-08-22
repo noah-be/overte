@@ -1,7 +1,8 @@
 import QtQuick 2.7
 import OverteIOS 1.0
+import ".." as SharedControls
 
-TouchUiProfileBase {
+SharedControls.TouchUiProfileBase {
     readonly property var runtimeMetrics: IOSTouchUiMetrics
 
     directTouch: true

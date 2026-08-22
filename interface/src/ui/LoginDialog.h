@@ -34,8 +34,8 @@ public:
 
     static void showWithSelection();
 
-#if defined(ANDROID_APP_PHONE_INTERFACE)
-    // Hides the phone's screen-space dialog and releases the script/UI input
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
+    // Hides the mobile screen-space dialog and releases the script/UI input
     // focus acquired by showWithSelection(). Safe to call more than once.
     static void hidePhoneDialog();
 #endif
@@ -71,7 +71,7 @@ public slots:
 
 protected slots:
     Q_INVOKABLE void dismissLoginDialog();
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
     // Runs the shared, idempotent screen-space focus and startup cleanup
     // transaction for both startup and action-bar phone login dialogs.
     Q_INVOKABLE void dismissPhoneLoginDialog();

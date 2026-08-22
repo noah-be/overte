@@ -2,7 +2,6 @@
 // standalone HMDs and assumes tablet-sized geometry and completion pages.
 import Hifi 1.0
 import QtQuick 2.7
-import QtQuick.Controls 1.4
 import controlsUit 1.0 as HifiControls
 
 Item {

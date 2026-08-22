@@ -13,6 +13,7 @@
 #include <QtQml>
 #include <QMenuBar>
 #include <QDebug>
+#include <PathUtils.h>
 
 #include "OffscreenUi.h"
 #include "ui/Logging.h"
@@ -85,7 +86,9 @@ void MenuUserData::updateQmlItemFromAction() {
     _qml->setProperty("text", text);
     _qml->setProperty("shortcut", _action->shortcut().toString());
     _qml->setProperty("checked", _action->isChecked());
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     _qml->setProperty("visible", _action->isVisible());
+#endif
 }
 
 void MenuUserData::clear() {
@@ -131,6 +134,10 @@ MenuUserData* MenuUserData::forObject(QAction* object) {
 VrMenu::VrMenu(OffscreenUi* parent) : QObject(parent) {
     _rootMenu = parent->getRootItem()->findChild<QObject*>("rootMenu");
     parent->getSurfaceContext()->setContextProperty("rootMenu", _rootMenu);
+#if defined(Q_OS_IOS)
+    qInfo().noquote() << "OVERTE_IOS_TOUCH_UI_GATE stage=menu-root-ready"
+                      << "root_valid=" << (_rootMenu != nullptr);
+#endif
 }
 
 QObject* VrMenu::findMenuObject(const QString& menuOption) {
@@ -143,6 +150,12 @@ QObject* VrMenu::findMenuObject(const QString& menuOption) {
 
 
 void VrMenu::addMenu(QMenu* menu) {
+    auto* ui = qobject_cast<OffscreenUi*>(parent());
+    if (!ui || !ui->getSurfaceContext()) {
+        qWarning() << "Unable to create QML menu without an offscreen UI context";
+        return;
+    }
+    auto* engine = ui->getSurfaceContext()->engine();
     Q_ASSERT(!MenuUserData::hasData(menu->menuAction()));
     QObject* parent = menu->parent();
     QObject* qmlParent = nullptr;
@@ -157,22 +170,34 @@ void VrMenu::addMenu(QMenu* menu) {
         qmlParent = _rootMenu;
     } else {
         Q_ASSERT(false);
+        return;
     }
-    QVariant returnedValue;
-    bool invokeResult = QMetaObject::invokeMethod(qmlParent, "addMenu", Qt::DirectConnection,
-                                                  Q_RETURN_ARG(QVariant, returnedValue),
-                                                  Q_ARG(QVariant, QVariant::fromValue(menu->title())));
-    Q_ASSERT(invokeResult);
-    Q_UNUSED(invokeResult); // FIXME - apparently we haven't upgraded the Qt on our unix Jenkins environments to 5.5.x
-    QObject* result = returnedValue.value<QObject*>();
-    Q_ASSERT(result);
-    if (!result) {
-        qWarning() << "Unable to create QML menu for widget menu: " << menu->title();
+
+    QQmlComponent menuComponent(engine);
+    menuComponent.loadUrl(PathUtils::qmlUrl("controls/WrappedMenu.qml"));
+    if (menuComponent.status() == QQmlComponent::Error) {
+        qWarning() << "Unable to load Qt 6 QML menu:" << menuComponent.errorString();
+        return;
+    }
+    QObject* menuObject = menuComponent.create(ui->getSurfaceContext());
+    if (!menuObject) {
+        qWarning() << "Unable to create QML menu for widget menu:" << menu->title();
+        return;
+    }
+    menuObject->setObjectName(menu->title());
+    menuObject->setProperty("title", menu->title());
+    menuObject->setParent(qmlParent);
+    const bool invokeResult = QMetaObject::invokeMethod(
+        qmlParent, "addMenuWrap", Qt::DirectConnection,
+        Q_ARG(QVariant, QVariant::fromValue(menuObject)));
+    if (!invokeResult) {
+        qWarning() << "Unable to attach QML menu to parent:" << menu->title();
+        menuObject->deleteLater();
         return;
     }
 
     // Bind the QML and Widget together
-    new MenuUserData(menu->menuAction(), result, qmlParent);
+    new MenuUserData(menu->menuAction(), menuObject, qmlParent);
 }
 
 void bindActionToQmlAction(QObject* qmlAction, QAction* action, QObject* qmlParent) {
@@ -188,9 +213,13 @@ void bindActionToQmlAction(QObject* qmlAction, QAction* action, QObject* qmlPare
     QObject::connect(qmlAction, SIGNAL(triggered()), action, SLOT(trigger()));
 }
 
-class QQuickMenuItem1;
-
 void VrMenu::addAction(QMenu* menu, QAction* action) {
+    auto* ui = qobject_cast<OffscreenUi*>(parent());
+    if (!ui || !ui->getSurfaceContext()) {
+        qWarning() << "Unable to create QML action without an offscreen UI context";
+        return;
+    }
+    auto* engine = ui->getSurfaceContext()->engine();
     Q_ASSERT(!MenuUserData::hasData(action));
 
     Q_ASSERT(MenuUserData::hasData(menu->menuAction()));
@@ -199,35 +228,79 @@ void VrMenu::addAction(QMenu* menu, QAction* action) {
         return;
     }
     QObject* menuQml = findMenuObject(userData->uuid.toString());
-    Q_ASSERT(menuQml);
-    QQuickMenuItem1* returnedValue { nullptr };
-    bool invokeResult = QMetaObject::invokeMethod(menuQml, "addItem", Qt::DirectConnection,
-        Q_RETURN_ARG(QQuickMenuItem1*, returnedValue),
-        Q_ARG(QString, action->text()));
+    if (!menuQml) {
+        qWarning() << "Unable to find QML parent for action:" << action->text();
+        return;
+    }
 
-    Q_ASSERT(invokeResult);
-    Q_UNUSED(invokeResult); // FIXME - apparently we haven't upgraded the Qt on our unix Jenkins environments to 5.5.x
-    QObject* result = reinterpret_cast<QObject*>(returnedValue); // returnedValue.value<QObject*>();
-    Q_ASSERT(result);
+    QQmlComponent menuItemComponent(engine);
+    menuItemComponent.loadFromModule("QtQuick.Controls", "MenuItem");
+    if (menuItemComponent.status() == QQmlComponent::Error) {
+        qWarning() << "Unable to load Qt 6 QML MenuItem:" << menuItemComponent.errorString();
+        return;
+    }
+    QObject* menuItemObject = menuItemComponent.create(ui->getSurfaceContext());
+    if (!menuItemObject) {
+        qWarning() << "Unable to create QML action:" << action->text();
+        return;
+    }
+    menuItemObject->setObjectName(action->text());
+    menuItemObject->setProperty("text", action->text());
+    menuItemObject->setParent(menuQml);
+    const bool invokeResult = QMetaObject::invokeMethod(
+        menuQml, "addItemWrap", Qt::DirectConnection,
+        Q_ARG(QVariant, QVariant::fromValue(menuItemObject)));
+    if (!invokeResult) {
+        qWarning() << "Unable to attach QML action:" << action->text();
+        menuItemObject->deleteLater();
+        return;
+    }
     // Bind the QML and Widget together
-    bindActionToQmlAction(result, action, _rootMenu);
+    bindActionToQmlAction(menuItemObject, action, _rootMenu);
 }
 
 void VrMenu::addSeparator(QMenu* menu) {
+    auto* ui = qobject_cast<OffscreenUi*>(parent());
+    if (!ui || !ui->getSurfaceContext()) {
+        return;
+    }
+    auto* engine = ui->getSurfaceContext()->engine();
     Q_ASSERT(MenuUserData::hasData(menu->menuAction()));
     MenuUserData* userData = MenuUserData::forObject(menu->menuAction());
     if (!userData) {
         return;
     }
     QObject* menuQml = findMenuObject(userData->uuid.toString());
-    Q_ASSERT(menuQml);
+    if (!menuQml) {
+        return;
+    }
 
-    bool invokeResult = QMetaObject::invokeMethod(menuQml, "addSeparator", Qt::DirectConnection);
-    Q_ASSERT(invokeResult);
-    Q_UNUSED(invokeResult); // FIXME - apparently we haven't upgraded the Qt on our unix Jenkins environments to 5.5.x
+    QQmlComponent separatorComponent(engine);
+    separatorComponent.loadFromModule("QtQuick.Controls", "MenuSeparator");
+    if (separatorComponent.status() == QQmlComponent::Error) {
+        qWarning() << "Unable to load Qt 6 QML MenuSeparator:" << separatorComponent.errorString();
+        return;
+    }
+    QObject* separatorObject = separatorComponent.create(ui->getSurfaceContext());
+    if (!separatorObject) {
+        return;
+    }
+    separatorObject->setParent(menuQml);
+    const bool invokeResult = QMetaObject::invokeMethod(
+        menuQml, "addItemWrap", Qt::DirectConnection,
+        Q_ARG(QVariant, QVariant::fromValue(separatorObject)));
+    if (!invokeResult) {
+        qWarning() << "Unable to attach QML menu separator";
+        separatorObject->deleteLater();
+    }
 }
 
 void VrMenu::insertAction(QAction* before, QAction* action) {
+    auto* ui = qobject_cast<OffscreenUi*>(parent());
+    if (!ui || !ui->getSurfaceContext()) {
+        return;
+    }
+    auto* engine = ui->getSurfaceContext()->engine();
     QObject* beforeQml{ nullptr };
     {
         MenuUserData* beforeUserData = MenuUserData::forObject(before);
@@ -238,18 +311,33 @@ void VrMenu::insertAction(QAction* before, QAction* action) {
         beforeQml = findMenuObject(beforeUserData->uuid.toString());
     }
     QObject* menu = beforeQml->parent();
-    QQuickMenuItem1* returnedValue { nullptr };
+    if (!menu) {
+        return;
+    }
+
+    QQmlComponent menuItemComponent(engine);
+    menuItemComponent.loadFromModule("QtQuick.Controls", "MenuItem");
+    if (menuItemComponent.status() == QQmlComponent::Error) {
+        qWarning() << "Unable to load inserted Qt 6 QML MenuItem:" << menuItemComponent.errorString();
+        return;
+    }
+    QObject* menuItemObject = menuItemComponent.create(ui->getSurfaceContext());
+    if (!menuItemObject) {
+        return;
+    }
+    menuItemObject->setObjectName(action->text());
+    menuItemObject->setProperty("text", action->text());
+    menuItemObject->setParent(menu);
     // FIXME this needs to find the index of the beforeQml item and call insertItem(int, object)
-    bool invokeResult = QMetaObject::invokeMethod(menu, "addItem", Qt::DirectConnection,
-        Q_RETURN_ARG(QQuickMenuItem1*, returnedValue),
-        Q_ARG(QString, action->text()));
-    Q_ASSERT(invokeResult);
-    QObject* result = reinterpret_cast<QObject*>(returnedValue); // returnedValue.value<QObject*>();
-    Q_ASSERT(result);
-    if ( result ) {
-        bindActionToQmlAction(result, action, _rootMenu);
+    const bool invokeResult = QMetaObject::invokeMethod(
+        menu, "addItemWrap", Qt::DirectConnection,
+        Q_ARG(QVariant, QVariant::fromValue(menuItemObject)));
+    if (invokeResult) {
+        bindActionToQmlAction(menuItemObject, action, _rootMenu);
     } else {
-        qWarning() << "Failed to find addItem() method in object " << menu << ". Not inserting action " << action;
+        qWarning() << "Failed to find addItemWrap() method in object" << menu
+                   << ". Not inserting action" << action;
+        menuItemObject->deleteLater();
     }
 }
 

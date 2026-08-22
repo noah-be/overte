@@ -9,14 +9,15 @@
 //
 
 import QtQuick 2.5
-import QtQuick.Controls 1.4
-import QtQuick.Controls.Styles 1.4
+import QtQuick.Controls 2.3
 
 import "../stylesUit"
 import "." as HifiControls
 
 TextField {
     id: textField
+
+    HifiConstants { id: hifi }
 
     property int colorScheme: hifi.colorSchemes.light
     readonly property bool isLightColorScheme: colorScheme == hifi.colorSchemes.light
@@ -61,7 +62,10 @@ TextField {
         }
     }
 
-    style: TextFieldStyle {
+    // Qt Quick Controls 1 styles do not exist in Qt 6. Preserve the legacy
+    // styling source until it is ported while allowing the native control,
+    // focus and system IME path to load.
+    /*style: TextFieldStyle {
         id: style;
         textColor: {
             if (isLightColorScheme) {
@@ -163,7 +167,7 @@ TextField {
         padding.left: hasRoundedBorder ? textField.height / 2 : ((isSearchField || textField.leftPermanentGlyph !== "") ? textField.height - 2 : 0) + hifi.dimensions.textPadding
         padding.right: (hasClearButton ? textField.height - 2 : 0) + hifi.dimensions.textPadding
         renderType: textField.styleRenderType
-    }
+    }*/
 
     HifiControls.Label {
         id: textFieldLabel

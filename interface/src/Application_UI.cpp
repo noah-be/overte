@@ -71,6 +71,9 @@
 #include <shared/FileLogger.h>
 #endif
 #include <shared/GlobalAppProperties.h>
+#if defined(Q_OS_IOS)
+#include <shared/IOSRuntimeLogging.h>
+#endif
 #include <shared/StringHelpers.h>
 #include <SoundCacheScriptingInterface.h>
 #include <ui/AnimStats.h>
@@ -1228,6 +1231,16 @@ void Application::pauseUntilLoginDetermined() {
         picoStats == "true" || picoStats == "enabled";
     menu->setIsOptionChecked(MenuOption::Stats, picoStatsEnabled);
     qInfo() << "PICO_STATS_OVERLAY" << picoStatsEnabled;
+#elif defined(Q_OS_IOS)
+    const bool statsVisible = iosRuntimeDiagnosticBool("statsOverlay", true);
+    const bool statsExpanded = iosRuntimeDiagnosticBool("statsOverlayExpanded", true);
+    menu->setIsOptionChecked(MenuOption::Stats, statsVisible);
+    Stats::getInstance()->setExpanded(statsExpanded);
+    logIOSRuntimeMarker(
+        "OVERTE_IOS_STATS_GATE stage=enabled",
+        "visible=", menu->isOptionChecked(MenuOption::Stats),
+        "expanded=", Stats::getInstance()->isExpanded(),
+        "config_path=", iosRuntimeDiagnosticConfigPath());
 #else
     menu->setIsOptionChecked(MenuOption::Stats, false);
 #endif
@@ -1335,10 +1348,11 @@ void Application::resumeAfterLoginDialogActionTaken() {
             scriptEngines->loadDefaultScripts();
             scriptEngines->defaultScriptsLocationOverridden(true);
         } else {
-#if defined(Q_OS_ANDROID)
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
             // Always start one known set of mobile system scripts. Loading the
             // persisted list here can accumulate stale aliases of the same
-            // default script across Android's /data/user and /data/data paths.
+            // default script. QFileSelector chooses the platform-specific
+            // phone/touch set for both Android and iOS.
             scriptEngines->loadDefaultScripts();
 #else
             scriptEngines->loadScripts();

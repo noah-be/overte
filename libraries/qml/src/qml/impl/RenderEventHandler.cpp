@@ -164,9 +164,7 @@ void RenderEventHandler::qmlRender(bool sceneGraphSync) {
     if (SharedObject::isSoftwareRendering()) {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
         resize();
-        _shared->_renderControl->beginFrame();
         if (!_shared->preRender(sceneGraphSync)) {
-            _shared->_renderControl->endFrame();
             return;
         }
 
@@ -176,7 +174,6 @@ void RenderEventHandler::qmlRender(bool sceneGraphSync) {
             _shared->_lastRenderTime = usecTimestampNow();
             _shared->updateImage(_softwareImage);
         }
-        _shared->_renderControl->endFrame();
 #endif
         return;
     }

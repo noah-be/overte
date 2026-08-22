@@ -30,7 +30,7 @@ Original.Button {
     property int buttonGlyphRightMargin: 0;
     property int fontCapitalization: Font.AllUppercase
     // QML-derived signal handlers do not reliably replace this component's
-    // onClicked handler on the Android Qt build.  Let callers that need a
+    // onClicked handler on the mobile Qt builds. Let callers that need a
     // guaranteed action route it through the handler that actually receives
     // the signal.
     property var androidClickAction: null
@@ -62,8 +62,8 @@ Original.Button {
     }
 
     onClicked: {
-        if (Qt.platform.os === "android") {
-            console.info("PICO_QML_BUTTON clicked text=" + control.text);
+        if (Qt.platform.os === "android" || Qt.platform.os === "ios") {
+            console.info("OVERTE_MOBILE_QML_BUTTON clicked text=" + control.text);
             if (control.androidClickAction) {
                 control.androidClickAction();
             }
@@ -74,10 +74,10 @@ Original.Button {
     // On mobile VR the controller pose can advance noticeably between the
     // trigger press and release frames. Qt then cancels an AbstractButton
     // press even though the user began the click on the button. Treat that
-    // cancellation as activation on Android so tablet buttons remain usable.
+    // cancellation as activation on mobile so tablet buttons remain usable.
     onCanceled: {
-        if (Qt.platform.os === "android") {
-            console.info("PICO_QML_BUTTON canceled->clicked text=" + control.text);
+        if (Qt.platform.os === "android" || Qt.platform.os === "ios") {
+            console.info("OVERTE_MOBILE_QML_BUTTON canceled->clicked text=" + control.text);
             control.clicked();
         }
     }

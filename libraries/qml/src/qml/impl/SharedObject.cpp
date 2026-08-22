@@ -316,11 +316,9 @@ bool SharedObject::event(QEvent* e) {
 // Called by the render event handler, from the render thread
 void SharedObject::initializeRenderControl(QOpenGLContext* context) {
     if (isSoftwareRendering()) {
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-        const bool initialized = _renderControl->initialize();
-        Q_ASSERT(initialized);
-        Q_UNUSED(initialized)
-#endif
+        // Qt's software adaptation has no QRhi/device resources to initialize.
+        // Calling initialize() here makes Qt attempt the default QRhi path and
+        // leaves a QPaintDevice render target transparent on Qt 6.
         return;
     }
     if (context->shareContext() != getSharedContext()) {

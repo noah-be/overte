@@ -9,6 +9,7 @@
 //
 
 #include "RenderableWebEntityItem.h"
+#include <algorithm>
 #include <array>
 #include <atomic>
 
@@ -31,6 +32,10 @@
 #include <EntityScriptingInterface.h>
 #include <shared/LocalFileAccessGate.h>
 #if defined(Q_OS_IOS)
+#include <QtCore/QDir>
+#include <QtCore/QStandardPaths>
+#include <QtGui/QColor>
+#include <QtGui/QPainter>
 #include <shared/IOSRuntimeLogging.h>
 #endif
 
@@ -64,6 +69,55 @@ static std::atomic<uint32_t> _currentWebCount(0);
 static const uint32_t MAX_CONCURRENT_WEB_VIEWS = 20;
 
 namespace {
+#if defined(Q_OS_IOS)
+struct IOSWebFrameDiagnostics {
+    QString mode { QStringLiteral("normal") };
+    QString format { QStringLiteral("rgba") };
+    bool flipVertical { false };
+    bool forceOpaque { false };
+    bool captureFirstFrame { false };
+    QString configPath;
+};
+
+const IOSWebFrameDiagnostics& iosWebFrameDiagnostics() {
+    static const IOSWebFrameDiagnostics diagnostics = [] {
+        IOSWebFrameDiagnostics result;
+        result.configPath = iosRuntimeDiagnosticConfigPath();
+        const auto& object = iosRuntimeDiagnosticConfig();
+        result.mode = object.value(QStringLiteral("mode")).toString(result.mode).trimmed().toLower();
+        result.format = object.value(QStringLiteral("format")).toString(result.format).trimmed().toLower();
+        result.flipVertical = object.value(QStringLiteral("flipVertical")).toBool(false);
+        result.forceOpaque = object.value(QStringLiteral("forceOpaque")).toBool(false);
+        result.captureFirstFrame = object.value(QStringLiteral("captureFirstFrame")).toBool(false);
+        if (result.mode != QStringLiteral("normal") && result.mode != QStringLiteral("test-pattern")) {
+            result.mode = QStringLiteral("normal");
+        }
+        if (result.format != QStringLiteral("rgba") &&
+                result.format != QStringLiteral("srgb") &&
+                result.format != QStringLiteral("bgra") &&
+                result.format != QStringLiteral("rgba-from-bgra")) {
+            result.format = QStringLiteral("rgba");
+        }
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_QML_DIAGNOSTICS stage=config-loaded",
+            "loaded=", !object.isEmpty(),
+            "mode=", result.mode,
+            "format=", result.format,
+            "flip_vertical=", result.flipVertical,
+            "force_opaque=", result.forceOpaque,
+            "capture_first_frame=", result.captureFirstFrame,
+            "path=", result.configPath);
+        return result;
+    }();
+    return diagnostics;
+}
+
+QString rgbaDescription(const QColor& color) {
+    return QStringLiteral("%1,%2,%3,%4")
+        .arg(color.red()).arg(color.green()).arg(color.blue()).arg(color.alpha());
+}
+#endif
+
 OffscreenTouchDevice& webEntityTouchDevice() {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     static OffscreenTouchDevice device(
@@ -407,28 +461,100 @@ void WebEntityRenderer::doRender(RenderArgs* args) {
 
     if (newTextureAvailable) {
 #if defined(Q_OS_IOS)
-        const QImage rgbaImage = newImage.convertToFormat(QImage::Format_RGBA8888);
-        if (rgbaImage.isNull() || rgbaImage.width() <= 0 || rgbaImage.height() <= 0) {
+        const auto& diagnostics = iosWebFrameDiagnostics();
+        auto texelFormat = gpu::Element::COLOR_RGBA_32;
+        auto storedFormat = gpu::Element::COLOR_RGBA_32;
+        auto imageFormat = QImage::Format_RGBA8888;
+        if (diagnostics.format == QStringLiteral("srgb")) {
+            texelFormat = gpu::Element::COLOR_SRGBA_32;
+            storedFormat = gpu::Element::COLOR_SRGBA_32;
+        } else if (diagnostics.format == QStringLiteral("bgra")) {
+            texelFormat = gpu::Element::COLOR_BGRA_32;
+            storedFormat = gpu::Element::COLOR_BGRA_32;
+            imageFormat = QImage::Format_ARGB32;
+        } else if (diagnostics.format == QStringLiteral("rgba-from-bgra")) {
+            storedFormat = gpu::Element::COLOR_BGRA_32;
+            imageFormat = QImage::Format_ARGB32;
+        }
+
+        QImage uploadImage = newImage.convertToFormat(imageFormat);
+        if (uploadImage.isNull() || uploadImage.width() <= 0 || uploadImage.height() <= 0) {
             return;
         }
+
+        if (diagnostics.mode == QStringLiteral("test-pattern")) {
+            QPainter painter(&uploadImage);
+            const int halfWidth = uploadImage.width() / 2;
+            const int halfHeight = uploadImage.height() / 2;
+            painter.fillRect(QRect(0, 0, halfWidth, halfHeight), QColor(255, 0, 255, 255));
+            painter.fillRect(QRect(halfWidth, 0, uploadImage.width() - halfWidth, halfHeight), QColor(0, 255, 0, 255));
+            painter.fillRect(QRect(0, halfHeight, halfWidth, uploadImage.height() - halfHeight), QColor(0, 128, 255, 255));
+            painter.fillRect(QRect(halfWidth, halfHeight,
+                                   uploadImage.width() - halfWidth,
+                                   uploadImage.height() - halfHeight), QColor(255, 255, 255, 255));
+        }
+        if (diagnostics.forceOpaque) {
+            QPainter painter(&uploadImage);
+            painter.setCompositionMode(QPainter::CompositionMode_DestinationOver);
+            painter.fillRect(uploadImage.rect(), Qt::black);
+        }
+        if (diagnostics.flipVertical) {
+            uploadImage = uploadImage.mirrored(false, true);
+        }
+
         auto texture = gpu::Texture::createStrict(
-            gpu::Element::COLOR_RGBA_32,
-            static_cast<uint16_t>(rgbaImage.width()),
-            static_cast<uint16_t>(rgbaImage.height()),
+            texelFormat,
+            static_cast<uint16_t>(uploadImage.width()),
+            static_cast<uint16_t>(uploadImage.height()),
             1);
-        texture->setStoredMipFormat(gpu::Element::COLOR_RGBA_32);
+        texture->setStoredMipFormat(storedFormat);
         texture->assignStoredMip(
             0,
-            static_cast<gpu::Size>(rgbaImage.sizeInBytes()),
-            reinterpret_cast<const gpu::Byte*>(rgbaImage.constBits()));
+            static_cast<gpu::Size>(uploadImage.sizeInBytes()),
+            reinterpret_cast<const gpu::Byte*>(uploadImage.constBits()));
         texture->setSource("WebEntityRendererSoftware");
         _texture = std::move(texture);
         if (!_softwareFrameReported) {
             _softwareFrameReported = true;
+            quint64 alphaNonzeroPixels = 0;
+            quint64 opaquePixels = 0;
+            quint64 nonBlackPixels = 0;
+            quint64 sampledPixels = 0;
+            const quint64 totalPixels = static_cast<quint64>(uploadImage.width()) * uploadImage.height();
+            constexpr quint64 MAX_DIAGNOSTIC_SAMPLES = 65536;
+            const quint64 sampleStride = std::max<quint64>(1, totalPixels / MAX_DIAGNOSTIC_SAMPLES);
+            for (quint64 offset = 0; offset < totalPixels; offset += sampleStride) {
+                const int y = static_cast<int>(offset / uploadImage.width());
+                const int x = static_cast<int>(offset % uploadImage.width());
+                const QColor pixel = uploadImage.pixelColor(x, y);
+                ++sampledPixels;
+                alphaNonzeroPixels += pixel.alpha() != 0;
+                opaquePixels += pixel.alpha() == 255;
+                nonBlackPixels += pixel.alpha() != 0 &&
+                    (pixel.red() != 0 || pixel.green() != 0 || pixel.blue() != 0);
+            }
+            QString capturePath;
+            bool captureSaved = false;
+            if (diagnostics.captureFirstFrame) {
+                capturePath = QDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation))
+                    .filePath(QStringLiteral("Overte-iOS-QML-FirstFrame-%1.png").arg(_geometryId));
+                captureSaved = uploadImage.save(capturePath, "PNG");
+            }
             logIOSRuntimeMarker(
                 "OVERTE_IOS_QML_FRAME_GATE stage=cpu-frame-uploaded",
-                "size=", rgbaImage.size(),
-                "source=", _sourceURL);
+                "size=", uploadImage.size(),
+                "source=", _sourceURL,
+                "mode=", diagnostics.mode,
+                "format=", diagnostics.format,
+                "sampled_pixels=", sampledPixels,
+                "alpha_nonzero_pixels=", alphaNonzeroPixels,
+                "opaque_pixels=", opaquePixels,
+                "non_black_pixels=", nonBlackPixels,
+                "corner_rgba=", rgbaDescription(uploadImage.pixelColor(0, 0)),
+                "center_rgba=", rgbaDescription(uploadImage.pixelColor(
+                    uploadImage.width() / 2, uploadImage.height() / 2)),
+                "capture_saved=", captureSaved,
+                "capture_path=", capturePath);
         }
 #else
         _texture->setExternalTexture(newTextureAndFence.first, newTextureAndFence.second);
