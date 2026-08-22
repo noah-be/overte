@@ -250,6 +250,8 @@ void LightClusters::updateLightFrame(const LightStage::FramePointer& lightFrame,
         _visibleLightIndices[0] += (int)srcSpotLights.size();
     }
 
+    _frustumGridBuffer.edit().spare = static_cast<float>(_visibleLightIndices[0]);
+
     _lightIndicesBuffer._buffer->setData(_visibleLightIndices.size() * sizeof(int), (const gpu::Byte*) _visibleLightIndices.data());
     _lightIndicesBuffer._size = _visibleLightIndices.size() * sizeof(int);
 }

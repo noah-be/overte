@@ -369,7 +369,14 @@ vec3 fetchLightMap(int layer, mat2 uvs) {
 
 <@func fetchMaterialTextures(layer, matKey, texcoords, albedo, opacity, roughness, normal, metallic, emissive, scattering, occlusion, lightmap)@>
 <@if albedo@>
+#ifdef GPU_GL410
+    vec4 <$albedo$> = vec4(1.0);
+    if ((<$matKey$> & (ALBEDO_MAP_BIT | OPACITY_MASK_MAP_BIT | OPACITY_TRANSLUCENT_MAP_BIT)) != 0) {
+        <$albedo$> = fetchAlbedoMap(<$layer$>, <$texcoords$>);
+    }
+#else
     vec4 <$albedo$> = mix(vec4(1.0), fetchAlbedoMap(<$layer$>, <$texcoords$>), float((<$matKey$> & (ALBEDO_MAP_BIT | OPACITY_MASK_MAP_BIT | OPACITY_TRANSLUCENT_MAP_BIT)) != 0));
+#endif
     <@if opacity@>
         float <$opacity$> = 1.0;
         vec2 albedoTexCoords = evalTexCoordSet(<$layer$>, <$texcoords$>, GRAPHICS_TEXTURE_MATERIAL_ALBEDO);
@@ -379,13 +386,34 @@ vec3 fetchLightMap(int layer, mat2 uvs) {
     <@endif@>
 <@endif@>
 <@if normal@>
+#ifdef GPU_GL410
+    vec3 <$normal$> = vec3(0.0, 1.0, 0.0);
+    if ((<$matKey$> & NORMAL_MAP_BIT) != 0) {
+        <$normal$> = fetchNormalMap(<$layer$>, <$texcoords$>);
+    }
+#else
     vec3 <$normal$> = mix(vec3(0.0, 1.0, 0.0), fetchNormalMap(<$layer$>, <$texcoords$>), float((<$matKey$> & NORMAL_MAP_BIT) != 0));
+#endif
 <@endif@>
 <@if metallic@>
+#ifdef GPU_GL410
+    float <$metallic$> = 0.0;
+    if ((<$matKey$> & METALLIC_MAP_BIT) != 0) {
+        <$metallic$> = fetchMetallicMap(<$layer$>, <$texcoords$>);
+    }
+#else
     float <$metallic$> = float((<$matKey$> & METALLIC_MAP_BIT) != 0) * fetchMetallicMap(<$layer$>, <$texcoords$>);
+#endif
 <@endif@>
 <@if emissive@>
+#ifdef GPU_GL410
+    vec3 <$emissive$> = vec3(0.0);
+    if ((<$matKey$> & EMISSIVE_MAP_BIT) != 0) {
+        <$emissive$> = fetchEmissiveMap(<$layer$>, <$texcoords$>);
+    }
+#else
     vec3 <$emissive$> = float((<$matKey$> & EMISSIVE_MAP_BIT) != 0) * fetchEmissiveMap(<$layer$>, <$texcoords$>);
+#endif
 <@endif@>
 <@if lightmap@>
     vec3 <$lightmap$> = fetchLightMap(<$layer$>, <$texcoords$>);
@@ -393,10 +421,24 @@ vec3 fetchLightMap(int layer, mat2 uvs) {
 
 <@if not HIFI_USE_LAYERS3@>
 <@if roughness@>
+#ifdef GPU_GL410
+    float <$roughness$> = 1.0;
+    if ((<$matKey$> & ROUGHNESS_MAP_BIT) != 0) {
+        <$roughness$> = fetchRoughnessMap(<$layer$>, <$texcoords$>);
+    }
+#else
     float <$roughness$> = mix(1.0, fetchRoughnessMap(<$layer$>, <$texcoords$>), float((<$matKey$> & ROUGHNESS_MAP_BIT) != 0));
+#endif
 <@endif@>
 <@if occlusion@>
+#ifdef GPU_GL410
+    float <$occlusion$> = 1.0;
+    if ((<$matKey$> & OCCLUSION_MAP_BIT) != 0) {
+        <$occlusion$> = fetchOcclusionMap(<$layer$>, <$texcoords$>);
+    }
+#else
     float <$occlusion$> = mix(1.0, fetchOcclusionMap(<$layer$>, <$texcoords$>), float((<$matKey$> & OCCLUSION_MAP_BIT) != 0));
+#endif
 <@endif@>
 <@else@>
     // only supported for 1 or 2 layers
@@ -415,7 +457,14 @@ vec3 fetchLightMap(int layer, mat2 uvs) {
 <@endif@>
 <@else@>
 <@if scattering@>
+#ifdef GPU_GL410
+    float <$scattering$> = 0.0;
+    if ((<$matKey$> & SCATTERING_MAP_BIT) != 0) {
+        <$scattering$> = fetchScatteringMap(<$layer$>, <$texcoords$>);
+    }
+#else
     float <$scattering$> = float((<$matKey$> & SCATTERING_MAP_BIT) != 0) * fetchScatteringMap(<$layer$>, <$texcoords$>);
+#endif
 <@endif@>
 <@endif@>
 <@endfunc@>

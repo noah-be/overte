@@ -97,6 +97,22 @@ int clusterGrid_getClusterLightId(int index, int offset) {
 
 <@func fetchClusterInfo(fragWorldPos)@>
 
+#ifdef GPU_GL410
+    ivec3 clusterPos = ivec3(-1);
+    ivec3 cluster = ivec3(0);
+    int numLights = 0;
+    ivec3 dims = frustumGrid.dims.xyz;
+
+    // The GL 4.1 fallback can be a software renderer. Avoid the otherwise
+    // redundant matrix work and texture-buffer lookup when this frame has no
+    // visible local lights; the resulting local-light contribution is still 0.
+    if (frustumGrid.spare > 0.0) {
+        vec4 clusterEyePos = frustumGrid_worldToEye(<$fragWorldPos$>);
+        clusterPos = frustumGrid_eyeToClusterPos(clusterEyePos.xyz);
+        cluster = clusterGrid_getCluster(frustumGrid_clusterToIndex(clusterPos));
+        numLights = cluster.x + cluster.y;
+    }
+#else
     // From frag world pos find the cluster
     vec4 clusterEyePos = frustumGrid_worldToEye(<$fragWorldPos$>);
     ivec3 clusterPos = frustumGrid_eyeToClusterPos(clusterEyePos.xyz);
@@ -104,6 +120,7 @@ int clusterGrid_getClusterLightId(int index, int offset) {
     ivec3 cluster = clusterGrid_getCluster(frustumGrid_clusterToIndex(clusterPos));
     int numLights = cluster.x + cluster.y;
     ivec3 dims = frustumGrid.dims.xyz;
+#endif
 
 <@endfunc@>
 

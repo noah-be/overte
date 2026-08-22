@@ -27,7 +27,9 @@ public:
     float frustumFar { 10000.0f };
 
     glm::ivec3 dims { 1, 1, 1 };
-    float spare;
+    // Number of visible local lights. GLSL 4.1 uses this to avoid the
+    // per-fragment cluster lookup when the frame contains no local lights.
+    float spare { 0.0f };
 
     glm::mat4 eyeToGridProj;
     glm::mat4 worldToEyeMat;
