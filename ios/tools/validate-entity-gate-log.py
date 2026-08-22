@@ -18,10 +18,32 @@ GATES = (
 )
 UUID = re.compile(r"^\{?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\}?$")
 FIELD = re.compile(r"\b(domain|session|node|entity|bytes)=\s*([^\s]+)")
+REQUIRED_FIELDS = {
+    "domain_list_connected": ("domain", "session"),
+    "entity_server_active": ("node",),
+    "entity_query_sent": ("node", "bytes"),
+    "entity_data_received": ("node", "bytes"),
+    "entity_tree_nonempty": ("entity",),
+    "render_handoff": ("entity",),
+}
 
 
 def parse_fields(line):
     return dict(FIELD.findall(line))
+
+
+def validate_fields(marker, line_number, line, errors):
+    fields = parse_fields(line)
+    missing = [name for name in REQUIRED_FIELDS[marker] if name not in fields]
+    if missing:
+        errors.append(f"line {line_number}: {marker} missing field(s): {', '.join(missing)}")
+        return fields
+    for name in ("domain", "session", "node", "entity"):
+        if name in fields and not UUID.fullmatch(fields[name]):
+            errors.append(f"line {line_number}: {marker} has invalid {name} UUID")
+    if "bytes" in fields and (not fields["bytes"].isdigit() or int(fields["bytes"]) <= 0):
+        errors.append(f"line {line_number}: {marker} bytes must be a positive integer")
+    return fields
 
 
 def validate(lines):
@@ -29,6 +51,7 @@ def validate(lines):
     errors = []
     expected_index = 0
     entity_server_id = None
+    pending_query = None
 
     for line_number, line in enumerate(lines, 1):
         marker_match = re.search(rf"{PREFIX}\s+([a-z_]+)", line)
@@ -38,6 +61,27 @@ def validate(lines):
         if marker not in GATES:
             errors.append(f"line {line_number}: unknown entity gate marker {marker!r}")
             continue
+
+        # An active socket can make the first EntityQuery eligible on the main
+        # update loop immediately before nodeActivated() emits its telemetry
+        # callback.  Accept that narrow observation race only when both records
+        # name the same node; retain canonical evidence order for consumers.
+        if expected_index == 1 and marker == "entity_query_sent":
+            fields = validate_fields(marker, line_number, line, errors)
+            if errors:
+                break
+            if pending_query is None:
+                pending_query = {"gate": marker, "line": line_number, "fields": fields}
+            elif (
+                fields["node"].strip("{}").lower()
+                != pending_query["fields"]["node"].strip("{}").lower()
+            ):
+                errors.append(
+                    f"line {line_number}: entity_query_sent node changed before entity server activation"
+                )
+                break
+            continue
+
         marker_index = GATES.index(marker)
         if marker_index < expected_index:
             # Repeated telemetry, such as periodic EntityQuery, is harmless once
@@ -49,24 +93,9 @@ def validate(lines):
             )
             break
 
-        fields = parse_fields(line)
-        required = {
-            "domain_list_connected": ("domain", "session"),
-            "entity_server_active": ("node",),
-            "entity_query_sent": ("node", "bytes"),
-            "entity_data_received": ("node", "bytes"),
-            "entity_tree_nonempty": ("entity",),
-            "render_handoff": ("entity",),
-        }[marker]
-        missing = [name for name in required if name not in fields]
-        if missing:
-            errors.append(f"line {line_number}: {marker} missing field(s): {', '.join(missing)}")
+        fields = validate_fields(marker, line_number, line, errors)
+        if errors:
             break
-        for name in ("domain", "session", "node", "entity"):
-            if name in fields and not UUID.fullmatch(fields[name]):
-                errors.append(f"line {line_number}: {marker} has invalid {name} UUID")
-        if "bytes" in fields and (not fields["bytes"].isdigit() or int(fields["bytes"]) <= 0):
-            errors.append(f"line {line_number}: {marker} bytes must be a positive integer")
 
         if marker == "entity_server_active":
             entity_server_id = fields["node"].strip("{}").lower()
@@ -80,6 +109,17 @@ def validate(lines):
 
         evidence.append({"gate": marker, "line": line_number, "fields": fields})
         expected_index += 1
+
+        if marker == "entity_server_active" and pending_query is not None:
+            pending_node = pending_query["fields"]["node"].strip("{}").lower()
+            if pending_node != entity_server_id:
+                errors.append(
+                    f"line {pending_query['line']}: entity_query_sent node differs from active entity server"
+                )
+                break
+            evidence.append(pending_query)
+            pending_query = None
+            expected_index += 1
         if errors:
             break
 

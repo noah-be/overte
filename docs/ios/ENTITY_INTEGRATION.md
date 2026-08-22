@@ -27,6 +27,12 @@ The production client emits the following structured `qInfo` markers only when c
 | 5 | `entity_tree_nonempty` | The existing decoder produces an entity found in `EntityTree`. |
 | 6 | `render_handoff` | The first real entity produces a renderable and enters the scene transaction. |
 
+The active entity-server socket can make the first query eligible immediately
+before `nodeActivated()` emits the server marker. Consequently the two records
+for steps 2 and 3 may be observed in either order. Acceptance still requires
+both markers after the domain connection, requires their node UUIDs to match,
+and preserves the canonical server/query order in generated evidence.
+
 The last three high-frequency paths log only their first successful observation where applicable. The tree/render pair is armed only after a serverless scene has parsed successfully or a version-compatible `EntityData` packet is about to be decoded. Both markers carry the same entity UUID: the entity must belong to that decoded/imported world and must have produced a real renderable. Startup and UI entities cannot satisfy these gates. The markers report execution of existing client paths; they do not alter packets, decoding, query cadence, or rendering behavior.
 
 iOS skips the desktop-only `http://localhost:60332/status` Sandbox probe and asynchronously enters the existing "Sandbox absent" startup path. iOS cannot host that companion process; waiting for it would otherwise delay the command-line world URL before any serverless or online lookup begins.

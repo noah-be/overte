@@ -32,10 +32,16 @@ def run(name, expected_acceptance, expected_error=None):
 success = run("success.log", True)
 if success["completed_gates"] != success["expected_gates"] or len(success["evidence"]) != 6:
     raise SystemExit("success fixture did not produce complete ordered evidence")
+query_before_active = run("query-before-active.log", True)
+if query_before_active["completed_gates"] != query_before_active["expected_gates"]:
+    raise SystemExit("query-before-active fixture did not retain canonical evidence order")
+if query_before_active["evidence"][1]["line"] <= query_before_active["evidence"][2]["line"]:
+    raise SystemExit("query-before-active fixture did not exercise the observed callback race")
+run("query-before-active-mismatch.log", False, "node differs from active entity server")
 run("missing-marker.log", False, "missing gate 'render_handoff'")
-run("wrong-order.log", False, "expected 'entity_server_active' before 'entity_query_sent'")
+run("wrong-order.log", False, "expected 'entity_server_active' before 'entity_data_received'")
 bootstrap = run("bootstrap-only.log", False, "missing gate 'domain_list_connected'")
 if bootstrap["completed_gates"]:
     raise SystemExit("bootstrap text must not count as native gate evidence")
 
-print("iOS entity gate log validator valid: success plus 3 fail-closed fixtures")
+print("iOS entity gate log validator valid: both server/query observations plus 4 fail-closed fixtures")
