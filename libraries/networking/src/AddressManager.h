@@ -525,7 +525,8 @@ private:
     bool handleDomainID(const QString& host);
 
     void attemptPlaceNameLookup(const QString& lookupString, const QString& overridePath,
-                                LookupTrigger trigger, int retryCount = 0);
+                                LookupTrigger trigger, int retryCount = 0,
+                                quint64 lookupGeneration = 0);
     void attemptDomainIDLookup(const QString& lookupString, const QString& overridePath, LookupTrigger trigger);
 
     void addCurrentAddressToHistory(LookupTrigger trigger);
@@ -549,6 +550,7 @@ private:
 
     QUrl _previousAPILookup;
     QString _activePlaceLookup;
+    quint64 _placeLookupGeneration { 0 };
 };
 
 Q_DECLARE_METATYPE(AddressManager::LookupTrigger)

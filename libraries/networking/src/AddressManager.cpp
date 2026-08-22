@@ -42,6 +42,7 @@ const QString SETTINGS_CURRENT_ADDRESS_KEY = "address";
 namespace {
 const char API_LOOKUP_PLACE_NAME_KEY[] = "api_lookup_place_name";
 const char API_LOOKUP_RETRY_COUNT_KEY[] = "api_lookup_retry_count";
+const char API_LOOKUP_GENERATION_KEY[] = "api_lookup_generation";
 constexpr int API_LOOKUP_MAX_RETRIES = 3;
 constexpr int API_LOOKUP_RETRY_DELAY_MS = 1000;
 }
@@ -256,9 +257,14 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
 
     QUrl lookupUrl = lookupUrlIn;
 
-    // Any explicit navigation supersedes a delayed retry from an earlier
-    // directory-services place lookup.
-    _activePlaceLookup.clear();
+    // A user-initiated navigation supersedes any outstanding directory-services
+    // place lookup. AttemptedRefresh calls are deliberately excluded: the domain
+    // retry timer can fire every few seconds while one HTTPS lookup is still in
+    // flight, and those refreshes must be coalesced below.
+    if (trigger != LookupTrigger::AttemptedRefresh) {
+        ++_placeLookupGeneration;
+        _activePlaceLookup.clear();
+    }
 
     if (!lookupUrl.host().isEmpty() && !lookupUrl.path().isEmpty()) {
         // Assignment clients ping for empty url until assigned. Don't spam.
@@ -469,7 +475,16 @@ const QString DATA_OBJECT_DOMAIN_KEY = "domain";
 
 
 void AddressManager::handleAPIResponse(QNetworkReply* requestReply) {
-    _activePlaceLookup.clear();
+    const QString placeName = requestReply->property(API_LOOKUP_PLACE_NAME_KEY).toString();
+    if (!placeName.isEmpty()) {
+        const quint64 lookupGeneration =
+            requestReply->property(API_LOOKUP_GENERATION_KEY).toULongLong();
+        if (lookupGeneration != _placeLookupGeneration || _activePlaceLookup != placeName) {
+            qCDebug(networking) << "Ignoring stale place lookup response for" << placeName;
+            return;
+        }
+        _activePlaceLookup.clear();
+    }
 
     QJsonObject responseObject = QJsonDocument::fromJson(requestReply->readAll()).object();
     QJsonObject dataObject = responseObject["data"].toObject();
@@ -642,14 +657,22 @@ void AddressManager::handleAPIError(QNetworkReply* errorReply) {
     const auto error = errorReply->error();
     const QString placeName = errorReply->property(API_LOOKUP_PLACE_NAME_KEY).toString();
     const int retryCount = errorReply->property(API_LOOKUP_RETRY_COUNT_KEY).toInt();
+    const quint64 lookupGeneration =
+        errorReply->property(API_LOOKUP_GENERATION_KEY).toULongLong();
+
+    if (!placeName.isEmpty() &&
+            (lookupGeneration != _placeLookupGeneration || _activePlaceLookup != placeName)) {
+        qCDebug(networking) << "Ignoring stale place lookup error for" << placeName;
+        return;
+    }
+
     const bool transientPlaceLookupError = !placeName.isEmpty() &&
         (error == QNetworkReply::RemoteHostClosedError ||
          error == QNetworkReply::TimeoutError ||
          error == QNetworkReply::TemporaryNetworkFailureError ||
          error == QNetworkReply::NetworkSessionFailedError);
 
-    if (transientPlaceLookupError && retryCount < API_LOOKUP_MAX_RETRIES &&
-            _activePlaceLookup == placeName) {
+    if (transientPlaceLookupError && retryCount < API_LOOKUP_MAX_RETRIES) {
         const QString overridePath = errorReply->property(OVERRIDE_PATH_KEY).toString();
         const auto trigger = static_cast<LookupTrigger>(
             errorReply->property(LOOKUP_TRIGGER_KEY).toInt());
@@ -660,9 +683,11 @@ void AddressManager::handleAPIError(QNetworkReply* errorReply) {
                               << "in" << retryDelay << "ms, retry" << nextRetryCount
                               << "of" << API_LOOKUP_MAX_RETRIES;
         QTimer::singleShot(retryDelay, this,
-            [this, placeName, overridePath, trigger, nextRetryCount] {
-                if (_activePlaceLookup == placeName) {
-                    attemptPlaceNameLookup(placeName, overridePath, trigger, nextRetryCount);
+            [this, placeName, overridePath, trigger, nextRetryCount, lookupGeneration] {
+                if (_activePlaceLookup == placeName &&
+                        _placeLookupGeneration == lookupGeneration) {
+                    attemptPlaceNameLookup(placeName, overridePath, trigger,
+                                           nextRetryCount, lookupGeneration);
                 }
             });
         return;
@@ -683,13 +708,27 @@ void AddressManager::handleAPIError(QNetworkReply* errorReply) {
 }
 
 void AddressManager::attemptPlaceNameLookup(const QString& lookupString, const QString& overridePath,
-                                            LookupTrigger trigger, int retryCount) {
+                                            LookupTrigger trigger, int retryCount,
+                                            quint64 lookupGeneration) {
+    if (retryCount == 0) {
+        if (trigger == LookupTrigger::AttemptedRefresh && _activePlaceLookup == lookupString) {
+            qCDebug(networking) << "Coalescing duplicate active place lookup for" << lookupString;
+            return;
+        }
+        lookupGeneration = _placeLookupGeneration;
+    } else if (lookupGeneration != _placeLookupGeneration ||
+               _activePlaceLookup != lookupString) {
+        qCDebug(networking) << "Skipping stale place lookup retry for" << lookupString;
+        return;
+    }
+
     // assume this is a place name and see if we can get any info on it
     QVariantMap requestParams;
 
     _activePlaceLookup = lookupString;
     requestParams.insert(API_LOOKUP_PLACE_NAME_KEY, lookupString);
     requestParams.insert(API_LOOKUP_RETRY_COUNT_KEY, retryCount);
+    requestParams.insert(API_LOOKUP_GENERATION_KEY, QVariant::fromValue(lookupGeneration));
 
     // if the user asked for a specific path with this lookup then keep it with the request so we can use it later
     if (!overridePath.isEmpty()) {

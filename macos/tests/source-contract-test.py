@@ -1158,15 +1158,19 @@ for place_lookup_retry_contract in (
     "QNetworkReply::TimeoutError",
     "API_LOOKUP_MAX_RETRIES = 3",
     "QTimer::singleShot",
-    "_activePlaceLookup == placeName",
-    "attemptPlaceNameLookup(placeName, overridePath, trigger, nextRetryCount)",
+    "Coalescing duplicate active place lookup",
+    "Ignoring stale place lookup response",
+    "Ignoring stale place lookup error",
+    "_placeLookupGeneration == lookupGeneration",
+    "nextRetryCount, lookupGeneration",
 ):
     if place_lookup_retry_contract not in address_manager:
         raise SystemExit(
             "macOS production place lookup must recover from transient network errors: "
             f"{place_lookup_retry_contract}"
         )
-if "int retryCount = 0" not in address_manager_header:
+if "int retryCount = 0" not in address_manager_header or \
+        "quint64 _placeLookupGeneration { 0 }" not in address_manager_header:
     raise SystemExit("macOS production place lookup retry must remain bounded per request")
 subprocess.run(
     [
