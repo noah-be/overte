@@ -329,7 +329,15 @@ void Application::ensureApplicationTick() {
             << "OVERTE_APPLICATION_TICK_WATCHDOG presentation_stalled stall_ms="
             << (now - lastDisplayTick) / USECS_PER_MSEC;
     }
-    scheduleApplicationTick();
+    // A blocked presenter cannot consume newly generated frames.  Posting
+    // render events here would therefore turn the watchdog into an unbounded
+    // frame producer while the display thread is stuck in the driver.  Keep
+    // only the application update alive; the next real display tick remains
+    // solely responsible for scheduling another render frame.
+    bool expected = false;
+    if (_pendingIdleEvent.compare_exchange_strong(expected, true)) {
+        postEvent(this, new QEvent((QEvent::Type)ApplicationEvent::Idle), Qt::HighEventPriority);
+    }
 }
 
 void Application::activeChanged(Qt::ApplicationState state) {
