@@ -23,6 +23,17 @@ observer_module = importlib.util.module_from_spec(observer_spec)
 assert observer_spec.loader is not None
 observer_spec.loader.exec_module(observer_module)
 
+observer_source = OBSERVER.read_text(encoding="utf-8")
+for observer_contract in (
+    "discover_remote_target(log_text)",
+    '"domain_target_without_node"',
+    "progress_signature != last_progress_signature",
+    '"remote_host_source": remote_host_source',
+    '"remote_port": remote_port',
+):
+    assert observer_contract in observer_source
+assert "progress_count != last_progress_count" not in observer_source
+
 
 with tempfile.TemporaryDirectory() as temporary_name:
     temporary = Path(temporary_name)
@@ -35,6 +46,7 @@ with tempfile.TemporaryDirectory() as temporary_name:
             '[08/23 10:00:00] [INFO] [overte.scriptengine] [online-smoke.js] Script Engine starting:online-smoke.js',
             '[08/23 10:00:01] [INFO] [default] OVERTE_MACOS_GL_DRAW begin gl_program= 37',
             '[08/23 10:02:01] [INFO] [default] OVERTE_MACOS_GL_DRAW end gl_program= 37',
+            '[08/23 10:02:01] [DEBUG] [hifi.networking] Possible domain change required to connect to "178.105.253.182" on 40114',
             '[08/23 10:02:02] [INFO] [default] OVERTE_MACOS_ENTITY_GATE domain_list_connected domain= x session= y',
             '[08/23 10:02:03] [DEBUG] [hifi.networking] Added "Entity Server" (o) {a0b4d799-1768-446d-b540-9824e8a42b8f}(1) "UDP ""178.105.253.182":37492',
             '[08/23 10:02:04] [INFO] [default] OVERTE_MACOS_ENTITY_GATE entity_server_active node= x',
@@ -75,6 +87,33 @@ with tempfile.TemporaryDirectory() as temporary_name:
     assert payload["process"]["exit_code"] == 0
     assert payload["udp"]["nodes"]["Entity Server"]["outbound_packets"] == 1
     assert payload["udp"]["nodes"]["Entity Server"]["inbound_packets"] == 1
+    assert payload["domain_target"]["port"] == 40114
+
+    stalled_log = temporary / "connection-stalled.log"
+    stalled_udp = temporary / "connection-stalled-udp.log"
+    stalled_log.write_text(
+        '\n'.join((
+            '[08/23 11:00:00] [INFO] [overte.scriptengine] [online-smoke.js] Script Engine starting:online-smoke.js',
+            '[08/23 11:00:01] [DEBUG] [hifi.networking] Possible domain change required to connect to "178.105.253.182" on 40114',
+            '[08/23 11:00:02] [DEBUG] [hifi.networking] Coalescing duplicate active place lookup for "overte_hub"',
+            '[08/23 11:10:01] [DEBUG] [overte.scriptengine] [online-smoke.js] OVERTE_MACOS_SMOKE failed connection_stalled',
+        )) + '\n',
+        encoding="utf-8",
+    )
+    stalled_udp.write_text(
+        "2026-08-23 11:00:02.000 IP local.50000 > 178.105.253.182.40114: UDP, length 64\n",
+        encoding="utf-8",
+    )
+    stalled_payload = module.analyze(stalled_log, None, stalled_udp)
+    assert stalled_payload["primary_bottleneck"] == "domain_server_unreachable"
+    assert stalled_payload["domain_target"]["host"] == "178.105.253.182"
+    assert stalled_payload["udp"]["nodes"]["Domain Server"]["outbound_packets"] == 1
+    assert stalled_payload["udp"]["nodes"]["Domain Server"].get("inbound_packets", 0) == 0
+    assert stalled_payload["directory"]["coalesced_active_lookups"] == 1
+
+    assert observer_module.discover_remote_target(stalled_log.read_text(encoding="utf-8")) == (
+        "178.105.253.182", 40114, "domain_target"
+    )
 
     observer_dir = temporary / "observer"
     observed = subprocess.run(

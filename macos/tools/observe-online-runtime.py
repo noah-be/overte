@@ -17,6 +17,11 @@ import re
 STOP = False
 MAX_CAPTURE_BYTES = 8 * 1024 * 1024
 NODE_HOST = re.compile(r'Added "[^"]+".*?"UDP ""(\d+\.\d+\.\d+\.\d+)":\d+')
+DOMAIN_TARGET = re.compile(
+    r'Possible domain change required to connect to "(\d+\.\d+\.\d+\.\d+)" on (\d+)'
+)
+DOMAIN_HOST = re.compile(r'Updated domain hostname to "(\d+\.\d+\.\d+\.\d+)"')
+ONLINE_PROGRESS = re.compile(r"OVERTE_MACOS_SMOKE online_progress ([^\r\n]+)")
 PRIVATE_IPV4 = re.compile(
     r"\b(?:10(?:\.\d{1,3}){3}|127(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|"
     r"172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})\b"
@@ -56,6 +61,20 @@ def sanitize_udp_trace(path: Path, remote_host: str | None) -> None:
     )
     path.write_text(value, encoding="utf-8")
     os.chmod(path, 0o600)
+
+
+def discover_remote_target(log_text: str) -> tuple[str, int | None, str] | None:
+    node_match = NODE_HOST.search(log_text)
+    if node_match:
+        return node_match.group(1), None, "node_added"
+    target_matches = list(DOMAIN_TARGET.finditer(log_text))
+    if target_matches:
+        match = target_matches[-1]
+        return match.group(1), int(match.group(2)), "domain_target"
+    host_matches = list(DOMAIN_HOST.finditer(log_text))
+    if host_matches:
+        return host_matches[-1].group(1), None, "domain_hostname"
+    return None
 
 
 def overte_pids() -> list[int]:
@@ -166,14 +185,17 @@ def main() -> int:
     )
     tcpdump_started = False
     remote_host = None
+    remote_port = None
+    remote_host_source = None
 
     started = time.monotonic()
     observations_path = args.output_dir / "runtime-observations.jsonl"
     samples: list[dict[str, object]] = []
     seen_query_at = None
     seen_server_at = None
+    seen_domain_target_at = None
     last_progress_change = started
-    last_progress_count = 0
+    last_progress_signature = None
     sampled_reasons: set[str] = set()
     with observations_path.open("w", encoding="utf-8") as observations:
         os.chmod(observations_path, 0o600)
@@ -187,9 +209,10 @@ def main() -> int:
             except OSError:
                 pass
             if remote_host is None:
-                host_match = NODE_HOST.search(log_text)
-                if host_match:
-                    remote_host = host_match.group(1)
+                remote_target = discover_remote_target(log_text)
+                if remote_target:
+                    remote_host, remote_port, remote_host_source = remote_target
+                    seen_domain_target_at = now
             if capture_ready and remote_host and not tcpdump_started:
                 tcpdump_started = True
                 tcpdump_stream = (args.output_dir / "udp-headers.log").open(
@@ -204,9 +227,10 @@ def main() -> int:
                     )
                 except OSError as error:
                     tcpdump_error = type(error).__name__
-            progress_count = log_text.count("OVERTE_MACOS_SMOKE online_progress")
-            if progress_count != last_progress_count:
-                last_progress_count = progress_count
+            progress_matches = ONLINE_PROGRESS.findall(log_text)
+            progress_signature = progress_matches[-1] if progress_matches else None
+            if progress_signature is not None and progress_signature != last_progress_signature:
+                last_progress_signature = progress_signature
                 last_progress_change = now
             if seen_server_at is None and "OVERTE_MACOS_ENTITY_GATE entity_server_active" in log_text:
                 seen_server_at = now
@@ -232,12 +256,16 @@ def main() -> int:
             observations.flush()
 
             reasons = []
+            if (seen_domain_target_at is not None and
+                    "OVERTE_MACOS_ENTITY_GATE domain_list_connected" not in log_text and
+                    not NODE_HOST.search(log_text) and now - seen_domain_target_at >= 60):
+                reasons.append("domain_target_without_node")
             if seen_server_at is not None and seen_query_at is None and now - seen_server_at >= 60:
                 reasons.append("entity_server_without_query")
             if (seen_query_at is not None and "OVERTE_MACOS_ENTITY_GATE entity_data_received" not in log_text
                     and now - seen_query_at >= 60):
                 reasons.append("query_without_entity_data")
-            if progress_count > 0 and now - last_progress_change >= 120:
+            if progress_signature is not None and now - last_progress_change >= 120:
                 reasons.append("online_progress_stalled")
             for reason in reasons:
                 if reason not in sampled_reasons and pids and len(samples) < 4:
@@ -270,6 +298,8 @@ def main() -> int:
         "tcpdump_started": tcpdump_started,
         "tcpdump_interface": selected_interface,
         "remote_host": remote_host,
+        "remote_port": remote_port,
+        "remote_host_source": remote_host_source,
         "tcpdump_error": tcpdump_error,
         "udp_header_bytes": (
             (args.output_dir / "udp-headers.log").stat().st_size

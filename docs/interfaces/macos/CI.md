@@ -233,14 +233,18 @@ versioned controlled domain exists.
 The online smoke also runs a build-independent external observer around the
 unchanged application bundle. It records bounded process/memory and UDP-socket
 snapshots, DNS/routes/interfaces, and a best-effort header-only UDP trace capped
-at 8 MiB; packet payloads are never captured. Missing entity-server activity,
-query responses, or online progress trigger at most four short macOS thread
-samples. A postmortem analyzer correlates Directory retries, ordered online
-gates, assigned node endpoints, UDP direction/byte counts, entity and asset
-queue progress, software-GL draw durations, and the process result into
-`online-diagnostic-timeline.json`. These diagnostics run for normal fail-fast
-exits as well as crashes and outer timeouts, and can therefore be improved and
-rerun with an existing immutable app artifact.
+at 8 MiB; packet payloads are never captured. Capture begins as soon as the
+Directory lookup exposes the resolved domain IP, so a failure before the first
+assigned node still distinguishes an unsent connect request, an unanswered
+request, and a received-but-unprocessed handshake. Missing domain, entity-server,
+query-response, or actual online-state progress triggers at most four short macOS
+thread samples; repeated identical progress log lines do not postpone sampling.
+A postmortem analyzer correlates Directory retries/coalescing, the resolved
+domain endpoint, ordered online gates, assigned node endpoints, UDP
+direction/byte counts, entity and asset queue progress, software-GL draw
+durations, and the process result into `online-diagnostic-timeline.json`. These
+diagnostics run for normal fail-fast exits as well as crashes and outer timeouts,
+and can therefore be improved and rerun with an existing immutable app artifact.
 
 Performance artifacts contain only allowlisted hardware evidence. Raw
 `system_profiler` output and `uname -a` are never written into the upload tree;
