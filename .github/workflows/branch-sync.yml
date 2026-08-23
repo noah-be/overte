@@ -1,0 +1,84 @@
+name: Branch synchronization
+
+on:
+  push:
+    branches: [main, android-main, android-vr, apple-main]
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: branch-synchronization-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  open-sync-pull-requests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Create branch synchronization app token
+        id: branch-sync-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ vars.BRANCH_SYNC_APP_CLIENT_ID }}
+          private-key: ${{ secrets.BRANCH_SYNC_APP_PRIVATE_KEY }}
+
+      - name: Open missing parent-to-child synchronization PRs
+        env:
+          GH_TOKEN: ${{ steps.branch-sync-token.outputs.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_PARENT: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            parents=("$PUSH_PARENT")
+          else
+            parents=(main android-main android-vr apple-main)
+          fi
+
+          for parent in "${parents[@]}"; do
+            while IFS= read -r child; do
+              [[ -n "$child" ]] || continue
+
+              if ! comparison=$(gh api \
+                "repos/$REPOSITORY/compare/$child...$parent" 2>&1); then
+                echo "::warning::Skipping $parent -> $child: $comparison"
+                continue
+              fi
+              ahead=$(jq -r '.ahead_by' <<<"$comparison")
+              [[ "$ahead" -gt 0 ]] || continue
+
+              pull_request=$(gh pr list \
+                --repo "$REPOSITORY" \
+                --state open \
+                --base "$child" \
+                --head "$parent" \
+                --json number \
+                --jq '.[0].number // empty')
+
+              if [[ -z "$pull_request" ]]; then
+                pull_request=$(gh pr create \
+                  --repo "$REPOSITORY" \
+                  --base "$child" \
+                  --head "$parent" \
+                  --title "sync: merge $parent into $child" \
+                  --body "Automated direct parent-to-child synchronization required by the repository branch policy.")
+              fi
+
+              gh pr merge "$pull_request" \
+                --repo "$REPOSITORY" \
+                --auto \
+                --merge
+            done < <(python3 tools/branch-policy/check.py children --parent "$parent")
+          done
