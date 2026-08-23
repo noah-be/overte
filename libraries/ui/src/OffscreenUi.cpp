@@ -144,6 +144,41 @@ OffscreenTouchDevice& offscreenUiTouchDevice() {
 #endif
     return device;
 }
+
+#if defined(Q_OS_IOS)
+void finishIOSOffscreenTextFocus(QQuickWindow* window, const char* source,
+                                 bool delivered, bool accepted) {
+    if (!window) {
+        return;
+    }
+
+    QQuickItem* focusItem = window->activeFocusItem();
+    bool inputMethodEnabled { false };
+    if (focusItem) {
+        QInputMethodQueryEvent query(Qt::ImEnabled | Qt::ImHints | Qt::ImCursorRectangle);
+        QCoreApplication::sendEvent(focusItem, &query);
+        inputMethodEnabled = query.value(Qt::ImEnabled).toBool();
+    }
+
+    if (inputMethodEnabled) {
+        if (auto* inputMethod = QGuiApplication::inputMethod()) {
+            inputMethod->update(Qt::ImEnabled | Qt::ImHints | Qt::ImCursorRectangle);
+            inputMethod->show();
+        }
+    }
+
+    logIOSRuntimeMarker(
+        "OVERTE_IOS_TOUCH_UI_GATE stage=focus-after-touch",
+        "source=", source,
+        "focus=", focusItem && !focusItem->objectName().isEmpty()
+            ? focusItem->objectName() : QStringLiteral("<unnamed-or-none>"),
+        "focus_class=", focusItem ? focusItem->metaObject()->className() : "<none>",
+        "active_focus=", focusItem ? focusItem->hasActiveFocus() : false,
+        "ime_enabled=", inputMethodEnabled,
+        "delivered=", delivered,
+        "mouse_accepted=", accepted);
+}
+#endif
 }
 
 OffscreenUi::OffscreenUi() {
@@ -209,24 +244,8 @@ bool OffscreenUi::handleMobilePointerEvent(const PointerEvent& event) {
     const bool delivered = QCoreApplication::sendEvent(getWindow(), &mouseEvent);
 #if defined(Q_OS_IOS)
     if (event.getType() == PointerEvent::Release) {
-        QQuickItem* focusItem = getWindow()->activeFocusItem();
-        bool inputMethodEnabled { false };
-        if (focusItem) {
-            QInputMethodQueryEvent query(Qt::ImEnabled);
-            QCoreApplication::sendEvent(focusItem, &query);
-            inputMethodEnabled = query.value(Qt::ImEnabled).toBool();
-            if (inputMethodEnabled) {
-                if (auto* inputMethod = QGuiApplication::inputMethod()) {
-                    inputMethod->show();
-                }
-            }
-        }
-        logIOSRuntimeMarker(
-            "OVERTE_IOS_TOUCH_UI_GATE stage=focus-after-touch",
-            "focus=", focusItem ? focusItem->objectName() : QStringLiteral("<none>"),
-            "focus_class=", focusItem ? focusItem->metaObject()->className() : "<none>",
-            "ime_enabled=", inputMethodEnabled,
-            "mouse_accepted=", mouseEvent.isAccepted());
+        finishIOSOffscreenTextFocus(getWindow(), "mobile-pointer", delivered,
+                                    mouseEvent.isAccepted());
     }
 #endif
     return delivered && mouseEvent.isAccepted();
@@ -1222,7 +1241,14 @@ bool OffscreenUi::eventFilter(QObject* originalDestination, QEvent* event) {
             // (using handlePointerEvent) later
             QMouseEvent mappedEvent(mouseEvent->type(), transformedPos, mouseEvent->screenPos(), mouseEvent->button(), mouseEvent->buttons(), mouseEvent->modifiers());
             mappedEvent.ignore();
-            if (QCoreApplication::sendEvent(getWindow(), &mappedEvent)) {
+            const bool delivered = QCoreApplication::sendEvent(getWindow(), &mappedEvent);
+#if defined(Q_OS_IOS)
+            if (event->type() == QEvent::MouseButtonRelease) {
+                finishIOSOffscreenTextFocus(getWindow(), "window-mouse-filter", delivered,
+                                            mappedEvent.isAccepted());
+            }
+#endif
+            if (delivered) {
                 return mappedEvent.isAccepted();
             }
             break;

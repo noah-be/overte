@@ -26,6 +26,8 @@
   "touchInputTraceLimit": 64,
   "touchJumpMinimumPulseMs": 120,
   "offscreenKeyTraceLimit": 64,
+  "iosResourceTextureMaxDimension": 512,
+  "iosTextureTraceEvery": 64,
   "locomotionTraceIntervalMs": 250,
   "cameraMode": "third-person"
 }

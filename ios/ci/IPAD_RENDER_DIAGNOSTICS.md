@@ -1,9 +1,11 @@
 # iPad render diagnostics without rebuilding
 
 The physical-device build reads `Documents/overte-ios-render-diagnostics.json`
-once at process startup. Replace that file through House Arrest/AFC while the
-app is closed, then launch Overte again. Reinstalling, resigning, rebuilding,
-and rebooting the iPad are not required.
+and notices valid file replacements. Replace that file through House
+Arrest/AFC while the app is closed, then launch Overte again. Reinstalling,
+resigning, rebuilding, and rebooting the iPad are not required. Settings that
+control construction of Vulkan resources take effect for newly created
+resources, so restart the app after changing them.
 
 The first `OVERTE_IOS_VULKAN_CONFIG` line proves which file and settings were
 loaded. `file_exists=1`, a non-zero `json_keys`, and the requested selectors
@@ -36,3 +38,17 @@ set `clearPersistedQuarantine` for one launch to remove it. Set
 Light-cluster bindings 10, 11, and 12 are listed in the supplied light-cluster
 profile. Replacing them with zero buffers leaves the binary unchanged while
 testing whether a remaining physical-device fault is in clustered lighting.
+
+## Physical-device texture memory
+
+Ordinary downloaded world textures use the reliable strict Vulkan upload path
+but are capped on iOS before upload. `iosResourceTextureMaxDimension` accepts
+64 through 16384 and defaults to 512. Use 256 for a low-memory isolation run,
+512 for the safe default, or 1024 to compare quality after memory headroom has
+been proven. Restart Overte after changing the value; no new IPA is needed.
+Strict UI and special-purpose textures are not reduced.
+
+`OVERTE_IOS_TEXTURE_MEMORY` records live Vulkan texture count/bytes, the
+process physical footprint used by Jetsam, original and uploaded dimensions,
+and the selected source mip. `iosTextureTraceEvery` controls the interval for
+these bounded records and defaults to every 64 creations.

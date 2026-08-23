@@ -35,6 +35,14 @@ RENDER_HEADER = (ROOT / "interface/src/scripting/RenderScriptingInterface.h").re
 RENDER_SOURCE = (ROOT / "interface/src/scripting/RenderScriptingInterface.cpp").read_text()
 GRAPHICS_SETTINGS = (ROOT / "scripts/system/settings/qml/pages/GraphicsSettings.qml").read_text()
 TABLET_HOME = (ROOT / "interface/resources/qml/hifi/tablet/TabletHome.qml").read_text()
+TABLET_ADDRESS = (ROOT / "interface/resources/qml/hifi/tablet/TabletAddressDialog.qml").read_text()
+TABLET_MESSAGE_BOX = (ROOT / "interface/resources/qml/dialogs/TabletMessageBox.qml").read_text()
+IOS_AUDIO_CONFIGURATION = (
+    ROOT / "interface/resources/qml/hifi/audio/+ios/AudioTouchConfiguration.qml"
+).read_text()
+SETTINGS_ADVANCED = (ROOT / "scripts/system/settings/qml/AdvancedOptions.qml").read_text()
+SETTINGS_NUMBER = (ROOT / "scripts/system/settings/qml/SettingNumber.qml").read_text()
+SETTINGS_SLIDER = (ROOT / "scripts/system/settings/qml/SettingSlider.qml").read_text()
 
 for metric in (
     "safeInsetLeft", "safeInsetTop", "safeInsetRight", "safeInsetBottom",
@@ -141,8 +149,17 @@ assert VIRTUAL_PAD.index("findStartingTouchPointCandidate") < VIRTUAL_PAD.index(
 assert "QEvent::MouseButtonPress" in OFFSCREEN_UI
 assert "QCoreApplication::sendEvent(getWindow(), &mouseEvent)" in OFFSCREEN_UI
 assert "stage=focus-after-touch" in OFFSCREEN_UI
+assert '"window-mouse-filter"' in OFFSCREEN_UI
 assert "activeFocusItem()" in OFFSCREEN_SURFACE
 assert "stage=hardware-key-forwarded" in OFFSCREEN_SURFACE
+assert 'objectName: "tabletAddressLine"' in TABLET_ADDRESS
+assert "focus: false" in TABLET_ADDRESS
+assert "addressLine.forceActiveFocus()" in TABLET_ADDRESS
+assert "import QtQuick.Dialogs as OriginalDialogs" in TABLET_MESSAGE_BOX
+assert "HifiControls.TouchUiMetrics" in IOS_AUDIO_CONFIGURATION
+for migrated_settings_qml in (SETTINGS_ADVANCED, SETTINGS_NUMBER, SETTINGS_SLIDER):
+    assert "QtQuick.Controls.Styles" not in migrated_settings_qml
+assert "RegularExpressionValidator" in SETTINGS_NUMBER
 assert 'settingText: "Resolution scale"' in GRAPHICS_SETTINGS
 assert "Render.viewportResolutionScale = value.toFixed(1)" in GRAPHICS_SETTINGS
 assert '"viewportResolutionScale", 0.8f' in RENDER_HEADER
