@@ -110,7 +110,9 @@ FocusScope {
                 anchors.fill: parent
                 Accessible.ignored: true
                 hoverEnabled: touchMetrics.hoverSupported
-                preventStealing: false
+                // Finger jitter must not turn an ordinary tap into a discarded
+                // list gesture. Pointer-driven lists retain the old behavior.
+                preventStealing: touchMetrics.directTouch
                 onEntered: {
                     Tablet.playSound(TabletEnums.ButtonHover);
                     listView.currentIndex = index
