@@ -12,6 +12,7 @@
 
 #include <QtCore/QVariant>
 #include <QtGui/QGuiApplication>
+#include <QtGui/QMouseEvent>
 #include <QtQuick/QQuickWindow>
 #include <QtQml/QtQml>
 
@@ -166,7 +167,41 @@ void OffscreenUi::handlePointerEvent(const PointerEvent& event) {
 }
 
 bool OffscreenUi::handleMobilePointerEvent(const PointerEvent& event) {
-    return OffscreenQmlSurface::handlePointerEvent(event, offscreenUiTouchDevice());
+    // Qt 6 accepts synthesized touch events at the window boundary even when
+    // the QML control under the point never receives a click or focus. The
+    // established desktop event filter uses mouse events for this same reason.
+    // Mobile screen-space UI needs that reliable path for MouseArea, Button,
+    // and TextField controls, including mouse drags used by swipe gestures.
+    if (!getWindow()) {
+        return false;
+    }
+
+    QEvent::Type mouseType { QEvent::None };
+    switch (event.getType()) {
+        case PointerEvent::Press:
+            mouseType = QEvent::MouseButtonPress;
+            break;
+        case PointerEvent::Release:
+            mouseType = QEvent::MouseButtonRelease;
+            break;
+        case PointerEvent::Move:
+            mouseType = QEvent::MouseMove;
+            break;
+        default:
+            return false;
+    }
+
+    const QPointF point(event.getPos2D().x, event.getPos2D().y);
+    const Qt::MouseButton button = event.getButton() == PointerEvent::PrimaryButton
+        ? Qt::LeftButton : Qt::NoButton;
+    Qt::MouseButtons buttons { Qt::NoButton };
+    if (event.getButtons() & PointerEvent::PrimaryButton) {
+        buttons |= Qt::LeftButton;
+    }
+    QMouseEvent mouseEvent(mouseType, point, point, point, button, buttons,
+                           event.getKeyboardModifiers());
+    mouseEvent.ignore();
+    return QCoreApplication::sendEvent(getWindow(), &mouseEvent) && mouseEvent.isAccepted();
 }
 
 QObject* OffscreenUi::getFlags() {

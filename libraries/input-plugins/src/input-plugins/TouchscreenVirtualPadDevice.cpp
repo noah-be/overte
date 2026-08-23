@@ -446,13 +446,16 @@ void TouchscreenVirtualPadDevice::touchUpdateEvent(const QTouchEvent* event) {
             continue;
         }
 
-        if (!viewTouchFound && idxViewStartingPointCandidate == -1 && viewTouchBeginIsValid(thisPoint) &&
-                (!_unusedTouches.count(thisPointId) || _unusedTouches[thisPointId] == VIEW )) {
-            idxViewStartingPointCandidate = i;
+        // Buttons occupy the right-hand view region, so they must get first
+        // refusal for a new touch. Otherwise every initial button press is
+        // classified as VIEW before the button candidate is considered.
+        if (_buttonsManager.findStartingTouchPointCandidate(thisPoint, thisPointId, i, _unusedTouches)) {
             continue;
         }
 
-        if (_buttonsManager.findStartingTouchPointCandidate(thisPoint, thisPointId, i, _unusedTouches)) {
+        if (!viewTouchFound && idxViewStartingPointCandidate == -1 && viewTouchBeginIsValid(thisPoint) &&
+                (!_unusedTouches.count(thisPointId) || _unusedTouches[thisPointId] == VIEW )) {
+            idxViewStartingPointCandidate = i;
             continue;
         }
 

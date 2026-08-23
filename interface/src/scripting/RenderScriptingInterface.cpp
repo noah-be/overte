@@ -20,6 +20,9 @@
 #include "ScreenName.h"
 
 #include <procedural/Procedural.h>
+#if defined(Q_OS_IOS)
+#include <shared/IOSRuntimeLogging.h>
+#endif
 
 STATIC_SCRIPT_TYPES_INITIALIZER((+[](ScriptManager* manager){
     auto scriptEngine = manager->engine().get();
@@ -62,6 +65,19 @@ void RenderScriptingInterface::loadSettings() {
         _proceduralMaterialsEnabled = _proceduralMaterialsEnabledSetting.get();
         _antialiasingMode = static_cast<AntialiasingSetupConfig::Mode>(_antialiasingModeSetting.get());
         _viewportResolutionScale = _viewportResolutionScaleSetting.get();
+#if defined(Q_OS_IOS)
+        // Apply the new iPad-friendly default once to upgraded installs as
+        // well as fresh installs. Subsequent changes from the tablet graphics
+        // slider remain persistent and are never overwritten at startup.
+        Setting::Handle<bool> iosResolutionDefaultApplied {
+            "iosViewportResolutionScaleDefaultApplied", false
+        };
+        if (!iosResolutionDefaultApplied.get()) {
+            _viewportResolutionScale = 0.8f;
+            _viewportResolutionScaleSetting.set(_viewportResolutionScale);
+            iosResolutionDefaultApplied.set(true);
+        }
+#endif
         _fullScreenScreen = _fullScreenScreenSetting.get();
     });
 
@@ -438,6 +454,11 @@ void RenderScriptingInterface::forceViewportResolutionScale(float scale) {
     _renderSettingLock.withWriteLock([&] {
         _viewportResolutionScale = scale;
         _viewportResolutionScaleSetting.set(scale);
+#if defined(Q_OS_IOS)
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_RENDER_PROFILE stage=resolution-scale-applied",
+            "scale=", scale);
+#endif
 
         auto renderConfig = qApp->getRenderEngine()->getConfiguration();
         assert(renderConfig);
