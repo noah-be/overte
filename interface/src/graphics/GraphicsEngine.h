@@ -133,7 +133,7 @@ public:
     bool shouldPaint() const;
 
     /**
-     * Used by `Application::onPresent` to check if a new Frame object creation event can be posted.
+     * Used by `Application::onPresentTick` to check if a new Frame object creation event can be posted.
      * Internally it changes state of `_pendingRenderingEvent` atomic_bool.
      *
      * @return `true` if previous Frame object creation event has finished and new one can be posted.

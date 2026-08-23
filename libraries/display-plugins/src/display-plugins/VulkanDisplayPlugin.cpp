@@ -756,6 +756,7 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
         PROFILE_RANGE_EX(render, "updateFrameData", 0xff00ff00, frameId)
         updateFrameData();
     }
+    emit presentTick();
 
     if (_currentFrame) {
         auto correction = getViewCorrection();
