@@ -83,6 +83,55 @@ application_events = (
 ).read_text(encoding="utf-8")
 if "void Application::onPresentTick()" not in application_events:
     raise SystemExit("Application updates must be driven by the independent display tick")
+application_ticks = function(
+    application_events,
+    "void Application::onPresentTick()",
+    "void Application::activeChanged(",
+)
+for watchdog_contract in (
+    "_lastDisplayPresentTickUsecs.store(usecTimestampNow(), std::memory_order_release)",
+    "scheduleApplicationTick()",
+    "void Application::ensureApplicationTick()",
+    "PRESENT_TICK_STALL_USECS",
+    "now - lastDisplayTick < PRESENT_TICK_STALL_USECS",
+    "_presentTickWatchdogActive.exchange(true, std::memory_order_acq_rel)",
+    "OVERTE_APPLICATION_TICK_WATCHDOG presentation_stalled",
+):
+    if watchdog_contract not in application_ticks:
+        raise SystemExit(
+            f"Application tick watchdog contract missing: {watchdog_contract}"
+        )
+schedule_tick = application_ticks.split(
+    "void Application::scheduleApplicationTick()", 1
+)[1].split("void Application::ensureApplicationTick()", 1)[0]
+if schedule_tick.count("ApplicationEvent::Idle") != 1:
+    raise SystemExit("Application tick scheduling must keep exactly one idle post path")
+if "_pendingIdleEvent.compare_exchange_strong" not in schedule_tick:
+    raise SystemExit("Application tick scheduling must bound the idle-event backlog")
+if "_graphicsEngine->checkPendingRenderEvent()" not in schedule_tick:
+    raise SystemExit("Application tick scheduling must retain bounded render-event pacing")
+
+application_header = (ROOT / "interface/src/Application.h").read_text(encoding="utf-8")
+for watchdog_member in (
+    "QTimer _presentTickWatchdogTimer;",
+    "std::atomic<quint64> _lastDisplayPresentTickUsecs { 0 };",
+    "std::atomic<bool> _presentTickWatchdogActive { false };",
+):
+    if watchdog_member not in application_header:
+        raise SystemExit(f"Application tick watchdog state missing: {watchdog_member}")
+
+application_setup = (
+    ROOT / "interface/src/Application_Setup.cpp"
+).read_text(encoding="utf-8")
+for watchdog_setup in (
+    "PRESENT_TICK_WATCHDOG_INTERVAL_MS = 100",
+    "_lastDisplayPresentTickUsecs.store(usecTimestampNow(), std::memory_order_release)",
+    "_presentTickWatchdogTimer.setTimerType(Qt::PreciseTimer)",
+    "this, &Application::ensureApplicationTick",
+    "_presentTickWatchdogTimer.start()",
+):
+    if watchdog_setup not in application_setup:
+        raise SystemExit(f"Application tick watchdog setup missing: {watchdog_setup}")
 
 application_plugins = (
     ROOT / "interface/src/Application_Plugins.cpp"

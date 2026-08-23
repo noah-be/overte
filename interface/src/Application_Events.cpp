@@ -14,6 +14,7 @@
 //
 
 #include "Application.h"
+#include "InterfaceLogging.h"
 
 #include <QtCore/QMimeData>
 
@@ -46,6 +47,7 @@ Q_LOGGING_CATEGORY(trace_app_input_mouse, "trace.app.input.mouse")
 
 static const unsigned int THROTTLED_SIM_FRAMERATE = 15;
 static const int THROTTLED_SIM_FRAME_PERIOD_MS = MSECS_PER_SECOND / THROTTLED_SIM_FRAMERATE;
+static const quint64 PRESENT_TICK_STALL_USECS = 250 * USECS_PER_MSEC;
 
 class LambdaEvent : public QEvent {
     std::function<void()> _fun;
@@ -292,6 +294,15 @@ void Application::pushPostUpdateLambda(void* key, const std::function<void()>& f
 
 // thread-safe
 void Application::onPresentTick() {
+    _lastDisplayPresentTickUsecs.store(usecTimestampNow(), std::memory_order_release);
+    if (_presentTickWatchdogActive.exchange(false, std::memory_order_acq_rel)) {
+        qCInfo(interfaceapp) << "OVERTE_APPLICATION_TICK_WATCHDOG presentation_resumed";
+    }
+    scheduleApplicationTick();
+}
+
+// thread-safe
+void Application::scheduleApplicationTick() {
     bool expected = false;
     if (_pendingIdleEvent.compare_exchange_strong(expected, true)) {
         postEvent(this, new QEvent((QEvent::Type)ApplicationEvent::Idle), Qt::HighEventPriority);
@@ -300,6 +311,25 @@ void Application::onPresentTick() {
     if (_graphicsEngine->checkPendingRenderEvent() && !isAboutToQuit()) {
         postEvent(_graphicsEngine->_renderEventHandler, new QEvent((QEvent::Type)ApplicationEvent::Render));
     }
+}
+
+// Runs on the application thread.  Presentation can be inside an uninterruptible
+// driver call while this timer continues to service networking and simulation.
+void Application::ensureApplicationTick() {
+    if (isAboutToQuit()) {
+        return;
+    }
+    const auto now = usecTimestampNow();
+    const auto lastDisplayTick = _lastDisplayPresentTickUsecs.load(std::memory_order_acquire);
+    if (lastDisplayTick == 0 || now - lastDisplayTick < PRESENT_TICK_STALL_USECS) {
+        return;
+    }
+    if (!_presentTickWatchdogActive.exchange(true, std::memory_order_acq_rel)) {
+        qCWarning(interfaceapp)
+            << "OVERTE_APPLICATION_TICK_WATCHDOG presentation_stalled stall_ms="
+            << (now - lastDisplayTick) / USECS_PER_MSEC;
+    }
+    scheduleApplicationTick();
 }
 
 void Application::activeChanged(Qt::ApplicationState state) {

@@ -267,6 +267,7 @@ static const QString DISABLE_WATCHDOG_FLAG{ "HIFI_DISABLE_WATCHDOG" };
 static bool DISABLE_WATCHDOG = nsightActive() || QProcessEnvironment::systemEnvironment().contains(DISABLE_WATCHDOG_FLAG);
 #endif
 static const int WATCHDOG_TIMER_TIMEOUT = 100;
+static const int PRESENT_TICK_WATCHDOG_INTERVAL_MS = 100;
 
 #if defined(Q_OS_ANDROID)
 static const QString TESTER_FILE = "/sdcard/_hifi_test_device.txt";
@@ -1440,6 +1441,16 @@ void Application::initialize(const QCommandLineParser &parser) {
 
     _pendingIdleEvent = false;
     _graphicsEngine->startup();
+    // A driver call on the presentation thread must never pause application
+    // updates, domain networking, or entity queries.  Normal display ticks
+    // remain authoritative; this bounded timer only fills gaps longer than
+    // the stall threshold enforced by ensureApplicationTick().
+    _lastDisplayPresentTickUsecs.store(usecTimestampNow(), std::memory_order_release);
+    _presentTickWatchdogTimer.setTimerType(Qt::PreciseTimer);
+    _presentTickWatchdogTimer.setInterval(PRESENT_TICK_WATCHDOG_INTERVAL_MS);
+    connect(&_presentTickWatchdogTimer, &QTimer::timeout,
+        this, &Application::ensureApplicationTick);
+    _presentTickWatchdogTimer.start();
 
     qCDebug(interfaceapp) << "Directory Service session ID is" << uuidStringWithoutCurlyBraces(accountManager->getSessionID());
 

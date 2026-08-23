@@ -24,6 +24,10 @@ NODE = re.compile(
     r'"UDP ""([^" ]+)":(\d+)'
 )
 GL_DRAW = re.compile(r"OVERTE_MACOS_GL_(?:ARRAY_)?DRAW (begin|end)(?: gl_program=\s*(\d+))?")
+APPLICATION_TICK_WATCHDOG = re.compile(
+    r"OVERTE_APPLICATION_TICK_WATCHDOG "
+    r"(presentation_stalled|presentation_resumed)(?: stall_ms=\s*(\d+))?"
+)
 LOOKUP_RETRY = re.compile(r"Retrying transient place lookup.*?in (\d+) ms, retry (\d+) of (\d+)")
 API_ERROR = re.compile(r"AddressManager API error - ([^-]+) -")
 DOMAIN_TARGET = re.compile(
@@ -117,6 +121,9 @@ def analyze(
     gl_error_counts: Counter[str] = Counter()
     draw_stack: dict[str, list[int]] = {}
     draw_durations: list[int] = []
+    tick_watchdog_counts: Counter[str] = Counter()
+    tick_watchdog_events: list[dict[str, object]] = []
+    tick_watchdog_stall_ms: list[int] = []
     outcome: str | None = None
     outcome_detail: str | None = None
 
@@ -211,6 +218,20 @@ def analyze(
                 draw_stack.setdefault(program, []).append(elapsed)
             elif draw_stack.get(program):
                 draw_durations.append(max(0, elapsed - draw_stack[program].pop()))
+        tick_watchdog_match = APPLICATION_TICK_WATCHDOG.search(line)
+        if tick_watchdog_match:
+            action, stall_ms = tick_watchdog_match.groups()
+            tick_watchdog_counts[action] += 1
+            event: dict[str, object] = {
+                "action": action,
+                "elapsed_seconds": elapsed,
+                "line": line_number,
+            }
+            if stall_ms is not None:
+                event["stall_ms"] = int(stall_ms)
+                tick_watchdog_stall_ms.append(int(stall_ms))
+            if len(tick_watchdog_events) < 256:
+                tick_watchdog_events.append(event)
         if "OVERTE_MACOS_SMOKE passed" in line:
             outcome, outcome_detail = "passed", line.split("OVERTE_MACOS_SMOKE passed", 1)[1].strip()
         elif "OVERTE_MACOS_SMOKE failed" in line:
@@ -329,6 +350,11 @@ def analyze(
             "maximum_draw_seconds": max(draw_durations, default=0),
             "total_draw_seconds": sum(draw_durations),
             "errors": dict(sorted(gl_error_counts.items())),
+            "application_tick_watchdog": {
+                "counts": dict(sorted(tick_watchdog_counts.items())),
+                "events": tick_watchdog_events,
+                "maximum_reported_stall_ms": max(tick_watchdog_stall_ms, default=0),
+            },
         },
         "resource_host_counts": dict(resource_hosts.most_common(32)),
         "suppressed_repeated_messages": repeated_messages,
