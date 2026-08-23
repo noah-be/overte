@@ -89,7 +89,7 @@ Install the dedicated app only on this repository and grant it the minimum
 repository permissions `Contents: read` and `Pull requests: read and write`.
 Webhooks and organization or account permissions are not required. Configure:
 
-- repository variable `BRANCH_SYNC_APP_ID` with the numeric app ID;
+- repository variable `BRANCH_SYNC_APP_CLIENT_ID` with the app client ID;
 - Actions secret `BRANCH_SYNC_APP_PRIVATE_KEY` with one active app private key.
 
 Rotate the private key in the GitHub App settings, update the Actions secret,
