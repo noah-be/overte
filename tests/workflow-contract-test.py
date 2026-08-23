@@ -1008,6 +1008,14 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("macos/ci/startup-preflight.sh", runtime_source)
         self.assertIn("build/macos-startup-preflight", runtime_source)
 
+    def test_bootstrap_serverless_budget_matches_active_software_rendering(self):
+        section = self.source.split("- name: Run serverless entity smoke", 1)[1].split(
+            "- name: Run deterministic graphics performance smoke", 1
+        )[0]
+        self.assertIn("timeout-minutes: 35", section)
+        self.assertIn("OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '1800'", section)
+        self.assertIn("--inactivity-timeout 1800 --max-runtime 1920", section)
+
     def test_performance_gate_uses_the_built_application_and_publishes_results(self):
         serverless = self.source.index("- name: Run serverless entity smoke")
         performance = self.source.index("- name: Run deterministic graphics performance smoke")

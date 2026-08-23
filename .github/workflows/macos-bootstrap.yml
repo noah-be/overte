@@ -1309,7 +1309,13 @@ jobs:
             macos/ci/startup-preflight.sh "$app" build/macos-startup-preflight
 
       - name: Run serverless entity smoke
-        timeout-minutes: 20
+        timeout-minutes: 35
+        env:
+          # The hosted Intel runner uses Apple's software OpenGL renderer. The
+          # completed-present gate can legitimately outlive the old 900-second
+          # wrapper while CPU and render work continue, so match the separately
+          # validated runtime rerun budget without changing visual criteria.
+          OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '1800'
         run: |
           app="$(find build -type d -name Overte.app -print -quit)"
           python3 macos/ci/runner-telemetry.py \
@@ -1317,7 +1323,7 @@ jobs:
             --log "$MACOS_RUNNER_TELEMETRY_DIR/runtime-serverless.jsonl" \
             --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/runtime-serverless-stall" \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 900 --max-runtime 1140 \
+            --inactivity-timeout 1800 --max-runtime 1920 \
             --watch smoke=build/macos-smoke -- \
             macos/ci/serverless-smoke.sh "$app" build/macos-smoke
 
