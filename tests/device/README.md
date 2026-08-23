@@ -85,3 +85,11 @@ device-free contract tests with:
 python3 -m unittest discover -s tests/device/self_tests -v
 ```
 
+Every target adapter should also pass the reusable protocol verifier. The
+optional cleanup check calls cleanup twice and therefore verifies the required
+idempotency directly:
+
+```bash
+python3 tests/device/verify_adapter.py \
+  --adapter-manifest path/to/adapter.json --check-cleanup
+```
