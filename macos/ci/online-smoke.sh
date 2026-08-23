@@ -37,6 +37,7 @@ export OVERTE_MACOS_GL_DIAGNOSTICS=1
 mkdir -p "$output_dir"
 rm -f "$snapshot" "$screenshot_result" "$entity_inventory" "$entity_validation" \
     "$completion" "$completion_validation" "$timeline"
+rm -f "$process_sample" "$output_dir"/online.sample.periodic-*.txt
 mkdir -p "$runtime_diagnostics"
 
 observer_pid=""
@@ -64,6 +65,7 @@ set +e
 python3 "$source_root/macos/tools/run-process-with-timeout.py" \
     --timeout "$timeout_seconds" --grace "$shutdown_grace_seconds" \
     --log "$log" --result "$process_result" --sample "$process_sample" \
+    --periodic-sample-interval 300 --periodic-sample-count 6 \
     --crash-report "$crash_report" --completion-file "$completion" \
     --completion-settle 1 -- \
     "${app_command[@]}"

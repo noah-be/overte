@@ -73,6 +73,35 @@ with tempfile.TemporaryDirectory() as temporary:
     assert str(timeout_sample) not in timeout_result.read_text(encoding="utf-8")
     assert timeout_sample.read_text(encoding="utf-8") == "sampled blocked process\n"
 
+    periodic_log = output / "periodic.log"
+    periodic_result = output / "periodic.json"
+    periodic_sample = output / "periodic.sample.txt"
+    periodically_sampled = subprocess.run(
+        [sys.executable, str(SUPERVISOR), "--timeout", "3", "--grace", "0.1",
+         "--log", str(periodic_log), "--result", str(periodic_result),
+         "--sample", str(periodic_sample), "--periodic-sample-interval", "0.1",
+         "--periodic-sample-count", "2", "--",
+         sys.executable, "-c", "import time; time.sleep(0.6)"],
+        check=False,
+        timeout=5,
+        env={**os.environ, "PATH": f"{tools}:{os.environ.get('PATH', '')}"},
+    )
+    assert periodically_sampled.returncode == 0
+    periodic_metadata = json.loads(periodic_result.read_text(encoding="utf-8"))
+    assert periodic_metadata["timed_out"] is False
+    assert periodic_metadata["periodic_sample_attempts"] == 2
+    assert periodic_metadata["periodic_samples_succeeded"] == 2
+    assert periodic_metadata["periodic_samples_timed_out"] == 0
+    assert periodic_metadata["periodic_sample_names"] == [
+        "periodic.sample.periodic-01.txt",
+        "periodic.sample.periodic-02.txt",
+    ]
+    for sample_name in periodic_metadata["periodic_sample_names"]:
+        assert (output / sample_name).read_text(encoding="utf-8") == (
+            "sampled blocked process\n"
+        )
+    assert str(output) not in periodic_result.read_text(encoding="utf-8")
+
     completion_file = output / "private-completion-secret.json"
     completion_result = output / "completion.json"
     completion_child = (

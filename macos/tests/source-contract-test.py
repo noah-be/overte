@@ -1151,9 +1151,22 @@ for sanitized_contract in (
     '"crash_report_source_name"',
     '"completion_file_observed"',
     '"terminated_after_completion"',
+    '"periodic_sample_names"',
 ):
     if sanitized_contract not in runtime_supervisor:
         raise SystemExit(f"runtime evidence redaction missing: {sanitized_contract}")
+for smoke_name, smoke_source in (("serverless", smoke), ("online", online_smoke)):
+    for periodic_sample_contract in (
+        "--periodic-sample-interval 300",
+        "--periodic-sample-count",
+    ):
+        if periodic_sample_contract not in smoke_source:
+            raise SystemExit(
+                f"{smoke_name} smoke lacks active-stall sampling: "
+                f"{periodic_sample_contract}"
+            )
+    if ".sample.periodic-*.txt" not in smoke_source:
+        raise SystemExit(f"{smoke_name} smoke may retain stale periodic samples")
 for crash_report_location in (
     'Path.home() / "Library/Logs/DiagnosticReports"',
     'Path.home() / "Library/Logs/CrashReporter"',

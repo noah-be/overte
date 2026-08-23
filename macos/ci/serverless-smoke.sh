@@ -29,6 +29,7 @@ export OVERTE_MACOS_GL_DIAGNOSTICS=1
 [[ -f "$scene" ]] || { echo "missing scene fixture: $scene" >&2; exit 1; }
 mkdir -p "$output_dir"
 rm -f "$snapshot" "$screenshot_result"
+rm -f "$process_sample" "$output_dir"/serverless.sample.periodic-*.txt
 
 readonly -a app_command=(
     "$executable" --allowMultipleInstances --no-login-suggestion --disableWatchdog --display Desktop
@@ -40,6 +41,7 @@ set +e
 python3 "$source_root/macos/tools/run-process-with-timeout.py" \
     --timeout "$timeout_seconds" --grace "$shutdown_grace_seconds" \
     --log "$log" --result "$process_result" --sample "$process_sample" \
+    --periodic-sample-interval 300 --periodic-sample-count 5 \
     --crash-report "$crash_report" --completion-file "$snapshot" \
     --completion-settle 1 -- \
     "${app_command[@]}"
