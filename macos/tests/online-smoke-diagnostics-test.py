@@ -45,7 +45,9 @@ with tempfile.TemporaryDirectory() as temporary_name:
         "\n".join((
             '[08/23 10:00:00] [INFO] [overte.scriptengine] [online-smoke.js] Script Engine starting:online-smoke.js',
             '[08/23 10:00:01] [INFO] [default] OVERTE_MACOS_GL_DRAW begin gl_program= 37',
+            '[08/23 10:00:02] [WARNING] [hifi.interface] OVERTE_APPLICATION_TICK_WATCHDOG presentation_stalled stall_ms= 301',
             '[08/23 10:02:01] [INFO] [default] OVERTE_MACOS_GL_DRAW end gl_program= 37',
+            '[08/23 10:02:01] [INFO] [hifi.interface] OVERTE_APPLICATION_TICK_WATCHDOG presentation_resumed',
             '[08/23 10:02:01] [DEBUG] [hifi.networking] Possible domain change required to connect to "178.105.253.182" on 40114',
             '[08/23 10:02:02] [INFO] [default] OVERTE_MACOS_ENTITY_GATE domain_list_connected domain= x session= y',
             '[08/23 10:02:03] [DEBUG] [hifi.networking] Added "Entity Server" (o) {a0b4d799-1768-446d-b540-9824e8a42b8f}(1) "UDP ""178.105.253.182":37492',
@@ -82,6 +84,13 @@ with tempfile.TemporaryDirectory() as temporary_name:
     assert payload["outcome_detail"] == "entity_stream_stalled"
     assert payload["gate_transitions"]["entity_server_active_to_entity_query_sent_seconds"] == 1
     assert payload["graphics"]["maximum_draw_seconds"] == 120
+    assert payload["graphics"]["application_tick_watchdog"]["counts"] == {
+        "presentation_resumed": 1,
+        "presentation_stalled": 1,
+    }
+    assert payload["graphics"]["application_tick_watchdog"][
+        "maximum_reported_stall_ms"
+    ] == 301
     assert payload["nodes"]["counts"]["added:Entity Server"] == 1
     assert payload["progress"]["max_entities"] == 0
     assert payload["process"]["exit_code"] == 0

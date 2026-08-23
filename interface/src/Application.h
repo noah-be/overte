@@ -584,6 +584,8 @@ private slots:
 
     // Events
     void onPresentTick();
+    void scheduleApplicationTick();
+    void ensureApplicationTick();
 
     void activeChanged(Qt::ApplicationState state);
     void windowMinimizedChanged(bool minimized);
@@ -894,6 +896,12 @@ private:
     std::mutex _postUpdateLambdasLock;
 
     std::atomic<bool> _pendingIdleEvent { true };
+    // GPU/compositor calls run on the presentation thread and can block for
+    // seconds without making the main thread unsafe.  Keep a main-thread
+    // watchdog so networking and simulation do not depend on driver progress.
+    QTimer _presentTickWatchdogTimer;
+    std::atomic<quint64> _lastDisplayPresentTickUsecs { 0 };
+    std::atomic<bool> _presentTickWatchdogActive { false };
 
 
     // Entities
