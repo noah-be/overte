@@ -19,6 +19,8 @@ DEVICE_WORKFLOW = ROOT / ".github/workflows/pico4-device-acceptance.yml"
 GENERAL_BUILD_WORKFLOW = ROOT / ".github/workflows/build.yml"
 ANDROID_TESTS_WORKFLOW = ROOT / ".github/workflows/android-tests.yml"
 DOCUMENTATION_WORKFLOW = ROOT / ".github/workflows/documentation-checks.yml"
+BRANCH_POLICY_WORKFLOW = ROOT / ".github/workflows/branch-policy.yml"
+BRANCH_SYNC_WORKFLOW = ROOT / ".github/workflows/branch-sync.yml"
 IOS_WORKFLOW = ROOT / ".github/workflows/ios-bootstrap.yml"
 MACOS_WORKFLOW = ROOT / ".github/workflows/macos-bootstrap.yml"
 MACOS_RUNTIME_WORKFLOW = ROOT / ".github/workflows/macos-runtime.yml"
@@ -1439,6 +1441,31 @@ execute(github, context, core, require).then(
         self.assertIn("--result", build_script)
         self.assertIn("::notice title=macOS build progress::", build_script)
         self.assertIn("build/macos-build-diagnostics", self.source)
+class BranchGovernanceWorkflowContracts(unittest.TestCase):
+    def test_policy_uses_only_trusted_default_branch_code(self):
+        source = BRANCH_POLICY_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("pull_request_target:", source)
+        self.assertIn("ref: ${{ github.event.repository.default_branch }}", source)
+        self.assertIn("persist-credentials: false", source)
+        self.assertRegex(source, r"(?m)^permissions:\n  contents: read\n  checks: write$")
+        self.assertIn("github.event.pull_request.head.sha", source)
+        self.assertIn("-f name=branch-policy", source)
+        self.assertNotRegex(source, r"(?m)^\s*(pull-requests|contents): write$")
+
+    def test_governance_actions_are_pinned(self):
+        for workflow in (BRANCH_POLICY_WORKFLOW, BRANCH_SYNC_WORKFLOW):
+            actions = ACTION_USE.findall(workflow.read_text(encoding="utf-8"))
+            self.assertGreaterEqual(len(actions), 1)
+            self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
+
+    def test_sync_has_narrow_permissions_and_does_not_merge(self):
+        source = BRANCH_SYNC_WORKFLOW.read_text(encoding="utf-8")
+        self.assertRegex(source, r"(?m)^permissions:\n  contents: read\n  pull-requests: write$")
+        self.assertIn("gh pr create", source)
+        self.assertNotIn("gh pr merge", source)
+        self.assertIn("cancel-in-progress: false", source)
+        self.assertIn("Skipping $parent -> $child", source)
+        self.assertIn("continue", source)
 
 
 class PicoWorkflowContracts(unittest.TestCase):
