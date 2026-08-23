@@ -14,6 +14,7 @@ import xml.etree.ElementTree as ET
 
 
 HARNESS = Path(__file__).resolve().parents[1] / "run.py"
+VERIFIER = Path(__file__).resolve().parents[1] / "verify_adapter.py"
 
 ADAPTER = r'''#!/usr/bin/env python3
 import argparse, json, os
@@ -29,7 +30,7 @@ if a.action == "discover":
                        "platform": "mock", "physical": os.environ.get("MOCK_VIRTUAL") != "1",
                        "capabilities": os.environ.get("MOCK_CAPABILITIES", "app.process").split(",")}]))
 elif a.action == "describe":
-    print(json.dumps({"platform": "mock", "model": "Contract Device", "selector": a.target}))
+    print(json.dumps({"platform": "mock", "model": "Contract Device"}))
 elif a.action == "invoke":
     print(json.dumps({"operation": a.operation, "arguments": json.loads(a.arguments)}))
 else:
@@ -128,6 +129,17 @@ class HarnessTest(unittest.TestCase):
         self.assertIn("health: Mock health module", result.stdout)
         self.assertFalse(self.cleanup_marker.exists())
         self.assertFalse(self.output.exists())
+
+    def test_adapter_protocol_verifier_checks_cleanup_idempotency(self):
+        env = os.environ.copy()
+        env["MOCK_CLEANUP_MARKER"] = str(self.cleanup_marker)
+        result = subprocess.run([
+            sys.executable, str(VERIFIER), "--adapter-manifest", str(self.manifest),
+            "--check-cleanup",
+        ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env, check=False)
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertIn("satisfies the protocol", result.stdout)
+        self.assertTrue(self.cleanup_marker.exists())
 
 
 if __name__ == "__main__":
