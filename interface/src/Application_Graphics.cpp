@@ -376,6 +376,7 @@ void Application::initializeUi() {
                 { QStringLiteral("density"), touchUiMetrics->density() },
                 { QStringLiteral("fontScale"), touchUiMetrics->fontScale() },
             };
+            qApp->setProperty("overteIosSafeInsetBottom", touchUiMetrics->safeInsetBottom());
             tabletScriptingInterface->setTouchUiRuntimeMetrics(metrics);
             logIOSRuntimeMarker(
                 "OVERTE_IOS_TOUCH_UI_GATE stage=native-metrics-published",

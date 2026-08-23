@@ -101,7 +101,9 @@ assert "defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)" in VIRTUAL_PA
 assert 'touchscreenvirtualpad-phone.json' in VIRTUAL_PAD
 assert "OVERTE_IOS_TOUCH_INPUT_GATE stage=virtual-pad-initialized" in VIRTUAL_PAD
 assert "qApp->focusWindow()" in VIRTUAL_PAD
-assert 'metrics.value("safeInsetBottom")' in VIRTUAL_PAD
+assert 'qApp->property("overteIosSafeInsetBottom")' in VIRTUAL_PAD
+assert 'qApp->setProperty("overteIosSafeInsetBottom"' in GRAPHICS
+assert "ui/TabletScriptingInterface.h" not in VIRTUAL_PAD
 assert "effectiveBottomMargin = _extraBottomMargin + safeBottomInset" in VIRTUAL_PAD
 assert 'iosRuntimeDiagnosticInt(\n        "touchLookSensitivityPercent", 400, 50, 1200)' in VIRTUAL_PAD
 assert "_buttonsManager.buttons[0].buttonPosition = jumpButtonPosition" in VIRTUAL_PAD

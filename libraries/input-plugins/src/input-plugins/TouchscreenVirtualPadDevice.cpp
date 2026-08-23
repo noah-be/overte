@@ -21,7 +21,6 @@
 #include <PathUtils.h>
 #include <NumericalConstants.h>
 #include <SettingHandle.h>
-#include <ui/TabletScriptingInterface.h>
 #include "VirtualPadManager.h"
 
 #include <cmath>
@@ -138,12 +137,11 @@ void TouchscreenVirtualPadDevice::setupControlsPositions(VirtualPad::Manager& vi
     _extraBottomMargin = virtualPadManager.extraBottomMargin();
     int safeBottomInset { 0 };
 #if defined(Q_OS_IOS)
-    if (const auto tablet = DependencyManager::get<TabletScriptingInterface>()) {
-        const QVariantMap metrics = tablet->getTouchUiRuntimeMetrics();
-        if (metrics.value("valid").toBool()) {
-            safeBottomInset = std::max(0, metrics.value("safeInsetBottom").toInt());
-        }
-    }
+    // Application publishes this native UIKit metric on qApp before input
+    // plugins initialize. Keeping the bridge as a QObject property avoids
+    // making the input-plugins target depend on the tablet/audio/resource
+    // implementation layers merely to read one inset.
+    safeBottomInset = std::max(0, qApp->property("overteIosSafeInsetBottom").toInt());
 #endif
     const int effectiveBottomMargin = _extraBottomMargin + safeBottomInset;
 
