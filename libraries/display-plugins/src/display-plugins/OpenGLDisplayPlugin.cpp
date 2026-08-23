@@ -1046,12 +1046,13 @@ void OpenGLDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
             PROFILE_RANGE_EX(render, "internalPresent", 0xff00ffff, frameId)
             internalPresent();
         }
-        // Publish the counter only after the frame and its snapshot operators
-        // have actually completed.  Advancing it before executeFrame() let
-        // loading gates observe frames that macOS software OpenGL would spend
-        // minutes rendering, and snapshots could then capture older scene
-        // state while the requested frame was still pending.
-        incrementPresentCount();
+        // Publish the counter only after a newly submitted frame and its
+        // snapshot operators have actually completed. Replaying the previous
+        // frame is still a real display operation, but it is not evidence that
+        // newer application or scene state reached the output.
+        if (presentedNewFrame) {
+            incrementPresentCount();
+        }
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
         if (presentedNewFrame && macos::online_loading::hasRecorded("render_handoff")) {
             macos::online_loading::recordOnce("first_presented", {
@@ -1070,7 +1071,6 @@ void OpenGLDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
     } else if (alwaysPresent()) {
         refreshRateController->clockEndTime();
         internalPresent();
-        incrementPresentCount();
 #if defined(ANDROID_APP_PHONE_INTERFACE)
         refreshRateController->clockEndTime();
 #endif

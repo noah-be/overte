@@ -758,6 +758,7 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
     }
     emit presentTick();
 
+    bool presentedNewFrame { false };
     if (_currentFrame) {
         auto correction = getViewCorrection();
         auto vkBackend = std::dynamic_pointer_cast<gpu::vk::VKBackend>(getBackend());
@@ -795,6 +796,7 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
                 _renderRate.increment();
                 if (_currentFrame.get() != _lastFrame) {
                     _newFrameRate.increment();
+                    presentedNewFrame = true;
                 }
                 _lastFrame = _currentFrame.get();
             });
@@ -964,7 +966,9 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
         _vkWindow->_previousRenderCompleteSemaphore = _vkWindow->_renderCompleteSemaphore;
         _vkWindow->_acquireCompleteSemaphore = VK_NULL_HANDLE;
         _vkWindow->_renderCompleteSemaphore = VK_NULL_HANDLE;
-        incrementPresentCount();
+        if (presentedNewFrame) {
+            incrementPresentCount();
+        }
 
         // GL driver memory queries do not describe Metal allocations on iOS.
 #if defined(Q_OS_IOS)
@@ -976,7 +980,6 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
     } else if (alwaysPresent()) {
         refreshRateController->clockEndTime();
         internalPresent();
-        incrementPresentCount();
     } else {
         refreshRateController->clockEndTime();
     }
