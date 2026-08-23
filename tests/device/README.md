@@ -68,6 +68,11 @@ Modules receive `OVERTE_DEVICE_ADAPTER_MANIFEST`,
 `adapter_client.py` to invoke operations without knowing the platform command.
 Exit code 0 passes, 77 skips, and every other exit code fails.
 
+The repository catalog provides three portable starter modules: launch smoke,
+lifecycle soak, and idle telemetry soak. Target branches make them available by
+implementing their declared operations and capabilities; the module code does
+not contain platform checks.
+
 ## Running
 
 ```bash
