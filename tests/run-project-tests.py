@@ -26,6 +26,7 @@ class Suite:
 
 SUITES = (
     Suite("project-runner", "quick", (sys.executable, "tests/project-suite-self-test.py")),
+    Suite("branch-policy", "quick", (sys.executable, "tests/branch-policy-test.py")),
     Suite("workflow-contracts", "quick", (sys.executable, "tests/workflow-contract-test.py")),
     Suite("repository-health", "quick", (sys.executable, "tests/project-health-test.py")),
     Suite("project-coverage", "quick", (sys.executable, "tests/project-coverage-test.py")),
