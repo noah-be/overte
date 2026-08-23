@@ -917,29 +917,30 @@ void LimitedNodeList::removeSilentNodes() {
     // event loop one turn to drain before evaluating network silence.
     const auto delayedCheckThreshold = 2 * NODE_SILENCE_THRESHOLD_MSECS * USECS_PER_MSEC;
     if (previousCheck != 0 && startedAt - previousCheck > delayedCheckThreshold) {
-        // Packet delivery and octree queries need time to catch up after the
-        // renderer releases the event loop.  Keep the grace bounded so a
-        // genuinely dead assignment is eventually removed and rediscovered
-        // from a subsequent domain list.
-        const auto stallRecoveryGrace = 6 * NODE_SILENCE_THRESHOLD_MSECS * USECS_PER_MSEC;
-        _silentNodeGraceUntilUsecs = startedAt + stallRecoveryGrace;
         qCDebug(networking_ice) << "Skipping silent-node removal after delayed event-loop check"
             << (startedAt - previousCheck) << "usecs";
         return;
     }
 
-    if (startedAt < _silentNodeGraceUntilUsecs) {
-        qCDebug(networking_ice) << "Skipping silent-node removal during event-loop recovery grace"
-            << (_silentNodeGraceUntilUsecs - startedAt) << "usecs remaining";
-        return;
-    }
+    // A global event-loop or socket-delivery stall makes every node look old
+    // at once.  Compare peers before treating that shared delay as an
+    // assignment failure.  A genuinely dead node still falls behind peers
+    // that continue answering and is removed through the normal path.
+    quint64 freshestLastHeard = 0;
+    eachNode([&](const SharedNodePointer& node) {
+        freshestLastHeard = std::max(freshestLastHeard, node->getLastHeardMicrostamp());
+    });
 
     eachNodeHashIterator([&](NodeHash::iterator& it){
         SharedNodePointer node = it->second;
         node->getMutex().lock();
 
+        const auto lastHeard = node->getLastHeardMicrostamp();
+        const auto silenceThreshold = NODE_SILENCE_THRESHOLD_MSECS * USECS_PER_MSEC;
         if (!node->isForcedNeverSilent()
-            && (usecTimestampNow() - node->getLastHeardMicrostamp()) > (NODE_SILENCE_THRESHOLD_MSECS * USECS_PER_MSEC)) {
+            && (usecTimestampNow() - lastHeard) > silenceThreshold
+            && freshestLastHeard > lastHeard
+            && (freshestLastHeard - lastHeard) > silenceThreshold) {
             // call the NodeHash erase to get rid of this node
             _localIDMap.unsafe_erase(node->getLocalID());
             it = _nodeHash.unsafe_erase(it);

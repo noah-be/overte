@@ -1026,9 +1026,9 @@ for source, token in (
     (domain_handler_source, "now - previousTimeout > 2 * USECS_PER_SECOND"),
     (limited_node_list_source, "Skipping silent-node removal after delayed event-loop check"),
     (limited_node_list_source, "2 * NODE_SILENCE_THRESHOLD_MSECS * USECS_PER_MSEC"),
-    (limited_node_list_source, "Skipping silent-node removal during event-loop recovery grace"),
-    (limited_node_list_source, "6 * NODE_SILENCE_THRESHOLD_MSECS * USECS_PER_MSEC"),
-    (limited_node_list_header, "quint64 _silentNodeGraceUntilUsecs { 0 }"),
+    (limited_node_list_source, "quint64 freshestLastHeard = 0"),
+    (limited_node_list_source, "freshestLastHeard > lastHeard"),
+    (limited_node_list_source, "freshestLastHeard - lastHeard"),
     (node_list_source, "processDomainServerRemovedNode"),
     (limited_node_list_source, "eraseAllNodes(QString reason)"),
 ):

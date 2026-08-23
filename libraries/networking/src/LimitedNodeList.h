@@ -509,7 +509,6 @@ private:
     bool _dropOutgoingNodeTraffic { false };
 
     quint64 _lastSilentNodeCheckUsecs { 0 };
-    quint64 _silentNodeGraceUntilUsecs { 0 };
 
     quint64 _sendErrorStatsTime { (quint64)0 };
     static const quint64 ERROR_STATS_PERIOD_US { 1 * USECS_PER_SECOND };
