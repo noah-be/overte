@@ -168,7 +168,7 @@ function createRun() {
     assert.strictEqual(completion, undefined,
         "a pending callback is not successful completion evidence");
     assert.strictEqual(run.script.stopped, false);
-    run.clock.now += 5200000;
+    run.clock.now += 1600000;
     run.script.interval();
     assert.strictEqual(run.script.stopped, true);
     assert.strictEqual(run.saved.some((entry) =>
@@ -180,7 +180,7 @@ function createRun() {
     const run = createRun();
     run.setEntityIDs([]);
     run.script.interval();
-    run.clock.now += 2700000;
+    run.clock.now += 600000;
     run.script.interval();
     assert.strictEqual(run.script.stopped, true,
         "an empty entity stream must fail before the full Hub deadline");
@@ -190,7 +190,7 @@ function createRun() {
     const run = createRun();
     run.setModelLoaded(false);
     run.script.interval();
-    run.clock.now += 1200000;
+    run.clock.now += 600000;
     run.script.interval();
     assert.strictEqual(run.script.stopped, true,
         "stalled asset loading must fail before the full Hub deadline");

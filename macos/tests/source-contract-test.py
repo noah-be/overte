@@ -1308,10 +1308,10 @@ for online_timing_contract in (
     "snapshotSettleDeadline = Date.now() + 300000",
     "snapshot_still_pending",
     "if (success)",
-    "Date.now() + 5400000",
-    "Date.now() + 2700000",
+    "Date.now() + 1800000",
+    "Date.now() + 600000",
     'finish(false, "entity_stream_stalled")',
-    "Date.now() - lastAssetProgressAt >= 1200000",
+    "Date.now() - lastAssetProgressAt >= 600000",
     'finish(false, "asset_loading_stalled")',
 ):
     if online_timing_contract not in online_script:

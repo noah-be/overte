@@ -10,7 +10,7 @@
     // assembled for the test.
     // Leave room for bounded directory retries followed by full Hub asset
     // loading and production draws on Apple's hosted software renderer.
-    var deadline = Date.now() + 5400000;
+    var deadline = Date.now() + 1800000;
     var nextProgressAt = Date.now();
     var snapshotStage = "waiting";
     var snapshotSettleDeadline = 0;
@@ -19,7 +19,7 @@
     var readyPresentBaseline = 0;
     var snapshotPath = "";
     var latestInventory = null;
-    var noEntityDeadline = Date.now() + 2700000;
+    var noEntityDeadline = Date.now() + 600000;
     var lastAssetProgressAt = 0;
     var bestLoadedModelCount = 0;
     var bestOutstandingWork = Number.MAX_VALUE;
@@ -230,7 +230,7 @@
             return;
         }
         if (snapshotStage === "waiting" && lastAssetProgressAt !== 0 &&
-                Date.now() - lastAssetProgressAt >= 1200000) {
+                Date.now() - lastAssetProgressAt >= 600000) {
             finish(false, "asset_loading_stalled");
             return;
         }
