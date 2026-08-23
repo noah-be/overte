@@ -110,6 +110,23 @@ if "_pendingIdleEvent.compare_exchange_strong" not in schedule_tick:
     raise SystemExit("Application tick scheduling must bound the idle-event backlog")
 if "_graphicsEngine->checkPendingRenderEvent()" not in schedule_tick:
     raise SystemExit("Application tick scheduling must retain bounded render-event pacing")
+watchdog_tick = application_ticks.split(
+    "void Application::ensureApplicationTick()", 1
+)[1]
+if watchdog_tick.count("ApplicationEvent::Idle") != 1:
+    raise SystemExit("Present-stall watchdog must post exactly one idle update path")
+if "_pendingIdleEvent.compare_exchange_strong" not in watchdog_tick:
+    raise SystemExit("Present-stall watchdog must bound its idle-event backlog")
+for forbidden_watchdog_render in (
+    "scheduleApplicationTick()",
+    "_graphicsEngine->checkPendingRenderEvent()",
+    "ApplicationEvent::Render",
+):
+    if forbidden_watchdog_render in watchdog_tick:
+        raise SystemExit(
+            "Present-stall watchdog must not produce render frames while the "
+            f"display cannot consume them: {forbidden_watchdog_render}"
+        )
 
 application_header = (ROOT / "interface/src/Application.h").read_text(encoding="utf-8")
 for watchdog_member in (
