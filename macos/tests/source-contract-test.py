@@ -1087,6 +1087,17 @@ for completion_contract in (
         raise SystemExit(
             f"online smoke must validate controlled completion: {completion_contract}"
         )
+for diagnostic_contract in (
+    "observe-online-runtime.py",
+    "analyze-online-smoke-log.py",
+    "runtime-diagnostics",
+    "online-diagnostic-timeline.json",
+    "stop_observer",
+):
+    if diagnostic_contract not in online_smoke:
+        raise SystemExit(
+            f"online smoke must preserve build-free failure diagnostics: {diagnostic_contract}"
+        )
 if "disableEntityScripts" in transition_smoke or "entity_scripts_disabled" in transition_smoke:
     raise SystemExit(
         "serverless/online transition smoke must retain the production entity-script lifecycle"
@@ -2560,6 +2571,11 @@ subprocess.run(
 )
 subprocess.run(
     [sys.executable, str(ROOT / "macos/tests/stability-validator-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/online-smoke-diagnostics-test.py")],
     cwd=ROOT,
     check=True,
 )

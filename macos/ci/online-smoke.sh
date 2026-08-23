@@ -24,6 +24,8 @@ readonly entity_inventory="$output_dir/macos-online-entities.json"
 readonly entity_validation="$output_dir/online-entity-validation.json"
 readonly completion="$output_dir/macos-online-smoke-completion.json"
 readonly completion_validation="$output_dir/online-completion-validation.json"
+readonly runtime_diagnostics="$output_dir/runtime-diagnostics"
+readonly timeline="$output_dir/online-diagnostic-timeline.json"
 readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-2400}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
 readonly lldb_timeout_seconds="${OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-90}"
@@ -34,7 +36,23 @@ export OVERTE_MACOS_GL_DIAGNOSTICS=1
 [[ -x "$executable" ]] || { echo "missing executable: $executable" >&2; exit 1; }
 mkdir -p "$output_dir"
 rm -f "$snapshot" "$screenshot_result" "$entity_inventory" "$entity_validation" \
-    "$completion" "$completion_validation"
+    "$completion" "$completion_validation" "$timeline"
+mkdir -p "$runtime_diagnostics"
+
+observer_pid=""
+stop_observer() {
+    if [[ -n "$observer_pid" ]] && kill -0 "$observer_pid" 2>/dev/null; then
+        kill -TERM "$observer_pid" 2>/dev/null || true
+        wait "$observer_pid" 2>/dev/null || true
+    fi
+    observer_pid=""
+}
+trap stop_observer EXIT
+
+python3 "$source_root/macos/tools/observe-online-runtime.py" \
+    --log "$log" --output-dir "$runtime_diagnostics" \
+    --max-runtime "$((timeout_seconds + shutdown_grace_seconds + 60))" &
+observer_pid=$!
 
 readonly -a app_command=(
     "$executable" --allowMultipleInstances --no-login-suggestion --disableWatchdog --display Desktop
@@ -51,6 +69,14 @@ python3 "$source_root/macos/tools/run-process-with-timeout.py" \
     "${app_command[@]}"
 status=$?
 set -e
+stop_observer
+trap - EXIT
+
+python3 "$source_root/macos/tools/analyze-online-smoke-log.py" \
+    "$log" --process "$process_result" \
+    --udp-headers "$runtime_diagnostics/udp-headers.log" --result "$timeline" || {
+        echo "online postmortem analysis failed; preserving raw diagnostics" >&2
+    }
 
 if (( status > 128 && status < 192 )); then
     if command -v lldb >/dev/null 2>&1; then
