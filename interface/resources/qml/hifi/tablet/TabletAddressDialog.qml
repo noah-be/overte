@@ -55,8 +55,11 @@ StackView {
 
         Qt.callLater(function() {
             addressBarDialog.keyboardEnabled = HMD.active;
-            addressLine.forceActiveFocus();
-            addressBarDialog.keyboardRaised = true;
+            // Do not focus a hidden address editor during application startup.
+            // On iPad this briefly raises the hardware-keyboard assistant and
+            // can leave focus on an offscreen item. A real tap below owns the
+            // focus and keyboard transition instead.
+            addressBarDialog.keyboardRaised = false;
         })
     }
 
@@ -215,8 +218,9 @@ StackView {
 
             QQC2.TextField {
                 id: addressLine
+                objectName: "tabletAddressLine"
 
-                focus: true
+                focus: false
                 width: addressLineContainer.width - addressLineContainer.anchors.leftMargin - addressLineContainer.anchors.rightMargin;
                 anchors {
                     left: addressLineContainer.left;
@@ -277,6 +281,7 @@ StackView {
                     onClicked: {
                         addressLine.focus = true;
                         addressLine.forceActiveFocus();
+                        addressBarDialog.keyboardRaised = true;
                         if (HMD.active) {
                             addressBarDialog.keyboardEnabled = HMD.active;
                         }

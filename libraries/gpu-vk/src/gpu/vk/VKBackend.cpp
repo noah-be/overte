@@ -2485,9 +2485,8 @@ VKTexture* VKBackend::syncGPUObject(const std::shared_ptr<Texture> &texture) {
                     }
                 }
 
-                // VKTODO: What is strict resource?
-                qWarning() << "TextureUsageType::STRICT_RESOURCE";
-                //qCDebug(gpu_vk_logging) << "Strict texture " << texture.source().c_str();
+                qCDebug(gpu_vk_logging) << "Creating strict Vulkan texture"
+                                        << texture->source().c_str();
                 object = new VKStrictResourceTexture(shared_from_this(), *texture);
                 break;
 

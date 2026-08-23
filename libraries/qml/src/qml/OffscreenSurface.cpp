@@ -20,6 +20,7 @@
 #include <QtQml/QQmlEngine>
 #include <QtQml/QQmlComponent>
 #include <QtQml/QQmlFileSelector>
+#include <QtGui/QInputMethodQueryEvent>
 #include <QtQuick/QQuickItem>
 #include <QtQuick/QQuickWindow>
 #include <QtQuick/QQuickRenderControl>
@@ -241,24 +242,31 @@ bool OffscreenSurface::eventFilter(QObject* originalDestination, QEvent* event) 
                 target = focusItem;
             }
 #endif
-            if (QCoreApplication::sendEvent(target, event)) {
+            const bool delivered = QCoreApplication::sendEvent(target, event);
 #if defined(Q_OS_IOS)
-                static uint32_t keyTraceCount { 0 };
-                const int keyTraceLimit = iosRuntimeDiagnosticInt(
-                    "offscreenKeyTraceLimit", 32, 0, 1000);
-                if (event->type() == QEvent::KeyPress &&
-                        keyTraceCount < static_cast<uint32_t>(keyTraceLimit)) {
-                    ++keyTraceCount;
-                    const auto* keyEvent = static_cast<QKeyEvent*>(event);
-                    logIOSRuntimeMarker(
-                        "OVERTE_IOS_TOUCH_UI_GATE stage=hardware-key-forwarded",
-                        "key=", keyEvent->key(),
-                        "focus=", target->objectName(),
-                        "focus_class=", target->metaObject()->className(),
-                        "accepted=", event->isAccepted(),
-                        "event_ordinal=", keyTraceCount);
-                }
+            static uint32_t keyTraceCount { 0 };
+            const int keyTraceLimit = iosRuntimeDiagnosticInt(
+                "offscreenKeyTraceLimit", 32, 0, 1000);
+            if (event->type() == QEvent::KeyPress &&
+                    keyTraceCount < static_cast<uint32_t>(keyTraceLimit)) {
+                ++keyTraceCount;
+                const auto* keyEvent = static_cast<QKeyEvent*>(event);
+                QInputMethodQueryEvent query(Qt::ImEnabled);
+                QCoreApplication::sendEvent(target, &query);
+                logIOSRuntimeMarker(
+                    "OVERTE_IOS_TOUCH_UI_GATE stage=hardware-key-forwarded",
+                    "key=", keyEvent->key(),
+                    "text_length=", keyEvent->text().size(),
+                    "focus=", target->objectName().isEmpty()
+                        ? QStringLiteral("<unnamed>") : target->objectName(),
+                    "focus_class=", target->metaObject()->className(),
+                    "ime_enabled=", query.value(Qt::ImEnabled).toBool(),
+                    "delivered=", delivered,
+                    "accepted=", event->isAccepted(),
+                    "event_ordinal=", keyTraceCount);
+            }
 #endif
+            if (delivered) {
                 return event->isAccepted();
             }
             break;

@@ -26,5 +26,7 @@
   "forceZeroUniformBindings": [],
   "forceZeroStorageBindings": [],
   "forceFallbackTextureBindings": [],
-  "forceFallbackTextureSources": []
+  "forceFallbackTextureSources": [],
+  "iosResourceTextureMaxDimension": 512,
+  "iosTextureTraceEvery": 64
 }
