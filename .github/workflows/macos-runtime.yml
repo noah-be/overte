@@ -29,9 +29,14 @@ on:
         type: choice
         options: [github-hosted, apple-silicon-self-hosted]
       run_online:
-        description: Run the public-domain smoke after the serverless smoke succeeds
+        description: Run the public-domain smoke with the bootstrap-validated application
         required: true
         default: true
+        type: boolean
+      run_serverless:
+        description: Repeat the deterministic smoke already required by the bootstrap run
+        required: true
+        default: false
         type: boolean
       run_performance:
         description: Record validated frame timings for the deterministic local scene
@@ -354,6 +359,7 @@ jobs:
 
       - name: Run serverless entity smoke
         id: serverless-smoke
+        if: ${{ inputs.run_serverless }}
         continue-on-error: true
         env:
           # Hosted Intel runners use Apple's software OpenGL renderer. A single
@@ -372,7 +378,7 @@ jobs:
             macos/ci/serverless-smoke.sh "$app" build/macos-smoke
 
       - name: Run online entity smoke
-        if: ${{ always() && inputs.run_online && steps.serverless-smoke.outcome == 'success' }}
+        if: ${{ always() && inputs.run_online && steps.serverless-smoke.outcome != 'failure' }}
         env:
           OVERTE_MACOS_ONLINE_LOCATION: ${{ inputs.online_location }}
           OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '6000'
@@ -388,7 +394,7 @@ jobs:
             macos/ci/online-smoke.sh "$app" build/macos-online-smoke
 
       - name: Run serverless-online-serverless transition smoke
-        if: ${{ always() && inputs.run_transition && steps.serverless-smoke.outcome == 'success' }}
+        if: ${{ always() && inputs.run_transition && steps.serverless-smoke.outcome != 'failure' }}
         run: |
           app="$(cat build/runtime-artifact/app-path.txt)"
           python3 macos/ci/runner-telemetry.py \
@@ -401,7 +407,7 @@ jobs:
             macos/ci/transition-smoke.sh "$app" build/macos-transition
 
       - name: Run deterministic graphics performance smoke
-        if: ${{ always() && inputs.run_performance && steps.serverless-smoke.outcome == 'success' }}
+        if: ${{ always() && inputs.run_performance && steps.serverless-smoke.outcome != 'failure' }}
         run: |
           app="$(cat build/runtime-artifact/app-path.txt)"
           python3 macos/ci/runner-telemetry.py \
@@ -414,7 +420,7 @@ jobs:
             macos/ci/performance-smoke.sh "$app" build/macos-performance
 
       - name: Run macOS graphics quality profile matrix
-        if: ${{ always() && inputs.profile_matrix_mode != 'off' && steps.serverless-smoke.outcome == 'success' }}
+        if: ${{ always() && inputs.profile_matrix_mode != 'off' && steps.serverless-smoke.outcome != 'failure' }}
         timeout-minutes: 160
         env:
           OVERTE_MACOS_PROFILE_MATRIX_MODE: ${{ inputs.profile_matrix_mode }}
@@ -431,7 +437,7 @@ jobs:
             macos/ci/performance-matrix.sh "$app" build/macos-performance-matrix
 
       - name: Run macOS online world-loading benchmark
-        if: ${{ always() && inputs.run_online_loading && steps.serverless-smoke.outcome == 'success' }}
+        if: ${{ always() && inputs.run_online_loading && steps.serverless-smoke.outcome != 'failure' }}
         timeout-minutes: 105
         env:
           OVERTE_MACOS_ONLINE_LOCATION: ${{ inputs.online_location }}
@@ -453,7 +459,7 @@ jobs:
             macos/ci/online-loading-benchmark.sh "$app" build/macos-online-loading
 
       - name: Run repeated launch-render-quit stability suite
-        if: ${{ always() && inputs.stability_iterations != '0' && steps.serverless-smoke.outcome == 'success' }}
+        if: ${{ always() && inputs.stability_iterations != '0' && steps.serverless-smoke.outcome != 'failure' }}
         env:
           OVERTE_MACOS_STABILITY_ITERATIONS: ${{ inputs.stability_iterations }}
         run: |

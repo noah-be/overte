@@ -19,6 +19,10 @@
     var readyPresentBaseline = 0;
     var snapshotPath = "";
     var latestInventory = null;
+    var noEntityDeadline = Date.now() + 2700000;
+    var lastAssetProgressAt = 0;
+    var bestLoadedModelCount = 0;
+    var bestOutstandingWork = Number.MAX_VALUE;
     var completed = false;
 
     function finiteNumber(value) {
@@ -161,6 +165,19 @@
         var resources = queueState();
         var productionSceneReady = latestInventory.loaded_visible_model_count > 0 &&
             resourcesIdle(resources);
+        var outstandingWork = resources.downloads + resources.downloads_pending +
+            resources.processing + resources.processing_pending + resources.texture_pending_mb;
+
+        if (latestInventory.entity_count > 0) {
+            if (lastAssetProgressAt === 0 ||
+                    latestInventory.loaded_visible_model_count > bestLoadedModelCount ||
+                    outstandingWork < bestOutstandingWork) {
+                lastAssetProgressAt = Date.now();
+                bestLoadedModelCount = Math.max(bestLoadedModelCount,
+                    latestInventory.loaded_visible_model_count);
+                bestOutstandingWork = Math.min(bestOutstandingWork, outstandingWork);
+            }
+        }
 
         if (Date.now() >= nextProgressAt) {
             print("OVERTE_MACOS_SMOKE online_progress entities=" +
@@ -206,6 +223,16 @@
                 Date.now() >= snapshotSettleDeadline && !snapshotPendingReported) {
             snapshotPendingReported = true;
             print("OVERTE_MACOS_SMOKE snapshot_still_pending");
+        }
+        if (snapshotStage === "waiting" && latestInventory.entity_count === 0 &&
+                Date.now() >= noEntityDeadline) {
+            finish(false, "entity_stream_stalled");
+            return;
+        }
+        if (snapshotStage === "waiting" && lastAssetProgressAt !== 0 &&
+                Date.now() - lastAssetProgressAt >= 1200000) {
+            finish(false, "asset_loading_stalled");
+            return;
         }
         if (Date.now() >= deadline) {
             finish(false, snapshotStage === "waiting" ? "entity_timeout" :

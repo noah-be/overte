@@ -1176,19 +1176,6 @@ jobs:
             --watch smoke=build/macos-smoke -- \
             macos/ci/serverless-smoke.sh "$app" build/macos-smoke
 
-      - name: Run online entity smoke
-        timeout-minutes: 50
-        run: |
-          app="$(find build -type d -name Overte.app -print -quit)"
-          python3 macos/ci/runner-telemetry.py \
-            --phase runtime-online \
-            --log "$MACOS_RUNNER_TELEMETRY_DIR/runtime-online.jsonl" \
-            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/runtime-online-stall" \
-            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 1800 --max-runtime 2700 \
-            --watch smoke=build/macos-online-smoke -- \
-            macos/ci/online-smoke.sh "$app" build/macos-online-smoke
-
       - name: Run deterministic graphics performance smoke
         timeout-minutes: 10
         run: |

@@ -27,6 +27,7 @@ function createRun() {
     const saved = [];
     let modelLoaded = true;
     let texturesComplete = true;
+    let entityIDs = ["model"];
     const script = {
         stopped: false,
         interval: null,
@@ -63,7 +64,7 @@ function createRun() {
         },
         Window: windowObject,
         Entities: {
-            findEntities() { return ["model"]; },
+            findEntities() { return entityIDs; },
             isLoaded() { return modelLoaded; },
             getEntityProperties() {
                 return {
@@ -97,6 +98,7 @@ function createRun() {
         script,
         windowObject,
         setModelLoaded(value) { modelLoaded = value; },
+        setEntityIDs(value) { entityIDs = value; },
         setTexturesComplete(value) { texturesComplete = value; }
     };
 }
@@ -172,6 +174,26 @@ function createRun() {
     assert.strictEqual(run.saved.some((entry) =>
         entry.name === "macos-online-smoke-completion.json"), false,
     "timeout failures must be sampled by the outer supervisor");
+}
+
+{
+    const run = createRun();
+    run.setEntityIDs([]);
+    run.script.interval();
+    run.clock.now += 2700000;
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, true,
+        "an empty entity stream must fail before the full Hub deadline");
+}
+
+{
+    const run = createRun();
+    run.setModelLoaded(false);
+    run.script.interval();
+    run.clock.now += 1200000;
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, true,
+        "stalled asset loading must fail before the full Hub deadline");
 }
 
 console.log("macOS online smoke script contract valid");
