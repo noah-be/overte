@@ -1,0 +1,4 @@
+{"schemaVersion":1,"modules":[
+{"id":"launch-smoke","description":"Launch Quest and verify a stable foreground process.","command":["../../../../tests/device/modules/launch_smoke.py"],"suites":["smoke","stability"],"requires":["app.foreground","app.launch","app.process"],"timeoutSeconds":120},
+{"id":"xr-focus-smoke","description":"Verify Quest XR focus.","command":["xr_focus_smoke.py"],"suites":["smoke","stability"],"requires":["app.launch","xr.focus"],"timeoutSeconds":120},
+{"id":"idle-soak","description":"Sample Quest process, memory, battery, and thermal health.","command":["../../../../tests/device/modules/idle_soak.py"],"suites":["stability"],"requires":["app.foreground","app.launch","app.process","telemetry.snapshot"],"timeoutSeconds":7800}]}
