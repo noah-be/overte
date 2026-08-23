@@ -48,6 +48,14 @@ enables auto-merge with a merge commit, but GitHub completes it only after every
 required check and branch rule passes. Conflicts and failed target tests leave
 the PR open for manual intervention; the workflow never uses an administrator
 bypass.
+
+Required status checks intentionally do not require a synchronization PR's head
+branch to contain the latest target-branch commits. Requiring that would force a
+forbidden child-to-parent merge before a parent-to-child synchronization could
+complete. Pull-request workflows still test GitHub's merge result, and merge
+conflicts, required checks, and every direction rule continue to fail closed.
+Synchronization runs are serialized per parent branch, so simultaneous Android
+and Apple propagation cannot cancel or replace one another.
 If GitHub cannot compare a configured pair, it reports a warning and continues
 checking the remaining children instead of aborting the complete sync run.
 Synchronization PRs are created with the dedicated repository-installed GitHub
