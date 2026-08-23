@@ -403,8 +403,11 @@ void ApplicationOverlay::renderIOSVirtualPad(RenderArgs* renderArgs) {
     const glm::vec2 targetSize(
         static_cast<float>(_overlayFramebuffer->getWidth()),
         static_cast<float>(_overlayFramebuffer->getHeight()));
-    const auto screen = qApp->primaryScreen();
-    const QSize logicalScreenSize = screen ? screen->availableSize() : QSize(
+    // The manager's iOS control coordinates are window/content coordinates,
+    // matching this HUD framebuffer.  QScreen::availableSize() includes the
+    // safe-area bands on iPadOS and previously shifted the drawn icons away
+    // from their touch hit boxes by 57 points.
+    const QSize logicalScreenSize(
         static_cast<int>(targetSize.x), static_cast<int>(targetSize.y));
     const glm::vec2 logicalSize(
         std::max(1, logicalScreenSize.width()),

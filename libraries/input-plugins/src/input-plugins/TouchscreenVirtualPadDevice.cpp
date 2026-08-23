@@ -47,6 +47,19 @@ QPointF touchPosition(const OverteTouchPoint& point) {
     return point.pos();
 #endif
 }
+
+QSize touchViewportSize() {
+    if (auto* window = qApp->focusWindow()) {
+        const QSize size = window->size();
+        if (!size.isEmpty()) {
+            return size;
+        }
+    }
+    if (auto* screen = qApp->primaryScreen()) {
+        return screen->availableSize();
+    }
+    return {};
+}
 }
 
 bool TouchscreenVirtualPadDevice::isSupported() const {
@@ -94,6 +107,9 @@ void TouchscreenVirtualPadDevice::init() {
 
 void TouchscreenVirtualPadDevice::resize() {
     QScreen* eventScreen = qApp->primaryScreen();
+    if (!eventScreen) {
+        return;
+    }
     if (_screenDPIProvided != eventScreen->physicalDotsPerInch()) {
         _screenWidthCenter = eventScreen->availableSize().width() / 2;
         _screenDPIScale.x = (float)eventScreen->physicalDotsPerInchX();
@@ -114,12 +130,16 @@ void TouchscreenVirtualPadDevice::resize() {
 void TouchscreenVirtualPadDevice::setupControlsPositions(VirtualPad::Manager& virtualPadManager, bool force) {
     if (_extraBottomMargin == virtualPadManager.extraBottomMargin() && !force) return; // Our only criteria to decide a center change is the bottom margin
 
-    QScreen* eventScreen = qApp->primaryScreen(); // do not call every time
+    const QSize viewportSize = touchViewportSize();
+    if (viewportSize.isEmpty()) {
+        return;
+    }
     _extraBottomMargin = virtualPadManager.extraBottomMargin();
 
     // Movement stick
     float margin = _screenDPI * VirtualPad::Manager::BASE_MARGIN_PIXELS / VirtualPad::Manager::DPI;
-    _fixedCenterPosition = glm::vec2( _fixedRadius + margin, eventScreen->availableSize().height() - margin - _fixedRadius - _extraBottomMargin);
+    _screenWidthCenter = viewportSize.width() / 2;
+    _fixedCenterPosition = glm::vec2( _fixedRadius + margin, viewportSize.height() - margin - _fixedRadius - _extraBottomMargin);
     _moveRefTouchPoint = _fixedCenterPosition;
     virtualPadManager.getLeftVirtualPad()->setFirstTouch(_moveRefTouchPoint);
 
@@ -127,16 +147,33 @@ void TouchscreenVirtualPadDevice::setupControlsPositions(VirtualPad::Manager& vi
     float btnPixelSize = _screenDPI * VirtualPad::Manager::BTN_FULL_PIXELS / VirtualPad::Manager::DPI;
     float rightMargin = _screenDPI * VirtualPad::Manager::BTN_RIGHT_MARGIN_PIXELS / VirtualPad::Manager::DPI;
     float bottomMargin = _screenDPI * VirtualPad::Manager::BTN_BOTTOM_MARGIN_PIXELS/ VirtualPad::Manager::DPI;
-    glm::vec2 jumpButtonPosition = glm::vec2( eventScreen->availableSize().width() - rightMargin - btnPixelSize, eventScreen->availableSize().height() - bottomMargin - _buttonRadius - _extraBottomMargin);
-    glm::vec2 rbButtonPosition = glm::vec2( eventScreen->availableSize().width() - rightMargin - btnPixelSize, eventScreen->availableSize().height() - 2 * bottomMargin - 3 * _buttonRadius - _extraBottomMargin);
+    glm::vec2 jumpButtonPosition = glm::vec2( viewportSize.width() - rightMargin - btnPixelSize, viewportSize.height() - bottomMargin - _buttonRadius - _extraBottomMargin);
+    glm::vec2 rbButtonPosition = glm::vec2( viewportSize.width() - rightMargin - btnPixelSize, viewportSize.height() - 2 * bottomMargin - 3 * _buttonRadius - _extraBottomMargin);
 
-    // Avoid generating buttons in portrait mode
-    if ( eventScreen->availableSize().width() > eventScreen->availableSize().height() && _buttonsManager.buttonsCount() == 0) {
-        _buttonsManager.addButton(TouchscreenButton(JUMP, JUMP_BUTTON, _buttonRadius, jumpButtonPosition, _inputDevice ));
-        _buttonsManager.addButton(TouchscreenButton(RB, RB_BUTTON, _buttonRadius, rbButtonPosition, _inputDevice ));
-
+    // Avoid generating buttons in portrait mode. Keep existing hit targets in
+    // sync with the render positions when iOS publishes its final safe-area
+    // viewport after plugin initialization.
+    if (viewportSize.width() > viewportSize.height()) {
+        if (_buttonsManager.buttonsCount() == 0) {
+            _buttonsManager.addButton(TouchscreenButton(JUMP, JUMP_BUTTON, _buttonRadius, jumpButtonPosition, _inputDevice ));
+            _buttonsManager.addButton(TouchscreenButton(RB, RB_BUTTON, _buttonRadius, rbButtonPosition, _inputDevice ));
+        } else if (_buttonsManager.buttonsCount() >= 2) {
+            _buttonsManager.buttons[0].buttonPosition = jumpButtonPosition;
+            _buttonsManager.buttons[0].buttonRadius = _buttonRadius;
+            _buttonsManager.buttons[1].buttonPosition = rbButtonPosition;
+            _buttonsManager.buttons[1].buttonRadius = _buttonRadius;
+        }
         virtualPadManager.setButtonPosition(VirtualPad::Manager::Button::JUMP, jumpButtonPosition);
         virtualPadManager.setButtonPosition(VirtualPad::Manager::Button::HANDSHAKE, rbButtonPosition);
+#if defined(Q_OS_IOS)
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_INPUT_GATE stage=controls-positioned",
+            "viewport=", viewportSize,
+            "move=", QStringLiteral("%1,%2").arg(_fixedCenterPosition.x).arg(_fixedCenterPosition.y),
+            "jump=", QStringLiteral("%1,%2").arg(jumpButtonPosition.x).arg(jumpButtonPosition.y),
+            "handshake=", QStringLiteral("%1,%2").arg(rbButtonPosition.x).arg(rbButtonPosition.y),
+            "button_radius=", _buttonRadius);
+#endif
     }
 
 }
@@ -196,10 +233,15 @@ void TouchscreenVirtualPadDevice::processInputDeviceForView() {
     // We use average across how many times we've got touchUpdate events.
     // Using the average instead of the full deltaX and deltaY, makes deltaTime in MyAvatar dont't accelerate rotation when there is a low touchUpdate rate (heavier domains).
     // (Because it multiplies this input value by deltaTime (with a coefficient)).
-    _inputDevice->_axisStateMap[controller::RX].value =
-        _viewTouchUpdateCount == 0 ? 0 : (_viewCurrentTouchPoint.x - _viewRefTouchPoint.x) / _viewTouchUpdateCount;
-    _inputDevice->_axisStateMap[controller::RY].value =
-        _viewTouchUpdateCount == 0 ? 0 : (_viewCurrentTouchPoint.y - _viewRefTouchPoint.y) / _viewTouchUpdateCount;
+    float sensitivityScale { 1.0f };
+#if defined(Q_OS_IOS)
+    sensitivityScale = static_cast<float>(iosRuntimeDiagnosticInt(
+        "touchLookSensitivityPercent", 400, 50, 1200)) / 100.0f;
+#endif
+    _inputDevice->_axisStateMap[controller::RX].value = _viewTouchUpdateCount == 0 ? 0 :
+        sensitivityScale * (_viewCurrentTouchPoint.x - _viewRefTouchPoint.x) / _viewTouchUpdateCount;
+    _inputDevice->_axisStateMap[controller::RY].value = _viewTouchUpdateCount == 0 ? 0 :
+        sensitivityScale * (_viewCurrentTouchPoint.y - _viewRefTouchPoint.y) / _viewTouchUpdateCount;
 
     // after use, save last touch point as ref
     _viewRefTouchPoint = _viewCurrentTouchPoint;
@@ -608,6 +650,13 @@ void TouchscreenVirtualPadDevice::TouchscreenButton::touchBegin(glm::vec2 touchP
         hasValidTouch = true;
 
         _inputDevice->_buttonPressedMap.insert(channel);
+#if defined(Q_OS_IOS)
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_INPUT_GATE stage=button-pressed",
+            "channel=", static_cast<int>(channel),
+            "point=", QStringLiteral("%1,%2").arg(touchPoint.x).arg(touchPoint.y),
+            "center=", QStringLiteral("%1,%2").arg(buttonPosition.x).arg(buttonPosition.y));
+#endif
     }
 }
 
@@ -620,6 +669,11 @@ void TouchscreenVirtualPadDevice::TouchscreenButton::touchEnd() {
         hasValidTouch = false;
 
         _inputDevice->_buttonPressedMap.erase(channel);
+#if defined(Q_OS_IOS)
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_INPUT_GATE stage=button-released",
+            "channel=", static_cast<int>(channel));
+#endif
     }
 }
 

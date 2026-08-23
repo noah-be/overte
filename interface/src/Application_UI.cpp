@@ -1235,11 +1235,37 @@ void Application::pauseUntilLoginDetermined() {
     const bool statsVisible = iosRuntimeDiagnosticBool("statsOverlay", true);
     const bool statsExpanded = iosRuntimeDiagnosticBool("statsOverlayExpanded", true);
     menu->setIsOptionChecked(MenuOption::Stats, statsVisible);
-    Stats::getInstance()->setExpanded(statsExpanded);
+    // Show the useful compact panel immediately, but do not enter its broad
+    // dependency walk while the renderer, picks, audio and world are still
+    // being assembled.  Re-fetch the QML-owned singleton in the callback so a
+    // temporary pre-QML Stats item can never be mutated after replacement.
+    if (auto stats = Stats::getInstance()) {
+        stats->setExpanded(false);
+    }
+    const int statsExpandDelayMs = iosRuntimeDiagnosticInt(
+        "statsOverlayExpandDelayMs", 5000, 0, 30000);
+    if (statsVisible && statsExpanded) {
+        QTimer::singleShot(statsExpandDelayMs, this, [statsExpandDelayMs] {
+            auto stats = Stats::getInstance();
+            if (!stats || !stats->parentItem()) {
+                logIOSRuntimeMarker(
+                    "OVERTE_IOS_STATS_GATE stage=expand-skipped",
+                    "reason=stats-qml-not-ready",
+                    "delay_ms=", statsExpandDelayMs);
+                return;
+            }
+            stats->setExpanded(true);
+            logIOSRuntimeMarker(
+                "OVERTE_IOS_STATS_GATE stage=expanded",
+                "delay_ms=", statsExpandDelayMs);
+        });
+    }
     logIOSRuntimeMarker(
         "OVERTE_IOS_STATS_GATE stage=enabled",
         "visible=", menu->isOptionChecked(MenuOption::Stats),
         "expanded=", Stats::getInstance()->isExpanded(),
+        "requested_expanded=", statsExpanded,
+        "expand_delay_ms=", statsExpandDelayMs,
         "config_path=", iosRuntimeDiagnosticConfigPath());
 #else
     menu->setIsOptionChecked(MenuOption::Stats, false);

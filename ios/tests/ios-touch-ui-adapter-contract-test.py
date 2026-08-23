@@ -26,6 +26,7 @@ APPLICATION_OVERLAY = (ROOT / "interface/src/ui/ApplicationOverlay.cpp").read_te
 INPUT_PLUGINS = (ROOT / "libraries/input-plugins/src/input-plugins/InputPlugin.cpp").read_text()
 VIRTUAL_PAD = (ROOT / "libraries/input-plugins/src/input-plugins/TouchscreenVirtualPadDevice.cpp").read_text()
 VIRTUAL_PAD_MANAGER = (ROOT / "libraries/ui/src/VirtualPadManager.h").read_text()
+STATS_SOURCE = (ROOT / "interface/src/ui/Stats.cpp").read_text()
 
 for metric in (
     "safeInsetLeft", "safeInsetTop", "safeInsetRight", "safeInsetBottom",
@@ -87,12 +88,20 @@ assert "Entities local/server:" in IOS_STATS
 assert "GPU memory tex/buf:" in IOS_STATS
 assert 'iosRuntimeDiagnosticBool("statsOverlay", true)' in APPLICATION_UI
 assert 'iosRuntimeDiagnosticBool("statsOverlayExpanded", true)' in APPLICATION_UI
+assert '"statsOverlayExpandDelayMs", 5000, 0, 30000' in APPLICATION_UI
+assert "stage=expanded" in APPLICATION_UI
+assert "if (!nodeList || !avatarManager || !avatarManager->getMyAvatar())" in STATS_SOURCE
+assert "if (audioMixerNode && audioClient)" in STATS_SOURCE
 
 assert "defined(Q_OS_ANDROID) || defined(Q_OS_IOS)" in INPUT_PLUGINS
 assert "new TouchscreenVirtualPadDevice()" in INPUT_PLUGINS
 assert "defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)" in VIRTUAL_PAD
 assert 'touchscreenvirtualpad-phone.json' in VIRTUAL_PAD
 assert "OVERTE_IOS_TOUCH_INPUT_GATE stage=virtual-pad-initialized" in VIRTUAL_PAD
+assert "qApp->focusWindow()" in VIRTUAL_PAD
+assert 'iosRuntimeDiagnosticInt(\n        "touchLookSensitivityPercent", 400, 50, 1200)' in VIRTUAL_PAD
+assert "_buttonsManager.buttons[0].buttonPosition = jumpButtonPosition" in VIRTUAL_PAD
+assert "OVERTE_IOS_TOUCH_INPUT_GATE stage=button-pressed" in VIRTUAL_PAD
 assert "bool _hidden { false };" in VIRTUAL_PAD_MANAGER
 assert "renderIOSVirtualPad(renderArgs)" in APPLICATION_OVERLAY
 assert "OVERTE_IOS_TOUCH_UI_GATE stage=virtual-pad-composited" in APPLICATION_OVERLAY

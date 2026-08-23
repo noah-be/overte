@@ -172,7 +172,12 @@ void RenderEventHandler::qmlRender(bool sceneGraphSync) {
         }
 
         if (!_softwareImage.isNull()) {
-            _softwareImage.fill(Qt::transparent);
+            // QQuick's software renderer updates only the dirty regions of the
+            // paint device.  Keep the previous pixels between renders; clearing
+            // the entire image here made unchanged QML items disappear for one
+            // or more frames (most visibly the continuously updating Stats UI).
+            // The image is already initialized transparent in resize(), and Qt
+            // clears damaged regions when items are removed.
             _shared->_renderControl->render();
             _shared->_lastRenderTime = usecTimestampNow();
             _shared->updateImage(_softwareImage);

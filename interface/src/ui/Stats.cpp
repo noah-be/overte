@@ -37,6 +37,10 @@
 #include "SequenceNumberStats.h"
 #include "StatTracker.h"
 
+#if defined(Q_OS_IOS)
+#include <shared/IOSRuntimeLogging.h>
+#endif
+
 
 HIFI_QML_DEF(Stats)
 
@@ -62,7 +66,8 @@ Stats::Stats(QQuickItem* parent) :  QQuickItem(parent) {
     INSTANCE = this;
     const QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
     _monospaceFont = font.family();
-    _audioStats = &DependencyManager::get<AudioClient>()->getStats();
+    auto audioClient = DependencyManager::get<AudioClient>();
+    _audioStats = audioClient ? &audioClient->getStats() : nullptr;
 }
 
 bool Stats::includeTimingRecord(const QString& name) {
@@ -137,6 +142,20 @@ void Stats::updateStats(bool force) {
 
     auto nodeList = DependencyManager::get<NodeList>();
     auto avatarManager = DependencyManager::get<AvatarManager>();
+    if (!nodeList || !avatarManager || !avatarManager->getMyAvatar()) {
+#if defined(Q_OS_IOS)
+        static bool loggedMissingCoreDependencies { false };
+        if (!loggedMissingCoreDependencies) {
+            loggedMissingCoreDependencies = true;
+            logIOSRuntimeMarker(
+                "OVERTE_IOS_STATS_GATE stage=update-deferred",
+                "node_list=", static_cast<bool>(nodeList),
+                "avatar_manager=", static_cast<bool>(avatarManager),
+                "my_avatar=", static_cast<bool>(avatarManager && avatarManager->getMyAvatar()));
+        }
+#endif
+        return;
+    }
     // we need to take one avatar out so we don't include ourselves
     STAT_UPDATE(avatarCount, avatarManager->size() - 1);
     STAT_UPDATE(heroAvatarCount, avatarManager->getNumHeroAvatars());
@@ -177,16 +196,19 @@ void Stats::updateStats(bool force) {
 
     auto pickManager = DependencyManager::get<PickManager>();
     if (pickManager && (_expanded || force)) {
-        std::vector<int> totalPicks = pickManager->getTotalPickCounts();
-        STAT_UPDATE(stylusPicksCount, totalPicks[PickQuery::Stylus]);
-        STAT_UPDATE(rayPicksCount, totalPicks[PickQuery::Ray]);
-        STAT_UPDATE(parabolaPicksCount, totalPicks[PickQuery::Parabola]);
-        STAT_UPDATE(collisionPicksCount, totalPicks[PickQuery::Collision]);
-        std::vector<QVector3D> updatedPicks = pickManager->getUpdatedPickCounts();
-        STAT_UPDATE(stylusPicksUpdated, updatedPicks[PickQuery::Stylus]);
-        STAT_UPDATE(rayPicksUpdated, updatedPicks[PickQuery::Ray]);
-        STAT_UPDATE(parabolaPicksUpdated, updatedPicks[PickQuery::Parabola]);
-        STAT_UPDATE(collisionPicksUpdated, updatedPicks[PickQuery::Collision]);
+        const auto& totalPicks = pickManager->getTotalPickCounts();
+        const auto& updatedPicks = pickManager->getUpdatedPickCounts();
+        if (totalPicks.size() >= PickQuery::NUM_PICK_TYPES &&
+                updatedPicks.size() >= PickQuery::NUM_PICK_TYPES) {
+            STAT_UPDATE(stylusPicksCount, totalPicks[PickQuery::Stylus]);
+            STAT_UPDATE(rayPicksCount, totalPicks[PickQuery::Ray]);
+            STAT_UPDATE(parabolaPicksCount, totalPicks[PickQuery::Parabola]);
+            STAT_UPDATE(collisionPicksCount, totalPicks[PickQuery::Collision]);
+            STAT_UPDATE(stylusPicksUpdated, updatedPicks[PickQuery::Stylus]);
+            STAT_UPDATE(rayPicksUpdated, updatedPicks[PickQuery::Ray]);
+            STAT_UPDATE(parabolaPicksUpdated, updatedPicks[PickQuery::Parabola]);
+            STAT_UPDATE(collisionPicksUpdated, updatedPicks[PickQuery::Collision]);
+        }
     }
 
     STAT_UPDATE(packetInCount, nodeList->getInboundPPS());
@@ -214,9 +236,15 @@ void Stats::updateStats(bool force) {
 
     // Second column: ping
     STAT_UPDATE(audioPing, audioMixerNode ? audioMixerNode->getPingMs() : -1);
-    const int mixerLossRate = (int)roundf(_audioStats->data()->getMixerStream()->lossRateWindow() * 100.0f);
-    const int clientLossRate = (int)roundf(_audioStats->data()->getClientStream()->lossRateWindow() * 100.0f);
-    const int largestLossRate = mixerLossRate > clientLossRate ? mixerLossRate : clientLossRate;
+    int largestLossRate { -1 };
+    auto audioStatsData = _audioStats ? _audioStats->data() : nullptr;
+    auto mixerStream = audioStatsData ? audioStatsData->getMixerStream() : nullptr;
+    auto clientStream = audioStatsData ? audioStatsData->getClientStream() : nullptr;
+    if (mixerStream && clientStream) {
+        const int mixerLossRate = (int)roundf(mixerStream->lossRateWindow() * 100.0f);
+        const int clientLossRate = (int)roundf(clientStream->lossRateWindow() * 100.0f);
+        largestLossRate = std::max(mixerLossRate, clientLossRate);
+    }
     STAT_UPDATE(audioPacketLoss, audioMixerNode ? largestLossRate : -1);
     STAT_UPDATE(avatarPing, avatarMixerNode ? avatarMixerNode->getPingMs() : -1);
     STAT_UPDATE(assetPing, assetServerNode ? assetServerNode->getPingMs() : -1);
@@ -265,7 +293,7 @@ void Stats::updateStats(bool force) {
 
         SharedNodePointer audioMixerNode = nodeList->soloNodeOfType(NodeType::AudioMixer);
         auto audioClient = DependencyManager::get<AudioClient>().data();
-        if (audioMixerNode) {
+        if (audioMixerNode && audioClient) {
             STAT_UPDATE(audioMixerKbps, (int)roundf(audioMixerNode->getInboundKbps() +
                                                     audioMixerNode->getOutboundKbps()));
             STAT_UPDATE(audioMixerPps, audioMixerNode->getInboundPPS() +
@@ -293,11 +321,15 @@ void Stats::updateStats(bool force) {
             STAT_UPDATE(audioAudioInboundPPS, -1);
             STAT_UPDATE(audioSilentInboundPPS, -1);
         }
-        STAT_UPDATE(audioCodec, audioClient->getSelectedAudioFormat());
-        STAT_UPDATE(audioNoiseGate, audioClient->getNoiseGateOpen() ? "Open" : "Closed");
+        STAT_UPDATE(audioCodec, audioClient ? audioClient->getSelectedAudioFormat() : QString());
+        STAT_UPDATE(audioNoiseGate, audioClient
+            ? (audioClient->getNoiseGateOpen() ? "Open" : "Closed")
+            : "Unavailable");
         {
-            int localInjectors = audioClient->getNumLocalInjectors();
-            size_t nonLocalInjectors = DependencyManager::get<AudioInjectorManager>()->getNumInjectors();
+            int localInjectors = audioClient ? audioClient->getNumLocalInjectors() : 0;
+            auto audioInjectorManager = DependencyManager::get<AudioInjectorManager>();
+            size_t nonLocalInjectors = audioInjectorManager
+                ? audioInjectorManager->getNumInjectors() : 0;
             STAT_UPDATE(audioInjectors, QVector2D(localInjectors, nonLocalInjectors));
         }
 
@@ -307,8 +339,9 @@ void Stats::updateStats(bool force) {
         STAT_UPDATE(downloads, loadingRequestPairs.size());
         STAT_UPDATE(downloadLimit, (int)ResourceCache::getRequestLimit())
         STAT_UPDATE(downloadsPending, (int)ResourceCache::getPendingRequestCount());
-        STAT_UPDATE(processing, DependencyManager::get<StatTracker>()->getStat("Processing").toInt());
-        STAT_UPDATE(processingPending, DependencyManager::get<StatTracker>()->getStat("PendingProcessing").toInt());
+        auto statTracker = DependencyManager::get<StatTracker>();
+        STAT_UPDATE(processing, statTracker ? statTracker->getStat("Processing").toInt() : 0);
+        STAT_UPDATE(processingPending, statTracker ? statTracker->getStat("PendingProcessing").toInt() : 0);
 
         // See if the active download urls have changed
         bool shouldUpdateUrls = _downloads != _downloadUrls.size();
@@ -354,33 +387,35 @@ void Stats::updateStats(bool force) {
     std::stringstream sendingModeStream("");
     sendingModeStream << "[";
     NodeToOctreeSceneStats* octreeServerSceneStats = qApp->getOcteeSceneStats();
-    for (NodeToOctreeSceneStatsIterator i = octreeServerSceneStats->begin(); i != octreeServerSceneStats->end(); i++) {
-        //const QUuid& uuid = i->first;
-        OctreeSceneStats& stats = i->second;
-        serverCount++;
-        if (_expanded) {
-            if (serverCount > 1) {
-                sendingModeStream << ",";
+    if (octreeServerSceneStats) {
+        for (NodeToOctreeSceneStatsIterator i = octreeServerSceneStats->begin(); i != octreeServerSceneStats->end(); i++) {
+            //const QUuid& uuid = i->first;
+            OctreeSceneStats& stats = i->second;
+            serverCount++;
+            if (_expanded) {
+                if (serverCount > 1) {
+                    sendingModeStream << ",";
+                }
+                if (stats.isMoving()) {
+                    sendingModeStream << "M";
+                    movingServerCount++;
+                } else {
+                    sendingModeStream << "S";
+                }
+                if (stats.isFullScene()) {
+                    sendingModeStream << "F";
+                }
+                else {
+                    sendingModeStream << "p";
+                }
             }
-            if (stats.isMoving()) {
-                sendingModeStream << "M";
-                movingServerCount++;
-            } else {
-                sendingModeStream << "S";
-            }
-            if (stats.isFullScene()) {
-                sendingModeStream << "F";
-            }
-            else {
-                sendingModeStream << "p";
-            }
-        }
 
-        // calculate server node totals
-        totalNodes += stats.getTotalElements();
-        if (_expanded) {
-            totalInternal += stats.getTotalInternal();
-            totalLeaves += stats.getTotalLeaves();
+            // calculate server node totals
+            totalNodes += stats.getTotalElements();
+            if (_expanded) {
+                totalInternal += stats.getTotalInternal();
+                totalLeaves += stats.getTotalLeaves();
+            }
         }
     }
     if (_expanded || force) {
@@ -399,17 +434,25 @@ void Stats::updateStats(bool force) {
 
     auto gpuContext = qApp->getGPUContext();
     auto displayPlugin = qApp->getActiveDisplayPlugin();
-    if (displayPlugin) {
+    if (displayPlugin && gpuContext) {
         QVector2D dims(displayPlugin->getRecommendedRenderSize().x, displayPlugin->getRecommendedRenderSize().y);
         dims *= qApp->getRenderResolutionScale();
         STAT_UPDATE(gpuFrameSize, dims);
-        STAT_UPDATE(gpuFrameTimePerPixel, (float)(gpuContext->getFrameTimerGPUAverage()*1000000.0 / double(dims.x()*dims.y())));
+        const double pixelCount = double(dims.x()) * double(dims.y());
+        STAT_UPDATE(gpuFrameTimePerPixel, pixelCount > 0.0
+            ? (float)(gpuContext->getFrameTimerGPUAverage() * 1000000.0 / pixelCount)
+            : 0.0f);
     }
     // Update Frame timing (in ms)
-    STAT_UPDATE(gpuFrameTime, (float)gpuContext->getFrameTimerGPUAverage());
-    STAT_UPDATE(batchFrameTime, (float)gpuContext->getFrameTimerBatchAverage());
-    auto config = qApp->getRenderEngine()->getConfiguration().get();
-    STAT_UPDATE(engineFrameTime, (float) config->getCPURunTime());
+    if (gpuContext) {
+        STAT_UPDATE(gpuFrameTime, (float)gpuContext->getFrameTimerGPUAverage());
+        STAT_UPDATE(batchFrameTime, (float)gpuContext->getFrameTimerBatchAverage());
+    }
+    auto renderEngine = qApp->getRenderEngine();
+    auto config = renderEngine ? renderEngine->getConfiguration().get() : nullptr;
+    if (config) {
+        STAT_UPDATE(engineFrameTime, (float) config->getCPURunTime());
+    }
     STAT_UPDATE(avatarSimulationTime, (float)avatarManager->getAvatarSimulationTime());
 
     if (_expanded) {
@@ -444,12 +487,16 @@ void Stats::updateStats(bool force) {
         STAT_UPDATE(decimatedTextureCount, (int)DECIMATED_TEXTURE_COUNT.load());
     }
 
-    gpu::ContextStats gpuFrameStats;
-    gpuContext->getFrameStats(gpuFrameStats);
-
-    STAT_UPDATE(drawcalls, (quint32)gpuFrameStats._DSNumDrawcalls);
-    STAT_UPDATE(lodTargetFramerate, DependencyManager::get<LODManager>()->getLODTargetFPS());
-    STAT_UPDATE(lodAngle, DependencyManager::get<LODManager>()->getLODAngleDeg());
+    if (gpuContext) {
+        gpu::ContextStats gpuFrameStats;
+        gpuContext->getFrameStats(gpuFrameStats);
+        STAT_UPDATE(drawcalls, (quint32)gpuFrameStats._DSNumDrawcalls);
+    }
+    auto lodManager = DependencyManager::get<LODManager>();
+    if (lodManager) {
+        STAT_UPDATE(lodTargetFramerate, lodManager->getLODTargetFPS());
+        STAT_UPDATE(lodAngle, lodManager->getLODAngleDeg());
+    }
 
 
     // Incoming packets
@@ -487,9 +534,14 @@ void Stats::updateStats(bool force) {
         STAT_UPDATE(localInternal, (int)OctreeElement::getInternalNodeCount());
         STAT_UPDATE(localLeaves, (int)OctreeElement::getLeafNodeCount());
         // LOD Details
-        STAT_UPDATE(lodStatus, "You can see " + DependencyManager::get<LODManager>()->getLODFeedbackText());
-        STAT_UPDATE(numEntityUpdates, DependencyManager::get<EntityTreeRenderer>()->getPrevNumEntityUpdates());
-        STAT_UPDATE(numNeededEntityUpdates, DependencyManager::get<EntityTreeRenderer>()->getPrevTotalNeededEntityUpdates());
+        if (lodManager) {
+            STAT_UPDATE(lodStatus, "You can see " + lodManager->getLODFeedbackText());
+        }
+        auto entityTreeRenderer = DependencyManager::get<EntityTreeRenderer>();
+        if (entityTreeRenderer) {
+            STAT_UPDATE(numEntityUpdates, entityTreeRenderer->getPrevNumEntityUpdates());
+            STAT_UPDATE(numNeededEntityUpdates, entityTreeRenderer->getPrevTotalNeededEntityUpdates());
+        }
     }
 
 

@@ -18,9 +18,11 @@
   "qmlSoftwareDiagnosticContinuousFps": 0,
   "statsOverlay": true,
   "statsOverlayExpanded": true,
+  "statsOverlayExpandDelayMs": 5000,
   "touchUiAutoOpenTablet": false,
   "virtualPadForceVisible": true,
   "virtualPadScalePercent": 100,
+  "touchLookSensitivityPercent": 400,
   "touchInputTraceLimit": 64,
   "cameraMode": "third-person"
 }

@@ -50,6 +50,8 @@ software_render = RENDER[
 ]
 require("_renderControl->render();" in software_render,
         "software Qt Quick path no longer renders into its QImage target")
+require("_softwareImage.fill" not in software_render,
+        "incremental software renders must retain pixels outside Qt's dirty regions")
 require("beginFrame()" not in software_render and "endFrame()" not in software_render,
         "Qt forbids beginFrame/endFrame with the software adaptation")
 software_initialize = SHARED_SOURCE[
