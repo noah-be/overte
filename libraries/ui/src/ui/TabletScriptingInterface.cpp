@@ -13,6 +13,7 @@
 #include <algorithm>
 
 #include <QtCore/QThread>
+#include <QtCore/QTimer>
 #include <QtQml/QQmlProperty>
 
 #include <shared/QtHelpers.h>
@@ -651,11 +652,15 @@ void TabletProxy::showAndroidTablet(int width, int height) {
     if (!_toolbarMode) {
         setToolbarMode(true);
     }
-    resizeAndroidTablet(width, height);
 
     if (_desktopWindow && _desktopWindow->asQuickItem()) {
         auto root = _desktopWindow->asQuickItem();
         QMetaObject::invokeMethod(root, "setScreenSpaceMode", Q_ARG(const QVariant&, QVariant(true)));
+        // Configure the frameless/safe-local mode before applying geometry.
+        // WindowRoot can otherwise perform its historical framed-window
+        // alignment after resize and move the full-height tablet below the
+        // already-safe offscreen surface.
+        resizeAndroidTablet(width, height);
         QMetaObject::invokeMethod(root, "loadSource", Q_ARG(const QVariant&, QVariant(TABLET_HOME_SOURCE_URL)));
         QMetaObject::invokeMethod(root, "setShown", Q_ARG(const QVariant&, QVariant(true)));
         _state = State::Home;
@@ -671,6 +676,11 @@ void TabletProxy::showAndroidTablet(int width, int height) {
             "height=", height,
             "buttons=", _buttons.rowCount());
 #endif
+        QTimer::singleShot(0, this, [this, width, height] {
+            if (_screenSpaceMode && _tabletShown) {
+                resizeAndroidTablet(width, height);
+            }
+        });
     }
 }
 
@@ -711,17 +721,22 @@ void TabletProxy::resizeAndroidTablet(int width, int height) {
             || surfaceHeight <= topInset + bottomInset) {
         return;
     }
-    _desktopWindow->setPosition(leftInset, topInset);
+    // OffscreenUi itself is already sized to UIKit's safe-content rect. Its
+    // children therefore use a local (0, 0) origin; applying the native inset
+    // here a second time clips the lower part of the tablet and offsets every
+    // hit target from the pixels sent to the Vulkan HUD.
+    _desktopWindow->setPosition(0, 0);
     _desktopWindow->setSize(surfaceWidth - leftInset - rightInset,
                             surfaceHeight - topInset - bottomInset);
 #if defined(Q_OS_IOS)
     logIOSRuntimeMarker(
         "OVERTE_IOS_TOUCH_UI_GATE stage=tablet-resized",
-        "x=", leftInset,
-        "y=", topInset,
+        "x=", 0,
+        "y=", 0,
         "width=", surfaceWidth - leftInset - rightInset,
         "height=", surfaceHeight - topInset - bottomInset,
-        "ime_bottom=", imeBottomInset);
+        "ime_bottom=", imeBottomInset,
+        "coordinate_space=safe-content");
 #endif
 }
 

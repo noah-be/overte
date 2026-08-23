@@ -231,7 +231,34 @@ bool OffscreenSurface::eventFilter(QObject* originalDestination, QEvent* event) 
         case QEvent::KeyPress:
         case QEvent::KeyRelease: {
             event->ignore();
-            if (QCoreApplication::sendEvent(_sharedObject->getWindow(), event)) {
+            QObject* target = _sharedObject->getWindow();
+#if defined(Q_OS_IOS)
+            // An offscreen QQuickWindow can own an active text item without
+            // becoming UIKit's native focus window. Deliver hardware-keyboard
+            // events directly to that item; QQuickWindow otherwise discards
+            // them while buttons continue to appear fully interactive.
+            if (auto* focusItem = _sharedObject->getWindow()->activeFocusItem()) {
+                target = focusItem;
+            }
+#endif
+            if (QCoreApplication::sendEvent(target, event)) {
+#if defined(Q_OS_IOS)
+                static uint32_t keyTraceCount { 0 };
+                const int keyTraceLimit = iosRuntimeDiagnosticInt(
+                    "offscreenKeyTraceLimit", 32, 0, 1000);
+                if (event->type() == QEvent::KeyPress &&
+                        keyTraceCount < static_cast<uint32_t>(keyTraceLimit)) {
+                    ++keyTraceCount;
+                    const auto* keyEvent = static_cast<QKeyEvent*>(event);
+                    logIOSRuntimeMarker(
+                        "OVERTE_IOS_TOUCH_UI_GATE stage=hardware-key-forwarded",
+                        "key=", keyEvent->key(),
+                        "focus=", target->objectName(),
+                        "focus_class=", target->metaObject()->className(),
+                        "accepted=", event->isAccepted(),
+                        "event_ordinal=", keyTraceCount);
+                }
+#endif
                 return event->isAccepted();
             }
             break;
@@ -264,7 +291,7 @@ bool OffscreenSurface::eventFilter(QObject* originalDestination, QEvent* event) 
             break;
         }
 
-#if defined(Q_OS_ANDROID)
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
         case QEvent::TouchBegin:
         case QEvent::TouchUpdate:
         case QEvent::TouchEnd: {
@@ -307,11 +334,13 @@ bool OffscreenSurface::eventFilter(QObject* originalDestination, QEvent* event) 
                     bool eventAccepted = event->isAccepted();
                     if (event->type() == QEvent::InputMethodQuery) {
                         QInputMethodQueryEvent *imqEvent = static_cast<QInputMethodQueryEvent *>(event);
-                        // this block disables the selection cursor in android which appears in
-                        // the top-left corner of the screen
+#if defined(Q_OS_ANDROID)
+                        // This block disables the selection cursor in Android
+                        // which appears in the top-left corner of the screen.
                         if (imqEvent->queries() & Qt::ImEnabled) {
                             imqEvent->setValue(Qt::ImEnabled, QVariant(false));
                         }
+#endif
                     }
                     return eventAccepted;
                 }

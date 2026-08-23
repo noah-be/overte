@@ -24,5 +24,8 @@
   "virtualPadScalePercent": 100,
   "touchLookSensitivityPercent": 400,
   "touchInputTraceLimit": 64,
+  "touchJumpMinimumPulseMs": 120,
+  "offscreenKeyTraceLimit": 64,
+  "locomotionTraceIntervalMs": 250,
   "cameraMode": "third-person"
 }

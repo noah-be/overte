@@ -25,6 +25,7 @@ using OverteTouchPoint = QEventPoint;
 using OverteTouchPoint = QTouchEvent::TouchPoint;
 #endif
 #include <QtCore/QList>
+#include <QtCore/QSize>
 #include "VirtualPadManager.h"
 
 class QTouchEvent;
@@ -80,6 +81,10 @@ protected:
         virtual bool triggerHapticPulse(float strength, float duration, uint16_t index) override;
         virtual void update(float deltaTime, const controller::InputCalibrationData& inputCalibrationData) override;
         virtual void focusOutEvent() override;
+
+#if defined(Q_OS_IOS)
+        float _jumpReleaseDelayMs { 0.0f };
+#endif
 
         friend class TouchscreenVirtualPadDevice;
 
@@ -183,9 +188,7 @@ protected:
     float _fixedRadius { 0.0f };
     float _fixedRadiusForCalc { 0.0f };
     int _extraBottomMargin {0};
-#if defined(Q_OS_IOS)
-    int _safeBottomInset { -1 };
-#endif
+    QSize _controlViewportSize;
 
     float _buttonRadius { 0.0f };
 

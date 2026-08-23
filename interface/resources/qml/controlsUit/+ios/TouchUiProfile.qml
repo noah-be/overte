@@ -8,7 +8,7 @@ SharedControls.TouchUiProfileBase {
     directTouch: true
     hoverSupported: false
     hapticsSupported: true
-    hardwareKeyboardSupported: false
+    hardwareKeyboardSupported: true
     systemImeAvailable: true
     screenSpacePresentation: true
 

@@ -49,6 +49,20 @@ QPointF touchPosition(const OverteTouchPoint& point) {
 }
 
 QSize touchViewportSize() {
+#if defined(Q_OS_IOS)
+    const int surfaceWidth = qApp->property("overteIosSurfaceWidth").toInt();
+    const int surfaceHeight = qApp->property("overteIosSurfaceHeight").toInt();
+    const int safeLeft = std::max(0, qApp->property("overteIosSafeInsetLeft").toInt());
+    const int safeTop = std::max(0, qApp->property("overteIosSafeInsetTop").toInt());
+    const int safeRight = std::max(0, qApp->property("overteIosSafeInsetRight").toInt());
+    const int safeBottom = std::max(0, qApp->property("overteIosSafeInsetBottom").toInt());
+    const QSize safeContentSize(
+        surfaceWidth - safeLeft - safeRight,
+        surfaceHeight - safeTop - safeBottom);
+    if (!safeContentSize.isEmpty()) {
+        return safeContentSize;
+    }
+#endif
     if (auto* window = qApp->focusWindow()) {
         const QSize size = window->size();
         if (!size.isEmpty()) {
@@ -128,32 +142,22 @@ void TouchscreenVirtualPadDevice::resize() {
 }
 
 void TouchscreenVirtualPadDevice::setupControlsPositions(VirtualPad::Manager& virtualPadManager, bool force) {
-    int safeBottomInset { 0 };
-#if defined(Q_OS_IOS)
-    safeBottomInset = std::max(0, qApp->property("overteIosSafeInsetBottom").toInt());
-    if (_extraBottomMargin == virtualPadManager.extraBottomMargin() &&
-            _safeBottomInset == safeBottomInset && !force) {
-        return;
-    }
-#else
-    if (_extraBottomMargin == virtualPadManager.extraBottomMargin() && !force) {
-        return;
-    }
-#endif
-
     const QSize viewportSize = touchViewportSize();
     if (viewportSize.isEmpty()) {
         return;
     }
+    if (_extraBottomMargin == virtualPadManager.extraBottomMargin() &&
+            _controlViewportSize == viewportSize && !force) {
+        return;
+    }
     _extraBottomMargin = virtualPadManager.extraBottomMargin();
-#if defined(Q_OS_IOS)
-    // Application publishes this native UIKit metric on qApp before input
-    // plugins initialize. Keeping the bridge as a QObject property avoids
-    // making the input-plugins target depend on the tablet/audio/resource
-    // implementation layers merely to read one inset.
-    _safeBottomInset = safeBottomInset;
-#endif
-    const int effectiveBottomMargin = _extraBottomMargin + safeBottomInset;
+    _controlViewportSize = viewportSize;
+
+    // On iOS viewportSize is already the safe-content surface. QTouchEvent,
+    // the software-QML texture and the Vulkan HUD all use that same local
+    // origin, so applying a native safe inset again shifts hit targets away
+    // from the controls that the user sees.
+    const int effectiveBottomMargin = _extraBottomMargin;
 
     // Movement stick
     float margin = _screenDPI * VirtualPad::Manager::BASE_MARGIN_PIXELS / VirtualPad::Manager::DPI;
@@ -191,7 +195,7 @@ void TouchscreenVirtualPadDevice::setupControlsPositions(VirtualPad::Manager& vi
             "move=", QStringLiteral("%1,%2").arg(_fixedCenterPosition.x).arg(_fixedCenterPosition.y),
             "jump=", QStringLiteral("%1,%2").arg(jumpButtonPosition.x).arg(jumpButtonPosition.y),
             "handshake=", QStringLiteral("%1,%2").arg(rbButtonPosition.x).arg(rbButtonPosition.y),
-            "safe_bottom=", safeBottomInset,
+            "coordinate_space=safe-content",
             "button_radius=", _buttonRadius);
 #endif
     }
@@ -311,6 +315,17 @@ void TouchscreenVirtualPadDevice::pluginUpdate(float deltaTime, const controller
 }
 
 void TouchscreenVirtualPadDevice::InputDevice::update(float deltaTime, const controller::InputCalibrationData& inputCalibrationData) {
+#if defined(Q_OS_IOS)
+    if (_jumpReleaseDelayMs > 0.0f) {
+        _jumpReleaseDelayMs -= std::max(0.0f, deltaTime) * 1000.0f;
+        if (_jumpReleaseDelayMs <= 0.0f) {
+            _jumpReleaseDelayMs = 0.0f;
+            _buttonPressedMap.erase(TouchButtonChannel::JUMP);
+            logIOSRuntimeMarker(
+                "OVERTE_IOS_TOUCH_INPUT_GATE stage=jump-pulse-finished");
+        }
+    }
+#endif
     _axisStateMap.clear();
 }
 
@@ -359,7 +374,14 @@ void TouchscreenVirtualPadDevice::touchEndEvent(const QTouchEvent* event) {
     viewTouchEnd();
     _buttonsManager.endTouchForAll();
     _inputDevice->_axisStateMap.clear();
+#if defined(Q_OS_IOS)
+    // touchEnd() above may have armed the bounded Jump pulse. Clear only the
+    // hold-style button here so that pulse survives until InputDevice::update
+    // has exposed it to the mapper.
+    _inputDevice->_buttonPressedMap.erase(TouchButtonChannel::RB);
+#else
     _inputDevice->_buttonPressedMap.clear();
+#endif
     _lastPinchScale = 0.0f;
     _pinchScale = 0.0f;
     _pinchOut = 0.0f;
@@ -672,6 +694,11 @@ void TouchscreenVirtualPadDevice::TouchscreenButton::touchBegin(glm::vec2 touchP
     if (virtualPadManager.isEnabled() && !virtualPadManager.isHidden()) {
         hasValidTouch = true;
 
+#if defined(Q_OS_IOS)
+        if (channel == TouchButtonChannel::JUMP) {
+            _inputDevice->_jumpReleaseDelayMs = 0.0f;
+        }
+#endif
         _inputDevice->_buttonPressedMap.insert(channel);
 #if defined(Q_OS_IOS)
         logIOSRuntimeMarker(
@@ -691,11 +718,27 @@ void TouchscreenVirtualPadDevice::TouchscreenButton::touchEnd() {
     if (hasValidTouch) {
         hasValidTouch = false;
 
+#if defined(Q_OS_IOS)
+        if (channel == TouchButtonChannel::JUMP) {
+            // A very short direct tap can begin and end between two mapper
+            // samples. Keep Jump asserted for a bounded, hot-configurable
+            // pulse so the avatar simulation observes every accepted tap.
+            _inputDevice->_jumpReleaseDelayMs = static_cast<float>(
+                iosRuntimeDiagnosticInt("touchJumpMinimumPulseMs", 120, 0, 500));
+            if (_inputDevice->_jumpReleaseDelayMs <= 0.0f) {
+                _inputDevice->_buttonPressedMap.erase(channel);
+            }
+        } else {
+            _inputDevice->_buttonPressedMap.erase(channel);
+        }
+#else
         _inputDevice->_buttonPressedMap.erase(channel);
+#endif
 #if defined(Q_OS_IOS)
         logIOSRuntimeMarker(
             "OVERTE_IOS_TOUCH_INPUT_GATE stage=button-released",
-            "channel=", static_cast<int>(channel));
+            "channel=", static_cast<int>(channel),
+            "jump_pulse_remaining_ms=", _inputDevice->_jumpReleaseDelayMs);
 #endif
     }
 }
