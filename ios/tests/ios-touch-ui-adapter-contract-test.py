@@ -29,6 +29,11 @@ VIRTUAL_PAD = (ROOT / "libraries/input-plugins/src/input-plugins/TouchscreenVirt
 VIRTUAL_PAD_HEADER = (ROOT / "libraries/input-plugins/src/input-plugins/TouchscreenVirtualPadDevice.h").read_text()
 VIRTUAL_PAD_MANAGER = (ROOT / "libraries/ui/src/VirtualPadManager.h").read_text()
 STATS_SOURCE = (ROOT / "interface/src/ui/Stats.cpp").read_text()
+OFFSCREEN_UI = (ROOT / "libraries/ui/src/OffscreenUi.cpp").read_text()
+RENDER_HEADER = (ROOT / "interface/src/scripting/RenderScriptingInterface.h").read_text()
+RENDER_SOURCE = (ROOT / "interface/src/scripting/RenderScriptingInterface.cpp").read_text()
+GRAPHICS_SETTINGS = (ROOT / "scripts/system/settings/qml/pages/GraphicsSettings.qml").read_text()
+TABLET_HOME = (ROOT / "interface/resources/qml/hifi/tablet/TabletHome.qml").read_text()
 
 for metric in (
     "safeInsetLeft", "safeInsetTop", "safeInsetRight", "safeInsetBottom",
@@ -63,6 +68,7 @@ assert 'extraSelectors << "ios" << "mobile" << "touch"' in SELECTORS
 assert "android_phoneInterface" in SELECTORS
 assert 'import ".." as SharedControls' in PROFILE
 assert "SharedControls.TouchUiProfileBase" in PROFILE
+assert "graphicsSettingsAvailable: true" in PROFILE
 
 mobile_guard = "defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)"
 assert mobile_guard in TABLET_HEADER
@@ -107,14 +113,30 @@ assert 'qApp->property("overteIosSafeInsetBottom")' in VIRTUAL_PAD
 assert "_safeBottomInset == safeBottomInset" in VIRTUAL_PAD
 assert "int _safeBottomInset { -1 }" in VIRTUAL_PAD_HEADER
 assert 'qApp->setProperty("overteIosSafeInsetBottom"' in GRAPHICS
-assert "forwardAddressBarTouchToOffscreenUi" in APPLICATION_EVENTS
+assert "forwardMobileTouchToOffscreenUi" in APPLICATION_EVENTS
 assert "handleMobilePointerEvent" in APPLICATION_EVENTS
-assert "stage=address-touch-forwarded" in APPLICATION_EVENTS
+assert 'tablet->property("tabletShown").toBool()' in APPLICATION_EVENTS
+assert "stage=offscreen-touch-forwarded" in APPLICATION_EVENTS
+assert 'tabletVisible ? "tablet" : "address"' in APPLICATION_EVENTS
 assert "ui/TabletScriptingInterface.h" not in VIRTUAL_PAD
 assert "effectiveBottomMargin = _extraBottomMargin + safeBottomInset" in VIRTUAL_PAD
 assert 'iosRuntimeDiagnosticInt(\n        "touchLookSensitivityPercent", 400, 50, 1200)' in VIRTUAL_PAD
 assert "_buttonsManager.buttons[0].buttonPosition = jumpButtonPosition" in VIRTUAL_PAD
 assert "OVERTE_IOS_TOUCH_INPUT_GATE stage=button-pressed" in VIRTUAL_PAD
+assert APPLICATION_EVENTS.index("forwardMobileTouchToOffscreenUi") >= 0
+assert VIRTUAL_PAD.index("findStartingTouchPointCandidate") < VIRTUAL_PAD.index(
+    "idxViewStartingPointCandidate = i"
+)
+assert "QEvent::MouseButtonPress" in OFFSCREEN_UI
+assert "QCoreApplication::sendEvent(getWindow(), &mouseEvent)" in OFFSCREEN_UI
+assert 'settingText: "Resolution scale"' in GRAPHICS_SETTINGS
+assert "Render.viewportResolutionScale = value.toFixed(1)" in GRAPHICS_SETTINGS
+assert '"viewportResolutionScale", 0.8f' in RENDER_HEADER
+assert '"iosViewportResolutionScaleDefaultApplied", false' in RENDER_SOURCE
+assert "_viewportResolutionScale = 0.8f" in RENDER_SOURCE
+assert "OVERTE_IOS_RENDER_PROFILE stage=resolution-scale-applied" in RENDER_SOURCE
+assert "onClicked: modelData.clicked()" in TABLET_HOME
+assert "onClicked: tabletProxy.hideAndroidTablet()" in TABLET_HOME
 assert "UITextInputAssistantItem" in SOURCE
 assert "assistant.leadingBarButtonGroups = @[]" in SOURCE
 assert "QTimer::singleShot(1000" in APPLICATION_UI

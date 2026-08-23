@@ -38,6 +38,7 @@
 #include "GLCanvas.h"
 #endif
 #include "Menu.h"
+#include <ui/TabletScriptingInterface.h>
 
 #if defined(Q_OS_ANDROID)
 #include "AndroidHelper.h"
@@ -49,10 +50,16 @@ static const unsigned int THROTTLED_SIM_FRAMERATE = 15;
 static const int THROTTLED_SIM_FRAME_PERIOD_MS = MSECS_PER_SECOND / THROTTLED_SIM_FRAMERATE;
 
 #if defined(Q_OS_IOS)
-static bool forwardAddressBarTouchToOffscreenUi(QTouchEvent* event, PointerEvent::EventType type,
-                                                const QSharedPointer<OffscreenUi>& offscreenUi) {
+static bool forwardMobileTouchToOffscreenUi(QTouchEvent* event, PointerEvent::EventType type,
+                                            const QSharedPointer<OffscreenUi>& offscreenUi) {
     auto dialogs = DependencyManager::get<DialogsManager>();
-    if (!dialogs->isAddressBarVisible() || !offscreenUi) {
+    auto tabletInterface = DependencyManager::get<TabletScriptingInterface>();
+    auto tablet = tabletInterface
+        ? tabletInterface->getTablet(QStringLiteral("com.highfidelity.interface.tablet.system"))
+        : nullptr;
+    const bool addressBarVisible = dialogs && dialogs->isAddressBarVisible();
+    const bool tabletVisible = tablet && tablet->property("tabletShown").toBool();
+    if ((!addressBarVisible && !tabletVisible) || !offscreenUi) {
         return false;
     }
 
@@ -70,7 +77,8 @@ static bool forwardAddressBarTouchToOffscreenUi(QTouchEvent* event, PointerEvent
         event->accept();
         if (type != PointerEvent::Move) {
             logIOSRuntimeMarker(
-                "OVERTE_IOS_TOUCH_UI_GATE stage=address-touch-forwarded",
+                "OVERTE_IOS_TOUCH_UI_GATE stage=offscreen-touch-forwarded",
+                "surface=", tabletVisible ? "tablet" : "address",
                 "type=", type == PointerEvent::Press ? "press" : "release",
                 "points=", event->points().size());
         }
@@ -864,7 +872,7 @@ void Application::touchBeginEvent(QTouchEvent* event) {
     }
 
 #if defined(Q_OS_IOS)
-    if (forwardAddressBarTouchToOffscreenUi(event, PointerEvent::Press, getOffscreenUI())) {
+    if (forwardMobileTouchToOffscreenUi(event, PointerEvent::Press, getOffscreenUI())) {
         return;
     }
 #endif
@@ -892,7 +900,7 @@ void Application::touchEndEvent(QTouchEvent* event) {
     }
 
 #if defined(Q_OS_IOS)
-    if (forwardAddressBarTouchToOffscreenUi(event, PointerEvent::Release, getOffscreenUI())) {
+    if (forwardMobileTouchToOffscreenUi(event, PointerEvent::Release, getOffscreenUI())) {
         return;
     }
 #endif
@@ -923,7 +931,7 @@ void Application::touchUpdateEvent(QTouchEvent* event) {
 
 #if defined(Q_OS_IOS)
     if (event->type() == QEvent::TouchUpdate &&
-            forwardAddressBarTouchToOffscreenUi(event, PointerEvent::Move, getOffscreenUI())) {
+            forwardMobileTouchToOffscreenUi(event, PointerEvent::Move, getOffscreenUI())) {
         return;
     }
 #endif

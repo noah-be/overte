@@ -32,7 +32,9 @@ SharedControls.TouchUiProfileBase {
     hmdAlignmentAvailable: false
     externalAvatarCatalogAvailable: false
     scriptingPluginsAvailable: false
-    graphicsSettingsAvailable: false
+    // The screen-space tablet exposes the shared graphics page on iOS so a
+    // device can tune render resolution and effects without a rebuild.
+    graphicsSettingsAvailable: true
     controllerSettingsAvailable: false
     picoResolutionSettingsAvailable: false
     navigationPreferencesAvailable: true

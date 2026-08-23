@@ -324,7 +324,11 @@ private:
     bool _localLightingEnabled { true };
     bool _proceduralMaterialsEnabled { true };
     AntialiasingSetupConfig::Mode _antialiasingMode { AntialiasingSetupConfig::Mode::NONE };
+#if defined(Q_OS_IOS)
+    float _viewportResolutionScale { 0.8f };
+#else
     float _viewportResolutionScale { 1.0f };
+#endif
     QString _fullScreenScreen;
 
     // Actual settings saved on disk
@@ -336,7 +340,11 @@ private:
     Setting::Handle<bool> _localLightingSetting { "localLightingEnabled", true };
     Setting::Handle<bool> _proceduralMaterialsEnabledSetting { "proceduralMaterialsEnabled", true };
     Setting::Handle<int> _antialiasingModeSetting { "antialiasingMode", (int)AntialiasingSetupConfig::Mode::NONE };
+#if defined(Q_OS_IOS)
+    Setting::Handle<float> _viewportResolutionScaleSetting { "viewportResolutionScale", 0.8f };
+#else
     Setting::Handle<float> _viewportResolutionScaleSetting { "viewportResolutionScale", 1.0f };
+#endif
     Setting::Handle<QString> _fullScreenScreenSetting { "fullScreenScreen", "" };
 
     // Force assign both setting AND runtime value to the parameter value
