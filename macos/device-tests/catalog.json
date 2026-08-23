@@ -1,1 +1,0 @@
-{"schemaVersion":1,"modules":[{"id":"macos-process-soak","description":"Launch the local macOS client and sample process stability and resources.","command":["process_soak.py"],"suites":["smoke","stability"],"requires":["app.launch","app.process","telemetry.snapshot"],"timeoutSeconds":7800}]}
