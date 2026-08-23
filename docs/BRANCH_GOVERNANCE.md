@@ -47,6 +47,9 @@ pull request whenever a direct child is missing commits from its parent. It does
 not merge automatically; conflicts and target tests remain visible in the PR.
 If GitHub cannot compare a configured pair, it reports a warning and continues
 checking the remaining children instead of aborting the complete sync run.
+Synchronization PRs are created with the dedicated repository-installed GitHub
+App, not with `GITHUB_TOKEN`. This lets the normal pull-request workflows run on
+automatically opened PRs without granting write access to the workflow token.
 
 The Android and Apple target rulesets remain complementary and mandatory. Their
 topology checks validate real Git ancestry and shared-tree equality; the general
@@ -79,6 +82,18 @@ gh api --method POST "repos/{owner}/{repo}/rulesets" \
 
 Do not add a routine administrator bypass. Emergency changes should still use a
 pull request so the policy decision and CI result remain auditable.
+
+## Branch synchronization GitHub App
+
+Install the dedicated app only on this repository and grant it the minimum
+repository permissions `Contents: read` and `Pull requests: read and write`.
+Webhooks and organization or account permissions are not required. Configure:
+
+- repository variable `BRANCH_SYNC_APP_ID` with the numeric app ID;
+- Actions secret `BRANCH_SYNC_APP_PRIVATE_KEY` with one active app private key.
+
+Rotate the private key in the GitHub App settings, update the Actions secret,
+then revoke the old key. Never commit a private key or installation token.
 
 ## Local validation
 
