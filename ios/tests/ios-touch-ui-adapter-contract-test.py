@@ -176,7 +176,9 @@ assert "_desktopWindow->setPosition(0, 0)" in TABLET_SOURCE
 assert '"coordinate_space=safe-content"' in TABLET_SOURCE
 assert "x = 0" in (ROOT / "interface/resources/qml/hifi/tablet/WindowRoot.qml").read_text()
 assert 'iosRuntimeDiagnosticInt("touchJumpMinimumPulseMs", 120, 0, 500)' in VIRTUAL_PAD
-assert "OVERTE_IOS_LOCOMOTION_GATE stage=active" in (ROOT / "interface/src/Application.cpp").read_text()
+application_source = (ROOT / "interface/src/Application.cpp").read_text()
+assert "OVERTE_IOS_LOCOMOTION_GATE stage=active" in application_source
+assert '"velocity=", myAvatar->getWorldVelocity()' in application_source
 
 def function_body(source: str, signature: str, next_signature: str) -> str:
     start = source.index(signature)
