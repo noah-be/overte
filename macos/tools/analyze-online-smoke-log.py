@@ -26,6 +26,9 @@ NODE = re.compile(
 GL_DRAW = re.compile(r"OVERTE_MACOS_GL_(?:ARRAY_)?DRAW (begin|end)(?: gl_program=\s*(\d+))?")
 LOOKUP_RETRY = re.compile(r"Retrying transient place lookup.*?in (\d+) ms, retry (\d+) of (\d+)")
 API_ERROR = re.compile(r"AddressManager API error - ([^-]+) -")
+DOMAIN_TARGET = re.compile(
+    r'Possible domain change required to connect to "(\d+\.\d+\.\d+\.\d+)" on (\d+)'
+)
 REPEATED = re.compile(r"\[Previous message was repeated (\d+) times\]")
 URL_HOST = re.compile(r"https?://([^/\s\"]+)")
 UDP_PACKET = re.compile(
@@ -60,11 +63,23 @@ def timestamp_seconds(line: str) -> int | None:
 
 
 def classify_issue(
-    gates: dict[str, dict[str, object]], outcome: str | None, maximum_entities: int
+    gates: dict[str, dict[str, object]], outcome: str | None, maximum_entities: int,
+    domain_target: dict[str, object] | None, udp: dict[str, object],
 ) -> str:
     if outcome == "passed":
         return "none"
     if "domain_list_connected" not in gates:
+        if domain_target:
+            if udp.get("available"):
+                domain_packets = dict(udp.get("nodes", {})).get("Domain Server", {})
+                outbound = int(domain_packets.get("outbound_packets", 0))
+                inbound = int(domain_packets.get("inbound_packets", 0))
+                if outbound <= 0:
+                    return "domain_connect_not_sent"
+                if inbound <= 0:
+                    return "domain_server_unreachable"
+                return "domain_handshake_or_event_thread"
+            return "domain_transport_or_event_thread"
         return "startup_directory_or_event_thread"
     if "entity_server_active" not in gates:
         return "domain_assignment"
@@ -96,6 +111,8 @@ def analyze(
     milestones: dict[str, dict[str, object]] = {}
     lookup_retries: list[dict[str, object]] = []
     api_errors: Counter[str] = Counter()
+    coalesced_lookups = 0
+    domain_target: dict[str, object] | None = None
     repeated_messages = 0
     gl_error_counts: Counter[str] = Counter()
     draw_stack: dict[str, list[int]] = {}
@@ -134,6 +151,18 @@ def analyze(
         api_error_match = API_ERROR.search(line)
         if api_error_match:
             api_errors[api_error_match.group(1).strip()] += 1
+        if "Coalescing duplicate active place lookup" in line:
+            coalesced_lookups += 1
+        domain_target_match = DOMAIN_TARGET.search(line)
+        if domain_target_match and domain_target is None:
+            host, port = domain_target_match.groups()
+            domain_target = {
+                "host": host,
+                "port": int(port),
+                "elapsed_seconds": elapsed,
+                "line": line_number,
+            }
+            node_endpoints[(host, int(port))] = "Domain Server"
         repeated_match = REPEATED.search(line)
         if repeated_match:
             repeated_messages += int(repeated_match.group(1))
@@ -271,7 +300,9 @@ def analyze(
         "process": process,
         "outcome": outcome,
         "outcome_detail": outcome_detail,
-        "primary_bottleneck": classify_issue(gates, outcome, maximum_entities),
+        "primary_bottleneck": classify_issue(
+            gates, outcome, maximum_entities, domain_target, udp_summary
+        ),
         "gates": gates,
         "gate_counts": dict(sorted(gate_counts.items())),
         "pre_online_gate_counts": {
@@ -283,7 +314,9 @@ def analyze(
         "directory": {
             "api_errors": dict(sorted(api_errors.items())),
             "retries": lookup_retries,
+            "coalesced_active_lookups": coalesced_lookups,
         },
+        "domain_target": domain_target,
         "progress": progress_summary,
         "nodes": {
             "counts": dict(sorted(node_counts.items())),
