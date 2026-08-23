@@ -206,6 +206,42 @@ jobs:
               run_id: runId,
             });
             const run = response.data;
+            const completedSource =
+              run.status === 'completed' &&
+              ['success', 'failure'].includes(run.conclusion);
+            let applicationArtifactCheckpoint = false;
+            if (run.status === 'in_progress' && run.conclusion === null) {
+              const jobs = await github.paginate(
+                github.rest.actions.listJobsForWorkflowRunAttempt,
+                {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  run_id: runId,
+                  attempt_number: run.run_attempt,
+                  per_page: 100,
+                },
+              );
+              const expectedJobName = `client-opengl-${targetArch}`;
+              const matchingJobs = jobs.filter((job) =>
+                job.name === expectedJobName &&
+                job.run_id === runId &&
+                job.run_attempt === run.run_attempt
+              );
+              if (matchingJobs.length === 1) {
+                const successfulSteps = new Set(
+                  (matchingJobs[0].steps || [])
+                    .filter((step) =>
+                      step.status === 'completed' && step.conclusion === 'success'
+                    )
+                    .map((step) => step.name),
+                );
+                applicationArtifactCheckpoint = [
+                  'Build client application',
+                  'Verify application bundle',
+                  'Upload application bundle immediately',
+                ].every((stepName) => successfulSteps.has(stepName));
+              }
+            }
             const validRun =
               run.id === runId &&
               run.repository?.id === repositoryId &&
@@ -215,11 +251,13 @@ jobs:
               run.head_branch === expectedBranch &&
               /^[0-9a-f]{40}$/.test(run.head_sha || '') &&
               Number.isSafeInteger(run.run_attempt) && run.run_attempt > 0 &&
-              run.status === 'completed' &&
-              ['success', 'failure'].includes(run.conclusion) &&
+              (completedSource || applicationArtifactCheckpoint) &&
               (run.event === 'push' || run.event === 'workflow_dispatch');
             if (!validRun) {
-              core.setFailed('requested run is not a completed trusted macOS bootstrap run');
+              core.setFailed(
+                'requested run is neither a completed trusted macOS bootstrap ' +
+                'nor an in-progress run with a verified application artifact checkpoint'
+              );
               return;
             }
 
@@ -260,6 +298,9 @@ jobs:
                 run_id: run.id,
                 schema_version: 1,
                 sha: run.head_sha,
+                source_readiness: completedSource
+                  ? 'completed'
+                  : 'application_artifact_checkpoint',
                 workflow: expectedWorkflow,
               }, null, 2)}\n`,
               { encoding: 'utf8', mode: 0o600 },
