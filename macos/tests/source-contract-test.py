@@ -2585,6 +2585,11 @@ subprocess.run(
     check=True,
 )
 subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/present-count-contract-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
     [sys.executable, str(ROOT / "macos/tests/process-timeout-test.py")],
     cwd=ROOT,
     check=True,
