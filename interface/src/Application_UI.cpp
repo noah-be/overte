@@ -1248,6 +1248,11 @@ void Application::pauseUntilLoginDetermined() {
         menu->getMenu("Developer")->setVisible(false);
     }
     _previousCameraMode = _myCamera.getMode();
+#if defined(Q_OS_IOS)
+    logIOSRuntimeMarker(
+        "OVERTE_IOS_CAMERA_GATE stage=login-temporary-first-person",
+        "saved_mode=", static_cast<int>(_previousCameraMode));
+#endif
     _myCamera.setMode(CAMERA_MODE_FIRST_PERSON_LOOK_AT);
     cameraModeChanged();
 
@@ -1413,6 +1418,11 @@ void Application::resumeAfterLoginDialogActionTaken() {
 #endif
     _myCamera.setMode(_previousCameraMode);
     cameraModeChanged();
+#if defined(Q_OS_IOS)
+    logIOSRuntimeMarker(
+        "OVERTE_IOS_CAMERA_GATE stage=login-restored",
+        "restored_mode=", static_cast<int>(_myCamera.getMode()));
+#endif
     _startUpFinished = true;
     getRefreshRateManager().setRefreshRateRegime(RefreshRateManager::RefreshRateRegime::FOCUS_ACTIVE);
 }

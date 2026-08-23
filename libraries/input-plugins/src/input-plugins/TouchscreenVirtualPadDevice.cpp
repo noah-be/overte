@@ -25,6 +25,10 @@
 
 #include <cmath>
 
+#if defined(Q_OS_IOS)
+#include <shared/IOSRuntimeLogging.h>
+#endif
+
 const char* TouchscreenVirtualPadDevice::NAME = "TouchscreenVirtualPad";
 
 namespace {
@@ -56,8 +60,9 @@ bool TouchscreenVirtualPadDevice::isSupported() const {
             return true;
         }
     }
-#if defined(Q_OS_ANDROID)
-    // last chance, assume that if this is android, a touchscreen is indeed supported
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
+    // Mobile Qt can enumerate the physical touchscreen after plugin discovery.
+    // The platform itself is sufficient evidence that this device is supported.
     return true;
 #endif
     return false;
@@ -76,6 +81,15 @@ void TouchscreenVirtualPadDevice::init() {
     }
 
     KeyboardMouseDevice::enableTouch(false); // Touch for view controls is managed by this plugin
+#if defined(Q_OS_IOS)
+    logIOSRuntimeMarker(
+        "OVERTE_IOS_TOUCH_INPUT_GATE stage=virtual-pad-initialized",
+        "enabled=", virtualPadManager.isEnabled(),
+        "hidden=", virtualPadManager.isHidden(),
+        "fixed_position=", _fixedPosition,
+        "dpi=", _screenDPI,
+        "screen_center_x=", _screenWidthCenter);
+#endif
 }
 
 void TouchscreenVirtualPadDevice::resize() {
@@ -193,7 +207,7 @@ void TouchscreenVirtualPadDevice::processInputDeviceForView() {
 }
 
 void TouchscreenVirtualPadDevice::processInputDeviceForPinch() {
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
     if (_pinchOut > 0.0f) {
         _inputDevice->_axisStateMap[PINCH_OUT].value = _pinchOut;
     }
@@ -253,14 +267,24 @@ void TouchscreenVirtualPadDevice::InputDevice::focusOutEvent() {
 void TouchscreenVirtualPadDevice::touchBeginEvent(const QTouchEvent* event) {
     // touch begin here is a big begin -> begins both pads? maybe it does nothing
     auto& virtualPadManager = VirtualPad::Manager::instance();
-    if (!virtualPadManager.isEnabled() && !virtualPadManager.isHidden()) {
+    if (!virtualPadManager.isEnabled() || virtualPadManager.isHidden()) {
         return;
     }
+#if defined(Q_OS_IOS)
+    const int traceLimit = iosRuntimeDiagnosticInt("touchInputTraceLimit", 24, 0, 1000);
+    if (_touchDiagnosticEventCount < static_cast<uint32_t>(traceLimit)) {
+        ++_touchDiagnosticEventCount;
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_INPUT_GATE stage=touch-begin",
+            "points=", touchPoints(event).count(),
+            "event_ordinal=", _touchDiagnosticEventCount);
+    }
+#endif
 }
 
 void TouchscreenVirtualPadDevice::touchEndEvent(const QTouchEvent* event) {
     auto& virtualPadManager = VirtualPad::Manager::instance();
-    if (!virtualPadManager.isEnabled() && !virtualPadManager.isHidden()) {
+    if (!virtualPadManager.isEnabled() || virtualPadManager.isHidden()) {
         moveTouchEnd();
         viewTouchEnd();
         _buttonsManager.endTouchForAll();
@@ -278,6 +302,15 @@ void TouchscreenVirtualPadDevice::touchEndEvent(const QTouchEvent* event) {
     _pinchScale = 0.0f;
     _pinchOut = 0.0f;
     _pinchIn = 0.0f;
+#if defined(Q_OS_IOS)
+    const int traceLimit = iosRuntimeDiagnosticInt("touchInputTraceLimit", 24, 0, 1000);
+    if (_touchDiagnosticEventCount < static_cast<uint32_t>(traceLimit)) {
+        ++_touchDiagnosticEventCount;
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_INPUT_GATE stage=touch-end",
+            "event_ordinal=", _touchDiagnosticEventCount);
+    }
+#endif
 }
 
 void TouchscreenVirtualPadDevice::processUnusedTouches(std::map<int, TouchType> unusedTouchesInEvent) {
@@ -301,7 +334,7 @@ void TouchscreenVirtualPadDevice::processUnusedTouches(std::map<int, TouchType> 
 
 void TouchscreenVirtualPadDevice::touchUpdateEvent(const QTouchEvent* event) {
     auto& virtualPadManager = VirtualPad::Manager::instance();
-    if (!virtualPadManager.isEnabled() && !virtualPadManager.isHidden()) {
+    if (!virtualPadManager.isEnabled() || virtualPadManager.isHidden()) {
         moveTouchEnd();
         viewTouchEnd();
         return;
@@ -400,6 +433,25 @@ void TouchscreenVirtualPadDevice::touchUpdateEvent(const QTouchEvent* event) {
 
     _buttonsManager.processBeginOrEnd(thisPoint, tPoints, _unusedTouches);
 
+#if defined(Q_OS_IOS)
+    const int traceLimit = iosRuntimeDiagnosticInt("touchInputTraceLimit", 24, 0, 1000);
+    if (_touchDiagnosticEventCount < static_cast<uint32_t>(traceLimit)) {
+        int activeButtons { 0 };
+        for (const auto& button : _buttonsManager.buttons) {
+            activeButtons += button.hasValidTouch ? 1 : 0;
+        }
+        ++_touchDiagnosticEventCount;
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_INPUT_GATE stage=touch-update",
+            "points=", _touchPointCount,
+            "move=", _moveHasValidTouch,
+            "view=", _viewHasValidTouch,
+            "buttons=", activeButtons,
+            "unused=", _unusedTouches.size(),
+            "event_ordinal=", _touchDiagnosticEventCount);
+    }
+#endif
+
 }
 
 bool TouchscreenVirtualPadDevice::viewTouchBeginIsValid(glm::vec2 touchPoint) {
@@ -466,12 +518,13 @@ void TouchscreenVirtualPadDevice::viewTouchEnd() {
 
 void TouchscreenVirtualPadDevice::touchGestureEvent(const QGestureEvent* event) {
     auto& virtualPadManager = VirtualPad::Manager::instance();
-    if (!virtualPadManager.isEnabled()  && !virtualPadManager.isHidden()) {
+    if (!virtualPadManager.isEnabled() || virtualPadManager.isHidden()) {
         return;
     }
     if (QGesture* gesture = event->gesture(Qt::PinchGesture)) {
         QPinchGesture* pinch = static_cast<QPinchGesture*>(gesture);
         _pinchScale = pinch->totalScaleFactor();
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
 #if defined(ANDROID_APP_PHONE_INTERFACE)
         // Preferences may update this key through a different Setting::Handle.
         // Read the manager-backed value so a saved change takes effect without
@@ -483,6 +536,7 @@ void TouchscreenVirtualPadDevice::touchGestureEvent(const QGestureEvent* event) 
             _pinchIn = 0.0f;
             return;
         }
+#endif
         if (pinch->state() == Qt::GestureStarted || _lastPinchScale <= 0.0f) {
             _lastPinchScale = _pinchScale;
             return;
@@ -528,7 +582,7 @@ controller::Input::NamedVector TouchscreenVirtualPadDevice::InputDevice::getAvai
 }
 
 QString TouchscreenVirtualPadDevice::InputDevice::getDefaultMappingConfig() const {
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
     static const QString MAPPING_JSON = PathUtils::resourcesPath() + "/controllers/touchscreenvirtualpad-phone.json";
 #else
     static const QString MAPPING_JSON = PathUtils::resourcesPath() + "/controllers/touchscreenvirtualpad.json";

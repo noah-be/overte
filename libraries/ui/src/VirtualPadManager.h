@@ -71,9 +71,8 @@ namespace VirtualPad {
     private:
         Instance _leftVPadInstance;
         bool _enabled { true };
-        bool _hidden;
+        bool _hidden { false };
         int _extraBottomMargin { 0 };
         std::map<Button, glm::vec2> _buttonsPositions;
     };
 }
-

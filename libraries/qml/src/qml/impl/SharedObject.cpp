@@ -8,6 +8,8 @@
 
 #include "SharedObject.h"
 
+#include <algorithm>
+
 #include <QtCore/qlogging.h>
 #include <QtQuick/QQuickWindow>
 #include <QtQuick/QQuickItem>
@@ -24,6 +26,9 @@
 
 #include <NumericalConstants.h>
 #include <shared/NsightHelpers.h>
+#if defined(Q_OS_IOS)
+#include <shared/IOSRuntimeLogging.h>
+#endif
 #include <gl/QOpenGLContextWrapper.h>
 #include <gl/GLHelpers.h>
 
@@ -217,6 +222,14 @@ void SharedObject::destroy() {
     }
 
     _paused = true;
+#if defined(Q_OS_IOS) && !defined(DISABLE_QML)
+    const uint64_t shutdownStarted = usecTimestampNow();
+    logIOSRuntimeMarker(
+        "OVERTE_IOS_QML_SHUTDOWN stage=begin",
+        "object=", objectName(),
+        "thread_running=", _renderThread && _renderThread->isRunning(),
+        "latest_image=", !_latestImage.isNull());
+#endif
 #ifndef DISABLE_QML
     if (_renderTimer) {
         _renderTimer->stop();
@@ -236,6 +249,11 @@ void SharedObject::destroy() {
         _quit = true;
         if (_renderObject) {
             QCoreApplication::postEvent(_renderObject, new OffscreenEvent(OffscreenEvent::Quit), Qt::HighEventPriority);
+#if defined(Q_OS_IOS) && !defined(DISABLE_QML)
+            logIOSRuntimeMarker(
+                "OVERTE_IOS_QML_SHUTDOWN stage=quit-posted",
+                "object=", objectName());
+#endif
         }
     }
     // Block until the rendering thread has stopped
@@ -244,9 +262,21 @@ void SharedObject::destroy() {
     // shutdown
     if (_renderThread) {
         _renderThread->wait();
+#if defined(Q_OS_IOS) && !defined(DISABLE_QML)
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_QML_SHUTDOWN stage=thread-joined",
+            "object=", objectName(),
+            "elapsed_ms=", (usecTimestampNow() - shutdownStarted) / USECS_PER_MSEC);
+#endif
         delete _renderThread;
         _renderThread = nullptr;
     }
+#endif
+#if defined(Q_OS_IOS) && !defined(DISABLE_QML)
+    logIOSRuntimeMarker(
+        "OVERTE_IOS_QML_SHUTDOWN stage=complete",
+        "object=", objectName(),
+        "elapsed_ms=", (usecTimestampNow() - shutdownStarted) / USECS_PER_MSEC);
 #endif
 }
 
@@ -458,6 +488,7 @@ bool SharedObject::isQuit() const {
 }
 
 void SharedObject::requestRender() {
+    QMutexLocker locker(&_mutex);
     if (_quit) {
         return;
     }
@@ -465,6 +496,7 @@ void SharedObject::requestRender() {
 }
 
 void SharedObject::requestRenderSync() {
+    QMutexLocker locker(&_mutex);
     if (_quit) {
         return;
     }
@@ -520,6 +552,14 @@ void SharedObject::onInitialize() {
     // Set up the render thread
     QCoreApplication::postEvent(_renderObject, new OffscreenEvent(OffscreenEvent::Initialize));
 
+    if (isSoftwareRendering()) {
+#if defined(Q_OS_IOS)
+        _softwareWarmupFramesRemaining = static_cast<uint8_t>(
+            iosRuntimeDiagnosticInt("qmlSoftwareWarmupFrames", 4, 0, 30));
+#else
+        _softwareWarmupFramesRemaining = 4;
+#endif
+    }
     requestRender();
 
     // Set up timer to trigger renders
@@ -535,21 +575,30 @@ void SharedObject::onInitialize() {
 void SharedObject::onRender() {
 #ifndef DISABLE_QML
     PROFILE_RANGE(render_qml, __FUNCTION__);
-    if (_quit) {
-        return;
+    bool syncRequested { false };
+    {
+        QMutexLocker lock(&_mutex);
+        if (_quit) {
+            _renderEventPending = false;
+            return;
+        }
+        // Clear before dispatching. A sceneChanged/renderRequested signal that
+        // races with the render thread will set the flag again instead of
+        // being overwritten after the event has already been posted.
+        syncRequested = _syncRequested;
+        _syncRequested = false;
+        _renderRequested = false;
     }
 
-    if (_syncRequested) {
+    if (syncRequested) {
         _renderControl->polishItems();
         QMutexLocker lock(&_mutex);
         QCoreApplication::postEvent(_renderObject, new OffscreenEvent(OffscreenEvent::RenderSync));
         // sync and render request, main and render threads must be synchronized
         wait();
-        _syncRequested = false;
     } else {
         QCoreApplication::postEvent(_renderObject, new OffscreenEvent(OffscreenEvent::Render));
     }
-    _renderRequested = false;
 #endif
 }
 
@@ -557,27 +606,45 @@ void SharedObject::onTimer() {
     if (!isSoftwareRendering()) {
         getTextureCache().report();
     }
-    if (!_renderRequested) {
-        return;
+
+    const uint64_t now = usecTimestampNow();
+#if defined(Q_OS_IOS)
+    if (isSoftwareRendering() &&
+            (now - _lastSoftwareDiagnosticPollTime) >= USECS_PER_SECOND) {
+        _lastSoftwareDiagnosticPollTime = now;
+        _softwareDiagnosticFps = static_cast<uint8_t>(
+            iosRuntimeDiagnosticInt("qmlSoftwareDiagnosticContinuousFps", 0, 0, 15));
     }
+#endif
 
     {
         QMutexLocker locker(&_mutex);
+        const bool continuousDiagnostics = isSoftwareRendering() && _softwareDiagnosticFps > 0;
+        if (!_renderRequested && _softwareWarmupFramesRemaining == 0 && !continuousDiagnostics) {
+            return;
+        }
+        if (_renderEventPending) {
+            return;
+        }
         // Don't queue more than one frame at a time
         if ((isSoftwareRendering() && !_latestImage.isNull()) ||
                 (!isSoftwareRendering() && _latestTextureAndFence.first)) {
             return;
         }
 
-        if (!_maxFps) {
+        const uint8_t effectiveMaxFps = continuousDiagnostics
+            ? std::min(_maxFps, _softwareDiagnosticFps)
+            : _maxFps;
+        if (!effectiveMaxFps) {
             return;
         }
-        auto minRenderInterval = USECS_PER_SECOND / _maxFps;
-        auto lastInterval = usecTimestampNow() - _lastRenderTime;
+        auto minRenderInterval = USECS_PER_SECOND / effectiveMaxFps;
+        auto lastInterval = now - _lastRenderTime;
         // Don't exceed the framerate limit
         if (lastInterval < minRenderInterval) {
             return;
         }
+        _renderEventPending = true;
     }
 
 #ifndef DISABLE_QML
@@ -598,11 +665,17 @@ void SharedObject::updateTextureAndFence(const TextureAndFence& newTextureAndFen
     }
 
     _latestTextureAndFence = newTextureAndFence;
+    _renderEventPending = false;
 }
 
 void SharedObject::updateImage(const QImage& image) {
     QMutexLocker locker(&_mutex);
     _latestImage = image;
+    _renderEventPending = false;
+    if (_softwareWarmupFramesRemaining > 0) {
+        --_softwareWarmupFramesRemaining;
+        _renderRequested = true;
+    }
 }
 
 void SharedObject::pause() {

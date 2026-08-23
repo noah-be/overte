@@ -14,6 +14,7 @@ RENDER = (ROOT / "libraries/qml/src/qml/impl/RenderEventHandler.cpp").read_text(
 SHARED_SOURCE = (ROOT / "libraries/qml/src/qml/impl/SharedObject.cpp").read_text()
 WEB = (ROOT / "libraries/entities-renderer/src/RenderableWebEntityItem.cpp").read_text()
 IOS_LOGGING = (ROOT / "libraries/shared/src/shared/IOSRuntimeLogging.h").read_text()
+APPLICATION_OVERLAY = (ROOT / "interface/src/ui/ApplicationOverlay.cpp").read_text()
 
 
 def require(condition: bool, message: str) -> None:
@@ -60,6 +61,13 @@ require("_renderControl->initialize()" not in software_initialize,
 require("_webSurface->fetchImage(newImage)" in WEB and
         'texture->setSource("WebEntityRendererSoftware")' in WEB,
         "software Qt Quick frames are not uploaded through a regular Vulkan texture")
+require("offscreenUI->fetchImage(sourceImage)" in APPLICATION_OVERLAY and
+        'texture->setSource("ApplicationOverlayIOSSoftware")' in APPLICATION_OVERLAY and
+        "OVERTE_IOS_SCREEN_QML_FRAME_GATE stage=cpu-frame-uploaded" in APPLICATION_OVERLAY,
+        "screen-space QML is not uploaded into the ordinary iOS Vulkan HUD texture")
+require("Keep the transparent overlay" not in APPLICATION_OVERLAY and
+        "renderQmlUi(renderArgs)" in APPLICATION_OVERLAY,
+        "iOS must not skip screen-space QML composition")
 require("OVERTE_IOS_QML_FRAME_GATE stage=cpu-frame-uploaded" in WEB,
         "device logs cannot prove that a QML frame reached Vulkan")
 require("alpha_nonzero_pixels=" in WEB and "non_black_pixels=" in WEB and
@@ -71,6 +79,16 @@ require("iosRuntimeDiagnosticConfigPath()" in WEB and
         'QStringLiteral("test-pattern")' in WEB and
         'QStringLiteral("rgba-from-bgra")' in WEB,
         "iOS Web frame upload variants cannot be selected without rebuilding")
+require("RELOAD_INTERVAL_MS" in IOS_LOGGING and
+        "OVERTE_IOS_DIAGNOSTIC_CONFIG stage=reloaded" in IOS_LOGGING and
+        "captureLatestFrameSequence" in WEB and
+        "qmlSoftwareDiagnosticContinuousFps" in SHARED_SOURCE,
+        "physical-device QML diagnostics cannot be hot-reloaded without rebuilding")
+require("_renderRequested = false;" in SHARED_SOURCE and
+        SHARED_SOURCE.index("_renderRequested = false;") <
+        SHARED_SOURCE.index("QCoreApplication::postEvent(_renderObject", SHARED_SOURCE.index("void SharedObject::onRender")) and
+        "_softwareWarmupFramesRemaining" in SHARED_SOURCE,
+        "software QML render requests can still be lost before lazy children settle")
 require("OverteQmlOverrides" in SURFACE_SOURCE and
         'QStringLiteral(".enabled")' in SURFACE_SOURCE and
         "OVERTE_IOS_QML_OVERRIDE_GATE stage=active" in SURFACE_SOURCE,

@@ -23,6 +23,9 @@
 #endif
 
 #include <shared/NsightHelpers.h>
+#if defined(Q_OS_IOS)
+#include <shared/IOSRuntimeLogging.h>
+#endif
 #include "Profiling.h"
 #include "SharedObject.h"
 #include "TextureCache.h"
@@ -236,10 +239,21 @@ void RenderEventHandler::qmlRender(bool sceneGraphSync) {
 }
 
 void RenderEventHandler::onQuit() {
+#if defined(Q_OS_IOS)
+    logIOSRuntimeMarker(
+        "OVERTE_IOS_QML_SHUTDOWN stage=render-thread-quit-entered",
+        "initialized=", _initialized,
+        "software=", SharedObject::isSoftwareRendering());
+#endif
     if (_initialized) {
         if (SharedObject::isSoftwareRendering()) {
             _shared->shutdownRendering(_currentSize);
             moveToThread(qApp->thread());
+#if defined(Q_OS_IOS)
+            logIOSRuntimeMarker(
+                "OVERTE_IOS_QML_SHUTDOWN stage=render-thread-quit-requested",
+                "software=", true);
+#endif
             QThread::currentThread()->quit();
             return;
         }

@@ -93,6 +93,8 @@ private:
     gpu::TexturePointer _texture;
 #if defined(Q_OS_IOS)
     bool _softwareFrameReported { false };
+    uint64_t _softwareFrameOrdinal { 0 };
+    int _lastSoftwareCaptureSequence { -1 };
 #endif
     QString _tryingToBuildURL;
 

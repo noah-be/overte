@@ -122,6 +122,10 @@ private:
 
     bool _renderRequested { false };
     bool _syncRequested { false };
+    bool _renderEventPending { false };
+    uint8_t _softwareWarmupFramesRemaining { 0 };
+    uint8_t _softwareDiagnosticFps { 0 };
+    uint64_t _lastSoftwareDiagnosticPollTime { 0 };
     bool _quit { false };
     bool _paused { false };
 };

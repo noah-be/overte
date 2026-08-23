@@ -172,6 +172,9 @@ protected:
     std::map<int, TouchType> _unusedTouches;
 
     int _touchPointCount { 0 };
+#if defined(Q_OS_IOS)
+    uint32_t _touchDiagnosticEventCount { 0 };
+#endif
     int _screenWidthCenter { 0 };
     std::shared_ptr<InputDevice> _inputDevice { std::make_shared<InputDevice>() };
 

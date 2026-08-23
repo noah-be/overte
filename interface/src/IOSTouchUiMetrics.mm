@@ -11,10 +11,12 @@
 #include <QCoreApplication>
 #include <QJSEngine>
 #include <QQmlEngine>
+#include <QTimer>
 #include <QtQml>
 
 namespace {
 UIWindow* activeWindow() {
+    UIWindow* fallback = nil;
     for (UIScene* scene in UIApplication.sharedApplication.connectedScenes) {
         if (![scene isKindOfClass:UIWindowScene.class] ||
             scene.activationState == UISceneActivationStateUnattached) {
@@ -24,9 +26,12 @@ UIWindow* activeWindow() {
             if (window.isKeyWindow) {
                 return window;
             }
+            if (fallback == nil && !window.hidden) {
+                fallback = window;
+            }
         }
     }
-    return nil;
+    return fallback;
 }
 
 bool changed(qreal first, qreal second) {
@@ -39,6 +44,7 @@ IOSTouchUiMetrics::IOSTouchUiMetrics(QObject* parent) : QObject(parent) {
     NSNotificationCenter* center = NSNotificationCenter.defaultCenter;
     NSArray<NSNotificationName>* names = @[
         UIApplicationDidBecomeActiveNotification,
+        UIWindowDidBecomeKeyNotification,
         UIContentSizeCategoryDidChangeNotification,
         UIDeviceOrientationDidChangeNotification,
         UIKeyboardWillChangeFrameNotification,
@@ -53,6 +59,10 @@ IOSTouchUiMetrics::IOSTouchUiMetrics(QObject* parent) : QObject(parent) {
     }
     _notificationTokens = (__bridge_retained void*)tokens;
     refresh();
+    // During Application::initializeUi() UIKit may publish the key window one
+    // event-loop turn later. This queued refresh is observed by the native
+    // metrics publisher even when DidBecomeActive already fired.
+    QTimer::singleShot(0, this, [this] { refresh(); });
 }
 
 IOSTouchUiMetrics::~IOSTouchUiMetrics() {

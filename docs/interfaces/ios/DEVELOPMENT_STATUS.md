@@ -55,12 +55,24 @@ diagnostics without rebuilding. Supported fields are:
 {
   "mode": "normal",
   "format": "rgba",
-  "flipVertical": false,
+  "flipVertical": true,
   "forceOpaque": false,
   "captureFirstFrame": true,
+  "captureFrameOrdinals": [1, 2, 4, 8],
+  "captureLatestFrameSequence": 1,
+  "captureSourceContains": "Wizard.qml",
+  "screenQmlFlipVertical": true,
+  "screenQmlCaptureFrameOrdinals": [1, 4, 8],
+  "screenQmlCaptureLatestFrameSequence": 1,
+  "qmlSoftwareWarmupFrames": 8,
+  "qmlSoftwareDiagnosticContinuousFps": 0,
   "statsOverlay": true,
   "statsOverlayExpanded": true,
-  "touchUiAutoOpenTablet": false
+  "touchUiAutoOpenTablet": false,
+  "virtualPadForceVisible": true,
+  "virtualPadScalePercent": 100,
+  "touchInputTraceLimit": 64,
+  "cameraMode": "third-person"
 }
 ```
 
@@ -68,7 +80,21 @@ diagnostics without rebuilding. Supported fields are:
 `rgba-from-bgra`. The first-frame log includes visible/opaque/non-black pixel
 counts and corner/center RGBA samples. When capture is enabled, the exact image
 sent to Vulkan is written to `Documents/Overte-iOS-QML-FirstFrame-*.png` for
-AFC retrieval.
+AFC retrieval. Later ordinals use `Overte-iOS-QML-Frame-*.png`. Increment
+`captureLatestFrameSequence` to request another current frame. Set
+`qmlSoftwareDiagnosticContinuousFps` from 1 through 15 when otherwise static
+QML must keep producing frames for a live investigation, then return it to 0.
+The JSON is checked for updates once per second; these controls do not require
+an app restart.
+
+Screen-space QML (statistics, mobile action bar, dialogs, and tablet) has its
+own `OVERTE_IOS_SCREEN_QML_FRAME_GATE` marker and capture ordinals. The iOS
+Vulkan HUD also draws the virtual movement pad and jump/handshake buttons;
+`virtualPadForceVisible` provides a visual diagnostic fallback before scripts
+finish, while `virtualPadScalePercent` accepts 50 through 200. `cameraMode` is
+`third-person` (the iOS default), `first-person`, or `persisted`.
+`touchInputTraceLimit` bounds classification markers for move, view and button
+touches; set it to 0 after input acceptance.
 
 Set `touchUiAutoOpenTablet` for a launch that must expose the screen-space
 tablet without a manual tap. This exercises the same shared tablet presenter as

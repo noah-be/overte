@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Source contract for fail-closed desktop GL external textures on iOS."""
+"""Source contract for fail-closed desktop GL and the safe software HUD on iOS."""
 
 import pathlib
 
@@ -19,8 +19,18 @@ for diagnostic in (
 ):
     if diagnostic not in backend:
         raise SystemExit(f"missing fail-closed diagnostic {diagnostic!r}")
-if f"#if defined({macro})" not in overlay or "renderQmlUi(renderArgs);" not in overlay:
-    raise SystemExit("iOS overlay does not avoid drawing the unsupported external QML texture")
+if "offscreenUI->fetchImage(sourceImage)" not in overlay:
+    raise SystemExit("iOS overlay does not consume the software QML image")
+if 'texture->setSource("ApplicationOverlayIOSSoftware")' not in overlay:
+    raise SystemExit("iOS overlay does not publish a regular Vulkan-owned QML texture")
+ios_upload = overlay[
+    overlay.index("bool ApplicationOverlay::updateIOSQmlTexture"):
+    overlay.index("namespace {", overlay.index("bool ApplicationOverlay::updateIOSQmlTexture"))
+]
+if "createExternal" in ios_upload:
+    raise SystemExit("iOS software HUD regressed to unsupported external GL texture interop")
+if "renderQmlUi(renderArgs);" not in overlay:
+    raise SystemExit("iOS overlay no longer composites the safe software QML texture")
 
 texture_header = (ROOT / "libraries/gpu-vk/src/gpu/vk/VKTexture.h").read_text(encoding="utf-8")
 texture_source = (ROOT / "libraries/gpu-vk/src/gpu/vk/VKTexture.cpp").read_text(encoding="utf-8")
@@ -30,4 +40,4 @@ for name, text in (("texture header", texture_header), ("texture source", textur
     if negative_guard not in text:
         raise SystemExit(f"{name} does not compile-exclude desktop GL interop")
 
-print("iOS Vulkan external texture gate valid: desktop GL class, types, and GLsync cleanup excluded")
+print("iOS Vulkan external texture gate valid: desktop GL excluded; software QML HUD uses an ordinary texture")

@@ -1829,6 +1829,26 @@ void Application::loadSettings(const QCommandLineParser& parser) {
 #endif
 #endif
 
+#if defined(Q_OS_IOS)
+    // Until the touch settings surface is available, start iOS in the mobile
+    // third-person view requested for device testing. The Documents diagnostics
+    // file can switch between first-person, third-person and persisted without
+    // reinstalling or rebuilding.
+    const QString iosCameraMode = iosRuntimeDiagnosticConfig()
+        .value(QStringLiteral("cameraMode"))
+        .toString(QStringLiteral("third-person"))
+        .trimmed().toLower();
+    if (iosCameraMode == QStringLiteral("first-person")) {
+        isFirstPerson = true;
+    } else if (iosCameraMode != QStringLiteral("persisted")) {
+        isFirstPerson = false;
+    }
+    logIOSRuntimeMarker(
+        "OVERTE_IOS_CAMERA_GATE stage=startup-policy",
+        "requested=", iosCameraMode,
+        "first_person=", isFirstPerson);
+#endif
+
     // finish initializing the camera, based on everything we checked above. Third person camera will be used if no settings
     // dictated that we should be in first person
     Menu::getInstance()->setIsOptionChecked(MenuOption::FirstPersonLookAt, isFirstPerson);

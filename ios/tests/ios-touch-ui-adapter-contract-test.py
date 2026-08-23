@@ -22,6 +22,10 @@ WRAPPED_MENU = (ROOT / "interface/resources/qml/controls/WrappedMenu.qml").read_
 VR_MENU = (ROOT / "libraries/ui/src/VrMenu.cpp").read_text()
 IOS_STATS = (ROOT / "interface/resources/qml/+ios/Stats.qml").read_text()
 PHONE_LOGIN = (ROOT / "interface/resources/qml/LoginDialog/+android_phoneInterface/LinkAccountBody.qml").read_text()
+APPLICATION_OVERLAY = (ROOT / "interface/src/ui/ApplicationOverlay.cpp").read_text()
+INPUT_PLUGINS = (ROOT / "libraries/input-plugins/src/input-plugins/InputPlugin.cpp").read_text()
+VIRTUAL_PAD = (ROOT / "libraries/input-plugins/src/input-plugins/TouchscreenVirtualPadDevice.cpp").read_text()
+VIRTUAL_PAD_MANAGER = (ROOT / "libraries/ui/src/VirtualPadManager.h").read_text()
 
 for metric in (
     "safeInsetLeft", "safeInsetTop", "safeInsetRight", "safeInsetBottom",
@@ -34,6 +38,7 @@ for metric in (
 for native_contract in (
     "safeAreaInsets", "UIKeyboardWillChangeFrameNotification",
     "UIKeyboardWillHideNotification", "UIContentSizeCategoryDidChangeNotification",
+    "UIWindowDidBecomeKeyNotification", "QTimer::singleShot",
     "CGRectIntersection", "window.screen.scale",
 ):
     assert native_contract in SOURCE
@@ -47,6 +52,9 @@ for capability in (
 
 assert 'qmlRegisterSingletonType<IOSTouchUiMetrics>' in SOURCE
 assert "registerIOSTouchUiMetricsQmlType();" in GRAPHICS
+assert "new IOSTouchUiMetrics(this)" in GRAPHICS
+assert "setTouchUiRuntimeMetrics(metrics)" in GRAPHICS
+assert "OVERTE_IOS_TOUCH_UI_GATE stage=native-metrics-published" in GRAPHICS
 assert 'extraSelectors << "ios" << "mobile" << "touch"' in SELECTORS
 assert "android_phoneInterface" in SELECTORS
 assert 'import ".." as SharedControls' in PROFILE
@@ -79,6 +87,17 @@ assert "Entities local/server:" in IOS_STATS
 assert "GPU memory tex/buf:" in IOS_STATS
 assert 'iosRuntimeDiagnosticBool("statsOverlay", true)' in APPLICATION_UI
 assert 'iosRuntimeDiagnosticBool("statsOverlayExpanded", true)' in APPLICATION_UI
+
+assert "defined(Q_OS_ANDROID) || defined(Q_OS_IOS)" in INPUT_PLUGINS
+assert "new TouchscreenVirtualPadDevice()" in INPUT_PLUGINS
+assert "defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)" in VIRTUAL_PAD
+assert 'touchscreenvirtualpad-phone.json' in VIRTUAL_PAD
+assert "OVERTE_IOS_TOUCH_INPUT_GATE stage=virtual-pad-initialized" in VIRTUAL_PAD
+assert "bool _hidden { false };" in VIRTUAL_PAD_MANAGER
+assert "renderIOSVirtualPad(renderArgs)" in APPLICATION_OVERLAY
+assert "OVERTE_IOS_TOUCH_UI_GATE stage=virtual-pad-composited" in APPLICATION_OVERLAY
+for texture in ("analog_stick.png", "analog_stick_base.png", "fly.png", "handshake.png"):
+    assert texture in APPLICATION_OVERLAY
 
 for startup_qml in (
     PROFILE,

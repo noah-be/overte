@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <mutex>
 
 #include <QtCore/QTimer>
 #include <QtGui/QImage>
@@ -73,43 +74,66 @@ namespace {
 struct IOSWebFrameDiagnostics {
     QString mode { QStringLiteral("normal") };
     QString format { QStringLiteral("rgba") };
-    bool flipVertical { false };
+    bool flipVertical { true };
     bool forceOpaque { false };
     bool captureFirstFrame { false };
+    QSet<int> captureFrameOrdinals;
+    int captureEveryNFrames { 0 };
+    int captureSequence { -1 };
+    QString captureSourceContains;
     QString configPath;
 };
 
-const IOSWebFrameDiagnostics& iosWebFrameDiagnostics() {
-    static const IOSWebFrameDiagnostics diagnostics = [] {
-        IOSWebFrameDiagnostics result;
-        result.configPath = iosRuntimeDiagnosticConfigPath();
-        const auto& object = iosRuntimeDiagnosticConfig();
-        result.mode = object.value(QStringLiteral("mode")).toString(result.mode).trimmed().toLower();
-        result.format = object.value(QStringLiteral("format")).toString(result.format).trimmed().toLower();
-        result.flipVertical = object.value(QStringLiteral("flipVertical")).toBool(false);
-        result.forceOpaque = object.value(QStringLiteral("forceOpaque")).toBool(false);
-        result.captureFirstFrame = object.value(QStringLiteral("captureFirstFrame")).toBool(false);
-        if (result.mode != QStringLiteral("normal") && result.mode != QStringLiteral("test-pattern")) {
-            result.mode = QStringLiteral("normal");
+IOSWebFrameDiagnostics iosWebFrameDiagnostics() {
+    IOSWebFrameDiagnostics result;
+    result.configPath = iosRuntimeDiagnosticConfigPath();
+    const auto object = iosRuntimeDiagnosticConfig();
+    result.mode = object.value(QStringLiteral("mode")).toString(result.mode).trimmed().toLower();
+    result.format = object.value(QStringLiteral("format")).toString(result.format).trimmed().toLower();
+    result.flipVertical = object.value(QStringLiteral("flipVertical")).toBool(true);
+    result.forceOpaque = object.value(QStringLiteral("forceOpaque")).toBool(false);
+    result.captureFirstFrame = object.value(QStringLiteral("captureFirstFrame")).toBool(false);
+    result.captureFrameOrdinals = iosRuntimeDiagnosticIntSet(
+        "captureFrameOrdinals", 1, 1000000);
+    result.captureEveryNFrames = iosRuntimeDiagnosticInt(
+        "captureEveryNFrames", 0, 0, 1000000);
+    result.captureSequence = iosRuntimeDiagnosticInt(
+        "captureLatestFrameSequence", -1, -1, 1000000);
+    result.captureSourceContains = object.value(QStringLiteral("captureSourceContains"))
+        .toString().trimmed();
+    if (result.mode != QStringLiteral("normal") && result.mode != QStringLiteral("test-pattern")) {
+        result.mode = QStringLiteral("normal");
+    }
+    if (result.format != QStringLiteral("rgba") &&
+            result.format != QStringLiteral("srgb") &&
+            result.format != QStringLiteral("bgra") &&
+            result.format != QStringLiteral("rgba-from-bgra")) {
+        result.format = QStringLiteral("rgba");
+    }
+
+    static std::mutex markerMutex;
+    static QByteArray lastMarkerConfig;
+    const QByteArray markerConfig = QJsonDocument(object).toJson(QJsonDocument::Compact);
+    {
+        std::lock_guard<std::mutex> lock(markerMutex);
+        if (markerConfig != lastMarkerConfig) {
+            lastMarkerConfig = markerConfig;
+            logIOSRuntimeMarker(
+                "OVERTE_IOS_QML_DIAGNOSTICS stage=config-loaded",
+                "loaded=", !object.isEmpty(),
+                "mode=", result.mode,
+                "format=", result.format,
+                "flip_vertical=", result.flipVertical,
+                "force_opaque=", result.forceOpaque,
+                "capture_first_frame=", result.captureFirstFrame,
+                "capture_ordinals=", result.captureFrameOrdinals.size(),
+                "capture_every_n=", result.captureEveryNFrames,
+                "capture_sequence=", result.captureSequence,
+                "capture_source_contains=", result.captureSourceContains,
+                "path=", result.configPath);
         }
-        if (result.format != QStringLiteral("rgba") &&
-                result.format != QStringLiteral("srgb") &&
-                result.format != QStringLiteral("bgra") &&
-                result.format != QStringLiteral("rgba-from-bgra")) {
-            result.format = QStringLiteral("rgba");
-        }
-        logIOSRuntimeMarker(
-            "OVERTE_IOS_QML_DIAGNOSTICS stage=config-loaded",
-            "loaded=", !object.isEmpty(),
-            "mode=", result.mode,
-            "format=", result.format,
-            "flip_vertical=", result.flipVertical,
-            "force_opaque=", result.forceOpaque,
-            "capture_first_frame=", result.captureFirstFrame,
-            "path=", result.configPath);
-        return result;
-    }();
-    return diagnostics;
+    }
+    return result;
 }
 
 QString rgbaDescription(const QColor& color) {
@@ -461,7 +485,7 @@ void WebEntityRenderer::doRender(RenderArgs* args) {
 
     if (newTextureAvailable) {
 #if defined(Q_OS_IOS)
-        const auto& diagnostics = iosWebFrameDiagnostics();
+        const auto diagnostics = iosWebFrameDiagnostics();
         auto texelFormat = gpu::Element::COLOR_RGBA_32;
         auto storedFormat = gpu::Element::COLOR_RGBA_32;
         auto imageFormat = QImage::Format_RGBA8888;
@@ -514,7 +538,18 @@ void WebEntityRenderer::doRender(RenderArgs* args) {
             reinterpret_cast<const gpu::Byte*>(uploadImage.constBits()));
         texture->setSource("WebEntityRendererSoftware");
         _texture = std::move(texture);
-        if (!_softwareFrameReported) {
+        ++_softwareFrameOrdinal;
+        const bool sourceMatches = diagnostics.captureSourceContains.isEmpty() ||
+            _sourceURL.contains(diagnostics.captureSourceContains, Qt::CaseInsensitive);
+        const bool selectedOrdinal = diagnostics.captureFrameOrdinals.contains(
+            static_cast<int>(_softwareFrameOrdinal));
+        const bool selectedInterval = diagnostics.captureEveryNFrames > 0 &&
+            (_softwareFrameOrdinal % static_cast<uint64_t>(diagnostics.captureEveryNFrames)) == 0;
+        const bool selectedSequence = diagnostics.captureSequence >= 0 &&
+            diagnostics.captureSequence != _lastSoftwareCaptureSequence;
+        const bool shouldReport = !_softwareFrameReported || selectedOrdinal ||
+            selectedInterval || selectedSequence;
+        if (shouldReport) {
             _softwareFrameReported = true;
             quint64 alphaNonzeroPixels = 0;
             quint64 opaquePixels = 0;
@@ -535,13 +570,23 @@ void WebEntityRenderer::doRender(RenderArgs* args) {
             }
             QString capturePath;
             bool captureSaved = false;
-            if (diagnostics.captureFirstFrame) {
+            const bool captureSelected = sourceMatches &&
+                ((diagnostics.captureFirstFrame && _softwareFrameOrdinal == 1) ||
+                 selectedOrdinal || selectedInterval || selectedSequence);
+            if (captureSelected) {
                 capturePath = QDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation))
-                    .filePath(QStringLiteral("Overte-iOS-QML-FirstFrame-%1.png").arg(_geometryId));
+                    .filePath(_softwareFrameOrdinal == 1
+                        ? QStringLiteral("Overte-iOS-QML-FirstFrame-%1.png").arg(_geometryId)
+                        : QStringLiteral("Overte-iOS-QML-Frame-%1-%2.png")
+                            .arg(_geometryId).arg(_softwareFrameOrdinal));
                 captureSaved = uploadImage.save(capturePath, "PNG");
+            }
+            if (diagnostics.captureSequence >= 0) {
+                _lastSoftwareCaptureSequence = diagnostics.captureSequence;
             }
             logIOSRuntimeMarker(
                 "OVERTE_IOS_QML_FRAME_GATE stage=cpu-frame-uploaded",
+                "ordinal=", _softwareFrameOrdinal,
                 "size=", uploadImage.size(),
                 "source=", _sourceURL,
                 "mode=", diagnostics.mode,

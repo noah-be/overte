@@ -355,6 +355,45 @@ void Application::initializeUi() {
     {
         auto tabletScriptingInterface = DependencyManager::get<TabletScriptingInterface>();
         tabletScriptingInterface->getTablet(SYSTEM_TABLET);
+#if defined(Q_OS_IOS)
+        // The QML singleton is instantiated only when the tablet tree imports
+        // OverteIOS. Publishing from the native application breaks that cycle:
+        // screen metrics can now size/auto-open the tablet before its QML exists.
+        auto* touchUiMetrics = new IOSTouchUiMetrics(this);
+        auto publishTouchUiMetrics = [touchUiMetrics, tabletScriptingInterface] {
+            const bool valid = touchUiMetrics->surfaceWidth() > 0.0 &&
+                touchUiMetrics->surfaceHeight() > 0.0;
+            QVariantMap metrics {
+                { QStringLiteral("valid"), valid },
+                { QStringLiteral("safeInsetLeft"), touchUiMetrics->safeInsetLeft() },
+                { QStringLiteral("safeInsetTop"), touchUiMetrics->safeInsetTop() },
+                { QStringLiteral("safeInsetRight"), touchUiMetrics->safeInsetRight() },
+                { QStringLiteral("safeInsetBottom"), touchUiMetrics->safeInsetBottom() },
+                { QStringLiteral("imeInsetBottom"), touchUiMetrics->imeInsetBottom() },
+                { QStringLiteral("keyboardVisible"), touchUiMetrics->keyboardVisible() },
+                { QStringLiteral("surfaceWidth"), touchUiMetrics->surfaceWidth() },
+                { QStringLiteral("surfaceHeight"), touchUiMetrics->surfaceHeight() },
+                { QStringLiteral("density"), touchUiMetrics->density() },
+                { QStringLiteral("fontScale"), touchUiMetrics->fontScale() },
+            };
+            tabletScriptingInterface->setTouchUiRuntimeMetrics(metrics);
+            logIOSRuntimeMarker(
+                "OVERTE_IOS_TOUCH_UI_GATE stage=native-metrics-published",
+                "valid=", valid,
+                "width=", touchUiMetrics->surfaceWidth(),
+                "height=", touchUiMetrics->surfaceHeight(),
+                "safe=", QStringLiteral("%1,%2,%3,%4")
+                    .arg(touchUiMetrics->safeInsetLeft())
+                    .arg(touchUiMetrics->safeInsetTop())
+                    .arg(touchUiMetrics->safeInsetRight())
+                    .arg(touchUiMetrics->safeInsetBottom()),
+                "ime_bottom=", touchUiMetrics->imeInsetBottom(),
+                "keyboard_visible=", touchUiMetrics->keyboardVisible());
+        };
+        connect(touchUiMetrics, &IOSTouchUiMetrics::metricsChanged,
+            this, publishTouchUiMetrics);
+        publishTouchUiMetrics();
+#endif
     }
 
     auto offscreenUi = getOffscreenUI();
@@ -369,6 +408,12 @@ void Application::initializeUi() {
     // The mobile desktop is composited full-screen at its native logical size;
     // its mip chain is never sampled and only adds memory and update work.
     offscreenUi->setGenerateMips(false);
+#if defined(Q_OS_IOS)
+    // Expanded stats change continuously. Fifteen software-QML frames per
+    // second remain readable while avoiding a full-screen CPU upload at the
+    // scene's 60 Hz presentation rate.
+    offscreenUi->setMaxFps(15);
+#endif
 #endif
     // OffscreenUi is a subclass of OffscreenQmlSurface specifically designed to
     // support the window management and scripting proxies for VR use

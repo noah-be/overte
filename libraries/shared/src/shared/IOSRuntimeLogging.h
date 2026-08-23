@@ -11,6 +11,7 @@
 #include <utility>
 
 #include <QtCore/QByteArray>
+#include <QtCore/QDateTime>
 #include <QtCore/QDebug>
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
@@ -89,10 +90,10 @@ inline void beginIOSRuntimeEntityEvidence() {
 }
 
 // Physical iOS devices cannot receive simulator-style launch environment
-// variables, and CFPreferences may retain externally replaced plist values
-// until the device restarts. Read an ordinary Documents file once per process
-// instead. HouseArrest/AFC can replace this file between app launches without
-// resigning, reinstalling, rebuilding, or rebooting the device.
+// variables, and CFPreferences may retain externally replaced plist values.
+// HouseArrest/AFC can replace this ordinary Documents file without resigning,
+// reinstalling, rebuilding, rebooting, or (for hot-reload-aware gates) even
+// restarting the app.
 inline const QString& iosRuntimeDiagnosticConfigPath() {
     static const QString path = [] {
         const auto overridePath = qgetenv("OVERTE_IOS_DIAGNOSTIC_CONFIG").trimmed();
@@ -105,20 +106,64 @@ inline const QString& iosRuntimeDiagnosticConfigPath() {
     return path;
 }
 
-inline const QJsonObject& iosRuntimeDiagnosticConfig() {
-    static const QJsonObject config = [] {
-        QFile file(iosRuntimeDiagnosticConfigPath());
-        if (!file.open(QIODevice::ReadOnly)) {
-            return QJsonObject {};
-        }
-        QJsonParseError error;
-        const auto document = QJsonDocument::fromJson(file.readAll(), &error);
-        if (error.error != QJsonParseError::NoError || !document.isObject()) {
-            return QJsonObject {};
-        }
-        return document.object();
-    }();
-    return config;
+struct IOSRuntimeDiagnosticConfigCache {
+    std::mutex mutex;
+    QJsonObject config;
+    qint64 lastCheckMs { 0 };
+    qint64 loadedSize { -1 };
+    qint64 loadedModifiedMs { -1 };
+    bool loadedExists { false };
+};
+
+inline QJsonObject iosRuntimeDiagnosticConfig() {
+    static IOSRuntimeDiagnosticConfigCache cache;
+    constexpr qint64 RELOAD_INTERVAL_MS { 1000 };
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    std::lock_guard<std::mutex> lock(cache.mutex);
+    if (cache.lastCheckMs != 0 && now - cache.lastCheckMs < RELOAD_INTERVAL_MS) {
+        return cache.config;
+    }
+    cache.lastCheckMs = now;
+
+    const QFileInfo info(iosRuntimeDiagnosticConfigPath());
+    const bool exists = info.exists() && info.isFile();
+    const qint64 size = exists ? info.size() : -1;
+    const qint64 modifiedMs = exists ? info.lastModified().toMSecsSinceEpoch() : -1;
+    if (exists == cache.loadedExists && size == cache.loadedSize &&
+            modifiedMs == cache.loadedModifiedMs) {
+        return cache.config;
+    }
+
+    if (!exists) {
+        cache.config = QJsonObject {};
+        cache.loadedExists = false;
+        cache.loadedSize = -1;
+        cache.loadedModifiedMs = -1;
+        return cache.config;
+    }
+
+    QFile file(iosRuntimeDiagnosticConfigPath());
+    if (!file.open(QIODevice::ReadOnly)) {
+        return cache.config;
+    }
+    QJsonParseError error;
+    const auto document = QJsonDocument::fromJson(file.readAll(), &error);
+    if (error.error != QJsonParseError::NoError || !document.isObject()) {
+        // AFC replacement is not guaranteed to be atomic. Retain the last
+        // valid object and retry instead of briefly disabling all diagnostics.
+        return cache.config;
+    }
+    cache.config = document.object();
+    cache.loadedExists = true;
+    cache.loadedSize = size;
+    cache.loadedModifiedMs = modifiedMs;
+    logIOSRuntimeMarker(
+        "OVERTE_IOS_DIAGNOSTIC_CONFIG stage=reloaded",
+        "keys=", cache.config.size(),
+        "schema=", cache.config.value(QStringLiteral("schemaVersion")).toInt(0),
+        "size=", size,
+        "path=", iosRuntimeDiagnosticConfigPath());
+    return cache.config;
 }
 
 inline QStringList iosRuntimeDiagnosticStringList(const char* key) {
@@ -162,24 +207,21 @@ inline QSet<int> iosRuntimeDiagnosticIntSet(const char* key,
     return values;
 }
 
-inline const QByteArray& iosRuntimeRenderDiagnosticMode() {
-    static const QByteArray mode = [] {
-        const auto environmentMode = qgetenv("OVERTE_IOS_RENDER_DIAGNOSTIC").trimmed().toLower();
-        if (!environmentMode.isEmpty()) {
-            return environmentMode;
-        }
-        return iosRuntimeDiagnosticConfig()
-            .value(QStringLiteral("renderDiagnosticMode"))
-            .toString()
-            .trimmed()
-            .toLower()
-            .toUtf8();
-    }();
-    return mode;
+inline QByteArray iosRuntimeRenderDiagnosticMode() {
+    const auto environmentMode = qgetenv("OVERTE_IOS_RENDER_DIAGNOSTIC").trimmed().toLower();
+    if (!environmentMode.isEmpty()) {
+        return environmentMode;
+    }
+    return iosRuntimeDiagnosticConfig()
+        .value(QStringLiteral("renderDiagnosticMode"))
+        .toString()
+        .trimmed()
+        .toLower()
+        .toUtf8();
 }
 
 inline bool iosRuntimeRenderDiagnosticsEnabled() {
-    const auto& mode = iosRuntimeRenderDiagnosticMode();
+    const auto mode = iosRuntimeRenderDiagnosticMode();
     return !mode.isEmpty() && mode != "off";
 }
 
