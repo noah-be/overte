@@ -1,0 +1,70 @@
+name: Branch policy
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited]
+    branches:
+      - main
+      - android-main
+      - android-phone
+      - android-vr
+      - android-vr-pico
+      - android-vr-quest
+      - apple-main
+      - apple-ios
+      - apple-macos
+
+permissions:
+  contents: read
+  checks: write
+
+concurrency:
+  group: branch-policy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  evaluate-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # Check out trusted policy code from the default branch. Never execute PR code
+      # in this pull_request_target workflow.
+      - name: Check out trusted policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate pull request direction and publish required check
+        env:
+          BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          output=$(python3 tools/branch-policy/check.py check-pr \
+            --base "$BASE_BRANCH" \
+            --head "$HEAD_BRANCH" 2>&1)
+          result=$?
+
+          if [[ "$result" -eq 0 ]]; then
+            conclusion=success
+            title="Branch direction allowed"
+          else
+            conclusion=failure
+            title="Branch direction blocked"
+          fi
+
+          gh api --method POST "repos/$REPOSITORY/check-runs" \
+            -f name=branch-policy \
+            -f head_sha="$HEAD_SHA" \
+            -f status=completed \
+            -f conclusion="$conclusion" \
+            -f "output[title]=$title" \
+            -f "output[summary]=$output"
+
+          printf '%s\n' "$output"
+          exit "$result"
