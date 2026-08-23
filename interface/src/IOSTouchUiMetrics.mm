@@ -38,11 +38,30 @@ bool changed(qreal first, qreal second) {
     return std::abs(first - second) > 0.01;
 }
 
+UIResponder* findFirstResponder(UIView* view) {
+    if (view.isFirstResponder) {
+        return view;
+    }
+    for (UIView* child in view.subviews) {
+        if (UIResponder* responder = findFirstResponder(child)) {
+            return responder;
+        }
+    }
+    return nil;
+}
+
 void dismissActiveWindowEditing() {
     if (UIWindow* window = activeWindow()) {
         // QInputMethod::hide() can dismiss the keyboard while leaving its
         // input-assistant/QuickType bar attached to a hidden QML editor.
         // Ending UIKit editing clears that stale first responder as well.
+        UIResponder* responder = findFirstResponder(window);
+        if ([responder respondsToSelector:@selector(inputAssistantItem)]) {
+            UITextInputAssistantItem* assistant = responder.inputAssistantItem;
+            assistant.leadingBarButtonGroups = @[];
+            assistant.trailingBarButtonGroups = @[];
+        }
+        [responder resignFirstResponder];
         [window endEditing:YES];
     }
 }

@@ -16,6 +16,9 @@
     var thirdPersonBoomLength = 1.5;
     var deferredLayoutTimer = null;
     var shuttingDown = false;
+    var touchStart = null;
+    var lastActionTime = 0;
+    var lastActionName = "";
 
     var BASE_BUTTON_STYLE = {
         bgOpacity: 0.22,
@@ -37,7 +40,11 @@
     // high-density phones without relying on a device-specific DPI value.
     function calculateLayout(width, height) {
         var shortEdge = Math.min(width, height);
-        var buttonSize = clamp(Math.round(shortEdge * 0.16), 72, 180);
+        // Tablet logical surfaces are much larger than phone surfaces.  The old
+        // 16% rule produced 164 px controls on an iPad, obscuring a substantial
+        // part of the world.  Keep the phone minimum while capping the tablet
+        // presentation near the proven native virtual-pad button size.
+        var buttonSize = clamp(Math.round(shortEdge * 0.105), 72, 112);
         var edgeMargin = clamp(Math.round(shortEdge * 0.025), 12, 32);
         var flowPadding = 4;
         var flowSpacing = 10;
@@ -241,6 +248,91 @@
         }
     }
 
+    function pointInRect(point, position, size) {
+        return point.x >= position.x && point.x <= position.x + size.x &&
+            point.y >= position.y && point.y <= position.y + size.y;
+    }
+
+    function actionAtPoint(point) {
+        var layout = calculateLayout(Window.innerWidth, Window.innerHeight);
+        var buttonSize = layout.buttonStyle.width;
+        var padding = 4;
+        var spacing = 10;
+        var index;
+        var actions = [
+            { name: "goto", invoke: showAddressBar },
+            { name: "tablet", invoke: showTablet },
+            { name: "view", invoke: toggleCameraMode }
+        ];
+        for (index = 0; index < actions.length; index++) {
+            if (pointInRect(point, {
+                x: layout.navigationPosition.x + padding,
+                y: layout.navigationPosition.y + padding + index * (buttonSize + spacing)
+            }, { x: buttonSize, y: buttonSize })) {
+                return actions[index];
+            }
+        }
+        if (pointInRect(point, {
+            x: layout.audioPosition.x + padding,
+            y: layout.audioPosition.y + padding
+        }, { x: buttonSize, y: buttonSize })) {
+            return { name: "microphone", invoke: toggleMicrophone };
+        }
+        return null;
+    }
+
+    function invokeAction(action, source) {
+        var now = Date.now();
+        // A platform that also synthesizes a QML click must not toggle an action
+        // twice. This still permits deliberate repeated taps.
+        if (!action || (lastActionName === action.name && now - lastActionTime < 250)) {
+            return;
+        }
+        lastActionName = action.name;
+        lastActionTime = now;
+        print("OVERTE_MOBILE_ACTION_BAR action=" + action.name + " source=" + source);
+        hapticFeedback();
+        action.invoke();
+    }
+
+    function onTouchBegin(event) {
+        var action = actionAtPoint(event);
+        touchStart = action ? {
+            action: action,
+            x: event.x,
+            y: event.y,
+            time: Date.now()
+        } : null;
+    }
+
+    function onTouchEnd(event) {
+        var start = touchStart;
+        var action = actionAtPoint(event);
+        touchStart = null;
+        if (!start || !action || start.action.name !== action.name ||
+                Date.now() - start.time > 600 ||
+                Math.abs(event.x - start.x) > 32 || Math.abs(event.y - start.y) > 32) {
+            return;
+        }
+        invokeAction(action, "touch");
+    }
+
+    function onGotoClicked() {
+        invokeAction({ name: "goto", invoke: showAddressBar }, "qml");
+    }
+
+    function onTabletClicked() {
+        invokeAction({ name: "tablet", invoke: showTablet }, "qml");
+    }
+
+    function onViewClicked() {
+        invokeAction({ name: "view", invoke: toggleCameraMode }, "qml");
+    }
+
+    function onMicrophoneClicked() {
+        invokeAction({ name: "microphone", invoke: toggleMicrophone }, "qml");
+    }
+
     currentButtonStyle = calculateLayout(Math.max(Window.innerWidth, 1), Math.max(Window.innerHeight, 1)).buttonStyle;
     systemTablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
 
@@ -270,17 +362,19 @@
         bindToAudioMute: true
     }));
 
-    connectSignal(gotoButton, "clicked", showAddressBar);
+    connectSignal(gotoButton, "clicked", onGotoClicked);
     connectSignal(gotoButton, "entered", hapticFeedback);
-    connectSignal(tabletButton, "clicked", showTablet);
+    connectSignal(tabletButton, "clicked", onTabletClicked);
     connectSignal(tabletButton, "entered", hapticFeedback);
-    connectSignal(cameraButton, "clicked", toggleCameraMode);
+    connectSignal(cameraButton, "clicked", onViewClicked);
     connectSignal(cameraButton, "entered", hapticFeedback);
-    connectSignal(microphoneButton, "clicked", toggleMicrophone);
+    connectSignal(microphoneButton, "clicked", onMicrophoneClicked);
     connectSignal(microphoneButton, "entered", hapticFeedback);
     Window.geometryChanged.connect(updateLayout);
     Window.geometryChanged.connect(resizeTablet);
     systemTablet.tabletShownChanged.connect(tabletVisibilityChanged);
+    Controller.touchBeginEvent.connect(onTouchBegin);
+    Controller.touchEndEvent.connect(onTouchEnd);
     tabletVisibilityChanged();
     // QML fragments also perform their initial placement in Component.onCompleted;
     // defer once so the phone-specific adaptive placement wins deterministically.
@@ -298,15 +392,18 @@
         Window.geometryChanged.disconnect(updateLayout);
         Window.geometryChanged.disconnect(resizeTablet);
         systemTablet.tabletShownChanged.disconnect(tabletVisibilityChanged);
+        Controller.touchBeginEvent.disconnect(onTouchBegin);
+        Controller.touchEndEvent.disconnect(onTouchEnd);
+        touchStart = null;
         Controller.setVPadHidden(false);
         Controller.releaseTouchEvents();
-        disconnectSignal(gotoButton, "clicked", showAddressBar);
+        disconnectSignal(gotoButton, "clicked", onGotoClicked);
         disconnectSignal(gotoButton, "entered", hapticFeedback);
-        disconnectSignal(tabletButton, "clicked", showTablet);
+        disconnectSignal(tabletButton, "clicked", onTabletClicked);
         disconnectSignal(tabletButton, "entered", hapticFeedback);
-        disconnectSignal(cameraButton, "clicked", toggleCameraMode);
+        disconnectSignal(cameraButton, "clicked", onViewClicked);
         disconnectSignal(cameraButton, "entered", hapticFeedback);
-        disconnectSignal(microphoneButton, "clicked", toggleMicrophone);
+        disconnectSignal(microphoneButton, "clicked", onMicrophoneClicked);
         disconnectSignal(microphoneButton, "entered", hapticFeedback);
         closeFragment(navigationBar);
         closeFragment(audioBar);

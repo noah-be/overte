@@ -428,6 +428,18 @@ bool VKBackend::isTextureManagementSparseEnabled() const {
 }
 
 bool VKBackend::supportedTextureFormat(const gpu::Element& format) const {
+    auto supportsSampledTransferImage = [this, &format]() {
+        const VkFormat vkFormat = evalTexelFormatInternal(format, _context);
+        VkImageFormatProperties properties {};
+        return vkGetPhysicalDeviceImageFormatProperties(
+            _context.physicalDevice,
+            vkFormat,
+            VK_IMAGE_TYPE_2D,
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+            0,
+            &properties) == VK_SUCCESS;
+    };
     switch (format.getSemantic()) {
         case COMPRESSED_BC1_SRGB:
         case COMPRESSED_BC1_SRGBA:
@@ -436,7 +448,11 @@ bool VKBackend::supportedTextureFormat(const gpu::Element& format) const {
         case COMPRESSED_BC5_XY:
         case COMPRESSED_BC6_RGB:
         case COMPRESSED_BC7_SRGBA:
-            return _context.device->features.textureCompressionBC == VK_TRUE;
+            // A family-wide compression feature is insufficient on MoltenVK:
+            // physical iOS GPUs may advertise BC support while rejecting a
+            // concrete variant such as BC1 RGB sRGB at image creation time.
+            return _context.device->features.textureCompressionBC == VK_TRUE &&
+                supportsSampledTransferImage();
 
         case COMPRESSED_ETC2_RGB:
         case COMPRESSED_ETC2_SRGB:
@@ -448,7 +464,8 @@ bool VKBackend::supportedTextureFormat(const gpu::Element& format) const {
         case COMPRESSED_EAC_RED_SIGNED:
         case COMPRESSED_EAC_XY:
         case COMPRESSED_EAC_XY_SIGNED:
-            return _context.device->features.textureCompressionETC2 == VK_TRUE;
+            return _context.device->features.textureCompressionETC2 == VK_TRUE &&
+                supportsSampledTransferImage();
 
             // VKTODO:
             //case COMPRESSED_ASTC_RGBA_10x10:
@@ -483,6 +500,11 @@ bool VKBackend::supportedTextureFormat(const gpu::Element& format) const {
 
         default:
             break;
+    }
+    if (format.getDimension() == gpu::TILE4x4) {
+        // Covers ASTC and any future block-compressed semantic not yet listed
+        // above with the same exact image-creation capability query.
+        return supportsSampledTransferImage();
     }
     return true;
 }
@@ -2373,6 +2395,21 @@ VKTexture* VKBackend::syncGPUObject(const std::shared_ptr<Texture> &texture) {
 
     if (!texture->isDefined()) {
         // NO texture definition yet so let's avoid thinking
+        return nullptr;
+    }
+
+    if (texture->getTexelFormat().getDimension() == gpu::TILE4x4 &&
+            !supportedTextureFormat(texture->getTexelFormat())) {
+#if defined(Q_OS_IOS)
+        qCCritical(gpu_vk_logging)
+            << "OVERTE_IOS_VULKAN_TEXTURE_REJECTED unsupported compressed texture"
+            << QString::fromStdString(texture->source());
+#else
+        qCCritical(gpu_vk_logging) << "Unsupported compressed Vulkan texture"
+                                   << QString::fromStdString(texture->source());
+#endif
+        // The material layer will use its fallback texture. Never allow an
+        // unsupported network asset to reach vkCreateImage/VK_CHECK_RESULT.
         return nullptr;
     }
 

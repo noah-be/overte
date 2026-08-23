@@ -22,6 +22,7 @@
 #endif
 #include <QStyle>
 #include <QStyleFactory>
+#include <QTimer>
 #if defined(Q_OS_WIN)
 #include <windows.h>
 #endif
@@ -1436,6 +1437,11 @@ void Application::resumeAfterLoginDialogActionTaken() {
         inputMethod->hide();
     }
     dismissIOSKeyboard();
+    // Qt can briefly re-focus its hidden offscreen text editor after UI setup.
+    // Repeat only during startup; later user-selected text fields retain normal
+    // keyboard behaviour.
+    QTimer::singleShot(250, this, [] { dismissIOSKeyboard(); });
+    QTimer::singleShot(1000, this, [] { dismissIOSKeyboard(); });
     qInfo().noquote() << "OVERTE_IOS_UI_POLICY menu_hidden=1 keyboard_hidden=1 first_responder_cleared=1";
 #else
     menu->getMenu("Edit")->setVisible(true);

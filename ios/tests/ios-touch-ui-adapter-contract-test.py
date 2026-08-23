@@ -108,6 +108,13 @@ assert "effectiveBottomMargin = _extraBottomMargin + safeBottomInset" in VIRTUAL
 assert 'iosRuntimeDiagnosticInt(\n        "touchLookSensitivityPercent", 400, 50, 1200)' in VIRTUAL_PAD
 assert "_buttonsManager.buttons[0].buttonPosition = jumpButtonPosition" in VIRTUAL_PAD
 assert "OVERTE_IOS_TOUCH_INPUT_GATE stage=button-pressed" in VIRTUAL_PAD
+assert "UITextInputAssistantItem" in SOURCE
+assert "assistant.leadingBarButtonGroups = @[]" in SOURCE
+assert "QTimer::singleShot(1000" in APPLICATION_UI
+MOBILE_ACTION_BAR = (ROOT / "scripts/system/+android_phoneInterface/mobileActionBar.js").read_text()
+assert "shortEdge * 0.105" in MOBILE_ACTION_BAR
+assert "Controller.touchBeginEvent.connect(onTouchBegin)" in MOBILE_ACTION_BAR
+assert 'OVERTE_MOBILE_ACTION_BAR action=' in MOBILE_ACTION_BAR
 assert "bool _hidden { false };" in VIRTUAL_PAD_MANAGER
 assert "renderIOSVirtualPad(renderArgs)" in APPLICATION_OVERLAY
 assert 'metrics.value("safeInsetTop")' in APPLICATION_OVERLAY
