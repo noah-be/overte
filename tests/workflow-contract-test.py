@@ -70,7 +70,7 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
             self.assertGreaterEqual(len(actions), 1)
             self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
 
-    def test_sync_has_narrow_permissions_and_does_not_merge(self):
+    def test_sync_has_narrow_permissions_and_only_enables_guarded_auto_merge(self):
         source = BRANCH_SYNC_WORKFLOW.read_text(encoding="utf-8")
         self.assertRegex(source, r"(?m)^permissions:\n  contents: read$")
         self.assertIn("actions/create-github-app-token@", source)
@@ -80,7 +80,10 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         self.assertIn("steps.branch-sync-token.outputs.token", source)
         self.assertNotRegex(source, r"(?m)^\s+pull-requests: write$")
         self.assertIn("gh pr create", source)
-        self.assertNotIn("gh pr merge", source)
+        self.assertIn("gh pr merge", source)
+        self.assertIn("--auto", source)
+        self.assertIn("--merge", source)
+        self.assertNotIn("--admin", source)
         self.assertIn("cancel-in-progress: false", source)
         self.assertIn("Skipping $parent -> $child", source)
         self.assertIn("continue", source)

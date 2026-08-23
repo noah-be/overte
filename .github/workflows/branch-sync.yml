@@ -59,20 +59,26 @@ jobs:
               ahead=$(jq -r '.ahead_by' <<<"$comparison")
               [[ "$ahead" -gt 0 ]] || continue
 
-              existing=$(gh pr list \
+              pull_request=$(gh pr list \
                 --repo "$REPOSITORY" \
                 --state open \
                 --base "$child" \
                 --head "$parent" \
                 --json number \
-                --jq 'length')
-              [[ "$existing" -eq 0 ]] || continue
+                --jq '.[0].number // empty')
 
-              gh pr create \
+              if [[ -z "$pull_request" ]]; then
+                pull_request=$(gh pr create \
+                  --repo "$REPOSITORY" \
+                  --base "$child" \
+                  --head "$parent" \
+                  --title "sync: merge $parent into $child" \
+                  --body "Automated direct parent-to-child synchronization required by the repository branch policy.")
+              fi
+
+              gh pr merge "$pull_request" \
                 --repo "$REPOSITORY" \
-                --base "$child" \
-                --head "$parent" \
-                --title "sync: merge $parent into $child" \
-                --body "Automated direct parent-to-child synchronization required by the repository branch policy."
+                --auto \
+                --merge
             done < <(python3 tools/branch-policy/check.py children --parent "$parent")
           done
