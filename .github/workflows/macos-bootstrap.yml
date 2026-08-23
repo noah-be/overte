@@ -1109,6 +1109,7 @@ jobs:
           python3 macos/ci/sccache-remote-checkpoint.py verify-stats
           --stats "$MACOS_RUNNER_TELEMETRY_DIR/client-sccache-stats.json"
           --mode phase
+          --github-output "$GITHUB_OUTPUT"
 
       - name: Record Ninja build-tree checkpoint metadata
         id: build-tree-metadata

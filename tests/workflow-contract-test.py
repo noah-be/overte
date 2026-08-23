@@ -769,6 +769,14 @@ class MacOSWorkflowContracts(unittest.TestCase):
         )[0]
         self.assertIn("id: build-client", build)
         self.assertIn("continue-on-error: true", build)
+        client_verify = build.split(
+            "- name: Verify client objects were checkpointed", 1
+        )[1].split("- name: Record Ninja build-tree checkpoint metadata", 1)[0]
+        self.assertIn('--github-output "$GITHUB_OUTPUT"', client_verify)
+        self.assertIn(
+            "steps.client-compiler-verify.outputs.local_cache_changed == 'true'",
+            complete_save,
+        )
         self.assertIn("always()", complete_save)
         self.assertIn("!cancelled()", complete_save)
         self.assertIn("steps.build-client.outcome == 'success'", complete_save)
