@@ -111,17 +111,21 @@ with tempfile.TemporaryDirectory() as temporary:
 
     crash_completion_file = output / "crash-completion.json"
     crash_completion_result = output / "crash-completion-result.json"
+    # A Python process that signals itself can be intercepted by hosted-runner
+    # crash handlers and linger. Signal the shell directly so this remains a
+    # deterministic supervisor exit-code test on both Linux and macOS.
+    signal_child = (
+        "printf 'complete\\n' > \"$1\"; "
+        "kill -SEGV $$"
+    )
     crash_after_completion = subprocess.run(
         [sys.executable, str(SUPERVISOR), "--timeout", "5", "--grace", "0.1",
          "--completion-settle", "2",
          "--log", str(output / "crash-completion.log"),
          "--result", str(crash_completion_result),
          "--completion-file", str(crash_completion_file), "--",
-         sys.executable, "-c",
-        "import os,pathlib,resource,signal,sys; "
-        "resource.setrlimit(resource.RLIMIT_CORE, (0, 0)); "
-        "pathlib.Path(sys.argv[1]).write_text('complete\\n'); "
-         "os.kill(os.getpid(), signal.SIGSEGV)", str(crash_completion_file)],
+         "/bin/sh", "-c", signal_child, "completion-signal-child",
+         str(crash_completion_file)],
         check=False,
         timeout=5,
     )
@@ -155,7 +159,7 @@ with tempfile.TemporaryDirectory() as temporary:
 
     crash_reports = output / "diagnostic-reports"
     crash_reports.mkdir()
-    executable_name = Path(sys.executable).name
+    executable_name = "sh"
     native_report = crash_reports / f"{executable_name}-test.ips"
     native_report.write_text("native crash evidence\n", encoding="utf-8")
     copied_report = output / "captured.crash.ips"
@@ -165,7 +169,7 @@ with tempfile.TemporaryDirectory() as temporary:
          "--log", str(output / "crash.log"), "--result", str(crash_result),
          "--crash-report", str(copied_report),
          "--crash-report-dir", str(crash_reports), "--crash-report-wait", "0", "--",
-         sys.executable, "-c", "import os, signal; os.kill(os.getpid(), signal.SIGSEGV)"],
+         "/bin/sh", "-c", "kill -SEGV $$"],
         check=False,
         timeout=5,
     )
