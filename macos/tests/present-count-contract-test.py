@@ -34,12 +34,12 @@ for earlier, later in (
 ):
     if opengl_frame.index(earlier) >= opengl_frame.index(later):
         raise SystemExit(f"OpenGL completed-present ordering is invalid: {earlier}")
-if opengl_always.index("internalPresent()") >= opengl_always.index(
-    "incrementPresentCount()"
-):
-    raise SystemExit("OpenGL always-present path publishes before output completes")
-if opengl.count("incrementPresentCount()") != 2:
-    raise SystemExit("OpenGL must publish exactly its two completed output paths")
+if "if (presentedNewFrame)" not in opengl_frame:
+    raise SystemExit("OpenGL must publish only newly submitted completed frames")
+if "incrementPresentCount()" in opengl_always:
+    raise SystemExit("OpenGL must not count output that has no newly submitted frame")
+if opengl.count("incrementPresentCount()") != 1:
+    raise SystemExit("OpenGL must publish exactly one new-frame completion path")
 
 vulkan_source = (
     ROOT / "libraries/display-plugins/src/display-plugins/VulkanDisplayPlugin.cpp"
@@ -59,12 +59,12 @@ if vulkan_frame.index("_swapchain.queuePresent") >= vulkan_frame.index(
     "incrementPresentCount()"
 ):
     raise SystemExit("Vulkan publishes a present before queueing completed output")
-if vulkan_always.index("internalPresent()") >= vulkan_always.index(
-    "incrementPresentCount()"
-):
-    raise SystemExit("Vulkan always-present path publishes before output completes")
-if vulkan.count("incrementPresentCount()") != 2:
-    raise SystemExit("Vulkan must publish exactly its two completed output paths")
+if "if (presentedNewFrame)" not in vulkan_frame:
+    raise SystemExit("Vulkan must publish only newly submitted completed frames")
+if "incrementPresentCount()" in vulkan_always:
+    raise SystemExit("Vulkan must not count output that has no newly submitted frame")
+if vulkan.count("incrementPresentCount()") != 1:
+    raise SystemExit("Vulkan must publish exactly one new-frame completion path")
 
 test_header = (
     ROOT / "interface/src/scripting/TestScriptingInterface.h"
