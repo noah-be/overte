@@ -1026,14 +1026,21 @@ for source, token in (
     (domain_handler_source, "now - previousTimeout > 2 * USECS_PER_SECOND"),
     (limited_node_list_source, "Skipping silent-node removal after delayed event-loop check"),
     (limited_node_list_source, "2 * NODE_SILENCE_THRESHOLD_MSECS * USECS_PER_MSEC"),
-    (limited_node_list_header, "bool isForcedNeverSilent { false }"),
-    (limited_node_list_source, "node->setIsForcedNeverSilent(info.isForcedNeverSilent)"),
-    (node_list_source, "info.isForcedNeverSilent = true"),
+    (limited_node_list_source, "Skipping silent-node removal during event-loop recovery grace"),
+    (limited_node_list_source, "6 * NODE_SILENCE_THRESHOLD_MSECS * USECS_PER_MSEC"),
+    (limited_node_list_header, "quint64 _silentNodeGraceUntilUsecs { 0 }"),
     (node_list_source, "processDomainServerRemovedNode"),
     (limited_node_list_source, "eraseAllNodes(QString reason)"),
 ):
     if token not in source:
         raise SystemExit(f"production network stall recovery missing: {token}")
+parse_domain_node = node_list_source.split(
+    "void NodeList::parseNodeFromPacketStream", 1
+)[1].split("void NodeList::sendAssignment", 1)[0]
+if "isForcedNeverSilent" in parse_domain_node:
+    raise SystemExit(
+        "domain-managed nodes must recover from genuine silence after the bounded stall grace"
+    )
 for inventory_contract in (
     "macos-online-entities.json",
     "validate-online-entities.py",

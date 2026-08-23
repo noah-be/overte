@@ -789,7 +789,6 @@ void LimitedNodeList::addNewNode(NewNodeInfo info) {
     SharedNodePointer node = addOrUpdateNode(info.uuid, info.type, info.publicSocket, info.localSocket,
                                              info.sessionLocalID, info.isReplicated, false,
                                              info.connectionSecretUUID, info.permissions);
-    node->setIsForcedNeverSilent(info.isForcedNeverSilent);
 
     ++_nodesAddedInCurrentTimeSlice;
 }
@@ -918,8 +917,20 @@ void LimitedNodeList::removeSilentNodes() {
     // event loop one turn to drain before evaluating network silence.
     const auto delayedCheckThreshold = 2 * NODE_SILENCE_THRESHOLD_MSECS * USECS_PER_MSEC;
     if (previousCheck != 0 && startedAt - previousCheck > delayedCheckThreshold) {
+        // Packet delivery and octree queries need time to catch up after the
+        // renderer releases the event loop.  Keep the grace bounded so a
+        // genuinely dead assignment is eventually removed and rediscovered
+        // from a subsequent domain list.
+        const auto stallRecoveryGrace = 6 * NODE_SILENCE_THRESHOLD_MSECS * USECS_PER_MSEC;
+        _silentNodeGraceUntilUsecs = startedAt + stallRecoveryGrace;
         qCDebug(networking_ice) << "Skipping silent-node removal after delayed event-loop check"
             << (startedAt - previousCheck) << "usecs";
+        return;
+    }
+
+    if (startedAt < _silentNodeGraceUntilUsecs) {
+        qCDebug(networking_ice) << "Skipping silent-node removal during event-loop recovery grace"
+            << (_silentNodeGraceUntilUsecs - startedAt) << "usecs remaining";
         return;
     }
 
