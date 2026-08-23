@@ -32,7 +32,25 @@ if a.action == "discover":
 elif a.action == "describe":
     print(json.dumps({"platform": "mock", "model": "Contract Device"}))
 elif a.action == "invoke":
-    print(json.dumps({"operation": a.operation, "arguments": json.loads(a.arguments)}))
+    state = os.environ.get("MOCK_STATE")
+    if a.operation == "app.launch":
+        if state:
+            open(state, "w", encoding="utf-8").write("foreground")
+        value = {"launched": True}
+    elif a.operation == "app.process":
+        value = {"running": True, "identity": "mock-process-42"}
+    elif a.operation == "app.foreground":
+        foreground = not state or not os.path.exists(state) or open(state, encoding="utf-8").read() == "foreground"
+        value = {"foreground": foreground}
+    elif a.operation == "lifecycle.background":
+        if state:
+            open(state, "w", encoding="utf-8").write("background")
+        value = {"backgrounded": True}
+    elif a.operation == "telemetry.snapshot":
+        value = {"memoryPssKb": 100, "batteryLevel": 80, "thermalStatus": 0}
+    else:
+        value = {"operation": a.operation, "arguments": json.loads(a.arguments)}
+    print(json.dumps(value))
 else:
     with open(os.environ["MOCK_CLEANUP_MARKER"], "w", encoding="utf-8") as marker:
         marker.write("cleaned\n")
@@ -76,6 +94,7 @@ class HarnessTest(unittest.TestCase):
     def run_harness(self, *extra: str, environment: dict[str, str] | None = None):
         env = os.environ.copy()
         env["MOCK_CLEANUP_MARKER"] = str(self.cleanup_marker)
+        env["MOCK_STATE"] = str(self.root / "state")
         env["OVERTE_DEVICE_LOCK_ROOT"] = str(self.root / "locks")
         if environment:
             env.update(environment)
@@ -140,6 +159,24 @@ class HarnessTest(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stdout)
         self.assertIn("satisfies the protocol", result.stdout)
         self.assertTrue(self.cleanup_marker.exists())
+
+    def test_portable_launch_module_runs_through_adapter_contract(self):
+        env = os.environ.copy()
+        env.update({
+            "MOCK_CLEANUP_MARKER": str(self.cleanup_marker),
+            "MOCK_STATE": str(self.root / "state"),
+            "MOCK_CAPABILITIES": "app.foreground,app.launch,app.process",
+            "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
+            "OVERTE_DEVICE_LOCK_ROOT": str(self.root / "locks"),
+        })
+        result = subprocess.run([
+            sys.executable, str(HARNESS), "--adapter-manifest", str(self.manifest),
+            "--catalog", str(HARNESS.parent / "catalog.json"), "--suite", "smoke",
+            "--output-dir", str(self.output),
+        ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env, check=False)
+        self.assertEqual(0, result.returncode, result.stdout)
+        metrics = json.loads((self.output / "modules/launch-smoke/metrics.json").read_text())
+        self.assertEqual("mock-process-42", metrics["processIdentity"])
 
 
 if __name__ == "__main__":

@@ -250,6 +250,10 @@ def main() -> int:
         fail("device artifacts must be stored outside the source worktree")
 
     environment = os.environ.copy()
+    harness_python_path = str(Path(__file__).resolve().parent)
+    inherited_python_path = environment.get("PYTHONPATH")
+    environment["PYTHONPATH"] = (harness_python_path if not inherited_python_path else
+                                  f"{harness_python_path}{os.pathsep}{inherited_python_path}")
     environment.update({
         "OVERTE_DEVICE_ADAPTER_MANIFEST": str(manifest_path),
         "OVERTE_DEVICE_TARGET_SELECTOR": selector,
