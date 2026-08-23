@@ -1,0 +1,23 @@
+name: Apple branch topology
+
+on:
+  pull_request:
+    branches:
+      - apple-ios
+      - apple-macos
+
+permissions:
+  contents: read
+
+jobs:
+  enforce-apple-sync-path:
+    name: Enforce apple-main sync path
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch current Apple base
+        run: git fetch --no-tags origin apple-main:refs/remotes/origin/apple-main
+      - name: Validate branch topology
+        run: python3 tests/apple-branch-topology-check.py --apple-main origin/apple-main --head HEAD
