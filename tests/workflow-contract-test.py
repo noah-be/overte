@@ -72,7 +72,12 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
 
     def test_sync_has_narrow_permissions_and_does_not_merge(self):
         source = BRANCH_SYNC_WORKFLOW.read_text(encoding="utf-8")
-        self.assertRegex(source, r"(?m)^permissions:\n  contents: read\n  pull-requests: write$")
+        self.assertRegex(source, r"(?m)^permissions:\n  contents: read$")
+        self.assertIn("actions/create-github-app-token@", source)
+        self.assertIn("vars.BRANCH_SYNC_APP_ID", source)
+        self.assertIn("secrets.BRANCH_SYNC_APP_PRIVATE_KEY", source)
+        self.assertIn("steps.branch-sync-token.outputs.token", source)
+        self.assertNotRegex(source, r"(?m)^\s+pull-requests: write$")
         self.assertIn("gh pr create", source)
         self.assertNotIn("gh pr merge", source)
         self.assertIn("cancel-in-progress: false", source)
