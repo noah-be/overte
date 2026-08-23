@@ -1,0 +1,32 @@
+name: Android branch topology
+
+on:
+  pull_request:
+    branches:
+      - android-phone
+      - android-vr
+      - android-vr-pico
+      - android-vr-quest
+
+permissions:
+  contents: read
+
+jobs:
+  enforce-android-sync-path:
+    name: Enforce Android parent sync path
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch current Android parent branches
+        run: |
+          git fetch --no-tags origin android-main:refs/remotes/origin/android-main
+          git fetch --no-tags origin android-vr:refs/remotes/origin/android-vr
+      - name: Validate branch topology
+        run: >-
+          python3 tests/android-branch-topology-check.py
+          --target "${{ github.base_ref }}"
+          --android-main origin/android-main
+          --android-vr origin/android-vr
+          --head HEAD
