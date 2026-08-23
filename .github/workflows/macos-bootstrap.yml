@@ -1327,6 +1327,24 @@ jobs:
             --watch smoke=build/macos-smoke -- \
             macos/ci/serverless-smoke.sh "$app" build/macos-smoke
 
+      - name: Run bundled serverless tutorial smoke
+        timeout-minutes: 35
+        env:
+          # The tutorial uses the unchanged production scene and renderer.  A
+          # validated snapshot can therefore take as long as the deterministic
+          # serverless evidence on hosted Intel software OpenGL.
+          OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '1800'
+        run: |
+          app="$(find build -type d -name Overte.app -print -quit)"
+          python3 macos/ci/runner-telemetry.py \
+            --phase runtime-tutorial \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/runtime-tutorial.jsonl" \
+            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/runtime-tutorial-stall" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 1800 --max-runtime 1920 \
+            --watch tutorial=build/macos-tutorial-smoke -- \
+            macos/ci/tutorial-smoke.sh "$app" build/macos-tutorial-smoke
+
       - name: Run deterministic graphics performance smoke
         timeout-minutes: 10
         run: |
@@ -1373,6 +1391,7 @@ jobs:
             build/macos-build-diagnostics
             build/macos-startup-preflight
             build/macos-smoke
+            build/macos-tutorial-smoke
             build/macos-online-smoke
             build/macos-performance
             build/macos-native-test-results
@@ -1398,6 +1417,7 @@ jobs:
             build/macos-build-diagnostics
             build/macos-startup-preflight
             build/macos-smoke
+            build/macos-tutorial-smoke
             build/macos-online-smoke
             build/macos-performance
             build/macos-native-test-results

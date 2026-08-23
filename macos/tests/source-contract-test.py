@@ -1009,6 +1009,24 @@ assert "hifi://overte_hub" in online_smoke, "online smoke must target the active
 assert "URL_SCHEME_OVERTE" in online_smoke, "online smoke must document its compatibility scheme"
 assert "overte://overte_hub" not in online_smoke, "unsupported product-name scheme must not silently no-op"
 assert "overte://welcome" not in online_smoke, "the retired welcome place must not be used"
+tutorial_smoke = (ROOT / "macos/ci/tutorial-smoke.sh").read_text(encoding="utf-8")
+assert "--display Desktop" in tutorial_smoke, "tutorial smoke must never block on display selection"
+for tutorial_runner_contract in (
+    "file:///~/serverless/tutorial.json",
+    "macos/tests/tutorial-smoke.js",
+    "macos-tutorial-entities.json",
+    "validate-tutorial-entities.py",
+    "macos-tutorial-smoke-completion.json",
+    "validate-online-smoke-completion.py",
+    "--min-nonblack-ratio 0.05",
+    "--min-color-buckets 32",
+    "--max-dominant-color-ratio 0.55",
+    "--min-edge-ratio 0.003",
+):
+    if tutorial_runner_contract not in tutorial_smoke:
+        raise SystemExit(
+            f"bundled tutorial smoke contract missing: {tutorial_runner_contract}"
+        )
 for forbidden_network_override in (
     "OVERTE_TEST_NETWORK_SILENCE_SECONDS",
     "silentDomainCheckinLimit()",
@@ -1063,6 +1081,7 @@ transition_script = (ROOT / "macos/tests/transition-smoke.js").read_text(
 )
 for smoke_name, smoke_source in (
     ("serverless", smoke),
+    ("bundled tutorial", tutorial_smoke),
     ("online", online_smoke),
     ("serverless/online transition", transition_smoke),
 ):
@@ -1118,7 +1137,11 @@ for removed_lightweight_override in (
             f"{removed_lightweight_override}"
         )
 
-for smoke_name, smoke_source in (("serverless", smoke), ("online", online_smoke)):
+for smoke_name, smoke_source in (
+    ("serverless", smoke),
+    ("bundled tutorial", tutorial_smoke),
+    ("online", online_smoke),
+):
     if "--disableWatchdog" not in smoke_source:
         raise SystemExit(
             f"{smoke_name} smoke must leave stall sampling to the external supervisor"
@@ -1155,7 +1178,11 @@ for sanitized_contract in (
 ):
     if sanitized_contract not in runtime_supervisor:
         raise SystemExit(f"runtime evidence redaction missing: {sanitized_contract}")
-for smoke_name, smoke_source in (("serverless", smoke), ("online", online_smoke)):
+for smoke_name, smoke_source in (
+    ("serverless", smoke),
+    ("bundled tutorial", tutorial_smoke),
+    ("online", online_smoke),
+):
     for periodic_sample_contract in (
         "--periodic-sample-interval 300",
         "--periodic-sample-count",
@@ -1176,6 +1203,7 @@ for crash_report_location in (
         raise SystemExit(f"runtime crash-report search missing: {crash_report_location}")
 for smoke_name, smoke_source, maximum, cleanup_contract in (
     ("serverless", smoke, 900, 'rm -f "$snapshot" "$screenshot_result"'),
+    ("bundled tutorial", tutorial_smoke, 1800, 'rm -f "$snapshot" "$screenshot_result"'),
     ("online", online_smoke, 2400, 'rm -f "$snapshot" "$screenshot_result"'),
 ):
     default_timeout = re.search(
@@ -1196,6 +1224,7 @@ for smoke_name, smoke_source, maximum, cleanup_contract in (
             )
 
 serverless_script = (ROOT / "macos/tests/serverless-smoke.js").read_text(encoding="utf-8")
+tutorial_script = (ROOT / "macos/tests/tutorial-smoke.js").read_text(encoding="utf-8")
 online_script = (ROOT / "macos/tests/online-smoke.js").read_text(encoding="utf-8")
 address_manager = (
     ROOT / "libraries/networking/src/AddressManager.cpp"
@@ -1228,6 +1257,20 @@ subprocess.run(
         str(ROOT / "macos/tests/serverless-smoke-script-test.js"),
         str(ROOT / "macos/tests/serverless-smoke.js"),
     ],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [
+        "node",
+        str(ROOT / "macos/tests/tutorial-smoke-script-test.js"),
+        str(ROOT / "macos/tests/tutorial-smoke.js"),
+    ],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/tutorial-entities-test.py")],
     cwd=ROOT,
     check=True,
 )
@@ -1271,6 +1314,62 @@ for forbidden_serverless_mutation in (
             "serverless smoke must not mutate the production render path: "
             f"{forbidden_serverless_mutation}"
         )
+
+for tutorial_observation_contract in (
+    "Script.stop()",
+    "macos-tutorial-smoke.png",
+    "macos-tutorial-entities.json",
+    "Test.isServerlessSceneImportComplete()",
+    "Test.isTextureLoadingComplete()",
+    "finiteNumber(Test.getPresentCount()) > readyPresentBaseline",
+    "Entities.isLoaded(entityID)",
+    'loaded_expected_model_count === expectedModelNames.length',
+    'expectedEntityCount = 40',
+):
+    if tutorial_observation_contract not in tutorial_script:
+        raise SystemExit(
+            "bundled tutorial smoke lacks production observation contract: "
+            f"{tutorial_observation_contract}"
+        )
+for forbidden_tutorial_mutation in (
+    "Render.renderMethod",
+    "Render.shadowsEnabled",
+    "Scene.shouldRenderAvatars",
+    "Scene.shouldRenderEntities",
+    "Camera.mode =",
+    "Camera.position =",
+    "Camera.orientation =",
+    "Entities.addEntity",
+    "Entities.deleteEntity",
+):
+    if forbidden_tutorial_mutation in tutorial_script:
+        raise SystemExit(
+            "bundled tutorial smoke must not mutate the production scene: "
+            f"{forbidden_tutorial_mutation}"
+        )
+
+bootstrap_workflow = (
+    ROOT / ".github/workflows/macos-bootstrap.yml"
+).read_text(encoding="utf-8")
+runtime_workflow = (
+    ROOT / ".github/workflows/macos-runtime.yml"
+).read_text(encoding="utf-8")
+for workflow_name, workflow_source in (
+    ("bootstrap", bootstrap_workflow),
+    ("runtime", runtime_workflow),
+):
+    for tutorial_workflow_contract in (
+        "Run bundled serverless tutorial smoke",
+        "macos/ci/tutorial-smoke.sh",
+        "build/macos-tutorial-smoke",
+    ):
+        if tutorial_workflow_contract not in workflow_source:
+            raise SystemExit(
+                f"macOS {workflow_name} workflow lacks tutorial evidence: "
+                f"{tutorial_workflow_contract}"
+            )
+if "run_tutorial:" not in runtime_workflow:
+    raise SystemExit("runtime workflow must support an artifact-only tutorial rerun")
 
 for observational_contract in (
     "Script.stop()",
@@ -2382,7 +2481,7 @@ if "qCInfo(gpugl41logging)" in draw_indexed:
     raise SystemExit("macOS GL draw diagnostics must bypass startup category resets")
 if "application->property(hifi::properties::TEST).isValid()" not in draw_indexed:
     raise SystemExit("macOS test runs must enable GL diagnostics without shell-env dependence")
-for smoke_source in (smoke, online_smoke):
+for smoke_source in (smoke, tutorial_smoke, online_smoke):
     if "OVERTE_MACOS_GL_DIAGNOSTICS=1" not in smoke_source:
         raise SystemExit("macOS entity smokes must enable bounded GL diagnostics")
 
