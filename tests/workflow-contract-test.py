@@ -1123,6 +1123,12 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "run.head_branch === expectedBranch",
             "run.status === 'completed'",
             "['success', 'failure'].includes(run.conclusion)",
+            "github.rest.actions.listJobsForWorkflowRunAttempt",
+            "`client-opengl-${targetArch}`",
+            "'Build client application'",
+            "'Verify application bundle'",
+            "'Upload application bundle immediately'",
+            "completedSource || applicationArtifactCheckpoint",
             "github.rest.actions.listWorkflowRunArtifacts",
             "matches.length !== 1",
             "matches[0].expired === true",
@@ -1177,6 +1183,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
                 "size_in_bytes": 1373090872,
                 "digest": "sha256:" + "b" * 64,
             }],
+            "jobs": [],
         }
         harness = r"""
 const scenario = JSON.parse(process.env.SCENARIO);
@@ -1200,6 +1207,9 @@ const github = {
       listWorkflowRunArtifacts: async () => {
         throw new Error('paginate contract violated');
       },
+      listJobsForWorkflowRunAttempt: async () => {
+        throw new Error('paginate contract violated');
+      },
     },
     repos: {
       getBranch: async () => {
@@ -1207,7 +1217,15 @@ const github = {
       },
     },
   },
-  paginate: async () => scenario.artifacts,
+  paginate: async (endpoint) => {
+    if (endpoint === github.rest.actions.listWorkflowRunArtifacts) {
+      return scenario.artifacts;
+    }
+    if (endpoint === github.rest.actions.listJobsForWorkflowRunAttempt) {
+      return scenario.jobs || [];
+    }
+    throw new Error('unexpected pagination endpoint');
+  },
 };
 const embedded = require('fs').readFileSync(0, 'utf8');
 const execute = new Function(
@@ -1252,6 +1270,38 @@ execute(github, context, core, require).then(
         accepted_failed_build = execute(failed_build_with_application)
         self.assertEqual(accepted_failed_build["failures"], [])
         self.assertEqual(accepted_failed_build["outputs"]["artifact-id"], "9242921918")
+
+        in_progress_checkpoint = json.loads(json.dumps(base))
+        in_progress_checkpoint["run"]["status"] = "in_progress"
+        in_progress_checkpoint["run"]["conclusion"] = None
+        in_progress_checkpoint["jobs"] = [{
+            "name": "client-opengl-x86_64",
+            "run_id": run_id,
+            "run_attempt": 1,
+            "steps": [
+                {
+                    "name": name,
+                    "status": "completed",
+                    "conclusion": "success",
+                }
+                for name in (
+                    "Build client application",
+                    "Verify application bundle",
+                    "Upload application bundle immediately",
+                )
+            ],
+        }]
+        accepted_checkpoint = execute(in_progress_checkpoint)
+        self.assertEqual(accepted_checkpoint["failures"], [])
+        self.assertEqual(
+            accepted_checkpoint["outputs"]["artifact-id"], "9242921918"
+        )
+
+        incomplete_checkpoint = json.loads(json.dumps(in_progress_checkpoint))
+        incomplete_checkpoint["jobs"][0]["steps"][-1]["conclusion"] = "failure"
+        rejected_checkpoint = execute(incomplete_checkpoint)
+        self.assertNotEqual(rejected_checkpoint["failures"], [])
+        self.assertEqual(rejected_checkpoint["outputs"], {})
 
         cases = {
             "run ID": ("run.id", run_id + 1),

@@ -1370,6 +1370,21 @@ for workflow_name, workflow_source in (
             )
 if "run_tutorial:" not in runtime_workflow:
     raise SystemExit("runtime workflow must support an artifact-only tutorial rerun")
+for early_runtime_reuse_contract in (
+    "listJobsForWorkflowRunAttempt",
+    "`client-opengl-${targetArch}`",
+    "'Build client application'",
+    "'Verify application bundle'",
+    "'Upload application bundle immediately'",
+    "completedSource || applicationArtifactCheckpoint",
+    "source_readiness: completedSource",
+    "application_artifact_checkpoint",
+):
+    if early_runtime_reuse_contract not in runtime_workflow:
+        raise SystemExit(
+            "runtime workflow cannot safely reuse an application artifact before "
+            f"long bootstrap smokes finish: {early_runtime_reuse_contract}"
+        )
 
 for observational_contract in (
     "Script.stop()",
