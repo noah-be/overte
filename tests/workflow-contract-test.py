@@ -84,6 +84,7 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         self.assertIn("--auto", source)
         self.assertIn("--merge", source)
         self.assertNotIn("--admin", source)
+        self.assertIn("group: branch-synchronization-${{ github.ref_name }}", source)
         self.assertIn("cancel-in-progress: false", source)
         self.assertIn("Skipping $parent -> $child", source)
         self.assertIn("continue", source)
