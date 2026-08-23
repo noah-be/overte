@@ -3887,7 +3887,7 @@ void Application::update(float deltaTime) {
                         .arg(myAvatar->getDriveKey(MyAvatar::TRANSLATE_X))
                         .arg(myAvatar->getDriveKey(MyAvatar::TRANSLATE_Y))
                         .arg(myAvatar->getDriveKey(MyAvatar::TRANSLATE_Z)),
-                    "velocity=", myAvatar->getVelocity(),
+                    "velocity=", myAvatar->getWorldVelocity(),
                     "position=", myAvatar->getWorldPosition(),
                     "jumping=", myAvatar->isJumping(),
                     "actions_captured=", _controllerScriptingInterface->areActionsCaptured(),
