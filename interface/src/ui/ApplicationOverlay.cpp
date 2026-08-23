@@ -42,6 +42,7 @@
 #include <QtGui/QImage>
 #include <QtGui/QScreen>
 #include <shared/IOSRuntimeLogging.h>
+#include <ui/TabletScriptingInterface.h>
 #include <VirtualPadManager.h>
 #endif
 
@@ -403,18 +404,31 @@ void ApplicationOverlay::renderIOSVirtualPad(RenderArgs* renderArgs) {
     const glm::vec2 targetSize(
         static_cast<float>(_overlayFramebuffer->getWidth()),
         static_cast<float>(_overlayFramebuffer->getHeight()));
-    // The manager's iOS control coordinates are window/content coordinates,
-    // matching this HUD framebuffer.  QScreen::availableSize() includes the
-    // safe-area bands on iPadOS and previously shifted the drawn icons away
-    // from their touch hit boxes by 57 points.
-    const QSize logicalScreenSize(
-        static_cast<int>(targetSize.x), static_cast<int>(targetSize.y));
+    const auto tablet = DependencyManager::get<TabletScriptingInterface>();
+    const QVariantMap metrics = tablet ? tablet->getTouchUiRuntimeMetrics() : QVariantMap();
+    const bool metricsValid = metrics.value("valid").toBool();
+    const float safeLeft = metricsValid ? std::max(0.0f, metrics.value("safeInsetLeft").toFloat()) : 0.0f;
+    const float safeTop = metricsValid ? std::max(0.0f, metrics.value("safeInsetTop").toFloat()) : 0.0f;
+    const float safeRight = metricsValid ? std::max(0.0f, metrics.value("safeInsetRight").toFloat()) : 0.0f;
+    const float safeBottom = metricsValid ? std::max(0.0f, metrics.value("safeInsetBottom").toFloat()) : 0.0f;
+    const QSize logicalScreenSize = metricsValid
+        ? QSize(
+            std::max(1, metrics.value("surfaceWidth").toInt() -
+                static_cast<int>(safeLeft + safeRight)),
+            std::max(1, metrics.value("surfaceHeight").toInt() -
+                static_cast<int>(safeTop + safeBottom)))
+        : QSize(static_cast<int>(targetSize.x), static_cast<int>(targetSize.y));
     const glm::vec2 logicalSize(
         std::max(1, logicalScreenSize.width()),
         std::max(1, logicalScreenSize.height()));
     const glm::vec2 coordinateScale = targetSize / logicalSize;
 
     auto mapPoint = [&](glm::vec2 point) {
+        // Input points are expressed in full UIKit-window coordinates. The
+        // Vulkan HUD target covers only the safe content rect, so translate
+        // away its origin before scaling. This keeps rendering and hit tests
+        // at the same physical screen position without clipping the controls.
+        point -= glm::vec2(safeLeft, safeTop);
         point *= coordinateScale;
         return glm::vec2(
             2.0f * point.x / targetSize.x - 1.0f,
@@ -464,6 +478,7 @@ void ApplicationOverlay::renderIOSVirtualPad(RenderArgs* renderArgs) {
             "OVERTE_IOS_TOUCH_UI_GATE stage=virtual-pad-composited",
             "target_size=", QSize(static_cast<int>(targetSize.x), static_cast<int>(targetSize.y)),
             "logical_size=", logicalScreenSize,
+            "safe_origin=", QStringLiteral("%1,%2").arg(safeLeft).arg(safeTop),
             "base=", QStringLiteral("%1,%2").arg(basePoint.x).arg(basePoint.y),
             "jump=", QStringLiteral("%1,%2").arg(jumpPoint.x).arg(jumpPoint.y),
             "forced=", forceVisible);

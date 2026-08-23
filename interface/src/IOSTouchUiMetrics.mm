@@ -37,6 +37,15 @@ UIWindow* activeWindow() {
 bool changed(qreal first, qreal second) {
     return std::abs(first - second) > 0.01;
 }
+
+void dismissActiveWindowEditing() {
+    if (UIWindow* window = activeWindow()) {
+        // QInputMethod::hide() can dismiss the keyboard while leaving its
+        // input-assistant/QuickType bar attached to a hidden QML editor.
+        // Ending UIKit editing clears that stale first responder as well.
+        [window endEditing:YES];
+    }
+}
 }
 
 IOSTouchUiMetrics::IOSTouchUiMetrics(QObject* parent) : QObject(parent) {
@@ -126,4 +135,14 @@ void registerIOSTouchUiMetricsQmlType() {
         [](QQmlEngine*, QJSEngine*) -> QObject* {
             return new IOSTouchUiMetrics(QCoreApplication::instance());
         });
+}
+
+void dismissIOSKeyboard() {
+    if (NSThread.isMainThread) {
+        dismissActiveWindowEditing();
+    } else {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            dismissActiveWindowEditing();
+        });
+    }
 }

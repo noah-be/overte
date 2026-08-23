@@ -41,6 +41,7 @@ for native_contract in (
     "UIKeyboardWillHideNotification", "UIContentSizeCategoryDidChangeNotification",
     "UIWindowDidBecomeKeyNotification", "QTimer::singleShot",
     "CGRectIntersection", "window.screen.scale",
+    "[window endEditing:YES]",
 ):
     assert native_contract in SOURCE
 
@@ -73,6 +74,7 @@ assert mobile_guard in LOGIN_SOURCE
 assert mobile_guard in DIALOGS
 assert "defined(Q_OS_ANDROID) || defined(Q_OS_IOS)" in APPLICATION_UI
 assert "scriptEngines->loadDefaultScripts();" in APPLICATION_UI
+assert "dismissIOSKeyboard();" in APPLICATION_UI
 assert "defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)" in GRAPHICS
 assert 'Qt.platform.os === "android" || Qt.platform.os === "ios"' in BUTTON
 
@@ -99,11 +101,15 @@ assert "defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)" in VIRTUAL_PA
 assert 'touchscreenvirtualpad-phone.json' in VIRTUAL_PAD
 assert "OVERTE_IOS_TOUCH_INPUT_GATE stage=virtual-pad-initialized" in VIRTUAL_PAD
 assert "qApp->focusWindow()" in VIRTUAL_PAD
+assert 'metrics.value("safeInsetBottom")' in VIRTUAL_PAD
+assert "effectiveBottomMargin = _extraBottomMargin + safeBottomInset" in VIRTUAL_PAD
 assert 'iosRuntimeDiagnosticInt(\n        "touchLookSensitivityPercent", 400, 50, 1200)' in VIRTUAL_PAD
 assert "_buttonsManager.buttons[0].buttonPosition = jumpButtonPosition" in VIRTUAL_PAD
 assert "OVERTE_IOS_TOUCH_INPUT_GATE stage=button-pressed" in VIRTUAL_PAD
 assert "bool _hidden { false };" in VIRTUAL_PAD_MANAGER
 assert "renderIOSVirtualPad(renderArgs)" in APPLICATION_OVERLAY
+assert 'metrics.value("safeInsetTop")' in APPLICATION_OVERLAY
+assert "point -= glm::vec2(safeLeft, safeTop)" in APPLICATION_OVERLAY
 assert "OVERTE_IOS_TOUCH_UI_GATE stage=virtual-pad-composited" in APPLICATION_OVERLAY
 for texture in ("analog_stick.png", "analog_stick_base.png", "fly.png", "handshake.png"):
     assert texture in APPLICATION_OVERLAY

@@ -53,3 +53,4 @@ private:
 };
 
 void registerIOSTouchUiMetricsQmlType();
+void dismissIOSKeyboard();

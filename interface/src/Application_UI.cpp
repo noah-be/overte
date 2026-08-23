@@ -18,6 +18,7 @@
 #include <QtQml/QQmlContext>
 #if defined(Q_OS_IOS)
 #include <QtGui/QInputMethod>
+#include "IOSTouchUiMetrics.h"
 #endif
 #include <QStyle>
 #include <QStyleFactory>
@@ -1434,7 +1435,8 @@ void Application::resumeAfterLoginDialogActionTaken() {
     if (auto* inputMethod = QGuiApplication::inputMethod()) {
         inputMethod->hide();
     }
-    qInfo().noquote() << "OVERTE_IOS_UI_POLICY menu_hidden=1 keyboard_hidden=1";
+    dismissIOSKeyboard();
+    qInfo().noquote() << "OVERTE_IOS_UI_POLICY menu_hidden=1 keyboard_hidden=1 first_responder_cleared=1";
 #else
     menu->getMenu("Edit")->setVisible(true);
     menu->getMenu("View")->setVisible(true);

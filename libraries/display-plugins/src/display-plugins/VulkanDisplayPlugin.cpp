@@ -1298,6 +1298,13 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
         } else if (presentResult != VK_SUCCESS) {
             VK_CHECK_RESULT(presentResult);
         }
+        // The iOS Vulkan path presents the swapchain directly instead of
+        // calling internalPresent(), where this counter is normally updated.
+        // Count only presentations accepted by the WSI; otherwise the Stats
+        // overlay permanently reports 0 FPS despite a healthy 60 Hz stream.
+        if (presentResult == VK_SUCCESS || presentResult == VK_SUBOPTIMAL_KHR) {
+            _presentRate.increment();
+        }
 
         // GL driver memory queries do not describe Metal allocations on iOS.
 #if defined(Q_OS_IOS)

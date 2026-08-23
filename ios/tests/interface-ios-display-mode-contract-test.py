@@ -97,7 +97,8 @@ require(
     r"_primaryWidget->setFocus\(\);\s+"
     r"if \(auto\* inputMethod = QGuiApplication::inputMethod\(\)\) \{\s+"
     r"inputMethod->hide\(\);\s+\}[\s\S]*?"
-    r"OVERTE_IOS_UI_POLICY menu_hidden=1 keyboard_hidden=1[\s\S]*?"
+    r"dismissIOSKeyboard\(\);[\s\S]*?"
+    r"OVERTE_IOS_UI_POLICY menu_hidden=1 keyboard_hidden=1 first_responder_cleared=1[\s\S]*?"
     r"#else\s+menu->getMenu\(\"Edit\"\)->setVisible\(true\);",
     "iOS desktop completion can reveal its menu or leave the native keyboard active",
     APPLICATION_UI,

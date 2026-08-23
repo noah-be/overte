@@ -65,6 +65,7 @@ for fragment in (
     "VK_CHECK_RESULT(vkQueueSubmit",
     "_vkWindow->_swapchain.queuePresent(",
     "const auto presentResult = _vkWindow->_swapchain.queuePresent(",
+    "_presentRate.increment();",
     "presentResult == VK_ERROR_OUT_OF_DATE_KHR",
     "presentResult == VK_SUBOPTIMAL_KHR",
     "VK_CHECK_RESULT(presentResult);",

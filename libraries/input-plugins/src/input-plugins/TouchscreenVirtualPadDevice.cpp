@@ -21,6 +21,7 @@
 #include <PathUtils.h>
 #include <NumericalConstants.h>
 #include <SettingHandle.h>
+#include <ui/TabletScriptingInterface.h>
 #include "VirtualPadManager.h"
 
 #include <cmath>
@@ -135,11 +136,21 @@ void TouchscreenVirtualPadDevice::setupControlsPositions(VirtualPad::Manager& vi
         return;
     }
     _extraBottomMargin = virtualPadManager.extraBottomMargin();
+    int safeBottomInset { 0 };
+#if defined(Q_OS_IOS)
+    if (const auto tablet = DependencyManager::get<TabletScriptingInterface>()) {
+        const QVariantMap metrics = tablet->getTouchUiRuntimeMetrics();
+        if (metrics.value("valid").toBool()) {
+            safeBottomInset = std::max(0, metrics.value("safeInsetBottom").toInt());
+        }
+    }
+#endif
+    const int effectiveBottomMargin = _extraBottomMargin + safeBottomInset;
 
     // Movement stick
     float margin = _screenDPI * VirtualPad::Manager::BASE_MARGIN_PIXELS / VirtualPad::Manager::DPI;
     _screenWidthCenter = viewportSize.width() / 2;
-    _fixedCenterPosition = glm::vec2( _fixedRadius + margin, viewportSize.height() - margin - _fixedRadius - _extraBottomMargin);
+    _fixedCenterPosition = glm::vec2( _fixedRadius + margin, viewportSize.height() - margin - _fixedRadius - effectiveBottomMargin);
     _moveRefTouchPoint = _fixedCenterPosition;
     virtualPadManager.getLeftVirtualPad()->setFirstTouch(_moveRefTouchPoint);
 
@@ -147,8 +158,8 @@ void TouchscreenVirtualPadDevice::setupControlsPositions(VirtualPad::Manager& vi
     float btnPixelSize = _screenDPI * VirtualPad::Manager::BTN_FULL_PIXELS / VirtualPad::Manager::DPI;
     float rightMargin = _screenDPI * VirtualPad::Manager::BTN_RIGHT_MARGIN_PIXELS / VirtualPad::Manager::DPI;
     float bottomMargin = _screenDPI * VirtualPad::Manager::BTN_BOTTOM_MARGIN_PIXELS/ VirtualPad::Manager::DPI;
-    glm::vec2 jumpButtonPosition = glm::vec2( viewportSize.width() - rightMargin - btnPixelSize, viewportSize.height() - bottomMargin - _buttonRadius - _extraBottomMargin);
-    glm::vec2 rbButtonPosition = glm::vec2( viewportSize.width() - rightMargin - btnPixelSize, viewportSize.height() - 2 * bottomMargin - 3 * _buttonRadius - _extraBottomMargin);
+    glm::vec2 jumpButtonPosition = glm::vec2( viewportSize.width() - rightMargin - btnPixelSize, viewportSize.height() - bottomMargin - _buttonRadius - effectiveBottomMargin);
+    glm::vec2 rbButtonPosition = glm::vec2( viewportSize.width() - rightMargin - btnPixelSize, viewportSize.height() - 2 * bottomMargin - 3 * _buttonRadius - effectiveBottomMargin);
 
     // Avoid generating buttons in portrait mode. Keep existing hit targets in
     // sync with the render positions when iOS publishes its final safe-area
@@ -172,6 +183,7 @@ void TouchscreenVirtualPadDevice::setupControlsPositions(VirtualPad::Manager& vi
             "move=", QStringLiteral("%1,%2").arg(_fixedCenterPosition.x).arg(_fixedCenterPosition.y),
             "jump=", QStringLiteral("%1,%2").arg(jumpButtonPosition.x).arg(jumpButtonPosition.y),
             "handshake=", QStringLiteral("%1,%2").arg(rbButtonPosition.x).arg(rbButtonPosition.y),
+            "safe_bottom=", safeBottomInset,
             "button_radius=", _buttonRadius);
 #endif
     }
