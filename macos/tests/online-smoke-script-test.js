@@ -28,6 +28,7 @@ function createRun() {
     let modelLoaded = true;
     let texturesComplete = true;
     let entityIDs = ["model"];
+    let connected = true;
     const script = {
         stopped: false,
         interval: null,
@@ -77,6 +78,10 @@ function createRun() {
             }
         },
         MyAvatar: { position: { x: 10, y: 20, z: 30 } },
+        AddressManager: {
+            get isConnected() { return connected; },
+            protocol: "hifi"
+        },
         print() {}
     };
     vm.runInNewContext(source, context, { filename: scriptPath });
@@ -99,6 +104,7 @@ function createRun() {
         windowObject,
         setModelLoaded(value) { modelLoaded = value; },
         setEntityIDs(value) { entityIDs = value; },
+        setConnected(value) { connected = value; },
         setTexturesComplete(value) { texturesComplete = value; }
     };
 }
@@ -184,6 +190,17 @@ function createRun() {
     run.script.interval();
     assert.strictEqual(run.script.stopped, true,
         "an empty entity stream must fail before the full Hub deadline");
+}
+
+{
+    const run = createRun();
+    run.setConnected(false);
+    run.setEntityIDs([]);
+    run.script.interval();
+    run.clock.now += 600000;
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, true,
+        "a stalled Hub connection must fail before waiting for entities");
 }
 
 {

@@ -19,7 +19,8 @@
     var readyPresentBaseline = 0;
     var snapshotPath = "";
     var latestInventory = null;
-    var noEntityDeadline = Date.now() + 600000;
+    var connectionDeadline = Date.now() + 600000;
+    var noEntityDeadline = 0;
     var lastAssetProgressAt = 0;
     var bestLoadedModelCount = 0;
     var bestOutstandingWork = Number.MAX_VALUE;
@@ -167,6 +168,12 @@
             resourcesIdle(resources);
         var outstandingWork = resources.downloads + resources.downloads_pending +
             resources.processing + resources.processing_pending + resources.texture_pending_mb;
+        var hubConnected = AddressManager.isConnected &&
+            AddressManager.protocol === "hifi";
+
+        if (hubConnected && noEntityDeadline === 0) {
+            noEntityDeadline = Date.now() + 600000;
+        }
 
         if (latestInventory.entity_count > 0) {
             if (lastAssetProgressAt === 0 ||
@@ -224,7 +231,13 @@
             snapshotPendingReported = true;
             print("OVERTE_MACOS_SMOKE snapshot_still_pending");
         }
-        if (snapshotStage === "waiting" && latestInventory.entity_count === 0 &&
+        if (snapshotStage === "waiting" && !hubConnected &&
+                Date.now() >= connectionDeadline) {
+            finish(false, "connection_stalled");
+            return;
+        }
+        if (snapshotStage === "waiting" && hubConnected &&
+                latestInventory.entity_count === 0 && noEntityDeadline !== 0 &&
                 Date.now() >= noEntityDeadline) {
             finish(false, "entity_stream_stalled");
             return;
