@@ -2610,6 +2610,16 @@ subprocess.run(
     check=True,
 )
 subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/build-tree-artifact-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/bootstrap-workflow-checkpoint-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
     [sys.executable, str(ROOT / "macos/tests/bootstrap-cache-prune-test.py")],
     cwd=ROOT,
     check=True,

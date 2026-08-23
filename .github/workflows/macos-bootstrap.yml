@@ -64,7 +64,10 @@ jobs:
       MACOSX_DEPLOYMENT_TARGET: '11.0'
       SCCACHE_DIR: ${{ github.workspace }}/.sccache
       SCCACHE_CONF: ${{ github.workspace }}/macos/ci/sccache.toml
-      SCCACHE_CACHE_SIZE: 512M
+      # The full x86_64 object generation is slightly larger than the old
+      # 512-MiB bound. Keep one GiB locally while every object is also written
+      # immediately to the content-addressed GHA backend.
+      SCCACHE_CACHE_SIZE: 1G
       SCCACHE_BASEDIRS: ${{ github.workspace }}
       SCCACHE_CLIENT_SIDE: '1'
       SCCACHE_MULTILEVEL_CHAIN: disk,gha
@@ -302,6 +305,11 @@ jobs:
           echo "build_complete=${build_base}-complete-${source_inputs}" >> "$GITHUB_OUTPUT"
           echo "build_complete_prefix=${build_base}-complete-" >> "$GITHUB_OUTPUT"
           echo "build_partial_prefix=${build_base}-partial-" >> "$GITHUB_OUTPUT"
+          # The durable artifact intentionally uses dependency compatibility,
+          # not an exact source hash. The embedded Ninja checkpoint determines
+          # which tracked sources must rebuild after restoration.
+          echo "build_checkpoint_key=${build_base}" >> "$GITHUB_OUTPUT"
+          echo "build_checkpoint_artifact=overte-macos-build-tree-checkpoint-v1-${OVERTE_MACOS_ARCH}-${dependency_fingerprint}" >> "$GITHUB_OUTPUT"
           legacy_on_base="macos-build-tree-v2-${OVERTE_MACOS_ARCH}-${legacy_on_profile_fingerprint}"
           legacy_off_base="macos-build-tree-v2-${OVERTE_MACOS_ARCH}-${legacy_off_profile_fingerprint}"
           echo "legacy_on_complete_prefix=${legacy_on_base}-complete-" >> "$GITHUB_OUTPUT"
@@ -399,6 +407,28 @@ jobs:
               echo "macOS Ninja graph probe phase=post-restore file=$graph_file status=missing"
             fi
           done
+
+      - name: Classify fast build-tree checkpoint
+        id: fast-build-tree
+        env:
+          MATCHED_BUILD_TREE_KEY: ${{ steps.build-tree-restore.outputs.cache-matched-key }}
+          EXACT_BUILD_TREE_KEY: ${{ steps.cache-key.outputs.build_complete }}
+        run: |
+          set -euo pipefail
+          tier=none
+          exact=false
+          if [[ -n "$MATCHED_BUILD_TREE_KEY" ]]; then
+            if [[ "$MATCHED_BUILD_TREE_KEY" == "$EXACT_BUILD_TREE_KEY"* ]]; then
+              tier=exact-complete
+              exact=true
+            elif [[ "$MATCHED_BUILD_TREE_KEY" == macos-build-tree-*-complete-* ]]; then
+              tier=compatible-complete
+            else
+              tier=partial
+            fi
+          fi
+          printf '%s\n' "tier=$tier" "exact=$exact" >> "$GITHUB_OUTPUT"
+          echo "macOS build-tree fast checkpoint tier=$tier"
 
       - name: Cache Conan packages
         id: conan-cache
@@ -908,8 +938,7 @@ jobs:
       # come from one atomic checkpoint generation.
       - name: Reapply exact complete build-tree checkpoint
         if: >-
-          ${{ steps.build-tree-restore.outputs.cache-matched-key ==
-              steps.cache-key.outputs.build_complete }}
+          ${{ steps.fast-build-tree.outputs.exact == 'true' }}
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: build
@@ -918,11 +947,56 @@ jobs:
 
       - name: Renormalize exact Ninja source timestamps
         if: >-
-          ${{ steps.build-tree-restore.outputs.cache-matched-key ==
-              steps.cache-key.outputs.build_complete }}
+          ${{ steps.fast-build-tree.outputs.exact == 'true' }}
         run: >-
           python3 macos/ci/build-tree-checkpoint.py restore
           --repository "$GITHUB_WORKSPACE" --build-dir build
+
+      # The Actions cache is fast but repository-wide and evictable. If it has
+      # no complete generation, install the newest validated branch-local
+      # artifact after Conan has refreshed its toolchain. A compatible older
+      # source tree is safe: timestamp normalization and CMake rebuild only the
+      # content that actually changed.
+      - name: Restore durable build-tree checkpoint fallback
+        id: durable-build-tree-restore
+        if: >-
+          ${{ steps.fast-build-tree.outputs.tier != 'exact-complete' &&
+              steps.fast-build-tree.outputs.tier != 'compatible-complete' }}
+        continue-on-error: true
+        timeout-minutes: 45
+        env:
+          OVERTE_CHECKPOINT_TOKEN: ${{ github.token }}
+        run: |
+          python3 macos/ci/runner-telemetry.py \
+            --phase build-tree-durable-restore \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/build-tree-durable-restore.jsonl" \
+            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/build-tree-durable-restore-stall" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 900 --max-runtime 2400 \
+            --watch build=build -- \
+            python3 macos/ci/build-tree-artifact.py restore-remote \
+              --repository "$GITHUB_REPOSITORY" \
+              --artifact-name "${{ steps.cache-key.outputs.build_checkpoint_artifact }}" \
+              --repository-id "$GITHUB_REPOSITORY_ID" \
+              --branch "$GITHUB_REF_NAME" \
+              --token-env OVERTE_CHECKPOINT_TOKEN \
+              --key "${{ steps.cache-key.outputs.build_checkpoint_key }}" \
+              --root "$GITHUB_WORKSPACE" \
+              --github-output "$GITHUB_OUTPUT"
+
+      - name: Normalize durable Ninja source timestamps
+        if: ${{ steps.durable-build-tree-restore.outputs.restored == 'true' }}
+        run: >-
+          python3 macos/ci/build-tree-checkpoint.py restore
+          --repository "$GITHUB_WORKSPACE" --build-dir build
+
+      - name: Classify final build-tree checkpoint
+        id: build-tree-state
+        run: >-
+          python3 macos/ci/build-tree-checkpoint.py classify
+          --repository "$GITHUB_WORKSPACE" --build-dir build
+          --key "${{ steps.cache-key.outputs.build_complete }}"
+          --github-output "$GITHUB_OUTPUT"
 
       - name: Configure compiler cache
         run: |
@@ -942,8 +1016,7 @@ jobs:
         timeout-minutes: 30
         env:
           OVERTE_MACOS_SKIP_CONFIGURE: >-
-            ${{ steps.build-tree-restore.outputs.cache-matched-key ==
-                steps.cache-key.outputs.build_complete && 'ON' || 'OFF' }}
+            ${{ steps.build-tree-state.outputs.exact == 'true' && 'ON' || 'OFF' }}
           OVERTE_MACOS_EXPECTED_BUILD_TREE_KEY: ${{ steps.cache-key.outputs.build_complete }}
         run: |
           mkdir -p "$MACOS_RUNNER_TELEMETRY_DIR"
@@ -965,13 +1038,13 @@ jobs:
               (steps.configure-client.outcome == 'success' ||
                steps.configure-client.outcome == 'failure') }}
         run: |
+          # A complete marker describes a successfully linked generation, not
+          # merely a valid CMake graph. Clear it before compilation so a failed
+          # partial checkpoint can never masquerade as exact-complete later.
+          python3 macos/ci/build-tree-checkpoint.py clear-complete \
+            --repository "$GITHUB_WORKSPACE" --build-dir build
           python3 macos/ci/build-tree-checkpoint.py record \
             --repository "$GITHUB_WORKSPACE" --build-dir build
-          if [[ "${{ steps.configure-client.outcome }}" == success ]]; then
-            printf '%s\n' "${{ steps.cache-key.outputs.build_complete }}" \
-              > build/.overte-macos-complete-key
-            chmod 0600 build/.overte-macos-complete-key
-          fi
 
       - name: Save configured build-tree checkpoint
         if: >-
@@ -1043,9 +1116,14 @@ jobs:
           ${{ always() && !cancelled() &&
               (steps.build-client.outcome == 'success' ||
                steps.build-client.outcome == 'failure') }}
-        run: >-
-          python3 macos/ci/build-tree-checkpoint.py record
-          --repository "$GITHUB_WORKSPACE" --build-dir build
+        run: |
+          python3 macos/ci/build-tree-checkpoint.py record \
+            --repository "$GITHUB_WORKSPACE" --build-dir build
+          if [[ "${{ steps.build-client.outcome }}" == success ]]; then
+            python3 macos/ci/build-tree-checkpoint.py mark-complete \
+              --repository "$GITHUB_WORKSPACE" --build-dir build \
+              --key "${{ steps.cache-key.outputs.build_complete }}"
+          fi
 
       - name: Save complete compiler cache
         if: >-
@@ -1149,6 +1227,72 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
+
+      # Preserve compiler/link progress in artifact storage as well as the
+      # faster repository-wide Actions cache. The archive omits Overte.app and
+      # smoke outputs because the installable app has already been uploaded;
+      # Ninja will relink/redeploy those reproducible products after restore.
+      - name: Package durable build-tree checkpoint
+        id: build-tree-checkpoint-package
+        continue-on-error: true
+        timeout-minutes: 55
+        run: |
+          python3 macos/ci/runner-telemetry.py \
+            --phase build-tree-durable-package \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/build-tree-durable-package.jsonl" \
+            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/build-tree-durable-package-stall" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 900 --max-runtime 3000 \
+            --watch build=build \
+            --watch checkpoint="$RUNNER_TEMP/macos-build-tree-checkpoint" -- \
+            python3 macos/ci/build-tree-artifact.py create \
+              --root "$GITHUB_WORKSPACE" \
+              --output-dir "$RUNNER_TEMP/macos-build-tree-checkpoint" \
+              --key "${{ steps.cache-key.outputs.build_checkpoint_key }}" \
+              --complete-key "${{ steps.cache-key.outputs.build_complete }}" \
+              --repository-id "$GITHUB_REPOSITORY_ID" \
+              --branch "$GITHUB_REF_NAME"
+
+      - name: Upload durable build-tree checkpoint
+        id: build-tree-checkpoint-upload
+        if: ${{ always() && steps.build-tree-checkpoint-package.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 60
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ steps.cache-key.outputs.build_checkpoint_artifact }}
+          path: ${{ runner.temp }}/macos-build-tree-checkpoint
+          if-no-files-found: error
+          # Compiler objects compress well; level three is a bounded balance
+          # between hosted-runner CPU time and artifact transfer/storage.
+          compression-level: 3
+          retention-days: 14
+
+      - name: Verify durable build-tree checkpoint upload
+        id: build-tree-checkpoint-verify
+        if: ${{ always() && steps.build-tree-checkpoint-upload.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 60
+        env:
+          OVERTE_CHECKPOINT_TOKEN: ${{ github.token }}
+        run: |
+          python3 macos/ci/runner-telemetry.py \
+            --phase build-tree-durable-verify \
+            --log "$MACOS_RUNNER_TELEMETRY_DIR/build-tree-durable-verify.jsonl" \
+            --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/build-tree-durable-verify-stall" \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 900 --max-runtime 3300 \
+            --watch build=build -- \
+            python3 macos/ci/build-tree-artifact.py verify-remote \
+              --repository "$GITHUB_REPOSITORY" \
+              --artifact-name "${{ steps.cache-key.outputs.build_checkpoint_artifact }}" \
+              --artifact-id "${{ steps.build-tree-checkpoint-upload.outputs.artifact-id }}" \
+              --expected-digest "${{ steps.build-tree-checkpoint-upload.outputs.artifact-digest }}" \
+              --key "${{ steps.cache-key.outputs.build_checkpoint_key }}" \
+              --complete-key "${{ steps.cache-key.outputs.build_complete }}" \
+              --repository-id "$GITHUB_REPOSITORY_ID" \
+              --branch "$GITHUB_REF_NAME" \
+              --token-env OVERTE_CHECKPOINT_TOKEN
 
       - name: Run application startup preflight
         timeout-minutes: 5
@@ -1272,11 +1416,29 @@ jobs:
           --token-env OVERTE_CHECKPOINT_TOKEN
           --execute
 
+      - name: Prune superseded durable build-tree checkpoints
+        if: ${{ always() && steps.build-tree-checkpoint-verify.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          OVERTE_CHECKPOINT_TOKEN: ${{ github.token }}
+        run: >-
+          python3 macos/ci/build-tree-artifact.py prune-remote
+          --repository "$GITHUB_REPOSITORY"
+          --artifact-name "${{ steps.cache-key.outputs.build_checkpoint_artifact }}"
+          --repository-id "$GITHUB_REPOSITORY_ID"
+          --branch "$GITHUB_REF_NAME"
+          --active-artifact-id "${{ steps.build-tree-checkpoint-upload.outputs.artifact-id }}"
+          --retain-previous 1
+          --token-env OVERTE_CHECKPOINT_TOKEN
+          --execute
+
       - name: Prune superseded macOS bootstrap caches
         if: >-
           ${{ always() && steps.application-upload.outcome == 'success' &&
               steps.build-client.outcome == 'success' &&
-              steps.conan-integrity.outcome == 'success' }}
+              steps.conan-integrity.outcome == 'success' &&
+              steps.build-tree-checkpoint-verify.outcome == 'success' }}
         timeout-minutes: 10
         continue-on-error: true
         env:
@@ -1291,3 +1453,12 @@ jobs:
           --active-sccache "${{ steps.cache-key.outputs.sccache_complete }}"
           --token-env OVERTE_CHECKPOINT_TOKEN
           --execute
+
+      - name: Require durable build-tree checkpoint
+        if: >-
+          ${{ always() && steps.build-client.outcome == 'success' &&
+              steps.application-upload.outcome == 'success' &&
+              steps.build-tree-checkpoint-verify.outcome != 'success' }}
+        run: |
+          echo "The application was preserved, but its resumable build-tree artifact was not verified." >&2
+          exit 1

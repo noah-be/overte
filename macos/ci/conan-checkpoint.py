@@ -29,7 +29,7 @@ import tarfile
 import tempfile
 import threading
 import time
-from typing import Iterator
+from typing import Callable, Iterator
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -238,6 +238,10 @@ def create_checkpoint(
     *,
     heartbeat_interval: float = 30.0,
     archive_chunk_bytes: int = DEFAULT_ARCHIVE_CHUNK_BYTES,
+    exclude: Callable[[PurePosixPath], bool] | None = None,
+    archive_validator: Callable[
+        [list[Path], list[int], list[tarfile.TarInfo]], None
+    ] | None = None,
 ) -> dict[str, object]:
     key = _validate_identifier(key, "checkpoint key")
     repository_id = _validate_repository_id(repository_id)
@@ -254,7 +258,10 @@ def create_checkpoint(
     archive = temporary / ".conan-cache.tar.tmp"
     counters = {"entries": 0, "logical_bytes": 0}
 
-    def count(member: tarfile.TarInfo) -> tarfile.TarInfo:
+    def count(member: tarfile.TarInfo) -> tarfile.TarInfo | None:
+        member_path = PurePosixPath(member.name)
+        if exclude is not None and exclude(member_path):
+            return None
         counters["entries"] += 1
         if member.isfile():
             counters["logical_bytes"] += member.size
@@ -324,7 +331,13 @@ def create_checkpoint(
             },
         }
         _atomic_json(temporary / MANIFEST_NAME, manifest)
-        validate_checkpoint(temporary, key, repository_id, branch)
+        validate_checkpoint(
+            temporary,
+            key,
+            repository_id,
+            branch,
+            archive_validator=archive_validator,
+        )
         os.replace(temporary, output_dir)
         print(
             "conan-checkpoint phase=create status=complete "
@@ -532,11 +545,18 @@ def validate_checkpoint(
     expected_branch: str,
     *,
     max_archive_bytes: int = DEFAULT_MAX_ARCHIVE_BYTES,
+    archive_validator: Callable[
+        [list[Path], list[int], list[tarfile.TarInfo]], None
+    ] | None = None,
 ) -> dict[str, object]:
     manifest = _load_manifest(
         checkpoint_dir, expected_key, expected_repository_id, expected_branch
     )
-    _validated_parts(checkpoint_dir, manifest, max_archive_bytes)
+    paths, sizes, members = _validated_parts(
+        checkpoint_dir, manifest, max_archive_bytes
+    )
+    if archive_validator is not None:
+        archive_validator(paths, sizes, members)
     return manifest
 
 
@@ -650,6 +670,9 @@ def restore_checkpoint(
     *,
     heartbeat_interval: float = 30.0,
     max_archive_bytes: int = DEFAULT_MAX_ARCHIVE_BYTES,
+    archive_validator: Callable[
+        [list[Path], list[int], list[tarfile.TarInfo]], None
+    ] | None = None,
 ) -> dict[str, object]:
     conan_home = conan_home.resolve()
     conan_home.mkdir(parents=True, exist_ok=True)
@@ -663,6 +686,8 @@ def restore_checkpoint(
         paths, sizes, members = _validated_parts(
             checkpoint_dir, manifest, max_archive_bytes
         )
+        if archive_validator is not None:
+            archive_validator(paths, sizes, members)
 
     staging = Path(
         tempfile.mkdtemp(prefix=".conan-checkpoint-restore-", dir=conan_home.parent)
