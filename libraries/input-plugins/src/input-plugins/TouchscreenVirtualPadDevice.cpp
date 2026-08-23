@@ -128,20 +128,30 @@ void TouchscreenVirtualPadDevice::resize() {
 }
 
 void TouchscreenVirtualPadDevice::setupControlsPositions(VirtualPad::Manager& virtualPadManager, bool force) {
-    if (_extraBottomMargin == virtualPadManager.extraBottomMargin() && !force) return; // Our only criteria to decide a center change is the bottom margin
+    int safeBottomInset { 0 };
+#if defined(Q_OS_IOS)
+    safeBottomInset = std::max(0, qApp->property("overteIosSafeInsetBottom").toInt());
+    if (_extraBottomMargin == virtualPadManager.extraBottomMargin() &&
+            _safeBottomInset == safeBottomInset && !force) {
+        return;
+    }
+#else
+    if (_extraBottomMargin == virtualPadManager.extraBottomMargin() && !force) {
+        return;
+    }
+#endif
 
     const QSize viewportSize = touchViewportSize();
     if (viewportSize.isEmpty()) {
         return;
     }
     _extraBottomMargin = virtualPadManager.extraBottomMargin();
-    int safeBottomInset { 0 };
 #if defined(Q_OS_IOS)
     // Application publishes this native UIKit metric on qApp before input
     // plugins initialize. Keeping the bridge as a QObject property avoids
     // making the input-plugins target depend on the tablet/audio/resource
     // implementation layers merely to read one inset.
-    safeBottomInset = std::max(0, qApp->property("overteIosSafeInsetBottom").toInt());
+    _safeBottomInset = safeBottomInset;
 #endif
     const int effectiveBottomMargin = _extraBottomMargin + safeBottomInset;
 

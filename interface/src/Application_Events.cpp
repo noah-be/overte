@@ -47,6 +47,37 @@ Q_LOGGING_CATEGORY(trace_app_input_mouse, "trace.app.input.mouse")
 static const unsigned int THROTTLED_SIM_FRAMERATE = 15;
 static const int THROTTLED_SIM_FRAME_PERIOD_MS = MSECS_PER_SECOND / THROTTLED_SIM_FRAMERATE;
 
+#if defined(Q_OS_IOS)
+static bool forwardAddressBarTouchToOffscreenUi(QTouchEvent* event, PointerEvent::EventType type) {
+    auto dialogs = DependencyManager::get<DialogsManager>();
+    auto offscreenUi = qApp->getOffscreenUI();
+    if (!dialogs->isAddressBarVisible() || !offscreenUi) {
+        return false;
+    }
+
+    bool accepted = false;
+    for (const auto& point : event->points()) {
+        const QPointF uiPoint = offscreenUi->mapToVirtualScreen(point.position());
+        const auto buttons = type == PointerEvent::Release
+            ? PointerEvent::NoButtons : PointerEvent::PrimaryButton;
+        PointerEvent pointerEvent(type, static_cast<uint32_t>(point.id()),
+            glm::vec2(uiPoint.x(), uiPoint.y()), PointerEvent::PrimaryButton,
+            buttons, event->modifiers());
+        accepted |= offscreenUi->handleMobilePointerEvent(pointerEvent);
+    }
+    if (accepted) {
+        event->accept();
+        if (type != PointerEvent::Move) {
+            logIOSRuntimeMarker(
+                "OVERTE_IOS_TOUCH_UI_GATE stage=address-touch-forwarded",
+                "type=", type == PointerEvent::Press ? "press" : "release",
+                "points=", event->points().size());
+        }
+    }
+    return accepted;
+}
+#endif
+
 class LambdaEvent : public QEvent {
     std::function<void()> _fun;
 public:
@@ -831,6 +862,12 @@ void Application::touchBeginEvent(QTouchEvent* event) {
         return;
     }
 
+#if defined(Q_OS_IOS)
+    if (forwardAddressBarTouchToOffscreenUi(event, PointerEvent::Press)) {
+        return;
+    }
+#endif
+
     if (_keyboardMouseDevice->isActive()) {
         _keyboardMouseDevice->touchBeginEvent(event);
     }
@@ -852,6 +889,12 @@ void Application::touchEndEvent(QTouchEvent* event) {
     if (_controllerScriptingInterface->isTouchCaptured()) {
         return;
     }
+
+#if defined(Q_OS_IOS)
+    if (forwardAddressBarTouchToOffscreenUi(event, PointerEvent::Release)) {
+        return;
+    }
+#endif
 
     if (_keyboardMouseDevice->isActive()) {
         _keyboardMouseDevice->touchEndEvent(event);
@@ -876,6 +919,13 @@ void Application::touchUpdateEvent(QTouchEvent* event) {
     if (_controllerScriptingInterface->isTouchCaptured()) {
         return;
     }
+
+#if defined(Q_OS_IOS)
+    if (event->type() == QEvent::TouchUpdate &&
+            forwardAddressBarTouchToOffscreenUi(event, PointerEvent::Move)) {
+        return;
+    }
+#endif
 
     if (_keyboardMouseDevice->isActive()) {
         _keyboardMouseDevice->touchUpdateEvent(event);

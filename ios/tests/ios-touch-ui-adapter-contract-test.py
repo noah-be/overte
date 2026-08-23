@@ -9,6 +9,7 @@ HEADER = (ROOT / "interface/src/IOSTouchUiMetrics.h").read_text()
 SOURCE = (ROOT / "interface/src/IOSTouchUiMetrics.mm").read_text()
 PROFILE = (ROOT / "interface/resources/qml/controlsUit/+ios/TouchUiProfile.qml").read_text()
 GRAPHICS = (ROOT / "interface/src/Application_Graphics.cpp").read_text()
+APPLICATION_EVENTS = (ROOT / "interface/src/Application_Events.cpp").read_text()
 APPLICATION_UI = (ROOT / "interface/src/Application_UI.cpp").read_text()
 SELECTORS = (ROOT / "libraries/shared/src/shared/FileUtils.cpp").read_text()
 TABLET_HEADER = (ROOT / "libraries/ui/src/ui/TabletScriptingInterface.h").read_text()
@@ -25,6 +26,7 @@ PHONE_LOGIN = (ROOT / "interface/resources/qml/LoginDialog/+android_phoneInterfa
 APPLICATION_OVERLAY = (ROOT / "interface/src/ui/ApplicationOverlay.cpp").read_text()
 INPUT_PLUGINS = (ROOT / "libraries/input-plugins/src/input-plugins/InputPlugin.cpp").read_text()
 VIRTUAL_PAD = (ROOT / "libraries/input-plugins/src/input-plugins/TouchscreenVirtualPadDevice.cpp").read_text()
+VIRTUAL_PAD_HEADER = (ROOT / "libraries/input-plugins/src/input-plugins/TouchscreenVirtualPadDevice.h").read_text()
 VIRTUAL_PAD_MANAGER = (ROOT / "libraries/ui/src/VirtualPadManager.h").read_text()
 STATS_SOURCE = (ROOT / "interface/src/ui/Stats.cpp").read_text()
 
@@ -102,7 +104,12 @@ assert 'touchscreenvirtualpad-phone.json' in VIRTUAL_PAD
 assert "OVERTE_IOS_TOUCH_INPUT_GATE stage=virtual-pad-initialized" in VIRTUAL_PAD
 assert "qApp->focusWindow()" in VIRTUAL_PAD
 assert 'qApp->property("overteIosSafeInsetBottom")' in VIRTUAL_PAD
+assert "_safeBottomInset == safeBottomInset" in VIRTUAL_PAD
+assert "int _safeBottomInset { -1 }" in VIRTUAL_PAD_HEADER
 assert 'qApp->setProperty("overteIosSafeInsetBottom"' in GRAPHICS
+assert "forwardAddressBarTouchToOffscreenUi" in APPLICATION_EVENTS
+assert "handleMobilePointerEvent" in APPLICATION_EVENTS
+assert "stage=address-touch-forwarded" in APPLICATION_EVENTS
 assert "ui/TabletScriptingInterface.h" not in VIRTUAL_PAD
 assert "effectiveBottomMargin = _extraBottomMargin + safeBottomInset" in VIRTUAL_PAD
 assert 'iosRuntimeDiagnosticInt(\n        "touchLookSensitivityPercent", 400, 50, 1200)' in VIRTUAL_PAD

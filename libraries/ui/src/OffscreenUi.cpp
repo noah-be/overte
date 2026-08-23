@@ -165,6 +165,10 @@ void OffscreenUi::handlePointerEvent(const PointerEvent& event) {
     OffscreenQmlSurface::handlePointerEvent(event, offscreenUiTouchDevice());
 }
 
+bool OffscreenUi::handleMobilePointerEvent(const PointerEvent& event) {
+    return OffscreenQmlSurface::handlePointerEvent(event, offscreenUiTouchDevice());
+}
+
 QObject* OffscreenUi::getFlags() {
     return offscreenFlags;
 }

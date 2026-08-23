@@ -872,7 +872,19 @@ void Application::initialize(const QCommandLineParser &parser) {
     initializeGL();
     qCDebug(interfaceapp, "Initialized GL");
 
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(Q_OS_IOS)
+    // iPadOS applies a per-process memory limit that also includes unified GPU
+    // memory. MoltenVK cannot report a useful dedicated-memory budget on Apple
+    // silicon, so automatic Vulkan texture residency can grow until Jetsam
+    // terminates Interface. Keep enough headroom for meshes, pipelines, Qt,
+    // decoded network data and the Metal driver.
+    constexpr uint32_t IOS_TEXTURE_BUDGET_MB { 256 };
+    const gpu::Texture::Size iosTextureBudget =
+        static_cast<gpu::Texture::Size>(IOS_TEXTURE_BUDGET_MB) * 1024 * 1024;
+    gpu::Texture::setAllowedGPUMemoryUsage(iosTextureBudget);
+    qCInfo(interfaceapp) << "OVERTE_IOS_RESOURCE_LIMIT textureBudgetMB"
+                         << IOS_TEXTURE_BUDGET_MB;
+#elif defined(ANDROID_APP_PHONE_INTERFACE)
     // Android GPUs use shared memory and do not expose a reliable dedicated
     // texture budget. Bound residency to reduce low-memory kills in complex
     // desktop-authored domains while retaining useful texture detail.

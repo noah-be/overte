@@ -48,6 +48,7 @@ public:
     void setMetaverseLoginState();
     void setDomainLoginState();
     bool getIsDomainLogin() { return _isDomainLogin; }
+    bool isAddressBarVisible() const { return _addressBarVisible; }
     QString getDomainLoginDomain() { return _domainLoginDomain; }
 
 public slots:

@@ -183,6 +183,9 @@ protected:
     float _fixedRadius { 0.0f };
     float _fixedRadiusForCalc { 0.0f };
     int _extraBottomMargin {0};
+#if defined(Q_OS_IOS)
+    int _safeBottomInset { -1 };
+#endif
 
     float _buttonRadius { 0.0f };
 

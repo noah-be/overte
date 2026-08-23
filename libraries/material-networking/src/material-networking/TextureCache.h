@@ -69,7 +69,7 @@ public:
 
     void refresh() override;
 
-    Q_INVOKABLE void setOriginalDescriptor(ktx::KTXDescriptor* descriptor) { _originalKtxDescriptor.reset(descriptor); }
+    Q_INVOKABLE void setOriginalDescriptor(ktx::KTXDescriptor* descriptor);
 
     void setExtra(void* extra) override;
 
