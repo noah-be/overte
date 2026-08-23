@@ -41,6 +41,8 @@ VR targets.
 Changes are propagated from shared branches to increasingly specific branches;
 the reviewed order and merge rules are documented in
 [`docs/BRANCH_WORKFLOW.md`](docs/BRANCH_WORKFLOW.md).
+Automated enforcement and permanent-branch policy are documented separately in
+the [`branch governance policy`](docs/BRANCH_GOVERNANCE.md).
 
 ### Interfaces in development
 
