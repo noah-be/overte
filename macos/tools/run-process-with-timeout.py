@@ -14,6 +14,39 @@ import sys
 import time
 
 
+def capture_thread_sample(
+    process_id: int,
+    destination: Path,
+    description: str,
+) -> tuple[bool, bool]:
+    """Capture one bounded macOS thread sample without stopping the child."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    sample_tool = shutil.which("sample")
+    if not sample_tool:
+        print("sample tool is unavailable; skipping thread sample", file=sys.stderr, flush=True)
+        return False, False
+    print(f"{description}; capturing thread sample", file=sys.stderr, flush=True)
+    try:
+        sampled = subprocess.run(
+            [sample_tool, str(process_id), "5", "5", "-file", str(destination)],
+            check=False,
+            timeout=15,
+        )
+        return sampled.returncode == 0 and destination.is_file(), False
+    except subprocess.TimeoutExpired:
+        print(
+            "thread sample exceeded 15s; continuing supervision",
+            file=sys.stderr,
+            flush=True,
+        )
+        return False, True
+
+
+def periodic_sample_path(base: Path, sequence: int) -> Path:
+    """Derive a bounded diagnostic name next to the final timeout sample."""
+    return base.with_name(f"{base.stem}.periodic-{sequence:02d}{base.suffix}")
+
+
 def capture_macos_crash_report(
     command: list[str],
     destination: Path,
@@ -52,6 +85,8 @@ def main() -> int:
     parser.add_argument("--log", type=Path, required=True)
     parser.add_argument("--result", type=Path, required=True)
     parser.add_argument("--sample", type=Path)
+    parser.add_argument("--periodic-sample-interval", type=float)
+    parser.add_argument("--periodic-sample-count", type=int, default=1)
     parser.add_argument("--crash-report", type=Path)
     parser.add_argument("--crash-report-dir", type=Path)
     parser.add_argument("--crash-report-wait", type=float, default=10.0)
@@ -61,8 +96,11 @@ def main() -> int:
     args = parser.parse_args()
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
     if (not command or args.timeout <= 0 or args.grace < 0 or args.crash_report_wait < 0 or
-            args.completion_settle < 0):
+            args.completion_settle < 0 or args.periodic_sample_count <= 0):
         parser.error("a command, positive timeout, and non-negative grace/report wait are required")
+    if args.periodic_sample_interval is not None:
+        if args.periodic_sample_interval <= 0 or args.sample is None:
+            parser.error("periodic sampling requires --sample and a positive interval")
     if args.completion_file and args.completion_file.exists():
         parser.error("completion file must not exist before the supervised process starts")
 
@@ -75,6 +113,10 @@ def main() -> int:
     return_code: int | None = None
     sample_succeeded = False
     sample_timed_out = False
+    periodic_sample_attempts = 0
+    periodic_samples_succeeded = 0
+    periodic_samples_timed_out = 0
+    periodic_sample_names: list[str] = []
     crash_report_succeeded = False
     crash_report_source: str | None = None
     completion_file_observed = False
@@ -106,6 +148,11 @@ def main() -> int:
             reader = threading.Thread(target=copy_output, daemon=True)
             reader.start()
             deadline = time.monotonic() + args.timeout
+            next_periodic_sample = (
+                time.monotonic() + args.periodic_sample_interval
+                if args.periodic_sample_interval is not None
+                else None
+            )
             while return_code is None:
                 remaining = deadline - time.monotonic()
                 try:
@@ -115,6 +162,25 @@ def main() -> int:
                             args.completion_file.stat().st_size > 0):
                         completion_file_observed = True
                         break
+                    if (next_periodic_sample is not None and
+                            time.monotonic() >= next_periodic_sample and
+                            periodic_sample_attempts < args.periodic_sample_count):
+                        periodic_sample_attempts += 1
+                        periodic_path = periodic_sample_path(
+                            args.sample, periodic_sample_attempts
+                        )
+                        succeeded, sample_timeout = capture_thread_sample(
+                            process.pid,
+                            periodic_path,
+                            f"process remains active after {args.periodic_sample_interval:g}s interval",
+                        )
+                        periodic_samples_succeeded += int(succeeded)
+                        periodic_samples_timed_out += int(sample_timeout)
+                        if succeeded:
+                            periodic_sample_names.append(periodic_path.name)
+                        next_periodic_sample += args.periodic_sample_interval
+                        if periodic_sample_attempts >= args.periodic_sample_count:
+                            next_periodic_sample = None
                     if time.monotonic() >= deadline:
                         break
 
@@ -147,30 +213,11 @@ def main() -> int:
             elif return_code is None:
                 timed_out = True
                 if args.sample:
-                    args.sample.parent.mkdir(parents=True, exist_ok=True)
-                    sample_tool = shutil.which("sample")
-                    if sample_tool:
-                        print(
-                            f"process exceeded {args.timeout:g}s; capturing thread sample",
-                            file=sys.stderr,
-                            flush=True,
-                        )
-                        try:
-                            sampled = subprocess.run(
-                                [sample_tool, str(process.pid), "5", "5", "-file", str(args.sample)],
-                                check=False,
-                                timeout=15,
-                            )
-                            sample_succeeded = sampled.returncode == 0 and args.sample.is_file()
-                        except subprocess.TimeoutExpired:
-                            sample_timed_out = True
-                            print(
-                                "thread sample exceeded 15s; continuing process cleanup",
-                                file=sys.stderr,
-                                flush=True,
-                            )
-                    else:
-                        print("sample tool is unavailable; skipping thread sample", file=sys.stderr, flush=True)
+                    sample_succeeded, sample_timed_out = capture_thread_sample(
+                        process.pid,
+                        args.sample,
+                        f"process exceeded {args.timeout:g}s",
+                    )
                 sent_term = True
                 print(
                     f"process exceeded {args.timeout:g}s; sending SIGTERM",
@@ -232,6 +279,10 @@ def main() -> int:
                 "sample_name": args.sample.name if args.sample else None,
                 "sample_succeeded": sample_succeeded,
                 "sample_timed_out": sample_timed_out,
+                "periodic_sample_attempts": periodic_sample_attempts,
+                "periodic_samples_succeeded": periodic_samples_succeeded,
+                "periodic_samples_timed_out": periodic_samples_timed_out,
+                "periodic_sample_names": periodic_sample_names,
                 "crash_report_name": args.crash_report.name if args.crash_report else None,
                 "crash_report_succeeded": crash_report_succeeded,
                 "crash_report_source_name": (
