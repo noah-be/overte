@@ -44,7 +44,10 @@ sync/android-pico/android-vr-refresh    -> android-vr-pico
 The `branch-policy` workflow rejects wrong scopes, sibling merges, skipped
 hierarchy levels, and child-to-parent merges. The `branch-sync` workflow opens a
 pull request whenever a direct child is missing commits from its parent. It does
-not merge automatically; conflicts and target tests remain visible in the PR.
+enables auto-merge with a merge commit, but GitHub completes it only after every
+required check and branch rule passes. Conflicts and failed target tests leave
+the PR open for manual intervention; the workflow never uses an administrator
+bypass.
 If GitHub cannot compare a configured pair, it reports a warning and continues
 checking the remaining children instead of aborting the complete sync run.
 Synchronization PRs are created with the dedicated repository-installed GitHub
