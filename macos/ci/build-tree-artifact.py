@@ -311,7 +311,8 @@ def delete_artifact(repository: str, artifact_id: int, token: str, api_base: str
         },
     )
     try:
-        with core.urlopen(request, timeout=60) as response:
+        opener = core.build_opener(core._SafeRedirectHandler())
+        with opener.open(request, timeout=60) as response:
             if response.status not in (200, 204):
                 raise core.RemoteError("build-tree artifact deletion returned an unexpected status")
     except core.HTTPError as error:

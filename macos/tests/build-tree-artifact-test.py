@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -119,6 +120,19 @@ class BuildTreeArtifactTests(unittest.TestCase):
         self.assertEqual(artifact.artifact_prune_plan(candidates, 100, 1), [80])
         with self.assertRaises(artifact.core.CheckpointError):
             artifact.artifact_prune_plan(candidates, 70, 1)
+
+    def test_artifact_deletion_uses_the_authenticated_safe_opener(self) -> None:
+        response = mock.MagicMock()
+        response.__enter__.return_value.status = 204
+        opener = mock.MagicMock()
+        opener.open.return_value = response
+        with mock.patch.object(artifact.core, "build_opener", return_value=opener):
+            artifact.delete_artifact(
+                "owner/repository", 42, "secret-token", "https://api.github.test"
+            )
+        request = opener.open.call_args.args[0]
+        self.assertEqual(request.method, "DELETE")
+        self.assertTrue(request.full_url.endswith("/actions/artifacts/42"))
 
 
 if __name__ == "__main__":
