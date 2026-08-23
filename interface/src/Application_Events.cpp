@@ -30,6 +30,7 @@
 #include <scripting/Audio.h>
 #include <scripting/ControllerScriptingInterface.h>
 #include <shared/FileUtils.h>
+#include <shared/IOSRuntimeLogging.h>
 #include <ui/DialogsManager.h>
 
 #include "AudioClient.h"
@@ -48,9 +49,9 @@ static const unsigned int THROTTLED_SIM_FRAMERATE = 15;
 static const int THROTTLED_SIM_FRAME_PERIOD_MS = MSECS_PER_SECOND / THROTTLED_SIM_FRAMERATE;
 
 #if defined(Q_OS_IOS)
-static bool forwardAddressBarTouchToOffscreenUi(QTouchEvent* event, PointerEvent::EventType type) {
+static bool forwardAddressBarTouchToOffscreenUi(QTouchEvent* event, PointerEvent::EventType type,
+                                                const QSharedPointer<OffscreenUi>& offscreenUi) {
     auto dialogs = DependencyManager::get<DialogsManager>();
-    auto offscreenUi = qApp->getOffscreenUI();
     if (!dialogs->isAddressBarVisible() || !offscreenUi) {
         return false;
     }
@@ -863,7 +864,7 @@ void Application::touchBeginEvent(QTouchEvent* event) {
     }
 
 #if defined(Q_OS_IOS)
-    if (forwardAddressBarTouchToOffscreenUi(event, PointerEvent::Press)) {
+    if (forwardAddressBarTouchToOffscreenUi(event, PointerEvent::Press, getOffscreenUI())) {
         return;
     }
 #endif
@@ -891,7 +892,7 @@ void Application::touchEndEvent(QTouchEvent* event) {
     }
 
 #if defined(Q_OS_IOS)
-    if (forwardAddressBarTouchToOffscreenUi(event, PointerEvent::Release)) {
+    if (forwardAddressBarTouchToOffscreenUi(event, PointerEvent::Release, getOffscreenUI())) {
         return;
     }
 #endif
@@ -922,7 +923,7 @@ void Application::touchUpdateEvent(QTouchEvent* event) {
 
 #if defined(Q_OS_IOS)
     if (event->type() == QEvent::TouchUpdate &&
-            forwardAddressBarTouchToOffscreenUi(event, PointerEvent::Move)) {
+            forwardAddressBarTouchToOffscreenUi(event, PointerEvent::Move, getOffscreenUI())) {
         return;
     }
 #endif
