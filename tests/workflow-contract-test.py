@@ -262,6 +262,8 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("steps.cache-key.outputs.conan_libnode_checkpoint", restore)
 
     def test_each_expensive_stage_has_heartbeat_timeout_health_gate_and_checkpoint(self):
+        runtime_source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
+        supervised_source = self.source + runtime_source
         for phase in (
             "build-tools",
             "dependency-qt",
@@ -278,10 +280,10 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "runtime-online",
             "runtime-performance",
         ):
-            self.assertIn(f"--phase {phase}", self.source)
-        self.assertGreaterEqual(self.source.count("--sample-interval 5"), 13)
-        self.assertGreaterEqual(self.source.count("--publish-interval 30"), 13)
-        self.assertGreaterEqual(self.source.count("--max-runtime"), 13)
+            self.assertIn(f"--phase {phase}", supervised_source)
+        self.assertGreaterEqual(supervised_source.count("--sample-interval 5"), 13)
+        self.assertGreaterEqual(supervised_source.count("--publish-interval 30"), 13)
+        self.assertGreaterEqual(supervised_source.count("--max-runtime"), 13)
         for checkpoint in (
             "Save pinned build tools",
             "Save Qt Conan stage immediately",
@@ -974,12 +976,19 @@ class MacOSWorkflowContracts(unittest.TestCase):
     def test_startup_preflight_runs_before_entity_smokes_and_uploads_diagnostics(self):
         preflight = self.source.index("- name: Run application startup preflight")
         serverless = self.source.index("- name: Run serverless entity smoke")
-        online = self.source.index("- name: Run online entity smoke")
         self.assertLess(preflight, serverless)
-        self.assertLess(serverless, online)
         self.assertIn("macos/ci/startup-preflight.sh", self.source)
         self.assertIn("build/macos-startup-preflight", self.source)
         self.assertIn("OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '300'", self.source)
+
+        runtime_source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
+        runtime_preflight = runtime_source.index("- name: Run application startup preflight")
+        runtime_serverless = runtime_source.index("- name: Run serverless entity smoke")
+        runtime_online = runtime_source.index("- name: Run online entity smoke")
+        self.assertLess(runtime_preflight, runtime_serverless)
+        self.assertLess(runtime_serverless, runtime_online)
+        self.assertIn("macos/ci/startup-preflight.sh", runtime_source)
+        self.assertIn("build/macos-startup-preflight", runtime_source)
 
     def test_performance_gate_uses_the_built_application_and_publishes_results(self):
         serverless = self.source.index("- name: Run serverless entity smoke")
@@ -1087,7 +1096,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
             "run.path === expectedWorkflow",
             "run.head_branch === expectedBranch",
             "run.status === 'completed'",
-            "run.conclusion === 'success'",
+            "['success', 'failure'].includes(run.conclusion)",
             "github.rest.actions.listWorkflowRunArtifacts",
             "matches.length !== 1",
             "matches[0].expired === true",
@@ -1212,13 +1221,19 @@ execute(github, context, core, require).then(
         self.assertEqual(accepted_arm64["failures"], [])
         self.assertEqual(accepted_arm64["outputs"]["artifact-id"], "9242921918")
 
+        failed_build_with_application = json.loads(json.dumps(base))
+        failed_build_with_application["run"]["conclusion"] = "failure"
+        accepted_failed_build = execute(failed_build_with_application)
+        self.assertEqual(accepted_failed_build["failures"], [])
+        self.assertEqual(accepted_failed_build["outputs"]["artifact-id"], "9242921918")
+
         cases = {
             "run ID": ("run.id", run_id + 1),
             "repository": ("run.repository.id", repository_id + 1),
             "head repository": ("run.head_repository.id", repository_id + 1),
             "branch": ("run.head_branch", "feature/untrusted"),
             "workflow": ("run.path", ".github/workflows/other.yml"),
-            "conclusion": ("run.conclusion", "failure"),
+            "conclusion": ("run.conclusion", "cancelled"),
             "SHA": ("run.head_sha", "not-a-commit"),
             "artifact name": ("artifacts.0.name", "overte-macos-x86_64-wrong"),
             "expired artifact": ("artifacts.0.expired", True),
@@ -1390,7 +1405,7 @@ execute(github, context, core, require).then(
         self.assertIn("macos/ci/online-loading-benchmark.sh", source)
         self.assertIn("--phase runtime-online-loading", source)
         self.assertIn(
-            "always() && inputs.run_online_loading && steps.serverless-smoke.outcome == 'success'",
+            "always() && inputs.run_online_loading && steps.serverless-smoke.outcome != 'failure'",
             source,
         )
         self.assertIn("--inactivity-timeout 360 --max-runtime 6000", source)
