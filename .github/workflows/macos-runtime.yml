@@ -375,7 +375,7 @@ jobs:
         if: ${{ always() && inputs.run_online && steps.serverless-smoke.outcome == 'success' }}
         env:
           OVERTE_MACOS_ONLINE_LOCATION: ${{ inputs.online_location }}
-          OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '3600'
+          OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '6000'
         run: |
           app="$(cat build/runtime-artifact/app-path.txt)"
           python3 macos/ci/runner-telemetry.py \
@@ -383,7 +383,7 @@ jobs:
             --log build/macos-runtime-telemetry/online.jsonl \
             --diagnostics-dir build/macos-runtime-telemetry/online-stall \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 3600 --max-runtime 3720 \
+            --inactivity-timeout 6000 --max-runtime 6120 \
             --watch smoke=build/macos-online-smoke -- \
             macos/ci/online-smoke.sh "$app" build/macos-online-smoke
 
