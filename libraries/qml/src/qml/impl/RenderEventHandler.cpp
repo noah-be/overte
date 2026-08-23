@@ -128,11 +128,15 @@ void RenderEventHandler::qmlRender(bool sceneGraphSync) {
 
     PROFILE_RANGE(render_qml_gl, __FUNCTION__);
 
-    gl::globalLock();
     if (!_shared->preRender(sceneGraphSync)) {
-        gl::globalRelease();
         return;
     }
+
+    // QQuickRenderControl requires the GUI thread to be blocked only while the
+    // scene graph is synchronized.  Do that before waiting for macOS' global GL
+    // lock: a slow scene draw can hold the lock for minutes in software OpenGL,
+    // and preRender() wakes the GUI thread when synchronization is complete.
+    gl::globalLock();
 
     resize();
 

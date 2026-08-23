@@ -306,6 +306,7 @@ Item {
                                 width: gridView.buttonExtent
                                 height: gridView.buttonExtent
                                 hoverEnabled: !presentation.touchOptimized
+                                prioritizeTap: presentation.touchOptimized
                                 gridView: wrapper.GridView.view
                                 buttonIndex: page.proxyModel.buttonIndex(uuid);
                                 flickable: swipeView.contentItem;
