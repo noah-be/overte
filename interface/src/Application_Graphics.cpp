@@ -18,6 +18,7 @@
 #include <memory>
 
 #include <QtCore/QRegularExpression>
+#include <QtCore/QTimer>
 #include <QtQml/QQmlContext>
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 #include <QtGui/QActionGroup>
@@ -376,6 +377,15 @@ void Application::initializeUi() {
                 { QStringLiteral("density"), touchUiMetrics->density() },
                 { QStringLiteral("fontScale"), touchUiMetrics->fontScale() },
             };
+            // Qt delivers iOS touch points in the safe-content coordinate
+            // system while UIKit reports the complete window here. Publish
+            // both dimensions so input plugins can use the same safe-local
+            // coordinate space as the Vulkan HUD and software-QML surface.
+            qApp->setProperty("overteIosSurfaceWidth", touchUiMetrics->surfaceWidth());
+            qApp->setProperty("overteIosSurfaceHeight", touchUiMetrics->surfaceHeight());
+            qApp->setProperty("overteIosSafeInsetLeft", touchUiMetrics->safeInsetLeft());
+            qApp->setProperty("overteIosSafeInsetTop", touchUiMetrics->safeInsetTop());
+            qApp->setProperty("overteIosSafeInsetRight", touchUiMetrics->safeInsetRight());
             qApp->setProperty("overteIosSafeInsetBottom", touchUiMetrics->safeInsetBottom());
             tabletScriptingInterface->setTouchUiRuntimeMetrics(metrics);
             logIOSRuntimeMarker(
@@ -398,6 +408,18 @@ void Application::initializeUi() {
     }
 
     auto offscreenUi = getOffscreenUI();
+#if defined(Q_OS_IOS)
+    connect(offscreenUi.data(), &OffscreenUi::focusTextChanged, this, [](bool focusText) {
+        if (focusText) {
+            // External iPad keyboards can show their shortcut/suggestion bar
+            // without changing the software-keyboard frame. Suppress it on
+            // every real QML text-focus transition as well as UIKit's keyboard
+            // notifications, while preserving the active editor.
+            suppressIOSKeyboardAssistant();
+            QTimer::singleShot(100, [] { suppressIOSKeyboardAssistant(); });
+        }
+    });
+#endif
     connect(offscreenUi.data(), &hifi::qml::OffscreenSurface::rootContextCreated,
         this, &Application::onDesktopRootContextCreated);
     connect(offscreenUi.data(), &hifi::qml::OffscreenSurface::rootItemCreated,

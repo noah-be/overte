@@ -73,17 +73,20 @@ static bool forwardMobileTouchToOffscreenUi(QTouchEvent* event, PointerEvent::Ev
             buttons, event->modifiers());
         accepted |= offscreenUi->handleMobilePointerEvent(pointerEvent);
     }
-    if (accepted) {
-        event->accept();
-        if (type != PointerEvent::Move) {
-            logIOSRuntimeMarker(
-                "OVERTE_IOS_TOUCH_UI_GATE stage=offscreen-touch-forwarded",
-                "surface=", tabletVisible ? "tablet" : "address",
-                "type=", type == PointerEvent::Press ? "press" : "release",
-                "points=", event->points().size());
-        }
+    // Address and tablet are full-screen/modal mobile surfaces. Once either
+    // is visible the touch belongs to QML even when the leaf item declines a
+    // particular phase; letting it fall through would allow system scripts or
+    // world controls to capture the same gesture and steal its later release.
+    event->accept();
+    if (type != PointerEvent::Move) {
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_UI_GATE stage=offscreen-touch-forwarded",
+            "surface=", tabletVisible ? "tablet" : "address",
+            "type=", type == PointerEvent::Press ? "press" : "release",
+            "points=", event->points().size(),
+            "qml_accepted=", accepted);
     }
-    return accepted;
+    return true;
 }
 #endif
 
@@ -860,6 +863,15 @@ void Application::mouseReleaseEvent(QMouseEvent* event) {
 }
 
 void Application::touchBeginEvent(QTouchEvent* event) {
+#if defined(Q_OS_IOS)
+    // Mobile QML must get first refusal. Tablet scripts capture touches while
+    // the tablet is open, so forwarding after isTouchCaptured() makes every
+    // internal control unreachable.
+    if (forwardMobileTouchToOffscreenUi(event, PointerEvent::Press, getOffscreenUI())) {
+        return;
+    }
+#endif
+
     TouchEvent thisEvent(*event); // on touch begin, we don't compare to last event
     _controllerScriptingInterface->emitTouchBeginEvent(thisEvent); // send events to any registered scripts
 
@@ -870,12 +882,6 @@ void Application::touchBeginEvent(QTouchEvent* event) {
     if (_controllerScriptingInterface->isTouchCaptured()) {
         return;
     }
-
-#if defined(Q_OS_IOS)
-    if (forwardMobileTouchToOffscreenUi(event, PointerEvent::Press, getOffscreenUI())) {
-        return;
-    }
-#endif
 
     if (_keyboardMouseDevice->isActive()) {
         _keyboardMouseDevice->touchBeginEvent(event);
@@ -890,6 +896,12 @@ void Application::touchBeginEvent(QTouchEvent* event) {
 }
 
 void Application::touchEndEvent(QTouchEvent* event) {
+#if defined(Q_OS_IOS)
+    if (forwardMobileTouchToOffscreenUi(event, PointerEvent::Release, getOffscreenUI())) {
+        return;
+    }
+#endif
+
     TouchEvent thisEvent(*event, _lastTouchEvent);
     _controllerScriptingInterface->emitTouchEndEvent(thisEvent); // send events to any registered scripts
     _lastTouchEvent = thisEvent;
@@ -898,12 +910,6 @@ void Application::touchEndEvent(QTouchEvent* event) {
     if (_controllerScriptingInterface->isTouchCaptured()) {
         return;
     }
-
-#if defined(Q_OS_IOS)
-    if (forwardMobileTouchToOffscreenUi(event, PointerEvent::Release, getOffscreenUI())) {
-        return;
-    }
-#endif
 
     if (_keyboardMouseDevice->isActive()) {
         _keyboardMouseDevice->touchEndEvent(event);
@@ -918,6 +924,13 @@ void Application::touchEndEvent(QTouchEvent* event) {
 }
 
 void Application::touchUpdateEvent(QTouchEvent* event) {
+#if defined(Q_OS_IOS)
+    if (event->type() == QEvent::TouchUpdate &&
+            forwardMobileTouchToOffscreenUi(event, PointerEvent::Move, getOffscreenUI())) {
+        return;
+    }
+#endif
+
     if (event->type() == QEvent::TouchUpdate) {
         TouchEvent thisEvent(*event, _lastTouchEvent);
         _controllerScriptingInterface->emitTouchUpdateEvent(thisEvent); // send events to any registered scripts
@@ -928,13 +941,6 @@ void Application::touchUpdateEvent(QTouchEvent* event) {
     if (_controllerScriptingInterface->isTouchCaptured()) {
         return;
     }
-
-#if defined(Q_OS_IOS)
-    if (event->type() == QEvent::TouchUpdate &&
-            forwardMobileTouchToOffscreenUi(event, PointerEvent::Move, getOffscreenUI())) {
-        return;
-    }
-#endif
 
     if (_keyboardMouseDevice->isActive()) {
         _keyboardMouseDevice->touchUpdateEvent(event);

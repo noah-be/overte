@@ -14,6 +14,8 @@
 #include <QTimer>
 #include <QtQml>
 
+#include <shared/IOSRuntimeLogging.h>
+
 namespace {
 UIWindow* activeWindow() {
     UIWindow* fallback = nil;
@@ -50,17 +52,57 @@ UIResponder* findFirstResponder(UIView* view) {
     return nil;
 }
 
-void dismissActiveWindowEditing() {
-    if (UIWindow* window = activeWindow()) {
-        // QInputMethod::hide() can dismiss the keyboard while leaving its
-        // input-assistant/QuickType bar attached to a hidden QML editor.
-        // Ending UIKit editing clears that stale first responder as well.
+NSArray<UIWindow*>* applicationWindows() {
+    NSMutableArray<UIWindow*>* windows = [NSMutableArray array];
+    for (UIScene* scene in UIApplication.sharedApplication.connectedScenes) {
+        if (![scene isKindOfClass:UIWindowScene.class] ||
+            scene.activationState == UISceneActivationStateUnattached) {
+            continue;
+        }
+        for (UIWindow* window in ((UIWindowScene*)scene).windows) {
+            if (![windows containsObject:window]) {
+                [windows addObject:window];
+            }
+        }
+    }
+    return windows;
+}
+
+int suppressInputAssistantForAllWindows() {
+    int suppressed { 0 };
+    for (UIWindow* window in applicationWindows()) {
         UIResponder* responder = findFirstResponder(window);
         if ([responder respondsToSelector:@selector(inputAssistantItem)]) {
             UITextInputAssistantItem* assistant = responder.inputAssistantItem;
+            assistant.allowsHidingShortcuts = YES;
             assistant.leadingBarButtonGroups = @[];
             assistant.trailingBarButtonGroups = @[];
+            ++suppressed;
         }
+        if ([responder conformsToProtocol:@protocol(UITextInputTraits)]) {
+            // With an attached Magic Keyboard, iPadOS can keep the QuickType
+            // prediction strip visible even though no software-keyboard frame
+            // exists. Disable prediction-producing traits on Qt's native text
+            // responder while leaving the editor and hardware keys active.
+            id<UITextInputTraits> traits = (id<UITextInputTraits>)responder;
+            traits.autocorrectionType = UITextAutocorrectionTypeNo;
+            traits.spellCheckingType = UITextSpellCheckingTypeNo;
+            traits.smartQuotesType = UITextSmartQuotesTypeNo;
+            traits.smartDashesType = UITextSmartDashesTypeNo;
+            traits.smartInsertDeleteType = UITextSmartInsertDeleteTypeNo;
+        }
+    }
+    return suppressed;
+}
+
+void dismissActiveWindowEditing() {
+    suppressInputAssistantForAllWindows();
+    for (UIWindow* window in applicationWindows()) {
+        // QInputMethod::hide() can dismiss the keyboard while leaving its
+        // input-assistant/QuickType bar attached to a hidden QML editor.
+        // Ending editing on every application window clears Qt's auxiliary
+        // responder too; it is not guaranteed to live in the key window.
+        UIResponder* responder = findFirstResponder(window);
         [responder resignFirstResponder];
         [window endEditing:YES];
     }
@@ -75,7 +117,10 @@ IOSTouchUiMetrics::IOSTouchUiMetrics(QObject* parent) : QObject(parent) {
         UIWindowDidBecomeKeyNotification,
         UIContentSizeCategoryDidChangeNotification,
         UIDeviceOrientationDidChangeNotification,
+        UIKeyboardWillShowNotification,
+        UIKeyboardDidShowNotification,
         UIKeyboardWillChangeFrameNotification,
+        UIKeyboardDidChangeFrameNotification,
         UIKeyboardWillHideNotification
     ];
     for (NSNotificationName name in names) {
@@ -111,6 +156,17 @@ void IOSTouchUiMetrics::refresh(void* keyboardNotification) {
     qreal imeInset = _imeInsetBottom;
     bool keyboardIsVisible = _keyboardVisible;
     NSNotification* notification = (__bridge NSNotification*)keyboardNotification;
+    const bool keyboardNotificationReceived =
+        [notification.name hasPrefix:@"UIKeyboard"];
+    if (keyboardNotificationReceived) {
+        suppressInputAssistantForAllWindows();
+        // UIKit may rebuild the hardware-keyboard shortcut groups while the
+        // frame/focus transition is completing. Reapply once on the following
+        // main-queue turn without resigning the user's active text field.
+        dispatch_async(dispatch_get_main_queue(), ^{
+            suppressInputAssistantForAllWindows();
+        });
+    }
     if ([notification.name isEqualToString:UIKeyboardWillHideNotification]) {
         imeInset = 0.0;
         keyboardIsVisible = false;
@@ -162,6 +218,22 @@ void dismissIOSKeyboard() {
     } else {
         dispatch_async(dispatch_get_main_queue(), ^{
             dismissActiveWindowEditing();
+        });
+    }
+}
+
+void suppressIOSKeyboardAssistant() {
+    auto suppress = [] {
+        const int responders = suppressInputAssistantForAllWindows();
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_UI_GATE stage=keyboard-assistant-suppressed",
+            "responders=", responders);
+    };
+    if (NSThread.isMainThread) {
+        suppress();
+    } else {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            suppress();
         });
     }
 }

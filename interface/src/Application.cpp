@@ -3864,6 +3864,38 @@ void Application::update(float deltaTime) {
 #endif
         }
 
+#if defined(Q_OS_IOS)
+        {
+            const float translateX = userInputMapper->getActionState(controller::Action::TRANSLATE_X);
+            const float translateY = userInputMapper->getActionState(controller::Action::TRANSLATE_Y);
+            const float translateZ = userInputMapper->getActionState(controller::Action::TRANSLATE_Z);
+            const bool locomotionActive = std::abs(translateX) > 0.001f ||
+                std::abs(translateY) > 0.001f || std::abs(translateZ) > 0.001f;
+            static quint64 nextIOSLocomotionLog { 0 };
+            const quint64 now = usecTimestampNow();
+            const int intervalMs = iosRuntimeDiagnosticInt(
+                "locomotionTraceIntervalMs", 250, 0, 5000);
+            if (intervalMs > 0 && locomotionActive && now >= nextIOSLocomotionLog) {
+                nextIOSLocomotionLog = now +
+                    static_cast<quint64>(intervalMs) * USECS_PER_MSEC;
+                logIOSRuntimeMarker(
+                    "OVERTE_IOS_LOCOMOTION_GATE stage=active",
+                    "dt_ms=", deltaTime * 1000.0f,
+                    "translate=", QStringLiteral("%1,%2,%3")
+                        .arg(translateX).arg(translateY).arg(translateZ),
+                    "drive=", QStringLiteral("%1,%2,%3")
+                        .arg(myAvatar->getDriveKey(MyAvatar::TRANSLATE_X))
+                        .arg(myAvatar->getDriveKey(MyAvatar::TRANSLATE_Y))
+                        .arg(myAvatar->getDriveKey(MyAvatar::TRANSLATE_Z)),
+                    "velocity=", myAvatar->getVelocity(),
+                    "position=", myAvatar->getWorldPosition(),
+                    "jumping=", myAvatar->isJumping(),
+                    "actions_captured=", _controllerScriptingInterface->areActionsCaptured(),
+                    "camera_mode=", static_cast<int>(_myCamera.getMode()));
+            }
+        }
+#endif
+
         myAvatar->setSprintMode((bool)userInputMapper->getActionState(controller::Action::SPRINT));
         static const std::vector<controller::Action> avatarControllerActions = {
             controller::Action::LEFT_HAND,

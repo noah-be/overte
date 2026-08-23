@@ -12,11 +12,16 @@
 
 #include <QtCore/QVariant>
 #include <QtGui/QGuiApplication>
+#include <QtGui/QInputMethod>
+#include <QtGui/QInputMethodQueryEvent>
 #include <QtGui/QMouseEvent>
 #include <QtQuick/QQuickWindow>
 #include <QtQml/QtQml>
 
 #include <shared/QtHelpers.h>
+#if defined(Q_OS_IOS)
+#include <shared/IOSRuntimeLogging.h>
+#endif
 #include <gl/GLHelpers.h>
 
 #include <AbstractUriHandler.h>
@@ -201,7 +206,30 @@ bool OffscreenUi::handleMobilePointerEvent(const PointerEvent& event) {
     QMouseEvent mouseEvent(mouseType, point, point, point, button, buttons,
                            event.getKeyboardModifiers());
     mouseEvent.ignore();
-    return QCoreApplication::sendEvent(getWindow(), &mouseEvent) && mouseEvent.isAccepted();
+    const bool delivered = QCoreApplication::sendEvent(getWindow(), &mouseEvent);
+#if defined(Q_OS_IOS)
+    if (event.getType() == PointerEvent::Release) {
+        QQuickItem* focusItem = getWindow()->activeFocusItem();
+        bool inputMethodEnabled { false };
+        if (focusItem) {
+            QInputMethodQueryEvent query(Qt::ImEnabled);
+            QCoreApplication::sendEvent(focusItem, &query);
+            inputMethodEnabled = query.value(Qt::ImEnabled).toBool();
+            if (inputMethodEnabled) {
+                if (auto* inputMethod = QGuiApplication::inputMethod()) {
+                    inputMethod->show();
+                }
+            }
+        }
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_UI_GATE stage=focus-after-touch",
+            "focus=", focusItem ? focusItem->objectName() : QStringLiteral("<none>"),
+            "focus_class=", focusItem ? focusItem->metaObject()->className() : "<none>",
+            "ime_enabled=", inputMethodEnabled,
+            "mouse_accepted=", mouseEvent.isAccepted());
+    }
+#endif
+    return delivered && mouseEvent.isAccepted();
 }
 
 QObject* OffscreenUi::getFlags() {
@@ -1201,6 +1229,13 @@ bool OffscreenUi::eventFilter(QObject* originalDestination, QEvent* event) {
         }
         case QEvent::InputMethod:
         case QEvent::InputMethodQuery:
+#if defined(Q_OS_IOS)
+            // OffscreenSurface already routes iOS IME events directly to the
+            // active QML text item. Do not deliver an accepted edit twice.
+            if (result) {
+                return true;
+            }
+#endif
             if (QCoreApplication::sendEvent(getWindow(), event)) {
                 return result;
             }

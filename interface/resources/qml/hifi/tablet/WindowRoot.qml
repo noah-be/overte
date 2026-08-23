@@ -50,21 +50,37 @@ Windows.ScrollingWindow {
         frame.visible = !value
         if (value) {
             // Windows.Window repositions newly visible framed windows so their
-            // hidden title decoration remains on-screen. Reassert the real
-            // screen origin after that visibility pass for the frameless
-            // Android presenter.
+            // hidden title decoration remains on-screen. Reassert the local
+            // safe-content origin after that visibility pass for the
+            // frameless mobile presenter.
             Qt.callLater(alignScreenSpaceWindow)
         }
     }
 
     function alignScreenSpaceWindow() {
         if (screenSpaceMode) {
-            x = screenSpaceSafeInsetLeft
-            y = screenSpaceSafeInsetTop
+            // The offscreen QML surface already represents UIKit's safe
+            // content rectangle. Native insets size that surface in C++; the
+            // tablet must remain local to it instead of applying the top/left
+            // inset a second time and clipping its footer.
+            x = 0
+            y = 0
+            width = Math.max(1, screenSpaceSurfaceWidth
+                - screenSpaceSafeInsetLeft - screenSpaceSafeInsetRight)
+            height = Math.max(1, screenSpaceSurfaceHeight
+                - screenSpaceSafeInsetTop
+                - Math.max(screenSpaceSafeInsetBottom, screenSpaceImeInsetBottom))
         }
     }
 
     onVisibleChanged: if (visible && screenSpaceMode) Qt.callLater(alignScreenSpaceWindow)
+    onScreenSpaceSafeInsetLeftChanged: if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow)
+    onScreenSpaceSafeInsetTopChanged: if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow)
+    onScreenSpaceSafeInsetRightChanged: if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow)
+    onScreenSpaceSafeInsetBottomChanged: if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow)
+    onScreenSpaceImeInsetBottomChanged: if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow)
+    onScreenSpaceSurfaceWidthChanged: if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow)
+    onScreenSpaceSurfaceHeightChanged: if (screenSpaceMode) Qt.callLater(alignScreenSpaceWindow)
 
     Settings {
         id: settings

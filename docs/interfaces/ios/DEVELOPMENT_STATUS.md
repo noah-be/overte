@@ -28,8 +28,8 @@ App Store submission is outside the current developer-artifact milestone.
 
 ## Touch acceptance paired with the next rendering build
 
-At the device tester's explicit request, the next physical rendering build also
-contains the exact existing shared fixes from the main-based
+At the device tester's explicit request, the physical rendering build contains
+the shared fixes integrated through `main` from the former
 `fix/universal-touch-ui-tablet-qml` branch rather than duplicating them as an
 `apple-ios` implementation:
 
@@ -71,7 +71,10 @@ diagnostics without rebuilding. Supported fields are:
   "touchUiAutoOpenTablet": false,
   "virtualPadForceVisible": true,
   "virtualPadScalePercent": 100,
+  "touchJumpMinimumPulseMs": 120,
   "touchInputTraceLimit": 64,
+  "offscreenKeyTraceLimit": 64,
+  "locomotionTraceIntervalMs": 250,
   "cameraMode": "third-person"
 }
 ```
@@ -94,7 +97,11 @@ Vulkan HUD also draws the virtual movement pad and jump/handshake buttons;
 finish, while `virtualPadScalePercent` accepts 50 through 200. `cameraMode` is
 `third-person` (the iOS default), `first-person`, or `persisted`.
 `touchInputTraceLimit` bounds classification markers for move, view and button
-touches; set it to 0 after input acceptance.
+touches; set it to 0 after input acceptance. `touchJumpMinimumPulseMs` keeps a
+short jump tap visible to at least one mapper update. `offscreenKeyTraceLimit`
+bounds hardware-keyboard routing markers without logging typed text, and
+`locomotionTraceIntervalMs` controls the active locomotion-state marker cadence.
+Set either trace value to 0 to disable its corresponding diagnostic.
 
 Set `touchUiAutoOpenTablet` for a launch that must expose the screen-space
 tablet without a manual tap. This exercises the same shared tablet presenter as
@@ -103,6 +110,13 @@ keyboard metrics from the existing `+ios/TouchUiProfile.qml` adapter. The
 `OVERTE_IOS_TOUCH_UI_GATE` markers report metrics, resize bounds, registered
 buttons and final visibility. `statsOverlay` and `statsOverlayExpanded` permit
 clean comparison screenshots without another IPA.
+
+On iOS, the offscreen HUD, tablet window and incoming Qt touch positions all use
+the same safe-content-local coordinate space. UIKit safe-area insets are removed
+exactly once when the render target is sized; controls and QML windows must not
+subtract the top or bottom inset a second time. Hardware-keyboard events are
+routed to the active offscreen QML focus item, while the native input assistant
+is suppressed without disabling text input.
 
 Reviewed QML can also be replaced without rebuilding. Create
 `Documents/OverteQmlOverrides/.enabled` and mirror the QRC-relative file path
