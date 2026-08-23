@@ -223,6 +223,13 @@ class ProjectHealthTests(unittest.TestCase):
         self.assertGreaterEqual(registered, 12)
         self.assertEqual(failures, [])
 
+    def test_cmake_discovery_ignores_non_cmake_test_harnesses(self):
+        cmake = (ROOT / "tests/CMakeLists.txt").read_text(encoding="utf-8")
+        self.assertIn(
+            'EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${DIR}/CMakeLists.txt"',
+            cmake,
+        )
+
     def test_gradle_wrapper_is_complete(self):
         required = [
             ROOT / "android/common/gradlew",
