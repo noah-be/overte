@@ -38,6 +38,11 @@ on:
         required: true
         default: false
         type: boolean
+      run_tutorial:
+        description: Render and validate the bundled serverless tutorial world
+        required: true
+        default: false
+        type: boolean
       run_performance:
         description: Record validated frame timings for the deterministic local scene
         required: true
@@ -377,6 +382,21 @@ jobs:
             --watch smoke=build/macos-smoke -- \
             macos/ci/serverless-smoke.sh "$app" build/macos-smoke
 
+      - name: Run bundled serverless tutorial smoke
+        if: ${{ inputs.run_tutorial }}
+        env:
+          OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '1800'
+        run: |
+          app="$(cat build/runtime-artifact/app-path.txt)"
+          python3 macos/ci/runner-telemetry.py \
+            --phase runtime-tutorial \
+            --log build/macos-runtime-telemetry/tutorial.jsonl \
+            --diagnostics-dir build/macos-runtime-telemetry/tutorial-stall \
+            --sample-interval 5 --publish-interval 30 --directory-interval 60 \
+            --inactivity-timeout 1800 --max-runtime 1920 \
+            --watch tutorial=build/macos-tutorial-smoke -- \
+            macos/ci/tutorial-smoke.sh "$app" build/macos-tutorial-smoke
+
       - name: Run online entity smoke
         if: ${{ always() && inputs.run_online && steps.serverless-smoke.outcome != 'failure' }}
         env:
@@ -482,6 +502,7 @@ jobs:
           path: |
             build/macos-startup-preflight
             build/macos-smoke
+            build/macos-tutorial-smoke
             build/macos-online-smoke
             build/macos-transition
             build/macos-performance
