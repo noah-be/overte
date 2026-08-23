@@ -18,6 +18,8 @@ import "." as HifiControls
 TextField {
     id: textField
 
+    HifiConstants { id: hifi }
+
     property int colorScheme: hifi.colorSchemes.light
     readonly property bool isLightColorScheme: colorScheme == hifi.colorSchemes.light
     readonly property bool isFaintGrayColorScheme: colorScheme == hifi.colorSchemes.faintGray

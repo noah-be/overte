@@ -96,6 +96,13 @@ legacy QML keyboard remains available to offscreen hosts. Forms provide
 content-specific input hints, scroll the focused field into view when the
 keyboard appears and hide it during teardown.
 
+A short, stationary tap activates an enabled button, switch, row or other
+actionable control when the finger is released. Controls nested in a scrolling
+or paging surface must not lose that tap to the parent gesture recognizer;
+movement beyond the drag threshold remains a scroll or page gesture. No action
+requires a long press unless it explicitly exposes a separate long-press
+command.
+
 ## Adoption order
 
 Adopt the foundation one complete user path at a time:
