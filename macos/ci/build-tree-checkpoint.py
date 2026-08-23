@@ -26,10 +26,12 @@ import time
 SCHEMA = 2
 SUPPORTED_SCHEMAS = {1, SCHEMA}
 METADATA_NAME = ".overte-ninja-checkpoint.json"
+COMPLETE_KEY_NAME = ".overte-macos-complete-key"
 # Old enough to precede every supported macOS/Xcode build artifact, while still
 # being representable by filesystems used by GitHub-hosted runners.
 BASELINE_NS = 946_684_800 * 1_000_000_000  # 2000-01-01T00:00:00Z
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
+KEY_RE = re.compile(r"^[A-Za-z0-9._-]{1,240}$")
 
 
 class CheckpointError(RuntimeError):
@@ -110,6 +112,66 @@ def fetch_checkpoint_commit(repository: Path, commit: str) -> None:
 
 def metadata_path(build_dir: Path) -> Path:
     return build_dir / METADATA_NAME
+
+
+def complete_key_path(build_dir: Path) -> Path:
+    return build_dir / COMPLETE_KEY_NAME
+
+
+def clear_complete(build_dir: Path) -> None:
+    marker = complete_key_path(build_dir)
+    if marker.exists() or marker.is_symlink():
+        marker.unlink()
+    print("macOS Ninja checkpoint complete marker cleared", flush=True)
+
+
+def mark_complete(build_dir: Path, key: str) -> None:
+    if not KEY_RE.fullmatch(key):
+        raise CheckpointError("invalid complete build-tree key")
+    build_dir.mkdir(parents=True, exist_ok=True)
+    destination = complete_key_path(build_dir)
+    fd, temporary = tempfile.mkstemp(prefix=f".{COMPLETE_KEY_NAME}.", dir=build_dir)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as output:
+            output.write(f"{key}\n")
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, destination)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+    print("macOS Ninja checkpoint marked complete", flush=True)
+
+
+def classify_complete(build_dir: Path, expected_key: str, github_output: Path | None) -> bool:
+    if not KEY_RE.fullmatch(expected_key):
+        raise CheckpointError("invalid expected build-tree key")
+    exact = False
+    marker = complete_key_path(build_dir)
+    try:
+        actual = marker.read_text(encoding="utf-8").strip()
+        graph_ready = all(
+            path.is_file() and not path.is_symlink() and path.stat().st_size > 0
+            for path in (build_dir / "CMakeCache.txt", build_dir / "build.ninja")
+        )
+        exact = (
+            not marker.is_symlink()
+            and KEY_RE.fullmatch(actual) is not None
+            and actual == expected_key
+            and graph_ready
+            and load_metadata(build_dir) is not None
+        )
+    except (OSError, UnicodeError, CheckpointError):
+        exact = False
+    if github_output is not None:
+        with github_output.open("a", encoding="utf-8") as output:
+            output.write(f"exact={'true' if exact else 'false'}\n")
+    print(
+        f"macOS Ninja checkpoint classification exact={'true' if exact else 'false'}",
+        flush=True,
+    )
+    return exact
 
 
 def record(repository: Path, build_dir: Path) -> None:
@@ -252,15 +314,30 @@ def restore(repository: Path, build_dir: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("operation", choices=("record", "restore"))
+    parser.add_argument(
+        "operation",
+        choices=("record", "restore", "mark-complete", "clear-complete", "classify"),
+    )
     parser.add_argument("--repository", type=Path, default=Path.cwd())
     parser.add_argument("--build-dir", type=Path, required=True)
+    parser.add_argument("--key")
+    parser.add_argument("--github-output", type=Path)
     arguments = parser.parse_args()
     try:
         if arguments.operation == "record":
             record(arguments.repository, arguments.build_dir)
-        else:
+        elif arguments.operation == "restore":
             restore(arguments.repository, arguments.build_dir)
+        elif arguments.operation == "mark-complete":
+            if arguments.key is None:
+                raise CheckpointError("mark-complete requires --key")
+            mark_complete(arguments.build_dir, arguments.key)
+        elif arguments.operation == "clear-complete":
+            clear_complete(arguments.build_dir)
+        else:
+            if arguments.key is None:
+                raise CheckpointError("classify requires --key")
+            classify_complete(arguments.build_dir, arguments.key, arguments.github_output)
     except CheckpointError as error:
         print(f"macOS Ninja checkpoint error: {error}", file=sys.stderr, flush=True)
         return 2

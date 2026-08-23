@@ -2585,6 +2585,11 @@ subprocess.run(
     check=True,
 )
 subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/present-count-contract-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
     [sys.executable, str(ROOT / "macos/tests/process-timeout-test.py")],
     cwd=ROOT,
     check=True,
@@ -2606,6 +2611,16 @@ subprocess.run(
 )
 subprocess.run(
     [sys.executable, str(ROOT / "macos/tests/build-tree-checkpoint-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/build-tree-artifact-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/bootstrap-workflow-checkpoint-test.py")],
     cwd=ROOT,
     check=True,
 )

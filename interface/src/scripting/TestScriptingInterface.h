@@ -190,7 +190,7 @@ public slots:
      * Returns the active display plugin's process-local present counter.
      * Available to explicit application test scripts only.
      * @function Test.getPresentCount
-     * @returns {number} Number of presents attempted by the active display plugin.
+     * @returns {number} Number of presents completed by the active display plugin.
      */
     Q_INVOKABLE quint32 getPresentCount() const;
 

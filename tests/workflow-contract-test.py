@@ -501,9 +501,12 @@ class MacOSWorkflowContracts(unittest.TestCase):
         )
         sccache_config = (ROOT / "macos/ci/sccache.toml").read_text(encoding="utf-8")
         self.assertIn("server_startup_timeout_ms = 60000", sccache_config)
-        maximum = re.search(r"(?m)^\s+SCCACHE_CACHE_SIZE:\s*(\d+)M\s*$", self.source)
+        maximum = re.search(
+            r"(?m)^\s+SCCACHE_CACHE_SIZE:\s*(\d+)([MG])\s*$", self.source
+        )
         self.assertIsNotNone(maximum)
-        self.assertEqual(int(maximum.group(1)), 512)
+        cache_mib = int(maximum.group(1)) * (1024 if maximum.group(2) == "G" else 1)
+        self.assertEqual(cache_mib, 1024)
         self.assertIn(
             "mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba",
             self.source,
@@ -657,23 +660,30 @@ class MacOSWorkflowContracts(unittest.TestCase):
         )
 
     def test_exact_complete_tree_is_the_only_configuration_skip(self):
+        classification_step = self.source.split(
+            "- name: Classify final build-tree checkpoint", 1
+        )[1].split("- name: Configure compiler cache", 1)[0]
+        self.assertIn("build-tree-checkpoint.py classify", classification_step)
+        self.assertIn("steps.cache-key.outputs.build_complete", classification_step)
+        self.assertIn('--github-output "$GITHUB_OUTPUT"', classification_step)
         configure_step = self.source.split(
             "- name: Configure client build graph", 1
         )[1].split("- name: Record configured build-tree checkpoint metadata", 1)[0]
         self.assertIn("OVERTE_MACOS_SKIP_CONFIGURE", configure_step)
-        self.assertIn(
-            "steps.build-tree-restore.outputs.cache-matched-key ==",
-            configure_step,
-        )
-        self.assertIn("steps.cache-key.outputs.build_complete", configure_step)
+        self.assertIn("steps.build-tree-state.outputs.exact == 'true'", configure_step)
         self.assertIn("&& 'ON' || 'OFF'", configure_step)
         self.assertIn("OVERTE_MACOS_EXPECTED_BUILD_TREE_KEY", configure_step)
         metadata_step = self.source.split(
             "- name: Record configured build-tree checkpoint metadata", 1
         )[1].split("- name: Save configured build-tree checkpoint", 1)[0]
-        self.assertIn(".overte-macos-complete-key", metadata_step)
-        self.assertIn("steps.cache-key.outputs.build_complete", metadata_step)
-        self.assertIn("chmod 0600", metadata_step)
+        self.assertIn("build-tree-checkpoint.py clear-complete", metadata_step)
+        self.assertNotIn("mark-complete", metadata_step)
+        complete_step = self.source.split(
+            "- name: Record Ninja build-tree checkpoint metadata", 1
+        )[1].split("- name: Save complete compiler cache", 1)[0]
+        self.assertIn("steps.build-client.outcome", complete_step)
+        self.assertIn("build-tree-checkpoint.py mark-complete", complete_step)
+        self.assertIn("steps.cache-key.outputs.build_complete", complete_step)
 
     def test_exact_build_tree_hash_covers_build_and_bundle_inputs_only(self):
         key_step = self.source.split(
@@ -759,6 +769,14 @@ class MacOSWorkflowContracts(unittest.TestCase):
         )[0]
         self.assertIn("id: build-client", build)
         self.assertIn("continue-on-error: true", build)
+        client_verify = build.split(
+            "- name: Verify client objects were checkpointed", 1
+        )[1].split("- name: Record Ninja build-tree checkpoint metadata", 1)[0]
+        self.assertIn('--github-output "$GITHUB_OUTPUT"', client_verify)
+        self.assertIn(
+            "steps.client-compiler-verify.outputs.local_cache_changed == 'true'",
+            complete_save,
+        )
         self.assertIn("always()", complete_save)
         self.assertIn("!cancelled()", complete_save)
         self.assertIn("steps.build-client.outcome == 'success'", complete_save)

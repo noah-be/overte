@@ -41,21 +41,56 @@ class BuildTreeCheckpointTests(unittest.TestCase):
             text=True,
         ).stdout.strip()
 
-    def tool(self, operation, *, check=True):
+    def tool(self, operation, *, check=True, key=None, github_output=None):
+        command = [
+            sys.executable,
+            str(TOOL),
+            operation,
+            "--repository",
+            str(self.repository),
+            "--build-dir",
+            str(self.build),
+        ]
+        if key is not None:
+            command.extend(("--key", key))
+        if github_output is not None:
+            command.extend(("--github-output", str(github_output)))
         return subprocess.run(
-            [
-                sys.executable,
-                str(TOOL),
-                operation,
-                "--repository",
-                str(self.repository),
-                "--build-dir",
-                str(self.build),
-            ],
+            command,
             check=check,
             capture_output=True,
             text=True,
         )
+
+    def test_complete_marker_is_atomic_and_only_classifies_a_valid_exact_graph(self):
+        key = "macos-build-tree-v3-x86_64-tool-complete-source"
+        self.tool("record")
+        (self.build / "CMakeCache.txt").write_text("cache\n", encoding="utf-8")
+        (self.build / "build.ninja").write_text("ninja\n", encoding="utf-8")
+        marker = self.build / ".overte-macos-complete-key"
+        output = Path(self.temporary.name) / "github-output"
+
+        self.tool("mark-complete", key=key)
+        self.assertEqual(marker.read_text(encoding="utf-8"), f"{key}\n")
+        self.assertEqual(marker.stat().st_mode & 0o777, 0o600)
+        classified = self.tool("classify", key=key, github_output=output)
+        self.assertIn("exact=true", classified.stdout)
+        self.assertEqual(output.read_text(encoding="utf-8"), "exact=true\n")
+
+        output.write_text("", encoding="utf-8")
+        self.tool("classify", key=f"{key}-different", github_output=output)
+        self.assertEqual(output.read_text(encoding="utf-8"), "exact=false\n")
+
+        self.tool("clear-complete")
+        self.assertFalse(marker.exists())
+        output.write_text("", encoding="utf-8")
+        self.tool("classify", key=key, github_output=output)
+        self.assertEqual(output.read_text(encoding="utf-8"), "exact=false\n")
+
+    def test_invalid_complete_key_is_rejected_without_creating_a_marker(self):
+        result = self.tool("mark-complete", key="unsafe/key", check=False)
+        self.assertEqual(result.returncode, 2)
+        self.assertFalse((self.build / ".overte-macos-complete-key").exists())
 
     def test_restore_ages_unchanged_sources_and_marks_commit_changes_new(self):
         recorded = self.tool("record")
