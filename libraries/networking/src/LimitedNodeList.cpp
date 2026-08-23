@@ -789,6 +789,7 @@ void LimitedNodeList::addNewNode(NewNodeInfo info) {
     SharedNodePointer node = addOrUpdateNode(info.uuid, info.type, info.publicSocket, info.localSocket,
                                              info.sessionLocalID, info.isReplicated, false,
                                              info.connectionSecretUUID, info.permissions);
+    node->setIsForcedNeverSilent(info.isForcedNeverSilent);
 
     ++_nodesAddedInCurrentTimeSlice;
 }

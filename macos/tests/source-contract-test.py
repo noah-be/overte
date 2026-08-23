@@ -953,6 +953,9 @@ limited_node_list_source = (
 limited_node_list_header = (
     ROOT / "libraries/networking/src/LimitedNodeList.h"
 ).read_text(encoding="utf-8")
+node_list_source = (ROOT / "libraries/networking/src/NodeList.cpp").read_text(
+    encoding="utf-8"
+)
 test_interface_header = (
     ROOT / "interface/src/scripting/TestScriptingInterface.h"
 ).read_text(encoding="utf-8")
@@ -1023,7 +1026,11 @@ for source, token in (
     (domain_handler_source, "now - previousTimeout > 2 * USECS_PER_SECOND"),
     (limited_node_list_source, "Skipping silent-node removal after delayed event-loop check"),
     (limited_node_list_source, "2 * NODE_SILENCE_THRESHOLD_MSECS * USECS_PER_MSEC"),
-    (limited_node_list_header, "NODE_SILENCE_THRESHOLD_MSECS = 120 * 1000"),
+    (limited_node_list_header, "bool isForcedNeverSilent { false }"),
+    (limited_node_list_source, "node->setIsForcedNeverSilent(info.isForcedNeverSilent)"),
+    (node_list_source, "info.isForcedNeverSilent = true"),
+    (node_list_source, "processDomainServerRemovedNode"),
+    (limited_node_list_source, "eraseAllNodes(QString reason)"),
 ):
     if token not in source:
         raise SystemExit(f"production network stall recovery missing: {token}")

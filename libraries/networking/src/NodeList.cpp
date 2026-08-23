@@ -922,6 +922,11 @@ void NodeList::parseNodeFromPacketStream(QDataStream& packetStream) {
                  >> info.connectionSecretUUID;
     info.publicSocket.setType(publicSocketType);
     info.localSocket.setType(localSocketType);
+    // The domain server is authoritative for these nodes and explicitly
+    // removes them with DomainServerRemovedNode or a domain reset.  Do not let
+    // a local renderer stall make the generic silence sweep race that source
+    // of truth and tear down an otherwise healthy world connection.
+    info.isForcedNeverSilent = true;
 
     // if the public socket address is 0 then it's reachable at the same IP
     // as the domain server
