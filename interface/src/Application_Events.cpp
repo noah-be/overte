@@ -291,7 +291,7 @@ void Application::pushPostUpdateLambda(void* key, const std::function<void()>& f
 }
 
 // thread-safe
-void Application::onPresent(quint32 frameCount) {
+void Application::onPresentTick() {
     bool expected = false;
     if (_pendingIdleEvent.compare_exchange_strong(expected, true)) {
         postEvent(this, new QEvent((QEvent::Type)ApplicationEvent::Idle), Qt::HighEventPriority);

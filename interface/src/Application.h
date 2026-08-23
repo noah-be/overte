@@ -583,7 +583,7 @@ private slots:
 
 
     // Events
-    void onPresent(quint32 frameCount);
+    void onPresentTick();
 
     void activeChanged(Qt::ApplicationState state);
     void windowMinimizedChanged(bool minimized);

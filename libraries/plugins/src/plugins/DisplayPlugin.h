@@ -224,6 +224,10 @@ public:
 signals:
     void recommendedFramebufferSizeChanged(const QSize& size);
     void resetSensorsRequested();
+    // Emitted for every display pacing cycle, independently of whether a
+    // frame was available and completed.  The application update loop must
+    // not depend on the completed-output counter below.
+    void presentTick();
     void presented(quint32 frame);
 
 protected:

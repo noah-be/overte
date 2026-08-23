@@ -420,7 +420,7 @@ void Application::setDisplayPlugin(DisplayPluginPointer newDisplayPlugin) {
         }
 
         if (_displayPlugin) {
-            disconnect(_displayPlugin.get(), &DisplayPlugin::presented, this, &Application::onPresent);
+            disconnect(_displayPlugin.get(), &DisplayPlugin::presentTick, this, &Application::onPresentTick);
             _displayPlugin->deactivate();
         }
 
@@ -457,7 +457,7 @@ void Application::setDisplayPlugin(DisplayPluginPointer newDisplayPlugin) {
         }
         getApplicationCompositor().setDisplayPlugin(newDisplayPlugin);
         _displayPlugin = newDisplayPlugin;
-        connect(_displayPlugin.get(), &DisplayPlugin::presented, this, &Application::onPresent, Qt::DirectConnection);
+        connect(_displayPlugin.get(), &DisplayPlugin::presentTick, this, &Application::onPresentTick, Qt::DirectConnection);
         if (desktop) {
             desktop->setProperty("repositionLocked", wasRepositionLocked);
         }
