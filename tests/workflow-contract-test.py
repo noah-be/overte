@@ -997,7 +997,7 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertLess(preflight, serverless)
         self.assertIn("macos/ci/startup-preflight.sh", self.source)
         self.assertIn("build/macos-startup-preflight", self.source)
-        self.assertIn("OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '300'", self.source)
+        self.assertIn("OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '900'", self.source)
 
         runtime_source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
         runtime_preflight = runtime_source.index("- name: Run application startup preflight")
@@ -1462,7 +1462,7 @@ execute(github, context, core, require).then(
         self.assertIn("macos/ci/application-artifact.py extract", source)
         self.assertIn("build/runtime-artifact/interface/Overte.app", source)
         self.assertNotIn("chmod -R u+rx", source)
-        self.assertIn("OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '300'", source)
+        self.assertIn("OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '900'", source)
         self.assertIn("macos/ci/serverless-smoke.sh", source)
         self.assertIn("macos/ci/online-smoke.sh", source)
         self.assertIn("macos/ci/performance-smoke.sh", source)
