@@ -2,7 +2,7 @@
 
 // A small, screen-space control surface for the phone client.  It deliberately
 // uses Interface's QML dialogs instead of the legacy Android Java activities.
-/* globals Audio, Camera, Controller, DialogsManager, MyAvatar, print, QmlFragment, Script, Tablet, Window */
+/* globals Audio, Camera, Controller, DialogsManager, MyAvatar, PlatformInfo, print, QmlFragment, Script, Tablet, Window */
 
 (function () {
     var navigationBar;
@@ -19,6 +19,9 @@
     var touchStart = null;
     var lastActionTime = 0;
     var lastActionName = "";
+    var isIOS = typeof PlatformInfo !== "undefined" &&
+        typeof PlatformInfo.getOperatingSystemType === "function" &&
+        PlatformInfo.getOperatingSystemType() === "IOS";
 
     var BASE_BUTTON_STYLE = {
         bgOpacity: 0.22,
@@ -40,11 +43,12 @@
     // high-density phones without relying on a device-specific DPI value.
     function calculateLayout(width, height) {
         var shortEdge = Math.min(width, height);
-        // Tablet logical surfaces are much larger than phone surfaces.  The old
-        // 16% rule produced 164 px controls on an iPad, obscuring a substantial
-        // part of the world.  Keep the phone minimum while capping the tablet
+        // iPad logical surfaces are much larger than phone surfaces.  Keep the
+        // established Android phone scaling while capping only the iOS tablet
         // presentation near the proven native virtual-pad button size.
-        var buttonSize = clamp(Math.round(shortEdge * 0.105), 72, 112);
+        var buttonSize = isIOS
+            ? clamp(Math.round(shortEdge * 0.105), 72, 112)
+            : clamp(Math.round(shortEdge * 0.16), 72, 180);
         var edgeMargin = clamp(Math.round(shortEdge * 0.025), 12, 32);
         var flowPadding = 4;
         var flowSpacing = 10;
@@ -295,6 +299,17 @@
         action.invoke();
     }
 
+    function invokeButtonAction(action) {
+        // iOS receives both the QML click and the explicit native-touch fallback.
+        // Android uses the established QML-only route and must not inherit iOS
+        // debounce or extra haptics.
+        if (isIOS) {
+            invokeAction(action, "qml");
+        } else {
+            action.invoke();
+        }
+    }
+
     function onTouchBegin(event) {
         var action = actionAtPoint(event);
         touchStart = action ? {
@@ -318,19 +333,19 @@
     }
 
     function onGotoClicked() {
-        invokeAction({ name: "goto", invoke: showAddressBar }, "qml");
+        invokeButtonAction({ name: "goto", invoke: showAddressBar });
     }
 
     function onTabletClicked() {
-        invokeAction({ name: "tablet", invoke: showTablet }, "qml");
+        invokeButtonAction({ name: "tablet", invoke: showTablet });
     }
 
     function onViewClicked() {
-        invokeAction({ name: "view", invoke: toggleCameraMode }, "qml");
+        invokeButtonAction({ name: "view", invoke: toggleCameraMode });
     }
 
     function onMicrophoneClicked() {
-        invokeAction({ name: "microphone", invoke: toggleMicrophone }, "qml");
+        invokeButtonAction({ name: "microphone", invoke: toggleMicrophone });
     }
 
     currentButtonStyle = calculateLayout(Math.max(Window.innerWidth, 1), Math.max(Window.innerHeight, 1)).buttonStyle;
@@ -373,8 +388,10 @@
     Window.geometryChanged.connect(updateLayout);
     Window.geometryChanged.connect(resizeTablet);
     systemTablet.tabletShownChanged.connect(tabletVisibilityChanged);
-    Controller.touchBeginEvent.connect(onTouchBegin);
-    Controller.touchEndEvent.connect(onTouchEnd);
+    if (isIOS) {
+        connectSignal(Controller, "touchBeginEvent", onTouchBegin);
+        connectSignal(Controller, "touchEndEvent", onTouchEnd);
+    }
     tabletVisibilityChanged();
     // QML fragments also perform their initial placement in Component.onCompleted;
     // defer once so the phone-specific adaptive placement wins deterministically.
@@ -392,8 +409,10 @@
         Window.geometryChanged.disconnect(updateLayout);
         Window.geometryChanged.disconnect(resizeTablet);
         systemTablet.tabletShownChanged.disconnect(tabletVisibilityChanged);
-        Controller.touchBeginEvent.disconnect(onTouchBegin);
-        Controller.touchEndEvent.disconnect(onTouchEnd);
+        if (isIOS) {
+            disconnectSignal(Controller, "touchBeginEvent", onTouchBegin);
+            disconnectSignal(Controller, "touchEndEvent", onTouchEnd);
+        }
         touchStart = null;
         Controller.setVPadHidden(false);
         Controller.releaseTouchEvents();

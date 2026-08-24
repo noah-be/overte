@@ -158,7 +158,9 @@ assert "Qt::LeftButton : Qt::NoButton" in OFFSCREEN_UI
 assert "stage=mobile-drag-move" in OFFSCREEN_UI
 assert "stage=focus-after-touch" in OFFSCREEN_UI
 assert '"window-mouse-filter"' in OFFSCREEN_UI
-assert "Qt::MouseButton fakeMouseButton = Qt::NoButton" in OFFSCREEN_SURFACE
+assert "Qt::MouseButton fakeMouseButton = Qt::LeftButton" in OFFSCREEN_SURFACE
+assert "legacy window-wide compatibility filter intentionally keeps" in OFFSCREEN_SURFACE
+assert "OffscreenUi::handleMobilePointerEvent" in OFFSCREEN_SURFACE
 assert "stage=filtered-touch-drag-move" in OFFSCREEN_SURFACE
 assert "activeFocusItem()" in OFFSCREEN_SURFACE
 assert "stage=hardware-key-forwarded" in OFFSCREEN_SURFACE
@@ -201,7 +203,11 @@ assert "OVERTE_IOS_STATS_SAMPLE" in STATS_SOURCE
 assert "QTimer::singleShot(1000" in APPLICATION_UI
 MOBILE_ACTION_BAR = (ROOT / "scripts/system/+android_phoneInterface/mobileActionBar.js").read_text()
 assert "shortEdge * 0.105" in MOBILE_ACTION_BAR
-assert "Controller.touchBeginEvent.connect(onTouchBegin)" in MOBILE_ACTION_BAR
+assert 'PlatformInfo.getOperatingSystemType() === "IOS"' in MOBILE_ACTION_BAR
+assert "shortEdge * 0.16" in MOBILE_ACTION_BAR
+assert "if (isIOS)" in MOBILE_ACTION_BAR
+assert 'connectSignal(Controller, "touchBeginEvent", onTouchBegin)' in MOBILE_ACTION_BAR
+assert 'disconnectSignal(Controller, "touchBeginEvent", onTouchBegin)' in MOBILE_ACTION_BAR
 assert 'OVERTE_MOBILE_ACTION_BAR action=' in MOBILE_ACTION_BAR
 assert "bool _hidden { false };" in VIRTUAL_PAD_MANAGER
 assert "renderIOSVirtualPad(renderArgs)" in APPLICATION_OVERLAY
@@ -213,8 +219,11 @@ for texture in ("analog_stick.png", "analog_stick_base.png", "fly.png", "handsha
     assert texture in APPLICATION_OVERLAY
 
 assert "_desktopWindow->setPosition(0, 0)" in TABLET_SOURCE
+assert "_desktopWindow->setPosition(leftInset, topInset)" in TABLET_SOURCE
 assert '"coordinate_space=safe-content"' in TABLET_SOURCE
 assert "x = 0" in WINDOW_ROOT
+assert 'Qt.platform.os === "ios"' in WINDOW_ROOT
+assert "x = screenSpaceSafeInsetLeft" in WINDOW_ROOT
 assert 'iosRuntimeDiagnosticInt("touchJumpMinimumPulseMs", 120, 0, 500)' in VIRTUAL_PAD
 application_source = (ROOT / "interface/src/Application.cpp").read_text()
 assert "OVERTE_IOS_LOCOMOTION_GATE stage=active" in application_source

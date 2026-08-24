@@ -721,11 +721,17 @@ void TabletProxy::resizeAndroidTablet(int width, int height) {
             || surfaceHeight <= topInset + bottomInset) {
         return;
     }
+#if defined(Q_OS_IOS)
     // OffscreenUi itself is already sized to UIKit's safe-content rect. Its
     // children therefore use a local (0, 0) origin; applying the native inset
     // here a second time clips the lower part of the tablet and offsets every
     // hit target from the pixels sent to the Vulkan HUD.
     _desktopWindow->setPosition(0, 0);
+#else
+    // Android's offscreen surface covers the complete display, so its tablet
+    // remains inset from the physical rounded-corner and status-bar edges.
+    _desktopWindow->setPosition(leftInset, topInset);
+#endif
     _desktopWindow->setSize(surfaceWidth - leftInset - rightInset,
                             surfaceHeight - topInset - bottomInset);
 #if defined(Q_OS_IOS)
