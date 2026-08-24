@@ -309,8 +309,19 @@
         // that observable content-loaded state is reached, allow at most 45
         // minutes since real progress; incomplete content retains the faster
         // 20-minute stall bound. Readiness and capture criteria are unchanged.
+        // Entities.isLoaded() becomes true only after the model has completed
+        // its first render preparation. On Apple Software Renderer that first
+        // frame consists of several sequential, multi-minute GL draws. Do not
+        // require the result of those draws in order to classify the state as
+        // an active first-frame render; doing so makes the shorter incomplete-
+        // content timeout circular. The inventory, import, and raw queues must
+        // already prove that all requested scene content is locally available.
         var firstFrameRenderPending = snapshotStage === "waiting" &&
-            contentLoaded;
+            Test.isServerlessSceneImportComplete() &&
+            inventory.entity_count >= expectedEntityCount &&
+            inventory.found_expected_model_count === expectedModelNames.length &&
+            inventory.found_expected_landmark_count === expectedLandmarkNames.length &&
+            resourceQueuesEmpty(resources);
         var progressStallLimit = firstFrameRenderPending ? 2700000 : 1200000;
         if (snapshotStage === "waiting" &&
                 Date.now() - lastProgressAt >= progressStallLimit) {

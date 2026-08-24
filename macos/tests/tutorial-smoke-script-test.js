@@ -196,13 +196,13 @@ function createRun() {
 {
     const run = createRun();
     run.state.importComplete = true;
-    run.state.modelsLoaded = true;
+    run.state.modelsLoaded = false;
     run.state.queuesIdle = true;
     run.script.interval();
     run.clock.now += 1200000;
     run.script.interval();
     assert.strictEqual(run.script.stopped, false,
-        "fully loaded content needs the measured first software-frame grace");
+        "an inventory awaiting its first model draws needs the measured software-frame grace");
     run.clock.now += 1499999;
     run.script.interval();
     assert.strictEqual(run.script.stopped, false,
