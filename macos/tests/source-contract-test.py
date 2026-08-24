@@ -1441,6 +1441,8 @@ for early_runtime_reuse_contract in (
     "'Verify application bundle'",
     "'Upload application bundle immediately'",
     "completedSource || applicationArtifactCheckpoint",
+    "run.status === 'completed' && run.conclusion === 'cancelled'",
+    "if (checkpointEligible)",
     "source_readiness: completedSource",
     "application_artifact_checkpoint",
 ):
