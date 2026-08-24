@@ -110,9 +110,13 @@ class AndroidBranchTopologyTest(unittest.TestCase):
 
     def test_workflow_uses_targeted_history_fetch(self):
         source = WORKFLOW.read_text()
-        self.assertNotIn("fetch-depth: 0", source)
-        self.assertIn("fetch-depth: 2", source)
-        self.assertIn("persist-credentials: false", source)
+        self.assertNotIn("actions/checkout", source)
+        self.assertIn("git init -q .", source)
+        self.assertIn("git sparse-checkout init --cone", source)
+        self.assertIn(".github/workflows", source)
+        self.assertIn("android/common/device_tests", source)
+        self.assertIn("--depth=2", source)
+        self.assertIn("refs/pull/$PULL_NUMBER/merge", source)
         self.assertIn("--filter=blob:none", source)
         self.assertIn("--unshallow", source)
         self.assertIn('for branch in android-main android-vr "$TARGET_BRANCH"', source)
@@ -125,7 +129,7 @@ class AndroidBranchTopologyTest(unittest.TestCase):
         self.commit("docs/topic", "roadmap\n")
         run(self.repo, "checkout", "-q", "android-vr-pico")
         run(self.repo, "merge", "-q", "--no-ff", "-m", "pull request", "topic")
-        run(self.repo, "branch", "pr-merge", revision(self.repo))
+        pull_request_merge = revision(self.repo)
 
         with tempfile.TemporaryDirectory(prefix="android-topology-fetch-") as root:
             remote = Path(root) / "remote.git"
@@ -135,12 +139,29 @@ class AndroidBranchTopologyTest(unittest.TestCase):
                 check=True,
             )
             run(remote, "config", "uploadpack.allowFilter", "true")
-            subprocess.run(
-                [
-                    "git", "clone", "-q", "--depth=2", "--branch", "pr-merge",
-                    remote.resolve().as_uri(), str(shallow),
-                ],
-                check=True,
+            run(remote, "update-ref", "refs/pull/1/merge", pull_request_merge)
+
+            shallow.mkdir()
+            run(shallow, "init", "-q")
+            run(shallow, "remote", "add", "origin", remote.resolve().as_uri())
+            run(shallow, "sparse-checkout", "init", "--cone")
+            run(
+                shallow,
+                "sparse-checkout",
+                "set",
+                ".github/workflows",
+                "tests",
+                "android/common/device_tests",
+            )
+            run(
+                shallow,
+                "fetch",
+                "-q",
+                "--no-tags",
+                "--depth=2",
+                "--filter=blob:none",
+                "origin",
+                "+refs/pull/1/merge:refs/remotes/origin/pull-request-merge",
             )
             run(
                 shallow,
@@ -154,6 +175,13 @@ class AndroidBranchTopologyTest(unittest.TestCase):
                 "+refs/heads/android-vr:refs/remotes/origin/android-vr",
                 "+refs/heads/android-vr-pico:refs/remotes/origin/android-vr-pico",
             )
+            run(
+                shallow,
+                "checkout",
+                "-q",
+                "--detach",
+                "refs/remotes/origin/pull-request-merge",
+            )
 
             self.assertEqual(
                 "false",
@@ -162,6 +190,10 @@ class AndroidBranchTopologyTest(unittest.TestCase):
                      "--is-shallow-repository"],
                     text=True,
                 ).strip(),
+            )
+            self.assertTrue((shallow / "tests/device/core").is_file())
+            self.assertTrue(
+                (shallow / "android/common/device_tests/transport").is_file()
             )
             self.assertEqual(
                 [],
