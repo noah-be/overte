@@ -34,6 +34,11 @@ on:
         required: false
         default: org.overte.interface.sideload.b456
         type: string
+      checkpoint_branch:
+        description: Branch owning durable dependency artifacts; empty uses the requested ref
+        required: false
+        default: ''
+        type: string
   workflow_call:
     inputs:
       qt_host_cache_key:
@@ -66,6 +71,11 @@ on:
         description: Stable Sideloadly base bundle identifier used by fast-dev builds
         required: false
         default: org.overte.interface.sideload.b456
+        type: string
+      checkpoint_branch:
+        description: Branch owning durable dependency artifacts; empty uses the requested ref
+        required: false
+        default: ''
         type: string
 
 permissions:
@@ -194,7 +204,7 @@ jobs:
           python3 ios/ci/qt-checkpoint-artifact.py probe \
             --artifact-prefix "${{ steps.v8-cache-key.outputs.artifact-prefix }}" \
             --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-branch "${{ inputs.checkpoint_branch || github.ref_name }}" \
             --max-age-days 75 \
             --github-output "$GITHUB_OUTPUT"
 
@@ -210,7 +220,7 @@ jobs:
             --kind v8 \
             --cache-key "${{ steps.v8-cache-key.outputs.key }}" \
             --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-branch "${{ inputs.checkpoint_branch || github.ref_name }}" \
             --max-age-days 75 \
             --install-root "${{ github.workspace }}/build-ios/external" \
             --github-output "$GITHUB_OUTPUT"
@@ -226,7 +236,7 @@ jobs:
             --kind v8 \
             --cache-key "${{ steps.v8-cache-key.outputs.legacy-cache-key }}" \
             --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-branch "${{ inputs.checkpoint_branch || github.ref_name }}" \
             --max-age-days 21 \
             --install-root "${{ github.workspace }}/build-ios/external" \
             --github-output "$GITHUB_OUTPUT"
@@ -475,7 +485,7 @@ jobs:
             --kind host \
             --cache-key "${{ inputs.qt_host_cache_key }}" \
             --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-branch "${{ inputs.checkpoint_branch || github.ref_name }}" \
             --install-root "${{ github.workspace }}/build-ios/qt-install/qt" \
             --github-output "$GITHUB_OUTPUT"
 
@@ -503,7 +513,7 @@ jobs:
             --kind ios \
             --cache-key "${{ inputs.qt_ios_cache_key }}" \
             --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-branch "${{ inputs.checkpoint_branch || github.ref_name }}" \
             --install-root "${{ github.workspace }}/build-ios/qt-install/qt" \
             --github-output "$GITHUB_OUTPUT"
 
@@ -639,7 +649,7 @@ jobs:
           python3 ios/ci/qt-checkpoint-artifact.py probe \
             --artifact-prefix "${{ steps.conan-cache-key.outputs.artifact-prefix }}" \
             --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-branch "${{ inputs.checkpoint_branch || github.ref_name }}" \
             --max-age-days 21 \
             --github-output "$GITHUB_OUTPUT"
 
@@ -655,7 +665,7 @@ jobs:
             --kind conan \
             --cache-key "${{ steps.conan-cache-key.outputs.key }}" \
             --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-branch "${{ inputs.checkpoint_branch || github.ref_name }}" \
             --max-age-days 21 \
             --install-root "${{ github.workspace }}/build-ios" \
             --github-output "$GITHUB_OUTPUT"

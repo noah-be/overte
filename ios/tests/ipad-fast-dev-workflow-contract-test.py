@@ -14,6 +14,7 @@ assert "'fix/ios/ipad-fast-dev-*'" in FAST and "pull_request:" not in FAST
 assert "contains(github.event.head_commit.message, '[ipad-fast]')" in FAST
 assert "ios-qt-source.yml" in FAST and "ios-integrated.yml" in FAST
 assert FAST.count("fast_dev: true") == 2
+assert FAST.count("checkpoint_branch: apple-ios") == 2
 assert "bundle_id: org.overte.interface.sideload.b456" in FAST
 assert "iphonesimulator" not in FAST
 assert "inputs.fast_dev" in INTEGRATED and "inputs.fast_dev" in QT_SOURCE

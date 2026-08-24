@@ -19,6 +19,11 @@ on:
         required: false
         default: false
         type: boolean
+      checkpoint_branch:
+        description: Branch owning durable Qt artifacts; empty uses the requested ref
+        required: false
+        default: ''
+        type: string
   workflow_call:
     inputs:
       target_sdk:
@@ -31,6 +36,11 @@ on:
         required: false
         default: false
         type: boolean
+      checkpoint_branch:
+        description: Branch owning durable Qt artifacts; empty uses the requested ref
+        required: false
+        default: ''
+        type: string
     outputs:
       qt_host_cache_key:
         description: Deterministic cache key containing the validated macOS Qt host tools
@@ -214,7 +224,7 @@ jobs:
           python3 ios/ci/qt-checkpoint-artifact.py probe \
             --artifact-prefix "${{ steps.cache-key.outputs.host_artifact_prefix }}" \
             --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-branch "${{ inputs.checkpoint_branch || github.ref_name }}" \
             --max-age-days 21 \
             --github-output "$GITHUB_OUTPUT"
 
@@ -227,7 +237,7 @@ jobs:
           python3 ios/ci/qt-checkpoint-artifact.py probe \
             --artifact-prefix "${{ steps.cache-key.outputs.ios_artifact_prefix }}" \
             --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-branch "${{ inputs.checkpoint_branch || github.ref_name }}" \
             --max-age-days 21 \
             --github-output "$GITHUB_OUTPUT"
 
@@ -243,7 +253,7 @@ jobs:
             --kind host \
             --cache-key "${{ steps.cache-key.outputs.host }}" \
             --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-branch "${{ inputs.checkpoint_branch || github.ref_name }}" \
             --install-root "$QT_INSTALL_ROOT" \
             --github-output "$GITHUB_OUTPUT"
 
@@ -259,7 +269,7 @@ jobs:
             --kind ios \
             --cache-key "${{ steps.cache-key.outputs.ios }}" \
             --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-branch "${{ inputs.checkpoint_branch || github.ref_name }}" \
             --install-root "$QT_INSTALL_ROOT" \
             --github-output "$GITHUB_OUTPUT"
 

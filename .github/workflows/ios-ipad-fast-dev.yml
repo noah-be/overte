@@ -29,6 +29,7 @@ jobs:
     with:
       target_sdk: iphoneos
       fast_dev: true
+      checkpoint_branch: apple-ios
 
   build-current-ipa:
     needs: provision-qt-ios
@@ -43,3 +44,4 @@ jobs:
       qt_ios_artifact_prefix: ${{ needs.provision-qt-ios.outputs.qt_ios_artifact_prefix }}
       fast_dev: true
       bundle_id: org.overte.interface.sideload.b456
+      checkpoint_branch: apple-ios
