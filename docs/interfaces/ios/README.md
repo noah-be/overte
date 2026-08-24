@@ -68,6 +68,7 @@ using the separately authorized Sideloadly signing and installation path. See
 
 ## Documentation
 
+- [Roadmap and current milestone](ROADMAP.md)
 - [Complete build guide](BUILD.md)
 - [Testing](TESTING.md)
 - [Touch UI architecture and validation](TOUCH_UI.md)
