@@ -25,6 +25,8 @@
     var bestLoadedModelCount = 0;
     var bestOutstandingWork = Number.MAX_VALUE;
     var bestPresentCount = 0;
+    var textureReadinessSignature = "";
+    var textureReadinessUnchangedAt = 0;
     var completed = false;
     var expectedEntityCount = 40;
     var expectedModelNames = [
@@ -68,12 +70,20 @@
 
     function queueState() {
         Stats.forceUpdateStats();
+        var nativeQueues = Test.getResourceQueueStatus();
+        var gpuStats = Render.getConfig("Stats") || {};
         return {
             downloads: finiteNumber(Stats.downloads),
             downloads_pending: finiteNumber(Stats.downloadsPending),
             processing: finiteNumber(Stats.processing),
             processing_pending: finiteNumber(Stats.processingPending),
-            texture_pending_mb: finiteNumber(Stats.texturePendingTransfers)
+            texture_pending_mb: finiteNumber(Stats.texturePendingTransfers),
+            texture_transfer_count: finiteNumber(nativeQueues.texture_transfers),
+            texture_transfer_bytes: finiteNumber(nativeQueues.texture_transfer_bytes),
+            texture_allocated_bytes: finiteNumber(gpuStats.textureResourceGPUMemSize),
+            texture_populated_bytes: finiteNumber(
+                gpuStats.textureResourcePopulatedGPUMemSize),
+            texture_complete: Boolean(Test.isTextureLoadingComplete())
         };
     }
 
@@ -82,11 +92,34 @@
             resources.downloads_pending === 0 &&
             resources.processing === 0 &&
             resources.processing_pending === 0 &&
-            resources.texture_pending_mb === 0;
+            resources.texture_pending_mb === 0 &&
+            resources.texture_transfer_count === 0 &&
+            resources.texture_transfer_bytes === 0;
     }
 
     function resourcesIdle(resources) {
-        return resourceQueuesEmpty(resources) && Test.isTextureLoadingComplete();
+        return resourceQueuesEmpty(resources) && resources.texture_complete;
+    }
+
+    function textureReadinessStalled(contentLoaded, resources) {
+        if (!contentLoaded || resources.texture_complete) {
+            textureReadinessSignature = "";
+            textureReadinessUnchangedAt = 0;
+            return false;
+        }
+        var signature = JSON.stringify({
+            allocated_bytes: resources.texture_allocated_bytes,
+            populated_bytes: resources.texture_populated_bytes,
+            transfer_count: resources.texture_transfer_count,
+            transfer_bytes: resources.texture_transfer_bytes
+        });
+        if (signature !== textureReadinessSignature) {
+            textureReadinessSignature = signature;
+            textureReadinessUnchangedAt = Date.now();
+            print("OVERTE_MACOS_TUTORIAL texture_readiness_pending state=" + signature);
+            return false;
+        }
+        return Date.now() - textureReadinessUnchangedAt >= 120000;
     }
 
     function inspectTutorial(entities) {
@@ -207,7 +240,8 @@
         var entities = Entities.findEntities(MyAvatar.position, 16384);
         var inventory = inspectTutorial(entities);
         var resources = queueState();
-        var ready = tutorialReady(inventory, resources);
+        var contentLoaded = tutorialContentLoaded(inventory, resources);
+        var ready = contentLoaded && resourcesIdle(resources);
         var presentCount = finiteNumber(Test.getPresentCount());
         var outstandingWork = resources.downloads + resources.downloads_pending +
             resources.processing + resources.processing_pending +
@@ -263,6 +297,11 @@
             snapshotPendingReported = true;
             print("OVERTE_MACOS_TUTORIAL snapshot_still_pending");
         }
+        if (snapshotStage === "waiting" &&
+                textureReadinessStalled(contentLoaded, resources)) {
+            finish(false, "tutorial_texture_readiness_stalled");
+            return;
+        }
         // A software-rendered first frame consists of multiple sequential GL
         // draws. Run 32688580808 showed that all 40 entities, all 16 expected
         // models, all landmarks, and every raw queue were ready while those
@@ -271,7 +310,7 @@
         // minutes since real progress; incomplete content retains the faster
         // 20-minute stall bound. Readiness and capture criteria are unchanged.
         var firstFrameRenderPending = snapshotStage === "waiting" &&
-            tutorialContentLoaded(inventory, resources);
+            contentLoaded;
         var progressStallLimit = firstFrameRenderPending ? 2700000 : 1200000;
         if (snapshotStage === "waiting" &&
                 Date.now() - lastProgressAt >= progressStallLimit) {

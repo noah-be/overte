@@ -51,6 +51,9 @@ function createRun() {
         Test: {
             getPresentCount() { return presentCount; },
             isTextureLoadingComplete() { return texturesComplete; },
+            getResourceQueueStatus() {
+                return { texture_transfers: 0, texture_transfer_bytes: 0 };
+            },
             saveObject(value, name) {
                 operations.push("save:" + name);
                 saved.push({ value, name });
@@ -66,6 +69,15 @@ function createRun() {
             forceUpdateStats() {}
         },
         Window: windowObject,
+        Render: {
+            getConfig(name) {
+                assert.strictEqual(name, "Stats");
+                return {
+                    textureResourceGPUMemSize: 100,
+                    textureResourcePopulatedGPUMemSize: 80
+                };
+            }
+        },
         Entities: {
             findEntities() { return entityIDs; },
             isLoaded() { return modelLoaded; },
@@ -112,6 +124,20 @@ function createRun() {
         setPresentCount(value) { presentCount = value; },
         setTexturesComplete(value) { texturesComplete = value; }
     };
+}
+
+{
+    const run = createRun();
+    run.setTexturesComplete(false);
+    run.script.interval();
+    run.clock.now += 119999;
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, false,
+        "a briefly delayed texture signal must retain a bounded grace");
+    run.clock.now += 1;
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, true,
+        "unchanged texture accounting must fail before the Hub deadline");
 }
 
 {

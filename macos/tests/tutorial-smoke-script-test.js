@@ -44,6 +44,7 @@ function createRun() {
         importComplete: false,
         modelsLoaded: false,
         queuesIdle: false,
+        texturesComplete: true,
         presentCount: 10
     };
     const output = [];
@@ -82,8 +83,22 @@ function createRun() {
         Test: {
             getPresentCount() { return state.presentCount; },
             isServerlessSceneImportComplete() { return state.importComplete; },
-            isTextureLoadingComplete() { return state.queuesIdle; },
+            isTextureLoadingComplete() {
+                return state.queuesIdle && state.texturesComplete;
+            },
+            getResourceQueueStatus() {
+                return { texture_transfers: 0, texture_transfer_bytes: 0 };
+            },
             saveObject(value, name) { saved[name] = value; }
+        },
+        Render: {
+            getConfig(name) {
+                assert.strictEqual(name, "Stats");
+                return {
+                    textureResourceGPUMemSize: 100,
+                    textureResourcePopulatedGPUMemSize: 80
+                };
+            }
         },
         Entities: {
             findEntities() { return records.map((record) => record.id); },
@@ -108,6 +123,25 @@ function createRun() {
     assert.strictEqual(typeof script.interval, "function");
     assert.strictEqual(typeof window.handler, "function");
     return { clock, output, saved, script, snapshots, state, window };
+}
+
+{
+    const run = createRun();
+    run.state.importComplete = true;
+    run.state.modelsLoaded = true;
+    run.state.queuesIdle = true;
+    run.state.texturesComplete = false;
+    run.script.interval();
+    run.clock.now += 119999;
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, false,
+        "a changing or briefly delayed texture signal must retain a bounded grace");
+    run.clock.now += 1;
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, true,
+        "unchanged texture accounting must fail before the 55-minute deadline");
+    assert(run.output.some((line) =>
+        line.includes("tutorial_texture_readiness_stalled")));
 }
 
 {
