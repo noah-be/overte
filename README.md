@@ -44,6 +44,9 @@ the reviewed order and merge rules are documented in
 Automated enforcement and permanent-branch policy are documented separately in
 the [`branch governance policy`](docs/BRANCH_GOVERNANCE.md).
 
+The current repository milestone, product order, and single next project action
+are maintained in the experimental fork [`roadmap`](docs/ROADMAP.md).
+
 ### Interfaces in development
 
 The four ports use a shared documentation layout described in
