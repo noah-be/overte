@@ -1,0 +1,191 @@
+# Copyright 2026 Overte e.V.
+# SPDX-License-Identifier: Apache-2.0
+
+name: macOS Quick Iterate
+
+on:
+  workflow_dispatch:
+    inputs:
+      rebuild:
+        description: Build a fresh app first; otherwise reuse artifact_run_id
+        required: true
+        default: false
+        type: boolean
+      artifact_run_id:
+        description: Existing successful macOS bootstrap run (required unless rebuild is enabled)
+        required: false
+        default: ''
+        type: string
+      target_arch:
+        description: Architecture of the app artifact and runtime runner
+        required: true
+        default: x86_64
+        type: choice
+        options: [x86_64, arm64]
+      arm_runner_size:
+        description: ARM runner size used by delegated workflows
+        required: true
+        default: standard
+        type: choice
+        options: [standard, xlarge]
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: macos-quick-iterate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  startup-tutorial-hub:
+    runs-on: ubuntu-latest
+    timeout-minutes: 480
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: noah-be/overte
+      SOURCE_REF: ${{ github.ref_name }}
+    steps:
+      - name: Validate quick-iterate request
+        env:
+          REBUILD: ${{ inputs.rebuild }}
+          ARTIFACT_RUN_ID: ${{ inputs.artifact_run_id }}
+        run: |
+          set -euo pipefail
+          if [[ "$SOURCE_REF" != "apple-macos" ]]; then
+            echo "Quick Iterate must run from the trusted apple-macos branch" >&2
+            exit 1
+          fi
+          if [[ "$REBUILD" != "true" && ! "$ARTIFACT_RUN_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo "artifact_run_id must be a positive bootstrap run ID when rebuild is disabled" >&2
+            exit 1
+          fi
+          if [[ "$REBUILD" == "true" && -n "$ARTIFACT_RUN_ID" ]]; then
+            echo "artifact_run_id must be empty when rebuild is enabled" >&2
+            exit 1
+          fi
+
+      - name: Build fresh app only when required
+        id: app
+        env:
+          REBUILD: ${{ inputs.rebuild }}
+          ARTIFACT_RUN_ID: ${{ inputs.artifact_run_id }}
+          TARGET_ARCH: ${{ inputs.target_arch }}
+          ARM_RUNNER_SIZE: ${{ inputs.arm_runner_size }}
+        run: |
+          set -euo pipefail
+          if [[ "$REBUILD" != "true" ]]; then
+            echo "run_id=$ARTIFACT_RUN_ID" >> "$GITHUB_OUTPUT"
+            echo "Reusing bootstrap run $ARTIFACT_RUN_ID"
+            exit 0
+          fi
+
+          previous_id="$(gh run list --repo "$GH_REPO" --workflow macos-bootstrap.yml \
+            --branch "$SOURCE_REF" --event workflow_dispatch --limit 1 \
+            --json databaseId --jq '.[0].databaseId // 0')"
+          gh workflow run macos-bootstrap.yml --repo "$GH_REPO" --ref "$SOURCE_REF" \
+            -f run_native_tests=false -f target_arch="$TARGET_ARCH" \
+            -f arm_runner_size="$ARM_RUNNER_SIZE"
+
+          build_run_id=''
+          for _ in $(seq 1 20); do
+            build_run_id="$(gh run list --repo "$GH_REPO" --workflow macos-bootstrap.yml \
+              --branch "$SOURCE_REF" --event workflow_dispatch --limit 20 \
+              --json databaseId --jq "[.[] | select(.databaseId > $previous_id)] | max_by(.databaseId).databaseId // empty")"
+            [[ -n "$build_run_id" ]] && break
+            sleep 15
+          done
+          [[ -n "$build_run_id" ]] || { echo "Could not identify delegated bootstrap run" >&2; exit 1; }
+          echo "Fresh bootstrap: https://github.com/$GH_REPO/actions/runs/$build_run_id"
+
+          # The application artifact is a durable checkpoint before the
+          # bootstrap's broad smoke suite. Release the quick runtime as soon as
+          # that checkpoint exists; do not wait for unrelated bootstrap gates.
+          while true; do
+            checkpoint="$(gh run view "$build_run_id" --repo "$GH_REPO" \
+              --json jobs --jq '[.jobs[].steps[] | select(.name == "Upload application bundle immediately" and .conclusion == "success")] | length')"
+            [[ "$checkpoint" == "1" ]] && break
+            status="$(gh run view "$build_run_id" --repo "$GH_REPO" --json status --jq .status)"
+            if [[ "$status" == "completed" ]]; then
+              gh run view "$build_run_id" --repo "$GH_REPO"
+              echo "Bootstrap ended before its reusable app checkpoint" >&2
+              exit 1
+            fi
+            sleep 60
+          done
+          echo "run_id=$build_run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Run only startup, tutorial, and Hub validation
+        id: runtime
+        env:
+          ARTIFACT_RUN_ID: ${{ steps.app.outputs.run_id }}
+          TARGET_ARCH: ${{ inputs.target_arch }}
+          ARM_RUNNER_SIZE: ${{ inputs.arm_runner_size }}
+          REBUILD: ${{ inputs.rebuild }}
+        run: |
+          set -euo pipefail
+          previous_id="$(gh run list --repo "$GH_REPO" --workflow macos-runtime.yml \
+            --branch "$SOURCE_REF" --event workflow_dispatch --limit 1 \
+            --json databaseId --jq '.[0].databaseId // 0')"
+          gh workflow run macos-runtime.yml --repo "$GH_REPO" --ref "$SOURCE_REF" \
+            -f artifact_run_id="$ARTIFACT_RUN_ID" \
+            -f target_arch="$TARGET_ARCH" -f arm_runner_size="$ARM_RUNNER_SIZE" \
+            -f runtime_runner=github-hosted \
+            -f run_online=true -f run_serverless=false -f run_tutorial=true \
+            -f run_performance=false -f profile_matrix_mode=off \
+            -f profile_repeats=1 -f run_online_loading=false \
+            -f online_loading_target_mode=public -f online_loading_repeats=1 \
+            -f online_download_concurrencies=10 -f stability_iterations=0 \
+            -f run_transition=false -f online_location=hifi://overte_hub
+
+          runtime_run_id=''
+          for _ in $(seq 1 20); do
+            runtime_run_id="$(gh run list --repo "$GH_REPO" --workflow macos-runtime.yml \
+              --branch "$SOURCE_REF" --event workflow_dispatch --limit 20 \
+              --json databaseId --jq "[.[] | select(.databaseId > $previous_id)] | max_by(.databaseId).databaseId // empty")"
+            [[ -n "$runtime_run_id" ]] && break
+            sleep 15
+          done
+          [[ -n "$runtime_run_id" ]] || { echo "Could not identify delegated runtime run" >&2; exit 1; }
+          echo "run_id=$runtime_run_id" >> "$GITHUB_OUTPUT"
+          echo "Runtime proof: https://github.com/$GH_REPO/actions/runs/$runtime_run_id"
+
+          bootstrap_released=false
+          while true; do
+            if [[ "$REBUILD" == "true" && "$bootstrap_released" == "false" ]]; then
+              restored="$(gh run view "$runtime_run_id" --repo "$GH_REPO" \
+                --json jobs --jq '[.jobs[].steps[] | select(.name == "Restore built application checkpoint" and .conclusion == "success")] | length')"
+              if [[ "$restored" == "1" ]]; then
+                build_status="$(gh run view "$ARTIFACT_RUN_ID" --repo "$GH_REPO" --json status --jq .status)"
+                if [[ "$build_status" != "completed" ]]; then
+                  gh run cancel "$ARTIFACT_RUN_ID" --repo "$GH_REPO"
+                  echo "Stopped delegated bootstrap after the runtime restored its durable app artifact"
+                fi
+                bootstrap_released=true
+              fi
+            fi
+            status="$(gh run view "$runtime_run_id" --repo "$GH_REPO" --json status --jq .status)"
+            [[ "$status" == "completed" ]] && break
+            sleep 60
+          done
+          conclusion="$(gh run view "$runtime_run_id" --repo "$GH_REPO" --json conclusion --jq .conclusion)"
+          [[ "$conclusion" == "success" ]] || {
+            gh run view "$runtime_run_id" --repo "$GH_REPO"
+            exit 1
+          }
+
+      - name: Publish proof links
+        if: always()
+        env:
+          APP_RUN_ID: ${{ steps.app.outputs.run_id }}
+          RUNTIME_RUN_ID: ${{ steps.runtime.outputs.run_id }}
+          REBUILD: ${{ inputs.rebuild }}
+        run: |
+          {
+            echo '## macOS Quick Iterate'
+            echo
+            echo "- App artifact: https://github.com/$GH_REPO/actions/runs/$APP_RUN_ID"
+            echo "- Startup + tutorial + Hub proof: https://github.com/$GH_REPO/actions/runs/$RUNTIME_RUN_ID"
+            echo '- Mandatory gates: startup, bundled tutorial screenshot, overte_hub screenshot'
+            echo '- Skipped: synthetic serverless fixture, performance, profiles, loading benchmark, transition, stability'
+          } >> "$GITHUB_STEP_SUMMARY"
