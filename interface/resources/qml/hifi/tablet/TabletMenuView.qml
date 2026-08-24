@@ -23,7 +23,7 @@ FocusScope {
     property alias currentItem: listView.currentItem
     property alias model: listView.model
     property bool isSubMenu: false
-    signal selected(var item)
+    signal selected(var item, int itemKind, var childMenu)
 
     HifiConstants { id: hifi }
     HifiControls.TouchUiMetrics {
@@ -39,7 +39,7 @@ FocusScope {
         }
         listView.currentIndex = itemIndex
         Tablet.playSound(TabletEnums.ButtonClick)
-        root.selected(sourceItem)
+        root.selected(sourceItem, menuItem.itemKind, menuItem.childMenu)
     }
 
     Rectangle {
@@ -88,25 +88,29 @@ FocusScope {
 
         delegate: TabletMenuItem {
             id: menuItem
-            text: name
-            source: item
-            platformEnabled: phoneSupported
+            text: model.name
+            source: model.item
+            itemKind: model.itemKind
+            childMenu: model.childMenu
+            sourceVisible: model.itemVisible
+            sourceEnabled: model.itemEnabled
+            platformEnabled: model.phoneSupported
             touchTextScale: touchMetrics.textScale
             minimumControlHeight: touchMetrics.adaptiveMinimumControlHeight
-            activeFocusOnTab: name !== "" && item.enabled && phoneSupported
-            Accessible.role: item.type === MenuItemType.Menu
+            activeFocusOnTab: model.name !== "" && model.itemEnabled && model.phoneSupported
+            Accessible.role: model.itemKind === MenuItemType.Menu
                 ? Accessible.Button : Accessible.MenuItem
-            Accessible.name: name
-            Accessible.description: phoneSupported
-                ? (item.type === MenuItemType.Menu
+            Accessible.name: model.name
+            Accessible.description: model.phoneSupported
+                ? (model.itemKind === MenuItemType.Menu
                     ? qsTr("Open submenu") : qsTr("Activate menu item"))
                 : qsTr("Unavailable on this device")
-            Accessible.onPressAction: root.activateItem(menuItem, item, index)
+            Accessible.onPressAction: root.activateItem(menuItem, model.item, index)
             onImplicitHeightChanged: listView !== null ? listView.scheduleRecalcSize() : 0
             onImplicitWidthChanged: listView !== null ? listView.scheduleRecalcSize() : 0
 
             MouseArea {
-                enabled: name !== "" && item.enabled && phoneSupported
+                enabled: model.name !== "" && model.itemEnabled && model.phoneSupported
                 anchors.fill: parent
                 Accessible.ignored: true
                 hoverEnabled: touchMetrics.hoverSupported
@@ -118,12 +122,12 @@ FocusScope {
                     listView.currentIndex = index
                 }
 
-                onClicked: root.activateItem(menuItem, item, index)
+                onClicked: root.activateItem(menuItem, model.item, index)
             }
 
-            Keys.onReturnPressed: root.activateItem(menuItem, item, index)
-            Keys.onEnterPressed: root.activateItem(menuItem, item, index)
-            Keys.onSpacePressed: root.activateItem(menuItem, item, index)
+            Keys.onReturnPressed: root.activateItem(menuItem, model.item, index)
+            Keys.onEnterPressed: root.activateItem(menuItem, model.item, index)
+            Keys.onSpacePressed: root.activateItem(menuItem, model.item, index)
         }
 
         function scheduleRecalcSize() {
@@ -174,6 +178,10 @@ FocusScope {
 
     function previousItem() { listView.currentIndex = (listView.currentIndex + listView.count - 1) % listView.count; }
     function nextItem() { listView.currentIndex = (listView.currentIndex + listView.count + 1) % listView.count; }
-    function selectCurrentItem() { if (listView.currentIndex != -1) root.selected(currentItem.source); }
+    function selectCurrentItem() {
+        if (listView.currentIndex != -1) {
+            root.selected(currentItem.source, currentItem.itemKind, currentItem.childMenu);
+        }
+    }
     function previousPage() { root.parent.pop(); }
 }

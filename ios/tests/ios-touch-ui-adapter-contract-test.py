@@ -42,6 +42,24 @@ TABLET_MESSAGE_BOX = (ROOT / "interface/resources/qml/dialogs/TabletMessageBox.q
 IOS_AUDIO_CONFIGURATION = (
     ROOT / "interface/resources/qml/hifi/audio/+ios/AudioTouchConfiguration.qml"
 ).read_text()
+IOS_SETTINGS_CONFIGURATION = (
+    ROOT / "scripts/system/settings/qml/+ios/SettingsTouchConfiguration.qml"
+).read_text()
+IOS_AVATAR_CONFIGURATION = (
+    ROOT / "interface/resources/qml/hifi/avatarapp/+ios/AvatarTouchConfiguration.qml"
+).read_text()
+PAL = (ROOT / "interface/resources/qml/hifi/Pal.qml").read_text()
+PLACES = (ROOT / "scripts/system/places/places.js").read_text()
+TABLET_MENU = (ROOT / "interface/resources/qml/hifi/tablet/TabletMenu.qml").read_text()
+TABLET_MENU_STACK = (
+    ROOT / "interface/resources/qml/hifi/tablet/TabletMenuStack.qml"
+).read_text()
+TABLET_MENU_VIEW = (
+    ROOT / "interface/resources/qml/hifi/tablet/TabletMenuView.qml"
+).read_text()
+TABLET_MENU_ITEM = (
+    ROOT / "interface/resources/qml/hifi/tablet/TabletMenuItem.qml"
+).read_text()
 SETTINGS_ADVANCED = (ROOT / "scripts/system/settings/qml/AdvancedOptions.qml").read_text()
 SETTINGS_NUMBER = (ROOT / "scripts/system/settings/qml/SettingNumber.qml").read_text()
 SETTINGS_SLIDER = (ROOT / "scripts/system/settings/qml/SettingSlider.qml").read_text()
@@ -113,6 +131,17 @@ assert "addMenuWrap" in WRAPPED_MENU and "addItemWrap" in WRAPPED_MENU
 assert 'loadUrl(PathUtils::qmlUrl("controls/WrappedMenu.qml"))' in VR_MENU
 assert 'loadFromModule("QtQuick.Controls", "MenuItem")' in VR_MENU
 assert 'loadFromModule("QtQuick.Controls", "MenuSeparator")' in VR_MENU
+assert "function menuCount(menu)" in TABLET_MENU
+assert "function menuItemAt(menu, index)" in TABLET_MENU
+assert "function childMenuAt(menu, index)" in TABLET_MENU
+assert "menuPopperUpper.popup(rootMenu);" in TABLET_MENU
+assert "function menuCount(menu)" in TABLET_MENU_STACK
+assert "function menuItemAt(menu, index)" in TABLET_MENU_STACK
+assert "function childMenuAt(menu, index)" in TABLET_MENU_STACK
+assert "pendingItem.triggered();" in TABLET_MENU_STACK
+assert "itemKind: model.itemKind" in TABLET_MENU_VIEW
+assert "property int itemKind: MenuItemType.Item" in TABLET_MENU_ITEM
+assert "stage=tablet-menu-open" in TABLET_SOURCE
 
 assert "Position:" in IOS_STATS
 assert "Present:" in IOS_STATS
@@ -169,6 +198,16 @@ assert "focus: false" in TABLET_ADDRESS
 assert "addressLine.forceActiveFocus()" in TABLET_ADDRESS
 assert "import QtQuick.Dialogs as OriginalDialogs" in TABLET_MESSAGE_BOX
 assert "HifiControls.TouchUiMetrics" in IOS_AUDIO_CONFIGURATION
+for adaptive_ios_configuration in (
+    IOS_SETTINGS_CONFIGURATION, IOS_AVATAR_CONFIGURATION,
+):
+    assert "TouchUiMetrics" in adaptive_ios_configuration
+assert "showGraphicsSettings: profile.graphicsSettingsAvailable" in IOS_SETTINGS_CONFIGURATION
+assert "favoritesFillBelowHeader: profile.screenSpacePresentation" in IOS_AVATAR_CONFIGURATION
+assert "import QtQuick.Controls 1." not in PAL
+assert "import QtQuick.Controls 2.3" in PAL
+assert 'PlatformInfo.getOperatingSystemType() === "IOS"' in PLACES
+assert "var useQmlApp = isIOS || !PlatformInfo.has3DHTML();" in PLACES
 for migrated_settings_qml in (SETTINGS_ADVANCED, SETTINGS_NUMBER, SETTINGS_SLIDER):
     assert "QtQuick.Controls.Styles" not in migrated_settings_qml
 assert "RegularExpressionValidator" in SETTINGS_NUMBER

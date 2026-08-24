@@ -31,7 +31,7 @@ Item {
         property var menuViewMaker: Component {
             TabletMenuView {
                 id: subMenu
-                onSelected: d.handleSelection(subMenu, currentItem, item)
+                onSelected: d.handleSelection(subMenu, currentItem, item, itemKind, childMenu)
             }
         }
         property var delay: Timer { // No setTimeout in QML.
@@ -57,7 +57,13 @@ Item {
                         (d.isAndroidPhoneTablet() && !d.isPhoneMenuItemSupported(pendingItem))) {
                     return;
                 }
-                pendingItem.trigger();
+                if (typeof pendingItem.trigger === "function") {
+                    pendingItem.trigger();
+                } else if (typeof pendingItem.triggered === "function") {
+                    // Qt 6 MenuItem exposes the triggered signal but no longer
+                    // provides the Qt 5 trigger() convenience method.
+                    pendingItem.triggered();
+                }
             }
         }
 
@@ -85,45 +91,126 @@ Item {
             closeLastMenu();
         }
 
-        function toModel(items, newMenu) {
+        function menuCount(menu) {
+            if (!menu) {
+                return 0;
+            }
+            if (typeof menu.count === "number") {
+                return menu.count;
+            }
+            var legacyItems = menu["items"];
+            return legacyItems ? legacyItems.length : 0;
+        }
+
+        function menuItemAt(menu, index) {
+            if (!menu) {
+                return null;
+            }
+            if (typeof menu.itemAt === "function") {
+                return menu.itemAt(index);
+            }
+            var legacyItems = menu["items"];
+            return legacyItems && index < legacyItems.length ? legacyItems[index] : null;
+        }
+
+        function childMenuAt(menu, index) {
+            if (!menu) {
+                return null;
+            }
+            if (typeof menu.menuAt === "function") {
+                return menu.menuAt(index);
+            }
+            var item = menuItemAt(menu, index);
+            return item && item.type === MenuItemType.Menu ? item : null;
+        }
+
+        function itemKind(item, childMenu) {
+            if (childMenu !== null) {
+                return MenuItemType.Menu;
+            }
+            if (item && item.type !== undefined) {
+                return item.type;
+            }
+            return item && item.text !== undefined
+                ? MenuItemType.Item : MenuItemType.Separator;
+        }
+
+        function itemLabel(item, kind, childMenu) {
+            if (kind === MenuItemType.Menu) {
+                return childMenu && childMenu.title !== undefined
+                    ? childMenu.title : item && item.text !== undefined ? item.text : "";
+            }
+            return item && item.text !== undefined ? item.text : "";
+        }
+
+        function toModel(menu) {
             var result = modelMaker.createObject(tabletMenu);
 
-            for (var i = 0; i < items.length; ++i) {
-                var item = items[i];
-                var phoneSupported = isPhoneMenuItemSupported(item);
+            for (var i = 0; i < menuCount(menu); ++i) {
+                var item = menuItemAt(menu, i);
+                var childMenu = childMenuAt(menu, i);
+                var kind = itemKind(item, childMenu);
+                var label = itemLabel(item, kind, childMenu);
+                var source = item || childMenu;
+                var phoneSupported = isPhoneMenuItemSupported(source, kind, label);
                 var unavailableSuffix = isAndroidPhoneTablet() && !phoneSupported
                     ? " (Unavailable on Android)" : "";
-                switch (item.type) {
+                var sourceVisible = kind === MenuItemType.Menu
+                    || !source || source.visible !== false;
+                var sourceEnabled = !source || source.enabled !== false;
+                switch (kind) {
                 case MenuItemType.Menu:
                     result.append({
-                        "name": item.title + unavailableSuffix,
-                        "item": item,
-                        "phoneSupported": phoneSupported
+                        "name": label + unavailableSuffix,
+                        "item": source,
+                        "itemKind": kind,
+                        "childMenu": childMenu,
+                        "phoneSupported": phoneSupported,
+                        "itemVisible": sourceVisible,
+                        "itemEnabled": sourceEnabled
                     })
                     break;
                 case MenuItemType.Item:
-                    if (item.text !== "Users Online") {
+                    if (label !== "Users Online") {
                         result.append({
-                            "name": item.text + unavailableSuffix,
-                            "item": item,
-                            "phoneSupported": phoneSupported
+                            "name": label + unavailableSuffix,
+                            "item": source,
+                            "itemKind": kind,
+                            "childMenu": null,
+                            "phoneSupported": phoneSupported,
+                            "itemVisible": sourceVisible,
+                            "itemEnabled": sourceEnabled
                         })
                     }
                     break;
                 case MenuItemType.Separator:
-                    result.append({"name": "", "item": item, "phoneSupported": true})
+                    result.append({
+                        "name": "",
+                        "item": source,
+                        "itemKind": kind,
+                        "childMenu": null,
+                        "phoneSupported": true,
+                        "itemVisible": sourceVisible,
+                        "itemEnabled": false
+                    })
                     break;
                 }
             }
             return result;
         }
 
-        function isPhoneMenuItemSupported(item) {
+        function isPhoneMenuItemSupported(item, kind, label) {
             if (!isAndroidPhoneTablet()) {
                 return true;
             }
 
-            var label = item.type === MenuItemType.Menu ? item.title : item.text;
+            if (kind === undefined) {
+                kind = item && item.type !== undefined ? item.type : MenuItemType.Item;
+            }
+            if (label === undefined) {
+                label = item && item.text !== undefined ? item.text
+                    : item && item.title !== undefined ? item.title : "";
+            }
             // Fail closed at the root. New desktop menus must be reviewed before
             // the phone tablet can trigger any of their actions.
             var supportedRootMenus = ["File", "View", "Navigate", "Settings"];
@@ -140,11 +227,11 @@ Item {
                 // The phone's dedicated SETTINGS app remains available separately.
                 "General..."
             ];
-            if (topMenu === null && item.type === MenuItemType.Menu
+            if (topMenu === null && kind === MenuItemType.Menu
                     && supportedRootMenus.indexOf(label) === -1) {
                 return false;
             }
-            if (item.type === MenuItemType.Item && unsupportedActions.indexOf(label) !== -1) {
+            if (kind === MenuItemType.Item && unsupportedActions.indexOf(label) !== -1) {
                 return false;
             }
 
@@ -210,12 +297,12 @@ Item {
             }
         }
 
-        function buildMenu(items) {
+        function buildMenu(menu) {
             // Menus must be childed to desktop for Z-ordering
             var newMenu = menuViewMaker.createObject(tabletMenu);
             console.debug('newMenu created: ', newMenu)
 
-            var model = toModel(items, newMenu);
+            var model = toModel(menu);
 
             newMenu.model = model;
             newMenu.isSubMenu = topMenu !== null;
@@ -224,7 +311,7 @@ Item {
             return newMenu;
         }
 
-        function handleSelection(parentMenu, selectedItem, item) {
+        function handleSelection(parentMenu, selectedItem, item, kind, childMenu) {
             if (isAndroidPhoneTablet() && !selectedItem.platformEnabled) {
                 return;
             }
@@ -232,16 +319,17 @@ Item {
                 popMenu();
             }
 
-            switch (item.type) {
+            switch (kind) {
                 case MenuItemType.Menu:
-                    var target = Qt.vector2d(topMenu.x, topMenu.y).plus(Qt.vector2d(selectedItem.x + 96, selectedItem.y));
-                    buildMenu(item.items, target).objectName = item.title;
+                    var menuTitle = childMenu && childMenu.title !== undefined
+                        ? childMenu.title : selectedItem.text;
+                    buildMenu(childMenu).objectName = menuTitle;
                     // show current menu level on nav bar
-                    breadcrumbText.text = item.title;
+                    breadcrumbText.text = menuTitle;
                     break;
 
                 case MenuItemType.Item:
-                    console.log("Triggering " + item.text)
+                    console.log("Triggering " + selectedItem.text)
                     // Don't block waiting for modal dialogs and such that the menu might open.
                     delay.trigger(item);
                     break;
@@ -250,9 +338,9 @@ Item {
 
     }
 
-    function popup(items) {
+    function popup(menu) {
         d.clearMenus();
-        d.buildMenu(items);
+        d.buildMenu(menu);
     }
 
     function closeLastMenu() {

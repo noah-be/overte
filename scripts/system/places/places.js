@@ -35,7 +35,11 @@
     var APP_NAME = "PLACES";
     var APP_URL = ROOT + "places.html";
     var APP_QML_URL = ROOT + "PicoPlaces.qml";
-    var useQmlApp = !PlatformInfo.has3DHTML();
+    // The iOS screen-space tablet cannot present the selected 3D web surface
+    // even when the renderer reports 3D HTML support.  Use the bundled Qt
+    // Quick client there, as the existing non-3DHTML clients already do.
+    var isIOS = PlatformInfo.getOperatingSystemType() === "IOS";
+    var useQmlApp = isIOS || !PlatformInfo.has3DHTML();
     var isAndroidPhone = typeof ANDROID_PHONE_INTERFACE !== "undefined" && ANDROID_PHONE_INTERFACE;
     var APP_ICON_INACTIVE = ROOT + "icons/appicon_i.png";
     var APP_ICON_ACTIVE = ROOT + "icons/appicon_a.png";

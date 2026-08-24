@@ -800,6 +800,13 @@ void TabletProxy::gotoMenuScreen(const QString& submenu) {
     auto offscreenUI = DependencyManager::get<OffscreenUi>();
     if (root && offscreenUI) {
         QObject* menu = offscreenUI->getRootMenu();
+#if defined(Q_OS_IOS)
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_UI_GATE stage=tablet-menu-open",
+            "root_valid=", menu != nullptr,
+            "root_count=", menu ? menu->property("count").toInt() : -1,
+            "submenu=", submenu);
+#endif
         QMetaObject::invokeMethod(root, "setMenuProperties", Q_ARG(QVariant, QVariant::fromValue(menu)), Q_ARG(const QVariant&, QVariant(submenu)));
         QMetaObject::invokeMethod(root, "loadSource", Q_ARG(const QVariant&, QVariant(VRMENU_SOURCE_URL)));
         _state = State::Menu;

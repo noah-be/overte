@@ -19,14 +19,22 @@ Item {
     HifiConstants { id: hifi  }
     property alias text: label.text
     property var source
+    property int itemKind: MenuItemType.Item
+    property var childMenu: null
+    property bool sourceVisible: true
+    property bool sourceEnabled: true
     property bool platformEnabled: true
     property real touchTextScale: 1.0
     property int minimumControlHeight: 0
 
-    implicitHeight: source !== null && source.visible
+    readonly property bool sourceCheckable: source !== null && source.checkable === true
+    readonly property bool sourceExclusive: source !== null
+        && source["exclusiveGroup"] !== undefined && source["exclusiveGroup"] !== null
+
+    implicitHeight: source !== null && sourceVisible
         ? Math.max(2 * label.implicitHeight, minimumControlHeight) : 0
     implicitWidth: 2 * hifi.dimensions.menuPadding.x + check.width + label.width + tail.width
-    visible: source !== null ? source.visible : false
+    visible: source !== null ? sourceVisible : false
     // A delegate is parented to ListView's content item. Binding to that
     // parent's width forms a loop with ListView.contentWidth while delegates
     // are being created and released.
@@ -49,12 +57,14 @@ Item {
 
             width: 20
             visible: source !== null ?
-                         source.visible && source.type === 1 && source.checkable && !source.exclusiveGroup :
+                         sourceVisible && itemKind === MenuItemType.Item
+                            && sourceCheckable && !sourceExclusive :
                          false
 
             Binding on checked {
-                value: source.checked;
-                when: source && source.type === 1 && source.checkable && !source.exclusiveGroup;
+                value: source !== null && source.checked === true;
+                when: source !== null && itemKind === MenuItemType.Item
+                    && sourceCheckable && !sourceExclusive;
             }
         }
 
@@ -63,12 +73,14 @@ Item {
 
             width: 20
             visible: source !== null ?
-                         source.visible && source.type === 1 && source.checkable && source.exclusiveGroup :
+                         sourceVisible && itemKind === MenuItemType.Item
+                            && sourceCheckable && sourceExclusive :
                          false
 
             Binding on checked {
-                value: source.checked;
-                when: source && source.type === 1 && source.checkable && source.exclusiveGroup;
+                value: source !== null && source.checked === true;
+                when: source !== null && itemKind === MenuItemType.Item
+                    && sourceCheckable && sourceExclusive;
             }
         }
     }
@@ -83,12 +95,13 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         verticalAlignment: Text.AlignVCenter
         color: source !== null ?
-                   source.enabled && platformEnabled ? hifi.colors.baseGrayShadow :
+                   sourceEnabled && platformEnabled ? hifi.colors.baseGrayShadow :
                                     hifi.colors.baseGrayShadow50 :
         "transparent"
 
-        enabled: source !== null ? source.visible && platformEnabled && (source.type !== 0 ? source.enabled : false) : false
-        visible: source !== null ? source.visible : false
+        enabled: source !== null ? sourceVisible && platformEnabled
+            && itemKind !== MenuItemType.Separator && sourceEnabled : false
+        visible: source !== null ? sourceVisible : false
         wrapMode: Text.WordWrap
     }
 
@@ -99,7 +112,7 @@ Item {
             leftMargin: hifi.dimensions.menuPadding.x + check.width
             rightMargin: hifi.dimensions.menuPadding.x + tail.width
         }
-        visible: source !== null ? source.type === MenuItemType.Separator : false
+        visible: source !== null ? itemKind === MenuItemType.Separator : false
 
         Rectangle {
             anchors {
@@ -129,17 +142,18 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             anchors.right: parent.right
             anchors.rightMargin: 15
-            visible: source !== null ? source.visible && text != "" : false
+            visible: source !== null ? sourceVisible && text != "" : false
         }
 
         HiFiGlyphs {
             text: hifi.glyphs.disclosureExpand
-            color: source !== null ? source.enabled && platformEnabled ? hifi.colors.baseGrayShadow : hifi.colors.baseGrayShadow25 : "transparent"
+            color: source !== null ? sourceEnabled && platformEnabled
+                ? hifi.colors.baseGrayShadow : hifi.colors.baseGrayShadow25 : "transparent"
             size: Math.round(70 * root.touchTextScale)
             anchors.verticalCenter: parent.verticalCenter
             anchors.right: parent.right
             horizontalAlignment: Text.AlignRight
-            visible: source !== null ? source.visible && (source.type === 2) : false
+            visible: source !== null ? sourceVisible && itemKind === MenuItemType.Menu : false
         }
     }
 }

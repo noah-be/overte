@@ -94,25 +94,64 @@ FocusScope {
         buildMenu()
     }
 
+    function menuCount(menu) {
+        if (!menu) {
+            return 0;
+        }
+        if (typeof menu.count === "number") {
+            return menu.count;
+        }
+        var legacyItems = menu["items"];
+        return legacyItems ? legacyItems.length : 0;
+    }
+
+    function menuItemAt(menu, index) {
+        if (!menu) {
+            return null;
+        }
+        if (typeof menu.itemAt === "function") {
+            return menu.itemAt(index);
+        }
+        var legacyItems = menu["items"];
+        return legacyItems && index < legacyItems.length ? legacyItems[index] : null;
+    }
+
+    function childMenuAt(menu, index) {
+        if (!menu) {
+            return null;
+        }
+        if (typeof menu.menuAt === "function") {
+            return menu.menuAt(index);
+        }
+        var item = menuItemAt(menu, index);
+        return item && item.type === MenuItemType.Menu ? item : null;
+    }
+
     function buildMenu() {
         // Build submenu if specified.
         if (subMenu !== "") {
             var index = 0;
-            var found = false;
-            while (!found && index < rootMenu.items.length) {
-                found = rootMenu.items[index].title === subMenu;
-                if (!found) {
+            var foundMenu = null;
+            while (foundMenu === null && index < menuCount(rootMenu)) {
+                var candidate = childMenuAt(rootMenu, index);
+                var candidateItem = menuItemAt(rootMenu, index);
+                var candidateTitle = candidate && candidate.title !== undefined
+                    ? candidate.title : candidateItem && candidateItem.text !== undefined
+                        ? candidateItem.text : "";
+                if (candidate && candidateTitle === subMenu) {
+                    foundMenu = candidate;
+                } else {
                     index += 1;
                 }
             }
             subMenu = "";  // Continue with full menu after initially displaying submenu.
-            if (found) {
-                menuPopperUpper.popup(rootMenu.items[index].items);
+            if (foundMenu !== null) {
+                menuPopperUpper.popup(foundMenu);
                 return;
             }
         }
 
         // Otherwise build whole menu.
-        menuPopperUpper.popup(rootMenu.items);
+        menuPopperUpper.popup(rootMenu);
     }
 }
