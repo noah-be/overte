@@ -431,12 +431,14 @@ jobs:
 
       - name: Run bundled serverless tutorial smoke
         if: ${{ inputs.run_tutorial }}
-        timeout-minutes: 65
+        timeout-minutes: 80
         env:
           # Match the bootstrap's measured active-render allowance. The script
           # retains a 20-minute incomplete-content stall bound and grants only
           # the fully loaded first software-rendered frame up to 45 minutes.
-          OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '3600'
+          # Run 32722309461 reached full readiness after 54m32s, so the outer
+          # envelope also covers the required following Present and snapshot.
+          OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '4500'
         run: |
           app="$(cat build/runtime-artifact/app-path.txt)"
           python3 macos/ci/runner-telemetry.py \
@@ -444,7 +446,7 @@ jobs:
             --log build/macos-runtime-telemetry/tutorial.jsonl \
             --diagnostics-dir build/macos-runtime-telemetry/tutorial-stall \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 900 --max-runtime 3720 \
+            --inactivity-timeout 900 --max-runtime 4620 \
             --watch tutorial=build/macos-tutorial-smoke -- \
             macos/ci/tutorial-smoke.sh "$app" build/macos-tutorial-smoke
 
@@ -551,10 +553,35 @@ jobs:
               "$OVERTE_MACOS_STABILITY_ITERATIONS"
 
       - name: Upload runtime diagnostics
+        id: runtime-diagnostics-upload
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: overte-macos-runtime-${{ github.run_id }}
+          path: |
+            build/macos-startup-preflight
+            build/macos-smoke
+            build/macos-tutorial-smoke
+            build/macos-online-smoke
+            build/macos-transition
+            build/macos-performance
+            build/macos-performance-matrix
+            !build/macos-performance-matrix/cache/**
+            !build/macos-performance-matrix/**/profile-script.js
+            build/macos-online-loading
+            build/macos-stability
+            build/macos-runtime-telemetry
+            build/macos-runtime-provenance
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Retry runtime diagnostics upload
+        if: ${{ always() && steps.runtime-diagnostics-upload.outcome == 'failure' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: overte-macos-runtime-${{ github.run_id }}
+          overwrite: true
           path: |
             build/macos-startup-preflight
             build/macos-smoke

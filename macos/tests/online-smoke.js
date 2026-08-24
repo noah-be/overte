@@ -338,7 +338,12 @@
             (latestInventory.loaded_visible_model_count === 0 ||
                 fullSceneReadyAt !== 0);
         var assetStallLimit = firstFrameRenderPending ? 2700000 : 600000;
-        if (snapshotStage === "waiting" && lastAssetProgressAt !== 0 &&
+        // A transient Domain/Entity Server disconnect can temporarily empty
+        // the inventory. It has its own bounded recovery deadline above and
+        // must not be misreported as an asset stall using the older asset
+        // clock from before the disconnect.
+        if (snapshotStage === "waiting" && hubConnected &&
+                latestInventory.entity_count > 0 && lastAssetProgressAt !== 0 &&
                 Date.now() - lastAssetProgressAt >= assetStallLimit) {
             if (firstFrameRenderPending) {
                 finish(false, "first_frame_render_stalled");

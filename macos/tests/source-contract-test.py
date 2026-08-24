@@ -1365,7 +1365,7 @@ for tutorial_observation_contract in (
     "Entities.isLoaded(entityID)",
     'loaded_expected_model_count === expectedModelNames.length',
     'expectedEntityCount = 40',
-    'Date.now() + 3300000',
+    'Date.now() + 4200000',
     'presentCount > bestPresentCount',
     'firstFrameRenderPending ? 2700000 : 1200000',
     'Date.now() - lastProgressAt >= progressStallLimit',
@@ -1424,8 +1424,8 @@ for workflow_name, workflow_source in (
         "Run bundled serverless tutorial smoke",
         "macos/ci/tutorial-smoke.sh",
         "build/macos-tutorial-smoke",
-        "OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '3600'",
-        "--inactivity-timeout 900 --max-runtime 3720",
+        "OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '4500'",
+        "--inactivity-timeout 900 --max-runtime 4620",
     ):
         if tutorial_workflow_contract not in workflow_source:
             raise SystemExit(
@@ -1529,6 +1529,8 @@ for online_timing_contract in (
     "fullSceneReadyAt !== 0",
     "firstFrameRenderPending ? 2700000 : 600000",
     "Date.now() - lastAssetProgressAt >= assetStallLimit",
+    'snapshotStage === "waiting" && hubConnected',
+    "latestInventory.entity_count > 0 && lastAssetProgressAt !== 0",
     '"first_frame_render_stalled"',
     'finish(false, "asset_loading_stalled")',
     "Test.getResourceQueueStatus()",
@@ -1548,6 +1550,18 @@ if online_script.index("saveEntityInventory(latestInventory)") > online_script.i
     raise SystemExit("online smoke must freeze its correlated inventory before capture")
 if 'OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-3600' not in online_smoke:
     raise SystemExit("online smoke must cover the measured software-renderer frame budget")
+for diagnostics_retry_contract in (
+    "id: runtime-diagnostics-upload",
+    "continue-on-error: true",
+    "Retry runtime diagnostics upload",
+    "steps.runtime-diagnostics-upload.outcome == 'failure'",
+    "overwrite: true",
+):
+    if diagnostics_retry_contract not in runtime_workflow:
+        raise SystemExit(
+            "runtime workflow must retry a transient diagnostics upload failure: "
+            f"{diagnostics_retry_contract}"
+        )
 if "--periodic-sample-count 12" not in online_smoke:
     raise SystemExit("online smoke must sample the full extended first-frame window")
 if 'finish(true, "snapshot_settle_elapsed")' in online_script:
