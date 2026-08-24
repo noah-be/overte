@@ -53,6 +53,12 @@ The four ports use a shared documentation layout described in
 [`docs/interfaces/`](docs/interfaces/README.md). The platform documentation is
 maintained on its corresponding development branch.
 
+### Fork policies
+
+- [Contribution and AI-assistance policy](CONTRIBUTING.md)
+- [Security policy and private reporting](SECURITY.md)
+- [Repository roadmap](docs/ROADMAP.md)
+
 > [!NOTE]
 > The information below comes from the original Overte project. For the latest official information, see the [README in the original Overte repository](https://github.com/overte-org/overte#readme). This fork is an experimental personal hobby project and is not an official version of Overte.
 
