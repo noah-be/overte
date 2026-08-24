@@ -215,8 +215,11 @@ for texture in ("analog_stick.png", "analog_stick_base.png", "fly.png", "handsha
     assert texture in APPLICATION_OVERLAY
 
 assert "_desktopWindow->setPosition(0, 0)" in TABLET_SOURCE
+assert "_desktopWindow->setPosition(leftInset, topInset)" in TABLET_SOURCE
 assert '"coordinate_space=safe-content"' in TABLET_SOURCE
 assert "x = 0" in WINDOW_ROOT
+assert 'Qt.platform.os === "ios"' in WINDOW_ROOT
+assert "x = screenSpaceSafeInsetLeft" in WINDOW_ROOT
 assert 'iosRuntimeDiagnosticInt("touchJumpMinimumPulseMs", 120, 0, 500)' in VIRTUAL_PAD
 application_source = (ROOT / "interface/src/Application.cpp").read_text()
 assert "OVERTE_IOS_LOCOMOTION_GATE stage=active" in application_source

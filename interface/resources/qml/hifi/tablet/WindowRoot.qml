@@ -60,12 +60,17 @@ Windows.ScrollingWindow {
 
     function alignScreenSpaceWindow() {
         if (screenSpaceMode) {
-            // The offscreen QML surface already represents UIKit's safe
-            // content rectangle. Native insets size that surface in C++; the
-            // tablet must remain local to it instead of applying the top/left
-            // inset a second time and clipping its footer.
-            x = 0
-            y = 0
+            if (Qt.platform.os === "ios") {
+                // The iOS offscreen surface already represents UIKit's safe
+                // content rectangle, so its children use a local origin.
+                x = 0
+                y = 0
+            } else {
+                // Android's surface covers the full display and still needs
+                // explicit rounded-corner and status-bar margins.
+                x = screenSpaceSafeInsetLeft
+                y = screenSpaceSafeInsetTop
+            }
             width = Math.max(1, screenSpaceSurfaceWidth
                 - screenSpaceSafeInsetLeft - screenSpaceSafeInsetRight)
             height = Math.max(1, screenSpaceSurfaceHeight
