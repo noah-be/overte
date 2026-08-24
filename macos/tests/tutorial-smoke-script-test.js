@@ -161,6 +161,28 @@ function createRun() {
 
 {
     const run = createRun();
+    run.state.importComplete = true;
+    run.state.modelsLoaded = true;
+    run.state.queuesIdle = true;
+    run.script.interval();
+    run.clock.now += 1200000;
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, false,
+        "fully loaded content needs the measured first software-frame grace");
+    run.clock.now += 1499999;
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, false,
+        "the first-frame grace must cover the observed sequential production draws");
+    run.clock.now += 1;
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, true,
+        "a genuinely stalled tutorial first frame must retain a finite bound");
+    assert(run.output.some((line) =>
+        line.includes("OVERTE_MACOS_TUTORIAL failed tutorial_first_frame_stalled")));
+}
+
+{
+    const run = createRun();
     run.script.interval();
     run.clock.now += 1199999;
     run.state.presentCount += 1;

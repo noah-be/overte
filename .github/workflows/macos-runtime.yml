@@ -428,12 +428,12 @@ jobs:
 
       - name: Run bundled serverless tutorial smoke
         if: ${{ inputs.run_tutorial }}
-        timeout-minutes: 55
+        timeout-minutes: 65
         env:
-          # Match the bootstrap's measured active-render allowance. The test
-          # script independently fails after 20 minutes without entity, asset,
-          # or completed-present progress.
-          OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '3000'
+          # Match the bootstrap's measured active-render allowance. The script
+          # retains a 20-minute incomplete-content stall bound and grants only
+          # the fully loaded first software-rendered frame up to 45 minutes.
+          OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '3600'
         run: |
           app="$(cat build/runtime-artifact/app-path.txt)"
           python3 macos/ci/runner-telemetry.py \
@@ -441,7 +441,7 @@ jobs:
             --log build/macos-runtime-telemetry/tutorial.jsonl \
             --diagnostics-dir build/macos-runtime-telemetry/tutorial-stall \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 3000 --max-runtime 3120 \
+            --inactivity-timeout 900 --max-runtime 3720 \
             --watch tutorial=build/macos-tutorial-smoke -- \
             macos/ci/tutorial-smoke.sh "$app" build/macos-tutorial-smoke
 

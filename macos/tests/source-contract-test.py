@@ -1203,7 +1203,7 @@ for crash_report_location in (
         raise SystemExit(f"runtime crash-report search missing: {crash_report_location}")
 for smoke_name, smoke_source, maximum, cleanup_contract in (
     ("serverless", smoke, 900, 'rm -f "$snapshot" "$screenshot_result"'),
-    ("bundled tutorial", tutorial_smoke, 3000, 'rm -f "$snapshot" "$screenshot_result"'),
+    ("bundled tutorial", tutorial_smoke, 3600, 'rm -f "$snapshot" "$screenshot_result"'),
     ("online", online_smoke, 3600, 'rm -f "$snapshot" "$screenshot_result"'),
 ):
     default_timeout = re.search(
@@ -1325,9 +1325,11 @@ for tutorial_observation_contract in (
     "Entities.isLoaded(entityID)",
     'loaded_expected_model_count === expectedModelNames.length',
     'expectedEntityCount = 40',
-    'Date.now() + 3000000',
+    'Date.now() + 3300000',
     'presentCount > bestPresentCount',
-    'Date.now() - lastProgressAt >= 1200000',
+    'firstFrameRenderPending ? 2700000 : 1200000',
+    'Date.now() - lastProgressAt >= progressStallLimit',
+    '"tutorial_first_frame_stalled"',
     'finish(false, "tutorial_progress_stalled")',
 ):
     if tutorial_observation_contract not in tutorial_script:
@@ -1335,7 +1337,7 @@ for tutorial_observation_contract in (
             "bundled tutorial smoke lacks production observation contract: "
             f"{tutorial_observation_contract}"
         )
-if "--periodic-sample-count 10" not in tutorial_smoke:
+if "--periodic-sample-count 12" not in tutorial_smoke:
     raise SystemExit("bundled tutorial smoke must sample the full extended render window")
 for forbidden_tutorial_mutation in (
     "Render.renderMethod",
@@ -1376,8 +1378,8 @@ for workflow_name, workflow_source in (
         "Run bundled serverless tutorial smoke",
         "macos/ci/tutorial-smoke.sh",
         "build/macos-tutorial-smoke",
-        "OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '3000'",
-        "--inactivity-timeout 3000 --max-runtime 3120",
+        "OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '3600'",
+        "--inactivity-timeout 900 --max-runtime 3720",
     ):
         if tutorial_workflow_contract not in workflow_source:
             raise SystemExit(

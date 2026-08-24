@@ -9,9 +9,11 @@
     // The bundled world exercises substantially more production shader
     // variants than the deterministic fixture. Hosted x86_64 software OpenGL
     // was still completing draws with every expected entity/model loaded at
-    // the former thirty-minute deadline (run 32682143125). Keep a finite total
-    // budget while independently failing a genuinely motionless load sooner.
-    var deadline = Date.now() + 3000000;
+    // the former thirty-minute deadline (run 32682143125). Run 32688580808
+    // then measured consecutive active draws of 11, 9, and 6 minutes after
+    // all content loaded. Keep a finite total budget while independently
+    // failing a genuinely motionless load sooner.
+    var deadline = Date.now() + 3300000;
     var nextProgressAt = Date.now();
     var readyAt = 0;
     var readyPresentBaseline = 0;
@@ -75,13 +77,16 @@
         };
     }
 
-    function resourcesIdle(resources) {
+    function resourceQueuesEmpty(resources) {
         return resources.downloads === 0 &&
             resources.downloads_pending === 0 &&
             resources.processing === 0 &&
             resources.processing_pending === 0 &&
-            resources.texture_pending_mb === 0 &&
-            Test.isTextureLoadingComplete();
+            resources.texture_pending_mb === 0;
+    }
+
+    function resourcesIdle(resources) {
+        return resourceQueuesEmpty(resources) && Test.isTextureLoadingComplete();
     }
 
     function inspectTutorial(entities) {
@@ -155,13 +160,17 @@
         };
     }
 
-    function tutorialReady(inventory, resources) {
+    function tutorialContentLoaded(inventory, resources) {
         return Test.isServerlessSceneImportComplete() &&
             inventory.entity_count >= expectedEntityCount &&
             inventory.found_expected_model_count === expectedModelNames.length &&
             inventory.loaded_expected_model_count === expectedModelNames.length &&
             inventory.found_expected_landmark_count === expectedLandmarkNames.length &&
-            resourcesIdle(resources);
+            resourceQueuesEmpty(resources);
+    }
+
+    function tutorialReady(inventory, resources) {
+        return tutorialContentLoaded(inventory, resources) && resourcesIdle(resources);
     }
 
     function finish(success, detail) {
@@ -254,9 +263,23 @@
             snapshotPendingReported = true;
             print("OVERTE_MACOS_TUTORIAL snapshot_still_pending");
         }
+        // A software-rendered first frame consists of multiple sequential GL
+        // draws. Run 32688580808 showed that all 40 entities, all 16 expected
+        // models, all landmarks, and every raw queue were ready while those
+        // draws kept 160-200% process CPU busy for more than 25 minutes. Once
+        // that observable content-loaded state is reached, allow at most 45
+        // minutes since real progress; incomplete content retains the faster
+        // 20-minute stall bound. Readiness and capture criteria are unchanged.
+        var firstFrameRenderPending = snapshotStage === "waiting" &&
+            tutorialContentLoaded(inventory, resources);
+        var progressStallLimit = firstFrameRenderPending ? 2700000 : 1200000;
         if (snapshotStage === "waiting" &&
-                Date.now() - lastProgressAt >= 1200000) {
-            finish(false, "tutorial_progress_stalled");
+                Date.now() - lastProgressAt >= progressStallLimit) {
+            if (firstFrameRenderPending) {
+                finish(false, "tutorial_first_frame_stalled");
+            } else {
+                finish(false, "tutorial_progress_stalled");
+            }
             return;
         }
         if (Date.now() >= deadline) {
