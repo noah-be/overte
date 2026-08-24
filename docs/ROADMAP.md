@@ -55,8 +55,8 @@ the product surface.
 - [ ] the roadmap and fork-policy baseline is propagated through every
   permanent child branch without importing new upstream changes;
 - [ ] the quick project suite and branch-topology checks pass; and
-- [ ] topic branches and worktrees are classified as active, mergeable,
-  superseded, backup, or archival.
+- [ ] topic branches and worktrees are classified and safely reduced using the
+  [`R0 cleanup checklist`](BRANCH_CLEANUP.md).
 
 **Single next action:** Review and merge the project-compass documentation,
 then update the fork policy in a separate `docs/main/fork-policy` change.
