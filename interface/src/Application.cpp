@@ -72,6 +72,7 @@
 #include <MessagesClient.h>
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
 #include <MacOSOnlineLoadingTelemetry.h>
+#include <MacOSGPUTextureReadiness.h>
 #endif
 #include <material-networking/TextureCacheScriptingInterface.h>
 #include <model-networking/ModelCacheScriptingInterface.h>
@@ -1403,6 +1404,26 @@ bool Application::gpuTextureMemSizeStable() {
         // requested and populated memory to match can therefore deadlock the Pico loading screen forever.
         // Stable allocation and an empty transfer queue are the reliable completion signals on this client.
         return textureTransferSize == 0;
+#elif defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+        const auto& renderer = gl::ContextInfo::get().renderer;
+        const bool complete = macos::gpu_texture_readiness::isComplete(
+            _gpuTextureMemSizeStabilityCount,
+            _minimumGPUTextureMemSizeStabilityCount,
+            textureResourceGPUMemSize,
+            texturePopulatedGPUMemSize,
+            textureTransferSize,
+            renderer);
+        const bool usedSoftwareRendererFallback = complete &&
+            textureResourceGPUMemSize != texturePopulatedGPUMemSize;
+        if (usedSoftwareRendererFallback && !_macosSoftwareTextureReadinessLogged) {
+            _macosSoftwareTextureReadinessLogged = true;
+            qCInfo(interfaceapp).noquote()
+                << "OVERTE_MACOS_TEXTURE_READINESS stable_software_renderer"
+                << "allocated_bytes=" << textureResourceGPUMemSize
+                << "populated_bytes=" << texturePopulatedGPUMemSize
+                << "pending_transfer_bytes=" << textureTransferSize;
+        }
+        return complete;
 #else
         return textureResourceGPUMemSize == texturePopulatedGPUMemSize && textureTransferSize == 0;
 #endif
