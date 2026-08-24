@@ -1020,26 +1020,26 @@ class MacOSWorkflowContracts(unittest.TestCase):
         section = self.source.split(
             "- name: Run bundled serverless tutorial smoke", 1
         )[1].split("- name: Run deterministic graphics performance smoke", 1)[0]
-        self.assertIn("timeout-minutes: 65", section)
-        self.assertIn("OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '3600'", section)
-        self.assertIn("--inactivity-timeout 900 --max-runtime 3720", section)
+        self.assertIn("timeout-minutes: 100", section)
+        self.assertIn("OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '5700'", section)
+        self.assertIn("--inactivity-timeout 900 --max-runtime 5820", section)
 
         runtime_source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
         runtime_section = runtime_source.split(
             "- name: Run bundled serverless tutorial smoke", 1
         )[1].split("- name: Run online entity smoke", 1)[0]
-        self.assertIn("timeout-minutes: 65", runtime_section)
-        self.assertIn("OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '3600'", runtime_section)
-        self.assertIn("--inactivity-timeout 900 --max-runtime 3720", runtime_section)
+        self.assertIn("timeout-minutes: 100", runtime_section)
+        self.assertIn("OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '5700'", runtime_section)
+        self.assertIn("--inactivity-timeout 900 --max-runtime 5820", runtime_section)
 
     def test_online_budget_distinguishes_active_first_frame_from_inactivity(self):
         runtime_source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
         section = runtime_source.split("- name: Run online entity smoke", 1)[1].split(
             "- name: Run serverless-online-serverless transition smoke", 1
         )[0]
-        self.assertIn("timeout-minutes: 65", section)
-        self.assertIn("OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '3600'", section)
-        self.assertIn("--inactivity-timeout 900 --max-runtime 3720", section)
+        self.assertIn("timeout-minutes: 85", section)
+        self.assertIn("OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '4800'", section)
+        self.assertIn("--inactivity-timeout 900 --max-runtime 4920", section)
 
     def test_performance_gate_uses_the_built_application_and_publishes_results(self):
         serverless = self.source.index("- name: Run serverless entity smoke")

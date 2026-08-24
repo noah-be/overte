@@ -120,7 +120,7 @@ jobs:
           done
           echo "run_id=$build_run_id" >> "$GITHUB_OUTPUT"
 
-      - name: Run only startup, tutorial, and Hub validation
+      - name: Run startup, deterministic scene, tutorial, and Hub in parallel
         id: runtime
         env:
           ARTIFACT_RUN_ID: ${{ steps.app.outputs.run_id }}
@@ -132,35 +132,66 @@ jobs:
           previous_id="$(gh run list --repo "$GH_REPO" --workflow macos-runtime.yml \
             --branch "$SOURCE_REF" --event workflow_dispatch --limit 1 \
             --json databaseId --jq '.[0].databaseId // 0')"
+
+          # Tutorial and Hub are independent processes and both spend most of
+          # their time in Apple's hosted software renderer. Dispatch them as
+          # separate runtime runs so their bounded render windows overlap.
+          # The deterministic fixture rides with Tutorial and adds no second
+          # app restore or runner queue.
           gh workflow run macos-runtime.yml --repo "$GH_REPO" --ref "$SOURCE_REF" \
             -f artifact_run_id="$ARTIFACT_RUN_ID" \
             -f target_arch="$TARGET_ARCH" -f arm_runner_size="$ARM_RUNNER_SIZE" \
             -f runtime_runner=github-hosted \
-            -f run_online=true -f run_serverless=false -f run_tutorial=true \
+            -f run_online=false -f run_serverless=true -f run_tutorial=true \
             -f run_performance=false -f profile_matrix_mode=off \
             -f profile_repeats=1 -f run_online_loading=false \
             -f online_loading_target_mode=public -f online_loading_repeats=1 \
             -f online_download_concurrencies=10 -f stability_iterations=0 \
             -f run_transition=false -f online_location=hifi://overte_hub
 
-          runtime_run_id=''
+          tutorial_run_id=''
           for _ in $(seq 1 20); do
-            runtime_run_id="$(gh run list --repo "$GH_REPO" --workflow macos-runtime.yml \
+            tutorial_run_id="$(gh run list --repo "$GH_REPO" --workflow macos-runtime.yml \
               --branch "$SOURCE_REF" --event workflow_dispatch --limit 20 \
               --json databaseId --jq "[.[] | select(.databaseId > $previous_id)] | max_by(.databaseId).databaseId // empty")"
-            [[ -n "$runtime_run_id" ]] && break
+            [[ -n "$tutorial_run_id" ]] && break
             sleep 15
           done
-          [[ -n "$runtime_run_id" ]] || { echo "Could not identify delegated runtime run" >&2; exit 1; }
-          echo "run_id=$runtime_run_id" >> "$GITHUB_OUTPUT"
-          echo "Runtime proof: https://github.com/$GH_REPO/actions/runs/$runtime_run_id"
+          [[ -n "$tutorial_run_id" ]] || { echo "Could not identify delegated tutorial run" >&2; exit 1; }
+
+          gh workflow run macos-runtime.yml --repo "$GH_REPO" --ref "$SOURCE_REF" \
+            -f artifact_run_id="$ARTIFACT_RUN_ID" \
+            -f target_arch="$TARGET_ARCH" -f arm_runner_size="$ARM_RUNNER_SIZE" \
+            -f runtime_runner=github-hosted \
+            -f run_online=true -f run_serverless=false -f run_tutorial=false \
+            -f run_performance=false -f profile_matrix_mode=off \
+            -f profile_repeats=1 -f run_online_loading=false \
+            -f online_loading_target_mode=public -f online_loading_repeats=1 \
+            -f online_download_concurrencies=10 -f stability_iterations=0 \
+            -f run_transition=false -f online_location=hifi://overte_hub
+
+          hub_run_id=''
+          for _ in $(seq 1 20); do
+            hub_run_id="$(gh run list --repo "$GH_REPO" --workflow macos-runtime.yml \
+              --branch "$SOURCE_REF" --event workflow_dispatch --limit 20 \
+              --json databaseId --jq "[.[] | select(.databaseId > $tutorial_run_id)] | max_by(.databaseId).databaseId // empty")"
+            [[ -n "$hub_run_id" ]] && break
+            sleep 15
+          done
+          [[ -n "$hub_run_id" ]] || { echo "Could not identify delegated Hub run" >&2; exit 1; }
+          echo "tutorial_run_id=$tutorial_run_id" >> "$GITHUB_OUTPUT"
+          echo "hub_run_id=$hub_run_id" >> "$GITHUB_OUTPUT"
+          echo "Deterministic + tutorial proof: https://github.com/$GH_REPO/actions/runs/$tutorial_run_id"
+          echo "Hub proof: https://github.com/$GH_REPO/actions/runs/$hub_run_id"
 
           bootstrap_released=false
           while true; do
             if [[ "$REBUILD" == "true" && "$bootstrap_released" == "false" ]]; then
-              restored="$(gh run view "$runtime_run_id" --repo "$GH_REPO" \
+              tutorial_restored="$(gh run view "$tutorial_run_id" --repo "$GH_REPO" \
                 --json jobs --jq '[.jobs[].steps[] | select(.name == "Restore built application checkpoint" and .conclusion == "success")] | length')"
-              if [[ "$restored" == "1" ]]; then
+              hub_restored="$(gh run view "$hub_run_id" --repo "$GH_REPO" \
+                --json jobs --jq '[.jobs[].steps[] | select(.name == "Restore built application checkpoint" and .conclusion == "success")] | length')"
+              if [[ "$tutorial_restored" == "1" || "$hub_restored" == "1" ]]; then
                 build_status="$(gh run view "$ARTIFACT_RUN_ID" --repo "$GH_REPO" --json status --jq .status)"
                 if [[ "$build_status" != "completed" ]]; then
                   gh run cancel "$ARTIFACT_RUN_ID" --repo "$GH_REPO"
@@ -169,13 +200,16 @@ jobs:
                 bootstrap_released=true
               fi
             fi
-            status="$(gh run view "$runtime_run_id" --repo "$GH_REPO" --json status --jq .status)"
-            [[ "$status" == "completed" ]] && break
+            tutorial_status="$(gh run view "$tutorial_run_id" --repo "$GH_REPO" --json status --jq .status)"
+            hub_status="$(gh run view "$hub_run_id" --repo "$GH_REPO" --json status --jq .status)"
+            [[ "$tutorial_status" == "completed" && "$hub_status" == "completed" ]] && break
             sleep 60
           done
-          conclusion="$(gh run view "$runtime_run_id" --repo "$GH_REPO" --json conclusion --jq .conclusion)"
-          [[ "$conclusion" == "success" ]] || {
-            gh run view "$runtime_run_id" --repo "$GH_REPO"
+          tutorial_conclusion="$(gh run view "$tutorial_run_id" --repo "$GH_REPO" --json conclusion --jq .conclusion)"
+          hub_conclusion="$(gh run view "$hub_run_id" --repo "$GH_REPO" --json conclusion --jq .conclusion)"
+          [[ "$tutorial_conclusion" == "success" && "$hub_conclusion" == "success" ]] || {
+            gh run view "$tutorial_run_id" --repo "$GH_REPO"
+            gh run view "$hub_run_id" --repo "$GH_REPO"
             exit 1
           }
 
@@ -183,14 +217,16 @@ jobs:
         if: always()
         env:
           APP_RUN_ID: ${{ steps.app.outputs.run_id }}
-          RUNTIME_RUN_ID: ${{ steps.runtime.outputs.run_id }}
+          TUTORIAL_RUN_ID: ${{ steps.runtime.outputs.tutorial_run_id }}
+          HUB_RUN_ID: ${{ steps.runtime.outputs.hub_run_id }}
           REBUILD: ${{ inputs.rebuild }}
         run: |
           {
             echo '## macOS Quick Iterate'
             echo
             echo "- App artifact: https://github.com/$GH_REPO/actions/runs/$APP_RUN_ID"
-            echo "- Startup + tutorial + Hub proof: https://github.com/$GH_REPO/actions/runs/$RUNTIME_RUN_ID"
-            echo '- Mandatory gates: startup, bundled tutorial screenshot, overte_hub screenshot'
-            echo '- Skipped: synthetic serverless fixture, performance, profiles, loading benchmark, transition, stability'
+            echo "- Startup + deterministic + tutorial proof: https://github.com/$GH_REPO/actions/runs/$TUTORIAL_RUN_ID"
+            echo "- Startup + Hub proof: https://github.com/$GH_REPO/actions/runs/$HUB_RUN_ID"
+            echo '- Mandatory gates: startup, deterministic screenshot, bundled tutorial screenshot, overte_hub screenshot'
+            echo '- Tutorial and Hub run concurrently; skipped: performance, profiles, loading benchmark, transition, stability'
           } >> "$GITHUB_STEP_SUMMARY"

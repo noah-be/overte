@@ -1331,13 +1331,13 @@ jobs:
             macos/ci/serverless-smoke.sh "$app" build/macos-smoke
 
       - name: Run bundled serverless tutorial smoke
-        timeout-minutes: 80
+        timeout-minutes: 100
         env:
           # Run 32688580808 had loaded all tutorial content and drained every
           # queue before consecutive active software-GL draws took 11, 9, and
           # 6 minutes. The script keeps a 20-minute incomplete-content stall
           # bound and allows only the evidenced first-frame state 45 minutes.
-          OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '4500'
+          OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '5700'
         run: |
           app="$(find build -type d -name Overte.app -print -quit)"
           python3 macos/ci/runner-telemetry.py \
@@ -1345,7 +1345,7 @@ jobs:
             --log "$MACOS_RUNNER_TELEMETRY_DIR/runtime-tutorial.jsonl" \
             --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/runtime-tutorial-stall" \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 900 --max-runtime 4620 \
+            --inactivity-timeout 900 --max-runtime 5820 \
             --watch tutorial=build/macos-tutorial-smoke -- \
             macos/ci/tutorial-smoke.sh "$app" build/macos-tutorial-smoke
 

@@ -10,7 +10,11 @@
     // assembled for the test.
     // Leave room for bounded directory retries followed by full Hub asset
     // loading and production draws on Apple's hosted software renderer.
-    var deadline = Date.now() + 3300000;
+    // Run 32730715869 fully loaded the Hub and requested its snapshot, then
+    // ended 51 seconds before the active nine-minute software draw completed.
+    // Preserve every content and image gate while covering that bounded draw
+    // plus snapshot readback and PNG callback.
+    var deadline = Date.now() + 4500000;
     var nextProgressAt = Date.now();
     var snapshotStage = "waiting";
     var snapshotSettleDeadline = 0;

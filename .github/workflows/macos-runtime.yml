@@ -431,14 +431,15 @@ jobs:
 
       - name: Run bundled serverless tutorial smoke
         if: ${{ inputs.run_tutorial }}
-        timeout-minutes: 80
+        timeout-minutes: 100
         env:
           # Match the bootstrap's measured active-render allowance. The script
           # retains a 20-minute incomplete-content stall bound and grants only
           # the fully loaded first software-rendered frame up to 45 minutes.
-          # Run 32722309461 reached full readiness after 54m32s, so the outer
-          # envelope also covers the required following Present and snapshot.
-          OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '4500'
+          # Run 32730715869 made nine Presents through minute 70 and discovered
+          # textures on the last one. Cover one measured 21-minute frame after
+          # late discovery without changing any visual/readiness criterion.
+          OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '5700'
         run: |
           app="$(cat build/runtime-artifact/app-path.txt)"
           python3 macos/ci/runner-telemetry.py \
@@ -446,20 +447,20 @@ jobs:
             --log build/macos-runtime-telemetry/tutorial.jsonl \
             --diagnostics-dir build/macos-runtime-telemetry/tutorial-stall \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 900 --max-runtime 4620 \
+            --inactivity-timeout 900 --max-runtime 5820 \
             --watch tutorial=build/macos-tutorial-smoke -- \
             macos/ci/tutorial-smoke.sh "$app" build/macos-tutorial-smoke
 
       - name: Run online entity smoke
         if: ${{ always() && inputs.run_online && steps.serverless-smoke.outcome != 'failure' }}
-        timeout-minutes: 65
+        timeout-minutes: 85
         env:
           OVERTE_MACOS_ONLINE_LOCATION: ${{ inputs.online_location }}
           # The hosted Intel runner uses Apple's software OpenGL renderer.
           # Run 32686828613 measured consecutive active first-frame draws of
           # 18 and 13 minutes; the script retains independent ten-minute
           # connection/asset-queue and 45-minute first-frame stall bounds.
-          OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '3600'
+          OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '4800'
         run: |
           app="$(cat build/runtime-artifact/app-path.txt)"
           python3 macos/ci/runner-telemetry.py \
@@ -467,7 +468,7 @@ jobs:
             --log build/macos-runtime-telemetry/online.jsonl \
             --diagnostics-dir build/macos-runtime-telemetry/online-stall \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 900 --max-runtime 3720 \
+            --inactivity-timeout 900 --max-runtime 4920 \
             --watch smoke=build/macos-online-smoke -- \
             macos/ci/online-smoke.sh "$app" build/macos-online-smoke
 

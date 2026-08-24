@@ -1365,7 +1365,7 @@ for tutorial_observation_contract in (
     "Entities.isLoaded(entityID)",
     'loaded_expected_model_count === expectedModelNames.length',
     'expectedEntityCount = 40',
-    'Date.now() + 4200000',
+    'Date.now() + 5400000',
     'presentCount > bestPresentCount',
     'firstFrameRenderPending ? 2700000 : 1200000',
     'Date.now() - lastProgressAt >= progressStallLimit',
@@ -1424,8 +1424,8 @@ for workflow_name, workflow_source in (
         "Run bundled serverless tutorial smoke",
         "macos/ci/tutorial-smoke.sh",
         "build/macos-tutorial-smoke",
-        "OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '4500'",
-        "--inactivity-timeout 900 --max-runtime 4620",
+        "OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '5700'",
+        "--inactivity-timeout 900 --max-runtime 5820",
     ):
         if tutorial_workflow_contract not in workflow_source:
             raise SystemExit(
@@ -1434,6 +1434,15 @@ for workflow_name, workflow_source in (
             )
 if "run_tutorial:" not in runtime_workflow:
     raise SystemExit("runtime workflow must support an artifact-only tutorial rerun")
+for online_workflow_contract in (
+    "OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '4800'",
+    "--inactivity-timeout 900 --max-runtime 4920",
+):
+    if online_workflow_contract not in runtime_workflow:
+        raise SystemExit(
+            "macOS runtime workflow lacks the measured Hub screenshot envelope: "
+            f"{online_workflow_contract}"
+        )
 for early_runtime_reuse_contract in (
     "listJobsForWorkflowRunAttempt",
     "`client-opengl-${targetArch}`",
@@ -1513,7 +1522,7 @@ for online_timing_contract in (
     "snapshotSettleDeadline = Date.now() + 300000",
     "snapshot_still_pending",
     "if (success)",
-    "Date.now() + 3300000",
+    "Date.now() + 4500000",
     "connectionDeadline = Date.now() + 600000",
     "Date.now() + 600000",
     'finish(false, "connection_stalled")',
