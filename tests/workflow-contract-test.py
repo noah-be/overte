@@ -1020,17 +1020,17 @@ class MacOSWorkflowContracts(unittest.TestCase):
         section = self.source.split(
             "- name: Run bundled serverless tutorial smoke", 1
         )[1].split("- name: Run deterministic graphics performance smoke", 1)[0]
-        self.assertIn("timeout-minutes: 55", section)
-        self.assertIn("OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '3000'", section)
-        self.assertIn("--inactivity-timeout 3000 --max-runtime 3120", section)
+        self.assertIn("timeout-minutes: 65", section)
+        self.assertIn("OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '3600'", section)
+        self.assertIn("--inactivity-timeout 900 --max-runtime 3720", section)
 
         runtime_source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
         runtime_section = runtime_source.split(
             "- name: Run bundled serverless tutorial smoke", 1
         )[1].split("- name: Run online entity smoke", 1)[0]
-        self.assertIn("timeout-minutes: 55", runtime_section)
-        self.assertIn("OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '3000'", runtime_section)
-        self.assertIn("--inactivity-timeout 3000 --max-runtime 3120", runtime_section)
+        self.assertIn("timeout-minutes: 65", runtime_section)
+        self.assertIn("OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '3600'", runtime_section)
+        self.assertIn("--inactivity-timeout 900 --max-runtime 3720", runtime_section)
 
     def test_online_budget_distinguishes_active_first_frame_from_inactivity(self):
         runtime_source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
