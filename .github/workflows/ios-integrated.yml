@@ -90,6 +90,9 @@ jobs:
     name: Host contracts
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    permissions:
+      actions: write
+      contents: read
     steps:
       - name: Check out requested revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
@@ -97,12 +100,17 @@ jobs:
           persist-credentials: false
 
       - name: Run device-free contracts
-        if: ${{ !inputs.fast_dev }}
         run: ios/tests/run-tests.sh
+
+      - name: Cancel active build after contract failure
+        if: failure()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/cancel"
 
   v8-checkpoint:
     name: Static JITless V8 checkpoint
-    needs: host-contracts
     runs-on: ${{ inputs.macos_runner }}
     timeout-minutes: 185
     permissions:
@@ -398,7 +406,7 @@ jobs:
     permissions:
       actions: write
       contents: read
-    needs: [host-contracts, v8-checkpoint]
+    needs: v8-checkpoint
     runs-on: ${{ inputs.macos_runner }}
     timeout-minutes: 185
     env:

@@ -1878,7 +1878,21 @@ def test_ci_contract() -> None:
     require_text(integrated, r"Restore validated Conan package cache", "integrated CI must reuse validated dependency packages")
     require_text(integrated, r"Save validated Conan package cache", "integrated CI must save dependencies immediately after graph validation")
     require_text(integrated, r"timeout-minutes: 185", "the first full-client Xcode build needs a non-truncating timeout")
-    require_text(integrated, r"needs: host-contracts", "macOS integration must wait for host contracts")
+    host_contracts = integrated_text[
+        integrated_text.index("  host-contracts:") : integrated_text.index("  v8-checkpoint:")
+    ]
+    v8_checkpoint_header = integrated_text[
+        integrated_text.index("  v8-checkpoint:") : integrated_text.index("    runs-on:", integrated_text.index("  v8-checkpoint:"))
+    ]
+    integrated_header = integrated_text[
+        integrated_text.index("  integrated-configure:") : integrated_text.index("    runs-on:", integrated_text.index("  integrated-configure:"))
+    ]
+    if "needs:" in v8_checkpoint_header or "host-contracts" in integrated_header:
+        raise AssertionError("host contracts must run in parallel with the iOS compiler path")
+    if "needs: v8-checkpoint" not in integrated_header:
+        raise AssertionError("the integrated build must retain its validated V8 dependency")
+    if not re.search(r"permissions:\s+actions: write[\s\S]*?Cancel active build after contract failure[\s\S]*?if: failure\(\)[\s\S]*?actions/runs/\$\{GITHUB_RUN_ID\}/cancel", host_contracts):
+        raise AssertionError("a failed parallel host contract must cancel the active compiler run")
     require_text(integrated, r"persist-credentials: false", "checkout credentials must not persist")
     require_text(integrated, r"doctor --platform device --require-qt", "toolchain stage must validate Xcode and Qt")
     require_text(integrated, r"deps --platform device --graphics-toolchain", "dependency stage must resolve the device graph")

@@ -20,6 +20,7 @@
 #include <QtGui/QInputMethodEvent>
 #include <QtGui/QKeyEvent>
 #include <QtGui/QMouseEvent>
+#include <QtQuick/QQuickWindow>
 
 #include <AddressManager.h>
 #include <shared/FileUtils.h>
@@ -42,6 +43,7 @@
 #endif
 
 #include "Application.h"
+#include "avatar/AvatarManager.h"
 #include "avatar/MyAvatar.h"
 #include "NetworkingConstants.h"
 #include "scripting/HMDScriptingInterface.h"
@@ -299,13 +301,16 @@ QVariantMap TestScriptingInterface::getIOSAutomationSnapshot() const {
         }
     }
 
-    if (auto myAvatar = qApp->getMyAvatar()) {
-        const auto avatarPosition = myAvatar->getWorldPosition();
-        snapshot["avatar_position"] = QVariantMap {
-            { "x", avatarPosition.x }, { "y", avatarPosition.y }, { "z", avatarPosition.z }
-        };
-        snapshot["avatar_speed"] = glm::length(myAvatar->getWorldVelocity());
-        snapshot["avatar_jumping"] = myAvatar->isJumping();
+    auto avatarManager = DependencyManager::get<AvatarManager>();
+    if (avatarManager) {
+        if (auto myAvatar = avatarManager->getMyAvatar()) {
+            const auto avatarPosition = myAvatar->getWorldPosition();
+            snapshot["avatar_position"] = QVariantMap {
+                { "x", avatarPosition.x }, { "y", avatarPosition.y }, { "z", avatarPosition.z }
+            };
+            snapshot["avatar_speed"] = glm::length(myAvatar->getWorldVelocity());
+            snapshot["avatar_jumping"] = myAvatar->isJumping();
+        }
     }
 
     snapshot["active_downloads"] = static_cast<qulonglong>(ResourceCache::getLoadingRequestCount());
@@ -393,9 +398,12 @@ bool TestScriptingInterface::executeIOSAutomationCommand(
     }
 
     if (command == QStringLiteral("jump")) {
-        if (auto myAvatar = qApp->getMyAvatar()) {
-            myAvatar->getCharacterController()->jump();
-            return true;
+        auto avatarManager = DependencyManager::get<AvatarManager>();
+        if (avatarManager) {
+            if (auto myAvatar = avatarManager->getMyAvatar()) {
+                myAvatar->getCharacterController()->jump();
+                return true;
+            }
         }
         return false;
     }
