@@ -1,5 +1,4 @@
-# Copyright 2022 Overte e.V.
+# This is an unofficial personal fork.
 # SPDX-License-Identifier: MIT
 
-# Require @JulianGro to review changed GitHub Actions workflows before they are run.
-/.github/workflows @JulianGro
+* @noah-be
