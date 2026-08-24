@@ -11,6 +11,7 @@ import unittest
 
 
 CHECK = Path(__file__).with_name("android-branch-topology-check.py")
+WORKFLOW = CHECK.parents[1] / ".github/workflows/android-branch-topology.yml"
 SPEC = importlib.util.spec_from_file_location("android_topology", CHECK)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader
@@ -106,6 +107,72 @@ class AndroidBranchTopologyTest(unittest.TestCase):
             self.repo, "android-vr-pico", self.android_main, self.android_vr, head
         )
         self.assertTrue(any("device_tests differs" in error for error in errors))
+
+    def test_workflow_uses_targeted_history_fetch(self):
+        source = WORKFLOW.read_text()
+        self.assertNotIn("fetch-depth: 0", source)
+        self.assertIn("fetch-depth: 2", source)
+        self.assertIn("persist-credentials: false", source)
+        self.assertIn("--filter=blob:none", source)
+        self.assertIn("--unshallow", source)
+        self.assertIn('for branch in android-main android-vr "$TARGET_BRANCH"', source)
+
+    def test_targeted_fetch_connects_a_shallow_pull_request_merge(self):
+        run(self.repo, "branch", "android-main", self.android_main)
+        run(self.repo, "checkout", "-qb", "android-vr-pico", self.android_vr)
+        self.commit("android/vr/pico/base", "pico\n")
+        run(self.repo, "checkout", "-qb", "topic")
+        self.commit("docs/topic", "roadmap\n")
+        run(self.repo, "checkout", "-q", "android-vr-pico")
+        run(self.repo, "merge", "-q", "--no-ff", "-m", "pull request", "topic")
+        run(self.repo, "branch", "pr-merge", revision(self.repo))
+
+        with tempfile.TemporaryDirectory(prefix="android-topology-fetch-") as root:
+            remote = Path(root) / "remote.git"
+            shallow = Path(root) / "shallow"
+            subprocess.run(
+                ["git", "clone", "-q", "--bare", str(self.repo), str(remote)],
+                check=True,
+            )
+            run(remote, "config", "uploadpack.allowFilter", "true")
+            subprocess.run(
+                [
+                    "git", "clone", "-q", "--depth=2", "--branch", "pr-merge",
+                    remote.resolve().as_uri(), str(shallow),
+                ],
+                check=True,
+            )
+            run(
+                shallow,
+                "fetch",
+                "-q",
+                "--no-tags",
+                "--filter=blob:none",
+                "--unshallow",
+                "origin",
+                "+refs/heads/android-main:refs/remotes/origin/android-main",
+                "+refs/heads/android-vr:refs/remotes/origin/android-vr",
+                "+refs/heads/android-vr-pico:refs/remotes/origin/android-vr-pico",
+            )
+
+            self.assertEqual(
+                "false",
+                subprocess.check_output(
+                    ["git", "-C", str(shallow), "rev-parse",
+                     "--is-shallow-repository"],
+                    text=True,
+                ).strip(),
+            )
+            self.assertEqual(
+                [],
+                MODULE.validate(
+                    shallow,
+                    "android-vr-pico",
+                    "origin/android-main",
+                    "origin/android-vr",
+                    "HEAD",
+                ),
+            )
 
 
 if __name__ == "__main__":
