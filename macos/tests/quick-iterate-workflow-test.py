@@ -13,6 +13,7 @@ def main() -> None:
         "name: macOS Quick Iterate",
         "rebuild:",
         "artifact_run_id:",
+        "if: github.event_name == 'workflow_dispatch'",
         "gh workflow run macos-bootstrap.yml --repo \"$GH_REPO\"",
         "gh workflow run macos-runtime.yml --repo \"$GH_REPO\"",
         "-f run_online=true -f run_serverless=false -f run_tutorial=true",
