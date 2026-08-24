@@ -373,8 +373,8 @@
     Window.geometryChanged.connect(updateLayout);
     Window.geometryChanged.connect(resizeTablet);
     systemTablet.tabletShownChanged.connect(tabletVisibilityChanged);
-    Controller.touchBeginEvent.connect(onTouchBegin);
-    Controller.touchEndEvent.connect(onTouchEnd);
+    connectSignal(Controller, "touchBeginEvent", onTouchBegin);
+    connectSignal(Controller, "touchEndEvent", onTouchEnd);
     tabletVisibilityChanged();
     // QML fragments also perform their initial placement in Component.onCompleted;
     // defer once so the phone-specific adaptive placement wins deterministically.
@@ -392,8 +392,8 @@
         Window.geometryChanged.disconnect(updateLayout);
         Window.geometryChanged.disconnect(resizeTablet);
         systemTablet.tabletShownChanged.disconnect(tabletVisibilityChanged);
-        Controller.touchBeginEvent.disconnect(onTouchBegin);
-        Controller.touchEndEvent.disconnect(onTouchEnd);
+        disconnectSignal(Controller, "touchBeginEvent", onTouchBegin);
+        disconnectSignal(Controller, "touchEndEvent", onTouchEnd);
         touchStart = null;
         Controller.setVPadHidden(false);
         Controller.releaseTouchEvents();
