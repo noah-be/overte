@@ -16,6 +16,7 @@
 
 #include <QtQuick/QQuickWindow>
 #include <QtCore/QMetaObject>
+#include <QtCore/QPointer>
 
 #include <shared/NsightHelpers.h>
 #include "Profiling.h"
@@ -129,22 +130,36 @@ void RenderEventHandler::qmlRender(bool sceneGraphSync) {
 
     PROFILE_RANGE(render_qml_gl, __FUNCTION__);
 
-    if (!_shared->preRender(sceneGraphSync)) {
+    // Never wait for macOS' global GL serialization lock from a QML render
+    // thread. Apple's software renderer can hold it for minutes while it
+    // compiles a production shader. A synchronous scene-graph event would
+    // otherwise leave the GUI thread asleep in SharedObject::onRender(),
+    // preventing network replies and downloaded assets from being delivered.
+    // If the lock is busy, release the GUI synchronization waiter (if any) and
+    // queue the exact same request for a later event-loop turn.
+    if (!gl::globalTryLock()) {
+        if (sceneGraphSync) {
+            _shared->wakeRenderSyncWaiter();
+        }
+        QPointer<SharedObject> shared(_shared);
+        QMetaObject::invokeMethod(_shared, [shared, sceneGraphSync] {
+            if (!shared) {
+                return;
+            }
+            if (sceneGraphSync) {
+                shared->requestRenderSync();
+            } else {
+                shared->requestRender();
+            }
+        }, Qt::QueuedConnection);
         return;
     }
 
-    // QQuickRenderControl requires the GUI thread to be blocked only while the
-    // scene graph is synchronized. Do that before waiting for macOS' global GL
-    // lock. An ordinary asynchronous QML frame must not occupy its render
-    // thread at that lock: a later sync event would otherwise remain queued
-    // behind it while the GUI thread waits for the sync indefinitely.
-    if (sceneGraphSync) {
-        gl::globalLock();
-    } else if (!gl::globalTryLock()) {
-        auto shared = _shared;
-        QMetaObject::invokeMethod(shared, [shared] {
-            shared->requestRender();
-        }, Qt::QueuedConnection);
+    // The GUI thread is blocked only for QQuickRenderControl::sync(). The GL
+    // lock is already held, so preRender() cannot wake it into another
+    // minutes-long lock wait.
+    if (!_shared->preRender(sceneGraphSync)) {
+        gl::globalRelease();
         return;
     }
 

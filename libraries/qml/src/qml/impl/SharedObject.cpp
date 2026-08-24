@@ -447,6 +447,14 @@ void SharedObject::wake() {
     _cond.wakeOne();
 }
 
+void SharedObject::wakeRenderSyncWaiter() {
+    // Pair the wake with the same mutex used by onRender().  The GUI thread
+    // posts RenderSync while holding this mutex and releases it atomically in
+    // QWaitCondition::wait(), so acquiring it here prevents a lost wake-up.
+    QMutexLocker locker(&_mutex);
+    wake();
+}
+
 void SharedObject::onInitialize() {
 #ifndef DISABLE_QML
     // Associate root item with the window.
