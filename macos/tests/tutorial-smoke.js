@@ -6,13 +6,23 @@
 
     // Observe the bundled tutorial exactly as a normal first launch does.  The
     // test never changes the camera, avatar, scene, lighting, or renderer.
-    var deadline = Date.now() + 1800000;
+    // The bundled world exercises substantially more production shader
+    // variants than the deterministic fixture. Hosted x86_64 software OpenGL
+    // was still completing draws with every expected entity/model loaded at
+    // the former thirty-minute deadline (run 32682143125). Keep a finite total
+    // budget while independently failing a genuinely motionless load sooner.
+    var deadline = Date.now() + 3000000;
     var nextProgressAt = Date.now();
     var readyAt = 0;
     var readyPresentBaseline = 0;
     var snapshotStage = "waiting";
     var snapshotPendingAt = 0;
     var snapshotPendingReported = false;
+    var lastProgressAt = Date.now();
+    var bestEntityCount = 0;
+    var bestLoadedModelCount = 0;
+    var bestOutstandingWork = Number.MAX_VALUE;
+    var bestPresentCount = 0;
     var completed = false;
     var expectedEntityCount = 40;
     var expectedModelNames = [
@@ -189,20 +199,36 @@
         var inventory = inspectTutorial(entities);
         var resources = queueState();
         var ready = tutorialReady(inventory, resources);
+        var presentCount = finiteNumber(Test.getPresentCount());
+        var outstandingWork = resources.downloads + resources.downloads_pending +
+            resources.processing + resources.processing_pending +
+            resources.texture_pending_mb;
+
+        if (inventory.entity_count > bestEntityCount ||
+                inventory.loaded_expected_model_count > bestLoadedModelCount ||
+                outstandingWork < bestOutstandingWork ||
+                presentCount > bestPresentCount) {
+            lastProgressAt = Date.now();
+            bestEntityCount = Math.max(bestEntityCount, inventory.entity_count);
+            bestLoadedModelCount = Math.max(bestLoadedModelCount,
+                inventory.loaded_expected_model_count);
+            bestOutstandingWork = Math.min(bestOutstandingWork, outstandingWork);
+            bestPresentCount = Math.max(bestPresentCount, presentCount);
+        }
 
         if (Date.now() >= nextProgressAt) {
             print("OVERTE_MACOS_TUTORIAL progress entities=" + inventory.entity_count +
                 " expected_models=" + inventory.found_expected_model_count +
                 " loaded_expected_models=" + inventory.loaded_expected_model_count +
                 " landmarks=" + inventory.found_expected_landmark_count +
-                " presents=" + finiteNumber(Test.getPresentCount()) +
+                " presents=" + presentCount +
                 " queues=" + JSON.stringify(resources));
             nextProgressAt = Date.now() + 30000;
         }
 
         if (snapshotStage === "waiting" && ready && readyAt === 0) {
             readyAt = Date.now() + 5000;
-            readyPresentBaseline = finiteNumber(Test.getPresentCount());
+            readyPresentBaseline = presentCount;
             print("OVERTE_MACOS_TUTORIAL full_scene_ready entities=" +
                 inventory.entity_count + " loaded_models=" +
                 inventory.loaded_expected_model_count);
@@ -212,9 +238,9 @@
 
         if (snapshotStage === "waiting" && ready && readyAt !== 0 &&
                 Date.now() >= readyAt &&
-                finiteNumber(Test.getPresentCount()) > readyPresentBaseline) {
+                presentCount > readyPresentBaseline) {
             inventory.resource_queues = resources;
-            inventory.present_count = finiteNumber(Test.getPresentCount());
+            inventory.present_count = presentCount;
             Test.saveObject(inventory, "macos-tutorial-entities.json");
             snapshotStage = "capturing";
             snapshotPendingAt = Date.now() + 300000;
@@ -227,6 +253,11 @@
                 Date.now() >= snapshotPendingAt) {
             snapshotPendingReported = true;
             print("OVERTE_MACOS_TUTORIAL snapshot_still_pending");
+        }
+        if (snapshotStage === "waiting" &&
+                Date.now() - lastProgressAt >= 1200000) {
+            finish(false, "tutorial_progress_stalled");
+            return;
         }
         if (Date.now() >= deadline) {
             finish(false, snapshotStage === "waiting" ?
