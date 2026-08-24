@@ -20,7 +20,9 @@
     var snapshotPath = "";
     var latestInventory = null;
     var connectionDeadline = Date.now() + 600000;
+    var hadHubConnection = false;
     var noEntityDeadline = 0;
+    var hadEntityStream = false;
     var lastAssetProgressAt = 0;
     var bestLoadedModelCount = 0;
     var bestOutstandingWork = Number.MAX_VALUE;
@@ -178,8 +180,32 @@
         var hubConnected = AddressManager.isConnected &&
             AddressManager.protocol === "hifi";
 
-        if (hubConnected && noEntityDeadline === 0) {
+        if (hubConnected) {
+            hadHubConnection = true;
+            connectionDeadline = 0;
+        } else if (connectionDeadline === 0) {
+            connectionDeadline = Date.now() + 600000;
+            if (hadHubConnection) {
+                print("OVERTE_MACOS_SMOKE connection_recovery_started");
+            }
+        }
+
+        // Each genuinely empty stream gets its own bounded recovery window.
+        // Run 32689584836 received a domain-requested Entity Server restart
+        // after the full 582-entity scene had loaded. The old one-shot initial
+        // deadline was already expired and failed the smoke one second after
+        // the removal, before the replacement node activated two seconds
+        // later. Clear the initial deadline once entities arrive and restart
+        // it only on a later empty transition; a stream that does not recover
+        // still fails after ten minutes.
+        if (hubConnected && latestInventory.entity_count > 0) {
+            hadEntityStream = true;
+            noEntityDeadline = 0;
+        } else if (hubConnected && noEntityDeadline === 0) {
             noEntityDeadline = Date.now() + 600000;
+            if (hadEntityStream) {
+                print("OVERTE_MACOS_SMOKE entity_stream_recovery_started");
+            }
         }
 
         if (latestInventory.entity_count > 0) {
@@ -241,7 +267,7 @@
             print("OVERTE_MACOS_SMOKE snapshot_still_pending");
         }
         if (snapshotStage === "waiting" && !hubConnected &&
-                Date.now() >= connectionDeadline) {
+                connectionDeadline !== 0 && Date.now() >= connectionDeadline) {
             finish(false, "connection_stalled");
             return;
         }
