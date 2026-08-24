@@ -267,12 +267,13 @@ function createRun() {
     const run = createRun();
     run.setModelLoaded(false);
     run.script.interval();
+    run.clock.now += 600000;
     run.setConnected(false);
     run.script.interval();
     run.clock.now += 599999;
     run.script.interval();
     assert.strictEqual(run.script.stopped, false,
-        "a lost Hub connection needs its own bounded recovery window");
+        "a lost Hub connection needs its own recovery window even after the old asset clock elapsed");
     run.setConnected(true);
     run.script.interval();
     assert.strictEqual(run.script.stopped, false,

@@ -139,7 +139,7 @@ function createRun() {
     run.clock.now += 1;
     run.script.interval();
     assert.strictEqual(run.script.stopped, true,
-        "unchanged texture accounting must fail before the 55-minute deadline");
+        "unchanged texture accounting must fail before the 70-minute deadline");
     assert(run.output.some((line) =>
         line.includes("tutorial_texture_readiness_stalled")));
 }

@@ -13,7 +13,11 @@
     // then measured consecutive active draws of 11, 9, and 6 minutes after
     // all content loaded. Keep a finite total budget while independently
     // failing a genuinely motionless load sooner.
-    var deadline = Date.now() + 3300000;
+    // Hosted Intel software rendering reached full tutorial readiness after
+    // 54m32s in run 32722309461, leaving too little time for the required
+    // newer Present and snapshot callback. Keep every visual/readiness gate
+    // unchanged, but give that final production frame a finite 70m envelope.
+    var deadline = Date.now() + 4200000;
     var nextProgressAt = Date.now();
     var readyAt = 0;
     var readyPresentBaseline = 0;
