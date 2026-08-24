@@ -1032,6 +1032,15 @@ class MacOSWorkflowContracts(unittest.TestCase):
         self.assertIn("OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '3000'", runtime_section)
         self.assertIn("--inactivity-timeout 3000 --max-runtime 3120", runtime_section)
 
+    def test_online_budget_distinguishes_active_first_frame_from_inactivity(self):
+        runtime_source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
+        section = runtime_source.split("- name: Run online entity smoke", 1)[1].split(
+            "- name: Run serverless-online-serverless transition smoke", 1
+        )[0]
+        self.assertIn("timeout-minutes: 65", section)
+        self.assertIn("OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '3600'", section)
+        self.assertIn("--inactivity-timeout 900 --max-runtime 3720", section)
+
     def test_performance_gate_uses_the_built_application_and_publishes_results(self):
         serverless = self.source.index("- name: Run serverless entity smoke")
         performance = self.source.index("- name: Run deterministic graphics performance smoke")

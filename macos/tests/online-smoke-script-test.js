@@ -30,6 +30,7 @@ function createRun() {
     let entityIDs = ["model"];
     let connected = true;
     let presentCount = 0;
+    let downloads = 0;
     const script = {
         stopped: false,
         interval: null,
@@ -57,7 +58,7 @@ function createRun() {
         },
         Script: script,
         Stats: {
-            downloads: 0,
+            get downloads() { return downloads; },
             downloadsPending: 0,
             processing: 0,
             processingPending: 0,
@@ -107,6 +108,7 @@ function createRun() {
         setModelLoaded(value) { modelLoaded = value; },
         setEntityIDs(value) { entityIDs = value; },
         setConnected(value) { connected = value; },
+        setDownloads(value) { downloads = value; },
         setPresentCount(value) { presentCount = value; },
         setTexturesComplete(value) { texturesComplete = value; }
     };
@@ -178,7 +180,7 @@ function createRun() {
     assert.strictEqual(completion, undefined,
         "a pending callback is not successful completion evidence");
     assert.strictEqual(run.script.stopped, false);
-    run.clock.now += 1600000;
+    run.clock.now += 3000000;
     run.script.interval();
     assert.strictEqual(run.script.stopped, true);
     assert.strictEqual(run.saved.some((entry) =>
@@ -210,12 +212,17 @@ function createRun() {
 {
     const run = createRun();
     run.setModelLoaded(false);
+    run.setTexturesComplete(false);
     run.script.interval();
     run.clock.now += 600000;
     run.script.interval();
     assert.strictEqual(run.script.stopped, false,
         "an active first software-rendered model frame needs its measured render grace");
-    run.clock.now += 600000;
+    run.clock.now += 2099999;
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, false,
+        "texture stability must not shorten the bounded first-frame render grace");
+    run.clock.now += 1;
     run.script.interval();
     assert.strictEqual(run.script.stopped, true,
         "a genuinely stalled first model frame must still fail before the full Hub deadline");
@@ -225,6 +232,7 @@ function createRun() {
     const run = createRun();
     run.setModelLoaded(false);
     run.setTexturesComplete(false);
+    run.setDownloads(1);
     run.script.interval();
     run.clock.now += 599999;
     run.setPresentCount(1);

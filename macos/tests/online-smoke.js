@@ -10,7 +10,7 @@
     // assembled for the test.
     // Leave room for bounded directory retries followed by full Hub asset
     // loading and production draws on Apple's hosted software renderer.
-    var deadline = Date.now() + 1800000;
+    var deadline = Date.now() + 3300000;
     var nextProgressAt = Date.now();
     var snapshotStage = "waiting";
     var snapshotSettleDeadline = 0;
@@ -110,13 +110,16 @@
         };
     }
 
-    function resourcesIdle(resources) {
+    function resourceQueuesEmpty(resources) {
         return resources.downloads === 0 &&
             resources.downloads_pending === 0 &&
             resources.processing === 0 &&
             resources.processing_pending === 0 &&
-            resources.texture_pending_mb === 0 &&
-            Test.isTextureLoadingComplete();
+            resources.texture_pending_mb === 0;
+    }
+
+    function resourcesIdle(resources) {
+        return resourceQueuesEmpty(resources) && Test.isTextureLoadingComplete();
     }
 
     function saveEntityInventory(inventory) {
@@ -166,6 +169,7 @@
         latestInventory = inspectEntityInventory(entities, 64);
         var resources = queueState();
         var presentCount = finiteNumber(Test.getPresentCount());
+        var resourceQueuesAreEmpty = resourceQueuesEmpty(resources);
         var resourcesAreIdle = resourcesIdle(resources);
         var productionSceneReady = latestInventory.loaded_visible_model_count > 0 &&
             resourcesAreIdle;
@@ -249,16 +253,19 @@
         }
         // Apple's hosted x86_64 software OpenGL driver can spend substantially
         // longer than the ordinary asset-stall window compiling the first
-        // production model frame. Run 32684847557 proved 100%+ process CPU,
-        // empty resource queues, and completed draws for almost 19 minutes
-        // after the last asset counter changed. Preserve the fast ten-minute
-        // failure for connection/assets and bound only this observable first-
-        // frame state to twenty minutes. A present is progress and resets the
-        // clock; visual readiness and screenshot validation remain unchanged.
-        var firstFrameRenderPending = resourcesAreIdle &&
+        // production model frame. Runs 32684847557 and 32686828613 proved
+        // 100%+ process CPU, empty resource queues, and sequential production
+        // draws lasting 18 and 13 minutes before the next draw began. Texture
+        // stability itself depends on those frames completing, so classify
+        // this state from the raw queues rather than the circular texture-
+        // complete readiness gate. Preserve the fast ten-minute failure for
+        // active asset queues and bound only this observable first-frame state
+        // to 45 minutes. A present is progress and resets the clock; visual
+        // readiness and screenshot validation remain unchanged.
+        var firstFrameRenderPending = resourceQueuesAreEmpty &&
             latestInventory.visible_model_count > 0 &&
             latestInventory.loaded_visible_model_count === 0;
-        var assetStallLimit = firstFrameRenderPending ? 1200000 : 600000;
+        var assetStallLimit = firstFrameRenderPending ? 2700000 : 600000;
         if (snapshotStage === "waiting" && lastAssetProgressAt !== 0 &&
                 Date.now() - lastAssetProgressAt >= assetStallLimit) {
             if (firstFrameRenderPending) {
