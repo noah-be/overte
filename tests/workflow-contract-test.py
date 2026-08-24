@@ -1010,11 +1010,27 @@ class MacOSWorkflowContracts(unittest.TestCase):
 
     def test_bootstrap_serverless_budget_matches_active_software_rendering(self):
         section = self.source.split("- name: Run serverless entity smoke", 1)[1].split(
-            "- name: Run deterministic graphics performance smoke", 1
+            "- name: Run bundled serverless tutorial smoke", 1
         )[0]
         self.assertIn("timeout-minutes: 35", section)
         self.assertIn("OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '1800'", section)
         self.assertIn("--inactivity-timeout 1800 --max-runtime 1920", section)
+
+    def test_tutorial_budget_is_long_but_progress_bounded(self):
+        section = self.source.split(
+            "- name: Run bundled serverless tutorial smoke", 1
+        )[1].split("- name: Run deterministic graphics performance smoke", 1)[0]
+        self.assertIn("timeout-minutes: 55", section)
+        self.assertIn("OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '3000'", section)
+        self.assertIn("--inactivity-timeout 3000 --max-runtime 3120", section)
+
+        runtime_source = MACOS_RUNTIME_WORKFLOW.read_text(encoding="utf-8")
+        runtime_section = runtime_source.split(
+            "- name: Run bundled serverless tutorial smoke", 1
+        )[1].split("- name: Run online entity smoke", 1)[0]
+        self.assertIn("timeout-minutes: 55", runtime_section)
+        self.assertIn("OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '3000'", runtime_section)
+        self.assertIn("--inactivity-timeout 3000 --max-runtime 3120", runtime_section)
 
     def test_performance_gate_uses_the_built_application_and_publishes_results(self):
         serverless = self.source.index("- name: Run serverless entity smoke")

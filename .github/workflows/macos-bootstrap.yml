@@ -1331,12 +1331,14 @@ jobs:
             macos/ci/serverless-smoke.sh "$app" build/macos-smoke
 
       - name: Run bundled serverless tutorial smoke
-        timeout-minutes: 35
+        timeout-minutes: 55
         env:
-          # The tutorial uses the unchanged production scene and renderer.  A
-          # validated snapshot can therefore take as long as the deterministic
-          # serverless evidence on hosted Intel software OpenGL.
-          OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '1800'
+          # Run 32682143125 had imported all 40 entities, loaded all 16 expected
+          # models, drained every resource queue, and continued completing
+          # production draws at the former 30-minute boundary. The script has
+          # an independent 20-minute no-progress cutoff; this larger wall
+          # budget therefore covers active rendering without hiding a stall.
+          OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS: '3000'
         run: |
           app="$(find build -type d -name Overte.app -print -quit)"
           python3 macos/ci/runner-telemetry.py \
@@ -1344,7 +1346,7 @@ jobs:
             --log "$MACOS_RUNNER_TELEMETRY_DIR/runtime-tutorial.jsonl" \
             --diagnostics-dir "$MACOS_RUNNER_TELEMETRY_DIR/runtime-tutorial-stall" \
             --sample-interval 5 --publish-interval 30 --directory-interval 60 \
-            --inactivity-timeout 1800 --max-runtime 1920 \
+            --inactivity-timeout 3000 --max-runtime 3120 \
             --watch tutorial=build/macos-tutorial-smoke -- \
             macos/ci/tutorial-smoke.sh "$app" build/macos-tutorial-smoke
 
