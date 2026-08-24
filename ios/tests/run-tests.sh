@@ -53,6 +53,7 @@ python3 "$script_dir/interface-ios-input-platform-test.py"
 python3 "$script_dir/interface-ios-platform-reporting-test.py"
 python3 "$script_dir/interface-ios-window-platform-test.py"
 python3 "$script_dir/ios-avatar-viewpoint-physics-contract-test.py"
+python3 "$script_dir/ios-autonomous-device-test-contract-test.py"
 python3 "$script_dir/ios-touch-ui-adapter-contract-test.py"
 python3 "$script_dir/shared-ios-desktop-api-isolation-test.py"
 

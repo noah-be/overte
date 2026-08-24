@@ -23,7 +23,10 @@
 #include <QFontDatabase>
 #include <QtCore/QCommandLineParser>
 #include <QtCore/QCoreApplication>
+#include <QtCore/QJsonDocument>
+#include <QtCore/QRegularExpression>
 #include <QtCore/QResource>
+#include <QtCore/QSet>
 #include <QtQml/QQmlContext>
 #include <QtQuick/QQuickWindow>
 
@@ -274,6 +277,96 @@ static const int WATCHDOG_TIMER_TIMEOUT = 100;
 static const QString TESTER_FILE = "/sdcard/_hifi_test_device.txt";
 #endif
 
+#if defined(Q_OS_IOS)
+static bool decodeIOSAutomationPlan(
+        const QString& encodedPlan, QVariantMap& plan, QString& error) {
+    static const int MAX_ENCODED_PLAN_BYTES = 32768;
+    static const int MAX_ACTIONS = 128;
+    static const QRegularExpression ENCODED_PLAN_PATTERN(
+        QStringLiteral("^[A-Za-z0-9_-]+={0,2}$"));
+    static const QRegularExpression TEST_ID_PATTERN(
+        QStringLiteral("^[A-Za-z0-9._-]{1,64}$"));
+    static const QSet<QString> ALLOWED_COMMANDS {
+        QStringLiteral("wait"),
+        QStringLiteral("wait_until"),
+        QStringLiteral("navigate"),
+        QStringLiteral("wait_connection"),
+        QStringLiteral("open_tablet"),
+        QStringLiteral("close_tablet"),
+        QStringLiteral("tablet_home"),
+        QStringLiteral("tablet_qml"),
+        QStringLiteral("tablet_web"),
+        QStringLiteral("camera_mode"),
+        QStringLiteral("turn"),
+        QStringLiteral("jump"),
+        QStringLiteral("tap"),
+        QStringLiteral("swipe"),
+        QStringLiteral("type_text"),
+        QStringLiteral("key"),
+        QStringLiteral("clear_caches"),
+        QStringLiteral("set_render_scale"),
+        QStringLiteral("snapshot"),
+        QStringLiteral("screenshot"),
+        QStringLiteral("assert"),
+        QStringLiteral("finish")
+    };
+
+    const auto encoded = encodedPlan.toLatin1();
+    if (encoded.isEmpty() || encoded.size() > MAX_ENCODED_PLAN_BYTES ||
+            !ENCODED_PLAN_PATTERN.match(encodedPlan).hasMatch()) {
+        error = QStringLiteral("invalid-base64url-envelope");
+        return false;
+    }
+
+    const auto decoded = QByteArray::fromBase64(encoded, QByteArray::Base64UrlEncoding);
+    QJsonParseError parseError;
+    const auto document = QJsonDocument::fromJson(decoded, &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+        error = QStringLiteral("invalid-json-%1").arg(parseError.errorString());
+        return false;
+    }
+
+    plan = document.object().toVariantMap();
+    if (plan.value(QStringLiteral("schema_version")).toInt() != 1) {
+        error = QStringLiteral("unsupported-schema-version");
+        return false;
+    }
+    if (!TEST_ID_PATTERN.match(plan.value(QStringLiteral("test_id")).toString()).hasMatch()) {
+        error = QStringLiteral("invalid-test-id");
+        return false;
+    }
+
+    const int heartbeatSeconds = plan.value(QStringLiteral("heartbeat_seconds"), 5).toInt();
+    const int timeoutSeconds = plan.value(QStringLiteral("timeout_seconds"), 600).toInt();
+    const int initialDelayMs = plan.value(QStringLiteral("initial_delay_ms"), 3000).toInt();
+    if (heartbeatSeconds < 1 || heartbeatSeconds > 60 ||
+            timeoutSeconds < 5 || timeoutSeconds > 3600 ||
+            initialDelayMs < 0 || initialDelayMs > 300000) {
+        error = QStringLiteral("invalid-timing");
+        return false;
+    }
+
+    const auto actions = plan.value(QStringLiteral("actions")).toList();
+    if (actions.isEmpty() || actions.size() > MAX_ACTIONS) {
+        error = QStringLiteral("invalid-action-count");
+        return false;
+    }
+    for (int index = 0; index < actions.size(); ++index) {
+        const auto action = actions.at(index).toMap();
+        const auto command = action.value(QStringLiteral("command")).toString();
+        if (action.isEmpty() || !ALLOWED_COMMANDS.contains(command)) {
+            error = QStringLiteral("invalid-command-%1").arg(index);
+            return false;
+        }
+    }
+
+    plan[QStringLiteral("heartbeat_seconds")] = heartbeatSeconds;
+    plan[QStringLiteral("timeout_seconds")] = timeoutSeconds;
+    plan[QStringLiteral("initial_delay_ms")] = initialDelayMs;
+    return true;
+}
+#endif
+
 bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted) {
     const int listenPort = parser.isSet("listenPort") ? parser.value("listenPort").toInt() : INVALID_PORT;
 
@@ -294,6 +387,9 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
 
     // Ignore any previous crashes if running from command line with a test script.
     bool inTestMode = parser.isSet("testScript");
+#if defined(Q_OS_IOS)
+    inTestMode = inTestMode || parser.isSet("ios-test-plan");
+#endif
 
     bool previousSessionCrashed { false };
     if (!inTestMode) {
@@ -565,7 +661,38 @@ void Application::initialize(const QCommandLineParser &parser) {
 
     static int SEND_STATS_INTERVAL_MS;
     {
-        if (parser.isSet("testScript")) {
+#if defined(Q_OS_IOS)
+        bool iosAutomationConfigured { false };
+        if (parser.isSet("ios-test-plan")) {
+            QVariantMap plan;
+            QString error;
+            const auto runnerPath = QDir(applicationDirPath()).filePath(
+                QStringLiteral("scripts/system/iosAutonomousTestRunner.js"));
+            if (!decodeIOSAutomationPlan(parser.value("ios-test-plan"), plan, error)) {
+                TestScriptingInterface::getInstance()->logIOSAutomationEvent(
+                    QStringLiteral("plan_rejected"), { { QStringLiteral("reason"), error } });
+                QTimer::singleShot(0, qApp, [] { QCoreApplication::exit(2); });
+            } else if (!QFileInfo::exists(runnerPath)) {
+                TestScriptingInterface::getInstance()->logIOSAutomationEvent(
+                    QStringLiteral("plan_rejected"),
+                    { { QStringLiteral("reason"), QStringLiteral("runner-missing") } });
+                QTimer::singleShot(0, qApp, [] { QCoreApplication::exit(2); });
+            } else {
+                TestScriptingInterface::getInstance()->setIOSAutomationPlan(plan);
+                setProperty(hifi::properties::TEST, QUrl::fromLocalFile(runnerPath));
+                iosAutomationConfigured = true;
+                logIOSRuntimeMarker(
+                    "OVERTE_IOS_AUTOMATION plan_accepted test_id=",
+                    plan.value(QStringLiteral("test_id")).toString(),
+                    "actions=", plan.value(QStringLiteral("actions")).toList().size());
+            }
+        }
+#endif
+        if (parser.isSet("testScript")
+#if defined(Q_OS_IOS)
+                && !iosAutomationConfigured
+#endif
+                ) {
             QString testScriptPath = parser.value("testScript");
             // If the URL scheme is http(s) or ftp, then use as is, else - treat it as a local file
             // This is done so as not break previous command line scripts

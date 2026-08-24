@@ -14,6 +14,7 @@
 
 #include <functional>
 #include <QtCore/QObject>
+#include <QtCore/QVariant>
 #include <ScriptValue.h>
 
 class TestScriptingInterface : public QObject {
@@ -22,6 +23,7 @@ class TestScriptingInterface : public QObject {
 public:
     void setTestResultsLocation(const QString path) { _testResultsLocation = path; }
     const QString& getTestResultsLocation() { return _testResultsLocation;  };
+    void setIOSAutomationPlan(const QVariantMap& plan) { _iosAutomationPlan = plan; }
 
 public slots:
     static TestScriptingInterface* getInstance();
@@ -178,9 +180,20 @@ public slots:
      */
     Q_INVOKABLE bool isTextureLoadingComplete();
 
+    // The iOS autonomous runner is bundled with the application.  These
+    // methods deliberately expose only a validated plan, bounded structured
+    // logging, read-only runtime state, and a small command allow-list.  They
+    // are available to the runner only because Test itself is registered only
+    // when an explicit test script is active.
+    Q_INVOKABLE QVariantMap getIOSAutomationPlan() const;
+    Q_INVOKABLE QVariantMap getIOSAutomationSnapshot() const;
+    Q_INVOKABLE void logIOSAutomationEvent(const QString& stage, const QVariantMap& fields = {});
+    Q_INVOKABLE bool executeIOSAutomationCommand(const QString& command, const QVariantMap& arguments = {});
+
 private:
     bool waitForCondition(qint64 maxWaitMs, std::function<bool()> condition);
     QString _testResultsLocation;
+    QVariantMap _iosAutomationPlan;
 };
 
 #endif  // hifi_TestScriptingInterface_h

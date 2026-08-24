@@ -1399,20 +1399,25 @@ void Application::resumeAfterLoginDialogActionTaken() {
     // restart domain handler.
     nodeList->getDomainHandler().resetting();
 
-#if defined(Q_OS_IOS)
-    // iOS cannot host Overte's companion desktop Sandbox process, so waiting
-    // for http://localhost:60332/status only delays (or can indefinitely block)
-    // the startup URL. Preserve the asynchronous startup boundary while
-    // deterministically selecting the supported "sandbox absent" path.
-    QMetaObject::invokeMethod(this, [this] {
-        handleSandboxStatus(nullptr);
-    }, Qt::QueuedConnection);
-#else
     QVariant testProperty = property(hifi::properties::TEST);
     if (testProperty.isValid()) {
         const auto testScript = property(hifi::properties::TEST).toUrl();
         // Set last parameter to exit interface when the test script finishes, if so requested
         DependencyManager::get<ScriptEngines>()->loadScript(testScript, false, false, false, false, _quitWhenFinished);
+    }
+
+#if defined(Q_OS_IOS)
+    // iOS cannot host Overte's companion desktop Sandbox process, so waiting
+    // for http://localhost:60332/status only delays (or can indefinitely block)
+    // the startup URL. Preserve the asynchronous startup boundary while
+    // deterministically selecting the supported "sandbox absent" path. Test
+    // scripts are safe to start here because the default mobile scripts and
+    // their tablet surfaces have already been initialized above.
+    QMetaObject::invokeMethod(this, [this] {
+        handleSandboxStatus(nullptr);
+    }, Qt::QueuedConnection);
+#else
+    if (testProperty.isValid()) {
         // This is done so we don't get a "connection time-out" message when we haven't passed in a URL.
         if (!_urlParam.isEmpty()) {
             auto reply = SandboxUtils::getStatus();

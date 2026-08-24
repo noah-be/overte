@@ -224,6 +224,11 @@ int main(int argc, const char* argv[]) {
         "ios-world-evidence",
         "Emit privacy-bounded iOS world acceptance markers for the fixed CI destinations."
     );
+    QCommandLineOption iosTestPlanOption(
+        "ios-test-plan",
+        "Run the bundled iOS autonomous test runner with a Base64URL-encoded JSON plan.",
+        "base64url-json"
+    );
 #endif
     QCommandLineOption protocolVersionOption(
         "protocolVersion",
@@ -438,6 +443,7 @@ int main(int argc, const char* argv[]) {
     parser.addOption(urlOption);
 #ifdef Q_OS_IOS
     parser.addOption(iosWorldEvidenceOption);
+    parser.addOption(iosTestPlanOption);
 #endif
     parser.addOption(protocolVersionOption);
     parser.addOption(noUpdaterOption);
