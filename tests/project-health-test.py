@@ -52,6 +52,33 @@ class ProjectHealthTests(unittest.TestCase):
         )
         self.assertIn("HifiConstants { id: hifi }", source)
 
+    def test_qt6_tablet_components_do_not_fail_before_use(self):
+        setting_number = (
+            ROOT / "scripts/system/settings/qml/SettingNumber.qml"
+        ).read_text(encoding="utf-8")
+        self.assertTrue(setting_number.startswith("import QtQuick\nimport QtQuick.Controls\n"))
+        self.assertIn("RegularExpressionValidator", setting_number)
+
+        custom_query = (
+            ROOT / "interface/resources/qml/dialogs/TabletCustomQueryDialog.qml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("import QtQuick.Dialogs as OriginalDialogs", custom_query)
+        self.assertNotRegex(custom_query, r"import QtQuick\.Dialogs\s+[0-9]")
+
+        tablet_root = (
+            ROOT / "interface/resources/qml/hifi/tablet/TabletRoot.qml"
+        ).read_text(encoding="utf-8")
+        for component in (
+            "TabletCustomQueryDialog",
+            "TabletFileDialog",
+            "TabletAssetDialog",
+        ):
+            self.assertNotRegex(
+                tablet_root,
+                rf"Component\s*\{{[^}}]*\b{component}\s*\{{",
+            )
+            self.assertIn(f'Qt.createComponent("../../dialogs/{component}.qml")', tablet_root)
+
     def test_all_python_files_compile(self):
         python2_allowlist = {
             Path("tools/bake-tools/bake.py"),
