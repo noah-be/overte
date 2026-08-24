@@ -5,6 +5,11 @@
 - Why this change belongs on the target branch:
 - Child branches that need synchronization afterward:
 
+## Roadmap
+
+- Milestone identifier:
+- Exit criterion advanced:
+
 ## Verification
 
 - Tested platforms:
