@@ -1358,6 +1358,14 @@ for workflow_name, workflow_source in (
     ("bootstrap", bootstrap_workflow),
     ("runtime", runtime_workflow),
 ):
+    if "OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '900'" not in workflow_source:
+        raise SystemExit(
+            f"{workflow_name} workflow must preserve the delayed-crash LLDB window"
+        )
+for workflow_name, workflow_source in (
+    ("bootstrap", bootstrap_workflow),
+    ("runtime", runtime_workflow),
+):
     for tutorial_workflow_contract in (
         "Run bundled serverless tutorial smoke",
         "macos/ci/tutorial-smoke.sh",

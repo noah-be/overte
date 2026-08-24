@@ -84,7 +84,10 @@ jobs:
       # A cold LLDB launch on the hosted Intel runner spends close to 90 seconds
       # in startup before the online smoke reaches the reproducible crash site.
       # Keep enough bounded time to capture the stopped process and backtrace.
-      OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '300'
+      # Hosted software OpenGL crashes can occur only after a several-minute
+      # draw. Keep LLDB alive beyond the longest observed pre-crash runtime so
+      # the automatic retry reaches the fault and records its backtrace.
+      OVERTE_MACOS_LLDB_TIMEOUT_SECONDS: '900'
       CMAKE_C_COMPILER_LAUNCHER: ${{ github.workspace }}/macos/ci/compiler-watchdog.py;--
       CMAKE_CXX_COMPILER_LAUNCHER: ${{ github.workspace }}/macos/ci/compiler-watchdog.py;--
       CMAKE_OBJC_COMPILER_LAUNCHER: ${{ github.workspace }}/macos/ci/compiler-watchdog.py;--
