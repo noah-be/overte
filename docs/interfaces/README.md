@@ -16,6 +16,7 @@ compared without guessing which document is authoritative.
 | Android phones | `docs/interfaces/android-phone/README.md` | `android-phone` |
 | iPhone and iPad | `docs/interfaces/ios/README.md` | `apple-ios` |
 | macOS | `docs/interfaces/macos/README.md` | `apple-macos` |
+| Meta Quest (paused) | `docs/interfaces/quest/README.md` | `android-vr-quest` |
 
 The platform branches contain the corresponding documentation. A missing path
 on another branch does not imply that the platform has been abandoned; inspect
