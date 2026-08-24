@@ -47,10 +47,10 @@ the product surface.
 
 **Exit criteria:**
 
-- [ ] this roadmap is the single repository-level source for portfolio order;
-- [ ] every product has a priority, honest maturity, evidence reference, and
+- [x] this roadmap is the single repository-level source for portfolio order;
+- [x] every product has a priority, honest maturity, evidence reference, and
   one next gate;
-- [ ] fork-specific contribution, security, ownership, and funding policies do
+- [x] fork-specific contribution, security, ownership, and funding policies do
   not contradict the repository README;
 - [ ] the roadmap and fork-policy baseline is propagated through every
   permanent child branch without importing new upstream changes;
