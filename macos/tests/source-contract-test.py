@@ -118,6 +118,46 @@ online_loading_renderer = (
 online_loading_native_test = (
     ROOT / "tests/shared/src/MacOSOnlineLoadingTelemetryTests.cpp"
 ).read_text(encoding="utf-8")
+texture_readiness_header = (
+    ROOT / "libraries/shared/src/MacOSGPUTextureReadiness.h"
+).read_text(encoding="utf-8")
+texture_readiness_native_test = (
+    ROOT / "tests/shared/src/MacOSGPUTextureReadinessTests.cpp"
+).read_text(encoding="utf-8")
+for texture_readiness_contract in (
+    'renderer.find("Apple Software Renderer")',
+    "stabilityCount < requiredStabilityCount",
+    "pendingTransferBytes != 0",
+    "allocatedBytes == populatedBytes || usesStableAllocationFallback(renderer)",
+):
+    if texture_readiness_contract not in texture_readiness_header:
+        raise SystemExit(
+            f"macOS software texture-readiness contract missing: {texture_readiness_contract}"
+        )
+for texture_readiness_application_contract in (
+    "macos::gpu_texture_readiness::isComplete(",
+    "textureResourceGPUMemSize",
+    "texturePopulatedGPUMemSize",
+    "textureTransferSize",
+    'OVERTE_MACOS_TEXTURE_READINESS stable_software_renderer',
+):
+    if texture_readiness_application_contract not in application_source:
+        raise SystemExit(
+            "macOS Application texture-readiness integration missing: "
+            f"{texture_readiness_application_contract}"
+        )
+for texture_readiness_test_contract in (
+    "testRejectsUnstableAllocation",
+    "testRejectsPendingTransfer",
+    "testRequiresPopulatedMemoryOnHardware",
+    "testAcceptsPopulatedMemoryOnHardware",
+    "testAcceptsStableSoftwareRendererAllocation",
+    "testSoftwareRendererDetectionIsNarrow",
+):
+    if texture_readiness_test_contract not in texture_readiness_native_test:
+        raise SystemExit(
+            f"macOS software texture-readiness native coverage missing: {texture_readiness_test_contract}"
+        )
 if '#include "shared/GlobalAppProperties.h"' not in online_loading_telemetry:
     raise SystemExit("shared macOS online telemetry must use the target-local quoted include path")
 if "#include <shared/GlobalAppProperties.h>" in online_loading_telemetry:

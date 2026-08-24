@@ -780,6 +780,9 @@ private:
     qint64 _gpuTextureMemSizeStabilityCount { 0 };
     qint64 _gpuTextureMemSizeAtLastCheck { 0 };
     int _minimumGPUTextureMemSizeStabilityCount { 30 };
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+    bool _macosSoftwareTextureReadinessLogged { false };
+#endif
 
     SharedSoundPointer _sampleSound { nullptr };
 
