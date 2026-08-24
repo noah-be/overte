@@ -200,6 +200,34 @@ function createRun() {
 
 {
     const run = createRun();
+    run.setModelLoaded(false);
+    run.script.interval();
+    run.setEntityIDs([]);
+    run.script.interval();
+    run.clock.now += 599999;
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, false,
+        "a restarted Entity Server needs its own bounded stream recovery window");
+    run.setEntityIDs(["model"]);
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, false,
+        "a recovered entity stream must clear its recovery deadline");
+}
+
+{
+    const run = createRun();
+    run.setModelLoaded(false);
+    run.script.interval();
+    run.setEntityIDs([]);
+    run.script.interval();
+    run.clock.now += 600000;
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, true,
+        "a lost entity stream that never recovers must still fail in ten minutes");
+}
+
+{
+    const run = createRun();
     run.setConnected(false);
     run.setEntityIDs([]);
     run.script.interval();
@@ -207,6 +235,34 @@ function createRun() {
     run.script.interval();
     assert.strictEqual(run.script.stopped, true,
         "a stalled Hub connection must fail before waiting for entities");
+}
+
+{
+    const run = createRun();
+    run.setModelLoaded(false);
+    run.script.interval();
+    run.setConnected(false);
+    run.script.interval();
+    run.clock.now += 599999;
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, false,
+        "a lost Hub connection needs its own bounded recovery window");
+    run.setConnected(true);
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, false,
+        "a recovered Hub connection must clear its recovery deadline");
+}
+
+{
+    const run = createRun();
+    run.setModelLoaded(false);
+    run.script.interval();
+    run.setConnected(false);
+    run.script.interval();
+    run.clock.now += 600000;
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, true,
+        "a lost Hub connection that never recovers must still fail in ten minutes");
 }
 
 {
