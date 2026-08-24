@@ -1204,7 +1204,7 @@ for crash_report_location in (
 for smoke_name, smoke_source, maximum, cleanup_contract in (
     ("serverless", smoke, 900, 'rm -f "$snapshot" "$screenshot_result"'),
     ("bundled tutorial", tutorial_smoke, 3000, 'rm -f "$snapshot" "$screenshot_result"'),
-    ("online", online_smoke, 2400, 'rm -f "$snapshot" "$screenshot_result"'),
+    ("online", online_smoke, 3600, 'rm -f "$snapshot" "$screenshot_result"'),
 ):
     default_timeout = re.search(
         r'OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-([0-9]+)', smoke_source
@@ -1407,6 +1407,7 @@ for observational_contract in (
     "macos-online-smoke.png",
     'snapshotStage = "capturing"',
     "resourcesIdle(resources)",
+    "resourceQueuesEmpty(resources)",
     "Test.isTextureLoadingComplete()",
     "Test.getPresentCount()",
     "Entities.isLoaded(entityID)",
@@ -1462,13 +1463,14 @@ for online_timing_contract in (
     "snapshotSettleDeadline = Date.now() + 300000",
     "snapshot_still_pending",
     "if (success)",
-    "Date.now() + 1800000",
+    "Date.now() + 3300000",
     "connectionDeadline = Date.now() + 600000",
     "Date.now() + 600000",
     'finish(false, "connection_stalled")',
     'finish(false, "entity_stream_stalled")',
     "presentCount > bestPresentCount",
-    "firstFrameRenderPending ? 1200000 : 600000",
+    "firstFrameRenderPending = resourceQueuesAreEmpty",
+    "firstFrameRenderPending ? 2700000 : 600000",
     "Date.now() - lastAssetProgressAt >= assetStallLimit",
     '"first_frame_render_stalled"',
     'finish(false, "asset_loading_stalled")',
@@ -1481,8 +1483,10 @@ if online_script.index("saveEntityInventory(latestInventory)") > online_script.i
     "Window.takeSnapshot"
 ):
     raise SystemExit("online smoke must freeze its correlated inventory before capture")
-if 'OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-2400' not in online_smoke:
+if 'OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-3600' not in online_smoke:
     raise SystemExit("online smoke must cover the measured software-renderer frame budget")
+if "--periodic-sample-count 12" not in online_smoke:
+    raise SystemExit("online smoke must sample the full extended first-frame window")
 if 'finish(true, "snapshot_settle_elapsed")' in online_script:
     raise SystemExit("online smoke must never treat a pending PNG callback as success")
 

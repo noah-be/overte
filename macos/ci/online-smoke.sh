@@ -26,7 +26,7 @@ readonly completion="$output_dir/macos-online-smoke-completion.json"
 readonly completion_validation="$output_dir/online-completion-validation.json"
 readonly runtime_diagnostics="$output_dir/runtime-diagnostics"
 readonly timeline="$output_dir/online-diagnostic-timeline.json"
-readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-2400}"
+readonly timeout_seconds="${OVERTE_MACOS_SMOKE_TIMEOUT_SECONDS:-3600}"
 readonly shutdown_grace_seconds="${OVERTE_MACOS_SMOKE_SHUTDOWN_GRACE_SECONDS:-15}"
 readonly lldb_timeout_seconds="${OVERTE_MACOS_LLDB_TIMEOUT_SECONDS:-90}"
 
@@ -65,7 +65,7 @@ set +e
 python3 "$source_root/macos/tools/run-process-with-timeout.py" \
     --timeout "$timeout_seconds" --grace "$shutdown_grace_seconds" \
     --log "$log" --result "$process_result" --sample "$process_sample" \
-    --periodic-sample-interval 300 --periodic-sample-count 6 \
+    --periodic-sample-interval 300 --periodic-sample-count 12 \
     --crash-report "$crash_report" --completion-file "$completion" \
     --completion-settle 1 -- \
     "${app_command[@]}"
