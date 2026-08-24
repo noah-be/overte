@@ -203,6 +203,9 @@ assert "OVERTE_IOS_STATS_SAMPLE" in STATS_SOURCE
 assert "QTimer::singleShot(1000" in APPLICATION_UI
 MOBILE_ACTION_BAR = (ROOT / "scripts/system/+android_phoneInterface/mobileActionBar.js").read_text()
 assert "shortEdge * 0.105" in MOBILE_ACTION_BAR
+assert 'PlatformInfo.getOperatingSystemType() === "IOS"' in MOBILE_ACTION_BAR
+assert "shortEdge * 0.16" in MOBILE_ACTION_BAR
+assert "if (isIOS)" in MOBILE_ACTION_BAR
 assert 'connectSignal(Controller, "touchBeginEvent", onTouchBegin)' in MOBILE_ACTION_BAR
 assert 'disconnectSignal(Controller, "touchBeginEvent", onTouchBegin)' in MOBILE_ACTION_BAR
 assert 'OVERTE_MOBILE_ACTION_BAR action=' in MOBILE_ACTION_BAR

@@ -122,7 +122,7 @@ MUTANTS = [
     Mutant("handoff-ignore-readiness", "handoff", HANDOFF, "if (!ready || !_pending)", "if (false)", True),
     Mutant("handoff-invalid-keeps-stale", "handoff", HANDOFF, "clear();\n            return;", "return;", True),
     Mutant("js-tablet-leak-menu-button", "javascript", SCRIPTS / "+android_phoneInterface/mobileTabletApps.js", "tablet.removeButton(menuButton);", "void 0;"),
-    Mutant("js-actionbar-leak-goto-handler", "javascript", SCRIPTS / "+android_phoneInterface/mobileActionBar.js", 'disconnectSignal(gotoButton, "clicked", showAddressBar);', "void 0;"),
+    Mutant("js-actionbar-leak-goto-handler", "javascript", SCRIPTS / "+android_phoneInterface/mobileActionBar.js", 'disconnectSignal(gotoButton, "clicked", onGotoClicked);', "void 0;"),
     Mutant("js-quick-goto-disable-home", "javascript", SCRIPTS / "quickGoto.js", "if (home) {", "if (false) {"),
     Mutant("js-places-keep-message-subscription", "javascript", SCRIPTS / "places/places.js", "Messages.unsubscribe(portalChannelName);", "void 0;"),
     Mutant("js-portal-allow-duplicate-entry", "javascript", SCRIPTS / "places/portal.js", "if (!portalReady || teleportTimer !== null) {", "if (!portalReady) {"),

@@ -47,7 +47,13 @@ FakeFragment.instances = [];
 FakeFragment.failCreation = false;
 FakeFragment.failButtons = false;
 
-function start({ width = 1000, height = 500, muted = false, cameraMode = "first person" } = {}) {
+function start({
+    width = 1000,
+    height = 500,
+    muted = false,
+    cameraMode = "first person",
+    operatingSystem
+} = {}) {
     FakeFragment.instances = [];
     FakeFragment.failCreation = false;
     FakeFragment.failButtons = false;
@@ -65,6 +71,8 @@ function start({ width = 1000, height = 500, muted = false, cameraMode = "first 
     const controllerCalls = [];
     const Controller = {
         device: 9,
+        touchBeginEvent: new FakeSignal(),
+        touchEndEvent: new FakeSignal(),
         findDevice(name) { controllerCalls.push(["find", name]); return this.device; },
         triggerHapticPulseOnDevice(...args) { controllerCalls.push(["haptic", ...args]); },
         setVPadHidden(value) { controllerCalls.push(["hidden", value]); },
@@ -76,10 +84,14 @@ function start({ width = 1000, height = 500, muted = false, cameraMode = "first 
     const MyAvatar = { cameraBoomLength: 2.25 };
     const DialogsManager = { calls: 0, showAddressBar() { this.calls += 1; } };
     const prints = [];
-    runProductionScript(source, {
+    const globals = {
         Audio, Camera, Controller, DialogsManager, MyAvatar, QmlFragment: FakeFragment,
         Script, Tablet, Window, print: (message) => prints.push(message)
-    });
+    };
+    if (operatingSystem) {
+        globals.PlatformInfo = { getOperatingSystemType() { return operatingSystem; } };
+    }
+    runProductionScript(source, globals);
     const [navigation, audio] = FakeFragment.instances;
     return { Script, Window, tablet, Controller, controllerCalls, Audio, Camera, MyAvatar,
         DialogsManager, prints, navigation, audio };
@@ -165,6 +177,27 @@ test("geometry changes resize the tablet and clamp small and large control layou
     state.Window.geometryChanged.emit();
     assert.equal(state.navigation.buttons[0].width, 180);
     assert.equal(state.navigation.buttons[0].textSize, 30);
+});
+
+test("iOS uses compact controls and deduplicates native touch against QML clicks", () => {
+    const state = start({ width: 1366, height: 1024, operatingSystem: "IOS" });
+    const gotoButton = state.navigation.buttons[0];
+
+    assert.equal(gotoButton.width, 108);
+    assert.equal(state.Controller.touchBeginEvent.listenerCount, 1);
+    assert.equal(state.Controller.touchEndEvent.listenerCount, 1);
+
+    state.Controller.touchBeginEvent.emit({ x: 40, y: 40 });
+    state.Controller.touchEndEvent.emit({ x: 40, y: 40 });
+    gotoButton.clicked.emit();
+
+    assert.equal(state.DialogsManager.calls, 1);
+    assert.equal(state.prints.filter((message) =>
+        message.includes("OVERTE_MOBILE_ACTION_BAR action=goto")).length, 1);
+
+    state.Script.end();
+    assert.equal(state.Controller.touchBeginEvent.listenerCount, 0);
+    assert.equal(state.Controller.touchEndEvent.listenerCount, 0);
 });
 
 test("shutdown cancels deferred work, disconnects every signal and closes fragments", () => {
