@@ -13,11 +13,12 @@
     // then measured consecutive active draws of 11, 9, and 6 minutes after
     // all content loaded. Keep a finite total budget while independently
     // failing a genuinely motionless load sooner.
-    // Hosted Intel software rendering reached full tutorial readiness after
-    // 54m32s in run 32722309461, leaving too little time for the required
-    // newer Present and snapshot callback. Keep every visual/readiness gate
-    // unchanged, but give that final production frame a finite 70m envelope.
-    var deadline = Date.now() + 4200000;
+    // Run 32730715869 proved continuous production progress through nine
+    // Presents over 70 minutes. Its final Present changed the texture set only
+    // four minutes before the deadline, while measured software frames take up
+    // to 21 minutes. Keep every visual/readiness gate unchanged and leave one
+    // complete measured frame interval after late texture discovery.
+    var deadline = Date.now() + 5400000;
     var nextProgressAt = Date.now();
     var readyAt = 0;
     var readyPresentBaseline = 0;
