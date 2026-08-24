@@ -19,7 +19,7 @@
 #include <thread>
 
 #include <QtCore/QCoreApplication>
-#include <QtCore/QEventLoop>
+#include <QtCore/QEvent>
 #include <QtCore/QFileInfo>
 #include <QtCore/QTimer>
 #include <QtCore/QThread>
@@ -267,11 +267,10 @@ ScriptEngineV8::ScriptEngineV8(ScriptManager *manager) : ScriptEngine(manager), 
 
 ScriptEngineV8::~ScriptEngineV8() {
     auto scopeGuard = getScopeGuard();
-    // Process remaining events to avoid problems with `deleteLater` calling destructor of script proxies after script engine has been deleted:
-    {
-        QEventLoop loop;
-        loop.processEvents();
-    }
+    // Flush only deferred deletions. Processing the entire thread event queue
+    // here can re-enter application updates, navigation, or QML synchronization
+    // while the script engine and its owning entity tree are half destroyed.
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     // This is necessary for script engines that don't run in ScriptManager::run(), for example entity scripts:
     disconnectSignalProxies();
     deleteUnusedValueWrappers();
@@ -285,11 +284,9 @@ ScriptEngineV8::~ScriptEngineV8() {
         _qobjectWrapperMap.clear();
         _qobjectWrapperMapV8.clear();
     }
-    // Events need to be processed one more time for processing any remaining deleteLater calls:
-    {
-        QEventLoop loop;
-        loop.processEvents();
-    }
+    // Clearing wrappers can schedule more deleteLater calls, but must not make
+    // arbitrary application events re-entrant during destruction.
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
 #ifdef OVERTE_SCRIPT_USE_AFTER_DELETE_GUARD
     _wasDestroyed = true;
 #endif
