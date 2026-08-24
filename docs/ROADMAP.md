@@ -6,7 +6,8 @@
 
 - **Updated:** 2026-08-24
 - **Baseline before this roadmap:** `main@9f00d77028`
-- **Current repository milestone:** `R0`
+- **Current primary milestone:** `PICO-P1`
+- **Current maintenance milestone:** `R0`
 
 ## North star
 
@@ -40,6 +41,31 @@ complete desktop parity, or a promise of support to other users.
 
 ## NOW
 
+### PICO-P1 — Pico 4 personal alpha
+
+**Goal:** Meet the common personal-alpha definition on one explicitly named
+Pico 4, including worn-headset rendering, controllers, interaction, audio,
+lifecycle, and thermal behavior.
+
+The detailed exit criteria and evidence boundary are authoritative on the
+`android-vr-pico` product branch.
+
+**Single next action:** Install the APK from the current candidate revision on
+one explicitly selected Pico 4 and run the documented core-journey baseline,
+recording the first blocking failure.
+
+## NEXT
+
+1. **PHONE-P1 — Android Phone personal alpha.** After `PICO-P1`, meet the
+   common definition on one explicitly named physical Android phone before
+   expanding the hardware matrix.
+2. **IOS-P1 — iPad personal alpha.** After `PHONE-P1`, reconcile the documented
+   bootstrap boundary with the integrated client, then meet the common
+   definition on one explicitly named physical iPad. iPhone coverage follows
+   later.
+
+## MAINTENANCE
+
 ### R0 — Reliable baseline and project compass
 
 **Goal:** Make the fork understandable and safe to continue before expanding
@@ -52,32 +78,18 @@ the product surface.
   one next gate;
 - [x] fork-specific contribution, security, ownership, and funding policies do
   not contradict the repository README;
-- [ ] the roadmap and fork-policy baseline is propagated through every
+- [x] the roadmap and fork-policy baseline is propagated through every
   permanent child branch without importing new upstream changes;
-- [ ] the quick project suite and branch-topology checks pass; and
+- [x] the quick project suite and branch-topology checks pass; and
 - [ ] topic branches and worktrees are classified and safely reduced using the
   [`R0 cleanup checklist`](BRANCH_CLEANUP.md).
 
-**Single next action:** Review and merge the project-compass documentation,
-then update the fork policy in a separate `docs/main/fork-policy` change.
-
-## NEXT
-
-1. **PICO-P1 — Pico 4 personal alpha.** Meet the common personal-alpha
-   definition on one explicitly named Pico 4, including worn-headset rendering,
-   controllers, interaction, audio, lifecycle, and thermal behavior.
-2. **PHONE-P1 — Android Phone personal alpha.** Meet the same common definition
-   on one explicitly named physical Android phone before expanding the hardware
-   matrix.
-3. **IOS-P1 — iPad personal alpha.** Reconcile the documented bootstrap boundary
-   with the integrated client, then meet the common definition on one explicitly
-   named physical iPad. iPhone coverage follows later.
+**Single next action:** Review the seven worktrees with local changes one at a
+time, starting with the superseded Android/Pico roadmap worktree, and preserve
+unique work before removing anything.
 
 ## LATER
 
-- **MAC-P1 — macOS personal alpha.** Meet the common personal-alpha definition
-  on one explicitly named physical Mac and record its architecture. Hosted
-  software-renderer tuning is not a substitute for this gate.
 - **PHONE-V1 — Android Phone preview coverage.** Add at least one Adreno and one
   Mali device plus longer lifecycle, thermal, battery, and audio evidence.
 - Optional signing, notarization, store work, and wider device support begin
@@ -86,8 +98,11 @@ then update the fork policy in a separate `docs/main/fork-policy` change.
 ## PARKED
 
 - **QUEST-Q0 — Meta Quest.** Preserve the product branch and existing preview
-  evidence, but do not resume implementation until `PICO-P1` is complete and
-  the old hardware-unverified preview has been deliberately reconciled.
+  evidence, but do not resume implementation until a named physical Quest is
+  available. Virtual or simulated testing is not a substitute for this gate.
+- **MAC-P1 — macOS personal alpha.** Preserve the current hosted Intel evidence,
+  but do not resume product work until a named physical Mac is available.
+  Further virtual/software-renderer testing is not a substitute for this gate.
 
 ## Portfolio
 
@@ -96,12 +111,12 @@ does not imply that a target is actively being developed.
 
 | Interface or area | Priority | Current maturity | Development branch | Last reviewed evidence | Next gate |
 | --- | --- | --- | --- | --- | --- |
-| Repository baseline | NOW | Structurally verified | `main` | `main@9f00d77028`; quick suite 7/7 on 2026-08-24 | Complete `R0` |
-| Pico 4 | NEXT 1 | Host-verified and build-ready; device acceptance incomplete | `android-vr-pico` | Interface status reviewed 2026-08-24 | `PICO-P1` |
-| Android phones | NEXT 2 | Emulator-verified and build-ready; device coverage incomplete | `android-phone` | Interface status reviewed 2026-08-24 | `PHONE-P1` |
-| iPhone and iPad | NEXT 3 | Simulator-verified bootstrap; integrated client experimental | `apple-ios` | Interface status and active branch reviewed 2026-08-24 | `IOS-P1` on iPad |
-| macOS | LATER | Intel host/runtime verified; native arm64 experimental | `apple-macos` | Interface status reviewed 2026-08-24 | `MAC-P1` |
-| Meta Quest | PARKED | Experimental and hardware-unverified | `android-vr-quest` | Branch and preview delta reviewed 2026-08-24 | Reassess after `PICO-P1` |
+| Repository baseline | MAINTENANCE | Structurally verified; cleanup incomplete | `main` | `main@5456a20883`; quick suite 7/7 on 2026-08-24 | Safely complete `R0` cleanup |
+| Pico 4 | NOW | Host-verified and build-ready; device acceptance incomplete | `android-vr-pico` | Interface roadmap and status reviewed 2026-08-24 | `PICO-P1` |
+| Android phones | NEXT 1 | Emulator-verified and build-ready; device coverage incomplete | `android-phone` | Interface roadmap and status reviewed 2026-08-24 | `PHONE-P1` after Pico |
+| iPhone and iPad | NEXT 2 | Simulator-verified bootstrap; integrated client experimental | `apple-ios` | iPad roadmap and status reviewed 2026-08-24 | `IOS-P1` after Android Phone |
+| macOS | PARKED | Hosted Intel runtime-verified; physical hardware unavailable | `apple-macos` | Interface status reviewed 2026-08-24 | Resume `MAC-P1` with a named physical Mac |
+| Meta Quest | PARKED | Experimental; physical hardware unavailable | `android-vr-quest` | Branch and preview delta reviewed 2026-08-24 | Resume `QUEST-Q0` with a named physical Quest |
 | Linux and Windows desktop | OUT OF SCOPE | Inherited historical baseline | `main` | Fork baseline | Fork regression checks only |
 
 Detailed technical facts and evidence remain authoritative in the interface
