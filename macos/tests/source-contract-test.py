@@ -2728,6 +2728,11 @@ subprocess.run(
     check=True,
 )
 subprocess.run(
+    [sys.executable, str(ROOT / "macos/tests/skybox-fallback-contract-test.py")],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
     [sys.executable, str(ROOT / "macos/tests/present-count-contract-test.py")],
     cwd=ROOT,
     check=True,

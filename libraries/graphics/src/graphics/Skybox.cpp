@@ -20,6 +20,24 @@
 
 using namespace graphics;
 
+namespace {
+
+const gpu::TexturePointer& getFallbackCubemap() {
+    static const auto fallback = [] {
+        static const gpu::Byte OPAQUE_WHITE[] { 0xFF, 0xFF, 0xFF, 0xFF };
+        auto texture = gpu::Texture::createCubeStrict(gpu::Element::COLOR_RGBA_32, 1);
+        texture->setSource("Skybox::fallbackCubemap");
+        texture->setStoredMipFormat(texture->getTexelFormat());
+        for (int face = 0; face < 6; ++face) {
+            texture->assignStoredMipFace(0, face, sizeof(OPAQUE_WHITE), OPAQUE_WHITE);
+        }
+        return texture;
+    }();
+    return fallback;
+}
+
+}
+
 Skybox::Skybox() {
     Schema schema;
     _schemaBuffer = gpu::BufferView(std::make_shared<gpu::Buffer>(gpu::Buffer::UniformBuffer, sizeof(Schema), (const gpu::Byte*) &schema));
@@ -69,9 +87,13 @@ void Skybox::prepare(gpu::Batch& batch) const {
     batch.setUniformBuffer(graphics::slot::buffer::SkyboxParams, _schemaBuffer);
     gpu::TexturePointer skymap = getCubemap();
     // FIXME: skymap->isDefined may not be threadsafe
-    if (skymap && skymap->isDefined()) {
-        batch.setResourceTexture(graphics::slot::texture::Skybox, skymap);
+    if (!skymap || !skymap->isDefined()) {
+        // The shader samples cubeMap even when blend is zero. Leaving the
+        // sampler unbound is undefined OpenGL behavior and crashes Apple's
+        // software renderer while a requested skybox is still loading.
+        skymap = getFallbackCubemap();
     }
+    batch.setResourceTexture(graphics::slot::texture::Skybox, skymap);
 }
 
 void Skybox::render(gpu::Batch& batch, const ViewFrustum& frustum, bool forward, uint transformSlot) const {
