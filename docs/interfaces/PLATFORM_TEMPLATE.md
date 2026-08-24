@@ -38,6 +38,7 @@ successful build or launch.
 
 ## Documentation
 
+- Current milestone: `ROADMAP.md`
 - Complete build guide: `BUILD.md`
 - Testing: `TESTING.md`
 - Troubleshooting: `TROUBLESHOOTING.md`
