@@ -1331,6 +1331,12 @@ for tutorial_observation_contract in (
     'Date.now() - lastProgressAt >= progressStallLimit',
     '"tutorial_first_frame_stalled"',
     'finish(false, "tutorial_progress_stalled")',
+    "Test.getResourceQueueStatus()",
+    'Render.getConfig("Stats")',
+    "gpuStats.textureResourceGPUMemSize",
+    "gpuStats.textureResourcePopulatedGPUMemSize",
+    'finish(false, "tutorial_texture_readiness_stalled")',
+    "Date.now() - textureReadinessUnchangedAt >= 120000",
 ):
     if tutorial_observation_contract not in tutorial_script:
         raise SystemExit(
@@ -1482,6 +1488,12 @@ for online_timing_contract in (
     "Date.now() - lastAssetProgressAt >= assetStallLimit",
     '"first_frame_render_stalled"',
     'finish(false, "asset_loading_stalled")',
+    "Test.getResourceQueueStatus()",
+    'Render.getConfig("Stats")',
+    "gpuStats.textureResourceGPUMemSize",
+    "gpuStats.textureResourcePopulatedGPUMemSize",
+    'finish(false, "texture_readiness_stalled")',
+    "Date.now() - textureReadinessUnchangedAt >= 120000",
 ):
     if online_timing_contract not in online_script:
         raise SystemExit(
