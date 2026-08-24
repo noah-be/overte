@@ -44,11 +44,20 @@ the reviewed order and merge rules are documented in
 Automated enforcement and permanent-branch policy are documented separately in
 the [`branch governance policy`](docs/BRANCH_GOVERNANCE.md).
 
+The current repository milestone, product order, and single next project action
+are maintained in the experimental fork [`roadmap`](docs/ROADMAP.md).
+
 ### Interfaces in development
 
 The four ports use a shared documentation layout described in
 [`docs/interfaces/`](docs/interfaces/README.md). The platform documentation is
 maintained on its corresponding development branch.
+
+### Fork policies
+
+- [Contribution and AI-assistance policy](CONTRIBUTING.md)
+- [Security policy and private reporting](SECURITY.md)
+- [Repository roadmap](docs/ROADMAP.md)
 
 > [!NOTE]
 > The information below comes from the original Overte project. For the latest official information, see the [README in the original Overte repository](https://github.com/overte-org/overte#readme). This fork is an experimental personal hobby project and is not an official version of Overte.
