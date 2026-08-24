@@ -16,15 +16,10 @@ jobs:
     name: Enforce Android parent sync path
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
-        with:
-          # The merge commit plus its parents are enough to connect HEAD to the
-          # explicitly fetched current target history. Do not fetch every branch,
-          # tag, and historical blob in this large repository.
-          fetch-depth: 2
-          persist-credentials: false
-      - name: Fetch current Android parent branches
+      - name: Prepare topology repository
         env:
+          PULL_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}.git
           TARGET_BRANCH: ${{ github.base_ref }}
         run: |
           set -euo pipefail
@@ -32,6 +27,20 @@ jobs:
             android-phone|android-vr|android-vr-pico|android-vr-quest) ;;
             *) echo "Unsupported Android target: $TARGET_BRANCH" >&2; exit 2 ;;
           esac
+
+          # Materialize only the policy, its tests, and the protected shared
+          # paths. The remaining tree and historical blobs stay remote.
+          git init -q .
+          git remote add origin "$REPOSITORY_URL"
+          git sparse-checkout init --cone
+          git sparse-checkout set \
+            .github/workflows \
+            tests \
+            android/common/device_tests
+
+          # GitHub's synthetic PR merge supplies HEAD and both PR parents.
+          git fetch --no-tags --depth=2 --filter=blob:none origin \
+            "+refs/pull/$PULL_NUMBER/merge:refs/remotes/origin/pull-request-merge"
 
           declare -A seen=()
           refspecs=()
@@ -43,6 +52,7 @@ jobs:
 
           git fetch --no-tags --filter=blob:none --unshallow \
             origin "${refspecs[@]}"
+          git checkout --detach refs/remotes/origin/pull-request-merge
       - name: Test Android topology policy
         run: python3 tests/android-branch-topology-test.py
       - name: Validate branch topology
