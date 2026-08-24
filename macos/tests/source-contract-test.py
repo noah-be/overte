@@ -1459,7 +1459,10 @@ for online_timing_contract in (
     "Date.now() + 600000",
     'finish(false, "connection_stalled")',
     'finish(false, "entity_stream_stalled")',
-    "Date.now() - lastAssetProgressAt >= 600000",
+    "presentCount > bestPresentCount",
+    "firstFrameRenderPending ? 1200000 : 600000",
+    "Date.now() - lastAssetProgressAt >= assetStallLimit",
+    '"first_frame_render_stalled"',
     'finish(false, "asset_loading_stalled")',
 ):
     if online_timing_contract not in online_script:

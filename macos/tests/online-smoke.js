@@ -24,6 +24,7 @@
     var lastAssetProgressAt = 0;
     var bestLoadedModelCount = 0;
     var bestOutstandingWork = Number.MAX_VALUE;
+    var bestPresentCount = 0;
     var completed = false;
 
     function finiteNumber(value) {
@@ -164,8 +165,10 @@
         var entities = Entities.findEntities(MyAvatar.position, 16384);
         latestInventory = inspectEntityInventory(entities, 64);
         var resources = queueState();
+        var presentCount = finiteNumber(Test.getPresentCount());
+        var resourcesAreIdle = resourcesIdle(resources);
         var productionSceneReady = latestInventory.loaded_visible_model_count > 0 &&
-            resourcesIdle(resources);
+            resourcesAreIdle;
         var outstandingWork = resources.downloads + resources.downloads_pending +
             resources.processing + resources.processing_pending + resources.texture_pending_mb;
         var hubConnected = AddressManager.isConnected &&
@@ -178,11 +181,13 @@
         if (latestInventory.entity_count > 0) {
             if (lastAssetProgressAt === 0 ||
                     latestInventory.loaded_visible_model_count > bestLoadedModelCount ||
-                    outstandingWork < bestOutstandingWork) {
+                    outstandingWork < bestOutstandingWork ||
+                    presentCount > bestPresentCount) {
                 lastAssetProgressAt = Date.now();
                 bestLoadedModelCount = Math.max(bestLoadedModelCount,
                     latestInventory.loaded_visible_model_count);
                 bestOutstandingWork = Math.min(bestOutstandingWork, outstandingWork);
+                bestPresentCount = Math.max(bestPresentCount, presentCount);
             }
         }
 
@@ -192,7 +197,7 @@
                 latestInventory.visible_renderable_count + " models=" +
                 latestInventory.visible_model_count + " loaded_models=" +
                 latestInventory.loaded_visible_model_count + " presents=" +
-                finiteNumber(Test.getPresentCount()) + " queues=" +
+                presentCount + " queues=" +
                 JSON.stringify(resources));
             nextProgressAt = Date.now() + 30000;
         }
@@ -202,7 +207,7 @@
                 // Require a stable fully loaded interval and then a newer
                 // presented frame. Neither condition changes application state.
                 fullSceneReadyAt = Date.now() + 5000;
-                readyPresentBaseline = finiteNumber(Test.getPresentCount());
+                readyPresentBaseline = presentCount;
                 print("OVERTE_MACOS_SMOKE full_scene_ready count=" +
                     latestInventory.visible_renderable_count + " models=" +
                     latestInventory.visible_model_count + " loaded_models=" +
@@ -215,10 +220,10 @@
 
         if (snapshotStage === "waiting" && fullSceneReadyAt !== 0 &&
                 Date.now() >= fullSceneReadyAt &&
-                finiteNumber(Test.getPresentCount()) > readyPresentBaseline) {
+                presentCount > readyPresentBaseline) {
             latestInventory = inspectEntityInventory(entities, entities.length);
             latestInventory.resource_queues = resources;
-            latestInventory.present_count = finiteNumber(Test.getPresentCount());
+            latestInventory.present_count = presentCount;
             saveEntityInventory(latestInventory);
             snapshotStage = "capturing";
             print("OVERTE_MACOS_SMOKE online_entities=" + entities.length);
@@ -242,9 +247,25 @@
             finish(false, "entity_stream_stalled");
             return;
         }
+        // Apple's hosted x86_64 software OpenGL driver can spend substantially
+        // longer than the ordinary asset-stall window compiling the first
+        // production model frame. Run 32684847557 proved 100%+ process CPU,
+        // empty resource queues, and completed draws for almost 19 minutes
+        // after the last asset counter changed. Preserve the fast ten-minute
+        // failure for connection/assets and bound only this observable first-
+        // frame state to twenty minutes. A present is progress and resets the
+        // clock; visual readiness and screenshot validation remain unchanged.
+        var firstFrameRenderPending = resourcesAreIdle &&
+            latestInventory.visible_model_count > 0 &&
+            latestInventory.loaded_visible_model_count === 0;
+        var assetStallLimit = firstFrameRenderPending ? 1200000 : 600000;
         if (snapshotStage === "waiting" && lastAssetProgressAt !== 0 &&
-                Date.now() - lastAssetProgressAt >= 600000) {
-            finish(false, "asset_loading_stalled");
+                Date.now() - lastAssetProgressAt >= assetStallLimit) {
+            if (firstFrameRenderPending) {
+                finish(false, "first_frame_render_stalled");
+            } else {
+                finish(false, "asset_loading_stalled");
+            }
             return;
         }
         if (Date.now() >= deadline) {

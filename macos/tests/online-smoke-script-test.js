@@ -29,6 +29,7 @@ function createRun() {
     let texturesComplete = true;
     let entityIDs = ["model"];
     let connected = true;
+    let presentCount = 0;
     const script = {
         stopped: false,
         interval: null,
@@ -47,7 +48,7 @@ function createRun() {
     const context = {
         Date: { now: () => clock.now },
         Test: {
-            getPresentCount() { return clock.now; },
+            getPresentCount() { return presentCount; },
             isTextureLoadingComplete() { return texturesComplete; },
             saveObject(value, name) {
                 operations.push("save:" + name);
@@ -91,6 +92,7 @@ function createRun() {
     function requestSnapshot() {
         script.interval();
         clock.now += 5000;
+        presentCount += 1;
         script.interval();
         assert.strictEqual(windowObject.snapshotName, "macos-online-smoke.png");
     }
@@ -105,6 +107,7 @@ function createRun() {
         setModelLoaded(value) { modelLoaded = value; },
         setEntityIDs(value) { entityIDs = value; },
         setConnected(value) { connected = value; },
+        setPresentCount(value) { presentCount = value; },
         setTexturesComplete(value) { texturesComplete = value; }
     };
 }
@@ -120,6 +123,7 @@ function createRun() {
     run.setModelLoaded(true);
     run.script.interval();
     run.clock.now += 5000;
+    run.setPresentCount(1);
     run.script.interval();
     assert.strictEqual(run.windowObject.snapshotName, "macos-online-smoke.png");
 }
@@ -209,8 +213,30 @@ function createRun() {
     run.script.interval();
     run.clock.now += 600000;
     run.script.interval();
+    assert.strictEqual(run.script.stopped, false,
+        "an active first software-rendered model frame needs its measured render grace");
+    run.clock.now += 600000;
+    run.script.interval();
     assert.strictEqual(run.script.stopped, true,
-        "stalled asset loading must fail before the full Hub deadline");
+        "a genuinely stalled first model frame must still fail before the full Hub deadline");
+}
+
+{
+    const run = createRun();
+    run.setModelLoaded(false);
+    run.setTexturesComplete(false);
+    run.script.interval();
+    run.clock.now += 599999;
+    run.setPresentCount(1);
+    run.script.interval();
+    run.clock.now += 599999;
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, false,
+        "a newly presented production frame must reset the ordinary asset-stall clock");
+    run.clock.now += 1;
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, true,
+        "ordinary asset loading must still fail ten minutes after its last real progress");
 }
 
 console.log("macOS online smoke script contract valid");
