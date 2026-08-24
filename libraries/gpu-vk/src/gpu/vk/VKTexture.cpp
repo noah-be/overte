@@ -472,6 +472,12 @@ void VKStrictResourceTexture::createTexture(VKBackend &backend) {
     VmaAllocationInfo allocationInfo {};
     vmaGetAllocationInfo(vks::Allocation::getAllocator(), _vmaAllocation, &allocationInfo);
     _residentBytes = allocationInfo.size;
+    // Match the GL strict-resource accounting. Vulkan's strict uploader is
+    // the active iOS resource path, but it previously updated only private iOS
+    // diagnostics, leaving the public Stats texture count and memory at zero.
+    Backend::textureResidentCount.increment();
+    Backend::textureResidentGPUMemSize.update(0, _residentBytes);
+    _residencyAccounted = true;
 #if defined(Q_OS_IOS)
     const uint64_t residentBytes = iosStrictTextureResidentBytes.fetch_add(_residentBytes) + _residentBytes;
     const uint64_t residentCount = iosStrictTextureCount.fetch_add(1) + 1;
@@ -720,6 +726,10 @@ void VKStrictResourceTexture::postTransfer(VKBackend &backend) {
 };
 
 VKStrictResourceTexture::~VKStrictResourceTexture() {
+    if (_residencyAccounted) {
+        Backend::textureResidentCount.decrement();
+        Backend::textureResidentGPUMemSize.update(_residentBytes, 0);
+    }
 #if defined(Q_OS_IOS)
     if (_residentBytes > 0) {
         iosStrictTextureResidentBytes.fetch_sub(_residentBytes);

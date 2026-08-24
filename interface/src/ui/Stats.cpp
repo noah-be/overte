@@ -10,6 +10,7 @@
 
 #include <queue>
 #include <sstream>
+#include <QDateTime>
 #include <QFontDatabase>
 
 #include <glm/glm.hpp>
@@ -654,6 +655,35 @@ void Stats::updateStats(bool force) {
         _gameUpdateStats = "";
         emit gameUpdateStatsChanged();
     }
+
+#if defined(Q_OS_IOS)
+    // Keep the physical-device overlay independently auditable. This bounded
+    // sample distinguishes legitimate idle zeroes from backend metrics that
+    // are not implemented and records byte-precise values that the MB display
+    // intentionally rounds down.
+    static qint64 lastTraceMs { 0 };
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    const int traceIntervalMs = iosRuntimeDiagnosticInt(
+        "statsTraceIntervalMs", 5000, 1000, 60000);
+    if (nowMs - lastTraceMs >= traceIntervalMs) {
+        lastTraceMs = nowMs;
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_STATS_SAMPLE",
+            "present_fps=", _presentrate,
+            "render_fps=", _renderrate,
+            "gpu_ms=", _gpuFrameTime,
+            "gpu_timer_available=", false,
+            "stutter=", _stutterrate,
+            "stutter_available=", _stutterrate >= 0.0f,
+            "processing=", _processing,
+            "processing_pending=", _processingPending,
+            "texture_count=", gpu::Context::getTextureGPUCount(),
+            "texture_resident_count=", gpu::Context::getTextureResidentGPUCount(),
+            "texture_resident_bytes=", gpu::Context::getTextureResidentGPUMemSize(),
+            "buffer_count=", gpu::Context::getBufferGPUCount(),
+            "buffer_bytes=", gpu::Context::getBufferGPUMemSize());
+    }
+#endif
 }
 
 void Stats::setRenderDetails(const render::RenderDetails& details) {

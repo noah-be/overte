@@ -11,6 +11,29 @@ The first `OVERTE_IOS_VULKAN_CONFIG` line proves which file and settings were
 loaded. `file_exists=1`, a non-zero `json_keys`, and the requested selectors
 must be visible before treating a run as valid.
 
+## Tablet QML without rebuilding
+
+A reviewed top-level `qrc:/...` QML file can be replaced temporarily through
+the app container at `Documents/OverteQmlOverrides/<qrc path>`. Overrides are
+disabled unless the regular file `Documents/OverteQmlOverrides/.enabled`
+exists. For example, an Audio probe belongs at
+`Documents/OverteQmlOverrides/qml/hifi/audio/Audio.qml`. Close and reopen that
+Tablet app after replacing the file. The log marker
+`OVERTE_IOS_QML_OVERRIDE_GATE stage=active` proves that the requested resource
+resolved to the reviewed override. Remove `.enabled` after the A/B test so an
+app update cannot retain diagnostic UI in its preserved Documents container.
+
+This mechanism intentionally accepts only canonical, non-symlink files below
+the override root and only replaces top-level resources that already passed
+the QML URL validator. It is suitable for isolating layout, component, and
+Loader behavior; C++ lifecycle or native input changes still require an IPA.
+
+Dynamic loads emit `OVERTE_IOS_DYNAMIC_QML_GATE` records for resolution,
+component errors, callback errors, and the item tree immediately and after
+0/250/1000 ms. The records include scene bounds, visibility, window ownership,
+and descendant counts, so a gray root can be distinguished from a missing,
+zero-sized, or failed component in one device run.
+
 Start with `render-diagnostic-profiles/normal-trace.json`. The supplied profiles
 can then isolate the already identified particle DrawCallInfo path, translucent
 model/light-cluster path, and forward skybox path. A custom profile can select:
@@ -52,3 +75,9 @@ Strict UI and special-purpose textures are not reduced.
 process physical footprint used by Jetsam, original and uploaded dimensions,
 and the selected source mip. `iosTextureTraceEvery` controls the interval for
 these bounded records and defaults to every 64 creations.
+
+The iOS Stats overlay displays `GPU: n/a` while Vulkan timestamp queries are
+not implemented and `Stutter: n/a` when the display plugin returns its
+unsupported sentinel. `Processing/pending: 0/0 (idle)` is a valid idle state.
+`OVERTE_IOS_STATS_SAMPLE` logs the raw counters and byte values every
+`statsTraceIntervalMs` (default 5000 ms).

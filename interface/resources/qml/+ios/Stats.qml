@@ -44,11 +44,16 @@ Item {
                     StatText { text: "Present: " + root.presentrate.toFixed(1) + " FPS" }
                     StatText { text: "Render: " + root.renderrate.toFixed(1) + " FPS" }
                     StatText { text: "Game: " + root.gameLoopRate + " Hz" }
-                    StatText { text: "GPU: " + root.gpuFrameTime.toFixed(1) + " ms" }
+                    // Vulkan timestamp queries are not implemented by the
+                    // current backend. A permanent 0.0 looked like a valid GPU
+                    // measurement and was therefore actively misleading.
+                    StatText { text: "GPU: " + (root.gpuFrameTime > 0.0
+                        ? root.gpuFrameTime.toFixed(1) + " ms" : "n/a") }
                     StatText { text: "Engine: " + root.engineFrameTime.toFixed(1) + " ms" }
                     StatText {
                         visible: root.expanded
-                        text: "Stutter: " + root.stutterrate.toFixed(3)
+                        text: "Stutter: " + (root.stutterrate >= 0.0
+                            ? root.stutterrate.toFixed(3) : "n/a")
                     }
                     StatText {
                         visible: root.expanded
@@ -89,7 +94,8 @@ Item {
                         " pending " + root.downloadsPending }
                     StatText {
                         visible: root.expanded
-                        text: "Processing/pending: " + root.processing + "/" + root.processingPending
+                        text: "Processing/pending: " + root.processing + "/" + root.processingPending +
+                            (root.processing === 0 && root.processingPending === 0 ? " (idle)" : "")
                     }
                     StatText {
                         visible: root.expanded

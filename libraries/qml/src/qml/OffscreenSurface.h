@@ -138,11 +138,13 @@ protected:
                               bool createNewContext,
                               QQuickItem* parent,
                               const QmlContextObjectCallback& callback,
-                              const QmlContextCallback& contextCallback = DEFAULT_CONTEXT_CALLBACK) final;
+                              const QmlContextCallback& contextCallback = DEFAULT_CONTEXT_CALLBACK,
+                              bool completeBeforeCallback = false) final;
     virtual void finishQmlLoad(QQmlComponent* qmlComponent,
                                QQmlContext* qmlContext,
                                QQuickItem* parent,
-                               const QmlContextObjectCallback& onQmlLoadedCallback) final;
+                               const QmlContextObjectCallback& onQmlLoadedCallback,
+                               bool completeBeforeCallback) final;
 
     virtual void onRootCreated() {}
     virtual void onItemCreated(QQmlContext* context, QQuickItem* newItem) {}

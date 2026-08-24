@@ -44,6 +44,7 @@ Windows.ScrollingWindow {
     closable: !screenSpaceMode
     pinnable: !screenSpaceMode
     alwaysOnTop: screenSpaceMode
+    contentFlickableInteractive: Qt.platform.os !== "ios" || !screenSpaceMode
 
     function setScreenSpaceMode(value) {
         screenSpaceMode = value
@@ -234,6 +235,10 @@ Windows.ScrollingWindow {
         }
         
         function load(newSource, callback) {
+            if (Qt.platform.os === "ios") {
+                console.info("OVERTE_IOS_TABLET_QML stage=load-requested source=" + newSource +
+                    " previous=" + loader.source + " had_item=" + (loader.item !== null))
+            }
             if (loader.item) {
                 loader.item.destroy();
                 loader.item = null;
@@ -250,7 +255,9 @@ Windows.ScrollingWindow {
                 if (loader.item.hasOwnProperty("setRootMenu")) {
                     loader.item.setRootMenu(tabletRoot.rootMenu, tabletRoot.subMenu);
                 }
-                loader.item.forceActiveFocus();
+                if (Qt.platform.os !== "ios") {
+                    loader.item.forceActiveFocus();
+                }
                 
                 if (callback) {
                     callback();
@@ -273,6 +280,18 @@ Windows.ScrollingWindow {
                 }
                 
                 screenChanged(type, newSource);
+
+                if (Qt.platform.os === "ios") {
+                    Qt.callLater(function() {
+                        if (loader.item !== newItem) {
+                            return
+                        }
+                        loader.item.forceActiveFocus()
+                        console.info("OVERTE_IOS_TABLET_QML stage=load-complete source=" + newSource +
+                            " class=" + loader.item + " size=" + loader.item.width + "x" + loader.item.height +
+                            " visible=" + loader.item.visible + " active_focus=" + loader.item.activeFocus)
+                    })
+                }
             });
         }
     }

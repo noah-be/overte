@@ -844,6 +844,13 @@ void Application::initialize(const QCommandLineParser &parser) {
     _window->setCentralWidget(_vkWindowWrapper);
 #endif
 
+#if defined(Q_OS_IOS)
+    // VKWidget enables input methods in its cross-platform constructor. Turn
+    // them off before the first iOS window is shown; initializeUi enables the
+    // attribute again only while a real offscreen text editor owns focus.
+    _primaryWidget->setAttribute(Qt::WA_InputMethodEnabled, false);
+#endif
+
 #if defined(Q_OS_IOS) || defined(ANDROID_APP_PHONE_INTERFACE)
     // Mobile window managers own the screen bounds. Restoring desktop window
     // geometry can leave the client as a small, offset widget on iOS/Android

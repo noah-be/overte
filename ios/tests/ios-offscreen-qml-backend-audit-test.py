@@ -95,6 +95,27 @@ require("OverteQmlOverrides" in SURFACE_SOURCE and
         'QStringLiteral(".enabled")' in SURFACE_SOURCE and
         "OVERTE_IOS_QML_OVERRIDE_GATE stage=active" in SURFACE_SOURCE,
         "reviewed iOS QML overrides cannot be tested from Documents without rebuilding")
+finish_load = SURFACE_SOURCE[SURFACE_SOURCE.index("void OffscreenSurface::finishQmlLoad"):]
+complete_position = finish_load.index("qmlComponent->completeCreate();")
+deferred_callback = finish_load[complete_position:]
+require(finish_load.index("newItem->setParentItem(parent);") < complete_position and
+        "if (rootCreated && completeBeforeCallback)" in deferred_callback and
+        deferred_callback.index("if (rootCreated && completeBeforeCallback)") <
+        deferred_callback.index("callback(qmlContext, newItem);"),
+        "iOS Tablet callbacks do not wait for parented Qt 6 component completion")
+load_from_qml = SURFACE_SOURCE[
+    SURFACE_SOURCE.index("void OffscreenSurface::loadFromQml"):
+    SURFACE_SOURCE.index("void OffscreenSurface::load(const QUrl& qmlSource, bool",)
+]
+require("DEFAULT_CONTEXT_CALLBACK" in load_from_qml and
+        'parent && parent->objectName() == QStringLiteral("loader")' in load_from_qml,
+        "the iOS Tablet loader does not select completion-before-callback")
+require("OVERTE_IOS_DYNAMIC_QML_GATE stage=load-requested" in SURFACE_SOURCE and
+        'logIOSQmlItemState("component-complete"' in SURFACE_SOURCE and
+        'QByteArray("settled-")' in SURFACE_SOURCE and
+        "OVERTE_IOS_DYNAMIC_QML_GATE stage=callback-error" in SURFACE_SOURCE and
+        'logIOSQmlErrors("complete-create-error-detail"' in SURFACE_SOURCE,
+        "physical-device logs cannot audit dynamic Tablet QML construction")
 load_internal = SURFACE_SOURCE[SURFACE_SOURCE.index("void OffscreenSurface::loadInternal"):]
 require(load_internal.index("getSurfaceContext()->resolvedUrl(finalQmlSource)") <
         load_internal.index("resolveIOSQmlOverride(finalQmlSource)"),

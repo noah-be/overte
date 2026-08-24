@@ -10,6 +10,7 @@ SOURCE = (ROOT / "interface/src/IOSTouchUiMetrics.mm").read_text()
 PROFILE = (ROOT / "interface/resources/qml/controlsUit/+ios/TouchUiProfile.qml").read_text()
 GRAPHICS = (ROOT / "interface/src/Application_Graphics.cpp").read_text()
 APPLICATION_EVENTS = (ROOT / "interface/src/Application_Events.cpp").read_text()
+APPLICATION_SETUP = (ROOT / "interface/src/Application_Setup.cpp").read_text()
 APPLICATION_UI = (ROOT / "interface/src/Application_UI.cpp").read_text()
 SELECTORS = (ROOT / "libraries/shared/src/shared/FileUtils.cpp").read_text()
 TABLET_HEADER = (ROOT / "libraries/ui/src/ui/TabletScriptingInterface.h").read_text()
@@ -35,6 +36,7 @@ RENDER_HEADER = (ROOT / "interface/src/scripting/RenderScriptingInterface.h").re
 RENDER_SOURCE = (ROOT / "interface/src/scripting/RenderScriptingInterface.cpp").read_text()
 GRAPHICS_SETTINGS = (ROOT / "scripts/system/settings/qml/pages/GraphicsSettings.qml").read_text()
 TABLET_HOME = (ROOT / "interface/resources/qml/hifi/tablet/TabletHome.qml").read_text()
+TABLET_ROOT = (ROOT / "interface/resources/qml/hifi/tablet/TabletRoot.qml").read_text()
 TABLET_ADDRESS = (ROOT / "interface/resources/qml/hifi/tablet/TabletAddressDialog.qml").read_text()
 TABLET_MESSAGE_BOX = (ROOT / "interface/resources/qml/dialogs/TabletMessageBox.qml").read_text()
 IOS_AUDIO_CONFIGURATION = (
@@ -43,6 +45,8 @@ IOS_AUDIO_CONFIGURATION = (
 SETTINGS_ADVANCED = (ROOT / "scripts/system/settings/qml/AdvancedOptions.qml").read_text()
 SETTINGS_NUMBER = (ROOT / "scripts/system/settings/qml/SettingNumber.qml").read_text()
 SETTINGS_SLIDER = (ROOT / "scripts/system/settings/qml/SettingSlider.qml").read_text()
+WINDOW_ROOT = (ROOT / "interface/resources/qml/hifi/tablet/WindowRoot.qml").read_text()
+SCROLLING_WINDOW = (ROOT / "interface/resources/qml/windows/ScrollingWindow.qml").read_text()
 
 for metric in (
     "safeInsetLeft", "safeInsetTop", "safeInsetRight", "safeInsetBottom",
@@ -148,8 +152,14 @@ assert VIRTUAL_PAD.index("findStartingTouchPointCandidate") < VIRTUAL_PAD.index(
 )
 assert "QEvent::MouseButtonPress" in OFFSCREEN_UI
 assert "QCoreApplication::sendEvent(getWindow(), &mouseEvent)" in OFFSCREEN_UI
+assert "changesPrimaryButton" in OFFSCREEN_UI
+assert "event.getType() == PointerEvent::Press ||" in OFFSCREEN_UI
+assert "Qt::LeftButton : Qt::NoButton" in OFFSCREEN_UI
+assert "stage=mobile-drag-move" in OFFSCREEN_UI
 assert "stage=focus-after-touch" in OFFSCREEN_UI
 assert '"window-mouse-filter"' in OFFSCREEN_UI
+assert "Qt::MouseButton fakeMouseButton = Qt::NoButton" in OFFSCREEN_SURFACE
+assert "stage=filtered-touch-drag-move" in OFFSCREEN_SURFACE
 assert "activeFocusItem()" in OFFSCREEN_SURFACE
 assert "stage=hardware-key-forwarded" in OFFSCREEN_SURFACE
 assert 'objectName: "tabletAddressLine"' in TABLET_ADDRESS
@@ -168,6 +178,9 @@ assert "_viewportResolutionScale = 0.8f" in RENDER_SOURCE
 assert "OVERTE_IOS_RENDER_PROFILE stage=resolution-scale-applied" in RENDER_SOURCE
 assert "onClicked: modelData.clicked()" in TABLET_HOME
 assert "onClicked: tabletProxy.hideAndroidTablet()" in TABLET_HOME
+assert 'contentFlickableInteractive: Qt.platform.os !== "ios" || !screenSpaceMode' in WINDOW_ROOT
+assert "property bool contentFlickableInteractive: true" in SCROLLING_WINDOW
+assert "interactive: window.contentFlickableInteractive" in SCROLLING_WINDOW
 assert "UITextInputAssistantItem" in SOURCE
 assert "assistant.allowsHidingShortcuts = YES" in SOURCE
 assert "assistant.leadingBarButtonGroups = @[]" in SOURCE
@@ -175,6 +188,16 @@ assert "traits.autocorrectionType = UITextAutocorrectionTypeNo" in SOURCE
 assert "traits.spellCheckingType = UITextSpellCheckingTypeNo" in SOURCE
 assert "suppressInputAssistantForAllWindows" in SOURCE
 assert "suppressIOSKeyboardAssistant" in GRAPHICS
+assert "before the first iOS window is shown" in APPLICATION_SETUP
+assert "_primaryWidget->setAttribute(Qt::WA_InputMethodEnabled, false)" in APPLICATION_SETUP
+assert "_primaryWidget->setAttribute(Qt::WA_InputMethodEnabled, false)" in GRAPHICS
+assert "_primaryWidget->setAttribute(Qt::WA_InputMethodEnabled, focusText)" in GRAPHICS
+assert "_primaryWidget->installEventFilter(offscreenUi.data())" in GRAPHICS
+assert "OVERTE_IOS_TOUCH_UI_GATE stage=native-ime-focus" in GRAPHICS
+assert 'root.gpuFrameTime.toFixed(1) + " ms" : "n/a"' in IOS_STATS
+assert 'root.stutterrate.toFixed(3) : "n/a"' in IOS_STATS
+assert '" (idle)"' in IOS_STATS
+assert "OVERTE_IOS_STATS_SAMPLE" in STATS_SOURCE
 assert "QTimer::singleShot(1000" in APPLICATION_UI
 MOBILE_ACTION_BAR = (ROOT / "scripts/system/+android_phoneInterface/mobileActionBar.js").read_text()
 assert "shortEdge * 0.105" in MOBILE_ACTION_BAR
@@ -191,7 +214,7 @@ for texture in ("analog_stick.png", "analog_stick_base.png", "fly.png", "handsha
 
 assert "_desktopWindow->setPosition(0, 0)" in TABLET_SOURCE
 assert '"coordinate_space=safe-content"' in TABLET_SOURCE
-assert "x = 0" in (ROOT / "interface/resources/qml/hifi/tablet/WindowRoot.qml").read_text()
+assert "x = 0" in WINDOW_ROOT
 assert 'iosRuntimeDiagnosticInt("touchJumpMinimumPulseMs", 120, 0, 500)' in VIRTUAL_PAD
 application_source = (ROOT / "interface/src/Application.cpp").read_text()
 assert "OVERTE_IOS_LOCOMOTION_GATE stage=active" in application_source

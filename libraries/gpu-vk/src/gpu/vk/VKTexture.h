@@ -316,6 +316,7 @@ protected:
     VkSampler _vkSampler { VK_NULL_HANDLE };
     uint16_t _sourceMipOffset { 0 };
     size_t _residentBytes { 0 };
+    bool _residencyAccounted { false };
     bool _isManagedResource { false };
     // This need to be moved to VKFixedAllocationTexture and allocated in allocateStorage()
     //VkDeviceMemory _vkDeviceMemory{ VK_NULL_HANDLE };

@@ -29,6 +29,12 @@ assert "process_footprint_bytes=" in TEXTURE
 assert "iosStrictTextureResidentBytes" in TEXTURE
 assert "iosTextureTraceEvery" in TEXTURE
 assert "iosRuntimeDiagnosticInt" in TEXTURE
+assert "Backend::textureResidentCount.increment();" in TEXTURE
+assert "Backend::textureResidentCount.decrement();" in TEXTURE
+assert "Backend::textureResidentGPUMemSize.update(0, _residentBytes);" in TEXTURE
+assert "Backend::textureResidentGPUMemSize.update(_residentBytes, 0);" in TEXTURE
+assert "_residencyAccounted = true;" in TEXTURE
+assert "if (_residencyAccounted)" in TEXTURE
 assert '"iosResourceTextureMaxDimension": 512' in PROFILE
 assert "256 for a low-memory isolation run" in DOCUMENTATION
 assert "no new IPA is needed" in DOCUMENTATION
@@ -40,4 +46,4 @@ assert "_transferData.mips.shrink_to_fit()" in TEXTURE
 assert "size_t sourcePos = i * 3;" in TEXTURE
 assert "size_t destPos = face.offset + i * 4;" in TEXTURE
 
-print("iOS Vulkan resource textures have a runtime cap, footprint telemetry, and safe mip upload ownership")
+print("iOS Vulkan resource textures have bounded uploads, footprint telemetry, and public residency stats")
