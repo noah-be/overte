@@ -328,9 +328,15 @@
         // active asset queues and bound only this observable first-frame state
         // to 45 minutes. A present is progress and resets the clock; visual
         // readiness and screenshot validation remain unchanged.
-        var firstFrameRenderPending = resourceQueuesAreEmpty &&
+        // Once raw queues are empty, both initial model preparation and the
+        // newer-present gate execute on the same software-rendered frame path.
+        // A partially loaded inventory must not switch back to the ordinary
+        // asset timeout while full_scene_ready is waiting for that present.
+        var firstFrameRenderPending = snapshotStage === "waiting" &&
+            resourceQueuesAreEmpty &&
             latestInventory.visible_model_count > 0 &&
-            latestInventory.loaded_visible_model_count === 0;
+            (latestInventory.loaded_visible_model_count === 0 ||
+                fullSceneReadyAt !== 0);
         var assetStallLimit = firstFrameRenderPending ? 2700000 : 600000;
         if (snapshotStage === "waiting" && lastAssetProgressAt !== 0 &&
                 Date.now() - lastAssetProgressAt >= assetStallLimit) {

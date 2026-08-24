@@ -312,6 +312,23 @@ function createRun() {
 
 {
     const run = createRun();
+    run.script.interval();
+    run.clock.now += 600000;
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, false,
+        "full_scene_ready must retain software-frame grace while awaiting a newer present");
+    run.clock.now += 2099999;
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, false,
+        "the newer-present gate must cover measured sequential software draws");
+    run.clock.now += 1;
+    run.script.interval();
+    assert.strictEqual(run.script.stopped, true,
+        "a genuinely stalled post-readiness present must retain a finite bound");
+}
+
+{
+    const run = createRun();
     run.setModelLoaded(false);
     run.setTexturesComplete(false);
     run.setDownloads(1);
