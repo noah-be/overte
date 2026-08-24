@@ -232,7 +232,14 @@ bool OffscreenUi::handleMobilePointerEvent(const PointerEvent& event) {
     }
 
     const QPointF point(event.getPos2D().x, event.getPos2D().y);
-    const Qt::MouseButton button = event.getButton() == PointerEvent::PrimaryButton
+    // QMouseEvent::button() identifies the button whose state changed.  Qt
+    // requires it to be NoButton for MouseMove; the held state belongs only
+    // in buttons().  Passing LeftButton for every mobile move produces a
+    // malformed drag stream which buttons tolerate but Flickable rejects.
+    const bool changesPrimaryButton = event.getType() == PointerEvent::Press ||
+        event.getType() == PointerEvent::Release;
+    const Qt::MouseButton button = changesPrimaryButton &&
+            event.getButton() == PointerEvent::PrimaryButton
         ? Qt::LeftButton : Qt::NoButton;
     Qt::MouseButtons buttons { Qt::NoButton };
     if (event.getButtons() & PointerEvent::PrimaryButton) {
@@ -243,6 +250,18 @@ bool OffscreenUi::handleMobilePointerEvent(const PointerEvent& event) {
     mouseEvent.ignore();
     const bool delivered = QCoreApplication::sendEvent(getWindow(), &mouseEvent);
 #if defined(Q_OS_IOS)
+    static quint64 mobileMoveOrdinal { 0 };
+    if (event.getType() == PointerEvent::Move && ++mobileMoveOrdinal % 30 == 0) {
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_UI_GATE stage=mobile-drag-move",
+            "ordinal=", mobileMoveOrdinal,
+            "x=", point.x(),
+            "y=", point.y(),
+            "button=", static_cast<int>(button),
+            "buttons=", static_cast<int>(buttons),
+            "delivered=", delivered,
+            "accepted=", mouseEvent.isAccepted());
+    }
     if (event.getType() == PointerEvent::Release) {
         finishIOSOffscreenTextFocus(getWindow(), "mobile-pointer", delivered,
                                     mouseEvent.isAccepted());

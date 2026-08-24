@@ -227,6 +227,10 @@ Rectangle {
 		}
 
     	function load(newSource, callback) {
+            if (Qt.platform.os === "ios") {
+                console.info("OVERTE_IOS_TABLET_QML stage=load-requested source=" + newSource +
+                    " previous=" + loader.source + " had_item=" + (loader.item !== null))
+            }
             if (loader.source == newSource) {
                 loader.loaded();
                 return;
@@ -248,7 +252,12 @@ Rectangle {
 	            if (loader.item.hasOwnProperty("setRootMenu")) {
 	                loader.item.setRootMenu(tabletRoot.rootMenu, tabletRoot.subMenu);
 	            }
-	            loader.item.forceActiveFocus();
+	            // The iOS backend completes dynamic Qt 6 components before this
+	            // callback. Defer focus one event turn so the completed item also
+	            // has stable window and focus-scope ownership.
+	            if (Qt.platform.os !== "ios") {
+	                loader.item.forceActiveFocus();
+	            }
 
 	            if (openModal) {
 	                openModal.canceled();
@@ -282,6 +291,18 @@ Rectangle {
                 }
 
                 screenChanged(type, newSource);
+
+                if (Qt.platform.os === "ios") {
+                    Qt.callLater(function() {
+                        if (loader.item !== newItem) {
+                            return
+                        }
+                        loader.item.forceActiveFocus()
+                        console.info("OVERTE_IOS_TABLET_QML stage=load-complete source=" + newSource +
+                            " class=" + loader.item + " size=" + loader.item.width + "x" + loader.item.height +
+                            " visible=" + loader.item.visible + " active_focus=" + loader.item.activeFocus)
+                    })
+                }
 	        });
     	}
 	}

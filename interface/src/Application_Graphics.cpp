@@ -409,7 +409,13 @@ void Application::initializeUi() {
 
     auto offscreenUi = getOffscreenUI();
 #if defined(Q_OS_IOS)
-    connect(offscreenUi.data(), &OffscreenUi::focusTextChanged, this, [](bool focusText) {
+    // VKWidget historically advertised itself as an editor for the whole app
+    // lifetime. On iPad that creates a QuickType/shortcut strip before a real
+    // QML field is focused. Enable the native input method only while the
+    // offscreen QML window owns an editable focus item.
+    _primaryWidget->setAttribute(Qt::WA_InputMethodEnabled, false);
+    connect(offscreenUi.data(), &OffscreenUi::focusTextChanged, this, [this](bool focusText) {
+        _primaryWidget->setAttribute(Qt::WA_InputMethodEnabled, focusText);
         if (focusText) {
             // External iPad keyboards can show their shortcut/suggestion bar
             // without changing the software-keyboard frame. Suppress it on
@@ -417,7 +423,13 @@ void Application::initializeUi() {
             // notifications, while preserving the active editor.
             suppressIOSKeyboardAssistant();
             QTimer::singleShot(100, [] { suppressIOSKeyboardAssistant(); });
+        } else {
+            dismissIOSKeyboard();
         }
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_UI_GATE stage=native-ime-focus",
+            "enabled=", focusText,
+            "widget_focus=", _primaryWidget->hasFocus());
     });
 #endif
     connect(offscreenUi.data(), &hifi::qml::OffscreenSurface::rootContextCreated,
@@ -457,6 +469,13 @@ void Application::initializeUi() {
     _primaryWidget->installEventFilter(offscreenUi.data());
 #else
     _vkWindow->installEventFilter(offscreenUi.data()); //VKTODO
+#if defined(Q_OS_IOS)
+    // Touches are forwarded explicitly by Application, but iPad hardware-key
+    // and input-method events are delivered to the focused VKWidget. Filtering
+    // only the containing QWindow meant those events never reached the active
+    // offscreen TextField.
+    _primaryWidget->installEventFilter(offscreenUi.data());
+#endif
 #endif
     offscreenUi->setMouseTranslator([=, this](const QPointF& pt) {
         QPointF result = pt;
