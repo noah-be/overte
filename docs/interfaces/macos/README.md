@@ -25,6 +25,11 @@ Apple Silicon (`arm64`) is an intended target and the build script accepts it,
 but its Qt and native dependency graph has not been validated. Do not interpret
 configuration support as a working native Apple Silicon build.
 
+Product development is currently paused because no physical Mac test hardware
+is available and further virtual/software-renderer testing is too costly to
+replace the required hardware evidence. See the roadmap before starting new
+macOS work.
+
 ## Support matrix
 
 | Area | Current configuration |
@@ -76,6 +81,7 @@ testing are the only release goal at this stage.
 
 ## Documentation
 
+- [Roadmap and paused hardware gate](ROADMAP.md)
 - [Complete build guide](BUILD.md)
 - [Testing](TESTING.md)
 - [Troubleshooting](TROUBLESHOOTING.md)
