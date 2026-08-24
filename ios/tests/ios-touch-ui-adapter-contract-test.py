@@ -158,7 +158,9 @@ assert "Qt::LeftButton : Qt::NoButton" in OFFSCREEN_UI
 assert "stage=mobile-drag-move" in OFFSCREEN_UI
 assert "stage=focus-after-touch" in OFFSCREEN_UI
 assert '"window-mouse-filter"' in OFFSCREEN_UI
-assert "Qt::MouseButton fakeMouseButton = Qt::NoButton" in OFFSCREEN_SURFACE
+assert "Qt::MouseButton fakeMouseButton = Qt::LeftButton" in OFFSCREEN_SURFACE
+assert "legacy window-wide compatibility filter intentionally keeps" in OFFSCREEN_SURFACE
+assert "OffscreenUi::handleMobilePointerEvent" in OFFSCREEN_SURFACE
 assert "stage=filtered-touch-drag-move" in OFFSCREEN_SURFACE
 assert "activeFocusItem()" in OFFSCREEN_SURFACE
 assert "stage=hardware-key-forwarded" in OFFSCREEN_SURFACE

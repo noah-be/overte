@@ -368,21 +368,17 @@ bool OffscreenSurface::eventFilter(QObject* originalDestination, QEvent* event) 
         case QEvent::TouchEnd: {
             QTouchEvent *originalEvent = static_cast<QTouchEvent *>(event);
             QEvent::Type fakeMouseEventType = QEvent::None;
-#if defined(Q_OS_IOS)
-            // A move has no changed button on Qt 6; only buttons() reports the
-            // held finger. Keep Android's established adapter behavior out of
-            // this iOS-specific correction.
-            Qt::MouseButton fakeMouseButton = Qt::NoButton;
-#else
+            // This legacy window-wide compatibility filter intentionally keeps
+            // LeftButton on move.  With a Qt 6-conformant NoButton the full-screen
+            // desktop root accepts every world drag before Application can route
+            // it to camera look.  iOS tablet/address-bar gestures use the explicit
+            // OffscreenUi::handleMobilePointerEvent path instead, where MouseMove
+            // correctly has NoButton and buttons() carries LeftButton for Flickable.
             Qt::MouseButton fakeMouseButton = Qt::LeftButton;
-#endif
             Qt::MouseButtons fakeMouseButtons = Qt::NoButton;
             switch (event->type()) {
                 case QEvent::TouchBegin:
                     fakeMouseEventType = QEvent::MouseButtonPress;
-#if defined(Q_OS_IOS)
-                    fakeMouseButton = Qt::LeftButton;
-#endif
                     fakeMouseButtons = Qt::LeftButton;
                     break;
                 case QEvent::TouchUpdate:
@@ -391,9 +387,6 @@ bool OffscreenSurface::eventFilter(QObject* originalDestination, QEvent* event) 
                     break;
                 case QEvent::TouchEnd:
                     fakeMouseEventType = QEvent::MouseButtonRelease;
-#if defined(Q_OS_IOS)
-                    fakeMouseButton = Qt::LeftButton;
-#endif
                     fakeMouseButtons = Qt::NoButton;
                     break;
                 default:
