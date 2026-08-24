@@ -27,6 +27,9 @@ Each platform directory should use the following files when the subject exists:
 
 - `README.md`: maturity, support matrix, shortest safe developer path, output,
   launch instructions, important limitations, and document index.
+- `ROADMAP.md`: current milestone, no more than seven exit criteria, exactly one
+  next action, blockers, and explicit non-goals. Start from
+  [`ROADMAP_TEMPLATE.md`](ROADMAP_TEMPLATE.md).
 - `BUILD.md`: host preparation, dependencies, build variants, configuration
   overrides, and output paths.
 - `TESTING.md`: host tests, emulator or simulator tests, physical-device tests,
@@ -64,8 +67,13 @@ source revision.
 
 ## Maintenance rules
 
+- Keep repository priority and product order in [`../ROADMAP.md`](../ROADMAP.md);
+  keep detailed product milestones on the corresponding product branch.
 - Keep each technical fact in one authoritative document and link to it from
   summaries instead of copying long procedures.
+- Keep priority and maturity separate: priority says what is being worked on,
+  while maturity says what has been verified.
+- Keep exactly one single next action in every active product roadmap.
 - A legacy entry path may remain as a short pointer, but it must not retain
   executable superseded instructions.
 - Keep internal work logs under `archive/`; archived observations are evidence
