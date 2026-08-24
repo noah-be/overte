@@ -48,6 +48,10 @@ void gl::globalLock() {
     _globalOpenGLLock.lock();
 }
 
+bool gl::globalTryLock() {
+    return _globalOpenGLLock.try_lock();
+}
+
 void gl::globalRelease(bool finish) {
     if (finish) {
         glFinish();
@@ -58,6 +62,7 @@ void gl::globalRelease(bool finish) {
 #else
 
 void gl::globalLock() {}
+bool gl::globalTryLock() { return true; }
 void gl::globalRelease(bool finish) {}
 
 #endif

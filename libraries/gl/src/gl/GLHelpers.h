@@ -59,6 +59,7 @@ namespace gl {
 
 
     void globalLock();
+    bool globalTryLock();
     void globalRelease(bool finish = true);
 
     bool debugContextEnabled();

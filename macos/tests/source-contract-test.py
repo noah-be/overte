@@ -2720,6 +2720,14 @@ subprocess.run(
     check=True,
 )
 subprocess.run(
+    [
+        sys.executable,
+        str(ROOT / "macos/tests/script-engine-destruction-contract-test.py"),
+    ],
+    cwd=ROOT,
+    check=True,
+)
+subprocess.run(
     [sys.executable, str(ROOT / "macos/tests/present-count-contract-test.py")],
     cwd=ROOT,
     check=True,

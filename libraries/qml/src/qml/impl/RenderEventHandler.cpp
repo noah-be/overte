@@ -15,6 +15,7 @@
 #include <gl/GLHelpers.h>
 
 #include <QtQuick/QQuickWindow>
+#include <QtCore/QMetaObject>
 
 #include <shared/NsightHelpers.h>
 #include "Profiling.h"
@@ -133,10 +134,19 @@ void RenderEventHandler::qmlRender(bool sceneGraphSync) {
     }
 
     // QQuickRenderControl requires the GUI thread to be blocked only while the
-    // scene graph is synchronized.  Do that before waiting for macOS' global GL
-    // lock: a slow scene draw can hold the lock for minutes in software OpenGL,
-    // and preRender() wakes the GUI thread when synchronization is complete.
-    gl::globalLock();
+    // scene graph is synchronized. Do that before waiting for macOS' global GL
+    // lock. An ordinary asynchronous QML frame must not occupy its render
+    // thread at that lock: a later sync event would otherwise remain queued
+    // behind it while the GUI thread waits for the sync indefinitely.
+    if (sceneGraphSync) {
+        gl::globalLock();
+    } else if (!gl::globalTryLock()) {
+        auto shared = _shared;
+        QMetaObject::invokeMethod(shared, [shared] {
+            shared->requestRender();
+        }, Qt::QueuedConnection);
+        return;
+    }
 
     resize();
 
