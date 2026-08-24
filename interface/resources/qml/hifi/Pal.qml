@@ -450,7 +450,7 @@ Rectangle {
                 sortModel();
             }
 
-            TableViewColumn {
+            HifiControlsUit.TableViewColumn {
                 role: "avgAudioLevel";
                 title: "LOUD";
                 width: actionButtonWidth;
@@ -458,7 +458,7 @@ Rectangle {
                 resizable: false;
             }
 
-            TableViewColumn {
+            HifiControlsUit.TableViewColumn {
                 id: displayNameHeader;
                 role: "displayName";
                 title: nearbyTable.rowCount + (nearbyTable.rowCount === 1 ? " NAME" : " NAMES");
@@ -467,14 +467,14 @@ Rectangle {
                 resizable: false;
             }
 
-            TableViewColumn {
+            HifiControlsUit.TableViewColumn {
                 role: "ignore";
                 title: "IGNORE";
                 width: actionButtonWidth;
                 movable: false;
                 resizable: false;
             }
-            TableViewColumn {
+            HifiControlsUit.TableViewColumn {
                 visible: iAmAdmin;
                 role: "mute";
                 title: "SILENCE";
@@ -482,7 +482,7 @@ Rectangle {
                 movable: false;
                 resizable: false;
             }
-            TableViewColumn {
+            HifiControlsUit.TableViewColumn {
                 visible: iAmAdmin;
                 role: "kick";
                 title: "BAN";
@@ -841,7 +841,7 @@ Rectangle {
                 settings.connectionsSortIndicatorOrder = sortIndicatorOrder;
             }
 
-            TableViewColumn {
+            HifiControlsUit.TableViewColumn {
                 id: connectionsUserNameHeader;
                 role: "userName";
                 title: connectionsUserModel.totalEntries + (connectionsUserModel.totalEntries === 1 ? " NAME" : " NAMES");
@@ -849,14 +849,14 @@ Rectangle {
                 movable: false;
                 resizable: false;
             }
-            TableViewColumn {
+            HifiControlsUit.TableViewColumn {
                 role: "placeName";
                 title: "LOCATION";
                 width: locationColumnWidth;
                 movable: false;
                 resizable: false;
             }
-            TableViewColumn {
+            HifiControlsUit.TableViewColumn {
                 role: "connection";
                 title: "FRIEND";
                 width: actionButtonWidth;

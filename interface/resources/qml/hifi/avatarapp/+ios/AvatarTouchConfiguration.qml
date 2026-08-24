@@ -10,4 +10,6 @@ HifiControls.TouchUiMetrics {
     readonly property bool showGetMoreAvatars: profile.externalAvatarCatalogAvailable
     readonly property int settingsRightMargin: profile.screenSpacePresentation ? 12 : 32
     readonly property int settingsBottomMargin: profile.screenSpacePresentation ? 12 : 57
+    Component.onCompleted: console.log(
+        "OVERTE_IOS_TOUCH_UI_GATE stage=avatar-ios-selector-ready")
 }

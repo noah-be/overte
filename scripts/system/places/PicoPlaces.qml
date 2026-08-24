@@ -46,7 +46,10 @@ Rectangle {
         }
     }
 
-    Component.onCompleted: requestContent()
+    Component.onCompleted: {
+        console.log("OVERTE_IOS_TOUCH_UI_GATE stage=places-qml-ready")
+        requestContent()
+    }
 
     ColumnLayout {
         anchors.fill: parent

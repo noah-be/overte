@@ -49,6 +49,15 @@ IOS_AVATAR_CONFIGURATION = (
     ROOT / "interface/resources/qml/hifi/avatarapp/+ios/AvatarTouchConfiguration.qml"
 ).read_text()
 PAL = (ROOT / "interface/resources/qml/hifi/Pal.qml").read_text()
+IOS_TABLE = (
+    ROOT / "interface/resources/qml/controlsUit/+ios/Table.qml"
+).read_text()
+IOS_TABLE_COLUMN = (
+    ROOT / "interface/resources/qml/controlsUit/+ios/TableViewColumn.qml"
+).read_text()
+CONTROLS_QMLDIR = (
+    ROOT / "interface/resources/qml/controlsUit/qmldir"
+).read_text()
 PLACES = (ROOT / "scripts/system/places/places.js").read_text()
 TABLET_MENU = (ROOT / "interface/resources/qml/hifi/tablet/TabletMenu.qml").read_text()
 TABLET_MENU_STACK = (
@@ -206,8 +215,25 @@ assert "showGraphicsSettings: profile.graphicsSettingsAvailable" in IOS_SETTINGS
 assert "favoritesFillBelowHeader: profile.screenSpacePresentation" in IOS_AVATAR_CONFIGURATION
 assert "import QtQuick.Controls 1." not in PAL
 assert "import QtQuick.Controls 2.3" in PAL
+assert "HifiControlsUit.TableViewColumn" in PAL
+assert "\n            TableViewColumn {" not in PAL
+assert "import QtQuick.Controls 1." not in IOS_TABLE
+assert "ListView {" in IOS_TABLE
+assert "readonly property var selection: selectionState" in IOS_TABLE
+assert "function positionViewAtRow(row, mode)" in IOS_TABLE
+assert "flickDeceleration: 4000" in IOS_TABLE
+assert "stage=ios-table-ready" in IOS_TABLE
+assert "stage=ios-table-row-selected" in IOS_TABLE
+assert "QtObject {" in IOS_TABLE_COLUMN
+assert "TableViewColumn 1.0 TableViewColumn.qml" in CONTROLS_QMLDIR
 assert 'PlatformInfo.getOperatingSystemType() === "IOS"' in PLACES
 assert "var useQmlApp = isIOS || !PlatformInfo.has3DHTML();" in PLACES
+assert "stage=places-qml-ready" in (
+    ROOT / "scripts/system/places/PicoPlaces.qml"
+).read_text()
+assert "stage=tablet-menu-model" in TABLET_MENU_STACK
+assert "stage=settings-ios-selector-ready" in IOS_SETTINGS_CONFIGURATION
+assert "stage=avatar-ios-selector-ready" in IOS_AVATAR_CONFIGURATION
 for migrated_settings_qml in (SETTINGS_ADVANCED, SETTINGS_NUMBER, SETTINGS_SLIDER):
     assert "QtQuick.Controls.Styles" not in migrated_settings_qml
 assert "RegularExpressionValidator" in SETTINGS_NUMBER

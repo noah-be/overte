@@ -10,4 +10,6 @@ HifiControls.TouchUiMetrics {
     readonly property bool showGraphicsSettings: profile.graphicsSettingsAvailable
     readonly property bool showControllerSettings: profile.controllerSettingsAvailable
     readonly property bool showPicoResolutionSettings: profile.picoResolutionSettingsAvailable
+    Component.onCompleted: console.log(
+        "OVERTE_IOS_TOUCH_UI_GATE stage=settings-ios-selector-ready")
 }

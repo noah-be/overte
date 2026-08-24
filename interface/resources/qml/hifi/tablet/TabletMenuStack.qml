@@ -196,6 +196,8 @@ Item {
                     break;
                 }
             }
+            console.log("OVERTE_IOS_TOUCH_UI_GATE stage=tablet-menu-model"
+                + " source_count=" + menuCount(menu) + " rows=" + result.count)
             return result;
         }
 
