@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep QML scene synchronization outside macOS' long-running GL lock."""
+"""Keep QML and the GUI thread out of macOS' long-running GL-lock waits."""
 
 from pathlib import Path
 
@@ -16,46 +16,64 @@ function_start = source.index("void RenderEventHandler::qmlRender(bool sceneGrap
 function_end = source.index("\nvoid RenderEventHandler::onQuit()", function_start)
 qml_render = source[function_start:function_end]
 
-pre_render = qml_render.index("_shared->preRender(sceneGraphSync)")
-sync_branch = qml_render.index("if (sceneGraphSync)", pre_render)
-global_lock = qml_render.index("gl::globalLock()")
 global_try_lock = qml_render.index("gl::globalTryLock()")
+sync_branch = qml_render.index("if (sceneGraphSync)", global_try_lock)
+sync_wake = qml_render.index("_shared->wakeRenderSyncWaiter()")
 queued_retry = qml_render.index("QMetaObject::invokeMethod")
-retry = qml_render.index("shared->requestRender()")
+sync_retry = qml_render.index("shared->requestRenderSync()")
+async_retry = qml_render.index("shared->requestRender()")
 queued_connection = qml_render.index("Qt::QueuedConnection")
+pre_render = qml_render.index("_shared->preRender(sceneGraphSync)")
 first_gl_work = min(
     qml_render.index("resize()"),
     qml_render.index("glBindFramebuffer"),
 )
 
-if not pre_render < sync_branch < global_lock < first_gl_work:
-    raise SystemExit(
-        "QML scene sync must wake the GUI thread before waiting for the macOS GL "
-        "serialization lock, while all QML GL work remains serialized"
-    )
-
 if not (
-    sync_branch
-    < global_try_lock
+    global_try_lock
+    < sync_branch
+    < sync_wake
     < queued_retry
-    < retry
+    < sync_retry
+    < async_retry
     < queued_connection
+    < pre_render
     < first_gl_work
 ):
     raise SystemExit(
-        "asynchronous QML frames must defer and retry instead of blocking their "
-        "render thread behind the macOS GL serialization lock; the retry must "
-        "be queued safely onto the SharedObject thread"
+        "QML frames must acquire the macOS GL lock without waiting; a deferred "
+        "sync must wake the GUI thread and queue the same sync request before "
+        "any scene sync or GL work begins"
     )
 
-if qml_render.count("gl::globalLock()") != 1:
-    raise SystemExit("sync QML rendering must acquire the global GL lock exactly once")
+if "QPointer<SharedObject> shared(_shared);" not in qml_render:
+    raise SystemExit(
+        "deferred QML retries must not dereference a destroyed SharedObject"
+    )
+
+if "gl::globalLock()" in qml_render:
+    raise SystemExit("QML rendering must never block on the global GL lock")
 
 if qml_render.count("gl::globalTryLock()") != 1:
-    raise SystemExit("async QML rendering must try the global GL lock exactly once")
+    raise SystemExit("QML rendering must try the global GL lock exactly once")
 
-if qml_render.count("gl::globalRelease()") != 1:
-    raise SystemExit("qmlRender must release the global GL lock exactly once")
+if qml_render.count("gl::globalRelease()") != 2:
+    raise SystemExit("qmlRender must release the acquired GL lock on every exit")
+
+shared_source = (ROOT / "libraries/qml/src/qml/impl/SharedObject.cpp").read_text(
+    encoding="utf-8"
+)
+wake_start = shared_source.index("void SharedObject::wakeRenderSyncWaiter()")
+wake_end = shared_source.index("\nvoid SharedObject::onInitialize()", wake_start)
+wake_function = shared_source[wake_start:wake_end]
+if not (
+    wake_function.index("QMutexLocker locker(&_mutex)")
+    < wake_function.index("wake()")
+):
+    raise SystemExit(
+        "the deferred sync wake must hold SharedObject's wait mutex to prevent "
+        "a lost wake-up"
+    )
 
 if "bool globalTryLock();" not in gl_header:
     raise SystemExit("GLHelpers must expose the non-blocking global lock operation")

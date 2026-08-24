@@ -86,6 +86,7 @@ private:
     void requestRenderSync();
     void wait();
     void wake();
+    void wakeRenderSyncWaiter();
     void onInitialize();
     void onRender();
     void onTimer();
