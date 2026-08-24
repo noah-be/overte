@@ -52,8 +52,8 @@ the product surface.
   one next gate;
 - [ ] fork-specific contribution, security, ownership, and funding policies do
   not contradict the repository README;
-- [ ] the current `upstream/master` baseline is integrated through `main` and
-  propagated through every permanent child branch;
+- [ ] the roadmap and fork-policy baseline is propagated through every
+  permanent child branch without importing new upstream changes;
 - [ ] the quick project suite and branch-topology checks pass; and
 - [ ] topic branches and worktrees are classified as active, mergeable,
   superseded, backup, or archival.
@@ -102,7 +102,7 @@ does not imply that a target is actively being developed.
 | iPhone and iPad | NEXT 3 | Simulator-verified bootstrap; integrated client experimental | `apple-ios` | Interface status and active branch reviewed 2026-08-24 | `IOS-P1` on iPad |
 | macOS | LATER | Intel host/runtime verified; native arm64 experimental | `apple-macos` | Interface status reviewed 2026-08-24 | `MAC-P1` |
 | Meta Quest | PARKED | Experimental and hardware-unverified | `android-vr-quest` | Branch and preview delta reviewed 2026-08-24 | Reassess after `PICO-P1` |
-| Linux and Windows desktop | UPSTREAM-MAINTAINED | Inherited from Overte | `main` | Upstream baseline | Sync and regression checks only |
+| Linux and Windows desktop | OUT OF SCOPE | Inherited historical baseline | `main` | Fork baseline | Fork regression checks only |
 
 Detailed technical facts and evidence remain authoritative in the interface
 documentation on each named product branch. This table records only portfolio
@@ -113,6 +113,10 @@ order and the next acceptance boundary.
 - Exactly one repository milestone may be in `NOW`.
 - Use one primary product track and at most one maintenance track at a time.
 - Keep at most three active topic branches; classify or archive the rest.
+- Do not merge, rebase, cherry-pick, or otherwise import new changes from the
+  upstream Overte repository into this AI-assisted fork.
+- Do not submit AI-assisted fork changes, issues, or pull requests to the
+  upstream Overte project.
 - Every change must advance a named exit criterion or repair a verified
   regression.
 - Each active product roadmap has exactly one single next action.
