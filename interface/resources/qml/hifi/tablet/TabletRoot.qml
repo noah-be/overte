@@ -38,20 +38,35 @@ Rectangle {
         return openMessage;
     }
 
-    Component { id: customInputDialogBuilder; TabletCustomQueryDialog { } }
     function customInputDialog(properties) {
+        // These optional dialogs still transitively depend on Qt 5-era QML in
+        // parts of the tree. Load them only when requested so one unavailable
+        // dialog cannot invalidate TabletRoot and every unrelated tablet app.
+        var customInputDialogBuilder = Qt.createComponent("../../dialogs/TabletCustomQueryDialog.qml");
+        if (customInputDialogBuilder.status !== Component.Ready) {
+            console.warn("Unable to load TabletCustomQueryDialog: " + customInputDialogBuilder.errorString());
+            return null;
+        }
         openModal = customInputDialogBuilder.createObject(tabletRoot, properties);
         return openModal;
     }
 
-    Component { id: fileDialogBuilder; TabletFileDialog { } }
     function fileDialog(properties) {
+        var fileDialogBuilder = Qt.createComponent("../../dialogs/TabletFileDialog.qml");
+        if (fileDialogBuilder.status !== Component.Ready) {
+            console.warn("Unable to load TabletFileDialog: " + fileDialogBuilder.errorString());
+            return null;
+        }
         openModal = fileDialogBuilder.createObject(tabletRoot, properties);
         return openModal;
     }
 
-    Component { id: assetDialogBuilder; TabletAssetDialog { } }
     function assetDialog(properties) {
+        var assetDialogBuilder = Qt.createComponent("../../dialogs/TabletAssetDialog.qml");
+        if (assetDialogBuilder.status !== Component.Ready) {
+            console.warn("Unable to load TabletAssetDialog: " + assetDialogBuilder.errorString());
+            return null;
+        }
         openModal = assetDialogBuilder.createObject(tabletRoot, properties);
         return openModal;
     }

@@ -1,6 +1,5 @@
-import QtQuick 2.7
-import QtQuick.Controls 2.5
-import QtQuick.Controls.Styles 1.4
+import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts 1.3
 import controlsUit 1.0 as HifiControls
 
@@ -75,7 +74,7 @@ Item {
 						clip: true;
 						font.pixelSize: Math.round(22 * touchMetrics.textScale)
 						inputMethodHints: Qt.ImhFormattedNumbersOnly
-						validator: RegExpValidator { regExp: /[0-9]*/ }
+						validator: RegularExpressionValidator { regularExpression: /[0-9]*/ }
 
 						background: Rectangle {
 							color: "#111";
