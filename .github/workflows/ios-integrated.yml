@@ -1026,9 +1026,11 @@ jobs:
           fi
           output_root="build-ios/fast-dev"
           mkdir -p "$output_root/native"
+          source_sha256="$(shasum -a 256 "${source_ipas[0]}" | awk '{print $1}')"
           python3 ios/tools/normalize-sideload-ipa.py \
             "${source_ipas[0]}" "$output_root/intermediate.ipa" \
             --bundle-id "$BUNDLE_ID" \
+            --expected-sha256 "$source_sha256" \
             --manifest "$output_root/current.json"
           ditto -x -k "$output_root/intermediate.ipa" "$output_root/native"
           ditto -c -k --norsrc --keepParent \

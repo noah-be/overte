@@ -20,6 +20,7 @@ assert "iphonesimulator" not in FAST
 assert "inputs.fast_dev" in INTEGRATED and "inputs.fast_dev" in QT_SOURCE
 assert "ios/build-ios.sh package-client --platform device --configuration Release" in INTEGRATED
 assert "ios/tools/normalize-sideload-ipa.py" in INTEGRATED
+assert '--expected-sha256 "$source_sha256"' in INTEGRATED
 assert '"$output_root/current.ipa"' in INTEGRATED
 assert "overte-ipad-fast-dev-${{ github.run_id }}" in INTEGRATED
 
