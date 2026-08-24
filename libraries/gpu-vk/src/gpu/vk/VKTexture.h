@@ -123,7 +123,7 @@ public:
     virtual ~VKTexture();
 
     VkImage _vkImage{ VK_NULL_HANDLE };
-    const Stamp _storageStamp;
+    Stamp _storageStamp;
     const VkImageViewType _target;
     //const uint16 _maxMip;
     //const uint16 _minMip;
@@ -294,6 +294,9 @@ class VKStrictResourceTexture: public VKFixedAllocationTexture {
     friend class VKBackend;
 public:
     void postTransfer(VKBackend &backend) override;
+#if defined(Q_OS_IOS)
+    bool refreshIOSSoftwareTexture(VKBackend& backend);
+#endif
 
 protected:
     // VKTODO: how to handle mipmaps?
@@ -304,6 +307,7 @@ protected:
         // VKTODO: transfer on transfer tread
         VKStrictResourceTexture::transfer(vkBackend);
         VKStrictResourceTexture::postTransfer(vkBackend);
+        _contentStamp = texture.getDataStamp();
     };
     ~VKStrictResourceTexture() override; // VKTODO: delete image and image view, release memory
     void createTexture(VKBackend &backend) override;
@@ -318,6 +322,11 @@ protected:
     size_t _residentBytes { 0 };
     bool _residencyAccounted { false };
     bool _isManagedResource { false };
+#if defined(Q_OS_IOS)
+    VkBuffer _iosSoftwareStagingBuffer { VK_NULL_HANDLE };
+    VkDeviceMemory _iosSoftwareStagingMemory { VK_NULL_HANDLE };
+    VkDeviceSize _iosSoftwareStagingSize { 0 };
+#endif
     // This need to be moved to VKFixedAllocationTexture and allocated in allocateStorage()
     //VkDeviceMemory _vkDeviceMemory{ VK_NULL_HANDLE };
 };

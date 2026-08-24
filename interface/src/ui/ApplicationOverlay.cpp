@@ -245,20 +245,33 @@ bool ApplicationOverlay::updateIOSQmlTexture() {
         uploadImage = uploadImage.mirrored(false, true);
     }
 
-    auto texture = gpu::Texture::createStrict(
-        gpu::Element::COLOR_RGBA_32,
-        static_cast<uint16_t>(uploadImage.width()),
-        static_cast<uint16_t>(uploadImage.height()),
-        1,
-        Sampler(Sampler::FILTER_MIN_MAG_LINEAR, Sampler::WRAP_CLAMP));
-    texture->setStoredMipFormat(gpu::Element::COLOR_RGBA_32);
+    // The display backend retires the previous frame before starting the next
+    // one.  Keep a small ring anyway so the UI producer never mutates the CPU
+    // storage still retained by a queued frame.  Reusing these Texture objects
+    // also lets the iOS Vulkan backend update four fixed VkImages instead of
+    // creating and destroying a 5+ MiB image for every software-QML frame.
+    auto& texture = _iosQmlTextureRing[_iosQmlTextureRingIndex];
+    const bool textureMatches = texture &&
+        texture->getWidth() == static_cast<uint16_t>(uploadImage.width()) &&
+        texture->getHeight() == static_cast<uint16_t>(uploadImage.height());
+    if (!textureMatches) {
+        texture = gpu::Texture::createStrict(
+            gpu::Element::COLOR_RGBA_32,
+            static_cast<uint16_t>(uploadImage.width()),
+            static_cast<uint16_t>(uploadImage.height()),
+            1,
+            Sampler(Sampler::FILTER_MIN_MAG_LINEAR, Sampler::WRAP_CLAMP));
+        texture->setStoredMipFormat(gpu::Element::COLOR_RGBA_32);
+        texture->setUsage(gpu::Texture::Usage::Builder().withColor().withAlpha().build());
+        texture->setSource("ApplicationOverlayIOSSoftware");
+    }
     texture->assignStoredMip(
         0,
         static_cast<gpu::Size>(uploadImage.sizeInBytes()),
         reinterpret_cast<const gpu::Byte*>(uploadImage.constBits()));
-    texture->setUsage(gpu::Texture::Usage::Builder().withColor().withAlpha().build());
-    texture->setSource("ApplicationOverlayIOSSoftware");
-    _uiTexture = std::move(texture);
+    _uiTexture = texture;
+    _iosQmlTextureRingIndex =
+        (_iosQmlTextureRingIndex + 1) % IOS_QML_TEXTURE_RING_SIZE;
 
     ++_iosQmlFrameOrdinal;
     const auto diagnosticFrames = iosRuntimeDiagnosticIntSet(

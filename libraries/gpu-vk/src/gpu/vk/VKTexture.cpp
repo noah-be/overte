@@ -14,6 +14,7 @@
 #include "VKTexture.h"
 
 #include <atomic>
+#include <cstring>
 
 #include <QtCore/QThread>
 #include <NumericalConstants.h>
@@ -725,6 +726,152 @@ void VKStrictResourceTexture::postTransfer(VKBackend &backend) {
     _transferData.mips.shrink_to_fit();
 };
 
+#if defined(Q_OS_IOS)
+bool VKStrictResourceTexture::refreshIOSSoftwareTexture(VKBackend& backend) {
+    // This is intentionally narrow: the screen-space Qt Quick producer owns a
+    // fixed-size, one-level RGBA texture ring.  Ordinary resource textures keep
+    // using the established immutable uploader until Vulkan's general dynamic
+    // texture path is completed.
+    if (_gpuObject.source() != "ApplicationOverlayIOSSoftware" ||
+            _gpuObject.getType() != Texture::TEX_2D ||
+            _gpuObject.getNumMips() != 1 ||
+            _gpuObject.getNumFaces() != 1 ||
+            _sourceMipOffset != 0 ||
+            _vkImage == VK_NULL_HANDLE ||
+            _vkImageLayout != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        return false;
+    }
+
+    const auto dimensions = _gpuObject.evalMipDimensions(0);
+    if (dimensions.x != _transferData.width ||
+            dimensions.y != _transferData.height ||
+            !_gpuObject.isStoredMipFaceAvailable(0, 0)) {
+        return false;
+    }
+
+    const auto storedFormat = evalTexelFormatInternal(
+        _gpuObject.getStoredMipFormat(), backend.getContext());
+    const auto texelFormat = evalTexelFormatInternal(
+        _gpuObject.getTexelFormat(), backend.getContext());
+    if (storedFormat != VK_FORMAT_R8G8B8A8_UNORM || storedFormat != texelFormat) {
+        return false;
+    }
+
+    const auto mipData = _gpuObject.accessStoredMipFace(0, 0);
+    const auto mipSize = _gpuObject.getStoredMipFaceSize(0, 0);
+    const VkDeviceSize expectedSize =
+        static_cast<VkDeviceSize>(_transferData.width) * _transferData.height * 4;
+    if (!mipData || mipSize != expectedSize || mipData->size() != expectedSize) {
+        return false;
+    }
+
+    auto device = backend.getContext().device;
+    if (_iosSoftwareStagingBuffer == VK_NULL_HANDLE) {
+        VkBufferCreateInfo bufferCreateInfo = vks::initializers::bufferCreateInfo();
+        bufferCreateInfo.size = expectedSize;
+        bufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        VK_CHECK_RESULT(vkCreateBuffer(
+            device->logicalDevice, &bufferCreateInfo, nullptr,
+            &_iosSoftwareStagingBuffer));
+
+        VkMemoryRequirements memoryRequirements {};
+        vkGetBufferMemoryRequirements(
+            device->logicalDevice, _iosSoftwareStagingBuffer, &memoryRequirements);
+        VkMemoryAllocateInfo allocationInfo = vks::initializers::memoryAllocateInfo();
+        allocationInfo.allocationSize = memoryRequirements.size;
+        allocationInfo.memoryTypeIndex = device->getMemoryType(
+            memoryRequirements.memoryTypeBits,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        VK_CHECK_RESULT(vkAllocateMemory(
+            device->logicalDevice, &allocationInfo, nullptr,
+            &_iosSoftwareStagingMemory));
+        VK_CHECK_RESULT(vkBindBufferMemory(
+            device->logicalDevice, _iosSoftwareStagingBuffer,
+            _iosSoftwareStagingMemory, 0));
+        _iosSoftwareStagingSize = memoryRequirements.size;
+    }
+    if (_iosSoftwareStagingMemory == VK_NULL_HANDLE ||
+            _iosSoftwareStagingSize < expectedSize) {
+        return false;
+    }
+
+    void* mappedData { nullptr };
+    VK_CHECK_RESULT(vkMapMemory(
+        device->logicalDevice, _iosSoftwareStagingMemory,
+        0, expectedSize, 0, &mappedData));
+    std::memcpy(mappedData, mipData->data(), static_cast<size_t>(expectedSize));
+    vkUnmapMemory(device->logicalDevice, _iosSoftwareStagingMemory);
+
+    // VulkanDisplayPlugin waits for the previous frame fence before executing
+    // the next frame.  The explicit idle check documents and enforces that
+    // invariant before mutating a VkImage retained by the four-entry ring.
+    VK_CHECK_RESULT(vkQueueWaitIdle(backend.getContext().graphicsQueue));
+    VkCommandBuffer copyCommand = device->createCommandBuffer(
+        device->graphicsCommandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+
+    VkImageSubresourceRange range {};
+    range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    range.baseMipLevel = 0;
+    range.levelCount = 1;
+    range.baseArrayLayer = 0;
+    range.layerCount = 1;
+    vks::tools::setImageLayout(
+        copyCommand, _vkImage,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        range,
+        VK_QUEUE_FAMILY_IGNORED,
+        VK_QUEUE_FAMILY_IGNORED,
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+    VkBufferImageCopy copyRegion {};
+    copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    copyRegion.imageSubresource.mipLevel = 0;
+    copyRegion.imageSubresource.baseArrayLayer = 0;
+    copyRegion.imageSubresource.layerCount = 1;
+    copyRegion.imageExtent = {
+        static_cast<uint32_t>(_transferData.width),
+        static_cast<uint32_t>(_transferData.height),
+        1
+    };
+    vkCmdCopyBufferToImage(
+        copyCommand, _iosSoftwareStagingBuffer, _vkImage,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+
+    vks::tools::setImageLayout(
+        copyCommand, _vkImage,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        range,
+        VK_QUEUE_FAMILY_IGNORED,
+        VK_QUEUE_FAMILY_IGNORED,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+    device->flushCommandBuffer(
+        copyCommand, backend.getContext().graphicsQueue,
+        device->graphicsCommandPool);
+
+    _vkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    _storageStamp = _gpuObject.getStamp();
+    _contentStamp = _gpuObject.getDataStamp();
+
+    static std::atomic<uint64_t> updateOrdinal { 0 };
+    const uint64_t ordinal = updateOrdinal.fetch_add(1) + 1;
+    if (ordinal == 1 || ordinal % 256 == 0) {
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_SCREEN_QML_GPU_UPDATE stage=reused",
+            "ordinal=", ordinal,
+            "ring_size=", 4,
+            "process_footprint_bytes=", iosPhysicalFootprintBytes(),
+            "dimensions=", QStringLiteral("%1x%2")
+                .arg(_transferData.width).arg(_transferData.height));
+    }
+    return true;
+}
+#endif
+
 VKStrictResourceTexture::~VKStrictResourceTexture() {
     if (_residencyAccounted) {
         Backend::textureResidentCount.decrement();
@@ -738,6 +885,14 @@ VKStrictResourceTexture::~VKStrictResourceTexture() {
 #endif
     auto backend = _backend.lock();
     auto &recycler = backend->getContext().recycler;
+#if defined(Q_OS_IOS)
+    if (_iosSoftwareStagingBuffer != VK_NULL_HANDLE) {
+        recycler.trashVkBuffer(_iosSoftwareStagingBuffer);
+    }
+    if (_iosSoftwareStagingMemory != VK_NULL_HANDLE) {
+        recycler.trashVkDeviceMemory(_iosSoftwareStagingMemory);
+    }
+#endif
     recycler.trashVkImageView(_vkImageView);
     if (_vkSampler) {
         recycler.trashVkSampler(_vkSampler);

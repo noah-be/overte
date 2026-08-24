@@ -14,6 +14,11 @@ on:
         options:
           - iphoneos
           - iphonesimulator
+      fast_dev:
+        description: Skip source-planning probes for a manual iPad bring-up build
+        required: false
+        default: false
+        type: boolean
   workflow_call:
     inputs:
       target_sdk:
@@ -21,6 +26,11 @@ on:
         required: false
         default: iphoneos
         type: string
+      fast_dev:
+        description: Skip source-planning probes for a manual iPad bring-up build
+        required: false
+        default: false
+        type: boolean
     outputs:
       qt_host_cache_key:
         description: Deterministic cache key containing the validated macOS Qt host tools
@@ -92,6 +102,7 @@ jobs:
             core.exportVariable("SCCACHE_GHA_RUNTIME_TOKEN", runtimeToken);
 
       - name: Verify source-build host tests
+        if: ${{ !inputs.fast_dev }}
         run: |
           python3 ios/tools/tests/test-prepare-qt-ios.py
           python3 ios/tools/tests/test-build-qt-ios-from-source.py
@@ -137,6 +148,7 @@ jobs:
           echo "SCCACHE_GHA_VERSION=$remote_namespace" >> "$GITHUB_ENV"
 
       - name: Verify remote compiler checkpoint before the long build
+        if: ${{ !inputs.fast_dev }}
         shell: bash
         run: |
           set -euo pipefail

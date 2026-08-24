@@ -24,6 +24,16 @@ on:
         required: false
         default: macos-26
         type: string
+      fast_dev:
+        description: Build a directly installable iPad bring-up IPA without release gates
+        required: false
+        default: false
+        type: boolean
+      bundle_id:
+        description: Stable Sideloadly base bundle identifier used by fast-dev builds
+        required: false
+        default: org.overte.interface.sideload.b456
+        type: string
   workflow_call:
     inputs:
       qt_host_cache_key:
@@ -47,6 +57,16 @@ on:
         required: false
         default: macos-26
         type: string
+      fast_dev:
+        description: Build a directly installable iPad bring-up IPA without release gates
+        required: false
+        default: false
+        type: boolean
+      bundle_id:
+        description: Stable Sideloadly base bundle identifier used by fast-dev builds
+        required: false
+        default: org.overte.interface.sideload.b456
+        type: string
 
 permissions:
   contents: read
@@ -67,6 +87,7 @@ jobs:
           persist-credentials: false
 
       - name: Run device-free contracts
+        if: ${{ !inputs.fast_dev }}
         run: ios/tests/run-tests.sh
 
   v8-checkpoint:
@@ -757,6 +778,7 @@ jobs:
           grep -F 'CLANG_USE_RESPONSE_FILE = NO' <<< "$build_settings"
 
       - name: Verify Qt5Compat QML imports before full build
+        if: ${{ !inputs.fast_dev }}
         run: |
           shopt -s nullglob
           imports=(build-ios/device/interface/.qt/qml_imports/overte-ios-qml-plugin-imports_conf.cmake)
@@ -767,6 +789,7 @@ jobs:
           python3 ios/ci/verify-static-qml-plugin-link.py --imports "${imports[0]}"
 
       - name: Verify Xcode compiler checkpoint before full build
+        if: ${{ !inputs.fast_dev }}
         id: client-sccache-smoke
         run: |
           smoke_dir="build-ios/client-sccache-smoke"
@@ -875,6 +898,7 @@ jobs:
           PY
 
       - name: Verify Qt5Compat QML plugins in full-client link
+        if: ${{ !inputs.fast_dev }}
         run: |
           python3 ios/ci/verify-static-qml-plugin-link.py --link-log \
             build-ios/ci-raw-diagnostics/xcode-build.log
@@ -940,6 +964,7 @@ jobs:
             ios/build-ios.sh package-client --platform device --configuration Release
 
       - name: Verify build-ready release boundary
+        if: ${{ !inputs.fast_dev }}
         shell: bash
         run: |
           shopt -s nullglob
@@ -963,6 +988,7 @@ jobs:
           PY
 
       - name: Upload numbered client IPA, readiness report and VM metadata
+        if: ${{ !inputs.fast_dev }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: ${{ github.run_number }}-overte-ios-integrated-device-${{ github.run_id }}
@@ -975,7 +1001,63 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Normalize current iPad fast-dev IPA
+        if: ${{ inputs.fast_dev }}
+        env:
+          BUNDLE_ID: ${{ inputs.bundle_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          source_ipas=(build-ios/artifacts/*-OverteIOSClient-Release-device-unsigned.ipa)
+          if (( ${#source_ipas[@]} != 1 )); then
+            echo "expected exactly one unsigned full-client IPA" >&2
+            exit 1
+          fi
+          output_root="build-ios/fast-dev"
+          mkdir -p "$output_root/native"
+          python3 ios/tools/normalize-sideload-ipa.py \
+            "${source_ipas[0]}" "$output_root/intermediate.ipa" \
+            --bundle-id "$BUNDLE_ID" \
+            --manifest "$output_root/current.json"
+          ditto -x -k "$output_root/intermediate.ipa" "$output_root/native"
+          ditto -c -k --norsrc --keepParent \
+            "$output_root/native/Payload" "$output_root/current.ipa"
+          python3 - "$output_root/current.ipa" "$output_root/current.json" <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import sys
+
+          ipa = pathlib.Path(sys.argv[1])
+          manifest = pathlib.Path(sys.argv[2])
+          payload = json.loads(manifest.read_text(encoding="utf-8"))
+          payload.update({
+              "artifact": ipa.name,
+              "sha256": hashlib.sha256(ipa.read_bytes()).hexdigest(),
+              "size": ipa.stat().st_size,
+              "workflow": "ipad-fast-dev",
+          })
+          manifest.write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload current iPad fast-dev IPA and symbols
+        if: ${{ inputs.fast_dev }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: overte-ipad-fast-dev-${{ github.run_id }}
+          path: |
+            build-ios/fast-dev/current.ipa
+            build-ios/fast-dev/current.json
+            build-ios/artifacts/*-OverteIOSClient-Release-device-unsigned-symbols.zip
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Upload matching device crash symbols
+        if: ${{ !inputs.fast_dev }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: ${{ github.run_number }}-overte-ios-integrated-device-symbols-${{ github.run_id }}

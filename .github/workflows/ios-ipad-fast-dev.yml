@@ -1,0 +1,45 @@
+# Copyright 2026 Overte e.V.
+# SPDX-License-Identifier: Apache-2.0
+
+name: iPad Fast Dev IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'fix/ios/ipad-fast-dev-*'
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: ios-ipad-fast-dev-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  provision-qt-ios:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.head_commit.message, '[ipad-fast]')
+    uses: ./.github/workflows/ios-qt-source.yml
+    permissions:
+      actions: write
+      contents: read
+    with:
+      target_sdk: iphoneos
+      fast_dev: true
+
+  build-current-ipa:
+    needs: provision-qt-ios
+    uses: ./.github/workflows/ios-integrated.yml
+    permissions:
+      actions: write
+      contents: read
+    with:
+      qt_host_cache_key: ${{ needs.provision-qt-ios.outputs.qt_host_cache_key }}
+      qt_ios_cache_key: ${{ needs.provision-qt-ios.outputs.qt_ios_cache_key }}
+      qt_host_artifact_prefix: ${{ needs.provision-qt-ios.outputs.qt_host_artifact_prefix }}
+      qt_ios_artifact_prefix: ${{ needs.provision-qt-ios.outputs.qt_ios_artifact_prefix }}
+      fast_dev: true
+      bundle_id: org.overte.interface.sideload.b456

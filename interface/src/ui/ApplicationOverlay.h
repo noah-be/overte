@@ -12,6 +12,7 @@
 #ifndef hifi_ApplicationOverlay_h
 #define hifi_ApplicationOverlay_h
 
+#include <array>
 #include <cstdint>
 
 #include <gpu/Texture.h>
@@ -58,6 +59,9 @@ private:
     int _qmlGeometryId { 0 };
 
 #if defined(Q_OS_IOS)
+    static constexpr size_t IOS_QML_TEXTURE_RING_SIZE { 4 };
+    std::array<gpu::TexturePointer, IOS_QML_TEXTURE_RING_SIZE> _iosQmlTextureRing;
+    size_t _iosQmlTextureRingIndex { 0 };
     uint64_t _iosQmlFrameOrdinal { 0 };
     int _lastIOSQmlCaptureSequence { -1 };
     float _iosVirtualPadPixelSize { 0.0f };

@@ -2512,6 +2512,16 @@ VKTexture* VKBackend::syncGPUObject(const std::shared_ptr<Texture> &texture) {
             _textures.insert(object);
         }
     } else {
+#if defined(Q_OS_IOS)
+        if (texture->source() == "ApplicationOverlayIOSSoftware" &&
+                texture->getStamp() != object->_storageStamp) {
+            auto strictTexture = dynamic_cast<VKStrictResourceTexture*>(object);
+            if (!strictTexture || !strictTexture->refreshIOSSoftwareTexture(*this)) {
+                qCCritical(gpu_vk_logging)
+                    << "OVERTE_IOS_SCREEN_QML_GPU_UPDATE stage=failed";
+            }
+        }
+#endif
 
         if (texture->getUsageType() == TextureUsageType::RESOURCE) {
             auto varTex = dynamic_cast<VKVariableAllocationTexture*> (object);

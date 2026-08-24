@@ -8,6 +8,8 @@ ROOT = Path(__file__).resolve().parents[2]
 BACKEND = (ROOT / "libraries/gpu-vk/src/gpu/vk/VKBackend.cpp").read_text()
 TEXTURE = (ROOT / "libraries/gpu-vk/src/gpu/vk/VKTexture.cpp").read_text()
 HEADER = (ROOT / "libraries/gpu-vk/src/gpu/vk/VKTexture.h").read_text()
+OVERLAY = (ROOT / "interface/src/ui/ApplicationOverlay.cpp").read_text()
+OVERLAY_HEADER = (ROOT / "interface/src/ui/ApplicationOverlay.h").read_text()
 PROFILE = (
     ROOT / "ios/ci/render-diagnostic-profiles/physical-ipad-touch-ui.json"
 ).read_text()
@@ -45,5 +47,20 @@ assert "_transferData.mips.clear()" in TEXTURE
 assert "_transferData.mips.shrink_to_fit()" in TEXTURE
 assert "size_t sourcePos = i * 3;" in TEXTURE
 assert "size_t destPos = face.offset + i * 4;" in TEXTURE
+
+# Screen-space software QML must reuse a bounded set of CPU/GPU textures.  A
+# new 1366x967 strict Vulkan image on every 15 Hz UI frame eventually stalls
+# MoltenVK on a physical iPad even though ordinary per-frame recycling runs.
+assert "IOS_QML_TEXTURE_RING_SIZE { 4 }" in OVERLAY_HEADER
+assert "_iosQmlTextureRing[_iosQmlTextureRingIndex]" in OVERLAY
+assert "_iosQmlTextureRingIndex + 1" in OVERLAY
+assert "refreshIOSSoftwareTexture" in HEADER and "refreshIOSSoftwareTexture" in TEXTURE
+assert "_iosSoftwareStagingBuffer" in HEADER and "_iosSoftwareStagingMemory" in HEADER
+assert "if (_iosSoftwareStagingBuffer == VK_NULL_HANDLE)" in TEXTURE
+assert "recycler.trashVkBuffer(_iosSoftwareStagingBuffer)" in TEXTURE
+assert "recycler.trashVkDeviceMemory(_iosSoftwareStagingMemory)" in TEXTURE
+assert 'texture->source() == "ApplicationOverlayIOSSoftware"' in BACKEND
+assert "texture->getStamp() != object->_storageStamp" in BACKEND
+assert "VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL" in TEXTURE
 
 print("iOS Vulkan resource textures have bounded uploads, footprint telemetry, and public residency stats")
