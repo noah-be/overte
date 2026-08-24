@@ -70,6 +70,7 @@ ANDROID_SERIAL=<serial> ./build-phone.sh deploy
 
 ## Documentation
 
+- [Roadmap and current milestone](ROADMAP.md)
 - [Complete build guide](BUILD.md)
 - [Testing](TESTING.md)
 - [Troubleshooting](TROUBLESHOOTING.md)
