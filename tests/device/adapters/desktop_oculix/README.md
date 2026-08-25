@@ -56,6 +56,13 @@ directories. A repository sentinel atomically hands off Mutter's generated
 `DISPLAY` and mode-0600 Xauthority file. The lifecycle accepts exactly one
 Mutter-owned Xwayland process, bound by PID, PGID, start token, executable,
 argv, and digest; reuse, crash recovery, and cleanup fail closed on ambiguity.
+Inside the private D-Bus session, a lifecycle-owned guard prevents desktop
+portal and accessibility-bus activation and returns Mutter's defined
+`org.gnome.SessionManager.NotInInitialization` response to activation-
+environment exports. Mutter therefore starts Xwayland without
+`-enable-ei-portal`; the lifecycle rejects any Xwayland that still advertises
+that switch. This keeps XTEST local to the owned display without making a
+RemoteDesktop, ScreenCast, or RemoteInteraction request.
 
 Before Interface starts, `xrandr` must report exactly one monitor and the
 configured root extent. `glxinfo -B` must report direct rendering and match the
@@ -73,10 +80,10 @@ atomic key hold, and tablet open/close use probe-gated 50 ms Tab presses matchin
 Keyboard events are global XTEST events after PID-scoped
 `windowactivate --sync`; raw `windowfocus`/XSetInputFocus is forbidden because
 it bypasses the window manager activation contract.
-`xdotool --window` is intentionally forbidden because its XSendEvent path is
-not equivalent to real keyboard input for Qt/Overte. A bounded 350 ms settle
-after the activation acknowledgement lets Qt receive the activation event
-before the first global input event. Each press is one atomic xdotool command
+`xdotool --window` is intentionally forbidden for keyboard events because its
+XSendEvent path is not equivalent to real keyboard input for Qt/Overte. A
+bounded 350 ms settle after the activation acknowledgement lets Qt receive the
+activation event before the first global input event. Each press is one atomic xdotool command
 chain (`keydown`, bounded `sleep`, `keyup`) so one X connection retains the
 synthetic keyboard state for the whole press; the adapter timeout is two
 seconds longer than the already validated press duration.

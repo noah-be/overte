@@ -56,6 +56,8 @@ with open(os.environ["MOCK_XDOTOOL_LOG"], "a", encoding="utf-8") as out:
     out.write(json.dumps(arguments) + "\n")
 if arguments and arguments[0] == "search":
     print("1001")
+elif arguments and arguments[0] == "getactivewindow":
+    print("1001")
 elif arguments and arguments[0] == "getwindowgeometry":
     print("WINDOW=1001\nX=10\nY=20\nWIDTH=1280\nHEIGHT=720\nSCREEN=0")
 '''

@@ -35,6 +35,8 @@ SOFTWARE_RENDERER = re.compile(
     r"llvmpipe|softpipe|swrast|software rasterizer|swiftshader|lavapipe|"
     r"microsoft basic render driver|\bwarp\b", re.IGNORECASE)
 SENTINEL = Path(__file__).resolve().with_name("gpu_headless_sentinel.py")
+SESSION_GUARD = Path(__file__).resolve().with_name(
+    "gpu_headless_session_guard.py")
 PROTECTED_ENVIRONMENT = {
     "AT_SPI_BUS_ADDRESS",
     "DBUS_SESSION_BUS_ADDRESS",
@@ -46,6 +48,7 @@ PROTECTED_ENVIRONMENT = {
     "DISPLAY",
     "GCONV_PATH",
     "GDK_BACKEND",
+    "GTK_A11Y",
     "LD_AUDIT",
     "LD_DEBUG",
     "LD_LIBRARY_PATH",
@@ -245,6 +248,7 @@ class GpuHeadlessLifecycle:
         environment.update({
             "GIO_USE_VFS": "local",
             "GTK_USE_PORTAL": "0",
+            "GTK_A11Y": "none",
             "QT_NO_XDG_DESKTOP_PORTAL": "1",
             "NO_AT_BRIDGE": "1",
         })
@@ -307,6 +311,7 @@ class GpuHeadlessLifecycle:
                 "socketName": self.socket_name,
                 "virtualMonitor": self.runtime["virtualMonitor"],
                 "lifecycleRoot": None,
+                "sessionGuard": None,
                 "mutter": None,
                 "sentinel": None,
                 "xwayland": None,
@@ -314,7 +319,9 @@ class GpuHeadlessLifecycle:
             command = [
                 self.runtime["dbusRunSession"]["path"],
                 f"--dbus-daemon={self.runtime['dbusDaemon']['path']}", "--",
-                self.runtime["mutter"]["path"], "--headless",
+                self.runtime["python"]["path"], str(SESSION_GUARD),
+                "--mutter", self.runtime["mutter"]["path"], "--",
+                "--headless",
                 f"--virtual-monitor={self.runtime['virtualMonitor']}",
                 f"--wayland-display={self.socket_name}", "--",
                 self.runtime["python"]["path"], str(SENTINEL),
@@ -330,11 +337,16 @@ class GpuHeadlessLifecycle:
                     raise
                 self._save_state(state)
                 handoff = self._wait_for_handoff(state)
+                state["sessionGuard"] = self._find_one_component(
+                    pid, self.runtime["python"], parent_pid=pid,
+                    required_arguments=(str(SESSION_GUARD), "--mutter",
+                                        self.runtime["mutter"]["path"]))
                 state.update({
                     "display": handoff["DISPLAY"],
                     "xauthority": str(Path(handoff["XAUTHORITY"]).resolve()),
                     "mutter": self._find_one_component(
-                        pid, self.runtime["mutter"], parent_pid=pid,
+                        pid, self.runtime["mutter"],
+                        parent_pid=state["sessionGuard"]["pid"],
                         required_arguments=("--headless",
                                             f"--wayland-display={self.socket_name}")),
                 })
@@ -353,6 +365,11 @@ class GpuHeadlessLifecycle:
                 state["xwayland"] = self._find_one_component(
                     pid, self.runtime["xwayland"], parent_pid=state["mutter"]["pid"],
                     required_arguments=(state["display"],))
+                xwayland_details = _process_details(state["xwayland"]["pid"])
+                if (xwayland_details is None
+                        or "-enable-ei-portal" in xwayland_details[4]):
+                    raise RuntimeError(
+                        "GPU Xwayland unexpectedly enabled portal input emulation")
                 renderer = self._validate_renderer(glx_output)
                 self._write_private(self.glxinfo_path, glx_output)
                 xrandr_output = self._run_tool(
@@ -591,11 +608,12 @@ class GpuHeadlessLifecycle:
             raise RuntimeError("GPU lifecycle root state is invalid")
         expected_executables = {
             "lifecycleRoot": self.runtime["dbusRunSession"],
+            "sessionGuard": self.runtime["python"],
             "mutter": self.runtime["mutter"],
             "sentinel": self.runtime["python"],
             "xwayland": self.runtime["xwayland"],
         }
-        for name in ("mutter", "sentinel", "xwayland"):
+        for name in ("sessionGuard", "mutter", "sentinel", "xwayland"):
             component = value.get(name)
             if component is not None and not self._component_shape_valid(component):
                 raise RuntimeError(f"GPU {name} state is invalid")
@@ -682,15 +700,24 @@ class GpuHeadlessLifecycle:
             return False
         if proof_renderer != renderer:
             return False
+        root = state.get("lifecycleRoot")
         components = [state.get(name) for name in (
-            "lifecycleRoot", "mutter", "sentinel", "xwayland")]
-        if any(component is None or not self._component_owned(component)
-               for component in components):
+            "sessionGuard", "mutter", "sentinel", "xwayland")]
+        # Adapter operations are separate short-lived processes.  Once the
+        # operation that created the session exits, the still-owned process
+        # group leader is necessarily reparented.  Its immutable start token,
+        # PGID=PID, executable, argv and digest remain the ownership anchor;
+        # every compositor descendant must still retain its recorded PPID.
+        if (root is None or not self._component_owned(root, require_parent=False)
+                or any(component is None or not self._component_owned(component)
+                       for component in components)):
             return False
-        root = state["lifecycleRoot"]
         if root["processGroup"] != root["pid"]:
             return False
-        if not all(component["processGroup"] == root["pid"] for component in components[1:]):
+        if not all(component["processGroup"] == root["pid"] for component in components):
+            return False
+        xwayland_details = _process_details(state["xwayland"]["pid"])
+        if xwayland_details is None or "-enable-ei-portal" in xwayland_details[4]:
             return False
         try:
             handoff = self._read_private_json(
@@ -786,7 +813,7 @@ class GpuHeadlessLifecycle:
             self._reap_if_child(root["pid"])
             return
         recorded = [state.get(name) for name in (
-            "lifecycleRoot", "mutter", "sentinel", "xwayland")]
+            "lifecycleRoot", "sessionGuard", "mutter", "sentinel", "xwayland")]
         live_recorded = [component for component in recorded
                          if component is not None and _process_details(component["pid"]) is not None]
         if not live_recorded:

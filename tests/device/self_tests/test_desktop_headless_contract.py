@@ -39,6 +39,8 @@ with pathlib.Path(os.environ["HEADLESS_XDOTOOL_LOG"]).open("a", encoding="utf-8"
 arguments = sys.argv[1:]
 if arguments and arguments[0] == "search":
     print("1001\n1002")
+elif arguments and arguments[0] == "getactivewindow":
+    print("1001")
 elif arguments and arguments[0] == "getwindowgeometry":
     window = arguments[-1]
     if window == "1001":
@@ -182,7 +184,9 @@ class HeadlessDesktopContractTest(unittest.TestCase):
         self.assertEqual(4, arguments.count(
             ["search", "--onlyvisible", "--pid", "4242"]))
         self.assertEqual(4, arguments.count(
-            ["windowactivate", "--sync", "1002"]))
+            ["getactivewindow"]))
+        self.assertEqual(4, arguments.count(
+            ["windowactivate", "--sync", "1001"]))
         self.assertFalse(any(argument and argument[0] == "windowfocus"
                              for argument in arguments),
                          "raw XSetInputFocus must not bypass WM activation")
@@ -204,7 +208,7 @@ class HeadlessDesktopContractTest(unittest.TestCase):
         flattened = " ".join(" ".join(argument) for argument in arguments)
         self.assertNotIn("ctrl", flattened.lower())
         self.assertNotIn("click", flattened.lower())
-        self.assertNotIn("1001", " ".join(
+        self.assertNotIn("1002", " ".join(
             " ".join(argument) for argument in arguments
             if argument and argument[0] == "windowactivate"))
 
@@ -238,7 +242,9 @@ class HeadlessDesktopContractTest(unittest.TestCase):
         self.assertEqual(1, arguments.count(
             ["search", "--onlyvisible", "--pid", "4242"]))
         self.assertEqual(1, arguments.count(
-            ["windowactivate", "--sync", "1002"]))
+            ["getactivewindow"]))
+        self.assertEqual(1, arguments.count(
+            ["windowactivate", "--sync", "1001"]))
         self.assertEqual(1, arguments.count(
             ["keydown", "w", "sleep", "2", "keyup", "w"]))
         self.assertEqual(1, len([
@@ -247,8 +253,22 @@ class HeadlessDesktopContractTest(unittest.TestCase):
         ]), "the entire hold must use one xdotool process")
         self.assertFalse(any("--window" in argument for argument in arguments
                              if argument and argument[0] in {"keydown", "keyup", "key"}))
-        self.assertFalse(any("1001" in argument for argument in arguments
+        self.assertFalse(any("1002" in argument for argument in arguments
                              if argument and argument[0] == "windowactivate"))
+
+    def test_close_bounds_window_resolution_before_process_cleanup(self) -> None:
+        with patch.object(
+                self.adapter, "linux_window",
+                return_value=("1001", {"X": 0, "Y": 0,
+                                       "WIDTH": 1280, "HEIGHT": 720})) as window, patch.object(
+                    self.adapter, "runtime_environment",
+                    return_value=self.safe_environment()):
+            self.adapter.linux_visual_action(
+                self.target, "close", {"processId": 4242})
+        window.assert_called_once_with(
+            self.target, 4242, timeout_seconds=1.0)
+        self.assertIn(["windowclose", "1001"], [
+            item["arguments"] for item in self.calls()])
 
     def test_tablet_operation_contract_uses_tab_actions_and_probe_state(self) -> None:
         state = {"pid": 4242, "identity": "4242:token", "processToken": "token"}

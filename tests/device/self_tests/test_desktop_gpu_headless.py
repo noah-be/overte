@@ -14,6 +14,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -51,6 +52,33 @@ except subprocess.TimeoutExpired:
 sys.exit(child.returncode or 0)
 '''.replace("PYTHON", sys.executable)
 
+FAKE_SESSION_GUARD = r'''#!PYTHON
+import json, os, pathlib, signal, subprocess, sys
+arguments = sys.argv[1:]
+separator = arguments.index("--")
+mutter = arguments[arguments.index("--mutter") + 1]
+with pathlib.Path(os.environ["FAKE_GUARD_LOG"]).open("a", encoding="utf-8") as output:
+    output.write(json.dumps(arguments) + "\n")
+child = subprocess.Popen([mutter, *arguments[separator + 1:]], env=os.environ)
+running = True
+def stop(*_args):
+    global running
+    running = False
+    try: child.terminate()
+    except ProcessLookupError: pass
+signal.signal(signal.SIGTERM, stop)
+signal.signal(signal.SIGINT, stop)
+while running and child.poll() is None:
+    try: child.wait(timeout=0.1)
+    except subprocess.TimeoutExpired: pass
+if child.poll() is None: child.terminate()
+try: child.wait(timeout=2)
+except subprocess.TimeoutExpired:
+    child.kill()
+    child.wait()
+sys.exit(child.returncode or 0)
+'''.replace("PYTHON", sys.executable)
+
 FAKE_MUTTER = r'''#!PYTHON
 import json, os, pathlib, signal, socket, subprocess, sys, time
 arguments = sys.argv[1:]
@@ -61,6 +89,7 @@ with pathlib.Path(os.environ["FAKE_GPU_LOG"]).open("a", encoding="utf-8") as out
             "DISPLAY", "XAUTHORITY", "WAYLAND_DISPLAY", "WAYLAND_SOCKET",
             "DBUS_SESSION_BUS_ADDRESS", "XDG_RUNTIME_DIR", "XDG_SESSION_TYPE",
             "GIO_USE_VFS", "GTK_USE_PORTAL", "QT_NO_XDG_DESKTOP_PORTAL",
+            "GTK_A11Y",
             "LD_LIBRARY_PATH", "LIBGL_ALWAYS_SOFTWARE",
             "MESA_LOADER_DRIVER_OVERRIDE", "MUTTER_DEBUG_FAKE",
             "MUTTER_DEBUG_DUMMY_MODE_SPECS")}
@@ -86,6 +115,7 @@ child_environment.update({
 })
 xwaylands = [subprocess.Popen([
     os.environ["FAKE_XWAYLAND"], ":1777", "-auth", str(xauthority),
+    *(["-enable-ei-portal"] if os.environ.get("FAKE_XWAYLAND_EI_PORTAL") == "1" else []),
 ], env=child_environment)]
 if os.environ.get("FAKE_EXTRA_XWAYLAND") == "1":
     xwaylands.append(subprocess.Popen([
@@ -164,6 +194,7 @@ class GpuHeadlessLifecycleTest(unittest.TestCase):
         self.tools = {}
         for name, source in (
                 ("dbus", FAKE_DBUS), ("mutter", FAKE_MUTTER),
+                ("session-guard", FAKE_SESSION_GUARD),
                 ("Xwayland", FAKE_XWAYLAND), ("glxinfo", FAKE_GLXINFO),
                 ("xrandr", FAKE_XRANDR)):
             path = self.root / name
@@ -171,6 +202,7 @@ class GpuHeadlessLifecycleTest(unittest.TestCase):
             path.chmod(0o700)
             self.tools[name] = path
         self.log = self.root / "gpu-log.jsonl"
+        self.guard_log = self.root / "guard-log.jsonl"
         self.dbus_log = self.root / "dbus-log.jsonl"
         runtime = {
             "virtualMonitor": "1280x720",
@@ -194,6 +226,7 @@ class GpuHeadlessLifecycleTest(unittest.TestCase):
         self.base = {
             "PATH": os.environ.get("PATH", "/usr/bin"),
             "FAKE_GPU_LOG": str(self.log),
+            "FAKE_GUARD_LOG": str(self.guard_log),
             "FAKE_DBUS_LOG": str(self.dbus_log),
             "FAKE_XWAYLAND": str(self.tools["Xwayland"]),
             "WAYLAND_DISPLAY": "wayland-visible", "WAYLAND_SOCKET": "visible",
@@ -211,6 +244,8 @@ class GpuHeadlessLifecycleTest(unittest.TestCase):
             "LIBGL_ALWAYS_SOFTWARE": "1",
             "MESA_LOADER_DRIVER_OVERRIDE": "llvmpipe",
         }
+        self.original_session_guard = GPU.SESSION_GUARD
+        GPU.SESSION_GUARD = self.tools["session-guard"]
         self.lifecycle = GPU.GpuHeadlessLifecycle(self.target, self.state)
 
     def tearDown(self) -> None:
@@ -225,6 +260,7 @@ class GpuHeadlessLifecycleTest(unittest.TestCase):
                 except ProcessLookupError:
                     pass
                 self.lifecycle._reap_if_child(state["lifecycleRoot"]["pid"])
+        GPU.SESSION_GUARD = self.original_session_guard
         self.temporary.cleanup()
 
     @staticmethod
@@ -247,14 +283,17 @@ class GpuHeadlessLifecycleTest(unittest.TestCase):
         self.assertEqual("0", environment["GTK_USE_PORTAL"])
         self.assertEqual("1", environment["QT_NO_XDG_DESKTOP_PORTAL"])
         self.assertEqual("local", environment["GIO_USE_VFS"])
+        self.assertEqual("none", environment["GTK_A11Y"])
         state = self.lifecycle._read_state()
         self.assertEqual("ready", state["phase"])
         self.assertEqual("Test GPU Vendor", state["renderer"]["vendor"])
         group = state["lifecycleRoot"]["pid"]
         self.assertEqual(group, state["lifecycleRoot"]["processGroup"])
-        for name in ("mutter", "sentinel", "xwayland"):
+        for name in ("sessionGuard", "mutter", "sentinel", "xwayland"):
             self.assertEqual(group, state[name]["processGroup"])
             self.assertTrue(self.lifecycle._component_owned(state[name]))
+        self.assertEqual(group, state["sessionGuard"]["parentPid"])
+        self.assertEqual(state["sessionGuard"]["pid"], state["mutter"]["parentPid"])
         for path in (self.lifecycle.state_path, self.lifecycle.handoff_path,
                      self.lifecycle.glxinfo_path, self.lifecycle.xrandr_path):
             self.assert_private(path, 0o600)
@@ -265,6 +304,10 @@ class GpuHeadlessLifecycleTest(unittest.TestCase):
         self.assertIn(
             f"--dbus-daemon={self.lifecycle.runtime['dbusDaemon']['path']}",
             dbus_invocation)
+        guard_invocation = json.loads(
+            self.guard_log.read_text(encoding="utf-8").splitlines()[0])
+        self.assertEqual(str(self.tools["mutter"]),
+                         guard_invocation[guard_invocation.index("--mutter") + 1])
         self.assertIn("--headless", invocation["arguments"])
         self.assertIn("--virtual-monitor=1280x720", invocation["arguments"])
         self.assertNotIn("--display-server", invocation["arguments"])
@@ -275,6 +318,7 @@ class GpuHeadlessLifecycleTest(unittest.TestCase):
         self.assertTrue(child["DBUS_SESSION_BUS_ADDRESS"].startswith(
             "unix:path=" + str(self.lifecycle.runtime_directory)))
         self.assertEqual("local", child["GIO_USE_VFS"])
+        self.assertEqual("none", child["GTK_A11Y"])
         for protected in ("LD_LIBRARY_PATH", "LIBGL_ALWAYS_SOFTWARE",
                           "MESA_LOADER_DRIVER_OVERRIDE", "MUTTER_DEBUG_FAKE",
                           "MUTTER_DEBUG_DUMMY_MODE_SPECS"):
@@ -309,6 +353,12 @@ class GpuHeadlessLifecycleTest(unittest.TestCase):
     def test_ambiguous_xwayland_is_rejected_and_cleaned(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "ownership is ambiguous"):
             self.lifecycle.ensure_started({**self.base, "FAKE_EXTRA_XWAYLAND": "1"})
+        self.assertFalse(self.lifecycle.state_path.exists())
+        self.assertFalse(self.lifecycle.runtime_directory.exists())
+
+    def test_portal_input_emulation_xwayland_is_rejected_and_cleaned(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "portal input emulation"):
+            self.lifecycle.ensure_started({**self.base, "FAKE_XWAYLAND_EI_PORTAL": "1"})
         self.assertFalse(self.lifecycle.state_path.exists())
         self.assertFalse(self.lifecycle.runtime_directory.exists())
 
@@ -353,6 +403,28 @@ class GpuHeadlessLifecycleTest(unittest.TestCase):
         environment = self.lifecycle.ensure_started(self.base)
         self.assertEqual(":1777", environment["DISPLAY"])
         self.assertEqual(3, len(self.log.read_text(encoding="utf-8").splitlines()))
+
+    def test_ready_state_allows_only_the_lifecycle_root_to_be_reparented(self) -> None:
+        self.lifecycle.ensure_started(self.base)
+        state = self.lifecycle._read_state()
+        original_details = GPU._process_details
+
+        def with_parent(pid: int, component: str):
+            details = original_details(pid)
+            self.assertIsNotNone(details)
+            token, group, parent, image, arguments = details
+            if pid == state[component]["pid"]:
+                parent = parent + 100000
+            return token, group, parent, image, arguments
+
+        with patch.object(
+                GPU, "_process_details",
+                side_effect=lambda pid: with_parent(pid, "lifecycleRoot")):
+            self.assertTrue(self.lifecycle._state_ready(state))
+        with patch.object(
+                GPU, "_process_details",
+                side_effect=lambda pid: with_parent(pid, "mutter")):
+            self.assertFalse(self.lifecycle._state_ready(state))
 
     def test_configuration_rejects_old_fields_hashes_and_bad_allowlists(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "dbusRunSessionExecutable"):

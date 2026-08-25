@@ -711,35 +711,41 @@ class DesktopAdapter:
             fail("xdotool command failed" + (f": {detail}" if detail else ""))
         return result
 
-    def linux_window(self, target: dict, pid: int) -> tuple[str, dict[str, int]]:
-        deadline = time.monotonic() + 30.0
+    def linux_window(self, target: dict, pid: int, *,
+                     timeout_seconds: float = 30.0) -> tuple[str, dict[str, int]]:
+        deadline = time.monotonic() + timeout_seconds
         while time.monotonic() < deadline:
             result = self.xdotool(
                 target, "search", "--onlyvisible", "--pid", str(pid), check=False)
-            windows = [line.strip() for line in result.stdout.splitlines()
-                       if line.strip().isdigit()]
-            candidates: list[tuple[int, str, dict[str, int]]] = []
-            for window in windows:
-                geometry_result = self.xdotool(
-                    target, "getwindowgeometry", "--shell", window, check=False)
-                if geometry_result.returncode != 0:
-                    continue
-                geometry: dict[str, int] = {}
-                for line in geometry_result.stdout.splitlines():
-                    name, separator, value = line.partition("=")
-                    if separator and name in {"X", "Y", "WIDTH", "HEIGHT"}:
-                        try:
-                            geometry[name] = int(value)
-                        except ValueError:
-                            geometry = {}
-                            break
-                if (geometry.get("WIDTH", 0) >= 100
-                        and geometry.get("HEIGHT", 0) >= 100):
-                    candidates.append((geometry["WIDTH"] * geometry["HEIGHT"],
-                                       window, geometry))
-            if candidates:
-                _, window, geometry = max(candidates, key=lambda item: item[0])
-                return window, geometry
+            windows = {line.strip() for line in result.stdout.splitlines()
+                       if line.strip().isdigit()}
+            # Qt tags several visible render/helper children with the Interface
+            # PID.  Some can briefly be larger than the real client window but
+            # have no WM_STATE and cannot satisfy windowactivate --sync.  The
+            # EWMH active window is the compositor-managed top-level; intersect
+            # it with the PID-scoped search before accepting its geometry.
+            active_result = self.xdotool(target, "getactivewindow", check=False)
+            active = active_result.stdout.strip()
+            if active_result.returncode != 0 or active not in windows:
+                time.sleep(0.25)
+                continue
+            geometry_result = self.xdotool(
+                target, "getwindowgeometry", "--shell", active, check=False)
+            if geometry_result.returncode != 0:
+                time.sleep(0.25)
+                continue
+            geometry: dict[str, int] = {}
+            for line in geometry_result.stdout.splitlines():
+                name, separator, value = line.partition("=")
+                if separator and name in {"X", "Y", "WIDTH", "HEIGHT"}:
+                    try:
+                        geometry[name] = int(value)
+                    except ValueError:
+                        geometry = {}
+                        break
+            if (geometry.get("WIDTH", 0) >= 100
+                    and geometry.get("HEIGHT", 0) >= 100):
+                return active, geometry
             time.sleep(0.25)
         fail("launched Overte process has no visible X11 window")
 
@@ -781,7 +787,15 @@ class DesktopAdapter:
         pid = int(values.get("processId", 0))
         if pid <= 0:
             fail("Linux visual action requires a launched Overte process ID")
-        window, geometry = self.linux_window(target, pid)
+        # Cleanup must remain bounded even if a compositor focus transition
+        # leaves only Mutter's guard window active.  A failed one-second
+        # graceful-close lookup falls through to the already ownership-bound
+        # process-group termination in cleanup().
+        if action == "close":
+            window, geometry = self.linux_window(
+                target, pid, timeout_seconds=1.0)
+        else:
+            window, geometry = self.linux_window(target, pid)
         # This path is restricted above to the adapter-owned GPU Xwayland
         # session. Ask the WM to activate the exact selected PID window so
         # Qt's Application::hasFocus() becomes true. Do not follow this with
