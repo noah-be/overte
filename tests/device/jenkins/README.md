@@ -55,9 +55,9 @@ private Appium target JSON outside every checkout at mode 0600. Its disabled
 template is `../adapters/appium/targets.example.json`; enable it only after the
 signed receipt updates `appId`, `bundleId`, IPA paths and WDA bundle ID.
 
-`IOS_ARTIFACT_SOURCE=personal-team-preinstalled` is the default. Follow
-See `docs/ios/PERSONAL_TEAM_E2E.md` on the `apple-ios` branch.
-to install Overte and WDA manually with Sideloadly, then supply the private,
+`IOS_ARTIFACT_SOURCE=personal-team-preinstalled` is the default. See
+`docs/ios/PERSONAL_TEAM_E2E.md` on the `apple-ios` branch for instructions to
+install Overte and WDA manually with Sideloadly, then supply the private,
 short-lived `IOS_PREINSTALLED_ATTESTATION`. Jenkins performs no signing or
 installation. Under the exclusive device lock, Fedora's immutable helper
 observes both fixed installed IDs, the Overte test markers, WDA 16.8.0/XCUITest
