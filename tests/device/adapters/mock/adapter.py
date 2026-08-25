@@ -34,11 +34,13 @@ def state_path() -> Path:
 
 
 def initial_state() -> dict:
+    pico = os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1"
     return {
         "running": False, "foreground": False, "sceneUrl": "", "sceneReady": False,
         "launchCount": 0, "sceneLoadCount": 0,
-        "position": {"x": 0.0, "y": 1.0, "z": 4.0},
+        "position": {"x": 0.0, "y": 2.0 if pico else 1.0, "z": 4.0},
         "orientation": {"x": 0.0, "y": 0.0, "z": 0.0}, "tablet": False,
+        "picoRouteActive": False, "inputSequence": 0,
     }
 
 
@@ -74,19 +76,29 @@ def invoke(operation: str, arguments: dict) -> dict:
         state["sceneLoadCount"] += 1
         result = {"requested": True}
     elif operation == "input.look":
+        state["inputSequence"] += 1
+        state["picoRouteActive"] = False
         state["orientation"]["y"] += 30.0
-        result = {"performed": True}
+        result = {"performed": True, "neutralBeforeCommand": False,
+                  "sequence": state["inputSequence"]}
     elif operation == "input.move":
+        state["inputSequence"] += 1
+        state["picoRouteActive"] = True
         state["position"]["z"] -= 1.0
-        result = {"performed": True}
+        result = {"performed": True, "neutralBeforeCommand": True,
+                  "sequence": state["inputSequence"]}
     elif operation == "tablet.open":
+        state["inputSequence"] += 1
         state["tablet"] = True
-        result = {"performed": True}
+        result = {"performed": True, "neutralBeforeCommand": True,
+                  "sequence": state["inputSequence"]}
     elif operation == "tablet.close":
+        state["inputSequence"] += 1
         state["tablet"] = False
-        result = {"performed": True}
+        result = {"performed": True, "neutralBeforeCommand": True,
+                  "sequence": state["inputSequence"]}
     elif operation == "probe.snapshot":
-        return {
+        snapshot = {
             "schemaVersion": 1,
             "sampleEpochMs": int(time.time() * 1000),
             "build": {"platform": "Mock", "version": "device-contract",
@@ -98,6 +110,42 @@ def invoke(operation: str, arguments: dict) -> dict:
             "view": {"orientation": state["orientation"]},
             "tablet": {"open": state["tablet"], "home": state["tablet"]},
         }
+        if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
+            route_value = 0.8 if state["picoRouteActive"] else 0.0
+            snapshot["input"] = {
+                "dominantHand": "right", "advancedMovementControls": True,
+            }
+            snapshot["scene"].update({
+                "fixtureMarkerCount": 4 if state["sceneReady"] else 0,
+                "floorTopY": 0.0 if state["sceneReady"] else None,
+                "spawnValidated": state["sceneReady"],
+            })
+            snapshot["controller"] = {
+                "route": {
+                    "openxrAxes": {"lx": 0.0, "ly": route_value,
+                                   "rx": 0.0, "ry": 0.0},
+                    "standardLy": route_value,
+                    "translateZAction": route_value,
+                    "rawTranslateZDriveKey": route_value,
+                    "translateZDriveKeyDisabled": False,
+                },
+                "axes": {
+                    "lx": 0.0, "ly": route_value, "rx": 0.0, "ry": 0.0,
+                    "leftTrigger": 0.0, "rightTrigger": 0.0,
+                    "leftGrip": 0.0, "rightGrip": 0.0,
+                },
+                "buttons": {
+                    "menu": False, "leftPrimary": False, "leftSecondary": False,
+                    "leftThumbstick": False, "leftTrigger": False,
+                    "rightPrimary": False, "rightSecondary": False,
+                    "rightThumbstick": False, "rightTrigger": False,
+                },
+                "poses": {
+                    "left": {"valid": False, "translation": None, "rotation": None},
+                    "right": {"valid": False, "translation": None, "rotation": None},
+                },
+            }
+        return snapshot
     else:
         raise RuntimeError(f"unsupported operation: {operation}")
     save(state)

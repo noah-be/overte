@@ -14,6 +14,9 @@ from android.common.device_tests.adb_transport import AdbTransport
 MOCK = r'''#!/usr/bin/env python3
 import sys
 a=sys.argv[1:]
+if len(a) >= 2 and a[0] == "-P":
+    if a[1] != "5041": raise SystemExit(4)
+    a=a[2:]
 if a == ["devices", "-l"]: print("List of devices attached\nsecret device model:Mock")
 elif a == ["-s", "secret", "get-state"]: print("device")
 elif a[-4:] == ["shell", "pidof", "-s", "org.overte.test"]: print("42")
@@ -45,6 +48,18 @@ class AdbTransportTest(unittest.TestCase):
 
     def test_parses_android_17_foreground_format(self):
         self.assertEqual("org.overte.test", self.transport.foreground_package("secret"))
+
+    def test_explicit_server_port_is_applied_to_discovery_and_selected_calls(self):
+        transport = AdbTransport(str(self.adb), server_port=5041)
+        self.assertEqual(["secret"], transport.authorized_targets())
+        transport.require_connected("secret")
+        self.assertTrue(transport.process_state("secret", "org.overte.test")["running"])
+
+    def test_invalid_explicit_server_ports_fail_closed(self):
+        for value in (True, 0, 65536, "5041"):
+            with self.subTest(value=value), self.assertRaisesRegex(
+                    RuntimeError, "server port is invalid"):
+                AdbTransport(str(self.adb), server_port=value)
 
 
 if __name__ == "__main__":

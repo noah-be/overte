@@ -67,6 +67,45 @@ class OverteSession:
     def load_controlled_scene(self) -> dict:
         return self.load_scene(os.environ.get("OVERTE_E2E_SCENE_URL", ""))
 
+    def verify_pico_fixture(self, initial: dict) -> list[dict]:
+        """Record the Pico fixture geometry and five fresh stable samples."""
+        if os.environ.get("OVERTE_PICO_OPENXR_INPUT") != "1":
+            return [initial]
+        scene = initial["scene"]
+        position = initial["avatar"]["position"]
+        if scene.get("fixtureMarkerCount") != 4:
+            fail("Pico fixture did not expose all four markers")
+        if (not isinstance(scene.get("floorTopY"), (int, float))
+                or abs(float(scene["floorTopY"])) > 0.02):
+            fail("Pico fixture floor top is not y=0")
+        if scene.get("spawnValidated") is not True:
+            fail("Pico fixture spawn was not validated")
+        expected = {"x": 0.0, "y": 2.0, "z": 4.0}
+        spawn_tolerance = self._float_environment(
+            "OVERTE_E2E_SPAWN_TOLERANCE_METERS", 0.75, 0.05, 5.0)
+        if self._distance(position, expected) > spawn_tolerance:
+            fail("Pico avatar did not stabilize near the fixture spawn")
+
+        tolerance = self._float_environment(
+            "OVERTE_E2E_MAX_BASELINE_DRIFT_METERS", 0.03, 0.001, 1.0)
+        samples = [initial]
+        deadline = time.monotonic() + self.timeout_seconds
+        while len(samples) < 5 and time.monotonic() < deadline:
+            candidate = self.snapshot()
+            if candidate["sampleEpochMs"] <= samples[-1]["sampleEpochMs"]:
+                time.sleep(self.poll_seconds)
+                continue
+            if self._distance(samples[-1]["avatar"]["position"],
+                              candidate["avatar"]["position"]) <= tolerance:
+                samples.append(candidate)
+            else:
+                samples = [candidate]
+            time.sleep(self.poll_seconds)
+        if len(samples) < 5:
+            fail("Pico avatar did not provide five stable fresh samples")
+        write_json("fixture-stable-samples.json", samples)
+        return samples
+
     def ensure_controlled_scene(self) -> dict:
         """Reuse a ready fixture so independent modules do not restart Overte."""
         url = os.environ.get("OVERTE_E2E_SCENE_URL", "")
@@ -103,12 +142,29 @@ class OverteSession:
 
     def look(self, horizontal: float = 0.25, vertical: float = 0.0) -> tuple[dict, dict]:
         before = self.snapshot("look-before.json")
-        operation("input.look", {"horizontal": horizontal, "vertical": vertical})
+        result = operation("input.look", {"horizontal": horizontal, "vertical": vertical})
+        write_json("look-input-result.json", result)
         minimum = self._float_environment("OVERTE_E2E_MIN_LOOK_DEGREES", 5.0, 0.1, 180.0)
+        pico = os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1"
+
+        def changed_with_neutral_controller(value: dict) -> bool:
+            changed = self._angle_delta(before["view"]["orientation"],
+                                        value["view"]["orientation"]) >= minimum
+            if not pico:
+                return changed
+            controller = value.get("controller", {})
+            axes = controller.get("axes", {})
+            openxr = controller.get("route", {}).get("openxrAxes")
+            standard_neutral = all(abs(float(axes.get(axis, 1.0))) <= 0.05
+                                   for axis in ("lx", "ly", "rx", "ry"))
+            openxr_neutral = isinstance(openxr, dict) and all(
+                abs(float(openxr.get(axis, 1.0))) <= 0.05
+                for axis in ("lx", "ly", "rx", "ry"))
+            return changed and standard_neutral and openxr_neutral
+
         after = self.wait_until(
             f"view orientation to change by at least {minimum} degrees",
-            lambda value: self._angle_delta(before["view"]["orientation"],
-                                             value["view"]["orientation"]) >= minimum,
+            changed_with_neutral_controller,
         )
         write_json("look-after.json", after)
         return before, after
@@ -140,7 +196,39 @@ class OverteSession:
         if direction not in {"forward", "backward", "left", "right"}:
             fail("movement direction is unsupported")
         before = self.stable_avatar_snapshot()
-        operation("input.move", {"direction": direction, "durationSeconds": duration_seconds})
+        pico = os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1"
+        if pico:
+            input_state = before.get("input", {})
+            if input_state.get("dominantHand") != "right":
+                fail("Pico movement requires effective right-hand dominance")
+            if input_state.get("advancedMovementControls") is not True:
+                fail("Pico movement requires effective advanced movement controls")
+        result = operation(
+            "input.move", {"direction": direction, "durationSeconds": duration_seconds})
+        write_json("move-input-result.json", result)
+        if pico:
+            route_minimum = self._float_environment(
+                "OVERTE_E2E_MIN_ROUTE_AXIS", 0.15, 0.01, 1.0)
+
+            def complete_route(value: dict) -> bool:
+                route = value.get("controller", {}).get("route", {})
+                openxr = route.get("openxrAxes")
+                if not isinstance(openxr, dict):
+                    return False
+                values = [openxr.get("ly"), route.get("standardLy"),
+                          route.get("translateZAction"),
+                          route.get("rawTranslateZDriveKey")]
+                if (any(not isinstance(item, (int, float)) or isinstance(item, bool)
+                        for item in values)
+                        or any(abs(float(item)) < route_minimum for item in values)
+                        or route.get("translateZDriveKeyDisabled") is not False):
+                    return False
+                signs = [float(item) > 0.0 for item in values]
+                return len(set(signs)) == 1
+
+            route_snapshot = self.wait_until(
+                "the complete Pico movement route to become active", complete_route)
+            write_json("move-route-active.json", route_snapshot)
         minimum = self._float_environment("OVERTE_E2E_MIN_MOVE_METERS", 0.2, 0.01, 20.0)
         after = self.wait_until(
             f"avatar position to change by at least {minimum} meters",
@@ -153,7 +241,10 @@ class OverteSession:
     def set_tablet(self, opened: bool) -> dict:
         before = self.snapshot("tablet-before.json")
         if before["tablet"]["open"] is not opened:
-            operation("tablet.open" if opened else "tablet.close")
+            operation_name = "tablet.open" if opened else "tablet.close"
+            result = operation(operation_name)
+            write_json("tablet-open-input-result.json" if opened
+                       else "tablet-close-input-result.json", result)
         after = self.wait_until(
             "tablet to open" if opened else "tablet to close",
             lambda value: value["tablet"]["open"] is opened,

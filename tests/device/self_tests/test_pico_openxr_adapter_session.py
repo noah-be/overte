@@ -49,6 +49,7 @@ class PicoOpenXrAdapterSessionTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def test_common_operations_share_nonce_and_advance_sequence(self) -> None:
+        self.session.begin("42:100")
         first = self.session.stage(
             "42:100", "input.look", {"horizontal": 0.25, "vertical": 0.0})
         second = self.session.stage(
@@ -64,21 +65,45 @@ class PicoOpenXrAdapterSessionTests(unittest.TestCase):
         self.assertNotIn("private-pico-selector", self.session.state_path.name)
         self.assertEqual(0o600, self.session.state_path.stat().st_mode & 0o777)
 
-    def test_process_restart_cleans_transport_and_rotates_nonce(self) -> None:
+    def test_process_restart_fails_closed_without_rotating_nonce(self) -> None:
+        self.session.begin("42:100")
         self.session.stage("42:100", "tablet.open", {})
         old_nonce = self.transport.envelopes[-1]["sessionNonce"]
-        result = self.session.stage("43:200", "tablet.close", {})
-        self.assertEqual(1, self.transport.cleanup_count)
+        with self.assertRaisesRegex(AdapterSessionError, "identity changed"):
+            self.session.stage("43:200", "tablet.close", {})
+        self.assertEqual(0, self.transport.cleanup_count)
         self.assertEqual(1, self.transport.envelopes[-1]["sequence"])
-        self.assertNotEqual(old_nonce, self.transport.envelopes[-1]["sessionNonce"])
-        self.assertTrue(result["performed"])
+        self.assertEqual(old_nonce, self.transport.envelopes[-1]["sessionNonce"])
 
     def test_cleanup_is_neutral_and_idempotent(self) -> None:
+        self.session.begin("42:100")
         self.session.stage("42:100", "tablet.open", {})
         self.session.cleanup(process_running=True)
         self.session.cleanup(process_running=False)
         self.assertEqual(2, self.transport.cleanup_count)
         self.assertFalse(self.session.state_path.exists())
+
+    def test_stage_requires_the_single_launcher_session(self) -> None:
+        with self.assertRaisesRegex(AdapterSessionError, "not established"):
+            self.session.stage("42:100", "input.look", {})
+        self.session.begin("42:100")
+        self.session.require_process_identity("42:100")
+        with self.assertRaisesRegex(AdapterSessionError, "identity changed"):
+            self.session.require_process_identity("43:200")
+        with self.assertRaisesRegex(AdapterSessionError, "already established"):
+            self.session.begin("42:100")
+
+    def test_display_override_state_is_private_and_round_trips(self) -> None:
+        self.assertIsNone(self.session.display_override_state())
+        self.session.begin_display_override(137, 1)
+        self.assertEqual({"schemaVersion": 1, "brightness": 137, "mode": 1},
+                         self.session.display_override_state())
+        self.assertNotIn("private-pico-selector", self.session.display_state_path.name)
+        self.assertEqual(0o600, self.session.display_state_path.stat().st_mode & 0o777)
+        with self.assertRaisesRegex(AdapterSessionError, "already active"):
+            self.session.begin_display_override(0, 0)
+        self.session.discard_display_state()
+        self.assertIsNone(self.session.display_override_state())
 
     def test_configuration_requires_nondefault_port_and_private_directory(self) -> None:
         with mock.patch.dict(os.environ, {"ANDROID_ADB_SERVER_PORT": "5037"}, clear=True):

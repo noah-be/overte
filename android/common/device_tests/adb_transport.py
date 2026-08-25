@@ -13,11 +13,17 @@ import time
 
 
 class AdbTransport:
-    def __init__(self, executable: str | None = None) -> None:
+    def __init__(self, executable: str | None = None, *,
+                 server_port: int | None = None) -> None:
         self.executable = executable or self.find_executable()
         self.command = ([sys.executable, self.executable]
                         if os.name == "nt" and self.executable.lower().endswith(".py")
                         else [self.executable])
+        if server_port is not None:
+            if (isinstance(server_port, bool) or not isinstance(server_port, int)
+                    or not 1 <= server_port <= 65535):
+                raise RuntimeError("ADB server port is invalid")
+            self.command += ["-P", str(server_port)]
 
     @staticmethod
     def find_executable() -> str:

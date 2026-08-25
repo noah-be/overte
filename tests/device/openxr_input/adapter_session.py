@@ -22,6 +22,7 @@ else:
 
 
 STATE_SCHEMA_VERSION = 1
+DISPLAY_STATE_SCHEMA_VERSION = 1
 PROFILE_PATH = Path(__file__).parent / "profiles/pico4-overte-controller.json"
 
 
@@ -93,6 +94,7 @@ class PicoOpenXrAdapterSession:
             f"org.overte.pico\0{selector}".encode("utf-8")).hexdigest()[:32]
         self.state_path = state_directory / f"session-{key}.json"
         self.lock_path = state_directory / f"session-{key}.lock"
+        self.display_state_path = state_directory / f"display-{key}.json"
 
     @contextmanager
     def _lock(self) -> Iterator[None]:
@@ -140,20 +142,69 @@ class PicoOpenXrAdapterSession:
             raise AdapterSessionError("Pico OpenXR session state is invalid")
         return value
 
-    def _save(self, value: dict) -> None:
+    def _save_path(self, path: Path, value: dict) -> None:
         payload = (json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode()
-        temporary = self.state_path.with_name(
-            f".{self.state_path.name}.{secrets.token_hex(8)}.tmp")
+        temporary = path.with_name(
+            f".{path.name}.{secrets.token_hex(8)}.tmp")
         descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         try:
             with os.fdopen(descriptor, "wb", closefd=True) as output:
                 output.write(payload)
                 output.flush()
                 os.fsync(output.fileno())
-            os.replace(temporary, self.state_path)
+            os.replace(temporary, path)
         finally:
             try:
                 temporary.unlink()
+            except FileNotFoundError:
+                pass
+
+    def _save(self, value: dict) -> None:
+        self._save_path(self.state_path, value)
+
+    def begin_display_override(self, brightness: int, mode: int) -> None:
+        if (isinstance(brightness, bool) or not isinstance(brightness, int)
+                or not 0 <= brightness <= 255 or isinstance(mode, bool)
+                or not isinstance(mode, int) or mode not in {0, 1}):
+            raise AdapterSessionError("Pico display state is invalid")
+        with self._lock():
+            if self.display_state_path.exists():
+                raise AdapterSessionError("Pico display override is already active")
+            self._save_path(self.display_state_path, {
+                "schemaVersion": DISPLAY_STATE_SCHEMA_VERSION,
+                "brightness": brightness,
+                "mode": mode,
+            })
+
+    def display_override_state(self) -> dict | None:
+        with self._lock():
+            if not self.display_state_path.exists():
+                return None
+            info = self.display_state_path.lstat()
+            if (not stat.S_ISREG(info.st_mode) or self.display_state_path.is_symlink()
+                    or (hasattr(os, "getuid") and info.st_uid != os.getuid())
+                    or stat.S_IMODE(info.st_mode) != 0o600):
+                raise AdapterSessionError("Pico display state is not private")
+            try:
+                value = json.loads(self.display_state_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as error:
+                raise AdapterSessionError("Pico display state is invalid") from error
+            if (not isinstance(value, dict)
+                    or set(value) != {"schemaVersion", "brightness", "mode"}
+                    or value["schemaVersion"] != DISPLAY_STATE_SCHEMA_VERSION
+                    or isinstance(value["brightness"], bool)
+                    or not isinstance(value["brightness"], int)
+                    or not 0 <= value["brightness"] <= 255
+                    or isinstance(value["mode"], bool)
+                    or not isinstance(value["mode"], int)
+                    or value["mode"] not in {0, 1}):
+                raise AdapterSessionError("Pico display state is invalid")
+            return value
+
+    def discard_display_state(self) -> None:
+        with self._lock():
+            try:
+                self.display_state_path.unlink()
             except FileNotFoundError:
                 pass
 
@@ -164,6 +215,25 @@ class PicoOpenXrAdapterSession:
             "sessionNonce": secrets.token_hex(32),
             "nextSequence": 1,
         }
+
+    def begin(self, process_identity: str) -> None:
+        """Bind the complete E2E run to the one explicitly launched process."""
+        if not isinstance(process_identity, str) or not process_identity:
+            raise AdapterSessionError("Pico application process identity is unavailable")
+        with self._lock():
+            if self._load() is not None:
+                raise AdapterSessionError("Pico E2E launcher session is already established")
+            self._save(self._new_state(process_identity))
+
+    def require_process_identity(self, process_identity: str) -> None:
+        if not isinstance(process_identity, str) or not process_identity:
+            raise AdapterSessionError("Pico application process identity is unavailable")
+        with self._lock():
+            state = self._load()
+            if state is None:
+                raise AdapterSessionError("Pico E2E launcher session is not established")
+            if state["processIdentity"] != process_identity:
+                raise AdapterSessionError("Pico E2E launcher process identity changed")
 
     @staticmethod
     def _ack_timeout() -> float:
@@ -193,21 +263,40 @@ class PicoOpenXrAdapterSession:
                 time.sleep(0.1)
         raise AdapterSessionError("native Pico OpenXR input acknowledgement timed out") from last_error
 
+    def _wait_for_neutral(self, nonce: str, sequence: int) -> dict:
+        deadline = time.monotonic() + self._ack_timeout()
+        last_error: TransportError | None = None
+        while time.monotonic() < deadline:
+            try:
+                status = self.transport.read_status(expected_nonce=nonce)
+                if (status["acceptedSequence"] == sequence
+                        and status["state"] == "neutral"):
+                    return status
+                if status["state"] == "error":
+                    raise AdapterSessionError(
+                        "native Pico OpenXR input failed before neutralization")
+            except TransportError as error:
+                last_error = error
+            time.sleep(0.1)
+        raise AdapterSessionError(
+            "native Pico OpenXR input did not confirm an inter-command neutral window"
+        ) from last_error
+
     def stage(self, process_identity: str, operation: str, arguments: dict) -> dict:
         if not isinstance(process_identity, str) or not process_identity:
             raise AdapterSessionError("Pico application process identity is unavailable")
         with self._lock():
             state = self._load()
             if state is None:
-                state = self._new_state(process_identity)
-            elif state["processIdentity"] != process_identity:
-                # A nonce is scoped to one native Protocol instance. Old files
-                # must not be reused after an app/OpenXR process restart.
-                self.transport.cleanup()
-                state = self._new_state(process_identity)
+                raise AdapterSessionError("Pico E2E launcher session is not established")
+            if state["processIdentity"] != process_identity:
+                raise AdapterSessionError("Pico E2E launcher process identity changed")
             sequence = state["nextSequence"]
             if sequence == 0xFFFFFFFF:
                 raise AdapterSessionError("Pico OpenXR input sequence is exhausted")
+            neutral_before_command = sequence > 1
+            if neutral_before_command:
+                self._wait_for_neutral(state["sessionNonce"], sequence - 1)
             envelope = {
                 "schemaVersion": 1,
                 "sessionNonce": state["sessionNonce"],
@@ -230,6 +319,7 @@ class PicoOpenXrAdapterSession:
                             else "controller-action"),
             "sequence": staged["sequence"],
             "nativeState": status["state"],
+            "neutralBeforeCommand": neutral_before_command,
         }
 
     def cleanup(self, process_running: bool) -> None:

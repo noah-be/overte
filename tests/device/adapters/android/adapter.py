@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import time
 
 
 REPOSITORY = Path(__file__).resolve().parents[4]
@@ -59,7 +60,12 @@ class AndroidAdapter:
     def __init__(self, kind: str) -> None:
         self.kind = kind
         self.profile = PROFILES[kind]
-        self.adb = AdbTransport()
+        self.pico_configuration: tuple[int, Path] | None = None
+        if self.kind == "pico" and pico_openxr_opted_in():
+            self.pico_configuration = validate_pico_openxr_configuration()
+        self.adb = AdbTransport(
+            server_port=(self.pico_configuration[0]
+                         if self.pico_configuration is not None else None))
 
     def is_pico(self, target: str) -> bool:
         identity = " ".join(self.adb.prop(target, item) for item in (
@@ -102,31 +108,102 @@ class AndroidAdapter:
     def pico_input_session(self, target: str) -> PicoOpenXrAdapterSession:
         if self.kind != "pico" or not pico_openxr_opted_in():
             fail("Pico OpenXR input requires an E2E Debug APK and explicit opt-in")
-        port, state_directory = validate_pico_openxr_configuration()
+        if self.pico_configuration is None:
+            fail("Pico OpenXR input isolation is not configured")
+        port, state_directory = self.pico_configuration
         transport = AndroidOpenXrTransport(
             self.adb.executable, target, server_port=port)
         return PicoOpenXrAdapterSession(transport, target, state_directory)
 
-    def restart_debug_app(self, target: str) -> None:
+    def wait_for_process_identity(self, target: str, timeout_seconds: float = 30.0) -> str:
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            state = self.adb.process_state(target, self.profile["package"])
+            identity = state.get("identity")
+            if state.get("running") is True and isinstance(identity, str) and identity:
+                return identity
+            time.sleep(0.25)
+        fail("Android E2E launcher process did not start")
+
+    def read_pico_system_setting(self, target: str, name: str) -> int:
+        if name not in {"screen_brightness", "screen_brightness_mode"}:
+            fail("Pico display setting is not allowlisted")
+        raw = self.adb.shell(target, "settings", "get", "system", name).strip()
+        if not raw.isdigit():
+            fail("Pico display setting is unavailable")
+        value = int(raw)
+        if ((name == "screen_brightness" and not 0 <= value <= 255)
+                or (name == "screen_brightness_mode" and value not in {0, 1})):
+            fail("Pico display setting is outside the supported range")
+        return value
+
+    def write_pico_system_setting(self, target: str, name: str, value: int) -> None:
+        if name not in {"screen_brightness", "screen_brightness_mode"}:
+            fail("Pico display setting is not allowlisted")
+        if (name == "screen_brightness" and not 0 <= value <= 255) or (
+                name == "screen_brightness_mode" and value not in {0, 1}):
+            fail("Pico display setting write is invalid")
+        self.adb.shell(target, "settings", "put", "system", name, str(value))
+
+    def restore_pico_display(self, target: str,
+                             session: PicoOpenXrAdapterSession) -> None:
+        state = session.display_override_state()
+        if state is None:
+            return
+        self.write_pico_system_setting(
+            target, "screen_brightness", state["brightness"])
+        if self.read_pico_system_setting(target, "screen_brightness") != state["brightness"]:
+            fail("Pico display brightness restoration failed")
+        self.write_pico_system_setting(
+            target, "screen_brightness_mode", state["mode"])
+        if self.read_pico_system_setting(target, "screen_brightness_mode") != state["mode"]:
+            fail("Pico display mode restoration failed")
+        session.discard_display_state()
+
+    def apply_pico_display(self, target: str,
+                           session: PicoOpenXrAdapterSession) -> None:
+        brightness = self.read_pico_system_setting(target, "screen_brightness")
+        mode = self.read_pico_system_setting(target, "screen_brightness_mode")
+        session.begin_display_override(brightness, mode)
+        try:
+            self.write_pico_system_setting(target, "screen_brightness_mode", 0)
+            self.write_pico_system_setting(target, "screen_brightness", 0)
+            if (self.read_pico_system_setting(target, "screen_brightness_mode") != 0
+                    or self.read_pico_system_setting(target, "screen_brightness") != 0):
+                fail("Pico display did not accept brightness zero")
+        except (OSError, RuntimeError):
+            self.restore_pico_display(target, session)
+            raise
+
+    def launch_debug_app(self, target: str) -> str | None:
         package = self.profile["package"]
         running = self.adb.process_state(target, package)["running"] is True
-        if self.kind == "pico" and pico_openxr_opted_in():
+        isolated_pico = self.kind == "pico" and pico_openxr_opted_in()
+        if isolated_pico:
+            if running:
+                fail("Pico E2E launcher must be stopped before its single launch")
             session = self.pico_input_session(target)
-            cleanup_error = None
-            try:
-                session.cleanup(running)
-            except RuntimeError as error:
-                cleanup_error = error
-            finally:
-                if running:
-                    self.adb.shell(target, "am", "force-stop", package, check=False)
-                session.discard_local_state()
-            if cleanup_error is not None:
-                raise cleanup_error
+            session.cleanup(False)
+            session.discard_local_state()
+            self.restore_pico_display(target, session)
+            self.apply_pico_display(target, session)
         elif running:
             self.adb.shell(target, "am", "force-stop", package)
         self.adb.shell(target, "am", "start", "-W", "-n",
                        f"{package}/.E2eLauncherActivity")
+        if not isolated_pico:
+            return None
+        identity = self.wait_for_process_identity(target)
+        self.pico_input_session(target).begin(identity)
+        return identity
+
+    def require_pico_session_identity(self, target: str) -> str:
+        state = self.adb.process_state(target, self.profile["package"])
+        identity = state.get("identity")
+        if state.get("running") is not True or not isinstance(identity, str) or not identity:
+            fail("Pico E2E launcher process is not running")
+        self.pico_input_session(target).require_process_identity(identity)
+        return identity
 
     def discover(self) -> list[dict]:
         targets = []
@@ -170,13 +247,22 @@ class AndroidAdapter:
             return {"installed": True}
         if operation == "app.launch":
             if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") == "1":
-                self.restart_debug_app(target)
+                self.launch_debug_app(target)
             else:
                 self.adb.shell(target, "am", "start", "-W", "-n", self.profile["activity"])
             return {"launched": True}
         if operation == "app.process":
-            return self.adb.process_state(target, package)
+            state = self.adb.process_state(target, package)
+            if self.kind == "pico" and pico_openxr_opted_in():
+                identity = state.get("identity")
+                if (state.get("running") is not True or not isinstance(identity, str)
+                        or not identity):
+                    fail("Pico E2E launcher process is not running")
+                self.pico_input_session(target).require_process_identity(identity)
+            return state
         if operation == "app.foreground":
+            if self.kind == "pico" and pico_openxr_opted_in():
+                self.require_pico_session_identity(target)
             return {"foreground": self.adb.foreground_package(target) == package}
         if operation == "lifecycle.background":
             self.adb.shell(target, "input", "keyevent", "KEYCODE_HOME")
@@ -189,11 +275,16 @@ class AndroidAdapter:
                 fail("Android debug scene.load accepts only the embedded fixture URL")
             if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") != "1":
                 fail("scene.load requires an E2E-enabled debug APK")
-            self.restart_debug_app(target)
+            if self.kind == "pico" and pico_openxr_opted_in():
+                self.require_pico_session_identity(target)
+            else:
+                self.launch_debug_app(target)
             return {"requested": True, "verification": "fixture-markers"}
         if operation == "probe.snapshot":
             if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") != "1":
                 fail("probe.snapshot requires an E2E-enabled debug APK")
+            if self.kind == "pico" and pico_openxr_opted_in():
+                self.require_pico_session_identity(target)
             raw = self.adb.read_debug_app_file(target, package, ANDROID_DEBUG_PROBE)
             try:
                 snapshot = json.loads(raw)
@@ -201,10 +292,7 @@ class AndroidAdapter:
                 fail("Android probe snapshot is unavailable or incomplete")
             return require_fresh_snapshot(snapshot)
         if operation in {"input.look", "input.move", "tablet.open", "tablet.close"}:
-            state = self.adb.process_state(target, package)
-            identity = state.get("identity")
-            if state.get("running") is not True or not isinstance(identity, str) or not identity:
-                fail("Pico OpenXR input requires a running Overte process")
+            identity = self.require_pico_session_identity(target)
             return self.pico_input_session(target).stage(identity, operation, values)
         fail(f"unsupported operation: {operation}")
 
@@ -213,6 +301,7 @@ class AndroidAdapter:
         package = self.profile["package"]
         running = self.adb.process_state(target, package)["running"] is True
         cleanup_error = None
+        display_error = None
         session = None
         if self.kind == "pico" and pico_openxr_opted_in():
             session = self.pico_input_session(target)
@@ -224,8 +313,14 @@ class AndroidAdapter:
             self.adb.shell(target, "am", "force-stop", package, check=False)
         if session is not None:
             session.discard_local_state()
+            try:
+                self.restore_pico_display(target, session)
+            except RuntimeError as error:
+                display_error = error
         if cleanup_error is not None:
             raise cleanup_error
+        if display_error is not None:
+            raise display_error
         return {"cleaned": True}
 
 

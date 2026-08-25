@@ -171,6 +171,45 @@ class E2EStackTest(unittest.TestCase):
             self.assertEqual("0", junit.attrib["failures"])
             self.assertEqual("0", junit.attrib["errors"])
 
+    def test_complete_core_suite_enforces_pico_hardware_evidence(self):
+        with tempfile.TemporaryDirectory(prefix="overte-pico-e2e-stack-") as temporary:
+            root = Path(temporary)
+            environment = os.environ.copy()
+            environment.update({
+                "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+                "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
+                "OVERTE_E2E_SCENE_URL": "overte-e2e://fixture/scene",
+                "OVERTE_E2E_POLL_SECONDS": "0.05",
+                "OVERTE_PICO_OPENXR_INPUT": "1",
+            })
+            output = root / "results"
+            result = subprocess.run([
+                sys.executable, str(ROOT / "run.py"),
+                "--adapter-manifest", str(ROOT / "adapters/mock/adapter.json"),
+                "--catalog", str(ROOT / "catalog.json"), "--suite", "e2e-core",
+                "--allow-virtual", "--output-dir", str(output),
+            ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+               env=environment, check=False)
+            self.assertEqual(0, result.returncode, result.stdout)
+            summary = json.loads((output / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual("passed", summary["status"])
+            samples = json.loads((output / "modules/scene/fixture-stable-samples.json")
+                                 .read_text(encoding="utf-8"))
+            self.assertEqual(5, len(samples))
+            route = json.loads((output / "modules/move/move-route-active.json")
+                               .read_text(encoding="utf-8"))
+            self.assertEqual("right", route["input"]["dominantHand"])
+            self.assertTrue(route["input"]["advancedMovementControls"])
+            self.assertFalse(route["controller"]["route"]
+                             ["translateZDriveKeyDisabled"])
+            for module, artifact in (
+                    ("move", "move-input-result.json"),
+                    ("tablet", "tablet-open-input-result.json"),
+                    ("tablet", "tablet-close-input-result.json")):
+                input_result = json.loads((output / "modules" / module / artifact)
+                                          .read_text(encoding="utf-8"))
+                self.assertTrue(input_result["neutralBeforeCommand"])
+
     def test_fixture_requires_a_thick_floor_and_explicit_safe_spawn(self):
         from fixture.serve import controlled_scene_url
 
