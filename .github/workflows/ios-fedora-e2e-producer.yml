@@ -1,0 +1,374 @@
+name: iOS Fedora E2E signed artifact producer
+
+on:
+  workflow_dispatch:
+    inputs:
+      qt_host_cache_key:
+        description: Existing audited Qt 6 host-tools cache key
+        required: true
+        type: string
+      qt_ios_cache_key:
+        description: Existing audited Qt 6 iOS cache key
+        required: true
+        type: string
+      qt_host_artifact_prefix:
+        description: Durable audited Qt 6 host-tools artifact namespace
+        required: true
+        type: string
+      qt_ios_artifact_prefix:
+        description: Durable audited Qt 6 iOS artifact namespace
+        required: true
+        type: string
+      overte_bundle_id:
+        description: Dedicated Full Client E2E bundle identifier ending in .e2e
+        required: true
+        default: org.overte.interface.e2e
+        type: string
+      wda_bundle_id:
+        description: Appium updatedWDABundleId base; the installed runner adds .xctrunner
+        required: true
+        default: org.overte.WebDriverAgentRunner
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ios-fedora-e2e-signed-producer
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  authorize-source:
+    name: Authorize protected producer source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Reject unprotected revisions before the expensive build
+        env:
+          OVERTE_BUNDLE_ID: ${{ inputs.overte_bundle_id }}
+          WDA_BUNDLE_ID: ${{ inputs.wda_bundle_id }}
+          QT_HOST_CACHE_KEY: ${{ inputs.qt_host_cache_key }}
+          QT_IOS_CACHE_KEY: ${{ inputs.qt_ios_cache_key }}
+          QT_HOST_ARTIFACT_PREFIX: ${{ inputs.qt_host_artifact_prefix }}
+          QT_IOS_ARTIFACT_PREFIX: ${{ inputs.qt_ios_artifact_prefix }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == "refs/heads/apple-ios" ]]
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$OVERTE_BUNDLE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*[.]e2e$ ]]
+          [[ "$WDA_BUNDLE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9-]*([.][A-Za-z0-9][A-Za-z0-9-]*)+$ ]]
+          [[ "$WDA_BUNDLE_ID" != *.xctrunner ]]
+          [[ "$WDA_BUNDLE_ID" != "$OVERTE_BUNDLE_ID" ]]
+          (( ${#QT_HOST_CACHE_KEY} <= 300 && ${#QT_IOS_CACHE_KEY} <= 300 ))
+          [[ "$QT_HOST_CACHE_KEY" =~ ^overte-qt-host-v2-[A-Za-z0-9._-]{1,190}-contract-[0-9a-f]{64}$ ]]
+          [[ "$QT_IOS_CACHE_KEY" =~ ^overte-qt-ios-v2-[A-Za-z0-9._-]{1,190}-contract-[0-9a-f]{64}$ ]]
+          [[ "$QT_HOST_ARTIFACT_PREFIX" =~ ^overte-qt-host-checkpoint-v1-[0-9a-f]{32}$ ]]
+          [[ "$QT_IOS_ARTIFACT_PREFIX" =~ ^overte-qt-ios-checkpoint-v1-[0-9a-f]{32}$ ]]
+
+  unsigned-e2e-client:
+    name: Build credential-free E2E Full Client
+    needs: authorize-source
+    uses: ./.github/workflows/ios-integrated.yml
+    permissions:
+      actions: read
+      contents: read
+    with:
+      qt_host_cache_key: ${{ inputs.qt_host_cache_key }}
+      qt_ios_cache_key: ${{ inputs.qt_ios_cache_key }}
+      qt_host_artifact_prefix: ${{ inputs.qt_host_artifact_prefix }}
+      qt_ios_artifact_prefix: ${{ inputs.qt_ios_artifact_prefix }}
+      macos_runner: macos-26
+      e2e_test_build: true
+      e2e_bundle_id: ${{ inputs.overte_bundle_id }}
+
+  sign-artifacts:
+    name: Sign privacy-bounded Overte and WDA candidates
+    needs: unsigned-e2e-client
+    environment: ios-fedora-e2e-signing
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      PRIVATE_ROOT: ${{ github.workspace }}/build-ios/private-fedora-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+      SIGNED_ROOT: ${{ github.workspace }}/build-ios/private-fedora-e2e-${{ github.run_id }}-${{ github.run_attempt }}/signed
+      ENCRYPTED_ROOT: ${{ github.workspace }}/build-ios/fedora-e2e-encrypted-${{ github.run_id }}-${{ github.run_attempt }}
+      XCUITEST_DRIVER_VERSION: 12.8.0
+      WDA_VERSION: 16.8.0
+      RESIGNER_VERSION: 0.3.1
+      AGE_VERSION: 1.2.1
+    steps:
+      - name: Check out exact producer revision without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: true
+
+      - name: Enforce protected source and identity boundary
+        env:
+          OVERTE_BUNDLE_ID: ${{ inputs.overte_bundle_id }}
+          WDA_BUNDLE_ID: ${{ inputs.wda_bundle_id }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == "refs/heads/apple-ios" ]]
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$OVERTE_BUNDLE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*[.]e2e$ ]]
+          [[ "$WDA_BUNDLE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9-]*([.][A-Za-z0-9][A-Za-z0-9-]*)+$ ]]
+          [[ "$WDA_BUNDLE_ID" != *.xctrunner ]]
+          [[ "$WDA_BUNDLE_ID" != "$OVERTE_BUNDLE_ID" ]]
+
+      - name: Download same-run unsigned E2E client
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ github.run_number }}-overte-ios-integrated-e2e-unsigned-${{ github.run_id }}
+          path: ${{ env.PRIVATE_ROOT }}/unsigned
+
+      - name: Materialize protected signing inputs in a temporary keychain
+        env:
+          SIGNING_P12_BASE64: ${{ secrets.IOS_E2E_SIGNING_P12_BASE64 }}
+          SIGNING_P12_PASSWORD: ${{ secrets.IOS_E2E_SIGNING_P12_PASSWORD }}
+          APP_PROFILE_BASE64: ${{ secrets.IOS_E2E_APP_PROFILE_BASE64 }}
+          WDA_PROFILE_BASE64: ${{ secrets.IOS_E2E_WDA_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.IOS_E2E_KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ -n "$SIGNING_P12_BASE64" && -n "$SIGNING_P12_PASSWORD" ]]
+          [[ -n "$APP_PROFILE_BASE64" && -n "$WDA_PROFILE_BASE64" ]]
+          [[ -n "$KEYCHAIN_PASSWORD" ]]
+          install -d -m 0700 "$PRIVATE_ROOT/app-profiles" "$PRIVATE_ROOT/wda-profiles" "$PRIVATE_ROOT/tools"
+          python3 - "$PRIVATE_ROOT/signing.p12" "$PRIVATE_ROOT/app-profiles/app.mobileprovision" \
+            "$PRIVATE_ROOT/wda-profiles/wda.mobileprovision" <<'PY'
+          import base64
+          import binascii
+          import os
+          import pathlib
+          import sys
+
+          values = (
+              os.environ["SIGNING_P12_BASE64"],
+              os.environ["APP_PROFILE_BASE64"],
+              os.environ["WDA_PROFILE_BASE64"],
+          )
+          for destination, value in zip(sys.argv[1:], values):
+              try:
+                  decoded = base64.b64decode(value, validate=True)
+              except binascii.Error as error:
+                  raise SystemExit("protected signing input is not valid base64") from error
+              if not decoded:
+                  raise SystemExit("protected signing input is empty")
+              path = pathlib.Path(destination)
+              path.write_bytes(decoded)
+              path.chmod(0o600)
+          PY
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$PRIVATE_ROOT/signing.keychain-db"
+          security set-keychain-settings -lut 1800 "$PRIVATE_ROOT/signing.keychain-db"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$PRIVATE_ROOT/signing.keychain-db"
+          security import "$PRIVATE_ROOT/signing.p12" \
+            -k "$PRIVATE_ROOT/signing.keychain-db" -P "$SIGNING_P12_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security >/dev/null
+
+      - name: Fetch and verify pinned open-source signing toolchain
+        run: |
+          set -euo pipefail
+          case "$(uname -m)" in
+            arm64)
+              resigner_asset=darwin-arm64.tar.gz
+              resigner_sha=b3661dd4020dcd1d93b42a2a8a25d6d240d243a443cd3144af54454f62639f85
+              age_asset=age-v1.2.1-darwin-arm64.tar.gz
+              age_sha=cf79875bd5970dc2dac60c87fa50cee1ff1f9a41b0eb273f65e174aff37c367a
+              ;;
+            x86_64)
+              resigner_asset=darwin-amd64.tar.gz
+              resigner_sha=c21a973358e7ae6d511fe4e40afca8c2c4c25ac173e31ea9f8b78b97f003b0cd
+              age_asset=age-v1.2.1-darwin-amd64.tar.gz
+              age_sha=424e1d64438a730626540b2e01e98d132a64214442ca9465b3e82336d12e633e
+              ;;
+            *) echo "unsupported signing runner architecture" >&2; exit 1 ;;
+          esac
+          curl --fail --location --silent --show-error \
+            "https://github.com/appium/resigner/releases/download/v${RESIGNER_VERSION}/${resigner_asset}" \
+            --output "$PRIVATE_ROOT/resigner.tar.gz"
+          printf '%s  %s\n' "$resigner_sha" "$PRIVATE_ROOT/resigner.tar.gz" | shasum -a 256 --check
+          tar -xzf "$PRIVATE_ROOT/resigner.tar.gz" -C "$PRIVATE_ROOT/tools" --strip-components=1
+          [[ "$($PRIVATE_ROOT/tools/resigner --version)" == "v${RESIGNER_VERSION}" ]]
+
+          curl --fail --location --silent --show-error \
+            "https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/${age_asset}" \
+            --output "$PRIVATE_ROOT/age.tar.gz"
+          printf '%s  %s\n' "$age_sha" "$PRIVATE_ROOT/age.tar.gz" | shasum -a 256 --check
+          install -d -m 0700 "$PRIVATE_ROOT/tools/age-bin"
+          tar -xzf "$PRIVATE_ROOT/age.tar.gz" -C "$PRIVATE_ROOT/tools/age-bin" \
+            --strip-components=1 age/age
+          test -x "$PRIVATE_ROOT/tools/age-bin/age"
+
+          curl --fail --location --silent --show-error \
+            "https://registry.npmjs.org/appium-xcuitest-driver/-/appium-xcuitest-driver-${XCUITEST_DRIVER_VERSION}.tgz" \
+            --output "$PRIVATE_ROOT/xcuitest-driver.tgz"
+          printf '%s  %s\n' 2cccc74b0cc3f56afd029accc3a4553c56d7269c6c403cbf161aaf095bc5c0b8 \
+            "$PRIVATE_ROOT/xcuitest-driver.tgz" | shasum -a 256 --check
+          install -d -m 0700 "$PRIVATE_ROOT/xcuitest-driver"
+          tar -xzf "$PRIVATE_ROOT/xcuitest-driver.tgz" -C "$PRIVATE_ROOT/xcuitest-driver" --strip-components=1 package/package.json
+          python3 - "$PRIVATE_ROOT/xcuitest-driver/package.json" <<'PY'
+          import json
+          import pathlib
+          import sys
+          package = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if package.get("version") != "12.8.0":
+              raise SystemExit("XCUITest driver version drift")
+          if package.get("dependencies", {}).get("appium-webdriveragent") != "^16.8.0":
+              raise SystemExit("XCUITest WebDriverAgent dependency drift")
+          PY
+
+          curl --fail --location --silent --show-error \
+            "https://github.com/appium/WebDriverAgent/releases/download/v${WDA_VERSION}/WebDriverAgentRunner-Runner.zip" \
+            --output "$PRIVATE_ROOT/wda-upstream.zip"
+          printf '%s  %s\n' 38ec705d6fa2c7825513adbc9406d4fda5d6a084a8d3980ceff9a265e62f9623 \
+            "$PRIVATE_ROOT/wda-upstream.zip" | shasum -a 256 --check
+
+      - name: Sign Overte E2E and package preinstalled WDA IPA
+        id: signed
+        env:
+          P12_PASSWORD: ${{ secrets.IOS_E2E_SIGNING_P12_PASSWORD }}
+          EXPECTED_TEAM_ID: ${{ secrets.IOS_E2E_TEAM_IDENTIFIER }}
+          OVERTE_BUNDLE_ID: ${{ inputs.overte_bundle_id }}
+          WDA_BUNDLE_ID: ${{ inputs.wda_bundle_id }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]
+          WDA_RUNNER_BUNDLE_ID="${WDA_BUNDLE_ID}.xctrunner"
+          shopt -s nullglob
+          unsigned_ipas=("$PRIVATE_ROOT"/unsigned/*-OverteIOSClient-Release-device-unsigned.ipa)
+          if (( ${#unsigned_ipas[@]} != 1 )); then
+            echo "expected exactly one unsigned E2E Full Client IPA" >&2
+            exit 1
+          fi
+          install -d -m 0700 "$SIGNED_ROOT" "$PRIVATE_ROOT/audit-overte" "$PRIVATE_ROOT/audit-wda" "$PRIVATE_ROOT/wda-package/Payload"
+          overte_name="$(basename "${unsigned_ipas[0]}" -unsigned.ipa)-signed.ipa"
+          overte_ipa="$SIGNED_ROOT/$overte_name"
+          ditto "${unsigned_ipas[0]}" "$overte_ipa"
+          "$PRIVATE_ROOT/tools/resigner" \
+            --p12-file "$PRIVATE_ROOT/signing.p12" \
+            --profile "$PRIVATE_ROOT/app-profiles" --force \
+            --team-id "$EXPECTED_TEAM_ID" "$overte_ipa"
+
+          ditto -x -k "$PRIVATE_ROOT/wda-upstream.zip" "$PRIVATE_ROOT/wda-source"
+          wda_app="$PRIVATE_ROOT/wda-source/WebDriverAgentRunner-Runner.app"
+          test -d "$wda_app"
+          "$PRIVATE_ROOT/tools/resigner" \
+            --p12-file "$PRIVATE_ROOT/signing.p12" \
+            --profile "$PRIVATE_ROOT/wda-profiles" --force \
+            --team-id "$EXPECTED_TEAM_ID" \
+            --bundle-id-remap "$WDA_BUNDLE_ID=$WDA_BUNDLE_ID" \
+            --bundle-id-remap "$WDA_RUNNER_BUNDLE_ID=$WDA_RUNNER_BUNDLE_ID" \
+            --bundle-id-remap "com.facebook.WebDriverAgentRunner=$WDA_BUNDLE_ID" \
+            --bundle-id-remap "com.facebook.WebDriverAgentRunner.xctrunner=$WDA_RUNNER_BUNDLE_ID" \
+            --bundle-id-remap "com.facebook.WebDriverAgentLib=$WDA_BUNDLE_ID" \
+            "$wda_app"
+          ditto "$wda_app" "$PRIVATE_ROOT/wda-package/Payload/WebDriverAgentRunner-Runner.app"
+          wda_ipa="$SIGNED_ROOT/WebDriverAgentRunner-Runner-${WDA_VERSION}-signed.ipa"
+          ditto -c -k --sequesterRsrc --keepParent "$PRIVATE_ROOT/wda-package/Payload" "$wda_ipa"
+
+          ditto -x -k "$overte_ipa" "$PRIVATE_ROOT/audit-overte"
+          ditto -x -k "$wda_ipa" "$PRIVATE_ROOT/audit-wda"
+          overte_manifest="$SIGNED_ROOT/${overte_name%.ipa}.manifest.json"
+          wda_manifest="$SIGNED_ROOT/${wda_ipa##*/}"
+          wda_manifest="${wda_manifest%.ipa}.manifest.json"
+          python3 ios/ci/create-fedora-e2e-manifest.py \
+            --kind overte-app --artifact "$overte_ipa" \
+            --app "$PRIVATE_ROOT/audit-overte/Payload/Overte.app" \
+            --source-revision "$GITHUB_SHA" --expected-bundle-id "$OVERTE_BUNDLE_ID" \
+            --expected-team-id "$EXPECTED_TEAM_ID" --output "$overte_manifest"
+          python3 ios/ci/create-fedora-e2e-manifest.py \
+            --kind webdriveragent --artifact "$wda_ipa" \
+            --app "$PRIVATE_ROOT/audit-wda/Payload/WebDriverAgentRunner-Runner.app" \
+            --source-revision "$GITHUB_SHA" --expected-bundle-id "$WDA_RUNNER_BUNDLE_ID" \
+            --expected-team-id "$EXPECTED_TEAM_ID" --output "$wda_manifest"
+          printf 'overte_ipa=%s\noverte_manifest=%s\nwda_ipa=%s\nwda_manifest=%s\n' \
+            "$overte_ipa" "$overte_manifest" "$wda_ipa" "$wda_manifest" >> "$GITHUB_OUTPUT"
+
+      - name: Encrypt signed pairs for the fixed Fedora lab recipient
+        id: encrypted
+        env:
+          AGE_RECIPIENT: ${{ secrets.IOS_E2E_LAB_AGE_RECIPIENT }}
+          OVERTE_IPA: ${{ steps.signed.outputs.overte_ipa }}
+          OVERTE_MANIFEST: ${{ steps.signed.outputs.overte_manifest }}
+          WDA_IPA: ${{ steps.signed.outputs.wda_ipa }}
+          WDA_MANIFEST: ${{ steps.signed.outputs.wda_manifest }}
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "$AGE_RECIPIENT" =~ ^age1[0-9a-z]{58}$ ]]
+          for path in "$OVERTE_IPA" "$OVERTE_MANIFEST" "$WDA_IPA" "$WDA_MANIFEST"; do
+            test -f "$path" && test ! -L "$path"
+          done
+          install -d -m 0700 "$ENCRYPTED_ROOT"
+          overte_inner="$PRIVATE_ROOT/ios-fedora-e2e-overte-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.zip"
+          wda_inner="$PRIVATE_ROOT/ios-fedora-e2e-wda-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.zip"
+          python3 ios/ci/create-age-inner-zip.py \
+            "$overte_inner" "$OVERTE_IPA" "$OVERTE_MANIFEST"
+          python3 ios/ci/create-age-inner-zip.py \
+            "$wda_inner" "$WDA_IPA" "$WDA_MANIFEST"
+          overte_age="$ENCRYPTED_ROOT/${overte_inner##*/}.age"
+          wda_age="$ENCRYPTED_ROOT/${wda_inner##*/}.age"
+          "$PRIVATE_ROOT/tools/age-bin/age" --encrypt --recipient "$AGE_RECIPIENT" \
+            --output "$overte_age" "$overte_inner"
+          "$PRIVATE_ROOT/tools/age-bin/age" --encrypt --recipient "$AGE_RECIPIENT" \
+            --output "$wda_age" "$wda_inner"
+          for path in "$overte_age" "$wda_age"; do
+            test -s "$path" && test ! -L "$path"
+            [[ "$(head -n 1 "$path")" == "age-encryption.org/v1" ]]
+          done
+          python3 - <<'PY'
+          import os
+          import pathlib
+          import shutil
+          private_root = pathlib.Path(os.environ["PRIVATE_ROOT"])
+          signed_root = pathlib.Path(os.environ["SIGNED_ROOT"])
+          for name in (
+              f"ios-fedora-e2e-overte-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}.zip",
+              f"ios-fedora-e2e-wda-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}.zip",
+          ):
+              (private_root / name).unlink()
+          shutil.rmtree(signed_root)
+          PY
+          test ! -e "$SIGNED_ROOT"
+          printf 'overte_age=%s\nwda_age=%s\n' "$overte_age" "$wda_age" >> "$GITHUB_OUTPUT"
+
+      - name: Upload encrypted Overte E2E candidate
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ios-fedora-e2e-overte-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.encrypted.outputs.overte_age }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+      - name: Upload encrypted preinstalled WDA candidate
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ios-fedora-e2e-wda-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.encrypted.outputs.wda_age }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+      - name: Remove keychain, profiles and signed working files
+        if: always()
+        run: |
+          security delete-keychain "$PRIVATE_ROOT/signing.keychain-db" >/dev/null 2>&1 || true
+          python3 - <<'PY'
+          import os
+          import pathlib
+          import shutil
+          for variable in ("PRIVATE_ROOT", "ENCRYPTED_ROOT"):
+              path = pathlib.Path(os.environ[variable])
+              if path.exists():
+                  shutil.rmtree(path)
+          PY
+          test ! -e "$PRIVATE_ROOT"
+          test ! -e "$ENCRYPTED_ROOT"
