@@ -979,6 +979,22 @@ jobs:
             --watch artifacts=build-ios/artifacts -- \
             ios/build-ios.sh "${package_args[@]}"
 
+      - name: Verify packaged E2E release boundary
+        env:
+          E2E_TEST_BUILD: ${{ inputs.e2e_test_build }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          ipas=(build-ios/artifacts/*-OverteIOSClient-Release-device-unsigned.ipa)
+          if (( ${#ipas[@]} != 1 )); then
+            echo "expected exactly one packaged integrated-client IPA" >&2
+            exit 1
+          fi
+          expected=disabled
+          [[ "$E2E_TEST_BUILD" == "true" ]] && expected=enabled
+          python3 ios/tools/verify-e2e-test-build.py "${ipas[0]}" \
+            --archive-root Payload/Overte.app --expected "$expected"
+
       - name: Verify build-ready release boundary
         shell: bash
         run: |

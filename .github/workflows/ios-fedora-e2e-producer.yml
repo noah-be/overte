@@ -1,7 +1,7 @@
 name: iOS Fedora E2E signed artifact producer
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       qt_host_cache_key:
         description: Existing audited Qt 6 host-tools cache key
@@ -58,8 +58,11 @@ jobs:
           QT_IOS_ARTIFACT_PREFIX: ${{ inputs.qt_ios_artifact_prefix }}
         run: |
           set -euo pipefail
+          [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]
           [[ "$GITHUB_REF" == "refs/heads/apple-ios" ]]
           [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$GITHUB_WORKFLOW_REF" == "$GITHUB_REPOSITORY/.github/workflows/ios-bootstrap.yml@refs/heads/apple-ios" ]]
+          [[ "$GITHUB_WORKFLOW_SHA" == "$GITHUB_SHA" ]]
           [[ "$OVERTE_BUNDLE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*[.]e2e$ ]]
           [[ "$WDA_BUNDLE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9-]*([.][A-Za-z0-9][A-Za-z0-9-]*)+$ ]]
           [[ "$WDA_BUNDLE_ID" != *.xctrunner ]]
@@ -116,6 +119,11 @@ jobs:
           [[ "$GITHUB_REF" == "refs/heads/apple-ios" ]]
           [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
           [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$GITHUB_REPOSITORY_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$GITHUB_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$GITHUB_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]
+          [[ "$GITHUB_WORKFLOW_REF" == "$GITHUB_REPOSITORY/.github/workflows/ios-bootstrap.yml@refs/heads/apple-ios" ]]
+          [[ "$GITHUB_WORKFLOW_SHA" == "$GITHUB_SHA" ]]
           [[ "$OVERTE_BUNDLE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*[.]e2e$ ]]
           [[ "$WDA_BUNDLE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9-]*([.][A-Za-z0-9][A-Za-z0-9-]*)+$ ]]
           [[ "$WDA_BUNDLE_ID" != *.xctrunner ]]
@@ -191,6 +199,8 @@ jobs:
             *) echo "unsupported signing runner architecture" >&2; exit 1 ;;
           esac
           curl --fail --location --silent --show-error \
+            --proto '=https' --tlsv1.2 --retry 3 --retry-all-errors \
+            --connect-timeout 30 --max-time 600 --max-filesize 134217728 \
             "https://github.com/appium/resigner/releases/download/v${RESIGNER_VERSION}/${resigner_asset}" \
             --output "$PRIVATE_ROOT/resigner.tar.gz"
           printf '%s  %s\n' "$resigner_sha" "$PRIVATE_ROOT/resigner.tar.gz" | shasum -a 256 --check
@@ -198,6 +208,8 @@ jobs:
           [[ "$($PRIVATE_ROOT/tools/resigner --version)" == "v${RESIGNER_VERSION}" ]]
 
           curl --fail --location --silent --show-error \
+            --proto '=https' --tlsv1.2 --retry 3 --retry-all-errors \
+            --connect-timeout 30 --max-time 600 --max-filesize 134217728 \
             "https://github.com/FiloSottile/age/releases/download/v${AGE_VERSION}/${age_asset}" \
             --output "$PRIVATE_ROOT/age.tar.gz"
           printf '%s  %s\n' "$age_sha" "$PRIVATE_ROOT/age.tar.gz" | shasum -a 256 --check
@@ -207,6 +219,8 @@ jobs:
           test -x "$PRIVATE_ROOT/tools/age-bin/age"
 
           curl --fail --location --silent --show-error \
+            --proto '=https' --tlsv1.2 --retry 3 --retry-all-errors \
+            --connect-timeout 30 --max-time 600 --max-filesize 536870912 \
             "https://registry.npmjs.org/appium-xcuitest-driver/-/appium-xcuitest-driver-${XCUITEST_DRIVER_VERSION}.tgz" \
             --output "$PRIVATE_ROOT/xcuitest-driver.tgz"
           printf '%s  %s\n' 2cccc74b0cc3f56afd029accc3a4553c56d7269c6c403cbf161aaf095bc5c0b8 \
@@ -225,6 +239,8 @@ jobs:
           PY
 
           curl --fail --location --silent --show-error \
+            --proto '=https' --tlsv1.2 --retry 3 --retry-all-errors \
+            --connect-timeout 30 --max-time 600 --max-filesize 536870912 \
             "https://github.com/appium/WebDriverAgent/releases/download/v${WDA_VERSION}/WebDriverAgentRunner-Runner.zip" \
             --output "$PRIVATE_ROOT/wda-upstream.zip"
           printf '%s  %s\n' 38ec705d6fa2c7825513adbc9406d4fda5d6a084a8d3980ceff9a265e62f9623 \
@@ -239,6 +255,7 @@ jobs:
           WDA_BUNDLE_ID: ${{ inputs.wda_bundle_id }}
         run: |
           set -euo pipefail
+          umask 077
           [[ "$EXPECTED_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]
           WDA_RUNNER_BUNDLE_ID="${WDA_BUNDLE_ID}.xctrunner"
           shopt -s nullglob
@@ -247,6 +264,49 @@ jobs:
             echo "expected exactly one unsigned E2E Full Client IPA" >&2
             exit 1
           fi
+          unsigned_manifest="${unsigned_ipas[0]%.ipa}.json"
+          test -f "$unsigned_manifest" && test ! -L "$unsigned_manifest"
+          python3 - "${unsigned_ipas[0]}" "$unsigned_manifest" "$GITHUB_SHA" <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import re
+          import sys
+
+          ipa = pathlib.Path(sys.argv[1])
+          manifest_path = pathlib.Path(sys.argv[2])
+          revision = sys.argv[3]
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          expected = {
+              "schemaVersion": 1,
+              "product": "overte-ios-integrated-client",
+              "artifact": ipa.name,
+              "sourceRevision": revision,
+              "platform": "iphoneos",
+              "architecture": "arm64",
+              "configuration": "Release",
+              "signed": False,
+              "requiresSigning": True,
+              "testBuildContractVersion": 1,
+          }
+          if not isinstance(manifest, dict) or any(
+              manifest.get(key) != value for key, value in expected.items()
+          ):
+              raise SystemExit("unsigned E2E client manifest provenance mismatch")
+          digest = hashlib.sha256()
+          with ipa.open("rb") as stream:
+              for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                  digest.update(chunk)
+          if not re.fullmatch(r"[0-9a-f]{64}", str(manifest.get("sha256", ""))):
+              raise SystemExit("unsigned E2E client manifest SHA-256 is invalid")
+          if digest.hexdigest() != manifest["sha256"]:
+              raise SystemExit("unsigned E2E client bytes do not match their manifest")
+          signing = manifest.get("signing")
+          if not isinstance(signing, dict) or signing.get("embeddedProvisioningProfile") is not False:
+              raise SystemExit("unsigned E2E client unexpectedly declares provisioning")
+          if signing.get("applicationIdentifier") is not None:
+              raise SystemExit("unsigned E2E client unexpectedly declares an application identifier")
+          PY
           install -d -m 0700 "$SIGNED_ROOT" "$PRIVATE_ROOT/audit-overte" "$PRIVATE_ROOT/audit-wda" "$PRIVATE_ROOT/wda-package/Payload"
           overte_name="$(basename "${unsigned_ipas[0]}" -unsigned.ipa)-signed.ipa"
           overte_ipa="$SIGNED_ROOT/$overte_name"
@@ -259,6 +319,20 @@ jobs:
           ditto -x -k "$PRIVATE_ROOT/wda-upstream.zip" "$PRIVATE_ROOT/wda-source"
           wda_app="$PRIVATE_ROOT/wda-source/WebDriverAgentRunner-Runner.app"
           test -d "$wda_app"
+          python3 - "$wda_app/Info.plist" <<'PY'
+          import pathlib
+          import plistlib
+          import sys
+
+          path = pathlib.Path(sys.argv[1])
+          with path.open("rb") as stream:
+              info = plistlib.load(stream)
+          if not isinstance(info, dict):
+              raise SystemExit("WebDriverAgent runner Info.plist is invalid")
+          info["OverteE2EWebDriverAgentVersion"] = "16.8.0"
+          info["OverteE2EXCUITestDriverVersion"] = "12.8.0"
+          path.write_bytes(plistlib.dumps(info, fmt=plistlib.FMT_BINARY, sort_keys=True))
+          PY
           "$PRIVATE_ROOT/tools/resigner" \
             --p12-file "$PRIVATE_ROOT/signing.p12" \
             --profile "$PRIVATE_ROOT/wda-profiles" --force \
@@ -278,16 +352,29 @@ jobs:
           overte_manifest="$SIGNED_ROOT/${overte_name%.ipa}.manifest.json"
           wda_manifest="$SIGNED_ROOT/${wda_ipa##*/}"
           wda_manifest="${wda_manifest%.ipa}.manifest.json"
+          created_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          provenance_args=(
+            --created-at "$created_at"
+            --source-repository "$GITHUB_REPOSITORY"
+            --source-repository-id "$GITHUB_REPOSITORY_ID"
+            --source-ref "$GITHUB_REF"
+            --workflow .github/workflows/ios-bootstrap.yml
+            --reusable-workflow .github/workflows/ios-fedora-e2e-producer.yml
+            --run-id "$GITHUB_RUN_ID"
+            --run-attempt "$GITHUB_RUN_ATTEMPT"
+          )
           python3 ios/ci/create-fedora-e2e-manifest.py \
             --kind overte-app --artifact "$overte_ipa" \
             --app "$PRIVATE_ROOT/audit-overte/Payload/Overte.app" \
             --source-revision "$GITHUB_SHA" --expected-bundle-id "$OVERTE_BUNDLE_ID" \
-            --expected-team-id "$EXPECTED_TEAM_ID" --output "$overte_manifest"
+            --expected-team-id "$EXPECTED_TEAM_ID" --output "$overte_manifest" \
+            "${provenance_args[@]}"
           python3 ios/ci/create-fedora-e2e-manifest.py \
             --kind webdriveragent --artifact "$wda_ipa" \
             --app "$PRIVATE_ROOT/audit-wda/Payload/WebDriverAgentRunner-Runner.app" \
             --source-revision "$GITHUB_SHA" --expected-bundle-id "$WDA_RUNNER_BUNDLE_ID" \
-            --expected-team-id "$EXPECTED_TEAM_ID" --output "$wda_manifest"
+            --expected-team-id "$EXPECTED_TEAM_ID" --output "$wda_manifest" \
+            "${provenance_args[@]}"
           printf 'overte_ipa=%s\noverte_manifest=%s\nwda_ipa=%s\nwda_manifest=%s\n' \
             "$overte_ipa" "$overte_manifest" "$wda_ipa" "$wda_manifest" >> "$GITHUB_OUTPUT"
 

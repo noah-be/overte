@@ -11,16 +11,27 @@ The Fedora device lab consumes two independently verified, pre-signed IPAs:
 - the matching preinstalled WebDriverAgent (WDA) IPA from Appium XCUITest.
 
 Linux does not build or sign either package. The manual
-`.github/workflows/ios-fedora-e2e-producer.yml` workflow reuses the audited
-`ios-integrated.yml` Full Client build without credentials, then enters the
-protected `ios-fedora-e2e-signing` environment for the short signing phase.
-It refuses to run outside `refs/heads/apple-ios`. Both credential-free build
+`.github/workflows/ios-bootstrap.yml` entrypoint selects the
+`fedora_e2e_producer` mode on `refs/heads/apple-ios` and calls the local
+`.github/workflows/ios-fedora-e2e-producer.yml` reusable workflow from that
+exact revision. The producer reuses the audited `ios-integrated.yml` Full
+Client build without credentials, then enters the protected
+`ios-fedora-e2e-signing` environment for the short signing phase. It refuses
+any other event, caller workflow or ref. Both credential-free build
 jobs and the secret-bearing signing job are pinned to GitHub-hosted
 `macos-26`; the dispatch surface cannot select a runner. The four Qt checkpoint
 inputs must match the deterministic Overte cache and artifact namespaces,
 lengths and conservative character allowlist before the reusable build starts.
 Inside `ios-integrated.yml`, input values reach shell commands only through
 step environment variables.
+
+GitHub only delivers `workflow_dispatch` when the entrypoint exists on the
+repository default branch. Therefore `ios-bootstrap.yml` must be registered on
+that branch before the Fedora dispatcher can select the `apple-ios` ref. The
+reusable producer deliberately has no direct dispatch trigger. Registration
+does not broaden signing authority: the called jobs still require the exact
+bootstrap caller path and SHA on `refs/heads/apple-ios`, followed by approval of
+the branch-restricted signing Environment.
 
 This producer does not install an application, pair a device, reset trust, or
 read a device identifier. Those operations remain explicit hardware gates.
@@ -40,7 +51,10 @@ The E2E Info.plist contains exactly these automation markers:
 
 The ordinary `InterfaceInfo.plist.in` contains neither key. Normal Release
 packaging invokes the same validator in `disabled` mode and fails if either
-marker leaks into a non-E2E application. Only an iOS E2E build resolves and
+marker or the compiled E2E-only results-path boundary leaks into a non-E2E
+application. The validator checks both the build-tree application and the
+finished IPA/ZIP. Conversely, an E2E package must contain both its plist
+contract and its compiled opt-in boundary. Only an iOS E2E build resolves and
 creates `--testResultsLocation` below the Documents directory. The normalized
 path must remain inside Documents, so `..` traversal fails closed; ordinary iOS
 and desktop behavior is unchanged.
@@ -58,6 +72,14 @@ reviewers. Configure these Environment secrets:
 - `IOS_E2E_TEAM_IDENTIFIER`;
 - `IOS_E2E_KEYCHAIN_PASSWORD`; and
 - `IOS_E2E_LAB_AGE_RECIPIENT`.
+
+The Environment restriction is not a replacement for repository governance.
+Before this optional secret-bearing producer is enabled, `apple-ios` must have
+branch protection or a ruleset that prevents unreviewed workflow changes.
+Environment reviewers must not be able to approve their own deployment, and
+administrator bypass must follow the repository's documented emergency policy.
+If any of these controls is absent, leave the signing secrets unconfigured and
+use only the credential-free Personal Team signing-kit path.
 
 The application profile must authorize the Overte workflow bundle ID. The WDA
 profile must authorize both the Appium base ID and its installed
@@ -100,6 +122,17 @@ schema is:
   "contract": "overte-ios-fedora-e2e-artifact-v1",
   "kind": "overte-app",
   "sourceRevision": "0123456789abcdef0123456789abcdef01234567",
+  "createdAt": "2029-01-01T00:00:00Z",
+  "notAfter": "2029-01-02T00:00:00Z",
+  "provenance": {
+    "repository": "overte-org/overte",
+    "repositoryId": 123456,
+    "workflow": ".github/workflows/ios-bootstrap.yml",
+    "reusableWorkflow": ".github/workflows/ios-fedora-e2e-producer.yml",
+    "ref": "refs/heads/apple-ios",
+    "runId": 987654,
+    "runAttempt": 1
+  },
   "artifact": {
     "name": "0001-OverteIOSClient-Release-device-signed.ipa",
     "sha256": "<64 lowercase hex characters>",
@@ -116,13 +149,28 @@ schema is:
 }
 ```
 
-For `kind = webdriveragent`, `testBuildContractVersion` is replaced by:
+`notAfter` is exactly 24 hours after `createdAt`. Every provisioning profile
+covered by the artifact must remain valid through that boundary; Fedora rejects
+the pair after it. This contract limit is intentionally shorter than the
+embedded Apple profile's own `profileExpiration`.
+
+For `kind = webdriveragent`, `testBuildContractVersion` is replaced by the
+toolchain pin and the separately signed embedded XCTest identity:
 
 ```json
 {
   "toolchain": {
     "xcuitestDriver": "12.8.0",
     "webdriverAgent": "16.8.0"
+  },
+  "xctest": {
+    "bundle": { "id": "org.overte.WebDriverAgentRunner" },
+    "signing": {
+      "signed": true,
+      "teamIdentifier": "ABCDE12345",
+      "applicationIdentifier": "ABCDE12345.org.overte.WebDriverAgentRunner",
+      "profileExpiration": "2030-01-02T00:00:00Z"
+    }
   }
 }
 ```
@@ -134,11 +182,18 @@ uses the same suffixed bundle ID.
 
 The manifest generator verifies the final IPA bytes, archive root, deep code
 signature, top-level provisioning profile, team, exact signed application
-identifier, profile expiry, bundle ID, and Overte markers. For WDA it also
+identifier, profile expiry, bundle ID, Overte markers and 24-hour contract
+window. The extracted leaf signing certificate must occur byte-for-byte in the
+profile's `DeveloperCertificates` and remain valid beyond that window.
+Repository ID, protected branch, registered dispatch workflow, local
+reusable producer path, workflow revision, exact run ID and run attempt are
+captured from the protected GitHub context;
+the unsigned Overte IPA must first match its same-run integrated-build manifest
+and SHA-256. For WDA the generator also
 verifies `PlugIns/WebDriverAgentRunner.xctest` individually: its Base-ID
 Info.plist, signature, team, application identifier and profile authorization
-must all match. It never copies `ProvisionedDevices` or any UDID into a manifest
-or log.
+must all match, and those nested values are attested separately. It never copies
+`ProvisionedDevices` or any UDID into a manifest or log.
 
 The signed IPA itself necessarily embeds an Apple provisioning profile, which
 may contain authorized device identifiers. Only age ciphertext is uploaded;
@@ -151,7 +206,7 @@ A real-device XCUITest session from Fedora requires all of the following:
 
 - a paired, Developer-Mode iOS/iPadOS 18 or newer device;
 - an active usbmuxd/libimobiledevice connection;
-- Appium XCUITest 12.8.0 with `appium-ios-remotexpc` 5.1 or newer;
+- Appium Core 3.7.0, XCUITest 12.8.0 and `appium-ios-remotexpc` 5.15.3;
 - an active RemoteXPC tunnel;
 - explicit `udid` and `platformVersion` capabilities;
 - the exact E2E app and WDA IPAs approved by manifest SHA-256; and

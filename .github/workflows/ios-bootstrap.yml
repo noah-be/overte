@@ -24,12 +24,51 @@ on:
           - iphone-online
           - ipad-serverless
           - ipad-online
+      fedora_e2e_producer:
+        description: Run only the protected signed Fedora device-lab producer
+        required: false
+        type: boolean
+        default: false
+      personal_team_e2e_kit:
+        description: Run only the credential-free unsigned Personal Team E2E kit producer
+        required: false
+        type: boolean
+        default: false
+      qt_host_cache_key:
+        description: Existing audited Qt 6 host-tools cache key for an E2E artifact producer
+        required: false
+        type: string
+      qt_ios_cache_key:
+        description: Existing audited Qt 6 iOS cache key for an E2E artifact producer
+        required: false
+        type: string
+      qt_host_artifact_prefix:
+        description: Durable audited Qt 6 host-tools artifact namespace for an E2E producer
+        required: false
+        type: string
+      qt_ios_artifact_prefix:
+        description: Durable audited Qt 6 iOS artifact namespace for an E2E producer
+        required: false
+        type: string
+      overte_bundle_id:
+        description: Dedicated Fedora E2E bundle identifier ending in .e2e
+        required: false
+        default: org.overte.interface.e2e
+        type: string
+      wda_bundle_id:
+        description: Fedora Appium updatedWDABundleId base without .xctrunner
+        required: false
+        default: org.overte.WebDriverAgentRunner
+        type: string
   push:
     branches:
       - apple-ios
     paths:
       - 'CMakeLists.txt'
       - '.github/workflows/ios-bootstrap.yml'
+      - '.github/workflows/ios-fedora-e2e-producer.yml'
+      - '.github/workflows/ios-integrated.yml'
+      - '.github/workflows/ios-personal-team-e2e-kit.yml'
       - 'cmake/QtCompat.cmake'
       - 'cmake/init.cmake'
       - 'cmake/compiler.cmake'
@@ -54,6 +93,9 @@ on:
     paths:
       - 'CMakeLists.txt'
       - '.github/workflows/ios-bootstrap.yml'
+      - '.github/workflows/ios-fedora-e2e-producer.yml'
+      - '.github/workflows/ios-integrated.yml'
+      - '.github/workflows/ios-personal-team-e2e-kit.yml'
       - 'cmake/QtCompat.cmake'
       - 'cmake/init.cmake'
       - 'cmake/compiler.cmake'
@@ -85,6 +127,8 @@ concurrency:
   group: >-
     ios-bootstrap-${{ github.ref }}-${{
       (github.event_name == 'workflow_dispatch' && inputs.world_evidence && 'world') ||
+      (github.event_name == 'workflow_dispatch' && inputs.fedora_e2e_producer && 'fedora-e2e') ||
+      (github.event_name == 'workflow_dispatch' && inputs.personal_team_e2e_kit && 'personal-team-e2e') ||
       (github.event_name == 'workflow_dispatch' && inputs.integrated && 'integrated') ||
       (github.event_name == 'push' && contains(github.event.head_commit.message, '[ios-worlds]') && 'world') ||
       (github.event_name == 'push' &&
@@ -123,6 +167,44 @@ jobs:
       qt_host_artifact_prefix: ${{ needs.provision-qt-ios.outputs.qt_host_artifact_prefix }}
       qt_ios_artifact_prefix: ${{ needs.provision-qt-ios.outputs.qt_ios_artifact_prefix }}
 
+  fedora-e2e-producer:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.fedora_e2e_producer &&
+      inputs.personal_team_e2e_kit != true &&
+      inputs.integrated != true &&
+      inputs.world_evidence != true
+    needs: host-contracts
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/ios-fedora-e2e-producer.yml
+    with:
+      qt_host_cache_key: ${{ inputs.qt_host_cache_key }}
+      qt_ios_cache_key: ${{ inputs.qt_ios_cache_key }}
+      qt_host_artifact_prefix: ${{ inputs.qt_host_artifact_prefix }}
+      qt_ios_artifact_prefix: ${{ inputs.qt_ios_artifact_prefix }}
+      overte_bundle_id: ${{ inputs.overte_bundle_id }}
+      wda_bundle_id: ${{ inputs.wda_bundle_id }}
+
+  personal-team-e2e-kit:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.personal_team_e2e_kit &&
+      inputs.fedora_e2e_producer != true &&
+      inputs.integrated != true &&
+      inputs.world_evidence != true
+    needs: host-contracts
+    permissions:
+      actions: read
+      contents: read
+    uses: ./.github/workflows/ios-personal-team-e2e-kit.yml
+    with:
+      qt_host_cache_key: ${{ inputs.qt_host_cache_key }}
+      qt_ios_cache_key: ${{ inputs.qt_ios_cache_key }}
+      qt_host_artifact_prefix: ${{ inputs.qt_host_artifact_prefix }}
+      qt_ios_artifact_prefix: ${{ inputs.qt_ios_artifact_prefix }}
+
   world-runtime-evidence:
     if: >-
       (github.event_name == 'workflow_dispatch' && inputs.world_evidence) ||
@@ -145,6 +227,30 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Reject conflicting manual modes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_INTEGRATED: ${{ inputs.integrated || false }}
+          RUN_WORLD_EVIDENCE: ${{ inputs.world_evidence || false }}
+          RUN_FEDORA_E2E: ${{ inputs.fedora_e2e_producer || false }}
+          RUN_PERSONAL_TEAM_E2E: ${{ inputs.personal_team_e2e_kit || false }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" != workflow_dispatch ]]; then
+            exit 0
+          fi
+          selected=0
+          for value in "$RUN_INTEGRATED" "$RUN_WORLD_EVIDENCE" \
+            "$RUN_FEDORA_E2E" "$RUN_PERSONAL_TEAM_E2E"; do
+            if [[ "$value" == true ]]; then
+              selected=$((selected + 1))
+            fi
+          done
+          if (( selected > 1 )); then
+            echo "select at most one manual iOS workflow mode" >&2
+            exit 1
+          fi
+
       - name: Run Linux preparation contracts
         run: ios/tests/run-tests.sh
 
@@ -152,6 +258,8 @@ jobs:
     if: >-
       !(github.event_name == 'workflow_dispatch' && inputs.integrated) &&
       !(github.event_name == 'workflow_dispatch' && inputs.world_evidence) &&
+      !(github.event_name == 'workflow_dispatch' && inputs.fedora_e2e_producer) &&
+      !(github.event_name == 'workflow_dispatch' && inputs.personal_team_e2e_kit) &&
       (github.event_name != 'push' ||
        (!contains(github.event.head_commit.message, '[ios-integrated]') &&
         !contains(github.event.head_commit.message, '[ios-worlds]')))
@@ -227,6 +335,8 @@ jobs:
     if: >-
       !(github.event_name == 'workflow_dispatch' && inputs.integrated) &&
       !(github.event_name == 'workflow_dispatch' && inputs.world_evidence) &&
+      !(github.event_name == 'workflow_dispatch' && inputs.fedora_e2e_producer) &&
+      !(github.event_name == 'workflow_dispatch' && inputs.personal_team_e2e_kit) &&
       (github.event_name != 'push' ||
        (!contains(github.event.head_commit.message, '[ios-integrated]') &&
         !contains(github.event.head_commit.message, '[ios-worlds]')))

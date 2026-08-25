@@ -9,6 +9,8 @@ from __future__ import annotations
 import importlib.util
 import plistlib
 import subprocess
+import tempfile
+import zipfile
 from pathlib import Path
 
 
@@ -53,11 +55,42 @@ def main() -> None:
         else:
             raise AssertionError("E2E marker isolation must fail closed")
 
+    with tempfile.TemporaryDirectory(prefix="overte-ios-e2e-package-") as temporary:
+        root = Path(temporary)
+        normal_archive = root / "normal.ipa"
+        e2e_archive = root / "e2e.ipa"
+        with zipfile.ZipFile(normal_archive, "w") as archive:
+            archive.writestr("Payload/Overte.app/Info.plist", plistlib.dumps(normal))
+            archive.writestr("Payload/Overte.app/Overte", b"normal release executable")
+        with zipfile.ZipFile(e2e_archive, "w") as archive:
+            archive.writestr("Payload/Overte.app/Info.plist", plistlib.dumps(e2e))
+            archive.writestr(
+                "Payload/Overte.app/Overte",
+                b"binary prefix " + validator.E2E_BINARY_MARKER + b" binary suffix",
+            )
+        validator.validate_archive(normal_archive, "Payload/Overte.app", "disabled")
+        validator.validate_archive(e2e_archive, "Payload/Overte.app", "enabled")
+        for archive, expected in (
+            (normal_archive, "enabled"),
+            (e2e_archive, "disabled"),
+        ):
+            try:
+                validator.validate_archive(archive, "Payload/Overte.app", expected)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("packaged E2E runtime boundary must fail closed")
+
     build_script = (IOS / "build-ios.sh").read_text(encoding="utf-8")
+    integrated_workflow = (ROOT / ".github/workflows/ios-integrated.yml").read_text(
+        encoding="utf-8"
+    )
     cmake = (ROOT / "interface/CMakeLists.txt").read_text(encoding="utf-8")
     setup = (ROOT / "interface/src/Application_Setup.cpp").read_text(encoding="utf-8")
     assert "-DOVERTE_IOS_E2E_TEST_BUILD=" in build_script
     assert "verify-e2e-test-build.py" in build_script
+    assert "Verify packaged E2E release boundary" in integrated_workflow
+    assert "--archive-root Payload/Overte.app" in integrated_workflow
     assert "InterfaceE2EInfo.plist.in" in cmake
     assert 'MATCHES "[.]e2e$"' in cmake
     assert "#if defined(Q_OS_IOS) && defined(OVERTE_IOS_E2E_TEST_BUILD)" in setup
