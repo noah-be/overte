@@ -16,6 +16,8 @@ class OverteSession:
     def __init__(self) -> None:
         self.poll_seconds = self._float_environment("OVERTE_E2E_POLL_SECONDS", 0.5, 0.05, 5.0)
         self.timeout_seconds = self._float_environment("OVERTE_E2E_TIMEOUT_SECONDS", 45.0, 1.0, 600.0)
+        self.pico_openxr = os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1"
+        self.last_sample_sequence: int | None = None
 
     @staticmethod
     def _float_environment(name: str, default: float, minimum: float, maximum: float) -> float:
@@ -28,10 +30,22 @@ class OverteSession:
         return value
 
     def snapshot(self, artifact: str | None = None) -> dict:
+        arguments = {}
+        if self.pico_openxr and self.last_sample_sequence is not None:
+            arguments["afterSampleSequence"] = self.last_sample_sequence
         try:
-            value = validate_probe_snapshot(operation("probe.snapshot"))
+            value = validate_probe_snapshot(operation("probe.snapshot", arguments))
         except ValueError as error:
             fail(str(error))
+        if self.pico_openxr:
+            sequence = value.get("sampleSequence")
+            if (not isinstance(sequence, int) or isinstance(sequence, bool)
+                    or sequence <= 0):
+                fail("Pico probe snapshot requires a positive sampleSequence")
+            if (self.last_sample_sequence is not None
+                    and sequence <= self.last_sample_sequence):
+                fail("Pico probe snapshot did not advance")
+            self.last_sample_sequence = sequence
         if artifact:
             write_json(artifact, value)
         return value
@@ -69,7 +83,7 @@ class OverteSession:
 
     def verify_pico_fixture(self, initial: dict) -> list[dict]:
         """Record the Pico fixture geometry and five fresh stable samples."""
-        if os.environ.get("OVERTE_PICO_OPENXR_INPUT") != "1":
+        if not self.pico_openxr:
             return [initial]
         scene = initial["scene"]
         position = initial["avatar"]["position"]
@@ -92,9 +106,6 @@ class OverteSession:
         deadline = time.monotonic() + self.timeout_seconds
         while len(samples) < 5 and time.monotonic() < deadline:
             candidate = self.snapshot()
-            if candidate["sampleEpochMs"] <= samples[-1]["sampleEpochMs"]:
-                time.sleep(self.poll_seconds)
-                continue
             if self._distance(samples[-1]["avatar"]["position"],
                               candidate["avatar"]["position"]) <= tolerance:
                 samples.append(candidate)
@@ -145,7 +156,7 @@ class OverteSession:
         result = operation("input.look", {"horizontal": horizontal, "vertical": vertical})
         write_json("look-input-result.json", result)
         minimum = self._float_environment("OVERTE_E2E_MIN_LOOK_DEGREES", 5.0, 0.1, 180.0)
-        pico = os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1"
+        pico = self.pico_openxr
 
         def changed_with_neutral_controller(value: dict) -> bool:
             changed = self._angle_delta(before["view"]["orientation"],

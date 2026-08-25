@@ -12,6 +12,13 @@
     var sceneReady = false;
     var spawnApplied = false;
     var spawnRequestPending = false;
+    var sampleSequence = 0;
+    var probeErrorCount = 0;
+    var lastProbeError = "";
+    var lastSampleEpochMs = 0;
+    var lastHeartbeatEpochMs = 0;
+    var sampleIntervalMs = 250;
+    var heartbeatIntervalMs = 5000;
     var fixtureMarkers = ["OVERTE_E2E_FLOOR", "OVERTE_E2E_NORTH", "OVERTE_E2E_EAST", "OVERTE_E2E_ORIGIN"];
     var expectedSpawn = { x: 0.0, y: 2.0, z: 4.0 };
 
@@ -60,7 +67,7 @@
         };
     }
 
-    function sample() {
+    function sample(now) {
         var ids = Entities.findEntities(MyAvatar.position, 1000.0);
         var foundMarkers = {};
         var floorTopY = null;
@@ -113,9 +120,11 @@
             sceneReady = true;
         }
         var orientation = Quat.safeEulerAngles(Camera.orientation);
+        sampleSequence += 1;
         Test.saveObject({
             schemaVersion: 1,
-            sampleEpochMs: Date.now(),
+            sampleEpochMs: now,
+            sampleSequence: sampleSequence,
             build: {
                 platform: String(About.platform),
                 version: String(About.buildVersion),
@@ -185,9 +194,39 @@
         }, "overte-probe.json");
     }
 
-    var timer = Script.setInterval(sample, 250);
+    function safeErrorText(error) {
+        return String(error && error.message ? error.message : error)
+            .replace(/[\r\n]+/g, " ").slice(0, 160);
+    }
+
+    function updateProbe() {
+        var now = Date.now();
+        if (lastSampleEpochMs !== 0 && now - lastSampleEpochMs < sampleIntervalMs) {
+            return;
+        }
+        lastSampleEpochMs = now;
+        try {
+            sample(now);
+            lastProbeError = "";
+        } catch (error) {
+            probeErrorCount += 1;
+            var detail = safeErrorText(error);
+            if (detail !== lastProbeError) {
+                print("OVERTE_E2E_PROBE_ERROR " + detail);
+                lastProbeError = detail;
+            }
+        }
+        if (lastHeartbeatEpochMs === 0
+                || now - lastHeartbeatEpochMs >= heartbeatIntervalMs) {
+            print("OVERTE_E2E_PROBE_HEARTBEAT sequence=" + sampleSequence
+                + " errors=" + probeErrorCount);
+            lastHeartbeatEpochMs = now;
+        }
+    }
+
+    Script.update.connect(updateProbe);
     Script.scriptEnding.connect(function () {
-        Script.clearInterval(timer);
+        Script.update.disconnect(updateProbe);
     });
-    sample();
+    updateProbe();
 }());

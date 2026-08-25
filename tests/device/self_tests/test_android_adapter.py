@@ -36,6 +36,8 @@ process_path=os.environ.get("MOCK_ANDROID_PROCESS_STATE", "")
 process_state=open(process_path).read().strip() if process_path and os.path.exists(process_path) else "running"
 display_path=os.environ.get("MOCK_ANDROID_DISPLAY_STATE", "")
 display=json.loads(open(display_path).read()) if display_path and os.path.exists(display_path) else {"brightness":128,"mode":0}
+probe_sequence_path=os.environ.get("MOCK_PROBE_SEQUENCE_STATE", "")
+probe_sequence=int(open(probe_sequence_path).read()) if probe_sequence_path and os.path.exists(probe_sequence_path) else 0
 if cmd in (["devices", "-l"], ["devices"]):
     if isolated: print("List of devices attached\npico-secret device")
     else: print("List of devices attached\nphone-secret device model:Phone\npico-secret device model:PICO")
@@ -107,7 +109,11 @@ elif cmd and cmd[0] == "exec-out" and "grant.json" in cmd[-1]:
         status["detail"]="grant-removed"; status["updatedEpochMs"]=int(time.time()*1000)
         open(status_path,"w").write(json.dumps(status))
 elif cmd[:4] == ["shell", "run-as", "org.overte.phone", "cat"] or cmd[:4] == ["shell", "run-as", "org.overte.pico", "cat"]:
-    print(json.dumps({"schemaVersion":1,"sampleEpochMs":int(time.time()*1000),
+    probe_sequence += 1
+    if probe_sequence_path: open(probe_sequence_path,"w").write(str(probe_sequence))
+    stale_reads=int(os.environ.get("MOCK_PROBE_STALE_READS", "0"))
+    sampled=1 if probe_sequence <= stale_reads else int(time.time()*1000)
+    print(json.dumps({"schemaVersion":1,"sampleEpochMs":sampled,"sampleSequence":probe_sequence,
       "build":{"platform":"Mock","version":"android-contract","date":"1970-01-01"},
       "application":{"running":True,"foreground":True},
       "scene":{"url":"file:///fixture/scene.json","ready":True,"entityCount":4,
@@ -137,6 +143,30 @@ class AndroidAdapterTest(unittest.TestCase):
             str(ROOT / "adapters" / "android" / f"{kind}.json"), "--check-cleanup",
         ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
            env=self.environment, check=False)
+
+    def prepare_pico_session(self, prefix: str) -> tuple[list[str], Path]:
+        state = Path(self.temporary.name) / f"{prefix}-state"
+        state.mkdir(mode=0o700)
+        process = Path(self.temporary.name) / f"{prefix}-process"
+        process.write_text("stopped", encoding="utf-8")
+        display = Path(self.temporary.name) / f"{prefix}-display.json"
+        display.write_text(json.dumps({"brightness": 101, "mode": 1}), encoding="utf-8")
+        self.environment.update({
+            "OVERTE_ANDROID_E2E_DEBUG": "1",
+            "OVERTE_PICO_OPENXR_INPUT": "1",
+            "ANDROID_ADB_SERVER_PORT": "5041",
+            "OVERTE_PICO_OPENXR_STATE_DIR": str(state),
+            "MOCK_ANDROID_PROCESS_STATE": str(process),
+            "MOCK_ANDROID_DISPLAY_STATE": str(display),
+        })
+        common = [sys.executable, str(ADAPTER), "--kind", "pico", "invoke",
+                  "--target", "pico-secret"]
+        launched = subprocess.run(
+            [*common, "--operation", "app.launch", "--arguments", "{}"],
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=self.environment, check=False)
+        self.assertEqual(0, launched.returncode, launched.stdout)
+        return common, display
 
     def test_phone_profile_discovers_only_phone(self):
         result = self.verify("phone")
@@ -297,6 +327,56 @@ class AndroidAdapterTest(unittest.TestCase):
         commands = [json.loads(line) for line in argv_log.read_text().splitlines()]
         self.assertTrue(commands)
         self.assertTrue(all(command[:1] != ["-P"] for command in commands))
+
+    def test_pico_probe_polls_from_stale_to_newer_sequence(self):
+        common, display = self.prepare_pico_session("advancing-probe")
+        sequence = Path(self.temporary.name) / "advancing-probe-sequence"
+        self.environment.update({
+            "MOCK_PROBE_SEQUENCE_STATE": str(sequence),
+            "MOCK_PROBE_STALE_READS": "2",
+            "OVERTE_ANDROID_E2E_PROBE_ATTEMPTS": "5",
+            "OVERTE_ANDROID_E2E_PROBE_POLL_SECONDS": "0.01",
+        })
+        result = subprocess.run(
+            [*common, "--operation", "probe.snapshot", "--arguments",
+             json.dumps({"afterSampleSequence": 3})],
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=self.environment, check=False)
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertEqual(4, json.loads(result.stdout)["sampleSequence"])
+        self.assertEqual("4", sequence.read_text(encoding="utf-8"))
+        cleaned = subprocess.run(
+            [sys.executable, str(ADAPTER), "--kind", "pico", "cleanup",
+             "--target", "pico-secret"], text=True, stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, env=self.environment, check=False)
+        self.assertEqual(0, cleaned.returncode, cleaned.stdout)
+        self.assertEqual({"brightness": 101, "mode": 1},
+                         json.loads(display.read_text(encoding="utf-8")))
+
+    def test_pico_probe_fails_closed_when_snapshot_never_becomes_fresh(self):
+        common, display = self.prepare_pico_session("stalled-probe")
+        sequence = Path(self.temporary.name) / "stalled-probe-sequence"
+        self.environment.update({
+            "MOCK_PROBE_SEQUENCE_STATE": str(sequence),
+            "MOCK_PROBE_STALE_READS": "999",
+            "OVERTE_ANDROID_E2E_PROBE_ATTEMPTS": "3",
+            "OVERTE_ANDROID_E2E_PROBE_POLL_SECONDS": "0.01",
+        })
+        result = subprocess.run(
+            [*common, "--operation", "probe.snapshot", "--arguments", "{}"],
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=self.environment, check=False)
+        self.assertEqual(2, result.returncode, result.stdout)
+        self.assertIn("unavailable, stale, or did not advance", result.stdout)
+        self.assertNotIn("pico-secret", result.stdout)
+        self.assertEqual("3", sequence.read_text(encoding="utf-8"))
+        cleaned = subprocess.run(
+            [sys.executable, str(ADAPTER), "--kind", "pico", "cleanup",
+             "--target", "pico-secret"], text=True, stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, env=self.environment, check=False)
+        self.assertEqual(0, cleaned.returncode, cleaned.stdout)
+        self.assertEqual({"brightness": 101, "mode": 1},
+                         json.loads(display.read_text(encoding="utf-8")))
 
     def test_pico_brightness_failure_restores_original_state_before_launch(self):
         state = Path(self.temporary.name) / "brightness-failure-state"

@@ -40,7 +40,7 @@ def initial_state() -> dict:
         "launchCount": 0, "sceneLoadCount": 0,
         "position": {"x": 0.0, "y": 2.0 if pico else 1.0, "z": 4.0},
         "orientation": {"x": 0.0, "y": 0.0, "z": 0.0}, "tablet": False,
-        "picoRouteActive": False, "inputSequence": 0,
+        "picoRouteActive": False, "inputSequence": 0, "sampleSequence": 0,
     }
 
 
@@ -98,9 +98,15 @@ def invoke(operation: str, arguments: dict) -> dict:
         result = {"performed": True, "neutralBeforeCommand": True,
                   "sequence": state["inputSequence"]}
     elif operation == "probe.snapshot":
+        after = arguments.get("afterSampleSequence")
+        if (after is not None and (not isinstance(after, int) or isinstance(after, bool)
+                                   or after < 0)):
+            raise RuntimeError("afterSampleSequence must be a non-negative integer")
+        state["sampleSequence"] += 1
         snapshot = {
             "schemaVersion": 1,
             "sampleEpochMs": int(time.time() * 1000),
+            "sampleSequence": state["sampleSequence"],
             "build": {"platform": "Mock", "version": "device-contract",
                       "date": "1970-01-01"},
             "application": {"running": state["running"], "foreground": state["foreground"]},
@@ -145,6 +151,7 @@ def invoke(operation: str, arguments: dict) -> dict:
                     "right": {"valid": False, "translation": None, "rotation": None},
                 },
             }
+        save(state)
         return snapshot
     else:
         raise RuntimeError(f"unsupported operation: {operation}")

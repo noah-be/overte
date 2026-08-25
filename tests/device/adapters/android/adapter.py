@@ -205,6 +205,42 @@ class AndroidAdapter:
         self.pico_input_session(target).require_process_identity(identity)
         return identity
 
+    @staticmethod
+    def probe_retry_policy() -> tuple[int, float]:
+        attempts_raw = os.environ.get("OVERTE_ANDROID_E2E_PROBE_ATTEMPTS", "60")
+        interval_raw = os.environ.get("OVERTE_ANDROID_E2E_PROBE_POLL_SECONDS", "0.25")
+        if not attempts_raw.isdigit() or not 1 <= int(attempts_raw) <= 120:
+            fail("OVERTE_ANDROID_E2E_PROBE_ATTEMPTS must be from 1 through 120")
+        try:
+            interval = float(interval_raw)
+        except ValueError:
+            fail("OVERTE_ANDROID_E2E_PROBE_POLL_SECONDS must be numeric")
+        if not 0.01 <= interval <= 1.0:
+            fail("OVERTE_ANDROID_E2E_PROBE_POLL_SECONDS must be from 0.01 through 1.0")
+        return int(attempts_raw), interval
+
+    def read_probe_snapshot(self, target: str, package: str,
+                            after_sequence: int | None) -> dict:
+        attempts, interval = self.probe_retry_policy()
+        for attempt in range(attempts):
+            raw = self.adb.read_debug_app_file(
+                target, package, ANDROID_DEBUG_PROBE, attempts=1)
+            try:
+                snapshot = require_fresh_snapshot(json.loads(raw))
+            except (json.JSONDecodeError, RuntimeError):
+                snapshot = None
+            if snapshot is not None:
+                sequence = snapshot.get("sampleSequence")
+                sequence_valid = (isinstance(sequence, int)
+                                  and not isinstance(sequence, bool) and sequence > 0)
+                if ((self.kind != "pico" or sequence_valid)
+                        and (after_sequence is None
+                             or (sequence_valid and sequence > after_sequence))):
+                    return snapshot
+            if attempt + 1 < attempts:
+                time.sleep(interval)
+        fail("Android probe snapshot is unavailable, stale, or did not advance")
+
     def discover(self) -> list[dict]:
         targets = []
         for selector in self.adb.authorized_targets():
@@ -285,12 +321,15 @@ class AndroidAdapter:
                 fail("probe.snapshot requires an E2E-enabled debug APK")
             if self.kind == "pico" and pico_openxr_opted_in():
                 self.require_pico_session_identity(target)
-            raw = self.adb.read_debug_app_file(target, package, ANDROID_DEBUG_PROBE)
-            try:
-                snapshot = json.loads(raw)
-            except json.JSONDecodeError as error:
-                fail("Android probe snapshot is unavailable or incomplete")
-            return require_fresh_snapshot(snapshot)
+            unexpected = set(values) - {"afterSampleSequence"}
+            if unexpected:
+                fail("probe.snapshot arguments are unsupported")
+            after_sequence = values.get("afterSampleSequence")
+            if (after_sequence is not None and (
+                    not isinstance(after_sequence, int) or isinstance(after_sequence, bool)
+                    or after_sequence < 0)):
+                fail("afterSampleSequence must be a non-negative integer")
+            return self.read_probe_snapshot(target, package, after_sequence)
         if operation in {"input.look", "input.move", "tablet.open", "tablet.close"}:
             identity = self.require_pico_session_identity(target)
             return self.pico_input_session(target).stage(identity, operation, values)

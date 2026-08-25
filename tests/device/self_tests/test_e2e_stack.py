@@ -25,7 +25,7 @@ class E2EStackTest(unittest.TestCase):
     @staticmethod
     def snapshot() -> dict:
         return {
-            "schemaVersion": 1, "sampleEpochMs": 1,
+            "schemaVersion": 1, "sampleEpochMs": 1, "sampleSequence": 1,
             "build": {"platform": "Mock", "version": "1", "date": "1970-01-01"},
             "application": {"running": True},
             "scene": {"ready": True, "entityCount": 4},
@@ -42,6 +42,10 @@ class E2EStackTest(unittest.TestCase):
         snapshot = self.snapshot()
         snapshot["avatar"]["position"]["x"] = float("nan")
         with self.assertRaisesRegex(ValueError, "position"):
+            validate_probe_snapshot(snapshot)
+        snapshot = self.snapshot()
+        snapshot["sampleSequence"] = True
+        with self.assertRaisesRegex(ValueError, "sampleSequence"):
             validate_probe_snapshot(snapshot)
 
     def test_probe_contract_observes_standard_controller_values_and_poses(self):
@@ -111,6 +115,12 @@ class E2EStackTest(unittest.TestCase):
         self.assertIn("Controller.getValue(openXr.LY)", probe)
         self.assertIn("Controller.getValue(Controller.Actions.TranslateZ)", probe)
         self.assertIn("MyAvatar.getRawDriveKey(DriveKeys.TRANSLATE_Z)", probe)
+        self.assertIn("sampleSequence: sampleSequence", probe)
+        self.assertIn("OVERTE_E2E_PROBE_HEARTBEAT", probe)
+        self.assertIn("OVERTE_E2E_PROBE_ERROR", probe)
+        self.assertIn("Script.update.connect(updateProbe)", probe)
+        self.assertIn("Script.update.disconnect(updateProbe)", probe)
+        self.assertNotIn("Script.setInterval", probe)
 
         pico_setup = (ROOT.parents[1] /
                       "android/vr/pico/apps/picoInterface/overrides/Application_Setup.cpp"
