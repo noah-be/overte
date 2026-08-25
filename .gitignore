@@ -48,6 +48,8 @@ local.properties
 /android/vr/pico/apps/picoInterface/.cxx/
 /android/phone/apps/phoneInterface/build/
 /android/phone/apps/phoneInterface/.cxx/
+/android/phone/.gradle/
+/android/phone/build/
 /android/common/conan/pico4-*/
 /android/common/conan/phone-16k-debug/
 /android/common/conan/phone-nonqt-16k-debug/
@@ -56,6 +58,8 @@ local.properties
 /android/common/conan/phone-emulator-x86_64-debug/
 /android/pico-host-tools/
 /android/pico-precompiled-compat/
+/android/vr/pico/pico-host-tools/
+/android/vr/pico/pico-precompiled-compat/
 /android/power-results/
 /android/vr/pico/apps/picoInterface/src/main/runtime-overrides/
 /android/common/runtime-overrides/

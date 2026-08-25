@@ -90,6 +90,7 @@ test("production action bar creates adaptive controls and applies deferred geome
     assert.equal(state.navigation.qml, "hifi/ActionBar.qml");
     assert.equal(state.audio.qml, "hifi/AudioBar.qml");
     assert.deepEqual(state.navigation.buttons.map((button) => button.text), ["GO TO", "TABLET", "VIEW"]);
+    assert.equal(state.navigation.buttons[1].objectName, "OverteTabletOpen");
     assert.equal(state.audio.buttons[0].text, "MUTE");
     assert.equal(state.navigation.buttons[0].width, 80);
     assert.equal(state.Script.timers.size, 1);

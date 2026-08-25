@@ -434,6 +434,7 @@ Item {
             MouseArea {
                 id: closeTabletMouseArea
                 anchors.fill: parent
+                objectName: "OverteTabletClose"
                 activeFocusOnTab: visible
                 Accessible.role: Accessible.Button
                 Accessible.name: qsTr("Close tablet")

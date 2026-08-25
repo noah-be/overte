@@ -22,17 +22,24 @@ def load_command(manifest_path: Path) -> list[str]:
     executable = Path(command[0])
     if not executable.is_absolute():
         executable = manifest_path.parent / executable
-    return [str(executable.resolve()), *command[1:]]
+    executable = executable.resolve()
+    if executable.suffix.lower() == ".py":
+        return [sys.executable, str(executable), *command[1:]]
+    return [str(executable), *command[1:]]
 
 
 def invoke(manifest: Path, target: str, operation: str,
            arguments: dict[str, object] | None = None) -> object:
     command = load_command(manifest)
-    result = subprocess.run(
-        [*command, "invoke", "--target", target, "--operation", operation,
-         "--arguments", json.dumps(arguments or {}, separators=(",", ":"))],
-        text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
-    )
+    timeout = 240 if operation == "app.install" else 60
+    try:
+        result = subprocess.run(
+            [*command, "invoke", "--target", target, "--operation", operation,
+             "--arguments", json.dumps(arguments or {}, separators=(",", ":"))],
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout, check=False,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError("adapter operation timed out") from error
     if result.returncode != 0:
         detail = result.stderr.strip() or "adapter operation failed"
         raise RuntimeError(detail.replace(target, "<target>"))
@@ -61,4 +68,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

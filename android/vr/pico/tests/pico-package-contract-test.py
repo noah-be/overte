@@ -70,6 +70,18 @@ class PicoPackageContractTests(unittest.TestCase):
         self.assertIn('legacy_runtime_dir', build_script)
         self.assertIn('cp -a "$legacy_runtime_dir/." "$shared_runtime_dir/"', build_script)
 
+    def test_pico_conan_recipe_inherits_the_repository_recipe(self):
+        recipe_path = ANDROID / "common/conan/conanfile-pico.py"
+        recipe = recipe_path.read_text(encoding="utf-8")
+        expected_upstream = recipe_path.resolve().parents[3] / "conanfile.py"
+
+        self.assertEqual(expected_upstream, ROOT / "conanfile.py")
+        self.assertTrue(expected_upstream.is_file())
+        self.assertIn(
+            'Path(__file__).resolve().parents[3] / "conanfile.py"',
+            recipe,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

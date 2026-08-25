@@ -323,15 +323,16 @@ class OpenXrInputStateTest(unittest.TestCase):
         guess_start = SOURCE.index("void OpenXrInputPlugin::guessXDevRoles")
         guess_end = SOURCE.index("void OpenXrInputPlugin::calibrate()", guess_start)
         guess = SOURCE[guess_start:guess_end]
-        time_guard = guess.index("if (!_context->_lastPredictedDisplayTime.has_value())")
+        self.assertIn("XrTime sampleTime", guess)
+        self.assertNotIn("_lastPredictedDisplayTime", guess)
         first_locate = guess.index("xrLocateSpace(")
         validity = guess.index("REQUIRED_POSE_LOCATION_FLAGS", first_locate)
         height_guard = guess.index("std::numeric_limits<float>::epsilon()", validity)
         division = guess.index("stageSpace.pose.position.y / headSpace.pose.position.y", height_guard)
-        self.assertLess(time_guard, first_locate)
         self.assertLess(first_locate, validity)
         self.assertLess(validity, height_guard)
         self.assertLess(height_guard, division)
+        self.assertEqual(guess.count("sampleTime, &"), 3)
         self.assertIn("!stageLocated || !localLocated || !headLocated", guess)
 
         vive_start = SOURCE.index("void OpenXrInputPlugin::InputDevice::updateBodyFromViveTrackers")
@@ -397,7 +398,7 @@ class OpenXrInputStateTest(unittest.TestCase):
             self.assertNotIn("_poseStateMap[channel]", calibrate)
 
     def test_pending_xdev_calibration_retries_role_inference_under_lock(self):
-        for source in (SOURCE, DESKTOP_SOURCE):
+        for source, is_pico in ((SOURCE, True), (DESKTOP_SOURCE, False)):
             calibrate_start = source.index("void OpenXrInputPlugin::calibrate()")
             calibrate_end = source.index("bool OpenXrInputPlugin::uncalibrate()", calibrate_start)
             request = source[calibrate_start:calibrate_end]
@@ -408,10 +409,23 @@ class OpenXrInputStateTest(unittest.TestCase):
             update_start = source.index("void OpenXrInputPlugin::pluginUpdate")
             update_end = source.index("void OpenXrInputPlugin::loadSettings()", update_start)
             update = source[update_start:update_end]
+            if is_pico:
+                snapshot = update.index(
+                    "const auto sampleTime = _context->_lastPredictedDisplayTime"
+                )
             locked = update.index("userInputMapper->withLock")
             pending = update.index("_inputDevice->_wantsCalibrate", locked)
             backend = update.index("_context->_MNDX_xdevSpaceSupported", pending)
-            guess = update.index("guessXDevRoles(_inputDevice->_xdev)", backend)
+            if is_pico:
+                time_guard = update.index("sampleTime.has_value()", backend)
+                guess = update.index(
+                    "guessXDevRoles(_inputDevice->_xdev, sampleTime.value())", time_guard
+                )
+                self.assertLess(snapshot, locked)
+                self.assertLess(backend, time_guard)
+                self.assertLess(time_guard, guess)
+            else:
+                guess = update.index("guessXDevRoles(_inputDevice->_xdev)", backend)
             device_update = update.index("_inputDevice->update(deltaTime, inputCalibrationData)", guess)
             self.assertLess(locked, pending)
             self.assertLess(pending, backend)
@@ -419,19 +433,33 @@ class OpenXrInputStateTest(unittest.TestCase):
             self.assertLess(guess, device_update)
 
     def test_xdev_role_inference_clears_stale_assignments_after_time_guard(self):
-        for source in (SOURCE, DESKTOP_SOURCE):
+        for source, is_pico in ((SOURCE, True), (DESKTOP_SOURCE, False)):
             start = source.index("void OpenXrInputPlugin::guessXDevRoles")
             end = source.index("void OpenXrInputPlugin::calibrate()", start)
             guess = source[start:end]
-            time_guard = guess.index("if (!_context->_lastPredictedDisplayTime.has_value())")
-            role_loop = guess.index("for (auto& [_, tracker] : tracker_map)", time_guard)
+            if is_pico:
+                self.assertIn("XrTime sampleTime", guess)
+                self.assertNotIn("_lastPredictedDisplayTime", guess)
+                update_start = source.index("void OpenXrInputPlugin::pluginUpdate")
+                update_end = source.index("void OpenXrInputPlugin::loadSettings()", update_start)
+                update = source[update_start:update_end]
+                time_guard = update.index("sampleTime.has_value()")
+                inference = update.index(
+                    "guessXDevRoles(_inputDevice->_xdev, sampleTime.value())", time_guard
+                )
+                self.assertLess(time_guard, inference)
+                role_loop = guess.index("for (auto& [_, tracker] : tracker_map)")
+            else:
+                time_guard = guess.index("if (!_context->_lastPredictedDisplayTime.has_value())")
+                role_loop = guess.index("for (auto& [_, tracker] : tracker_map)", time_guard)
             role_clear = guess.index("tracker.pose_channel.reset()", role_loop)
             locate_loop = guess.index("for (auto [id, tracker] : tracker_map)", role_clear)
             first_locate = guess.index("xrLocateSpace(", locate_loop)
             validity = guess.index("REQUIRED_POSE_LOCATION_FLAGS", first_locate)
             height_guard = guess.index("std::numeric_limits<float>::epsilon()", validity)
             assign = guess.index("state.pose_channel =", height_guard)
-            self.assertLess(time_guard, role_loop)
+            if not is_pico:
+                self.assertLess(time_guard, role_loop)
             self.assertLess(role_loop, role_clear)
             self.assertLess(role_clear, locate_loop)
             self.assertLess(locate_loop, first_locate)

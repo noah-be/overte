@@ -1,8 +1,9 @@
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/cmake")
-set(ENV{SCRIBE_DIR} "${CMAKE_CURRENT_LIST_DIR}/pico-host-tools")
-set(ENV{GLSLANG_DIR} "${CMAKE_CURRENT_LIST_DIR}/pico-host-tools")
-set(ENV{SPIRV_CROSS_DIR} "${CMAKE_CURRENT_LIST_DIR}/pico-host-tools")
-set(ENV{SPIRV_TOOLS_DIR} "${CMAKE_CURRENT_LIST_DIR}/pico-host-tools")
+set(_android_host_tools_dir "${CMAKE_CURRENT_LIST_DIR}/../../vr/pico/pico-host-tools")
+set(ENV{SCRIBE_DIR} "${_android_host_tools_dir}")
+set(ENV{GLSLANG_DIR} "${_android_host_tools_dir}")
+set(ENV{SPIRV_CROSS_DIR} "${_android_host_tools_dir}")
+set(ENV{SPIRV_TOOLS_DIR} "${_android_host_tools_dir}")
 
 # Gradle invokes Ninja directly, so CMAKE_BUILD_PARALLEL_LEVEL alone does not
 # limit native compilation. A CMake job pool carries the Pico host limit into
@@ -22,6 +23,7 @@ set(SCRIBE_DIR "$ENV{SCRIBE_DIR}")
 set(SPIRV_CROSS_DIR "$ENV{SPIRV_CROSS_DIR}")
 set(SPIRV_TOOLS_DIR "$ENV{SPIRV_TOOLS_DIR}")
 ]=])
+unset(_android_host_tools_dir)
 
 # The legacy Android CMake path expects desktop OpenGL and Qt modules which are
 # either named differently or no longer shipped in our minimal Qt Android build.
@@ -38,7 +40,7 @@ if(ANDROID)
         set_property(
             TARGET Qt5::AndroidExtras
             PROPERTY INTERFACE_INCLUDE_DIRECTORIES
-            "${CMAKE_CURRENT_LIST_DIR}/cmake-pico-compat"
+            "${CMAKE_CURRENT_LIST_DIR}/pico-compat"
         )
     endif()
 
@@ -52,7 +54,7 @@ if(ANDROID)
             set_property(
                 TARGET Qt5::${_pico_qt_web_target}
                 PROPERTY INTERFACE_INCLUDE_DIRECTORIES
-                "${CMAKE_CURRENT_LIST_DIR}/cmake-pico-compat"
+                "${CMAKE_CURRENT_LIST_DIR}/pico-compat"
             )
         endif()
     endforeach()

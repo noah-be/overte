@@ -10,6 +10,7 @@ import subprocess
 import sys
 
 from adapter_client import load_command
+from contracts import validate_capabilities, validate_identifier
 
 
 def call(command: list[str], *arguments: str) -> object:
@@ -40,12 +41,7 @@ def validate_target(target: object, selectors: set[str]) -> dict:
     if not target["selector"] or target["selector"] in selectors:
         raise ValueError("target selectors must be unique non-empty strings")
     selectors.add(target["selector"])
-    capabilities = target["capabilities"]
-    if (not all(isinstance(item, str) and item for item in capabilities)
-            or len(capabilities) != len(set(capabilities))):
-        raise ValueError("target capabilities must be unique non-empty strings")
-    if capabilities != sorted(capabilities):
-        raise ValueError("target capabilities must use deterministic sorted order")
+    validate_capabilities(target["capabilities"])
     return target
 
 
@@ -55,16 +51,21 @@ def main() -> int:
     parser.add_argument("--target", help="validate only this private selector")
     parser.add_argument("--check-cleanup", action="store_true",
                         help="call cleanup twice to verify its idempotent success contract")
+    parser.add_argument("--require-target", action="store_true",
+                        help="fail when discovery returns no eligible configured target")
     args = parser.parse_args()
     manifest = json.loads(args.adapter_manifest.read_text(encoding="utf-8"))
-    if manifest.get("schemaVersion") != 1 or not isinstance(manifest.get("id"), str):
+    if manifest.get("schemaVersion") != 1:
         raise ValueError("invalid adapter manifest")
+    validate_identifier(manifest.get("id"), "adapter id")
     command = load_command(args.adapter_manifest.resolve())
     discovered = call(command, "discover")
     if not isinstance(discovered, list):
         raise ValueError("discover must return a JSON list")
     selectors: set[str] = set()
     targets = [validate_target(item, selectors) for item in discovered]
+    if args.require_target and not targets:
+        raise ValueError("adapter discovered no targets")
     if args.target:
         targets = [target for target in targets if target["selector"] == args.target]
         if not targets:
@@ -92,4 +93,3 @@ if __name__ == "__main__":
     except (OSError, ValueError, json.JSONDecodeError, subprocess.TimeoutExpired) as error:
         print(f"error: {error}", file=sys.stderr)
         raise SystemExit(2)
-

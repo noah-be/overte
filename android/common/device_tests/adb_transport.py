@@ -4,14 +4,20 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
+import shutil
 import subprocess
+import sys
+import time
 
 
 class AdbTransport:
     def __init__(self, executable: str | None = None) -> None:
         self.executable = executable or self.find_executable()
+        self.command = ([sys.executable, self.executable]
+                        if os.name == "nt" and self.executable.lower().endswith(".py")
+                        else [self.executable])
 
     @staticmethod
     def find_executable() -> str:
@@ -20,20 +26,25 @@ class AdbTransport:
             str(Path(os.environ.get("ANDROID_SDK_ROOT", "")) / "platform-tools/adb"),
             str(Path(os.environ.get("ANDROID_HOME", "")) / "platform-tools/adb"),
             str(Path.home() / "Android/Sdk/platform-tools/adb"),
+            shutil.which("adb") or "",
         ]
         for candidate in candidates:
-            if candidate and Path(candidate).is_file() and os.access(candidate, os.X_OK):
+            is_python_mock = os.name == "nt" and candidate.lower().endswith(".py")
+            if candidate and Path(candidate).is_file() and (is_python_mock or os.access(candidate, os.X_OK)):
                 return candidate
         raise RuntimeError("ADB executable was not found")
 
     def execute(self, arguments: list[str], *, target: str | None = None,
                 timeout: int = 20, check: bool = True) -> str:
-        command = [self.executable]
+        command = list(self.command)
         if target:
             command += ["-s", target]
-        result = subprocess.run([*command, *arguments], text=True,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                timeout=timeout, check=False)
+        try:
+            result = subprocess.run([*command, *arguments], text=True,
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                    timeout=timeout, check=False)
+        except subprocess.TimeoutExpired as error:
+            raise RuntimeError("ADB operation timed out") from error
         if check and result.returncode != 0:
             raise RuntimeError("ADB operation failed")
         return result.stdout.replace("\r", "")
@@ -52,6 +63,25 @@ class AdbTransport:
     def require_connected(self, target: str) -> None:
         if self.execute(["get-state"], target=target, check=False).strip() != "device":
             raise RuntimeError("target is not connected and authorized")
+
+    def read_debug_app_file(self, target: str, package: str, relative_path: str,
+                            *, attempts: int = 60, interval_seconds: float = 0.25) -> str:
+        """Read one app-private debug artifact without granting broad storage access."""
+        path = PurePosixPath(relative_path)
+        if (not re.fullmatch(r"[A-Za-z0-9_]+(?:[.][A-Za-z0-9_]+)+", package)
+                or not relative_path or "\\" in relative_path or path.is_absolute()
+                or any(part in {"", ".", ".."} for part in path.parts)
+                or str(path) != relative_path):
+            raise RuntimeError("debug app file selector is unsafe")
+        if attempts < 1 or interval_seconds < 0:
+            raise RuntimeError("debug app file retry policy is invalid")
+        for attempt in range(attempts):
+            raw = self.shell(target, "run-as", package, "cat", relative_path, check=False)
+            if raw:
+                return raw
+            if attempt + 1 < attempts:
+                time.sleep(interval_seconds)
+        return ""
 
     def process_state(self, target: str, package: str) -> dict:
         pid = self.shell(target, "pidof", "-s", package, check=False).strip()

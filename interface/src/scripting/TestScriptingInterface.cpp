@@ -11,6 +11,7 @@
 
 #include <QtCore/QCoreApplication>
 #include <QtCore/QLoggingCategory>
+#include <QtCore/QSaveFile>
 #include <QtCore/QThread>
 
 #include <shared/FileUtils.h>
@@ -170,6 +171,9 @@ void TestScriptingInterface::saveObject(QVariant variant, const QString& filenam
     if (_testResultsLocation.isNull()) {
         return;
     }
+    if (filename.isEmpty() || QFileInfo(filename).fileName() != filename) {
+        return;
+    }
 
     QJsonDocument jsonDocument;
     jsonDocument = QJsonDocument::fromVariant(variant);
@@ -185,11 +189,17 @@ void TestScriptingInterface::saveObject(QVariant variant, const QString& filenam
     }
 
     QString filepath = QDir::cleanPath(_testResultsLocation + filename);
-    QFile file(filepath);
-
-    file.open(QFile::WriteOnly);
-    file.write(jsonData);
-    file.close();
+    QSaveFile file(filepath);
+    if (!file.open(QFile::WriteOnly)) {
+        return;
+    }
+    if (file.write(jsonData) != jsonData.size()) {
+        file.cancelWriting();
+        return;
+    }
+    if (!file.commit()) {
+        return;
+    }
 }
 
 void TestScriptingInterface::showMaximized() {

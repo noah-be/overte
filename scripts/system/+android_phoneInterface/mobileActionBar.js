@@ -255,7 +255,8 @@
     tabletButton = addButton(navigationBar, buttonProperties({
         icon: "icons/tablet-icons/menu-i.svg",
         activeIcon: "icons/tablet-icons/menu-a.svg",
-        text: "TABLET"
+        text: "TABLET",
+        objectName: "OverteTabletOpen"
     }));
     cameraButton = addButton(navigationBar, buttonProperties({
         icon: "icons/myview-i.svg",

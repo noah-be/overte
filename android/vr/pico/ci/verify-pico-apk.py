@@ -21,6 +21,13 @@ REQUIRED_LIBRARIES = {
     "libpicoOpenXR.so",
     "libplugins_libopenxr.so",
 }
+E2E_LAYER_LIBRARY = "libXrApiLayer_overte_e2e_input.so"
+E2E_LAYER_MANIFEST = (
+    "assets/openxr/1/api_layers/explicit.d/overte_e2e_input.json"
+)
+E2E_LAYER_NAME = "XR_APILAYER_OVERTE_e2e_input"
+E2E_BUILD_MARKER = b"OVERTE_E2E_OPENXR_INPUT_V1"
+OPENXR_PLUGIN_PATH = f"lib/{EXPECTED_ABI}/libplugins_libopenxr.so"
 
 
 def fail(message):
@@ -54,6 +61,12 @@ def inspect_zip(apk):
             if bad_member:
                 fail(f"APK ZIP checksum failed for {bad_member}")
             names = [entry.filename for entry in archive.infolist()]
+            layer_manifest_bytes = (
+                archive.read(E2E_LAYER_MANIFEST) if E2E_LAYER_MANIFEST in names else None
+            )
+            openxr_plugin_bytes = (
+                archive.read(OPENXR_PLUGIN_PATH) if OPENXR_PLUGIN_PATH in names else b""
+            )
     except zipfile.BadZipFile as error:
         fail(f"invalid APK ZIP: {error}")
 
@@ -73,7 +86,34 @@ def inspect_zip(apk):
     missing = REQUIRED_LIBRARIES - present
     if missing:
         fail(f"required Pico native libraries are missing: {sorted(missing)}")
-    return len(names), len(present)
+    has_layer_library = E2E_LAYER_LIBRARY in present
+    has_layer_manifest = layer_manifest_bytes is not None
+    has_activation_marker = E2E_BUILD_MARKER in openxr_plugin_bytes
+    if has_layer_library != has_layer_manifest:
+        fail("E2E OpenXR input layer library and manifest must be packaged together")
+    if has_activation_marker != has_layer_library:
+        fail("E2E OpenXR input activation marker and layer package must match")
+    if has_layer_manifest:
+        try:
+            layer_manifest = json.loads(layer_manifest_bytes)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            fail(f"invalid E2E OpenXR input layer manifest: {error}")
+        if not isinstance(layer_manifest, dict) or set(layer_manifest) != {
+                "file_format_version", "api_layer"}:
+            fail("unexpected E2E OpenXR input layer manifest structure")
+        api_layer = layer_manifest.get("api_layer")
+        if (layer_manifest.get("file_format_version") != "1.0.0"
+                or not isinstance(api_layer, dict)
+                or set(api_layer) != {"name", "library_path", "api_version",
+                                      "implementation_version", "description"}
+                or api_layer.get("name") != E2E_LAYER_NAME
+                or api_layer.get("library_path") != E2E_LAYER_LIBRARY
+                or api_layer.get("api_version") != "1.0"
+                or api_layer.get("implementation_version") != "1"
+                or api_layer.get("description") !=
+                    "Overte E2E-only bounded OpenXR input layer"):
+            fail("E2E OpenXR input layer manifest does not match the test contract")
+    return len(names), len(present), has_layer_manifest
 
 
 def parse_badging(output):
@@ -116,6 +156,15 @@ def main():
     parser.add_argument("--expected-version-code")
     parser.add_argument("--expected-version-name")
     parser.add_argument("--expected-signer-sha256")
+    layer_expectation = parser.add_mutually_exclusive_group()
+    layer_expectation.add_argument(
+        "--expect-e2e-input-layer", action="store_true",
+        help="require the Debug-only E2E OpenXR input layer and explicit manifest",
+    )
+    layer_expectation.add_argument(
+        "--forbid-e2e-input-layer", action="store_true",
+        help="fail if the E2E OpenXR input layer or explicit manifest is packaged",
+    )
     parser.add_argument("--output", type=Path, help="write verification manifest as JSON")
     args = parser.parse_args()
 
@@ -126,7 +175,11 @@ def main():
         fail(f"APK is not a regular non-symlink file: {args.apk}")
     aapt = resolve_tool(args.aapt, "aapt")
     apksigner = resolve_tool(args.apksigner, "apksigner")
-    entries, native_libraries = inspect_zip(args.apk)
+    entries, native_libraries, e2e_input_layer = inspect_zip(args.apk)
+    if args.expect_e2e_input_layer and not e2e_input_layer:
+        fail("Debug APK is missing the required E2E OpenXR input layer")
+    if args.forbid_e2e_input_layer and e2e_input_layer:
+        fail("release APK must not contain the E2E OpenXR input layer")
     metadata = parse_badging(run_tool([aapt, "dump", "badging", str(args.apk)]))
     if args.expected_version_code and metadata["version_code"] != args.expected_version_code:
         fail("APK version code does not match the release tag")
@@ -155,6 +208,7 @@ def main():
         "size_bytes": args.apk.stat().st_size,
         "zip_entries": entries,
         "native_libraries": native_libraries,
+        "e2e_input_layer": e2e_input_layer,
         "signature_verified": True,
         "signer_certificate_sha256": signer_digest,
     }

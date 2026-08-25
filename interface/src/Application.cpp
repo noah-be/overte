@@ -2192,8 +2192,16 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
 
     QString sentTo;
 
-    // If this is a first run we short-circuit the address passed in
-    if (_firstRun.get()
+    // A controlled test launch must honor its explicit fixture even on a
+    // freshly installed Android profile. Ordinary first runs retain the
+    // packaged onboarding/default-world behavior.
+    const bool explicitAndroidTestUrl =
+#ifdef Q_OS_ANDROID
+        property(hifi::properties::TEST).isValid() && !_urlParam.isEmpty();
+#else
+        false;
+#endif
+    if ((_firstRun.get() && !explicitAndroidTestUrl)
 #ifdef Q_OS_ANDROID
         || addressLookupString.isEmpty()
 #endif

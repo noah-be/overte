@@ -113,12 +113,10 @@ static glm::mat4 defaultPoseOffset(const controller::InputCalibrationData& data,
     }
 }
 
-void OpenXrInputPlugin::guessXDevRoles(std::unordered_map<XrXDevIdMNDX, XDevTracker>& tracker_map) {
+void OpenXrInputPlugin::guessXDevRoles(
+        std::unordered_map<XrXDevIdMNDX, XDevTracker>& tracker_map,
+        XrTime sampleTime) {
     std::vector<std::tuple<XrXDevIdMNDX, glm::vec3, controller::Pose>> tracker_list;
-
-    if (!_context->_lastPredictedDisplayTime.has_value()) {
-        return;
-    }
 
     for (auto& [_, tracker] : tracker_map) {
         tracker.pose_channel.reset();
@@ -128,15 +126,14 @@ void OpenXrInputPlugin::guessXDevRoles(std::unordered_map<XrXDevIdMNDX, XDevTrac
         XrSpaceLocation stageSpace = { XR_TYPE_SPACE_LOCATION };
         XrSpaceLocation localSpace = { XR_TYPE_SPACE_LOCATION };
         XrSpaceLocation headSpace = { XR_TYPE_SPACE_LOCATION };
-        const auto displayTime = _context->_lastPredictedDisplayTime.value();
         const bool stageLocated = xrCheck(_context->_instance,
-            xrLocateSpace(tracker.space, _context->_stageSpace, displayTime, &stageSpace),
+            xrLocateSpace(tracker.space, _context->_stageSpace, sampleTime, &stageSpace),
             "guessXDevRoles: tracker stage space fail");
         const bool localLocated = xrCheck(_context->_instance,
-            xrLocateSpace(tracker.space, _context->_viewSpace, displayTime, &localSpace),
+            xrLocateSpace(tracker.space, _context->_viewSpace, sampleTime, &localSpace),
             "guessXDevRoles: tracker local space fail");
         const bool headLocated = xrCheck(_context->_instance,
-            xrLocateSpace(_context->_viewSpace, _context->_stageSpace, displayTime, &headSpace),
+            xrLocateSpace(_context->_viewSpace, _context->_stageSpace, sampleTime, &headSpace),
             "guessXDevRoles: head space fail");
         const bool locationsValid =
             (stageSpace.locationFlags & REQUIRED_POSE_LOCATION_FLAGS) == REQUIRED_POSE_LOCATION_FLAGS &&
@@ -332,9 +329,11 @@ void OpenXrInputPlugin::pluginUpdate(float deltaTime, const controller::InputCal
 
     if (!_registeredWithInputMapper) { return; }
 
+    const auto sampleTime = _context->_lastPredictedDisplayTime;
     userInputMapper->withLock([&, this]() {
-        if (_inputDevice->_wantsCalibrate && _context->_MNDX_xdevSpaceSupported) {
-            guessXDevRoles(_inputDevice->_xdev);
+        if (_inputDevice->_wantsCalibrate && _context->_MNDX_xdevSpaceSupported &&
+                sampleTime.has_value()) {
+            guessXDevRoles(_inputDevice->_xdev, sampleTime.value());
         }
         _inputDevice->update(deltaTime, inputCalibrationData);
     });

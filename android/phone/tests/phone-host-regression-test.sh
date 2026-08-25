@@ -89,6 +89,19 @@ phone_defaults='../scripts/+android_phoneInterface/defaultScripts.js'
 
 require_text "$gradle" 'Declare the module identity before dependency preflight failures' \
     'phone Gradle diagnostics initialize AGP identity before dependency preflight'
+require_text "$gradle" "path file\\('../../../../CMakeLists[.]txt'\\)" \
+    'phone Gradle native build resolves the repository CMake entry point'
+require_text common/cmake/pico-bootstrap.cmake \
+    '"\$\{CMAKE_CURRENT_LIST_DIR\}/pico-compat"' \
+    'Android Qt compatibility targets use the versioned compatibility headers'
+reject_text common/cmake/pico-bootstrap.cmake 'cmake-pico-compat' \
+    'Android Qt compatibility targets do not reference a missing directory'
+require_text common/cmake/pico-bootstrap.cmake \
+    'CMAKE_CURRENT_LIST_DIR}/../../vr/pico/pico-host-tools' \
+    'Android shader generation resolves the staged host tools after source reorganization'
+reject_text common/cmake/pico-bootstrap.cmake \
+    'CMAKE_CURRENT_LIST_DIR}/pico-host-tools' \
+    'Android shader generation does not use the stale pre-reorganization host-tool path'
 require_text "$cmake" '../../../common/src/OffscreenGLCanvas[.]cpp' \
     'phone native build uses the shared Android OffscreenGLCanvas override'
 require_text "$gradle" '../../../common/runtime-overrides/arm64-v8a' \

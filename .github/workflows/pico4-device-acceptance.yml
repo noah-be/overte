@@ -126,6 +126,7 @@ jobs:
           android/vr/pico/ci/verify-pico-apk.py build/pico4-device/picoInterface-release.apk \
             --aapt "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt" \
             --apksigner "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" \
+            --forbid-e2e-input-layer \
             --source-revision "$GITHUB_SHA" \
             --expected-version-code "${{ steps.release.outputs.version_code }}" \
             --expected-version-name "${{ steps.release.outputs.version_name }}" \
