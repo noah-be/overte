@@ -71,16 +71,17 @@ Machine-readable catalog, manifest, and probe schemas are in [`schemas/`](schema
 
 Concrete adapters:
 
-- [`adapters/android/`](adapters/android/): Phone and Pico ADB lifecycle,
+- `tests/device/adapters/android/` on Android/Pico branches: Phone and Pico ADB lifecycle,
   installation, telemetry, and scene delivery;
 - [`adapters/appium/`](adapters/appium/): shared Android/iOS W3C sessions,
   touch gestures, Accessibility, probe pull, and screenshots;
-- [`adapters/desktop_oculix/`](adapters/desktop_oculix/): one visual-input
+- `tests/device/adapters/desktop_oculix/` on desktop branches: one visual-input
   implementation for Linux, Windows, and macOS;
 - [`adapters/mock/`](adapters/mock/): deterministic virtual state machine used
   only to prove every common scenario without hardware.
 
-[`openxr_input/`](openxr_input/) contains the fail-closed, device-free semantic
+`tests/device/openxr_input/` on Android/Pico branches contains the fail-closed,
+device-free semantic
 input prototype for future Pico/OpenXR look, movement, and tablet automation.
 It remains intentionally disconnected from Pico capabilities until a test-only
 API layer is packaged in the debug APK and accepted on physical hardware.

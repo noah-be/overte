@@ -50,16 +50,6 @@ on:
         description: Durable audited Qt 6 iOS artifact namespace for an E2E producer
         required: false
         type: string
-      overte_bundle_id:
-        description: Dedicated Fedora E2E bundle identifier ending in .e2e
-        required: false
-        default: org.overte.interface.e2e
-        type: string
-      wda_bundle_id:
-        description: Fedora Appium updatedWDABundleId base without .xctrunner
-        required: false
-        default: org.overte.WebDriverAgentRunner
-        type: string
   push:
     branches:
       - apple-ios
@@ -184,8 +174,8 @@ jobs:
       qt_ios_cache_key: ${{ inputs.qt_ios_cache_key }}
       qt_host_artifact_prefix: ${{ inputs.qt_host_artifact_prefix }}
       qt_ios_artifact_prefix: ${{ inputs.qt_ios_artifact_prefix }}
-      overte_bundle_id: ${{ inputs.overte_bundle_id }}
-      wda_bundle_id: ${{ inputs.wda_bundle_id }}
+      overte_bundle_id: org.overte.interface.e2e
+      wda_bundle_id: org.overte.WebDriverAgentRunner
 
   personal-team-e2e-kit:
     if: >-

@@ -22,12 +22,10 @@ on:
       overte_bundle_id:
         description: Dedicated Full Client E2E bundle identifier ending in .e2e
         required: true
-        default: org.overte.interface.e2e
         type: string
       wda_bundle_id:
         description: Appium updatedWDABundleId base; the installed runner adds .xctrunner
         required: true
-        default: org.overte.WebDriverAgentRunner
         type: string
 
 permissions:

@@ -45,9 +45,10 @@ by a target. The baseline resolved for Fedora 44 on 2026-08-25 is:
 | ImageMagick | `ImageMagick-7.1.2.27-1.fc44` | Headless Overte-window capture; absolute path, arguments, and executable SHA-256 are private target fields. |
 
 All of these Fedora packages are open source. The visible Wayland daemon is
-built from [`wayland_libei_daemon.c`](adapters/desktop_oculix/wayland_libei_daemon.c)
+built from `tests/device/adapters/desktop_oculix/wayland_libei_daemon.c` on the
+desktop branch
 with the checked-in hardened
-[`wayland-libei.mk`](adapters/desktop_oculix/wayland-libei.mk); its source
+`tests/device/adapters/desktop_oculix/wayland-libei.mk`; its source
 revision is the reviewed repository revision. The daemon's resulting binary
 digest, along with the Mutter, Xwayland, `dbus-run-session`, `dbus-daemon`, Python,
 `glxinfo`, `xrandr`, `xdotool`, and ImageMagick executable digests, is verified

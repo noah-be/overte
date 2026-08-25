@@ -68,7 +68,8 @@ failure instead of opening repeated remote-interaction dialogs. `xdotool` and
 ImageMagick are confined to the adapter-owned headless X11 display.
 
 Pico/Quest head pose and tracked-controller input cannot honestly be emulated
-by ordinary ADB. [`openxr_input/`](openxr_input/) now defines and validates a
+by ordinary ADB. The shared `tests/device/openxr_input/` contract on branches
+that carry the Android/Pico adapter defines and validates a
 bounded, nonce-protected, test-only OpenXR API-layer protocol, but the adapter
 still must not advertise `input.look`, `input.move`, or tablet input until that
 layer is packaged in the E2E debug APK and accepted on physical hardware.
