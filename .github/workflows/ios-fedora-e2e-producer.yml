@@ -29,7 +29,6 @@ on:
         type: string
 
 permissions:
-  actions: read
   contents: read
 
 concurrency:
@@ -45,6 +44,9 @@ jobs:
     name: Authorize protected producer source
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
     steps:
       - name: Reject unprotected revisions before the expensive build
         env:
@@ -76,7 +78,7 @@ jobs:
     needs: authorize-source
     uses: ./.github/workflows/ios-integrated.yml
     permissions:
-      actions: read
+      actions: write
       contents: read
     with:
       qt_host_cache_key: ${{ inputs.qt_host_cache_key }}
@@ -93,6 +95,9 @@ jobs:
     environment: ios-fedora-e2e-signing
     runs-on: macos-26
     timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
     env:
       PRIVATE_ROOT: ${{ github.workspace }}/build-ios/private-fedora-e2e-${{ github.run_id }}-${{ github.run_attempt }}
       SIGNED_ROOT: ${{ github.workspace }}/build-ios/private-fedora-e2e-${{ github.run_id }}-${{ github.run_attempt }}/signed

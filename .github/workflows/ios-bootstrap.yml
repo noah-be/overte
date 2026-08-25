@@ -166,7 +166,7 @@ jobs:
       inputs.world_evidence != true
     needs: host-contracts
     permissions:
-      actions: read
+      actions: write
       contents: read
     uses: ./.github/workflows/ios-fedora-e2e-producer.yml
     with:
@@ -186,7 +186,7 @@ jobs:
       inputs.world_evidence != true
     needs: host-contracts
     permissions:
-      actions: read
+      actions: write
       contents: read
     uses: ./.github/workflows/ios-personal-team-e2e-kit.yml
     with:

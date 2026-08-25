@@ -21,7 +21,6 @@ on:
         type: string
 
 permissions:
-  actions: read
   contents: read
 
 concurrency:
@@ -37,6 +36,9 @@ jobs:
     name: Authorize credential-free Personal Team kit source
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
     steps:
       - name: Bind the build to the protected dispatch entrypoint
         env:
@@ -61,7 +63,7 @@ jobs:
     needs: authorize-source
     uses: ./.github/workflows/ios-integrated.yml
     permissions:
-      actions: read
+      actions: write
       contents: read
     with:
       qt_host_cache_key: ${{ inputs.qt_host_cache_key }}
@@ -77,6 +79,9 @@ jobs:
     needs: unsigned-e2e-client
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
     env:
       KIT_ROOT: ${{ github.workspace }}/build-ios/personal-team-e2e-kit-${{ github.run_id }}-${{ github.run_attempt }}
       XCUITEST_DRIVER_VERSION: 12.8.0
