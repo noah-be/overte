@@ -125,56 +125,6 @@ class AndroidAdapter:
             time.sleep(0.25)
         fail("Android E2E launcher process did not start")
 
-    def read_pico_system_setting(self, target: str, name: str) -> int:
-        if name not in {"screen_brightness", "screen_brightness_mode"}:
-            fail("Pico display setting is not allowlisted")
-        raw = self.adb.shell(target, "settings", "get", "system", name).strip()
-        if not raw.isdigit():
-            fail("Pico display setting is unavailable")
-        value = int(raw)
-        if ((name == "screen_brightness" and not 0 <= value <= 255)
-                or (name == "screen_brightness_mode" and value not in {0, 1})):
-            fail("Pico display setting is outside the supported range")
-        return value
-
-    def write_pico_system_setting(self, target: str, name: str, value: int) -> None:
-        if name not in {"screen_brightness", "screen_brightness_mode"}:
-            fail("Pico display setting is not allowlisted")
-        if (name == "screen_brightness" and not 0 <= value <= 255) or (
-                name == "screen_brightness_mode" and value not in {0, 1}):
-            fail("Pico display setting write is invalid")
-        self.adb.shell(target, "settings", "put", "system", name, str(value))
-
-    def restore_pico_display(self, target: str,
-                             session: PicoOpenXrAdapterSession) -> None:
-        state = session.display_override_state()
-        if state is None:
-            return
-        self.write_pico_system_setting(
-            target, "screen_brightness", state["brightness"])
-        if self.read_pico_system_setting(target, "screen_brightness") != state["brightness"]:
-            fail("Pico display brightness restoration failed")
-        self.write_pico_system_setting(
-            target, "screen_brightness_mode", state["mode"])
-        if self.read_pico_system_setting(target, "screen_brightness_mode") != state["mode"]:
-            fail("Pico display mode restoration failed")
-        session.discard_display_state()
-
-    def apply_pico_display(self, target: str,
-                           session: PicoOpenXrAdapterSession) -> None:
-        brightness = self.read_pico_system_setting(target, "screen_brightness")
-        mode = self.read_pico_system_setting(target, "screen_brightness_mode")
-        session.begin_display_override(brightness, mode)
-        try:
-            self.write_pico_system_setting(target, "screen_brightness_mode", 0)
-            self.write_pico_system_setting(target, "screen_brightness", 0)
-            if (self.read_pico_system_setting(target, "screen_brightness_mode") != 0
-                    or self.read_pico_system_setting(target, "screen_brightness") != 0):
-                fail("Pico display did not accept brightness zero")
-        except (OSError, RuntimeError):
-            self.restore_pico_display(target, session)
-            raise
-
     def launch_debug_app(self, target: str) -> str | None:
         package = self.profile["package"]
         running = self.adb.process_state(target, package)["running"] is True
@@ -185,8 +135,6 @@ class AndroidAdapter:
             session = self.pico_input_session(target)
             session.cleanup(False)
             session.discard_local_state()
-            self.restore_pico_display(target, session)
-            self.apply_pico_display(target, session)
         elif running:
             self.adb.shell(target, "am", "force-stop", package)
         self.adb.shell(target, "am", "start", "-W", "-n",
@@ -340,7 +288,6 @@ class AndroidAdapter:
         package = self.profile["package"]
         running = self.adb.process_state(target, package)["running"] is True
         cleanup_error = None
-        display_error = None
         session = None
         if self.kind == "pico" and pico_openxr_opted_in():
             session = self.pico_input_session(target)
@@ -352,14 +299,8 @@ class AndroidAdapter:
             self.adb.shell(target, "am", "force-stop", package, check=False)
         if session is not None:
             session.discard_local_state()
-            try:
-                self.restore_pico_display(target, session)
-            except RuntimeError as error:
-                display_error = error
         if cleanup_error is not None:
             raise cleanup_error
-        if display_error is not None:
-            raise display_error
         return {"cleaned": True}
 
 

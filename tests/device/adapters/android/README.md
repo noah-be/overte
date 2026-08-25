@@ -28,11 +28,9 @@ command. The adapter keeps one nonce and monotonically increasing sequence
 across its short-lived CLI processes, binds it to the one E2E launcher process,
 requires a native neutral window between input commands, and fails closed if
 the PID/start-ticks identity changes. It removes the grant before the one final
-app shutdown. By default the isolated Pico run also snapshots the current
-system brightness and brightness mode, selects manual brightness `0` before the
-launcher starts, and restores both values during cleanup. That display state is
-kept only in the private adapter state directory. Selectors and nonces are never
-stored in artifacts or returned by an operation.
+app shutdown. It deliberately leaves Pico display brightness and brightness
+mode untouched because changing either can alter the XR execution cadence.
+Selectors and nonces are never stored in artifacts or returned by an operation.
 
 The Debug-only explicit OpenXR layer and private host transport are implemented
 under `tests/device/openxr_input`; lower-level device gates can also exercise

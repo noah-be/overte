@@ -22,7 +22,6 @@ else:
 
 
 STATE_SCHEMA_VERSION = 1
-DISPLAY_STATE_SCHEMA_VERSION = 1
 PROFILE_PATH = Path(__file__).parent / "profiles/pico4-overte-controller.json"
 
 
@@ -94,7 +93,6 @@ class PicoOpenXrAdapterSession:
             f"org.overte.pico\0{selector}".encode("utf-8")).hexdigest()[:32]
         self.state_path = state_directory / f"session-{key}.json"
         self.lock_path = state_directory / f"session-{key}.lock"
-        self.display_state_path = state_directory / f"display-{key}.json"
 
     @contextmanager
     def _lock(self) -> Iterator[None]:
@@ -161,52 +159,6 @@ class PicoOpenXrAdapterSession:
 
     def _save(self, value: dict) -> None:
         self._save_path(self.state_path, value)
-
-    def begin_display_override(self, brightness: int, mode: int) -> None:
-        if (isinstance(brightness, bool) or not isinstance(brightness, int)
-                or not 0 <= brightness <= 255 or isinstance(mode, bool)
-                or not isinstance(mode, int) or mode not in {0, 1}):
-            raise AdapterSessionError("Pico display state is invalid")
-        with self._lock():
-            if self.display_state_path.exists():
-                raise AdapterSessionError("Pico display override is already active")
-            self._save_path(self.display_state_path, {
-                "schemaVersion": DISPLAY_STATE_SCHEMA_VERSION,
-                "brightness": brightness,
-                "mode": mode,
-            })
-
-    def display_override_state(self) -> dict | None:
-        with self._lock():
-            if not self.display_state_path.exists():
-                return None
-            info = self.display_state_path.lstat()
-            if (not stat.S_ISREG(info.st_mode) or self.display_state_path.is_symlink()
-                    or (hasattr(os, "getuid") and info.st_uid != os.getuid())
-                    or stat.S_IMODE(info.st_mode) != 0o600):
-                raise AdapterSessionError("Pico display state is not private")
-            try:
-                value = json.loads(self.display_state_path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError) as error:
-                raise AdapterSessionError("Pico display state is invalid") from error
-            if (not isinstance(value, dict)
-                    or set(value) != {"schemaVersion", "brightness", "mode"}
-                    or value["schemaVersion"] != DISPLAY_STATE_SCHEMA_VERSION
-                    or isinstance(value["brightness"], bool)
-                    or not isinstance(value["brightness"], int)
-                    or not 0 <= value["brightness"] <= 255
-                    or isinstance(value["mode"], bool)
-                    or not isinstance(value["mode"], int)
-                    or value["mode"] not in {0, 1}):
-                raise AdapterSessionError("Pico display state is invalid")
-            return value
-
-    def discard_display_state(self) -> None:
-        with self._lock():
-            try:
-                self.display_state_path.unlink()
-            except FileNotFoundError:
-                pass
 
     def _new_state(self, process_identity: str) -> dict:
         return {

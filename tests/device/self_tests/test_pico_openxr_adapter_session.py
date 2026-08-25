@@ -93,18 +93,6 @@ class PicoOpenXrAdapterSessionTests(unittest.TestCase):
         with self.assertRaisesRegex(AdapterSessionError, "already established"):
             self.session.begin("42:100")
 
-    def test_display_override_state_is_private_and_round_trips(self) -> None:
-        self.assertIsNone(self.session.display_override_state())
-        self.session.begin_display_override(137, 1)
-        self.assertEqual({"schemaVersion": 1, "brightness": 137, "mode": 1},
-                         self.session.display_override_state())
-        self.assertNotIn("private-pico-selector", self.session.display_state_path.name)
-        self.assertEqual(0o600, self.session.display_state_path.stat().st_mode & 0o777)
-        with self.assertRaisesRegex(AdapterSessionError, "already active"):
-            self.session.begin_display_override(0, 0)
-        self.session.discard_display_state()
-        self.assertIsNone(self.session.display_override_state())
-
     def test_configuration_requires_nondefault_port_and_private_directory(self) -> None:
         with mock.patch.dict(os.environ, {"ANDROID_ADB_SERVER_PORT": "5037"}, clear=True):
             with self.assertRaisesRegex(AdapterSessionError, "non-default"):
