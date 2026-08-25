@@ -5,15 +5,55 @@
       "id": "launch-smoke",
       "description": "Launch the application and verify a stable foreground process.",
       "command": ["modules/launch_smoke.py"],
-      "suites": ["smoke", "stability"],
+      "suites": ["e2e-core", "smoke", "stability"],
       "requires": ["app.foreground", "app.launch", "app.process"],
+      "timeoutSeconds": 120
+    },
+    {
+      "id": "scene",
+      "description": "Load the controlled E2E scene and observe a ready in-client state.",
+      "command": ["modules/scene.py"],
+      "suites": ["e2e-core"],
+      "requires": ["probe.snapshot", "scene.load"],
+      "timeoutSeconds": 120
+    },
+    {
+      "id": "look",
+      "description": "Apply look input and observe a corresponding camera orientation change.",
+      "command": ["modules/look.py"],
+      "suites": ["e2e-core"],
+      "requires": ["input.look", "probe.snapshot", "scene.load"],
+      "timeoutSeconds": 90
+    },
+    {
+      "id": "move",
+      "description": "Apply movement input and observe avatar displacement in the scene.",
+      "command": ["modules/move.py"],
+      "suites": ["e2e-core"],
+      "requires": ["input.move", "probe.snapshot", "scene.load"],
+      "timeoutSeconds": 90
+    },
+    {
+      "id": "tablet",
+      "description": "Open and close the system tablet and observe both state transitions.",
+      "command": ["modules/tablet.py"],
+      "suites": ["e2e-core"],
+      "requires": ["probe.snapshot", "scene.load", "tablet.close", "tablet.open"],
+      "timeoutSeconds": 90
+    },
+    {
+      "id": "accessibility",
+      "description": "Audit stable tablet controls while reusing one controlled app session.",
+      "command": ["modules/accessibility.py"],
+      "suites": ["accessibility"],
+      "requires": ["accessibility.snapshot", "app.launch", "app.process", "probe.snapshot", "scene.load", "tablet.close", "tablet.open"],
       "timeoutSeconds": 120
     },
     {
       "id": "lifecycle-soak",
       "description": "Repeat background and foreground transitions without a process restart.",
       "command": ["modules/lifecycle_soak.py"],
-      "suites": ["stability"],
+      "suites": ["lifecycle-stability"],
       "requires": ["app.foreground", "app.launch", "app.process", "lifecycle.background"],
       "timeoutSeconds": 3600
     },
@@ -22,7 +62,7 @@
       "description": "Sample process, memory, battery, and thermal health while foregrounded.",
       "command": ["modules/idle_soak.py"],
       "suites": ["stability"],
-      "requires": ["app.foreground", "app.launch", "app.process", "telemetry.snapshot"],
+      "requires": ["app.foreground", "app.launch", "app.process"],
       "timeoutSeconds": 7800
     }
   ]

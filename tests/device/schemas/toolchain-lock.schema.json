@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://overte.org/schemas/device-e2e-toolchain-lock-v1.json",
+  "title": "Overte physical-device E2E toolchain lock",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "resolvedAt", "sources", "appium", "jenkins", "oculix"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "resolvedAt": {"type": "string", "format": "date"},
+    "sources": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {"type": "string", "pattern": "^https://"}
+    },
+    "appium": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["license", "runtime", "nodeRange", "npmRange", "core", "drivers", "iosRuntime", "iosSecurity"],
+      "properties": {
+        "license": {"type": "string", "minLength": 1},
+        "runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["node", "npm"],
+          "properties": {
+            "node": {"$ref": "#/$defs/semver"},
+            "npm": {"$ref": "#/$defs/semver"}
+          }
+        },
+        "nodeRange": {"type": "string", "minLength": 1},
+        "npmRange": {"type": "string", "minLength": 1},
+        "core": {"$ref": "#/$defs/npmPackage"},
+        "drivers": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["uiautomator2", "xcuitest"],
+          "properties": {
+            "uiautomator2": {"$ref": "#/$defs/appiumDriver"},
+            "xcuitest": {"$ref": "#/$defs/appiumDriver"}
+          }
+        },
+        "iosRuntime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["remoteXpc", "webdriverAgent"],
+          "properties": {
+            "remoteXpc": {"$ref": "#/$defs/npmPackage"},
+            "webdriverAgent": {"$ref": "#/$defs/npmPackage"}
+          }
+        },
+        "iosSecurity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["age", "rcodesign"],
+          "properties": {
+            "age": {"$ref": "#/$defs/securityTool"},
+            "rcodesign": {"$ref": "#/$defs/securityTool"}
+          }
+        }
+      }
+    },
+    "jenkins": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["license", "javaMajors", "recommendedJavaMajor", "lts", "pluginInstallationManager", "resolvedForCore", "resolvedWithPluginManager", "resolvedPluginsFile", "resolvedPluginArtifactsFile", "installPolicy", "directPlugins", "directPluginArtifacts"],
+      "properties": {
+        "license": {"type": "string", "minLength": 1},
+        "javaMajors": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "integer", "minimum": 8}},
+        "recommendedJavaMajor": {"type": "integer", "minimum": 8},
+        "lts": {"$ref": "#/$defs/versionedArtifact"},
+        "pluginInstallationManager": {"$ref": "#/$defs/versionedArtifact"},
+        "resolvedForCore": {"$ref": "#/$defs/semver"},
+        "resolvedWithPluginManager": {"$ref": "#/$defs/semver"},
+        "resolvedPluginsFile": {"type": "string", "pattern": "^[A-Za-z0-9_.\u002f-]+$"},
+        "resolvedPluginArtifactsFile": {"type": "string", "pattern": "^[A-Za-z0-9_.\u002f-]+$"},
+        "installPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["latest", "includeOptionalDependencies"],
+          "properties": {
+            "latest": {"const": false},
+            "includeOptionalDependencies": {"const": false}
+          }
+        },
+        "directPlugins": {"$ref": "#/$defs/pluginMap"},
+        "directPluginArtifacts": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"$ref": "#/$defs/artifact"}
+        }
+      }
+    },
+    "oculix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["license", "version", "minimumJavaMajor", "labJavaMajor", "releaseUrl", "ideArtifacts"],
+      "properties": {
+        "license": {"type": "string", "minLength": 1},
+        "version": {"$ref": "#/$defs/semver"},
+        "minimumJavaMajor": {"type": "integer", "minimum": 8},
+        "labJavaMajor": {"type": "integer", "minimum": 8},
+        "releaseUrl": {"type": "string", "pattern": "^https://"},
+        "ideArtifacts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["linux", "macos", "windows"],
+          "properties": {
+            "linux": {"$ref": "#/$defs/artifact"},
+            "macos": {"$ref": "#/$defs/artifact"},
+            "windows": {"$ref": "#/$defs/artifact"}
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "semver": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "sha256"],
+      "properties": {
+        "url": {"type": "string", "pattern": "^https://"},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "integrity": {"type": "string", "pattern": "^sha512-[A-Za-z0-9+/]+={0,2}$"}
+      }
+    },
+    "versionedArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "artifact"],
+      "properties": {
+        "version": {"$ref": "#/$defs/semver"},
+        "artifact": {"$ref": "#/$defs/artifact"}
+      }
+    },
+    "securityTool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "license", "executableSha256", "artifact"],
+      "properties": {
+        "version": {"$ref": "#/$defs/semver"},
+        "license": {"type": "string", "minLength": 1},
+        "executableSha256": {"$ref": "#/$defs/sha256"},
+        "artifact": {"$ref": "#/$defs/artifact"}
+      }
+    },
+    "npmPackage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package", "version", "artifact"],
+      "properties": {
+        "package": {"type": "string", "pattern": "^[a-z0-9@/._-]+$"},
+        "version": {"$ref": "#/$defs/semver"},
+        "artifact": {"$ref": "#/$defs/artifact"}
+      }
+    },
+    "appiumDriver": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package", "version", "appiumPeerRange", "artifact"],
+      "properties": {
+        "package": {"type": "string", "pattern": "^[a-z0-9@/._-]+$"},
+        "version": {"$ref": "#/$defs/semver"},
+        "appiumPeerRange": {"type": "string", "minLength": 1},
+        "remoteXpcRange": {"type": "string", "minLength": 1},
+        "webdriverAgentRange": {"type": "string", "minLength": 1},
+        "artifact": {"$ref": "#/$defs/artifact"}
+      }
+    },
+    "pluginMap": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {"type": "string", "minLength": 1}
+    }
+  }
+}
