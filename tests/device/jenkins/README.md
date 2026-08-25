@@ -56,7 +56,7 @@ template is `../adapters/appium/targets.example.json`; enable it only after the
 signed receipt updates `appId`, `bundleId`, IPA paths and WDA bundle ID.
 
 `IOS_ARTIFACT_SOURCE=personal-team-preinstalled` is the default. Follow
-[`../../../docs/ios/PERSONAL_TEAM_E2E.md`](../../../docs/ios/PERSONAL_TEAM_E2E.md)
+See `docs/ios/PERSONAL_TEAM_E2E.md` on the `apple-ios` branch.
 to install Overte and WDA manually with Sideloadly, then supply the private,
 short-lived `IOS_PREINSTALLED_ATTESTATION`. Jenkins performs no signing or
 installation. Under the exclusive device lock, Fedora's immutable helper
