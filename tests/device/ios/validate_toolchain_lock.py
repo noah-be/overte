@@ -216,10 +216,11 @@ def validate(lock_path: Path = DEFAULT_LOCK, package_path: Path = DEFAULT_PACKAG
              npm_lock_path: Path = DEFAULT_NPM_LOCK) -> dict:
     lock = exact_keys(
         read_object(lock_path, "Fedora iOS toolchain lock"),
-        {"schemaVersion", "resolvedAt", "sources", "appium"},
+        {"schemaVersion", "serviceRuntimeRevision", "resolvedAt", "sources", "appium"},
         "Fedora iOS toolchain lock",
     )
-    if lock["schemaVersion"] != 1 or lock["resolvedAt"] != "2026-08-25":
+    if (lock["schemaVersion"] != 1 or lock["serviceRuntimeRevision"] != 2
+            or lock["resolvedAt"] != "2026-08-25"):
         fail("Fedora iOS toolchain lock header drifted")
     exact_keys(lock["sources"], {"npmRegistry", "ageRelease", "rcodesignRelease"}, "sources")
     for label, value in lock["sources"].items():

@@ -31,6 +31,8 @@ UNIT_NAME = "overte-ios-remotexpc.service"
 SERVICE_ROOT = Path("/usr/local/lib/overte-ios-remotexpc")
 UNIT_PATH = Path("/etc/systemd/system") / UNIT_NAME
 RUNTIME_MARKER = "service-runtime.json"
+RESTORECON_CANDIDATES = (Path("/usr/bin/restorecon"), Path("/usr/sbin/restorecon"))
+SELINUX_ENFORCE_FILE = Path("/sys/fs/selinux/enforce")
 APPIUM_EXTENSION_TEMPLATE = "appium-extensions.yaml"
 MAX_APPIUM_EXTENSION_BYTES = 128 * 1024
 DEVICE_TOKEN_PATTERNS = (
@@ -207,6 +209,13 @@ def list_installed_drivers(node: Path, appium_entry: Path, appium_home: Path,
     return value
 
 
+def service_runtime_revision(lock: dict) -> int:
+    revision = lock.get("serviceRuntimeRevision")
+    if revision != 2:
+        fail("unsupported immutable service-runtime revision")
+    return revision
+
+
 def prepare_appium_extension_template(appium_home: Path, node: Path,
                                       destination: Path, template: Path) -> None:
     """Generate Appium's registry while staging is writable, then relocate it."""
@@ -327,6 +336,28 @@ def harden_tree(root: Path, executables: set[Path]) -> None:
     root.chmod(0o555)
 
 
+def copy_plain_tree(source: Path, destination: Path) -> None:
+    """Copy bytes and executable state without source xattrs, ACLs, or ownership."""
+    if not source.is_dir() or source.is_symlink() or destination.exists():
+        fail("Appium runtime copy paths are unsafe")
+    destination.mkdir(mode=0o700)
+    for path in sorted(source.rglob("*"), key=lambda item: item.as_posix()):
+        relative = path.relative_to(source)
+        if ".bin" in relative.parts:
+            continue
+        value = path.lstat()
+        target = destination / relative
+        if stat.S_ISLNK(value.st_mode):
+            fail("Appium runtime contains an unsupported symbolic link")
+        if stat.S_ISDIR(value.st_mode):
+            target.mkdir(mode=0o700)
+        elif stat.S_ISREG(value.st_mode):
+            shutil.copyfile(path, target)
+            target.chmod(0o700 if value.st_mode & 0o111 else 0o600)
+        else:
+            fail("Appium runtime contains an unsupported special file")
+
+
 def require_immutable_tree(root: Path, owner_uid: int = 0) -> None:
     if not root.is_absolute() or not root.is_dir() or root.is_symlink():
         fail("installed service runtime is not a safe absolute directory")
@@ -343,8 +374,9 @@ def require_immutable_tree(root: Path, owner_uid: int = 0) -> None:
 
 
 def service_runtime_path(service_root: Path = SERVICE_ROOT, lock: dict | None = None) -> Path:
-    runtime = remote_xpc_lock(lock or load_lock())
-    return service_root / runtime["version"]
+    value = lock or load_lock()
+    runtime = remote_xpc_lock(value)
+    return service_root / f"{runtime['version']}-r{service_runtime_revision(value)}"
 
 
 def default_service_runtime() -> Path:
@@ -360,8 +392,9 @@ def verify_service_runtime(runtime_root: Path, owner_uid: int = 0) -> tuple[Path
     require_immutable_tree(runtime_root, owner_uid)
     local_lock = load_lock(runtime_root / "toolchain.lock.json")
     runtime = remote_xpc_lock(local_lock)
-    if runtime_root.name != runtime["version"]:
-        fail("installed service runtime path does not match its locked version")
+    revision = service_runtime_revision(local_lock)
+    if runtime_root.name != f"{runtime['version']}-r{revision}":
+        fail("installed service runtime path does not match its locked revision")
     try:
         marker = json.loads((runtime_root / RUNTIME_MARKER).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -369,6 +402,7 @@ def verify_service_runtime(runtime_root: Path, owner_uid: int = 0) -> tuple[Path
     appium_tree_sha256 = tree_sha256(runtime_root / "appium")
     if marker != {
         "schemaVersion": 1,
+        "serviceRuntimeRevision": revision,
         "package": runtime["package"],
         "version": runtime["version"],
         "nodeSha256": file_sha256(runtime_root / "bin/node"),
@@ -400,6 +434,27 @@ def verify_service_runtime(runtime_root: Path, owner_uid: int = 0) -> tuple[Path
     return node, script
 
 
+def restore_security_context(runtime_root: Path, *, owner_uid: int = 0) -> None:
+    """Apply the host SELinux file policy without changing runtime bytes or modes."""
+    if os.geteuid() != owner_uid or not SELINUX_ENFORCE_FILE.is_file():
+        return
+    restorecon = next((path for path in RESTORECON_CANDIDATES if path.is_file()), None)
+    if restorecon is None:
+        fail("SELinux is enabled but the trusted restorecon tool is unavailable")
+    executable = restorecon.resolve()
+    value = executable.lstat()
+    if (not stat.S_ISREG(value.st_mode) or value.st_uid != owner_uid
+            or value.st_mode & 0o022 or not value.st_mode & 0o111):
+        fail("SELinux restorecon tool is not root-owned and protected")
+    result = subprocess.run(
+        [str(restorecon), "-RF", "--", str(runtime_root)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        timeout=120, check=False,
+    )
+    if result.returncode:
+        fail("installed service runtime failed host security-context restoration")
+
+
 def install_service_runtime(appium_home: Path, service_root: Path = SERVICE_ROOT) -> Path:
     """Create an immutable version directory and never update it in place."""
     lock = load_lock()
@@ -420,23 +475,22 @@ def install_service_runtime(appium_home: Path, service_root: Path = SERVICE_ROOT
     destination = service_runtime_path(service_root, lock)
     if destination.exists() or destination.is_symlink():
         verify_service_runtime(destination, os.geteuid())
+        restore_security_context(destination)
+        verify_service_runtime(destination, os.geteuid())
         return destination
 
-    staging = Path(tempfile.mkdtemp(prefix=f".{runtime['version']}.", dir=service_root))
+    staging = Path(tempfile.mkdtemp(prefix=f".{destination.name}.", dir=service_root))
     try:
         (staging / "bin").mkdir()
-        shutil.copy2(Path(__file__).resolve(), staging / "remotexpc_tunnel.py")
-        shutil.copy2(DEVICE_PREFLIGHT_FILE, staging / DEVICE_PREFLIGHT_FILE.name)
-        shutil.copy2(DEVICE_INSTALL_FILE, staging / DEVICE_INSTALL_FILE.name)
-        shutil.copy2(ARTIFACT_TREE_FILE, staging / ARTIFACT_TREE_FILE.name)
-        shutil.copy2(LOCK_FILE, staging / "toolchain.lock.json")
-        shutil.copy2(PACKAGE_FILE, staging / "package.json")
-        shutil.copy2(NPM_LOCK_FILE, staging / "package-lock.json")
-        shutil.copy2(node, staging / "bin/node")
-        shutil.copytree(
-            appium_home, staging / "appium",
-            ignore=shutil.ignore_patterns(".bin"), symlinks=False,
-        )
+        shutil.copyfile(Path(__file__).resolve(), staging / "remotexpc_tunnel.py")
+        shutil.copyfile(DEVICE_PREFLIGHT_FILE, staging / DEVICE_PREFLIGHT_FILE.name)
+        shutil.copyfile(DEVICE_INSTALL_FILE, staging / DEVICE_INSTALL_FILE.name)
+        shutil.copyfile(ARTIFACT_TREE_FILE, staging / ARTIFACT_TREE_FILE.name)
+        shutil.copyfile(LOCK_FILE, staging / "toolchain.lock.json")
+        shutil.copyfile(PACKAGE_FILE, staging / "package.json")
+        shutil.copyfile(NPM_LOCK_FILE, staging / "package-lock.json")
+        shutil.copyfile(node, staging / "bin/node")
+        copy_plain_tree(appium_home, staging / "appium")
         copied_digest = tree_sha256(staging / "appium")
         if copied_digest != source_digest or tree_sha256(appium_home) != source_digest:
             fail("Appium runtime changed while its service copy was created")
@@ -448,6 +502,7 @@ def install_service_runtime(appium_home: Path, service_root: Path = SERVICE_ROOT
         copied_digest = tree_sha256(staging / "appium")
         marker = {
             "schemaVersion": 1,
+            "serviceRuntimeRevision": service_runtime_revision(lock),
             "package": runtime["package"],
             "version": runtime["version"],
             "nodeSha256": file_sha256(staging / "bin/node"),
@@ -471,6 +526,7 @@ def install_service_runtime(appium_home: Path, service_root: Path = SERVICE_ROOT
         )
         harden_tree(staging, {staging / "bin/node", staging / "remotexpc_tunnel.py"})
         staging.replace(destination)
+        restore_security_context(destination)
     except BaseException:
         if staging.exists():
             for path in sorted(
@@ -859,6 +915,12 @@ def verify_installed_unit(runtime_root: Path, port: int, unit_path: Path = UNIT_
         fail("installed RemoteXPC systemd unit has unsupported overrides")
 
 
+def activate_systemd_unit() -> None:
+    subprocess.run(["systemctl", "daemon-reload"], timeout=30, check=True)
+    subprocess.run(["systemctl", "reset-failed", UNIT_NAME], timeout=30, check=True)
+    subprocess.run(["systemctl", "enable", "--now", UNIT_NAME], timeout=60, check=True)
+
+
 def install_unit(arguments: argparse.Namespace) -> int:
     if os.geteuid() != 0:
         fail("install-unit must run as root")
@@ -893,8 +955,7 @@ def install_unit(arguments: argparse.Namespace) -> int:
             os.close(descriptor)
         temporary.unlink(missing_ok=True)
     verify_installed_unit(runtime_root, arguments.port)
-    subprocess.run(["systemctl", "daemon-reload"], timeout=30, check=True)
-    subprocess.run(["systemctl", "enable", "--now", UNIT_NAME], timeout=60, check=True)
+    activate_systemd_unit()
     print(f"Installed and started {UNIT_NAME}")
     return 0
 

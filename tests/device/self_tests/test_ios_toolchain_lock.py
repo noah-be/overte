@@ -22,6 +22,7 @@ SPEC.loader.exec_module(LOCK)
 class IosToolchainLockTest(unittest.TestCase):
     def test_checked_in_lock_and_full_npm_resolution_are_exact(self):
         value = LOCK.validate()
+        self.assertEqual(2, value["serviceRuntimeRevision"])
         self.assertEqual("3.7.0", value["appium"]["core"]["version"])
         self.assertEqual("12.8.0", value["appium"]["drivers"]["xcuitest"]["version"])
         self.assertEqual("5.15.3", value["appium"]["iosRuntime"]["remoteXpc"]["version"])
@@ -51,6 +52,12 @@ class IosToolchainLockTest(unittest.TestCase):
             npm_path = root / "package-lock.json"
             npm_path.write_text(json.dumps(npm_lock), encoding="utf-8")
             with self.assertRaisesRegex(LOCK.LockError, "pin drifted"):
+                LOCK.validate(lock_path, package_path, npm_path)
+
+            changed = copy.deepcopy(lock)
+            changed["serviceRuntimeRevision"] = 1
+            lock_path.write_text(json.dumps(changed), encoding="utf-8")
+            with self.assertRaisesRegex(LOCK.LockError, "header drifted"):
                 LOCK.validate(lock_path, package_path, npm_path)
 
             lock_path.write_text(json.dumps(lock), encoding="utf-8")

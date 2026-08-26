@@ -793,7 +793,10 @@ class AppiumAdapter:
         lock = json.loads((DEVICE_ROOT / "ios" / "toolchain.lock.json").read_text(
             encoding="utf-8"))
         version = lock["appium"]["iosRuntime"]["remoteXpc"]["version"]
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc") / version
+        revision = lock.get("serviceRuntimeRevision")
+        if revision != 2:
+            fail("unsupported immutable iOS device runtime revision")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc") / f"{version}-r{revision}"
         wrapper = runtime / "remotexpc_tunnel.py"
         current = Path(wrapper.anchor)
         for component in wrapper.parts[1:]:
