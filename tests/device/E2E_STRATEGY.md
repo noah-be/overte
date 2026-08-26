@@ -90,6 +90,14 @@ resource.
 - Look: the camera's observed Euler-angle delta crosses a configurable minimum.
 - Move: the avatar baseline is stable before input, then displacement crosses a
   configurable minimum in the controlled collision scene.
+- Spawn: the avatar position is finite and above the fixture ground within the
+  declared tolerance.
+- Jump: a stable grounded baseline precedes exactly one `input.jump`; the probe
+  then observes configurable height gain with `inAir=true` and `flying=false`,
+  followed by `inAir=false` near the baseline height.
+- Fly: a stable grounded baseline reports `flyingEnabled=true`; bounded
+  `input.fly` then produces configurable height gain with both `inAir=true`
+  and `flying=true`.
 - Tablet: both open and closed state transitions are observed in Interface,
   not inferred from a successful click/key command.
 - Launch/soak: process identity remains stable and foreground state is observed.

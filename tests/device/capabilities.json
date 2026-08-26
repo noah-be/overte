@@ -25,6 +25,14 @@
       "operation": "artifact.screenshot",
       "result": "{artifact: string}"
     },
+    "input.fly": {
+      "operation": "input.fly",
+      "result": "{performed: true}; arguments: {durationSeconds: number from 0.1 through 10.0}"
+    },
+    "input.jump": {
+      "operation": "input.jump",
+      "result": "{performed: true}; arguments: {}"
+    },
     "input.look": {
       "operation": "input.look",
       "result": "{performed: true}"
