@@ -560,7 +560,7 @@ StartLimitBurst=5
 [Service]
 Type=simple
 ExecStart={command}
-WorkingDirectory={systemd_quote(runtime_root)}
+WorkingDirectory={runtime_root}
 Restart=on-failure
 RestartSec=5
 Environment=PATH={systemd_quote(str(runtime_root / "bin") + ":/usr/sbin:/usr/bin")}

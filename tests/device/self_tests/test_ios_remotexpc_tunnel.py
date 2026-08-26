@@ -187,8 +187,12 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
         runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3")
         unit = TUNNEL.service_unit(runtime, TUNNEL.DEFAULT_PORT)
         exec_start = next(line for line in unit.splitlines() if line.startswith("ExecStart="))
+        working_directory = next(
+            line for line in unit.splitlines() if line.startswith("WorkingDirectory=")
+        )
         self.assertIn(str(runtime / "remotexpc_tunnel.py"), exec_start)
         self.assertIn(f'"--service-runtime" "{runtime}"', exec_start)
+        self.assertEqual(f"WorkingDirectory={runtime}", working_directory)
         self.assertNotIn("--appium-home", exec_start)
         self.assertNotIn(str(DEVICE_ROOT), exec_start)
         for contract in (
@@ -214,6 +218,28 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                 TUNNEL.verify_installed_unit(
                     runtime, TUNNEL.DEFAULT_PORT, unit_path, os.geteuid(),
                 )
+
+    def test_generated_unit_passes_systemd_parser(self):
+        analyzer = shutil.which("systemd-analyze")
+        if analyzer is None:
+            self.skipTest("systemd-analyze is unavailable")
+        with tempfile.TemporaryDirectory(prefix="overte-remotexpc-systemd-") as name:
+            root = Path(name)
+            runtime = root / "runtime"
+            runtime.mkdir()
+            wrapper = runtime / "remotexpc_tunnel.py"
+            wrapper.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            wrapper.chmod(0o755)
+            unit_path = root / TUNNEL.UNIT_NAME
+            unit_path.write_text(
+                TUNNEL.service_unit(runtime, TUNNEL.DEFAULT_PORT), encoding="utf-8"
+            )
+            result = subprocess.run(
+                [analyzer, "verify", str(unit_path)], text=True,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                timeout=30, check=False,
+            )
+            self.assertEqual(0, result.returncode, result.stdout)
 
     def test_status_defaults_to_versioned_service_runtime_not_appium_home(self):
         arguments = TUNNEL.parser().parse_args(["status"])
