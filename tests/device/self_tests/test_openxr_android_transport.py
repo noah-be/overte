@@ -152,6 +152,13 @@ class OpenXrAndroidTransportTests(unittest.TestCase):
             "bindingProfileSha256": PROFILE_SHA256,
             "enabled": True,
             "acceptedSequence": 4,
+            "viewAppliedSequence": 4,
+            "viewAppliedYawDegrees": 25.0,
+            "viewAppliedPitchDegrees": 0.0,
+            "vectorAppliedSequence": 4,
+            "leftThumbstickAppliedY": 0.4,
+            "booleanAppliedSequence": 0,
+            "leftSecondaryApplied": False,
             "acceptedNonce": NONCE,
             "activeCommandId": "move-forward",
             "state": "active",
@@ -160,11 +167,21 @@ class OpenXrAndroidTransportTests(unittest.TestCase):
         }).encode()
         status = self.transport.read_status(expected_nonce=NONCE, expected_sequence=4)
         self.assertEqual("[redacted]", status["acceptedNonce"])
+        self.assertEqual(4, status["viewAppliedSequence"])
+        self.assertEqual(25.0, status["viewAppliedYawDegrees"])
+        self.assertEqual(0.4, status["leftThumbstickAppliedY"])
         with self.assertRaisesRegex(TransportError, "nonce"):
             self.transport.read_status(expected_nonce="e" * 64)
 
         invalid = json.loads(self.runner.status)
         invalid["enabled"] = 1
+        self.runner.status = json.dumps(invalid).encode()
+        with self.assertRaisesRegex(TransportError, "values"):
+            self.transport.read_status()
+
+        invalid = json.loads(self.runner.status)
+        invalid["enabled"] = True
+        invalid["viewAppliedSequence"] = 5
         self.runner.status = json.dumps(invalid).encode()
         with self.assertRaisesRegex(TransportError, "values"):
             self.transport.read_status()

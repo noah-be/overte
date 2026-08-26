@@ -587,13 +587,15 @@ bool Protocol::tryAccept(std::int64_t epochMilliseconds,
                     (arguments.contains("vertical") &&
                      !finiteNumber(arguments.value("vertical"), -0.45, 0.45, vertical)) ||
                     (arguments.contains("durationSeconds") &&
-                     !finiteNumber(arguments.value("durationSeconds"), 0.1, 2.0, seconds)) ||
+                     !finiteNumber(arguments.value("durationSeconds"), 0.1, 8.0, seconds)) ||
                     (std::abs(horizontal) < 0.01 && std::abs(vertical) < 0.01)) {
                 return false;
             }
             active.viewActive = true;
-            active.viewOrientation = lookQuaternion(horizontal / 0.45 * 45.0,
-                                                     vertical / 0.45 * 30.0);
+            active.viewYawDegrees = static_cast<float>(horizontal / 0.45 * 45.0);
+            active.viewPitchDegrees = static_cast<float>(vertical / 0.45 * 30.0);
+            active.viewOrientation = lookQuaternion(active.viewYawDegrees,
+                                                     active.viewPitchDegrees);
             duration = static_cast<std::int64_t>(std::llround(seconds * 1000.0));
         } else if (operation == QLatin1String("input.move")) {
             if (!exactKeys(arguments, { "direction", "durationSeconds" }, { "strength" })) {
@@ -604,7 +606,7 @@ bool Protocol::tryAccept(std::int64_t epochMilliseconds,
             double strength { 0.8 };
             if ((direction != QLatin1String("forward") &&
                  direction != QLatin1String("backward")) ||
-                    !finiteNumber(arguments.value("durationSeconds"), 0.1, 3.0, seconds) ||
+                    !finiteNumber(arguments.value("durationSeconds"), 0.1, 8.0, seconds) ||
                     (arguments.contains("strength") &&
                      !finiteNumber(arguments.value("strength"), 0.2, 1.0, strength))) {
                 return false;
@@ -616,13 +618,18 @@ bool Protocol::tryAccept(std::int64_t epochMilliseconds,
             duration = static_cast<std::int64_t>(std::llround(seconds * 1000.0));
         } else if (operation == QLatin1String("tablet.open") ||
                    operation == QLatin1String("tablet.close")) {
-            if (!arguments.isEmpty()) {
+            if (!exactKeys(arguments, {}, { "holdMilliseconds" })) {
+                return false;
+            }
+            std::uint64_t hold { 120 };
+            if (arguments.contains("holdMilliseconds") &&
+                    !integerValue(arguments.value("holdMilliseconds"), 100, 8000, hold)) {
                 return false;
             }
             // PICO OS commonly reserves the physical Menu button. Overte maps
             // left Y as its user-realistic tablet fallback.
             active.booleans[static_cast<std::size_t>(BooleanChannel::LeftSecondary)] = true;
-            duration = 120;
+            duration = static_cast<std::int64_t>(hold);
         } else {
             return false;
         }
@@ -645,6 +652,13 @@ bool Protocol::tryAccept(std::int64_t epochMilliseconds,
     _expiresEpochMilliseconds = static_cast<std::int64_t>(expires);
     _watchdogMilliseconds = cursor;
     _acceptedSequence = sequence;
+    _viewAppliedSequence = 0;
+    _viewAppliedYawDegrees = 0.0;
+    _viewAppliedPitchDegrees = 0.0;
+    _vectorAppliedSequence = 0;
+    _leftThumbstickAppliedY = 0.0;
+    _booleanAppliedSequence = 0;
+    _leftSecondaryApplied = false;
     _acceptedNonce = nonce.toStdString();
     _current = _events.front().state;
     _activeCommandId.clear();
@@ -684,6 +698,44 @@ void Protocol::failClosed(const char* reason, std::int64_t epochMilliseconds) {
     neutralize("error", reason ? reason : "runtime-error", epochMilliseconds);
 }
 
+void Protocol::recordViewApplication(std::int64_t epochMilliseconds) {
+    if (!_current.overrideEnabled || !_current.viewActive ||
+            _activeCommandId.empty() || _viewAppliedSequence == _acceptedSequence) {
+        return;
+    }
+    _viewAppliedSequence = _acceptedSequence;
+    _viewAppliedYawDegrees = _current.viewYawDegrees;
+    _viewAppliedPitchDegrees = _current.viewPitchDegrees;
+    // Publish once per accepted sequence. This proves that an application
+    // OpenXR view query consumed the bounded override without writing a status
+    // file on every rendered frame.
+    publishStatus("active", "view-consumed", epochMilliseconds);
+}
+
+void Protocol::recordVectorApplication(VectorChannel channel, const XrVector2f& value,
+                                       std::int64_t epochMilliseconds) {
+    if (!_current.overrideEnabled || _activeCommandId.empty() ||
+            channel != VectorChannel::LeftThumbstick || std::abs(value.y) < 0.01f ||
+            _vectorAppliedSequence == _acceptedSequence) {
+        return;
+    }
+    _vectorAppliedSequence = _acceptedSequence;
+    _leftThumbstickAppliedY = value.y;
+    publishStatus("active", "vector-consumed", epochMilliseconds);
+}
+
+void Protocol::recordBooleanApplication(BooleanChannel channel, bool value,
+                                        std::int64_t epochMilliseconds) {
+    if (!_current.overrideEnabled || _activeCommandId.empty() || !value ||
+            channel != BooleanChannel::LeftSecondary ||
+            _booleanAppliedSequence == _acceptedSequence) {
+        return;
+    }
+    _booleanAppliedSequence = _acceptedSequence;
+    _leftSecondaryApplied = true;
+    publishStatus("active", "boolean-consumed", epochMilliseconds);
+}
+
 void Protocol::neutralize(const char* state, const char* detail,
                           std::int64_t epochMilliseconds) {
     _current = {};
@@ -704,6 +756,13 @@ void Protocol::publishStatus(const char* state, const char* detail,
         { "bindingProfileSha256", QLatin1String(PROFILE_SHA256) },
         { "enabled", _current.overrideEnabled },
         { "acceptedSequence", static_cast<double>(_acceptedSequence) },
+        { "viewAppliedSequence", static_cast<double>(_viewAppliedSequence) },
+        { "viewAppliedYawDegrees", _viewAppliedYawDegrees },
+        { "viewAppliedPitchDegrees", _viewAppliedPitchDegrees },
+        { "vectorAppliedSequence", static_cast<double>(_vectorAppliedSequence) },
+        { "leftThumbstickAppliedY", _leftThumbstickAppliedY },
+        { "booleanAppliedSequence", static_cast<double>(_booleanAppliedSequence) },
+        { "leftSecondaryApplied", _leftSecondaryApplied },
         { "acceptedNonce", QString::fromStdString(_acceptedNonce) },
         { "activeCommandId", QString::fromStdString(_activeCommandId) },
         { "state", QLatin1String(state) },

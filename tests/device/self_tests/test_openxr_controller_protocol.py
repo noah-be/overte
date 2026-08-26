@@ -106,11 +106,15 @@ class OpenXrControllerProtocolTests(unittest.TestCase):
     def test_common_operations_compile_to_the_same_low_level_channels(self) -> None:
         compiled = compile_envelope(self.envelope([
             {"id": "look-right", "operation": "input.look",
-             "arguments": {"horizontal": 0.2, "vertical": -0.1}},
+             "arguments": {"horizontal": 0.2, "vertical": -0.1,
+                           "durationSeconds": 6.0}},
             {"id": "move-forward", "operation": "input.move",
-             "arguments": {"direction": "forward", "durationSeconds": 0.4}},
-            {"id": "open-tablet", "operation": "tablet.open", "arguments": {}},
-            {"id": "close-tablet", "operation": "tablet.close", "arguments": {}},
+             "arguments": {"direction": "forward", "durationSeconds": 6.0,
+                           "strength": 0.25}},
+            {"id": "open-tablet", "operation": "tablet.open",
+             "arguments": {"holdMilliseconds": 6000}},
+            {"id": "close-tablet", "operation": "tablet.close",
+             "arguments": {"holdMilliseconds": 6000}},
         ]), self.profile)
         self.assertEqual([
             "view-reference-space-offset", "left_thumbstick",
@@ -122,7 +126,14 @@ class OpenXrControllerProtocolTests(unittest.TestCase):
         movement = next(event["state"]["vector2f"]["left_thumbstick"]
                         for event in compiled["events"]
                         if event["state"]["vector2f"]["left_thumbstick"] != [0.0, 0.0])
-        self.assertEqual([0.0, 0.8], movement)
+        self.assertEqual([0.0, 0.25], movement)
+        self.assertEqual([
+            {"startMs": 100, "endMs": 6100},
+            {"startMs": 6200, "endMs": 12200},
+            {"startMs": 12300, "endMs": 18300},
+            {"startMs": 18400, "endMs": 24400},
+        ], [result["activeWindow"] for result in compiled["results"]])
+        self.assertEqual(24600, compiled["watchdogDeadlineMs"])
         self.assertEqual(
             ["head-pose", "controller-action", "controller-action", "controller-action"],
             [result["inputDomain"] for result in compiled["results"]],
@@ -165,6 +176,12 @@ class OpenXrControllerProtocolTests(unittest.TestCase):
             {"id": "bad-pose", "operation": "controller.pose",
              "arguments": {"hand": "left", "positionMeters": [0, 1, 0],
                            "orientation": [0, 0, 0, 0.9]}},
+            {"id": "long-look", "operation": "input.look",
+             "arguments": {"horizontal": 0.2, "durationSeconds": 8.001}},
+            {"id": "long-move", "operation": "input.move",
+             "arguments": {"direction": "forward", "durationSeconds": 8.001}},
+            {"id": "long-tablet", "operation": "tablet.open",
+             "arguments": {"holdMilliseconds": 8001}},
         ]
         for command in cases:
             with self.subTest(command=command):
@@ -212,6 +229,18 @@ class OpenXrControllerProtocolTests(unittest.TestCase):
         self.assertIn("arguments '-DOVERTE_PICO_E2E_OPENXR_INPUT=ON'", gradle)
         self.assertIn("arguments '-DOVERTE_PICO_E2E_OPENXR_INPUT=OFF'", gradle)
         self.assertIn("enabledApiLayerNames = &E2E_INPUT_LAYER", context)
+        self.assertGreaterEqual(protocol.count("0.1, 8.0"), 2)
+        self.assertIn('exactKeys(arguments, {}, { "holdMilliseconds" })', protocol)
+        self.assertIn("integerValue(arguments.value(\"holdMilliseconds\"), 100, 8000, hold)",
+                      protocol)
+        self.assertIn("std::uint64_t hold { 120 }", protocol)
+        self.assertIn("recordViewApplication", header)
+        self.assertIn('{ "viewAppliedSequence",', protocol)
+        self.assertGreaterEqual(layer.count("recordViewApplication(epochMilliseconds())"), 2)
+        self.assertIn("recordVectorApplication", header)
+        self.assertIn("recordBooleanApplication", header)
+        self.assertIn('{ "vectorAppliedSequence",', protocol)
+        self.assertIn('{ "booleanAppliedSequence",', protocol)
         self.assertEqual("XR_APILAYER_OVERTE_e2e_input",
                          manifest["api_layer"]["name"])
         self.assertEqual("libXrApiLayer_overte_e2e_input.so",

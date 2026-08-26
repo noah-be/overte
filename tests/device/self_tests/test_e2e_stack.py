@@ -57,7 +57,7 @@ class E2EStackTest(unittest.TestCase):
             "route": {
                 "openxrAxes": {"lx": 0.0, "ly": -1.0, "rx": 0.0, "ry": 0.0},
                 "standardLy": -1.0, "translateZAction": -1.0,
-                "rawTranslateZDriveKey": -1.0,
+                "rawTranslateZDriveKey": 1.0,
                 "translateZDriveKeyDisabled": False,
             },
             "axes": {
@@ -213,12 +213,22 @@ class E2EStackTest(unittest.TestCase):
             self.assertFalse(route["controller"]["route"]
                              ["translateZDriveKeyDisabled"])
             for module, artifact in (
+                    ("look", "look-input-result.json"),
                     ("move", "move-input-result.json"),
                     ("tablet", "tablet-open-input-result.json"),
                     ("tablet", "tablet-close-input-result.json")):
                 input_result = json.loads((output / "modules" / module / artifact)
                                           .read_text(encoding="utf-8"))
-                self.assertTrue(input_result["neutralBeforeCommand"])
+                if module == "look":
+                    self.assertTrue(input_result["viewApplied"])
+                    self.assertEqual(25.0, input_result["viewYawDegrees"])
+                else:
+                    self.assertTrue(input_result["neutralBeforeCommand"])
+                if module == "move":
+                    self.assertTrue(input_result["openXrVectorApplied"])
+                    self.assertEqual(0.4, input_result["openXrLeftThumbstickY"])
+                if module == "tablet":
+                    self.assertTrue(input_result["openXrBooleanApplied"])
 
     def test_fixture_requires_a_thick_floor_and_explicit_safe_spawn(self):
         from fixture.serve import controlled_scene_url
@@ -245,6 +255,35 @@ class E2EStackTest(unittest.TestCase):
         self.assertIn("spawnRequestPending && avatarAtSpawn", probe)
         self.assertIn("stableAvatarSamples >= 4", probe)
         self.assertIn("spawnValidated: sceneReady", probe)
+
+    def test_pico_actions_span_slow_physical_probe_observations(self):
+        session = (ROOT / "overte_session.py").read_text(encoding="utf-8")
+        launch = (ROOT / "modules/launch_smoke.py").read_text(encoding="utf-8")
+        self.assertIn('arguments["durationSeconds"] = 6.0', session)
+        self.assertIn('move_arguments.update({"durationSeconds": 3.0, "strength": 0.4})',
+                      session)
+        self.assertIn('{"holdMilliseconds": 1000} if self.pico_openxr else None',
+                      session)
+        self.assertIn("raw_sign != mapped_signs[0]", session)
+        self.assertIn("settle = max(settle, 25)", launch)
+        self.assertNotIn("brightness", session.lower())
+
+    def test_pico_e2e_openxr_axes_are_published_as_valid(self):
+        source = (ROOT.parents[1] / "android" / "vr" / "pico" / "apps" /
+                  "picoInterface" / "openxr" / "src" /
+                  "OpenXrInputPlugin.cpp").read_text(encoding="utf-8")
+        self.assertIn("#if defined(OVERTE_E2E_OPENXR_INPUT_V1)", source)
+        self.assertIn(
+            "_axisStateMap[y_channel] = AxisValue(-action.currentState.y, 0);",
+            source,
+        )
+        self.assertIn(
+            "_axisStateMap[channel] = AxisValue(action.currentState, 0);",
+            source,
+        )
+        self.assertIn('"OVERTE_E2E_CONTROLLER_AXIS"', source)
+        self.assertIn("e2eControllerOverrideActive", source)
+        self.assertIn("!e2eControllerOverrideActive", source)
 
 
 if __name__ == "__main__":

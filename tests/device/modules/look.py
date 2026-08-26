@@ -10,9 +10,8 @@ from overte_session import OverteSession
 def main() -> None:
     session = OverteSession()
     session.ensure_controlled_scene()
-    before, after = session.look()
-    delta = session._angle_delta(before["view"]["orientation"], after["view"]["orientation"])
-    print(f"View orientation changed by {delta:.2f} degrees after automated input.")
+    _before, _after, delta = session.look()
+    print(f"OpenXR view input was consumed at {delta:.2f} degrees with neutral controllers.")
 
 
 module_main(main)

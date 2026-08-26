@@ -541,6 +541,9 @@ XRAPI_ATTR XrResult XRAPI_CALL layerGetActionStateBoolean(
             output->currentState = current ? XR_TRUE : XR_FALSE;
             output->changedSinceLastSync = current != previous ? XR_TRUE : XR_FALSE;
             if (current != previous && output->lastChangeTime <= 0) { output->lastChangeTime = 1; }
+            state->protocol.recordBooleanApplication(
+                static_cast<BooleanChannel>(binding->second.channel), current,
+                epochMilliseconds());
         }
     }
     return result;
@@ -600,6 +603,9 @@ XRAPI_ATTR XrResult XRAPI_CALL layerGetActionStateVector2f(
             output->currentState = current;
             output->changedSinceLastSync = changed ? XR_TRUE : XR_FALSE;
             if (changed && output->lastChangeTime <= 0) { output->lastChangeTime = 1; }
+            state->protocol.recordVectorApplication(
+                static_cast<VectorChannel>(binding->second.channel), current,
+                epochMilliseconds());
         }
     }
     return result;
@@ -677,6 +683,7 @@ XRAPI_ATTR XrResult XRAPI_CALL layerLocateSpace(
                    (location->locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0) {
             location->pose.orientation = multiply(
                 state->protocol.current().viewOrientation, location->pose.orientation);
+            state->protocol.recordViewApplication(epochMilliseconds());
         }
     }
     return result;
@@ -707,6 +714,7 @@ XRAPI_ATTR XrResult XRAPI_CALL layerLocateViews(
                 views[index].pose.orientation = multiply(
                     state->protocol.current().viewOrientation, views[index].pose.orientation);
             }
+            state->protocol.recordViewApplication(epochMilliseconds());
         }
     }
     return result;

@@ -81,22 +81,34 @@ def invoke(operation: str, arguments: dict) -> dict:
         state["orientation"]["y"] += 30.0
         result = {"performed": True, "neutralBeforeCommand": False,
                   "sequence": state["inputSequence"]}
+        if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
+            result.update({"viewApplied": True, "viewYawDegrees": 25.0,
+                           "viewPitchDegrees": 0.0})
     elif operation == "input.move":
         state["inputSequence"] += 1
         state["picoRouteActive"] = True
         state["position"]["z"] -= 1.0
         result = {"performed": True, "neutralBeforeCommand": True,
                   "sequence": state["inputSequence"]}
+        if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
+            result.update({"openXrVectorApplied": True,
+                           "openXrLeftThumbstickY": 0.4})
     elif operation == "tablet.open":
         state["inputSequence"] += 1
         state["tablet"] = True
         result = {"performed": True, "neutralBeforeCommand": True,
                   "sequence": state["inputSequence"]}
+        if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
+            result.update({"openXrBooleanApplied": True,
+                           "openXrLeftSecondaryApplied": True})
     elif operation == "tablet.close":
         state["inputSequence"] += 1
         state["tablet"] = False
         result = {"performed": True, "neutralBeforeCommand": True,
                   "sequence": state["inputSequence"]}
+        if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
+            result.update({"openXrBooleanApplied": True,
+                           "openXrLeftSecondaryApplied": True})
     elif operation == "probe.snapshot":
         after = arguments.get("afterSampleSequence")
         if (after is not None and (not isinstance(after, int) or isinstance(after, bool)
@@ -132,7 +144,9 @@ def invoke(operation: str, arguments: dict) -> dict:
                                    "rx": 0.0, "ry": 0.0},
                     "standardLy": route_value,
                     "translateZAction": route_value,
-                    "rawTranslateZDriveKey": route_value,
+                    # The avatar drive-key API exposes TranslateZ with the
+                    # opposite sign from the OpenXR/controller action axes.
+                    "rawTranslateZDriveKey": -route_value,
                     "translateZDriveKeyDisabled": False,
                 },
                 "axes": {

@@ -338,7 +338,16 @@ void OpenXrInputPlugin::pluginUpdate(float deltaTime, const controller::InputCal
         _inputDevice->update(deltaTime, inputCalibrationData);
     });
 
-    if (_inputDevice->_trackedControllers == 0 && _registeredWithInputMapper) {
+    bool e2eControllerOverrideActive = false;
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+    const auto leftY = _inputDevice->_axisStateMap.find(controller::LY);
+    e2eControllerOverrideActive =
+        (leftY != _inputDevice->_axisStateMap.end() && leftY->second.valid &&
+         std::abs(leftY->second.value) >= 0.01f) ||
+        _inputDevice->_buttonPressedMap.contains(controller::LEFT_SECONDARY_THUMB);
+#endif
+    if (_inputDevice->_trackedControllers == 0 && !e2eControllerOverrideActive &&
+            _registeredWithInputMapper) {
         userInputMapper->removeDevice(_inputDevice->_deviceID);
         _registeredWithInputMapper = false;
         _inputDevice->_poseStateMap.clear();
@@ -1324,7 +1333,13 @@ void OpenXrInputPlugin::InputDevice::update(float deltaTime, const controller::I
     for (const auto& [name, channel] : floatsToUpdate) {
         auto action = _actions.at(name)->getFloat();
         if (action.isActive) {
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+            // AxisValue defaults to invalid.  The Pico E2E layer must publish
+            // injected axes as valid so the controller mapper consumes them.
+            _axisStateMap[channel] = AxisValue(action.currentState, 0);
+#else
             _axisStateMap[channel].value = action.currentState;
+#endif
         }
     }
 
@@ -1356,9 +1371,36 @@ void OpenXrInputPlugin::InputDevice::update(float deltaTime, const controller::I
     for (const auto& [name, x_channel, y_channel] : axesToUpdate) {
         auto action = _actions.at(name)->getVector2f();
         if (action.isActive) {
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+            _axisStateMap[x_channel] = AxisValue(action.currentState.x, 0);
+            _axisStateMap[y_channel] = AxisValue(-action.currentState.y, 0);
+#else
             _axisStateMap[x_channel].value = action.currentState.x;
             _axisStateMap[y_channel].value = -action.currentState.y;
+#endif
         }
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+        if (name == "left_thumbstick") {
+            static bool reportedNonzero { false };
+            const bool nonzero = action.isActive &&
+                (std::abs(action.currentState.x) >= 0.01f ||
+                 std::abs(action.currentState.y) >= 0.01f);
+            if (nonzero != reportedNonzero) {
+                const auto published = _axisStateMap.find(y_channel);
+                qCInfo(xr_input_cat) << "OVERTE_E2E_CONTROLLER_AXIS"
+                                     << "active=" << action.isActive
+                                     << "inputY=" << action.currentState.y
+                                     << "publishedY="
+                                     << (published == _axisStateMap.end()
+                                             ? 0.0f : published->second.value)
+                                     << "valid="
+                                     << (published != _axisStateMap.end() &&
+                                         published->second.valid)
+                                     << "trackedControllers=" << _trackedControllers;
+                reportedNonzero = nonzero;
+            }
+        }
+#endif
     }
 
     std::vector<std::pair<std::string, StandardButtonChannel>> buttonsToUpdate = {

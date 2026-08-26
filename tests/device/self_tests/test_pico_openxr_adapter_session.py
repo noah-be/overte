@@ -25,11 +25,21 @@ class FakeTransport:
         return {"sequence": envelope["sequence"]}
 
     def read_status(self, *, expected_nonce=None, expected_sequence=None):
+        sequence = expected_sequence or len(self.envelopes)
+        operation = (self.envelopes[sequence - 1]["commands"][0]["operation"]
+                     if sequence else "")
         return {
             "enabled": True,
-            "acceptedSequence": expected_sequence or len(self.envelopes),
+            "acceptedSequence": sequence,
             "acceptedNonce": "[redacted]",
             "state": "active" if expected_sequence is not None else "neutral",
+            "viewAppliedSequence": sequence if operation == "input.look" else 0,
+            "viewAppliedYawDegrees": 25.0 if operation == "input.look" else 0.0,
+            "viewAppliedPitchDegrees": 0.0,
+            "vectorAppliedSequence": sequence if operation == "input.move" else 0,
+            "leftThumbstickAppliedY": 0.4 if operation == "input.move" else 0.0,
+            "booleanAppliedSequence": sequence if operation.startswith("tablet.") else 0,
+            "leftSecondaryApplied": operation.startswith("tablet."),
         }
 
     def cleanup(self):
@@ -59,7 +69,11 @@ class PicoOpenXrAdapterSessionTests(unittest.TestCase):
         self.assertEqual(self.transport.envelopes[0]["sessionNonce"],
                          self.transport.envelopes[1]["sessionNonce"])
         self.assertEqual("head-pose", first["inputDomain"])
+        self.assertTrue(first["viewApplied"])
+        self.assertEqual(25.0, first["viewYawDegrees"])
         self.assertEqual("controller-action", second["inputDomain"])
+        self.assertTrue(second["openXrVectorApplied"])
+        self.assertEqual(0.4, second["openXrLeftThumbstickY"])
         serialized = str((first, second))
         self.assertNotIn(self.transport.envelopes[0]["sessionNonce"], serialized)
         self.assertNotIn("private-pico-selector", self.session.state_path.name)

@@ -79,6 +79,10 @@ elif len(cmd) == 3 and cmd[:2] == ["shell", "-T"]:
           "profileId":"overte-pico4-controller-v1",
           "bindingProfileSha256":grant["bindingProfileSha256"],"enabled":True,
           "acceptedSequence":grant["sequence"],"acceptedNonce":grant["sessionNonce"],
+          "viewAppliedSequence":grant["sequence"],"viewAppliedYawDegrees":25.0,
+          "viewAppliedPitchDegrees":0.0,
+          "vectorAppliedSequence":grant["sequence"],"leftThumbstickAppliedY":0.4,
+          "booleanAppliedSequence":grant["sequence"],"leftSecondaryApplied":True,
           "activeCommandId":"mock-command","state":"active","detail":"command-window",
           "updatedEpochMs":int(time.time()*1000)}
         if status_path: open(status_path,"w").write(json.dumps(status))
@@ -254,6 +258,12 @@ class AndroidAdapterTest(unittest.TestCase):
         self.assertEqual(["head-pose", "controller-action", "controller-action",
                           "controller-action"],
                          [item["inputDomain"] for item in outputs])
+        self.assertTrue(outputs[0]["viewApplied"])
+        self.assertEqual(25.0, outputs[0]["viewYawDegrees"])
+        self.assertTrue(outputs[1]["openXrVectorApplied"])
+        self.assertEqual(0.4, outputs[1]["openXrLeftThumbstickY"])
+        self.assertTrue(outputs[2]["openXrBooleanApplied"])
+        self.assertTrue(outputs[3]["openXrBooleanApplied"])
         self.assertNotIn(committed[0]["sessionNonce"], json.dumps(outputs))
         self.assertNotIn("pico-secret", json.dumps(outputs))
 

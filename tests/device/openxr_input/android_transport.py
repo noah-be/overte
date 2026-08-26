@@ -181,6 +181,9 @@ class AndroidOpenXrTransport:
             "schemaVersion", "buildMarker", "consumer", "profileId",
             "bindingProfileSha256", "enabled", "acceptedSequence", "acceptedNonce",
             "activeCommandId", "state", "detail", "updatedEpochMs",
+            "viewAppliedSequence", "viewAppliedYawDegrees", "viewAppliedPitchDegrees",
+            "vectorAppliedSequence", "leftThumbstickAppliedY",
+            "booleanAppliedSequence", "leftSecondaryApplied",
         }
         if not isinstance(status, dict) or set(status) != required:
             raise TransportError("native OpenXR input status contract is invalid")
@@ -193,6 +196,35 @@ class AndroidOpenXrTransport:
                 or isinstance(status["acceptedSequence"], bool)
                 or not isinstance(status["acceptedSequence"], int)
                 or not 0 <= status["acceptedSequence"] <= 0xFFFFFFFF
+                or isinstance(status["viewAppliedSequence"], bool)
+                or not isinstance(status["viewAppliedSequence"], int)
+                or not 0 <= status["viewAppliedSequence"] <= status["acceptedSequence"]
+                or isinstance(status["viewAppliedYawDegrees"], bool)
+                or not isinstance(status["viewAppliedYawDegrees"], (int, float))
+                or not math.isfinite(status["viewAppliedYawDegrees"])
+                or not -45.0 <= status["viewAppliedYawDegrees"] <= 45.0
+                or isinstance(status["viewAppliedPitchDegrees"], bool)
+                or not isinstance(status["viewAppliedPitchDegrees"], (int, float))
+                or not math.isfinite(status["viewAppliedPitchDegrees"])
+                or not -30.0 <= status["viewAppliedPitchDegrees"] <= 30.0
+                or (status["viewAppliedSequence"] == 0 and
+                    (status["viewAppliedYawDegrees"] != 0 or
+                     status["viewAppliedPitchDegrees"] != 0))
+                or isinstance(status["vectorAppliedSequence"], bool)
+                or not isinstance(status["vectorAppliedSequence"], int)
+                or not 0 <= status["vectorAppliedSequence"] <= status["acceptedSequence"]
+                or isinstance(status["leftThumbstickAppliedY"], bool)
+                or not isinstance(status["leftThumbstickAppliedY"], (int, float))
+                or not math.isfinite(status["leftThumbstickAppliedY"])
+                or not -1.0 <= status["leftThumbstickAppliedY"] <= 1.0
+                or (status["vectorAppliedSequence"] == 0 and
+                    status["leftThumbstickAppliedY"] != 0)
+                or isinstance(status["booleanAppliedSequence"], bool)
+                or not isinstance(status["booleanAppliedSequence"], int)
+                or not 0 <= status["booleanAppliedSequence"] <= status["acceptedSequence"]
+                or not isinstance(status["leftSecondaryApplied"], bool)
+                or (status["booleanAppliedSequence"] == 0 and
+                    status["leftSecondaryApplied"] is not False)
                 or not isinstance(status["acceptedNonce"], str)
                 or (status["acceptedNonce"] != ""
                     and re.fullmatch(r"[0-9a-f]{32,128}", status["acceptedNonce"]) is None)

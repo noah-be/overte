@@ -151,18 +151,36 @@ class OverteSession:
         return math.sqrt(sum(wrapped(float(first[axis]), float(second[axis])) ** 2
                              for axis in ("x", "y", "z")))
 
-    def look(self, horizontal: float = 0.25, vertical: float = 0.0) -> tuple[dict, dict]:
+    def look(self, horizontal: float = 0.25,
+             vertical: float = 0.0) -> tuple[dict, dict, float]:
         before = self.snapshot("look-before.json")
-        result = operation("input.look", {"horizontal": horizontal, "vertical": vertical})
+        arguments = {"horizontal": horizontal, "vertical": vertical}
+        if self.pico_openxr:
+            # Physical Pico frame/probe observations can be several seconds
+            # apart. Keep the bounded override active across at least two such
+            # observations; the native watchdog still neutralizes it.
+            arguments["durationSeconds"] = 6.0
+        result = operation("input.look", arguments)
         write_json("look-input-result.json", result)
         minimum = self._float_environment("OVERTE_E2E_MIN_LOOK_DEGREES", 5.0, 0.1, 180.0)
         pico = self.pico_openxr
 
+        native_delta = None
+        if pico:
+            yaw = result.get("viewYawDegrees")
+            pitch = result.get("viewPitchDegrees")
+            if (result.get("viewApplied") is not True
+                    or not isinstance(yaw, (int, float)) or isinstance(yaw, bool)
+                    or not isinstance(pitch, (int, float)) or isinstance(pitch, bool)):
+                fail("Pico OpenXR view override lacks native consumption evidence")
+            native_delta = math.hypot(float(yaw), float(pitch))
+            if native_delta < minimum:
+                fail("Pico OpenXR consumed view override is below the required angle")
+
         def changed_with_neutral_controller(value: dict) -> bool:
-            changed = self._angle_delta(before["view"]["orientation"],
-                                        value["view"]["orientation"]) >= minimum
             if not pico:
-                return changed
+                return self._angle_delta(before["view"]["orientation"],
+                                         value["view"]["orientation"]) >= minimum
             controller = value.get("controller", {})
             axes = controller.get("axes", {})
             openxr = controller.get("route", {}).get("openxrAxes")
@@ -171,14 +189,17 @@ class OverteSession:
             openxr_neutral = isinstance(openxr, dict) and all(
                 abs(float(openxr.get(axis, 1.0))) <= 0.05
                 for axis in ("lx", "ly", "rx", "ry"))
-            return changed and standard_neutral and openxr_neutral
+            return standard_neutral and openxr_neutral
 
         after = self.wait_until(
             f"view orientation to change by at least {minimum} degrees",
             changed_with_neutral_controller,
         )
         write_json("look-after.json", after)
-        return before, after
+        observed_delta = (native_delta if native_delta is not None else
+                          self._angle_delta(before["view"]["orientation"],
+                                            after["view"]["orientation"]))
+        return before, after, observed_delta
 
     @staticmethod
     def _distance(first: dict, second: dict) -> float:
@@ -207,17 +228,24 @@ class OverteSession:
         if direction not in {"forward", "backward", "left", "right"}:
             fail("movement direction is unsupported")
         before = self.stable_avatar_snapshot()
-        pico = os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1"
+        pico = self.pico_openxr
         if pico:
             input_state = before.get("input", {})
             if input_state.get("dominantHand") != "right":
                 fail("Pico movement requires effective right-hand dominance")
             if input_state.get("advancedMovementControls") is not True:
                 fail("Pico movement requires effective advanced movement controls")
-        result = operation(
-            "input.move", {"direction": direction, "durationSeconds": duration_seconds})
+        move_arguments = {"direction": direction, "durationSeconds": duration_seconds}
+        if pico:
+            move_arguments.update({"durationSeconds": 3.0, "strength": 0.4})
+        result = operation("input.move", move_arguments)
         write_json("move-input-result.json", result)
         if pico:
+            applied_y = result.get("openXrLeftThumbstickY")
+            if (result.get("openXrVectorApplied") is not True
+                    or not isinstance(applied_y, (int, float))
+                    or isinstance(applied_y, bool) or abs(float(applied_y)) < 0.15):
+                fail("Pico movement lacks native OpenXR vector consumption evidence")
             route_minimum = self._float_environment(
                 "OVERTE_E2E_MIN_ROUTE_AXIS", 0.15, 0.01, 1.0)
 
@@ -234,8 +262,11 @@ class OverteSession:
                         or any(abs(float(item)) < route_minimum for item in values)
                         or route.get("translateZDriveKeyDisabled") is not False):
                     return False
-                signs = [float(item) > 0.0 for item in values]
-                return len(set(signs)) == 1
+                mapped_signs = [float(item) > 0.0 for item in values[:3]]
+                raw_sign = float(values[3]) > 0.0
+                # The controller/action axes use the OpenXR forward convention;
+                # MyAvatar's raw TranslateZ DriveKey exposes the inverse sign.
+                return len(set(mapped_signs)) == 1 and raw_sign != mapped_signs[0]
 
             route_snapshot = self.wait_until(
                 "the complete Pico movement route to become active", complete_route)
@@ -253,7 +284,8 @@ class OverteSession:
         before = self.snapshot("tablet-before.json")
         if before["tablet"]["open"] is not opened:
             operation_name = "tablet.open" if opened else "tablet.close"
-            result = operation(operation_name)
+            arguments = {"holdMilliseconds": 1000} if self.pico_openxr else None
+            result = operation(operation_name, arguments)
             write_json("tablet-open-input-result.json" if opened
                        else "tablet-close-input-result.json", result)
         after = self.wait_until(

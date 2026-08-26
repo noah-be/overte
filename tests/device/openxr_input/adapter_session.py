@@ -234,6 +234,51 @@ class PicoOpenXrAdapterSession:
             "native Pico OpenXR input did not confirm an inter-command neutral window"
         ) from last_error
 
+    def _wait_for_view_application(self, nonce: str, sequence: int) -> dict:
+        deadline = time.monotonic() + self._ack_timeout()
+        last_error: TransportError | None = None
+        while time.monotonic() < deadline:
+            try:
+                status = self.transport.read_status(
+                    expected_nonce=nonce, expected_sequence=sequence)
+                if status["state"] == "error" or status["enabled"] is not True:
+                    raise AdapterSessionError(
+                        "native Pico OpenXR view override failed before consumption")
+                if status["viewAppliedSequence"] == sequence:
+                    return status
+            except TransportError as error:
+                last_error = error
+            time.sleep(0.1)
+        raise AdapterSessionError(
+            "native Pico OpenXR view override was not consumed by a view query"
+        ) from last_error
+
+    def _wait_for_controller_application(self, nonce: str, sequence: int,
+                                         operation: str) -> dict:
+        deadline = time.monotonic() + self._ack_timeout()
+        last_error: TransportError | None = None
+        while time.monotonic() < deadline:
+            try:
+                status = self.transport.read_status(
+                    expected_nonce=nonce, expected_sequence=sequence)
+                if status["state"] == "error" or status["enabled"] is not True:
+                    raise AdapterSessionError(
+                        "native Pico OpenXR controller override failed before consumption")
+                vector_applied = (operation == "input.move" and
+                                  status["vectorAppliedSequence"] == sequence and
+                                  abs(float(status["leftThumbstickAppliedY"])) >= 0.01)
+                boolean_applied = (operation in {"tablet.open", "tablet.close"} and
+                                   status["booleanAppliedSequence"] == sequence and
+                                   status["leftSecondaryApplied"] is True)
+                if vector_applied or boolean_applied:
+                    return status
+            except TransportError as error:
+                last_error = error
+            time.sleep(0.1)
+        raise AdapterSessionError(
+            "native Pico OpenXR controller override was not consumed by an action query"
+        ) from last_error
+
     def stage(self, process_identity: str, operation: str, arguments: dict) -> dict:
         if not isinstance(process_identity, str) or not process_identity:
             raise AdapterSessionError("Pico application process identity is unavailable")
@@ -265,7 +310,13 @@ class PicoOpenXrAdapterSession:
             # acknowledgement timeout must never replay the committed sequence.
             self._save(state)
             status = self._wait_for_ack(state["sessionNonce"], sequence)
-        return {
+            if operation == "input.look":
+                status = self._wait_for_view_application(
+                    state["sessionNonce"], sequence)
+            elif operation in {"input.move", "tablet.open", "tablet.close"}:
+                status = self._wait_for_controller_application(
+                    state["sessionNonce"], sequence, operation)
+        result = {
             "performed": True,
             "inputDomain": ("head-pose" if operation == "input.look"
                             else "controller-action"),
@@ -273,6 +324,23 @@ class PicoOpenXrAdapterSession:
             "nativeState": status["state"],
             "neutralBeforeCommand": neutral_before_command,
         }
+        if operation == "input.look":
+            result.update({
+                "viewApplied": True,
+                "viewYawDegrees": status["viewAppliedYawDegrees"],
+                "viewPitchDegrees": status["viewAppliedPitchDegrees"],
+            })
+        elif operation == "input.move":
+            result.update({
+                "openXrVectorApplied": True,
+                "openXrLeftThumbstickY": status["leftThumbstickAppliedY"],
+            })
+        elif operation in {"tablet.open", "tablet.close"}:
+            result.update({
+                "openXrBooleanApplied": True,
+                "openXrLeftSecondaryApplied": status["leftSecondaryApplied"],
+            })
+        return result
 
     def cleanup(self, process_running: bool) -> None:
         with self._lock():
