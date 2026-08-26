@@ -145,6 +145,7 @@ After a build, verify that the output is a signed, structurally valid Pico APK:
 ```bash
 ./ci/verify-pico-apk.py \
   vr/pico/apps/picoInterface/build/outputs/apk/debug/picoInterface-debug.apk \
+  --expect-e2e-input-layer \
   --output ../build/pico4/apk-manifest.json
 ```
 
@@ -154,6 +155,10 @@ not match the application contract. It writes the version, size, and SHA-256
 digest to a small JSON manifest suitable for CI retention. `aapt` and
 `apksigner` must be on `PATH`, or their exact Build-Tools paths can be provided
 with `--aapt` and `--apksigner`.
+Debug verification requires the E2E-only explicit OpenXR input layer and its
+manifest as a pair. Release automation passes `--forbid-e2e-input-layer`, so a
+release APK containing either test artifact fails before publication or device
+installation.
 
 ## Default Pico graphics profile
 

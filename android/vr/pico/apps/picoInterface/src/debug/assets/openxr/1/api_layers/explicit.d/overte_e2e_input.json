@@ -1,0 +1,10 @@
+{
+  "file_format_version": "1.0.0",
+  "api_layer": {
+    "name": "XR_APILAYER_OVERTE_e2e_input",
+    "library_path": "libXrApiLayer_overte_e2e_input.so",
+    "api_version": "1.0",
+    "implementation_version": "1",
+    "description": "Overte E2E-only bounded OpenXR input layer"
+  }
+}

@@ -38,6 +38,9 @@ Q_LOGGING_CATEGORY(xr_context_cat, "openxr.context")
 #if defined(Q_OS_ANDROID)
 extern "C" JavaVM* overtePicoOpenXRJavaVm();
 extern "C" jobject overtePicoOpenXRAcquireActivity(JNIEnv* env);
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+extern "C" const char* overteE2eOpenXrInputBuildMarker();
+#endif
 #endif
 
 // Checks XrResult, returns false on errors and logs the error as qCritical.
@@ -322,6 +325,19 @@ bool OpenXrContext::initInstance() {
         .enabledExtensionCount = (uint32_t)enabled.size(),
         .enabledExtensionNames = enabled.data(),
     };
+
+#if defined(Q_OS_ANDROID) && defined(OVERTE_E2E_OPENXR_INPUT_V1)
+    static constexpr const char* E2E_INPUT_LAYER = "XR_APILAYER_OVERTE_e2e_input";
+    static constexpr const char* E2E_INPUT_MARKER = "OVERTE_E2E_OPENXR_INPUT_V1";
+    const char* linkedMarker = overteE2eOpenXrInputBuildMarker();
+    if (!linkedMarker || strcmp(linkedMarker, E2E_INPUT_MARKER) != 0) {
+        qCCritical(xr_context_cat, "E2E OpenXR input layer marker mismatch.");
+        return false;
+    }
+    info.enabledApiLayerCount = 1;
+    info.enabledApiLayerNames = &E2E_INPUT_LAYER;
+    qCInfo(xr_context_cat, "E2E OpenXR input layer explicitly requested.");
+#endif
 
 #if defined(Q_OS_ANDROID)
     JavaVM* androidJavaVm = overtePicoOpenXRJavaVm();

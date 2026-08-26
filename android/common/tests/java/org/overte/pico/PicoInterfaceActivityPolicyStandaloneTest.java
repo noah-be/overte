@@ -14,14 +14,9 @@ public final class PicoInterfaceActivityPolicyStandaloneTest {
 
     private static void applicationArgumentsAreComposedWithoutAndroid() {
         equal("--display=OpenXR --cache /cache",
-                PicoInterfaceActivityPolicy.applicationParameters(false, null, "/cache"));
-        equal("--url hifi://example --cache /cache dir",
-                PicoInterfaceActivityPolicy.applicationParameters(
-                        true, "--url hifi://example", "/cache dir"));
-        equal(" --cache /cache",
-                PicoInterfaceActivityPolicy.applicationParameters(true, "", "/cache"));
-        equal("--display=OpenXR --cache /cache",
-                PicoInterfaceActivityPolicy.applicationParameters(true, null, "/cache"));
+                PicoInterfaceActivityPolicy.applicationParameters("/cache"));
+        equal("--display=OpenXR --cache /cache dir",
+                PicoInterfaceActivityPolicy.applicationParameters("/cache dir"));
     }
 
     private static void exactAlarmChoiceMatchesAndroidPolicyBoundary() {

@@ -1013,9 +1013,17 @@ public:
      */
     Q_INVOKABLE void enableHandTouchForID(const QUuid& entityID);
 
-    bool useAdvancedMovementControls() const { return _useAdvancedMovementControls.get(); }
+    bool useAdvancedMovementControls() const {
+        return _e2eAdvancedMovementControlsOverride.get() ||
+            _useAdvancedMovementControls.get();
+    }
     void setUseAdvancedMovementControls(bool useAdvancedMovementControls)
         { _useAdvancedMovementControls.set(useAdvancedMovementControls); }
+    // Native-only, runtime-only E2E override. This is deliberately neither a
+    // Q_PROPERTY nor Q_INVOKABLE and never writes the Setting::Handle.
+    void setE2eAdvancedMovementControlsOverride(bool enabled) {
+        _e2eAdvancedMovementControlsOverride.set(enabled);
+    }
 
     bool getAllowTeleporting() { return _allowTeleportingSetting.get(); }
     void setAllowTeleporting(bool allowTeleporting) { _allowTeleportingSetting.set(allowTeleporting); }
@@ -2646,6 +2654,7 @@ private:
 
     Setting::Handle<float> _realWorldFieldOfView;
     Setting::Handle<bool> _useAdvancedMovementControls;
+    ThreadSafeValueCache<bool> _e2eAdvancedMovementControlsOverride { false };
     Setting::Handle<bool> _showPlayArea;
 
     // Smoothing.

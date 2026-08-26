@@ -19,6 +19,9 @@ REQUIRED_LIBRARIES = (
     "libpicoOpenXR.so",
     "libplugins_libopenxr.so",
 )
+E2E_LAYER_LIBRARY = "libXrApiLayer_overte_e2e_input.so"
+E2E_LAYER_MANIFEST = "assets/openxr/1/api_layers/explicit.d/overte_e2e_input.json"
+E2E_BUILD_MARKER = b"OVERTE_E2E_OPENXR_INPUT_V1"
 
 
 class PicoApkVerifierTests(unittest.TestCase):
@@ -46,15 +49,40 @@ class PicoApkVerifierTests(unittest.TestCase):
         path.chmod(path.stat().st_mode | stat.S_IXUSR)
         return path
 
-    def _apk(self, *, abi="arm64-v8a", omit=None, extra=None):
+    def _apk(self, *, abi="arm64-v8a", omit=None, extra=None, e2e_layer=False,
+             layer_library=None, layer_manifest=None, stale_activation=False):
         apk = self.directory / "pico.apk"
         with zipfile.ZipFile(apk, "w") as archive:
             archive.writestr("AndroidManifest.xml", b"synthetic")
             for library in REQUIRED_LIBRARIES:
                 if library != omit:
-                    archive.writestr(f"lib/{abi}/{library}", b"elf")
+                    contents = b"elf"
+                    if library == "libplugins_libopenxr.so" and (
+                            e2e_layer or stale_activation):
+                        contents += E2E_BUILD_MARKER
+                    archive.writestr(f"lib/{abi}/{library}", contents)
             if extra:
                 archive.writestr(extra, b"unexpected")
+            if e2e_layer or layer_library is not None:
+                archive.writestr(
+                    f"lib/{abi}/{E2E_LAYER_LIBRARY}",
+                    b"elf" if layer_library is None else layer_library,
+                )
+            if e2e_layer or layer_manifest is not None:
+                manifest = {
+                    "file_format_version": "1.0.0",
+                    "api_layer": {
+                        "name": "XR_APILAYER_OVERTE_e2e_input",
+                        "library_path": E2E_LAYER_LIBRARY,
+                        "api_version": "1.0",
+                        "implementation_version": "1",
+                        "description": "Overte E2E-only bounded OpenXR input layer",
+                    },
+                }
+                archive.writestr(
+                    E2E_LAYER_MANIFEST,
+                    json.dumps(manifest).encode() if layer_manifest is None else layer_manifest,
+                )
         return apk
 
     def _run(self, apk, env=None, extra_args=()):
@@ -73,6 +101,7 @@ class PicoApkVerifierTests(unittest.TestCase):
         self.assertEqual(manifest["package"], "org.overte.pico")
         self.assertEqual(manifest["abi"], "arm64-v8a")
         self.assertTrue(manifest["signature_verified"])
+        self.assertFalse(manifest["e2e_input_layer"])
         self.assertRegex(manifest["sha256"], r"^[0-9a-f]{64}$")
         self.assertRegex(manifest["signer_certificate_sha256"], r"^[0-9a-f]{64}$")
 
@@ -122,6 +151,51 @@ class PicoApkVerifierTests(unittest.TestCase):
         self.assertEqual(bad_version.returncode, 2)
         bad_signer = self._run(self._apk(), extra_args=("--expected-signer-sha256", "f" * 64))
         self.assertEqual(bad_signer.returncode, 2)
+
+    def test_debug_requires_complete_e2e_input_layer(self):
+        result = self._run(
+            self._apk(e2e_layer=True), extra_args=("--expect-e2e-input-layer",),
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(json.loads(result.stdout)["e2e_input_layer"])
+
+        missing = self._run(self._apk(), extra_args=("--expect-e2e-input-layer",))
+        self.assertEqual(missing.returncode, 2)
+        self.assertIn("missing the required", missing.stderr)
+
+    def test_release_mechanically_forbids_e2e_input_layer(self):
+        clean = self._run(self._apk(), extra_args=("--forbid-e2e-input-layer",))
+        self.assertEqual(clean.returncode, 0, clean.stderr)
+        contaminated = self._run(
+            self._apk(e2e_layer=True), extra_args=("--forbid-e2e-input-layer",),
+        )
+        self.assertEqual(contaminated.returncode, 2)
+        self.assertIn("release APK must not contain", contaminated.stderr)
+
+        stale = self._run(
+            self._apk(stale_activation=True),
+            extra_args=("--forbid-e2e-input-layer",),
+        )
+        self.assertEqual(stale.returncode, 2)
+        self.assertIn("activation marker and layer package must match", stale.stderr)
+
+    def test_rejects_incomplete_or_wrong_layer_package(self):
+        library_only = self._run(self._apk(layer_library=b"elf"))
+        self.assertEqual(library_only.returncode, 2)
+        self.assertIn("must be packaged together", library_only.stderr)
+
+        wrong_manifest = json.dumps({
+            "file_format_version": "1.0.0",
+            "api_layer": {
+                "name": "XR_APILAYER_WRONG",
+                "library_path": E2E_LAYER_LIBRARY,
+                "api_version": "1.0",
+                "implementation_version": "1",
+            },
+        }).encode()
+        wrong = self._run(self._apk(e2e_layer=True, layer_manifest=wrong_manifest))
+        self.assertEqual(wrong.returncode, 2)
+        self.assertIn("does not match the test contract", wrong.stderr)
 
 
 if __name__ == "__main__":
