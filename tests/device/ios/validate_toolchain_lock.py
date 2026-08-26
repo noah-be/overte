@@ -219,7 +219,7 @@ def validate(lock_path: Path = DEFAULT_LOCK, package_path: Path = DEFAULT_PACKAG
         {"schemaVersion", "serviceRuntimeRevision", "resolvedAt", "sources", "appium"},
         "Fedora iOS toolchain lock",
     )
-    if (lock["schemaVersion"] != 1 or lock["serviceRuntimeRevision"] != 2
+    if (lock["schemaVersion"] != 1 or lock["serviceRuntimeRevision"] != 3
             or lock["resolvedAt"] != "2026-08-25"):
         fail("Fedora iOS toolchain lock header drifted")
     exact_keys(lock["sources"], {"npmRegistry", "ageRelease", "rcodesignRelease"}, "sources")

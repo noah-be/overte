@@ -29,6 +29,8 @@ ARTIFACT_TREE_FILE = Path(__file__).with_name("private_artifact_tree.py")
 DEFAULT_PORT = 42314
 UNIT_NAME = "overte-ios-remotexpc.service"
 SERVICE_ROOT = Path("/usr/local/lib/overte-ios-remotexpc")
+SERVICE_STATE_DIRECTORY = "overte-ios-remotexpc"
+SERVICE_STATE_ROOT = Path("/var/lib") / SERVICE_STATE_DIRECTORY
 UNIT_PATH = Path("/etc/systemd/system") / UNIT_NAME
 RUNTIME_MARKER = "service-runtime.json"
 RESTORECON_CANDIDATES = (Path("/usr/bin/restorecon"), Path("/usr/sbin/restorecon"))
@@ -211,7 +213,7 @@ def list_installed_drivers(node: Path, appium_entry: Path, appium_home: Path,
 
 def service_runtime_revision(lock: dict) -> int:
     revision = lock.get("serviceRuntimeRevision")
-    if revision != 2:
+    if revision != 3:
         fail("unsupported immutable service-runtime revision")
     return revision
 
@@ -644,6 +646,9 @@ WorkingDirectory={runtime_root}
 Restart=on-failure
 RestartSec=5
 Environment=PATH={systemd_quote(str(runtime_root / "bin") + ":/usr/sbin:/usr/bin")}
+Environment=XDG_DATA_HOME={systemd_quote(SERVICE_STATE_ROOT)}
+StateDirectory={SERVICE_STATE_DIRECTORY}
+StateDirectoryMode=0700
 UMask=0077
 NoNewPrivileges=true
 CapabilityBoundingSet=CAP_NET_ADMIN

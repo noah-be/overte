@@ -138,7 +138,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                         TUNNEL, "restore_security_context") as restore_context:
                     installed = TUNNEL.install_service_runtime(appium_home, service_root)
                     self.assertEqual(installed, restore_context.call_args.args[0])
-                self.assertEqual(service_root / "5.15.3-r2", installed)
+                self.assertEqual(service_root / "5.15.3-r3", installed)
                 self.assertEqual(
                     Path(TUNNEL.__file__).read_bytes(),
                     (installed / "remotexpc_tunnel.py").read_bytes(),
@@ -253,7 +253,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                     self.make_tree_writable(service_root)
 
     def test_unit_executes_only_installed_runtime_and_is_hardened(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r2")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r3")
         unit = TUNNEL.service_unit(runtime, TUNNEL.DEFAULT_PORT)
         exec_start = next(line for line in unit.splitlines() if line.startswith("ExecStart="))
         working_directory = next(
@@ -268,8 +268,11 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
             "ProtectHome=true", "NoNewPrivileges=true",
             "CapabilityBoundingSet=CAP_NET_ADMIN", "ProtectSystem=strict",
             "StartLimitBurst=5", "Restart=on-failure",
+            "StateDirectory=overte-ios-remotexpc", "StateDirectoryMode=0700",
+            "Environment=XDG_DATA_HOME=\"/var/lib/overte-ios-remotexpc\"",
         ):
             self.assertIn(contract, unit)
+        self.assertNotIn("/root", unit)
         parsed = TUNNEL.parser().parse_args([
             "install-unit", "--appium-home", "/private/appium",
         ])
@@ -322,13 +325,13 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
     def test_status_defaults_to_versioned_service_runtime_not_appium_home(self):
         arguments = TUNNEL.parser().parse_args(["status"])
         self.assertEqual(
-            Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r2"),
+            Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r3"),
             arguments.service_runtime,
         )
         self.assertFalse(hasattr(arguments, "appium_home"))
 
     def test_appium_server_is_root_owned_loopback_and_privacy_bounded(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r2")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r3")
         with tempfile.TemporaryDirectory(prefix="overte-appium-state-") as name:
             state = Path(name)
             state.chmod(0o700)
@@ -361,7 +364,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
             self.assertEqual([], list(state.iterdir()))
 
     def test_device_preflight_passes_udid_only_over_stdin_and_redacts_output(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r2")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r3")
         arguments = TUNNEL.parser().parse_args(["device-preflight"])
         private_udid = "00008101-1234567890ABCDEF"
         stdin = MagicMock()
@@ -381,7 +384,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
         self.assertEqual("PASS: installed iOS app contracts verified\n", output.getvalue())
 
     def test_device_install_revalidates_receipt_and_passes_private_values_only_on_stdin(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r2")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r3")
         with tempfile.TemporaryDirectory(prefix="overte-ios-device-install-") as name:
             root = Path(name)
             overte = root / "Overte.ipa"

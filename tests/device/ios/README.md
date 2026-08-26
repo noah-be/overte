@@ -239,7 +239,7 @@ sudo python3 tests/device/ios/remotexpc_tunnel.py install-unit \
 Run it only from an audited, quiescent checkout and staging tree. It atomically
 copies the pinned Node executable, package files, complete npm tree, tunnel
 wrapper, and toolchain lock into
-`/usr/local/lib/overte-ios-remotexpc/5.15.3-r2`. The suffix is the immutable
+`/usr/local/lib/overte-ios-remotexpc/5.15.3-r3`. The suffix is the immutable
 Overte packaging revision; the pinned RemoteXPC package remains 5.15.3. Source
 and destination trees are hashed before publication. Every installed file is
 root-owned and immutable. Existing content and modes are only attested, never
@@ -251,7 +251,17 @@ The systemd tunnel service executes only this immutable copy. It has
 and home protection, three child reconnect attempts, and a bounded
 `Restart=on-failure` policy. Its registry binds locally and status prints only
 the aggregate active-tunnel count. Device-shaped tokens are redacted before
-journal output.
+journal output. Strongbox registry and pairing state is confined to systemd's
+root-owned, mode-0700 `/var/lib/overte-ios-remotexpc` state directory;
+`XDG_DATA_HOME` is fixed to that path so `ProtectHome=true` remains effective.
+This private state may contain pairing secrets and device-linked filenames. It
+must never enter backups, diagnostics, workspaces, or artifacts. When a device
+is deprovisioned, stop the unit and remove only its systemd-managed state:
+
+```bash
+sudo systemctl stop overte-ios-remotexpc.service
+sudo systemctl clean --what=state overte-ios-remotexpc.service
+```
 
 The immutable copy also contains two deliberately quiet device helpers. Under
 the exclusive Jenkins device lock, a signed-IPA target is handled in this exact
@@ -274,14 +284,14 @@ already installed apps and proceeds directly to the same marker/team preflight.
 Attest status without elevation:
 
 ```bash
-python3 /usr/local/lib/overte-ios-remotexpc/5.15.3-r2/remotexpc_tunnel.py status
+python3 /usr/local/lib/overte-ios-remotexpc/5.15.3-r3/remotexpc_tunnel.py status
 ```
 
 Jenkins must also start Appium from the immutable runtime, never from a mutable
 user `node_modules`:
 
 ```bash
-/usr/local/lib/overte-ios-remotexpc/5.15.3-r2/remotexpc_tunnel.py appium-server \
+/usr/local/lib/overte-ios-remotexpc/5.15.3-r3/remotexpc_tunnel.py appium-server \
   --state-root /private/jenkins-job/appium-state \
   --address 127.0.0.1 --port 4723
 ```
