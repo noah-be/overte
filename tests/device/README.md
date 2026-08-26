@@ -28,6 +28,10 @@ assertion failure.
 - `smoke`: stable process launch and foreground state.
 - `e2e-core`: launch, controlled scene load, look, movement, and tablet
   open/close behavior.
+- `vertical-locomotion`: one jump with observed ascent and landing, followed by
+  bounded flight with observed active ascent. Adapters lacking either input
+  capability skip only the corresponding module unless `--require-complete`
+  is selected.
 - `accessibility`: native-tree audit against explicitly configured stable UI
   accessibility identifiers.
 - `stability`: idle process and foreground health, with strict battery,
@@ -68,6 +72,14 @@ names and results are versioned in [`capabilities.json`](capabilities.json).
 Machine-readable catalog, manifest, and probe schemas are in
 [`schemas/`](schemas/).
 
+The vertical-locomotion adapter contract is deliberately small:
+
+- `input.jump` accepts `{}` and returns at least `{"performed": true}`.
+- `input.fly` accepts only `{"durationSeconds": NUMBER}`, bounded from `0.1`
+  through `10.0`, and returns at least `{"performed": true}`.
+
+No shared module knows controller buttons, native events, or input routes.
+
 [`adapters/mock/`](adapters/mock/) is a deterministic state machine that proves
 every common scenario without hardware. Concrete adapters, private target
 configuration examples, installation logic, and platform toolchains belong to
@@ -95,8 +107,8 @@ python3 tests/device/fixture/serve.py \
 
 The server exposes the repository-owned probe at `/overte_e2e_probe.js`. The
 in-client [`probe/overte_e2e_probe.js`](probe/overte_e2e_probe.js) records
-application focus, scene readiness and markers, avatar position, camera
-orientation, tablet state, and build identity through Interface's existing
+application focus, scene readiness and markers, avatar position, `inAir`,
+`flying`, `flyingEnabled`, camera orientation, tablet state, and build identity through Interface's existing
 test-script result API. Product adapters own the exact launch and result
 transport used to load it.
 
@@ -111,7 +123,7 @@ python3 tests/device/run.py \
 
 python3 tests/device/run.py \
   --adapter-manifest tests/device/adapters/mock/adapter.json \
-  --catalog tests/device/catalog.json --suite e2e-core \
+  --catalog tests/device/catalog.json --suite vertical-locomotion \
   --output-dir /tmp/overte-device-run --require-complete
 ```
 
