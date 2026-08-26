@@ -7,7 +7,7 @@ import json
 import os
 from pathlib import Path
 import time
-from typing import NoReturn
+from typing import Callable, NoReturn
 
 from adapter_client import invoke
 
@@ -17,22 +17,69 @@ TARGET = os.environ["OVERTE_DEVICE_TARGET_SELECTOR"]
 ARTIFACT_DIR = Path(os.environ["OVERTE_DEVICE_ARTIFACT_DIR"])
 
 
+class InfrastructureError(RuntimeError):
+    """The target, transport or automation service was unavailable."""
+
+
+class AssertionFailure(RuntimeError):
+    """The application did not satisfy an observable E2E expectation."""
+
+
 def operation(name: str, arguments: dict[str, object] | None = None) -> dict:
-    value = invoke(MANIFEST, TARGET, name, arguments)
+    try:
+        value = invoke(MANIFEST, TARGET, name, arguments)
+    except RuntimeError as error:
+        detail = str(error)
+        for prefix in ("ASSERTION: ", "error: ASSERTION: "):
+            if detail.startswith(prefix):
+                raise AssertionFailure(detail.removeprefix(prefix)) from error
+        raise InfrastructureError(detail) from error
+    except OSError as error:
+        raise InfrastructureError(str(error)) from error
     if not isinstance(value, dict):
-        raise RuntimeError(f"adapter operation {name} did not return an object")
+        raise InfrastructureError(f"adapter operation {name} did not return an object")
     return value
 
 
 def fail(message: str) -> NoReturn:
-    raise RuntimeError(message)
+    raise AssertionFailure(message)
+
+
+def module_main(function: Callable[[], None]) -> None:
+    """Give CI a stable distinction between product and lab failures."""
+    try:
+        function()
+    except InfrastructureError as error:
+        print(f"INFRASTRUCTURE: {error}")
+        raise SystemExit(75) from error
+    except AssertionFailure as error:
+        print(f"ASSERTION: {error}")
+        raise SystemExit(1) from error
+    except Exception as error:
+        # A module bug or malformed lab configuration is an infrastructure
+        # error, never evidence that the product failed its behavioral check.
+        detail = str(error).replace(TARGET, "<target>")
+        print(f"INFRASTRUCTURE: unexpected {type(error).__name__}: {detail}")
+        raise SystemExit(75) from error
 
 
 def positive_integer_environment(name: str, default: int, maximum: int) -> int:
     value = os.environ.get(name, str(default))
     if not value.isdigit() or int(value) <= 0 or int(value) > maximum:
-        fail(f"{name} must be an integer from 1 through {maximum}")
+        raise InfrastructureError(f"{name} must be an integer from 1 through {maximum}")
     return int(value)
+
+
+def advertised_capabilities() -> set[str]:
+    """Return the runner-attested operations available on this target."""
+    try:
+        value = json.loads(os.environ.get("OVERTE_DEVICE_CAPABILITIES_JSON", "[]"))
+    except json.JSONDecodeError as error:
+        raise InfrastructureError("runner capability context is invalid") from error
+    if (not isinstance(value, list) or value != sorted(set(value))
+            or not all(isinstance(item, str) and item for item in value)):
+        raise InfrastructureError("runner capability context is invalid")
+    return set(value)
 
 
 def process_identity() -> str:
