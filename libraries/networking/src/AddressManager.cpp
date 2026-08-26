@@ -408,7 +408,15 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
         QUrlQuery queryArgs(lookupUrl);
         const QString LOCATION_QUERY_KEY = "location";
         if (queryArgs.hasQueryItem(LOCATION_QUERY_KEY)) {
+#ifdef Q_OS_ANDROID
+            // Android Uri builders encode reserved viewpoint separators such
+            // as '/' and ','. PrettyDecoded intentionally retains them, so
+            // fully decode the value before passing it to the existing path
+            // parser. The URL and its trust boundary are otherwise unchanged.
+            path = queryArgs.queryItemValue(LOCATION_QUERY_KEY, QUrl::FullyDecoded);
+#else
             path = queryArgs.queryItemValue(LOCATION_QUERY_KEY);
+#endif
         } else {
             path = DEFAULT_NAMED_PATH;
         }
