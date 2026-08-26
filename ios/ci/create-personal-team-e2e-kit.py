@@ -256,10 +256,12 @@ def create_unsigned_wda(upstream: Path, output: Path) -> None:
                 if not relative.parts or is_signing_member(relative):
                     continue
                 target_entry = copy.copy(entry)
-                target_entry.filename = str(PurePosixPath("Payload") / app_root / relative)
+                target_name = str(PurePosixPath("Payload") / app_root / relative)
                 if entry.is_dir():
+                    target_entry.filename = target_name + "/"
                     target.writestr(target_entry, b"")
                     continue
+                target_entry.filename = target_name
                 if member in {runner_info, xctest_info}:
                     data = source.read(entry)
                     try:
