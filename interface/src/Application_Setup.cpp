@@ -88,6 +88,7 @@
 #include <recording/Deck.h>
 #include <recording/Frame.h>
 #include <recording/Recorder.h>
+#include <shared/FileUtils.h>
 #include <recording/RecordingScriptingInterface.h>
 #include <RenderableEntityItem.h>
 #include <RenderableTextEntityItem.h>
@@ -571,6 +572,8 @@ void Application::initialize(const QCommandLineParser &parser) {
         if (parser.isSet("testResultsLocation")) {
             // Set test snapshot location only if it is a writeable directory
             QString path = parser.value("testResultsLocation");
+            path = FileUtils::computeDocumentPath(path);
+            QDir().mkpath(path);
 
             QFileInfo fileInfo(path);
             if (fileInfo.isDir() && fileInfo.isWritable()) {

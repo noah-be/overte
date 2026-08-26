@@ -10,13 +10,11 @@ final class PicoInterfaceActivityPolicy {
     private PicoInterfaceActivityPolicy() {
     }
 
-    static String applicationParameters(
-            boolean hasApplicationArguments, String applicationArguments,
-            String cacheDirectory) {
-        String requestedParameters = hasApplicationArguments && applicationArguments != null
-                ? applicationArguments
-                : DEFAULT_APPLICATION_ARGUMENTS;
-        return requestedParameters + " --cache " + cacheDirectory;
+    static String applicationParameters(String cacheDirectory) {
+        // QtActivityLoader appends the trusted applicationArguments Intent
+        // extra. Keep only the invariant base arguments here so argv is never
+        // duplicated during a restart or debug E2E launch.
+        return DEFAULT_APPLICATION_ARGUMENTS + " --cache " + cacheDirectory;
     }
 
     static boolean canUseExactRestart(int sdkInt, boolean canScheduleExactAlarms) {

@@ -2,6 +2,11 @@ import QtQuick 2.5
 
 Item {
     id: button
+    activeFocusOnTab: true
+    Accessible.role: Accessible.Button
+    Accessible.name: accessibleName
+    Accessible.onPressAction: activate()
+
     property string icon: "icons/edit-icon.svg"
     property string hoverIcon: button.icon
     property string activeIcon: button.icon
@@ -10,6 +15,7 @@ Item {
 
     property int iconSize: 165
     property string text: "."
+    property string accessibleName: text
     property string hoverText: button.text
     property string activeText: button.text
     property string activeHoverText: button.activeText
@@ -57,6 +63,10 @@ Item {
     signal clicked()
     signal entered()
     signal exited()
+
+    function activate() {
+        button.clicked()
+    }
 
     onIsActiveChanged: {
         if (button.isEntered) {
@@ -124,7 +134,7 @@ Item {
                     tabletButton.isActive = true;
                 }
             }*/
-            button.clicked();
+            button.activate();
             /*if (tabletRoot) {
                 tabletRoot.playButtonClickSound();
             }*/

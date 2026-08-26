@@ -70,6 +70,96 @@ class PicoPackageContractTests(unittest.TestCase):
         self.assertIn('legacy_runtime_dir', build_script)
         self.assertIn('cp -a "$legacy_runtime_dir/." "$shared_runtime_dir/"', build_script)
 
+    def test_pico_conan_recipe_inherits_the_repository_recipe(self):
+        recipe_path = ANDROID / "common/conan/conanfile-pico.py"
+        recipe = recipe_path.read_text(encoding="utf-8")
+        expected_upstream = recipe_path.resolve().parents[3] / "conanfile.py"
+
+        self.assertEqual(expected_upstream, ROOT / "conanfile.py")
+        self.assertTrue(expected_upstream.is_file())
+        self.assertIn(
+            'Path(__file__).resolve().parents[3] / "conanfile.py"',
+            recipe,
+        )
+
+    def test_e2e_launcher_exists_only_in_the_debug_source_set(self):
+        debug_manifest = APP / "src/debug/AndroidManifest.xml"
+        activity_sources = list(
+            (APP / "src/debug/java").rglob("E2eLauncherActivity.java")
+        )
+        self.assertEqual(1, len(activity_sources))
+        self.assertFalse(list((APP / "src/main").rglob("E2eLauncherActivity.java")))
+
+        activity = ET.parse(debug_manifest).getroot().find("application/activity")
+        self.assertIsNotNone(activity)
+        self.assertEqual("true", activity.attrib[NS + "exported"])
+        self.assertEqual("android.permission.DUMP", activity.attrib[NS + "permission"])
+        self.assertEqual("true", activity.attrib[NS + "noHistory"])
+        launcher = activity_sources[0].read_text(encoding="utf-8")
+        self.assertIn("extends E2eLauncherActivityBase", launcher)
+
+    def test_e2e_assets_and_native_layer_are_debug_only(self):
+        self.assertIn("device_tests/e2e_android/src/main/java", GRADLE)
+        self.assertGreaterEqual(GRADLE.count("variant.buildType.name == 'debug'"), 2)
+        self.assertIn("e2eProbeAsset", GRADLE)
+        self.assertIn("e2eSceneAsset", GRADLE)
+        self.assertIn(
+            "variant.mergeAssets.inputs.files(e2eProbeAsset, e2eSceneAsset)",
+            GRADLE,
+        )
+        self.assertIn("arguments '-DOVERTE_PICO_E2E_OPENXR_INPUT=ON'", GRADLE)
+        self.assertIn("arguments '-DOVERTE_PICO_E2E_OPENXR_INPUT=OFF'", GRADLE)
+
+    def test_e2e_result_path_is_relative_atomic_and_app_private(self):
+        save_object = (
+            ROOT / "interface/src/scripting/TestScriptingInterface.cpp"
+        ).read_text(encoding="utf-8")
+        self.assertIn("QSaveFile", save_object)
+        self.assertIn("QFileInfo(filename).fileName()", save_object)
+        self.assertIn("file.commit()", save_object)
+        for relative in (
+            "interface/src/Application_Setup.cpp",
+            "android/vr/pico/apps/picoInterface/overrides/Application_Setup.cpp",
+        ):
+            source = (ROOT / relative).read_text(encoding="utf-8")
+            self.assertIn("FileUtils::computeDocumentPath(path)", source)
+            self.assertIn("QDir().mkpath(path)", source)
+
+    def test_movement_override_is_native_runtime_only_and_nonpersistent(self):
+        pico_setup = (
+            APP / "overrides/Application_Setup.cpp"
+        ).read_text(encoding="utf-8")
+        self.assertIn("picoE2eInputMappingOverrideActive", pico_setup)
+        self.assertIn(
+            "/data/user/0/org.overte.pico/files/overte-e2e/overte_e2e_probe.js",
+            pico_setup,
+        )
+        self.assertIn("#if defined(OVERTE_E2E_OPENXR_INPUT_V1)", pico_setup)
+        self.assertIn("setE2eAdvancedMovementControlsOverride", pico_setup)
+
+        avatar_header = (ROOT / "interface/src/avatar/MyAvatar.h").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("_e2eAdvancedMovementControlsOverride.get() ||", avatar_header)
+        self.assertIn("_e2eAdvancedMovementControlsOverride.set(enabled)", avatar_header)
+        declaration = avatar_header.split(
+            "void setE2eAdvancedMovementControlsOverride", 1
+        )[1].split("}", 1)[0]
+        self.assertNotIn("Q_INVOKABLE", declaration)
+        self.assertNotIn("_useAdvancedMovementControls.set", declaration)
+        self.assertIn("if(OVERTE_PICO_E2E_OPENXR_INPUT)", CMAKE)
+        self.assertIn(
+            "target_compile_definitions(interface PRIVATE OVERTE_E2E_OPENXR_INPUT_V1=1)",
+            CMAKE,
+        )
+        avatar_source = (ROOT / "interface/src/avatar/MyAvatar.cpp").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "if (!useAdvancedMovementControls() && qApp->isHMDMode())",
+            avatar_source,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

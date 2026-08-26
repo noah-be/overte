@@ -207,6 +207,9 @@ android {
             jniLibs.srcDirs '../../../../common/libraries/qt/libs', 'src/main/jniLibs',
                 picoQtRuntimeDir
         }
+        debug {
+            java.srcDir '../../../../common/device_tests/e2e_android/src/main/java'
+        }
     }
 
     compileOptions {
@@ -216,6 +219,11 @@ android {
 
     buildTypes {
         debug {
+            externalNativeBuild {
+                cmake {
+                    arguments '-DOVERTE_PICO_E2E_OPENXR_INPUT=ON'
+                }
+            }
             buildConfigField 'String', 'BACKTRACE_URL', '""'
             buildConfigField 'String', 'BACKTRACE_TOKEN', '""'
             buildConfigField 'String', 'OAUTH_CLIENT_ID', '""'
@@ -223,6 +231,11 @@ android {
             buildConfigField 'String', 'OAUTH_REDIRECT_URI', '""'
         }
         release {
+            externalNativeBuild {
+                cmake {
+                    arguments '-DOVERTE_PICO_E2E_OPENXR_INPUT=OFF'
+                }
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
                 'proguard-rules.pro'
@@ -252,6 +265,8 @@ android {
     }
 
     applicationVariants.all { variant ->
+        def e2eProbeAsset = file('../../../../../tests/device/probe/overte_e2e_probe.js')
+        def e2eSceneAsset = file('../../../../../tests/device/fixture/scene.json')
         // The runtime unpacks these CMake-produced assets into its cache on startup.
         // Ensure they are generated before merging and include the manifest expected
         // by HifiUtils.upackAssets().
@@ -268,6 +283,9 @@ android {
         // Declare them as task inputs so incremental builds do not silently
         // package stale controller/UI logic after a script-only change.
         variant.mergeAssets.inputs.dir(file("${projectDir}/../../../../../scripts"))
+        if (variant.buildType.name == 'debug') {
+            variant.mergeAssets.inputs.files(e2eProbeAsset, e2eSceneAsset)
+        }
 
         variant.mergeAssets.doLast {
             def assetList = new LinkedList<String>()
@@ -367,6 +385,18 @@ android {
                 eachFile { details ->
                     youngestLastModified = Math.max(youngestLastModified, details.lastModified)
                     assetList.add('scripts/' + details.path)
+                }
+            }
+
+            if (variant.buildType.name == 'debug') {
+                copy {
+                    from e2eProbeAsset
+                    from e2eSceneAsset
+                    into mergedAssetsDir
+                    eachFile { details ->
+                        youngestLastModified = Math.max(youngestLastModified, details.lastModified)
+                        assetList.add(details.path)
+                    }
                 }
             }
 

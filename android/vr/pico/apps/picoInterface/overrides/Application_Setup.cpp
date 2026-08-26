@@ -88,6 +88,7 @@
 #include <SceneScriptingInterface.h>
 #include <ScriptEngines.h>
 #include <ScriptEntityItem.h>
+#include <shared/FileUtils.h>
 #include <scripting/Audio.h>
 #include <scripting/AssetMappingsScriptingInterface.h>
 #include <scripting/ControllerScriptingInterface.h>
@@ -250,6 +251,20 @@ static const int WATCHDOG_TIMER_TIMEOUT = 100;
 
 #if defined(Q_OS_ANDROID)
 static const QString TESTER_FILE = "/sdcard/_hifi_test_device.txt";
+#endif
+
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+// The Debug-only Android launcher copies this exact repository probe into the
+// app-private directory. While it is the active --testScript, expose a
+// deterministic controller mapping state without changing MyAvatar/QSettings.
+static bool picoE2eInputMappingOverrideActive() {
+    const QUrl testScript = qApp->property(hifi::properties::TEST).toUrl();
+    if (!testScript.isLocalFile()) {
+        return false;
+    }
+    return QFileInfo(testScript.toLocalFile()).canonicalFilePath() ==
+        QStringLiteral("/data/user/0/org.overte.pico/files/overte-e2e/overte_e2e_probe.js");
+}
 #endif
 
 bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted) {
@@ -551,6 +566,8 @@ void Application::initialize(const QCommandLineParser &parser) {
         if (parser.isSet("testResultsLocation")) {
             // Set test snapshot location only if it is a writeable directory
             QString path = parser.value("testResultsLocation");
+            path = FileUtils::computeDocumentPath(path);
+            QDir().mkpath(path);
 
             QFileInfo fileInfo(path);
             if (fileInfo.isDir() && fileInfo.isWritable()) {
@@ -973,6 +990,14 @@ void Application::initialize(const QCommandLineParser &parser) {
     auto userInputMapper = DependencyManager::get<UserInputMapper>();
     _applicationStateDevice = userInputMapper->getStateDevice();
 
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+    // Runtime-only: the getter used by the controller mappings and avatar
+    // motor observes this flag, while the persistent Setting::Handle is never
+    // mutated. A normal or Release session constructs the flag as false.
+    qApp->getMyAvatar()->setE2eAdvancedMovementControlsOverride(
+        picoE2eInputMappingOverrideActive());
+#endif
+
     _applicationStateDevice->setInputVariant(STATE_IN_HMD, []() -> float {
         return qApp->isHMDMode() ? 1 : 0;
     });
@@ -1010,10 +1035,20 @@ void Application::initialize(const QCommandLineParser &parser) {
         return qApp->getMyAvatar()->useAdvancedMovementControls() ? 1 : 0;
     });
     _applicationStateDevice->setInputVariant(STATE_LEFT_HAND_DOMINANT, []() -> float {
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+        return picoE2eInputMappingOverrideActive() ? 0 :
+            (qApp->getMyAvatar()->getDominantHand() == "left" ? 1 : 0);
+#else
         return qApp->getMyAvatar()->getDominantHand() == "left" ? 1 : 0;
+#endif
     });
     _applicationStateDevice->setInputVariant(STATE_RIGHT_HAND_DOMINANT, []() -> float {
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+        return picoE2eInputMappingOverrideActive() ? 1 :
+            (qApp->getMyAvatar()->getDominantHand() == "right" ? 1 : 0);
+#else
         return qApp->getMyAvatar()->getDominantHand() == "right" ? 1 : 0;
+#endif
     });
     _applicationStateDevice->setInputVariant(STATE_STRAFE_ENABLED, []() -> float {
         return qApp->getMyAvatar()->getStrafeEnabled() ? 1 : 0;
