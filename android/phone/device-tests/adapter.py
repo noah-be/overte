@@ -217,7 +217,12 @@ def perform_vertical_touch(target: str, duration_milliseconds: int) -> dict:
                   str(duration_milliseconds))
     finally:
         neutralize_vertical_input(target, position)
-    if require_input_session(target) != identity:
+    # The package and foreground checks above bind the touch to the intended
+    # session. Re-read only the process identity afterward: repeating package
+    # manager and activity dumpsys calls can outlast a bounded jump, preventing
+    # the shared probe from observing its airborne phase.
+    process = ADB.process_state(target, PACKAGE)
+    if process.get("running") is not True or process.get("identity") != identity:
         raise RuntimeError("Android Phone application process changed during input")
     return {"performed": True}
 

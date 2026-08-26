@@ -246,6 +246,10 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
         self.assertEqual("120", jump_input[-2][-1])
         self.assertEqual(["input", "touchscreen", "motionevent", "UP"],
                          jump_input[-1][:4])
+        commands = self.commands()
+        self.assertEqual(1, commands.count(["pm", "path", "org.overte.phone"]))
+        self.assertEqual(1, commands.count(
+            ["dumpsys", "activity", "activities"]))
 
         self.log.unlink()
         self.assertEqual(
