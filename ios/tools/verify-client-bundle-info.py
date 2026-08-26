@@ -47,7 +47,11 @@ def validate(app: Path, expected_bundle_id: str, platform: str, minimum_ios: str
         raise ValueError("client bundle identifier does not match the requested identity")
     if info.get("CFBundlePackageType") != "APPL" or info.get("LSRequiresIPhoneOS") is not True:
         raise ValueError("client bundle is not declared as an iOS application")
-    if info.get("CFBundleDisplayName") != "Overte" or info.get("CFBundleName") != "Overte":
+    expected_display_name = (
+        "Overte E2E" if expected_bundle_id.endswith(".e2e") else "Overte"
+    )
+    if (info.get("CFBundleDisplayName") != expected_display_name
+            or info.get("CFBundleName") != "Overte"):
         raise ValueError("client bundle does not identify the Overte product")
     executable_name = info.get("CFBundleExecutable")
     if executable_name != "Overte":

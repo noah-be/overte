@@ -43,9 +43,12 @@ def valid_info() -> dict:
     }
 
 
-def expect_failure(validator, app: Path, expected: str) -> None:
+def expect_failure(
+    validator, app: Path, expected: str,
+    expected_bundle_id: str = "org.overte.interface.dev",
+) -> None:
     try:
-        validator.validate(app, "org.overte.interface.dev", "iphoneos", "17.0")
+        validator.validate(app, expected_bundle_id, "iphoneos", "17.0")
     except ValueError as error:
         assert expected in str(error), (expected, str(error))
     else:
@@ -71,6 +74,28 @@ def main() -> None:
             "buildVersion": "1",
             "platform": "iphoneos",
         }
+
+        payload = valid_info()
+        payload["CFBundleIdentifier"] = "org.overte.interface.e2e"
+        payload["CFBundleDisplayName"] = "Overte E2E"
+        with info_path.open("wb") as stream:
+            plistlib.dump(payload, stream)
+        assert validator.validate(
+            app, "org.overte.interface.e2e", "iphoneos", "17.0"
+        )["bundleIdentifier"] == "org.overte.interface.e2e"
+
+        payload["CFBundleDisplayName"] = "Overte"
+        with info_path.open("wb") as stream:
+            plistlib.dump(payload, stream)
+        expect_failure(
+            validator, app, "Overte product", "org.overte.interface.e2e"
+        )
+
+        payload = valid_info()
+        payload["CFBundleDisplayName"] = "Overte E2E"
+        with info_path.open("wb") as stream:
+            plistlib.dump(payload, stream)
+        expect_failure(validator, app, "Overte product")
 
         cases = (
             ("CFBundleIdentifier", None, "bundle identifier"),
