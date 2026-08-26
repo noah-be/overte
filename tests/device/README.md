@@ -29,6 +29,10 @@ assertion failure.
 - `smoke`: stable process launch and foreground state.
 - `e2e-core`: launch, controlled scene load, look, movement, and tablet
   open/close behavior.
+- `vertical-locomotion`: one jump with observed ascent and landing, followed by
+  bounded flight with observed active ascent. Adapters lacking either input
+  capability skip only the corresponding module unless `--require-complete`
+  is selected.
 - `accessibility`: Appium native-tree audit against explicitly configured
   stable QML accessibility labels.
 - `stability`: idle process/foreground health on every target, with strict
@@ -68,6 +72,14 @@ sorted `capabilities` list. Selectors are private transport identifiers and
 must never appear in descriptions or persisted output. Supported names and
 operation results are versioned in [`capabilities.json`](capabilities.json).
 Machine-readable catalog, manifest, and probe schemas are in [`schemas/`](schemas/).
+
+The vertical-locomotion adapter contract is deliberately small:
+
+- `input.jump` accepts `{}` and returns at least `{"performed": true}`.
+- `input.fly` accepts only `{"durationSeconds": NUMBER}`, bounded from `0.1`
+  through `10.0`, and returns at least `{"performed": true}`.
+
+No shared module knows controller buttons, native events, or input routes.
 
 Concrete adapters:
 
@@ -122,9 +134,9 @@ bytes and populated target configuration outside the checkout and archives.
 
 The in-client [`probe/overte_e2e_probe.js`](probe/overte_e2e_probe.js) runs
 only via Interface's existing `--testScript` mode. It records application
-focus, scene URL/readiness/entity markers, avatar position, camera orientation,
-tablet state, and Overte build identity through the existing `Test.saveObject`
-API.
+focus, scene URL/readiness/entity markers, avatar position, `inAir`, `flying`,
+`flyingEnabled`, camera orientation, tablet state, and Overte build identity
+through the existing `Test.saveObject` API.
 
 ## Running
 
