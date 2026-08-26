@@ -29,7 +29,10 @@ class E2EStackTest(unittest.TestCase):
             "build": {"platform": "Mock", "version": "1", "date": "1970-01-01"},
             "application": {"running": True},
             "scene": {"ready": True, "entityCount": 4},
-            "avatar": {"position": {"x": 0, "y": 1, "z": 4}},
+            "avatar": {
+                "position": {"x": 0, "y": 1, "z": 4},
+                "inAir": False, "flying": False, "flyingEnabled": True,
+            },
             "view": {"orientation": {"x": 0, "y": 0, "z": 0}},
             "tablet": {"open": False},
         }
