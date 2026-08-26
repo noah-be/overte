@@ -243,6 +243,12 @@ endif ()
 if (APPLE)
   add_executable(${TARGET_NAME} MACOSX_BUNDLE ${INTERFACE_SRCS} ${QM})
   if (IOS)
+    if (OVERTE_IOS_E2E_TEST_BUILD)
+      if (NOT OVERTE_IOS_BUNDLE_IDENTIFIER MATCHES "[.]e2e$")
+        message(FATAL_ERROR "The iOS E2E test build requires a dedicated bundle identifier ending in .e2e")
+      endif()
+      target_compile_definitions(${TARGET_NAME} PRIVATE OVERTE_IOS_E2E_TEST_BUILD=1)
+    endif()
     set_target_properties(${TARGET_NAME} PROPERTIES
       MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/ios/resources/InterfaceInfo.plist.in"
       MACOSX_BUNDLE_BUNDLE_VERSION "1"
@@ -258,6 +264,11 @@ if (APPLE)
       XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
       XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${OVERTE_IOS_BUNDLE_IDENTIFIER}"
     )
+    if (OVERTE_IOS_E2E_TEST_BUILD)
+      set_property(TARGET ${TARGET_NAME} PROPERTY
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/ios/resources/InterfaceE2EInfo.plist.in"
+      )
+    endif()
     if (OVERTE_IOS_ENABLE_SIGNING)
       set_target_properties(${TARGET_NAME} PROPERTIES
         XCODE_ATTRIBUTE_CODE_SIGN_STYLE "Automatic"

@@ -7,6 +7,8 @@
 from __future__ import annotations
 
 import argparse
+import datetime as dt
+import hashlib
 import importlib.util
 import json
 import plistlib
@@ -24,6 +26,7 @@ SAFE_ARTIFACT = re.compile(
     r"[0-9]{4,}-OverteIOSClient-[A-Za-z0-9][A-Za-z0-9._]*-"
     r"(?:simulator[.]zip|device-signed[.]ipa)"
 )
+FEDORA_CONTRACT = "overte-ios-fedora-e2e-artifact-v1"
 BUNDLE_ID = re.compile(
     r"[A-Za-z0-9][A-Za-z0-9-]*(?:[.][A-Za-z0-9][A-Za-z0-9-]*)+"
 )
@@ -287,6 +290,105 @@ def inspect_archive(artifact: Path, mode: str) -> tuple[str, str]:
     return expected_root, bundle_id
 
 
+def require_e2e_contract(artifact: Path, app_root: str) -> None:
+    with zipfile.ZipFile(artifact) as archive:
+        try:
+            info = plistlib.loads(archive.read(f"{app_root}/Info.plist"))
+        except KeyError as error:
+            raise ValueError("E2E candidate has no Info.plist") from error
+    if not isinstance(info, dict):
+        raise ValueError("E2E candidate Info.plist root is invalid")
+    if info.get("OverteE2ETestBuildContractVersion") != 1:
+        raise ValueError("E2E candidate contract version mismatch")
+    if info.get("UIFileSharingEnabled") is not True:
+        raise ValueError("E2E candidate does not export test results through Files")
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def find_fedora_manifest(directory: Path) -> dict | None:
+    matching: list[dict] = []
+    for path in directory.glob("*.manifest.json"):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            raise ValueError("Fedora E2E manifest is invalid JSON") from error
+        if isinstance(payload, dict) and payload.get("contract") == FEDORA_CONTRACT:
+            matching.append(payload)
+    if not matching:
+        return None
+    if len(matching) != 1:
+        raise ValueError("candidate contains multiple Fedora E2E manifests")
+    return matching[0]
+
+
+def verify_fedora_candidate(
+    directory: Path, payload: dict, expected_source_revision: str, expected_sha256: str
+) -> dict:
+    if payload.get("schemaVersion") != 1 or payload.get("kind") != "overte-app":
+        raise ValueError("Fedora E2E manifest does not select an Overte app")
+    if payload.get("sourceRevision") != expected_source_revision:
+        raise ValueError("Fedora E2E source revision mismatch")
+    if payload.get("testBuildContractVersion") != 1:
+        raise ValueError("Fedora E2E test-build contract version mismatch")
+    artifact_info = payload.get("artifact")
+    bundle = payload.get("bundle")
+    signing = payload.get("signing")
+    if not all(isinstance(value, dict) for value in (artifact_info, bundle, signing)):
+        raise ValueError("Fedora E2E manifest structure is invalid")
+    artifact_name = artifact_info.get("name")
+    if not isinstance(artifact_name, str) or SAFE_ARTIFACT.fullmatch(artifact_name) is None:
+        raise ValueError("Fedora E2E artifact name is invalid")
+    if artifact_info.get("sha256") != expected_sha256:
+        raise ValueError("Fedora E2E approved SHA-256 mismatch")
+    artifact = directory / artifact_name
+    if not artifact.is_file() or artifact.stat().st_size != artifact_info.get("size"):
+        raise ValueError("Fedora E2E artifact size mismatch")
+    if artifact.stat().st_size > MAX_ARCHIVE_BYTES or sha256_file(artifact) != expected_sha256:
+        raise ValueError("Fedora E2E artifact SHA-256 mismatch")
+    bundle_id = bundle.get("id")
+    if not isinstance(bundle_id, str) or BUNDLE_ID.fullmatch(bundle_id) is None or not bundle_id.endswith(".e2e"):
+        raise ValueError("Fedora E2E bundle identifier is invalid")
+    application_identifier = signing.get("applicationIdentifier")
+    team_identifier = signing.get("teamIdentifier")
+    if signing.get("signed") is not True:
+        raise ValueError("Fedora E2E artifact is not declared signed")
+    if not isinstance(team_identifier, str) or not re.fullmatch(r"[A-Z0-9]{10}", team_identifier):
+        raise ValueError("Fedora E2E team identifier is invalid")
+    if application_identifier != f"{team_identifier}.{bundle_id}":
+        raise ValueError("Fedora E2E application identifier mismatch")
+    expiration = signing.get("profileExpiration")
+    if not isinstance(expiration, str):
+        raise ValueError("Fedora E2E profile expiration is missing")
+    try:
+        expires = dt.datetime.fromisoformat(expiration.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise ValueError("Fedora E2E profile expiration is invalid") from error
+    if expires.tzinfo is None or expires <= dt.datetime.now(dt.timezone.utc):
+        raise ValueError("Fedora E2E provisioning profile is expired")
+    app_root, archived_bundle_id = inspect_archive(artifact, "ipad")
+    if archived_bundle_id != bundle_id:
+        raise ValueError("Fedora E2E archive bundle identifier mismatch")
+    require_e2e_contract(artifact, app_root)
+    return {
+        "schemaVersion": 1,
+        "mode": "ipad",
+        "artifact": artifact_name,
+        "sourceRevision": expected_source_revision,
+        "sha256": expected_sha256,
+        "platform": "iphoneos",
+        "bundleIdentifier": bundle_id,
+        "applicationIdentifier": application_identifier,
+        "appRoot": app_root,
+    }
+
+
 def verify_candidate(
     directory: Path, mode: str, expected_source_revision: str, expected_sha256: str
 ) -> dict:
@@ -296,6 +398,14 @@ def verify_candidate(
         raise ValueError("expected source revision must be a lowercase 40-character Git SHA")
     if DIGEST.fullmatch(expected_sha256) is None:
         raise ValueError("expected SHA-256 must be a lowercase 64-character digest")
+
+    fedora_payload = find_fedora_manifest(directory)
+    if fedora_payload is not None:
+        if mode != "ipad":
+            raise ValueError("Fedora E2E artifacts are physical-device candidates")
+        return verify_fedora_candidate(
+            directory, fedora_payload, expected_source_revision, expected_sha256
+        )
 
     payload = load_handoff_verifier().verify_handoff(directory)
     if SAFE_ARTIFACT.fullmatch(str(payload.get("artifact", ""))) is None:

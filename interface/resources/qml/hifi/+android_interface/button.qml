@@ -2,6 +2,12 @@ import QtQuick 2.5
 
 Item {
     id: button
+    activeFocusOnTab: true
+    Accessible.id: objectName
+    Accessible.role: Accessible.Button
+    Accessible.name: text
+    Accessible.onPressAction: clicked()
+
     property string icon: "icons/edit-icon.svg"
     property string hoverIcon: button.icon
     property string activeIcon: button.icon

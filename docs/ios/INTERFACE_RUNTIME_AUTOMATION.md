@@ -138,10 +138,18 @@ and one complete iPad result before full device acceptance.
 
 ## Candidate production boundary
 
-The automated iPad workflow requires an already signed package produced by the
-protected `package-client` path. No such protected signed producer exists in
-the current workflow set; adding one is an explicit prerequisite. A
-Sideloadly-modified local IPA is suitable for
-personal installation, but it is not a provenance-bound CI candidate because
-re-signing changes its digest. No Apple credential, private key, profile or
-device identifier belongs in this repository or a public workflow artifact.
+The automated iPad workflow retains its legacy signed-candidate boundary. The
+separate manual `.github/workflows/ios-fedora-e2e-producer.yml` reuses the
+credential-free integrated Full Client build, then signs the dedicated E2E app
+and pinned preinstalled WDA inside the protected `ios-fedora-e2e-signing`
+environment for the Fedora/Jenkins lab. See
+`docs/ios/FEDORA_E2E_DEVICE_LAB.md` for its fail-closed marker, manifest,
+secret, retention and Fedora-consumer contracts.
+
+A Sideloadly-modified local IPA remains suitable for personal installation,
+but it is not a provenance-bound CI candidate because re-signing changes its
+digest. No Apple credential, private key, profile or device identifier belongs
+in this repository. Because embedded provisioning profiles may contain
+authorized device identifiers, the producer uploads only one-day age-encrypted
+handoffs. Privacy-minimal manifests and signed IPAs exist together only inside
+the encrypted inner ZIP and private runner scratch space.
