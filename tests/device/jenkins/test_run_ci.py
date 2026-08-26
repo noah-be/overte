@@ -564,7 +564,7 @@ class JenkinsGlueTest(unittest.TestCase):
             "IOS_PREINSTALLED_ATTESTATION",
             "IOS_PRODUCER_RUN_ATTEMPT",
             "stage('Preinstalled Personal Team gate')",
-            "runDeviceSuite('e2e-core'",
+            "runDeviceSuite('e2e-core', 45)",
             "--require-complete",
         ):
             haystack = source if expected != "--require-complete" else (

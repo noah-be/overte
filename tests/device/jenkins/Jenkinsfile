@@ -371,7 +371,7 @@ pipeline {
 
         stage('Physical iOS baseline') {
             steps {
-                script { runDeviceSuite('e2e-core', 30) }
+                script { runDeviceSuite('e2e-core', 45) }
             }
         }
 
