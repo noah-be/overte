@@ -31,7 +31,7 @@ from adapters.common import (EMBEDDED_FIXTURE_URL, emit, fail,  # noqa: E402
                              parse_operation_arguments,
                              read_fresh_json, require_fresh_snapshot,
                              state_directory)
-from contracts import validate_probe_snapshot  # noqa: E402
+from contracts import validate_operation_arguments, validate_probe_snapshot  # noqa: E402
 from ios.private_artifact_tree import (  # noqa: E402
     ArtifactTreeError,
     tree_sha256 as private_artifact_tree_sha256,
@@ -161,6 +161,11 @@ class AppiumAdapter:
                 if point_name in tablet:
                     self.validate_fractional_point(
                         tablet[point_name], f"controls.tablet.{point_name}")
+            vertical_locomotion = entry.get("controls", {}).get("verticalLocomotion")
+            if vertical_locomotion is not None:
+                if entry["platform"] != "ios":
+                    fail("controls.verticalLocomotion is supported only by iOS")
+                self.validate_ios_vertical_locomotion(vertical_locomotion)
             capabilities = entry["capabilities"]
             expected_platform = "Android" if entry["platform"] == "android" else "iOS"
             if capabilities.get("platformName") != expected_platform:
@@ -624,6 +629,9 @@ class AppiumAdapter:
             values.append("input.look")
         if isinstance(controls.get("move"), dict):
             values.append("input.move")
+        if (target["platform"] == "ios"
+                and isinstance(controls.get("verticalLocomotion"), dict)):
+            values += ["input.fly", "input.jump"]
         tablet = controls.get("tablet")
         if isinstance(tablet, dict) and (tablet.get("toggleAccessibilityId") or
                                          (tablet.get("openAccessibilityId") and
@@ -643,6 +651,30 @@ class AppiumAdapter:
                            for item in value)):
             fail(f"{label} must contain two finite fractions from 0 inclusive through 1 exclusive")
         return [float(value[0]), float(value[1])]
+
+    @staticmethod
+    def bounded_seconds(value: object, label: str,
+                        minimum: float, maximum: float) -> float:
+        if (not isinstance(value, (int, float)) or isinstance(value, bool)
+                or not math.isfinite(float(value))
+                or not minimum <= float(value) <= maximum):
+            fail(f"{label} must be from {minimum} through {maximum} seconds")
+        return float(value)
+
+    @classmethod
+    def validate_ios_vertical_locomotion(cls, value: object) -> dict:
+        if not isinstance(value, dict) or set(value) != {
+                "jumpPoint", "jumpPressSeconds", "flightSecondPressDelaySeconds"}:
+            fail("iOS vertical locomotion requires the exact audited control fields")
+        cls.validate_fractional_point(
+            value["jumpPoint"], "controls.verticalLocomotion.jumpPoint")
+        cls.bounded_seconds(
+            value["jumpPressSeconds"],
+            "controls.verticalLocomotion.jumpPressSeconds", 0.05, 0.5)
+        cls.bounded_seconds(
+            value["flightSecondPressDelaySeconds"],
+            "controls.verticalLocomotion.flightSecondPressDelaySeconds", 0.15, 1.0)
+        return value
 
     def discover(self) -> list[dict]:
         return [{
@@ -1001,8 +1033,8 @@ class AppiumAdapter:
         }]}
         client.call("POST", f"/session/{session}/actions", body)
 
-    def tap_fractional_point(self, client: WebDriver, session: str,
-                             value: object, label: str) -> None:
+    def fractional_viewport_point(self, client: WebDriver, session: str,
+                                  value: object, label: str) -> tuple[int, int]:
         point = self.validate_fractional_point(value, label)
         rect = client.call("GET", f"/session/{session}/window/rect")
         if not isinstance(rect, dict) or not all(isinstance(rect.get(key), (int, float))
@@ -1010,6 +1042,11 @@ class AppiumAdapter:
             fail("Appium window rectangle is invalid")
         x = int(rect.get("x", 0)) + int((rect["width"] - 1) * point[0])
         y = int(rect.get("y", 0)) + int((rect["height"] - 1) * point[1])
+        return x, y
+
+    def tap_fractional_point(self, client: WebDriver, session: str,
+                             value: object, label: str) -> None:
+        x, y = self.fractional_viewport_point(client, session, value, label)
         if self.platform == "android":
             client.execute(session, "mobile: clickGesture", {"x": x, "y": y})
             return
@@ -1023,6 +1060,58 @@ class AppiumAdapter:
             ],
         }]}
         client.call("POST", f"/session/{session}/actions", body)
+        client.call("DELETE", f"/session/{session}/actions")
+
+    def ios_vertical_locomotion_gesture(self, client: WebDriver, session: str,
+                                        control: dict,
+                                        flight_duration: float | None = None) -> None:
+        """Press the real iOS virtual-pad Jump button.
+
+        A single bounded press is a jump. Flight uses Overte's documented
+        double-jump path: release the first press, wait beyond the iOS minimum
+        Jump pulse, then hold the second press for the requested duration.
+        The point is required private configuration; there is no hidden
+        coordinate fallback in the adapter.
+        """
+        control = self.validate_ios_vertical_locomotion(control)
+        x, y = self.fractional_viewport_point(
+            client, session, control["jumpPoint"],
+            "controls.verticalLocomotion.jumpPoint")
+        press_ms = round(self.bounded_seconds(
+            control["jumpPressSeconds"],
+            "controls.verticalLocomotion.jumpPressSeconds", 0.05, 0.5) * 1000)
+        actions = [
+            {"type": "pointerMove", "duration": 0, "origin": "viewport",
+             "x": x, "y": y},
+            {"type": "pointerDown", "button": 0},
+            {"type": "pause", "duration": press_ms},
+            {"type": "pointerUp", "button": 0},
+        ]
+        if flight_duration is not None:
+            delay_ms = round(self.bounded_seconds(
+                control["flightSecondPressDelaySeconds"],
+                "controls.verticalLocomotion.flightSecondPressDelaySeconds",
+                0.15, 1.0) * 1000)
+            hold_ms = round(self.bounded_seconds(
+                flight_duration, "input.fly durationSeconds", 0.1, 10.0) * 1000)
+            actions += [
+                {"type": "pause", "duration": delay_ms},
+                {"type": "pointerDown", "button": 0},
+                {"type": "pause", "duration": hold_ms},
+                {"type": "pointerUp", "button": 0},
+            ]
+        body = {"actions": [{
+            "type": "pointer", "id": "overte-ios-vertical-locomotion",
+            "parameters": {"pointerType": "touch"}, "actions": actions,
+        }]}
+        try:
+            client.call("POST", f"/session/{session}/actions", body)
+        except Exception:
+            try:
+                client.call("DELETE", f"/session/{session}/actions")
+            except (OSError, RuntimeError, ValueError):
+                pass
+            raise
         client.call("DELETE", f"/session/{session}/actions")
 
     def click_accessibility(self, client: WebDriver, session: str, identifier: str) -> None:
@@ -1289,6 +1378,23 @@ class AppiumAdapter:
                          float(duration) if isinstance(duration, (int, float)) else None)
             if self.platform == "ios":
                 self.assert_ios_process_identity(selector, client, session, state, target)
+            return {"performed": True}
+        if operation in {"input.jump", "input.fly"}:
+            if self.platform != "ios":
+                fail("iOS vertical locomotion is unavailable on this Appium target")
+            self.assert_ios_process_identity(selector, client, session, state, target)
+            control = controls.get("verticalLocomotion")
+            if not isinstance(control, dict):
+                fail("iOS target does not define an audited vertical locomotion control")
+            try:
+                arguments = validate_operation_arguments(operation, values)
+            except ValueError as error:
+                fail(str(error))
+            flight_duration = (None if operation == "input.jump"
+                               else float(arguments["durationSeconds"]))
+            self.ios_vertical_locomotion_gesture(
+                client, session, control, flight_duration)
+            self.assert_ios_process_identity(selector, client, session, state, target)
             return {"performed": True}
         if operation in {"tablet.open", "tablet.close"}:
             if self.platform == "ios":

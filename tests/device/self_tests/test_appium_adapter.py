@@ -9,8 +9,10 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import sys
 import tempfile
 import time
+import types
 import unittest
 from unittest import mock
 
@@ -23,15 +25,20 @@ APPIUM = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(APPIUM)
 
 
-def snapshot(*, orientation_y: float = 0.0, position_z: float = 4.0,
-             tablet_open: bool = False, sampled: int | None = None) -> dict:
+def snapshot(*, orientation_y: float = 0.0, position_y: float = 2.0,
+             position_z: float = 4.0, in_air: bool = False,
+             flying: bool = False, tablet_open: bool = False,
+             sampled: int | None = None) -> dict:
     return {
         "schemaVersion": 1,
         "sampleEpochMs": sampled if sampled is not None else int(time.time() * 1000),
         "build": {"platform": "ios", "version": "e2e", "date": "2026-08-25"},
         "application": {"running": True, "foreground": True},
         "scene": {"ready": True, "entityCount": 4, "fixtureMarkerCount": 4},
-        "avatar": {"position": {"x": 0.0, "y": 2.0, "z": position_z}},
+        "avatar": {
+            "position": {"x": 0.0, "y": position_y, "z": position_z},
+            "inAir": in_air, "flying": flying, "flyingEnabled": True,
+        },
         "view": {"orientation": {"x": 0.0, "y": orientation_y, "z": 0.0}},
         "tablet": {"open": tablet_open},
     }
@@ -74,6 +81,11 @@ def ios_target(*, enabled: bool = True) -> dict:
                      "durationSeconds": 0.7},
             "move": {"forward": {"mode": "hold", "start": [0.2, 0.78],
                                   "end": [0.2, 0.55], "durationSeconds": 1.5}},
+            "verticalLocomotion": {
+                "jumpPoint": [0.9, 0.8],
+                "jumpPressSeconds": 0.1,
+                "flightSecondPressDelaySeconds": 0.25,
+            },
             "tablet": {"openAccessibilityId": "OverteTabletOpen",
                        "closeAccessibilityId": "OverteTabletClose"},
         },
@@ -102,14 +114,27 @@ class FakeXCUITest:
         self.pid = 4123
         self.bundle = "org.overte.e2e"
         self.orientation_y = 0.0
+        self.position_y = 2.0
         self.position_z = 4.0
+        self.in_air = False
+        self.flying = False
+        self.jump_snapshots_remaining = 0
         self.tablet_open = False
         self.last_identifier: str | None = None
 
     def current_snapshot(self) -> dict:
-        return snapshot(orientation_y=self.orientation_y,
-                        position_z=self.position_z,
-                        tablet_open=self.tablet_open)
+        value = snapshot(orientation_y=self.orientation_y,
+                         position_y=self.position_y,
+                         position_z=self.position_z,
+                         in_air=self.in_air, flying=self.flying,
+                         tablet_open=self.tablet_open)
+        if self.jump_snapshots_remaining > 0:
+            self.jump_snapshots_remaining -= 1
+            if self.jump_snapshots_remaining == 0:
+                self.position_y = 2.0
+                self.in_air = False
+                self.flying = False
+        return value
 
     def execute(self, session: str, script: str, arguments: dict | None = None) -> object:
         payload = arguments or {}
@@ -157,8 +182,23 @@ class FakeXCUITest:
             identifier = "OverteTabletClose" if self.tablet_open else "OverteTabletOpen"
             return f'<AppiumAUT><XCUIElement name="{identifier}"/></AppiumAUT>'
         if method == "POST" and path.endswith("/actions"):
-            first = body["actions"][0]["actions"][0]
-            if first["x"] > 500:
+            source = body["actions"][0]
+            first = source["actions"][0]
+            if source["id"] == "overte-ios-vertical-locomotion":
+                presses = sum(1 for action in source["actions"]
+                              if action["type"] == "pointerDown")
+                if presses == 1:
+                    self.position_y = 2.5
+                    self.in_air = True
+                    self.flying = False
+                    self.jump_snapshots_remaining = 1
+                elif presses == 2:
+                    self.position_y = 4.0
+                    self.in_air = True
+                    self.flying = True
+                else:
+                    raise AssertionError("unexpected vertical locomotion press count")
+            elif first["x"] > 500:
                 self.orientation_y += 15.0
             else:
                 self.position_z -= 1.0
@@ -243,6 +283,137 @@ class AppiumAdapterTests(unittest.TestCase):
         self.assertIs(opened["tablet"]["open"], True)
         self.assertIs(closed["tablet"]["open"], False)
         self.assertTrue(state["iosE2ELaunchCompleted"])
+
+    def test_ios_jump_and_flight_use_the_real_virtual_pad_in_one_process(self) -> None:
+        adapter, client, state, target = self.adapter_and_session()
+        adapter.invoke("private-ipad", "app.launch", {})
+        identity = adapter.invoke("private-ipad", "app.process", {})["identity"]
+
+        advertised = adapter.advertised_capabilities(target)
+        self.assertIn("input.jump", advertised)
+        self.assertIn("input.fly", advertised)
+
+        self.assertEqual(
+            {"performed": True},
+            adapter.invoke("private-ipad", "input.jump", {}))
+        airborne = adapter.invoke("private-ipad", "probe.snapshot", {})
+        landed = adapter.invoke("private-ipad", "probe.snapshot", {})
+        self.assertIs(airborne["avatar"]["inAir"], True)
+        self.assertIs(airborne["avatar"]["flying"], False)
+        self.assertGreater(airborne["avatar"]["position"]["y"], 2.0)
+        self.assertIs(landed["avatar"]["inAir"], False)
+        self.assertEqual(2.0, landed["avatar"]["position"]["y"])
+
+        self.assertEqual(
+            {"performed": True},
+            adapter.invoke("private-ipad", "input.fly", {"durationSeconds": 3.0}))
+        flying = adapter.invoke("private-ipad", "probe.snapshot", {})
+        self.assertIs(flying["avatar"]["inAir"], True)
+        self.assertIs(flying["avatar"]["flying"], True)
+        self.assertGreaterEqual(flying["avatar"]["position"]["y"], 4.0)
+
+        vertical_actions = [event[2]["actions"][0]["actions"]
+                            for event in client.events
+                            if event[0] == "POST" and event[1].endswith("/actions")
+                            and event[2]["actions"][0]["id"]
+                            == "overte-ios-vertical-locomotion"]
+        self.assertEqual(2, len(vertical_actions))
+        self.assertEqual([1, 2], [
+            sum(1 for action in actions if action["type"] == "pointerDown")
+            for actions in vertical_actions
+        ])
+        flight_pauses = [action["duration"] for action in vertical_actions[1]
+                         if action["type"] == "pause"]
+        self.assertEqual([100, 250, 3000], flight_pauses)
+        self.assertEqual(identity, state["processIdentity"])
+        self.assertEqual(identity,
+                         adapter.invoke("private-ipad", "app.process", {})["identity"])
+        self.assertEqual(1, len([event for event in client.events
+                                if event[:2] == ("execute", "mobile: launchApp")]))
+
+    def test_ios_vertical_locomotion_rejects_ambiguous_controls_and_arguments(self) -> None:
+        adapter, client, _state, target = self.adapter_and_session()
+        adapter.invoke("private-ipad", "app.launch", {})
+        actions_before = len([event for event in client.events
+                              if event[0] == "POST" and event[1].endswith("/actions")])
+
+        with self.assertRaisesRegex(RuntimeError, "does not accept arguments"):
+            adapter.invoke("private-ipad", "input.jump", {"durationSeconds": 1.0})
+        for values in ({}, {"durationSeconds": 0.09}, {"durationSeconds": 10.01},
+                       {"durationSeconds": 3.0, "direction": "up"}):
+            with self.subTest(values=values):
+                with self.assertRaisesRegex(RuntimeError, "durationSeconds"):
+                    adapter.invoke("private-ipad", "input.fly", values)
+        actions_after = len([event for event in client.events
+                             if event[0] == "POST" and event[1].endswith("/actions")])
+        self.assertEqual(actions_before, actions_after)
+
+        invalid = dict(target["controls"]["verticalLocomotion"])
+        invalid["fallbackPoint"] = [0.5, 0.5]
+        with self.assertRaisesRegex(RuntimeError, "exact audited control fields"):
+            adapter.validate_ios_vertical_locomotion(invalid)
+
+    def test_ios_vertical_locomotion_releases_actions_after_appium_failure(self) -> None:
+        adapter, client, _state, _target = self.adapter_and_session()
+        adapter.invoke("private-ipad", "app.launch", {})
+        original_call = client.call
+
+        def fail_touch(method: str, path: str, payload: dict | None = None) -> object:
+            if method == "POST" and path.endswith("/actions"):
+                client.events.append((method, path, payload or {}))
+                raise RuntimeError("Appium touch failed")
+            return original_call(method, path, payload)
+
+        client.call = mock.Mock(side_effect=fail_touch)
+        with self.assertRaisesRegex(RuntimeError, "Appium touch failed"):
+            adapter.invoke("private-ipad", "input.jump", {})
+        self.assertTrue(any(call.args[:2]
+                            == ("DELETE", "/session/fake-session/actions")
+                            for call in client.call.call_args_list))
+
+    def test_common_vertical_session_runs_through_ios_appium_contract(self) -> None:
+        adapter, client, state, _target = self.adapter_and_session()
+        adapter.invoke("private-ipad", "app.launch", {})
+        identity = adapter.invoke("private-ipad", "app.process", {})["identity"]
+
+        support = types.ModuleType("module_support")
+
+        class InfrastructureError(RuntimeError):
+            pass
+
+        def operation(name: str, arguments: dict | None = None) -> dict:
+            return adapter.invoke("private-ipad", name, arguments or {})
+
+        def fail(message: str) -> None:
+            raise RuntimeError(message)
+
+        support.InfrastructureError = InfrastructureError
+        support.fail = fail
+        support.operation = operation
+        support.write_json = lambda _name, _value: None
+        common_spec = importlib.util.spec_from_file_location(
+            "overte_ios_common_vertical_session", DEVICE_ROOT / "overte_session.py")
+        assert common_spec and common_spec.loader
+        common = importlib.util.module_from_spec(common_spec)
+        with mock.patch.dict(sys.modules, {"module_support": support}), \
+                mock.patch.dict(os.environ, {
+                    "OVERTE_E2E_POLL_SECONDS": "0.05",
+                    "OVERTE_E2E_TIMEOUT_SECONDS": "1",
+                }):
+            common_spec.loader.exec_module(common)
+            session = common.OverteSession()
+            jump_before, airborne, landed = session.jump()
+            fly_before, flying = session.fly(duration_seconds=2.0)
+
+        self.assertGreater(airborne["avatar"]["position"]["y"],
+                           jump_before["avatar"]["position"]["y"])
+        self.assertFalse(landed["avatar"]["inAir"])
+        self.assertGreater(flying["avatar"]["position"]["y"],
+                           fly_before["avatar"]["position"]["y"])
+        self.assertTrue(flying["avatar"]["flying"])
+        self.assertEqual(identity, state["processIdentity"])
+        self.assertEqual(1, len([event for event in client.events
+                                if event[:2] == ("execute", "mobile: launchApp")]))
 
     def test_pid_change_aborts_before_next_behavioral_gesture(self) -> None:
         adapter, client, _state, _target = self.adapter_and_session()

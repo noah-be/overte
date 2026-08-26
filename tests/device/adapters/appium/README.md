@@ -39,6 +39,16 @@ foreground state and PID without a lifecycle command. Look, move, tablet and Doc
 all require the originally observed PID and bundle. A PID change is a product
 failure; malformed Appium/XCUITest evidence is an infrastructure failure.
 
+The optional iOS `verticalLocomotion` control drives the rendered Overte
+virtual-pad Jump button, not a private test hook. Its fractional `jumpPoint`
+must be copied into private target configuration only after the real landscape
+control position has been audited; the adapter has no coordinate fallback. A
+single bounded press implements `input.jump`. `input.fly` follows Overte's
+normal double-jump gesture and holds the second press for the contract's
+`durationSeconds` value. Both operations guard the original foreground PID
+before and after the W3C touch sequence. The checked-in example values describe
+the product's current safe-content fallback layout and are not device evidence.
+
 For iOS 18+ the Fedora adapter requires an explicit private `udid`, fixed
 `platformVersion`, `usePreinstalledWDA=true`, `enforceAppInstall=false`, and
 `updatedWDABundleId`. `webDriverAgentUrl` and Xcode-only capabilities are
