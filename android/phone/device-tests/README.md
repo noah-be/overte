@@ -39,11 +39,10 @@ OVERTE_ANDROID_E2E_DEBUG=1
 
 `scene.load` accepts exactly the embedded
 `overte-e2e://fixture/scene` URL. It starts the shell-only Phone E2E launcher,
-waits for two fresh samples containing all four fixture markers, and then
-applies the repository-owned spawn viewpoint through the exported
-`PermissionsActivity` deep-link flow. `PhoneInterfaceActivity` and the native
-URL handler therefore reach the normal AddressManager path; the adapter never
-writes the avatar position.
+which supplies the shared fixture URL and viewpoint through Android's normal
+startup arguments. The adapter then requires two fresh shared-probe samples
+containing all four fixture markers with `scene.ready=true`. No second
+navigation, address field, software keyboard, or direct avatar write is used.
 
 The launcher records its process identity in a private, selector-hashed host
 session. `probe.snapshot` requires that binding before and after reading the

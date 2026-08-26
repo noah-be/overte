@@ -32,7 +32,6 @@ INPUT_OPT_IN = "OVERTE_ANDROID_PHONE_E2E_INPUT"
 DEBUG_OPT_IN = "OVERTE_ANDROID_E2E_DEBUG"
 ANDROID_DEBUG_PROBE = "files/overte-e2e/overte-probe.json"
 EMBEDDED_FIXTURE_URL = "overte-e2e://fixture/scene"
-FIXTURE_SPAWN_DEEP_LINK = "hifi:/0,2,4/0,0,0,1"
 FIXTURE_MARKER_COUNT = 4
 PROBE_MAXIMUM_AGE_SECONDS = 5.0
 JUMP_TOUCH_MILLISECONDS = 120
@@ -306,7 +305,7 @@ def launch_debug_app(target: str) -> str:
 
 
 def probe_retry_policy() -> tuple[int, float]:
-    attempts_raw = os.environ.get("OVERTE_ANDROID_E2E_PROBE_ATTEMPTS", "60")
+    attempts_raw = os.environ.get("OVERTE_ANDROID_E2E_PROBE_ATTEMPTS", "120")
     interval_raw = os.environ.get(
         "OVERTE_ANDROID_E2E_PROBE_POLL_SECONDS", "0.25")
     if not attempts_raw.isdigit() or not 1 <= int(attempts_raw) <= 120:
@@ -362,7 +361,7 @@ def read_probe_snapshot(target: str, identity: str,
         "Android Phone probe snapshot is unavailable, stale, or did not advance")
 
 
-def wait_for_fixture_import(target: str, identity: str) -> None:
+def wait_for_fixture_ready(target: str, identity: str) -> None:
     attempts, interval = probe_retry_policy()
     previous_epoch = None
     consecutive_samples = 0
@@ -377,8 +376,10 @@ def wait_for_fixture_import(target: str, identity: str) -> None:
                 scene = snapshot.get("scene")
                 marker_count = (scene.get("fixtureMarkerCount")
                                 if isinstance(scene, dict) else None)
+                ready = scene.get("ready") if isinstance(scene, dict) else None
                 consecutive_samples = (consecutive_samples + 1
-                                       if marker_count == FIXTURE_MARKER_COUNT else 0)
+                                       if marker_count == FIXTURE_MARKER_COUNT
+                                       and ready is True else 0)
                 if consecutive_samples >= 2:
                     if current_process_identity(target) != identity:
                         raise RuntimeError(
@@ -388,21 +389,15 @@ def wait_for_fixture_import(target: str, identity: str) -> None:
             time.sleep(interval)
     if current_process_identity(target) != identity:
         raise RuntimeError("Android Phone debug application process changed")
-    raise RuntimeError("Android Phone embedded fixture import did not complete")
+    raise RuntimeError("Android Phone controlled fixture did not become ready")
 
 
 def load_embedded_scene(target: str) -> dict:
     identity = launch_debug_app(target)
     try:
-        # The debug launcher enters the serverless fixture through the normal
-        # --url path. Wait until that asynchronous import has settled before
-        # navigating to its viewpoint; applying the launch-time query earlier
-        # can be superseded by the serverless scene transition.
-        wait_for_fixture_import(target, identity)
-        ADB.shell(target, "am", "start", "-W",
-                  "-a", "android.intent.action.VIEW",
-                  "-d", FIXTURE_SPAWN_DEEP_LINK,
-                  "-n", LAUNCHER)
+        # The shared launcher owns the fixture URL and viewpoint. Require the
+        # normal Android startup path to finish without a second navigation.
+        wait_for_fixture_ready(target, identity)
         if current_process_identity(target) != identity:
             raise RuntimeError("Android Phone application process changed during scene load")
         if ADB.foreground_package(target) != PACKAGE:
@@ -415,27 +410,34 @@ def load_embedded_scene(target: str) -> dict:
 
 
 def neutralize_vertical_input(target: str,
-                              position: tuple[int, int] | None = None) -> None:
+                              position: tuple[int, int] | None = None) -> bool:
     try:
         x, y = position or jump_button_position(target)
         ADB.shell(target, "input", "touchscreen", "motionevent", "UP",
-                  str(x), str(y), check=False)
+                  str(x), str(y))
+        return True
     except (OSError, RuntimeError, subprocess.TimeoutExpired):
         # Cleanup is fail-closed and best effort. A bounded Android
         # `input swipe` also emits its own ACTION_UP when it completes.
-        pass
+        return False
 
 
 def perform_vertical_touch(target: str, duration_milliseconds: int) -> dict:
     identity = require_input_session(target)
     position = jump_button_position(target)
     x, y = position
+    completed = False
     try:
         ADB.shell(target, "input", "touchscreen", "swipe",
                   str(x), str(y), str(x), str(y),
                   str(duration_milliseconds))
+        completed = True
     finally:
-        neutralize_vertical_input(target, position)
+        released = neutralize_vertical_input(target, position)
+        if not completed and not released:
+            # If both the bounded gesture and its explicit release fail, stop
+            # the package so no application session can retain the press.
+            ADB.shell(target, "am", "force-stop", PACKAGE, check=False)
     # The package and foreground checks above bind the touch to the intended
     # session. Re-read only the process identity afterward: repeating package
     # manager and activity dumpsys calls can outlast a bounded jump, preventing

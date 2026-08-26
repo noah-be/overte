@@ -97,11 +97,10 @@ elif shell == ["run-as", "org.overte.phone", "cat", "files/overte-e2e/overte-pro
         }))
         if os.environ.get("MOCK_RESTART_AFTER_PROBE_READ") == "1":
             state.write_text("restarted")
-elif shell == ["am", "start", "-W", "-a", "android.intent.action.VIEW", "-d",
-               "hifi:/0,2,4/0,0,0,1", "-n", "org.overte.phone/.PermissionsActivity"]:
-    state.write_text("spawned")
 elif shell[:4] == ["am", "start", "-W", "-n"]:
-    state.write_text("foreground")
+    state.write_text("spawned" if shell[-1].endswith("E2eLauncherActivity")
+                     and os.environ.get("MOCK_SCENE_NEVER_READY") != "1"
+                     else "foreground")
 elif shell == ["am", "force-stop", "org.overte.phone"]:
     state.write_text("stopped")
 elif shell == ["am", "start", "-W", "-a", "android.intent.action.MAIN", "-c", "android.intent.category.HOME"]:
@@ -112,7 +111,8 @@ elif shell[:3] == ["input", "touchscreen", "swipe"]:
     if os.environ.get("MOCK_INPUT_FAIL") == "1":
         raise SystemExit(9)
 elif shell[:4] == ["input", "touchscreen", "motionevent", "UP"]:
-    pass
+    if os.environ.get("MOCK_INPUT_UP_FAIL") == "1":
+        raise SystemExit(9)
 else:
     print("unexpected mock adb command: " + repr(shell), file=sys.stderr)
     raise SystemExit(4)
@@ -258,7 +258,7 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
             result = self.call("cleanup", "--target", "private-phone")
             self.assertEqual(0, result.returncode, result.stderr)
 
-    def test_debug_scene_uses_launcher_then_production_deep_link_and_fast_probe(self):
+    def test_debug_scene_uses_only_shared_startup_url(self):
         debug = {"OVERTE_ANDROID_E2E_DEBUG": "1"}
         result = self.invoke(
             "scene.load", {"url": "overte-e2e://fixture/scene"}, debug)
@@ -269,10 +269,16 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
         self.assertIn(
             ["am", "start", "-W", "-n",
              "org.overte.phone/.E2eLauncherActivity"], commands)
-        self.assertIn(
-            ["am", "start", "-W", "-a", "android.intent.action.VIEW",
-             "-d", "hifi:/0,2,4/0,0,0,1", "-n",
-             "org.overte.phone/.PermissionsActivity"], commands)
+        launches = [command for command in commands
+                    if command[:3] == ["am", "start", "-W"]]
+        self.assertEqual(
+            [["am", "start", "-W", "-n",
+              "org.overte.phone/.E2eLauncherActivity"]], launches)
+        self.assertFalse(any(command[:3] == ["am", "start", "-W"]
+                             and "android.intent.action.VIEW" in command
+                             for command in commands))
+        self.assertFalse(any(command[:2] == ["input", "text"]
+                             for command in commands))
         probe_reads = [command for command in commands
                        if command[:3] == ["run-as", "org.overte.phone", "cat"]]
         self.assertGreaterEqual(len(probe_reads), 2)
@@ -345,11 +351,49 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
         result = self.invoke_failure(
             "scene.load", {"url": "overte-e2e://fixture/scene"}, environment)
         self.assertEqual(2, result.returncode)
-        self.assertIn("fixture import did not complete", result.stderr)
+        self.assertIn("controlled fixture did not become ready", result.stderr)
         self.assertIn(["am", "force-stop", "org.overte.phone"], self.commands())
         self.assertEqual(
             [], list((self.root / "host-state").glob("*/debug-session.json")))
         self.assertFalse(any(command[:1] == ["settings"] for command in self.commands()))
+
+    def test_scene_never_ready_fails_closed_without_fallback_navigation(self):
+        environment = {
+            "OVERTE_ANDROID_E2E_DEBUG": "1",
+            "MOCK_SCENE_NEVER_READY": "1",
+            "OVERTE_ANDROID_E2E_PROBE_ATTEMPTS": "3",
+            "OVERTE_ANDROID_E2E_PROBE_POLL_SECONDS": "0.01",
+        }
+        result = self.invoke_failure(
+            "scene.load", {"url": "overte-e2e://fixture/scene"}, environment)
+        self.assertEqual(2, result.returncode)
+        self.assertIn("controlled fixture did not become ready", result.stderr)
+        commands = self.commands()
+        launches = [command for command in commands
+                    if command[:3] == ["am", "start", "-W"]]
+        self.assertEqual(
+            [["am", "start", "-W", "-n",
+              "org.overte.phone/.E2eLauncherActivity"]], launches)
+        self.assertIn(["am", "force-stop", "org.overte.phone"], commands)
+        self.assertEqual(
+            [], list((self.root / "host-state").glob("*/debug-session.json")))
+        self.assertFalse(any(command[:1] in (["input"], ["settings"])
+                             for command in commands))
+
+    def test_scene_rejects_process_replacement_and_discards_session(self):
+        environment = {
+            "OVERTE_ANDROID_E2E_DEBUG": "1",
+            "MOCK_RESTART_AFTER_PROBE_READ": "1",
+            "OVERTE_ANDROID_E2E_PROBE_ATTEMPTS": "3",
+            "OVERTE_ANDROID_E2E_PROBE_POLL_SECONDS": "0.01",
+        }
+        result = self.invoke_failure(
+            "scene.load", {"url": "overte-e2e://fixture/scene"}, environment)
+        self.assertEqual(2, result.returncode)
+        self.assertIn("process changed", result.stderr)
+        self.assertIn(["am", "force-stop", "org.overte.phone"], self.commands())
+        self.assertEqual(
+            [], list((self.root / "host-state").glob("*/debug-session.json")))
 
     def test_jump_and_fly_reject_unknown_or_additional_arguments(self):
         opt_in = {"OVERTE_ANDROID_PHONE_E2E_INPUT": "1"}
@@ -419,6 +463,18 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
         self.assertEqual("swipe", input_commands[-2][2])
         self.assertEqual(["input", "touchscreen", "motionevent", "UP"],
                          input_commands[-1][:4])
+
+    def test_failed_touch_and_release_force_stop_the_bound_session(self):
+        environment = {"OVERTE_ANDROID_PHONE_E2E_INPUT": "1",
+                       "MOCK_INPUT_FAIL": "1", "MOCK_INPUT_UP_FAIL": "1"}
+        result = self.invoke_failure("input.fly", {"durationSeconds": 0.1},
+                                     environment)
+        self.assertEqual(2, result.returncode)
+        input_commands = self.input_commands(self.commands())
+        self.assertEqual("swipe", input_commands[-2][2])
+        self.assertEqual(["input", "touchscreen", "motionevent", "UP"],
+                         input_commands[-1][:4])
+        self.assertIn(["am", "force-stop", "org.overte.phone"], self.commands())
 
     def test_input_requires_expected_foreground_process_and_package(self):
         opt_in = {"OVERTE_ANDROID_PHONE_E2E_INPUT": "1"}
