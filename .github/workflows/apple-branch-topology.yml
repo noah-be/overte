@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   enforce-apple-path-ownership:
-    name: Enforce apple-main path ownership
+    name: Enforce apple-main sync path
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
