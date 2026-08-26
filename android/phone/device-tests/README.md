@@ -28,6 +28,31 @@ python3 tests/device/run.py \
 The Phone APK must already be installed. Installation and APK provenance remain
 an explicit preparation gate rather than a hidden side effect of every module.
 
+## Debug fixture and probe
+
+An E2E-enabled debug APK exposes `scene.load` and `probe.snapshot` only with
+the shared debug opt-in:
+
+```bash
+OVERTE_ANDROID_E2E_DEBUG=1
+```
+
+`scene.load` accepts exactly the embedded
+`overte-e2e://fixture/scene` URL. It starts the shell-only Phone E2E launcher,
+waits for two fresh samples containing all four fixture markers, and then
+applies the repository-owned spawn viewpoint through the exported
+`PermissionsActivity` deep-link flow. `PhoneInterfaceActivity` and the native
+URL handler therefore reach the normal AddressManager path; the adapter never
+writes the avatar position.
+
+The launcher records its process identity in a private, selector-hashed host
+session. `probe.snapshot` requires that binding before and after reading the
+app-private debug artifact with `run-as`. This avoids repeating full device
+profile discovery during every poll, so a bounded non-flying jump remains
+observable. Stale snapshots and changed processes fail closed. Cleanup stops
+the package and removes the host session without modifying Android settings or
+saved Overte preferences.
+
 ## Vertical locomotion input
 
 The adapter advertises `input.jump` and `input.fly` only when the dedicated

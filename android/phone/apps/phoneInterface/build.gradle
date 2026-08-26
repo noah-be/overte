@@ -320,6 +320,9 @@ android {
             java.srcDir '../../../common/libraries/qt/src/main/java'
             jniLibs.srcDirs '../../../common/libraries/qt/libs', phoneQtRuntimeDir
         }
+        debug {
+            java.srcDir '../../../common/device_tests/e2e_android/src/main/java'
+        }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -395,6 +398,8 @@ android {
     }
 
     applicationVariants.all { variant ->
+        def e2eProbeAsset = file('../../../../tests/device/probe/overte_e2e_probe.js')
+        def e2eSceneAsset = file('../../../../tests/device/fixture/scene.json')
         def nativeResourcesRcc = fileTree(new File(projectDir, '.cxx')) {
             include '**/android/phone/apps/phoneInterface/libraries/interface/resources.rcc'
         }
@@ -408,6 +413,9 @@ android {
         // Packaging rules are implemented in doLast below. Make changes to
         // those include/exclude rules invalidate the merged asset output.
         variant.mergeAssets.inputs.file(project.file('build.gradle'))
+        if (variant.buildType.name == 'debug') {
+            variant.mergeAssets.inputs.files(e2eProbeAsset, e2eSceneAsset)
+        }
 
         variant.mergeAssets.doLast {
             def mergedAssetsDir = outputDir.get().asFile
@@ -529,6 +537,14 @@ android {
                 exclude 'system/assets/images/textures/grass.png'
                 eachFile { details ->
                     assetList.add("scripts/${details.path}")
+                }
+            }
+            if (variant.buildType.name == 'debug') {
+                copy {
+                    from e2eProbeAsset
+                    from e2eSceneAsset
+                    into mergedAssetsDir
+                    eachFile { details -> assetList.add(details.path) }
                 }
             }
             def assetPaths = assetList.toSet().sort()

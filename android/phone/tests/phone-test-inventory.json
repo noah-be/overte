@@ -11,6 +11,8 @@
       "interface/resources/qml/**/+android_phoneInterface/*.qml",
       "interface/src/ui/Phone*.h",
       "android/common/libraries/qt/src/main/java/io/highfidelity/utils/*.java",
+      "android/phone/apps/phoneInterface/src/debug/AndroidManifest.xml",
+      "android/phone/apps/phoneInterface/src/debug/java/org/overte/phone/*.java",
       "android/phone/apps/phoneInterface/src/main/AndroidManifest.xml",
       "android/phone/apps/phoneInterface/src/main/res/xml/*.xml"
     ]
@@ -25,6 +27,8 @@
     "phone-contracts"
   ],
   "tested": {
+    "android/phone/apps/phoneInterface/src/debug/AndroidManifest.xml": ["android/phone/tests/phone-host-regression-test.sh"],
+    "android/phone/apps/phoneInterface/src/debug/java/org/overte/phone/E2eLauncherActivity.java": ["android/phone/tests/phone-host-regression-test.sh"],
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PermissionsActivity.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PermissionsActivityRobolectricTest.java"],
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneDeepLink.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhoneDeepLinkRobolectricTest.java"],
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneDeepLinkNormalizer.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhoneDeepLinkNormalizerTest.java"],

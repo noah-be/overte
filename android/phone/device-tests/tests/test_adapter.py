@@ -17,7 +17,7 @@ GENERIC_ANDROID_ADAPTER = (
     ADAPTER.parents[3] / "tests/device/adapters/android/adapter.py")
 
 MOCK_ADB = r'''#!/usr/bin/env python3
-import json, os, pathlib, sys
+import json, os, pathlib, sys, time
 args = sys.argv[1:]
 target = None
 if args[:1] == ["-s"]:
@@ -64,7 +64,7 @@ elif shell == ["cat", "/proc/4343/stat"]:
     print("4343 (overte) S " + "0 " * 18 + "12345 0")
 elif shell == ["dumpsys", "activity", "activities"]:
     foreground = (not state.exists()
-                  or state.read_text() in {"foreground", "restarted"})
+                  or state.read_text() in {"foreground", "restarted", "spawned"})
     print("mResumedActivity: org.overte.phone/.PhoneInterfaceActivity" if foreground else
           "mResumedActivity: com.android.launcher/.Launcher")
 elif shell == ["dumpsys", "input"]:
@@ -82,6 +82,24 @@ elif shell == ["dumpsys", "battery"]:
     print("  level: 81\n  temperature: 298")
 elif shell == ["dumpsys", "thermalservice"]:
     print("Thermal Status: 2")
+elif shell == ["run-as", "org.overte.phone", "cat", "files/overte-e2e/overte-probe.json"]:
+    if os.environ.get("MOCK_PROBE_MISSING") != "1":
+        sampled = 1 if os.environ.get("MOCK_PROBE_STALE") == "1" else int(time.time() * 1000)
+        markers = int(os.environ.get("MOCK_FIXTURE_MARKERS", "4"))
+        print(json.dumps({
+            "schemaVersion": 1,
+            "sampleEpochMs": sampled,
+            "sampleSequence": int(os.environ.get("MOCK_SAMPLE_SEQUENCE", "4")),
+            "scene": {
+                "fixtureMarkerCount": markers,
+                "ready": state.exists() and state.read_text() == "spawned",
+            },
+        }))
+        if os.environ.get("MOCK_RESTART_AFTER_PROBE_READ") == "1":
+            state.write_text("restarted")
+elif shell == ["am", "start", "-W", "-a", "android.intent.action.VIEW", "-d",
+               "hifi:/0,2,4/0,0,0,1", "-n", "org.overte.phone/.PermissionsActivity"]:
+    state.write_text("spawned")
 elif shell[:4] == ["am", "start", "-W", "-n"]:
     state.write_text("foreground")
 elif shell == ["am", "force-stop", "org.overte.phone"]:
@@ -112,9 +130,12 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
         self.adb.chmod(0o700)
         self.environment = os.environ.copy()
         self.environment.pop("OVERTE_ANDROID_PHONE_E2E_INPUT", None)
+        self.environment.pop("OVERTE_ANDROID_E2E_DEBUG", None)
         self.environment.update({"OVERTE_ANDROID_ADB": str(self.adb),
                                  "MOCK_ADB_STATE": str(self.state),
-                                 "MOCK_ADB_LOG": str(self.log)})
+                                 "MOCK_ADB_LOG": str(self.log),
+                                 "OVERTE_ANDROID_PHONE_E2E_STATE_ROOT":
+                                     str(self.root / "host-state")})
 
     def tearDown(self):
         self.temporary.cleanup()
@@ -155,6 +176,7 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
         self.assertEqual(1, len(targets))
         self.assertTrue(targets[0]["physical"])
         self.assertEqual(sorted(targets[0]["capabilities"]), targets[0]["capabilities"])
+        self.assertNotIn("app.stop", targets[0]["capabilities"])
 
     def test_rejects_emulator(self):
         result = self.call("discover", environment={"MOCK_QEMU": "1"})
@@ -175,6 +197,25 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
         result = self.invoke_failure("input.jump", {})
         self.assertEqual(2, result.returncode)
         self.assertEqual([], self.input_commands(self.commands()))
+
+    def test_debug_capabilities_require_exact_phone_opt_in(self):
+        for value, expected in ((None, False), ("true", False), ("0", False),
+                                ("1", True)):
+            environment = ({"OVERTE_ANDROID_E2E_DEBUG": value}
+                           if value is not None else {})
+            result = self.call("discover", environment=environment)
+            self.assertEqual(0, result.returncode, result.stderr)
+            capabilities = json.loads(result.stdout)[0]["capabilities"]
+            self.assertEqual(expected, "probe.snapshot" in capabilities)
+            self.assertEqual(expected, "scene.load" in capabilities)
+            self.assertNotIn("input.jump", capabilities)
+            self.assertNotIn("input.fly", capabilities)
+
+        pico = self.call(
+            "discover", environment={"OVERTE_ANDROID_E2E_DEBUG": "1",
+                                     "MOCK_MANUFACTURER": "PICO"})
+        self.assertEqual(0, pico.returncode, pico.stderr)
+        self.assertEqual([], json.loads(pico.stdout))
 
     def test_input_capabilities_do_not_activate_on_pico_or_foreign_profiles(self):
         opt_in = {"OVERTE_ANDROID_PHONE_E2E_INPUT": "1"}
@@ -216,6 +257,99 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
         for _ in range(2):
             result = self.call("cleanup", "--target", "private-phone")
             self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_debug_scene_uses_launcher_then_production_deep_link_and_fast_probe(self):
+        debug = {"OVERTE_ANDROID_E2E_DEBUG": "1"}
+        result = self.invoke(
+            "scene.load", {"url": "overte-e2e://fixture/scene"}, debug)
+        self.assertEqual(
+            {"requested": True, "verification": "fixture-markers"}, result)
+
+        commands = self.commands()
+        self.assertIn(
+            ["am", "start", "-W", "-n",
+             "org.overte.phone/.E2eLauncherActivity"], commands)
+        self.assertIn(
+            ["am", "start", "-W", "-a", "android.intent.action.VIEW",
+             "-d", "hifi:/0,2,4/0,0,0,1", "-n",
+             "org.overte.phone/.PermissionsActivity"], commands)
+        probe_reads = [command for command in commands
+                       if command[:3] == ["run-as", "org.overte.phone", "cat"]]
+        self.assertGreaterEqual(len(probe_reads), 2)
+        self.assertFalse(any(command[:1] == ["settings"] for command in commands))
+
+        snapshot = self.invoke("probe.snapshot", environment=debug)
+        self.assertEqual(4, snapshot["scene"]["fixtureMarkerCount"])
+        self.assertTrue(snapshot["scene"]["ready"])
+        session_files = list((self.root / "host-state").glob("*/debug-session.json"))
+        self.assertEqual(1, len(session_files))
+        self.assertNotIn("private-phone", session_files[0].read_text(encoding="utf-8"))
+        cleaned = self.call(
+            "cleanup", "--target", "private-phone", environment=debug)
+        self.assertEqual(0, cleaned.returncode, cleaned.stderr)
+        self.assertEqual(
+            [], list((self.root / "host-state").glob("*/debug-session.json")))
+        self.assertFalse(any(command[:1] == ["settings"] for command in self.commands()))
+
+    def test_debug_operations_reject_bad_arguments_and_missing_opt_in(self):
+        debug = {"OVERTE_ANDROID_E2E_DEBUG": "1"}
+        cases = (
+            ("scene.load", {}, debug),
+            ("scene.load", {"url": "https://example.invalid/scene.json"}, debug),
+            ("scene.load", {"url": "overte-e2e://fixture/scene", "extra": 1}, debug),
+            ("probe.snapshot", {"unknown": True}, debug),
+            ("probe.snapshot", {"afterSampleSequence": True}, debug),
+            ("probe.snapshot", {"afterSampleSequence": -1}, debug),
+            ("probe.snapshot", {}, {}),
+            ("scene.load", {"url": "overte-e2e://fixture/scene"}, {}),
+        )
+        for operation, arguments, environment in cases:
+            result = self.invoke_failure(operation, arguments, environment)
+            self.assertEqual(2, result.returncode, (operation, result.stderr))
+        self.assertEqual([], self.commands())
+
+    def test_probe_requires_bound_unchanged_process_and_accepts_newer_sequence(self):
+        debug = {"OVERTE_ANDROID_E2E_DEBUG": "1"}
+        self.invoke("app.launch", environment=debug)
+        snapshot = self.invoke(
+            "probe.snapshot", {"afterSampleSequence": 3}, debug)
+        self.assertEqual(4, snapshot["sampleSequence"])
+
+        if self.log.exists():
+            self.log.unlink()
+        changed = self.invoke_failure(
+            "probe.snapshot", {},
+            debug | {"MOCK_RESTART_AFTER_PROBE_READ": "1"})
+        self.assertEqual(2, changed.returncode)
+        self.assertIn("process changed", changed.stderr)
+        self.assertTrue(any(command[:3] == ["run-as", "org.overte.phone", "cat"]
+                            for command in self.commands()))
+
+        if self.log.exists():
+            self.log.unlink()
+        missing_session_root = self.root / "host-state"
+        for session in missing_session_root.glob("*/debug-session.json"):
+            session.unlink()
+        missing = self.invoke_failure("probe.snapshot", {}, debug)
+        self.assertEqual(2, missing.returncode)
+        self.assertIn("session is unavailable", missing.stderr)
+        self.assertFalse(any(command[:1] == ["run-as"] for command in self.commands()))
+
+    def test_failed_scene_import_stops_process_and_discards_session(self):
+        environment = {
+            "OVERTE_ANDROID_E2E_DEBUG": "1",
+            "MOCK_FIXTURE_MARKERS": "0",
+            "OVERTE_ANDROID_E2E_PROBE_ATTEMPTS": "3",
+            "OVERTE_ANDROID_E2E_PROBE_POLL_SECONDS": "0.01",
+        }
+        result = self.invoke_failure(
+            "scene.load", {"url": "overte-e2e://fixture/scene"}, environment)
+        self.assertEqual(2, result.returncode)
+        self.assertIn("fixture import did not complete", result.stderr)
+        self.assertIn(["am", "force-stop", "org.overte.phone"], self.commands())
+        self.assertEqual(
+            [], list((self.root / "host-state").glob("*/debug-session.json")))
+        self.assertFalse(any(command[:1] == ["settings"] for command in self.commands()))
 
     def test_jump_and_fly_reject_unknown_or_additional_arguments(self):
         opt_in = {"OVERTE_ANDROID_PHONE_E2E_INPUT": "1"}
