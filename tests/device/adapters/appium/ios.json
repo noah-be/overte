@@ -1,5 +1,0 @@
-{
-  "schemaVersion": 1,
-  "id": "appium-ios",
-  "command": ["adapter.py", "--platform", "ios"]
-}

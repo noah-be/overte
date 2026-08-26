@@ -46,7 +46,7 @@ def fail(message: str) -> NoReturn:
 
 
 def module_main(function: Callable[[], None]) -> None:
-    """Give Jenkins a stable distinction between product and lab failures."""
+    """Give CI a stable distinction between product and lab failures."""
     try:
         function()
     except InfrastructureError as error:
