@@ -33,6 +33,9 @@ constexpr int MAX_COMMANDS = 32;
 constexpr std::int64_t MAX_GRANT_LIFETIME_MS = 5 * 60 * 1000;
 constexpr std::int64_t INTER_COMMAND_GAP_MS = 100;
 constexpr std::int64_t INITIAL_NEUTRAL_MS = 100;
+// Long enough to reach Overte's mapper on physical Pico hardware while
+// remaining below CharacterController's default 500 ms jump-to-hover hold.
+constexpr std::int64_t JUMP_HOLD_MS = 300;
 constexpr double PI = 3.14159265358979323846;
 
 struct FileIdentity {
@@ -621,7 +624,7 @@ bool Protocol::tryAccept(std::int64_t epochMilliseconds,
                 return false;
             }
             active.booleans[static_cast<std::size_t>(BooleanChannel::RightSecondary)] = true;
-            duration = 120;
+            duration = JUMP_HOLD_MS;
         } else if (operation == QLatin1String("input.fly")) {
             if (!exactKeys(arguments, { "durationSeconds" })) {
                 return false;
