@@ -180,6 +180,20 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                         TUNNEL.install_service_runtime(appium_home, service_root),
                     )
                     restore_existing.assert_called_once_with(installed)
+
+                drifted_helper = root / "drift" / TUNNEL.DEVICE_PREFLIGHT_FILE.name
+                drifted_helper.parent.mkdir()
+                drifted_helper.write_text("// drift\n", encoding="utf-8")
+                with patch.object(
+                        TUNNEL, "resolve_runtime",
+                        return_value=(node, appium_home / "node_modules/appium-ios-remotexpc/"
+                                      "scripts/tunnel-creation.mjs")), patch.object(
+                        TUNNEL, "DEVICE_PREFLIGHT_FILE", drifted_helper), patch.object(
+                        TUNNEL, "restore_security_context") as rejected_restore:
+                    with self.assertRaisesRegex(
+                            TUNNEL.TunnelError, "differs from the audited source"):
+                        TUNNEL.install_service_runtime(appium_home, service_root)
+                    rejected_restore.assert_not_called()
             finally:
                 if service_root.exists():
                     self.make_tree_writable(service_root)

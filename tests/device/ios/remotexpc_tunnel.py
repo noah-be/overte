@@ -455,6 +455,28 @@ def restore_security_context(runtime_root: Path, *, owner_uid: int = 0) -> None:
         fail("installed service runtime failed host security-context restoration")
 
 
+def verify_runtime_matches_source(runtime_root: Path, node: Path,
+                                  appium_tree_sha256: str) -> None:
+    try:
+        marker = json.loads((runtime_root / RUNTIME_MARKER).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        fail("installed service runtime has no valid installation marker")
+    expected = {
+        "serviceRuntimeRevision": service_runtime_revision(load_lock()),
+        "nodeSha256": file_sha256(node),
+        "wrapperSha256": file_sha256(Path(__file__).resolve()),
+        "devicePreflightSha256": file_sha256(DEVICE_PREFLIGHT_FILE),
+        "deviceInstallSha256": file_sha256(DEVICE_INSTALL_FILE),
+        "artifactTreeSha256": file_sha256(ARTIFACT_TREE_FILE),
+        "lockSha256": file_sha256(LOCK_FILE),
+        "packageJsonSha256": file_sha256(PACKAGE_FILE),
+        "packageLockSha256": file_sha256(NPM_LOCK_FILE),
+        "appiumTreeSha256": appium_tree_sha256,
+    }
+    if any(marker.get(key) != value for key, value in expected.items()):
+        fail("existing immutable service runtime differs from the audited source")
+
+
 def install_service_runtime(appium_home: Path, service_root: Path = SERVICE_ROOT) -> Path:
     """Create an immutable version directory and never update it in place."""
     lock = load_lock()
@@ -475,6 +497,7 @@ def install_service_runtime(appium_home: Path, service_root: Path = SERVICE_ROOT
     destination = service_runtime_path(service_root, lock)
     if destination.exists() or destination.is_symlink():
         verify_service_runtime(destination, os.geteuid())
+        verify_runtime_matches_source(destination, node, source_digest)
         restore_security_context(destination)
         verify_service_runtime(destination, os.geteuid())
         return destination
