@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://overte.org/schemas/device-probe-snapshot-v1.json",
+  "title": "Overte E2E probe snapshot",
+  "type": "object",
+  "required": ["schemaVersion", "sampleEpochMs", "build", "application", "scene", "avatar", "view", "tablet"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "sampleEpochMs": {"type": "integer", "minimum": 1},
+    "sampleSequence": {"type": "integer", "minimum": 1},
+    "build": {
+      "type": "object",
+      "required": ["platform", "version", "date"],
+      "properties": {
+        "platform": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "date": {"type": "string", "minLength": 1}
+      }
+    },
+    "application": {
+      "type": "object",
+      "required": ["running"],
+      "properties": {"running": {"type": "boolean"}}
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dominantHand", "advancedMovementControls"],
+      "properties": {
+        "dominantHand": {"enum": ["left", "right"]},
+        "advancedMovementControls": {"type": "boolean"}
+      }
+    },
+    "scene": {
+      "type": "object",
+      "required": ["ready", "entityCount"],
+      "properties": {
+        "ready": {"type": "boolean"},
+        "entityCount": {"type": "integer", "minimum": 0}
+      }
+    },
+    "avatar": {
+      "type": "object",
+      "required": ["position"],
+      "properties": {"position": {"$ref": "#/$defs/vector3"}}
+    },
+    "view": {
+      "type": "object",
+      "required": ["orientation"],
+      "properties": {"orientation": {"$ref": "#/$defs/vector3"}}
+    },
+    "tablet": {
+      "type": "object",
+      "required": ["open"],
+      "properties": {"open": {"type": "boolean"}}
+    },
+    "controller": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["axes", "buttons", "poses"],
+      "properties": {
+        "route": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["openxrAxes", "standardLy", "translateZAction", "rawTranslateZDriveKey", "translateZDriveKeyDisabled"],
+          "properties": {
+            "openxrAxes": {
+              "oneOf": [
+                {"type": "null"},
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["lx", "ly", "rx", "ry"],
+                  "properties": {
+                    "lx": {"type": "number"},
+                    "ly": {"type": "number"},
+                    "rx": {"type": "number"},
+                    "ry": {"type": "number"}
+                  }
+                }
+              ]
+            },
+            "standardLy": {"type": "number"},
+            "translateZAction": {"type": "number"},
+            "rawTranslateZDriveKey": {"type": "number"},
+            "translateZDriveKeyDisabled": {"type": "boolean"}
+          }
+        },
+        "axes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["lx", "ly", "rx", "ry", "leftTrigger", "rightTrigger", "leftGrip", "rightGrip"],
+          "properties": {
+            "lx": {"type": "number"},
+            "ly": {"type": "number"},
+            "rx": {"type": "number"},
+            "ry": {"type": "number"},
+            "leftTrigger": {"type": "number"},
+            "rightTrigger": {"type": "number"},
+            "leftGrip": {"type": "number"},
+            "rightGrip": {"type": "number"}
+          }
+        },
+        "buttons": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["menu", "leftPrimary", "leftSecondary", "leftThumbstick", "leftTrigger", "rightPrimary", "rightSecondary", "rightThumbstick", "rightTrigger"],
+          "properties": {
+            "menu": {"type": "boolean"},
+            "leftPrimary": {"type": "boolean"},
+            "leftSecondary": {"type": "boolean"},
+            "leftThumbstick": {"type": "boolean"},
+            "leftTrigger": {"type": "boolean"},
+            "rightPrimary": {"type": "boolean"},
+            "rightSecondary": {"type": "boolean"},
+            "rightThumbstick": {"type": "boolean"},
+            "rightTrigger": {"type": "boolean"}
+          }
+        },
+        "poses": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["left", "right"],
+          "properties": {
+            "left": {"$ref": "#/$defs/controllerPose"},
+            "right": {"$ref": "#/$defs/controllerPose"}
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "vector3": {
+      "type": "object",
+      "required": ["x", "y", "z"],
+      "properties": {
+        "x": {"type": "number"},
+        "y": {"type": "number"},
+        "z": {"type": "number"}
+      }
+    },
+    "quaternion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "z", "w"],
+      "properties": {
+        "x": {"type": "number"},
+        "y": {"type": "number"},
+        "z": {"type": "number"},
+        "w": {"type": "number"}
+      }
+    },
+    "controllerPose": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["valid", "translation", "rotation"],
+          "properties": {
+            "valid": {"const": false},
+            "translation": {"type": "null"},
+            "rotation": {"type": "null"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["valid", "translation", "rotation"],
+          "properties": {
+            "valid": {"const": true},
+            "translation": {"$ref": "#/$defs/vector3"},
+            "rotation": {"$ref": "#/$defs/quaternion"}
+          }
+        }
+      ]
+    }
+  }
+}
