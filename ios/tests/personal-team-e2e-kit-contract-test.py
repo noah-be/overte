@@ -100,6 +100,15 @@ def write_wda_fixture(root: Path, *, malicious: str | None = None) -> Path:
     runner = {"CFBundleIdentifier": "com.facebook.WebDriverAgentRunner.xctrunner"}
     xctest = {"CFBundleIdentifier": "com.facebook.WebDriverAgentRunner"}
     with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr(zip_entry(f"{app}/", stat.S_IFDIR | 0o755), b"")
+        archive.writestr(zip_entry(f"{app}/PlugIns/", stat.S_IFDIR | 0o755), b"")
+        archive.writestr(
+            zip_entry(
+                f"{app}/PlugIns/WebDriverAgentRunner.xctest/",
+                stat.S_IFDIR | 0o755,
+            ),
+            b"",
+        )
         archive.writestr(zip_entry(f"{app}/Info.plist"), plistlib.dumps(runner))
         archive.writestr(
             zip_entry(f"{app}/WebDriverAgentRunner-Runner", stat.S_IFREG | 0o755),
@@ -261,6 +270,12 @@ def assert_tools_contract() -> None:
         wda = output / kit_tool.WDA_OUTPUT
         with zipfile.ZipFile(wda) as archive:
             names = archive.namelist()
+            assert (
+                "Payload/WebDriverAgentRunner-Runner.app/PlugIns/" in names
+            )
+            assert archive.getinfo(
+                "Payload/WebDriverAgentRunner-Runner.app/PlugIns/"
+            ).is_dir()
             assert not any("_CodeSignature" in name for name in names)
             assert not any(name.endswith("embedded.mobileprovision") for name in names)
             runner = plistlib.loads(
