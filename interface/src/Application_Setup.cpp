@@ -118,6 +118,9 @@
 #ifndef Q_OS_ANDROID
 #include <shared/FileLogger.h>
 #endif
+#if defined(Q_OS_IOS) && defined(OVERTE_IOS_E2E_TEST_BUILD)
+#include <shared/FileUtils.h>
+#endif
 #include <shared/GlobalAppProperties.h>
 #include <shared/PlatformHelper.h>
 #include <SoundCacheScriptingInterface.h>
