@@ -12,6 +12,10 @@ set(OVERTE_INTERFACE_UI_DIR
     "${CMAKE_CURRENT_LIST_DIR}/../../../../interface/src/ui"
     CACHE PATH
     "Path to the Overte interface UI headers")
+set(OVERTE_INTERFACE_SRC_DIR
+    "${CMAKE_CURRENT_LIST_DIR}/../../../../interface/src"
+    CACHE PATH
+    "Path to the Overte interface sources")
 
 if(NOT EXISTS "${OVERTE_INTERFACE_UI_DIR}/PhoneLoginState.h")
     message(FATAL_ERROR
@@ -22,6 +26,7 @@ endif()
 add_library(overte_native_test_options INTERFACE)
 target_compile_features(overte_native_test_options INTERFACE cxx_std_11)
 target_include_directories(overte_native_test_options INTERFACE
+    "${OVERTE_INTERFACE_SRC_DIR}"
     "${OVERTE_INTERFACE_UI_DIR}"
     "${CMAKE_CURRENT_LIST_DIR}/../../../phone/apps/phoneInterface/src"
     "${CMAKE_CURRENT_LIST_DIR}/support")
@@ -100,6 +105,10 @@ add_overte_native_test(
 add_overte_native_test(
     phone_pending_handoff_move
     "${CMAKE_CURRENT_LIST_DIR}/phone_pending_handoff_move_test.cpp")
+
+add_overte_native_test(
+    android_startup_url_policy
+    "${CMAKE_CURRENT_LIST_DIR}/android_startup_url_policy_test.cpp")
 
 set(OVERTE_BUNDLED_JDK_ROOT
     "${CMAKE_CURRENT_LIST_DIR}/../../../vr/pico/pico-host-tools/jdk-21"
