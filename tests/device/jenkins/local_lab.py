@@ -25,6 +25,7 @@ HERE = Path(__file__).resolve().parent
 DEVICE_ROOT = HERE.parent
 REPOSITORY = DEVICE_ROOT.parents[1]
 LOCK_FILE = DEVICE_ROOT / "toolchain.lock.json"
+IOS_LOCK_FILE = DEVICE_ROOT / "ios" / "toolchain.lock.json"
 PLUGINS_FILE = HERE / "plugins.lock.txt"
 PLUGIN_ARTIFACTS_FILE = HERE / "plugins.artifacts.lock.json"
 JENKINS_TEMPLATE = HERE / "jenkins.yaml"
@@ -181,6 +182,28 @@ def load_lock() -> dict:
     return value
 
 
+def appium_dependencies(appium: dict) -> dict[str, str]:
+    dependencies = {appium["core"]["package"]: appium["core"]["version"]}
+    dependencies.update({entry["package"]: entry["version"]
+                         for entry in appium["drivers"].values()})
+    dependencies.update({entry["package"]: entry["version"]
+                         for entry in appium.get("iosRuntime", {}).values()})
+    return dependencies
+
+
+def load_ios_lock(common_lock: dict) -> dict:
+    value = json.loads(IOS_LOCK_FILE.read_text(encoding="utf-8"))
+    if value.get("schemaVersion") != 1 or not isinstance(value.get("appium"), dict):
+        fail("unsupported iOS toolchain lock schema")
+    common_dependencies = appium_dependencies(common_lock["appium"])
+    ios_dependencies = appium_dependencies(value["appium"])
+    if (not ios_dependencies
+            or any(common_dependencies.get(package) != version
+                   for package, version in ios_dependencies.items())):
+        fail("iOS Appium lock differs from the shared toolchain pins")
+    return value
+
+
 def java_major(java: Path) -> int:
     result = subprocess.run([str(java), "-version"], text=True,
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -236,11 +259,7 @@ def install_appium(lock: dict, install_root: Path, npm: str) -> Path:
     package_source = DEVICE_ROOT / "ios" / "package.json"
     package_lock_source = DEVICE_ROOT / "ios" / "package-lock.json"
     package = json.loads(package_source.read_text(encoding="utf-8"))
-    expected = {appium["core"]["package"]: appium["core"]["version"]}
-    expected.update({entry["package"]: entry["version"]
-                     for entry in appium["drivers"].values()})
-    expected.update({entry["package"]: entry["version"]
-                     for entry in appium.get("iosRuntime", {}).values()})
+    expected = appium_dependencies(appium)
     if package.get("dependencies") != expected:
         fail("repository Appium package does not match the iOS toolchain lock")
     secure_write(root / "package.json", package_source.read_text(encoding="utf-8"))
@@ -301,7 +320,7 @@ def install(arguments: argparse.Namespace) -> int:
                        location["artifacts"] / f"jenkins-plugin-manager-{manager_version}.jar")
     install_plugins(java, manager, war, location["jenkinsHome"])
     appium = None if arguments.skip_appium else install_appium(
-        lock, location["install"], arguments.npm)
+        load_ios_lock(lock), location["install"], arguments.npm)
     appium_bootstrap_root = location["install"] / "appium"
 
     if not location["password"].exists():
@@ -482,7 +501,7 @@ WantedBy=graphical-session.target
     if state.get("appiumBootstrapRoot"):
         appium_state = Path(state.get("appiumStateRoot", ""))
         appium_command = " ".join(map(systemd_quote, (
-            *immutable_appium_command(load_lock(), appium_state),
+            *immutable_appium_command(load_ios_lock(load_lock()), appium_state),
             "--address", "127.0.0.1", "--port", "4723")))
         appium_unit = f"""[Unit]
 Description=Overte immutable iOS Appium server
