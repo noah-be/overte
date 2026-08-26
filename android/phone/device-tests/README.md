@@ -27,3 +27,29 @@ python3 tests/device/run.py \
 
 The Phone APK must already be installed. Installation and APK provenance remain
 an explicit preparation gate rather than a hidden side effect of every module.
+
+## Vertical locomotion input
+
+The adapter advertises `input.jump` and `input.fly` only when the dedicated
+Android Phone lab explicitly sets:
+
+```bash
+OVERTE_ANDROID_PHONE_E2E_INPUT=1
+```
+
+This opt-in does not apply to Pico, VR, emulators, or non-phone Android
+profiles. Before every locomotion action the adapter requires the expected
+package to be installed, running in the foreground, and bound to one unchanged
+process identity.
+
+Both operations inject a real touch into the production landscape virtual-pad
+jump button. The normal Phone mapping then carries the input through
+`TouchscreenVirtualPad.JUMP_BUTTON_PRESS`, `Actions.VERTICAL_UP`, and
+`MyAvatar::TRANSLATE_Y` to the character controller. `input.jump` emits one
+120 ms press. `input.fly` holds the same action for its requested finite
+`durationSeconds` from `0.1` through `10.0`. Android's bounded swipe supplies
+its normal release, and the adapter also injects a fail-closed `ACTION_UP` in a
+`finally` path and during cleanup.
+
+No avatar state or position is written directly. The adapter does not change
+or persist flying preferences or any other user setting.
