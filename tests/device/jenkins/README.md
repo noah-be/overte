@@ -83,7 +83,9 @@ are required; the pipeline never selects a merely "latest" run.
 The Lockable Resources entry is a non-secret alias such as `ios-device-01`,
 never a serial or UDID. `FIXTURE_PUBLIC_HOST` is a stable LAN DNS name or IPv4
 address reachable from that one device. The pipeline always runs core; soaks
-remain opt-in and start only after the baseline succeeds.
+remain opt-in and start only after the baseline succeeds. The locked core stage
+has a 45-minute outer timeout so the complete shared behavior suite and Appium
+cleanup fit without weakening any module-level timeout.
 
 The traceable stages are:
 
