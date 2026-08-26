@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://overte.org/schemas/e2e/openxr-input-binding-profile-v1.json",
+  "additionalProperties": false,
+  "properties": {
+    "actions": {
+      "additionalProperties": false,
+      "properties": {
+        "locomotion": {
+          "additionalProperties": false,
+          "properties": {
+            "applicationPreconditions": {
+              "additionalProperties": false,
+              "properties": {
+                "advancedMovement": { "type": "boolean" },
+                "dominantHand": { "enum": ["left", "right"] }
+              },
+              "required": ["dominantHand"],
+              "type": "object"
+            },
+            "forwardRuntimeY": { "enum": [-1, 1] },
+            "name": { "pattern": "^[a-z][a-z0-9_]{0,63}$", "type": "string" },
+            "supportedDirections": {
+              "items": { "enum": ["backward", "forward", "left", "right"] },
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "type": { "const": "vector2f" }
+          },
+          "required": [
+            "name",
+            "type",
+            "forwardRuntimeY",
+            "supportedDirections",
+            "applicationPreconditions"
+          ],
+          "type": "object"
+        },
+        "tabletToggle": {
+          "additionalProperties": false,
+          "properties": {
+            "name": { "pattern": "^[a-z][a-z0-9_]{0,63}$", "type": "string" },
+            "pulseMilliseconds": { "maximum": 500, "minimum": 40, "type": "integer" },
+            "type": { "const": "boolean" }
+          },
+          "required": ["name", "type", "pulseMilliseconds"],
+          "type": "object"
+        }
+      },
+      "required": ["locomotion", "tabletToggle"],
+      "type": "object"
+    },
+    "consumer": { "pattern": "^XR_APILAYER_", "type": "string" },
+    "interactionProfile": { "pattern": "^/interaction_profiles/", "type": "string" },
+    "profileId": { "pattern": "^[a-z][a-z0-9-]{0,63}$", "type": "string" },
+    "prototypeOnly": { "const": true },
+    "schemaVersion": { "const": 1 },
+    "viewInjection": {
+      "additionalProperties": false,
+      "properties": {
+        "intercepts": {
+          "const": ["xrLocateSpace", "xrLocateViews"]
+        },
+        "maxPitchDegrees": { "maximum": 60, "minimum": 1, "type": "number" },
+        "maxYawDegrees": { "maximum": 90, "minimum": 1, "type": "number" },
+        "mode": { "const": "reference-space-offset" }
+      },
+      "required": ["mode", "maxYawDegrees", "maxPitchDegrees", "intercepts"],
+      "type": "object"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "profileId",
+    "prototypeOnly",
+    "consumer",
+    "interactionProfile",
+    "viewInjection",
+    "actions"
+  ],
+  "title": "Overte target-specific OpenXR E2E binding profile",
+  "type": "object"
+}
