@@ -81,12 +81,14 @@ class OpenXrInputProtocolTests(unittest.TestCase):
         compiled = self.compile([
             {"id": "look-right", "operation": "input.look",
              "arguments": {"horizontal": 0.24, "vertical": -0.1,
-                           "durationSeconds": 0.2}},
+                           "durationSeconds": 6.0}},
             {"id": "walk-forward", "operation": "input.move",
-             "arguments": {"direction": "forward", "durationSeconds": 0.4,
-                           "strength": 0.7}},
-            {"id": "open-tablet", "operation": "tablet.open", "arguments": {}},
-            {"id": "close-tablet", "operation": "tablet.close", "arguments": {}},
+             "arguments": {"direction": "forward", "durationSeconds": 6.0,
+                           "strength": 0.25}},
+            {"id": "open-tablet", "operation": "tablet.open",
+             "arguments": {"holdMilliseconds": 6000}},
+            {"id": "close-tablet", "operation": "tablet.close",
+             "arguments": {"holdMilliseconds": 6000}},
         ])
         self.assertTrue(compiled["prototypeOnly"])
         self.assertEqual("neutral-and-disabled", compiled["terminalState"])
@@ -98,7 +100,7 @@ class OpenXrInputProtocolTests(unittest.TestCase):
                          [result["operation"] for result in compiled["results"]])
         self.assertEqual(False, compiled["results"][2]["precondition"]["probe.tablet.open"])
         self.assertEqual(True, compiled["results"][3]["precondition"]["probe.tablet.open"])
-        self.assertEqual([0.0, 0.7], next(
+        self.assertEqual([0.0, 0.25], next(
             event["state"]["vector2f"]["left_thumbstick"]
             for event in compiled["events"]
             if event["state"]["vector2f"]["left_thumbstick"] != [0.0, 0.0]))
@@ -199,6 +201,12 @@ class OpenXrInputProtocolTests(unittest.TestCase):
              "arguments": {"direction": "fly", "durationSeconds": 0.5}},
             {"id": "tablet", "operation": "tablet.open",
              "arguments": {"toggle": True}},
+            {"id": "long-look", "operation": "input.look",
+             "arguments": {"horizontal": 0.2, "durationSeconds": 8.001}},
+            {"id": "long-move", "operation": "input.move",
+             "arguments": {"direction": "forward", "durationSeconds": 8.001}},
+            {"id": "long-tablet", "operation": "tablet.open",
+             "arguments": {"holdMilliseconds": 8001}},
             {"id": "shell", "operation": "shell.exec", "arguments": {}},
         ]
         for command in cases:

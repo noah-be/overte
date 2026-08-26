@@ -200,16 +200,19 @@ def validate_envelope(raw: Any, profile_raw: Any) -> dict[str, Any]:
             if abs(horizontal) < 0.01 and abs(vertical) < 0.01:
                 raise ControllerContractError("look command must be non-neutral")
             _number(arguments.get("durationSeconds", 0.35),
-                    "look durationSeconds", 0.1, 2.0)
+                    "look durationSeconds", 0.1, 8.0)
         elif operation == "input.move":
             _exact_keys(arguments, {"direction", "durationSeconds"}, {"strength"},
                         f"commands[{index}].arguments")
             if arguments["direction"] not in {"backward", "forward"}:
                 raise ControllerContractError("Pico common movement supports forward/backward only")
-            _number(arguments["durationSeconds"], "move durationSeconds", 0.1, 3.0)
+            _number(arguments["durationSeconds"], "move durationSeconds", 0.1, 8.0)
             _number(arguments.get("strength", 0.8), "move strength", 0.2, 1.0)
         elif operation in {"tablet.close", "tablet.open"}:
-            _exact_keys(arguments, set(), set(), f"commands[{index}].arguments")
+            _exact_keys(arguments, set(), {"holdMilliseconds"},
+                        f"commands[{index}].arguments")
+            _integer(arguments.get("holdMilliseconds", 120),
+                     "tablet holdMilliseconds", 100, 8000)
         else:
             raise ControllerContractError(f"unsupported controller operation: {operation}")
     return envelope
@@ -310,7 +313,7 @@ def compile_envelope(envelope_raw: Any, profile_raw: Any) -> dict[str, Any]:
             state["vector2f"][action] = [0.0, runtime_y]
             required.add("xrGetActionStateVector2f")
         else:
-            duration = 120
+            duration = int(arguments.get("holdMilliseconds", 120))
             action = profile["controls"]["buttons"]["left.secondary"]
             state["boolean"][action] = True
             required.add("xrGetActionStateBoolean")

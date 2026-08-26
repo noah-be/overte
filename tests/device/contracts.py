@@ -56,6 +56,11 @@ def validate_probe_snapshot(value: object) -> dict:
     if (not isinstance(value.get("sampleEpochMs"), int)
             or isinstance(value["sampleEpochMs"], bool) or value["sampleEpochMs"] <= 0):
         raise ValueError("probe snapshot requires a positive sampleEpochMs")
+    sample_sequence = value.get("sampleSequence")
+    if sample_sequence is not None and (
+            not isinstance(sample_sequence, int) or isinstance(sample_sequence, bool)
+            or sample_sequence <= 0):
+        raise ValueError("probe snapshot sampleSequence must be a positive integer")
     required_objects = ("build", "application", "scene", "avatar", "view", "tablet")
     for field in required_objects:
         if not isinstance(value.get(field), dict):

@@ -135,6 +135,24 @@ class HarnessTest(unittest.TestCase):
         self.assertTrue((self.output / "modules/health/INVALID").exists())
         self.assertEqual("failed", json.loads((self.output / "summary.json").read_text())["status"])
 
+    def test_fail_fast_stops_modules_and_still_cleans_up(self):
+        modules = []
+        for identifier in ("first", "second"):
+            modules.append({
+                "id": identifier, "description": f"Mock {identifier} module",
+                "command": ["module.py"], "suites": ["smoke"],
+                "requires": ["app.process"], "timeoutSeconds": 10,
+            })
+        self.catalog.write_text(json.dumps({"schemaVersion": 1, "modules": modules}),
+                                encoding="utf-8")
+        result = self.run_harness(
+            "--fail-fast", environment={"MOCK_MODULE_EXIT": "9"})
+        self.assertEqual(1, result.returncode, result.stdout)
+        summary = json.loads((self.output / "summary.json").read_text())
+        self.assertEqual(["first"], [item["id"] for item in summary["results"]])
+        self.assertFalse((self.output / "modules/second").exists())
+        self.assertTrue(self.cleanup_marker.exists())
+
     def test_missing_capability_is_reported_as_skip(self):
         result = self.run_harness(environment={"MOCK_CAPABILITIES": "telemetry.memory"})
         self.assertEqual(0, result.returncode, result.stdout)

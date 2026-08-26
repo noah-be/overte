@@ -25,11 +25,21 @@ class FakeTransport:
         return {"sequence": envelope["sequence"]}
 
     def read_status(self, *, expected_nonce=None, expected_sequence=None):
+        sequence = expected_sequence or len(self.envelopes)
+        operation = (self.envelopes[sequence - 1]["commands"][0]["operation"]
+                     if sequence else "")
         return {
             "enabled": True,
-            "acceptedSequence": expected_sequence or len(self.envelopes),
+            "acceptedSequence": sequence,
             "acceptedNonce": "[redacted]",
             "state": "active" if expected_sequence is not None else "neutral",
+            "viewAppliedSequence": sequence if operation == "input.look" else 0,
+            "viewAppliedYawDegrees": 25.0 if operation == "input.look" else 0.0,
+            "viewAppliedPitchDegrees": 0.0,
+            "vectorAppliedSequence": sequence if operation == "input.move" else 0,
+            "leftThumbstickAppliedY": 0.4 if operation == "input.move" else 0.0,
+            "booleanAppliedSequence": sequence if operation.startswith("tablet.") else 0,
+            "leftSecondaryApplied": operation.startswith("tablet."),
         }
 
     def cleanup(self):
@@ -49,6 +59,7 @@ class PicoOpenXrAdapterSessionTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def test_common_operations_share_nonce_and_advance_sequence(self) -> None:
+        self.session.begin("42:100")
         first = self.session.stage(
             "42:100", "input.look", {"horizontal": 0.25, "vertical": 0.0})
         second = self.session.stage(
@@ -58,27 +69,43 @@ class PicoOpenXrAdapterSessionTests(unittest.TestCase):
         self.assertEqual(self.transport.envelopes[0]["sessionNonce"],
                          self.transport.envelopes[1]["sessionNonce"])
         self.assertEqual("head-pose", first["inputDomain"])
+        self.assertTrue(first["viewApplied"])
+        self.assertEqual(25.0, first["viewYawDegrees"])
         self.assertEqual("controller-action", second["inputDomain"])
+        self.assertTrue(second["openXrVectorApplied"])
+        self.assertEqual(0.4, second["openXrLeftThumbstickY"])
         serialized = str((first, second))
         self.assertNotIn(self.transport.envelopes[0]["sessionNonce"], serialized)
         self.assertNotIn("private-pico-selector", self.session.state_path.name)
         self.assertEqual(0o600, self.session.state_path.stat().st_mode & 0o777)
 
-    def test_process_restart_cleans_transport_and_rotates_nonce(self) -> None:
+    def test_process_restart_fails_closed_without_rotating_nonce(self) -> None:
+        self.session.begin("42:100")
         self.session.stage("42:100", "tablet.open", {})
         old_nonce = self.transport.envelopes[-1]["sessionNonce"]
-        result = self.session.stage("43:200", "tablet.close", {})
-        self.assertEqual(1, self.transport.cleanup_count)
+        with self.assertRaisesRegex(AdapterSessionError, "identity changed"):
+            self.session.stage("43:200", "tablet.close", {})
+        self.assertEqual(0, self.transport.cleanup_count)
         self.assertEqual(1, self.transport.envelopes[-1]["sequence"])
-        self.assertNotEqual(old_nonce, self.transport.envelopes[-1]["sessionNonce"])
-        self.assertTrue(result["performed"])
+        self.assertEqual(old_nonce, self.transport.envelopes[-1]["sessionNonce"])
 
     def test_cleanup_is_neutral_and_idempotent(self) -> None:
+        self.session.begin("42:100")
         self.session.stage("42:100", "tablet.open", {})
         self.session.cleanup(process_running=True)
         self.session.cleanup(process_running=False)
         self.assertEqual(2, self.transport.cleanup_count)
         self.assertFalse(self.session.state_path.exists())
+
+    def test_stage_requires_the_single_launcher_session(self) -> None:
+        with self.assertRaisesRegex(AdapterSessionError, "not established"):
+            self.session.stage("42:100", "input.look", {})
+        self.session.begin("42:100")
+        self.session.require_process_identity("42:100")
+        with self.assertRaisesRegex(AdapterSessionError, "identity changed"):
+            self.session.require_process_identity("43:200")
+        with self.assertRaisesRegex(AdapterSessionError, "already established"):
+            self.session.begin("42:100")
 
     def test_configuration_requires_nondefault_port_and_private_directory(self) -> None:
         with mock.patch.dict(os.environ, {"ANDROID_ADB_SERVER_PORT": "5037"}, clear=True):

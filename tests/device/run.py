@@ -306,6 +306,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--keep-running", action="store_true")
     parser.add_argument("--require-complete", action="store_true",
                         help="treat missing module capabilities as infrastructure errors")
+    parser.add_argument("--fail-fast", action="store_true",
+                        help="stop after the first failed or errored module")
     parser.add_argument("--list", action="store_true")
     return parser.parse_args()
 
@@ -363,12 +365,17 @@ def main() -> int:
                                     "returncode": 75 if args.require_complete else 77,
                                     "durationSeconds": 0.0,
                                     "output": f"Missing capabilities: {', '.join(missing)}\n"})
+                    if args.fail_fast and args.require_complete:
+                        break
                     continue
                 artifact = output / "modules" / module["id"]
                 module_env = environment | {"OVERTE_DEVICE_ARTIFACT_DIR": str(artifact)}
                 print(f"[{module['id']}] {module['description']}", flush=True)
-                results.append(run_module(module, catalog_path, module_env, artifact, selector,
-                                          command, capabilities))
+                result = run_module(module, catalog_path, module_env, artifact, selector,
+                                    command, capabilities)
+                results.append(result)
+                if args.fail_fast and result["status"] in {"failed", "error"}:
+                    break
         finally:
             if not args.keep_running:
                 try:

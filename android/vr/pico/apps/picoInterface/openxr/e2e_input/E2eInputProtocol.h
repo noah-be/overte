@@ -69,6 +69,8 @@ struct Snapshot {
     std::array<PoseOverride, static_cast<std::size_t>(PoseChannel::Count)> poses {};
     bool viewActive { false };
     XrQuaternionf viewOrientation { 0.0f, 0.0f, 0.0f, 1.0f };
+    float viewYawDegrees { 0.0f };
+    float viewPitchDegrees { 0.0f };
 };
 
 struct TimedSnapshot {
@@ -90,6 +92,11 @@ public:
     // published here remains immutable until the next call.
     void sync(std::int64_t epochMilliseconds, std::int64_t monotonicMilliseconds);
     void failClosed(const char* reason, std::int64_t epochMilliseconds);
+    void recordViewApplication(std::int64_t epochMilliseconds);
+    void recordVectorApplication(VectorChannel channel, const XrVector2f& value,
+                                 std::int64_t epochMilliseconds);
+    void recordBooleanApplication(BooleanChannel channel, bool value,
+                                  std::int64_t epochMilliseconds);
 
     const Snapshot& current() const { return _current; }
     const Snapshot& previous() const { return _previous; }
@@ -117,6 +124,13 @@ private:
     std::int64_t _createdEpochMilliseconds { 0 };
     std::uint64_t _generation { 0 };
     std::uint64_t _acceptedSequence { 0 };
+    std::uint64_t _viewAppliedSequence { 0 };
+    double _viewAppliedYawDegrees { 0.0 };
+    double _viewAppliedPitchDegrees { 0.0 };
+    std::uint64_t _vectorAppliedSequence { 0 };
+    double _leftThumbstickAppliedY { 0.0 };
+    std::uint64_t _booleanAppliedSequence { 0 };
+    bool _leftSecondaryApplied { false };
     std::string _acceptedNonce;
     std::string _activeCommandId;
     std::uint64_t _seenGrantDevice { 0 };

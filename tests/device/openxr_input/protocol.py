@@ -51,9 +51,12 @@ def _exact_keys(value: dict[str, Any], required: set[str], optional: set[str],
         raise ContractError(f"{name} has unknown fields: {', '.join(unknown)}")
 
 
-def _integer(value: Any, name: str, minimum: int = 0) -> int:
+def _integer(value: Any, name: str, minimum: int = 0,
+             maximum: int | None = None) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
         raise ContractError(f"{name} must be an integer >= {minimum}")
+    if maximum is not None and value > maximum:
+        raise ContractError(f"{name} must be <= {maximum}")
     return value
 
 
@@ -186,7 +189,7 @@ def validate_envelope(raw: Any) -> dict[str, Any]:
             _number(arguments["horizontal"], "look.horizontal", -0.45, 0.45)
             _number(arguments.get("vertical", 0.0), "look.vertical", -0.45, 0.45)
             _number(arguments.get("durationSeconds", 0.35),
-                    "look.durationSeconds", 0.1, 2.0)
+                    "look.durationSeconds", 0.1, 8.0)
             if abs(arguments["horizontal"]) < 0.01 and abs(arguments.get("vertical", 0.0)) < 0.01:
                 raise ContractError("look must request a visible non-zero rotation")
         elif operation == "input.move":
@@ -194,10 +197,13 @@ def validate_envelope(raw: Any) -> dict[str, Any]:
                         f"commands[{index}].arguments")
             if arguments["direction"] not in {"backward", "forward", "left", "right"}:
                 raise ContractError("move.direction is unsupported")
-            _number(arguments["durationSeconds"], "move.durationSeconds", 0.1, 3.0)
+            _number(arguments["durationSeconds"], "move.durationSeconds", 0.1, 8.0)
             _number(arguments.get("strength", 0.8), "move.strength", 0.2, 1.0)
         elif operation in {"tablet.close", "tablet.open"}:
-            _exact_keys(arguments, set(), set(), f"commands[{index}].arguments")
+            _exact_keys(arguments, set(), {"holdMilliseconds"},
+                        f"commands[{index}].arguments")
+            _integer(arguments.get("holdMilliseconds", 120),
+                     "tablet.holdMilliseconds", 100, 8000)
         else:
             raise ContractError(f"unsupported semantic operation: {operation}")
     return envelope
@@ -348,7 +354,8 @@ def compile_envelope(envelope_raw: Any, grant_raw: Any, profile_raw: Any,
             cursor = release + OBSERVATION_HOLD_MS + INTER_COMMAND_GAP_MS
         else:
             start = cursor
-            release = start + int(tablet["pulseMilliseconds"])
+            release = start + int(arguments.get(
+                "holdMilliseconds", tablet["pulseMilliseconds"]))
             state = deepcopy(neutral)
             state["boolean"][tablet["name"]] = True
             events.append({"atMs": start, "state": state})

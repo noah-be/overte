@@ -25,7 +25,7 @@ class E2EStackTest(unittest.TestCase):
     @staticmethod
     def snapshot() -> dict:
         return {
-            "schemaVersion": 1, "sampleEpochMs": 1,
+            "schemaVersion": 1, "sampleEpochMs": 1, "sampleSequence": 1,
             "build": {"platform": "Mock", "version": "1", "date": "1970-01-01"},
             "application": {"running": True},
             "scene": {"ready": True, "entityCount": 4},
@@ -43,6 +43,10 @@ class E2EStackTest(unittest.TestCase):
         snapshot["avatar"]["position"]["x"] = float("nan")
         with self.assertRaisesRegex(ValueError, "position"):
             validate_probe_snapshot(snapshot)
+        snapshot = self.snapshot()
+        snapshot["sampleSequence"] = True
+        with self.assertRaisesRegex(ValueError, "sampleSequence"):
+            validate_probe_snapshot(snapshot)
 
     def test_probe_contract_observes_standard_controller_values_and_poses(self):
         snapshot = self.snapshot()
@@ -53,7 +57,7 @@ class E2EStackTest(unittest.TestCase):
             "route": {
                 "openxrAxes": {"lx": 0.0, "ly": -1.0, "rx": 0.0, "ry": 0.0},
                 "standardLy": -1.0, "translateZAction": -1.0,
-                "rawTranslateZDriveKey": -1.0,
+                "rawTranslateZDriveKey": 1.0,
                 "translateZDriveKeyDisabled": False,
             },
             "axes": {
@@ -111,6 +115,12 @@ class E2EStackTest(unittest.TestCase):
         self.assertIn("Controller.getValue(openXr.LY)", probe)
         self.assertIn("Controller.getValue(Controller.Actions.TranslateZ)", probe)
         self.assertIn("MyAvatar.getRawDriveKey(DriveKeys.TRANSLATE_Z)", probe)
+        self.assertIn("sampleSequence: sampleSequence", probe)
+        self.assertIn("OVERTE_E2E_PROBE_HEARTBEAT", probe)
+        self.assertIn("OVERTE_E2E_PROBE_ERROR", probe)
+        self.assertIn("Script.update.connect(updateProbe)", probe)
+        self.assertIn("Script.update.disconnect(updateProbe)", probe)
+        self.assertNotIn("Script.setInterval", probe)
 
         pico_setup = (ROOT.parents[1] /
                       "android/vr/pico/apps/picoInterface/overrides/Application_Setup.cpp"
@@ -171,6 +181,55 @@ class E2EStackTest(unittest.TestCase):
             self.assertEqual("0", junit.attrib["failures"])
             self.assertEqual("0", junit.attrib["errors"])
 
+    def test_complete_core_suite_enforces_pico_hardware_evidence(self):
+        with tempfile.TemporaryDirectory(prefix="overte-pico-e2e-stack-") as temporary:
+            root = Path(temporary)
+            environment = os.environ.copy()
+            environment.update({
+                "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+                "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
+                "OVERTE_E2E_SCENE_URL": "overte-e2e://fixture/scene",
+                "OVERTE_E2E_POLL_SECONDS": "0.05",
+                "OVERTE_PICO_OPENXR_INPUT": "1",
+            })
+            output = root / "results"
+            result = subprocess.run([
+                sys.executable, str(ROOT / "run.py"),
+                "--adapter-manifest", str(ROOT / "adapters/mock/adapter.json"),
+                "--catalog", str(ROOT / "catalog.json"), "--suite", "e2e-core",
+                "--allow-virtual", "--output-dir", str(output),
+            ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+               env=environment, check=False)
+            self.assertEqual(0, result.returncode, result.stdout)
+            summary = json.loads((output / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual("passed", summary["status"])
+            samples = json.loads((output / "modules/scene/fixture-stable-samples.json")
+                                 .read_text(encoding="utf-8"))
+            self.assertEqual(5, len(samples))
+            route = json.loads((output / "modules/move/move-route-active.json")
+                               .read_text(encoding="utf-8"))
+            self.assertEqual("right", route["input"]["dominantHand"])
+            self.assertTrue(route["input"]["advancedMovementControls"])
+            self.assertFalse(route["controller"]["route"]
+                             ["translateZDriveKeyDisabled"])
+            for module, artifact in (
+                    ("look", "look-input-result.json"),
+                    ("move", "move-input-result.json"),
+                    ("tablet", "tablet-open-input-result.json"),
+                    ("tablet", "tablet-close-input-result.json")):
+                input_result = json.loads((output / "modules" / module / artifact)
+                                          .read_text(encoding="utf-8"))
+                if module == "look":
+                    self.assertTrue(input_result["viewApplied"])
+                    self.assertEqual(25.0, input_result["viewYawDegrees"])
+                else:
+                    self.assertTrue(input_result["neutralBeforeCommand"])
+                if module == "move":
+                    self.assertTrue(input_result["openXrVectorApplied"])
+                    self.assertEqual(0.4, input_result["openXrLeftThumbstickY"])
+                if module == "tablet":
+                    self.assertTrue(input_result["openXrBooleanApplied"])
+
     def test_fixture_requires_a_thick_floor_and_explicit_safe_spawn(self):
         from fixture.serve import controlled_scene_url
 
@@ -196,6 +255,35 @@ class E2EStackTest(unittest.TestCase):
         self.assertIn("spawnRequestPending && avatarAtSpawn", probe)
         self.assertIn("stableAvatarSamples >= 4", probe)
         self.assertIn("spawnValidated: sceneReady", probe)
+
+    def test_pico_actions_span_slow_physical_probe_observations(self):
+        session = (ROOT / "overte_session.py").read_text(encoding="utf-8")
+        launch = (ROOT / "modules/launch_smoke.py").read_text(encoding="utf-8")
+        self.assertIn('arguments["durationSeconds"] = 6.0', session)
+        self.assertIn('move_arguments.update({"durationSeconds": 3.0, "strength": 0.4})',
+                      session)
+        self.assertIn('{"holdMilliseconds": 1000} if self.pico_openxr else None',
+                      session)
+        self.assertIn("raw_sign != mapped_signs[0]", session)
+        self.assertIn("settle = max(settle, 25)", launch)
+        self.assertNotIn("brightness", session.lower())
+
+    def test_pico_e2e_openxr_axes_are_published_as_valid(self):
+        source = (ROOT.parents[1] / "android" / "vr" / "pico" / "apps" /
+                  "picoInterface" / "openxr" / "src" /
+                  "OpenXrInputPlugin.cpp").read_text(encoding="utf-8")
+        self.assertIn("#if defined(OVERTE_E2E_OPENXR_INPUT_V1)", source)
+        self.assertIn(
+            "_axisStateMap[y_channel] = AxisValue(-action.currentState.y, 0);",
+            source,
+        )
+        self.assertIn(
+            "_axisStateMap[channel] = AxisValue(action.currentState, 0);",
+            source,
+        )
+        self.assertIn('"OVERTE_E2E_CONTROLLER_AXIS"', source)
+        self.assertIn("e2eControllerOverrideActive", source)
+        self.assertIn("!e2eControllerOverrideActive", source)
 
 
 if __name__ == "__main__":

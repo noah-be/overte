@@ -140,22 +140,25 @@ class PicoOpenXrAdapterSession:
             raise AdapterSessionError("Pico OpenXR session state is invalid")
         return value
 
-    def _save(self, value: dict) -> None:
+    def _save_path(self, path: Path, value: dict) -> None:
         payload = (json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode()
-        temporary = self.state_path.with_name(
-            f".{self.state_path.name}.{secrets.token_hex(8)}.tmp")
+        temporary = path.with_name(
+            f".{path.name}.{secrets.token_hex(8)}.tmp")
         descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         try:
             with os.fdopen(descriptor, "wb", closefd=True) as output:
                 output.write(payload)
                 output.flush()
                 os.fsync(output.fileno())
-            os.replace(temporary, self.state_path)
+            os.replace(temporary, path)
         finally:
             try:
                 temporary.unlink()
             except FileNotFoundError:
                 pass
+
+    def _save(self, value: dict) -> None:
+        self._save_path(self.state_path, value)
 
     def _new_state(self, process_identity: str) -> dict:
         return {
@@ -164,6 +167,25 @@ class PicoOpenXrAdapterSession:
             "sessionNonce": secrets.token_hex(32),
             "nextSequence": 1,
         }
+
+    def begin(self, process_identity: str) -> None:
+        """Bind the complete E2E run to the one explicitly launched process."""
+        if not isinstance(process_identity, str) or not process_identity:
+            raise AdapterSessionError("Pico application process identity is unavailable")
+        with self._lock():
+            if self._load() is not None:
+                raise AdapterSessionError("Pico E2E launcher session is already established")
+            self._save(self._new_state(process_identity))
+
+    def require_process_identity(self, process_identity: str) -> None:
+        if not isinstance(process_identity, str) or not process_identity:
+            raise AdapterSessionError("Pico application process identity is unavailable")
+        with self._lock():
+            state = self._load()
+            if state is None:
+                raise AdapterSessionError("Pico E2E launcher session is not established")
+            if state["processIdentity"] != process_identity:
+                raise AdapterSessionError("Pico E2E launcher process identity changed")
 
     @staticmethod
     def _ack_timeout() -> float:
@@ -193,21 +215,85 @@ class PicoOpenXrAdapterSession:
                 time.sleep(0.1)
         raise AdapterSessionError("native Pico OpenXR input acknowledgement timed out") from last_error
 
+    def _wait_for_neutral(self, nonce: str, sequence: int) -> dict:
+        deadline = time.monotonic() + self._ack_timeout()
+        last_error: TransportError | None = None
+        while time.monotonic() < deadline:
+            try:
+                status = self.transport.read_status(expected_nonce=nonce)
+                if (status["acceptedSequence"] == sequence
+                        and status["state"] == "neutral"):
+                    return status
+                if status["state"] == "error":
+                    raise AdapterSessionError(
+                        "native Pico OpenXR input failed before neutralization")
+            except TransportError as error:
+                last_error = error
+            time.sleep(0.1)
+        raise AdapterSessionError(
+            "native Pico OpenXR input did not confirm an inter-command neutral window"
+        ) from last_error
+
+    def _wait_for_view_application(self, nonce: str, sequence: int) -> dict:
+        deadline = time.monotonic() + self._ack_timeout()
+        last_error: TransportError | None = None
+        while time.monotonic() < deadline:
+            try:
+                status = self.transport.read_status(
+                    expected_nonce=nonce, expected_sequence=sequence)
+                if status["state"] == "error" or status["enabled"] is not True:
+                    raise AdapterSessionError(
+                        "native Pico OpenXR view override failed before consumption")
+                if status["viewAppliedSequence"] == sequence:
+                    return status
+            except TransportError as error:
+                last_error = error
+            time.sleep(0.1)
+        raise AdapterSessionError(
+            "native Pico OpenXR view override was not consumed by a view query"
+        ) from last_error
+
+    def _wait_for_controller_application(self, nonce: str, sequence: int,
+                                         operation: str) -> dict:
+        deadline = time.monotonic() + self._ack_timeout()
+        last_error: TransportError | None = None
+        while time.monotonic() < deadline:
+            try:
+                status = self.transport.read_status(
+                    expected_nonce=nonce, expected_sequence=sequence)
+                if status["state"] == "error" or status["enabled"] is not True:
+                    raise AdapterSessionError(
+                        "native Pico OpenXR controller override failed before consumption")
+                vector_applied = (operation == "input.move" and
+                                  status["vectorAppliedSequence"] == sequence and
+                                  abs(float(status["leftThumbstickAppliedY"])) >= 0.01)
+                boolean_applied = (operation in {"tablet.open", "tablet.close"} and
+                                   status["booleanAppliedSequence"] == sequence and
+                                   status["leftSecondaryApplied"] is True)
+                if vector_applied or boolean_applied:
+                    return status
+            except TransportError as error:
+                last_error = error
+            time.sleep(0.1)
+        raise AdapterSessionError(
+            "native Pico OpenXR controller override was not consumed by an action query"
+        ) from last_error
+
     def stage(self, process_identity: str, operation: str, arguments: dict) -> dict:
         if not isinstance(process_identity, str) or not process_identity:
             raise AdapterSessionError("Pico application process identity is unavailable")
         with self._lock():
             state = self._load()
             if state is None:
-                state = self._new_state(process_identity)
-            elif state["processIdentity"] != process_identity:
-                # A nonce is scoped to one native Protocol instance. Old files
-                # must not be reused after an app/OpenXR process restart.
-                self.transport.cleanup()
-                state = self._new_state(process_identity)
+                raise AdapterSessionError("Pico E2E launcher session is not established")
+            if state["processIdentity"] != process_identity:
+                raise AdapterSessionError("Pico E2E launcher process identity changed")
             sequence = state["nextSequence"]
             if sequence == 0xFFFFFFFF:
                 raise AdapterSessionError("Pico OpenXR input sequence is exhausted")
+            neutral_before_command = sequence > 1
+            if neutral_before_command:
+                self._wait_for_neutral(state["sessionNonce"], sequence - 1)
             envelope = {
                 "schemaVersion": 1,
                 "sessionNonce": state["sessionNonce"],
@@ -224,13 +310,37 @@ class PicoOpenXrAdapterSession:
             # acknowledgement timeout must never replay the committed sequence.
             self._save(state)
             status = self._wait_for_ack(state["sessionNonce"], sequence)
-        return {
+            if operation == "input.look":
+                status = self._wait_for_view_application(
+                    state["sessionNonce"], sequence)
+            elif operation in {"input.move", "tablet.open", "tablet.close"}:
+                status = self._wait_for_controller_application(
+                    state["sessionNonce"], sequence, operation)
+        result = {
             "performed": True,
             "inputDomain": ("head-pose" if operation == "input.look"
                             else "controller-action"),
             "sequence": staged["sequence"],
             "nativeState": status["state"],
+            "neutralBeforeCommand": neutral_before_command,
         }
+        if operation == "input.look":
+            result.update({
+                "viewApplied": True,
+                "viewYawDegrees": status["viewAppliedYawDegrees"],
+                "viewPitchDegrees": status["viewAppliedPitchDegrees"],
+            })
+        elif operation == "input.move":
+            result.update({
+                "openXrVectorApplied": True,
+                "openXrLeftThumbstickY": status["leftThumbstickAppliedY"],
+            })
+        elif operation in {"tablet.open", "tablet.close"}:
+            result.update({
+                "openXrBooleanApplied": True,
+                "openXrLeftSecondaryApplied": status["leftSecondaryApplied"],
+            })
+        return result
 
     def cleanup(self, process_running: bool) -> None:
         with self._lock():

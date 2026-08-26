@@ -165,10 +165,11 @@ python3 -m unittest tests.device.self_tests.test_openxr_controller_protocol -v
 adapter without changing the common modules. Because each adapter invocation is
 a new host process, it stores only a hashed target key, process identity,
 private nonce, and next sequence in a mode-`0700` runtime directory with
-mode-`0600` state. It rotates the nonce after a target-process restart, waits
-for the native identity/sequence acknowledgement, and confirms neutral cleanup
-before the adapter stops Overte. The selector and nonce never enter operation
-results or test artifacts.
+mode-`0600` state. A target-process restart fails the run closed instead of
+rotating into a new session. The adapter waits for native identity/sequence
+acknowledgement, confirms a neutral window between commands, and confirms
+neutral cleanup before it stops Overte. The selector and nonce never enter
+operation results or test artifacts.
 
 The lab opt-in requires `OVERTE_ANDROID_E2E_DEBUG=1`,
 `OVERTE_PICO_OPENXR_INPUT=1`, a non-default Pico-only
