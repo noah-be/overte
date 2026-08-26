@@ -135,6 +135,9 @@ elif shell[:4] == ["input", "touchscreen", "motionevent", "DOWN"]:
         state.write_text("restarted")
     if os.environ.get("MOCK_INPUT_FAIL") == "1":
         raise SystemExit(9)
+elif shell[:4] == ["input", "touchscreen", "motionevent", "MOVE"]:
+    if os.environ.get("MOCK_INPUT_MOVE_FAIL") == "1":
+        raise SystemExit(9)
 elif shell[:4] == ["input", "touchscreen", "motionevent", "UP"]:
     if os.environ.get("MOCK_INPUT_UP_FAIL") == "1":
         raise SystemExit(9)
@@ -466,6 +469,8 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
                          self.invoke("input.jump", environment=opt_in))
         jump_input = self.input_commands(self.commands())
         self.assertEqual(["input", "touchscreen", "motionevent", "DOWN"],
+                         jump_input[-3][:4])
+        self.assertEqual(["input", "touchscreen", "motionevent", "MOVE"],
                          jump_input[-2][:4])
         self.assertEqual(["input", "touchscreen", "motionevent", "UP"],
                          jump_input[-1][:4])
@@ -480,6 +485,8 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
             self.invoke("input.fly", {"durationSeconds": 0.25}, opt_in))
         fly_input = self.input_commands(self.commands())
         self.assertEqual(["input", "touchscreen", "motionevent", "DOWN"],
+                         fly_input[-3][:4])
+        self.assertEqual(["input", "touchscreen", "motionevent", "MOVE"],
                          fly_input[-2][:4])
         self.assertEqual(["input", "touchscreen", "motionevent", "UP"],
                          fly_input[-1][:4])
@@ -495,10 +502,40 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
             input_commands = self.input_commands(self.commands())
             self.assertEqual(
                 ["input", "touchscreen", "motionevent", "DOWN"],
+                input_commands[-3][:4])
+            self.assertEqual(
+                ["input", "touchscreen", "motionevent", "MOVE"],
                 input_commands[-2][:4])
             self.assertEqual(
                 ["input", "touchscreen", "motionevent", "UP"],
                 input_commands[-1][:4])
+
+    def test_failed_touch_update_is_neutralized(self):
+        environment = {"OVERTE_ANDROID_PHONE_E2E_INPUT": "1",
+                       "MOCK_INPUT_MOVE_FAIL": "1"}
+        result = self.invoke_failure("input.jump", {}, environment)
+        self.assertEqual(2, result.returncode)
+        input_commands = self.input_commands(self.commands())
+        self.assertEqual(["DOWN", "MOVE", "UP"],
+                         [command[3] for command in input_commands[-3:]])
+
+    def test_debug_jump_temporarily_disables_flight_without_settings(self):
+        environment = {"OVERTE_ANDROID_PHONE_E2E_INPUT": "1",
+                       "OVERTE_ANDROID_E2E_DEBUG": "1"}
+        self.invoke("scene.load", {"url": "overte-e2e://fixture/scene"},
+                    environment)
+        self.log.unlink()
+
+        self.assertEqual({"performed": True},
+                         self.invoke("input.jump", environment=environment))
+        commands = self.commands()
+        flight_modes = [command[-1] for command in commands
+                        if command[:5] == ["am", "start", "-W", "-n",
+                                           "org.overte.phone/.E2eFlightControlActivity"]]
+        self.assertEqual(["0", "1"], flight_modes)
+        self.assertEqual(["DOWN", "MOVE", "UP"],
+                         [command[3] for command in self.input_commands(commands)])
+        self.assertFalse(any(command[:1] == ["settings"] for command in commands))
 
     def test_failed_touch_is_neutralized(self):
         environment = {"OVERTE_ANDROID_PHONE_E2E_INPUT": "1",

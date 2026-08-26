@@ -508,6 +508,12 @@ def perform_vertical_touch(target: str, duration_milliseconds: int) -> dict:
     try:
         ADB.shell(target, "input", "touchscreen", "motionevent", "DOWN",
                   str(x), str(y))
+        # The production TouchscreenVirtualPadDevice resolves button presses
+        # from QTouchEvent updates. A real finger naturally supplies a small
+        # update after contact; emit one stationary MOVE so the bounded ADB
+        # gesture deterministically follows that same virtual-pad path.
+        ADB.shell(target, "input", "touchscreen", "motionevent", "MOVE",
+                  str(x), str(y))
         time.sleep(duration_milliseconds / 1000.0)
     finally:
         released = neutralize_vertical_input(target, position)
@@ -528,11 +534,42 @@ def perform_vertical_touch(target: str, duration_milliseconds: int) -> dict:
     return {"performed": True}
 
 
+def perform_jump_touch(target: str) -> dict:
+    if not debug_opted_in():
+        return perform_vertical_touch(target, JUMP_TOUCH_MILLISECONDS)
+
+    identity = require_debug_session(target)
+    set_e2e_flying_override(target, identity, 0)
+    wait_for_grounded_fixture(target, identity, False)
+    try:
+        result = perform_vertical_touch(target, JUMP_TOUCH_MILLISECONDS)
+    except (OSError, RuntimeError, subprocess.TimeoutExpired):
+        # Restore the E2E flight capability after every recoverable input
+        # failure. If the input release already stopped the process, cleanup
+        # remains fail-closed and the original error is preserved.
+        try:
+            set_e2e_flying_override(target, identity, 1)
+        except (OSError, RuntimeError, subprocess.TimeoutExpired):
+            pass
+        raise
+
+    # Let Qt consume ACTION_UP before mode 1 permits the later held flight
+    # action. This does not delay observation beyond the normal jump ascent.
+    time.sleep(0.1)
+    try:
+        set_e2e_flying_override(target, identity, 1)
+    except (OSError, RuntimeError, subprocess.TimeoutExpired):
+        ADB.shell(target, "am", "force-stop", PACKAGE, check=False)
+        discard_debug_session(target)
+        raise
+    return result
+
+
 def invoke(target: str, operation: str, arguments: dict) -> dict:
     if operation == "input.jump":
         require_exact_arguments(operation, arguments, set())
         require_target(target)
-        return perform_vertical_touch(target, JUMP_TOUCH_MILLISECONDS)
+        return perform_jump_touch(target)
     if operation == "input.fly":
         duration = fly_duration(arguments)
         require_target(target)

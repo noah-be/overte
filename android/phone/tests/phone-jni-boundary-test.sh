@@ -4,6 +4,7 @@ set -euo pipefail
 readonly android_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 readonly handler="$android_root/phone/apps/phoneInterface/src/PhoneUrlHandler.cpp"
 readonly compat="$android_root/common/src/QtInputConnectionCompat.cpp"
+readonly my_avatar="$android_root/../interface/src/avatar/MyAvatar.cpp"
 readonly workflow="$android_root/../.github/workflows/android-tests.yml"
 
 require() {
@@ -53,6 +54,9 @@ printf 'PASS: E2E Phone startup holds the production virtual pad in landscape\n'
 require "$phone_activity" \
     'setRequestedOrientation\(ActivityInfo\.SCREEN_ORIENTATION_FULL_SENSOR\)' \
     'E2E cleanup restores the normal adaptive Phone orientation'
+require "$my_avatar" \
+    'phoneE2eFlyingEnabledOverrideActive\(\) \? false : _hoverWhenUnsupported' \
+    'Phone E2E suppresses automatic hover without changing the stored preference'
 require "$compat" 'QtNativeInputConnection_finishComposingText' 'finish-composition ABI export remains present'
 require "$compat" 'QtNativeInputConnection_updateCursorPosition' 'cursor-update ABI export remains present'
 if ! awk '/^  fast:/{inside=1} /^  contracts:/{inside=0} inside' "$workflow" |

@@ -1062,7 +1062,16 @@ void MyAvatar::simulate(float deltaTime, bool inView) {
         bool collisionlessAllowed = zoneInteractionProperties.second;
         _characterController.setZoneFlyingAllowed(zoneAllowsFlying || !isPhysicsEnabled);
         _characterController.setComfortFlyingAllowed(_enableFlying);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        // The process-only Phone E2E override must make a short vertical-pad
+        // press an ordinary jump regardless of the user's persisted
+        // hover-when-unsupported preference. A held press still enters Hover
+        // through the normal comfort-flying transition when mode 1 is active.
+        _characterController.setHoverWhenUnsupported(
+            phoneE2eFlyingEnabledOverrideActive() ? false : _hoverWhenUnsupported);
+#else
         _characterController.setHoverWhenUnsupported(_hoverWhenUnsupported);
+#endif
         _characterController.setCollisionlessAllowed(collisionlessAllowed);
     }
 

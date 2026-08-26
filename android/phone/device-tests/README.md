@@ -73,10 +73,17 @@ Both operations inject a real touch into the production landscape virtual-pad
 jump button. The normal Phone mapping then carries the input through
 `TouchscreenVirtualPad.JUMP_BUTTON_PRESS`, `Actions.VERTICAL_UP`, and
 `MyAvatar::TRANSLATE_Y` to the character controller. `input.jump` emits exactly
-one `ACTION_DOWN`, holds it for 120 ms, and emits `ACTION_UP`. `input.fly` holds
-the same action for its requested finite `durationSeconds` from `0.1` through
-`10.0`. The `ACTION_UP` runs in a `finally` path and during cleanup; a failed
+one `ACTION_DOWN`, one stationary `ACTION_MOVE`, holds for 120 ms, and emits
+`ACTION_UP`. The update mirrors the natural movement of a physical touch and
+is what the production virtual-pad button consumes. `input.fly` holds the same
+action for its requested finite `durationSeconds` from `0.1` through `10.0`.
+The `ACTION_UP` runs in a `finally` path and during cleanup; a failed
 release force-stops the bound app session so input cannot remain latched.
+
+For the debug E2E session only, the process-bound locomotion override disables
+comfort flight and automatic unsupported-hover while the short jump gesture is
+active, then enables comfort flight for the later held action. It never writes
+the user's flying or hover preferences; cleanup removes the override.
 
 No avatar state or position is written directly. The adapter does not change
 or persist flying preferences or any other user setting.
