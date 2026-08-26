@@ -10,10 +10,15 @@ from pathlib import Path
 import sys
 import time
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from contracts import validate_operation_arguments
+
 
 CAPABILITIES = sorted([
     "app.foreground", "app.launch", "app.process", "input.look", "input.move",
-    "probe.snapshot", "scene.load", "tablet.close", "tablet.open",
+    "input.fly", "input.jump", "probe.snapshot", "scene.load", "tablet.close",
+    "tablet.open",
 ])
 
 
@@ -39,6 +44,9 @@ def initial_state() -> dict:
         "running": False, "foreground": False, "sceneUrl": "", "sceneReady": False,
         "launchCount": 0, "sceneLoadCount": 0,
         "position": {"x": 0.0, "y": 2.0 if pico else 1.0, "z": 4.0},
+        "groundY": 2.0 if pico else 1.0,
+        "inAir": False, "flying": False, "flyingEnabled": True,
+        "locomotion": None, "locomotionSamples": 0,
         "orientation": {"x": 0.0, "y": 0.0, "z": 0.0}, "tablet": False,
         "picoRouteActive": False, "inputSequence": 0, "sampleSequence": 0,
     }
@@ -60,6 +68,7 @@ def emit(value: object) -> None:
 
 
 def invoke(operation: str, arguments: dict) -> dict:
+    validate_operation_arguments(operation, arguments)
     state = load()
     if operation == "app.launch":
         state["running"] = state["foreground"] = True
@@ -93,6 +102,14 @@ def invoke(operation: str, arguments: dict) -> dict:
         if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
             result.update({"openXrVectorApplied": True,
                            "openXrLeftThumbstickY": 0.4})
+    elif operation == "input.jump":
+        state["locomotion"] = "jump"
+        state["locomotionSamples"] = 0
+        result = {"performed": True}
+    elif operation == "input.fly":
+        state["locomotion"] = "fly"
+        state["locomotionSamples"] = 0
+        result = {"performed": True}
     elif operation == "tablet.open":
         state["inputSequence"] += 1
         state["tablet"] = True
@@ -115,6 +132,20 @@ def invoke(operation: str, arguments: dict) -> dict:
                                    or after < 0)):
             raise RuntimeError("afterSampleSequence must be a non-negative integer")
         state["sampleSequence"] += 1
+        if state["locomotion"] == "jump":
+            state["locomotionSamples"] += 1
+            airborne = state["locomotionSamples"] <= 2
+            gain = 0.0 if os.environ.get("OVERTE_MOCK_E2E_BAD_JUMP") == "1" else 0.8
+            state["position"]["y"] = state["groundY"] + (gain if airborne else 0.0)
+            state["inAir"], state["flying"] = airborne, False
+            if not airborne:
+                state["locomotion"] = None
+            save(state)
+        elif state["locomotion"] == "fly":
+            state["locomotionSamples"] += 1
+            gain = 0.0 if os.environ.get("OVERTE_MOCK_E2E_BAD_FLY") == "1" else 1.5
+            state["position"]["y"] = state["groundY"] + gain
+            state["inAir"] = state["flying"] = True
         snapshot = {
             "schemaVersion": 1,
             "sampleEpochMs": int(time.time() * 1000),
@@ -124,7 +155,8 @@ def invoke(operation: str, arguments: dict) -> dict:
             "application": {"running": state["running"], "foreground": state["foreground"]},
             "scene": {"url": state["sceneUrl"], "ready": state["sceneReady"],
                       "entityCount": 4 if state["sceneReady"] else 0},
-            "avatar": {"position": state["position"]},
+            "avatar": {"position": state["position"], "inAir": state["inAir"],
+                       "flying": state["flying"], "flyingEnabled": state["flyingEnabled"]},
             "view": {"orientation": state["orientation"]},
             "tablet": {"open": state["tablet"], "home": state["tablet"]},
         }
