@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "scene": "scene.json",
+  "spawnPath": "/0,2,4/0,0,0,1",
+  "spawnPosition": {"x": 0, "y": 2, "z": 4},
+  "minimumFloorThickness": 4.0,
+  "expectedEntityCount": 4,
+  "requiredMarkers": [
+    "OVERTE_E2E_EAST",
+    "OVERTE_E2E_FLOOR",
+    "OVERTE_E2E_NORTH",
+    "OVERTE_E2E_ORIGIN"
+  ],
+  "externalResources": false
+}
