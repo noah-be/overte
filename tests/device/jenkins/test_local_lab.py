@@ -91,8 +91,14 @@ class LocalLabBootstrapTest(unittest.TestCase):
             with patch.object(LAB, "java_major", return_value=21), \
                     patch.object(LAB, "download", side_effect=fake_download), \
                     patch.object(LAB, "install_plugins"), \
-                    patch.object(LAB, "install_appium", return_value=appium):
+                    patch.object(
+                        LAB, "install_appium", return_value=appium
+                    ) as install_appium:
                 self.assertEqual(0, LAB.install(arguments))
+
+            appium_lock = install_appium.call_args.args[0]["appium"]
+            self.assertNotIn("uiautomator2", appium_lock["drivers"])
+            self.assertEqual("12.8.0", appium_lock["drivers"]["xcuitest"]["version"])
 
             state_path = root / "private/local-lab.json"
             state = json.loads(state_path.read_text(encoding="utf-8"))
@@ -145,8 +151,11 @@ class LocalLabBootstrapTest(unittest.TestCase):
                         "appium-server", "--service-runtime",
                         "/usr/local/lib/overte-ios-remotexpc/5.15.3",
                         "--state-root", str(private / "appium-state"),
-                    ]):
+                    ]) as immutable_appium:
                 self.assertEqual(0, LAB.install_systemd_user_services(arguments))
+            appium_lock = immutable_appium.call_args.args[0]["appium"]
+            self.assertNotIn("uiautomator2", appium_lock["drivers"])
+            self.assertEqual("5.15.3", appium_lock["iosRuntime"]["remoteXpc"]["version"])
             unit = (fake_home / ".config/systemd/user/overte-appium.service").read_text()
             self.assertIn("--address", unit)
             self.assertIn("127.0.0.1", unit)
@@ -191,10 +200,20 @@ class LocalLabBootstrapTest(unittest.TestCase):
 
     def test_locks_pin_required_jenkins_and_appium_versions(self):
         lock = LAB.load_lock()
+        ios_lock = LAB.load_ios_lock(lock)
         self.assertEqual(21, lock["jenkins"]["recommendedJavaMajor"])
         self.assertEqual("2.568.2", lock["jenkins"]["lts"]["version"])
         self.assertEqual("3.7.0", lock["appium"]["core"]["version"])
         self.assertEqual("12.8.0", lock["appium"]["drivers"]["xcuitest"]["version"])
+        self.assertEqual(
+            json.loads((LAB.DEVICE_ROOT / "ios/package.json").read_text(
+                encoding="utf-8"))["dependencies"],
+            LAB.appium_dependencies(ios_lock["appium"]),
+        )
+        self.assertNotIn(
+            "appium-uiautomator2-driver",
+            LAB.appium_dependencies(ios_lock["appium"]),
+        )
 
 
 if __name__ == "__main__":
