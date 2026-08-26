@@ -40,8 +40,17 @@
     },
     "avatar": {
       "type": "object",
-      "required": ["position"],
-      "properties": {"position": {"$ref": "#/$defs/vector3"}}
+      "required": ["position", "inAir", "flying", "flyingEnabled"],
+      "properties": {
+        "position": {"$ref": "#/$defs/vector3"},
+        "inAir": {"type": "boolean"},
+        "flying": {"type": "boolean"},
+        "flyingEnabled": {"type": "boolean"}
+      },
+      "allOf": [{
+        "if": {"properties": {"flying": {"const": true}}},
+        "then": {"properties": {"inAir": {"const": true}}}
+      }]
     },
     "view": {
       "type": "object",
