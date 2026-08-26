@@ -31,10 +31,14 @@ UNIT_NAME = "overte-ios-remotexpc.service"
 SERVICE_ROOT = Path("/usr/local/lib/overte-ios-remotexpc")
 SERVICE_STATE_DIRECTORY = "overte-ios-remotexpc"
 SERVICE_STATE_ROOT = Path("/var/lib") / SERVICE_STATE_DIRECTORY
+SYSTEM_RUNTIME_PARENT_CHAIN = (
+    Path("/"), Path("/usr"), Path("/usr/local"), Path("/usr/local/lib"), SERVICE_ROOT,
+)
 UNIT_PATH = Path("/etc/systemd/system") / UNIT_NAME
 RUNTIME_MARKER = "service-runtime.json"
 RESTORECON_CANDIDATES = (Path("/usr/bin/restorecon"), Path("/usr/sbin/restorecon"))
 SELINUX_ENFORCE_FILE = Path("/sys/fs/selinux/enforce")
+OVERFLOW_UID_FILE = Path("/proc/sys/kernel/overflowuid")
 APPIUM_EXTENSION_TEMPLATE = "appium-extensions.yaml"
 MAX_APPIUM_EXTENSION_BYTES = 128 * 1024
 DEVICE_TOKEN_PATTERNS = (
@@ -213,7 +217,7 @@ def list_installed_drivers(node: Path, appium_entry: Path, appium_home: Path,
 
 def service_runtime_revision(lock: dict) -> int:
     revision = lock.get("serviceRuntimeRevision")
-    if revision != 3:
+    if revision != 4:
         fail("unsupported immutable service-runtime revision")
     return revision
 
@@ -390,7 +394,50 @@ def default_service_runtime() -> Path:
     return service_runtime_path()
 
 
-def verify_service_runtime(runtime_root: Path, owner_uid: int = 0) -> tuple[Path, Path]:
+def visible_root_owner_uid(root: Path = Path("/"),
+                           overflow_uid_file: Path = OVERFLOW_UID_FILE) -> int:
+    """Resolve host-root ownership in direct and unprivileged user namespaces."""
+    value = root.lstat()
+    if root.is_symlink() or not stat.S_ISDIR(value.st_mode):
+        fail("visible filesystem root is unsafe")
+    if value.st_uid == 0:
+        return 0
+    try:
+        overflow_uid = int(overflow_uid_file.read_text(encoding="ascii").strip())
+    except (OSError, UnicodeError, ValueError):
+        fail("kernel overflow uid is unavailable")
+    if value.st_uid != overflow_uid:
+        fail("visible filesystem root has an unexpected owner")
+    return overflow_uid
+
+
+def require_trusted_runtime_path(runtime_root: Path, owner_uid: int) -> None:
+    expected = service_runtime_path()
+    if (not runtime_root.is_absolute() or runtime_root != expected
+            or runtime_root.resolve() != runtime_root):
+        fail("service runtime is not the exact locked system path")
+    for path in SYSTEM_RUNTIME_PARENT_CHAIN:
+        try:
+            value = path.lstat()
+        except OSError:
+            fail("service runtime parent chain is unavailable")
+        if (path.is_symlink() or not stat.S_ISDIR(value.st_mode)
+                or value.st_uid != owner_uid or value.st_mode & 0o022):
+            fail("service runtime parent chain is not root-owned and protected")
+
+
+def visible_system_root_owner_uid(runtime_root: Path) -> int:
+    owner_uid = visible_root_owner_uid()
+    if owner_uid != 0 and owner_uid == os.geteuid():
+        fail("service runtime appears to be owned by the unprivileged caller")
+    require_trusted_runtime_path(runtime_root, owner_uid)
+    return owner_uid
+
+
+def verify_service_runtime(runtime_root: Path,
+                           owner_uid: int | None = None) -> tuple[Path, Path]:
+    if owner_uid is None:
+        owner_uid = visible_system_root_owner_uid(runtime_root)
     require_immutable_tree(runtime_root, owner_uid)
     local_lock = load_lock(runtime_root / "toolchain.lock.json")
     runtime = remote_xpc_lock(local_lock)

@@ -794,7 +794,7 @@ class AppiumAdapter:
             encoding="utf-8"))
         version = lock["appium"]["iosRuntime"]["remoteXpc"]["version"]
         revision = lock.get("serviceRuntimeRevision")
-        if revision != 3:
+        if revision != 4:
             fail("unsupported immutable iOS device runtime revision")
         runtime = Path("/usr/local/lib/overte-ios-remotexpc") / f"{version}-r{revision}"
         wrapper = runtime / "remotexpc_tunnel.py"

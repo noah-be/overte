@@ -344,7 +344,7 @@ class IosFedoraSyncTest(unittest.TestCase):
         arguments = mock.Mock(
             attestation=attestation.resolve(), destination=(self.root / "runs"),
             target_config=config_path.resolve(), target_selector="private-selector",
-            service_runtime=Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r3"),
+            service_runtime=Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r4"),
         )
         with mock.patch.object(
                 SYNC.subprocess, "run", return_value=mock.Mock(returncode=0)) as execute:

@@ -239,7 +239,7 @@ sudo python3 tests/device/ios/remotexpc_tunnel.py install-unit \
 Run it only from an audited, quiescent checkout and staging tree. It atomically
 copies the pinned Node executable, package files, complete npm tree, tunnel
 wrapper, and toolchain lock into
-`/usr/local/lib/overte-ios-remotexpc/5.15.3-r3`. The suffix is the immutable
+`/usr/local/lib/overte-ios-remotexpc/5.15.3-r4`. The suffix is the immutable
 Overte packaging revision; the pinned RemoteXPC package remains 5.15.3. Source
 and destination trees are hashed before publication. Every installed file is
 root-owned and immutable. Existing content and modes are only attested, never
@@ -284,14 +284,14 @@ already installed apps and proceeds directly to the same marker/team preflight.
 Attest status without elevation:
 
 ```bash
-python3 /usr/local/lib/overte-ios-remotexpc/5.15.3-r3/remotexpc_tunnel.py status
+python3 /usr/local/lib/overte-ios-remotexpc/5.15.3-r4/remotexpc_tunnel.py status
 ```
 
 Jenkins must also start Appium from the immutable runtime, never from a mutable
 user `node_modules`:
 
 ```bash
-/usr/local/lib/overte-ios-remotexpc/5.15.3-r3/remotexpc_tunnel.py appium-server \
+/usr/local/lib/overte-ios-remotexpc/5.15.3-r4/remotexpc_tunnel.py appium-server \
   --state-root /private/jenkins-job/appium-state \
   --address 127.0.0.1 --port 4723
 ```
@@ -300,5 +300,10 @@ That entry re-attests the whole root-owned tree, fixes `APPIUM_HOME` to an
 ephemeral directory below the absolute, symlink-free, caller-owned mode-0700
 state root, binds only loopback, and forces error-only, color-free logs. It
 copies only the root-attested XCUITest registry and removes the state on exit.
+Inside a hardened user-systemd namespace, host UID 0 is accepted only when it
+appears as the kernel-configured overflow UID; arbitrary remapped ownership is
+rejected. The exact `/`, `/usr`, `/usr/local`, `/usr/local/lib`, service-root,
+and versioned-runtime chain must remain symlink-free, non-writable, and owned by
+that same visible system-root identity.
 A tool version change requires a new versioned installation
 and an explicit administrator gate; obsolete versions are removed separately.

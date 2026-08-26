@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import tempfile
 import unittest
@@ -138,7 +139,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                         TUNNEL, "restore_security_context") as restore_context:
                     installed = TUNNEL.install_service_runtime(appium_home, service_root)
                     self.assertEqual(installed, restore_context.call_args.args[0])
-                self.assertEqual(service_root / "5.15.3-r3", installed)
+                self.assertEqual(service_root / "5.15.3-r4", installed)
                 self.assertEqual(
                     Path(TUNNEL.__file__).read_bytes(),
                     (installed / "remotexpc_tunnel.py").read_bytes(),
@@ -162,6 +163,9 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                         os.listxattr(installed / "appium/package.json"),
                     )
                 TUNNEL.verify_service_runtime(installed, os.geteuid())
+                with patch.object(
+                        TUNNEL, "visible_system_root_owner_uid", return_value=os.geteuid()):
+                    TUNNEL.verify_service_runtime(installed)
                 source_file = TUNNEL.__file__
                 try:
                     TUNNEL.__file__ = str(installed / "remotexpc_tunnel.py")
@@ -199,6 +203,61 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
             finally:
                 if service_root.exists():
                     self.make_tree_writable(service_root)
+
+    def test_visible_root_owner_accepts_only_root_or_kernel_overflow_uid(self):
+        root = MagicMock()
+        root.is_symlink.return_value = False
+        value = MagicMock()
+        value.st_mode = stat.S_IFDIR | 0o755
+        root.lstat.return_value = value
+        overflow = MagicMock()
+
+        value.st_uid = 0
+        self.assertEqual(0, TUNNEL.visible_root_owner_uid(root, overflow))
+        overflow.read_text.assert_not_called()
+
+        value.st_uid = 65534
+        overflow.read_text.return_value = "65534\n"
+        self.assertEqual(65534, TUNNEL.visible_root_owner_uid(root, overflow))
+        overflow.read_text.return_value = "12345\n"
+        with self.assertRaisesRegex(TUNNEL.TunnelError, "unexpected owner"):
+            TUNNEL.visible_root_owner_uid(root, overflow)
+
+    def test_trusted_runtime_path_rejects_drift_writable_or_symlink_parent(self):
+        with tempfile.TemporaryDirectory(prefix="overte-runtime-parents-") as name:
+            base = Path(name)
+            service_root = base / "service"
+            runtime = service_root / "5.15.3-r4"
+            runtime.mkdir(parents=True)
+            owner = os.geteuid()
+            with patch.object(
+                    TUNNEL, "service_runtime_path", return_value=runtime), patch.object(
+                    TUNNEL, "SYSTEM_RUNTIME_PARENT_CHAIN", (base, service_root)):
+                TUNNEL.require_trusted_runtime_path(runtime, owner)
+                with self.assertRaisesRegex(TUNNEL.TunnelError, "exact locked"):
+                    TUNNEL.require_trusted_runtime_path(runtime / "other", owner)
+                service_root.chmod(0o775)
+                with self.assertRaisesRegex(TUNNEL.TunnelError, "root-owned and protected"):
+                    TUNNEL.require_trusted_runtime_path(runtime, owner)
+                service_root.chmod(0o755)
+                link = base / "link"
+                link.symlink_to(service_root, target_is_directory=True)
+                with patch.object(TUNNEL, "SYSTEM_RUNTIME_PARENT_CHAIN", (base, link)):
+                    with self.assertRaisesRegex(
+                            TUNNEL.TunnelError, "root-owned and protected"):
+                        TUNNEL.require_trusted_runtime_path(runtime, owner)
+
+    def test_visible_system_owner_rejects_unprivileged_caller_identity(self):
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r4")
+        with patch.object(TUNNEL, "visible_root_owner_uid", return_value=1000), patch.object(
+                TUNNEL.os, "geteuid", return_value=1000):
+            with self.assertRaisesRegex(TUNNEL.TunnelError, "unprivileged caller"):
+                TUNNEL.visible_system_root_owner_uid(runtime)
+        with patch.object(TUNNEL, "visible_root_owner_uid", return_value=65534), patch.object(
+                TUNNEL.os, "geteuid", return_value=1000), patch.object(
+                TUNNEL, "require_trusted_runtime_path") as trusted:
+            self.assertEqual(65534, TUNNEL.visible_system_root_owner_uid(runtime))
+            trusted.assert_called_once_with(runtime, 65534)
 
     def test_selinux_restorecon_is_exact_and_fail_closed(self):
         with tempfile.TemporaryDirectory(prefix="overte-remotexpc-selinux-") as name:
@@ -253,7 +312,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                     self.make_tree_writable(service_root)
 
     def test_unit_executes_only_installed_runtime_and_is_hardened(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r3")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r4")
         unit = TUNNEL.service_unit(runtime, TUNNEL.DEFAULT_PORT)
         exec_start = next(line for line in unit.splitlines() if line.startswith("ExecStart="))
         working_directory = next(
@@ -325,13 +384,13 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
     def test_status_defaults_to_versioned_service_runtime_not_appium_home(self):
         arguments = TUNNEL.parser().parse_args(["status"])
         self.assertEqual(
-            Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r3"),
+            Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r4"),
             arguments.service_runtime,
         )
         self.assertFalse(hasattr(arguments, "appium_home"))
 
     def test_appium_server_is_root_owned_loopback_and_privacy_bounded(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r3")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r4")
         with tempfile.TemporaryDirectory(prefix="overte-appium-state-") as name:
             state = Path(name)
             state.chmod(0o700)
@@ -364,7 +423,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
             self.assertEqual([], list(state.iterdir()))
 
     def test_device_preflight_passes_udid_only_over_stdin_and_redacts_output(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r3")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r4")
         arguments = TUNNEL.parser().parse_args(["device-preflight"])
         private_udid = "00008101-1234567890ABCDEF"
         stdin = MagicMock()
@@ -384,7 +443,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
         self.assertEqual("PASS: installed iOS app contracts verified\n", output.getvalue())
 
     def test_device_install_revalidates_receipt_and_passes_private_values_only_on_stdin(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r3")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r4")
         with tempfile.TemporaryDirectory(prefix="overte-ios-device-install-") as name:
             root = Path(name)
             overte = root / "Overte.ipa"
