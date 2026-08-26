@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "capabilities": {
+    "accessibility.snapshot": {
+      "operation": "accessibility.snapshot",
+      "result": "Accessibility tree and optional artifact path"
+    },
+    "app.foreground": {
+      "operation": "app.foreground",
+      "result": "{foreground: boolean}"
+    },
+    "app.install": {
+      "operation": "app.install",
+      "result": "{installed: true}"
+    },
+    "app.launch": {
+      "operation": "app.launch",
+      "result": "{launched: true}"
+    },
+    "app.process": {
+      "operation": "app.process",
+      "result": "{running: boolean, identity: string|null}"
+    },
+    "artifact.screenshot": {
+      "operation": "artifact.screenshot",
+      "result": "{artifact: string}"
+    },
+    "input.fly": {
+      "operation": "input.fly",
+      "result": "{performed: true}; arguments: {durationSeconds: number from 0.1 through 10.0}"
+    },
+    "input.jump": {
+      "operation": "input.jump",
+      "result": "{performed: true}; arguments: {}"
+    },
+    "input.look": {
+      "operation": "input.look",
+      "result": "{performed: true}"
+    },
+    "input.move": {
+      "operation": "input.move",
+      "result": "{performed: true}"
+    },
+    "lifecycle.background": {
+      "operation": "lifecycle.background",
+      "result": "{backgrounded: true}"
+    },
+    "probe.snapshot": {
+      "operation": "probe.snapshot",
+      "result": "Overte probe snapshot schema version 1"
+    },
+    "scene.load": {
+      "operation": "scene.load",
+      "result": "{requested: true, verification?: fixture-markers}"
+    },
+    "tablet.close": {
+      "operation": "tablet.close",
+      "result": "{performed: true}"
+    },
+    "tablet.open": {
+      "operation": "tablet.open",
+      "result": "{performed: true}"
+    },
+    "telemetry.memory": {
+      "operation": null,
+      "result": "Legacy capability retained for adapter compatibility"
+    },
+    "telemetry.snapshot": {
+      "operation": "telemetry.snapshot",
+      "result": "Portable battery, memory and thermal sample"
+    }
+  }
+}
