@@ -26,8 +26,13 @@ assertion failure.
 ## Portable suites
 
 - `smoke`: stable process launch and foreground state.
-- `e2e-core`: launch, controlled scene load, look, movement, and tablet
-  open/close behavior.
+- `e2e-core-v1`: the complete target acceptance baseline. It covers launch,
+  scene and grounded spawn, signed look in four directions, body-relative
+  movement in four directions, neutral input, collision, jump, tablet state
+  and input isolation, flight ascent, scene reload, and application restart.
+  `e2e-core` is retained as an alias for the same baseline.
+- `e2e-recovery`: launch plus deterministic scene reload and application
+  stop/restart checks.
 - `vertical-locomotion`: one jump with observed ascent and landing, followed by
   bounded flight with observed active ascent. Adapters lacking either input
   capability skip only the corresponding module unless `--require-complete`
@@ -39,9 +44,9 @@ assertion failure.
 - `lifecycle-stability`: repeated background and activation cycles with a
   stable process identity on targets that support lifecycle automation.
 
-The `scene`, `look`, `move`, and `tablet` modules use `OverteSession` and
-verify effects through `probe.snapshot`. A successful input command alone is
-never enough to pass a behavior.
+All behavior modules use `OverteSession` and verify effects through fresh,
+monotonically sequenced `probe.snapshot` evidence. A successful input command
+alone is never enough to pass a behavior.
 
 ## Adapter protocol
 
@@ -72,11 +77,18 @@ names and results are versioned in [`capabilities.json`](capabilities.json).
 Machine-readable catalog, manifest, and probe schemas are in
 [`schemas/`](schemas/).
 
-The vertical-locomotion adapter contract is deliberately small:
+The portable input contract is deliberately semantic:
 
 - `input.jump` accepts `{}` and returns at least `{"performed": true}`.
 - `input.fly` accepts only `{"durationSeconds": NUMBER}`, bounded from `0.1`
   through `10.0`, and returns at least `{"performed": true}`.
+- `input.look` accepts normalized signed `horizontal` and `vertical`
+  components from `-1.0` through `1.0`; positive means right and up.
+- `input.move` accepts `backward`, `forward`, `left`, or `right` plus a bounded
+  duration. Directions are relative to the observed avatar body yaw.
+- `probe.snapshot` optionally accepts `afterSampleSequence`; the returned
+  schema-version-2 sample must have a greater sequence number.
+- `app.stop` accepts `{}` and confirms `{"stopped": true}`.
 
 No shared module knows controller buttons, native events, or input routes.
 
@@ -89,8 +101,9 @@ credentials.
 
 ## Controlled fixture and probe
 
-[`fixture/scene.json`](fixture/scene.json) contains four local primitive
-entities and no external assets. Start an ephemeral localhost server with:
+[`fixture/scene.json`](fixture/scene.json) contains five local primitive
+entities, including a thick floor and a deterministic collision wall, with no
+external assets. Start an ephemeral localhost server with:
 
 ```bash
 python3 tests/device/fixture/serve.py --ready-file /tmp/overte-fixture.json
@@ -107,10 +120,11 @@ python3 tests/device/fixture/serve.py \
 
 The server exposes the repository-owned probe at `/overte_e2e_probe.js`. The
 in-client [`probe/overte_e2e_probe.js`](probe/overte_e2e_probe.js) records
-application focus, scene readiness and markers, avatar position, `inAir`,
-`flying`, `flyingEnabled`, camera orientation, tablet state, and build identity through Interface's existing
-test-script result API. Product adapters own the exact launch and result
-transport used to load it.
+application focus, monotonic sample sequence, scene markers and floor/wall
+geometry, avatar position, velocity, body yaw, `inAir`, `flying`,
+`flyingEnabled`, camera orientation, tablet state, and build identity through
+Interface's existing test-script result API. Product adapters own the exact
+launch and result transport used to load it.
 
 ## Running
 
@@ -119,11 +133,11 @@ List or run the common suite against the deterministic adapter:
 ```bash
 python3 tests/device/run.py \
   --adapter-manifest tests/device/adapters/mock/adapter.json \
-  --catalog tests/device/catalog.json --suite e2e-core --list
+  --catalog tests/device/catalog.json --suite e2e-core-v1 --list
 
 python3 tests/device/run.py \
   --adapter-manifest tests/device/adapters/mock/adapter.json \
-  --catalog tests/device/catalog.json --suite vertical-locomotion \
+  --catalog tests/device/catalog.json --suite e2e-core-v1 \
   --output-dir /tmp/overte-device-run --require-complete
 ```
 
@@ -142,9 +156,14 @@ optional cleanup check calls cleanup twice and verifies idempotency directly:
 
 ```bash
 python3 tests/device/verify_adapter.py \
-  --adapter-manifest path/to/adapter.json --require-target --check-cleanup
+  --adapter-manifest path/to/adapter.json --check-cleanup
 ```
 
 See [`E2E_STRATEGY.md`](E2E_STRATEGY.md) for the shared behavior contract,
 failure classification, and hardware acceptance gates. Platform-specific
 setup, pins, and runbooks live with the relevant product adapter.
+
+The V1 suite should enter a target's required Jenkins job only after that
+adapter advertises every required capability and passes its hardware
+acceptance gate. Until then Jenkins may run the mock suite and adapter
+self-tests, but it must not treat capability skips as target coverage.

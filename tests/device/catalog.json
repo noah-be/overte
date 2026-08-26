@@ -5,57 +5,153 @@
       "id": "launch-smoke",
       "description": "Launch the application and verify a stable foreground process.",
       "command": ["modules/launch_smoke.py"],
-      "suites": ["e2e-core", "smoke", "stability"],
+      "suites": ["e2e-core", "e2e-core-v1", "e2e-recovery", "smoke", "stability", "vertical-locomotion"],
       "requires": ["app.foreground", "app.launch", "app.process"],
       "timeoutSeconds": 120
     },
     {
-      "id": "scene",
-      "description": "Load the controlled E2E scene and observe a ready in-client state.",
+      "id": "scene-load",
+      "description": "Load the controlled E2E scene and observe every required fixture marker.",
       "command": ["modules/scene.py"],
-      "suites": ["e2e-core"],
+      "suites": ["e2e-core", "e2e-core-v1"],
       "requires": ["probe.snapshot", "scene.load"],
       "timeoutSeconds": 120
     },
     {
-      "id": "look",
-      "description": "Apply look input and observe a corresponding camera orientation change.",
-      "command": ["modules/look.py"],
-      "suites": ["e2e-core"],
+      "id": "spawn-grounded",
+      "description": "Verify the avatar spawns motionless, grounded, and above the fixture floor.",
+      "command": ["modules/spawn_grounded.py"],
+      "suites": ["e2e-core", "e2e-core-v1"],
+      "requires": ["probe.snapshot", "scene.load"],
+      "timeoutSeconds": 90
+    },
+    {
+      "id": "look-left",
+      "description": "Apply left look input and observe a signed left camera rotation.",
+      "command": ["modules/look.py", "left"],
+      "suites": ["e2e-core", "e2e-core-v1"],
       "requires": ["input.look", "probe.snapshot", "scene.load"],
       "timeoutSeconds": 90
     },
     {
-      "id": "move",
-      "description": "Apply movement input and observe avatar displacement in the scene.",
-      "command": ["modules/move.py"],
-      "suites": ["e2e-core"],
+      "id": "look-right",
+      "description": "Apply right look input and observe a signed right camera rotation.",
+      "command": ["modules/look.py", "right"],
+      "suites": ["e2e-core", "e2e-core-v1"],
+      "requires": ["input.look", "probe.snapshot", "scene.load"],
+      "timeoutSeconds": 90
+    },
+    {
+      "id": "look-up",
+      "description": "Apply upward look input and observe a signed upward camera rotation.",
+      "command": ["modules/look.py", "up"],
+      "suites": ["e2e-core", "e2e-core-v1"],
+      "requires": ["input.look", "probe.snapshot", "scene.load"],
+      "timeoutSeconds": 90
+    },
+    {
+      "id": "look-down",
+      "description": "Apply downward look input and observe a signed downward camera rotation.",
+      "command": ["modules/look.py", "down"],
+      "suites": ["e2e-core", "e2e-core-v1"],
+      "requires": ["input.look", "probe.snapshot", "scene.load"],
+      "timeoutSeconds": 90
+    },
+    {
+      "id": "move-forward",
+      "description": "Apply forward input and observe forward displacement relative to body yaw.",
+      "command": ["modules/move.py", "forward"],
+      "suites": ["e2e-core", "e2e-core-v1"],
       "requires": ["input.move", "probe.snapshot", "scene.load"],
       "timeoutSeconds": 90
+    },
+    {
+      "id": "move-backward",
+      "description": "Apply backward input and observe backward displacement relative to body yaw.",
+      "command": ["modules/move.py", "backward"],
+      "suites": ["e2e-core", "e2e-core-v1"],
+      "requires": ["input.move", "probe.snapshot", "scene.load"],
+      "timeoutSeconds": 90
+    },
+    {
+      "id": "move-left",
+      "description": "Apply left input and observe left displacement relative to body yaw.",
+      "command": ["modules/move.py", "left"],
+      "suites": ["e2e-core", "e2e-core-v1"],
+      "requires": ["input.move", "probe.snapshot", "scene.load"],
+      "timeoutSeconds": 90
+    },
+    {
+      "id": "move-right",
+      "description": "Apply right input and observe right displacement relative to body yaw.",
+      "command": ["modules/move.py", "right"],
+      "suites": ["e2e-core", "e2e-core-v1"],
+      "requires": ["input.move", "probe.snapshot", "scene.load"],
+      "timeoutSeconds": 90
+    },
+    {
+      "id": "input-neutral",
+      "description": "Verify bounded emulated controls leave no stuck movement or view input.",
+      "command": ["modules/input_neutral.py"],
+      "suites": ["e2e-core", "e2e-core-v1"],
+      "requires": ["probe.snapshot", "scene.load"],
+      "timeoutSeconds": 90
+    },
+    {
+      "id": "collision",
+      "description": "Move into the deterministic wall and verify avatar collision blocks passage.",
+      "command": ["modules/collision.py"],
+      "suites": ["e2e-core", "e2e-core-v1"],
+      "requires": ["input.move", "probe.snapshot", "scene.load"],
+      "timeoutSeconds": 120
     },
     {
       "id": "jump",
       "description": "Jump once, observe a non-flying ascent, and verify landing near the baseline.",
       "command": ["modules/jump.py"],
-      "suites": ["vertical-locomotion"],
+      "suites": ["e2e-core", "e2e-core-v1", "vertical-locomotion"],
       "requires": ["input.jump", "probe.snapshot", "scene.load"],
       "timeoutSeconds": 120
     },
     {
-      "id": "fly",
+      "id": "tablet-toggle",
+      "description": "Open and close the system tablet and observe both state transitions.",
+      "command": ["modules/tablet.py"],
+      "suites": ["e2e-core", "e2e-core-v1"],
+      "requires": ["probe.snapshot", "scene.load", "tablet.close", "tablet.open"],
+      "timeoutSeconds": 90
+    },
+    {
+      "id": "tablet-input-isolation",
+      "description": "Verify tablet-focused emulated input cannot move the avatar in the world.",
+      "command": ["modules/tablet_input_isolation.py"],
+      "suites": ["e2e-core", "e2e-core-v1"],
+      "requires": ["input.move", "probe.snapshot", "scene.load", "tablet.close", "tablet.open"],
+      "timeoutSeconds": 90
+    },
+    {
+      "id": "fly-ascent",
       "description": "Fly for a bounded duration and observe active flight with vertical ascent.",
       "command": ["modules/fly.py"],
-      "suites": ["vertical-locomotion"],
+      "suites": ["e2e-core", "e2e-core-v1", "vertical-locomotion"],
       "requires": ["input.fly", "probe.snapshot", "scene.load"],
       "timeoutSeconds": 120
     },
     {
-      "id": "tablet",
-      "description": "Open and close the system tablet and observe both state transitions.",
-      "command": ["modules/tablet.py"],
-      "suites": ["e2e-core"],
-      "requires": ["probe.snapshot", "scene.load", "tablet.close", "tablet.open"],
-      "timeoutSeconds": 90
+      "id": "scene-reload",
+      "description": "Reload the fixture and verify entity, spawn, and readiness state are restored.",
+      "command": ["modules/scene_reload.py"],
+      "suites": ["e2e-core", "e2e-core-v1", "e2e-recovery"],
+      "requires": ["probe.snapshot", "scene.load"],
+      "timeoutSeconds": 120
+    },
+    {
+      "id": "app-restart",
+      "description": "Stop and relaunch Overte with a new stable foreground process identity.",
+      "command": ["modules/app_restart.py"],
+      "suites": ["e2e-core", "e2e-core-v1", "e2e-recovery"],
+      "requires": ["app.foreground", "app.launch", "app.process", "app.stop"],
+      "timeoutSeconds": 120
     },
     {
       "id": "accessibility",

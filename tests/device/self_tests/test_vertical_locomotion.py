@@ -22,20 +22,42 @@ from contracts import (load_capability_registry, validate_operation_arguments,
 def snapshot(**avatar_overrides: object) -> dict:
     avatar = {
         "position": {"x": 0.0, "y": 1.0, "z": 4.0},
+        "velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
+        "bodyYawDegrees": 0.0,
         "inAir": False,
         "flying": False,
         "flyingEnabled": True,
     }
     avatar.update(avatar_overrides)
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "sampleEpochMs": 1,
+        "sampleSequence": 1,
         "build": {"platform": "Mock", "version": "1", "date": "1970-01-01"},
-        "application": {"running": True},
-        "scene": {"ready": True, "entityCount": 4},
+        "application": {"running": True, "foreground": True},
+        "input": {"dominantHand": "right", "advancedMovementControls": True},
+        "scene": {
+            "url": "http://fixture.invalid/scene.json",
+            "ready": True,
+            "entityCount": 5,
+            "fixtureMarkerCount": 5,
+            "fixtureMarkers": [
+                "OVERTE_E2E_COLLISION_WALL", "OVERTE_E2E_EAST", "OVERTE_E2E_FLOOR",
+                "OVERTE_E2E_NORTH", "OVERTE_E2E_ORIGIN",
+            ],
+            "floorTopY": 0.0,
+            "avatarAboveFloor": True,
+            "spawnLocationObserved": True,
+            "spawnValidated": True,
+            "collisionWall": {
+                "name": "OVERTE_E2E_COLLISION_WALL",
+                "center": {"x": 0.0, "y": 2.0, "z": 0.5},
+                "dimensions": {"x": 8.0, "y": 4.0, "z": 0.5},
+            },
+        },
         "avatar": avatar,
         "view": {"orientation": {"x": 0.0, "y": 0.0, "z": 0.0}},
-        "tablet": {"open": False},
+        "tablet": {"open": False, "home": False, "toolbarMode": False},
     }
 
 
@@ -85,6 +107,7 @@ class VerticalLocomotionTest(unittest.TestCase):
             environment = os.environ.copy()
             environment.update({
                 "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+                "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
                 "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",
                 "OVERTE_E2E_POLL_SECONDS": "0.05",
             })
@@ -98,13 +121,15 @@ class VerticalLocomotionTest(unittest.TestCase):
                env=environment, check=False)
             self.assertEqual(0, result.returncode, result.stdout)
             summary = json.loads((output / "summary.json").read_text(encoding="utf-8"))
-            self.assertEqual(["jump", "fly"], [item["id"] for item in summary["results"]])
+            self.assertEqual(
+                ["launch-smoke", "jump", "fly-ascent"],
+                [item["id"] for item in summary["results"]])
             jump_airborne = json.loads(
                 (output / "modules/jump/jump-airborne.json").read_text(encoding="utf-8"))
             jump_landed = json.loads(
                 (output / "modules/jump/jump-landed.json").read_text(encoding="utf-8"))
             fly_active = json.loads(
-                (output / "modules/fly/fly-active.json").read_text(encoding="utf-8"))
+                (output / "modules/fly-ascent/fly-active.json").read_text(encoding="utf-8"))
             self.assertTrue(jump_airborne["avatar"]["inAir"])
             self.assertFalse(jump_airborne["avatar"]["flying"])
             self.assertFalse(jump_landed["avatar"]["inAir"])
@@ -152,6 +177,7 @@ class VerticalLocomotionTest(unittest.TestCase):
             environment = os.environ.copy()
             environment.update({
                 "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+                "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
                 "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",
                 "OVERTE_E2E_POLL_SECONDS": "0.05",
                 "OVERTE_E2E_TIMEOUT_SECONDS": "1",
@@ -169,7 +195,7 @@ class VerticalLocomotionTest(unittest.TestCase):
             self.assertEqual(1, result.returncode, result.stdout)
             summary = json.loads(
                 (root / "results/summary.json").read_text(encoding="utf-8"))
-            self.assertEqual(["failed", "failed"],
+            self.assertEqual(["passed", "failed", "failed"],
                              [item["status"] for item in summary["results"]])
 
 

@@ -10,7 +10,15 @@
     var stableAvatarSamples = 0;
     var previousAvatarPosition = null;
     var sceneReady = false;
-    var fixtureMarkers = ["OVERTE_E2E_FLOOR", "OVERTE_E2E_NORTH", "OVERTE_E2E_EAST", "OVERTE_E2E_ORIGIN"];
+    var previousSceneUrl = "";
+    var sampleSequence = 0;
+    var fixtureMarkers = [
+        "OVERTE_E2E_COLLISION_WALL",
+        "OVERTE_E2E_EAST",
+        "OVERTE_E2E_FLOOR",
+        "OVERTE_E2E_NORTH",
+        "OVERTE_E2E_ORIGIN"
+    ];
     var expectedSpawn = { x: 0.0, y: 2.0, z: 4.0 };
 
     function vector(value) {
@@ -22,16 +30,26 @@
         var right = Number(Controller.getValue(application.RightHandDominant)) > 0.5;
         var left = Number(Controller.getValue(application.LeftHandDominant)) > 0.5;
         return {
-            dominantHand: right && !left ? "right" : (left && !right ? "left" : "invalid"),
+            dominantHand: right && !left ? "right" : (left && !right ? "left" : "unknown"),
             advancedMovementControls:
                 Number(Controller.getValue(application.AdvancedMovement)) > 0.5
         };
     }
 
     function sample() {
+        var sceneUrl = String(AddressManager.href);
+        if (sceneUrl !== previousSceneUrl) {
+            previousSceneUrl = sceneUrl;
+            stableEntitySamples = 0;
+            previousEntityCount = -1;
+            stableAvatarSamples = 0;
+            previousAvatarPosition = null;
+            sceneReady = false;
+        }
         var ids = Entities.findEntities(MyAvatar.position, 1000.0);
         var foundMarkers = {};
         var floorTopY = null;
+        var collisionWall = null;
         var index;
         for (index = 0; index < ids.length; index += 1) {
             var properties = Entities.getEntityProperties(ids[index], ["name", "position", "dimensions"]);
@@ -41,6 +59,13 @@
             if (properties.name === "OVERTE_E2E_FLOOR") {
                 floorTopY = Number(properties.position.y) + Number(properties.dimensions.y) / 2.0;
             }
+            if (properties.name === "OVERTE_E2E_COLLISION_WALL") {
+                collisionWall = {
+                    name: properties.name,
+                    center: vector(properties.position),
+                    dimensions: vector(properties.dimensions)
+                };
+            }
         }
         if (ids.length === previousEntityCount) {
             stableEntitySamples += 1;
@@ -48,7 +73,10 @@
             stableEntitySamples = 0;
             previousEntityCount = ids.length;
         }
-        var markerCount = Object.keys(foundMarkers).length;
+        var foundMarkerNames = fixtureMarkers.filter(function (name) {
+            return foundMarkers[name] === true;
+        });
+        var markerCount = foundMarkerNames.length;
         var avatarPosition = vector(MyAvatar.position);
         var spawnDeltaX = avatarPosition.x - expectedSpawn.x;
         var spawnDeltaZ = avatarPosition.z - expectedSpawn.z;
@@ -70,9 +98,11 @@
             sceneReady = true;
         }
         var orientation = Quat.safeEulerAngles(Camera.orientation);
+        sampleSequence += 1;
         Test.saveObject({
-            schemaVersion: 1,
+            schemaVersion: 2,
             sampleEpochMs: Date.now(),
+            sampleSequence: sampleSequence,
             build: {
                 platform: String(About.platform),
                 version: String(About.buildVersion),
@@ -84,17 +114,20 @@
             },
             input: effectiveInputState(),
             scene: {
-                url: String(AddressManager.href),
+                url: sceneUrl,
                 ready: sceneReady,
                 entityCount: ids.length,
                 fixtureMarkerCount: markerCount,
+                fixtureMarkers: foundMarkerNames,
                 floorTopY: floorTopY,
                 avatarAboveFloor: avatarAboveFloor,
                 spawnLocationObserved: avatarAtSpawn,
-                spawnValidated: sceneReady
+                spawnValidated: sceneReady,
+                collisionWall: collisionWall
             },
             avatar: {
                 position: avatarPosition,
+                velocity: vector(MyAvatar.velocity),
                 bodyYawDegrees: Number(MyAvatar.bodyYaw),
                 inAir: Boolean(MyAvatar.isInAir()),
                 flying: Boolean(MyAvatar.isFlying()),

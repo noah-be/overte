@@ -44,6 +44,17 @@
       "position": {"x": 0.0, "y": 1.0, "z": 0.0},
       "shape": "Cube",
       "type": "Box"
+    },
+    {
+      "collisionless": false,
+      "color": {"blue": 210, "green": 80, "red": 200},
+      "dimensions": {"x": 8.0, "y": 4.0, "z": 0.5},
+      "id": "{00000000-0000-4000-8000-000000000005}",
+      "locked": true,
+      "name": "OVERTE_E2E_COLLISION_WALL",
+      "position": {"x": 0.0, "y": 2.0, "z": 0.5},
+      "shape": "Cube",
+      "type": "Box"
     }
   ],
   "Id": "{00000000-0000-4000-8000-000000000000}",

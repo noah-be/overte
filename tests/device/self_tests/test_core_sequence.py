@@ -24,7 +24,7 @@ class CoreSequenceTest(unittest.TestCase):
         self.assertNotIn("MyAvatar.velocity =", probe)
         self.assertIn("spawnLocationObserved: avatarAtSpawn", probe)
 
-    def test_complete_core_suite_reuses_one_launch_and_one_scene(self):
+    def test_complete_core_v1_suite_covers_all_portable_behaviors(self):
         with tempfile.TemporaryDirectory(prefix="overte-e2e-core-") as temporary:
             root = Path(temporary)
             output = root / "results"
@@ -55,14 +55,21 @@ class CoreSequenceTest(unittest.TestCase):
             summary = json.loads((output / "summary.json").read_text(encoding="utf-8"))
             self.assertEqual("passed", summary["status"])
             self.assertEqual(
-                ["launch-smoke", "scene", "look", "move", "tablet"],
+                [
+                    "launch-smoke", "scene-load", "spawn-grounded",
+                    "look-left", "look-right", "look-up", "look-down",
+                    "move-forward", "move-backward", "move-left", "move-right",
+                    "input-neutral", "collision", "jump", "tablet-toggle",
+                    "tablet-input-isolation", "fly-ascent", "scene-reload",
+                    "app-restart",
+                ],
                 [entry["id"] for entry in summary["results"]],
             )
             state = json.loads((root / "state.json").read_text(encoding="utf-8"))
-            self.assertEqual(1, state["launchCount"])
-            self.assertEqual(1, state["sceneLoadCount"])
+            self.assertEqual(2, state["launchCount"])
+            self.assertEqual(3, state["sceneLoadCount"])
             junit = ET.parse(output / "junit.xml").getroot()
-            self.assertEqual("5", junit.attrib["tests"])
+            self.assertEqual("19", junit.attrib["tests"])
             self.assertEqual("0", junit.attrib["failures"])
             self.assertEqual("0", junit.attrib["errors"])
 

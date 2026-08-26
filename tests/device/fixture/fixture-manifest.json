@@ -4,8 +4,15 @@
   "spawnPath": "/0,2,4/0,0,0,1",
   "spawnPosition": {"x": 0, "y": 2, "z": 4},
   "minimumFloorThickness": 4.0,
-  "expectedEntityCount": 4,
+  "expectedEntityCount": 5,
+  "collisionWall": {
+    "approachDirection": "forward",
+    "center": {"x": 0.0, "y": 2.0, "z": 0.5},
+    "dimensions": {"x": 8.0, "y": 4.0, "z": 0.5},
+    "name": "OVERTE_E2E_COLLISION_WALL"
+  },
   "requiredMarkers": [
+    "OVERTE_E2E_COLLISION_WALL",
     "OVERTE_E2E_EAST",
     "OVERTE_E2E_FLOOR",
     "OVERTE_E2E_NORTH",

@@ -1,14 +1,17 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://overte.org/schemas/device-probe-snapshot-v1.json",
+  "$id": "https://overte.org/schemas/device-probe-snapshot-v2.json",
   "title": "Overte E2E probe snapshot",
   "type": "object",
-  "required": ["schemaVersion", "sampleEpochMs", "build", "application", "scene", "avatar", "view", "tablet"],
+  "additionalProperties": false,
+  "required": ["schemaVersion", "sampleEpochMs", "sampleSequence", "build", "application", "input", "scene", "avatar", "view", "tablet"],
   "properties": {
-    "schemaVersion": {"const": 1},
+    "schemaVersion": {"const": 2},
     "sampleEpochMs": {"type": "integer", "minimum": 1},
+    "sampleSequence": {"type": "integer", "minimum": 1},
     "build": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["platform", "version", "date"],
       "properties": {
         "platform": {"type": "string", "minLength": 1},
@@ -18,31 +21,61 @@
     },
     "application": {
       "type": "object",
-      "required": ["running"],
-      "properties": {"running": {"type": "boolean"}}
+      "additionalProperties": false,
+      "required": ["running", "foreground"],
+      "properties": {
+        "running": {"type": "boolean"},
+        "foreground": {"type": "boolean"}
+      }
     },
     "input": {
       "type": "object",
       "additionalProperties": false,
       "required": ["dominantHand", "advancedMovementControls"],
       "properties": {
-        "dominantHand": {"enum": ["left", "right"]},
+        "dominantHand": {"enum": ["left", "right", "unknown"]},
         "advancedMovementControls": {"type": "boolean"}
       }
     },
     "scene": {
       "type": "object",
-      "required": ["ready", "entityCount"],
+      "additionalProperties": false,
+      "required": ["url", "ready", "entityCount", "fixtureMarkerCount", "fixtureMarkers", "floorTopY", "avatarAboveFloor", "spawnLocationObserved", "spawnValidated", "collisionWall"],
       "properties": {
+        "url": {"type": "string"},
         "ready": {"type": "boolean"},
-        "entityCount": {"type": "integer", "minimum": 0}
+        "entityCount": {"type": "integer", "minimum": 0},
+        "fixtureMarkerCount": {"type": "integer", "minimum": 0},
+        "fixtureMarkers": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "floorTopY": {"type": ["number", "null"]},
+        "avatarAboveFloor": {"type": "boolean"},
+        "spawnLocationObserved": {"type": "boolean"},
+        "spawnValidated": {"type": "boolean"},
+        "collisionWall": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "center", "dimensions"],
+              "properties": {
+                "name": {"const": "OVERTE_E2E_COLLISION_WALL"},
+                "center": {"$ref": "#/$defs/vector3"},
+                "dimensions": {"$ref": "#/$defs/positiveVector3"}
+              }
+            }
+          ]
+        }
       }
     },
     "avatar": {
       "type": "object",
-      "required": ["position", "inAir", "flying", "flyingEnabled"],
+      "additionalProperties": false,
+      "required": ["position", "velocity", "bodyYawDegrees", "inAir", "flying", "flyingEnabled"],
       "properties": {
         "position": {"$ref": "#/$defs/vector3"},
+        "velocity": {"$ref": "#/$defs/vector3"},
+        "bodyYawDegrees": {"type": "number"},
         "inAir": {"type": "boolean"},
         "flying": {"type": "boolean"},
         "flyingEnabled": {"type": "boolean"}
@@ -54,23 +87,36 @@
     },
     "view": {
       "type": "object",
+      "additionalProperties": false,
       "required": ["orientation"],
       "properties": {"orientation": {"$ref": "#/$defs/vector3"}}
     },
     "tablet": {
       "type": "object",
-      "required": ["open"],
-      "properties": {"open": {"type": "boolean"}}
+      "additionalProperties": false,
+      "required": ["open", "home", "toolbarMode"],
+      "properties": {
+        "open": {"type": "boolean"},
+        "home": {"type": "boolean"},
+        "toolbarMode": {"type": "boolean"}
+      }
     }
   },
   "$defs": {
     "vector3": {
       "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "z"],
+      "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}
+    },
+    "positiveVector3": {
+      "type": "object",
+      "additionalProperties": false,
       "required": ["x", "y", "z"],
       "properties": {
-        "x": {"type": "number"},
-        "y": {"type": "number"},
-        "z": {"type": "number"}
+        "x": {"type": "number", "exclusiveMinimum": 0},
+        "y": {"type": "number", "exclusiveMinimum": 0},
+        "z": {"type": "number", "exclusiveMinimum": 0}
       }
     }
   }
