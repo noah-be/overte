@@ -513,6 +513,7 @@ def install_service_runtime(appium_home: Path, service_root: Path = SERVICE_ROOT
         shutil.copyfile(PACKAGE_FILE, staging / "package.json")
         shutil.copyfile(NPM_LOCK_FILE, staging / "package-lock.json")
         shutil.copyfile(node, staging / "bin/node")
+        (staging / "bin/node").chmod(0o700)
         copy_plain_tree(appium_home, staging / "appium")
         copied_digest = tree_sha256(staging / "appium")
         if copied_digest != source_digest or tree_sha256(appium_home) != source_digest:

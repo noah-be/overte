@@ -93,6 +93,8 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
     @staticmethod
     def fake_extension_template(_appium_home: Path, _node: Path,
                                 destination: Path, template: Path) -> None:
+        if not os.access(_node, os.X_OK):
+            raise AssertionError("staged Node must be executable before Appium attestation")
         driver = destination / "appium/node_modules/appium-xcuitest-driver"
         template.write_text(
             "drivers:\n  xcuitest:\n"
