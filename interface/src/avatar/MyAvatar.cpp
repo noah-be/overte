@@ -873,7 +873,14 @@ void MyAvatar::simulate(float deltaTime, bool inView) {
     PerformanceTimer perfTimer("simulate");
     animateScaleChanges(deltaTime);
 
-    setFlyingEnabled(getFlyingEnabled());
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (phoneE2eFlyingEnabledOverrideActive()) {
+        _enableFlying = phoneE2eFlyingEnabledOverride();
+    } else
+#endif
+    {
+        setFlyingEnabled(getFlyingEnabled());
+    }
 
     if (_cauterizationNeedsUpdate) {
         _cauterizationNeedsUpdate = false;
@@ -4298,6 +4305,11 @@ bool MyAvatar::isInAir() {
 
 bool MyAvatar::getFlyingEnabled() {
     // May return true even if client is not allowed to fly in the zone.
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (phoneE2eFlyingEnabledOverrideActive()) {
+        return phoneE2eFlyingEnabledOverride();
+    }
+#endif
     return (qApp->isHMDMode() ? getFlyingHMDPref() : getFlyingDesktopPref());
 }
 

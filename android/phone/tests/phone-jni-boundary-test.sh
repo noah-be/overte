@@ -30,6 +30,29 @@ require "$handler" 'TouchUiMetrics::fromUntrusted' 'JNI sanitizes runtime geomet
 require "$handler" 'PendingTouchUiMetricsDelivery' 'native startup retains the latest accepted touch-metrics snapshot'
 require "$handler" 'phone::updateTouchUiRuntimeMetrics' \
     'runtime metrics delegate through the Android phone UI router'
+require "$handler" 'PendingFlyingOverrideDelivery' \
+    'E2E flying setup waits behind the application load-complete boundary'
+require "$handler" 'flyingOverrideDelivery\(application\)->submit\(mode\)' \
+    'E2E flying setup transfers ownership to the Qt application'
+if awk '/PhoneInterfaceActivity_nativeSetE2eFlyingOverride/ { inside = 1 } inside' \
+        "$handler" | grep -q 'BlockingQueuedConnection'; then
+    printf 'FAIL: E2E flying setup must not block Android Activity startup\n' >&2
+    exit 1
+fi
+printf 'PASS: E2E flying setup never blocks Android Activity startup\n'
+readonly phone_activity="$android_root/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java"
+if ! awk '
+        /setRequestedOrientation\(PhoneE2eLaunchState\.isActive\(\)/ { inside = 1 }
+        inside && /SCREEN_ORIENTATION_LANDSCAPE/ { found = 1; exit }
+        END { exit !found }
+    ' "$phone_activity"; then
+    printf 'FAIL: E2E Phone startup must hold the production virtual pad in landscape\n' >&2
+    exit 1
+fi
+printf 'PASS: E2E Phone startup holds the production virtual pad in landscape\n'
+require "$phone_activity" \
+    'setRequestedOrientation\(ActivityInfo\.SCREEN_ORIENTATION_FULL_SENSOR\)' \
+    'E2E cleanup restores the normal adaptive Phone orientation'
 require "$compat" 'QtNativeInputConnection_finishComposingText' 'finish-composition ABI export remains present'
 require "$compat" 'QtNativeInputConnection_updateCursorPosition' 'cursor-update ABI export remains present'
 if ! awk '/^  fast:/{inside=1} /^  contracts:/{inside=0} inside' "$workflow" |

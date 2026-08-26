@@ -28,10 +28,12 @@
   ],
   "tested": {
     "android/phone/apps/phoneInterface/src/debug/AndroidManifest.xml": ["android/phone/tests/phone-host-regression-test.sh"],
+    "android/phone/apps/phoneInterface/src/debug/java/org/overte/phone/E2eFlightControlActivity.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/E2eFlightControlActivityTest.java"],
     "android/phone/apps/phoneInterface/src/debug/java/org/overte/phone/E2eLauncherActivity.java": ["android/phone/tests/phone-host-regression-test.sh"],
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PermissionsActivity.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PermissionsActivityRobolectricTest.java"],
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneDeepLink.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhoneDeepLinkRobolectricTest.java"],
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneDeepLinkNormalizer.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhoneDeepLinkNormalizerTest.java"],
+    "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneE2eLaunchState.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhoneE2eLaunchStateTest.java", "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/E2eFlightControlActivityTest.java"],
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneLaunchState.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhoneLaunchStateTest.java"],
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhonePendingUrlPolicy.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhonePendingUrlPolicyTest.java"],
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhonePermissionFlow.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhonePermissionFlowTest.java"],

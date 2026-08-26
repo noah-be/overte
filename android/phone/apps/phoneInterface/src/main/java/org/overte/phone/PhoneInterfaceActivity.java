@@ -61,15 +61,19 @@ public final class PhoneInterfaceActivity extends QtActivity
             boolean hoverSupported,
             boolean hardwareKeyboardSupported,
             boolean hapticsSupported);
+    private static native boolean nativeSetE2eFlyingOverride(int mode);
     private static final long URL_RETRY_DELAY_MS = 100;
     private static final int MAX_URL_RETRY_ATTEMPTS = 300;
     private static final long METRICS_RETRY_DELAY_MS = 100;
     private static final int MAX_METRICS_RETRY_ATTEMPTS = 300;
+    private static final long E2E_OVERRIDE_RETRY_DELAY_MS = 50;
+    private static final int MAX_E2E_OVERRIDE_RETRY_ATTEMPTS = 600;
     private static final String STATE_PENDING_URL = "pendingUrl";
     private static final String STATE_PENDING_URL_RETRY_ATTEMPTS = "pendingUrlRetryAttempts";
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Runnable drainPendingUrlTask = this::drainPendingUrl;
     private final Runnable drainTouchUiMetricsTask = this::drainTouchUiMetrics;
+    private final Runnable drainE2eFlyingOverrideTask = this::drainE2eFlyingOverride;
     private final View.OnLayoutChangeListener touchUiLayoutListener =
             (view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) ->
                     captureTouchUiMetrics();
@@ -83,6 +87,8 @@ public final class PhoneInterfaceActivity extends QtActivity
     private int touchUiMetricsRetryAttempts;
     private InputManager inputManager;
     private boolean inputListenerRegistered;
+    private Integer pendingE2eFlyingOverride;
+    private int e2eFlyingOverrideRetryAttempts;
 
     // Keep API-33-only types out of the Activity's field signatures so this
     // class remains verifiable on the supported Android 8-12 releases.
@@ -151,7 +157,9 @@ public final class PhoneInterfaceActivity extends QtActivity
         // Establish adaptive sensor rotation before Qt creates its surface.
         // Otherwise Qt 5 can retain the previous orientation's launch geometry
         // after Android rotates the Activity.
-        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR);
+        setRequestedOrientation(PhoneE2eLaunchState.isActive()
+                ? ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                : ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR);
 
         // QtActivityLoader appends its trusted applicationArguments extra. Do
         // not copy it into APPLICATION_PARAMETERS as that duplicates argv.
@@ -174,6 +182,8 @@ public final class PhoneInterfaceActivity extends QtActivity
         }
 
         HifiUtils.upackAssets(getAssets(), getCacheDir().getAbsolutePath());
+        replacePendingE2eFlyingOverride(
+                PhoneE2eLaunchState.takePendingFlyingOverride());
         super.onCreate(savedInstanceState);
         if (Build.VERSION.SDK_INT >= 33) {
             api33BackHandler = new Api33BackHandler(this);
@@ -181,6 +191,7 @@ public final class PhoneInterfaceActivity extends QtActivity
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         installTouchUiMetricsObserver();
         applyPhoneWindowBounds();
+        drainE2eFlyingOverride();
     }
 
     @Override
@@ -191,6 +202,7 @@ public final class PhoneInterfaceActivity extends QtActivity
         applyPhoneWindowBounds();
         captureTouchUiMetrics();
         drainTouchUiMetrics();
+        drainE2eFlyingOverride();
         drainPendingUrl();
     }
 
@@ -203,6 +215,7 @@ public final class PhoneInterfaceActivity extends QtActivity
         nativeBackConsumed = false;
         mainHandler.removeCallbacks(drainPendingUrlTask);
         mainHandler.removeCallbacks(drainTouchUiMetricsTask);
+        mainHandler.removeCallbacks(drainE2eFlyingOverrideTask);
         unregisterInputDeviceListener();
         super.onPause();
     }
@@ -212,6 +225,7 @@ public final class PhoneInterfaceActivity extends QtActivity
         resumed = false;
         mainHandler.removeCallbacks(drainPendingUrlTask);
         mainHandler.removeCallbacks(drainTouchUiMetricsTask);
+        mainHandler.removeCallbacks(drainE2eFlyingOverrideTask);
         uninstallTouchUiMetricsObserver();
         unregisterInputDeviceListener();
         if (Build.VERSION.SDK_INT >= 33 && api33BackHandler != null) {
@@ -236,6 +250,9 @@ public final class PhoneInterfaceActivity extends QtActivity
         // destination, and clear an older pending value on every newer intent.
         String destination = takePendingUrl(intent);
         replacePendingUrl(destination);
+        replacePendingE2eFlyingOverride(
+                PhoneE2eLaunchState.takePendingFlyingOverride());
+        drainE2eFlyingOverride();
         drainPendingUrl();
     }
 
@@ -489,6 +506,46 @@ public final class PhoneInterfaceActivity extends QtActivity
             // starts a fresh bounded delivery attempt.
             pendingTouchUiMetrics = null;
             touchUiMetricsRetryAttempts = 0;
+        }
+    }
+
+    private void replacePendingE2eFlyingOverride(Integer mode) {
+        if (mode == null) {
+            return;
+        }
+        pendingE2eFlyingOverride = mode;
+        e2eFlyingOverrideRetryAttempts = 0;
+    }
+
+    private void drainE2eFlyingOverride() {
+        mainHandler.removeCallbacks(drainE2eFlyingOverrideTask);
+        if (!resumed || pendingE2eFlyingOverride == null
+                || !PhoneE2eLaunchState.isActive()) {
+            return;
+        }
+        int mode = pendingE2eFlyingOverride;
+        boolean accepted = false;
+        try {
+            accepted = nativeSetE2eFlyingOverride(mode);
+        } catch (UnsatisfiedLinkError nativeLibraryNotReady) {
+            // Qt loads the phone native library asynchronously.
+        }
+        if (accepted) {
+            pendingE2eFlyingOverride = null;
+            e2eFlyingOverrideRetryAttempts = 0;
+            if (mode == PhoneE2eLaunchState.RESTORE_STORED_PREFERENCE) {
+                PhoneE2eLaunchState.finishRestore();
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR);
+            }
+            return;
+        }
+        ++e2eFlyingOverrideRetryAttempts;
+        if (e2eFlyingOverrideRetryAttempts < MAX_E2E_OVERRIDE_RETRY_ATTEMPTS) {
+            mainHandler.postDelayed(
+                    drainE2eFlyingOverrideTask, E2E_OVERRIDE_RETRY_DELAY_MS);
+        } else {
+            pendingE2eFlyingOverride = null;
+            e2eFlyingOverrideRetryAttempts = 0;
         }
     }
 

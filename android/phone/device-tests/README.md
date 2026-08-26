@@ -40,9 +40,12 @@ OVERTE_ANDROID_E2E_DEBUG=1
 `scene.load` accepts exactly the embedded
 `overte-e2e://fixture/scene` URL. It starts the shell-only Phone E2E launcher,
 which supplies the shared fixture URL and viewpoint through Android's normal
-startup arguments. The adapter then requires two fresh shared-probe samples
-containing all four fixture markers with `scene.ready=true`. No second
-navigation, address field, software keyboard, or direct avatar write is used.
+startup arguments. After binding the process, the adapter uses a DUMP-protected
+debug Activity to request a process-only flying override of `false`, waits for
+the fixture and grounded avatar, then requests `true` for the flight test. The
+adapter requires fresh shared-probe samples for every transition. No second
+navigation, address field, software keyboard, direct avatar write, or stored
+preference change is used.
 
 The launcher records its process identity in a private, selector-hashed host
 session. `probe.snapshot` requires that binding before and after reading the
@@ -69,11 +72,20 @@ process identity.
 Both operations inject a real touch into the production landscape virtual-pad
 jump button. The normal Phone mapping then carries the input through
 `TouchscreenVirtualPad.JUMP_BUTTON_PRESS`, `Actions.VERTICAL_UP`, and
-`MyAvatar::TRANSLATE_Y` to the character controller. `input.jump` emits one
-120 ms press. `input.fly` holds the same action for its requested finite
-`durationSeconds` from `0.1` through `10.0`. Android's bounded swipe supplies
-its normal release, and the adapter also injects a fail-closed `ACTION_UP` in a
-`finally` path and during cleanup.
+`MyAvatar::TRANSLATE_Y` to the character controller. `input.jump` emits exactly
+one `ACTION_DOWN`, holds it for 120 ms, and emits `ACTION_UP`. `input.fly` holds
+the same action for its requested finite `durationSeconds` from `0.1` through
+`10.0`. The `ACTION_UP` runs in a `finally` path and during cleanup; a failed
+release force-stops the bound app session so input cannot remain latched.
 
 No avatar state or position is written directly. The adapter does not change
 or persist flying preferences or any other user setting.
+
+## Jenkins Phone lab
+
+[`Jenkinsfile`](Jenkinsfile) runs the unchanged `vertical-locomotion` suite
+with this Phone adapter on the generic local device-lab agent. The agent must
+provide a private executable `OVERTE_ANDROID_ADB` Wi-Fi wrapper. Jenkins binds
+only its redacted target alias from Secret Text, reserves the configured
+Lockable Resource, publishes the runner's JUnit and sanitized artifacts, and
+performs locked cleanup after success, failure, or timeout.

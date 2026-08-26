@@ -13,6 +13,7 @@ import unittest
 
 
 ADAPTER = Path(__file__).resolve().parents[1] / "adapter.py"
+JENKINSFILE = ADAPTER.parent / "Jenkinsfile"
 GENERIC_ANDROID_ADAPTER = (
     ADAPTER.parents[3] / "tests/device/adapters/android/adapter.py")
 
@@ -64,7 +65,8 @@ elif shell == ["cat", "/proc/4343/stat"]:
     print("4343 (overte) S " + "0 " * 18 + "12345 0")
 elif shell == ["dumpsys", "activity", "activities"]:
     foreground = (not state.exists()
-                  or state.read_text() in {"foreground", "restarted", "spawned"})
+                  or state.read_text() in {"foreground", "restarted", "spawned",
+                                           "spawned-disabled", "spawned-restored"})
     print("mResumedActivity: org.overte.phone/.PhoneInterfaceActivity" if foreground else
           "mResumedActivity: com.android.launcher/.Launcher")
 elif shell == ["dumpsys", "input"]:
@@ -72,6 +74,9 @@ elif shell == ["dumpsys", "input"]:
         print("DisplayViewport{orientation=0, logicalFrame=[0, 0, 1080, 2400]}")
     else:
         print("DisplayViewport{orientation=1, logicalFrame=[0, 0, 2400, 1080]}")
+elif shell == ["dumpsys", "display"]:
+    if os.environ.get("MOCK_DISPLAY_DPI_MISSING") != "1":
+        print("DisplayDeviceInfo{density 420, 423.5 x 416.5 dpi}")
 elif shell == ["wm", "density"]:
     print("Physical density: 420")
 elif shell == ["wm", "size"]:
@@ -92,20 +97,39 @@ elif shell == ["run-as", "org.overte.phone", "cat", "files/overte-e2e/overte-pro
             "sampleSequence": int(os.environ.get("MOCK_SAMPLE_SEQUENCE", "4")),
             "scene": {
                 "fixtureMarkerCount": markers,
-                "ready": state.exists() and state.read_text() == "spawned",
+                "ready": (state.exists()
+                          and state.read_text().startswith("spawned")
+                          and os.environ.get("MOCK_SCENE_NEVER_READY") != "1"),
+            },
+            "avatar": {
+                "inAir": False,
+                "flying": False,
+                "flyingEnabled": state.exists() and state.read_text() == "spawned",
+                "position": {"x": 0, "y": 1, "z": 4},
             },
         }))
         if os.environ.get("MOCK_RESTART_AFTER_PROBE_READ") == "1":
             state.write_text("restarted")
 elif shell[:4] == ["am", "start", "-W", "-n"]:
-    state.write_text("spawned" if shell[-1].endswith("E2eLauncherActivity")
-                     and os.environ.get("MOCK_SCENE_NEVER_READY") != "1"
-                     else "foreground")
+    if shell[4].endswith("E2eFlightControlActivity"):
+        mode = shell[-1]
+        if mode == "1":
+            state.write_text("spawned")
+        elif mode == "0":
+            state.write_text("spawned-disabled")
+        elif mode == "-1":
+            state.write_text("spawned-restored")
+        else:
+            raise SystemExit(5)
+    else:
+        state.write_text("spawned-disabled"
+                         if shell[4].endswith("E2eLauncherActivity")
+                         else "foreground")
 elif shell == ["am", "force-stop", "org.overte.phone"]:
     state.write_text("stopped")
 elif shell == ["am", "start", "-W", "-a", "android.intent.action.MAIN", "-c", "android.intent.category.HOME"]:
     state.write_text("background")
-elif shell[:3] == ["input", "touchscreen", "swipe"]:
+elif shell[:4] == ["input", "touchscreen", "motionevent", "DOWN"]:
     if os.environ.get("MOCK_RESTART_AFTER_INPUT") == "1":
         state.write_text("restarted")
     if os.environ.get("MOCK_INPUT_FAIL") == "1":
@@ -273,7 +297,13 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
                     if command[:3] == ["am", "start", "-W"]]
         self.assertEqual(
             [["am", "start", "-W", "-n",
-              "org.overte.phone/.E2eLauncherActivity"]], launches)
+              "org.overte.phone/.E2eLauncherActivity"],
+             ["am", "start", "-W", "-n",
+              "org.overte.phone/.E2eFlightControlActivity", "--ei",
+              "org.overte.phone.e2e.FLIGHT_MODE", "0"],
+             ["am", "start", "-W", "-n",
+              "org.overte.phone/.E2eFlightControlActivity", "--ei",
+              "org.overte.phone.e2e.FLIGHT_MODE", "1"]], launches)
         self.assertFalse(any(command[:3] == ["am", "start", "-W"]
                              and "android.intent.action.VIEW" in command
                              for command in commands))
@@ -287,6 +317,9 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
         snapshot = self.invoke("probe.snapshot", environment=debug)
         self.assertEqual(4, snapshot["scene"]["fixtureMarkerCount"])
         self.assertTrue(snapshot["scene"]["ready"])
+        self.assertFalse(snapshot["avatar"]["inAir"])
+        self.assertFalse(snapshot["avatar"]["flying"])
+        self.assertTrue(snapshot["avatar"]["flyingEnabled"])
         session_files = list((self.root / "host-state").glob("*/debug-session.json"))
         self.assertEqual(1, len(session_files))
         self.assertNotIn("private-phone", session_files[0].read_text(encoding="utf-8"))
@@ -295,6 +328,11 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
         self.assertEqual(0, cleaned.returncode, cleaned.stderr)
         self.assertEqual(
             [], list((self.root / "host-state").glob("*/debug-session.json")))
+        self.assertIn(
+            ["am", "start", "-W", "-n",
+             "org.overte.phone/.E2eFlightControlActivity", "--ei",
+             "org.overte.phone.e2e.FLIGHT_MODE", "-1"],
+            self.commands())
         self.assertFalse(any(command[:1] == ["settings"] for command in self.commands()))
 
     def test_debug_operations_reject_bad_arguments_and_missing_opt_in(self):
@@ -373,7 +411,13 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
                     if command[:3] == ["am", "start", "-W"]]
         self.assertEqual(
             [["am", "start", "-W", "-n",
-              "org.overte.phone/.E2eLauncherActivity"]], launches)
+              "org.overte.phone/.E2eLauncherActivity"],
+             ["am", "start", "-W", "-n",
+              "org.overte.phone/.E2eFlightControlActivity", "--ei",
+              "org.overte.phone.e2e.FLIGHT_MODE", "-1"]], launches)
+        self.assertFalse(any(command[-1:] == ["1"]
+                             and command[:4] == ["am", "start", "-W", "-n"]
+                             for command in launches))
         self.assertIn(["am", "force-stop", "org.overte.phone"], commands)
         self.assertEqual(
             [], list((self.root / "host-state").glob("*/debug-session.json")))
@@ -420,8 +464,8 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
         self.assertEqual({"performed": True},
                          self.invoke("input.jump", environment=opt_in))
         jump_input = self.input_commands(self.commands())
-        self.assertEqual("swipe", jump_input[-2][2])
-        self.assertEqual("120", jump_input[-2][-1])
+        self.assertEqual(["input", "touchscreen", "motionevent", "DOWN"],
+                         jump_input[-2][:4])
         self.assertEqual(["input", "touchscreen", "motionevent", "UP"],
                          jump_input[-1][:4])
         commands = self.commands()
@@ -434,21 +478,23 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
             {"performed": True},
             self.invoke("input.fly", {"durationSeconds": 0.25}, opt_in))
         fly_input = self.input_commands(self.commands())
-        self.assertEqual("swipe", fly_input[-2][2])
-        self.assertEqual("250", fly_input[-2][-1])
+        self.assertEqual(["input", "touchscreen", "motionevent", "DOWN"],
+                         fly_input[-2][:4])
         self.assertEqual(["input", "touchscreen", "motionevent", "UP"],
                          fly_input[-1][:4])
 
     def test_fly_accepts_both_shared_duration_boundaries(self):
         opt_in = {"OVERTE_ANDROID_PHONE_E2E_INPUT": "1"}
-        for duration, milliseconds in ((0.1, "100"), (10.0, "10000")):
+        for duration in (0.1, 10.0):
             if self.log.exists():
                 self.log.unlink()
             self.assertEqual(
                 {"performed": True},
                 self.invoke("input.fly", {"durationSeconds": duration}, opt_in))
             input_commands = self.input_commands(self.commands())
-            self.assertEqual(milliseconds, input_commands[-2][-1])
+            self.assertEqual(
+                ["input", "touchscreen", "motionevent", "DOWN"],
+                input_commands[-2][:4])
             self.assertEqual(
                 ["input", "touchscreen", "motionevent", "UP"],
                 input_commands[-1][:4])
@@ -460,7 +506,8 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
                                      environment)
         self.assertEqual(2, result.returncode)
         input_commands = self.input_commands(self.commands())
-        self.assertEqual("swipe", input_commands[-2][2])
+        self.assertEqual(["input", "touchscreen", "motionevent", "DOWN"],
+                         input_commands[-2][:4])
         self.assertEqual(["input", "touchscreen", "motionevent", "UP"],
                          input_commands[-1][:4])
 
@@ -471,9 +518,18 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
                                      environment)
         self.assertEqual(2, result.returncode)
         input_commands = self.input_commands(self.commands())
-        self.assertEqual("swipe", input_commands[-2][2])
+        self.assertEqual(["input", "touchscreen", "motionevent", "DOWN"],
+                         input_commands[-2][:4])
         self.assertEqual(["input", "touchscreen", "motionevent", "UP"],
                          input_commands[-1][:4])
+        self.assertIn(["am", "force-stop", "org.overte.phone"], self.commands())
+
+    def test_successful_press_with_failed_release_force_stops_and_fails(self):
+        environment = {"OVERTE_ANDROID_PHONE_E2E_INPUT": "1",
+                       "MOCK_INPUT_UP_FAIL": "1"}
+        result = self.invoke_failure("input.jump", {}, environment)
+        self.assertEqual(2, result.returncode)
+        self.assertIn("release failed closed", result.stderr)
         self.assertIn(["am", "force-stop", "org.overte.phone"], self.commands())
 
     def test_input_requires_expected_foreground_process_and_package(self):
@@ -517,6 +573,34 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
         result = self.invoke_failure("input.jump", {}, environment)
         self.assertEqual(2, result.returncode)
         self.assertEqual([], self.input_commands(self.commands()))
+
+    def test_missing_physical_dpi_fails_before_touch(self):
+        environment = {"OVERTE_ANDROID_PHONE_E2E_INPUT": "1",
+                       "MOCK_DISPLAY_DPI_MISSING": "1"}
+        result = self.invoke_failure("input.jump", {}, environment)
+        self.assertEqual(2, result.returncode)
+        self.assertIn("physical display DPI is unavailable", result.stderr)
+        self.assertEqual([], self.input_commands(self.commands()))
+
+    def test_phone_jenkins_pipeline_is_locked_private_and_phone_only(self):
+        source = JENKINSFILE.read_text(encoding="utf-8")
+        for required in (
+                "agent { label 'overte-device-interactive' }",
+                "lock(resource: params.DEVICE_RESOURCE.trim()",
+                "withCredentials([string(",
+                "OVERTE_CI_ADAPTER_MANIFEST=android/phone/device-tests/adapter.json",
+                "String suite = 'vertical-locomotion'",
+                "OVERTE_ANDROID_PHONE_E2E_INPUT = '1'",
+                "OVERTE_ANDROID_E2E_DEBUG = '1'",
+                "OVERTE_ANDROID_ADB",
+                "cleanup-target",
+                "stage-results",
+                "junit(",
+                "archiveArtifacts("):
+            self.assertIn(required, source)
+        self.assertNotIn("android/vr", source)
+        self.assertNotIn("android-pico", source)
+        self.assertNotIn("appium-ios", source)
 
 
 if __name__ == "__main__":

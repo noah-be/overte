@@ -22,6 +22,8 @@ from android.common.device_tests.adb_transport import AdbTransport  # noqa: E402
 PACKAGE = "org.overte.phone"
 LAUNCHER = "org.overte.phone/.PermissionsActivity"
 E2E_LAUNCHER = "org.overte.phone/.E2eLauncherActivity"
+E2E_FLIGHT_CONTROL = "org.overte.phone/.E2eFlightControlActivity"
+E2E_FLIGHT_MODE_EXTRA = "org.overte.phone.e2e.FLIGHT_MODE"
 BASE_CAPABILITIES = {
     "app.foreground", "app.launch", "app.process",
     "lifecycle.background", "telemetry.snapshot",
@@ -39,9 +41,9 @@ MIN_FLY_DURATION_SECONDS = 0.1
 MAX_FLY_DURATION_SECONDS = 10.0
 
 # TouchscreenVirtualPadDevice and VirtualPadManager use these production
-# constants to place the jump button. Android's logical display density is the
-# closest privacy-safe system measurement available to an out-of-process ADB
-# adapter and keeps the calculated point well inside the production hit area.
+# constants and QScreen::physicalDotsPerInch() to place the jump button. The
+# adapter reads Android's physical X/Y DPI and uses their arithmetic mean, just
+# as QScreen does, so the injected point follows the rendered production pad.
 VIRTUAL_PAD_DPI = 534.0
 JUMP_BUTTON_FULL_PIXELS = 164.0
 JUMP_BUTTON_TRIMMED_RADIUS_PIXELS = 67.0
@@ -169,23 +171,27 @@ def display_size(target: str) -> tuple[int, int]:
     return width, height
 
 
-def display_density(target: str) -> float:
-    raw_density = ADB.shell(target, "wm", "density", check=False)
-    densities = re.findall(
-        r"(?:(Physical|Override) density:\s*)?(\d+(?:[.]\d+)?)", raw_density)
-    if not densities:
-        raise RuntimeError("Android display density is unavailable")
-    preferred = next((item for item in reversed(densities) if item[0] == "Override"),
-                     densities[-1])
-    density = float(preferred[1])
-    if not math.isfinite(density) or not 72.0 <= density <= 1000.0:
-        raise RuntimeError("Android display density is outside safe bounds")
+def physical_display_dpi(target: str) -> float:
+    display_state = ADB.shell(target, "dumpsys", "display", check=False)
+    candidates = re.findall(
+        r"density\s+\d+(?:[.]\d+)?\s*,\s*"
+        r"(\d+(?:[.]\d+)?)\s*x\s*(\d+(?:[.]\d+)?)\s*dpi",
+        display_state, re.IGNORECASE)
+    if not candidates:
+        raise RuntimeError("Android physical display DPI is unavailable")
+    x_dpi, y_dpi = map(float, candidates[0])
+    density = (x_dpi + y_dpi) / 2.0
+    if (not math.isfinite(x_dpi) or not math.isfinite(y_dpi)
+            or not 72.0 <= x_dpi <= 1000.0
+            or not 72.0 <= y_dpi <= 1000.0
+            or not math.isfinite(density)):
+        raise RuntimeError("Android physical display DPI is outside safe bounds")
     return density
 
 
 def jump_button_position(target: str) -> tuple[int, int]:
     width, height = display_size(target)
-    scale = display_density(target) / VIRTUAL_PAD_DPI
+    scale = physical_display_dpi(target) / VIRTUAL_PAD_DPI
     radius = JUMP_BUTTON_TRIMMED_RADIUS_PIXELS * scale
     x = round(width - (JUMP_BUTTON_RIGHT_MARGIN_PIXELS
                        + JUMP_BUTTON_FULL_PIXELS) * scale)
@@ -392,18 +398,90 @@ def wait_for_fixture_ready(target: str, identity: str) -> None:
     raise RuntimeError("Android Phone controlled fixture did not become ready")
 
 
+def wait_for_grounded_fixture(target: str, identity: str,
+                              flying_enabled: bool) -> None:
+    attempts, interval = probe_retry_policy()
+    previous_epoch = None
+    consecutive_samples = 0
+    for attempt in range(attempts):
+        raw = ADB.read_debug_app_file(
+            target, PACKAGE, ANDROID_DEBUG_PROBE, attempts=1)
+        snapshot = fresh_probe_snapshot(raw)
+        if snapshot is not None:
+            epoch = snapshot.get("sampleEpochMs")
+            avatar = snapshot.get("avatar")
+            scene = snapshot.get("scene")
+            if epoch != previous_epoch:
+                previous_epoch = epoch
+                grounded = (
+                    isinstance(avatar, dict)
+                    and avatar.get("inAir") is False
+                    and avatar.get("flying") is False
+                    and avatar.get("flyingEnabled") is flying_enabled
+                    and isinstance(scene, dict)
+                    and scene.get("ready") is True
+                    and scene.get("fixtureMarkerCount") == FIXTURE_MARKER_COUNT
+                )
+                consecutive_samples = consecutive_samples + 1 if grounded else 0
+                if consecutive_samples >= 2:
+                    if current_process_identity(target) != identity:
+                        raise RuntimeError(
+                            "Android Phone debug application process changed")
+                    return
+        if attempt + 1 < attempts:
+            time.sleep(interval)
+    if current_process_identity(target) != identity:
+        raise RuntimeError("Android Phone debug application process changed")
+    state = "enabled" if flying_enabled else "disabled"
+    raise RuntimeError(
+        f"Android Phone fixture did not become grounded with E2E flying {state}")
+
+
+def set_e2e_flying_override(target: str, identity: str, mode: int) -> None:
+    if mode not in {-1, 0, 1}:
+        raise RuntimeError("invalid Android Phone E2E flying override mode")
+    if current_process_identity(target) != identity:
+        raise RuntimeError("Android Phone debug application process changed")
+    ADB.shell(
+        target, "am", "start", "-W", "-n", E2E_FLIGHT_CONTROL,
+        "--ei", E2E_FLIGHT_MODE_EXTRA, str(mode))
+    if current_process_identity(target) != identity:
+        raise RuntimeError(
+            "Android Phone application process changed during E2E flight setup")
+    if ADB.foreground_package(target) != PACKAGE:
+        raise RuntimeError(
+            "Android Phone application left the foreground during E2E flight setup")
+
+
 def load_embedded_scene(target: str) -> dict:
     identity = launch_debug_app(target)
     try:
         # The shared launcher owns the fixture URL and viewpoint. Require the
         # normal Android startup path to finish without a second navigation.
         wait_for_fixture_ready(target, identity)
+        # Repeat ground preparation through the shell-protected control
+        # Activity after the first ready probe proves that Qt, its native
+        # library, and the Phone Activity are all live. This process-bound
+        # request changes no stored preference.
+        set_e2e_flying_override(target, identity, 0)
+        # The debug launcher begins with a process-only flying override of
+        # false. Let normal avatar physics settle on the fixture floor, then
+        # enable flying for the real virtual-pad hold. Neither phase writes the
+        # user's stored Phone preference.
+        wait_for_grounded_fixture(target, identity, False)
+        set_e2e_flying_override(target, identity, 1)
+        wait_for_grounded_fixture(target, identity, True)
         if current_process_identity(target) != identity:
             raise RuntimeError("Android Phone application process changed during scene load")
         if ADB.foreground_package(target) != PACKAGE:
             raise RuntimeError("Android Phone application left the foreground during scene load")
         return {"requested": True, "verification": "fixture-markers"}
     except (OSError, RuntimeError, subprocess.TimeoutExpired):
+        try:
+            if current_process_identity(target) == identity:
+                set_e2e_flying_override(target, identity, -1)
+        except (OSError, RuntimeError, subprocess.TimeoutExpired):
+            pass
         ADB.shell(target, "am", "force-stop", PACKAGE, check=False)
         discard_debug_session(target)
         raise
@@ -426,18 +504,20 @@ def perform_vertical_touch(target: str, duration_milliseconds: int) -> dict:
     identity = require_input_session(target)
     position = jump_button_position(target)
     x, y = position
-    completed = False
+    released = False
     try:
-        ADB.shell(target, "input", "touchscreen", "swipe",
-                  str(x), str(y), str(x), str(y),
-                  str(duration_milliseconds))
-        completed = True
+        ADB.shell(target, "input", "touchscreen", "motionevent", "DOWN",
+                  str(x), str(y))
+        time.sleep(duration_milliseconds / 1000.0)
     finally:
         released = neutralize_vertical_input(target, position)
-        if not completed and not released:
-            # If both the bounded gesture and its explicit release fail, stop
-            # the package so no application session can retain the press.
+        if not released:
+            # A failed ADB call can still have injected DOWN before transport
+            # failure. Without a confirmed UP, stop the bound app session so
+            # vertical input cannot remain latched.
             ADB.shell(target, "am", "force-stop", PACKAGE, check=False)
+    if not released:
+        raise RuntimeError("Android Phone vertical input release failed closed")
     # The package and foreground checks above bind the touch to the intended
     # session. Re-read only the process identity afterward: repeating package
     # manager and activity dumpsys calls can outlast a bounded jump, preventing
@@ -507,6 +587,17 @@ def cleanup(target: str) -> dict:
         require_target(target)
         if input_opted_in():
             neutralize_vertical_input(target)
+        if debug_opted_in():
+            try:
+                expected = load_debug_session(target)
+                if (current_process_identity(target) == expected
+                        and ADB.foreground_package(target) == PACKAGE):
+                    set_e2e_flying_override(target, expected, -1)
+            except (OSError, RuntimeError, subprocess.TimeoutExpired):
+                # Force-stopping the process below also discards the
+                # nonpersistent override. Cleanup must remain idempotent when
+                # the app has already crashed or stopped.
+                pass
         ADB.shell(target, "am", "force-stop", PACKAGE, check=False)
         return {"cleaned": True}
     finally:
