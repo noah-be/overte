@@ -94,6 +94,7 @@ def main() -> None:
     assert "InterfaceE2EInfo.plist.in" in cmake
     assert 'MATCHES "[.]e2e$"' in cmake
     assert "#if defined(Q_OS_IOS) && defined(OVERTE_IOS_E2E_TEST_BUILD)" in setup
+    assert "#include <shared/FileUtils.h>" in setup
     assert "FileUtils::computeDocumentPath(path)" in setup
     assert "QDir::cleanPath" in setup
     assert 'path.startsWith(documentsRoot + "/")' in setup
