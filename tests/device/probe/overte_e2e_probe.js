@@ -125,7 +125,10 @@
             },
             avatar: {
                 position: avatarPosition,
-                bodyYawDegrees: Number(MyAvatar.bodyYaw)
+                bodyYawDegrees: Number(MyAvatar.bodyYaw),
+                inAir: Boolean(MyAvatar.isInAir()),
+                flying: Boolean(MyAvatar.isFlying()),
+                flyingEnabled: Boolean(MyAvatar.getFlyingEnabled())
             },
             view: {
                 orientation: vector(orientation)

@@ -34,6 +34,22 @@
       "timeoutSeconds": 90
     },
     {
+      "id": "jump",
+      "description": "Jump once, observe a non-flying ascent, and verify landing near the baseline.",
+      "command": ["modules/jump.py"],
+      "suites": ["vertical-locomotion"],
+      "requires": ["input.jump", "probe.snapshot", "scene.load"],
+      "timeoutSeconds": 120
+    },
+    {
+      "id": "fly",
+      "description": "Fly for a bounded duration and observe active flight with vertical ascent.",
+      "command": ["modules/fly.py"],
+      "suites": ["vertical-locomotion"],
+      "requires": ["input.fly", "probe.snapshot", "scene.load"],
+      "timeoutSeconds": 120
+    },
+    {
       "id": "tablet",
       "description": "Open and close the system tablet and observe both state transitions.",
       "command": ["modules/tablet.py"],

@@ -11,6 +11,7 @@ import re
 
 ROOT = Path(__file__).resolve().parent
 IDENTIFIER = re.compile(r"^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$")
+MAX_FLY_DURATION_SECONDS = 10.0
 
 
 def load_capability_registry(path: Path | None = None) -> dict[str, dict]:
@@ -50,6 +51,28 @@ def validate_capabilities(values: object, registry: dict[str, dict] | None = Non
     return values
 
 
+def validate_operation_arguments(operation: str, value: object) -> dict:
+    if not isinstance(value, dict):
+        raise ValueError("operation arguments must be an object")
+    if operation == "input.jump" and value:
+        raise ValueError("input.jump does not accept arguments")
+    if operation == "input.fly":
+        if set(value) != {"durationSeconds"}:
+            raise ValueError("input.fly requires only durationSeconds")
+        duration = value["durationSeconds"]
+        if (not isinstance(duration, (int, float)) or isinstance(duration, bool)
+                or not math.isfinite(float(duration))
+                or not 0.1 <= float(duration) <= MAX_FLY_DURATION_SECONDS):
+            raise ValueError("input.fly durationSeconds must be from 0.1 through 10.0")
+    return value
+
+
+def validate_performed_result(operation: str, value: object) -> dict:
+    if not isinstance(value, dict) or value.get("performed") is not True:
+        raise ValueError(f"{operation} result must confirm performed: true")
+    return value
+
+
 def validate_probe_snapshot(value: object) -> dict:
     if not isinstance(value, dict) or value.get("schemaVersion") != 1:
         raise ValueError("probe snapshot must use schema version 1")
@@ -85,6 +108,12 @@ def validate_probe_snapshot(value: object) -> dict:
                 and math.isfinite(float(vector[axis]))
                 for axis in ("x", "y", "z")):
             raise ValueError(f"probe {field} requires numeric x/y/z")
+    avatar = value["avatar"]
+    for field in ("inAir", "flying", "flyingEnabled"):
+        if not isinstance(avatar.get(field), bool):
+            raise ValueError(f"probe avatar.{field} must be boolean")
+    if avatar["flying"] and not avatar["inAir"]:
+        raise ValueError("probe avatar cannot be flying while not inAir")
     if not isinstance(value["tablet"].get("open"), bool):
         raise ValueError("probe tablet.open must be boolean")
     controller = value.get("controller")
