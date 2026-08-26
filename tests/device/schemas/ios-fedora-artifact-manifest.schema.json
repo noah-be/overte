@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://overte.org/schemas/ios-fedora-e2e-artifact-v1.json",
+  "title": "Signed iOS artifact handed from the protected macOS producer to Fedora",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "contract", "kind", "sourceRevision", "artifact", "bundle", "signing"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "contract": {"const": "overte-ios-fedora-e2e-artifact-v1"},
+    "kind": {"enum": ["overte-app", "webdriveragent"]},
+    "sourceRevision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "sha256", "size"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*[.]ipa$"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "size": {"type": "integer", "minimum": 1}
+      }
+    },
+    "bundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {"id": {"type": "string", "minLength": 3}}
+    },
+    "signing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["signed", "teamIdentifier", "applicationIdentifier", "profileExpiration"],
+      "properties": {
+        "signed": {"const": true},
+        "teamIdentifier": {"type": "string", "minLength": 1},
+        "applicationIdentifier": {"type": "string", "minLength": 3},
+        "profileExpiration": {"type": "string", "format": "date-time"}
+      }
+    },
+    "testBuildContractVersion": {"const": 1},
+    "toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["xcuitestDriver", "webdriverAgent"],
+      "properties": {
+        "xcuitestDriver": {"type": "string", "pattern": "^[0-9]+[.][0-9]+[.][0-9]+$"},
+        "webdriverAgent": {"type": "string", "pattern": "^[0-9]+[.][0-9]+[.][0-9]+$"}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"kind": {"const": "overte-app"}}},
+      "then": {"required": ["testBuildContractVersion"]},
+      "else": {"required": ["toolchain"]}
+    }
+  ]
+}
