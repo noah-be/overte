@@ -208,6 +208,13 @@ def validate_envelope(raw: Any, profile_raw: Any) -> dict[str, Any]:
                 raise ControllerContractError("Pico common movement supports forward/backward only")
             _number(arguments["durationSeconds"], "move durationSeconds", 0.1, 8.0)
             _number(arguments.get("strength", 0.8), "move strength", 0.2, 1.0)
+        elif operation == "input.jump":
+            _exact_keys(arguments, set(), set(),
+                        f"commands[{index}].arguments")
+        elif operation == "input.fly":
+            _exact_keys(arguments, {"durationSeconds"}, set(),
+                        f"commands[{index}].arguments")
+            _number(arguments["durationSeconds"], "fly durationSeconds", 0.5, 8.0)
         elif operation in {"tablet.close", "tablet.open"}:
             _exact_keys(arguments, set(), {"holdMilliseconds"},
                         f"commands[{index}].arguments")
@@ -312,6 +319,12 @@ def compile_envelope(envelope_raw: Any, profile_raw: Any) -> dict[str, Any]:
             runtime_y = strength if arguments["direction"] == "forward" else -strength
             state["vector2f"][action] = [0.0, runtime_y]
             required.add("xrGetActionStateVector2f")
+        elif operation in {"input.jump", "input.fly"}:
+            duration = (120 if operation == "input.jump" else
+                        round(float(arguments["durationSeconds"]) * 1000))
+            action = profile["controls"]["buttons"]["right.secondary"]
+            state["boolean"][action] = True
+            required.add("xrGetActionStateBoolean")
         else:
             duration = int(arguments.get("holdMilliseconds", 120))
             action = profile["controls"]["buttons"]["left.secondary"]
@@ -327,6 +340,12 @@ def compile_envelope(envelope_raw: Any, profile_raw: Any) -> dict[str, Any]:
         elif operation == "input.move":
             input_domain = "controller-action"
             verification = "probe.avatar.position"
+        elif operation == "input.jump":
+            input_domain = "controller-action"
+            verification = "probe.avatar.inAir"
+        elif operation == "input.fly":
+            input_domain = "controller-action"
+            verification = "probe.avatar.flying"
         elif operation in {"tablet.open", "tablet.close"}:
             input_domain = "controller-action"
             verification = "probe.tablet.open"

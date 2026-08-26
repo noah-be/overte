@@ -184,6 +184,7 @@ class AndroidOpenXrTransport:
             "viewAppliedSequence", "viewAppliedYawDegrees", "viewAppliedPitchDegrees",
             "vectorAppliedSequence", "leftThumbstickAppliedY",
             "booleanAppliedSequence", "leftSecondaryApplied",
+            "rightSecondaryApplied",
         }
         if not isinstance(status, dict) or set(status) != required:
             raise TransportError("native OpenXR input status contract is invalid")
@@ -223,8 +224,10 @@ class AndroidOpenXrTransport:
                 or not isinstance(status["booleanAppliedSequence"], int)
                 or not 0 <= status["booleanAppliedSequence"] <= status["acceptedSequence"]
                 or not isinstance(status["leftSecondaryApplied"], bool)
+                or not isinstance(status["rightSecondaryApplied"], bool)
                 or (status["booleanAppliedSequence"] == 0 and
-                    status["leftSecondaryApplied"] is not False)
+                    (status["leftSecondaryApplied"] is not False or
+                     status["rightSecondaryApplied"] is not False))
                 or not isinstance(status["acceptedNonce"], str)
                 or (status["acceptedNonce"] != ""
                     and re.fullmatch(r"[0-9a-f]{32,128}", status["acceptedNonce"]) is None)

@@ -1024,6 +1024,12 @@ public:
     void setE2eAdvancedMovementControlsOverride(bool enabled) {
         _e2eAdvancedMovementControlsOverride.set(enabled);
     }
+    void setE2eFlyingEnabledOverride(bool enabled) {
+        _e2eFlyingEnabledOverride.set(enabled);
+    }
+    bool e2eFlyingEnabledOverride() const {
+        return _e2eFlyingEnabledOverride.get();
+    }
 
     bool getAllowTeleporting() { return _allowTeleportingSetting.get(); }
     void setAllowTeleporting(bool allowTeleporting) { _allowTeleportingSetting.set(allowTeleporting); }
@@ -2655,6 +2661,7 @@ private:
     Setting::Handle<float> _realWorldFieldOfView;
     Setting::Handle<bool> _useAdvancedMovementControls;
     ThreadSafeValueCache<bool> _e2eAdvancedMovementControlsOverride { false };
+    ThreadSafeValueCache<bool> _e2eFlyingEnabledOverride { false };
     Setting::Handle<bool> _showPlayArea;
 
     // Smoothing.

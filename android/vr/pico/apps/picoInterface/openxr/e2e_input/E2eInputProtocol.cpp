@@ -616,6 +616,22 @@ bool Protocol::tryAccept(std::int64_t epochMilliseconds,
                 static_cast<float>(direction == QLatin1String("forward") ? strength : -strength),
             };
             duration = static_cast<std::int64_t>(std::llround(seconds * 1000.0));
+        } else if (operation == QLatin1String("input.jump")) {
+            if (!exactKeys(arguments, {})) {
+                return false;
+            }
+            active.booleans[static_cast<std::size_t>(BooleanChannel::RightSecondary)] = true;
+            duration = 120;
+        } else if (operation == QLatin1String("input.fly")) {
+            if (!exactKeys(arguments, { "durationSeconds" })) {
+                return false;
+            }
+            double seconds { 0.0 };
+            if (!finiteNumber(arguments.value("durationSeconds"), 0.5, 8.0, seconds)) {
+                return false;
+            }
+            active.booleans[static_cast<std::size_t>(BooleanChannel::RightSecondary)] = true;
+            duration = static_cast<std::int64_t>(std::llround(seconds * 1000.0));
         } else if (operation == QLatin1String("tablet.open") ||
                    operation == QLatin1String("tablet.close")) {
             if (!exactKeys(arguments, {}, { "holdMilliseconds" })) {
@@ -659,6 +675,7 @@ bool Protocol::tryAccept(std::int64_t epochMilliseconds,
     _leftThumbstickAppliedY = 0.0;
     _booleanAppliedSequence = 0;
     _leftSecondaryApplied = false;
+    _rightSecondaryApplied = false;
     _acceptedNonce = nonce.toStdString();
     _current = _events.front().state;
     _activeCommandId.clear();
@@ -727,12 +744,20 @@ void Protocol::recordVectorApplication(VectorChannel channel, const XrVector2f& 
 void Protocol::recordBooleanApplication(BooleanChannel channel, bool value,
                                         std::int64_t epochMilliseconds) {
     if (!_current.overrideEnabled || _activeCommandId.empty() || !value ||
-            channel != BooleanChannel::LeftSecondary ||
-            _booleanAppliedSequence == _acceptedSequence) {
+            (channel != BooleanChannel::LeftSecondary &&
+             channel != BooleanChannel::RightSecondary)) {
+        return;
+    }
+    if ((channel == BooleanChannel::LeftSecondary && _leftSecondaryApplied) ||
+            (channel == BooleanChannel::RightSecondary && _rightSecondaryApplied)) {
         return;
     }
     _booleanAppliedSequence = _acceptedSequence;
-    _leftSecondaryApplied = true;
+    if (channel == BooleanChannel::LeftSecondary) {
+        _leftSecondaryApplied = true;
+    } else {
+        _rightSecondaryApplied = true;
+    }
     publishStatus("active", "boolean-consumed", epochMilliseconds);
 }
 
@@ -763,6 +788,7 @@ void Protocol::publishStatus(const char* state, const char* detail,
         { "leftThumbstickAppliedY", _leftThumbstickAppliedY },
         { "booleanAppliedSequence", static_cast<double>(_booleanAppliedSequence) },
         { "leftSecondaryApplied", _leftSecondaryApplied },
+        { "rightSecondaryApplied", _rightSecondaryApplied },
         { "acceptedNonce", QString::fromStdString(_acceptedNonce) },
         { "activeCommandId", QString::fromStdString(_activeCommandId) },
         { "state", QLatin1String(state) },

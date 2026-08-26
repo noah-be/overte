@@ -873,7 +873,13 @@ void MyAvatar::simulate(float deltaTime, bool inView) {
     PerformanceTimer perfTimer("simulate");
     animateScaleChanges(deltaTime);
 
-    setFlyingEnabled(getFlyingEnabled());
+    if (e2eFlyingEnabledOverride()) {
+        // Debug E2E sessions need deterministic jump-to-flight behavior, but
+        // must never overwrite the user's stored HMD flying preference.
+        _enableFlying = true;
+    } else {
+        setFlyingEnabled(getFlyingEnabled());
+    }
 
     if (_cauterizationNeedsUpdate) {
         _cauterizationNeedsUpdate = false;
@@ -4298,7 +4304,8 @@ bool MyAvatar::isInAir() {
 
 bool MyAvatar::getFlyingEnabled() {
     // May return true even if client is not allowed to fly in the zone.
-    return (qApp->isHMDMode() ? getFlyingHMDPref() : getFlyingDesktopPref());
+    return e2eFlyingEnabledOverride() ||
+        (qApp->isHMDMode() ? getFlyingHMDPref() : getFlyingDesktopPref());
 }
 
 void MyAvatar::setFlyingDesktopPref(bool enabled) {
@@ -4453,7 +4460,9 @@ float MyAvatar::getRawDriveKey(DriveKeys key) const {
 
 void MyAvatar::relayDriveKeysToCharacterController() {
     if (_endSitKeyPressComplete) {
-        if (getDriveKey(TRANSLATE_Y) > 0.0f && (!qApp->isHMDMode() || (useAdvancedMovementControls() && getFlyingHMDPref()))) {
+        if (getDriveKey(TRANSLATE_Y) > 0.0f &&
+                (!qApp->isHMDMode() ||
+                 (useAdvancedMovementControls() && getFlyingEnabled()))) {
             _characterController.jump();
         }
     } else {

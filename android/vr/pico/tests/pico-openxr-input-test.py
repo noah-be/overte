@@ -95,6 +95,10 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertIn("enabledApiLayerNames = &E2E_INPUT_LAYER", context)
         self.assertGreaterEqual(protocol.count("0.1, 8.0"), 2)
         self.assertIn('exactKeys(arguments, {}, { "holdMilliseconds" })', protocol)
+        self.assertIn('operation == QLatin1String("input.jump")', protocol)
+        self.assertIn('operation == QLatin1String("input.fly")', protocol)
+        self.assertIn("BooleanChannel::RightSecondary", protocol)
+        self.assertIn('{ "rightSecondaryApplied",', protocol)
         self.assertIn(
             "integerValue(arguments.value(\"holdMilliseconds\"), 100, 8000, hold)",
             protocol,

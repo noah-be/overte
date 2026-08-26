@@ -131,6 +131,7 @@ private:
     double _leftThumbstickAppliedY { 0.0 };
     std::uint64_t _booleanAppliedSequence { 0 };
     bool _leftSecondaryApplied { false };
+    bool _rightSecondaryApplied { false };
     std::string _acceptedNonce;
     std::string _activeCommandId;
     std::uint64_t _seenGrantDevice { 0 };

@@ -72,17 +72,31 @@ elif cmd[:3] == ["install", "-r", "-g"]:
     print("Success")
 elif len(cmd) == 3 and cmd[:2] == ["shell", "-T"]:
     payload=sys.stdin.buffer.read()
-    if "grant.json" in cmd[2]:
+    if "commands.json" in cmd[2]:
+        envelope=json.loads(payload)
+        if status_path:
+            open(status_path+".operation","w").write(
+                envelope["commands"][0]["operation"])
+    elif "grant.json" in cmd[2]:
         grant=json.loads(payload)
+        operation=(open(status_path+".operation").read()
+                   if status_path and os.path.exists(status_path+".operation") else "")
+        is_look=operation == "input.look"
+        is_move=operation == "input.move"
+        is_tablet=operation.startswith("tablet.")
+        is_vertical=operation in {"input.jump","input.fly"}
         status={"schemaVersion":1,"buildMarker":"OVERTE_E2E_OPENXR_INPUT_V1",
           "consumer":"XR_APILAYER_OVERTE_e2e_input",
           "profileId":"overte-pico4-controller-v1",
           "bindingProfileSha256":grant["bindingProfileSha256"],"enabled":True,
           "acceptedSequence":grant["sequence"],"acceptedNonce":grant["sessionNonce"],
-          "viewAppliedSequence":grant["sequence"],"viewAppliedYawDegrees":25.0,
+          "viewAppliedSequence":grant["sequence"] if is_look else 0,
+          "viewAppliedYawDegrees":25.0 if is_look else 0.0,
           "viewAppliedPitchDegrees":0.0,
-          "vectorAppliedSequence":grant["sequence"],"leftThumbstickAppliedY":0.4,
-          "booleanAppliedSequence":grant["sequence"],"leftSecondaryApplied":True,
+          "vectorAppliedSequence":grant["sequence"] if is_move else 0,
+          "leftThumbstickAppliedY":0.4 if is_move else 0.0,
+          "booleanAppliedSequence":grant["sequence"] if (is_tablet or is_vertical) else 0,
+          "leftSecondaryApplied":is_tablet,"rightSecondaryApplied":is_vertical,
           "activeCommandId":"mock-command","state":"active","detail":"command-window",
           "updatedEpochMs":int(time.time()*1000)}
         if status_path: open(status_path,"w").write(json.dumps(status))
@@ -217,7 +231,8 @@ class AndroidAdapterTest(unittest.TestCase):
             env=self.environment, check=False)
         self.assertEqual(0, discovered.returncode, discovered.stdout)
         capabilities = json.loads(discovered.stdout)[0]["capabilities"]
-        self.assertTrue({"input.look", "input.move", "tablet.open", "tablet.close"}
+        self.assertTrue({"input.fly", "input.jump", "input.look", "input.move",
+                         "tablet.open", "tablet.close"}
                         .issubset(capabilities))
 
         common = [sys.executable, str(ADAPTER), "--kind", "pico", "invoke",
@@ -240,6 +255,8 @@ class AndroidAdapterTest(unittest.TestCase):
         calls = [
             ("input.look", {"horizontal": 0.25, "vertical": 0.0}),
             ("input.move", {"direction": "forward", "durationSeconds": 1.5}),
+            ("input.jump", {}),
+            ("input.fly", {"durationSeconds": 3.0}),
             ("tablet.open", {}),
             ("tablet.close", {}),
         ]
@@ -253,17 +270,22 @@ class AndroidAdapterTest(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stdout)
             outputs.append(json.loads(result.stdout))
         committed = [json.loads(line) for line in grants.read_text().splitlines()]
-        self.assertEqual([1, 2, 3, 4], [item["sequence"] for item in committed])
+        self.assertEqual([1, 2, 3, 4, 5, 6],
+                         [item["sequence"] for item in committed])
         self.assertEqual(1, len({item["sessionNonce"] for item in committed}))
         self.assertEqual(["head-pose", "controller-action", "controller-action",
-                          "controller-action"],
+                          "controller-action", "controller-action", "controller-action"],
                          [item["inputDomain"] for item in outputs])
         self.assertTrue(outputs[0]["viewApplied"])
         self.assertEqual(25.0, outputs[0]["viewYawDegrees"])
         self.assertTrue(outputs[1]["openXrVectorApplied"])
         self.assertEqual(0.4, outputs[1]["openXrLeftThumbstickY"])
         self.assertTrue(outputs[2]["openXrBooleanApplied"])
+        self.assertTrue(outputs[2]["openXrRightSecondaryApplied"])
         self.assertTrue(outputs[3]["openXrBooleanApplied"])
+        self.assertTrue(outputs[3]["openXrRightSecondaryApplied"])
+        self.assertTrue(outputs[4]["openXrLeftSecondaryApplied"])
+        self.assertTrue(outputs[5]["openXrLeftSecondaryApplied"])
         self.assertNotIn(committed[0]["sessionNonce"], json.dumps(outputs))
         self.assertNotIn("pico-secret", json.dumps(outputs))
 
