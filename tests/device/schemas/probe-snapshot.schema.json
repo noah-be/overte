@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://overte.org/schemas/device-probe-snapshot-v1.json",
+  "title": "Overte E2E probe snapshot",
+  "type": "object",
+  "required": ["schemaVersion", "sampleEpochMs", "build", "application", "scene", "avatar", "view", "tablet"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "sampleEpochMs": {"type": "integer", "minimum": 1},
+    "build": {
+      "type": "object",
+      "required": ["platform", "version", "date"],
+      "properties": {
+        "platform": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "date": {"type": "string", "minLength": 1}
+      }
+    },
+    "application": {
+      "type": "object",
+      "required": ["running"],
+      "properties": {"running": {"type": "boolean"}}
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dominantHand", "advancedMovementControls"],
+      "properties": {
+        "dominantHand": {"enum": ["left", "right"]},
+        "advancedMovementControls": {"type": "boolean"}
+      }
+    },
+    "scene": {
+      "type": "object",
+      "required": ["ready", "entityCount"],
+      "properties": {
+        "ready": {"type": "boolean"},
+        "entityCount": {"type": "integer", "minimum": 0}
+      }
+    },
+    "avatar": {
+      "type": "object",
+      "required": ["position", "inAir", "flying", "flyingEnabled"],
+      "properties": {
+        "position": {"$ref": "#/$defs/vector3"},
+        "inAir": {"type": "boolean"},
+        "flying": {"type": "boolean"},
+        "flyingEnabled": {"type": "boolean"}
+      },
+      "allOf": [{
+        "if": {"properties": {"flying": {"const": true}}},
+        "then": {"properties": {"inAir": {"const": true}}}
+      }]
+    },
+    "view": {
+      "type": "object",
+      "required": ["orientation"],
+      "properties": {"orientation": {"$ref": "#/$defs/vector3"}}
+    },
+    "tablet": {
+      "type": "object",
+      "required": ["open"],
+      "properties": {"open": {"type": "boolean"}}
+    }
+  },
+  "$defs": {
+    "vector3": {
+      "type": "object",
+      "required": ["x", "y", "z"],
+      "properties": {
+        "x": {"type": "number"},
+        "y": {"type": "number"},
+        "z": {"type": "number"}
+      }
+    }
+  }
+}
