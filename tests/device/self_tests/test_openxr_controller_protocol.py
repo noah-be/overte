@@ -171,8 +171,8 @@ class OpenXrControllerProtocolTests(unittest.TestCase):
             [result["actionName"] for result in compiled["results"]],
         )
         self.assertEqual(
-            [{"startMs": 100, "endMs": 220},
-             {"startMs": 320, "endMs": 3320}],
+            [{"startMs": 100, "endMs": 400},
+             {"startMs": 500, "endMs": 3500}],
             [result["activeWindow"] for result in compiled["results"]],
         )
         self.assertEqual(

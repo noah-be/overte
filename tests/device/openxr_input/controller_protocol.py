@@ -18,6 +18,9 @@ SCALAR_OPERATIONS = frozenset({"controller.grip", "controller.trigger"})
 HANDS = frozenset({"left", "right"})
 INTER_COMMAND_GAP_MS = 100
 NEUTRAL_HOLD_MS = 100
+# The physical Pico missed a 120 ms pulse after the OpenXR query consumed it.
+# Keep this below CharacterController's default 500 ms jump-to-hover threshold.
+JUMP_HOLD_MS = 300
 
 
 class ControllerContractError(ValueError):
@@ -320,7 +323,7 @@ def compile_envelope(envelope_raw: Any, profile_raw: Any) -> dict[str, Any]:
             state["vector2f"][action] = [0.0, runtime_y]
             required.add("xrGetActionStateVector2f")
         elif operation in {"input.jump", "input.fly"}:
-            duration = (120 if operation == "input.jump" else
+            duration = (JUMP_HOLD_MS if operation == "input.jump" else
                         round(float(arguments["durationSeconds"]) * 1000))
             action = profile["controls"]["buttons"]["right.secondary"]
             state["boolean"][action] = True
