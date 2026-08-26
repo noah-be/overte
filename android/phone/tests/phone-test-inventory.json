@@ -33,7 +33,6 @@
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PermissionsActivity.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PermissionsActivityRobolectricTest.java"],
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneDeepLink.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhoneDeepLinkRobolectricTest.java"],
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneDeepLinkNormalizer.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhoneDeepLinkNormalizerTest.java"],
-    "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneE2eLaunchState.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhoneE2eLaunchStateTest.java", "android/phone/apps/phoneInterface/src/test/java/org/overte/phone/E2eFlightControlActivityTest.java"],
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneLaunchState.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhoneLaunchStateTest.java"],
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhonePendingUrlPolicy.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhonePendingUrlPolicyTest.java"],
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhonePermissionFlow.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhonePermissionFlowTest.java"],
@@ -61,7 +60,7 @@
     "android/common/src/OffscreenGLCanvas.cpp": ["android/phone/tests/phone-host-regression-test.sh"]
   },
   "runtime_boundaries": {
-    "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java": "QtActivity/native loader, WindowInsets callbacks, predictive Back and real lifecycle require Android; pure URL, metrics normalization and legacy IME extraction policies are separately tested",
+    "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java": "QtActivity/native loader, WindowInsets callbacks, predictive Back and real lifecycle require Android; pure URL, metrics normalization and legacy IME extraction policies are separately tested; the package-private E2E process handshake is covered by PhoneE2eLaunchStateTest and E2eFlightControlActivityTest",
     "android/phone/apps/phoneInterface/src/PhoneUrlHandler.cpp": "JNI string conversion plus Qt queued URL, runtime-metrics and UI-thread Back delivery require a live Qt/JNI runtime; defensive handoff and metrics policies are separately tested"
   },
   "default_script_runtime_boundaries": {
