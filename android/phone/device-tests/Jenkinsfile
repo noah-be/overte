@@ -3,7 +3,7 @@
 
 def ciPython(String action, boolean returnStatus = false) {
     return sh(
-        script: "#!/bin/sh\nset +x\nexec python3 tests/device/jenkins/run_ci.py ${action}\n",
+        script: "#!/bin/sh\nset +x\nexec python3 android/phone/device-tests/jenkins_ci.py ${action}\n",
         returnStatus: returnStatus
     )
 }
@@ -82,6 +82,7 @@ pipeline {
                         SHADERGEN_JOBS=8 sh -c '\
                             python3 -m py_compile \
                                 android/phone/device-tests/adapter.py \
+                                android/phone/device-tests/jenkins_ci.py \
                                 android/phone/device-tests/tests/test_adapter.py && \
                             python3 -m unittest \
                                 android.phone.device-tests.tests.test_adapter'

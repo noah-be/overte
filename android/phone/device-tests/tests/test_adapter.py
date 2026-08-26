@@ -14,6 +14,7 @@ import unittest
 
 ADAPTER = Path(__file__).resolve().parents[1] / "adapter.py"
 JENKINSFILE = ADAPTER.parent / "Jenkinsfile"
+JENKINS_CI = ADAPTER.parent / "jenkins_ci.py"
 GENERIC_ANDROID_ADAPTER = (
     ADAPTER.parents[3] / "tests/device/adapters/android/adapter.py")
 
@@ -593,6 +594,7 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
                 "OVERTE_ANDROID_PHONE_E2E_INPUT = '1'",
                 "OVERTE_ANDROID_E2E_DEBUG = '1'",
                 "OVERTE_ANDROID_ADB",
+                "android/phone/device-tests/jenkins_ci.py",
                 "cleanup-target",
                 "stage-results",
                 "junit(",
@@ -601,6 +603,14 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
         self.assertNotIn("android/vr", source)
         self.assertNotIn("android-pico", source)
         self.assertNotIn("appium-ios", source)
+
+        helper = JENKINS_CI.read_text(encoding="utf-8")
+        self.assertIn('SHARED_HELPER = REPOSITORY_ROOT / "tests/device/jenkins/run_ci.py"',
+                      helper)
+        self.assertIn('VERTICAL_SUITE = "vertical-locomotion"', helper)
+        self.assertIn("helper.SUITES.add(VERTICAL_SUITE)", helper)
+        self.assertNotIn("android/vr", helper)
+        self.assertNotIn("appium", helper)
 
 
 if __name__ == "__main__":

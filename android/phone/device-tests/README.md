@@ -89,3 +89,6 @@ provide a private executable `OVERTE_ANDROID_ADB` Wi-Fi wrapper. Jenkins binds
 only its redacted target alias from Secret Text, reserves the configured
 Lockable Resource, publishes the runner's JUnit and sanitized artifacts, and
 performs locked cleanup after success, failure, or timeout.
+The Phone-scoped [`jenkins_ci.py`](jenkins_ci.py) registers only this suite
+with the shared CI helper; the shared runner and suite implementation remain
+unchanged.
