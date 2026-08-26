@@ -17,7 +17,7 @@ HARNESS = Path(__file__).resolve().parents[1] / "run.py"
 VERIFIER = Path(__file__).resolve().parents[1] / "verify_adapter.py"
 
 ADAPTER = r'''#!/usr/bin/env python3
-import argparse, json, os
+import argparse, json, os, pathlib, sys
 p = argparse.ArgumentParser()
 p.add_argument("action", choices=("discover", "describe", "invoke", "cleanup"))
 p.add_argument("--target")
@@ -32,6 +32,12 @@ if a.action == "discover":
 elif a.action == "describe":
     print(json.dumps({"platform": "mock", "model": "Contract Device"}))
 elif a.action == "invoke":
+    if os.environ.get("MOCK_INVOKE_FAILURE") == "1":
+        print("private adapter failure for " + selector, file=sys.stderr)
+        raise SystemExit(9)
+    if os.environ.get("MOCK_ASSERTION_FAILURE") == "1" and a.operation == "app.process":
+        print("ASSERTION: application process restarted on " + selector, file=sys.stderr)
+        raise SystemExit(9)
     state = os.environ.get("MOCK_STATE")
     if a.operation == "app.launch":
         if state:
@@ -47,11 +53,21 @@ elif a.action == "invoke":
             open(state, "w", encoding="utf-8").write("background")
         value = {"backgrounded": True}
     elif a.operation == "telemetry.snapshot":
-        value = {"memoryPssKb": 100, "batteryLevel": 80, "thermalStatus": 0}
+        value = {"memoryPssKb": 100, "memoryRssKb": 120, "batteryLevel": 80,
+                 "batteryTemperatureDeciC": 250, "thermalStatus": 0}
+        if os.environ.get("MOCK_BAD_TELEMETRY") == "1":
+            value["memoryPssKb"] = None
+    elif a.operation == "artifact.screenshot":
+        destination = pathlib.Path(os.environ["OVERTE_DEVICE_ARTIFACT_DIR"]) / "screenshot.png"
+        destination.write_bytes(b"mock-png")
+        value = {"artifact": destination.name}
     else:
         value = {"operation": a.operation, "arguments": json.loads(a.arguments)}
     print(json.dumps(value))
 else:
+    if os.environ.get("MOCK_CLEANUP_FAILURE") == "1":
+        print("private cleanup transport failure for " + selector, file=sys.stderr)
+        raise SystemExit(9)
     with open(os.environ["MOCK_CLEANUP_MARKER"], "w", encoding="utf-8") as marker:
         marker.write("cleaned\n")
     print(json.dumps({"cleaned": True}))
@@ -132,6 +148,27 @@ class HarnessTest(unittest.TestCase):
         self.assertEqual("skipped", summary["results"][0]["status"])
         self.assertTrue(self.cleanup_marker.exists())
 
+    def test_require_complete_turns_missing_capability_into_error(self):
+        result = self.run_harness(
+            "--require-complete", environment={"MOCK_CAPABILITIES": "telemetry.memory"})
+        self.assertEqual(1, result.returncode, result.stdout)
+        summary = json.loads((self.output / "summary.json").read_text())
+        self.assertEqual("error", summary["results"][0]["status"])
+        junit = ET.parse(self.output / "junit.xml").getroot()
+        self.assertEqual("1", junit.attrib["errors"])
+
+    def test_opt_in_failure_screenshot_is_captured_before_cleanup(self):
+        result = self.run_harness(environment={
+            "MOCK_MODULE_EXIT": "9",
+            "MOCK_CAPABILITIES": "app.process,artifact.screenshot",
+            "OVERTE_E2E_CAPTURE_ARTIFACTS": "1",
+        })
+        self.assertEqual(1, result.returncode, result.stdout)
+        artifact = self.output / "modules/health/screenshot.png"
+        self.assertEqual(b"mock-png", artifact.read_bytes())
+        self.assertIn("Failure screenshot captured", (
+            self.output / "modules/health/module.log").read_text())
+
     def test_virtual_target_requires_explicit_opt_in(self):
         result = self.run_harness(environment={"MOCK_VIRTUAL": "1"})
         self.assertEqual(2, result.returncode, result.stdout)
@@ -177,6 +214,129 @@ class HarnessTest(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stdout)
         metrics = json.loads((self.output / "modules/launch-smoke/metrics.json").read_text())
         self.assertEqual("mock-process-42", metrics["processIdentity"])
+
+    def test_invalid_module_configuration_is_an_infrastructure_error(self):
+        env = os.environ.copy()
+        env.update({
+            "MOCK_CLEANUP_MARKER": str(self.cleanup_marker),
+            "MOCK_STATE": str(self.root / "state"),
+            "MOCK_CAPABILITIES": "app.foreground,app.launch,app.process",
+            "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "not-an-integer",
+            "OVERTE_DEVICE_LOCK_ROOT": str(self.root / "locks"),
+        })
+        result = subprocess.run([
+            sys.executable, str(HARNESS), "--adapter-manifest", str(self.manifest),
+            "--catalog", str(HARNESS.parent / "catalog.json"), "--suite", "smoke",
+            "--output-dir", str(self.output), "--require-complete",
+        ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env, check=False)
+        self.assertEqual(1, result.returncode, result.stdout)
+        summary = json.loads((self.output / "summary.json").read_text())
+        self.assertEqual("error", summary["results"][0]["status"])
+        junit = ET.parse(self.output / "junit.xml").getroot()
+        self.assertEqual("1", junit.attrib["errors"])
+        self.assertIn("INFRASTRUCTURE:", (
+            self.output / "modules/launch-smoke/module.log").read_text())
+
+    def test_portable_idle_soak_uses_process_evidence_without_telemetry(self):
+        env = os.environ.copy()
+        env.update({
+            "MOCK_CLEANUP_MARKER": str(self.cleanup_marker),
+            "MOCK_STATE": str(self.root / "state"),
+            "MOCK_CAPABILITIES": "app.foreground,app.launch,app.process",
+            "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
+            "OVERTE_DEVICE_IDLE_SECONDS": "1",
+            "OVERTE_DEVICE_SAMPLE_SECONDS": "1",
+            "OVERTE_DEVICE_LOCK_ROOT": str(self.root / "locks"),
+        })
+        result = subprocess.run([
+            sys.executable, str(HARNESS), "--adapter-manifest", str(self.manifest),
+            "--catalog", str(HARNESS.parent / "catalog.json"), "--suite", "stability",
+            "--output-dir", str(self.output), "--require-complete",
+        ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env, check=False)
+        self.assertEqual(0, result.returncode, result.stdout)
+        telemetry = (self.output / "modules/idle-soak/telemetry.jsonl").read_text()
+        self.assertIn('"telemetryAvailable": false', telemetry)
+
+    def test_advertised_telemetry_must_be_complete_and_non_null(self):
+        env = os.environ.copy()
+        env.update({
+            "MOCK_CLEANUP_MARKER": str(self.cleanup_marker),
+            "MOCK_STATE": str(self.root / "state"),
+            "MOCK_CAPABILITIES": "app.foreground,app.launch,app.process,telemetry.snapshot",
+            "MOCK_BAD_TELEMETRY": "1",
+            "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
+            "OVERTE_DEVICE_IDLE_SECONDS": "1",
+            "OVERTE_DEVICE_SAMPLE_SECONDS": "1",
+            "OVERTE_DEVICE_LOCK_ROOT": str(self.root / "locks"),
+        })
+        result = subprocess.run([
+            sys.executable, str(HARNESS), "--adapter-manifest", str(self.manifest),
+            "--catalog", str(HARNESS.parent / "catalog.json"), "--suite", "stability",
+            "--output-dir", str(self.output), "--require-complete",
+        ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env, check=False)
+        self.assertEqual(1, result.returncode, result.stdout)
+        self.assertIn("memoryPssKb is missing or invalid", (
+            self.output / "modules/idle-soak/module.log").read_text())
+
+    def test_adapter_failure_is_junit_infrastructure_error_and_redacted(self):
+        env = os.environ.copy()
+        env.update({
+            "MOCK_CLEANUP_MARKER": str(self.cleanup_marker),
+            "MOCK_STATE": str(self.root / "state"),
+            "MOCK_CAPABILITIES": "app.foreground,app.launch,app.process",
+            "MOCK_INVOKE_FAILURE": "1",
+            "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
+            "OVERTE_DEVICE_LOCK_ROOT": str(self.root / "locks"),
+        })
+        result = subprocess.run([
+            sys.executable, str(HARNESS), "--adapter-manifest", str(self.manifest),
+            "--catalog", str(HARNESS.parent / "catalog.json"), "--suite", "smoke",
+            "--output-dir", str(self.output),
+        ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env, check=False)
+        self.assertEqual(1, result.returncode, result.stdout)
+        summary = json.loads((self.output / "summary.json").read_text())
+        self.assertEqual("error", summary["results"][0]["status"])
+        junit = ET.parse(self.output / "junit.xml").getroot()
+        self.assertEqual("1", junit.attrib["errors"])
+        module_log = (self.output / "modules/launch-smoke/module.log").read_text()
+        self.assertIn("INFRASTRUCTURE:", module_log)
+        self.assertNotIn("private-device-123", module_log)
+
+    def test_adapter_product_assertion_is_junit_failure_and_redacted(self):
+        env = os.environ.copy()
+        env.update({
+            "MOCK_CLEANUP_MARKER": str(self.cleanup_marker),
+            "MOCK_STATE": str(self.root / "state"),
+            "MOCK_CAPABILITIES": "app.foreground,app.launch,app.process",
+            "MOCK_ASSERTION_FAILURE": "1",
+            "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
+            "OVERTE_DEVICE_LOCK_ROOT": str(self.root / "locks"),
+        })
+        result = subprocess.run([
+            sys.executable, str(HARNESS), "--adapter-manifest", str(self.manifest),
+            "--catalog", str(HARNESS.parent / "catalog.json"), "--suite", "smoke",
+            "--output-dir", str(self.output),
+        ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env, check=False)
+        self.assertEqual(1, result.returncode, result.stdout)
+        summary = json.loads((self.output / "summary.json").read_text())
+        self.assertEqual("failed", summary["results"][0]["status"])
+        junit = ET.parse(self.output / "junit.xml").getroot()
+        self.assertEqual("1", junit.attrib["failures"])
+        self.assertEqual("0", junit.attrib["errors"])
+        module_log = (self.output / "modules/launch-smoke/module.log").read_text()
+        self.assertIn("ASSERTION: application process restarted", module_log)
+        self.assertNotIn("private-device-123", module_log)
+
+    def test_cleanup_failure_is_junit_infrastructure_error_and_redacted(self):
+        result = self.run_harness(environment={"MOCK_CLEANUP_FAILURE": "1"})
+        self.assertEqual(1, result.returncode, result.stdout)
+        summary = json.loads((self.output / "summary.json").read_text())
+        cleanup = summary["results"][-1]
+        self.assertEqual("target-cleanup", cleanup["id"])
+        self.assertEqual("error", cleanup["status"])
+        junit = ET.parse(self.output / "junit.xml").getroot()
+        self.assertEqual("1", junit.attrib["errors"])
+        self.assertNotIn("private-device-123", (self.output / "junit.xml").read_text())
 
 
 if __name__ == "__main__":

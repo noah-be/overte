@@ -1,4 +1,4 @@
-name: Apple branch topology
+name: Apple path ownership
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  enforce-apple-sync-path:
+  enforce-apple-path-ownership:
     name: Enforce apple-main sync path
     runs-on: ubuntu-latest
     steps:
@@ -19,5 +19,11 @@ jobs:
           fetch-depth: 0
       - name: Fetch current Apple base
         run: git fetch --no-tags origin apple-main:refs/remotes/origin/apple-main
-      - name: Validate branch topology
-        run: python3 tests/apple-branch-topology-check.py --apple-main origin/apple-main --head HEAD
+      - name: Load trusted parent checker
+        run: git show origin/apple-main:tests/apple-branch-topology-check.py > "$RUNNER_TEMP/apple-branch-topology-check.py"
+      - name: Validate ancestry and path ownership
+        run: >-
+          python3 "$RUNNER_TEMP/apple-branch-topology-check.py"
+          --apple-main origin/apple-main
+          --head HEAD
+          --target "${{ github.base_ref }}"
