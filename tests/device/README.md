@@ -27,6 +27,12 @@ assertion failure.
 ## Portable suites
 
 - `smoke`: stable process launch and foreground state.
+- `asset-smoke`: one launch followed by controlled local texture delivery,
+  ready resource state, uniquely tagged Image-entity use, and stable
+  process/foreground evidence. Test logic is implemented; product-adapter
+  activation remains pending. See [`ASSET_LOAD_E2E.md`](ASSET_LOAD_E2E.md).
+- `sound-smoke`: controlled WAV request, decode readiness, and observable
+  in-client injector lifecycle; see [`SOUND_E2E.md`](SOUND_E2E.md).
 - `e2e-core`: launch, controlled scene load, look, movement, and tablet
   open/close behavior.
 - `domain-smoke`: launch, enter an ephemeral controlled domain, and verify its
@@ -112,12 +118,16 @@ python3 tests/device/fixture/serve.py \
   --ready-file /tmp/overte-fixture.json
 ```
 
-The server exposes the repository-owned probe at `/overte_e2e_probe.js`. The
+The server exposes the repository-owned probe at `/overte_e2e_probe.js` and the
+pinned texture plus per-request telemetry used by `asset-smoke`, together with
+the deterministic sound described in [`SOUND_E2E.md`](SOUND_E2E.md). The
 in-client [`probe/overte_e2e_probe.js`](probe/overte_e2e_probe.js) records
 application focus, scene readiness and markers, avatar position, `inAir`,
-`flying`, `flyingEnabled`, camera orientation, tablet state, and build identity through Interface's existing
-test-script result API. Product adapters own the exact launch and result
-transport used to load it.
+`flying`, `flyingEnabled`, camera orientation, tablet state, controlled asset
+resource/entity evidence, sound resource and injector state, and build identity
+through Interface's existing test-script result API. It records no audio
+samples. Product adapters own the exact launch and result transport used to
+load it.
 
 [`fixture/domain.py`](fixture/domain.py) owns the complementary ephemeral
 domain-server and assignment-client stack. The `domain-smoke` assertion waits

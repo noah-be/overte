@@ -25,6 +25,10 @@
       "operation": "artifact.screenshot",
       "result": "{artifact: string}"
     },
+    "asset.load": {
+      "operation": "asset.load",
+      "result": "{requested: true}; completion is verified independently by fixture telemetry and probe.snapshot"
+    },
     "input.fly": {
       "operation": "input.fly",
       "result": "{performed: true}; arguments: {durationSeconds: number from 0.1 through 10.0}"
@@ -56,6 +60,10 @@
     "scene.load": {
       "operation": "scene.load",
       "result": "{requested: true, verification?: fixture-markers}"
+    },
+    "sound.play": {
+      "operation": "sound.play",
+      "result": "{requested: true, commandId: string}; playback must be verified independently through probe.snapshot and fixture request telemetry"
     },
     "tablet.close": {
       "operation": "tablet.close",
