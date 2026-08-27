@@ -14,6 +14,27 @@ The in-client probe verifies the camera, avatar, scene, process, and tablet
 state after each input operation. A successfully delivered key or pointer
 event alone never counts as passed behavior.
 
+Targets that set both `probe.kind: injected-test-script` and
+`clientControl.kind: probe-command-file` additionally advertise
+`navigation.enter-domain`, `asset.load`, and `sound.play`. At launch the adapter
+copies the repository probe into the target's private state directory and
+creates a mode-0600 command file beside it. The running probe accepts only
+versioned navigation, controlled Image-entity, and sound-channel commands.
+Navigation assigns `Window.location` inside the existing Interface process;
+asset loading creates exactly one client-local tagged Image entity. Sound
+commands are POSTed unchanged to the controlled fixture's
+`/sound-command.json` endpoint, and the probe polls that endpoint directly.
+Probe snapshots and fixture HTTP telemetry remain independent completion
+evidence. A missing probe, command file, fixture acknowledgment, or stable
+Interface process identity fails closed.
+
+This in-client path never uses the clipboard, global keyboard shortcuts,
+external URL handlers, or desktop portals. It therefore has the same behavior
+on visible Wayland/Xwayland, private GPU-backed X11, Windows, and macOS without
+expanding their input or screen-capture authority. Omitting `clientControl`
+keeps the three capabilities disabled; pairing it with a host-file probe is a
+configuration error.
+
 Copy `targets.example.json` outside the checkout, keep that file mode 0600, and
 export `OVERTE_DESKTOP_TARGETS` to it. Selectors, local paths, permissions, and
 executable hashes belong to this private target configuration and must not be

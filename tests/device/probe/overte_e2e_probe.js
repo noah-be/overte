@@ -27,7 +27,14 @@
     var androidAssetEntityId = null;
     var assetResource = null;
     var assetResourceUrl = "";
+    var controlledAssetEntity = null;
+    var clientCommandRequestPending = false;
+    var clientCommandUnavailable = false;
+    var lastClientCommandId = "";
     var soundCommandRequestPending = false;
+    // Preserve the shared network-loaded probe contract. Desktop's private
+    // probe copy replaces this local fallback only after the adapter has
+    // posted an exact command to the controlled fixture endpoint.
     var soundCommandUrl = Script.resolvePath("sound-command.json");
     var lastSoundControlCommandId = "";
     var soundResource = null;
@@ -247,7 +254,90 @@
             .replace(/[\r\n]+/g, " ").slice(0, 160);
     }
 
-    function removeControlledAssetEntities() {
+    function objectKeysMatch(value, expected) {
+        if (!value || typeof value !== "object") {
+            return false;
+        }
+        return Object.keys(value).sort().join("|") === expected.slice().sort().join("|");
+    }
+
+    function httpUrl(value) {
+        return typeof value === "string" && /^https?:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\])(?::[0-9]+)?(?:[/?#]|$)/.test(value);
+    }
+
+    function applyClientCommand(command) {
+        if (!command || command.schemaVersion !== 1 || !command.commandId
+                || command.commandId === lastClientCommandId) {
+            return;
+        }
+        if (command.action === "navigate"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "url"])
+                && typeof command.url === "string"
+                && /^hifi:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\]):[0-9]+(?:\/|$)/.test(command.url)) {
+            lastClientCommandId = String(command.commandId);
+            Window.location = command.url;
+            return;
+        }
+        if (command.action === "asset-load"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action",
+                    "assetId", "url", "entityName"])
+                && typeof command.assetId === "string" && command.assetId.length > 0
+                && typeof command.entityName === "string"
+                && command.entityName.indexOf("OVERTE_E2E_ASSET_LOAD") === 0
+                && httpUrl(command.url)) {
+            if (controlledAssetEntity !== null) {
+                Entities.deleteEntity(controlledAssetEntity);
+                controlledAssetEntity = null;
+            }
+            controlledAssetEntity = Entities.addEntity({
+                type: "Image",
+                name: command.entityName,
+                imageURL: command.url,
+                userData: JSON.stringify({ overteE2EAssetId: command.assetId }),
+                position: Vec3.sum(MyAvatar.position, Vec3.multiply(
+                    2.0, Quat.getForward(Camera.orientation))),
+                dimensions: { x: 1.0, y: 1.0, z: 0.01 }
+            }, "local");
+            lastClientCommandId = String(command.commandId);
+            return;
+        }
+        if (command.action === "sound-channel"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "url"])
+                && httpUrl(command.url)) {
+            soundCommandUrl = String(command.url);
+            lastClientCommandId = String(command.commandId);
+        }
+    }
+
+    function pollClientCommand() {
+        if (clientCommandUnavailable || clientCommandRequestPending) {
+            return;
+        }
+        clientCommandRequestPending = true;
+        var request = new XMLHttpRequest();
+        request.onreadystatechange = function () {
+            if (request.readyState !== request.DONE) {
+                return;
+            }
+            clientCommandRequestPending = false;
+            if (request.status === 0 || request.status === 200) {
+                try {
+                    applyClientCommand(JSON.parse(request.responseText));
+                } catch (error) {
+                    print("OVERTE_E2E_CLIENT_COMMAND_ERROR " + safeErrorText(error));
+                }
+            } else if (request.status >= 400) {
+                // A network-loaded shared probe has no desktop command file.
+                // Keep its pre-existing sound endpoint behavior without
+                // polling a permanent 404 for the rest of the session.
+                clientCommandUnavailable = true;
+            }
+        };
+        request.open("GET", Script.resolvePath("desktop-command.json"));
+        request.send();
+    }
+
+    function removeAndroidControlledAssetEntities() {
         var ids = Entities.findEntities(MyAvatar.position, 1000.0);
         var index;
         for (index = 0; index < ids.length; index += 1) {
@@ -265,14 +355,22 @@
                 || command.commandId === lastAndroidControlCommandId) {
             return;
         }
-        lastAndroidControlCommandId = String(command.commandId);
-        if (command.action === "enter-domain" && typeof command.url === "string") {
+        if (command.action === "enter-domain"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "url"])
+                && typeof command.url === "string"
+                && /^hifi:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\]):[0-9]+(?:\/|$)/.test(command.url)) {
+            lastAndroidControlCommandId = String(command.commandId);
             location.href = command.url;
             return;
         }
-        if (command.action === "load-asset" && typeof command.assetId === "string"
-                && typeof command.entityName === "string" && typeof command.url === "string") {
-            removeControlledAssetEntities();
+        if (command.action === "load-asset"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action",
+                    "assetId", "entityName", "url"])
+                && typeof command.assetId === "string" && command.assetId.length > 0
+                && typeof command.entityName === "string"
+                && command.entityName.indexOf("OVERTE_E2E_ASSET_LOAD") === 0
+                && httpUrl(command.url)) {
+            removeAndroidControlledAssetEntities();
             androidAssetEntityId = Entities.addEntity({
                 type: "Image",
                 name: command.entityName,
@@ -286,11 +384,15 @@
                 dimensions: { x: 1.0, y: 1.0, z: 0.01 },
                 lifetime: 300
             }, "local");
+            lastAndroidControlCommandId = String(command.commandId);
             return;
         }
-        if (command.action === "sound-channel" && typeof command.commandUrl === "string"
-                && /^https?:\/\//.test(command.commandUrl)) {
-            soundCommandUrl = command.commandUrl;
+        if (command.action === "sound-channel"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action",
+                    "commandUrl"])
+                && httpUrl(command.commandUrl)) {
+            soundCommandUrl = String(command.commandUrl);
+            lastAndroidControlCommandId = String(command.commandId);
         }
     }
 
@@ -348,7 +450,7 @@
     }
 
     function pollSoundCommand() {
-        if (soundCommandRequestPending) {
+        if (!soundCommandUrl || soundCommandRequestPending) {
             return;
         }
         soundCommandRequestPending = true;
@@ -372,6 +474,7 @@
 
     function sample(now) {
         pollAndroidControlMarker();
+        pollClientCommand();
         pollSoundCommand();
         var currentAddress = String(location.href);
         var currentLocationKey = [String(location.protocol), String(location.hostname),
@@ -587,6 +690,10 @@
             androidAssetEntityId = null;
         }
         releaseAssetResource();
+        if (controlledAssetEntity !== null) {
+            Entities.deleteEntity(controlledAssetEntity);
+            controlledAssetEntity = null;
+        }
     });
     updateProbe();
 }());

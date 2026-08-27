@@ -340,10 +340,10 @@ class AndroidAdapterTest(unittest.TestCase):
     def test_probe_executes_real_controlled_actions_and_reports_observations(self):
         probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
         self.assertIn("location.href = command.url", probe)
-        self.assertEqual(1, probe.count("Entities.addEntity("))
+        self.assertEqual(1, probe.count("androidAssetEntityId = Entities.addEntity("))
         self.assertIn("overteE2EAssetId: command.assetId", probe)
         self.assertIn('}, "local")', probe)
-        self.assertIn("soundCommandUrl = command.commandUrl", probe)
+        self.assertIn("soundCommandUrl = String(command.commandUrl)", probe)
         self.assertIn("SoundCache.getSound(soundState.url)", probe)
         self.assertIn("Audio.playSound(soundResource", probe)
         self.assertNotIn("soundState.resourceReady = true", probe)
