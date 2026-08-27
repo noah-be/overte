@@ -5,7 +5,7 @@
       "id": "launch-smoke",
       "description": "Launch the application and verify a stable foreground process.",
       "command": ["modules/launch_smoke.py"],
-      "suites": ["e2e-core", "smoke", "stability"],
+      "suites": ["e2e-core", "smoke", "stability", "vertical-locomotion"],
       "requires": ["app.foreground", "app.launch", "app.process"],
       "timeoutSeconds": 120
     },
