@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "serviceRuntimeRevision": 6,
+  "serviceRuntimeRevision": 7,
   "resolvedAt": "2026-08-27",
   "sources": {
     "npmRegistry": "https://registry.npmjs.org/",

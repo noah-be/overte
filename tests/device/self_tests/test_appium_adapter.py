@@ -782,7 +782,7 @@ class AppiumAdapterTests(unittest.TestCase):
                 "notAfter": (now + timedelta(days=2)).isoformat().replace("+00:00", "Z"),
                 "provenance": {
                     "mode": "personal-team-manual-signing",
-                    "unsignedKitContract": "overte-ios-personal-team-e2e-kit-v1",
+                    "unsignedKitContract": "overte-ios-personal-team-e2e-kit-v2",
                     "unsignedKitManifestSha256": "c" * 64,
                     "attestationContract": "overte-ios-personal-team-signed-handoff-v1",
                     "derivationBinding": "human-verified",
@@ -847,10 +847,10 @@ class AppiumAdapterTests(unittest.TestCase):
                     "installationProxyValidated": True,
                     "bundleIdentifierMode": "fixed",
                     "attestationSha256": "e" * 64,
-                    "unsignedKitContract": "overte-ios-personal-team-e2e-kit-v1",
+                    "unsignedKitContract": "overte-ios-personal-team-e2e-kit-v2",
                     "unsignedKitManifestSha256": "f" * 64,
                     "attestationContract":
-                        "overte-ios-personal-team-preinstalled-attestation-v1",
+                        "overte-ios-personal-team-preinstalled-attestation-v2",
                     "signingObservation": None,
                 },
                 "overte": {"bundleId": "org.overte.interface.e2e", "installed": True},

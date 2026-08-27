@@ -94,6 +94,37 @@ class IosSecurityToolsTest(unittest.TestCase):
         with self.assertRaises(TOOLS.ToolError):
             TOOLS.private_directory(link)
 
+    def test_selected_install_downloads_only_requested_pin(self):
+        lock = {
+            "appium": {"iosSecurity": {
+                "age": {"version": "1.2.1", "executableSha256": "1" * 64,
+                        "artifact": {"url": "https://github.com/age", "sha256": "2" * 64}},
+                "rcodesign": {"version": "0.29.0", "executableSha256": "3" * 64,
+                              "artifact": {"url": "https://github.com/rcodesign",
+                                           "sha256": "4" * 64}},
+            }}
+        }
+        executable = self.root / "tools/rcodesign-0.29.0/rcodesign"
+
+        def fake_extract(_archive, member, destination, _digest):
+            self.assertIn("rcodesign", member)
+            destination.write_bytes(b"rcodesign")
+
+        with (mock.patch.object(TOOLS.platform, "system", return_value="Linux"),
+              mock.patch.object(TOOLS.platform, "machine", return_value="x86_64"),
+              mock.patch.object(TOOLS.json, "loads", return_value=lock),
+              mock.patch.object(TOOLS, "download") as download,
+              mock.patch.object(TOOLS, "extract_executable", side_effect=fake_extract)):
+            installed = TOOLS.install(self.root / "tools", ("rcodesign",))
+        self.assertEqual({"rcodesign": executable}, installed)
+        self.assertEqual(1, download.call_count)
+
+    def test_selected_install_rejects_duplicates_or_unknown_tools(self):
+        with self.assertRaisesRegex(TOOLS.ToolError, "selection"):
+            TOOLS.install(self.root / "duplicate", ("rcodesign", "rcodesign"))
+        with self.assertRaisesRegex(TOOLS.ToolError, "selection"):
+            TOOLS.install(self.root / "unknown", ("unknown",))
+
 
 if __name__ == "__main__":
     unittest.main()

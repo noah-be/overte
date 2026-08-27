@@ -248,7 +248,7 @@ sudo python3 tests/device/ios/remotexpc_tunnel.py install-unit \
 Run it only from an audited, quiescent checkout and staging tree. It atomically
 copies the pinned Node executable, package files, complete npm tree, tunnel
 wrapper, and toolchain lock into
-`/usr/local/lib/overte-ios-remotexpc/5.15.3-r6`. The suffix is the immutable
+`/usr/local/lib/overte-ios-remotexpc/5.15.3-r7`. The suffix is the immutable
 Overte packaging revision; the pinned RemoteXPC package remains 5.15.3. Source
 and destination trees are hashed before publication. Every installed file is
 root-owned and immutable. Existing content and modes are only attested, never
@@ -307,14 +307,14 @@ directory through the private `IOS_DDI_ROOT` parameter.
 Attest status without elevation:
 
 ```bash
-python3 /usr/local/lib/overte-ios-remotexpc/5.15.3-r6/remotexpc_tunnel.py status
+python3 /usr/local/lib/overte-ios-remotexpc/5.15.3-r7/remotexpc_tunnel.py status
 ```
 
 Jenkins must also start Appium from the immutable runtime, never from a mutable
 user `node_modules`:
 
 ```bash
-/usr/local/lib/overte-ios-remotexpc/5.15.3-r6/remotexpc_tunnel.py appium-server \
+/usr/local/lib/overte-ios-remotexpc/5.15.3-r7/remotexpc_tunnel.py appium-server \
   --state-root /private/jenkins-job/appium-state \
   --address 127.0.0.1 --port 4723
 ```

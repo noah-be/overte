@@ -463,7 +463,7 @@ class AppiumAdapter:
                     "attestationContract", "derivationBinding"}
                 and provenance.get("mode") == "personal-team-manual-signing"
                 and provenance.get("unsignedKitContract")
-                == "overte-ios-personal-team-e2e-kit-v1"
+                == "overte-ios-personal-team-e2e-kit-v2"
                 and isinstance(provenance.get("unsignedKitManifestSha256"), str)
                 and re.fullmatch(r"[0-9a-f]{64}",
                                  provenance["unsignedKitManifestSha256"]) is not None
@@ -500,12 +500,12 @@ class AppiumAdapter:
                 and re.fullmatch(r"[0-9a-f]{64}", provenance["attestationSha256"])
                 is not None
                 and provenance.get("unsignedKitContract")
-                == "overte-ios-personal-team-e2e-kit-v1"
+                == "overte-ios-personal-team-e2e-kit-v2"
                 and isinstance(provenance.get("unsignedKitManifestSha256"), str)
                 and re.fullmatch(r"[0-9a-f]{64}",
                                  provenance["unsignedKitManifestSha256"]) is not None
                 and provenance.get("attestationContract")
-                == "overte-ios-personal-team-preinstalled-attestation-v1"
+                == "overte-ios-personal-team-preinstalled-attestation-v2"
                 and valid_observation
             )
         if not valid_provenance:

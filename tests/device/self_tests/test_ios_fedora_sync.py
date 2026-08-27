@@ -319,8 +319,9 @@ class IosFedoraSyncTest(unittest.TestCase):
         attestation = self.root / "personal-team-preinstalled-attestation.json"
         SYNC.secure_json(attestation, {
             "schemaVersion": 1,
-            "contract": "overte-ios-personal-team-preinstalled-attestation-v1",
+            "contract": "overte-ios-personal-team-preinstalled-attestation-v2",
             "sourceRevision": self.revision,
+            "unsignedKitContract": "overte-ios-personal-team-e2e-kit-v2",
             "unsignedKitManifestSha256": "3" * 64,
             "createdAt": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "notAfter": (now + timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -343,10 +344,19 @@ class IosFedoraSyncTest(unittest.TestCase):
             },
             "signingObservation": None,
         })
+        obsolete = self.root / "obsolete-preinstalled-attestation.json"
+        obsolete_value = json.loads(attestation.read_text(encoding="utf-8"))
+        obsolete_value["contract"] = (
+            "overte-ios-personal-team-preinstalled-attestation-v1"
+        )
+        obsolete_value.pop("unsignedKitContract")
+        SYNC.secure_json(obsolete, obsolete_value)
+        with self.assertRaisesRegex(SYNC.HandoffError, "contract is invalid"):
+            SYNC.validate_preinstalled_attestation(obsolete)
         arguments = mock.Mock(
             attestation=attestation.resolve(), destination=(self.root / "runs"),
             target_config=config_path.resolve(), target_selector="private-selector",
-            service_runtime=Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r6"),
+            service_runtime=Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r7"),
         )
         discovered = {
             "overteBundleId": "com.sideloadly.slot.overte",

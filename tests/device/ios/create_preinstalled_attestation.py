@@ -14,12 +14,22 @@ import stat
 import sys
 
 
-KIT_CONTRACT = "overte-ios-personal-team-e2e-kit-v1"
-ATTESTATION_CONTRACT = "overte-ios-personal-team-preinstalled-attestation-v1"
+KIT_CONTRACT = "overte-ios-personal-team-e2e-kit-v2"
+ATTESTATION_CONTRACT = "overte-ios-personal-team-preinstalled-attestation-v2"
 BUNDLES = {
     "overte": "org.overte.interface.e2e",
     "wdaRunner": "org.overte.WebDriverAgentRunner.xctrunner",
     "wdaXCTest": "org.overte.WebDriverAgentRunner",
+}
+WDA_CREDENTIAL_FREE_SIGNING = {
+    "nestedBundle": "PlugIns/WebDriverAgentRunner.xctest",
+    "method": "ad-hoc",
+    "outerRunnerBundleCodeResourcesPresent": False,
+    "outerRunnerNewAdHocSignatureApplied": False,
+    "outerRunnerProvisioned": False,
+    "signer": "rcodesign", "signerVersion": "0.29.0",
+    "signerExecutableSha256":
+        "dab9a7465f96aba3c81e793775510f745b91a46b6418e89f7317b5d8fc7bcea2",
 }
 TOOLCHAIN = {
     "xcuitestDriver": "12.8.0", "remoteXpc": "5.15.3",
@@ -63,7 +73,8 @@ def validate_kit(path: Path, *, private: bool = True) -> dict:
     required = {
         "schemaVersion", "contract", "sourceRevision", "createdAt", "provenance",
         "xcuitestDriverVersion", "webDriverAgentVersion", "desiredBundleIdentifiers",
-        "humanSigningBoundary", "upstream", "artifacts",
+        "webDriverAgentCredentialFreeSigning", "humanSigningBoundary", "upstream",
+        "artifacts",
     }
     provenance = value.get("provenance") if isinstance(value, dict) else None
     artifacts = value.get("artifacts") if isinstance(value, dict) else None
@@ -74,6 +85,8 @@ def validate_kit(path: Path, *, private: bool = True) -> dict:
             or not re.fullmatch(r"[0-9a-f]{40}", value["sourceRevision"])
             or value.get("xcuitestDriverVersion") != "12.8.0"
             or value.get("webDriverAgentVersion") != "16.8.0"
+            or value.get("webDriverAgentCredentialFreeSigning")
+            != WDA_CREDENTIAL_FREE_SIGNING
             or value.get("desiredBundleIdentifiers") != BUNDLES
             or value.get("humanSigningBoundary") != {
                 "method": "manual-sideloadly-personal-team",
@@ -145,6 +158,7 @@ def create(arguments: argparse.Namespace) -> dict:
         "sourceRevision": kit["sourceRevision"],
         "createdAt": created.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "notAfter": (created + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "unsignedKitContract": KIT_CONTRACT,
         "unsignedKitManifestSha256": sha256_file(arguments.unsigned_kit),
         "expectedBundleIdentifiers": BUNDLES,
         "bundleIdentifierMode": identifier_mode,

@@ -22,7 +22,7 @@ SPEC.loader.exec_module(LOCK)
 class IosToolchainLockTest(unittest.TestCase):
     def test_checked_in_lock_and_full_npm_resolution_are_exact(self):
         value = LOCK.validate()
-        self.assertEqual(6, value["serviceRuntimeRevision"])
+        self.assertEqual(7, value["serviceRuntimeRevision"])
         self.assertEqual("3.7.0", value["appium"]["core"]["version"])
         self.assertEqual("12.8.0", value["appium"]["drivers"]["xcuitest"]["version"])
         self.assertEqual("5.15.3", value["appium"]["iosRuntime"]["remoteXpc"]["version"])

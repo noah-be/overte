@@ -47,7 +47,7 @@ PERSONAL_WDA_IPA = "WebDriverAgentRunner-16.8.0-PersonalTeam-signed.ipa"
 PROTECTED_RECEIPT = "overte-ios-fedora-e2e-receipt-v1"
 PERSONAL_RECEIPT = "overte-ios-personal-team-artifact-receipt-v1"
 PREINSTALLED_RECEIPT = "overte-ios-personal-team-preinstalled-receipt-v1"
-PINNED_SERVICE_RUNTIME = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r6")
+PINNED_SERVICE_RUNTIME = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r7")
 MAX_ACTIONS_ARCHIVE_BYTES = 4 * 1024 * 1024 * 1024
 MAX_ENCRYPTED_BYTES = 4 * 1024 * 1024 * 1024
 MAX_INNER_ZIP_BYTES = 4 * 1024 * 1024 * 1024
@@ -730,6 +730,7 @@ def validate_preinstalled_attestation(path: Path) -> tuple[dict, datetime]:
         "schemaVersion", "contract", "sourceRevision", "createdAt", "notAfter",
         "expectedBundleIdentifiers", "toolchain", "humanAttestation",
         "signingObservation", "unsignedKitManifestSha256", "bundleIdentifierMode",
+        "unsignedKitContract",
     }
     bundles = {
         "overte": "org.overte.interface.e2e",
@@ -759,7 +760,9 @@ def validate_preinstalled_attestation(path: Path) -> tuple[dict, datetime]:
     if (not isinstance(value, dict) or set(value) != expected_keys
             or value.get("schemaVersion") != 1
             or value.get("contract")
-            != "overte-ios-personal-team-preinstalled-attestation-v1"
+            != "overte-ios-personal-team-preinstalled-attestation-v2"
+            or value.get("unsignedKitContract")
+            != "overte-ios-personal-team-e2e-kit-v2"
             or not isinstance(value.get("sourceRevision"), str)
             or not REVISION_RE.fullmatch(value["sourceRevision"])
             or not isinstance(value.get("unsignedKitManifestSha256"), str)
@@ -916,10 +919,10 @@ def run_preinstalled(arguments: argparse.Namespace) -> int:
             "installationProxyValidated": True,
             "bundleIdentifierMode": identifier_mode,
             "attestationSha256": digest,
-            "unsignedKitContract": "overte-ios-personal-team-e2e-kit-v1",
+            "unsignedKitContract": attestation["unsignedKitContract"],
             "unsignedKitManifestSha256": attestation["unsignedKitManifestSha256"],
             "attestationContract":
-                "overte-ios-personal-team-preinstalled-attestation-v1",
+                "overte-ios-personal-team-preinstalled-attestation-v2",
             "signingObservation": attestation["signingObservation"],
         }
         receipt = temporary / "personal-team-preinstalled-receipt.json"

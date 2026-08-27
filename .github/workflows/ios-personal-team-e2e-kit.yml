@@ -173,6 +173,8 @@ jobs:
       - name: Create fixed-identity credential-free signing kit
         run: |
           set -euo pipefail
+          python3 tests/device/ios/security_tools.py \
+            --root "$KIT_ROOT/security-tools" --tool rcodesign
           shopt -s nullglob
           ipas=("$KIT_ROOT"/integrated/*-OverteIOSClient-Release-device-unsigned.ipa)
           manifests=("$KIT_ROOT"/integrated/*-OverteIOSClient-Release-device-unsigned.json)
@@ -194,12 +196,13 @@ jobs:
             --workflow .github/workflows/ios-bootstrap.yml \
             --reusable-workflow .github/workflows/ios-personal-team-e2e-kit.yml \
             --run-id "$GITHUB_RUN_ID" \
-            --run-attempt "$GITHUB_RUN_ATTEMPT"
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --rcodesign "$KIT_ROOT/security-tools/rcodesign-0.29.0/rcodesign"
 
       - name: Upload public unsigned Personal Team kit
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: ios-personal-team-e2e-kit-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ios-personal-team-e2e-kit-v2-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ env.KIT_ROOT }}/output/Overte-PersonalTeam-E2E-unsigned.ipa
             ${{ env.KIT_ROOT }}/output/WebDriverAgentRunner-16.8.0-PersonalTeam-unsigned.ipa

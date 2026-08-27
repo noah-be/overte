@@ -36,10 +36,17 @@ WebDriverAgentRunner-16.8.0-PersonalTeam-unsigned.ipa
 personal-team-e2e-kit.json
 ```
 
-The manifest binds both unsigned files by SHA-256 and size to one source
+The manifest binds both credential-free files by SHA-256 and size to one source
 revision and exact GitHub repository ID, bootstrap/reusable workflow, protected
 ref, run ID and attempt. It also binds XCUITest Driver 12.8.0, WDA 16.8.0, the
-three fixed identifiers, and the `overte-ios-personal-team-e2e-kit-v1` contract.
+three fixed identifiers, and the `overte-ios-personal-team-e2e-kit-v2` contract.
+Version 2 is intentionally incompatible with the earlier kit: the pinned
+open-source `rcodesign` 0.29.0 adds a public ad-hoc signature to the nested
+`WebDriverAgentRunner.xctest` and its embedded framework after their final
+credential-free metadata rewrite. The outer WDA application remains without
+bundle CodeResources or a provisioning profile and still requires Sideloadly's
+Personal-Team signing. No Apple credential, certificate, private key, profile,
+team identity, or device identity is used by this preparation step.
 It declares
 `derivationBinding: human-verified` and
 `signedBytesDerivableFromUnsignedKit: false`: a re-signing tool changes bundle
@@ -58,7 +65,11 @@ proof that the Personal-Team-signed installation bytes were exported.
 2. In Sideloadly, select Apple ID sideload and the intended trusted device.
    Prefer the fixed identifiers. If Sideloadly remaps them, do not create extra
    duplicate installations and use the explicit remapped-attestation flag
-   below. Never remove WDA's nested XCTest plug-in.
+   below. Never remove WDA's nested XCTest plug-in. A tool that rewrites the
+   nested XCTest `Info.plist` must also re-sign that nested bundle; otherwise
+   iOS invalidates its ad-hoc signature and WDA closes immediately. The first
+   controlled Appium/XCTest session is therefore still a mandatory hardware
+   gate even after InstallationProxy accepts the two outer applications.
 3. Install the Overte IPA and then the WDA IPA with the same Apple account.
    Credentials and two-factor codes remain solely in Sideloadly on that host.
 4. Trust the resulting developer application and enable Developer Mode on the

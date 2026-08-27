@@ -66,7 +66,7 @@ class IosPersonalTeamFetchTest(unittest.TestCase):
             "repository": {"id": 42},
         }
         item = {
-            "name": "ios-personal-team-e2e-kit-v1-123-2", "expired": False,
+            "name": "ios-personal-team-e2e-kit-v2-123-2", "expired": False,
             "id": 77, "digest": "sha256:" + "1" * 64,
             "archive_download_url":
                 "https://api.github.com/repos/noah-be/overte/actions/artifacts/77/zip",
@@ -76,7 +76,7 @@ class IosPersonalTeamFetchTest(unittest.TestCase):
             },
         }
         self.assertIs(item, FETCH.select_artifact({"total_count": 1, "artifacts": [item]}, run))
-        item["name"] = "ios-personal-team-e2e-kit-v1-999-1"
+        item["name"] = "ios-personal-team-e2e-kit-v2-999-1"
         with self.assertRaisesRegex(FETCH.SYNC.HandoffError, "no unique"):
             FETCH.select_artifact({"total_count": 1, "artifacts": [item]}, run)
 
