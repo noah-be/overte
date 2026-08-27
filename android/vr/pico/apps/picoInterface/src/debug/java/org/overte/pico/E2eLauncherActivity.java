@@ -11,6 +11,6 @@ import org.overte.e2e.E2eLauncherActivityBase;
 public final class E2eLauncherActivity extends E2eLauncherActivityBase {
     @Override
     protected Class<? extends Activity> interfaceActivity() {
-        return E2ePicoInterfaceActivity.class;
+        return PicoInterfaceActivity.class;
     }
 }

@@ -16,7 +16,7 @@ import org.qtproject.qt5.android.bindings.QtActivity;
 
 import io.highfidelity.utils.HifiUtils;
 
-public class PicoInterfaceActivity extends QtActivity {
+public final class PicoInterfaceActivity extends QtActivity {
     private static final String TAG = "OvertePico";
     private static final PicoActivityInstancePolicy<PicoInterfaceActivity> INSTANCE =
         new PicoActivityInstancePolicy<>();

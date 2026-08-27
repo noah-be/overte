@@ -91,53 +91,13 @@ class PicoPackageContractTests(unittest.TestCase):
         self.assertEqual(1, len(activity_sources))
         self.assertFalse(list((APP / "src/main").rglob("E2eLauncherActivity.java")))
 
-        activity = ET.parse(debug_manifest).getroot().find(
-            "application/activity[@android:name='.E2eLauncherActivity']",
-            {"android": NS[1:-1]},
-        )
+        activity = ET.parse(debug_manifest).getroot().find("application/activity")
         self.assertIsNotNone(activity)
         self.assertEqual("true", activity.attrib[NS + "exported"])
         self.assertEqual("android.permission.DUMP", activity.attrib[NS + "permission"])
         self.assertEqual("true", activity.attrib[NS + "noHistory"])
         launcher = activity_sources[0].read_text(encoding="utf-8")
         self.assertIn("extends E2eLauncherActivityBase", launcher)
-
-    def test_e2e_uses_factory_minimum_brightness_without_global_settings(self):
-        debug_java = APP / "src/debug/java/org/overte/pico"
-        e2e_activity = debug_java / "E2ePicoInterfaceActivity.java"
-        self.assertTrue(e2e_activity.is_file())
-        self.assertFalse(
-            list((APP / "src/main").rglob("E2ePicoInterfaceActivity.java"))
-        )
-
-        source = e2e_activity.read_text(encoding="utf-8")
-        self.assertIn("extends PicoInterfaceActivity", source)
-        self.assertIn("1.0f / 255.0f", source)
-        self.assertIn(
-            "attributes.screenBrightness = MINIMUM_SCREEN_BRIGHTNESS", source
-        )
-        self.assertIn("getWindow().setAttributes(attributes)", source)
-        for prohibited in ("Settings.System", "settings put", "screen_off_timeout"):
-            self.assertNotIn(prohibited, source)
-
-        launcher = (debug_java / "E2eLauncherActivity.java").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn("return E2ePicoInterfaceActivity.class", launcher)
-
-        debug_manifest = ET.parse(APP / "src/debug/AndroidManifest.xml").getroot()
-        activities = {
-            item.attrib[NS + "name"]: item
-            for item in debug_manifest.findall("application/activity")
-        }
-        e2e_entry = activities[".E2ePicoInterfaceActivity"]
-        self.assertEqual("false", e2e_entry.attrib[NS + "exported"])
-        self.assertEqual("singleTask", e2e_entry.attrib[NS + "launchMode"])
-        self.assertIsNotNone(
-            e2e_entry.find("meta-data[@android:name='android.app.lib_name']", {
-                "android": NS[1:-1],
-            })
-        )
 
     def test_e2e_assets_and_native_layer_are_debug_only(self):
         self.assertIn("device_tests/e2e_android/src/main/java", GRADLE)
