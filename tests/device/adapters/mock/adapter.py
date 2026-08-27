@@ -4,12 +4,14 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 from pathlib import Path
 import sys
 import time
 from urllib.parse import urlsplit
+from urllib.request import urlopen
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -18,8 +20,9 @@ from contracts import validate_operation_arguments
 
 CAPABILITIES = sorted([
     "accessibility.snapshot", "app.foreground", "app.launch", "app.process",
-    "input.fly", "input.jump", "input.look", "input.move", "navigation.enter-domain",
-    "probe.snapshot", "scene.load", "tablet.close", "tablet.open",
+    "asset.load", "input.fly", "input.jump", "input.look", "input.move",
+    "navigation.enter-domain", "probe.snapshot", "scene.load", "tablet.close",
+    "tablet.open",
 ])
 
 
@@ -48,6 +51,7 @@ def initial_state() -> dict:
         "groundY": 1.0, "inAir": False, "flying": False, "flyingEnabled": True,
         "locomotion": None, "locomotionSamples": 0,
         "orientation": {"x": 0.0, "y": 0.0, "z": 0.0}, "tablet": False,
+        "processRevision": 0, "asset": None,
     }
 
 
@@ -74,8 +78,11 @@ def invoke(operation: str, arguments: dict) -> dict:
         state["launchCount"] += 1
         result = {"launched": True}
     elif operation == "app.process":
+        identity = "mock-e2e-process"
+        if state.get("processRevision", 0):
+            identity += f"-{state['processRevision']}"
         return {"running": state["running"],
-                "identity": "mock-e2e-process" if state["running"] else None}
+                "identity": identity if state["running"] else None}
     elif operation == "app.foreground":
         return {"foreground": state["foreground"]}
     elif operation == "scene.load":
@@ -101,6 +108,40 @@ def invoke(operation: str, arguments: dict) -> dict:
         state["domainId"] = os.environ.get(
             "OVERTE_MOCK_E2E_DOMAIN_ID", "11111111-2222-4333-8444-555555555555")
         state["domainEnterCount"] += 1
+        result = {"requested": True}
+    elif operation == "asset.load":
+        asset_id = arguments["assetId"]
+        url = arguments["url"]
+        entity_name = arguments["entityName"]
+        state["asset"] = {
+            "assetId": asset_id,
+            "resource": {"url": url, "state": "loading"},
+            "entity": {
+                "id": "{11111111-2222-4333-8444-555555555555}",
+                "name": entity_name, "type": "Image", "imageURL": url,
+                "naturalDimensions": {"x": 0.1, "y": 0.1, "z": 0.01},
+            },
+        }
+        payload = None
+        if os.environ.get("OVERTE_MOCK_ASSET_SKIP_HTTP") != "1":
+            with urlopen(url, timeout=5) as response:
+                payload = response.read()
+            if len(payload) < 24 or payload[:8] != b"\x89PNG\r\n\x1a\n":
+                raise RuntimeError("mock asset is not a PNG")
+        if os.environ.get("OVERTE_MOCK_ASSET_NEVER_FINISH") != "1":
+            if payload is None:
+                width, height = 3, 1
+            else:
+                width = int.from_bytes(payload[16:20], "big")
+                height = int.from_bytes(payload[20:24], "big")
+            state["asset"]["resource"]["state"] = "finished"
+            state["asset"]["entity"]["naturalDimensions"] = {
+                "x": 1.0 if width >= height else width / height,
+                "y": height / width if width >= height else 1.0,
+                "z": 0.01,
+            }
+        if os.environ.get("OVERTE_MOCK_ASSET_RESTART") == "1":
+            state["processRevision"] = state.get("processRevision", 0) + 1
         result = {"requested": True}
     elif operation == "input.look":
         state["orientation"]["y"] += 30.0
@@ -167,8 +208,18 @@ def invoke(operation: str, arguments: dict) -> dict:
                        "flying": state["flying"], "flyingEnabled": state["flyingEnabled"]},
             "view": {"orientation": state["orientation"]},
             "tablet": {"open": state["tablet"], "home": state["tablet"]},
+            "asset": copy.deepcopy(state.get("asset")),
         }
         save(state)
+        if snapshot["asset"] is not None:
+            if os.environ.get("OVERTE_MOCK_ASSET_WRONG_ID") == "1":
+                snapshot["asset"]["assetId"] += "-wrong"
+            if os.environ.get("OVERTE_MOCK_ASSET_WRONG_URL") == "1":
+                wrong_url = snapshot["asset"]["resource"]["url"] + "-wrong"
+                snapshot["asset"]["resource"]["url"] = wrong_url
+                snapshot["asset"]["entity"]["imageURL"] = wrong_url
+            if os.environ.get("OVERTE_MOCK_ASSET_INCOMPLETE_PROBE") == "1":
+                snapshot["asset"].pop("entity", None)
         return snapshot
     elif operation == "accessibility.snapshot":
         identifier = "OverteTabletClose" if state["tablet"] else "OverteTabletOpen"

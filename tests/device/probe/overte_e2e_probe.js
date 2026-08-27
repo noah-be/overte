@@ -11,6 +11,8 @@
     var previousAvatarPosition = null;
     var sceneReady = false;
     var previousLocationKey = "";
+    var assetResource = null;
+    var assetResourceUrl = "";
     var fixtureMarkers = ["OVERTE_E2E_FLOOR", "OVERTE_E2E_NORTH", "OVERTE_E2E_EAST", "OVERTE_E2E_ORIGIN"];
     var domainMarkers = ["OVERTE_E2E_DOMAIN_FLOOR", "OVERTE_E2E_DOMAIN_NORTH",
         "OVERTE_E2E_DOMAIN_EAST", "OVERTE_E2E_DOMAIN_ORIGIN"];
@@ -28,6 +30,81 @@
             dominantHand: right && !left ? "right" : (left && !right ? "left" : "invalid"),
             advancedMovementControls:
                 Number(Controller.getValue(application.AdvancedMovement)) > 0.5
+        };
+    }
+
+    function releaseAssetResource() {
+        if (assetResource !== null) {
+            assetResource.release();
+            assetResource = null;
+        }
+        assetResourceUrl = "";
+    }
+
+    function resourceStateName(state) {
+        if (state === Resource.State.QUEUED) {
+            return "queued";
+        }
+        if (state === Resource.State.LOADING) {
+            return "loading";
+        }
+        if (state === Resource.State.LOADED) {
+            return "loaded";
+        }
+        if (state === Resource.State.FINISHED) {
+            return "finished";
+        }
+        return "failed";
+    }
+
+    function observeAsset(ids) {
+        var candidates = [];
+        var index;
+        for (index = 0; index < ids.length; index += 1) {
+            var identity = Entities.getEntityProperties(ids[index], ["name"]);
+            if (String(identity.name).indexOf("OVERTE_E2E_ASSET_LOAD") === 0) {
+                candidates.push(ids[index]);
+            }
+        }
+        if (candidates.length !== 1) {
+            releaseAssetResource();
+            return null;
+        }
+        var id = candidates[0];
+        var properties = Entities.getEntityProperties(id, [
+            "name", "type", "imageURL", "userData", "naturalDimensions"
+        ]);
+        var metadata;
+        try {
+            metadata = JSON.parse(String(properties.userData));
+        } catch (error) {
+            releaseAssetResource();
+            return null;
+        }
+        var assetId = metadata && metadata.overteE2EAssetId;
+        var imageURL = String(properties.imageURL);
+        if (typeof assetId !== "string" || assetId.length === 0 || imageURL.length === 0) {
+            releaseAssetResource();
+            return null;
+        }
+        if (assetResource === null || assetResourceUrl !== imageURL) {
+            releaseAssetResource();
+            assetResourceUrl = imageURL;
+            assetResource = TextureCache.prefetch(imageURL);
+        }
+        return {
+            assetId: assetId,
+            resource: {
+                url: String(assetResource.url),
+                state: resourceStateName(assetResource.state)
+            },
+            entity: {
+                id: String(id),
+                name: String(properties.name),
+                type: String(properties.type),
+                imageURL: imageURL,
+                naturalDimensions: vector(properties.naturalDimensions)
+            }
         };
     }
 
@@ -135,13 +212,15 @@
                 open: Boolean(tablet.tabletShown),
                 home: Boolean(tablet.onHomeScreen()),
                 toolbarMode: Boolean(tablet.toolbarMode)
-            }
+            },
+            asset: observeAsset(ids)
         }, "overte-probe.json");
     }
 
     var timer = Script.setInterval(sample, 250);
     Script.scriptEnding.connect(function () {
         Script.clearInterval(timer);
+        releaseAssetResource();
     });
     sample();
 }());
