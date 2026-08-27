@@ -31,6 +31,7 @@ class E2EStackTest(unittest.TestCase):
             "scene": {"ready": True, "entityCount": 4},
             "avatar": {
                 "position": {"x": 0, "y": 1, "z": 4},
+                "feetPosition": {"x": 0, "y": 0, "z": 4},
                 "inAir": False, "flying": False, "flyingEnabled": True,
             },
             "view": {"orientation": {"x": 0, "y": 0, "z": 0}},
@@ -45,6 +46,10 @@ class E2EStackTest(unittest.TestCase):
         snapshot = self.snapshot()
         snapshot["avatar"]["position"]["x"] = float("nan")
         with self.assertRaisesRegex(ValueError, "position"):
+            validate_probe_snapshot(snapshot)
+        snapshot = self.snapshot()
+        snapshot["avatar"]["feetPosition"]["y"] = float("nan")
+        with self.assertRaisesRegex(ValueError, "feetPosition"):
             validate_probe_snapshot(snapshot)
         snapshot = self.snapshot()
         snapshot["sampleSequence"] = True
@@ -119,6 +124,7 @@ class E2EStackTest(unittest.TestCase):
         self.assertIn("Controller.getValue(Controller.Actions.TranslateZ)", probe)
         self.assertIn("MyAvatar.getRawDriveKey(DriveKeys.TRANSLATE_Z)", probe)
         self.assertIn("sampleSequence: sampleSequence", probe)
+        self.assertIn("vector(MyAvatar.feetPosition)", probe)
         self.assertIn("OVERTE_E2E_PROBE_HEARTBEAT", probe)
         self.assertIn("OVERTE_E2E_PROBE_ERROR", probe)
         self.assertIn("Script.update.connect(updateProbe)", probe)
@@ -225,6 +231,7 @@ class E2EStackTest(unittest.TestCase):
         self.assertEqual("/scene.json", served.path)
         probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
         self.assertIn("avatarAboveFloor", probe)
+        self.assertIn("spawnDeltaY * spawnDeltaY", probe)
         self.assertNotIn("MyAvatar.goToLocation", probe)
         self.assertNotIn("MyAvatar.velocity =", probe)
         self.assertNotIn("spawnApplied", probe)

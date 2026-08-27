@@ -114,6 +114,13 @@ def validate_probe_snapshot(value: object) -> dict:
                 for axis in ("x", "y", "z")):
             raise ValueError(f"probe {field} requires numeric x/y/z")
     avatar = value["avatar"]
+    feet_position = avatar.get("feetPosition")
+    if feet_position is not None and (not isinstance(feet_position, dict) or not all(
+            isinstance(feet_position.get(axis), (int, float))
+            and not isinstance(feet_position.get(axis), bool)
+            and math.isfinite(float(feet_position[axis]))
+            for axis in ("x", "y", "z"))):
+        raise ValueError("probe feetPosition requires numeric x/y/z")
     for field in ("inAir", "flying", "flyingEnabled"):
         if not isinstance(avatar.get(field), bool):
             raise ValueError(f"probe avatar.{field} must be boolean")

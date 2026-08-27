@@ -155,8 +155,10 @@ def invoke(operation: str, arguments: dict) -> dict:
             "application": {"running": state["running"], "foreground": state["foreground"]},
             "scene": {"url": state["sceneUrl"], "ready": state["sceneReady"],
                       "entityCount": 4 if state["sceneReady"] else 0},
-            "avatar": {"position": state["position"], "inAir": state["inAir"],
-                       "flying": state["flying"], "flyingEnabled": state["flyingEnabled"]},
+            "avatar": {"position": state["position"],
+                       "feetPosition": {"x": 0.0, "y": 2.0, "z": 4.0},
+                       "inAir": state["inAir"], "flying": state["flying"],
+                       "flyingEnabled": state["flyingEnabled"]},
             "view": {"orientation": state["orientation"]},
             "tablet": {"open": state["tablet"], "home": state["tablet"]},
         }
