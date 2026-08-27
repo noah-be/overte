@@ -19,7 +19,10 @@
     var lastHeartbeatEpochMs = 0;
     var sampleIntervalMs = 250;
     var heartbeatIntervalMs = 5000;
+    var previousLocationKey = "";
     var fixtureMarkers = ["OVERTE_E2E_FLOOR", "OVERTE_E2E_NORTH", "OVERTE_E2E_EAST", "OVERTE_E2E_ORIGIN"];
+    var domainMarkers = ["OVERTE_E2E_DOMAIN_FLOOR", "OVERTE_E2E_DOMAIN_NORTH",
+        "OVERTE_E2E_DOMAIN_EAST", "OVERTE_E2E_DOMAIN_ORIGIN"];
     var expectedSpawn = { x: 0.0, y: 2.0, z: 4.0 };
 
     function vector(value) {
@@ -68,14 +71,31 @@
     }
 
     function sample(now) {
+        var currentAddress = String(location.href);
+        var currentLocationKey = [String(location.protocol), String(location.hostname),
+            String(location.domainID)].join("|");
+        if (previousLocationKey !== "" && currentLocationKey !== previousLocationKey) {
+            stableEntitySamples = 0;
+            previousEntityCount = -1;
+            stableAvatarSamples = 0;
+            previousAvatarPosition = null;
+            sceneReady = false;
+            spawnApplied = false;
+            spawnRequestPending = false;
+        }
+        previousLocationKey = currentLocationKey;
         var ids = Entities.findEntities(MyAvatar.position, 1000.0);
         var foundMarkers = {};
+        var foundDomainMarkers = {};
         var floorTopY = null;
         var index;
         for (index = 0; index < ids.length; index += 1) {
             var properties = Entities.getEntityProperties(ids[index], ["name", "position", "dimensions"]);
             if (fixtureMarkers.indexOf(properties.name) !== -1) {
                 foundMarkers[properties.name] = true;
+            }
+            if (domainMarkers.indexOf(properties.name) !== -1) {
+                foundDomainMarkers[properties.name] = true;
             }
             if (properties.name === "OVERTE_E2E_FLOOR") {
                 floorTopY = Number(properties.position.y) + Number(properties.dimensions.y) / 2.0;
@@ -88,6 +108,7 @@
             previousEntityCount = ids.length;
         }
         var markerCount = Object.keys(foundMarkers).length;
+        var domainMarkerCount = Object.keys(foundDomainMarkers).length;
         var avatarPosition = vector(MyAvatar.position);
         var spawnDeltaX = avatarPosition.x - expectedSpawn.x;
         var spawnDeltaZ = avatarPosition.z - expectedSpawn.z;
@@ -134,12 +155,21 @@
                 running: true,
                 foreground: Boolean(Window.hasFocus())
             },
+            domain: {
+                connected: Boolean(location.isConnected),
+                hostname: String(location.hostname),
+                id: String(location.domainID),
+                protocol: String(location.protocol),
+                serverless: String(location.protocol) === "file"
+            },
             input: effectiveInputState(),
             scene: {
-                url: String(AddressManager.href),
+                url: currentAddress,
                 ready: sceneReady,
                 entityCount: ids.length,
                 fixtureMarkerCount: markerCount,
+                domainMarkerCount: domainMarkerCount,
+                domainMarkers: Object.keys(foundDomainMarkers).sort(),
                 floorTopY: floorTopY,
                 avatarAboveFloor: avatarAboveFloor,
                 spawnApplied: spawnApplied,

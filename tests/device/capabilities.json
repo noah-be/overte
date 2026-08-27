@@ -45,6 +45,10 @@
       "operation": "lifecycle.background",
       "result": "{backgrounded: true}"
     },
+    "navigation.enter-domain": {
+      "operation": "navigation.enter-domain",
+      "result": "{requested: true}"
+    },
     "probe.snapshot": {
       "operation": "probe.snapshot",
       "result": "Overte probe snapshot schema version 1"
