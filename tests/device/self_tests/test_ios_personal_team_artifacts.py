@@ -197,6 +197,7 @@ class IosPersonalTeamArtifactsTest(unittest.TestCase):
             unsigned_kit=self.kit.resolve(), output=output.resolve(),
             device_observed=True, installed_with_sideloadly=True,
             fixed_bundle_identifiers_confirmed=True,
+            accept_sideloadly_bundle_id_remapping=False,
             accept_no_cryptographic_byte_binding=True,
         )
         value = CREATOR.create(arguments)
@@ -206,7 +207,19 @@ class IosPersonalTeamArtifactsTest(unittest.TestCase):
         self.assertEqual(hashlib.sha256(self.kit.read_bytes()).hexdigest(),
                          value["unsignedKitManifestSha256"])
         self.assertIsNone(value["signingObservation"])
+        self.assertEqual("fixed", value["bundleIdentifierMode"])
         self.assertEqual(0o600, output.stat().st_mode & 0o777)
+
+        arguments.output = (self.root / "private-observation/remapped.json").resolve()
+        arguments.fixed_bundle_identifiers_confirmed = False
+        arguments.accept_sideloadly_bundle_id_remapping = True
+        remapped = CREATOR.create(arguments)
+        self.assertEqual("sideloadly-remapped", remapped["bundleIdentifierMode"])
+        self.assertFalse(
+            remapped["humanAttestation"]["fixedBundleIdentifiersConfirmed"])
+        self.assertTrue(remapped["humanAttestation"][
+            "acceptedSideloadlyBundleIdentifierRemapping"])
+
         arguments.output = (self.root / "missing-flags.json").resolve()
         arguments.device_observed = False
         with self.assertRaisesRegex(ValueError, "all explicit"):

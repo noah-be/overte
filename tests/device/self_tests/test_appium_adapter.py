@@ -491,6 +491,7 @@ class AppiumAdapterTests(unittest.TestCase):
 
     def test_immutable_pre_session_helper_keeps_device_identity_out_of_argv_and_output(self) -> None:
         adapter, _client, _state, target = self.adapter_and_session()
+        target["_receiptWdaBundleId"] = "org.overte.WebDriverAgentRunner.xctrunner"
         completed = mock.Mock(returncode=0, stdout="PASS\n", stderr="")
         with mock.patch.object(adapter, "immutable_ios_runtime_wrapper",
                                return_value=Path("/immutable/remotexpc_tunnel.py")), \
@@ -499,7 +500,11 @@ class AppiumAdapterTests(unittest.TestCase):
         arguments = execute.call_args.args[0]
         self.assertEqual(["/immutable/remotexpc_tunnel.py", "device-preflight"], arguments)
         self.assertNotIn("private-device-id", " ".join(arguments))
-        self.assertEqual({"udid": "private-device-id"},
+        self.assertEqual({
+            "udid": "private-device-id",
+            "overteBundleId": target["appId"],
+            "wdaBundleId": "org.overte.WebDriverAgentRunner.xctrunner",
+        },
                          json.loads(execute.call_args.kwargs["input"]))
 
         completed.returncode = 2
@@ -774,6 +779,7 @@ class AppiumAdapterTests(unittest.TestCase):
                     "derivationBinding": "none-device-observed",
                     "cryptographicByteBinding": False,
                     "installationProxyValidated": True,
+                    "bundleIdentifierMode": "fixed",
                     "attestationSha256": "e" * 64,
                     "unsignedKitContract": "overte-ios-personal-team-e2e-kit-v1",
                     "unsignedKitManifestSha256": "f" * 64,
@@ -784,7 +790,8 @@ class AppiumAdapterTests(unittest.TestCase):
                 "overte": {"bundleId": "org.overte.interface.e2e", "installed": True},
                 "wda": {
                     "bundleId": "org.overte.WebDriverAgentRunner.xctrunner",
-                    "xctestBundleId": "org.overte.WebDriverAgentRunner",
+                    "updatedBundleId": "org.overte.WebDriverAgentRunner",
+                    "bundleIdSuffix": ".xctrunner",
                     "installed": True,
                 },
                 "toolchain": {
@@ -800,6 +807,24 @@ class AppiumAdapterTests(unittest.TestCase):
             APPIUM.AppiumAdapter.validate_ios_host_strategy(target)
             self.assertNotIn("appium:app", target["capabilities"])
             self.assertNotIn("appium:prebuiltWDAPath", target["capabilities"])
+
+            receipt["provenance"]["bundleIdentifierMode"] = "sideloadly-remapped"
+            receipt["overte"]["bundleId"] = "com.sideloadly.slot.overte"
+            receipt["wda"] = {
+                "bundleId": "com.sideloadly.slot.wda",
+                "updatedBundleId": "com.sideloadly.slot.wda",
+                "bundleIdSuffix": "",
+                "installed": True,
+            }
+            target["appId"] = receipt["overte"]["bundleId"]
+            target["capabilities"].update({
+                "appium:bundleId": receipt["overte"]["bundleId"],
+                "appium:updatedWDABundleId": receipt["wda"]["updatedBundleId"],
+                "appium:updatedWDABundleIdSuffix": "",
+            })
+            receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+            APPIUM.AppiumAdapter.validate_ios_artifact_receipt(target, hash_files=True)
+            self.assertEqual("com.sideloadly.slot.wda", target["_receiptWdaBundleId"])
 
             target["capabilities"]["appium:prebuiltWDAPath"] = "/private/claimed.ipa"
             with self.assertRaisesRegex(RuntimeError, "must not claim signed IPA paths"):

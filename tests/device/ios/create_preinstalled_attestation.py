@@ -117,9 +117,11 @@ def validate_kit(path: Path, *, private: bool = True) -> dict:
 
 
 def create(arguments: argparse.Namespace) -> dict:
-    if not all((arguments.device_observed, arguments.installed_with_sideloadly,
-                arguments.fixed_bundle_identifiers_confirmed,
-                arguments.accept_no_cryptographic_byte_binding)):
+    fixed_identifiers = arguments.fixed_bundle_identifiers_confirmed
+    remapped_identifiers = arguments.accept_sideloadly_bundle_id_remapping
+    if (fixed_identifiers == remapped_identifiers
+            or not all((arguments.device_observed, arguments.installed_with_sideloadly,
+                        arguments.accept_no_cryptographic_byte_binding))):
         fail("all explicit preinstalled human attestations are required")
     kit = validate_kit(arguments.unsigned_kit)
     output = arguments.output
@@ -129,19 +131,24 @@ def create(arguments: argparse.Namespace) -> dict:
     output.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     output.parent.chmod(0o700)
     created = datetime.now(timezone.utc).replace(microsecond=0)
+    identifier_mode = "fixed" if fixed_identifiers else "sideloadly-remapped"
+    human = {
+        "deviceObserved": True, "installedWithSideloadly": True,
+        "fixedBundleIdentifiersConfirmed": fixed_identifiers,
+        "acceptedNoCryptographicByteBinding": True,
+        "derivationBinding": "none-device-observed",
+    }
+    if remapped_identifiers:
+        human["acceptedSideloadlyBundleIdentifierRemapping"] = True
     value = {
         "schemaVersion": 1, "contract": ATTESTATION_CONTRACT,
         "sourceRevision": kit["sourceRevision"],
         "createdAt": created.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "notAfter": (created + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "unsignedKitManifestSha256": sha256_file(arguments.unsigned_kit),
-        "expectedBundleIdentifiers": BUNDLES, "toolchain": TOOLCHAIN,
-        "humanAttestation": {
-            "deviceObserved": True, "installedWithSideloadly": True,
-            "fixedBundleIdentifiersConfirmed": True,
-            "acceptedNoCryptographicByteBinding": True,
-            "derivationBinding": "none-device-observed",
-        },
+        "expectedBundleIdentifiers": BUNDLES,
+        "bundleIdentifierMode": identifier_mode,
+        "toolchain": TOOLCHAIN, "humanAttestation": human,
         "signingObservation": None,
     }
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
@@ -165,6 +172,7 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--device-observed", action="store_true")
     value.add_argument("--installed-with-sideloadly", action="store_true")
     value.add_argument("--fixed-bundle-identifiers-confirmed", action="store_true")
+    value.add_argument("--accept-sideloadly-bundle-id-remapping", action="store_true")
     value.add_argument("--accept-no-cryptographic-byte-binding", action="store_true")
     return value
 

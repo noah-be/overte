@@ -104,6 +104,9 @@ class AppiumAdapter:
     IOS_PROTECTED_RECEIPT_CONTRACT = "overte-ios-fedora-e2e-receipt-v1"
     IOS_PERSONAL_TEAM_RECEIPT_CONTRACT = "overte-ios-personal-team-artifact-receipt-v1"
     IOS_PREINSTALLED_RECEIPT_CONTRACT = "overte-ios-personal-team-preinstalled-receipt-v1"
+    IOS_BUNDLE_ID_RE = re.compile(
+        r"[A-Za-z0-9][A-Za-z0-9-]*(?:[.][A-Za-z0-9][A-Za-z0-9-]*)+"
+    )
     IOS_TABLET_IDENTIFIERS = {
         "openAccessibilityId": "OverteTabletOpen",
         "closeAccessibilityId": "OverteTabletClose",
@@ -433,8 +436,11 @@ class AppiumAdapter:
                     "mode", "derivationBinding", "cryptographicByteBinding",
                     "installationProxyValidated", "attestationSha256",
                     "unsignedKitContract", "unsignedKitManifestSha256",
-                    "attestationContract", "signingObservation"}
+                    "attestationContract", "signingObservation",
+                    "bundleIdentifierMode"}
                 and provenance.get("mode") == "personal-team-preinstalled"
+                and provenance.get("bundleIdentifierMode") in {
+                    "fixed", "sideloadly-remapped"}
                 and provenance.get("derivationBinding") == "none-device-observed"
                 and provenance.get("cryptographicByteBinding") is False
                 and provenance.get("installationProxyValidated") is True
@@ -465,20 +471,43 @@ class AppiumAdapter:
         if preinstalled_receipt:
             overte = receipt.get("overte")
             wda = receipt.get("wda")
-            if (overte != {"bundleId": "org.overte.interface.e2e", "installed": True}
-                    or wda != {
-                        "bundleId": "org.overte.WebDriverAgentRunner.xctrunner",
-                        "xctestBundleId": "org.overte.WebDriverAgentRunner",
-                        "installed": True,
-                    } or any(artifact_paths.values())):
+            identifier_mode = provenance["bundleIdentifierMode"]
+            if (not isinstance(overte, dict)
+                    or set(overte) != {"bundleId", "installed"}
+                    or not isinstance(overte.get("bundleId"), str)
+                    or not cls.IOS_BUNDLE_ID_RE.fullmatch(overte["bundleId"])
+                    or overte.get("installed") is not True
+                    or not isinstance(wda, dict)
+                    or set(wda) != {
+                        "bundleId", "updatedBundleId", "bundleIdSuffix", "installed"}
+                    or not isinstance(wda.get("bundleId"), str)
+                    or not isinstance(wda.get("updatedBundleId"), str)
+                    or not cls.IOS_BUNDLE_ID_RE.fullmatch(wda["bundleId"])
+                    or not cls.IOS_BUNDLE_ID_RE.fullmatch(wda["updatedBundleId"])
+                    or wda.get("bundleIdSuffix") not in {"", ".xctrunner"}
+                    or wda["updatedBundleId"] + wda["bundleIdSuffix"]
+                    != wda["bundleId"]
+                    or wda.get("installed") is not True
+                    or overte["bundleId"] == wda["bundleId"]
+                    or any(artifact_paths.values())):
                 fail("preinstalled iOS artifactReceipt inventory is invalid")
+            fixed_inventory = (
+                overte["bundleId"] == "org.overte.interface.e2e"
+                and wda["bundleId"] == "org.overte.WebDriverAgentRunner.xctrunner"
+                and wda["updatedBundleId"] == "org.overte.WebDriverAgentRunner"
+                and wda["bundleIdSuffix"] == ".xctrunner"
+            )
+            if ((identifier_mode == "fixed") != fixed_inventory
+                    or identifier_mode == "sideloadly-remapped"
+                    and provenance["signingObservation"] is not None):
+                fail("preinstalled iOS bundle-identifier mode is inconsistent")
             observation = provenance["signingObservation"]
             if observation is not None:
                 team = observation["teamIdentifier"]
                 expected_identifiers = {
                     "overte": f"{team}.{overte['bundleId']}",
                     "wdaRunner": f"{team}.{wda['bundleId']}",
-                    "wdaXCTest": f"{team}.{wda['xctestBundleId']}",
+                    "wdaXCTest": f"{team}.{wda['updatedBundleId']}",
                 }
                 if observation["applicationIdentifiers"] != expected_identifiers:
                     fail("preinstalled iOS signing observation is inconsistent")
@@ -528,7 +557,7 @@ class AppiumAdapter:
         if receipt["overte"]["bundleId"] != target["appId"]:
             fail("iOS artifactReceipt Overte bundle does not match appId")
         suffix = capabilities.get("appium:updatedWDABundleIdSuffix", ".xctrunner")
-        if not isinstance(suffix, str):
+        if not isinstance(suffix, str) or suffix not in {"", ".xctrunner"}:
             fail("appium:updatedWDABundleIdSuffix must be a string")
         if receipt["wda"]["bundleId"] != capabilities.get("appium:updatedWDABundleId", "") + suffix:
             fail("iOS artifactReceipt WDA bundle does not match Appium capabilities")
@@ -826,7 +855,7 @@ class AppiumAdapter:
             encoding="utf-8"))
         version = lock["appium"]["iosRuntime"]["remoteXpc"]["version"]
         revision = lock.get("serviceRuntimeRevision")
-        if revision != 4:
+        if revision != 5:
             fail("unsupported immutable iOS device runtime revision")
         runtime = Path("/usr/local/lib/overte-ios-remotexpc") / f"{version}-r{revision}"
         wrapper = runtime / "remotexpc_tunnel.py"
@@ -849,13 +878,20 @@ class AppiumAdapter:
         if self.platform != "ios":
             return
         udid = target["capabilities"].get("appium:udid")
-        if not isinstance(udid, str) or not udid:
+        overte_bundle = target.get("appId")
+        wda_bundle = target.get("_receiptWdaBundleId")
+        if (not isinstance(udid, str) or not udid
+                or not isinstance(overte_bundle, str)
+                or not isinstance(wda_bundle, str)):
             fail("physical iOS target identity is unavailable for device preflight")
         wrapper = self.immutable_ios_runtime_wrapper()
         try:
             result = subprocess.run(
                 [str(wrapper), "device-preflight"],
-                input=json.dumps({"udid": udid}, separators=(",", ":")),
+                input=json.dumps({
+                    "udid": udid, "overteBundleId": overte_bundle,
+                    "wdaBundleId": wda_bundle,
+                }, separators=(",", ":")),
                 text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 timeout=65, check=False,
             )

@@ -60,8 +60,10 @@ signed receipt updates `appId`, `bundleId`, IPA paths and WDA bundle ID.
 install Overte and WDA manually with Sideloadly, then supply the private,
 short-lived `IOS_PREINSTALLED_ATTESTATION`. Jenkins performs no signing or
 installation. Under the exclusive device lock, Fedora's immutable helper
-observes both fixed installed IDs, the Overte test markers, WDA 16.8.0/XCUITest
-12.8.0 markers, valid profiles, and a common signer before it writes the weak
+observes either both fixed IDs or one explicitly accepted, uniquely
+marker-selected Sideloadly-remapped pair. It verifies the Overte test markers,
+WDA 16.8.0/XCUITest 12.8.0 markers, valid profiles, application identifiers and
+a common signer/team before it writes the weak
 `none-device-observed` receipt. That receipt deliberately has no IPA byte hash
 or derivation claim, and this mode rejects `appium:prebuiltWDAPath`.
 
