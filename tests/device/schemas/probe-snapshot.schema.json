@@ -154,6 +154,58 @@
           }
         }
       }
+    },
+    "asset": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["assetId", "resource", "entity"],
+          "properties": {
+            "assetId": {"type": "string", "minLength": 1},
+            "resource": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["url", "state"],
+              "properties": {
+                "url": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9+.-]*://"},
+                "state": {"enum": ["queued", "loading", "loaded", "finished", "failed"]}
+              }
+            },
+            "entity": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "name", "type", "imageURL", "naturalDimensions"],
+              "properties": {
+                "id": {"type": "string", "minLength": 1},
+                "name": {"type": "string", "minLength": 1},
+                "type": {"const": "Image"},
+                "imageURL": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9+.-]*://"},
+                "naturalDimensions": {"$ref": "#/$defs/vector3"}
+              }
+            }
+          }
+        }
+      ]
+    },
+    "sound": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commandId", "url", "commandObserved", "resourceReady", "durationSeconds", "format", "injectorCreated", "started", "playing", "finished", "finishReason"],
+      "properties": {
+        "commandId": {"type": "string"},
+        "url": {"type": "string"},
+        "commandObserved": {"type": "boolean"},
+        "resourceReady": {"type": "boolean"},
+        "durationSeconds": {"type": "number", "minimum": 0},
+        "format": {"enum": ["unknown", "wav"]},
+        "injectorCreated": {"type": "boolean"},
+        "started": {"type": "boolean"},
+        "playing": {"type": "boolean"},
+        "finished": {"type": "boolean"},
+        "finishReason": {"enum": ["none", "natural", "stopped"]}
+      }
     }
   },
   "$defs": {
