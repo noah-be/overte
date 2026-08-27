@@ -5,7 +5,7 @@
       "id": "launch-smoke",
       "description": "Launch the application and verify a stable foreground process.",
       "command": ["modules/launch_smoke.py"],
-      "suites": ["e2e-core", "smoke", "stability", "vertical-locomotion"],
+      "suites": ["domain-smoke", "e2e-core", "smoke", "stability", "vertical-locomotion"],
       "requires": ["app.foreground", "app.launch", "app.process"],
       "timeoutSeconds": 120
     },
@@ -16,6 +16,14 @@
       "suites": ["e2e-core"],
       "requires": ["probe.snapshot", "scene.load"],
       "timeoutSeconds": 120
+    },
+    {
+      "id": "domain-enter",
+      "description": "Enter a controlled domain and observe its connection and assignment-owned scene.",
+      "command": ["modules/domain_enter.py"],
+      "suites": ["domain-smoke"],
+      "requires": ["app.foreground", "app.process", "navigation.enter-domain", "probe.snapshot"],
+      "timeoutSeconds": 180
     },
     {
       "id": "look",

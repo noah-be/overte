@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import sys
 import time
+from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -17,8 +18,8 @@ from contracts import validate_operation_arguments
 
 CAPABILITIES = sorted([
     "accessibility.snapshot", "app.foreground", "app.launch", "app.process",
-    "input.fly", "input.jump", "input.look", "input.move", "probe.snapshot", "scene.load", "tablet.close",
-    "tablet.open",
+    "input.fly", "input.jump", "input.look", "input.move", "navigation.enter-domain",
+    "probe.snapshot", "scene.load", "tablet.close", "tablet.open",
 ])
 
 
@@ -41,7 +42,8 @@ def state_path() -> Path:
 def initial_state() -> dict:
     return {
         "running": False, "foreground": False, "sceneUrl": "", "sceneReady": False,
-        "launchCount": 0, "sceneLoadCount": 0,
+        "launchCount": 0, "sceneLoadCount": 0, "domainEnterCount": 0,
+        "domainConnected": False, "domainHost": "", "domainId": "",
         "position": {"x": 0.0, "y": 1.0, "z": 4.0},
         "groundY": 1.0, "inAir": False, "flying": False, "flyingEnabled": True,
         "locomotion": None, "locomotionSamples": 0,
@@ -79,7 +81,26 @@ def invoke(operation: str, arguments: dict) -> dict:
     elif operation == "scene.load":
         state["sceneUrl"] = arguments.get("url", "")
         state["sceneReady"] = True
+        state["domainConnected"] = False
+        state["domainHost"] = state["domainId"] = ""
         state["sceneLoadCount"] += 1
+        result = {"requested": True}
+    elif operation == "navigation.enter-domain":
+        requested = arguments.get("url", "")
+        parsed = urlsplit(requested)
+        try:
+            port = parsed.port
+        except ValueError as error:
+            raise RuntimeError("mock domain navigation has an invalid port") from error
+        if parsed.scheme != "hifi" or not parsed.hostname or port is None:
+            raise RuntimeError("mock domain navigation requires an explicit hifi URL")
+        state["sceneUrl"] = requested
+        state["sceneReady"] = False
+        state["domainConnected"] = True
+        state["domainHost"] = parsed.hostname
+        state["domainId"] = os.environ.get(
+            "OVERTE_MOCK_E2E_DOMAIN_ID", "11111111-2222-4333-8444-555555555555")
+        state["domainEnterCount"] += 1
         result = {"requested": True}
     elif operation == "input.look":
         state["orientation"]["y"] += 30.0
@@ -117,19 +138,38 @@ def invoke(operation: str, arguments: dict) -> dict:
             state["position"]["y"] = state["groundY"] + gain
             state["inAir"] = state["flying"] = True
             save(state)
-        return {
+        domain_markers = [
+            "OVERTE_E2E_DOMAIN_EAST", "OVERTE_E2E_DOMAIN_FLOOR",
+            "OVERTE_E2E_DOMAIN_NORTH", "OVERTE_E2E_DOMAIN_ORIGIN",
+        ]
+        if os.environ.get("OVERTE_MOCK_E2E_DOMAIN_MARKERS_JSON"):
+            domain_markers = json.loads(os.environ["OVERTE_MOCK_E2E_DOMAIN_MARKERS_JSON"])
+        if not state["domainConnected"]:
+            domain_markers = []
+        snapshot = {
             "schemaVersion": 1,
             "sampleEpochMs": int(time.time() * 1000),
             "build": {"platform": "Mock", "version": "device-contract",
                       "date": "1970-01-01"},
             "application": {"running": state["running"], "foreground": state["foreground"]},
+            "domain": {
+                "connected": state["domainConnected"],
+                "hostname": state["domainHost"],
+                "id": state["domainId"],
+                "protocol": "hifi" if state["domainConnected"] else "file",
+                "serverless": not state["domainConnected"],
+            },
             "scene": {"url": state["sceneUrl"], "ready": state["sceneReady"],
-                      "entityCount": 4 if state["sceneReady"] else 0},
+                      "entityCount": 4 if state["sceneReady"] or state["domainConnected"] else 0,
+                      "domainMarkerCount": len(domain_markers),
+                      "domainMarkers": domain_markers},
             "avatar": {"position": state["position"], "inAir": state["inAir"],
                        "flying": state["flying"], "flyingEnabled": state["flyingEnabled"]},
             "view": {"orientation": state["orientation"]},
             "tablet": {"open": state["tablet"], "home": state["tablet"]},
         }
+        save(state)
+        return snapshot
     elif operation == "accessibility.snapshot":
         identifier = "OverteTabletClose" if state["tablet"] else "OverteTabletOpen"
         return {"source": f'<App><Button name="{identifier}" /></App>', "artifact": None}
