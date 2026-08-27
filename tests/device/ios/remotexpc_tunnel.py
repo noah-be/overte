@@ -11,12 +11,14 @@ import os
 from pathlib import Path
 import plistlib
 import re
+import select
 import shutil
 import signal
 import stat
 import subprocess
 import sys
 import tempfile
+import time
 from urllib.error import URLError
 from urllib.request import urlopen
 
@@ -27,6 +29,7 @@ NPM_LOCK_FILE = Path(__file__).with_name("package-lock.json")
 DEVICE_PREFLIGHT_FILE = Path(__file__).with_name("appium_device_preflight.js")
 DEVICE_INSTALL_FILE = Path(__file__).with_name("appium_device_install.js")
 DEVICE_DDI_FILE = Path(__file__).with_name("appium_device_ddi.js")
+WDA_SESSION_BOOTSTRAP_FILE = Path(__file__).with_name("appium_wda_session_bootstrap.js")
 ARTIFACT_TREE_FILE = Path(__file__).with_name("private_artifact_tree.py")
 DEFAULT_PORT = 42314
 TUNNEL_PORT_ITEM = Path(
@@ -225,7 +228,7 @@ def list_installed_drivers(node: Path, appium_entry: Path, appium_home: Path,
 
 def service_runtime_revision(lock: dict) -> int:
     revision = lock.get("serviceRuntimeRevision")
-    if revision != 7:
+    if revision != 9:
         fail("unsupported immutable service-runtime revision")
     return revision
 
@@ -469,6 +472,9 @@ def verify_service_runtime(runtime_root: Path,
         ),
         "deviceInstallSha256": file_sha256(runtime_root / DEVICE_INSTALL_FILE.name),
         "deviceDdiSha256": file_sha256(runtime_root / DEVICE_DDI_FILE.name),
+        "wdaSessionBootstrapSha256": file_sha256(
+            runtime_root / WDA_SESSION_BOOTSTRAP_FILE.name
+        ),
         "artifactTreeSha256": file_sha256(runtime_root / ARTIFACT_TREE_FILE.name),
         "lockSha256": file_sha256(runtime_root / "toolchain.lock.json"),
         "packageJsonSha256": file_sha256(runtime_root / "package.json"),
@@ -526,6 +532,7 @@ def verify_runtime_matches_source(runtime_root: Path, node: Path,
         "devicePreflightSha256": file_sha256(DEVICE_PREFLIGHT_FILE),
         "deviceInstallSha256": file_sha256(DEVICE_INSTALL_FILE),
         "deviceDdiSha256": file_sha256(DEVICE_DDI_FILE),
+        "wdaSessionBootstrapSha256": file_sha256(WDA_SESSION_BOOTSTRAP_FILE),
         "artifactTreeSha256": file_sha256(ARTIFACT_TREE_FILE),
         "lockSha256": file_sha256(LOCK_FILE),
         "packageJsonSha256": file_sha256(PACKAGE_FILE),
@@ -568,6 +575,9 @@ def install_service_runtime(appium_home: Path, service_root: Path = SERVICE_ROOT
         shutil.copyfile(DEVICE_PREFLIGHT_FILE, staging / DEVICE_PREFLIGHT_FILE.name)
         shutil.copyfile(DEVICE_INSTALL_FILE, staging / DEVICE_INSTALL_FILE.name)
         shutil.copyfile(DEVICE_DDI_FILE, staging / DEVICE_DDI_FILE.name)
+        shutil.copyfile(
+            WDA_SESSION_BOOTSTRAP_FILE, staging / WDA_SESSION_BOOTSTRAP_FILE.name
+        )
         shutil.copyfile(ARTIFACT_TREE_FILE, staging / ARTIFACT_TREE_FILE.name)
         shutil.copyfile(LOCK_FILE, staging / "toolchain.lock.json")
         shutil.copyfile(PACKAGE_FILE, staging / "package.json")
@@ -596,6 +606,9 @@ def install_service_runtime(appium_home: Path, service_root: Path = SERVICE_ROOT
             ),
             "deviceInstallSha256": file_sha256(staging / DEVICE_INSTALL_FILE.name),
             "deviceDdiSha256": file_sha256(staging / DEVICE_DDI_FILE.name),
+            "wdaSessionBootstrapSha256": file_sha256(
+                staging / WDA_SESSION_BOOTSTRAP_FILE.name
+            ),
             "artifactTreeSha256": file_sha256(staging / ARTIFACT_TREE_FILE.name),
             "lockSha256": file_sha256(staging / "toolchain.lock.json"),
             "packageJsonSha256": file_sha256(staging / "package.json"),
@@ -1154,6 +1167,101 @@ def device_preflight(arguments: argparse.Namespace) -> int:
     return 0
 
 
+def wda_session_bootstrap(arguments: argparse.Namespace) -> int:
+    """Send one out-of-band Home event to the exact newly launched WDA runner."""
+    node, _script = verify_service_runtime(arguments.service_runtime)
+    payload = sys.stdin.buffer.read(4097)
+    if len(payload) > 4096:
+        fail("private WDA bootstrap request exceeded its safety limit")
+    if (b"\r" in payload or payload.count(b"\n") > 1
+            or b"\n" in payload and not payload.endswith(b"\n")):
+        fail("private WDA bootstrap request must be one JSON line")
+    try:
+        request = json.loads(payload)
+    except (UnicodeError, json.JSONDecodeError):
+        fail("private WDA bootstrap request is invalid")
+    if (not isinstance(request, dict)
+            or set(request) != {"schemaVersion", "udid", "wdaBundleId"}
+            or request.get("schemaVersion") != 1
+            or isinstance(request.get("schemaVersion"), bool)
+            or not isinstance(request.get("udid"), str)
+            or not 8 <= len(request["udid"]) <= 128
+            or any(character in request["udid"] for character in "\0\r\n")
+            or not isinstance(request.get("wdaBundleId"), str)
+            or len(request["wdaBundleId"]) > 255
+            or not BUNDLE_ID_RE.fullmatch(request["wdaBundleId"])):
+        fail("private WDA bootstrap request is invalid")
+    helper = arguments.service_runtime / WDA_SESSION_BOOTSTRAP_FILE.name
+    environment = {
+        "PATH": str(arguments.service_runtime / "bin") + ":/usr/sbin:/usr/bin",
+        "HOME": "/nonexistent",
+    }
+    process = subprocess.Popen(
+        [str(node), str(helper)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL, cwd=arguments.service_runtime, env=environment,
+        # The adapter makes the wrapper a new session/process-group leader.  Node
+        # must remain in that same group so one fail-closed killpg cleans both.
+        start_new_session=False,
+    )
+    assert process.stdin is not None and process.stdout is not None
+    deadline = time.monotonic() + 30
+    observed: list[bytes] = []
+    pending = bytearray()
+    try:
+        process.stdin.write(payload)
+        process.stdin.flush()
+        process.stdin.close()
+        descriptor = process.stdout.fileno()
+        os.set_blocking(descriptor, False)
+        while len(observed) < 2:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                fail("WDA runner background recovery timed out")
+            readable, _writable, _exceptional = select.select(
+                [descriptor], [], [], remaining
+            )
+            if not readable:
+                fail("WDA runner background recovery timed out")
+            try:
+                block = os.read(descriptor, 64)
+            except BlockingIOError:
+                continue
+            if not block:
+                break
+            pending.extend(block)
+            while len(observed) < 2:
+                expected = b"READY\n" if not observed else b"PASS\n"
+                if len(pending) < len(expected):
+                    if not expected.startswith(pending):
+                        fail("WDA runner background recovery returned invalid status")
+                    break
+                if bytes(pending[:len(expected)]) != expected:
+                    fail("WDA runner background recovery returned invalid status")
+                del pending[:len(expected)]
+                observed.append(expected)
+                sys.stdout.write(expected.decode("ascii"))
+                sys.stdout.flush()
+            if len(observed) == 2 and pending:
+                fail("WDA runner background recovery returned invalid status")
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            fail("WDA runner background recovery timed out")
+        returncode = process.wait(timeout=remaining)
+        if (returncode != 0 or observed != [b"READY\n", b"PASS\n"]
+                or pending or process.stdout.read(1)):
+            fail("WDA runner background recovery failed")
+        return 0
+    finally:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=1)
+        process.stdout.close()
+
+
 def appium_server(arguments: argparse.Namespace) -> int:
     if os.name != "posix" or not sys.platform.startswith("linux"):
         fail("immutable Appium server entry is supported only on Linux")
@@ -1314,6 +1422,11 @@ def parser() -> argparse.ArgumentParser:
         "--service-runtime", type=Path, default=default_service_runtime(),
     )
 
+    wda_bootstrap_parser = subparsers.add_parser("wda-session-bootstrap")
+    wda_bootstrap_parser.add_argument(
+        "--service-runtime", type=Path, default=default_service_runtime(),
+    )
+
     device_install_parser = subparsers.add_parser("device-install")
     device_install_parser.add_argument(
         "--service-runtime", type=Path, default=default_service_runtime(),
@@ -1353,6 +1466,8 @@ def main() -> int:
             return appium_server(arguments)
         if arguments.action == "device-preflight":
             return device_preflight(arguments)
+        if arguments.action == "wda-session-bootstrap":
+            return wda_session_bootstrap(arguments)
         if arguments.action == "device-install":
             return device_install(arguments)
         if arguments.action in {"device-ddi-status", "device-ddi-mount"}:

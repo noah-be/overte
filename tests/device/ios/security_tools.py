@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install exact open-source age/rcodesign pins into private Fedora state."""
+"""Install exact open-source iOS security-tool pins into private Fedora state."""
 
 from __future__ import annotations
 
@@ -26,6 +26,7 @@ MAX_TAR_DECLARED_BYTES = 192 * 1024 * 1024
 MEMBERS = {
     "age": "age/age",
     "rcodesign": "apple-codesign-{version}-x86_64-unknown-linux-musl/rcodesign",
+    "resigner": "linux-amd64/resigner",
 }
 
 

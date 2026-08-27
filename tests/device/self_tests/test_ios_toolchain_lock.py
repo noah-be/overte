@@ -22,7 +22,7 @@ SPEC.loader.exec_module(LOCK)
 class IosToolchainLockTest(unittest.TestCase):
     def test_checked_in_lock_and_full_npm_resolution_are_exact(self):
         value = LOCK.validate()
-        self.assertEqual(7, value["serviceRuntimeRevision"])
+        self.assertEqual(9, value["serviceRuntimeRevision"])
         self.assertEqual("3.7.0", value["appium"]["core"]["version"])
         self.assertEqual("12.8.0", value["appium"]["drivers"]["xcuitest"]["version"])
         self.assertEqual("5.15.3", value["appium"]["iosRuntime"]["remoteXpc"]["version"])
@@ -36,6 +36,22 @@ class IosToolchainLockTest(unittest.TestCase):
         )
         self.assertEqual("1.2.1", value["appium"]["iosSecurity"]["age"]["version"])
         self.assertEqual("0.29.0", value["appium"]["iosSecurity"]["rcodesign"]["version"])
+        resigner = value["appium"]["iosSecurity"]["resigner"]
+        self.assertEqual("0.3.1", resigner["version"])
+        self.assertEqual("Apache-2.0", resigner["license"])
+        self.assertEqual(
+            "https://github.com/appium/resigner/releases/download/v0.3.1/"
+            "linux-amd64.tar.gz",
+            resigner["artifact"]["url"],
+        )
+        self.assertEqual(
+            "e8672bfcced781bee017f84d17a84f645668bb664fe709d7dda011c9f1d8d0cd",
+            resigner["artifact"]["sha256"],
+        )
+        self.assertEqual(
+            "57a837d4674a5bb4eea9ff0d006b84fd5273fdd0c9d3c05143a46135ae4b988e",
+            resigner["executableSha256"],
+        )
         self.assertEqual(
             "27A5228h",
             value["developerDiskImage"]["provenance"]["productBuildVersion"],
@@ -86,6 +102,32 @@ class IosToolchainLockTest(unittest.TestCase):
             npm_path.write_text(json.dumps(npm_lock), encoding="utf-8")
             with self.assertRaisesRegex(LOCK.LockError, "mutable linked"):
                 LOCK.validate(LOCK.DEFAULT_LOCK, LOCK.DEFAULT_PACKAGE, npm_path)
+
+    def test_appium_resigner_pin_drift_is_rejected(self):
+        original = json.loads(LOCK.DEFAULT_LOCK.read_text(encoding="utf-8"))
+        mutations = {
+            "version": lambda value: value["appium"]["iosSecurity"]["resigner"].update(
+                version="0.3.0"
+            ),
+            "license": lambda value: value["appium"]["iosSecurity"]["resigner"].update(
+                license="MIT"
+            ),
+            "URL": lambda value: value["appium"]["iosSecurity"]["resigner"][
+                "artifact"
+            ].update(url="https://github.com/appium/resigner/releases/download/v0.3.1/other.tar.gz"),
+            "archive digest": lambda value: value["appium"]["iosSecurity"]["resigner"][
+                "artifact"
+            ].update(sha256="0" * 64),
+            "executable digest": lambda value: value["appium"]["iosSecurity"][
+                "resigner"
+            ].update(executableSha256="0" * 64),
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(label=label):
+                changed = copy.deepcopy(original)
+                mutate(changed)
+                with self.assertRaisesRegex(LOCK.LockError, "resigner"):
+                    LOCK.validate_security_tools(changed)
 
 
 if __name__ == "__main__":

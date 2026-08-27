@@ -132,12 +132,38 @@ def npm_entries(lock: dict) -> dict[str, dict]:
 
 
 def validate_security_tools(lock: dict) -> None:
-    tools = exact_keys(lock["appium"]["iosSecurity"], {"age", "rcodesign"}, "security tools")
+    tools = exact_keys(
+        lock["appium"]["iosSecurity"], {"age", "rcodesign", "resigner"},
+        "security tools",
+    )
     expected = {
-        "age": ("1.2.1", "BSD-3-Clause", "github.com"),
-        "rcodesign": ("0.29.0", "MPL-2.0", "github.com"),
+        "age": (
+            "1.2.1", "BSD-3-Clause", "github.com",
+            "https://github.com/FiloSottile/age/releases/download/v1.2.1/"
+            "age-v1.2.1-linux-amd64.tar.gz",
+            "7df45a6cc87d4da11cc03a539a7470c15b1041ab2b396af088fe9990f7c79d50",
+            "aaec874ed903da4b02a9d503778ae05ee5005b2acc0f4a4cf10e5d0f17fd4384",
+        ),
+        "rcodesign": (
+            "0.29.0", "MPL-2.0", "github.com",
+            "https://github.com/indygreg/apple-platform-rs/releases/download/"
+            "apple-codesign%2F0.29.0/"
+            "apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz",
+            "dbe85cedd8ee4217b64e9a0e4c2aef92ab8bcaaa41f20bde99781ff02e600002",
+            "dab9a7465f96aba3c81e793775510f745b91a46b6418e89f7317b5d8fc7bcea2",
+        ),
+        "resigner": (
+            "0.3.1", "Apache-2.0", "github.com",
+            "https://github.com/appium/resigner/releases/download/v0.3.1/"
+            "linux-amd64.tar.gz",
+            "e8672bfcced781bee017f84d17a84f645668bb664fe709d7dda011c9f1d8d0cd",
+            "57a837d4674a5bb4eea9ff0d006b84fd5273fdd0c9d3c05143a46135ae4b988e",
+        ),
     }
-    for name, (version, license_name, host) in expected.items():
+    for name, (
+        version, license_name, host, artifact_url, artifact_sha256,
+        executable_sha256,
+    ) in expected.items():
         value = exact_keys(
             tools[name], {"version", "license", "executableSha256", "artifact"},
             f"{name} lock",
@@ -148,10 +174,15 @@ def validate_security_tools(lock: dict) -> None:
             value["executableSha256"]
         ):
             fail(f"{name} executable SHA-256 is invalid")
+        if value["executableSha256"] != executable_sha256:
+            fail(f"{name} executable SHA-256 pin drifted")
         artifact = exact_keys(value["artifact"], {"url", "sha256"}, f"{name} artifact")
-        https_url(artifact["url"], host, f"{name} URL")
+        if https_url(artifact["url"], host, f"{name} URL") != artifact_url:
+            fail(f"{name} artifact URL pin drifted")
         if not isinstance(artifact["sha256"], str) or not SHA256.fullmatch(artifact["sha256"]):
             fail(f"{name} archive SHA-256 is invalid")
+        if artifact["sha256"] != artifact_sha256:
+            fail(f"{name} archive SHA-256 pin drifted")
 
 
 def validate_developer_disk_image(lock: dict) -> None:
@@ -262,12 +293,20 @@ def validate(lock_path: Path = DEFAULT_LOCK, package_path: Path = DEFAULT_PACKAG
          "developerDiskImage", "appium"},
         "Fedora iOS toolchain lock",
     )
-    if (lock["schemaVersion"] != 1 or lock["serviceRuntimeRevision"] != 7
+    if (lock["schemaVersion"] != 1 or lock["serviceRuntimeRevision"] != 9
             or lock["resolvedAt"] != "2026-08-27"):
         fail("Fedora iOS toolchain lock header drifted")
-    exact_keys(lock["sources"], {"npmRegistry", "ageRelease", "rcodesignRelease"}, "sources")
+    sources = exact_keys(
+        lock["sources"],
+        {"npmRegistry", "ageRelease", "rcodesignRelease", "resignerRelease"},
+        "sources",
+    )
     for label, value in lock["sources"].items():
         https_url(value, None, f"source {label}")
+    if sources["resignerRelease"] != (
+        "https://github.com/appium/resigner/releases/tag/v0.3.1"
+    ):
+        fail("Appium resigner release source pin drifted")
     entries = npm_entries(lock)
     validate_security_tools(lock)
     validate_developer_disk_image(lock)
@@ -303,7 +342,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--check-host", action="store_true")
     parser.add_argument(
         "--artifact", action="append", default=[], metavar="TOOL=PATH",
-        help="also hash an already downloaded age or rcodesign archive/executable",
+        help="also hash an already downloaded security-tool archive/executable",
     )
     arguments = parser.parse_args(argv)
     try:
@@ -316,6 +355,8 @@ def main(argv: list[str] | None = None) -> int:
             "age.executable": tools["age"]["executableSha256"],
             "rcodesign.archive": tools["rcodesign"]["artifact"]["sha256"],
             "rcodesign.executable": tools["rcodesign"]["executableSha256"],
+            "resigner.archive": tools["resigner"]["artifact"]["sha256"],
+            "resigner.executable": tools["resigner"]["executableSha256"],
         }
         for specification in arguments.artifact:
             name, separator, raw_path = specification.partition("=")

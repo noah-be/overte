@@ -140,7 +140,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                         TUNNEL, "restore_security_context") as restore_context:
                     installed = TUNNEL.install_service_runtime(appium_home, service_root)
                     self.assertEqual(installed, restore_context.call_args.args[0])
-                self.assertEqual(service_root / "5.15.3-r7", installed)
+                self.assertEqual(service_root / "5.15.3-r9", installed)
                 self.assertEqual(
                     Path(TUNNEL.__file__).read_bytes(),
                     (installed / "remotexpc_tunnel.py").read_bytes(),
@@ -156,6 +156,10 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                 self.assertEqual(
                     TUNNEL.DEVICE_DDI_FILE.read_bytes(),
                     (installed / TUNNEL.DEVICE_DDI_FILE.name).read_bytes(),
+                )
+                self.assertEqual(
+                    TUNNEL.WDA_SESSION_BOOTSTRAP_FILE.read_bytes(),
+                    (installed / TUNNEL.WDA_SESSION_BOOTSTRAP_FILE.name).read_bytes(),
                 )
                 self.assertEqual(
                     TUNNEL.ARTIFACT_TREE_FILE.read_bytes(),
@@ -232,7 +236,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="overte-runtime-parents-") as name:
             base = Path(name)
             service_root = base / "service"
-            runtime = service_root / "5.15.3-r7"
+            runtime = service_root / "5.15.3-r9"
             runtime.mkdir(parents=True)
             owner = os.geteuid()
             with patch.object(
@@ -253,7 +257,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                         TUNNEL.require_trusted_runtime_path(runtime, owner)
 
     def test_visible_system_owner_rejects_unprivileged_caller_identity(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r7")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r9")
         with patch.object(TUNNEL, "visible_root_owner_uid", return_value=1000), patch.object(
                 TUNNEL.os, "geteuid", return_value=1000):
             with self.assertRaisesRegex(TUNNEL.TunnelError, "unprivileged caller"):
@@ -317,7 +321,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                     self.make_tree_writable(service_root)
 
     def test_unit_executes_only_installed_runtime_and_is_hardened(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r7")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r9")
         unit = TUNNEL.service_unit(runtime, TUNNEL.DEFAULT_PORT)
         exec_start = next(line for line in unit.splitlines() if line.startswith("ExecStart="))
         working_directory = next(
@@ -390,13 +394,13 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
     def test_status_defaults_to_versioned_service_runtime_not_appium_home(self):
         arguments = TUNNEL.parser().parse_args(["status"])
         self.assertEqual(
-            Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r7"),
+            Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r9"),
             arguments.service_runtime,
         )
         self.assertFalse(hasattr(arguments, "appium_home"))
 
     def test_appium_server_is_root_owned_loopback_and_privacy_bounded(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r7")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r9")
         with tempfile.TemporaryDirectory(prefix="overte-appium-state-") as name:
             state = Path(name)
             state.chmod(0o700)
@@ -443,7 +447,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
             self.assertEqual([], list(state.iterdir()))
 
     def test_device_preflight_passes_udid_only_over_stdin_and_redacts_output(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r7")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r9")
         arguments = TUNNEL.parser().parse_args(["device-preflight"])
         private_udid = "00008101-1234567890ABCDEF"
         stdin = MagicMock()
@@ -483,6 +487,305 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
             self.assertEqual(0, TUNNEL.device_preflight(arguments))
         self.assertEqual(inventory, json.loads(output.getvalue()))
         self.assertNotIn(private_udid, output.getvalue())
+
+    def test_wda_session_bootstrap_cli_is_stdin_only_bounded_and_generic(self):
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r9")
+        private_udid = "00008101-1234567890ABCDEF"
+        private_wda = "com.private.slot.WebDriverAgentRunner.xctrunner"
+        payload = json.dumps({
+            "schemaVersion": 1, "udid": private_udid, "wdaBundleId": private_wda,
+        }, separators=(",", ":")).encode("utf-8") + b"\n"
+        stdin = MagicMock()
+        stdin.buffer = io.BytesIO(payload)
+        output = io.StringIO()
+        arguments = TUNNEL.parser().parse_args([
+            "wda-session-bootstrap", "--service-runtime", str(runtime),
+        ])
+
+        class InputCapture:
+            def __init__(self):
+                self.value = bytearray()
+
+            def write(self, value):
+                self.value.extend(value)
+
+            def flush(self):
+                pass
+
+            def close(self):
+                pass
+
+        class OutputCapture:
+            def __init__(self):
+                self.closed = False
+
+            @staticmethod
+            def fileno():
+                return 73
+
+            @staticmethod
+            def read(_limit):
+                return b""
+
+            def close(self):
+                self.closed = True
+
+        class FakeProcess:
+            def __init__(self, returncode=0):
+                self.stdin = InputCapture()
+                self.stdout = OutputCapture()
+                self.returncode = returncode
+                self.finished = False
+
+            def wait(self, timeout=None):
+                self.finished = True
+                return self.returncode
+
+            def poll(self):
+                return self.returncode if self.finished else None
+
+            def terminate(self):
+                self.finished = True
+
+            def kill(self):
+                self.finished = True
+
+        child = FakeProcess()
+        select_calls = 0
+
+        def ready_then_pass(readers, _writable, _exceptional, _timeout):
+            nonlocal select_calls
+            select_calls += 1
+            if select_calls == 2:
+                self.assertEqual("READY\n", output.getvalue())
+            return readers, [], []
+
+        with patch.object(
+                TUNNEL, "verify_service_runtime",
+                return_value=(runtime / "bin/node", runtime / "tunnel.mjs")), patch.object(
+                TUNNEL.sys, "stdin", stdin), patch.object(
+                TUNNEL.subprocess, "Popen", return_value=child) as execute, patch.object(
+                TUNNEL.select, "select", side_effect=ready_then_pass), \
+                patch.object(TUNNEL.os, "set_blocking"), patch.object(
+                TUNNEL.os, "read", side_effect=[b"READY\n", b"PASS\n"]), \
+                redirect_stdout(output):
+            self.assertEqual(0, TUNNEL.wda_session_bootstrap(arguments))
+        command = execute.call_args.args[0]
+        options = execute.call_args.kwargs
+        self.assertEqual([
+            str(runtime / "bin/node"),
+            str(runtime / TUNNEL.WDA_SESSION_BOOTSTRAP_FILE.name),
+        ], command)
+        self.assertNotIn(private_udid, " ".join(command) + output.getvalue())
+        self.assertNotIn(private_wda, " ".join(command) + output.getvalue())
+        self.assertEqual(payload, bytes(child.stdin.value))
+        self.assertIs(subprocess.PIPE, options["stdin"])
+        self.assertIs(subprocess.PIPE, options["stdout"])
+        self.assertIs(subprocess.DEVNULL, options["stderr"])
+        self.assertEqual(runtime, options["cwd"])
+        self.assertIs(options["start_new_session"], False)
+        self.assertEqual(
+            "READY\nPASS\n", output.getvalue(),
+        )
+
+        rejected_stdin = MagicMock()
+        rejected_stdin.buffer = io.BytesIO(payload)
+        rejected_output = io.StringIO()
+        rejected_child = FakeProcess()
+        with patch.object(
+                TUNNEL, "verify_service_runtime",
+                return_value=(runtime / "bin/node", runtime / "tunnel.mjs")), patch.object(
+                TUNNEL.sys, "stdin", rejected_stdin), patch.object(
+                TUNNEL.subprocess, "Popen", return_value=rejected_child), patch.object(
+                TUNNEL.select, "select", side_effect=lambda readers, _w, _x, _timeout:
+                (readers, [], [])), patch.object(
+                TUNNEL.os, "set_blocking"), patch.object(
+                TUNNEL.os, "read",
+                side_effect=[b"READY\n", b"private-device-output\n"]), \
+                redirect_stdout(rejected_output):
+            with self.assertRaisesRegex(TUNNEL.TunnelError, "invalid status"):
+                TUNNEL.wda_session_bootstrap(arguments)
+        self.assertEqual("READY\n", rejected_output.getvalue())
+        self.assertNotIn("private-device-output", rejected_output.getvalue())
+        self.assertTrue(rejected_child.finished)
+
+        partial_stdin = MagicMock()
+        partial_stdin.buffer = io.BytesIO(payload)
+        partial_output = io.StringIO()
+        partial_child = FakeProcess()
+        select_results = [([73], [], []), ([], [], [])]
+        with patch.object(
+                TUNNEL, "verify_service_runtime",
+                return_value=(runtime / "bin/node", runtime / "tunnel.mjs")), patch.object(
+                TUNNEL.sys, "stdin", partial_stdin), patch.object(
+                TUNNEL.subprocess, "Popen", return_value=partial_child), patch.object(
+                TUNNEL.select, "select", side_effect=select_results), patch.object(
+                TUNNEL.os, "set_blocking"), patch.object(
+                TUNNEL.os, "read", return_value=b"R"), redirect_stdout(partial_output):
+            with self.assertRaisesRegex(TUNNEL.TunnelError, "timed out"):
+                TUNNEL.wda_session_bootstrap(arguments)
+        self.assertEqual("", partial_output.getvalue())
+        self.assertTrue(partial_child.finished)
+
+        invalid_requests = [
+            {"schemaVersion": 1, "udid": private_udid, "wdaBundleId": private_wda,
+             "unexpected": True},
+            {"schemaVersion": 2, "udid": private_udid, "wdaBundleId": private_wda},
+            {"schemaVersion": 1, "udid": private_udid, "wdaBundleId": "not-a-bundle"},
+        ]
+        for request in invalid_requests:
+            invalid_stdin = MagicMock()
+            invalid_stdin.buffer = io.BytesIO(json.dumps(request).encode("utf-8"))
+            with self.subTest(request=request), patch.object(
+                    TUNNEL, "verify_service_runtime",
+                    return_value=(runtime / "bin/node", runtime / "tunnel.mjs")), patch.object(
+                    TUNNEL.sys, "stdin", invalid_stdin), patch.object(
+                    TUNNEL.subprocess, "Popen") as rejected:
+                with self.assertRaisesRegex(TUNNEL.TunnelError, "request is invalid"):
+                    TUNNEL.wda_session_bootstrap(arguments)
+                rejected.assert_not_called()
+
+        multiline = MagicMock()
+        multiline.buffer = io.BytesIO(payload + b"{}\n")
+        with patch.object(
+                TUNNEL, "verify_service_runtime",
+                return_value=(runtime / "bin/node", runtime / "tunnel.mjs")), patch.object(
+                TUNNEL.sys, "stdin", multiline), patch.object(
+                TUNNEL.subprocess, "Popen") as rejected:
+            with self.assertRaisesRegex(TUNNEL.TunnelError, "one JSON line"):
+                TUNNEL.wda_session_bootstrap(arguments)
+            rejected.assert_not_called()
+
+    def test_javascript_wda_bootstrap_targets_one_exact_new_pid_and_closes_services(self):
+        with tempfile.TemporaryDirectory(prefix="overte-ios-wda-bootstrap-") as name:
+            runtime = Path(name)
+            helper = runtime / TUNNEL.WDA_SESSION_BOOTSTRAP_FILE.name
+            shutil.copy2(TUNNEL.WDA_SESSION_BOOTSTRAP_FILE, helper)
+            package = runtime / "appium/node_modules/appium-ios-remotexpc"
+            module = package / "build/src/index.js"
+            module.parent.mkdir(parents=True)
+            (package / "package.json").write_text(json.dumps({
+                "name": "appium-ios-remotexpc", "version": "5.15.3", "type": "module",
+            }), encoding="utf-8")
+            operations = runtime / "operations.jsonl"
+            wda = "com.private.slot.WebDriverAgentRunner.xctrunner"
+            runner_path = "/private/var/containers/Bundle/WDA.app"
+            executable = "WebDriverAgentRunner-Runner"
+            module.write_text(f"""
+import fs from 'node:fs';
+const record = (value) => fs.appendFileSync(
+  process.env.FAKE_OPERATIONS, value + '\\n'
+);
+let listCall = 0;
+const exactPath = {json.dumps(runner_path + "/" + executable)};
+const processEntry = (pid, relative = exactPath) => ({{
+  processIdentifier: pid, executableURL: {{relative}},
+}});
+export const Services = {{
+  startInstallationProxyService: async () => {{
+    record('start-proxy');
+    if (process.env.FAKE_MODE === 'service-unavailable') throw new Error('unavailable');
+    return {{
+      lookup: async (ids) => {{
+        record(`lookup:${{ids.join(',')}}`);
+        return {{[ids[0]]: {{
+          CFBundleIdentifier: ids[0], CFBundleExecutable: {json.dumps(executable)},
+          ApplicationType: 'User', Path: {json.dumps(runner_path)},
+        }}}};
+      }},
+      close: async () => record('close-proxy'),
+    }};
+  }},
+  startAppService: async () => {{
+    record('start-app');
+    return {{
+      listProcesses: async () => {{
+        listCall += 1;
+        record(`list:${{listCall}}`);
+        if (process.env.FAKE_MODE === 'invalid-processes') return {{bad: true}};
+        if (listCall === 1) return [processEntry(41), processEntry(99, '/wrong/app')];
+        if (process.env.FAKE_MODE === 'multiple-new-runners') {{
+          return [processEntry(84), processEntry(85), processEntry(99, '/wrong/app')];
+        }}
+        if (process.env.FAKE_MODE === 'settle-became-ambiguous' && listCall >= 3) {{
+          return [processEntry(84), processEntry(85), processEntry(99, '/wrong/app')];
+        }}
+        return [processEntry(84), processEntry(99, '/wrong/app')];
+      }},
+      close: async () => record('close-app'),
+    }};
+  }},
+  startHidIndigoService: async () => {{
+    record('start-hid');
+    return {{
+      pressButton: async (name, options) => {{
+        record(`press:${{name}}:${{options.pressCount}}`);
+        if (process.env.FAKE_MODE === 'hid-failure') throw new Error('failed');
+      }},
+      close: async () => record('close-hid'),
+    }};
+  }},
+}};
+""", encoding="utf-8")
+            private_udid = "00008101-1234567890ABCDEF"
+            request = json.dumps({
+                "schemaVersion": 1, "udid": private_udid, "wdaBundleId": wda,
+            }, separators=(",", ":")) + "\n"
+            environment = {**os.environ, "FAKE_OPERATIONS": str(operations)}
+            result = subprocess.run(
+                ["node", str(helper)], input=request, text=True,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                env=environment, timeout=10, check=False,
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("READY\nPASS\n", result.stdout)
+            self.assertNotIn(private_udid, result.stdout + result.stderr)
+            self.assertNotIn(wda, result.stdout + result.stderr)
+            lines = operations.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(1, lines.count("press:home:1"))
+            self.assertEqual([
+                "start-proxy", f"lookup:{wda}", "start-app", "list:1", "list:2",
+                "list:3", "start-hid", "press:home:1", "close-hid", "close-app",
+                "close-proxy",
+            ], lines)
+
+            for mode, expected_stdout, expected_closes in (
+                    ("invalid-processes", "", ["close-app", "close-proxy"]),
+                    ("multiple-new-runners", "READY\n",
+                     ["close-app", "close-proxy"]),
+                    ("settle-became-ambiguous", "READY\n",
+                     ["close-app", "close-proxy"]),
+                    ("hid-failure", "READY\n",
+                     ["close-hid", "close-app", "close-proxy"])):
+                operations.unlink()
+                rejected = subprocess.run(
+                    ["node", str(helper)], input=request, text=True,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    env={**environment, "FAKE_MODE": mode}, timeout=10, check=False,
+                )
+                self.assertEqual(2, rejected.returncode)
+                self.assertEqual(expected_stdout, rejected.stdout)
+                self.assertEqual(
+                    "error: WDA runner background recovery failed\n", rejected.stderr,
+                )
+                self.assertNotIn(private_udid, rejected.stdout + rejected.stderr)
+                rejected_lines = operations.read_text(encoding="utf-8").splitlines()
+                self.assertEqual(expected_closes, [
+                    line for line in rejected_lines if line.startswith("close-")
+                ])
+                if mode in {"multiple-new-runners", "settle-became-ambiguous"}:
+                    self.assertFalse(any(line.startswith("press:")
+                                         for line in rejected_lines))
+
+            operations.unlink()
+            unavailable = subprocess.run(
+                ["node", str(helper)], input=request, text=True,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                env={**environment, "FAKE_MODE": "service-unavailable"},
+                timeout=10, check=False,
+            )
+            self.assertEqual(2, unavailable.returncode)
+            self.assertEqual(["start-proxy"], operations.read_text().splitlines())
 
     def test_private_developer_disk_image_is_digest_and_manifest_bound(self):
         with tempfile.TemporaryDirectory(prefix="overte-private-ddi-") as name:
@@ -556,7 +859,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                 TUNNEL.validate_developer_disk_image(linked_request, lock)
 
     def test_device_ddi_passes_private_values_only_on_stdin(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r7")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r9")
         private_udid = "00008101-1234567890ABCDEF"
         private_root = Path("/private/operator-ddi")
         request = {
@@ -682,7 +985,7 @@ export async function resolveTunnelServicePorts(_udid, services) {{
             self.assertEqual("cleanup", operations.read_text().splitlines()[-1])
 
     def test_device_install_revalidates_receipt_and_passes_private_values_only_on_stdin(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r7")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r9")
         with tempfile.TemporaryDirectory(prefix="overte-ios-device-install-") as name:
             root = Path(name)
             overte = root / "Overte.ipa"
