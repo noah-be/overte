@@ -100,6 +100,21 @@ def validate_operation_arguments(operation: str, value: object) -> dict:
                 or parsed.username is not None or parsed.password is not None
                 or parsed.fragment):
             raise ValueError("asset.load url must be an absolute HTTP URL")
+    elif operation == "sound.play":
+        if set(value) != {"schemaVersion", "commandId", "url", "commandUrl"}:
+            raise ValueError("sound.play requires only its versioned command fields")
+        command_id = value.get("commandId")
+        if (value.get("schemaVersion") != 1 or not isinstance(command_id, str)
+                or not command_id or len(command_id) > 128
+                or command_id.strip() != command_id):
+            raise ValueError("sound.play requires schema version 1 and a bounded commandId")
+        for field in ("url", "commandUrl"):
+            url = value.get(field)
+            parsed = urlsplit(url) if isinstance(url, str) else None
+            if (parsed is None or parsed.scheme not in {"http", "https"}
+                    or not parsed.hostname or parsed.username is not None
+                    or parsed.password is not None):
+                raise ValueError(f"sound.play {field} must be an absolute HTTP(S) URL")
     return value
 
 
@@ -115,6 +130,11 @@ def validate_probe_snapshot(value: object) -> dict:
     if (not isinstance(value.get("sampleEpochMs"), int)
             or isinstance(value["sampleEpochMs"], bool) or value["sampleEpochMs"] <= 0):
         raise ValueError("probe snapshot requires a positive sampleEpochMs")
+    sample_sequence = value.get("sampleSequence")
+    if sample_sequence is not None and (
+            not isinstance(sample_sequence, int) or isinstance(sample_sequence, bool)
+            or sample_sequence <= 0):
+        raise ValueError("probe snapshot sampleSequence must be a positive integer")
     required_objects = ("build", "application", "scene", "avatar", "view", "tablet")
     for field in required_objects:
         if not isinstance(value.get(field), dict):
@@ -207,4 +227,34 @@ def validate_probe_snapshot(value: object) -> dict:
                 and math.isfinite(float(dimensions[axis]))
                 for axis in ("x", "y", "z")):
             raise ValueError("probe asset entity requires finite naturalDimensions")
+    sound = value.get("sound")
+    if sound is not None:
+        if not isinstance(sound, dict):
+            raise ValueError("probe sound must be an object")
+        boolean_fields = ("commandObserved", "resourceReady", "injectorCreated",
+                          "started", "playing", "finished")
+        if not all(isinstance(sound.get(field), bool) for field in boolean_fields):
+            raise ValueError("probe sound state flags must be boolean")
+        if (not isinstance(sound.get("commandId"), str)
+                or not isinstance(sound.get("url"), str)
+                or sound.get("format") not in {"unknown", "wav"}
+                or sound.get("finishReason") not in {"none", "natural", "stopped"}):
+            raise ValueError("probe sound identifiers or enums are invalid")
+        duration = sound.get("durationSeconds")
+        if (not isinstance(duration, (int, float)) or isinstance(duration, bool)
+                or not math.isfinite(float(duration)) or duration < 0.0):
+            raise ValueError("probe sound durationSeconds must be finite and non-negative")
+        if sound["commandObserved"] and (not sound["commandId"] or "://" not in sound["url"]):
+            raise ValueError("probe sound observed command requires an ID and absolute URL")
+        if sound["resourceReady"] and duration <= 0.0:
+            raise ValueError("probe sound ready resource requires a positive duration")
+        if sound["injectorCreated"] and not sound["resourceReady"]:
+            raise ValueError("probe sound injector requires a ready resource")
+        if sound["playing"] and (not sound["injectorCreated"] or not sound["started"]):
+            raise ValueError("probe sound playing state requires a started injector")
+        if sound["finished"] and (sound["playing"] or not sound["started"]
+                                  or sound["finishReason"] == "none"):
+            raise ValueError("probe sound finished state is inconsistent")
+        if not sound["finished"] and sound["finishReason"] != "none":
+            raise ValueError("probe sound unfinished state cannot have a finish reason")
     return value
