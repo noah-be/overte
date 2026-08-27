@@ -23,6 +23,7 @@
 #include <QDateTime>
 #include <QSaveFile>
 #include <QStandardPaths>
+#include <QTimer>
 #include <QUrlQuery>
 #include <QtGui/QClipboard>
 #include <QtNetwork/QLocalSocket>
@@ -1087,24 +1088,37 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         return;
     }
 #if defined(ANDROID_APP_PICO_INTERFACE)
-    const auto applyPicoServerlessLocationQuery = [](const QUrl& url) {
+    const auto schedulePicoServerlessLocationQuery = [this, requestGeneration](
+            const QUrl& url) {
         const QString locationKey = QStringLiteral("location");
         const QUrlQuery query(url);
         if (!query.hasQueryItem(locationKey)) {
             return;
         }
 
-        // AddressManager handles the URL before Pico's synchronous local
-        // import commits. connectedToServerless() resets that early avatar
-        // transition, so replay only the already-requested viewpoint after a
-        // successful import. This is the normal URL location contract, not an
-        // E2E-only teleport, and URLs without a location remain untouched.
         const QString viewpoint = query.queryItemValue(
             locationKey, QUrl::FullyDecoded);
-        const bool applied = DependencyManager::get<AddressManager>()->goToViewpointForPath(
-            viewpoint, QString());
-        qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE locationApplied"
-            << "success" << applied;
+        const QUrl expectedURL = PathUtils::expandToLocalDataAbsolutePath(url);
+        // connectedToServerless() and AddressManager both finish during the
+        // current event turn. A queued handoff from the previous serverless
+        // scene can still restore its old avatar position after those calls,
+        // so apply the requested viewpoint once that turn has drained. The
+        // generation and URL guards prevent stale navigation from moving the
+        // avatar in a newer scene.
+        QTimer::singleShot(0, this, [this, requestGeneration, expectedURL, viewpoint] {
+            const QUrl committedURL =
+                PathUtils::expandToLocalDataAbsolutePath(_picoServerlessSceneURL);
+            if (requestGeneration != _serverlessDomainRequestGeneration
+                    || !_picoServerlessSceneImportCommitted
+                    || committedURL != expectedURL) {
+                return;
+            }
+            if (!DependencyManager::get<AddressManager>()->goToViewpointForPath(
+                    viewpoint, QString())) {
+                qCWarning(interfaceapp)
+                    << "PICO_SERVERLESS_TRACE locationApplyFailed";
+            }
+        });
     };
 
     const auto finishPicoServerlessImport = [this] {
@@ -1155,7 +1169,7 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         _octreeProcessor->getFullSceneReceivedCounter()++;
         _picoServerlessSceneURL = domainURL;
         _picoServerlessSceneImportCommitted = true;
-        applyPicoServerlessLocationQuery(domainURL);
+        schedulePicoServerlessLocationQuery(domainURL);
         qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE importCommitted"
             << domainURL
             << "treeServerless" << isServerlessMode()
@@ -1226,7 +1240,7 @@ void Application::loadServerlessDomain(QUrl domainURL) {
 #if defined(ANDROID_APP_PICO_INTERFACE)
             _picoServerlessSceneURL = domainURL;
             _picoServerlessSceneImportCommitted = true;
-            applyPicoServerlessLocationQuery(domainURL);
+            schedulePicoServerlessLocationQuery(domainURL);
             qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE importCommitted"
                 << domainURL
                 << "treeServerless" << isServerlessMode()
