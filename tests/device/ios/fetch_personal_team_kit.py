@@ -36,7 +36,6 @@ DISPATCH_PATTERNS = {
     "qt_host_artifact_prefix": r"overte-qt-host-checkpoint-v1-[0-9a-f]{32}",
     "qt_ios_artifact_prefix": r"overte-qt-ios-checkpoint-v1-[0-9a-f]{32}",
     "personal_team_overte_reuse_run_id": r"[0-9]+",
-    "personal_team_overte_reuse_run_attempt": r"[0-9]+",
 }
 
 
@@ -81,7 +80,6 @@ def dispatch_inputs(arguments: argparse.Namespace) -> dict[str, str]:
         "qt_host_artifact_prefix": arguments.qt_host_artifact_prefix,
         "qt_ios_artifact_prefix": arguments.qt_ios_artifact_prefix,
         "personal_team_overte_reuse_run_id": str(arguments.overte_reuse_run_id),
-        "personal_team_overte_reuse_run_attempt": str(arguments.overte_reuse_run_attempt),
     }
     for name, pattern in DISPATCH_PATTERNS.items():
         value = values[name]

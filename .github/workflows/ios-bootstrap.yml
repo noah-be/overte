@@ -35,12 +35,7 @@ on:
         type: boolean
         default: false
       personal_team_overte_reuse_run_id:
-        description: Explicit prior successful apple-ios run containing the unsigned E2E client (0 builds anew)
-        required: false
-        type: number
-        default: 0
-      personal_team_overte_reuse_run_attempt:
-        description: Exact prior run attempt; legacy reusable artifacts require attempt 1
+        description: Explicit prior successful apple-ios attempt-1 run containing the unsigned E2E client (0 builds anew)
         required: false
         type: number
         default: 0
@@ -205,7 +200,7 @@ jobs:
       qt_host_artifact_prefix: ${{ inputs.qt_host_artifact_prefix }}
       qt_ios_artifact_prefix: ${{ inputs.qt_ios_artifact_prefix }}
       overte_reuse_run_id: ${{ inputs.personal_team_overte_reuse_run_id }}
-      overte_reuse_run_attempt: ${{ inputs.personal_team_overte_reuse_run_attempt }}
+      overte_reuse_run_attempt: ${{ inputs.personal_team_overte_reuse_run_id > 0 && 1 || 0 }}
 
   world-runtime-evidence:
     if: >-
@@ -237,7 +232,7 @@ jobs:
           RUN_FEDORA_E2E: ${{ inputs.fedora_e2e_producer || false }}
           RUN_PERSONAL_TEAM_E2E: ${{ inputs.personal_team_e2e_kit || false }}
           OVERTE_REUSE_RUN_ID: ${{ inputs.personal_team_overte_reuse_run_id || 0 }}
-          OVERTE_REUSE_RUN_ATTEMPT: ${{ inputs.personal_team_overte_reuse_run_attempt || 0 }}
+          OVERTE_REUSE_RUN_ATTEMPT: ${{ inputs.personal_team_overte_reuse_run_id > 0 && 1 || 0 }}
         run: |
           set -euo pipefail
           if [[ "$EVENT_NAME" != workflow_dispatch ]]; then

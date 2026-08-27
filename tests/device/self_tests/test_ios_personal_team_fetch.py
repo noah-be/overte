@@ -192,7 +192,6 @@ class IosPersonalTeamFetchTest(unittest.TestCase):
             "qt_host_artifact_prefix": arguments.qt_host_artifact_prefix,
             "qt_ios_artifact_prefix": arguments.qt_ios_artifact_prefix,
             "personal_team_overte_reuse_run_id": "33000393530",
-            "personal_team_overte_reuse_run_attempt": "1",
         })
         wait.assert_called_once_with(api, 8675309, 1, 3600, 20)
 
