@@ -14,7 +14,7 @@ import sys
 import tempfile
 import time
 import unittest
-from unittest.mock import call, patch
+from unittest.mock import MagicMock, call, patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -271,6 +271,191 @@ class DesktopAdapterTest(unittest.TestCase):
             sys.executable, str(ADAPTER), "--platform", platform, action, *extra,
         ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
            env=self.environment, check=False)
+
+    def controlled_adapter(self, platform: str) -> tuple[object, dict]:
+        payload = json.loads(self.config.read_text(encoding="utf-8"))
+        target = next(item for item in payload["targets"] if item["platform"] == platform)
+        target["probe"] = {"kind": "injected-test-script"}
+        target["clientControl"] = {"kind": "probe-command-file"}
+        self.config.write_text(json.dumps(payload), encoding="utf-8")
+        with patch.dict(os.environ, self.environment, clear=True):
+            adapter = DESKTOP_MODULE.DesktopAdapter(platform)
+        return adapter, adapter.target(f"{platform}-alias")
+
+    @staticmethod
+    def running_state() -> dict:
+        return {"pid": 4242, "processToken": "token", "identity": "4242:token"}
+
+    def test_new_capabilities_require_probe_command_control_on_every_desktop_variant(self):
+        payload = json.loads(self.config.read_text(encoding="utf-8"))
+        controlled = {"asset.load", "navigation.enter-domain", "sound.play"}
+        for target in payload["targets"]:
+            with self.subTest(platform=target["platform"], controlled=False):
+                self.assertTrue(controlled.isdisjoint(
+                    DESKTOP_MODULE.DesktopAdapter.capabilities(target)))
+            target["probe"] = {"kind": "injected-test-script"}
+            target["clientControl"] = {"kind": "probe-command-file"}
+            with self.subTest(platform=target["platform"], controlled=True):
+                self.assertTrue(controlled.issubset(
+                    DESKTOP_MODULE.DesktopAdapter.capabilities(target)))
+
+        linux = payload["targets"][0]
+        linux["isolatedX11"] = True
+        self.assertTrue(controlled.issubset(
+            DESKTOP_MODULE.DesktopAdapter.capabilities(linux)))
+
+    def test_contradictory_or_uncontrolled_probe_configuration_fails_closed(self):
+        payload = json.loads(self.config.read_text(encoding="utf-8"))
+        linux = next(item for item in payload["targets"] if item["platform"] == "linux")
+        linux["clientControl"] = {"kind": "probe-command-file"}
+        self.config.write_text(json.dumps(payload), encoding="utf-8")
+        with patch.dict(os.environ, self.environment, clear=True), self.assertRaisesRegex(
+                RuntimeError, "injected in-client probe"):
+            DESKTOP_MODULE.DesktopAdapter("linux")
+
+        linux["probe"] = {"kind": "injected-test-script"}
+        linux["clientControl"] = {"kind": "portal"}
+        self.config.write_text(json.dumps(payload), encoding="utf-8")
+        with patch.dict(os.environ, self.environment, clear=True), self.assertRaisesRegex(
+                RuntimeError, "probe-command-file"):
+            DESKTOP_MODULE.DesktopAdapter("linux")
+
+    def test_navigation_and_asset_payloads_use_the_running_probe_process(self):
+        adapter, target = self.controlled_adapter("macos")
+        adapter.prepare_injected_probe("macos-alias")
+        state = self.running_state()
+        with patch.object(adapter, "read_state", return_value=state), patch.object(
+                adapter, "state_alive", return_value=True), patch.object(
+                    DESKTOP_MODULE.subprocess, "Popen") as spawn:
+            navigation = adapter.invoke(
+                "macos-alias", "navigation.enter-domain",
+                {"url": "hifi://127.0.0.1:40102/0,2,4/0,0,0,1"})
+        spawn.assert_not_called()
+        self.assertEqual({"requested": True}, navigation)
+        command = json.loads(adapter.client_command_path("macos-alias").read_text())
+        self.assertEqual("navigate", command["action"])
+        self.assertEqual("hifi://127.0.0.1:40102/0,2,4/0,0,0,1", command["url"])
+
+        values = {
+            "assetId": "texture-rgb-3x1-v1",
+            "url": "http://127.0.0.1:41000/assets/texture.png?requestId=exact",
+            "entityName": "OVERTE_E2E_ASSET_LOAD",
+        }
+        with patch.object(adapter, "read_state", return_value=state), patch.object(
+                adapter, "state_alive", return_value=True):
+            asset = adapter.invoke("macos-alias", "asset.load", values)
+        self.assertEqual({"requested": True}, asset)
+        command = json.loads(adapter.client_command_path("macos-alias").read_text())
+        self.assertEqual({"action": "asset-load", **values}, {
+            key: command[key] for key in ("action", *values)})
+        probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
+        self.assertIn('Window.location = command.url', probe)
+        self.assertIn('Entities.addEntity({', probe)
+        self.assertIn('imageURL: command.url', probe)
+        self.assertIn('overteE2EAssetId: command.assetId', probe)
+        self.assertNotIn("Clipboard", probe)
+
+    def test_controlled_launch_uses_private_probe_copy_in_the_authoritative_process(self):
+        self.controlled_adapter("macos")
+        (self.root / "interface-calls.log").unlink(missing_ok=True)
+        result = self.call(
+            "macos", "invoke", "--target", "macos-alias",
+            "--operation", "app.launch")
+        self.assertEqual(0, result.returncode, result.stdout)
+        calls = [json.loads(line) for line in (self.root / "interface-calls.log").read_text(
+            encoding="utf-8").splitlines()]
+        self.assertEqual(1, len(calls))
+        arguments = calls[0]
+        script = Path(arguments[arguments.index("--testScript") + 1])
+        results = Path(arguments[arguments.index("--testResultsLocation") + 1])
+        self.assertEqual(results, script.parent)
+        self.assertNotEqual(ROOT / "probe/overte_e2e_probe.js", script)
+        self.assertEqual(0o600, script.stat().st_mode & 0o777)
+        self.assertTrue((results / "desktop-command.json").is_file())
+        process = self.call(
+            "macos", "invoke", "--target", "macos-alias",
+            "--operation", "app.process")
+        self.assertEqual(0, process.returncode, process.stdout)
+        self.assertTrue(json.loads(process.stdout)["running"])
+
+    def test_sound_posts_exact_fixture_command_without_synthesizing_probe_state(self):
+        adapter, _target = self.controlled_adapter("windows")
+        adapter.prepare_injected_probe("windows-alias")
+        state = self.running_state()
+        values = {
+            "schemaVersion": 1,
+            "commandId": "sound-exact",
+            "url": "http://127.0.0.1:41000/audio/overte-e2e-tone.wav?e2eCommand=sound-exact",
+            "commandUrl": "http://127.0.0.1:41000/sound-command.json",
+        }
+        accepted = {
+            "schemaVersion": 1, "commandId": "sound-exact", "action": "play",
+            "soundUrl": values["url"],
+        }
+        response = MagicMock()
+        response.status = 200
+        response.read.return_value = json.dumps(accepted).encode("utf-8")
+        response.__enter__.return_value = response
+        with patch.object(adapter, "read_state", return_value=state), patch.object(
+                adapter, "state_alive", return_value=True), patch.object(
+                    DESKTOP_MODULE, "urlopen", return_value=response) as opened:
+            result = adapter.invoke("windows-alias", "sound.play", values)
+        self.assertEqual({"requested": True, "commandId": "sound-exact"}, result)
+        request = opened.call_args.args[0]
+        self.assertEqual(values["commandUrl"], request.full_url)
+        self.assertEqual(accepted, json.loads(request.data))
+        command = json.loads(adapter.client_command_path("windows-alias").read_text())
+        self.assertEqual("sound-channel", command["action"])
+        self.assertEqual(values["commandUrl"], command["url"])
+        self.assertNotIn("resourceReady", command)
+        self.assertNotIn("injectorCreated", command)
+
+    def test_control_operations_reject_missing_probe_invalid_arguments_and_process_switch(self):
+        adapter, _target = self.controlled_adapter("macos")
+        adapter.prepare_injected_probe("macos-alias")
+        state = self.running_state()
+        invalid = (
+            ("navigation.enter-domain", {"url": "https://fixture.invalid"}),
+            ("asset.load", {"assetId": "BAD", "url": "http://fixture/a.png",
+                            "entityName": "OVERTE_E2E_ASSET_LOAD"}),
+            ("sound.play", {"schemaVersion": 1, "commandId": "id",
+                            "url": "file:///tone.wav", "commandUrl": "http://fixture/c"}),
+        )
+        for operation, arguments in invalid:
+            with self.subTest(operation=operation), self.assertRaises(ValueError):
+                adapter.invoke("macos-alias", operation, arguments)
+
+        with patch.object(adapter, "read_state", return_value=state), patch.object(
+                adapter, "state_alive", side_effect=[True, True, False]), self.assertRaisesRegex(
+                    RuntimeError, "process changed"):
+            adapter.invoke("macos-alias", "navigation.enter-domain", {
+                "url": "hifi://127.0.0.1:40102/",
+            })
+
+        payload = json.loads(self.config.read_text(encoding="utf-8"))
+        macos = next(item for item in payload["targets"] if item["platform"] == "macos")
+        macos.pop("clientControl")
+        macos["probe"] = {"kind": "host-file", "path": str(self.probe)}
+        self.config.write_text(json.dumps(payload), encoding="utf-8")
+        with patch.dict(os.environ, self.environment, clear=True):
+            uncontrolled = DESKTOP_MODULE.DesktopAdapter("macos")
+        with patch.object(uncontrolled, "read_state", return_value=state), patch.object(
+                uncontrolled, "state_alive", return_value=True), self.assertRaisesRegex(
+                    RuntimeError, "controlled in-client probe"):
+            uncontrolled.invoke("macos-alias", "navigation.enter-domain", {
+                "url": "hifi://127.0.0.1:40102/",
+            })
+
+    def test_cleanup_removes_private_probe_control_artifacts(self):
+        adapter, _target = self.controlled_adapter("macos")
+        script = adapter.prepare_injected_probe("macos-alias")
+        command = adapter.client_command_path("macos-alias")
+        self.assertEqual(0o600, script.stat().st_mode & 0o777)
+        self.assertEqual(0o600, command.stat().st_mode & 0o777)
+        with patch.object(adapter, "read_state", return_value=None):
+            self.assertEqual({"cleaned": True}, adapter.cleanup("macos-alias"))
+        self.assertFalse(script.exists())
+        self.assertFalse(command.exists())
 
     def test_all_desktop_manifests_satisfy_protocol(self):
         for platform in ("linux", "macos", "windows"):
