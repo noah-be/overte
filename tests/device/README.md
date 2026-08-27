@@ -28,6 +28,12 @@ assertion failure.
 ## Portable suites
 
 - `smoke`: stable process launch and foreground state.
+- `asset-smoke`: one launch followed by controlled local texture delivery,
+  ready resource state, uniquely tagged Image-entity use, and stable
+  process/foreground evidence. Test logic is implemented; product-adapter
+  activation remains pending. See [`ASSET_LOAD_E2E.md`](ASSET_LOAD_E2E.md).
+- `sound-smoke`: controlled WAV request, decode readiness, and observable
+  in-client injector lifecycle; see [`SOUND_E2E.md`](SOUND_E2E.md).
 - `e2e-core`: launch, controlled scene load, look, movement, and tablet
   open/close behavior.
 - `domain-smoke`: launch, enter an ephemeral controlled domain, and verify its
@@ -129,21 +135,26 @@ python3 tests/device/fixture/serve.py \
 The Android debug E2E APK embeds the same scene and probe and can use
 `OVERTE_E2E_SCENE_URL=overte-e2e://fixture/scene`; its shell-protected launcher
 maps that logical request to the fixed local asset. Release APKs contain neither
-the launcher nor the two E2E assets. Desktop targets use the HTTP fixture. The
-fixture server also exposes the repository-owned probe at
-`/overte_e2e_probe.js`. The iOS adapter uses that resource only for a dedicated,
-runtime-attested test build; see [`ios/`](ios/). The application target and
-protected signed-artifact producer live on `apple-ios`. Fedora verifies the
-signed Overte/WDA handoff, installs both IPAs, and controls physical iOS 18+
-devices through the pinned RemoteXPC tunnel. Jenkins can dispatch the producer
-itself, binds the exact returned workflow run and attempt, and keeps signed
-bytes and populated target configuration outside the checkout and archives.
+the launcher nor the two E2E assets. Desktop targets use the HTTP fixture.
+The server exposes the repository-owned probe at `/overte_e2e_probe.js`, the
+pinned texture plus per-request telemetry used by `asset-smoke`, and the
+deterministic sound described in [`SOUND_E2E.md`](SOUND_E2E.md). The iOS adapter
+uses the probe resource only for a dedicated, runtime-attested test build; see
+[`ios/`](ios/). The application target and protected signed-artifact producer
+live on `apple-ios`. Fedora verifies the signed Overte/WDA handoff, installs both
+IPAs, and controls physical iOS 18+ devices through the pinned RemoteXPC tunnel.
+Jenkins can dispatch the producer itself, binds the exact returned workflow run
+and attempt, and keeps signed bytes and populated target configuration outside
+the checkout and archives.
 
-The in-client [`probe/overte_e2e_probe.js`](probe/overte_e2e_probe.js) runs
-only via Interface's existing `--testScript` mode. It records application
-focus, scene URL/readiness/entity markers, avatar position, `inAir`, `flying`,
-`flyingEnabled`, camera orientation, tablet state, and Overte build identity
-through the existing `Test.saveObject` API.
+The in-client [`probe/overte_e2e_probe.js`](probe/overte_e2e_probe.js) runs only
+via Interface's existing `--testScript` mode. It records application focus,
+scene readiness and markers, avatar position, `inAir`, `flying`,
+`flyingEnabled`, camera orientation, tablet and controller state, controlled
+asset resource/entity evidence, sound resource and injector state, and build
+identity through the existing `Test.saveObject` API. It records no audio
+samples. Product adapters own the exact launch and result transport used to
+load it.
 
 [`fixture/domain.py`](fixture/domain.py) owns the complementary ephemeral
 domain-server and assignment-client stack. The `domain-smoke` assertion waits
