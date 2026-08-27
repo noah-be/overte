@@ -9,11 +9,12 @@ import os
 from pathlib import Path
 import sys
 import time
+from urllib.parse import urlsplit
 
 
 CAPABILITIES = sorted([
     "app.foreground", "app.launch", "app.process", "input.look", "input.move",
-    "probe.snapshot", "scene.load", "tablet.close", "tablet.open",
+    "navigation.enter-domain", "probe.snapshot", "scene.load", "tablet.close", "tablet.open",
 ])
 
 
@@ -37,7 +38,8 @@ def initial_state() -> dict:
     pico = os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1"
     return {
         "running": False, "foreground": False, "sceneUrl": "", "sceneReady": False,
-        "launchCount": 0, "sceneLoadCount": 0,
+        "launchCount": 0, "sceneLoadCount": 0, "domainEnterCount": 0,
+        "domainConnected": False, "domainHost": "", "domainId": "",
         "position": {"x": 0.0, "y": 2.0 if pico else 1.0, "z": 4.0},
         "orientation": {"x": 0.0, "y": 0.0, "z": 0.0}, "tablet": False,
         "picoRouteActive": False, "inputSequence": 0, "sampleSequence": 0,
@@ -73,7 +75,26 @@ def invoke(operation: str, arguments: dict) -> dict:
     elif operation == "scene.load":
         state["sceneUrl"] = arguments.get("url", "")
         state["sceneReady"] = True
+        state["domainConnected"] = False
+        state["domainHost"] = state["domainId"] = ""
         state["sceneLoadCount"] += 1
+        result = {"requested": True}
+    elif operation == "navigation.enter-domain":
+        requested = arguments.get("url", "")
+        parsed = urlsplit(requested)
+        try:
+            port = parsed.port
+        except ValueError as error:
+            raise RuntimeError("mock domain navigation has an invalid port") from error
+        if parsed.scheme != "hifi" or not parsed.hostname or port is None:
+            raise RuntimeError("mock domain navigation requires an explicit hifi URL")
+        state["sceneUrl"] = requested
+        state["sceneReady"] = False
+        state["domainConnected"] = True
+        state["domainHost"] = parsed.hostname
+        state["domainId"] = os.environ.get(
+            "OVERTE_MOCK_E2E_DOMAIN_ID", "11111111-2222-4333-8444-555555555555")
+        state["domainEnterCount"] += 1
         result = {"requested": True}
     elif operation == "input.look":
         state["inputSequence"] += 1
@@ -115,6 +136,14 @@ def invoke(operation: str, arguments: dict) -> dict:
                                    or after < 0)):
             raise RuntimeError("afterSampleSequence must be a non-negative integer")
         state["sampleSequence"] += 1
+        domain_markers = [
+            "OVERTE_E2E_DOMAIN_EAST", "OVERTE_E2E_DOMAIN_FLOOR",
+            "OVERTE_E2E_DOMAIN_NORTH", "OVERTE_E2E_DOMAIN_ORIGIN",
+        ]
+        if os.environ.get("OVERTE_MOCK_E2E_DOMAIN_MARKERS_JSON"):
+            domain_markers = json.loads(os.environ["OVERTE_MOCK_E2E_DOMAIN_MARKERS_JSON"])
+        if not state["domainConnected"]:
+            domain_markers = []
         snapshot = {
             "schemaVersion": 1,
             "sampleEpochMs": int(time.time() * 1000),
@@ -122,8 +151,17 @@ def invoke(operation: str, arguments: dict) -> dict:
             "build": {"platform": "Mock", "version": "device-contract",
                       "date": "1970-01-01"},
             "application": {"running": state["running"], "foreground": state["foreground"]},
+            "domain": {
+                "connected": state["domainConnected"],
+                "hostname": state["domainHost"],
+                "id": state["domainId"],
+                "protocol": "hifi" if state["domainConnected"] else "file",
+                "serverless": not state["domainConnected"],
+            },
             "scene": {"url": state["sceneUrl"], "ready": state["sceneReady"],
-                      "entityCount": 4 if state["sceneReady"] else 0},
+                      "entityCount": 4 if state["sceneReady"] or state["domainConnected"] else 0,
+                      "domainMarkerCount": len(domain_markers),
+                      "domainMarkers": domain_markers},
             "avatar": {"position": state["position"]},
             "view": {"orientation": state["orientation"]},
             "tablet": {"open": state["tablet"], "home": state["tablet"]},

@@ -3,13 +3,17 @@
 
 from __future__ import annotations
 
+import json
 import math
 import os
 import time
 from typing import Callable
+from urllib.parse import urlsplit
+import uuid
 
 from contracts import validate_probe_snapshot
-from module_support import InfrastructureError, fail, operation, write_json
+from module_support import (InfrastructureError, assert_foreground, assert_process,
+                            fail, operation, process_identity, write_json)
 
 
 class OverteSession:
@@ -136,6 +140,115 @@ class OverteSession:
                 write_json("scene-ready.json", snapshot)
                 return snapshot
         return self.load_scene(url)
+
+    @staticmethod
+    def _parsed_domain_uuid(value: object) -> str | None:
+        if not isinstance(value, str) or not value:
+            return None
+        try:
+            parsed = uuid.UUID(value.strip("{}"))
+        except ValueError:
+            return None
+        if parsed.int == 0:
+            return None
+        return str(parsed)
+
+    @classmethod
+    def _domain_uuid(cls, value: object, label: str) -> str:
+        parsed = cls._parsed_domain_uuid(value)
+        if parsed is None:
+            fail(f"{label} must be a non-null UUID")
+        return parsed
+
+    @staticmethod
+    def _domain_markers() -> list[str]:
+        try:
+            markers = json.loads(os.environ.get("OVERTE_E2E_DOMAIN_MARKERS_JSON", ""))
+        except json.JSONDecodeError:
+            fail("OVERTE_E2E_DOMAIN_MARKERS_JSON must be valid JSON")
+        if (not isinstance(markers, list) or not markers
+                or markers != sorted(set(markers))
+                or not all(isinstance(item, str)
+                           and item.startswith("OVERTE_E2E_DOMAIN_") for item in markers)):
+            fail("OVERTE_E2E_DOMAIN_MARKERS_JSON must be a sorted unique domain marker list")
+        return markers
+
+    def enter_controlled_domain(self) -> tuple[dict, list[dict]]:
+        url = os.environ.get("OVERTE_E2E_DOMAIN_URL", "")
+        parsed = urlsplit(url)
+        if (parsed.scheme != "hifi" or not parsed.hostname or parsed.username is not None
+                or parsed.password is not None or parsed.query or parsed.fragment):
+            fail("OVERTE_E2E_DOMAIN_URL must be an absolute credential-free hifi URL")
+        try:
+            port = parsed.port
+        except ValueError:
+            fail("OVERTE_E2E_DOMAIN_URL contains an invalid port")
+        if port is None or not 1 <= port <= 65535:
+            fail("OVERTE_E2E_DOMAIN_URL must contain an explicit port")
+        expected_host = os.environ.get("OVERTE_E2E_DOMAIN_HOST", "").lower()
+        if not expected_host or expected_host != parsed.hostname.lower():
+            fail("OVERTE_E2E_DOMAIN_HOST must match the controlled domain URL")
+        expected_id = self._domain_uuid(
+            os.environ.get("OVERTE_E2E_DOMAIN_ID"), "OVERTE_E2E_DOMAIN_ID")
+        expected_markers = self._domain_markers()
+        try:
+            stable_required = int(os.environ.get("OVERTE_E2E_DOMAIN_STABLE_SAMPLES", "3"))
+        except ValueError:
+            fail("OVERTE_E2E_DOMAIN_STABLE_SAMPLES must be from 2 through 20")
+        if not 2 <= stable_required <= 20:
+            fail("OVERTE_E2E_DOMAIN_STABLE_SAMPLES must be from 2 through 20")
+
+        identity = process_identity()
+        assert_foreground("before domain navigation")
+        before = self.snapshot("domain-before.json")
+        before_domain = before.get("domain")
+        if isinstance(before_domain, dict) and before_domain.get("connected") is True:
+            if self._parsed_domain_uuid(before_domain.get("id")) == expected_id:
+                fail("application was already connected to the controlled domain")
+
+        result = operation("navigation.enter-domain", {"url": url})
+        write_json("domain-navigation-result.json", result)
+        if result.get("requested") is not True:
+            fail("domain navigation operation was not accepted")
+
+        deadline = time.monotonic() + self.timeout_seconds
+        stable: list[dict] = []
+        previous_entity_count = None
+        last = None
+        while time.monotonic() < deadline:
+            last = self.snapshot()
+            domain = last.get("domain")
+            scene = last.get("scene", {})
+            matches = False
+            if isinstance(domain, dict) and domain.get("connected") is True:
+                matches = (
+                    self._parsed_domain_uuid(domain.get("id")) == expected_id
+                    and str(domain.get("hostname", "")).lower() == expected_host
+                    and domain.get("protocol") == "hifi"
+                    and domain.get("serverless") is False
+                    and scene.get("domainMarkers") == expected_markers
+                    and scene.get("domainMarkerCount") == len(expected_markers)
+                )
+            entity_count = scene.get("entityCount")
+            if matches and entity_count == previous_entity_count:
+                stable.append(last)
+            elif matches:
+                stable = [last]
+            else:
+                stable = []
+            previous_entity_count = entity_count
+            if len(stable) >= stable_required:
+                break
+            time.sleep(self.poll_seconds)
+        if len(stable) < stable_required:
+            if last is not None:
+                write_json("domain-last-probe.json", last)
+            fail("controlled domain did not become connected with stable assignment-owned markers")
+        assert_process(identity, "domain navigation")
+        assert_foreground("after domain navigation")
+        write_json("domain-stable-samples.json", stable)
+        write_json("domain-connected.json", stable[-1])
+        return stable[-1], stable
 
     @staticmethod
     def _same_scene(observed: str, expected: str) -> bool:
