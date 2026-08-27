@@ -1032,7 +1032,11 @@ def verify_installed_unit(runtime_root: Path, port: int, unit_path: Path = UNIT_
 def activate_systemd_unit() -> None:
     subprocess.run(["systemctl", "daemon-reload"], timeout=30, check=True)
     subprocess.run(["systemctl", "reset-failed", UNIT_NAME], timeout=30, check=True)
-    subprocess.run(["systemctl", "enable", "--now", UNIT_NAME], timeout=60, check=True)
+    subprocess.run(["systemctl", "enable", UNIT_NAME], timeout=30, check=True)
+    # `enable --now` does not restart an already active unit after its immutable
+    # runtime path changes.  Restart explicitly so a successful installer can
+    # never leave the previous version executing behind the updated unit file.
+    subprocess.run(["systemctl", "restart", UNIT_NAME], timeout=60, check=True)
 
 
 def install_unit(arguments: argparse.Namespace) -> int:

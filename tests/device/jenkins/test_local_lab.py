@@ -145,7 +145,7 @@ class LocalLabBootstrapTest(unittest.TestCase):
             with patch.object(LAB.Path, "home", return_value=fake_home), \
                     patch.object(LAB.platform, "system", return_value="Linux"), \
                     patch.object(LAB, "wait_controller"), \
-                    patch.object(LAB.subprocess, "run"), \
+                    patch.object(LAB.subprocess, "run") as run_process, \
                     patch.object(LAB, "immutable_appium_command", return_value=[
                         "/usr/local/lib/overte-ios-remotexpc/5.15.3-r5/remotexpc_tunnel.py",
                         "appium-server", "--service-runtime",
@@ -153,6 +153,15 @@ class LocalLabBootstrapTest(unittest.TestCase):
                         "--state-root", str(private / "appium-state"),
                     ]) as immutable_appium:
                 self.assertEqual(0, LAB.install_systemd_user_services(arguments))
+            systemd_calls = [call.args[0] for call in run_process.call_args_list]
+            for unit_name in (
+                    "overte-jenkins-controller.service",
+                    "overte-jenkins-agent.service",
+                    "overte-appium.service"):
+                self.assertIn(["systemctl", "--user", "enable", unit_name], systemd_calls)
+                self.assertIn(["systemctl", "--user", "restart", unit_name], systemd_calls)
+                self.assertNotIn(
+                    ["systemctl", "--user", "enable", "--now", unit_name], systemd_calls)
             appium_lock = immutable_appium.call_args.args[0]["appium"]
             self.assertNotIn("uiautomator2", appium_lock["drivers"])
             self.assertEqual("5.15.3", appium_lock["iosRuntime"]["remoteXpc"]["version"])

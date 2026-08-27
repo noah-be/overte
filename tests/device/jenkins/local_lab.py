@@ -526,13 +526,19 @@ WantedBy=default.target
 """
         secure_write(unit_root / "overte-appium.service", appium_unit)
     subprocess.run(["systemctl", "--user", "daemon-reload"], timeout=30, check=True)
-    subprocess.run(["systemctl", "--user", "enable", "--now",
+    subprocess.run(["systemctl", "--user", "enable",
+                    "overte-jenkins-controller.service"], timeout=30, check=True)
+    subprocess.run(["systemctl", "--user", "restart",
                     "overte-jenkins-controller.service"], timeout=30, check=True)
     wait_controller(state)
-    subprocess.run(["systemctl", "--user", "enable", "--now",
+    subprocess.run(["systemctl", "--user", "enable",
+                    "overte-jenkins-agent.service"], timeout=30, check=True)
+    subprocess.run(["systemctl", "--user", "restart",
                     "overte-jenkins-agent.service"], timeout=30, check=True)
     if appium_unit is not None:
-        subprocess.run(["systemctl", "--user", "enable", "--now",
+        subprocess.run(["systemctl", "--user", "enable",
+                        "overte-appium.service"], timeout=30, check=True)
+        subprocess.run(["systemctl", "--user", "restart",
                         "overte-appium.service"], timeout=30, check=True)
     print("Installed and started the local Jenkins controller and interactive agent.")
     return 0

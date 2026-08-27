@@ -378,7 +378,8 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
         self.assertEqual([
             ["systemctl", "daemon-reload"],
             ["systemctl", "reset-failed", TUNNEL.UNIT_NAME],
-            ["systemctl", "enable", "--now", TUNNEL.UNIT_NAME],
+            ["systemctl", "enable", TUNNEL.UNIT_NAME],
+            ["systemctl", "restart", TUNNEL.UNIT_NAME],
         ], [call.args[0] for call in execute.call_args_list])
 
     def test_status_defaults_to_versioned_service_runtime_not_appium_home(self):
