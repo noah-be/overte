@@ -10,8 +10,6 @@
     var stableAvatarSamples = 0;
     var previousAvatarPosition = null;
     var sceneReady = false;
-    var spawnApplied = false;
-    var spawnRequestPending = false;
     var sampleSequence = 0;
     var probeErrorCount = 0;
     var lastProbeError = "";
@@ -518,17 +516,6 @@
         var spawnDeltaX = avatarPosition.x - expectedSpawn.x;
         var spawnDeltaZ = avatarPosition.z - expectedSpawn.z;
         var avatarAtSpawn = spawnDeltaX * spawnDeltaX + spawnDeltaZ * spawnDeltaZ <= 1.0;
-        if (!spawnApplied && markerCount === fixtureMarkers.length && floorTopY !== null) {
-            if (spawnRequestPending && avatarAtSpawn) {
-                spawnApplied = true;
-            } else {
-                MyAvatar.velocity = { x: 0.0, y: 0.0, z: 0.0 };
-                MyAvatar.goToLocation(expectedSpawn, false);
-                previousAvatarPosition = null;
-                stableAvatarSamples = 0;
-                spawnRequestPending = true;
-            }
-        }
         if (previousAvatarPosition !== null) {
             var deltaX = avatarPosition.x - previousAvatarPosition.x;
             var deltaY = avatarPosition.y - previousAvatarPosition.y;
@@ -541,7 +528,7 @@
         spawnDeltaZ = avatarPosition.z - expectedSpawn.z;
         var avatarAboveFloor = floorTopY !== null && avatarPosition.y >= floorTopY - 0.05;
         avatarAtSpawn = spawnDeltaX * spawnDeltaX + spawnDeltaZ * spawnDeltaZ <= 1.0;
-        if (!sceneReady && spawnApplied && markerCount === fixtureMarkers.length && stableEntitySamples >= 3
+        if (!sceneReady && markerCount === fixtureMarkers.length && stableEntitySamples >= 3
                 && stableAvatarSamples >= 4 && avatarAboveFloor && avatarAtSpawn) {
             sceneReady = true;
         }
@@ -588,7 +575,6 @@
                 domainMarkers: Object.keys(foundDomainMarkers).sort(),
                 floorTopY: floorTopY,
                 avatarAboveFloor: avatarAboveFloor,
-                spawnApplied: spawnApplied,
                 spawnValidated: sceneReady
             },
             avatar: {
