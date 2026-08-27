@@ -56,15 +56,16 @@ signed result cannot be cryptographically derived from the unsigned hash.
 
 An explicit packaging-only dispatch may reuse one earlier successful unsigned
 Overte E2E artifact instead of recompiling the unchanged Full Client. It never
-selects `latest`: the caller supplies the exact source run and attempt. The
+selects `latest`: the caller supplies the exact source run and the dispatch fixes
+the only accepted legacy attempt to attempt 1. The
 fetcher requires a completed `workflow_dispatch` run from `apple-ios` in the
 same repository, proves that its source commit is an ancestor of the current
 assembly commit, selects the unique run-number/run-ID artifact, verifies the
 GitHub archive digest, and safely extracts exactly one IPA/manifest pair. The
 manifest records this separate source provenance under `overteArtifactReuse`.
 Legacy integrated artifacts whose names lack an attempt number are accepted
-only from attempt 1. Supplying reuse run `0`, attempt `0` retains the normal
-same-run Full Client build.
+only from attempt 1. Supplying reuse run `0` retains the normal same-run Full
+Client build.
 
 ## Variant A: Sideloadly installs directly
 

@@ -300,6 +300,12 @@ def assert_rcodesign_pin_contract() -> None:
 def assert_workflow_contract() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     bootstrap = BOOTSTRAP.read_text(encoding="utf-8")
+    dispatch = bootstrap.split("  workflow_dispatch:\n", 1)[1].split(
+        "  push:\n", 1
+    )[0]
+    dispatch_inputs = re.findall(r"^      [a-z][a-z0-9_]*:$", dispatch, re.MULTILINE)
+    assert len(dispatch_inputs) <= 10
+    assert "personal_team_overte_reuse_run_attempt" not in bootstrap
     assert re.search(r"^on:\n  workflow_call:", workflow, re.MULTILINE)
     assert not re.search(r"^  (?:workflow_dispatch|push|pull_request|schedule):", workflow, re.MULTILINE)
     assert "uses: ./.github/workflows/ios-integrated.yml" in workflow
