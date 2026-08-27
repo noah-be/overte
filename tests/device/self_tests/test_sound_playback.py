@@ -175,12 +175,14 @@ class SoundPlaybackTest(unittest.TestCase):
         self.assertIn("_audioData = std::move(audioData)", sound_source)
         self.assertIn("emit ready()", sound_source)
 
-    def test_no_real_adapter_advertises_sound_play(self):
+    def test_only_native_android_real_adapter_may_advertise_sound_play(self):
+        android = ROOT / "adapters/android/adapter.py"
         for path in (ROOT / "adapters").rglob("*"):
             if (not path.is_file() or path.suffix not in {".py", ".json"}
-                    or "mock" in path.parts):
+                    or "mock" in path.parts or path == android):
                 continue
             self.assertNotIn("sound.play", path.read_text(encoding="utf-8"), str(path))
+        self.assertIn("sound.play", android.read_text(encoding="utf-8"))
 
     def test_complete_sound_suite_passes_with_independent_evidence(self):
         result, output, temporary = self.run_suite()

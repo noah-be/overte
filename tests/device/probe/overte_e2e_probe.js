@@ -20,9 +20,15 @@
     var sampleIntervalMs = 250;
     var heartbeatIntervalMs = 5000;
     var previousLocationKey = "";
+    var androidControlMarkerRequestPending = false;
+    var androidControlCommandRequestPending = false;
+    var androidControlAvailable = false;
+    var lastAndroidControlCommandId = "";
+    var androidAssetEntityId = null;
     var assetResource = null;
     var assetResourceUrl = "";
     var soundCommandRequestPending = false;
+    var soundCommandUrl = Script.resolvePath("sound-command.json");
     var lastSoundControlCommandId = "";
     var soundResource = null;
     var soundInjector = null;
@@ -241,6 +247,106 @@
             .replace(/[\r\n]+/g, " ").slice(0, 160);
     }
 
+    function removeControlledAssetEntities() {
+        var ids = Entities.findEntities(MyAvatar.position, 1000.0);
+        var index;
+        for (index = 0; index < ids.length; index += 1) {
+            var properties = Entities.getEntityProperties(ids[index], ["name"]);
+            if (String(properties.name).indexOf("OVERTE_E2E_ASSET_LOAD") === 0) {
+                Entities.deleteEntity(ids[index]);
+            }
+        }
+        androidAssetEntityId = null;
+        releaseAssetResource();
+    }
+
+    function applyAndroidControlCommand(command) {
+        if (!command || command.schemaVersion !== 1 || !command.commandId
+                || command.commandId === lastAndroidControlCommandId) {
+            return;
+        }
+        lastAndroidControlCommandId = String(command.commandId);
+        if (command.action === "enter-domain" && typeof command.url === "string") {
+            location.href = command.url;
+            return;
+        }
+        if (command.action === "load-asset" && typeof command.assetId === "string"
+                && typeof command.entityName === "string" && typeof command.url === "string") {
+            removeControlledAssetEntities();
+            androidAssetEntityId = Entities.addEntity({
+                type: "Image",
+                name: command.entityName,
+                imageURL: command.url,
+                userData: JSON.stringify({ overteE2EAssetId: command.assetId }),
+                position: {
+                    x: Number(MyAvatar.position.x),
+                    y: Number(MyAvatar.position.y),
+                    z: Number(MyAvatar.position.z) - 2.0
+                },
+                dimensions: { x: 1.0, y: 1.0, z: 0.01 },
+                lifetime: 300
+            }, "local");
+            return;
+        }
+        if (command.action === "sound-channel" && typeof command.commandUrl === "string"
+                && /^https?:\/\//.test(command.commandUrl)) {
+            soundCommandUrl = command.commandUrl;
+        }
+    }
+
+    function pollAndroidControlCommand() {
+        if (!androidControlAvailable || androidControlCommandRequestPending) {
+            return;
+        }
+        androidControlCommandRequestPending = true;
+        var request = new XMLHttpRequest();
+        request.onreadystatechange = function () {
+            if (request.readyState !== request.DONE) {
+                return;
+            }
+            androidControlCommandRequestPending = false;
+            if ((request.status === 0 || request.status === 200) && request.responseText) {
+                try {
+                    applyAndroidControlCommand(JSON.parse(request.responseText));
+                } catch (error) {
+                    print("OVERTE_E2E_ANDROID_COMMAND_ERROR " + safeErrorText(error));
+                }
+            }
+        };
+        request.open("GET", Script.resolvePath("android-control-command.json")
+            + "?sample=" + sampleSequence);
+        request.send();
+    }
+
+    function pollAndroidControlMarker() {
+        if (androidControlAvailable || androidControlMarkerRequestPending) {
+            pollAndroidControlCommand();
+            return;
+        }
+        androidControlMarkerRequestPending = true;
+        var request = new XMLHttpRequest();
+        request.onreadystatechange = function () {
+            if (request.readyState !== request.DONE) {
+                return;
+            }
+            androidControlMarkerRequestPending = false;
+            if ((request.status === 0 || request.status === 200) && request.responseText) {
+                try {
+                    var marker = JSON.parse(request.responseText);
+                    androidControlAvailable = marker.schemaVersion === 1
+                        && marker.channel === "android-debug-file-v1"
+                        && marker.probe === "overte_e2e_probe.js";
+                } catch (error) {
+                    androidControlAvailable = false;
+                }
+            }
+            pollAndroidControlCommand();
+        };
+        request.open("GET", Script.resolvePath("android-control.json")
+            + "?sample=" + sampleSequence);
+        request.send();
+    }
+
     function pollSoundCommand() {
         if (soundCommandRequestPending) {
             return;
@@ -260,11 +366,12 @@
                 }
             }
         };
-        request.open("GET", Script.resolvePath("sound-command.json"));
+        request.open("GET", soundCommandUrl);
         request.send();
     }
 
     function sample(now) {
+        pollAndroidControlMarker();
         pollSoundCommand();
         var currentAddress = String(location.href);
         var currentLocationKey = [String(location.protocol), String(location.hostname),
@@ -356,6 +463,11 @@
                 running: true,
                 foreground: Boolean(Window.hasFocus())
             },
+            control: androidControlAvailable ? {
+                schemaVersion: 1,
+                channel: "android-debug-file-v1",
+                probe: "overte_e2e_probe.js"
+            } : null,
             domain: {
                 connected: Boolean(location.isConnected),
                 hostname: String(location.hostname),
@@ -470,6 +582,10 @@
     Script.update.connect(updateProbe);
     Script.scriptEnding.connect(function () {
         Script.update.disconnect(updateProbe);
+        if (androidAssetEntityId !== null) {
+            Entities.deleteEntity(androidAssetEntityId);
+            androidAssetEntityId = null;
+        }
         releaseAssetResource();
     });
     updateProbe();

@@ -20,6 +20,10 @@ class AndroidE2ELauncherTest(unittest.TestCase):
         for required in (
             'PROBE_ASSET = "overte_e2e_probe.js"',
             'SCENE_ASSET = "scene.json"',
+            'CONTROL_MARKER = "android-control.json"',
+            'android-debug-file-v1',
+            'writeAtomically(CONTROL_MARKER, CONTROL_CONTRACT, launchDirectory)',
+            '"android-control-command.json"',
             'putExtra("applicationArguments", arguments)',
             'new File(getFilesDir(), DIRECTORY)',
             'new File(launchDirectory, "overte-probe.json")',
