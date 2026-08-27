@@ -23,6 +23,7 @@
 #include <QDateTime>
 #include <QSaveFile>
 #include <QStandardPaths>
+#include <QUrlQuery>
 #include <QtGui/QClipboard>
 #include <QtNetwork/QLocalSocket>
 #include <QtNetwork/QLocalServer>
@@ -1086,6 +1087,26 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         return;
     }
 #if defined(ANDROID_APP_PICO_INTERFACE)
+    const auto applyPicoServerlessLocationQuery = [](const QUrl& url) {
+        const QString locationKey = QStringLiteral("location");
+        const QUrlQuery query(url);
+        if (!query.hasQueryItem(locationKey)) {
+            return;
+        }
+
+        // AddressManager handles the URL before Pico's synchronous local
+        // import commits. connectedToServerless() resets that early avatar
+        // transition, so replay only the already-requested viewpoint after a
+        // successful import. This is the normal URL location contract, not an
+        // E2E-only teleport, and URLs without a location remain untouched.
+        const QString viewpoint = query.queryItemValue(
+            locationKey, QUrl::FullyDecoded);
+        const bool applied = DependencyManager::get<AddressManager>()->goToViewpointForPath(
+            viewpoint, QString());
+        qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE locationApplied"
+            << "success" << applied;
+    };
+
     const auto finishPicoServerlessImport = [this] {
         _picoServerlessSceneImportInProgress = false;
         if (!_picoDeferredServerlessSceneURL.isEmpty()) {
@@ -1134,6 +1155,7 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         _octreeProcessor->getFullSceneReceivedCounter()++;
         _picoServerlessSceneURL = domainURL;
         _picoServerlessSceneImportCommitted = true;
+        applyPicoServerlessLocationQuery(domainURL);
         qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE importCommitted"
             << domainURL
             << "treeServerless" << isServerlessMode()
@@ -1204,6 +1226,7 @@ void Application::loadServerlessDomain(QUrl domainURL) {
 #if defined(ANDROID_APP_PICO_INTERFACE)
             _picoServerlessSceneURL = domainURL;
             _picoServerlessSceneImportCommitted = true;
+            applyPicoServerlessLocationQuery(domainURL);
             qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE importCommitted"
                 << domainURL
                 << "treeServerless" << isServerlessMode()
