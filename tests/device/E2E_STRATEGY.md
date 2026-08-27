@@ -56,8 +56,9 @@ neither behavior nor platform logic.
    only after target pass rates are stable.
 9. **Controlled domain-entry contract — implemented, adapter rollout gated.**
    An ephemeral local domain/assignment fixture, exact identity/content checks,
-   and hardware-free positive and negative tests are in place. Real adapters
-   intentionally omit `navigation.enter-domain` until separately activated and
+   and hardware-free positive and negative tests are in place. Configured
+   Desktop/Oculix targets use the in-client probe command path; Android and
+   Appium adapters intentionally remain disabled until separately activated and
    accepted.
 
 ## Target matrix

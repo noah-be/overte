@@ -3,7 +3,8 @@
 The `sound-smoke` suite proves the strongest sound-specific behavior exposed by
 the current Interface scripting APIs without recording audio. It uses the
 repository-owned network fixture, the in-client test probe, and the shared
-`sound-playback` module. No real adapter advertises this suite yet.
+`sound-playback` module. Desktop/Oculix targets with the injected probe command
+channel advertise this suite; other real adapters remain gated.
 
 ## Controlled signal
 
@@ -59,15 +60,16 @@ audio capture.
 `sound.play` is a separate semantic adapter operation because a target-specific
 transport must deliver a play command to the running test probe. It must not be
 implemented as `asset.load`, `scene.load`, tablet input, or other UI input. For
-the network fixture, the command endpoint is polled by the network-loaded
-probe; an adapter implementation can post the versioned command there and must
+the network fixture, the command endpoint is polled directly by the probe; an
+adapter implementation can post the versioned command there and must
 return only `{requested: true, commandId: string}`. The probe and request
 telemetry remain the independent acceptance evidence.
 
-Only the deterministic mock advertises `sound.play`. Product adapters are
-deliberately unchanged. Enabling a real profile requires implementing and
-accepting this command transport and ensuring the fixture-hosted probe is used;
-that work belongs to a later product-specific change.
+The deterministic mock and explicitly controlled Desktop/Oculix profiles
+advertise `sound.play`. Desktop copies the repository probe into private target
+state, tells that running probe the exact fixture command endpoint, and leaves
+resource/injector state entirely to the probe. Other product adapters are
+deliberately unchanged.
 
 ## Proof boundary
 
