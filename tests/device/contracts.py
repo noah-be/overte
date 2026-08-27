@@ -7,6 +7,7 @@ import json
 import math
 from pathlib import Path
 import re
+from urllib.parse import urlsplit
 
 
 ROOT = Path(__file__).resolve().parent
@@ -68,6 +69,19 @@ def validate_operation_arguments(operation: str, value: object) -> dict:
             raise ValueError(
                 f"input.fly durationSeconds must be from 0.1 through "
                 f"{MAX_FLY_DURATION_SECONDS}")
+    elif operation == "navigation.enter-domain":
+        if set(value) != {"url"} or not isinstance(value.get("url"), str):
+            raise ValueError("navigation.enter-domain requires only a URL string")
+        parsed = urlsplit(value["url"])
+        try:
+            port = parsed.port
+        except ValueError as error:
+            raise ValueError("navigation.enter-domain URL has an invalid port") from error
+        if (parsed.scheme != "hifi" or not parsed.hostname or port is None
+                or parsed.username is not None or parsed.password is not None
+                or parsed.query or parsed.fragment):
+            raise ValueError(
+                "navigation.enter-domain requires a credential-free hifi URL with explicit port")
     return value
 
 
@@ -94,6 +108,16 @@ def validate_probe_snapshot(value: object) -> dict:
     application = value["application"]
     if not isinstance(application.get("running"), bool):
         raise ValueError("probe application.running must be boolean")
+    domain = value.get("domain")
+    if domain is not None:
+        if (not isinstance(domain, dict)
+                or not isinstance(domain.get("connected"), bool)
+                or not isinstance(domain.get("serverless"), bool)
+                or not all(isinstance(domain.get(field), str)
+                           for field in ("hostname", "id", "protocol"))):
+            raise ValueError("probe domain requires connection, identity and protocol state")
+        if domain["connected"] and (not domain["hostname"] or not domain["id"]):
+            raise ValueError("connected probe domain requires hostname and id")
     input_state = value.get("input")
     if input_state is not None:
         if (not isinstance(input_state, dict)
@@ -105,6 +129,19 @@ def validate_probe_snapshot(value: object) -> dict:
     if (not isinstance(scene.get("ready"), bool) or not isinstance(entity_count, int)
             or isinstance(entity_count, bool) or entity_count < 0):
         raise ValueError("probe scene requires ready and entityCount")
+    domain_marker_count = scene.get("domainMarkerCount")
+    if domain_marker_count is not None and (
+            not isinstance(domain_marker_count, int)
+            or isinstance(domain_marker_count, bool) or domain_marker_count < 0):
+        raise ValueError("probe scene domainMarkerCount must be a non-negative integer")
+    domain_markers = scene.get("domainMarkers")
+    if domain_markers is not None and (
+            not isinstance(domain_markers, list)
+            or domain_markers != sorted(set(domain_markers))
+            or not all(isinstance(item, str) and re.fullmatch(
+                r"OVERTE_E2E_DOMAIN_[A-Z]+", item) for item in domain_markers)
+            or domain_marker_count != len(domain_markers)):
+        raise ValueError("probe scene domainMarkers must match domainMarkerCount")
     for owner, field in ((value["avatar"], "position"), (value["view"], "orientation")):
         vector = owner.get(field)
         if not isinstance(vector, dict) or not all(
