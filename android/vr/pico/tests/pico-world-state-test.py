@@ -51,16 +51,25 @@ class PicoWorldStateTests(unittest.TestCase):
             "void Application::loadServerlessDomain",
             "void Application::loadErrorDomain",
         )
-        policy = body.index("const auto applyPicoServerlessLocationQuery")
+        policy = body.index("const auto schedulePicoServerlessLocationQuery")
         local_read = body.index("PICO_SERVERLESS_TRACE localRead")
         self.assertLess(policy, local_read)
         self.assertIn("query.hasQueryItem(locationKey)", body[policy:local_read])
         self.assertIn("QUrl::FullyDecoded", body[policy:local_read])
         self.assertIn("goToViewpointForPath", body[policy:local_read])
+        self.assertIn("QTimer::singleShot(0, this", body[policy:local_read])
+        self.assertIn(
+            "requestGeneration != _serverlessDomainRequestGeneration",
+            body[policy:local_read],
+        )
+        self.assertIn(
+            "committedURL != expectedURL",
+            body[policy:local_read],
+        )
 
         calls = [
             index for index in range(len(body))
-            if body.startswith("applyPicoServerlessLocationQuery(domainURL);", index)
+            if body.startswith("schedulePicoServerlessLocationQuery(domainURL);", index)
         ]
         self.assertEqual(len(calls), 2)
 
