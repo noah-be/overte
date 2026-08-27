@@ -120,6 +120,29 @@ def write_wda_fixture(root: Path, *, malicious: str | None = None) -> Path:
         )
         archive.writestr(
             zip_entry(
+                f"{app}/PlugIns/WebDriverAgentRunner.xctest/Frameworks/"
+                "WebDriverAgentLib.framework/",
+                stat.S_IFDIR | 0o755,
+            ),
+            b"",
+        )
+        archive.writestr(
+            zip_entry(
+                f"{app}/PlugIns/WebDriverAgentRunner.xctest/Frameworks/"
+                "WebDriverAgentLib.framework/Info.plist"
+            ),
+            plistlib.dumps({"CFBundleIdentifier": "com.facebook.WebDriverAgentLib"}),
+        )
+        archive.writestr(
+            zip_entry(
+                f"{app}/PlugIns/WebDriverAgentRunner.xctest/Frameworks/"
+                "WebDriverAgentLib.framework/WebDriverAgentLib",
+                stat.S_IFREG | 0o755,
+            ),
+            b"framework",
+        )
+        archive.writestr(
+            zip_entry(
                 f"{app}/PlugIns/WebDriverAgentRunner.xctest/WebDriverAgentRunner",
                 stat.S_IFREG | 0o755,
             ),
@@ -143,6 +166,137 @@ def write_wda_fixture(root: Path, *, malicious: str | None = None) -> Path:
     return path
 
 
+def write_fake_rcodesign(
+    root: Path,
+    *,
+    omit_signature: bool = False,
+    fail_inspection: bool = False,
+    mutate_outer: bool = False,
+    unsafe_output: bool = False,
+    inspection_fault: str = "",
+) -> Path:
+    path = root / "rcodesign"
+    path.write_text(
+        """#!/usr/bin/env python3
+import pathlib
+import hashlib
+import os
+import sys
+
+arguments = sys.argv[1:]
+if arguments == ["--version"]:
+    print("apple-codesign 0.29.0")
+elif arguments[:-1] == ["sign", "--config-file", "/dev/null", "--timestamp-url", "none",
+                       "--binary-identifier", "org.overte.WebDriverAgentRunner"]:
+    if "RCODESIGN_TEST_CREDENTIAL" in os.environ:
+        raise SystemExit(3)
+    bundle = pathlib.Path(arguments[-1])
+    executable = bundle / "WebDriverAgentRunner"
+    framework = bundle / "Frameworks/WebDriverAgentLib.framework/WebDriverAgentLib"
+    executable.write_bytes(executable.read_bytes() + b"\\0credential-free-adhoc\\0")
+    framework.parent.mkdir(parents=True, exist_ok=True)
+    framework.write_bytes(framework.read_bytes() + b"\\0credential-free-adhoc\\0")
+    if not %s:
+        for candidate in (bundle, bundle / "Frameworks/WebDriverAgentLib.framework"):
+            signature = candidate / "_CodeSignature/CodeResources"
+            signature.parent.mkdir()
+            signature.write_bytes(b"credential-free code resources")
+    if %s:
+        outer = bundle.parents[1] / "WebDriverAgentRunner-Runner"
+        outer.write_bytes(outer.read_bytes() + b"mutated")
+    if %s:
+        (bundle / "unsafe-link").symlink_to("WebDriverAgentRunner")
+elif arguments[:-1] == ["print-signature-info", "--config-file", "/dev/null"]:
+    if %s:
+        raise SystemExit(2)
+    executable = pathlib.Path(arguments[3])
+    bundle = executable.parent
+    identifier = ("com.facebook.WebDriverAgentLib" if executable.name == "WebDriverAgentLib"
+                  else "org.overte.WebDriverAgentRunner")
+    if %r == "wrong-identifier":
+        identifier = "org.example.WrongIdentifier"
+    print("code_directory:")
+    print(f"file_sha256: {hashlib.sha256(executable.read_bytes()).hexdigest()}")
+    print("  flags: CodeSignatureFlags(ADHOC)")
+    print(f"  identifier: {identifier}")
+    print("  digest_type: sha256")
+    print("  slot_digests:")
+    info_digest = hashlib.sha256((bundle / "Info.plist").read_bytes()).hexdigest()
+    resources_digest = hashlib.sha256(
+        (bundle / "_CodeSignature/CodeResources").read_bytes()
+    ).hexdigest()
+    print(f"  - 'Info (1): {info_digest}'")
+    print(f"  - 'Resources (3): {resources_digest}'")
+    print("cms: signed" if %r == "cms" else "cms: null")
+    if %r == "team":
+        print("team_identifier: PERSONALTEAM")
+    if %r == "entitlements":
+        print("entitlements: present")
+else:
+    raise SystemExit(2)
+""" % (
+            omit_signature,
+            mutate_outer,
+            unsafe_output,
+            fail_inspection,
+            inspection_fault,
+            inspection_fault,
+            inspection_fault,
+            inspection_fault,
+        ),
+        encoding="utf-8",
+    )
+    path.chmod(0o755)
+    return path
+
+
+def prepare_tool_signer(tool, root: Path, **options) -> Path:
+    signer = write_fake_rcodesign(root, **options)
+    tool.validate_rcodesign = lambda candidate: candidate if candidate == signer else None
+    return signer
+
+
+def assert_rcodesign_pin_contract() -> None:
+    tool = load_tool("create-personal-team-e2e-kit.py", "personal_team_signer_pin")
+    with tempfile.TemporaryDirectory(prefix="overte-personal-team-signer-") as temporary:
+        root = Path(temporary)
+        signer = write_fake_rcodesign(root).resolve()
+        tool.RCODESIGN_EXECUTABLE_SHA256 = digest(signer)
+        assert tool.validate_rcodesign(signer) == signer
+
+        link = root / "linked-rcodesign"
+        link.symlink_to(signer)
+        for rejected in (link, Path("rcodesign")):
+            try:
+                tool.validate_rcodesign(rejected)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("Personal Team kit accepted an unsafe signer path")
+
+        tool.RCODESIGN_EXECUTABLE_SHA256 = "0" * 64
+        try:
+            tool.validate_rcodesign(signer)
+        except ValueError as error:
+            assert "exact absolute pinned" in str(error)
+        else:
+            raise AssertionError("Personal Team kit accepted a signer digest mismatch")
+
+        signer.write_text(
+            signer.read_text(encoding="utf-8").replace(
+                "apple-codesign 0.29.0", "apple-codesign 0.28.0"
+            ),
+            encoding="utf-8",
+        )
+        tool.RCODESIGN_EXECUTABLE_SHA256 = digest(signer)
+        try:
+            tool.validate_rcodesign(signer)
+        except ValueError as error:
+            assert "version differs" in str(error)
+        else:
+            raise AssertionError("Personal Team kit accepted a signer version mismatch")
+
+
 def assert_workflow_contract() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
     bootstrap = BOOTSTRAP.read_text(encoding="utf-8")
@@ -155,6 +309,9 @@ def assert_workflow_contract() -> None:
     assert "WDA_VERSION: 16.8.0" in workflow
     assert "2cccc74b0cc3f56afd029accc3a4553c56d7269c6c403cbf161aaf095bc5c0b8" in workflow
     assert "38ec705d6fa2c7825513adbc9406d4fda5d6a084a8d3980ceff9a265e62f9623" in workflow
+    assert "--root \"$KIT_ROOT/security-tools\" --tool rcodesign" in workflow
+    assert "--rcodesign \"$KIT_ROOT/security-tools/rcodesign-0.29.0/rcodesign\"" in workflow
+    assert "ios-personal-team-e2e-kit-v2-${{ github.run_id }}" in workflow
     assert "appium-webdriveragent\") != \"^16.8.0\"" in workflow
     assert "Overte-PersonalTeam-E2E-unsigned.ipa" in workflow
     assert "WebDriverAgentRunner-16.8.0-PersonalTeam-unsigned.ipa" in workflow
@@ -229,6 +386,7 @@ def assert_tools_contract() -> None:
         overte, overte_manifest = write_overte_fixture(root)
         upstream = write_wda_fixture(root)
         kit_tool.WDA_UPSTREAM_SHA256 = digest(upstream)
+        signer = prepare_tool_signer(kit_tool, root)
         output = root / "kit"
         payload = kit_tool.create_kit(
             overte,
@@ -238,10 +396,22 @@ def assert_tools_contract() -> None:
             "a" * 40,
             "2029-01-01T00:00:00Z",
             *PROVENANCE_ARGUMENTS,
+            signer,
         )
-        assert payload["contract"] == "overte-ios-personal-team-e2e-kit-v1"
+        assert payload["contract"] == "overte-ios-personal-team-e2e-kit-v2"
         assert payload["xcuitestDriverVersion"] == "12.8.0"
         assert payload["webDriverAgentVersion"] == "16.8.0"
+        assert payload["webDriverAgentCredentialFreeSigning"] == {
+            "nestedBundle": "PlugIns/WebDriverAgentRunner.xctest",
+            "method": "ad-hoc",
+            "outerRunnerBundleCodeResourcesPresent": False,
+            "outerRunnerNewAdHocSignatureApplied": False,
+            "outerRunnerProvisioned": False,
+            "signer": "rcodesign",
+            "signerVersion": "0.29.0",
+            "signerExecutableSha256":
+                "dab9a7465f96aba3c81e793775510f745b91a46b6418e89f7317b5d8fc7bcea2",
+        }
         assert payload["desiredBundleIdentifiers"] == {
             "overte": "org.overte.interface.e2e",
             "wdaRunner": "org.overte.WebDriverAgentRunner.xctrunner",
@@ -276,7 +446,19 @@ def assert_tools_contract() -> None:
             assert archive.getinfo(
                 "Payload/WebDriverAgentRunner-Runner.app/PlugIns/"
             ).is_dir()
-            assert not any("_CodeSignature" in name for name in names)
+            assert (
+                "Payload/WebDriverAgentRunner-Runner.app/PlugIns/"
+                "WebDriverAgentRunner.xctest/_CodeSignature/CodeResources"
+            ) in names
+            assert (
+                "Payload/WebDriverAgentRunner-Runner.app/PlugIns/"
+                "WebDriverAgentRunner.xctest/Frameworks/WebDriverAgentLib.framework/"
+                "_CodeSignature/CodeResources"
+            ) in names
+            assert not any(
+                name.startswith("Payload/WebDriverAgentRunner-Runner.app/_CodeSignature/")
+                for name in names
+            )
             assert not any(name.endswith("embedded.mobileprovision") for name in names)
             runner = plistlib.loads(
                 archive.read("Payload/WebDriverAgentRunner-Runner.app/Info.plist")
@@ -291,6 +473,10 @@ def assert_tools_contract() -> None:
             assert runner["OverteE2EWebDriverAgentVersion"] == "16.8.0"
             assert runner["OverteE2EXCUITestDriverVersion"] == "12.8.0"
             assert nested["CFBundleIdentifier"] == "org.overte.WebDriverAgentRunner"
+            assert b"credential-free-adhoc" in archive.read(
+                "Payload/WebDriverAgentRunner-Runner.app/PlugIns/"
+                "WebDriverAgentRunner.xctest/WebDriverAgentRunner"
+            )
 
         signed_dir = root / "private-signed"
         signed_dir.mkdir(mode=0o700)
@@ -438,6 +624,7 @@ def assert_negative_archives() -> None:
         root = Path(temporary)
         overte, manifest = write_overte_fixture(root)
         wda = write_wda_fixture(root)
+        signer = prepare_tool_signer(tool, root)
         try:
             tool.create_kit(
                 overte,
@@ -447,6 +634,7 @@ def assert_negative_archives() -> None:
                 "a" * 40,
                 "2029-01-01T00:00:00Z",
                 *PROVENANCE_ARGUMENTS,
+                signer,
             )
         except ValueError as error:
             assert "SHA-256 mismatch" in str(error)
@@ -460,6 +648,7 @@ def assert_negative_archives() -> None:
         wda = write_wda_fixture(root)
         overte.write_bytes(overte.read_bytes() + b"changed")
         tool.WDA_UPSTREAM_SHA256 = digest(wda)
+        signer = prepare_tool_signer(tool, root)
         try:
             tool.create_kit(
                 overte,
@@ -469,6 +658,7 @@ def assert_negative_archives() -> None:
                 "a" * 40,
                 "2029-01-01T00:00:00Z",
                 *PROVENANCE_ARGUMENTS,
+                signer,
             )
         except ValueError as error:
             assert "manifest SHA-256" in str(error)
@@ -482,6 +672,7 @@ def assert_negative_archives() -> None:
             overte, manifest = write_overte_fixture(root)
             wda = write_wda_fixture(root, malicious=attack)
             tool.WDA_UPSTREAM_SHA256 = digest(wda)
+            signer = prepare_tool_signer(tool, root)
             try:
                 tool.create_kit(
                     overte,
@@ -491,6 +682,7 @@ def assert_negative_archives() -> None:
                     "a" * 40,
                     "2029-01-01T00:00:00Z",
                     *PROVENANCE_ARGUMENTS,
+                    signer,
                 )
             except ValueError:
                 assert not (root / "rejected").exists()
@@ -502,6 +694,7 @@ def assert_negative_archives() -> None:
         overte, manifest = write_overte_fixture(root, "org.example.changed.e2e")
         wda = write_wda_fixture(root)
         tool.WDA_UPSTREAM_SHA256 = digest(wda)
+        signer = prepare_tool_signer(tool, root)
         try:
             tool.create_kit(
                 overte,
@@ -511,15 +704,49 @@ def assert_negative_archives() -> None:
                 "a" * 40,
                 "2029-01-01T00:00:00Z",
                 *PROVENANCE_ARGUMENTS,
+                signer,
             )
         except ValueError as error:
             assert "fixed E2E bundle identifier" in str(error)
         else:
             raise AssertionError("Personal Team kit accepted a changed Overte bundle identifier")
 
+    signing_failures = {
+        "missing-signature": {"omit_signature": True},
+        "failed-inspection": {"fail_inspection": True},
+        "mutated-outer": {"mutate_outer": True},
+        "unsafe-output": {"unsafe_output": True},
+        "wrong-identifier": {"inspection_fault": "wrong-identifier"},
+        "cms-signature": {"inspection_fault": "cms"},
+        "team-identity": {"inspection_fault": "team"},
+        "entitlements": {"inspection_fault": "entitlements"},
+    }
+    for failure, signer_options in signing_failures.items():
+        with tempfile.TemporaryDirectory(prefix=f"overte-personal-team-{failure}-") as temporary:
+            root = Path(temporary)
+            isolated_tool = load_tool(
+                "create-personal-team-e2e-kit.py", f"personal_team_{failure}"
+            )
+            overte, manifest = write_overte_fixture(root)
+            wda = write_wda_fixture(root)
+            isolated_tool.WDA_UPSTREAM_SHA256 = digest(wda)
+            signer = prepare_tool_signer(
+                isolated_tool, root, **signer_options,
+            )
+            try:
+                isolated_tool.create_kit(
+                    overte, manifest, wda, root / "rejected", "a" * 40,
+                    "2029-01-01T00:00:00Z", *PROVENANCE_ARGUMENTS, signer,
+                )
+            except ValueError:
+                assert not (root / "rejected").exists()
+            else:
+                raise AssertionError(f"Personal Team kit accepted {failure}")
+
 
 def main() -> None:
     assert_workflow_contract()
+    assert_rcodesign_pin_contract()
     assert_tools_contract()
     assert_negative_archives()
     print("PASS Personal Team E2E kit contract and negative tests")

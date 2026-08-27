@@ -108,7 +108,7 @@ def select_run(arguments: argparse.Namespace, token: str) -> dict:
 
 def select_artifact(payload: dict, run: dict) -> dict:
     artifacts = payload.get("artifacts")
-    expected_name = f"ios-personal-team-e2e-kit-v1-{run['id']}-{run['run_attempt']}"
+    expected_name = f"ios-personal-team-e2e-kit-v2-{run['id']}-{run['run_attempt']}"
     if (not isinstance(artifacts, list) or payload.get("total_count") != len(artifacts)):
         fail("public kit artifact list is incomplete")
     matches = [item for item in artifacts if isinstance(item, dict)

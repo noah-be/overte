@@ -78,6 +78,7 @@ class IosPersonalTeamArtifactsTest(unittest.TestCase):
                 "ref": "refs/heads/apple-ios", "runId": 123, "runAttempt": 1,
             },
             "xcuitestDriverVersion": "12.8.0", "webDriverAgentVersion": "16.8.0",
+            "webDriverAgentCredentialFreeSigning": VERIFY.WDA_CREDENTIAL_FREE_SIGNING,
             "desiredBundleIdentifiers": VERIFY.BUNDLES,
             "humanSigningBoundary": {
                 "method": "manual-sideloadly-personal-team",
@@ -206,6 +207,10 @@ class IosPersonalTeamArtifactsTest(unittest.TestCase):
         self.assertEqual(timedelta(hours=1), expiry - created)
         self.assertEqual(hashlib.sha256(self.kit.read_bytes()).hexdigest(),
                          value["unsignedKitManifestSha256"])
+        self.assertEqual("overte-ios-personal-team-e2e-kit-v2",
+                         value["unsignedKitContract"])
+        self.assertEqual("overte-ios-personal-team-preinstalled-attestation-v2",
+                         value["contract"])
         self.assertIsNone(value["signingObservation"])
         self.assertEqual("fixed", value["bundleIdentifierMode"])
         self.assertEqual(0o600, output.stat().st_mode & 0o777)

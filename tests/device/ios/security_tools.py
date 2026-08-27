@@ -181,14 +181,17 @@ def extract_executable(archive_path: Path, member_name: str, destination: Path,
             temporary.unlink(missing_ok=True)
 
 
-def install(root: Path) -> dict[str, Path]:
+def install(root: Path, requested: tuple[str, ...] | None = None) -> dict[str, Path]:
     if platform.system() != "Linux" or platform.machine() not in {"x86_64", "amd64"}:
         fail("pinned iOS security tools currently support x86-64 Linux only")
+    names = tuple(MEMBERS) if requested is None else requested
+    if not names or len(set(names)) != len(names) or any(name not in MEMBERS for name in names):
+        fail("requested iOS security tool selection is invalid")
     root = private_directory(root)
     lock = json.loads(LOCK_FILE.read_text(encoding="utf-8"))
     entries = lock["appium"]["iosSecurity"]
     result: dict[str, Path] = {}
-    for name in ("age", "rcodesign"):
+    for name in names:
         entry = entries[name]
         version_root = private_directory(root / f"{name}-{entry['version']}")
         archive_path = version_root / "artifact.tar.gz"
@@ -208,8 +211,13 @@ def install(root: Path) -> dict[str, Path]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, required=True)
+    parser.add_argument(
+        "--tool", action="append", choices=tuple(MEMBERS), dest="tools",
+        help="install only this exact pin; may be repeated (default: all)",
+    )
     try:
-        tools = install(parser.parse_args().root)
+        arguments = parser.parse_args()
+        tools = install(arguments.root, tuple(arguments.tools) if arguments.tools else None)
         print(f"PASS: installed {len(tools)} pinned iOS security tools")
         return 0
     except (ToolError, OSError, KeyError, json.JSONDecodeError) as error:

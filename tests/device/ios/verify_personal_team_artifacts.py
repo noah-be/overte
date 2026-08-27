@@ -19,7 +19,7 @@ import zipfile
 import verify_fedora_artifacts as VERIFY
 
 
-KIT_CONTRACT = "overte-ios-personal-team-e2e-kit-v1"
+KIT_CONTRACT = "overte-ios-personal-team-e2e-kit-v2"
 ATTESTATION_CONTRACT = "overte-ios-personal-team-signed-handoff-v1"
 RECEIPT_CONTRACT = "overte-ios-personal-team-artifact-receipt-v1"
 OVERTE_NAME = "Overte-PersonalTeam-E2E-signed.ipa"
@@ -28,6 +28,16 @@ BUNDLES = {
     "overte": "org.overte.interface.e2e",
     "wdaRunner": "org.overte.WebDriverAgentRunner.xctrunner",
     "wdaXCTest": "org.overte.WebDriverAgentRunner",
+}
+WDA_CREDENTIAL_FREE_SIGNING = {
+    "nestedBundle": "PlugIns/WebDriverAgentRunner.xctest",
+    "method": "ad-hoc",
+    "outerRunnerBundleCodeResourcesPresent": False,
+    "outerRunnerNewAdHocSignatureApplied": False,
+    "outerRunnerProvisioned": False,
+    "signer": "rcodesign", "signerVersion": "0.29.0",
+    "signerExecutableSha256":
+        "dab9a7465f96aba3c81e793775510f745b91a46b6418e89f7317b5d8fc7bcea2",
 }
 MAX_JSON_BYTES = 1024 * 1024
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
@@ -85,7 +95,8 @@ def validate_contracts(arguments: argparse.Namespace) -> tuple[dict, dict, datet
     kit_keys = {
         "schemaVersion", "contract", "sourceRevision", "createdAt",
         "xcuitestDriverVersion", "webDriverAgentVersion", "artifacts",
-        "desiredBundleIdentifiers", "humanSigningBoundary", "upstream", "provenance",
+        "webDriverAgentCredentialFreeSigning", "desiredBundleIdentifiers",
+        "humanSigningBoundary", "upstream", "provenance",
     }
     attestation_keys = {
         "schemaVersion", "contract", "createdAt", "notAfter", "sourceRevision",
@@ -110,6 +121,8 @@ def validate_contracts(arguments: argparse.Namespace) -> tuple[dict, dict, datet
     if (kit.get("desiredBundleIdentifiers") != BUNDLES
             or attestation.get("expectedBundleIdentifiers") != BUNDLES):
         fail("Personal-Team handoff differs from the fixed non-production bundle IDs")
+    if kit.get("webDriverAgentCredentialFreeSigning") != WDA_CREDENTIAL_FREE_SIGNING:
+        fail("Personal-Team WDA lacks the credential-free nested XCTest signature contract")
     provenance = kit.get("provenance")
     if (not isinstance(provenance, dict) or set(provenance) != {
             "repository", "repositoryId", "workflow", "reusableWorkflow", "ref",

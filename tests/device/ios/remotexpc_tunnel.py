@@ -225,7 +225,7 @@ def list_installed_drivers(node: Path, appium_entry: Path, appium_home: Path,
 
 def service_runtime_revision(lock: dict) -> int:
     revision = lock.get("serviceRuntimeRevision")
-    if revision != 6:
+    if revision != 7:
         fail("unsupported immutable service-runtime revision")
     return revision
 
@@ -997,7 +997,7 @@ def validate_install_receipt(path: Path) -> dict:
             "attestationContract", "derivationBinding"}
             or provenance.get("mode") != "personal-team-manual-signing"
             or provenance.get("unsignedKitContract")
-            != "overte-ios-personal-team-e2e-kit-v1"
+            != "overte-ios-personal-team-e2e-kit-v2"
             or provenance.get("attestationContract")
             != "overte-ios-personal-team-signed-handoff-v1"
             or provenance.get("derivationBinding") != "human-verified"
