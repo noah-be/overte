@@ -37,6 +37,8 @@ PUBLIC_RESULT_NAMES = {
     "metrics.json", "module.log", "pipeline-error.txt", "summary.json",
     "telemetry.jsonl",
 }
+IOS_SESSION_PREWARM_TIMEOUT_SECONDS = 210
+IOS_SIGNED_INSTALL_PREWARM_TIMEOUT_SECONDS = 20 * 60
 
 
 def fail(message: str) -> "NoReturn":
@@ -274,6 +276,46 @@ def subprocess_group_options() -> dict[str, object]:
     return {"start_new_session": True}
 
 
+def prewarm_ios_appium_session(root: Path, manifest: Path, selector: str,
+                               child_environment: dict[str, str],
+                               active_processes: list[subprocess.Popen] | None = None) -> None:
+    """Create the slow physical iOS session before the common module timeout.
+
+    Appium may spend up to three minutes connecting a preinstalled WDA over
+    RemoteXPC.  The common adapter client intentionally bounds ordinary module
+    operations to 60 seconds.  This Jenkins-only prewarm gives session creation
+    its own bounded window; launch-smoke then reuses the persisted session and
+    verifies that the single controlled app launch is still alive.
+    """
+    command = load_adapter_command(manifest)
+    timeout = IOS_SESSION_PREWARM_TIMEOUT_SECONDS
+    if child_environment.get("OVERTE_IOS_ARTIFACT_SOURCE") in {
+            "local-personal-team", "protected-github"}:
+        timeout = IOS_SIGNED_INSTALL_PREWARM_TIMEOUT_SECONDS
+    process = subprocess.Popen(
+        [*command, "invoke", "--target", selector,
+         "--operation", "app.launch", "--arguments", "{}"],
+        cwd=root, env=child_environment, stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL, **subprocess_group_options(),
+    )
+    if active_processes is not None:
+        active_processes.append(process)
+    try:
+        returncode = process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired as error:
+        stop_process(process, grace_seconds=2)
+        raise RuntimeError(
+            "iOS Appium session did not become ready within the bounded prewarm window"
+        ) from error
+    finally:
+        if active_processes is not None and process in active_processes:
+            active_processes.remove(process)
+    if returncode:
+        raise RuntimeError(
+            "iOS Appium session prewarm failed; inspect the private Appium service log"
+        )
+
+
 def run_suite() -> int:
     root = workspace()
     manifest = repository_file(root, "OVERTE_CI_ADAPTER_MANIFEST")
@@ -293,6 +335,19 @@ def run_suite() -> int:
     fixture_ready = fixture_metadata / "ready.json"
     runner_environment = os.environ.copy()
     previous_handlers: dict[int, object] = {}
+    active_adapter_processes: list[subprocess.Popen] = []
+
+    def forward_signal(signum: int, _frame: object) -> None:
+        # Jenkins sends TERM on a Pipeline timeout. Forward it promptly to all
+        # active process groups, including a session prewarm still in flight.
+        for process in tuple(active_adapter_processes):
+            stop_process(process, grace_seconds=1)
+        stop_process(runner, grace_seconds=1)
+        stop_process(fixture, grace_seconds=1)
+
+    for signum in (signal.SIGINT, signal.SIGTERM):
+        previous_handlers[signum] = signal.getsignal(signum)
+        signal.signal(signum, forward_signal)
 
     try:
         if suite in {"e2e-core", "accessibility"} \
@@ -317,6 +372,13 @@ def run_suite() -> int:
                 update_ios_fixture_origin(root, selector, ready.get("baseUrl"))
             runner_environment["OVERTE_E2E_SCENE_URL"] = ready["sceneUrl"]
 
+        if is_ios_appium_manifest(manifest) and suite in {"e2e-core", "accessibility"}:
+            if fixture is None:
+                fail("physical iOS fixture-backed suites require the network fixture")
+            prewarm_ios_appium_session(
+                root, manifest, selector, runner_environment, active_adapter_processes,
+            )
+
         command = [
             sys.executable, str(root / "tests/device/run.py"),
             "--adapter-manifest", str(manifest), "--catalog", str(catalog),
@@ -329,15 +391,6 @@ def run_suite() -> int:
         runner = subprocess.Popen(command, cwd=root, env=runner_environment,
                                   **subprocess_group_options())
 
-        def forward_signal(signum: int, _frame: object) -> None:
-            # Jenkins sends TERM on a Pipeline timeout. Forward it promptly; the
-            # Pipeline's locked finally block then performs adapter cleanup.
-            stop_process(runner, grace_seconds=1)
-            stop_process(fixture, grace_seconds=1)
-
-        for signum in (signal.SIGINT, signal.SIGTERM):
-            previous_handlers[signum] = signal.getsignal(signum)
-            signal.signal(signum, forward_signal)
         returncode = runner.wait()
         return returncode if returncode >= 0 else 128 + abs(returncode)
     finally:
@@ -558,6 +611,89 @@ def ios_runtime_preflight() -> int:
     return subprocess.run(command, cwd=root, timeout=15, check=False).returncode
 
 
+def selected_private_ios_target(root: Path, selector: str) -> dict:
+    raw = Path(environment("OVERTE_IOS_JOB_TARGET_CONFIG")).expanduser()
+    if not raw.is_absolute() or has_symlink_component(raw):
+        fail("job-private iOS target configuration must be absolute and symlink-free")
+    path = raw.resolve()
+    if path == root or is_within(path, root) or not path.is_file():
+        fail("job-private iOS target configuration is outside its allowed scope")
+    value = path.lstat()
+    parent = path.parent.lstat()
+    if (not stat.S_ISREG(value.st_mode) or not stat.S_ISDIR(parent.st_mode)
+            or value.st_uid != os.geteuid() or parent.st_uid != os.geteuid()
+            or stat.S_IMODE(value.st_mode) != 0o600 or parent.st_mode & 0o077):
+        fail("job-private iOS target configuration is not private")
+    config = json.loads(path.read_text(encoding="utf-8"))
+    targets = config.get("targets") if isinstance(config, dict) else None
+    matches = [item for item in targets or [] if isinstance(item, dict)
+               and item.get("selector") == selector]
+    if (config.get("schemaVersion") != 1 or not isinstance(targets, list)
+            or len(matches) != 1
+            or matches[0].get("platform") != "ios"):
+        fail("private selector does not identify exactly one iOS target")
+    return matches[0]
+
+
+def ios_ddi_preflight() -> int:
+    """Mount and bind the private pinned DDI immediately under the device lock."""
+    root = workspace()
+    selector = environment("OVERTE_DEVICE_TARGET_SELECTOR")
+    target = selected_private_ios_target(root, selector)
+    capabilities = target.get("capabilities")
+    udid = capabilities.get("appium:udid") if isinstance(capabilities, dict) else None
+    if (not isinstance(udid, str) or not 8 <= len(udid) <= 128
+            or any(character in udid for character in "\0\r\n")):
+        fail("private iOS target has no physical device identity")
+    raw_ddi = Path(environment("OVERTE_IOS_DDI_ROOT")).expanduser()
+    if (not raw_ddi.is_absolute() or has_symlink_component(raw_ddi)
+            or raw_ddi == root or is_within(raw_ddi.resolve(), root)):
+        fail("private Developer Disk Image root is outside its allowed scope")
+    ddi_root = raw_ddi.resolve()
+    value = ddi_root.lstat()
+    if (not stat.S_ISDIR(value.st_mode) or value.st_uid != os.geteuid()
+            or stat.S_IMODE(value.st_mode) != 0o700):
+        fail("private Developer Disk Image root must be account-owned with mode 0700")
+    command = [
+        sys.executable, str(root / "tests/device/ios/remotexpc_tunnel.py"),
+        "device-ddi-mount",
+    ]
+    request = json.dumps({
+        "udid": udid,
+        "image": str(ddi_root / "Image.dmg"),
+        "manifest": str(ddi_root / "BuildManifest.plist"),
+        "trustcache": str(ddi_root / "Image.dmg.trustcache"),
+    }, separators=(",", ":"))
+    process = subprocess.Popen(
+        command, stdin=subprocess.PIPE, text=True, cwd=root,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        **subprocess_group_options(),
+    )
+    previous_handlers = {}
+
+    def forward_signal(_signum: int, _frame: object) -> None:
+        stop_process(process, grace_seconds=1)
+        raise InterruptedError("private iOS Developer Disk Image gate was interrupted")
+
+    for signum in (signal.SIGINT, signal.SIGTERM):
+        previous_handlers[signum] = signal.getsignal(signum)
+        signal.signal(signum, forward_signal)
+    try:
+        process.communicate(input=request, timeout=6 * 60)
+    except subprocess.TimeoutExpired:
+        stop_process(process, grace_seconds=2)
+        print("error: private iOS Developer Disk Image gate timed out", file=sys.stderr)
+        return 2
+    finally:
+        for signum, handler in previous_handlers.items():
+            signal.signal(signum, handler)
+    if process.returncode:
+        print("error: private iOS Developer Disk Image gate failed", file=sys.stderr)
+        return process.returncode
+    print("iOS Personalized DDI and XCTest services are ready.")
+    return 0
+
+
 def private_existing_file(variable: str, root: Path) -> Path:
     raw_path = Path(environment(variable)).expanduser()
     if not raw_path.is_absolute() or has_symlink_component(raw_path):
@@ -713,7 +849,8 @@ def arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("run-suite", "cleanup-target", "stage-results",
                                            "self-check", "ios-runtime-preflight",
-                                           "ios-artifact-sync", "cleanup-ios-private"))
+                                           "ios-ddi-preflight", "ios-artifact-sync",
+                                           "cleanup-ios-private"))
     return parser.parse_args()
 
 
@@ -727,6 +864,8 @@ def main() -> int:
         return stage_results()
     if action == "ios-runtime-preflight":
         return ios_runtime_preflight()
+    if action == "ios-ddi-preflight":
+        return ios_ddi_preflight()
     if action == "ios-artifact-sync":
         return ios_artifact_sync()
     if action == "cleanup-ios-private":

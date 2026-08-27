@@ -55,6 +55,14 @@ private Appium target JSON outside every checkout at mode 0600. Its disabled
 template is `../adapters/appium/targets.example.json`; enable it only after the
 signed receipt updates `appId`, `bundleId`, IPA paths and WDA bundle ID.
 
+Set `IOS_DDI_ROOT` to the absolute external mode-0700 directory containing the
+exact lock-pinned `Image.dmg`, `BuildManifest.plist`, and
+`Image.dmg.trustcache`, each mode 0600. This Apple payload is operator-supplied:
+the repository neither publishes nor automatically downloads it. While holding
+the same exclusive device lock used by the suite, Jenkins verifies every byte,
+mounts it when necessary, binds the mounted image signature directly to the
+pinned SHA-384, and requires both XCTest services before starting Appium.
+
 `IOS_ARTIFACT_SOURCE=personal-team-preinstalled` is the default. See
 `docs/ios/PERSONAL_TEAM_E2E.md` on the `apple-ios` branch for instructions to
 install Overte and WDA manually with Sideloadly, then supply the private,
@@ -95,7 +103,8 @@ The traceable stages are:
 2. root-runtime status plus the selected strong artifact handoff, if any;
 3. for the primary path, installed-app observation and weak receipt creation
    under the device lock;
-4. required `e2e-core` baseline under one uninterrupted locked Appium session;
+4. pinned Personalized DDI/XCTest gate, then required `e2e-core` baseline under
+   one uninterrupted locked Appium session;
 5. optional accessibility audit after the baseline;
 6. opt-in soaks;
 7. target/session cleanup while still locked, private IPA/config deletion, and
@@ -116,6 +125,8 @@ Do not install or launch until all gates are green:
 
 - a trusted physical iOS/iPadOS 18+ device with Developer Mode enabled;
 - host trust/pairing and an active, privacy-safe RemoteXPC status;
+- the exact private lock-pinned Personalized DDI mounted with both XCTest
+  services reachable;
 - an unexpired receipt that either cryptographically binds both retained IPAs
   to exact provenance or honestly records only the locked installed-app
   observation without claiming byte provenance;

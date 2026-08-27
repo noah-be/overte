@@ -36,10 +36,12 @@ def runDeviceSuite(String suite, int timeoutMinutes) {
         "OVERTE_CI_FIXTURE_MODE=${params.FIXTURE_MODE}",
         'OVERTE_CI_ALLOW_VIRTUAL=0',
         "OVERTE_E2E_CAPTURE_ARTIFACTS=${params.CAPTURE_FAILURE_ARTIFACTS ? '1' : '0'}",
+        "OVERTE_IOS_ARTIFACT_SOURCE=${params.IOS_ARTIFACT_SOURCE}",
     ]
     if (params.TARGET_PROFILE == 'appium-ios') {
         configuration.add("OVERTE_APPIUM_TARGETS=${env.OVERTE_IOS_JOB_TARGET_CONFIG}")
         configuration.add("OVERTE_IOS_JOB_TARGET_CONFIG=${env.OVERTE_IOS_JOB_TARGET_CONFIG}")
+        configuration.add("OVERTE_IOS_DDI_ROOT=${params.IOS_DDI_ROOT.trim()}")
     }
     if (suite == 'accessibility') {
         configuration.add('OVERTE_E2E_TABLET_OPEN_ACCESSIBILITY_ID=OverteTabletOpen')
@@ -54,6 +56,9 @@ def runDeviceSuite(String suite, int timeoutMinutes) {
                     env.OVERTE_TARGET_NEEDS_CLEANUP = '1'
                     try {
                         timeout(time: timeoutMinutes, unit: 'MINUTES') {
+                            if (params.TARGET_PROFILE == 'appium-ios') {
+                                ciPython('ios-ddi-preflight')
+                            }
                             ciPython('run-suite')
                         }
                     } finally {
@@ -123,6 +128,11 @@ pipeline {
             name: 'IOS_PREINSTALLED_ATTESTATION',
             defaultValue: '',
             description: 'Absolute private path to personal-team-preinstalled-attestation.json.'
+        )
+        string(
+            name: 'IOS_DDI_ROOT',
+            defaultValue: '',
+            description: 'Private mode-0700 directory containing the exact pinned Personalized DDI triplet.'
         )
         string(
             name: 'IOS_LOCAL_UNSIGNED_KIT',
@@ -232,6 +242,9 @@ pipeline {
                         error('TARGET_SELECTOR_CREDENTIAL_ID is required')
                     }
                     if (params.TARGET_PROFILE == 'appium-ios') {
+                        if (!params.IOS_DDI_ROOT.trim()) {
+                            error('IOS_DDI_ROOT is required for physical XCTest on Fedora')
+                        }
                         if (params.IOS_ARTIFACT_SOURCE == 'personal-team-preinstalled') {
                             if (!params.IOS_PREINSTALLED_ATTESTATION.trim()) {
                                 error('IOS_PREINSTALLED_ATTESTATION is required for the preinstalled gate')

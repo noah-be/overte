@@ -10,7 +10,7 @@ from pathlib import Path
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 import xml.etree.ElementTree as ET
 
 
@@ -47,6 +47,7 @@ class JenkinsGlueTest(unittest.TestCase):
             "targets": [
                 {
                     "selector": "private-ios-one", "platform": "ios",
+                    "capabilities": {"appium:udid": "private-device-one"},
                     "testBuild": {
                         "contract": "overte-ios-e2e-v1",
                         "fixtureOrigin": "http://fixture.invalid:18080",
@@ -54,6 +55,7 @@ class JenkinsGlueTest(unittest.TestCase):
                 },
                 {
                     "selector": "private-ios-two", "platform": "ios",
+                    "capabilities": {"appium:udid": "private-device-two"},
                     "testBuild": {
                         "contract": "overte-ios-e2e-v1",
                         "fixtureOrigin": "http://other.invalid:18080",
@@ -242,6 +244,130 @@ class JenkinsGlueTest(unittest.TestCase):
             self.assertIn("status", command)
             self.assertNotIn("udid", " ".join(command).lower())
             self.assertNotIn("appium-home", " ".join(command).lower())
+
+    def test_ios_session_prewarm_has_its_own_bounded_private_launch(self):
+        environment = {"OVERTE_APPIUM_TARGETS": "/private/targets.json"}
+        child = MagicMock()
+        child.wait.return_value = 0
+        with patch.object(
+                RUN_CI, "load_adapter_command",
+                return_value=["python3", "/workspace/private-adapter.py"]), patch.object(
+                RUN_CI.subprocess, "Popen", return_value=child) as execute:
+            RUN_CI.prewarm_ios_appium_session(
+                ROOT, ROOT / "tests/device/adapters/appium/ios.json",
+                "private-ios-selector", environment,
+            )
+        command = execute.call_args.args[0]
+        options = execute.call_args.kwargs
+        self.assertEqual("app.launch", command[command.index("--operation") + 1])
+        self.assertEqual("{}", command[command.index("--arguments") + 1])
+        self.assertEqual(RUN_CI.IOS_SESSION_PREWARM_TIMEOUT_SECONDS,
+                         child.wait.call_args.kwargs["timeout"])
+        self.assertIs(RUN_CI.subprocess.DEVNULL, options["stdout"])
+        self.assertIs(RUN_CI.subprocess.DEVNULL, options["stderr"])
+        self.assertIs(environment, options["env"])
+        self.assertTrue(options.get("start_new_session") or "creationflags" in options)
+
+    def test_ios_session_prewarm_fails_closed_without_echoing_selector(self):
+        selector = "private-ios-selector"
+        child = MagicMock()
+        child.wait.return_value = 2
+        with patch.object(
+                RUN_CI, "load_adapter_command", return_value=["adapter"]), patch.object(
+                RUN_CI.subprocess, "Popen", return_value=child):
+            with self.assertRaisesRegex(RuntimeError, "private Appium service log") as failure:
+                RUN_CI.prewarm_ios_appium_session(
+                    ROOT, ROOT / "tests/device/adapters/appium/ios.json",
+                    selector, {},
+                )
+        self.assertNotIn(selector, str(failure.exception))
+
+        timed_out = MagicMock()
+        timed_out.wait.side_effect = RUN_CI.subprocess.TimeoutExpired(["adapter"], 210)
+        with patch.object(
+                RUN_CI, "load_adapter_command", return_value=["adapter"]), patch.object(
+                RUN_CI.subprocess, "Popen", return_value=timed_out), patch.object(
+                RUN_CI, "stop_process") as stop:
+            with self.assertRaisesRegex(RuntimeError, "bounded prewarm window") as failure:
+                RUN_CI.prewarm_ios_appium_session(
+                    ROOT, ROOT / "tests/device/adapters/appium/ios.json",
+                    selector, {},
+                )
+        stop.assert_called_once_with(timed_out, grace_seconds=2)
+        self.assertNotIn(selector, str(failure.exception))
+
+    def test_ios_core_updates_fixture_before_session_prewarm_and_common_runner(self):
+        with tempfile.TemporaryDirectory(prefix="overte-ios-ordering-") as name:
+            temporary = Path(name)
+            values = self.configuration(temporary)
+            values["OVERTE_CI_ADAPTER_MANIFEST"] = "tests/device/adapters/appium/ios.json"
+            values["OVERTE_DEVICE_TARGET_SELECTOR"] = "private-ios-one"
+            config = temporary / "private/targets.json"
+            self.ios_target_config(config)
+            values["OVERTE_IOS_JOB_TARGET_CONFIG"] = str(config)
+            values["OVERTE_APPIUM_TARGETS"] = str(config)
+            observed = []
+
+            def prewarm(_root, _manifest, _selector, _environment, _active):
+                updated = json.loads(config.read_text(encoding="utf-8"))
+                origin = updated["targets"][0]["testBuild"]["fixtureOrigin"]
+                self.assertTrue(origin.startswith("http://127.0.0.1:"))
+                observed.append("prewarm")
+
+            with patch.dict(os.environ, values, clear=False), patch.object(
+                    RUN_CI, "prewarm_ios_appium_session", side_effect=prewarm), patch.object(
+                    RUN_CI, "is_ios_appium_manifest", return_value=True), patch.object(
+                    RUN_CI, "load_adapter_command", return_value=[
+                        "python3", str(ROOT / "tests/device/adapters/mock/adapter.py"),
+                    ]):
+                # The actual common runner cannot use an iOS manifest with the
+                # mock adapter, so this test stops after proving ordering.
+                with patch.object(RUN_CI.subprocess, "Popen") as popen:
+                    fixture = MagicMock()
+                    fixture.poll.return_value = None
+                    fixture.pid = 10001
+                    fixture.wait.return_value = 0
+                    runner = MagicMock()
+                    runner.wait.return_value = 0
+                    runner.pid = 10002
+                    runner.poll.return_value = 0
+                    popen.side_effect = [fixture, runner]
+                    with patch.object(RUN_CI, "wait_for_ready", return_value={
+                            "baseUrl": "http://127.0.0.1:43127",
+                            "sceneUrl": "http://127.0.0.1:43127/scene.json",
+                    }):
+                        self.assertEqual(0, RUN_CI.run_suite())
+            self.assertEqual(["prewarm"], observed)
+
+    def test_ios_ddi_gate_keeps_device_and_paths_out_of_argv_and_output(self):
+        with tempfile.TemporaryDirectory(prefix="overte-ios-ddi-glue-") as name:
+            temporary = Path(name)
+            config = temporary / "private/targets.json"
+            self.ios_target_config(config)
+            ddi = temporary / "private/ddi"
+            ddi.mkdir(mode=0o700)
+            values = {
+                "OVERTE_CI_WORKSPACE": str(ROOT),
+                "OVERTE_IOS_JOB_TARGET_CONFIG": str(config),
+                "OVERTE_DEVICE_TARGET_SELECTOR": "private-ios-one",
+                "OVERTE_IOS_DDI_ROOT": str(ddi),
+            }
+            child = MagicMock()
+            child.communicate.return_value = (None, None)
+            child.returncode = 0
+            with patch.dict(os.environ, values, clear=False), patch.object(
+                    RUN_CI.subprocess, "Popen", return_value=child) as execute:
+                self.assertEqual(0, RUN_CI.ios_ddi_preflight())
+            command = " ".join(map(str, execute.call_args.args[0]))
+            request = child.communicate.call_args.kwargs["input"]
+            self.assertNotIn("private-device-one", command)
+            self.assertNotIn(str(ddi), command)
+            self.assertIn("private-device-one", request)
+            self.assertIn(str(ddi), request)
+            self.assertIs(RUN_CI.subprocess.DEVNULL, execute.call_args.kwargs["stdout"])
+            self.assertIs(RUN_CI.subprocess.DEVNULL, execute.call_args.kwargs["stderr"])
+            self.assertTrue(execute.call_args.kwargs.get("start_new_session")
+                            or "creationflags" in execute.call_args.kwargs)
 
     def test_ephemeral_fixture_origin_updates_only_selected_private_ios_target(self):
         with tempfile.TemporaryDirectory(prefix="overte-ios-origin-") as name:
@@ -555,6 +681,7 @@ class JenkinsGlueTest(unittest.TestCase):
             "junit(testResults:",
             "archiveArtifacts(",
             "ciPython('ios-runtime-preflight')",
+            "ciPython('ios-ddi-preflight')",
             "ciPython('ios-artifact-sync')",
             "ciPython('cleanup-ios-private'",
             "OVERTE_IOS_JOB_TARGET_CONFIG",
@@ -562,6 +689,7 @@ class JenkinsGlueTest(unittest.TestCase):
             "IOS_AGE_IDENTITY_CREDENTIAL_ID",
             "personal-team-preinstalled",
             "IOS_PREINSTALLED_ATTESTATION",
+            "IOS_DDI_ROOT",
             "IOS_PRODUCER_RUN_ATTEMPT",
             "stage('Preinstalled Personal Team gate')",
             "runDeviceSuite('e2e-core', 45)",
