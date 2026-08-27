@@ -82,6 +82,24 @@ def validate_operation_arguments(operation: str, value: object) -> dict:
                 or parsed.query or parsed.fragment):
             raise ValueError(
                 "navigation.enter-domain requires a credential-free hifi URL with explicit port")
+    elif operation == "asset.load":
+        if set(value) != {"assetId", "url", "entityName"}:
+            raise ValueError("asset.load requires only assetId, url and entityName")
+        asset_id = value["assetId"]
+        url = value["url"]
+        entity_name = value["entityName"]
+        if not isinstance(asset_id, str) or not IDENTIFIER.fullmatch(asset_id):
+            raise ValueError("asset.load assetId must be a lowercase identifier")
+        if (not isinstance(entity_name, str)
+                or not entity_name.startswith("OVERTE_E2E_ASSET_LOAD")):
+            raise ValueError("asset.load entityName must use the controlled prefix")
+        if not isinstance(url, str):
+            raise ValueError("asset.load url must be an absolute HTTP URL")
+        parsed = urlsplit(url)
+        if (parsed.scheme not in {"http", "https"} or not parsed.netloc
+                or parsed.username is not None or parsed.password is not None
+                or parsed.fragment):
+            raise ValueError("asset.load url must be an absolute HTTP URL")
     return value
 
 
@@ -157,4 +175,36 @@ def validate_probe_snapshot(value: object) -> dict:
         raise ValueError("probe avatar cannot be flying while not inAir")
     if not isinstance(value["tablet"].get("open"), bool):
         raise ValueError("probe tablet.open must be boolean")
+    asset = value.get("asset")
+    if asset is not None:
+        if not isinstance(asset, dict):
+            raise ValueError("probe asset must be an object or null")
+        asset_id = asset.get("assetId")
+        resource = asset.get("resource")
+        entity = asset.get("entity")
+        if not isinstance(asset_id, str) or not asset_id:
+            raise ValueError("probe asset requires a non-empty assetId")
+        if not isinstance(resource, dict):
+            raise ValueError("probe asset requires resource evidence")
+        resource_url = resource.get("url")
+        if not isinstance(resource_url, str) or "://" not in resource_url:
+            raise ValueError("probe asset resource requires an absolute URL")
+        if resource.get("state") not in {"queued", "loading", "loaded", "finished", "failed"}:
+            raise ValueError("probe asset resource has an invalid state")
+        if not isinstance(entity, dict):
+            raise ValueError("probe asset requires entity evidence")
+        if (not isinstance(entity.get("id"), str) or not entity["id"]
+                or not isinstance(entity.get("name"), str) or not entity["name"]
+                or entity.get("type") != "Image"):
+            raise ValueError("probe asset entity requires id, name and Image type")
+        image_url = entity.get("imageURL")
+        if not isinstance(image_url, str) or image_url != resource_url:
+            raise ValueError("probe asset entity imageURL must match the resource URL")
+        dimensions = entity.get("naturalDimensions")
+        if not isinstance(dimensions, dict) or not all(
+                isinstance(dimensions.get(axis), (int, float))
+                and not isinstance(dimensions.get(axis), bool)
+                and math.isfinite(float(dimensions[axis]))
+                for axis in ("x", "y", "z")):
+            raise ValueError("probe asset entity requires finite naturalDimensions")
     return value

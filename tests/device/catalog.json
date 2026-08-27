@@ -5,7 +5,7 @@
       "id": "launch-smoke",
       "description": "Launch the application and verify a stable foreground process.",
       "command": ["modules/launch_smoke.py"],
-      "suites": ["domain-smoke", "e2e-core", "smoke", "stability", "vertical-locomotion"],
+      "suites": ["asset-smoke", "domain-smoke", "e2e-core", "smoke", "stability", "vertical-locomotion"],
       "requires": ["app.foreground", "app.launch", "app.process"],
       "timeoutSeconds": 120
     },
@@ -24,6 +24,14 @@
       "suites": ["domain-smoke"],
       "requires": ["app.foreground", "app.process", "navigation.enter-domain", "probe.snapshot"],
       "timeoutSeconds": 180
+    },
+    {
+      "id": "asset-load",
+      "description": "Load a controlled local texture and verify HTTP, resource, entity, and process evidence.",
+      "command": ["modules/asset_load.py"],
+      "suites": ["asset-smoke"],
+      "requires": ["app.foreground", "app.process", "asset.load", "probe.snapshot"],
+      "timeoutSeconds": 120
     },
     {
       "id": "look",
