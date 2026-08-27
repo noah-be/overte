@@ -168,6 +168,7 @@ static AppNapDisabler appNapDisabler;   // disabled, while in scope
 #endif
 
 #if defined(Q_OS_ANDROID)
+#include "AndroidStartupUrlPolicy.h"
 #include "ui/PhoneGraphicsPolicy.h"
 #include <android/log.h>
 #endif
@@ -2163,17 +2164,34 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
         QStringLiteral("file:///~/serverless/overte-hub-pico4-optimized-spawn.json");
 #endif
 
-    // when --url in command line, teleport to location
+    // When --url is present on the command line, navigate to that location.
+#ifdef Q_OS_ANDROID
+    const auto startupUrlScheme = _urlParam.scheme();
+    const bool hasExplicitAndroidStartupUrl =
+        !_urlParam.isEmpty() && _urlParam.isValid() &&
+        (startupUrlScheme == URL_SCHEME_OVERTE ||
+         startupUrlScheme == HIFI_URL_SCHEME_HTTP ||
+         startupUrlScheme == HIFI_URL_SCHEME_HTTPS ||
+         startupUrlScheme == HIFI_URL_SCHEME_FILE);
+#endif
     if (!_urlParam.isEmpty()) { // Not sure if format supported by isValid().
         if (_urlParam.scheme() == URL_SCHEME_OVERTEAPP) {
             Setting::Handle<QVariant>("startUpApp").set(_urlParam.path());
         } else {
+#ifdef Q_OS_ANDROID
+            if (hasExplicitAndroidStartupUrl) {
+                addressLookupString = _urlParam.toString();
+            } else {
+                qCWarning(interfaceapp) << "Ignoring invalid or unsupported Android startup URL";
+            }
+#else
             addressLookupString = _urlParam.toString();
+#endif
         }
     }
 
 #if defined(ANDROID_APP_PICO_INTERFACE)
-    if (_urlParam.isEmpty()) {
+    if (!hasExplicitAndroidStartupUrl) {
         addressLookupString = PICO_DEFAULT_STARTUP_ADDRESS;
         // Apply the packaged world's fixed spawn exactly once. Encoding this
         // as an AddressManager location query replays it during later
@@ -2192,12 +2210,19 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
 
     QString sentTo;
 
-    // If this is a first run we short-circuit the address passed in
-    if (_firstRun.get()
 #ifdef Q_OS_ANDROID
-        || addressLookupString.isEmpty()
+    const auto startupDestination = android::startup::selectDestination(
+        _firstRun.get(), hasExplicitAndroidStartupUrl,
+        !addressLookupString.isEmpty());
+    const bool useFirstRunOrDefaultAddress =
+        startupDestination == android::startup::Destination::FirstRunOrDefault;
+#else
+    const bool useFirstRunOrDefaultAddress = _firstRun.get();
 #endif
-    ) {
+
+    // Android explicit startup URLs take precedence even on a fresh profile.
+    // Without one, the established first-run/default behavior is unchanged.
+    if (useFirstRunOrDefaultAddress) {
         if (!BuildInfo::PRELOADED_STARTUP_LOCATION.isEmpty()) {
             DependencyManager::get<LocationBookmarks>()->setHomeLocationToAddress(NetworkingConstants::DEFAULT_OVERTE_ADDRESS);
             Menu::getInstance()->triggerOption(MenuOption::HomeLocation);
