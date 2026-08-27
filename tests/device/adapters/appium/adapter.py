@@ -51,6 +51,8 @@ def cli() -> argparse.Namespace:
 class WebDriver:
     MAX_RESPONSE_BYTES = 32 * 1024 * 1024
     MAX_ERROR_RESPONSE_BYTES = 64 * 1024
+    COMMAND_TIMEOUT_SECONDS = 30
+    SESSION_START_TIMEOUT_SECONDS = 180
 
     def __init__(self, server_url: str) -> None:
         if not server_url.startswith(("http://127.0.0.1:", "http://localhost:", "https://")):
@@ -103,8 +105,13 @@ class WebDriver:
         data = None if payload is None else json.dumps(payload).encode("utf-8")
         request = Request(self.server_url + path, data=data, method=method,
                           headers={"Content-Type": "application/json"})
+        timeout = (
+            self.SESSION_START_TIMEOUT_SECONDS
+            if method == "POST" and path == "/session"
+            else self.COMMAND_TIMEOUT_SECONDS
+        )
         try:
-            with urlopen(request, timeout=30) as response:
+            with urlopen(request, timeout=timeout) as response:
                 declared = response.headers.get("Content-Length")
                 if declared:
                     try:
