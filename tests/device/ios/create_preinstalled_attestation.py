@@ -14,7 +14,7 @@ import stat
 import sys
 
 
-KIT_CONTRACT = "overte-ios-personal-team-e2e-kit-v2"
+KIT_CONTRACT = "overte-ios-personal-team-e2e-kit-v3"
 ATTESTATION_CONTRACT = "overte-ios-personal-team-preinstalled-attestation-v2"
 BUNDLES = {
     "overte": "org.overte.interface.e2e",
@@ -23,13 +23,10 @@ BUNDLES = {
 }
 WDA_CREDENTIAL_FREE_SIGNING = {
     "nestedBundle": "PlugIns/WebDriverAgentRunner.xctest",
-    "method": "ad-hoc",
+    "method": "unsigned-requires-recursive-personal-team-signing",
     "outerRunnerBundleCodeResourcesPresent": False,
-    "outerRunnerNewAdHocSignatureApplied": False,
+    "nestedBundleCodeResourcesPresent": False,
     "outerRunnerProvisioned": False,
-    "signer": "rcodesign", "signerVersion": "0.29.0",
-    "signerExecutableSha256":
-        "dab9a7465f96aba3c81e793775510f745b91a46b6418e89f7317b5d8fc7bcea2",
 }
 TOOLCHAIN = {
     "xcuitestDriver": "12.8.0", "remoteXpc": "5.15.3",

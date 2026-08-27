@@ -208,7 +208,7 @@ class IosPersonalTeamArtifactsTest(unittest.TestCase):
         self.assertEqual(timedelta(hours=1), expiry - created)
         self.assertEqual(hashlib.sha256(self.kit.read_bytes()).hexdigest(),
                          value["unsignedKitManifestSha256"])
-        self.assertEqual("overte-ios-personal-team-e2e-kit-v2",
+        self.assertEqual("overte-ios-personal-team-e2e-kit-v3",
                          value["unsignedKitContract"])
         self.assertEqual("overte-ios-personal-team-preinstalled-attestation-v2",
                          value["contract"])

@@ -16,14 +16,12 @@ import plistlib
 import re
 import shutil
 import stat
-import subprocess
 import sys
-import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
 
 
-CONTRACT = "overte-ios-personal-team-e2e-kit-v2"
+CONTRACT = "overte-ios-personal-team-e2e-kit-v3"
 REUSE_CONTRACT = "overte-ios-reusable-e2e-client-v1"
 OVERTE_BUNDLE_ID = "org.overte.interface.e2e"
 WDA_RUNNER_BUNDLE_ID = "org.overte.WebDriverAgentRunner.xctrunner"
@@ -36,10 +34,6 @@ WDA_UPSTREAM_SHA256 = "38ec705d6fa2c7825513adbc9406d4fda5d6a084a8d3980ceff9a265e
 WDA_UPSTREAM_URL = (
     "https://github.com/appium/WebDriverAgent/releases/download/v16.8.0/"
     "WebDriverAgentRunner-Runner.zip"
-)
-RCODESIGN_VERSION = "0.29.0"
-RCODESIGN_EXECUTABLE_SHA256 = (
-    "dab9a7465f96aba3c81e793775510f745b91a46b6418e89f7317b5d8fc7bcea2"
 )
 OVERTE_OUTPUT = "Overte-PersonalTeam-E2E-unsigned.ipa"
 WDA_OUTPUT = "WebDriverAgentRunner-16.8.0-PersonalTeam-unsigned.ipa"
@@ -69,31 +63,6 @@ def require_regular_file(path: Path, label: str) -> None:
         raise ValueError(f"{label} is unavailable") from error
     if not stat.S_ISREG(mode) or path.is_symlink() or path.stat().st_size <= 0:
         raise ValueError(f"{label} must be a non-empty regular file")
-
-
-def validate_rcodesign(path: Path) -> Path:
-    require_regular_file(path, "rcodesign")
-    if (
-        not path.is_absolute()
-        or path.resolve() != path
-        or sha256_file(path) != RCODESIGN_EXECUTABLE_SHA256
-    ):
-        raise ValueError("rcodesign must be the exact absolute pinned executable")
-    try:
-        result = subprocess.run(
-            [str(path), "--version"],
-            env=rcodesign_environment(),
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            timeout=10,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError) as error:
-        raise ValueError("rcodesign version check failed") from error
-    if result.returncode or result.stdout.strip() != f"apple-codesign {RCODESIGN_VERSION}":
-        raise ValueError("rcodesign version differs from the Personal Team kit pin")
-    return path
 
 
 def parse_created_at(value: str) -> str:
@@ -334,158 +303,7 @@ def is_signing_member(relative: PurePosixPath) -> bool:
     }
 
 
-def extract_safe_zip(archive: zipfile.ZipFile, entries: list[zipfile.ZipInfo],
-                     destination: Path) -> None:
-    for entry in entries:
-        relative = safe_member_name(entry.filename)
-        target = destination.joinpath(*relative.parts)
-        if entry.is_dir():
-            target.mkdir(parents=True, exist_ok=True, mode=0o755)
-            continue
-        target.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
-        with archive.open(entry) as source, target.open("xb") as output:
-            shutil.copyfileobj(source, output, 1024 * 1024)
-        archived_mode = entry.external_attr >> 16
-        target.chmod(0o755 if archived_mode & 0o111 else 0o644)
-
-
-def validate_signed_tree(root: Path) -> None:
-    total = 0
-    for path in root.rglob("*"):
-        value = path.lstat()
-        if path.is_symlink() or not (stat.S_ISDIR(value.st_mode) or stat.S_ISREG(value.st_mode)):
-            raise ValueError("ad-hoc signer produced an unsafe WebDriverAgent tree")
-        if stat.S_ISREG(value.st_mode) and not 0 < value.st_size <= MAX_WDA_MEMBER_BYTES:
-            raise ValueError("ad-hoc signer produced an invalid WebDriverAgent file")
-        if stat.S_ISREG(value.st_mode):
-            total += value.st_size
-            if total > MAX_WDA_TOTAL_BYTES:
-                raise ValueError("ad-hoc signer expanded WebDriverAgent beyond its limit")
-
-
-def tree_snapshot_outside(root: Path, excluded: Path) -> list[tuple[str, str, int, str]]:
-    snapshot = []
-    for path in sorted(root.rglob("*"), key=lambda item: item.as_posix()):
-        if path == excluded or excluded in path.parents:
-            continue
-        relative = path.relative_to(root).as_posix()
-        value = path.lstat()
-        if stat.S_ISDIR(value.st_mode):
-            snapshot.append(("directory", relative, stat.S_IMODE(value.st_mode), ""))
-        elif stat.S_ISREG(value.st_mode):
-            snapshot.append(("file", relative, stat.S_IMODE(value.st_mode), sha256_file(path)))
-        else:
-            raise ValueError("WebDriverAgent tree contains an unsupported file type")
-    return snapshot
-
-
-def rcodesign_environment() -> dict[str, str]:
-    return {"HOME": "/nonexistent", "PATH": "/usr/sbin:/usr/bin:/sbin:/bin"}
-
-
-def attest_ad_hoc_signature(
-    rcodesign: Path,
-    executable: Path,
-    identifier: str,
-    info_plist: Path,
-    code_resources: Path,
-) -> None:
-    try:
-        result = subprocess.run(
-            [str(rcodesign), "print-signature-info", "--config-file", "/dev/null",
-             str(executable)],
-            env=rcodesign_environment(), text=True, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, timeout=30, check=False,
-        )
-    except (OSError, subprocess.SubprocessError) as error:
-        raise ValueError("nested WebDriverAgent ad-hoc signature inspection failed") from error
-    normalized = result.stdout.casefold()
-    forbidden_metadata = (
-        "certificate",
-        "entitlements",
-        "team identifier",
-        "team_identifier",
-        "teamidentifier",
-    )
-    if (result.returncode or result.stderr or not 0 < len(result.stdout) <= 64 * 1024
-            or result.stdout.count("code_directory:") != 1
-            or result.stdout.count("flags: CodeSignatureFlags(ADHOC)") != 1
-            or result.stdout.count(f"identifier: {identifier}") != 1
-            or result.stdout.count("digest_type: sha256") != 1
-            or result.stdout.count(f"file_sha256: {sha256_file(executable)}") != 1
-            or result.stdout.count("cms: null") != 1
-            or result.stdout.count(f"Info (1): {sha256_file(info_plist)}") != 1
-            or result.stdout.count(
-                f"Resources (3): {sha256_file(code_resources)}"
-            ) != 1
-            or any(marker in normalized for marker in forbidden_metadata)):
-        raise ValueError("nested WebDriverAgent signature is not exact SHA-256 ad-hoc code")
-
-
-def write_zip_tree(source: Path, output: Path) -> None:
-    temporary = output.with_name(f".{output.name}.adhoc.tmp")
-    temporary.unlink(missing_ok=True)
-    try:
-        with zipfile.ZipFile(temporary, "x", compression=zipfile.ZIP_DEFLATED) as archive:
-            for path in sorted(source.rglob("*"), key=lambda item: item.as_posix()):
-                relative = path.relative_to(source).as_posix()
-                archive.write(path, relative + "/" if path.is_dir() else relative)
-        temporary.replace(output)
-    finally:
-        temporary.unlink(missing_ok=True)
-
-
-def ad_hoc_sign_nested_xctest(ipa: Path, rcodesign: Path) -> None:
-    with tempfile.TemporaryDirectory(prefix="overte-wda-adhoc-") as temporary_name:
-        temporary = Path(temporary_name)
-        with zipfile.ZipFile(ipa) as archive:
-            entries = inspect_archive(archive, "normalized WebDriverAgent")
-            extract_safe_zip(archive, entries, temporary)
-        nested = (
-            temporary / "Payload/WebDriverAgentRunner-Runner.app/PlugIns/"
-            "WebDriverAgentRunner.xctest"
-        )
-        executable = nested / "WebDriverAgentRunner"
-        framework = nested / "Frameworks/WebDriverAgentLib.framework"
-        framework_executable = framework / "WebDriverAgentLib"
-        require_regular_file(executable, "WebDriverAgent XCTest executable")
-        require_regular_file(framework_executable, "WebDriverAgentLib executable")
-        outside_before = tree_snapshot_outside(temporary, nested)
-        try:
-            signed = subprocess.run(
-                [str(rcodesign), "sign", "--config-file", "/dev/null",
-                 "--timestamp-url", "none", "--binary-identifier",
-                 WDA_XCTEST_BUNDLE_ID, str(nested)],
-                env=rcodesign_environment(),
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                timeout=120, check=False,
-            )
-        except (OSError, subprocess.SubprocessError) as error:
-            raise ValueError("nested WebDriverAgent XCTest ad-hoc signing failed") from error
-        code_resources = nested / "_CodeSignature/CodeResources"
-        framework_resources = framework / "_CodeSignature/CodeResources"
-        if signed.returncode:
-            raise ValueError("nested WebDriverAgent XCTest ad-hoc signing failed")
-        require_regular_file(code_resources, "nested WebDriverAgent XCTest CodeResources")
-        require_regular_file(framework_resources, "nested WebDriverAgentLib CodeResources")
-        validate_signed_tree(temporary)
-        if tree_snapshot_outside(temporary, nested) != outside_before:
-            raise ValueError("nested WebDriverAgent signer modified the outer runner")
-        attest_ad_hoc_signature(
-            rcodesign, executable, WDA_XCTEST_BUNDLE_ID,
-            nested / "Info.plist", code_resources,
-        )
-        attest_ad_hoc_signature(
-            rcodesign, framework_executable, "com.facebook.WebDriverAgentLib",
-            framework / "Info.plist", framework_resources,
-        )
-        outer_signature = temporary / "Payload/WebDriverAgentRunner-Runner.app/_CodeSignature"
-        if outer_signature.exists() or outer_signature.is_symlink():
-            raise ValueError("credential-free WebDriverAgent outer runner became signed")
-        write_zip_tree(temporary, ipa)
-
-
-def create_unsigned_wda(upstream: Path, output: Path, rcodesign: Path) -> None:
+def create_unsigned_wda(upstream: Path, output: Path) -> None:
     require_regular_file(upstream, "WebDriverAgent upstream archive")
     if sha256_file(upstream) != WDA_UPSTREAM_SHA256:
         raise ValueError("WebDriverAgent upstream archive SHA-256 mismatch")
@@ -545,7 +363,6 @@ def create_unsigned_wda(upstream: Path, output: Path, rcodesign: Path) -> None:
     if rewritten != {runner_info, xctest_info}:
         output.unlink(missing_ok=True)
         raise ValueError("WebDriverAgent archive lacks the runner or nested XCTest Info.plist")
-    ad_hoc_sign_nested_xctest(output, rcodesign)
     output.chmod(0o644)
 
 
@@ -565,16 +382,8 @@ def validate_unsigned_wda(path: Path) -> None:
         if xctest.get("CFBundleIdentifier") != WDA_XCTEST_BUNDLE_ID:
             raise ValueError("WebDriverAgent XCTest bundle identifier normalization failed")
         names = {entry.filename.rstrip("/") for entry in entries}
-        nested_root = f"{root}/PlugIns/WebDriverAgentRunner.xctest"
-        code_resources = f"{nested_root}/_CodeSignature/CodeResources"
-        framework_resources = (
-            f"{nested_root}/Frameworks/WebDriverAgentLib.framework/"
-            "_CodeSignature/CodeResources"
-        )
-        archive_member(entries, code_resources)
-        archive_member(entries, framework_resources)
         if any(name.endswith(("/embedded.mobileprovision", "/embedded.provisionprofile"))
-               or "/_CodeSignature/" in f"/{name}/" and not name.startswith(nested_root + "/")
+               or "/_CodeSignature/" in f"/{name}/"
                for name in names):
             raise ValueError("normalized WebDriverAgent contains private signing material")
 
@@ -593,7 +402,6 @@ def create_kit(
     reusable_workflow: str,
     run_id: int,
     run_attempt: int,
-    rcodesign: Path,
     overte_reuse_provenance: Path | None = None,
 ) -> dict:
     if re.fullmatch(r"[0-9a-f]{40}", source_revision) is None:
@@ -615,7 +423,6 @@ def create_kit(
         raise ValueError("run attempt must be positive")
     if output_dir.exists():
         raise ValueError("output directory must not already exist")
-    rcodesign = validate_rcodesign(rcodesign)
     reuse = None
     overte_source_revision = source_revision
     if overte_reuse_provenance is not None:
@@ -630,7 +437,7 @@ def create_kit(
     try:
         shutil.copyfile(overte_ipa, overte_output)
         overte_output.chmod(0o644)
-        create_unsigned_wda(wda_upstream, wda_output, rcodesign)
+        create_unsigned_wda(wda_upstream, wda_output)
         validate_unsigned_wda(wda_output)
         payload = {
             "schemaVersion": 1,
@@ -651,13 +458,10 @@ def create_kit(
             "webDriverAgentVersion": WDA_VERSION,
             "webDriverAgentCredentialFreeSigning": {
                 "nestedBundle": "PlugIns/WebDriverAgentRunner.xctest",
-                "method": "ad-hoc",
+                "method": "unsigned-requires-recursive-personal-team-signing",
                 "outerRunnerBundleCodeResourcesPresent": False,
-                "outerRunnerNewAdHocSignatureApplied": False,
+                "nestedBundleCodeResourcesPresent": False,
                 "outerRunnerProvisioned": False,
-                "signer": "rcodesign",
-                "signerVersion": RCODESIGN_VERSION,
-                "signerExecutableSha256": RCODESIGN_EXECUTABLE_SHA256,
             },
             "desiredBundleIdentifiers": {
                 "overte": OVERTE_BUNDLE_ID,
@@ -713,7 +517,6 @@ def main() -> int:
     parser.add_argument("--reusable-workflow", required=True)
     parser.add_argument("--run-id", type=int, required=True)
     parser.add_argument("--run-attempt", type=int, required=True)
-    parser.add_argument("--rcodesign", type=Path, required=True)
     parser.add_argument("--overte-reuse-provenance", type=Path)
     args = parser.parse_args()
     try:
@@ -731,7 +534,6 @@ def main() -> int:
             args.reusable_workflow,
             args.run_id,
             args.run_attempt,
-            args.rcodesign,
             args.overte_reuse_provenance,
         )
     except (OSError, ValueError, zipfile.BadZipFile) as error:

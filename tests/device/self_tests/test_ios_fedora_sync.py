@@ -321,7 +321,7 @@ class IosFedoraSyncTest(unittest.TestCase):
             "schemaVersion": 1,
             "contract": "overte-ios-personal-team-preinstalled-attestation-v2",
             "sourceRevision": self.revision,
-            "unsignedKitContract": "overte-ios-personal-team-e2e-kit-v2",
+            "unsignedKitContract": "overte-ios-personal-team-e2e-kit-v3",
             "unsignedKitManifestSha256": "3" * 64,
             "createdAt": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "notAfter": (now + timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%SZ"),

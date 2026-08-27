@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 
-KIT_CONTRACT = "overte-ios-personal-team-e2e-kit-v2"
+KIT_CONTRACT = "overte-ios-personal-team-e2e-kit-v3"
 HANDOFF_CONTRACT = "overte-ios-personal-team-signed-handoff-v1"
 OVERTE_SIGNED_NAME = "Overte-PersonalTeam-E2E-signed.ipa"
 WDA_SIGNED_NAME = "WebDriverAgentRunner-16.8.0-PersonalTeam-signed.ipa"
@@ -28,14 +28,10 @@ EXPECTED_IDS = {
 }
 WDA_CREDENTIAL_FREE_SIGNING = {
     "nestedBundle": "PlugIns/WebDriverAgentRunner.xctest",
-    "method": "ad-hoc",
+    "method": "unsigned-requires-recursive-personal-team-signing",
     "outerRunnerBundleCodeResourcesPresent": False,
-    "outerRunnerNewAdHocSignatureApplied": False,
+    "nestedBundleCodeResourcesPresent": False,
     "outerRunnerProvisioned": False,
-    "signer": "rcodesign",
-    "signerVersion": "0.29.0",
-    "signerExecutableSha256":
-        "dab9a7465f96aba3c81e793775510f745b91a46b6418e89f7317b5d8fc7bcea2",
 }
 MAX_IPA_BYTES = 6 * 1024 * 1024 * 1024
 CHECKOUT_ROOT = Path(__file__).resolve().parents[2]

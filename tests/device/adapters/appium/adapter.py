@@ -169,6 +169,7 @@ class AppiumAdapter:
         "appium:keychainPath", "appium:keychainPassword",
         "appium:allowProvisioningDeviceRegistration", "appium:resultBundlePath",
     }
+    IOS_SERVICE_RUNTIME_REVISION = 7
 
     def __init__(self, platform: str) -> None:
         self.platform = platform
@@ -463,7 +464,7 @@ class AppiumAdapter:
                     "attestationContract", "derivationBinding"}
                 and provenance.get("mode") == "personal-team-manual-signing"
                 and provenance.get("unsignedKitContract")
-                == "overte-ios-personal-team-e2e-kit-v2"
+                == "overte-ios-personal-team-e2e-kit-v3"
                 and isinstance(provenance.get("unsignedKitManifestSha256"), str)
                 and re.fullmatch(r"[0-9a-f]{64}",
                                  provenance["unsignedKitManifestSha256"]) is not None
@@ -500,7 +501,7 @@ class AppiumAdapter:
                 and re.fullmatch(r"[0-9a-f]{64}", provenance["attestationSha256"])
                 is not None
                 and provenance.get("unsignedKitContract")
-                == "overte-ios-personal-team-e2e-kit-v2"
+                == "overte-ios-personal-team-e2e-kit-v3"
                 and isinstance(provenance.get("unsignedKitManifestSha256"), str)
                 and re.fullmatch(r"[0-9a-f]{64}",
                                  provenance["unsignedKitManifestSha256"]) is not None
@@ -907,7 +908,7 @@ class AppiumAdapter:
             encoding="utf-8"))
         version = lock["appium"]["iosRuntime"]["remoteXpc"]["version"]
         revision = lock.get("serviceRuntimeRevision")
-        if revision != 6:
+        if revision != AppiumAdapter.IOS_SERVICE_RUNTIME_REVISION:
             fail("unsupported immutable iOS device runtime revision")
         runtime = Path("/usr/local/lib/overte-ios-remotexpc") / f"{version}-r{revision}"
         wrapper = runtime / "remotexpc_tunnel.py"

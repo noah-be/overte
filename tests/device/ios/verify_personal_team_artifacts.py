@@ -20,7 +20,7 @@ import verify_fedora_artifacts as VERIFY
 import create_preinstalled_attestation as KIT_CONTRACT_VALIDATOR
 
 
-KIT_CONTRACT = "overte-ios-personal-team-e2e-kit-v2"
+KIT_CONTRACT = "overte-ios-personal-team-e2e-kit-v3"
 ATTESTATION_CONTRACT = "overte-ios-personal-team-signed-handoff-v1"
 RECEIPT_CONTRACT = "overte-ios-personal-team-artifact-receipt-v1"
 OVERTE_NAME = "Overte-PersonalTeam-E2E-signed.ipa"
@@ -32,13 +32,10 @@ BUNDLES = {
 }
 WDA_CREDENTIAL_FREE_SIGNING = {
     "nestedBundle": "PlugIns/WebDriverAgentRunner.xctest",
-    "method": "ad-hoc",
+    "method": "unsigned-requires-recursive-personal-team-signing",
     "outerRunnerBundleCodeResourcesPresent": False,
-    "outerRunnerNewAdHocSignatureApplied": False,
+    "nestedBundleCodeResourcesPresent": False,
     "outerRunnerProvisioned": False,
-    "signer": "rcodesign", "signerVersion": "0.29.0",
-    "signerExecutableSha256":
-        "dab9a7465f96aba3c81e793775510f745b91a46b6418e89f7317b5d8fc7bcea2",
 }
 MAX_JSON_BYTES = 1024 * 1024
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
@@ -123,7 +120,7 @@ def validate_contracts(arguments: argparse.Namespace) -> tuple[dict, dict, datet
             or attestation.get("expectedBundleIdentifiers") != BUNDLES):
         fail("Personal-Team handoff differs from the fixed non-production bundle IDs")
     if kit.get("webDriverAgentCredentialFreeSigning") != WDA_CREDENTIAL_FREE_SIGNING:
-        fail("Personal-Team WDA lacks the credential-free nested XCTest signature contract")
+        fail("Personal-Team WDA lacks the recursive XCTest signing boundary")
     try:
         KIT_CONTRACT_VALIDATOR.validate_overte_reuse(
             kit.get("overteArtifactReuse"), kit["sourceRevision"]
