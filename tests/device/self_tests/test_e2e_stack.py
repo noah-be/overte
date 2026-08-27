@@ -51,6 +51,32 @@ class E2EStackTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "sampleSequence"):
             validate_probe_snapshot(snapshot)
 
+    def test_probe_contract_validates_connected_domain_identity_and_markers(self):
+        snapshot = self.snapshot()
+        snapshot["domain"] = {
+            "connected": True,
+            "hostname": "127.0.0.1",
+            "id": "11111111-2222-4333-8444-555555555555",
+            "protocol": "hifi",
+            "serverless": False,
+        }
+        snapshot["scene"].update({
+            "domainMarkerCount": 2,
+            "domainMarkers": ["OVERTE_E2E_DOMAIN_FLOOR", "OVERTE_E2E_DOMAIN_ORIGIN"],
+        })
+        self.assertIs(snapshot, validate_probe_snapshot(snapshot))
+        snapshot["scene"]["domainMarkerCount"] = 1
+        with self.assertRaisesRegex(ValueError, "domainMarkers"):
+            validate_probe_snapshot(snapshot)
+
+        snapshot = self.snapshot()
+        snapshot["domain"] = {
+            "connected": True, "hostname": "", "id": "", "protocol": "hifi",
+            "serverless": False,
+        }
+        with self.assertRaisesRegex(ValueError, "connected probe domain"):
+            validate_probe_snapshot(snapshot)
+
     def test_probe_contract_observes_standard_controller_values_and_poses(self):
         snapshot = self.snapshot()
         snapshot["input"] = {
@@ -155,6 +181,110 @@ class E2EStackTest(unittest.TestCase):
             self.assertEqual("5", junit.attrib["tests"])
             self.assertEqual("0", junit.attrib["failures"])
             self.assertEqual("0", junit.attrib["errors"])
+
+    def test_domain_smoke_enters_controlled_domain_without_process_restart(self):
+        with tempfile.TemporaryDirectory(prefix="overte-domain-e2e-stack-") as temporary:
+            root = Path(temporary)
+            manifest = json.loads(
+                (ROOT / "fixture/domain-manifest.json").read_text(encoding="utf-8"))
+            domain_id = "11111111-2222-4333-8444-555555555555"
+            environment = os.environ.copy()
+            environment.update({
+                "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+                "OVERTE_MOCK_E2E_DOMAIN_ID": domain_id,
+                "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
+                "OVERTE_E2E_DOMAIN_URL": "hifi://127.0.0.1:40102/0,2,4/0,0,0,1",
+                "OVERTE_E2E_DOMAIN_HOST": "127.0.0.1",
+                "OVERTE_E2E_DOMAIN_ID": domain_id,
+                "OVERTE_E2E_DOMAIN_MARKERS_JSON": json.dumps(manifest["requiredMarkers"]),
+                "OVERTE_E2E_POLL_SECONDS": "0.05",
+            })
+            environment.pop("OVERTE_MOCK_E2E_DOMAIN_MARKERS_JSON", None)
+            output = root / "results"
+            result = subprocess.run([
+                sys.executable, str(ROOT / "run.py"),
+                "--adapter-manifest", str(ROOT / "adapters/mock/adapter.json"),
+                "--catalog", str(ROOT / "catalog.json"), "--suite", "domain-smoke",
+                "--allow-virtual", "--require-complete", "--output-dir", str(output),
+            ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+               env=environment, check=False)
+
+            self.assertEqual(0, result.returncode, result.stdout)
+            summary = json.loads((output / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(["launch-smoke", "domain-enter"],
+                             [item["id"] for item in summary["results"]])
+            state = json.loads((root / "state.json").read_text(encoding="utf-8"))
+            self.assertEqual(1, state["launchCount"])
+            self.assertEqual(1, state["domainEnterCount"])
+            connected = json.loads(
+                (output / "modules/domain-enter/domain-connected.json").read_text(
+                    encoding="utf-8"))
+            self.assertEqual(domain_id, connected["domain"]["id"])
+            self.assertEqual(manifest["requiredMarkers"],
+                             connected["scene"]["domainMarkers"])
+            samples = json.loads(
+                (output / "modules/domain-enter/domain-stable-samples.json").read_text(
+                    encoding="utf-8"))
+            self.assertGreaterEqual(len(samples), 3)
+
+    def test_domain_smoke_rejects_wrong_identity_and_incomplete_content(self):
+        manifest = json.loads(
+            (ROOT / "fixture/domain-manifest.json").read_text(encoding="utf-8"))
+        expected_id = "11111111-2222-4333-8444-555555555555"
+        cases = {
+            "wrong-domain-id": {
+                "OVERTE_MOCK_E2E_DOMAIN_ID": "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+            },
+            "missing-domain-marker": {
+                "OVERTE_MOCK_E2E_DOMAIN_ID": expected_id,
+                "OVERTE_MOCK_E2E_DOMAIN_MARKERS_JSON": json.dumps(
+                    manifest["requiredMarkers"][:-1]),
+            },
+        }
+        for name, overrides in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory(
+                    prefix="overte-domain-e2e-negative-") as temporary:
+                root = Path(temporary)
+                environment = os.environ.copy()
+                environment.update({
+                    "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+                    "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
+                    "OVERTE_E2E_DOMAIN_URL":
+                        "hifi://127.0.0.1:40102/0,2,4/0,0,0,1",
+                    "OVERTE_E2E_DOMAIN_HOST": "127.0.0.1",
+                    "OVERTE_E2E_DOMAIN_ID": expected_id,
+                    "OVERTE_E2E_DOMAIN_MARKERS_JSON": json.dumps(
+                        manifest["requiredMarkers"]),
+                    "OVERTE_E2E_POLL_SECONDS": "0.05",
+                    "OVERTE_E2E_TIMEOUT_SECONDS": "1",
+                })
+                environment.pop("OVERTE_MOCK_E2E_DOMAIN_MARKERS_JSON", None)
+                environment.update(overrides)
+                output = root / "results"
+                result = subprocess.run([
+                    sys.executable, str(ROOT / "run.py"),
+                    "--adapter-manifest", str(ROOT / "adapters/mock/adapter.json"),
+                    "--catalog", str(ROOT / "catalog.json"), "--suite", "domain-smoke",
+                    "--allow-virtual", "--require-complete", "--output-dir", str(output),
+                ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                   env=environment, check=False)
+
+                self.assertNotEqual(0, result.returncode, result.stdout)
+                summary = json.loads((output / "summary.json").read_text(encoding="utf-8"))
+                domain_result = next(item for item in summary["results"]
+                                     if item["id"] == "domain-enter")
+                self.assertEqual("failed", domain_result["status"])
+                self.assertTrue(
+                    (output / "modules/domain-enter/domain-last-probe.json").is_file())
+
+    def test_real_adapters_do_not_advertise_domain_navigation_yet(self):
+        adapter_root = ROOT / "adapters"
+        for source in (
+                adapter_root / "android/adapter.py",
+                adapter_root / "appium/adapter.py",
+                adapter_root / "desktop_oculix/adapter.py"):
+            self.assertNotIn("navigation.enter-domain", source.read_text(encoding="utf-8"),
+                             str(source.relative_to(ROOT)))
 
     def test_complete_core_suite_enforces_pico_hardware_evidence(self):
         with tempfile.TemporaryDirectory(prefix="overte-pico-e2e-stack-") as temporary:
