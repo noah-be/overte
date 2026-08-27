@@ -9,11 +9,12 @@ import os
 from pathlib import Path
 import sys
 import time
+from urllib.request import urlopen
 
 
 CAPABILITIES = sorted([
     "app.foreground", "app.launch", "app.process", "input.look", "input.move",
-    "probe.snapshot", "scene.load", "tablet.close", "tablet.open",
+    "asset.load", "probe.snapshot", "scene.load", "tablet.close", "tablet.open",
 ])
 
 
@@ -41,6 +42,7 @@ def initial_state() -> dict:
         "position": {"x": 0.0, "y": 2.0 if pico else 1.0, "z": 4.0},
         "orientation": {"x": 0.0, "y": 0.0, "z": 0.0}, "tablet": False,
         "picoRouteActive": False, "inputSequence": 0, "sampleSequence": 0,
+        "processRevision": 0, "asset": None,
     }
 
 
@@ -66,14 +68,58 @@ def invoke(operation: str, arguments: dict) -> dict:
         state["launchCount"] += 1
         result = {"launched": True}
     elif operation == "app.process":
+        identity = "mock-e2e-process"
+        if state.get("processRevision", 0):
+            identity += f"-{state['processRevision']}"
         return {"running": state["running"],
-                "identity": "mock-e2e-process" if state["running"] else None}
+                "identity": identity if state["running"] else None}
     elif operation == "app.foreground":
         return {"foreground": state["foreground"]}
     elif operation == "scene.load":
         state["sceneUrl"] = arguments.get("url", "")
         state["sceneReady"] = True
         state["sceneLoadCount"] += 1
+        result = {"requested": True}
+    elif operation == "asset.load":
+        if set(arguments) != {"assetId", "url", "entityName"}:
+            raise RuntimeError("asset.load requires assetId, url and entityName")
+        asset_id = arguments["assetId"]
+        url = arguments["url"]
+        entity_name = arguments["entityName"]
+        if (not isinstance(asset_id, str) or not asset_id
+                or not isinstance(url, str) or not url.startswith(("http://", "https://"))
+                or not isinstance(entity_name, str)
+                or not entity_name.startswith("OVERTE_E2E_ASSET_LOAD")):
+            raise RuntimeError("asset.load arguments are invalid")
+        state["asset"] = {
+            "assetId": asset_id,
+            "resource": {"url": url, "state": "loading"},
+            "entity": {
+                "id": "{11111111-2222-4333-8444-555555555555}",
+                "name": entity_name, "type": "Image", "imageURL": url,
+                "naturalDimensions": {"x": 0.1, "y": 0.1, "z": 0.01},
+            },
+        }
+        payload = None
+        if os.environ.get("OVERTE_MOCK_ASSET_SKIP_HTTP") != "1":
+            with urlopen(url, timeout=5) as response:
+                payload = response.read()
+            if len(payload) < 24 or payload[:8] != b"\x89PNG\r\n\x1a\n":
+                raise RuntimeError("mock asset is not a PNG")
+        if os.environ.get("OVERTE_MOCK_ASSET_NEVER_FINISH") != "1":
+            if payload is None:
+                width, height = 3, 1
+            else:
+                width = int.from_bytes(payload[16:20], "big")
+                height = int.from_bytes(payload[20:24], "big")
+            state["asset"]["resource"]["state"] = "finished"
+            state["asset"]["entity"]["naturalDimensions"] = {
+                "x": 1.0 if width >= height else width / height,
+                "y": height / width if width >= height else 1.0,
+                "z": 0.01,
+            }
+        if os.environ.get("OVERTE_MOCK_ASSET_RESTART") == "1":
+            state["processRevision"] = state.get("processRevision", 0) + 1
         result = {"requested": True}
     elif operation == "input.look":
         state["inputSequence"] += 1
@@ -127,7 +173,17 @@ def invoke(operation: str, arguments: dict) -> dict:
             "avatar": {"position": state["position"]},
             "view": {"orientation": state["orientation"]},
             "tablet": {"open": state["tablet"], "home": state["tablet"]},
+            "asset": state.get("asset"),
         }
+        if snapshot["asset"] is not None:
+            if os.environ.get("OVERTE_MOCK_ASSET_WRONG_ID") == "1":
+                snapshot["asset"]["assetId"] += "-wrong"
+            if os.environ.get("OVERTE_MOCK_ASSET_WRONG_URL") == "1":
+                wrong_url = snapshot["asset"]["resource"]["url"] + "-wrong"
+                snapshot["asset"]["resource"]["url"] = wrong_url
+                snapshot["asset"]["entity"]["imageURL"] = wrong_url
+            if os.environ.get("OVERTE_MOCK_ASSET_INCOMPLETE_PROBE") == "1":
+                snapshot["asset"].pop("entity", None)
         if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
             route_value = 0.8 if state["picoRouteActive"] else 0.0
             snapshot["input"] = {

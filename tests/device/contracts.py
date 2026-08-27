@@ -92,6 +92,38 @@ def validate_probe_snapshot(value: object) -> dict:
             raise ValueError(f"probe {field} requires numeric x/y/z")
     if not isinstance(value["tablet"].get("open"), bool):
         raise ValueError("probe tablet.open must be boolean")
+    asset = value.get("asset")
+    if asset is not None:
+        if not isinstance(asset, dict):
+            raise ValueError("probe asset must be an object or null")
+        asset_id = asset.get("assetId")
+        resource = asset.get("resource")
+        entity = asset.get("entity")
+        if not isinstance(asset_id, str) or not asset_id:
+            raise ValueError("probe asset requires a non-empty assetId")
+        if not isinstance(resource, dict):
+            raise ValueError("probe asset requires resource evidence")
+        resource_url = resource.get("url")
+        if not isinstance(resource_url, str) or "://" not in resource_url:
+            raise ValueError("probe asset resource requires an absolute URL")
+        if resource.get("state") not in {"queued", "loading", "loaded", "finished", "failed"}:
+            raise ValueError("probe asset resource has an invalid state")
+        if not isinstance(entity, dict):
+            raise ValueError("probe asset requires entity evidence")
+        if (not isinstance(entity.get("id"), str) or not entity["id"]
+                or not isinstance(entity.get("name"), str) or not entity["name"]
+                or entity.get("type") != "Image"):
+            raise ValueError("probe asset entity requires id, name and Image type")
+        image_url = entity.get("imageURL")
+        if not isinstance(image_url, str) or image_url != resource_url:
+            raise ValueError("probe asset entity imageURL must match the resource URL")
+        dimensions = entity.get("naturalDimensions")
+        if not isinstance(dimensions, dict) or not all(
+                isinstance(dimensions.get(axis), (int, float))
+                and not isinstance(dimensions.get(axis), bool)
+                and math.isfinite(float(dimensions[axis]))
+                for axis in ("x", "y", "z")):
+            raise ValueError("probe asset entity requires finite naturalDimensions")
     controller = value.get("controller")
     if controller is not None:
         if not isinstance(controller, dict):

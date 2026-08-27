@@ -18,6 +18,14 @@
       "timeoutSeconds": 120
     },
     {
+      "id": "asset-load",
+      "description": "Load a controlled local texture and verify HTTP, resource, entity, and process evidence.",
+      "command": ["modules/asset_load.py"],
+      "suites": ["asset-smoke"],
+      "requires": ["app.foreground", "app.launch", "app.process", "asset.load", "probe.snapshot"],
+      "timeoutSeconds": 120
+    },
+    {
       "id": "look",
       "description": "Apply look input and observe a corresponding camera orientation change.",
       "command": ["modules/look.py"],

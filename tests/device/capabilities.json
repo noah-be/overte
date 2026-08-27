@@ -25,6 +25,10 @@
       "operation": "artifact.screenshot",
       "result": "{artifact: string}"
     },
+    "asset.load": {
+      "operation": "asset.load",
+      "result": "{requested: true}; completion is verified independently by fixture telemetry and probe.snapshot"
+    },
     "input.look": {
       "operation": "input.look",
       "result": "{performed: true}"

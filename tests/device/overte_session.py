@@ -9,7 +9,8 @@ import time
 from typing import Callable
 
 from contracts import validate_probe_snapshot
-from module_support import InfrastructureError, fail, operation, write_json
+from module_support import (InfrastructureError, assert_foreground, assert_process,
+                            fail, operation, write_json)
 
 
 class OverteSession:
@@ -80,6 +81,54 @@ class OverteSession:
 
     def load_controlled_scene(self) -> dict:
         return self.load_scene(os.environ.get("OVERTE_E2E_SCENE_URL", ""))
+
+    def load_asset(self, asset_id: str, url: str, entity_name: str,
+                   width: int, height: int, identity: str) -> dict:
+        """Request an Image entity, then require independent resource/renderer evidence."""
+        if not asset_id or not entity_name.startswith("OVERTE_E2E_ASSET_LOAD"):
+            fail("controlled asset identity is invalid")
+        if not url.startswith(("http://", "https://")):
+            fail("controlled asset URL must use HTTP or HTTPS")
+        if (isinstance(width, bool) or not isinstance(width, int) or width <= 0
+                or isinstance(height, bool) or not isinstance(height, int) or height <= 0):
+            fail("controlled asset dimensions must be positive integers")
+        result = operation("asset.load", {
+            "assetId": asset_id, "url": url, "entityName": entity_name,
+        })
+        write_json("asset-load-command.json", result)
+        assert_process(identity, "asset load request")
+        assert_foreground("asset load request")
+
+        expected_x = 1.0 if width >= height else width / height
+        expected_y = height / width if width >= height else 1.0
+
+        def ready(value: dict) -> bool:
+            assert_process(identity, "asset loading")
+            assert_foreground("asset loading")
+            asset = value.get("asset")
+            if asset is None:
+                return False
+            resource = asset["resource"]
+            entity = asset["entity"]
+            if asset["assetId"] != asset_id:
+                fail("probe observed the wrong asset ID")
+            if resource["url"] != url or entity["imageURL"] != url:
+                fail("probe observed the wrong asset URL")
+            if entity["name"] != entity_name or entity["type"] != "Image":
+                fail("probe observed the wrong test entity")
+            if resource["state"] == "failed":
+                fail("Overte reported that the controlled asset failed")
+            if resource["state"] != "finished":
+                return False
+            dimensions = entity["naturalDimensions"]
+            tolerance = 0.0001
+            return (abs(float(dimensions["x"]) - expected_x) <= tolerance
+                    and abs(float(dimensions["y"]) - expected_y) <= tolerance
+                    and abs(float(dimensions["z"]) - 0.01) <= tolerance)
+
+        snapshot = self.wait_until("the controlled asset to become usable", ready)
+        write_json("asset-ready.json", snapshot)
+        return snapshot
 
     def verify_pico_fixture(self, initial: dict) -> list[dict]:
         """Record the Pico fixture geometry and five fresh stable samples."""

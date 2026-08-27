@@ -24,7 +24,8 @@ import xml.etree.ElementTree as ET
 from urllib.parse import urlsplit
 
 
-SUITES = {"smoke", "e2e-core", "accessibility", "stability", "lifecycle-stability"}
+SUITES = {"smoke", "asset-smoke", "e2e-core", "accessibility", "stability",
+          "lifecycle-stability"}
 PUBLIC_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 STAGED_MARKER = ".overte-device-ci-staged"
 EMBEDDED_FIXTURE_URL = "overte-e2e://fixture/scene"
@@ -288,7 +289,7 @@ def run_suite() -> int:
     try:
         if suite == "e2e-core" and checked_fixture_mode() == "embedded":
             runner_environment["OVERTE_E2E_SCENE_URL"] = EMBEDDED_FIXTURE_URL
-        elif suite == "e2e-core":
+        elif suite in {"e2e-core", "asset-smoke"}:
             host = checked_public_host()
             bind = environment("OVERTE_CI_FIXTURE_BIND", required=False, default="0.0.0.0")
             port = checked_fixture_port()
@@ -303,9 +304,27 @@ def run_suite() -> int:
             ], cwd=root, stdout=fixture_log_handle, stderr=subprocess.STDOUT,
                text=True, **subprocess_group_options())
             ready = wait_for_ready(fixture, fixture_ready)
-            if is_ios_appium_manifest(manifest):
+            if suite == "e2e-core" and is_ios_appium_manifest(manifest):
                 update_ios_fixture_origin(root, selector, ready.get("baseUrl"))
-            runner_environment["OVERTE_E2E_SCENE_URL"] = ready["sceneUrl"]
+            if suite == "e2e-core":
+                runner_environment["OVERTE_E2E_SCENE_URL"] = ready["sceneUrl"]
+            else:
+                asset = ready.get("asset")
+                required = {"id", "url", "telemetryUrl", "contentType", "sha256",
+                            "bytes", "width", "height", "entityName"}
+                if not isinstance(asset, dict) or set(asset) != required:
+                    fail("fixture ready metadata has an invalid asset contract")
+                runner_environment.update({
+                    "OVERTE_E2E_ASSET_ID": str(asset["id"]),
+                    "OVERTE_E2E_ASSET_URL": str(asset["url"]),
+                    "OVERTE_E2E_ASSET_TELEMETRY_URL": str(asset["telemetryUrl"]),
+                    "OVERTE_E2E_ASSET_CONTENT_TYPE": str(asset["contentType"]),
+                    "OVERTE_E2E_ASSET_SHA256": str(asset["sha256"]),
+                    "OVERTE_E2E_ASSET_BYTES": str(asset["bytes"]),
+                    "OVERTE_E2E_ASSET_WIDTH": str(asset["width"]),
+                    "OVERTE_E2E_ASSET_HEIGHT": str(asset["height"]),
+                    "OVERTE_E2E_ASSET_ENTITY_NAME": str(asset["entityName"]),
+                })
 
         command = [
             sys.executable, str(root / "tests/device/run.py"),

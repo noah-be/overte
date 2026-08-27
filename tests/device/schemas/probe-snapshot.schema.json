@@ -54,6 +54,40 @@
       "required": ["open"],
       "properties": {"open": {"type": "boolean"}}
     },
+    "asset": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["assetId", "resource", "entity"],
+          "properties": {
+            "assetId": {"type": "string", "minLength": 1},
+            "resource": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["url", "state"],
+              "properties": {
+                "url": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9+.-]*://"},
+                "state": {"enum": ["queued", "loading", "loaded", "finished", "failed"]}
+              }
+            },
+            "entity": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "name", "type", "imageURL", "naturalDimensions"],
+              "properties": {
+                "id": {"type": "string", "minLength": 1},
+                "name": {"type": "string", "minLength": 1},
+                "type": {"const": "Image"},
+                "imageURL": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9+.-]*://"},
+                "naturalDimensions": {"$ref": "#/$defs/vector3"}
+              }
+            }
+          }
+        }
+      ]
+    },
     "controller": {
       "type": "object",
       "additionalProperties": false,

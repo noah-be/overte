@@ -27,6 +27,10 @@ assertion failure.
 ## Portable suites
 
 - `smoke`: stable process launch and foreground state.
+- `asset-smoke`: controlled local texture delivery, ready resource state,
+  uniquely tagged Image-entity use, and stable process/foreground evidence.
+  Test logic is implemented; all real-adapter activation remains pending. See
+  [`ASSET_LOAD_E2E.md`](ASSET_LOAD_E2E.md).
 - `e2e-core`: launch, controlled scene load, look, movement, and tablet
   open/close behavior.
 - `accessibility`: Appium native-tree audit against explicitly configured
@@ -112,7 +116,8 @@ The Android debug E2E APK embeds the same scene and probe and can use
 maps that logical request to the fixed local asset. Release APKs contain neither
 the launcher nor the two E2E assets. Desktop targets use the HTTP fixture. The
 fixture server also exposes the repository-owned probe at
-`/overte_e2e_probe.js`. The iOS adapter uses that resource only for a dedicated,
+`/overte_e2e_probe.js` and the pinned texture plus request telemetry used by
+`asset-smoke`. The iOS adapter uses that probe resource only for a dedicated,
 runtime-attested test build; see [`ios/`](ios/). The application target and
 protected signed-artifact producer live on `apple-ios`. Fedora verifies the
 signed Overte/WDA handoff, installs both IPAs, and controls physical iOS 18+
