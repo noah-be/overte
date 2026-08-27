@@ -225,10 +225,12 @@ class E2EStackTest(unittest.TestCase):
         self.assertEqual("/scene.json", served.path)
         probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
         self.assertIn("avatarAboveFloor", probe)
-        self.assertIn("MyAvatar.goToLocation(expectedSpawn, false)", probe)
-        self.assertIn("!spawnApplied && markerCount === fixtureMarkers.length", probe)
-        self.assertIn("spawnRequestPending && avatarAtSpawn", probe)
+        self.assertNotIn("MyAvatar.goToLocation", probe)
+        self.assertNotIn("MyAvatar.velocity =", probe)
+        self.assertNotIn("spawnApplied", probe)
+        self.assertNotIn("spawnRequestPending", probe)
         self.assertIn("stableAvatarSamples >= 4", probe)
+        self.assertIn("avatarAboveFloor && avatarAtSpawn", probe)
         self.assertIn("spawnValidated: sceneReady", probe)
 
     def test_pico_actions_span_slow_physical_probe_observations(self):
