@@ -50,11 +50,54 @@ def cli() -> argparse.Namespace:
 
 class WebDriver:
     MAX_RESPONSE_BYTES = 32 * 1024 * 1024
+    MAX_ERROR_RESPONSE_BYTES = 64 * 1024
 
     def __init__(self, server_url: str) -> None:
         if not server_url.startswith(("http://127.0.0.1:", "http://localhost:", "https://")):
             fail("Appium server URL must use local HTTP or HTTPS")
         self.server_url = server_url.rstrip("/")
+
+    @classmethod
+    def classify_http_error(cls, error: HTTPError) -> str | None:
+        """Return an allowlisted diagnosis without echoing Appium's response.
+
+        XCUITest errors can contain private device identifiers, bundle IDs,
+        paths, and capability values.  Public harness diagnostics therefore
+        classify a bounded response locally and never interpolate its text.
+        """
+        try:
+            raw = error.read(cls.MAX_ERROR_RESPONSE_BYTES + 1)
+        except (OSError, ValueError):
+            return None
+        finally:
+            error.close()
+        if len(raw) > cls.MAX_ERROR_RESPONSE_BYTES:
+            return None
+        try:
+            document = json.loads(raw)
+        except (UnicodeError, json.JSONDecodeError):
+            return None
+        value = document.get("value") if isinstance(document, dict) else None
+        message = value.get("message") if isinstance(value, dict) else None
+        if not isinstance(message, str):
+            return None
+        normalized = message.casefold()
+        if "remotexpc" in normalized:
+            return "RemoteXPC could not establish the XCUITest transport"
+        if ("unable to launch webdriveragent" in normalized
+                or "preinstalled webdriveragent" in normalized
+                and ("launch" in normalized or "not installed" in normalized)):
+            return "the preinstalled WebDriverAgent could not be launched"
+        if ("unable to start webdriveragent session" in normalized
+                or "wda session" in normalized and "fail" in normalized):
+            return "WebDriverAgent could not create the XCUITest session"
+        if ("webdriveragent" in normalized
+                and any(token in normalized for token in (
+                    "connection refused", "econnrefused", "socket hang up",
+                    "timed out", "timeout", "could not proxy", "cannot proxy",
+                ))):
+            return "WebDriverAgent did not become reachable"
+        return None
 
     def call(self, method: str, path: str, payload: dict | None = None) -> object:
         data = None if payload is None else json.dumps(payload).encode("utf-8")
@@ -75,7 +118,9 @@ class WebDriver:
                     fail("Appium response exceeds the safety limit")
                 document = json.loads(raw)
         except HTTPError as error:
-            fail(f"Appium request failed with HTTP {error.code}")
+            diagnosis = self.classify_http_error(error)
+            detail = f" ({diagnosis})" if diagnosis else ""
+            fail(f"Appium request failed with HTTP {error.code}{detail}")
         except (URLError, OSError, json.JSONDecodeError):
             fail("Appium server is unavailable or returned an invalid response")
         if not isinstance(document, dict) or "value" not in document:
