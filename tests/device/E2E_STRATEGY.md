@@ -5,11 +5,17 @@
 Write observable Overte behavior once and implement only transport/input
 operations per target. The initial behavior contract is deliberately small:
 
-1. the application starts and stays foregrounded;
-2. the controlled scene becomes ready;
-3. real look input changes the observed view orientation;
-4. real movement input changes the observed avatar position;
-5. the system tablet opens and closes.
+1. start Overte once;
+2. load a controlled local scene;
+3. observe a valid spawn above the ground;
+4. perform look input and observe an orientation change;
+5. perform movement input and observe an avatar-position change;
+6. open the system tablet and observe its state;
+7. close the system tablet and observe its state;
+8. enter a controlled domain and receive its assignment-owned
+   content without a process restart.
+9. evaluate process identity, probe state, errors, and artifacts; and
+10. clean up the application session and target transport.
 
 The shared modules own expectations. Adapters own device discovery, process
 lifecycle, UI/input translation, probe transport, and cleanup. Jenkins owns
@@ -48,6 +54,11 @@ neither behavior nor platform logic.
 8. **Local Jenkins device lab — implemented.** Start with `smoke`, add
    `e2e-core` on an input-capable profile, and enable lifecycle/thermal soaks
    only after target pass rates are stable.
+9. **Controlled domain-entry contract — implemented, adapter rollout gated.**
+   An ephemeral local domain/assignment fixture, exact identity/content checks,
+   and hardware-free positive and negative tests are in place. Real adapters
+   intentionally omit `navigation.enter-domain` until separately activated and
+   accepted.
 
 ## Target matrix
 
@@ -101,6 +112,9 @@ resource.
 - Tablet: both open and closed state transitions are observed in Interface,
   not inferred from a successful click/key command.
 - Launch/soak: process identity remains stable and foreground state is observed.
+- Domain entry: the probe reports the fixture's exact UUID and host, leaves
+  serverless mode, observes the complete assignment-owned marker set for
+  consecutive stable samples, and retains foreground/process identity.
 
 Every module retains its last/before/after probe snapshots. Target adapters can
 add screenshots, native accessibility XML, Appium logs, or private device logs.
