@@ -16,6 +16,9 @@ import signal
 import subprocess
 import sys
 import time
+import uuid
+from urllib.parse import urlsplit
+from urllib.request import Request, urlopen
 
 
 DEVICE_ROOT = Path(__file__).resolve().parents[2]
@@ -30,6 +33,7 @@ from adapters.desktop_oculix.wayland_libei_client import (  # noqa: E402
     WaylandInputError,
     default_socket_path,
 )
+from contracts import validate_operation_arguments  # noqa: E402
 
 
 PLATFORMS = ("linux", "macos", "windows")
@@ -145,6 +149,22 @@ class DesktopAdapter:
                     and isinstance(value, str) and "\x00" not in value
                     for key, value in environment.items())):
                 fail("desktop target environment must contain safe string assignments")
+            probe = entry.get("probe")
+            if probe is not None:
+                if not isinstance(probe, dict) or probe.get("kind") not in {
+                        "host-file", "injected-test-script"}:
+                    fail("desktop probe must use a supported transport")
+                if (probe["kind"] == "host-file"
+                        and (not isinstance(probe.get("path"), str)
+                             or not probe["path"] or "\x00" in probe["path"])):
+                    fail("desktop host-file probe requires a safe path")
+            control = entry.get("clientControl")
+            if control is not None:
+                if (not isinstance(control, dict)
+                        or control != {"kind": "probe-command-file"}):
+                    fail("desktop clientControl must select only probe-command-file")
+                if not isinstance(probe, dict) or probe.get("kind") != "injected-test-script":
+                    fail("desktop clientControl requires the injected in-client probe")
             if not isinstance(entry.get("xwayland", False), bool):
                 fail("desktop target xwayland must be boolean")
             if not isinstance(entry.get("isolatedX11", False), bool):
@@ -220,7 +240,16 @@ class DesktopAdapter:
             values.append("artifact.screenshot")
         if target.get("probe"):
             values += ["probe.snapshot", "tablet.close", "tablet.open"]
+        if DesktopAdapter.controlled_client(target):
+            values += ["asset.load", "navigation.enter-domain", "sound.play"]
         return sorted(values)
+
+    @staticmethod
+    def controlled_client(target: dict) -> bool:
+        probe = target.get("probe")
+        return (isinstance(probe, dict)
+                and probe.get("kind") == "injected-test-script"
+                and target.get("clientControl") == {"kind": "probe-command-file"})
 
     def discover(self) -> list[dict]:
         self.require_interactive_host()
@@ -568,6 +597,99 @@ class DesktopAdapter:
             return state_directory(self.adapter_id, selector) / "probe" / "overte-probe.json"
         fail("unsupported desktop probe transport")
 
+    def probe_script_path(self, selector: str) -> Path:
+        return state_directory(self.adapter_id, selector) / "probe" / PROBE_SCRIPT.name
+
+    def client_command_path(self, selector: str) -> Path:
+        return state_directory(self.adapter_id, selector) / "probe" / "desktop-command.json"
+
+    @staticmethod
+    def write_private_json(path: Path, value: dict) -> None:
+        temporary = path.with_suffix(path.suffix + ".tmp")
+        temporary.write_text(
+            json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n",
+            encoding="utf-8")
+        temporary.chmod(0o600)
+        temporary.replace(path)
+
+    def prepare_injected_probe(self, selector: str) -> Path:
+        result_dir = self.probe_script_path(selector).parent
+        result_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        script = self.probe_script_path(selector)
+        temporary = script.with_suffix(script.suffix + ".tmp")
+        shutil.copyfile(PROBE_SCRIPT, temporary)
+        temporary.chmod(0o600)
+        temporary.replace(script)
+        self.write_private_json(self.client_command_path(selector), {
+            "schemaVersion": 1, "commandId": "", "action": "idle",
+        })
+        return script
+
+    def write_client_command(
+            self, selector: str, target: dict, state: dict, command: dict) -> None:
+        if not self.controlled_client(target):
+            fail("desktop operation requires the controlled in-client probe channel")
+        if not self.state_alive(state):
+            fail("Overte desktop process changed before the in-client command")
+        path = self.client_command_path(selector)
+        if not path.parent.is_dir():
+            fail("desktop in-client command channel was not prepared at app.launch")
+        self.write_private_json(path, command)
+        if not self.state_alive(state):
+            fail("Overte desktop process changed while delivering the in-client command")
+
+    @staticmethod
+    def controlled_http_url(value: str, label: str) -> tuple[str, str, int | None]:
+        parsed = urlsplit(value)
+        try:
+            port = parsed.port
+        except ValueError as error:
+            fail(f"{label} has an invalid port")
+        if (parsed.scheme not in {"http", "https"} or not parsed.hostname
+                or parsed.username is not None or parsed.password is not None
+                or parsed.fragment):
+            fail(f"{label} must be an absolute credential-free HTTP(S) URL")
+        return parsed.scheme, parsed.hostname.lower(), port
+
+    def request_sound(self, selector: str, target: dict,
+                      state: dict, values: dict) -> dict:
+        sound_origin = self.controlled_http_url(values["url"], "sound.play url")
+        command_origin = self.controlled_http_url(
+            values["commandUrl"], "sound.play commandUrl")
+        command_url = urlsplit(values["commandUrl"])
+        if (sound_origin != command_origin or command_url.path != "/sound-command.json"
+                or command_url.query):
+            fail("sound.play URLs must use the same controlled fixture origin and command path")
+        payload = {
+            "schemaVersion": 1,
+            "commandId": values["commandId"],
+            "action": "play",
+            "soundUrl": values["url"],
+        }
+        request = Request(
+            values["commandUrl"],
+            data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
+            headers={"Content-Type": "application/json"}, method="POST")
+        with urlopen(request, timeout=5) as response:
+            if response.status != 200:
+                fail("controlled fixture rejected the sound command")
+            encoded = response.read(4097)
+        if len(encoded) > 4096:
+            fail("controlled fixture returned an oversized sound response")
+        try:
+            accepted = json.loads(encoded)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise RuntimeError("controlled fixture returned an invalid sound response") from error
+        if accepted != payload:
+            fail("controlled fixture did not acknowledge the exact sound command")
+        self.write_client_command(selector, target, state, {
+            "schemaVersion": 1,
+            "commandId": "sound-channel-" + values["commandId"],
+            "action": "sound-channel",
+            "url": values["commandUrl"],
+        })
+        return {"requested": True, "commandId": values["commandId"]}
+
     def save_state(self, selector: str, state: dict) -> None:
         path = self.state_path(selector)
         temporary = path.with_suffix(".tmp")
@@ -608,7 +730,8 @@ class DesktopAdapter:
             result_dir = self.probe_path(selector, target).parent
             result_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
             self.probe_path(selector, target).unlink(missing_ok=True)
-            arguments += ["--testScript", str(PROBE_SCRIPT),
+            script = self.prepare_injected_probe(selector)
+            arguments += ["--testScript", str(script),
                           "--testResultsLocation", str(result_dir)]
         working = expanded_path(target.get("workingDirectory", str(executable.parent)))
         if not working.is_dir():
@@ -930,6 +1053,7 @@ class DesktopAdapter:
 
     def invoke(self, selector: str, operation: str, values: dict) -> dict:
         target = self.target(selector)
+        values = validate_operation_arguments(operation, values)
         if operation == "app.launch":
             return self.launch(selector, target)
         state = self.read_state(selector)
@@ -950,6 +1074,27 @@ class DesktopAdapter:
             return {"foreground": True}
         if operation == "probe.snapshot":
             return read_fresh_json(self.probe_path(selector, target))
+        if operation == "navigation.enter-domain":
+            self.write_client_command(selector, target, state, {
+                "schemaVersion": 1,
+                "commandId": "navigation-" + uuid.uuid4().hex,
+                "action": "navigate",
+                "url": values["url"],
+            })
+            return {"requested": True}
+        if operation == "asset.load":
+            self.controlled_http_url(values["url"], "asset.load url")
+            self.write_client_command(selector, target, state, {
+                "schemaVersion": 1,
+                "commandId": "asset-" + hashlib.sha256(json.dumps(
+                    values, sort_keys=True, separators=(",", ":")
+                ).encode("utf-8")).hexdigest(),
+                "action": "asset-load",
+                **values,
+            })
+            return {"requested": True}
+        if operation == "sound.play":
+            return self.request_sound(selector, target, state, values)
         if operation == "scene.load":
             url = values.get("url")
             if not isinstance(url, str) or "://" not in url:
@@ -1057,6 +1202,8 @@ class DesktopAdapter:
             if self.process_tree_alive(state):
                 fail("Overte desktop process could not be terminated")
         self.state_path(selector).unlink(missing_ok=True)
+        self.client_command_path(selector).unlink(missing_ok=True)
+        self.probe_script_path(selector).unlink(missing_ok=True)
         if self.platform == "linux" and target.get("isolatedX11"):
             self.gpu_headless_lifecycle(target).cleanup()
         if self.platform == "linux" and target.get("inputDriver") == "wayland-libei":
