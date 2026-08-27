@@ -463,8 +463,11 @@ class AppiumAdapterTests(unittest.TestCase):
             raise RuntimeError(message)
 
         support.InfrastructureError = InfrastructureError
+        support.assert_foreground = lambda _context: None
+        support.assert_process = lambda expected, _context: self.assertEqual(identity, expected)
         support.fail = fail
         support.operation = operation
+        support.process_identity = lambda: identity
         support.write_json = lambda _name, _value: None
         common_spec = importlib.util.spec_from_file_location(
             "overte_ios_common_vertical_session", DEVICE_ROOT / "overte_session.py")
