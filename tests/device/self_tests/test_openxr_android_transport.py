@@ -130,6 +130,19 @@ class OpenXrAndroidTransportTests(unittest.TestCase):
             transport.stage(self.envelope(), PROFILE, now_ms=2_000_000_000_000)
         self.assertFalse(any(payload for _, payload in runner.calls))
 
+        class OfflineRunner(FakeRunner):
+            def __call__(self, command, **kwargs):
+                result = super().__call__(command, **kwargs)
+                if command[-1] == "devices":
+                    result.stdout += b"unrelated\toffline\n"
+                return result
+
+        runner = OfflineRunner(self.selector)
+        transport = AndroidOpenXrTransport(self.adb, self.selector, runner=runner)
+        with self.assertRaisesRegex(TransportError, "exactly"):
+            transport.stage(self.envelope(), PROFILE, now_ms=2_000_000_000_000)
+        self.assertFalse(any(payload for _, payload in runner.calls))
+
         class UnauthorizedRunner(FakeRunner):
             def __call__(self, command, **kwargs):
                 result = super().__call__(command, **kwargs)
@@ -142,6 +155,18 @@ class OpenXrAndroidTransportTests(unittest.TestCase):
         with self.assertRaisesRegex(TransportError, "exactly"):
             transport.stage(self.envelope(), PROFILE, now_ms=2_000_000_000_000)
         self.assertFalse(any(payload for _, payload in runner.calls))
+
+    def test_explicitly_detached_usb_record_is_not_an_active_target(self) -> None:
+        class DetachedUsbRunner(FakeRunner):
+            def __call__(self, command, **kwargs):
+                result = super().__call__(command, **kwargs)
+                if command[-1] == "devices":
+                    result.stdout += b"detached-usb-transport\tdetached\n"
+                return result
+
+        runner = DetachedUsbRunner(self.selector)
+        transport = AndroidOpenXrTransport(self.adb, self.selector, runner=runner)
+        transport.require_exclusive_target()
 
     def test_status_validates_nonce_and_redacts_it(self) -> None:
         self.runner.status = json.dumps({

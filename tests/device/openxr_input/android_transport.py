@@ -91,7 +91,15 @@ class AndroidOpenXrTransport:
             fields = line.split()
             if len(fields) >= 2:
                 devices.append((fields[0], fields[1]))
-        if devices != [(self.selector, "device")]:
+        active = [device for device in devices if device[1] == "device"]
+        inactive_states = [state for _, state in devices if state != "device"]
+        # `adb detach` deliberately keeps the disconnected USB transport in
+        # the server inventory as `detached`. It is not an authorized or
+        # addressable target, and retaining it is how a USB-attached headset
+        # can be forced onto the isolated WLAN transport. All other inactive
+        # states remain fail-closed because they were not explicitly detached.
+        if (active != [(self.selector, "device")]
+                or any(state != "detached" for state in inactive_states)):
             raise TransportError("isolated ADB server must expose exactly the private Pico target")
         state = self._run([*self._base(), "get-state"],
                           purpose="target-state").decode("utf-8").strip()
