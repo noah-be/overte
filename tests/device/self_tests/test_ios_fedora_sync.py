@@ -329,13 +329,15 @@ class IosFedoraSyncTest(unittest.TestCase):
                 "wdaRunner": "org.overte.WebDriverAgentRunner.xctrunner",
                 "wdaXCTest": "org.overte.WebDriverAgentRunner",
             },
+            "bundleIdentifierMode": "sideloadly-remapped",
             "toolchain": {
                 "xcuitestDriver": "12.8.0", "remoteXpc": "5.15.3",
                 "webdriverAgent": "16.8.0",
             },
             "humanAttestation": {
                 "deviceObserved": True, "installedWithSideloadly": True,
-                "fixedBundleIdentifiersConfirmed": True,
+                "fixedBundleIdentifiersConfirmed": False,
+                "acceptedSideloadlyBundleIdentifierRemapping": True,
                 "acceptedNoCryptographicByteBinding": True,
                 "derivationBinding": "none-device-observed",
             },
@@ -344,14 +346,23 @@ class IosFedoraSyncTest(unittest.TestCase):
         arguments = mock.Mock(
             attestation=attestation.resolve(), destination=(self.root / "runs"),
             target_config=config_path.resolve(), target_selector="private-selector",
-            service_runtime=Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r4"),
+            service_runtime=Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r5"),
         )
+        discovered = {
+            "overteBundleId": "com.sideloadly.slot.overte",
+            "wdaBundleId": "com.sideloadly.slot.wda",
+            "wdaUpdatedBundleId": "com.sideloadly.slot.wda",
+            "wdaBundleIdSuffix": "",
+        }
         with mock.patch.object(
-                SYNC.subprocess, "run", return_value=mock.Mock(returncode=0)) as execute:
+                SYNC.subprocess, "run", return_value=mock.Mock(
+                    returncode=0, stdout=json.dumps(discovered).encode("utf-8"))) as execute:
             self.assertEqual(0, SYNC.run_preinstalled(arguments))
             command = execute.call_args.args[0]
             self.assertNotIn("private-device-id", command)
-            self.assertIn("private-device-id", execute.call_args.kwargs["input"].decode())
+            request = json.loads(execute.call_args.kwargs["input"])
+            self.assertEqual("private-device-id", request["udid"])
+            self.assertTrue(request["discoverRemappedBundleIds"])
 
             arguments.service_runtime = self.root / "mutable-runtime"
             with self.assertRaisesRegex(SYNC.HandoffError, "exact pinned immutable"):
@@ -370,8 +381,16 @@ class IosFedoraSyncTest(unittest.TestCase):
         self.assertNotIn("appium:app", target["capabilities"])
         self.assertNotIn("appium:prebuiltWDAPath", target["capabilities"])
         self.assertFalse(target["capabilities"]["appium:enforceAppInstall"])
+        self.assertEqual("com.sideloadly.slot.overte", target["appId"])
+        self.assertEqual(
+            "com.sideloadly.slot.wda",
+            target["capabilities"]["appium:updatedWDABundleId"],
+        )
+        self.assertEqual("", target["capabilities"]["appium:updatedWDABundleIdSuffix"])
         receipt = json.loads(Path(target["artifactReceipt"]).read_text(encoding="utf-8"))
         self.assertEqual(SYNC.PREINSTALLED_RECEIPT, receipt["contract"])
+        self.assertEqual("sideloadly-remapped",
+                         receipt["provenance"]["bundleIdentifierMode"])
         self.assertNotIn("path", receipt["overte"])
         self.assertFalse(receipt["provenance"]["cryptographicByteBinding"])
 

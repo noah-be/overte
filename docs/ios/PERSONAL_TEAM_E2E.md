@@ -20,9 +20,12 @@ reprovisioning requirement. The fixed identifiers are:
 - WDA runner application: `org.overte.WebDriverAgentRunner.xctrunner`
 - nested WDA XCTest bundle: `org.overte.WebDriverAgentRunner`
 
-These reserve three stable bundle identities and install two applications. Do
-not ask a signing tool to generate random identifiers, add a suffix, duplicate
-the app, or remove the WDA `PlugIns/WebDriverAgentRunner.xctest` bundle.
+These are the preferred stable bundle identities and install two applications.
+Do not remove the WDA `PlugIns/WebDriverAgentRunner.xctest` bundle. If
+Sideloadly cannot preserve the preferred IDs because the Personal Team's
+short-lived App-ID quota is already occupied, the device-observed variant may
+instead attest one uniquely marker-selected remapped Overte/WDA pair. The
+exported-signed-IPA variant still requires the preferred fixed identities.
 
 The registered `ios-bootstrap.yml` entrypoint calls
 `ios-personal-team-e2e-kit.yml`. Its public seven-day artifact contains exactly:
@@ -53,16 +56,20 @@ proof that the Personal-Team-signed installation bytes were exported.
 1. On a trusted local machine, verify the downloaded Actions archive and the two
    file hashes and sizes in `personal-team-e2e-kit.json`.
 2. In Sideloadly, select Apple ID sideload and the intended trusted device.
-   Preserve each fixed identifier. Do not enable duplicate/random bundle IDs,
-   and do not remove WDA's nested XCTest plug-in.
+   Prefer the fixed identifiers. If Sideloadly remaps them, do not create extra
+   duplicate installations and use the explicit remapped-attestation flag
+   below. Never remove WDA's nested XCTest plug-in.
 3. Install the Overte IPA and then the WDA IPA with the same Apple account.
    Credentials and two-factor codes remain solely in Sideloadly on that host.
 4. Trust the resulting developer application and enable Developer Mode on the
    device when iOS requests it.
 5. Fedora may proceed only after its `personal-team-preinstalled` hardware gate
-   observes both exact bundle identities, InstallationProxy's
-   `ProfileValidated` flag, matching team/application identifiers and the exact
-   WDA/XCUITest marker pair on an exclusively reserved iOS/iPadOS 18+ target.
+   observes either both exact identities or exactly one unambiguous remapped
+   Overte/WDA pair selected by the E2E and WDA version markers. It additionally
+   requires InstallationProxy's `ProfileValidated` flag, valid application
+   identifiers, and the same team and signer on an exclusively reserved
+   iOS/iPadOS 18+ target. The resulting receipt binds the observed IDs, including
+   a suffixless WDA through Appium's `updatedWDABundleIdSuffix` capability.
    The receipt binds the reviewed unsigned-kit manifest hash and private human
    attestation hash, but has no installed-IPA byte hash or derivation claim.
    Profile expiration and successful WDA launch remain explicit session/hardware

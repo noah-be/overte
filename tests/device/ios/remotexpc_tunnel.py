@@ -50,6 +50,9 @@ PROTECTED_RECEIPT = "overte-ios-fedora-e2e-receipt-v1"
 PERSONAL_RECEIPT = "overte-ios-personal-team-artifact-receipt-v1"
 OVERTE_BUNDLE_ID = "org.overte.interface.e2e"
 WDA_BUNDLE_ID = "org.overte.WebDriverAgentRunner.xctrunner"
+BUNDLE_ID_RE = re.compile(
+    r"[A-Za-z0-9][A-Za-z0-9-]*(?:[.][A-Za-z0-9][A-Za-z0-9-]*)+"
+)
 MAX_RECEIPT_BYTES = 1024 * 1024
 MAX_IPA_BYTES = 4 * 1024 * 1024 * 1024
 
@@ -217,7 +220,7 @@ def list_installed_drivers(node: Path, appium_entry: Path, appium_home: Path,
 
 def service_runtime_revision(lock: dict) -> int:
     revision = lock.get("serviceRuntimeRevision")
-    if revision != 4:
+    if revision != 5:
         fail("unsupported immutable service-runtime revision")
     return revision
 
@@ -905,23 +908,58 @@ def device_preflight(arguments: argparse.Namespace) -> int:
         request = json.loads(payload)
     except (UnicodeError, json.JSONDecodeError):
         fail("private device preflight request is invalid")
-    if (not isinstance(request, dict) or set(request) != {"udid"}
-            or not isinstance(request["udid"], str)
+    keys = set(request) if isinstance(request, dict) else set()
+    legacy = keys == {"udid"}
+    discovery = (keys == {"udid", "discoverRemappedBundleIds"}
+                 and request.get("discoverRemappedBundleIds") is True)
+    exact = keys == {"udid", "overteBundleId", "wdaBundleId"}
+    if (not isinstance(request, dict) or not (legacy or discovery or exact)
+            or not isinstance(request.get("udid"), str)
             or not 8 <= len(request["udid"]) <= 128
             or any(character in request["udid"] for character in "\0\r\n")):
         fail("private device preflight request is invalid")
+    if exact:
+        identifiers = (request.get("overteBundleId"), request.get("wdaBundleId"))
+        if (identifiers[0] == identifiers[1]
+                or any(not isinstance(value, str) or len(value) > 255
+                       or not BUNDLE_ID_RE.fullmatch(value) for value in identifiers)):
+            fail("private device preflight request is invalid")
     helper = arguments.service_runtime / DEVICE_PREFLIGHT_FILE.name
     environment = {
         "PATH": str(arguments.service_runtime / "bin") + ":/usr/sbin:/usr/bin",
         "HOME": "/nonexistent",
     }
     result = subprocess.run(
-        [str(node), str(helper)], input=payload, stdout=subprocess.DEVNULL,
+        [str(node), str(helper)], input=payload, stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL, cwd=arguments.service_runtime,
         env=environment, timeout=60, check=False,
     )
     if result.returncode:
         fail("installed iOS app preflight failed")
+    if discovery:
+        if len(result.stdout) > 4096:
+            fail("installed iOS app discovery response exceeded its safety limit")
+        try:
+            inventory = json.loads(result.stdout)
+        except (UnicodeError, json.JSONDecodeError):
+            fail("installed iOS app discovery response is invalid")
+        if not isinstance(inventory, dict) or set(inventory) != {
+                "overteBundleId", "wdaBundleId", "wdaUpdatedBundleId",
+                "wdaBundleIdSuffix"}:
+            fail("installed iOS app discovery response is invalid")
+        bundle_values = (
+            inventory.get("overteBundleId"), inventory.get("wdaBundleId"),
+            inventory.get("wdaUpdatedBundleId"),
+        )
+        suffix = inventory.get("wdaBundleIdSuffix")
+        if (bundle_values[0] == bundle_values[1]
+                or any(not isinstance(value, str) or len(value) > 255
+                       or not BUNDLE_ID_RE.fullmatch(value) for value in bundle_values)
+                or suffix not in {"", ".xctrunner"}
+                or bundle_values[2] + suffix != bundle_values[1]):
+            fail("installed iOS app discovery response is invalid")
+        print(json.dumps(inventory, sort_keys=True, separators=(",", ":")))
+        return 0
     print("PASS: installed iOS app contracts verified")
     return 0
 
@@ -994,7 +1032,11 @@ def verify_installed_unit(runtime_root: Path, port: int, unit_path: Path = UNIT_
 def activate_systemd_unit() -> None:
     subprocess.run(["systemctl", "daemon-reload"], timeout=30, check=True)
     subprocess.run(["systemctl", "reset-failed", UNIT_NAME], timeout=30, check=True)
-    subprocess.run(["systemctl", "enable", "--now", UNIT_NAME], timeout=60, check=True)
+    subprocess.run(["systemctl", "enable", UNIT_NAME], timeout=30, check=True)
+    # `enable --now` does not restart an already active unit after its immutable
+    # runtime path changes.  Restart explicitly so a successful installer can
+    # never leave the previous version executing behind the updated unit file.
+    subprocess.run(["systemctl", "restart", UNIT_NAME], timeout=60, check=True)
 
 
 def install_unit(arguments: argparse.Namespace) -> int:

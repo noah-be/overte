@@ -37,6 +37,9 @@ WORKFLOW_PATH = f".github/workflows/{WORKFLOW}"
 PROTECTED_REF = "apple-ios"
 REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+BUNDLE_ID_RE = re.compile(
+    r"[A-Za-z0-9][A-Za-z0-9-]*(?:[.][A-Za-z0-9][A-Za-z0-9-]*)+"
+)
 OVERTE_IPA_RE = re.compile(r"^[0-9]{4,}-OverteIOSClient-Release-device-signed[.]ipa$")
 WDA_IPA = "WebDriverAgentRunner-Runner-16.8.0-signed.ipa"
 PERSONAL_OVERTE_IPA = "Overte-PersonalTeam-E2E-signed.ipa"
@@ -44,7 +47,7 @@ PERSONAL_WDA_IPA = "WebDriverAgentRunner-16.8.0-PersonalTeam-signed.ipa"
 PROTECTED_RECEIPT = "overte-ios-fedora-e2e-receipt-v1"
 PERSONAL_RECEIPT = "overte-ios-personal-team-artifact-receipt-v1"
 PREINSTALLED_RECEIPT = "overte-ios-personal-team-preinstalled-receipt-v1"
-PINNED_SERVICE_RUNTIME = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r4")
+PINNED_SERVICE_RUNTIME = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r5")
 MAX_ACTIONS_ARCHIVE_BYTES = 4 * 1024 * 1024 * 1024
 MAX_ENCRYPTED_BYTES = 4 * 1024 * 1024 * 1024
 MAX_INNER_ZIP_BYTES = 4 * 1024 * 1024 * 1024
@@ -509,12 +512,12 @@ def activate_target(config_path: Path, selector: str, receipt_path: Path) -> Non
         fail("private artifact receipt contract is invalid")
     overte = receipt["overte"]
     wda = receipt["wda"]
-    suffix = ".xctrunner"
     if (not isinstance(overte, dict) or not isinstance(wda, dict)
             or not isinstance(overte.get("bundleId"), str)
             or not isinstance(wda.get("bundleId"), str)
-            or not wda["bundleId"].endswith(suffix)):
-        fail("verified WDA bundle does not have the XCTest runner suffix")
+            or not BUNDLE_ID_RE.fullmatch(overte["bundleId"])
+            or not BUNDLE_ID_RE.fullmatch(wda["bundleId"])):
+        fail("verified app receipt contains an invalid bundle identifier")
     preserved = (udid, platform_version, test_build["scenePath"])
     target["enabled"] = True
     target["appId"] = overte["bundleId"]
@@ -523,14 +526,21 @@ def activate_target(config_path: Path, selector: str, receipt_path: Path) -> Non
     target["artifactMode"] = "personal-team-preinstalled" if preinstalled else "signed-ipa"
     capabilities["appium:bundleId"] = overte["bundleId"]
     capabilities["appium:usePreinstalledWDA"] = True
-    capabilities["appium:updatedWDABundleId"] = wda["bundleId"].removesuffix(suffix)
     capabilities["appium:autoLaunch"] = False
     if preinstalled:
+        suffix = wda.get("bundleIdSuffix")
+        updated_wda = wda.get("updatedBundleId")
         if (set(overte) != {"bundleId", "installed"}
-                or set(wda) != {"bundleId", "xctestBundleId", "installed"}
+                or set(wda) != {
+                    "bundleId", "updatedBundleId", "bundleIdSuffix", "installed"}
                 or overte["installed"] is not True or wda["installed"] is not True
-                or wda["xctestBundleId"] != wda["bundleId"].removesuffix(suffix)):
+                or not isinstance(updated_wda, str)
+                or not BUNDLE_ID_RE.fullmatch(updated_wda)
+                or suffix not in {"", ".xctrunner"}
+                or updated_wda + suffix != wda["bundleId"]):
             fail("preinstalled Personal-Team receipt app inventory is invalid")
+        capabilities["appium:updatedWDABundleId"] = updated_wda
+        capabilities["appium:updatedWDABundleIdSuffix"] = suffix
         capabilities.pop("appium:app", None)
         capabilities.pop("appium:prebuiltWDAPath", None)
         capabilities["appium:enforceAppInstall"] = False
@@ -538,8 +548,11 @@ def activate_target(config_path: Path, selector: str, receipt_path: Path) -> Non
         if (set(overte) != {"path", "sha256", "bundleId"}
                 or set(wda) != {
                     "ipaPath", "ipaSha256", "prebuiltPath", "prebuiltTreeSha256",
-                    "bundleId"}):
+                    "bundleId"} or not wda["bundleId"].endswith(".xctrunner")):
             fail("signed IPA receipt inventory is invalid")
+        capabilities["appium:updatedWDABundleId"] = wda["bundleId"].removesuffix(
+            ".xctrunner")
+        capabilities.pop("appium:updatedWDABundleIdSuffix", None)
         capabilities["appium:app"] = overte["path"]
         capabilities["appium:prebuiltWDAPath"] = wda["prebuiltPath"]
         capabilities["appium:enforceAppInstall"] = False
@@ -716,7 +729,7 @@ def validate_preinstalled_attestation(path: Path) -> tuple[dict, datetime]:
     expected_keys = {
         "schemaVersion", "contract", "sourceRevision", "createdAt", "notAfter",
         "expectedBundleIdentifiers", "toolchain", "humanAttestation",
-        "signingObservation", "unsignedKitManifestSha256",
+        "signingObservation", "unsignedKitManifestSha256", "bundleIdentifierMode",
     }
     bundles = {
         "overte": "org.overte.interface.e2e",
@@ -727,12 +740,22 @@ def validate_preinstalled_attestation(path: Path) -> tuple[dict, datetime]:
         "xcuitestDriver": "12.8.0", "remoteXpc": "5.15.3",
         "webdriverAgent": "16.8.0",
     }
-    human = {
+    fixed_human = {
         "deviceObserved": True, "installedWithSideloadly": True,
         "fixedBundleIdentifiersConfirmed": True,
         "acceptedNoCryptographicByteBinding": True,
         "derivationBinding": "none-device-observed",
     }
+    remapped_human = {
+        "deviceObserved": True, "installedWithSideloadly": True,
+        "fixedBundleIdentifiersConfirmed": False,
+        "acceptedSideloadlyBundleIdentifierRemapping": True,
+        "acceptedNoCryptographicByteBinding": True,
+        "derivationBinding": "none-device-observed",
+    }
+    identifier_mode = value.get("bundleIdentifierMode") if isinstance(value, dict) else None
+    expected_human = (fixed_human if identifier_mode == "fixed" else remapped_human
+                      if identifier_mode == "sideloadly-remapped" else None)
     if (not isinstance(value, dict) or set(value) != expected_keys
             or value.get("schemaVersion") != 1
             or value.get("contract")
@@ -743,7 +766,8 @@ def validate_preinstalled_attestation(path: Path) -> tuple[dict, datetime]:
             or not re.fullmatch(r"[0-9a-f]{64}", value["unsignedKitManifestSha256"])
             or value.get("expectedBundleIdentifiers") != bundles
             or value.get("toolchain") != toolchain
-            or value.get("humanAttestation") != human):
+            or expected_human is None
+            or value.get("humanAttestation") != expected_human):
         fail("preinstalled Personal-Team attestation contract is invalid")
     try:
         created = datetime.strptime(value["createdAt"], "%Y-%m-%dT%H:%M:%SZ").replace(
@@ -759,6 +783,8 @@ def validate_preinstalled_attestation(path: Path) -> tuple[dict, datetime]:
             or not_after > created + timedelta(hours=1):
         fail("preinstalled Personal-Team attestation validity window is unsafe")
     observation = value.get("signingObservation")
+    if identifier_mode == "sideloadly-remapped" and observation is not None:
+        fail("remapped preinstalled attestation must defer signing observation to the device")
     if observation is not None:
         expected_observation = {
             "teamIdentifier", "profileExpiration", "applicationIdentifiers",
@@ -817,15 +843,57 @@ def run_preinstalled(arguments: argparse.Namespace) -> int:
         fail("preinstalled mode requires the exact pinned immutable service runtime")
     attestation, not_after = validate_preinstalled_attestation(arguments.attestation)
     udid = target_udid(arguments.target_config, arguments.target_selector)
+    identifier_mode = attestation["bundleIdentifierMode"]
+    desired = attestation["expectedBundleIdentifiers"]
+    if identifier_mode == "fixed":
+        request = {
+            "udid": udid, "overteBundleId": desired["overte"],
+            "wdaBundleId": desired["wdaRunner"],
+        }
+        inventory = {
+            "overteBundleId": desired["overte"],
+            "wdaBundleId": desired["wdaRunner"],
+            "wdaUpdatedBundleId": desired["wdaXCTest"],
+            "wdaBundleIdSuffix": ".xctrunner",
+        }
+    else:
+        request = {"udid": udid, "discoverRemappedBundleIds": True}
+        inventory = None
     wrapper = arguments.service_runtime / "remotexpc_tunnel.py"
     result = subprocess.run(
         [str(wrapper), "device-preflight", "--service-runtime",
          str(arguments.service_runtime)],
-        input=json.dumps({"udid": udid}).encode("utf-8"), stdout=subprocess.DEVNULL,
+        input=json.dumps(request, separators=(",", ":")).encode("utf-8"),
+        stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL, timeout=65, check=False,
     )
     if result.returncode:
         fail("preinstalled iOS app device observation failed")
+    if identifier_mode == "sideloadly-remapped":
+        if len(result.stdout) > 4096:
+            fail("preinstalled iOS app observation response exceeded its safety limit")
+        try:
+            inventory = json.loads(result.stdout)
+        except (UnicodeError, json.JSONDecodeError):
+            fail("preinstalled iOS app observation response is invalid")
+        if not isinstance(inventory, dict) or set(inventory) != {
+                "overteBundleId", "wdaBundleId", "wdaUpdatedBundleId",
+                "wdaBundleIdSuffix"}:
+            fail("preinstalled iOS app observation response is invalid")
+        values = (
+            inventory.get("overteBundleId"), inventory.get("wdaBundleId"),
+            inventory.get("wdaUpdatedBundleId"),
+        )
+        suffix = inventory.get("wdaBundleIdSuffix")
+        if (values[0] == values[1]
+                or any(not isinstance(value, str) or len(value) > 255
+                       or not BUNDLE_ID_RE.fullmatch(value) for value in values)
+                or suffix not in {"", ".xctrunner"}
+                or values[2] + suffix != values[1]
+                or values[0] == desired["overte"]
+                and values[1] == desired["wdaRunner"]):
+            fail("preinstalled iOS app observation response is invalid")
+    assert inventory is not None
     destination_path = arguments.destination.resolve()
     if inside_repository(destination_path) or destination_path == Path(destination_path.anchor):
         fail("preinstalled receipt destination must be outside the repository")
@@ -846,6 +914,7 @@ def run_preinstalled(arguments: argparse.Namespace) -> int:
             "derivationBinding": "none-device-observed",
             "cryptographicByteBinding": False,
             "installationProxyValidated": True,
+            "bundleIdentifierMode": identifier_mode,
             "attestationSha256": digest,
             "unsignedKitContract": "overte-ios-personal-team-e2e-kit-v1",
             "unsignedKitManifestSha256": attestation["unsignedKitManifestSha256"],
@@ -860,10 +929,12 @@ def run_preinstalled(arguments: argparse.Namespace) -> int:
             "createdAt": attestation["createdAt"],
             "notAfter": not_after.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "provenance": provenance,
-            "overte": {"bundleId": "org.overte.interface.e2e", "installed": True},
+            "overte": {"bundleId": inventory["overteBundleId"], "installed": True},
             "wda": {
-                "bundleId": "org.overte.WebDriverAgentRunner.xctrunner",
-                "xctestBundleId": "org.overte.WebDriverAgentRunner", "installed": True,
+                "bundleId": inventory["wdaBundleId"],
+                "updatedBundleId": inventory["wdaUpdatedBundleId"],
+                "bundleIdSuffix": inventory["wdaBundleIdSuffix"],
+                "installed": True,
             },
             "toolchain": attestation["toolchain"],
         })

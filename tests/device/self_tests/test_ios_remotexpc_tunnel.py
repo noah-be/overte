@@ -139,7 +139,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                         TUNNEL, "restore_security_context") as restore_context:
                     installed = TUNNEL.install_service_runtime(appium_home, service_root)
                     self.assertEqual(installed, restore_context.call_args.args[0])
-                self.assertEqual(service_root / "5.15.3-r4", installed)
+                self.assertEqual(service_root / "5.15.3-r5", installed)
                 self.assertEqual(
                     Path(TUNNEL.__file__).read_bytes(),
                     (installed / "remotexpc_tunnel.py").read_bytes(),
@@ -227,7 +227,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="overte-runtime-parents-") as name:
             base = Path(name)
             service_root = base / "service"
-            runtime = service_root / "5.15.3-r4"
+            runtime = service_root / "5.15.3-r5"
             runtime.mkdir(parents=True)
             owner = os.geteuid()
             with patch.object(
@@ -248,7 +248,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                         TUNNEL.require_trusted_runtime_path(runtime, owner)
 
     def test_visible_system_owner_rejects_unprivileged_caller_identity(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r4")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r5")
         with patch.object(TUNNEL, "visible_root_owner_uid", return_value=1000), patch.object(
                 TUNNEL.os, "geteuid", return_value=1000):
             with self.assertRaisesRegex(TUNNEL.TunnelError, "unprivileged caller"):
@@ -312,7 +312,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                     self.make_tree_writable(service_root)
 
     def test_unit_executes_only_installed_runtime_and_is_hardened(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r4")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r5")
         unit = TUNNEL.service_unit(runtime, TUNNEL.DEFAULT_PORT)
         exec_start = next(line for line in unit.splitlines() if line.startswith("ExecStart="))
         working_directory = next(
@@ -378,19 +378,20 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
         self.assertEqual([
             ["systemctl", "daemon-reload"],
             ["systemctl", "reset-failed", TUNNEL.UNIT_NAME],
-            ["systemctl", "enable", "--now", TUNNEL.UNIT_NAME],
+            ["systemctl", "enable", TUNNEL.UNIT_NAME],
+            ["systemctl", "restart", TUNNEL.UNIT_NAME],
         ], [call.args[0] for call in execute.call_args_list])
 
     def test_status_defaults_to_versioned_service_runtime_not_appium_home(self):
         arguments = TUNNEL.parser().parse_args(["status"])
         self.assertEqual(
-            Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r4"),
+            Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r5"),
             arguments.service_runtime,
         )
         self.assertFalse(hasattr(arguments, "appium_home"))
 
     def test_appium_server_is_root_owned_loopback_and_privacy_bounded(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r4")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r5")
         with tempfile.TemporaryDirectory(prefix="overte-appium-state-") as name:
             state = Path(name)
             state.chmod(0o700)
@@ -423,7 +424,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
             self.assertEqual([], list(state.iterdir()))
 
     def test_device_preflight_passes_udid_only_over_stdin_and_redacts_output(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r4")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r5")
         arguments = TUNNEL.parser().parse_args(["device-preflight"])
         private_udid = "00008101-1234567890ABCDEF"
         stdin = MagicMock()
@@ -442,8 +443,30 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
         self.assertNotIn(private_udid, output.getvalue())
         self.assertEqual("PASS: installed iOS app contracts verified\n", output.getvalue())
 
+        inventory = {
+            "overteBundleId": "com.sideloadly.slot.overte",
+            "wdaBundleId": "com.sideloadly.slot.wda",
+            "wdaUpdatedBundleId": "com.sideloadly.slot.wda",
+            "wdaBundleIdSuffix": "",
+        }
+        stdin = MagicMock()
+        stdin.buffer = io.BytesIO(json.dumps({
+            "udid": private_udid, "discoverRemappedBundleIds": True,
+        }).encode("utf-8"))
+        output = io.StringIO()
+        with patch.object(
+                TUNNEL, "verify_service_runtime",
+                return_value=(runtime / "bin/node", runtime / "tunnel.mjs")), patch.object(
+                TUNNEL.sys, "stdin", stdin), patch.object(
+                TUNNEL.subprocess, "run", return_value=subprocess.CompletedProcess(
+                    [], 0, stdout=json.dumps(inventory).encode("utf-8"))), \
+                redirect_stdout(output):
+            self.assertEqual(0, TUNNEL.device_preflight(arguments))
+        self.assertEqual(inventory, json.loads(output.getvalue()))
+        self.assertNotIn(private_udid, output.getvalue())
+
     def test_device_install_revalidates_receipt_and_passes_private_values_only_on_stdin(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r4")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r5")
         with tempfile.TemporaryDirectory(prefix="overte-ios-device-install-") as name:
             root = Path(name)
             overte = root / "Overte.ipa"
@@ -605,12 +628,38 @@ module.exports.services = {startInstallationProxyService: async () => ({
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual("PASS: installed iOS app contracts verified\n", result.stdout)
             self.assertNotIn("00008101", result.stdout + result.stderr)
-            entry.write_text(module.replace(
+
+            remapped_module = module.replace(
+                "org.overte.interface.e2e", "com.sideloadly.slot.overte"
+            ).replace(
+                "org.overte.WebDriverAgentRunner.xctrunner", "com.sideloadly.slot.wda"
+            )
+            entry.write_text(remapped_module, encoding="utf-8")
+            discovered = subprocess.run(
+                ["node", str(helper)], input=json.dumps({
+                    "udid": "00008101-1234567890ABCDEF",
+                    "discoverRemappedBundleIds": True,
+                }), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                timeout=10, check=False,
+            )
+            self.assertEqual(0, discovered.returncode, discovered.stderr)
+            self.assertEqual({
+                "overteBundleId": "com.sideloadly.slot.overte",
+                "wdaBundleId": "com.sideloadly.slot.wda",
+                "wdaUpdatedBundleId": "com.sideloadly.slot.wda",
+                "wdaBundleIdSuffix": "",
+            }, json.loads(discovered.stdout))
+            self.assertNotIn("00008101", discovered.stdout + discovered.stderr)
+
+            entry.write_text(remapped_module.replace(
                 "OverteE2EWebDriverAgentVersion:'16.8.0'",
                 "OverteE2EWebDriverAgentVersion:'99.0.0'",
             ), encoding="utf-8")
             rejected = subprocess.run(
-                ["node", str(helper)], input=request, text=True,
+                ["node", str(helper)], input=json.dumps({
+                    "udid": "00008101-1234567890ABCDEF",
+                    "discoverRemappedBundleIds": True,
+                }), text=True,
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10, check=False,
             )
             self.assertEqual(2, rejected.returncode)

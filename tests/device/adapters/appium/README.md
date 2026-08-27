@@ -58,5 +58,9 @@ that tree, whose relative paths, executable bits, and file contents are hashed.
 The distinct `personal-team-preinstalled` receipt requires no artifact path,
 rejects both path capabilities if present, and explicitly carries
 `cryptographicByteBinding=false`; it never silently falls back to the strong
-mode. Signing remains a manual Apple/Sideloadly boundary or an optional
-protected macOS-producer boundary. Jenkins receives no Apple credentials.
+mode. It may bind either the fixed IDs or one uniquely marker-selected
+Sideloadly-remapped pair. For a remapped suffixless WDA it binds
+`updatedWDABundleIdSuffix=""` as well as the full installed ID. Every later
+session rechecks those exact receipt-bound IDs rather than rediscovering apps.
+Signing remains a manual Apple/Sideloadly boundary or an optional protected
+macOS-producer boundary. Jenkins receives no Apple credentials.

@@ -147,10 +147,19 @@ python3 tests/device/ios/sync_fedora_artifacts.py personal-team-preinstalled \
   --target-config /private/jenkins-job/appium-targets.json
 ```
 
-The latter invokes the root-attested InstallationProxy helper. Without printing
-values it checks both fixed IDs, signed application/team entitlements, equal
-team/signer identity, `ProfileValidated`, the Overte E2E markers, and the exact
-WDA/XCUITest version markers. It does not prove installed byte hashes, profile
+Use `--fixed-bundle-identifiers-confirmed` only when the installed IDs were
+preserved. If Sideloadly remapped the two IDs because the Personal-Team quota
+was already occupied, replace that flag with
+`--accept-sideloadly-bundle-id-remapping`. The immutable helper then queries
+all user apps, requires exactly one Overte E2E-marker candidate and one pinned
+WDA/XCUITest-marker candidate, verifies their profiles/application identifiers
+and common signer/team, and binds the observed IDs into the private receipt.
+It rejects ambiguous candidates and never publishes the discovered values.
+
+The latter invokes the root-attested InstallationProxy helper. It checks the
+selected IDs, signed application/team entitlements, equal team/signer identity,
+`ProfileValidated`, the Overte E2E markers, and the exact WDA/XCUITest version
+markers. It does not prove installed byte hashes, profile
 expiration, or successful WDA launch; those remain session/hardware gates.
 
 Both Actions archives must contain exactly one non-compressed `.zip.age` member.
@@ -239,7 +248,7 @@ sudo python3 tests/device/ios/remotexpc_tunnel.py install-unit \
 Run it only from an audited, quiescent checkout and staging tree. It atomically
 copies the pinned Node executable, package files, complete npm tree, tunnel
 wrapper, and toolchain lock into
-`/usr/local/lib/overte-ios-remotexpc/5.15.3-r4`. The suffix is the immutable
+`/usr/local/lib/overte-ios-remotexpc/5.15.3-r5`. The suffix is the immutable
 Overte packaging revision; the pinned RemoteXPC package remains 5.15.3. Source
 and destination trees are hashed before publication. Every installed file is
 root-owned and immutable. Existing content and modes are only attested, never
@@ -284,14 +293,14 @@ already installed apps and proceeds directly to the same marker/team preflight.
 Attest status without elevation:
 
 ```bash
-python3 /usr/local/lib/overte-ios-remotexpc/5.15.3-r4/remotexpc_tunnel.py status
+python3 /usr/local/lib/overte-ios-remotexpc/5.15.3-r5/remotexpc_tunnel.py status
 ```
 
 Jenkins must also start Appium from the immutable runtime, never from a mutable
 user `node_modules`:
 
 ```bash
-/usr/local/lib/overte-ios-remotexpc/5.15.3-r4/remotexpc_tunnel.py appium-server \
+/usr/local/lib/overte-ios-remotexpc/5.15.3-r5/remotexpc_tunnel.py appium-server \
   --state-root /private/jenkins-job/appium-state \
   --address 127.0.0.1 --port 4723
 ```
