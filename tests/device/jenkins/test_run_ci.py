@@ -210,6 +210,44 @@ class JenkinsGlueTest(unittest.TestCase):
                 self.assertEqual(0, RUN_CI.cleanup_target())
             self.assertFalse(json.loads(state.read_text())["running"])
 
+    def test_pico_runner_and_cleanup_auto_select_without_private_selector(self):
+        pico_manifest = ROOT / "tests/device/adapters/android/pico.json"
+        child_environment = {
+            "PATH": os.environ.get("PATH", ""),
+            "OVERTE_DEVICE_TARGET_SELECTOR": "private-pico-selector",
+        }
+        with patch.dict(os.environ, {
+            "OVERTE_DEVICE_TARGET_SELECTOR": "private-pico-selector",
+        }, clear=False):
+            self.assertEqual([], RUN_CI.runner_target_arguments(
+                pico_manifest, child_environment))
+        self.assertNotIn("OVERTE_DEVICE_TARGET_SELECTOR", child_environment)
+
+        values = {
+            "OVERTE_CI_WORKSPACE": str(ROOT),
+            "OVERTE_CI_ADAPTER_MANIFEST": "tests/device/adapters/android/pico.json",
+            "OVERTE_DEVICE_TARGET_SELECTOR": "private-pico-selector",
+        }
+        with patch.dict(os.environ, values, clear=False), \
+                patch.object(RUN_CI, "load_adapter_command",
+                             return_value=["android-adapter", "--kind", "pico"]), \
+                patch.object(RUN_CI.subprocess, "run") as execute:
+            execute.return_value.returncode = 0
+            execute.return_value.stderr = ""
+            self.assertEqual(0, RUN_CI.cleanup_target())
+        command = execute.call_args.args[0]
+        self.assertEqual(["android-adapter", "--kind", "pico", "cleanup"], command)
+        self.assertNotIn(
+            "OVERTE_DEVICE_TARGET_SELECTOR", execute.call_args.kwargs["env"])
+
+    def test_non_pico_runner_still_requires_explicit_private_selector(self):
+        manifest = ROOT / "tests/device/adapters/android/phone.json"
+        child_environment = {"PATH": os.environ.get("PATH", "")}
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("OVERTE_DEVICE_TARGET_SELECTOR", None)
+            with self.assertRaisesRegex(ValueError, "OVERTE_DEVICE_TARGET_SELECTOR is required"):
+                RUN_CI.runner_target_arguments(manifest, child_environment)
+
     def test_runner_output_inside_checkout_is_rejected(self):
         with patch.dict(os.environ, {
             "OVERTE_CI_WORKSPACE": str(ROOT),
