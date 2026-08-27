@@ -24,7 +24,8 @@ import xml.etree.ElementTree as ET
 from urllib.parse import urlsplit
 
 
-SUITES = {"smoke", "e2e-core", "accessibility", "stability", "lifecycle-stability"}
+SUITES = {"smoke", "e2e-core", "sound-smoke", "accessibility", "stability",
+          "lifecycle-stability"}
 PUBLIC_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 STAGED_MARKER = ".overte-device-ci-staged"
 EMBEDDED_FIXTURE_URL = "overte-e2e://fixture/scene"
@@ -250,7 +251,10 @@ def wait_for_ready(process: subprocess.Popen, ready_file: Path, timeout_seconds:
     while time.monotonic() < deadline:
         if ready_file.exists():
             value = json.loads(ready_file.read_text(encoding="utf-8"))
-            if isinstance(value, dict) and isinstance(value.get("sceneUrl"), str):
+            if (isinstance(value, dict) and isinstance(value.get("sceneUrl"), str)
+                    and isinstance(value.get("soundUrl"), str)
+                    and isinstance(value.get("soundCommandUrl"), str)
+                    and isinstance(value.get("soundRequestsUrl"), str)):
                 return value
             fail("fixture ready file has an invalid shape")
         if process.poll() is not None:
@@ -288,7 +292,9 @@ def run_suite() -> int:
     try:
         if suite == "e2e-core" and checked_fixture_mode() == "embedded":
             runner_environment["OVERTE_E2E_SCENE_URL"] = EMBEDDED_FIXTURE_URL
-        elif suite == "e2e-core":
+        elif suite in {"e2e-core", "sound-smoke"}:
+            if suite == "sound-smoke" and checked_fixture_mode() != "network":
+                fail("sound-smoke requires the network fixture")
             host = checked_public_host()
             bind = environment("OVERTE_CI_FIXTURE_BIND", required=False, default="0.0.0.0")
             port = checked_fixture_port()
@@ -305,7 +311,16 @@ def run_suite() -> int:
             ready = wait_for_ready(fixture, fixture_ready)
             if is_ios_appium_manifest(manifest):
                 update_ios_fixture_origin(root, selector, ready.get("baseUrl"))
-            runner_environment["OVERTE_E2E_SCENE_URL"] = ready["sceneUrl"]
+            if suite == "e2e-core":
+                runner_environment["OVERTE_E2E_SCENE_URL"] = ready["sceneUrl"]
+            else:
+                runner_environment.update({
+                    "OVERTE_E2E_SOUND_URL": ready["soundUrl"],
+                    "OVERTE_E2E_SOUND_COMMAND_URL": ready["soundCommandUrl"],
+                    "OVERTE_E2E_SOUND_REQUESTS_URL": ready["soundRequestsUrl"],
+                    "OVERTE_E2E_SOUND_DURATION_SECONDS": str(
+                        ready["sound"]["durationSeconds"]),
+                })
 
         command = [
             sys.executable, str(root / "tests/device/run.py"),

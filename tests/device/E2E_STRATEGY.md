@@ -92,6 +92,10 @@ resource.
   configurable minimum in the controlled collision scene.
 - Tablet: both open and closed state transitions are observed in Interface,
   not inferred from a successful click/key command.
+- Sound: fixture request telemetry, decoded `SoundObject` readiness, two fresh
+  active injector samples, regular finish/stop, and stable process identity are
+  all required. This is an in-client proof, not a physical-output proof; see
+  [`SOUND_E2E.md`](SOUND_E2E.md).
 - Launch/soak: process identity remains stable and foreground state is observed.
 
 Every module retains its last/before/after probe snapshots. Target adapters can

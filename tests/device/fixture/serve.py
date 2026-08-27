@@ -5,12 +5,15 @@ from __future__ import annotations
 
 import argparse
 from functools import partial
+import hashlib
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import re
 import sys
-from urllib.parse import urlencode
+import threading
+import time
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 
 ROOT = Path(__file__).resolve().parent
@@ -63,6 +66,19 @@ def validate_fixture() -> dict:
         raise ValueError("fixture floor must be thick with its top fixed at y=0")
     if manifest.get("externalResources") is not False or URL.search(json.dumps(scene)):
         raise ValueError("controlled fixture must not depend on external resources")
+    sound = manifest.get("sound")
+    if not isinstance(sound, dict) or set(sound) != {
+            "path", "sha256", "mimeType", "sampleRate", "channels",
+            "bitsPerSample", "durationSeconds", "frequencyHz"}:
+        raise ValueError("fixture sound metadata is incomplete")
+    sound_path = ROOT / sound["path"]
+    sound_bytes = sound_path.read_bytes()
+    if (sound["mimeType"] != "audio/wav" or sound["sampleRate"] != 8000
+            or sound["channels"] != 1 or sound["bitsPerSample"] != 16
+            or sound["durationSeconds"] != 2.0 or sound["frequencyHz"] != 440.0
+            or hashlib.sha256(sound_bytes).hexdigest() != sound["sha256"]
+            or len(sound_bytes) != 32044):
+        raise ValueError("fixture sound does not match its deterministic PCM WAV contract")
     probe = PROBE.read_text(encoding="utf-8")
     if "Test.saveObject" not in probe or '"overte-probe.json"' not in probe:
         raise ValueError("controlled fixture probe does not satisfy the E2E contract")
@@ -76,7 +92,8 @@ class FixtureHandler(SimpleHTTPRequestHandler):
         super().end_headers()
 
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
-        request_path = self.path.split("?", 1)[0]
+        target = urlsplit(self.path)
+        request_path = target.path
         if request_path == "/healthz":
             payload = b'{"ready":true,"schemaVersion":1}\n'
             self.send_response(200)
@@ -93,10 +110,136 @@ class FixtureHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(payload)
             return
+        if request_path == "/sound-command.json":
+            payload = (json.dumps(self.server.fixture_state.snapshot_command(), sort_keys=True)
+                       + "\n").encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+        if request_path == "/sound-requests.json":
+            payload = (json.dumps({
+                "schemaVersion": 1,
+                "requests": self.server.fixture_state.snapshot_requests(),
+            }, sort_keys=True) + "\n").encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+        sound_path = "/" + self.server.fixture_manifest["sound"]["path"]
+        if request_path == sound_path:
+            payload = (ROOT / self.server.fixture_manifest["sound"]["path"]).read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "audio/wav")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            self.server.fixture_state.record_request(
+                self.command, target, 200, "audio/wav", len(payload))
+            return
+        if request_path == "/audio/invalid.wav":
+            payload = b"OVERTE_E2E_INVALID_WAV\n"
+            self.send_response(200)
+            self.send_header("Content-Type", "audio/wav")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            self.server.fixture_state.record_request(
+                self.command, target, 200, "audio/wav", len(payload))
+            return
+        if request_path.startswith("/audio/"):
+            payload = b'{"error":"not found"}\n'
+            self.send_response(404)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            self.server.fixture_state.record_request(
+                self.command, target, 404, "application/json", len(payload))
+            return
         super().do_GET()
+
+    def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+        if urlsplit(self.path).path != "/sound-command.json":
+            self.send_error(404)
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            self.send_error(400)
+            return
+        if not 0 < length <= 4096:
+            self.send_error(400)
+            return
+        try:
+            command = json.loads(self.rfile.read(length))
+            command = self.server.fixture_state.set_command(command)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+            self.send_error(400, str(error))
+            return
+        payload = (json.dumps(command, sort_keys=True) + "\n").encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
 
     def log_message(self, format_string: str, *arguments: object) -> None:
         print("fixture: " + format_string % arguments, file=sys.stderr)
+
+
+class FixtureState:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._requests: list[dict] = []
+        self.command = {"schemaVersion": 1, "commandId": "", "action": "idle",
+                        "soundUrl": ""}
+
+    def set_command(self, command: object) -> dict:
+        if (not isinstance(command, dict)
+                or set(command) != {"schemaVersion", "commandId", "action", "soundUrl"}
+                or command.get("schemaVersion") != 1
+                or command.get("action") not in {"play", "stop"}
+                or not isinstance(command.get("commandId"), str)
+                or not command["commandId"]
+                or not isinstance(command.get("soundUrl"), str)):
+            raise ValueError("invalid sound command")
+        if command["action"] == "play" and urlsplit(command["soundUrl"]).scheme not in {
+                "http", "https"}:
+            raise ValueError("play command requires an HTTP(S) sound URL")
+        with self._lock:
+            self.command = dict(command)
+            return dict(self.command)
+
+    def record_request(self, method: str, target: object, status: int,
+                       mime_type: str, bytes_sent: int) -> None:
+        with self._lock:
+            self._requests.append({
+                "sequence": len(self._requests) + 1,
+                "epochMs": int(time.time() * 1000),
+                "method": method,
+                "path": target.path,
+                "query": parse_qs(target.query),
+                "status": status,
+                "mimeType": mime_type,
+                "bytesSent": bytes_sent,
+            })
+
+    def snapshot_command(self) -> dict:
+        with self._lock:
+            return dict(self.command)
+
+    def snapshot_requests(self) -> list[dict]:
+        with self._lock:
+            return [dict(item) for item in self._requests]
+
+
+class FixtureServer(ThreadingHTTPServer):
+    daemon_threads = True
 
 
 def arguments() -> argparse.Namespace:
@@ -121,14 +264,22 @@ def main() -> int:
         print(f"PASS: controlled fixture contains {manifest['expectedEntityCount']} local entities")
         return 0
     handler = partial(FixtureHandler, directory=str(ROOT))
-    server = ThreadingHTTPServer((args.bind, args.port), handler)
+    server = FixtureServer((args.bind, args.port), handler)
+    server.fixture_manifest = manifest
+    server.fixture_state = FixtureState()
     host = args.public_host or args.bind
     if host in {"0.0.0.0", "::"}:
         raise ValueError("--public-host is required when binding all interfaces")
     base_url = f"http://{host}:{server.server_address[1]}"
+    sound_path = manifest["sound"]["path"]
     ready = {"schemaVersion": 1, "baseUrl": base_url,
              "sceneUrl": controlled_scene_url(base_url, manifest),
-             "probeScriptUrl": f"{base_url}/overte_e2e_probe.js"}
+             "probeScriptUrl": f"{base_url}/overte_e2e_probe.js",
+             "soundUrl": f"{base_url}/{sound_path}",
+             "invalidSoundUrl": f"{base_url}/audio/invalid.wav",
+             "soundCommandUrl": f"{base_url}/sound-command.json",
+             "soundRequestsUrl": f"{base_url}/sound-requests.json",
+             "sound": manifest["sound"]}
     if args.ready_file:
         args.ready_file.parent.mkdir(parents=True, exist_ok=True)
         temporary = args.ready_file.with_suffix(args.ready_file.suffix + ".tmp")

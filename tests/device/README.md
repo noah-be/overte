@@ -27,6 +27,8 @@ assertion failure.
 ## Portable suites
 
 - `smoke`: stable process launch and foreground state.
+- `sound-smoke`: controlled WAV request, decode readiness, and observable
+  in-client injector lifecycle; see [`SOUND_E2E.md`](SOUND_E2E.md).
 - `e2e-core`: launch, controlled scene load, look, movement, and tablet
   open/close behavior.
 - `accessibility`: Appium native-tree audit against explicitly configured
@@ -112,7 +114,8 @@ The Android debug E2E APK embeds the same scene and probe and can use
 maps that logical request to the fixed local asset. Release APKs contain neither
 the launcher nor the two E2E assets. Desktop targets use the HTTP fixture. The
 fixture server also exposes the repository-owned probe at
-`/overte_e2e_probe.js`. The iOS adapter uses that resource only for a dedicated,
+`/overte_e2e_probe.js` and the deterministic sound described in
+[`SOUND_E2E.md`](SOUND_E2E.md). The iOS adapter uses the probe resource only for a dedicated,
 runtime-attested test build; see [`ios/`](ios/). The application target and
 protected signed-artifact producer live on `apple-ios`. Fedora verifies the
 signed Overte/WDA handoff, installs both IPAs, and controls physical iOS 18+
@@ -123,8 +126,8 @@ bytes and populated target configuration outside the checkout and archives.
 The in-client [`probe/overte_e2e_probe.js`](probe/overte_e2e_probe.js) runs
 only via Interface's existing `--testScript` mode. It records application
 focus, scene URL/readiness/entity markers, avatar position, camera orientation,
-tablet state, and Overte build identity through the existing `Test.saveObject`
-API.
+tablet state, sound resource/injector state, and Overte build identity through
+the existing `Test.saveObject` API. It records no audio samples.
 
 ## Running
 

@@ -92,6 +92,36 @@ def validate_probe_snapshot(value: object) -> dict:
             raise ValueError(f"probe {field} requires numeric x/y/z")
     if not isinstance(value["tablet"].get("open"), bool):
         raise ValueError("probe tablet.open must be boolean")
+    sound = value.get("sound")
+    if sound is not None:
+        if not isinstance(sound, dict):
+            raise ValueError("probe sound must be an object")
+        boolean_fields = ("commandObserved", "resourceReady", "injectorCreated",
+                          "started", "playing", "finished")
+        if not all(isinstance(sound.get(field), bool) for field in boolean_fields):
+            raise ValueError("probe sound state flags must be boolean")
+        if (not isinstance(sound.get("commandId"), str)
+                or not isinstance(sound.get("url"), str)
+                or sound.get("format") not in {"unknown", "wav"}
+                or sound.get("finishReason") not in {"none", "natural", "stopped"}):
+            raise ValueError("probe sound identifiers or enums are invalid")
+        duration = sound.get("durationSeconds")
+        if (not isinstance(duration, (int, float)) or isinstance(duration, bool)
+                or not math.isfinite(float(duration)) or duration < 0.0):
+            raise ValueError("probe sound durationSeconds must be finite and non-negative")
+        if sound["commandObserved"] and (not sound["commandId"] or "://" not in sound["url"]):
+            raise ValueError("probe sound observed command requires an ID and absolute URL")
+        if sound["resourceReady"] and duration <= 0.0:
+            raise ValueError("probe sound ready resource requires a positive duration")
+        if sound["injectorCreated"] and not sound["resourceReady"]:
+            raise ValueError("probe sound injector requires a ready resource")
+        if sound["playing"] and (not sound["injectorCreated"] or not sound["started"]):
+            raise ValueError("probe sound playing state requires a started injector")
+        if sound["finished"] and (sound["playing"] or not sound["started"]
+                                  or sound["finishReason"] == "none"):
+            raise ValueError("probe sound finished state is inconsistent")
+        if not sound["finished"] and sound["finishReason"] != "none":
+            raise ValueError("probe sound unfinished state cannot have a finish reason")
     controller = value.get("controller")
     if controller is not None:
         if not isinstance(controller, dict):

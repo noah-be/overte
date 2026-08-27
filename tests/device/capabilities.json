@@ -45,6 +45,10 @@
       "operation": "scene.load",
       "result": "{requested: true, verification?: fixture-markers}"
     },
+    "sound.play": {
+      "operation": "sound.play",
+      "result": "{requested: true, commandId: string}; playback must be verified independently through probe.snapshot and fixture request telemetry"
+    },
     "tablet.close": {
       "operation": "tablet.close",
       "result": "{performed: true}"

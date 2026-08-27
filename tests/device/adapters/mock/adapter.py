@@ -4,16 +4,20 @@
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import os
 from pathlib import Path
 import sys
 import time
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+import wave
 
 
 CAPABILITIES = sorted([
     "app.foreground", "app.launch", "app.process", "input.look", "input.move",
-    "probe.snapshot", "scene.load", "tablet.close", "tablet.open",
+    "probe.snapshot", "scene.load", "sound.play", "tablet.close", "tablet.open",
 ])
 
 
@@ -41,6 +45,14 @@ def initial_state() -> dict:
         "position": {"x": 0.0, "y": 2.0 if pico else 1.0, "z": 4.0},
         "orientation": {"x": 0.0, "y": 0.0, "z": 0.0}, "tablet": False,
         "picoRouteActive": False, "inputSequence": 0, "sampleSequence": 0,
+        "sampleEpochMs": 0,
+        "sound": {
+            "commandId": "", "url": "", "commandObserved": False,
+            "resourceReady": False, "durationSeconds": 0.0, "format": "unknown",
+            "injectorCreated": False, "started": False, "playing": False,
+            "finished": False, "finishReason": "none",
+            "playbackStartEpochMs": 0, "playbackEndEpochMs": 0,
+        },
     }
 
 
@@ -59,6 +71,79 @@ def emit(value: object) -> None:
     print(json.dumps(value, separators=(",", ":"), sort_keys=True))
 
 
+def request_sound_command(arguments: dict) -> None:
+    payload = json.dumps({
+        "schemaVersion": 1, "commandId": arguments.get("commandId"),
+        "action": "play", "soundUrl": arguments.get("url"),
+    }).encode("utf-8")
+    request = Request(str(arguments.get("commandUrl", "")), data=payload,
+                      headers={"Content-Type": "application/json"}, method="POST")
+    with urlopen(request, timeout=2) as response:
+        if response.status != 200:
+            raise RuntimeError("fixture rejected mock sound command")
+
+
+def begin_sound(state: dict, arguments: dict) -> dict:
+    command_id = arguments.get("commandId")
+    url = arguments.get("url")
+    if (arguments.get("schemaVersion") != 1 or not isinstance(command_id, str)
+            or not command_id or not isinstance(url, str) or "://" not in url):
+        raise RuntimeError("sound.play requires a versioned command ID and URL")
+    request_sound_command(arguments)
+    sound = {
+        "commandId": command_id, "url": url, "commandObserved": True,
+        "resourceReady": False, "durationSeconds": 0.0, "format": "wav",
+        "injectorCreated": False, "started": False, "playing": False,
+        "finished": False, "finishReason": "none",
+        "playbackStartEpochMs": 0, "playbackEndEpochMs": 0,
+    }
+    state["sound"] = sound
+    failure = os.environ.get("OVERTE_MOCK_SOUND_FAILURE", "")
+    try:
+        with urlopen(url, timeout=2) as response:
+            encoded = response.read()
+    except (HTTPError, URLError, OSError):
+        return {"requested": True, "commandId": command_id}
+    if failure == "never-resource":
+        return {"requested": True, "commandId": command_id}
+    try:
+        with wave.open(io.BytesIO(encoded), "rb") as source:
+            if (source.getsampwidth() != 2 or source.getnchannels() not in {1, 2, 4}
+                    or source.getframerate() <= 0 or source.getnframes() <= 0):
+                return {"requested": True, "commandId": command_id}
+            duration = source.getnframes() / source.getframerate()
+    except (EOFError, wave.Error):
+        return {"requested": True, "commandId": command_id}
+    sound["resourceReady"] = True
+    sound["durationSeconds"] = duration
+    if failure == "injector-no-start":
+        return {"requested": True, "commandId": command_id}
+    now = int(time.time() * 1000)
+    sound["injectorCreated"] = True
+    sound["started"] = True
+    sound["playbackStartEpochMs"] = now
+    sound["playbackEndEpochMs"] = now + round(duration * 1000)
+    if failure == "early-end":
+        sound["playbackEndEpochMs"] = now
+    return {"requested": True, "commandId": command_id}
+
+
+def observed_sound(state: dict) -> dict:
+    sound = state["sound"]
+    if sound["started"] and not sound["finished"]:
+        now = int(time.time() * 1000)
+        if now >= sound["playbackEndEpochMs"]:
+            sound["playing"] = False
+            sound["finished"] = True
+            sound["finishReason"] = "natural"
+        else:
+            sound["playing"] = True
+    return {key: sound[key] for key in (
+        "commandId", "url", "commandObserved", "resourceReady", "durationSeconds",
+        "format", "injectorCreated", "started", "playing", "finished", "finishReason",
+    )}
+
+
 def invoke(operation: str, arguments: dict) -> dict:
     state = load()
     if operation == "app.launch":
@@ -66,8 +151,12 @@ def invoke(operation: str, arguments: dict) -> dict:
         state["launchCount"] += 1
         result = {"launched": True}
     elif operation == "app.process":
+        identity = "mock-e2e-process"
+        if (os.environ.get("OVERTE_MOCK_SOUND_FAILURE") == "process-restart"
+                and state.get("sound", {}).get("started")):
+            identity = "mock-e2e-process-restarted"
         return {"running": state["running"],
-                "identity": "mock-e2e-process" if state["running"] else None}
+                "identity": identity if state["running"] else None}
     elif operation == "app.foreground":
         return {"foreground": state["foreground"]}
     elif operation == "scene.load":
@@ -75,6 +164,8 @@ def invoke(operation: str, arguments: dict) -> dict:
         state["sceneReady"] = True
         state["sceneLoadCount"] += 1
         result = {"requested": True}
+    elif operation == "sound.play":
+        result = begin_sound(state, arguments)
     elif operation == "input.look":
         state["inputSequence"] += 1
         state["picoRouteActive"] = False
@@ -114,10 +205,18 @@ def invoke(operation: str, arguments: dict) -> dict:
         if (after is not None and (not isinstance(after, int) or isinstance(after, bool)
                                    or after < 0)):
             raise RuntimeError("afterSampleSequence must be a non-negative integer")
-        state["sampleSequence"] += 1
+        failure = os.environ.get("OVERTE_MOCK_SOUND_FAILURE", "")
+        sound_active = bool(state.get("sound", {}).get("commandObserved"))
+        if not (failure == "stale-probe" and sound_active):
+            state["sampleSequence"] += 1
+        now = int(time.time() * 1000)
+        if failure == "inconsistent-probe" and sound_active:
+            state["sampleEpochMs"] = max(1, state["sampleEpochMs"] - 1)
+        elif not (failure == "stale-probe" and sound_active):
+            state["sampleEpochMs"] = max(now, state["sampleEpochMs"] + 1)
         snapshot = {
             "schemaVersion": 1,
-            "sampleEpochMs": int(time.time() * 1000),
+            "sampleEpochMs": state["sampleEpochMs"],
             "sampleSequence": state["sampleSequence"],
             "build": {"platform": "Mock", "version": "device-contract",
                       "date": "1970-01-01"},
@@ -127,6 +226,7 @@ def invoke(operation: str, arguments: dict) -> dict:
             "avatar": {"position": state["position"]},
             "view": {"orientation": state["orientation"]},
             "tablet": {"open": state["tablet"], "home": state["tablet"]},
+            "sound": observed_sound(state),
         }
         if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
             route_value = 0.8 if state["picoRouteActive"] else 0.0

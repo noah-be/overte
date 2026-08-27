@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -10,6 +11,7 @@ import sys
 import tempfile
 import time
 import unittest
+from urllib.error import HTTPError
 from urllib.request import urlopen
 
 
@@ -41,6 +43,23 @@ class FixtureTest(unittest.TestCase):
                     self.assertEqual(4, len(json.load(response)["Entities"]))
                 with urlopen(metadata["probeScriptUrl"], timeout=2) as response:
                     self.assertIn(b"Test.saveObject", response.read())
+                with urlopen(metadata["soundUrl"], timeout=2) as response:
+                    sound = response.read()
+                    self.assertEqual("audio/wav", response.headers.get_content_type())
+                    self.assertEqual("no-store", response.headers["Cache-Control"])
+                    self.assertEqual(32044, len(sound))
+                self.assertEqual(
+                    metadata["sound"]["sha256"],
+                    hashlib.sha256(sound).hexdigest(),
+                )
+                with self.assertRaises(HTTPError) as missing:
+                    urlopen(metadata["baseUrl"] + "/audio/missing.wav", timeout=2)
+                self.assertEqual(404, missing.exception.code)
+                missing.exception.close()
+                with urlopen(metadata["soundRequestsUrl"], timeout=2) as response:
+                    requests = json.load(response)["requests"]
+                self.assertEqual([200, 404], [item["status"] for item in requests])
+                self.assertEqual("audio/wav", requests[0]["mimeType"])
             finally:
                 process.terminate()
                 process.communicate(timeout=5)
