@@ -62,6 +62,7 @@
       "required": ["position", "inAir", "flying", "flyingEnabled"],
       "properties": {
         "position": {"$ref": "#/$defs/vector3"},
+        "feetPosition": {"$ref": "#/$defs/vector3"},
         "inAir": {"type": "boolean"},
         "flying": {"type": "boolean"},
         "flyingEnabled": {"type": "boolean"}

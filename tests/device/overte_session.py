@@ -91,7 +91,9 @@ class OverteSession:
         if not self.pico_openxr:
             return [initial]
         scene = initial["scene"]
-        position = initial["avatar"]["position"]
+        feet_position = initial["avatar"].get("feetPosition")
+        if not isinstance(feet_position, dict):
+            fail("Pico fixture probe did not expose the canonical feet position")
         if scene.get("fixtureMarkerCount") != 4:
             fail("Pico fixture did not expose all four markers")
         if (not isinstance(scene.get("floorTopY"), (int, float))
@@ -102,7 +104,7 @@ class OverteSession:
         expected = {"x": 0.0, "y": 2.0, "z": 4.0}
         spawn_tolerance = self._float_environment(
             "OVERTE_E2E_SPAWN_TOLERANCE_METERS", 0.75, 0.05, 5.0)
-        if self._distance(position, expected) > spawn_tolerance:
+        if self._distance(feet_position, expected) > spawn_tolerance:
             fail("Pico avatar did not stabilize near the fixture spawn")
 
         tolerance = self._float_environment(

@@ -513,9 +513,12 @@
         var markerCount = Object.keys(foundMarkers).length;
         var domainMarkerCount = Object.keys(foundDomainMarkers).length;
         var avatarPosition = vector(MyAvatar.position);
-        var spawnDeltaX = avatarPosition.x - expectedSpawn.x;
-        var spawnDeltaZ = avatarPosition.z - expectedSpawn.z;
-        var avatarAtSpawn = spawnDeltaX * spawnDeltaX + spawnDeltaZ * spawnDeltaZ <= 1.0;
+        var avatarFeetPosition = vector(MyAvatar.feetPosition);
+        var spawnDeltaX = avatarFeetPosition.x - expectedSpawn.x;
+        var spawnDeltaY = avatarFeetPosition.y - expectedSpawn.y;
+        var spawnDeltaZ = avatarFeetPosition.z - expectedSpawn.z;
+        var avatarAtSpawn = spawnDeltaX * spawnDeltaX + spawnDeltaY * spawnDeltaY
+            + spawnDeltaZ * spawnDeltaZ <= 1.0;
         if (previousAvatarPosition !== null) {
             var deltaX = avatarPosition.x - previousAvatarPosition.x;
             var deltaY = avatarPosition.y - previousAvatarPosition.y;
@@ -524,10 +527,12 @@
                 ? stableAvatarSamples + 1 : 0;
         }
         previousAvatarPosition = avatarPosition;
-        spawnDeltaX = avatarPosition.x - expectedSpawn.x;
-        spawnDeltaZ = avatarPosition.z - expectedSpawn.z;
+        spawnDeltaX = avatarFeetPosition.x - expectedSpawn.x;
+        spawnDeltaY = avatarFeetPosition.y - expectedSpawn.y;
+        spawnDeltaZ = avatarFeetPosition.z - expectedSpawn.z;
         var avatarAboveFloor = floorTopY !== null && avatarPosition.y >= floorTopY - 0.05;
-        avatarAtSpawn = spawnDeltaX * spawnDeltaX + spawnDeltaZ * spawnDeltaZ <= 1.0;
+        avatarAtSpawn = spawnDeltaX * spawnDeltaX + spawnDeltaY * spawnDeltaY
+            + spawnDeltaZ * spawnDeltaZ <= 1.0;
         if (!sceneReady && markerCount === fixtureMarkers.length && stableEntitySamples >= 3
                 && stableAvatarSamples >= 4 && avatarAboveFloor && avatarAtSpawn) {
             sceneReady = true;
@@ -579,6 +584,7 @@
             },
             avatar: {
                 position: avatarPosition,
+                feetPosition: avatarFeetPosition,
                 bodyYawDegrees: Number(MyAvatar.bodyYaw),
                 inAir: Boolean(MyAvatar.isInAir()),
                 flying: Boolean(MyAvatar.isFlying()),
