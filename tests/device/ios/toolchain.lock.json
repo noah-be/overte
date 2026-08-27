@@ -1,11 +1,37 @@
 {
   "schemaVersion": 1,
-  "serviceRuntimeRevision": 5,
-  "resolvedAt": "2026-08-25",
+  "serviceRuntimeRevision": 6,
+  "resolvedAt": "2026-08-27",
   "sources": {
     "npmRegistry": "https://registry.npmjs.org/",
     "ageRelease": "https://github.com/FiloSottile/age/releases/tag/v1.2.1",
     "rcodesignRelease": "https://github.com/indygreg/apple-platform-rs/releases/tag/apple-codesign%2F0.29.0"
+  },
+  "developerDiskImage": {
+    "provenance": {
+      "repository": "https://github.com/doronz88/DeveloperDiskImage",
+      "commit": "5423e4e955fbb3a9eef3e1212acfbfc6e7a26236",
+      "productBuildVersion": "27A5228h",
+      "handling": "operator-supplied-private-apple-payload"
+    },
+    "files": {
+      "BuildManifest.plist": {
+        "size": 801505,
+        "sha256": "8edd4a2f4f4ef1fbd7bfe49785d8badc673d1395d1d94d85b132ca8ab5ecaf54"
+      },
+      "Image.dmg": {
+        "size": 15733248,
+        "sha256": "05fd807da5e19f030fa4941f24800c965c6c77982ab572dd5d1ef778fb69f9ca",
+        "sha1": "b361bfb12c12576a924823d49bc9f891532de551",
+        "sha384": "8d8e548cd9ce4f77d33dd1937c9d8890bc246d6c3c9bddbdea1a9e29c458672143e2fdd4924832801aa0858c3e44bb8b"
+      },
+      "Image.dmg.trustcache": {
+        "size": 1895,
+        "sha256": "36af60889ff5a737874a26daeb8e1a0139ebfebec6ec2e4d8f6a3c1bf1dce35c",
+        "sha1": "56bfbaf97f852cb79d7907c6eed60f56fabd15d5",
+        "sha384": "9ca53c2c24c7fcd840300c2b58a2531f87431bb49a32c579431acd28d0473a3cb3ebc8ae45cffc5f3c516ee9eddc296a"
+      }
+    }
   },
   "appium": {
     "license": "Apache-2.0",

@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import plistlib
 import re
 import shutil
 import signal
@@ -25,8 +26,12 @@ PACKAGE_FILE = Path(__file__).with_name("package.json")
 NPM_LOCK_FILE = Path(__file__).with_name("package-lock.json")
 DEVICE_PREFLIGHT_FILE = Path(__file__).with_name("appium_device_preflight.js")
 DEVICE_INSTALL_FILE = Path(__file__).with_name("appium_device_install.js")
+DEVICE_DDI_FILE = Path(__file__).with_name("appium_device_ddi.js")
 ARTIFACT_TREE_FILE = Path(__file__).with_name("private_artifact_tree.py")
 DEFAULT_PORT = 42314
+TUNNEL_PORT_ITEM = Path(
+    "appium-xcuitest-driver-nodejs/strongbox/tunnelRegistryPort"
+)
 UNIT_NAME = "overte-ios-remotexpc.service"
 SERVICE_ROOT = Path("/usr/local/lib/overte-ios-remotexpc")
 SERVICE_STATE_DIRECTORY = "overte-ios-remotexpc"
@@ -220,7 +225,7 @@ def list_installed_drivers(node: Path, appium_entry: Path, appium_home: Path,
 
 def service_runtime_revision(lock: dict) -> int:
     revision = lock.get("serviceRuntimeRevision")
-    if revision != 5:
+    if revision != 6:
         fail("unsupported immutable service-runtime revision")
     return revision
 
@@ -463,6 +468,7 @@ def verify_service_runtime(runtime_root: Path,
             runtime_root / DEVICE_PREFLIGHT_FILE.name
         ),
         "deviceInstallSha256": file_sha256(runtime_root / DEVICE_INSTALL_FILE.name),
+        "deviceDdiSha256": file_sha256(runtime_root / DEVICE_DDI_FILE.name),
         "artifactTreeSha256": file_sha256(runtime_root / ARTIFACT_TREE_FILE.name),
         "lockSha256": file_sha256(runtime_root / "toolchain.lock.json"),
         "packageJsonSha256": file_sha256(runtime_root / "package.json"),
@@ -519,6 +525,7 @@ def verify_runtime_matches_source(runtime_root: Path, node: Path,
         "wrapperSha256": file_sha256(Path(__file__).resolve()),
         "devicePreflightSha256": file_sha256(DEVICE_PREFLIGHT_FILE),
         "deviceInstallSha256": file_sha256(DEVICE_INSTALL_FILE),
+        "deviceDdiSha256": file_sha256(DEVICE_DDI_FILE),
         "artifactTreeSha256": file_sha256(ARTIFACT_TREE_FILE),
         "lockSha256": file_sha256(LOCK_FILE),
         "packageJsonSha256": file_sha256(PACKAGE_FILE),
@@ -560,6 +567,7 @@ def install_service_runtime(appium_home: Path, service_root: Path = SERVICE_ROOT
         shutil.copyfile(Path(__file__).resolve(), staging / "remotexpc_tunnel.py")
         shutil.copyfile(DEVICE_PREFLIGHT_FILE, staging / DEVICE_PREFLIGHT_FILE.name)
         shutil.copyfile(DEVICE_INSTALL_FILE, staging / DEVICE_INSTALL_FILE.name)
+        shutil.copyfile(DEVICE_DDI_FILE, staging / DEVICE_DDI_FILE.name)
         shutil.copyfile(ARTIFACT_TREE_FILE, staging / ARTIFACT_TREE_FILE.name)
         shutil.copyfile(LOCK_FILE, staging / "toolchain.lock.json")
         shutil.copyfile(PACKAGE_FILE, staging / "package.json")
@@ -587,6 +595,7 @@ def install_service_runtime(appium_home: Path, service_root: Path = SERVICE_ROOT
                 staging / DEVICE_PREFLIGHT_FILE.name
             ),
             "deviceInstallSha256": file_sha256(staging / DEVICE_INSTALL_FILE.name),
+            "deviceDdiSha256": file_sha256(staging / DEVICE_DDI_FILE.name),
             "artifactTreeSha256": file_sha256(staging / ARTIFACT_TREE_FILE.name),
             "lockSha256": file_sha256(staging / "toolchain.lock.json"),
             "packageJsonSha256": file_sha256(staging / "package.json"),
@@ -742,6 +751,187 @@ def require_private_regular_file(path: Path, label: str, maximum: int) -> Path:
     if (parent.st_uid != os.geteuid() or parent.st_mode & 0o077):
         fail(f"{label} parent directory is not caller-private")
     return path
+
+
+def file_sha384(path: Path) -> str:
+    digest = hashlib.sha384()
+    with path.open("rb") as source:
+        while block := source.read(1024 * 1024):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def file_sha1(path: Path) -> str:
+    digest = hashlib.sha1()
+    with path.open("rb") as source:
+        while block := source.read(1024 * 1024):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def validate_developer_disk_image(request: dict, lock: dict) -> tuple[Path, Path, Path]:
+    """Bind an operator-supplied private DDI to the exact offline lock."""
+    try:
+        ddi = lock["developerDiskImage"]
+        provenance = ddi["provenance"]
+        files = ddi["files"]
+    except (KeyError, TypeError):
+        fail("Developer Disk Image lock is unavailable")
+    paths = {
+        "Image.dmg": Path(request["image"]),
+        "BuildManifest.plist": Path(request["manifest"]),
+        "Image.dmg.trustcache": Path(request["trustcache"]),
+    }
+    parents = set()
+    for name, path in paths.items():
+        expected = files.get(name)
+        if (path.name != name or not isinstance(expected, dict)
+                or isinstance(expected.get("size"), bool)
+                or not isinstance(expected.get("size"), int)
+                or expected["size"] <= 0
+                or not isinstance(expected.get("sha256"), str)
+                or not re.fullmatch(r"[0-9a-f]{64}", expected["sha256"])):
+            fail("private Developer Disk Image request differs from its lock")
+        require_private_regular_file(path, f"Developer Disk Image {name}", expected["size"])
+        if path.stat().st_size != expected["size"] or file_sha256(path) != expected["sha256"]:
+            fail("private Developer Disk Image payload differs from its lock")
+        parents.add(path.parent.resolve())
+    if len(parents) != 1:
+        fail("private Developer Disk Image files are not colocated")
+    parent = next(iter(parents))
+    parent_value = parent.lstat()
+    if (not stat.S_ISDIR(parent_value.st_mode) or parent_value.st_uid != os.geteuid()
+            or stat.S_IMODE(parent_value.st_mode) != 0o700):
+        fail("private Developer Disk Image directory is not mode 0700")
+
+    image = paths["Image.dmg"]
+    trustcache = paths["Image.dmg.trustcache"]
+    manifest_path = paths["BuildManifest.plist"]
+    for name, path in (("Image.dmg", image), ("Image.dmg.trustcache", trustcache)):
+        expected_sha1 = files[name].get("sha1")
+        expected_sha384 = files[name].get("sha384")
+        if (not isinstance(expected_sha1, str)
+                or not re.fullmatch(r"[0-9a-f]{40}", expected_sha1)
+                or file_sha1(path) != expected_sha1
+                or not isinstance(expected_sha384, str)
+                or not re.fullmatch(r"[0-9a-f]{96}", expected_sha384)
+                or file_sha384(path) != expected_sha384):
+            fail("private Developer Disk Image manifest digest differs from its lock")
+    try:
+        manifest = plistlib.loads(manifest_path.read_bytes())
+    except (OSError, plistlib.InvalidFileException):
+        fail("private Developer Disk Image manifest is invalid")
+    if not isinstance(manifest, dict):
+        fail("private Developer Disk Image manifest is invalid")
+    identities = manifest.get("BuildIdentities")
+    if (manifest.get("ProductBuildVersion") != provenance.get("productBuildVersion")
+            or not isinstance(identities, list) or not identities):
+        fail("private Developer Disk Image build manifest differs from its lock")
+    image_digest = bytes.fromhex(files["Image.dmg"]["sha384"])
+    trustcache_digest = bytes.fromhex(files["Image.dmg.trustcache"]["sha384"])
+    image_sha1 = bytes.fromhex(files["Image.dmg"]["sha1"])
+    trustcache_sha1 = bytes.fromhex(files["Image.dmg.trustcache"]["sha1"])
+    bound_identities = 0
+    for identity in identities:
+        entries = identity.get("Manifest") if isinstance(identity, dict) else None
+        personalized = entries.get("PersonalizedDMG") if isinstance(entries, dict) else None
+        trust = entries.get("LoadableTrustCache") if isinstance(entries, dict) else None
+        image_info = personalized.get("Info") if isinstance(personalized, dict) else None
+        trust_info = trust.get("Info") if isinstance(trust, dict) else None
+        if personalized is None and trust is None:
+            continue
+        hash_method = image_info.get("HashMethod") if isinstance(image_info, dict) else None
+        expected_image = image_digest if hash_method == "sha2-384" else image_sha1
+        expected_trust = trustcache_digest if hash_method == "sha2-384" else trustcache_sha1
+        if (hash_method not in {"sha1", "sha2-384"}
+                or not isinstance(image_info, dict) or not isinstance(trust_info, dict)
+                or image_info.get("Path") != "Image.dmg"
+                or personalized.get("Digest") != expected_image
+                or trust_info.get("Path") != "Image.dmg.trustcache"
+                or trust.get("Digest") != expected_trust):
+            fail("private Developer Disk Image manifest payload binding is invalid")
+        bound_identities += 1
+    if bound_identities == 0:
+        fail("private Developer Disk Image manifest contains no payload bindings")
+    return image, manifest_path, trustcache
+
+
+def device_ddi(arguments: argparse.Namespace) -> int:
+    """Mount/attest the exact private DDI without logging its device binding."""
+    try:
+        node, _script = verify_service_runtime(arguments.service_runtime)
+        payload = sys.stdin.buffer.read(16 * 1024 + 1)
+        if len(payload) > 16 * 1024:
+            fail("private Developer Disk Image request exceeded its safety limit")
+        request = json.loads(payload)
+        expected_keys = {"udid"} if arguments.action == "device-ddi-status" else {
+            "udid", "image", "manifest", "trustcache",
+        }
+        if (not isinstance(request, dict) or set(request) != expected_keys
+                or not isinstance(request.get("udid"), str)
+                or not 8 <= len(request["udid"]) <= 128
+                or any(character in request["udid"] for character in "\0\r\n")):
+            fail("private Developer Disk Image request is invalid")
+        lock = load_lock(arguments.service_runtime / "toolchain.lock.json")
+        helper_request = {
+            "action": "status" if arguments.action == "device-ddi-status" else "mount",
+            "udid": request["udid"],
+            "imageSha384": lock["developerDiskImage"]["files"]["Image.dmg"]["sha384"],
+        }
+        validated_files = None
+        if arguments.action == "device-ddi-mount":
+            validated_files = validate_developer_disk_image(request, lock)
+        with tempfile.TemporaryDirectory(prefix="overte-ios-ddi-") as name:
+            temporary = Path(name)
+            if validated_files is not None:
+                snapshot = temporary / "ddi"
+                snapshot.mkdir(mode=0o700)
+                for source in validated_files:
+                    destination = snapshot / source.name
+                    shutil.copyfile(source, destination)
+                    destination.chmod(0o600)
+                image, manifest, trustcache = validate_developer_disk_image({
+                    "image": str(snapshot / "Image.dmg"),
+                    "manifest": str(snapshot / "BuildManifest.plist"),
+                    "trustcache": str(snapshot / "Image.dmg.trustcache"),
+                }, lock)
+                helper_request.update({
+                    "image": str(image), "manifest": str(manifest),
+                    "trustcache": str(trustcache),
+                })
+            data_home = temporary / "data"
+            data_home.mkdir(mode=0o700)
+            port_file = data_home / TUNNEL_PORT_ITEM
+            port_file.parent.mkdir(parents=True, mode=0o700)
+            descriptor = os.open(
+                port_file,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+                0o600,
+            )
+            with os.fdopen(descriptor, "w", encoding="ascii") as output:
+                output.write(str(arguments.port))
+                output.flush()
+                os.fsync(output.fileno())
+            environment = {
+                "PATH": str(arguments.service_runtime / "bin") + ":/usr/sbin:/usr/bin",
+                "HOME": "/nonexistent",
+                "XDG_DATA_HOME": str(data_home),
+            }
+            result = subprocess.run(
+                [str(node), str(arguments.service_runtime / DEVICE_DDI_FILE.name)],
+                input=json.dumps(helper_request, separators=(",", ":")).encode("utf-8"),
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                cwd=arguments.service_runtime, env=environment,
+                timeout=5 * 60 if arguments.action == "device-ddi-mount" else 60,
+                check=False,
+            )
+        if result.returncode:
+            fail("private Developer Disk Image helper failed")
+    except (TunnelError, OSError, UnicodeError, json.JSONDecodeError,
+            plistlib.InvalidFileException, subprocess.SubprocessError, KeyError, TypeError):
+        fail("private iOS Developer Disk Image request failed")
+    print("PASS: iOS Personalized DDI and XCTest services are ready")
+    return 0
 
 
 def parse_receipt_time(value: object, label: str) -> datetime:
@@ -978,6 +1168,19 @@ def appium_server(arguments: argparse.Namespace) -> int:
     try:
         appium_home = temporary / "home"
         appium_home.mkdir(mode=0o700)
+        data_home = temporary / "data"
+        data_home.mkdir(mode=0o700)
+        registry_port_file = data_home / TUNNEL_PORT_ITEM
+        registry_port_file.parent.mkdir(parents=True, mode=0o700)
+        descriptor = os.open(
+            registry_port_file,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
+        with os.fdopen(descriptor, "w", encoding="ascii") as output:
+            output.write(str(arguments.tunnel_registry_port))
+            output.flush()
+            os.fsync(output.fileno())
         node_modules = appium_home / "node_modules"
         node_modules.mkdir(mode=0o700)
         cache_parent = node_modules / ".cache"
@@ -989,6 +1192,10 @@ def appium_server(arguments: argparse.Namespace) -> int:
         extension_manifest.chmod(0o600)
         environment = os.environ.copy()
         environment["APPIUM_HOME"] = str(appium_home)
+        # appium-ios-remotexpc discovers the already running root service via
+        # this non-secret Strongbox locator.  Never expose the root-owned
+        # pairing state to the unprivileged Appium process.
+        environment["XDG_DATA_HOME"] = str(data_home)
         environment["PATH"] = str(arguments.service_runtime / "bin") + ":/usr/sbin:/usr/bin"
         command = [
             str(node), str(appium_entry), "--address", arguments.address,
@@ -1098,6 +1305,7 @@ def parser() -> argparse.ArgumentParser:
     appium_parser.add_argument("--service-runtime", type=Path, default=default_service_runtime())
     appium_parser.add_argument("--address", default="127.0.0.1")
     appium_parser.add_argument("--port", type=int, default=4723)
+    appium_parser.add_argument("--tunnel-registry-port", type=int, default=DEFAULT_PORT)
     appium_parser.add_argument("--base-path", choices=("/", "/wd/hub"), default="/")
     appium_parser.add_argument("--state-root", type=Path, required=True)
 
@@ -1111,6 +1319,13 @@ def parser() -> argparse.ArgumentParser:
         "--service-runtime", type=Path, default=default_service_runtime(),
     )
 
+    for action in ("device-ddi-status", "device-ddi-mount"):
+        ddi_parser = subparsers.add_parser(action)
+        ddi_parser.add_argument(
+            "--service-runtime", type=Path, default=default_service_runtime(),
+        )
+        ddi_parser.add_argument("--port", type=int, default=DEFAULT_PORT)
+
     install_parser = subparsers.add_parser("install-unit")
     install_parser.add_argument("--appium-home", type=Path, required=True)
     install_parser.add_argument("--port", type=int, default=DEFAULT_PORT)
@@ -1123,6 +1338,9 @@ def main() -> int:
     try:
         if hasattr(arguments, "port") and not 1 <= arguments.port <= 65535:
             fail("registry port must be between 1 and 65535")
+        if (hasattr(arguments, "tunnel_registry_port")
+                and not 1 <= arguments.tunnel_registry_port <= 65535):
+            fail("tunnel registry port must be between 1 and 65535")
         if arguments.action == "preflight":
             preflight(arguments.appium_home)
             print("PASS: pinned RemoteXPC runtime and /dev/net/tun are available")
@@ -1137,6 +1355,8 @@ def main() -> int:
             return device_preflight(arguments)
         if arguments.action == "device-install":
             return device_install(arguments)
+        if arguments.action in {"device-ddi-status", "device-ddi-mount"}:
+            return device_ddi(arguments)
         return install_unit(arguments)
     except (TunnelError, OSError, subprocess.SubprocessError, json.JSONDecodeError) as error:
         print(f"error: {error}", file=sys.stderr)

@@ -22,7 +22,7 @@ SPEC.loader.exec_module(LOCK)
 class IosToolchainLockTest(unittest.TestCase):
     def test_checked_in_lock_and_full_npm_resolution_are_exact(self):
         value = LOCK.validate()
-        self.assertEqual(5, value["serviceRuntimeRevision"])
+        self.assertEqual(6, value["serviceRuntimeRevision"])
         self.assertEqual("3.7.0", value["appium"]["core"]["version"])
         self.assertEqual("12.8.0", value["appium"]["drivers"]["xcuitest"]["version"])
         self.assertEqual("5.15.3", value["appium"]["iosRuntime"]["remoteXpc"]["version"])
@@ -36,6 +36,10 @@ class IosToolchainLockTest(unittest.TestCase):
         )
         self.assertEqual("1.2.1", value["appium"]["iosSecurity"]["age"]["version"])
         self.assertEqual("0.29.0", value["appium"]["iosSecurity"]["rcodesign"]["version"])
+        self.assertEqual(
+            "27A5228h",
+            value["developerDiskImage"]["provenance"]["productBuildVersion"],
+        )
 
     def test_direct_version_or_integrity_drift_is_rejected(self):
         with tempfile.TemporaryDirectory(prefix="overte-ios-toolchain-test-") as name:
@@ -58,6 +62,12 @@ class IosToolchainLockTest(unittest.TestCase):
             changed["serviceRuntimeRevision"] = 4
             lock_path.write_text(json.dumps(changed), encoding="utf-8")
             with self.assertRaisesRegex(LOCK.LockError, "header drifted"):
+                LOCK.validate(lock_path, package_path, npm_path)
+
+            changed = copy.deepcopy(lock)
+            changed["developerDiskImage"]["files"]["Image.dmg"]["size"] = 1
+            lock_path.write_text(json.dumps(changed), encoding="utf-8")
+            with self.assertRaisesRegex(LOCK.LockError, "pin is invalid"):
                 LOCK.validate(lock_path, package_path, npm_path)
 
             lock_path.write_text(json.dumps(lock), encoding="utf-8")

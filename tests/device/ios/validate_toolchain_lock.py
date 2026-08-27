@@ -21,6 +21,7 @@ DEFAULT_PACKAGE = ROOT / "package.json"
 DEFAULT_NPM_LOCK = ROOT / "package-lock.json"
 SHA256 = re.compile(r"[0-9a-f]{64}")
 SHA1 = re.compile(r"[0-9a-f]{40}")
+SHA384 = re.compile(r"[0-9a-f]{96}")
 SEMVER = re.compile(r"(?:0|[1-9][0-9]*)[.](?:0|[1-9][0-9]*)[.](?:0|[1-9][0-9]*)")
 EXPECTED = {
     "core": ("appium", "3.7.0"),
@@ -153,6 +154,47 @@ def validate_security_tools(lock: dict) -> None:
             fail(f"{name} archive SHA-256 is invalid")
 
 
+def validate_developer_disk_image(lock: dict) -> None:
+    ddi = exact_keys(
+        lock["developerDiskImage"], {"provenance", "files"},
+        "Developer Disk Image lock",
+    )
+    provenance = exact_keys(
+        ddi["provenance"],
+        {"repository", "commit", "productBuildVersion", "handling"},
+        "Developer Disk Image provenance",
+    )
+    if (https_url(provenance["repository"], "github.com", "Developer Disk Image repository")
+            != "https://github.com/doronz88/DeveloperDiskImage"
+            or not isinstance(provenance["commit"], str)
+            or not SHA1.fullmatch(provenance["commit"])
+            or provenance["productBuildVersion"] != "27A5228h"
+            or provenance["handling"] != "operator-supplied-private-apple-payload"):
+        fail("Developer Disk Image provenance drifted")
+    files = exact_keys(
+        ddi["files"],
+        {"BuildManifest.plist", "Image.dmg", "Image.dmg.trustcache"},
+        "Developer Disk Image files",
+    )
+    expected_sizes = {
+        "BuildManifest.plist": 801505,
+        "Image.dmg": 15733248,
+        "Image.dmg.trustcache": 1895,
+    }
+    for name, expected_size in expected_sizes.items():
+        expected_keys = {"size", "sha256"} if name == "BuildManifest.plist" \
+            else {"size", "sha256", "sha1", "sha384"}
+        value = exact_keys(files[name], expected_keys, f"Developer Disk Image {name}")
+        if (value["size"] != expected_size or isinstance(value["size"], bool)
+                or not isinstance(value["sha256"], str)
+                or not SHA256.fullmatch(value["sha256"])
+                or "sha1" in value and (not isinstance(value["sha1"], str)
+                                         or not SHA1.fullmatch(value["sha1"]))
+                or "sha384" in value and (not isinstance(value["sha384"], str)
+                                           or not SHA384.fullmatch(value["sha384"]))):
+            fail(f"Developer Disk Image {name} pin is invalid")
+
+
 def validate_npm_lock(package_path: Path, npm_lock_path: Path, entries: dict[str, dict]) -> None:
     package = exact_keys(
         read_object(package_path, "Appium package.json"),
@@ -216,17 +258,19 @@ def validate(lock_path: Path = DEFAULT_LOCK, package_path: Path = DEFAULT_PACKAG
              npm_lock_path: Path = DEFAULT_NPM_LOCK) -> dict:
     lock = exact_keys(
         read_object(lock_path, "Fedora iOS toolchain lock"),
-        {"schemaVersion", "serviceRuntimeRevision", "resolvedAt", "sources", "appium"},
+        {"schemaVersion", "serviceRuntimeRevision", "resolvedAt", "sources",
+         "developerDiskImage", "appium"},
         "Fedora iOS toolchain lock",
     )
-    if (lock["schemaVersion"] != 1 or lock["serviceRuntimeRevision"] != 5
-            or lock["resolvedAt"] != "2026-08-25"):
+    if (lock["schemaVersion"] != 1 or lock["serviceRuntimeRevision"] != 6
+            or lock["resolvedAt"] != "2026-08-27"):
         fail("Fedora iOS toolchain lock header drifted")
     exact_keys(lock["sources"], {"npmRegistry", "ageRelease", "rcodesignRelease"}, "sources")
     for label, value in lock["sources"].items():
         https_url(value, None, f"source {label}")
     entries = npm_entries(lock)
     validate_security_tools(lock)
+    validate_developer_disk_image(lock)
     validate_npm_lock(package_path, npm_lock_path, entries)
     return lock
 
