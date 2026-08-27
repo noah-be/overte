@@ -22,6 +22,18 @@
       "required": ["running"],
       "properties": {"running": {"type": "boolean"}}
     },
+    "domain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["connected", "hostname", "id", "protocol", "serverless"],
+      "properties": {
+        "connected": {"type": "boolean"},
+        "hostname": {"type": "string"},
+        "id": {"type": "string"},
+        "protocol": {"type": "string"},
+        "serverless": {"type": "boolean"}
+      }
+    },
     "input": {
       "type": "object",
       "additionalProperties": false,
@@ -36,7 +48,13 @@
       "required": ["ready", "entityCount"],
       "properties": {
         "ready": {"type": "boolean"},
-        "entityCount": {"type": "integer", "minimum": 0}
+        "entityCount": {"type": "integer", "minimum": 0},
+        "domainMarkerCount": {"type": "integer", "minimum": 0},
+        "domainMarkers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^OVERTE_E2E_DOMAIN_[A-Z]+$"}
+        }
       }
     },
     "avatar": {
