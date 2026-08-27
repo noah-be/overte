@@ -43,12 +43,16 @@ control_payload_log=os.environ.get("MOCK_ANDROID_CONTROL_PAYLOAD_LOG", "")
 probe_sequence_path=os.environ.get("MOCK_PROBE_SEQUENCE_STATE", "")
 probe_sequence=int(open(probe_sequence_path).read()) if probe_sequence_path and os.path.exists(probe_sequence_path) else 0
 if cmd in (["devices", "-l"], ["devices"]):
-    if isolated: print("List of devices attached\npico-secret device")
+    if isolated:
+        count=int(os.environ.get("MOCK_PICO_DEVICE_COUNT", "1"))
+        print("List of devices attached\n" + "\n".join(
+            "pico-secret" + ("" if index == 0 else "-" + str(index + 1)) + " device"
+            for index in range(count)))
     else: print("List of devices attached\nphone-secret device model:Phone\npico-secret device model:PICO")
 elif cmd == ["get-state"]: print("device")
 elif cmd[:2] == ["shell", "getprop"]:
     prop=cmd[2]
-    pico=target == "pico-secret"
+    pico=bool(target and target.startswith("pico-secret"))
     values={
       "ro.product.manufacturer": "PICO" if pico else "Example",
       "ro.product.brand": "PICO" if pico else "Example",
@@ -67,7 +71,7 @@ elif cmd[:3] == ["shell", "cat", "/proc/43/stat"]: print("43 (app) S " + "0 "*18
 elif cmd[:3] == ["shell", "cat", "/proc/44/stat"]: print("44 (app) S " + "0 "*18 + "125 0")
 elif cmd[:3] == ["shell", "cat", "/proc/45/stat"]: print("45 (app) S " + "0 "*18 + "126 0")
 elif cmd == ["shell", "dumpsys", "activity", "activities"]:
-    package="org.overte.pico" if target == "pico-secret" else "org.overte.phone"
+    package="org.overte.pico" if target and target.startswith("pico-secret") else "org.overte.phone"
     print("mResumedActivity: x u0 " + package + "/.Main t1")
 elif cmd[:3] == ["shell", "am", "force-stop"]:
     if process_path: open(process_path,"w").write("stopped")
@@ -528,8 +532,7 @@ class AndroidAdapterTest(unittest.TestCase):
         self.assertIn("identity changed", changed.stdout)
 
         cleaned = subprocess.run(
-            [sys.executable, str(ADAPTER), "--kind", "pico", "cleanup",
-             "--target", "pico-secret"],
+            [sys.executable, str(ADAPTER), "--kind", "pico", "cleanup"],
             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             env=self.environment, check=False)
         self.assertEqual(0, cleaned.returncode, cleaned.stdout)
@@ -546,6 +549,34 @@ class AndroidAdapterTest(unittest.TestCase):
                                 for command in payloads))
         self.assertFalse(any(command[:2] == ["shell", "settings"]
                              for command in payloads))
+
+    def test_cleanup_auto_selection_is_pico_only_and_fails_closed(self):
+        state = Path(self.temporary.name) / "cleanup-state"
+        state.mkdir(mode=0o700)
+        self.environment.update({
+            "OVERTE_ANDROID_E2E_DEBUG": "1",
+            "OVERTE_PICO_OPENXR_INPUT": "1",
+            "ANDROID_ADB_SERVER_PORT": "5041",
+            "OVERTE_PICO_OPENXR_STATE_DIR": str(state),
+            "MOCK_ANDROID_PROCESS_STATE": str(Path(self.temporary.name) / "stopped-process"),
+            "MOCK_PICO_DEVICE_COUNT": "2",
+        })
+        Path(self.environment["MOCK_ANDROID_PROCESS_STATE"]).write_text(
+            "stopped", encoding="utf-8")
+        ambiguous = subprocess.run(
+            [sys.executable, str(ADAPTER), "--kind", "pico", "cleanup"],
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=self.environment, check=False)
+        self.assertEqual(2, ambiguous.returncode, ambiguous.stdout)
+        self.assertIn("exactly one eligible target", ambiguous.stdout)
+        self.assertNotIn("pico-secret", ambiguous.stdout)
+
+        phone = subprocess.run(
+            [sys.executable, str(ADAPTER), "--kind", "phone", "cleanup"],
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=self.environment, check=False)
+        self.assertEqual(2, phone.returncode, phone.stdout)
+        self.assertIn("cleanup requires --target", phone.stdout)
 
     def test_phone_ignores_pico_server_port_without_openxr_opt_in(self):
         argv_log = Path(self.temporary.name) / "phone-adb-argv.jsonl"

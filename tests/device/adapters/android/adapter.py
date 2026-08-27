@@ -296,6 +296,19 @@ class AndroidAdapter:
             })
         return targets
 
+    def cleanup_target(self, requested: str | None) -> str:
+        if requested:
+            return requested
+        if self.kind != "pico":
+            fail("cleanup requires --target")
+        targets = self.discover()
+        if len(targets) != 1:
+            fail("Pico cleanup requires exactly one eligible target on the isolated ADB server")
+        selector = targets[0].get("selector")
+        if not isinstance(selector, str) or not selector:
+            fail("Pico cleanup discovery returned an invalid target")
+        return selector
+
     def require(self, target: str) -> None:
         self.adb.require_connected(target)
         if not self.eligible(target):
@@ -444,12 +457,13 @@ def main() -> int:
     if args.action == "discover":
         emit(adapter.discover())
         return 0
+    if args.action == "cleanup":
+        emit(adapter.cleanup(adapter.cleanup_target(args.target)))
+        return 0
     if not args.target:
         fail(f"{args.action} requires --target")
     if args.action == "describe":
         emit(adapter.describe(args.target))
-    elif args.action == "cleanup":
-        emit(adapter.cleanup(args.target))
     else:
         if not args.operation:
             fail("invoke requires --operation")

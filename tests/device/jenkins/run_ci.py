@@ -150,12 +150,31 @@ def normalized_fixture_origin(value: object) -> str:
     return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
 
 
-def is_ios_appium_manifest(manifest: Path) -> bool:
+def adapter_manifest_id(manifest: Path) -> str:
     try:
         value = json.loads(manifest.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         fail("adapter manifest is unreadable")
-    return isinstance(value, dict) and value.get("id") == "appium-ios"
+    identifier = value.get("id") if isinstance(value, dict) else None
+    if not isinstance(identifier, str) or not identifier:
+        fail("adapter manifest has no valid id")
+    return identifier
+
+
+def is_ios_appium_manifest(manifest: Path) -> bool:
+    return adapter_manifest_id(manifest) == "appium-ios"
+
+
+def is_isolated_pico_manifest(manifest: Path) -> bool:
+    return adapter_manifest_id(manifest) == "android-pico-adb"
+
+
+def runner_target_arguments(manifest: Path, child_environment: dict[str, str]) -> list[str]:
+    """Keep the private Pico selector out of the runner process entirely."""
+    if is_isolated_pico_manifest(manifest):
+        child_environment.pop("OVERTE_DEVICE_TARGET_SELECTOR", None)
+        return []
+    return ["--target", environment("OVERTE_DEVICE_TARGET_SELECTOR")]
 
 
 def update_ios_fixture_origin(root: Path, selector: str, base_url: object) -> None:
@@ -285,7 +304,6 @@ def run_suite() -> int:
     catalog = repository_file(root, "OVERTE_CI_CATALOG")
     output = external_directory(root, "OVERTE_CI_OUTPUT_DIR")
     suite = checked_suite()
-    selector = environment("OVERTE_DEVICE_TARGET_SELECTOR")
     if output.exists():
         fail("OVERTE_CI_OUTPUT_DIR must not already exist")
     output.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -297,6 +315,7 @@ def run_suite() -> int:
     fixture_log = fixture_metadata / "fixture.log"
     fixture_ready = fixture_metadata / "ready.json"
     runner_environment = os.environ.copy()
+    target_arguments = runner_target_arguments(manifest, runner_environment)
     previous_handlers: dict[int, object] = {}
 
     try:
@@ -343,6 +362,7 @@ def run_suite() -> int:
                text=True, **subprocess_group_options())
             ready = wait_for_ready(fixture, fixture_ready)
             if is_ios_appium_manifest(manifest):
+                selector = environment("OVERTE_DEVICE_TARGET_SELECTOR")
                 update_ios_fixture_origin(root, selector, ready.get("baseUrl"))
             if suite == "e2e-core":
                 runner_environment["OVERTE_E2E_SCENE_URL"] = ready["sceneUrl"]
@@ -371,7 +391,7 @@ def run_suite() -> int:
         command = [
             sys.executable, str(root / "tests/device/run.py"),
             "--adapter-manifest", str(manifest), "--catalog", str(catalog),
-            "--suite", suite, "--target", selector, "--output-dir", str(output),
+            "--suite", suite, *target_arguments, "--output-dir", str(output),
             "--require-complete",
         ]
         if environment("OVERTE_CI_ALLOW_VIRTUAL", required=False, default="0") == "1":
@@ -421,18 +441,23 @@ def load_adapter_command(manifest: Path) -> list[str]:
 def cleanup_target() -> int:
     root = workspace()
     manifest = repository_file(root, "OVERTE_CI_ADAPTER_MANIFEST")
-    selector = environment("OVERTE_DEVICE_TARGET_SELECTOR")
+    child_environment = os.environ.copy()
+    target_arguments = runner_target_arguments(manifest, child_environment)
+    selector = os.environ.get("OVERTE_DEVICE_TARGET_SELECTOR", "")
     command = load_adapter_command(manifest)
     try:
         result = subprocess.run(
-            [*command, "cleanup", "--target", selector], cwd=root, text=True,
+            [*command, "cleanup", *target_arguments], cwd=root, text=True,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60, check=False,
+            env=child_environment,
         )
     except subprocess.TimeoutExpired:
         print("error: adapter cleanup timed out", file=sys.stderr)
         return 2
     if result.returncode != 0:
-        detail = (result.stderr.strip() or "adapter cleanup failed").replace(selector, "<target>")
+        detail = result.stderr.strip() or "adapter cleanup failed"
+        if selector:
+            detail = detail.replace(selector, "<target>")
         print(f"error: {detail}", file=sys.stderr)
         return result.returncode
     print("Target cleanup completed.")
