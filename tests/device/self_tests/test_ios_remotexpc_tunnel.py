@@ -8,6 +8,7 @@ import io
 import json
 import os
 from pathlib import Path
+import plistlib
 import shutil
 import stat
 import subprocess
@@ -139,7 +140,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                         TUNNEL, "restore_security_context") as restore_context:
                     installed = TUNNEL.install_service_runtime(appium_home, service_root)
                     self.assertEqual(installed, restore_context.call_args.args[0])
-                self.assertEqual(service_root / "5.15.3-r5", installed)
+                self.assertEqual(service_root / "5.15.3-r6", installed)
                 self.assertEqual(
                     Path(TUNNEL.__file__).read_bytes(),
                     (installed / "remotexpc_tunnel.py").read_bytes(),
@@ -151,6 +152,10 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                 self.assertEqual(
                     TUNNEL.DEVICE_INSTALL_FILE.read_bytes(),
                     (installed / TUNNEL.DEVICE_INSTALL_FILE.name).read_bytes(),
+                )
+                self.assertEqual(
+                    TUNNEL.DEVICE_DDI_FILE.read_bytes(),
+                    (installed / TUNNEL.DEVICE_DDI_FILE.name).read_bytes(),
                 )
                 self.assertEqual(
                     TUNNEL.ARTIFACT_TREE_FILE.read_bytes(),
@@ -227,7 +232,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="overte-runtime-parents-") as name:
             base = Path(name)
             service_root = base / "service"
-            runtime = service_root / "5.15.3-r5"
+            runtime = service_root / "5.15.3-r6"
             runtime.mkdir(parents=True)
             owner = os.geteuid()
             with patch.object(
@@ -248,7 +253,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                         TUNNEL.require_trusted_runtime_path(runtime, owner)
 
     def test_visible_system_owner_rejects_unprivileged_caller_identity(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r5")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r6")
         with patch.object(TUNNEL, "visible_root_owner_uid", return_value=1000), patch.object(
                 TUNNEL.os, "geteuid", return_value=1000):
             with self.assertRaisesRegex(TUNNEL.TunnelError, "unprivileged caller"):
@@ -312,7 +317,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                     self.make_tree_writable(service_root)
 
     def test_unit_executes_only_installed_runtime_and_is_hardened(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r5")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r6")
         unit = TUNNEL.service_unit(runtime, TUNNEL.DEFAULT_PORT)
         exec_start = next(line for line in unit.splitlines() if line.startswith("ExecStart="))
         working_directory = next(
@@ -385,13 +390,13 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
     def test_status_defaults_to_versioned_service_runtime_not_appium_home(self):
         arguments = TUNNEL.parser().parse_args(["status"])
         self.assertEqual(
-            Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r5"),
+            Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r6"),
             arguments.service_runtime,
         )
         self.assertFalse(hasattr(arguments, "appium_home"))
 
     def test_appium_server_is_root_owned_loopback_and_privacy_bounded(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r5")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r6")
         with tempfile.TemporaryDirectory(prefix="overte-appium-state-") as name:
             state = Path(name)
             state.chmod(0o700)
@@ -402,12 +407,22 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
             child = MagicMock()
             child.wait.return_value = 0
             child.poll.return_value = None
+            observed = {}
+
+            def start_appium(command, **options):
+                data_home = Path(options["env"]["XDG_DATA_HOME"])
+                port_file = data_home / TUNNEL.TUNNEL_PORT_ITEM
+                observed["registryPort"] = port_file.read_text(encoding="ascii")
+                observed["registryMode"] = stat.S_IMODE(port_file.stat().st_mode)
+                observed["dataHome"] = data_home
+                return child
+
             with patch.object(
                     TUNNEL, "verify_service_runtime",
                     return_value=(runtime / "bin/node", runtime / "tunnel.mjs")), patch.object(
                     TUNNEL, "validate_appium_extension_template",
                     return_value=SCRIPT), patch.object(
-                    TUNNEL.subprocess, "Popen", return_value=child) as execute, patch.object(
+                    TUNNEL.subprocess, "Popen", side_effect=start_appium) as execute, patch.object(
                     TUNNEL.signal, "signal"):
                 self.assertEqual(0, TUNNEL.appium_server(arguments))
             command = execute.call_args.args[0]
@@ -421,10 +436,14 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
             self.assertEqual(runtime / "appium", options["cwd"])
             self.assertTrue(options["env"]["APPIUM_HOME"].startswith(str(state)))
             self.assertNotIn(str(Path.home()), options["env"]["APPIUM_HOME"])
+            self.assertEqual("42314", observed["registryPort"])
+            self.assertEqual(0o600, observed["registryMode"])
+            self.assertTrue(str(observed["dataHome"]).startswith(str(state)))
+            self.assertEqual(str(observed["dataHome"]), options["env"]["XDG_DATA_HOME"])
             self.assertEqual([], list(state.iterdir()))
 
     def test_device_preflight_passes_udid_only_over_stdin_and_redacts_output(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r5")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r6")
         arguments = TUNNEL.parser().parse_args(["device-preflight"])
         private_udid = "00008101-1234567890ABCDEF"
         stdin = MagicMock()
@@ -465,8 +484,205 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
         self.assertEqual(inventory, json.loads(output.getvalue()))
         self.assertNotIn(private_udid, output.getvalue())
 
+    def test_private_developer_disk_image_is_digest_and_manifest_bound(self):
+        with tempfile.TemporaryDirectory(prefix="overte-private-ddi-") as name:
+            root = Path(name)
+            root.chmod(0o700)
+            image = root / "Image.dmg"
+            trustcache = root / "Image.dmg.trustcache"
+            manifest_path = root / "BuildManifest.plist"
+            image.write_bytes(b"pinned developer disk image")
+            trustcache.write_bytes(b"pinned trust cache")
+            manifest_path.write_bytes(plistlib.dumps({
+                "ProductBuildVersion": "27A5228h",
+                "BuildIdentities": [{"Manifest": {
+                    "PersonalizedDMG": {
+                        "Digest": bytes.fromhex(TUNNEL.file_sha384(image)),
+                        "Info": {"Path": "Image.dmg", "HashMethod": "sha2-384"},
+                    },
+                    "LoadableTrustCache": {
+                        "Digest": bytes.fromhex(TUNNEL.file_sha384(trustcache)),
+                        "Info": {"Path": "Image.dmg.trustcache"},
+                    },
+                }}],
+            }))
+            for path in (image, trustcache, manifest_path):
+                path.chmod(0o600)
+            lock = TUNNEL.load_lock()
+            lock["developerDiskImage"] = {
+                "provenance": {"productBuildVersion": "27A5228h"},
+                "files": {
+                    path.name: {
+                        "size": path.stat().st_size,
+                        "sha256": TUNNEL.file_sha256(path),
+                        **({"sha1": TUNNEL.file_sha1(path),
+                            "sha384": TUNNEL.file_sha384(path)}
+                           if path != manifest_path else {}),
+                    }
+                    for path in (image, trustcache, manifest_path)
+                },
+            }
+            request = {
+                "image": str(image), "manifest": str(manifest_path),
+                "trustcache": str(trustcache),
+            }
+            self.assertEqual(
+                (image, manifest_path, trustcache),
+                TUNNEL.validate_developer_disk_image(request, lock),
+            )
+
+            image.write_bytes(b"tampered")
+            with self.assertRaisesRegex(TUNNEL.TunnelError, "differs from its lock"):
+                TUNNEL.validate_developer_disk_image(request, lock)
+
+            image.write_bytes(b"pinned developer disk image")
+            image.chmod(0o644)
+            with self.assertRaisesRegex(TUNNEL.TunnelError, "mode"):
+                TUNNEL.validate_developer_disk_image(request, lock)
+            image.chmod(0o600)
+
+            extra_link = root / "unexpected-hardlink"
+            os.link(image, extra_link)
+            with self.assertRaisesRegex(TUNNEL.TunnelError, "link count"):
+                TUNNEL.validate_developer_disk_image(request, lock)
+            extra_link.unlink()
+
+            linked_root = root / "linked"
+            linked_root.mkdir(mode=0o700)
+            linked_image = linked_root / "Image.dmg"
+            linked_image.symlink_to(image)
+            linked_request = {**request, "image": str(linked_image)}
+            with self.assertRaisesRegex(TUNNEL.TunnelError, "safe absolute"):
+                TUNNEL.validate_developer_disk_image(linked_request, lock)
+
+    def test_device_ddi_passes_private_values_only_on_stdin(self):
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r6")
+        private_udid = "00008101-1234567890ABCDEF"
+        private_root = Path("/private/operator-ddi")
+        request = {
+            "udid": private_udid,
+            "image": str(private_root / "Image.dmg"),
+            "manifest": str(private_root / "BuildManifest.plist"),
+            "trustcache": str(private_root / "Image.dmg.trustcache"),
+        }
+        stdin = MagicMock()
+        stdin.buffer = io.BytesIO(json.dumps(request).encode("utf-8"))
+        output = io.StringIO()
+        observed = {}
+
+        def execute_helper(command, **options):
+            payload = json.loads(options["input"])
+            observed.update(payload)
+            port_file = Path(options["env"]["XDG_DATA_HOME"]) / TUNNEL.TUNNEL_PORT_ITEM
+            observed["port"] = port_file.read_text(encoding="ascii")
+            observed["mode"] = stat.S_IMODE(port_file.stat().st_mode)
+            return subprocess.CompletedProcess(command, 0)
+
+        arguments = TUNNEL.parser().parse_args(["device-ddi-mount"])
+        with patch.object(
+                TUNNEL, "verify_service_runtime",
+                return_value=(runtime / "bin/node", runtime / "tunnel.mjs")), patch.object(
+                TUNNEL, "load_lock", return_value=TUNNEL.load_lock()), patch.object(
+                TUNNEL, "validate_developer_disk_image",
+                side_effect=lambda value, _lock: (
+                    Path(value["image"]), Path(value["manifest"]),
+                    Path(value["trustcache"]),
+                )), patch.object(
+                TUNNEL.shutil, "copyfile",
+                side_effect=lambda _source, destination: Path(destination).write_bytes(b"fixture")), \
+                patch.object(
+                TUNNEL.sys, "stdin", stdin), patch.object(
+                TUNNEL.subprocess, "run", side_effect=execute_helper) as execute, \
+                redirect_stdout(output):
+            self.assertEqual(0, TUNNEL.device_ddi(arguments))
+        command = " ".join(map(str, execute.call_args.args[0]))
+        for private in (private_udid, *request.values()):
+            self.assertNotIn(private, command + output.getvalue())
+        self.assertEqual("mount", observed["action"])
+        self.assertEqual(private_udid, observed["udid"])
+        self.assertEqual("42314", observed["port"])
+        self.assertEqual(0o600, observed["mode"])
+        self.assertEqual(
+            "PASS: iOS Personalized DDI and XCTest services are ready\n",
+            output.getvalue(),
+        )
+
+    def test_javascript_ddi_helper_binds_mounted_signature_and_xctest_services(self):
+        with tempfile.TemporaryDirectory(prefix="overte-ios-ddi-helper-") as name:
+            runtime = Path(name)
+            helper = runtime / TUNNEL.DEVICE_DDI_FILE.name
+            shutil.copy2(TUNNEL.DEVICE_DDI_FILE, helper)
+            package = runtime / "appium/node_modules/appium-ios-remotexpc"
+            module = package / "build/src/index.js"
+            module.parent.mkdir(parents=True)
+            (package / "package.json").write_text(json.dumps({
+                "name": "appium-ios-remotexpc", "version": "5.15.3", "type": "module",
+            }), encoding="utf-8")
+            operations = runtime / "operations.jsonl"
+            module.write_text(f"""
+import fs from 'node:fs';
+const record = (value) => fs.appendFileSync({json.dumps(str(operations))}, value + '\\n');
+let mounted = process.env.FAKE_MOUNTED === '1';
+const expectedHash = Buffer.from('ab'.repeat(48), 'hex');
+export const Services = {{
+  startMobileImageMounterService: async () => ({{
+    lookup: async () => {{
+      record('lookup');
+      return mounted ? [process.env.FAKE_WRONG_SIGNATURE === '1'
+        ? Buffer.from('wrong') : expectedHash] : [];
+    }},
+    mount: async () => {{ record('mount'); mounted = true; }},
+    cleanup: async () => record('cleanup'),
+  }}),
+}};
+export async function resolveTunnelServicePorts(_udid, services) {{
+  record(`services:${{services.join(',')}}`);
+}}
+""", encoding="utf-8")
+            private_udid = "00008101-1234567890ABCDEF"
+            image_sha384 = "ab" * 48
+            base = {
+                "action": "status", "udid": private_udid,
+                "imageSha384": image_sha384,
+            }
+            status = subprocess.run(
+                ["node", str(helper)], input=json.dumps(base), text=True,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                env={**os.environ, "FAKE_MOUNTED": "1"}, timeout=10, check=False,
+            )
+            self.assertEqual(0, status.returncode, status.stderr)
+            self.assertNotIn(private_udid, status.stdout + status.stderr)
+            lines = operations.read_text(encoding="utf-8").splitlines()
+            self.assertIn(
+                "services:com.apple.dt.testmanagerd.remote,"
+                "com.apple.instruments.dtservicehub", lines,
+            )
+            self.assertEqual("cleanup", lines[-1])
+
+            operations.unlink()
+            mount = subprocess.run(
+                ["node", str(helper)], input=json.dumps({
+                    **base, "action": "mount", "image": "/private/Image.dmg",
+                    "manifest": "/private/BuildManifest.plist",
+                    "trustcache": "/private/Image.dmg.trustcache",
+                }), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                timeout=10, check=False,
+            )
+            self.assertEqual(0, mount.returncode, mount.stderr)
+            self.assertEqual(1, operations.read_text().splitlines().count("mount"))
+
+            rejected = subprocess.run(
+                ["node", str(helper)], input=json.dumps(base), text=True,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                env={**os.environ, "FAKE_MOUNTED": "1", "FAKE_WRONG_SIGNATURE": "1"},
+                timeout=10, check=False,
+            )
+            self.assertEqual(2, rejected.returncode)
+            self.assertNotIn(private_udid, rejected.stdout + rejected.stderr)
+            self.assertEqual("cleanup", operations.read_text().splitlines()[-1])
+
     def test_device_install_revalidates_receipt_and_passes_private_values_only_on_stdin(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r5")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r6")
         with tempfile.TemporaryDirectory(prefix="overte-ios-device-install-") as name:
             root = Path(name)
             overte = root / "Overte.ipa"

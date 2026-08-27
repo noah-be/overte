@@ -248,7 +248,7 @@ sudo python3 tests/device/ios/remotexpc_tunnel.py install-unit \
 Run it only from an audited, quiescent checkout and staging tree. It atomically
 copies the pinned Node executable, package files, complete npm tree, tunnel
 wrapper, and toolchain lock into
-`/usr/local/lib/overte-ios-remotexpc/5.15.3-r5`. The suffix is the immutable
+`/usr/local/lib/overte-ios-remotexpc/5.15.3-r6`. The suffix is the immutable
 Overte packaging revision; the pinned RemoteXPC package remains 5.15.3. Source
 and destination trees are hashed before publication. Every installed file is
 root-owned and immutable. Existing content and modes are only attested, never
@@ -272,10 +272,11 @@ sudo systemctl stop overte-ios-remotexpc.service
 sudo systemctl clean --what=state overte-ios-remotexpc.service
 ```
 
-The immutable copy also contains two deliberately quiet device helpers. Under
+The immutable copy also contains three deliberately quiet device helpers. Under
 the exclusive Jenkins device lock, a signed-IPA target is handled in this exact
-order: revalidate the receipt and both IPA hashes, replace WDA and Overte with
-`device-install`, run `device-preflight`, then create the Appium session. The
+order: attest/mount the pinned Personalized Developer Disk Image, revalidate the
+receipt and both IPA hashes, replace WDA and Overte with `device-install`, run
+`device-preflight`, then create the Appium session. The
 wrapper accepts private values only as JSON on stdin:
 
 ```text
@@ -290,17 +291,30 @@ installs WDA then Overte, and emits only a generic PASS/error. The weaker
 `personal-team-preinstalled` mode never invokes this installer; it observes the
 already installed apps and proceeds directly to the same marker/team preflight.
 
+Physical iOS/iPadOS 17 and newer also requires Apple's Personalized Developer
+Disk Image before WDA can load XCTest. The repository does not redistribute or
+automatically download that Apple payload. The operator keeps exactly
+`Image.dmg`, `BuildManifest.plist`, and `Image.dmg.trustcache` together in one
+external mode-0700 directory, with each file mode 0600. The lock pins the
+operator-supplied payload to DeveloperDiskImage commit
+`5423e4e955fbb3a9eef3e1212acfbfc6e7a26236`, build `27A5228h`, exact sizes,
+SHA-256 values, and manifest SHA-384 bindings. `device-ddi-mount` snapshots the
+validated bytes into an ephemeral private directory, suppresses all TSS and
+device output, and compares the mounted image signature directly to the pinned
+SHA-384 before attesting both XCTest services. Jenkins supplies this
+directory through the private `IOS_DDI_ROOT` parameter.
+
 Attest status without elevation:
 
 ```bash
-python3 /usr/local/lib/overte-ios-remotexpc/5.15.3-r5/remotexpc_tunnel.py status
+python3 /usr/local/lib/overte-ios-remotexpc/5.15.3-r6/remotexpc_tunnel.py status
 ```
 
 Jenkins must also start Appium from the immutable runtime, never from a mutable
 user `node_modules`:
 
 ```bash
-/usr/local/lib/overte-ios-remotexpc/5.15.3-r5/remotexpc_tunnel.py appium-server \
+/usr/local/lib/overte-ios-remotexpc/5.15.3-r6/remotexpc_tunnel.py appium-server \
   --state-root /private/jenkins-job/appium-state \
   --address 127.0.0.1 --port 4723
 ```
@@ -309,6 +323,11 @@ That entry re-attests the whole root-owned tree, fixes `APPIUM_HOME` to an
 ephemeral directory below the absolute, symlink-free, caller-owned mode-0700
 state root, binds only loopback, and forces error-only, color-free logs. It
 copies only the root-attested XCUITest registry and removes the state on exit.
+For fixture-backed physical iOS suites, Jenkins creates the potentially slow
+Appium/WDA session before entering the common module's 60-second operation
+window. `launch-smoke` immediately reuses that persisted session and fails if
+the one controlled Overte launch has exited or changed process identity; it
+does not launch the application a second time.
 Inside a hardened user-systemd namespace, host UID 0 is accepted only when it
 appears as the kernel-configured overflow UID; arbitrary remapped ownership is
 rejected. The exact `/`, `/usr`, `/usr/local`, `/usr/local/lib`, service-root,

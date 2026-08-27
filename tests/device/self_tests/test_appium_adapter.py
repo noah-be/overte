@@ -6,6 +6,7 @@ from __future__ import annotations
 import base64
 from datetime import datetime, timedelta, timezone
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -15,6 +16,7 @@ import time
 import types
 import unittest
 from unittest import mock
+from urllib.error import HTTPError
 
 
 DEVICE_ROOT = Path(__file__).resolve().parents[1]
@@ -222,6 +224,70 @@ class FakeXCUITest:
 
 
 class AppiumAdapterTests(unittest.TestCase):
+    def test_session_creation_has_a_bounded_physical_wda_start_timeout(self) -> None:
+        response = mock.MagicMock()
+        response.headers = {}
+        response.read.return_value = json.dumps({
+            "value": {"sessionId": "fake-session"},
+        }).encode("utf-8")
+        response.__enter__.return_value = response
+        with mock.patch.object(APPIUM, "urlopen", return_value=response) as request:
+            value = APPIUM.WebDriver("http://127.0.0.1:4723").call(
+                "POST", "/session", {})
+        self.assertEqual({"sessionId": "fake-session"}, value)
+        self.assertEqual(
+            APPIUM.WebDriver.SESSION_START_TIMEOUT_SECONDS,
+            request.call_args.kwargs["timeout"],
+        )
+        self.assertLessEqual(APPIUM.WebDriver.SESSION_START_TIMEOUT_SECONDS, 180)
+
+    def test_regular_commands_keep_the_short_timeout(self) -> None:
+        response = mock.MagicMock()
+        response.headers = {}
+        response.read.return_value = b'{"value":{}}'
+        response.__enter__.return_value = response
+        with mock.patch.object(APPIUM, "urlopen", return_value=response) as request:
+            APPIUM.WebDriver("http://127.0.0.1:4723").call(
+                "GET", "/session/fake-session")
+        self.assertEqual(
+            APPIUM.WebDriver.COMMAND_TIMEOUT_SECONDS,
+            request.call_args.kwargs["timeout"],
+        )
+
+    def test_http_error_classifies_wda_launch_without_leaking_response(self) -> None:
+        private_identifier = "00000000-1111-2222-3333-444444444444"
+        body = json.dumps({
+            "value": {
+                "error": "unknown error",
+                "message": (
+                    "Unable to launch WebDriverAgent. Make sure application "
+                    f"com.private.wda.{private_identifier} exists and it is launchable."
+                ),
+            },
+        }).encode("utf-8")
+        error = HTTPError(
+            "http://127.0.0.1:4723/session", 500, "error", {}, io.BytesIO(body))
+        with mock.patch.object(APPIUM, "urlopen", side_effect=error):
+            with self.assertRaisesRegex(
+                    RuntimeError,
+                    r"HTTP 500 \(the preinstalled WebDriverAgent could not be launched\)") as raised:
+                APPIUM.WebDriver("http://127.0.0.1:4723").call("POST", "/session", {})
+        self.assertNotIn(private_identifier, str(raised.exception))
+        self.assertNotIn("com.private", str(raised.exception))
+
+    def test_http_error_does_not_echo_unclassified_response(self) -> None:
+        private_value = "private-device-and-capability-value"
+        body = json.dumps({
+            "value": {"error": "unknown error", "message": private_value},
+        }).encode("utf-8")
+        error = HTTPError(
+            "http://127.0.0.1:4723/session", 500, "error", {}, io.BytesIO(body))
+        with mock.patch.object(APPIUM, "urlopen", side_effect=error):
+            with self.assertRaisesRegex(RuntimeError, r"Appium request failed with HTTP 500") \
+                    as raised:
+                APPIUM.WebDriver("http://127.0.0.1:4723").call("POST", "/session", {})
+        self.assertNotIn(private_value, str(raised.exception))
+
     def adapter_and_session(self) -> tuple[object, FakeXCUITest, dict, dict]:
         target = ios_target()
         client = FakeXCUITest()
