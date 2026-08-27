@@ -24,7 +24,10 @@ import xml.etree.ElementTree as ET
 from urllib.parse import urlsplit
 
 
-SUITES = {"smoke", "e2e-core", "accessibility", "stability", "lifecycle-stability"}
+SUITES = {
+    "smoke", "domain-smoke", "e2e-core", "accessibility", "stability",
+    "lifecycle-stability",
+}
 PUBLIC_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 STAGED_MARKER = ".overte-device-ci-staged"
 EMBEDDED_FIXTURE_URL = "overte-e2e://fixture/scene"
@@ -507,6 +510,7 @@ def self_check() -> int:
     root = workspace()
     commands = [
         [sys.executable, str(root / "tests/device/fixture/serve.py"), "--check"],
+        [sys.executable, str(root / "tests/device/fixture/domain.py"), "--check"],
         [sys.executable, "-m", "unittest", "discover", "-s",
          str(root / "tests/device/self_tests"), "-v"],
         [sys.executable, str(root / "tests/device/jenkins/test_run_ci.py"), "-v"],

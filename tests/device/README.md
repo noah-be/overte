@@ -13,6 +13,7 @@ catalog module -> OverteSession -> adapter operation -> target automation
                                       +-> in-client Overte probe
 
 fixture server -> controlled serverless scene
+domain fixture -> ephemeral domain + assignment-owned marker scene
 runner         -> lock, timeout, cleanup, JSON, JUnit, private artifacts
 Jenkins        -> schedule, device reservation, history, artifact retention
 ```
@@ -29,6 +30,8 @@ assertion failure.
 - `smoke`: stable process launch and foreground state.
 - `e2e-core`: launch, controlled scene load, look, movement, and tablet
   open/close behavior.
+- `domain-smoke`: launch, enter an ephemeral controlled domain, and verify its
+  exact identity and assignment-owned content without restarting Interface.
 - `vertical-locomotion`: one jump with observed ascent and landing, followed by
   bounded flight with observed active ascent. Adapters lacking either input
   capability skip only the corresponding module unless `--require-complete`
@@ -45,6 +48,10 @@ Enable long suites only after the short suites are reliable on the target.
 The `scene`, `look`, `move`, and `tablet` modules use `OverteSession` and verify
 effects through `probe.snapshot`. An input command succeeding is never enough
 to pass a behavior.
+
+`domain-smoke` is fully specified and hardware-free tested, but intentionally
+not advertised by a real adapter yet. Adapter enablement remains a separate
+per-platform acceptance step.
 
 ## Adapter protocol
 
@@ -138,6 +145,13 @@ focus, scene URL/readiness/entity markers, avatar position, `inAir`, `flying`,
 `flyingEnabled`, camera orientation, tablet state, and Overte build identity
 through the existing `Test.saveObject` API.
 
+[`fixture/domain.py`](fixture/domain.py) owns the complementary ephemeral
+domain-server and assignment-client stack. The `domain-smoke` assertion waits
+for the exact `/id` UUID, host, all repository-owned domain markers, stable
+entity samples, foreground state, and unchanged process identity. See
+[`fixture/DOMAIN.md`](fixture/DOMAIN.md) for the local run and environment
+handoff.
+
 ## Running
 
 List a suite without contacting a target:
@@ -169,6 +183,7 @@ Verify the device-free implementation:
 ```bash
 python3 -m unittest discover -s tests/device/self_tests -v
 python3 tests/device/fixture/serve.py --check
+python3 tests/device/fixture/domain.py --check
 ```
 
 Verify a configured adapter, optionally including cleanup idempotency:
