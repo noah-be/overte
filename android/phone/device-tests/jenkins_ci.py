@@ -9,7 +9,12 @@ from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 SHARED_HELPER = REPOSITORY_ROOT / "tests/device/jenkins/run_ci.py"
-VERTICAL_SUITE = "vertical-locomotion"
+PHONE_SUITES = {
+    "lifecycle-stability",
+    "smoke",
+    "stability",
+    "vertical-locomotion",
+}
 
 
 def load_shared_helper():
@@ -23,7 +28,7 @@ def load_shared_helper():
 
 def main() -> int:
     helper = load_shared_helper()
-    helper.SUITES.add(VERTICAL_SUITE)
+    helper.SUITES.update(PHONE_SUITES)
     return helper.main()
 
 

@@ -620,14 +620,21 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
         self.assertIn("physical display DPI is unavailable", result.stderr)
         self.assertEqual([], self.input_commands(self.commands()))
 
-    def test_phone_jenkins_pipeline_is_locked_private_and_phone_only(self):
+    def test_phone_jenkins_pipeline_is_locked_private_and_general_e2e(self):
         source = JENKINSFILE.read_text(encoding="utf-8")
         for required in (
                 "agent { label 'overte-device-interactive' }",
                 "lock(resource: params.DEVICE_RESOURCE.trim()",
                 "withCredentials([string(",
                 "OVERTE_CI_ADAPTER_MANIFEST=android/phone/device-tests/adapter.json",
-                "String suite = 'vertical-locomotion'",
+                "defaultValue: 'android-device-01'",
+                "defaultValue: 'overte-android-device-selector'",
+                "name: 'TEST_SUITE'",
+                "'smoke'",
+                "'vertical-locomotion'",
+                "'lifecycle-stability'",
+                "'stability'",
+                "runPhoneSuite(params.TEST_SUITE)",
                 "OVERTE_ANDROID_PHONE_E2E_INPUT = '1'",
                 "OVERTE_ANDROID_E2E_DEBUG = '1'",
                 "OVERTE_ANDROID_ADB",
@@ -644,8 +651,8 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
         helper = JENKINS_CI.read_text(encoding="utf-8")
         self.assertIn('SHARED_HELPER = REPOSITORY_ROOT / "tests/device/jenkins/run_ci.py"',
                       helper)
-        self.assertIn('VERTICAL_SUITE = "vertical-locomotion"', helper)
-        self.assertIn("helper.SUITES.add(VERTICAL_SUITE)", helper)
+        self.assertIn('"vertical-locomotion"', helper)
+        self.assertIn("helper.SUITES.update(PHONE_SUITES)", helper)
         self.assertNotIn("android/vr", helper)
         self.assertNotIn("appium", helper)
 

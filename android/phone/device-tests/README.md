@@ -90,12 +90,13 @@ or persist flying preferences or any other user setting.
 
 ## Jenkins Phone lab
 
-[`Jenkinsfile`](Jenkinsfile) runs the unchanged `vertical-locomotion` suite
-with this Phone adapter on the generic local device-lab agent. The agent must
-provide a private executable `OVERTE_ANDROID_ADB` Wi-Fi wrapper. Jenkins binds
-only its redacted target alias from Secret Text, reserves the configured
-Lockable Resource, publishes the runner's JUnit and sanitized artifacts, and
-performs locked cleanup after success, failure, or timeout.
-The Phone-scoped [`jenkins_ci.py`](jenkins_ci.py) registers only this suite
-with the shared CI helper; the shared runner and suite implementation remain
-unchanged.
+[`Jenkinsfile`](Jenkinsfile) runs one selected fully supported Phone suite on
+the generic local device-lab agent: `smoke`, `vertical-locomotion`,
+`lifecycle-stability`, or `stability`. The agent must provide a private
+executable, selector-redacting `OVERTE_ANDROID_ADB` wrapper; its transport may
+be USB or Wi-Fi. Jenkins binds only the wrapper's redacted target alias from
+Secret Text, reserves the configured Lockable Resource, publishes the runner's
+JUnit and sanitized artifacts, and performs locked cleanup after success,
+failure, or timeout. The Phone-scoped [`jenkins_ci.py`](jenkins_ci.py)
+registers the supported suite set with the shared CI helper; the shared runner
+and suite implementations remain unchanged.
