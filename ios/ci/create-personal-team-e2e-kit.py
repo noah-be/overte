@@ -24,6 +24,7 @@ from pathlib import Path, PurePosixPath
 
 
 CONTRACT = "overte-ios-personal-team-e2e-kit-v2"
+REUSE_CONTRACT = "overte-ios-reusable-e2e-client-v1"
 OVERTE_BUNDLE_ID = "org.overte.interface.e2e"
 WDA_RUNNER_BUNDLE_ID = "org.overte.WebDriverAgentRunner.xctrunner"
 WDA_XCTEST_BUNDLE_ID = "org.overte.WebDriverAgentRunner"
@@ -193,7 +194,7 @@ def stream_contains(archive: zipfile.ZipFile, entry: zipfile.ZipInfo, marker: by
 
 def validate_overte(
     ipa: Path, integrated_manifest: Path, source_revision: str
-) -> None:
+) -> dict:
     require_regular_file(ipa, "unsigned Overte IPA")
     require_regular_file(integrated_manifest, "unsigned Overte manifest")
     if ipa.stat().st_size > MAX_MEMBER_BYTES:
@@ -252,6 +253,78 @@ def validate_overte(
         )
         if any(name == forbidden[0] or name.startswith(forbidden[1] + "/") for name in names):
             raise ValueError("unsigned Overte IPA contains private signing material")
+    return manifest
+
+
+def validate_overte_reuse(
+    path: Path,
+    assembly_revision: str,
+    ipa: Path,
+    integrated_manifest: Path,
+) -> dict:
+    require_regular_file(path, "Overte reuse provenance")
+    if path.stat().st_size > MAX_PLIST_BYTES:
+        raise ValueError("Overte reuse provenance is too large")
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError("Overte reuse provenance is invalid") from error
+    if not isinstance(value, dict) or set(value) != {
+        "schemaVersion", "contract", "assemblyRevision", "sourceRevision",
+        "provenance", "artifacts",
+    }:
+        raise ValueError("Overte reuse provenance has an invalid schema")
+    provenance = value.get("provenance")
+    artifacts = value.get("artifacts")
+    if (
+        value.get("schemaVersion") != 1
+        or value.get("contract") != REUSE_CONTRACT
+        or value.get("assemblyRevision") != assembly_revision
+        or not isinstance(value.get("sourceRevision"), str)
+        or re.fullmatch(r"[0-9a-f]{40}", value["sourceRevision"]) is None
+        or not isinstance(provenance, dict)
+        or set(provenance) != {
+            "repository", "repositoryId", "workflow", "ref", "runId",
+            "runAttempt", "runNumber", "artifactId", "artifactName",
+            "artifactSize", "artifactCreatedAt", "actionsArchiveSha256",
+        }
+        or provenance.get("repository") != "noah-be/overte"
+        or not isinstance(provenance.get("repositoryId"), int)
+        or provenance["repositoryId"] <= 0
+        or provenance.get("workflow") != ".github/workflows/ios-bootstrap.yml"
+        or provenance.get("ref") != "refs/heads/apple-ios"
+        or provenance.get("runAttempt") != 1
+        or any(not isinstance(provenance.get(key), int)
+               or isinstance(provenance[key], bool) or provenance[key] <= 0
+               for key in ("runId", "runNumber", "artifactId", "artifactSize"))
+        or provenance.get("artifactName") !=
+        f"{provenance.get('runNumber')}-overte-ios-integrated-e2e-unsigned-"
+        f"{provenance.get('runId')}"
+        or not isinstance(provenance.get("artifactCreatedAt"), str)
+        or re.fullmatch(
+            r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z",
+            provenance["artifactCreatedAt"],
+        ) is None
+        or not isinstance(provenance.get("actionsArchiveSha256"), str)
+        or re.fullmatch(r"[0-9a-f]{64}", provenance["actionsArchiveSha256"]) is None
+        or not isinstance(artifacts, dict)
+        or set(artifacts) != {"overte", "integratedManifest"}
+    ):
+        raise ValueError("Overte reuse provenance contract mismatch")
+    for role, candidate in {
+        "overte": ipa,
+        "integratedManifest": integrated_manifest,
+    }.items():
+        metadata = artifacts.get(role)
+        if (
+            not isinstance(metadata, dict)
+            or set(metadata) != {"name", "size", "sha256"}
+            or metadata.get("name") != candidate.name
+            or metadata.get("size") != candidate.stat().st_size
+            or metadata.get("sha256") != sha256_file(candidate)
+        ):
+            raise ValueError("Overte reuse artifact inventory mismatch")
+    return value
 
 
 def is_signing_member(relative: PurePosixPath) -> bool:
@@ -521,6 +594,7 @@ def create_kit(
     run_id: int,
     run_attempt: int,
     rcodesign: Path,
+    overte_reuse_provenance: Path | None = None,
 ) -> dict:
     if re.fullmatch(r"[0-9a-f]{40}", source_revision) is None:
         raise ValueError("source revision must be a lowercase 40-character Git SHA")
@@ -542,7 +616,14 @@ def create_kit(
     if output_dir.exists():
         raise ValueError("output directory must not already exist")
     rcodesign = validate_rcodesign(rcodesign)
-    validate_overte(overte_ipa, overte_manifest, source_revision)
+    reuse = None
+    overte_source_revision = source_revision
+    if overte_reuse_provenance is not None:
+        reuse = validate_overte_reuse(
+            overte_reuse_provenance, source_revision, overte_ipa, overte_manifest
+        )
+        overte_source_revision = reuse["sourceRevision"]
+    validate_overte(overte_ipa, overte_manifest, overte_source_revision)
     output_dir.mkdir(mode=0o755, parents=False)
     overte_output = output_dir / OVERTE_OUTPUT
     wda_output = output_dir / WDA_OUTPUT
@@ -554,7 +635,7 @@ def create_kit(
         payload = {
             "schemaVersion": 1,
             "contract": CONTRACT,
-            "sourceRevision": source_revision,
+            "sourceRevision": overte_source_revision,
             "createdAt": created_at,
             "provenance": {
                 "repository": source_repository,
@@ -565,6 +646,7 @@ def create_kit(
                 "runId": run_id,
                 "runAttempt": run_attempt,
             },
+            "overteArtifactReuse": reuse,
             "xcuitestDriverVersion": XCUITEST_DRIVER_VERSION,
             "webDriverAgentVersion": WDA_VERSION,
             "webDriverAgentCredentialFreeSigning": {
@@ -632,6 +714,7 @@ def main() -> int:
     parser.add_argument("--run-id", type=int, required=True)
     parser.add_argument("--run-attempt", type=int, required=True)
     parser.add_argument("--rcodesign", type=Path, required=True)
+    parser.add_argument("--overte-reuse-provenance", type=Path)
     args = parser.parse_args()
     try:
         create_kit(
@@ -649,6 +732,7 @@ def main() -> int:
             args.run_id,
             args.run_attempt,
             args.rcodesign,
+            args.overte_reuse_provenance,
         )
     except (OSError, ValueError, zipfile.BadZipFile) as error:
         print(f"error: Personal Team E2E kit rejected: {error}", file=sys.stderr)

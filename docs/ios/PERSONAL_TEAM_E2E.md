@@ -36,9 +36,10 @@ WebDriverAgentRunner-16.8.0-PersonalTeam-unsigned.ipa
 personal-team-e2e-kit.json
 ```
 
-The manifest binds both credential-free files by SHA-256 and size to one source
-revision and exact GitHub repository ID, bootstrap/reusable workflow, protected
-ref, run ID and attempt. It also binds XCUITest Driver 12.8.0, WDA 16.8.0, the
+The manifest binds both credential-free files by SHA-256 and size to the real
+Overte source revision and the exact kit-assembly repository ID,
+bootstrap/reusable workflow, protected ref, run ID and attempt. It also binds
+XCUITest Driver 12.8.0, WDA 16.8.0, the
 three fixed identifiers, and the `overte-ios-personal-team-e2e-kit-v2` contract.
 Version 2 is intentionally incompatible with the earlier kit: the pinned
 open-source `rcodesign` 0.29.0 adds a public ad-hoc signature to the nested
@@ -52,6 +53,18 @@ It declares
 `signedBytesDerivableFromUnsignedKit: false`: a re-signing tool changes bundle
 metadata, entitlements, Mach-O signatures, profiles, and archive bytes, so the
 signed result cannot be cryptographically derived from the unsigned hash.
+
+An explicit packaging-only dispatch may reuse one earlier successful unsigned
+Overte E2E artifact instead of recompiling the unchanged Full Client. It never
+selects `latest`: the caller supplies the exact source run and attempt. The
+fetcher requires a completed `workflow_dispatch` run from `apple-ios` in the
+same repository, proves that its source commit is an ancestor of the current
+assembly commit, selects the unique run-number/run-ID artifact, verifies the
+GitHub archive digest, and safely extracts exactly one IPA/manifest pair. The
+manifest records this separate source provenance under `overteArtifactReuse`.
+Legacy integrated artifacts whose names lack an attempt number are accepted
+only from attempt 1. Supplying reuse run `0`, attempt `0` retains the normal
+same-run Full Client build.
 
 ## Variant A: Sideloadly installs directly
 

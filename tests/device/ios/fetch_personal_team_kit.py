@@ -35,6 +35,8 @@ DISPATCH_PATTERNS = {
     "qt_ios_cache_key": r"overte-qt-ios-v2-[A-Za-z0-9._-]{1,190}-contract-[0-9a-f]{64}",
     "qt_host_artifact_prefix": r"overte-qt-host-checkpoint-v1-[0-9a-f]{32}",
     "qt_ios_artifact_prefix": r"overte-qt-ios-checkpoint-v1-[0-9a-f]{32}",
+    "personal_team_overte_reuse_run_id": r"[0-9]+",
+    "personal_team_overte_reuse_run_attempt": r"[0-9]+",
 }
 
 
@@ -78,11 +80,18 @@ def dispatch_inputs(arguments: argparse.Namespace) -> dict[str, str]:
         "qt_ios_cache_key": arguments.qt_ios_cache_key,
         "qt_host_artifact_prefix": arguments.qt_host_artifact_prefix,
         "qt_ios_artifact_prefix": arguments.qt_ios_artifact_prefix,
+        "personal_team_overte_reuse_run_id": str(arguments.overte_reuse_run_id),
+        "personal_team_overte_reuse_run_attempt": str(arguments.overte_reuse_run_attempt),
     }
     for name, pattern in DISPATCH_PATTERNS.items():
         value = values[name]
         if not isinstance(value, str) or not SYNC.re.fullmatch(pattern, value):
             fail(f"Personal-Team dispatch input {name} is invalid")
+    reuse_id = arguments.overte_reuse_run_id
+    reuse_attempt = arguments.overte_reuse_run_attempt
+    if not ((reuse_id == 0 and reuse_attempt == 0)
+            or (reuse_id > 0 and reuse_attempt == 1)):
+        fail("Personal-Team reusable Overte run selection is invalid")
     return values
 
 
@@ -233,7 +242,9 @@ def run(arguments: argparse.Namespace) -> int:
         manifest = CONTRACT.validate_kit(
             output / "personal-team-e2e-kit.json", private=False
         )
-        if (manifest["sourceRevision"] != run["head_sha"]
+        reuse = manifest.get("overteArtifactReuse")
+        if ((reuse is None and manifest["sourceRevision"] != run["head_sha"])
+                or reuse is not None and reuse.get("assemblyRevision") != run["head_sha"]
                 or manifest["provenance"] != {
                     "repository": arguments.repository,
                     "repositoryId": run["repository"]["id"],
@@ -273,6 +284,8 @@ def main() -> int:
     parser.add_argument("--qt-ios-cache-key", default="")
     parser.add_argument("--qt-host-artifact-prefix", default="")
     parser.add_argument("--qt-ios-artifact-prefix", default="")
+    parser.add_argument("--overte-reuse-run-id", type=int, default=0)
+    parser.add_argument("--overte-reuse-run-attempt", type=int, default=0)
     parser.add_argument("--destination", type=Path, required=True)
     try:
         arguments = parser.parse_args()

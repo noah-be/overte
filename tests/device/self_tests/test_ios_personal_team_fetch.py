@@ -18,11 +18,18 @@ from unittest import mock
 
 DEVICE_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = DEVICE_ROOT / "ios" / "fetch_personal_team_kit.py"
+REUSE_SCRIPT = DEVICE_ROOT / "ios" / "fetch_reusable_overte_artifact.py"
 sys.path.insert(0, str(SCRIPT.parent))
 SPEC = importlib.util.spec_from_file_location("fetch_personal_team_kit", SCRIPT)
 assert SPEC and SPEC.loader
 FETCH = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(FETCH)
+REUSE_SPEC = importlib.util.spec_from_file_location(
+    "fetch_reusable_overte_artifact", REUSE_SCRIPT
+)
+assert REUSE_SPEC and REUSE_SPEC.loader
+REUSE = importlib.util.module_from_spec(REUSE_SPEC)
+REUSE_SPEC.loader.exec_module(REUSE)
 
 
 class IosPersonalTeamFetchTest(unittest.TestCase):
@@ -80,6 +87,54 @@ class IosPersonalTeamFetchTest(unittest.TestCase):
         with self.assertRaisesRegex(FETCH.SYNC.HandoffError, "no unique"):
             FETCH.select_artifact({"total_count": 1, "artifacts": [item]}, run)
 
+    def test_reusable_overte_selection_requires_attempt_one_and_exact_artifact(self):
+        run = {
+            "id": 33000393530, "run_attempt": 1, "run_number": 521,
+            "head_sha": "a" * 40, "repository": {"id": 42},
+        }
+        item = {
+            "id": 9619898701,
+            "name": "521-overte-ios-integrated-e2e-unsigned-33000393530",
+            "size_in_bytes": 413495489,
+            "digest": "sha256:" + "1" * 64,
+            "expired": False,
+            "created_at": "2026-08-26T19:17:40Z",
+            "archive_download_url":
+                "https://api.github.com/repos/noah-be/overte/actions/artifacts/"
+                "9619898701/zip",
+            "workflow_run": {
+                "id": 33000393530, "repository_id": 42,
+                "head_repository_id": 42, "head_branch": "apple-ios",
+                "head_sha": "a" * 40,
+            },
+        }
+        api = mock.Mock()
+        api.artifacts.return_value = [item]
+        self.assertIs(item, REUSE.select_artifact(api, run))
+        run["run_attempt"] = 2
+        with self.assertRaisesRegex(REUSE.SYNC.HandoffError, "attempt 1"):
+            REUSE.select_artifact(api, run)
+
+    def test_reusable_overte_extract_rejects_extra_or_traversal_members(self):
+        archive = self.root / "reusable.zip"
+        names = {
+            "0521-OverteIOSClient-Release-device-unsigned.ipa": b"ipa",
+            "0521-OverteIOSClient-Release-device-unsigned.json": b"{}",
+        }
+        with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as output:
+            for name, payload in names.items():
+                output.writestr(name, payload)
+        destination = self.root / "reusable-output"
+        ipa, manifest = REUSE.extract(archive, destination)
+        self.assertEqual(set(names), {ipa.name, manifest.name})
+
+        archive.unlink()
+        with zipfile.ZipFile(archive, "w") as output:
+            output.writestr("../0521-OverteIOSClient-Release-device-unsigned.ipa", b"bad")
+            output.writestr("0521-OverteIOSClient-Release-device-unsigned.json", b"{}")
+        with self.assertRaisesRegex(REUSE.SYNC.HandoffError, "unsafe member"):
+            REUSE.extract(archive, self.root / "rejected-reuse")
+
     def test_private_token_is_api_only_and_removed_on_blob_redirect(self):
         class Response(io.BytesIO):
             def __enter__(self):
@@ -121,6 +176,8 @@ class IosPersonalTeamFetchTest(unittest.TestCase):
             qt_ios_cache_key="overte-qt-ios-v2-b-contract-" + "2" * 64,
             qt_host_artifact_prefix="overte-qt-host-checkpoint-v1-" + "3" * 32,
             qt_ios_artifact_prefix="overte-qt-ios-checkpoint-v1-" + "4" * 32,
+            overte_reuse_run_id=33000393530,
+            overte_reuse_run_attempt=1,
         )
         api = mock.Mock()
         api.dispatch.return_value = 8675309
@@ -134,6 +191,8 @@ class IosPersonalTeamFetchTest(unittest.TestCase):
             "qt_ios_cache_key": arguments.qt_ios_cache_key,
             "qt_host_artifact_prefix": arguments.qt_host_artifact_prefix,
             "qt_ios_artifact_prefix": arguments.qt_ios_artifact_prefix,
+            "personal_team_overte_reuse_run_id": "33000393530",
+            "personal_team_overte_reuse_run_attempt": "1",
         })
         wait.assert_called_once_with(api, 8675309, 1, 3600, 20)
 

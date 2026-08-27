@@ -312,6 +312,12 @@ def assert_workflow_contract() -> None:
     assert "--root \"$KIT_ROOT/security-tools\" --tool rcodesign" in workflow
     assert "--rcodesign \"$KIT_ROOT/security-tools/rcodesign-0.29.0/rcodesign\"" in workflow
     assert "ios-personal-team-e2e-kit-v2-${{ github.run_id }}" in workflow
+    assert "if: inputs.overte_reuse_run_id == 0" in workflow
+    assert "fetch_reusable_overte_artifact.py" in workflow
+    assert "--run-id \"$OVERTE_REUSE_RUN_ID\"" in workflow
+    assert "--run-attempt \"$OVERTE_REUSE_RUN_ATTEMPT\"" in workflow
+    assert "--assembly-revision \"$GITHUB_SHA\"" in workflow
+    assert "--overte-reuse-provenance" in workflow
     assert "appium-webdriveragent\") != \"^16.8.0\"" in workflow
     assert "Overte-PersonalTeam-E2E-unsigned.ipa" in workflow
     assert "WebDriverAgentRunner-16.8.0-PersonalTeam-unsigned.ipa" in workflow
@@ -399,6 +405,7 @@ def assert_tools_contract() -> None:
             signer,
         )
         assert payload["contract"] == "overte-ios-personal-team-e2e-kit-v2"
+        assert payload["overteArtifactReuse"] is None
         assert payload["xcuitestDriverVersion"] == "12.8.0"
         assert payload["webDriverAgentVersion"] == "16.8.0"
         assert payload["webDriverAgentCredentialFreeSigning"] == {

@@ -159,6 +159,15 @@ def create_attestation(
     }
     if not isinstance(kit, dict) or any(kit.get(key) != value for key, value in required.items()):
         raise ValueError("unsigned kit manifest contract mismatch")
+    reuse = kit.get("overteArtifactReuse")
+    if reuse is not None and (
+        not isinstance(reuse, dict)
+        or reuse.get("contract") != "overte-ios-reusable-e2e-client-v1"
+        or reuse.get("sourceRevision") != kit.get("sourceRevision")
+        or not isinstance(reuse.get("assemblyRevision"), str)
+        or re.fullmatch(r"[0-9a-f]{40}", reuse["assemblyRevision"]) is None
+    ):
+        raise ValueError("unsigned kit Overte reuse provenance is invalid")
     provenance = kit.get("provenance")
     if (
         not isinstance(provenance, dict)

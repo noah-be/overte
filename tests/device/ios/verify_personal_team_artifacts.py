@@ -17,6 +17,7 @@ import tempfile
 import zipfile
 
 import verify_fedora_artifacts as VERIFY
+import create_preinstalled_attestation as KIT_CONTRACT_VALIDATOR
 
 
 KIT_CONTRACT = "overte-ios-personal-team-e2e-kit-v2"
@@ -96,7 +97,7 @@ def validate_contracts(arguments: argparse.Namespace) -> tuple[dict, dict, datet
         "schemaVersion", "contract", "sourceRevision", "createdAt",
         "xcuitestDriverVersion", "webDriverAgentVersion", "artifacts",
         "webDriverAgentCredentialFreeSigning", "desiredBundleIdentifiers",
-        "humanSigningBoundary", "upstream", "provenance",
+        "humanSigningBoundary", "upstream", "provenance", "overteArtifactReuse",
     }
     attestation_keys = {
         "schemaVersion", "contract", "createdAt", "notAfter", "sourceRevision",
@@ -123,6 +124,12 @@ def validate_contracts(arguments: argparse.Namespace) -> tuple[dict, dict, datet
         fail("Personal-Team handoff differs from the fixed non-production bundle IDs")
     if kit.get("webDriverAgentCredentialFreeSigning") != WDA_CREDENTIAL_FREE_SIGNING:
         fail("Personal-Team WDA lacks the credential-free nested XCTest signature contract")
+    try:
+        KIT_CONTRACT_VALIDATOR.validate_overte_reuse(
+            kit.get("overteArtifactReuse"), kit["sourceRevision"]
+        )
+    except ValueError as error:
+        fail(str(error))
     provenance = kit.get("provenance")
     if (not isinstance(provenance, dict) or set(provenance) != {
             "repository", "repositoryId", "workflow", "reusableWorkflow", "ref",
