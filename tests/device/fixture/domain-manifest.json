@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "bootstrapScript": "domain_content_agent.js",
+  "expectedEntityCount": 4,
+  "requiredMarkers": [
+    "OVERTE_E2E_DOMAIN_EAST",
+    "OVERTE_E2E_DOMAIN_FLOOR",
+    "OVERTE_E2E_DOMAIN_NORTH",
+    "OVERTE_E2E_DOMAIN_ORIGIN"
+  ],
+  "spawnPath": "/0.0,2.0,4.0/0,0,0,1",
+  "spawnPosition": {"x": 0.0, "y": 2.0, "z": 4.0},
+  "minimumFloorThickness": 0.5,
+  "externalResources": false
+}
