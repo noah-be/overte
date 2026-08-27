@@ -62,6 +62,10 @@ that parent can use the same implementation without importing a child backend.
   and `flying=true`.
 - Tablet: both open and closed state transitions are observed in Interface,
   not inferred from a successful click, key, or gesture command.
+- Sound: fixture request telemetry, decoded `SoundObject` readiness, two fresh
+  active injector samples, regular finish or stop, and stable process identity
+  are all required. This is an in-client proof, not a physical-output proof;
+  see [`SOUND_E2E.md`](SOUND_E2E.md).
 - Launch and soak: process identity remains stable and foreground state is
   observed throughout the selected sequence.
 - Domain entry: the probe reports the fixture's exact UUID and host, leaves

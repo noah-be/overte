@@ -5,7 +5,7 @@
       "id": "launch-smoke",
       "description": "Launch the application and verify a stable foreground process.",
       "command": ["modules/launch_smoke.py"],
-      "suites": ["domain-smoke", "e2e-core", "smoke", "stability", "vertical-locomotion"],
+      "suites": ["domain-smoke", "e2e-core", "smoke", "sound-smoke", "stability", "vertical-locomotion"],
       "requires": ["app.foreground", "app.launch", "app.process"],
       "timeoutSeconds": 120
     },
@@ -24,6 +24,14 @@
       "suites": ["domain-smoke"],
       "requires": ["app.foreground", "app.process", "navigation.enter-domain", "probe.snapshot"],
       "timeoutSeconds": 180
+    },
+    {
+      "id": "sound-playback",
+      "description": "Load and decode the controlled WAV and observe a stable in-client injector lifecycle.",
+      "command": ["modules/sound_playback.py"],
+      "suites": ["sound-smoke"],
+      "requires": ["app.process", "probe.snapshot", "sound.play"],
+      "timeoutSeconds": 120
     },
     {
       "id": "look",

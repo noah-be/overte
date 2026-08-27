@@ -11,6 +11,25 @@
     var previousAvatarPosition = null;
     var sceneReady = false;
     var previousLocationKey = "";
+    var sampleSequence = 0;
+    var soundCommandRequestPending = false;
+    var lastSoundControlCommandId = "";
+    var soundResource = null;
+    var soundInjector = null;
+    var soundStopRequested = false;
+    var soundState = {
+        commandId: "",
+        url: "",
+        commandObserved: false,
+        resourceReady: false,
+        durationSeconds: 0.0,
+        format: "unknown",
+        injectorCreated: false,
+        started: false,
+        playing: false,
+        finished: false,
+        finishReason: "none"
+    };
     var fixtureMarkers = ["OVERTE_E2E_FLOOR", "OVERTE_E2E_NORTH", "OVERTE_E2E_EAST", "OVERTE_E2E_ORIGIN"];
     var domainMarkers = ["OVERTE_E2E_DOMAIN_FLOOR", "OVERTE_E2E_DOMAIN_NORTH",
         "OVERTE_E2E_DOMAIN_EAST", "OVERTE_E2E_DOMAIN_ORIGIN"];
@@ -31,7 +50,107 @@
         };
     }
 
+    function soundFormat(url) {
+        return String(url).split("?", 1)[0].toLowerCase().slice(-4) === ".wav"
+            ? "wav" : "unknown";
+    }
+
+    function startSound(command) {
+        if (soundInjector && soundInjector.playing) {
+            soundInjector.stop();
+        }
+        soundResource = null;
+        soundInjector = null;
+        soundStopRequested = false;
+        soundState = {
+            commandId: String(command.commandId),
+            url: String(command.soundUrl),
+            commandObserved: true,
+            resourceReady: false,
+            durationSeconds: 0.0,
+            format: soundFormat(command.soundUrl),
+            injectorCreated: false,
+            started: false,
+            playing: false,
+            finished: false,
+            finishReason: "none"
+        };
+        soundResource = SoundCache.getSound(soundState.url);
+
+        function playReadySound() {
+            if (!soundResource || soundState.commandId !== String(command.commandId)) {
+                return;
+            }
+            soundState.resourceReady = Boolean(soundResource.downloaded);
+            soundState.durationSeconds = Number(soundResource.duration);
+            if (!soundState.resourceReady || soundState.durationSeconds <= 0.0) {
+                return;
+            }
+            soundInjector = Audio.playSound(soundResource, {
+                localOnly: true,
+                volume: 0.1
+            });
+            soundState.injectorCreated = Boolean(soundInjector);
+            if (soundInjector) {
+                soundInjector.finished.connect(function () {
+                    soundState.playing = false;
+                    soundState.finished = true;
+                    soundState.finishReason = soundStopRequested ? "stopped" : "natural";
+                });
+            }
+        }
+
+        if (soundResource.downloaded) {
+            playReadySound();
+        } else {
+            soundResource.ready.connect(playReadySound);
+        }
+    }
+
+    function applySoundCommand(command) {
+        if (!command || command.schemaVersion !== 1 || !command.commandId
+                || command.commandId === lastSoundControlCommandId) {
+            return;
+        }
+        lastSoundControlCommandId = String(command.commandId);
+        if (command.action === "play" && command.soundUrl) {
+            startSound(command);
+        } else if (command.action === "stop" && soundInjector) {
+            soundStopRequested = true;
+            soundInjector.stop();
+        }
+    }
+
+    function safeErrorText(error) {
+        return String(error && error.message ? error.message : error)
+            .replace(/[\r\n]+/g, " ").slice(0, 160);
+    }
+
+    function pollSoundCommand() {
+        if (soundCommandRequestPending) {
+            return;
+        }
+        soundCommandRequestPending = true;
+        var request = new XMLHttpRequest();
+        request.onreadystatechange = function () {
+            if (request.readyState !== request.DONE) {
+                return;
+            }
+            soundCommandRequestPending = false;
+            if (request.status === 200) {
+                try {
+                    applySoundCommand(JSON.parse(request.responseText));
+                } catch (error) {
+                    print("OVERTE_E2E_SOUND_COMMAND_ERROR " + safeErrorText(error));
+                }
+            }
+        };
+        request.open("GET", Script.resolvePath("sound-command.json"));
+        request.send();
+    }
+
     function sample() {
+        pollSoundCommand();
         var currentAddress = String(location.href);
         var currentLocationKey = [String(location.protocol), String(location.hostname),
             String(location.domainID)].join("|");
@@ -89,9 +208,17 @@
             sceneReady = true;
         }
         var orientation = Quat.safeEulerAngles(Camera.orientation);
+        if (soundInjector && !soundState.finished) {
+            soundState.playing = Boolean(soundInjector.playing);
+            if (soundState.playing) {
+                soundState.started = true;
+            }
+        }
+        sampleSequence += 1;
         Test.saveObject({
             schemaVersion: 1,
             sampleEpochMs: Date.now(),
+            sampleSequence: sampleSequence,
             build: {
                 platform: String(About.platform),
                 version: String(About.buildVersion),
@@ -135,6 +262,19 @@
                 open: Boolean(tablet.tabletShown),
                 home: Boolean(tablet.onHomeScreen()),
                 toolbarMode: Boolean(tablet.toolbarMode)
+            },
+            sound: {
+                commandId: soundState.commandId,
+                url: soundState.url,
+                commandObserved: soundState.commandObserved,
+                resourceReady: soundState.resourceReady,
+                durationSeconds: soundState.durationSeconds,
+                format: soundState.format,
+                injectorCreated: soundState.injectorCreated,
+                started: soundState.started,
+                playing: soundState.playing,
+                finished: soundState.finished,
+                finishReason: soundState.finishReason
             }
         }, "overte-probe.json");
     }

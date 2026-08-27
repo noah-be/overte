@@ -7,6 +7,7 @@
   "properties": {
     "schemaVersion": {"const": 1},
     "sampleEpochMs": {"type": "integer", "minimum": 1},
+    "sampleSequence": {"type": "integer", "minimum": 1},
     "build": {
       "type": "object",
       "required": ["platform", "version", "date"],
@@ -79,6 +80,24 @@
       "type": "object",
       "required": ["open"],
       "properties": {"open": {"type": "boolean"}}
+    },
+    "sound": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commandId", "url", "commandObserved", "resourceReady", "durationSeconds", "format", "injectorCreated", "started", "playing", "finished", "finishReason"],
+      "properties": {
+        "commandId": {"type": "string"},
+        "url": {"type": "string"},
+        "commandObserved": {"type": "boolean"},
+        "resourceReady": {"type": "boolean"},
+        "durationSeconds": {"type": "number", "minimum": 0},
+        "format": {"enum": ["unknown", "wav"]},
+        "injectorCreated": {"type": "boolean"},
+        "started": {"type": "boolean"},
+        "playing": {"type": "boolean"},
+        "finished": {"type": "boolean"},
+        "finishReason": {"enum": ["none", "natural", "stopped"]}
+      }
     }
   },
   "$defs": {
