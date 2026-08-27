@@ -90,7 +90,7 @@ def runDeviceSuite(String suite, int timeoutMinutes) {
 }
 
 pipeline {
-    agent { label 'overte-ios-fedora-device' }
+    agent { label 'overte-device-interactive' }
 
     options {
         timeout(time: 8, unit: 'HOURS')

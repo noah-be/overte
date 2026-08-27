@@ -545,7 +545,7 @@ class JenkinsGlueTest(unittest.TestCase):
     def test_jenkinsfile_has_required_safety_layers(self):
         source = (HERE / "Jenkinsfile").read_text(encoding="utf-8")
         for expected in (
-            "agent { label 'overte-ios-fedora-device' }",
+            "agent { label 'overte-device-interactive' }",
             "lock(resource:",
             "withCredentials([string(",
             "timeout(time:",

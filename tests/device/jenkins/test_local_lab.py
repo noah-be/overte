@@ -65,7 +65,7 @@ class LocalLabBootstrapTest(unittest.TestCase):
             LAB.render_casc(values)
             rendered = values["casc"].read_text(encoding="utf-8")
             self.assertNotIn("not-embedded-in-yaml", rendered)
-            self.assertIn("overte-ios-fedora-device", rendered)
+            self.assertIn("overte-device-interactive", rendered)
             self.assertIn(values["password"].as_posix(), rendered)
             self.assertIn(values["agentRoot"].as_posix(), rendered)
             self.assertNotIn("__OVERTE_", rendered)

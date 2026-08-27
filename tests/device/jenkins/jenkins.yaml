@@ -26,7 +26,7 @@ jenkins:
         remoteFS: "__OVERTE_AGENT_ROOT__"
         numExecutors: 1
         mode: EXCLUSIVE
-        labelString: "overte-ios-fedora-device"
+        labelString: "overte-device-interactive"
         launcher:
           inbound:
             webSocket: true
