@@ -24,6 +24,15 @@ from contracts import validate_operation_arguments, validate_probe_snapshot  # n
 
 
 class AssetLoadTest(unittest.TestCase):
+    def test_only_desktop_real_adapter_advertises_asset_load(self):
+        for path in (DEVICE_ROOT / "adapters").rglob("*"):
+            if (not path.is_file() or path.suffix not in {".py", ".json"}
+                    or "mock" in path.parts or "desktop_oculix" in path.parts):
+                continue
+            self.assertNotIn("asset.load", path.read_text(encoding="utf-8"), str(path))
+        desktop = DEVICE_ROOT / "adapters/desktop_oculix/adapter.py"
+        self.assertIn("asset.load", desktop.read_text(encoding="utf-8"))
+
     @classmethod
     def setUpClass(cls):
         cls.fixture_temporary = tempfile.TemporaryDirectory(prefix="overte-asset-fixture-")

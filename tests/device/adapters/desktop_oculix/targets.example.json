@@ -19,7 +19,8 @@
       "waylandInputDaemonSha256": "0000000000000000000000000000000000000000000000000000000000000000",
       "waylandInputPortalTimeoutSeconds": 300,
       "desktopSize": {"width": 1920, "height": 1080},
-      "probe": {"kind": "injected-test-script"}
+      "probe": {"kind": "injected-test-script"},
+      "clientControl": {"kind": "probe-command-file"}
     },
     {
       "selector": "linux-desktop-headless-01",
@@ -60,7 +61,8 @@
       "screenshotExecutable": "${IMAGEMAGICK_EXECUTABLE}",
       "screenshotSha256": "0000000000000000000000000000000000000000000000000000000000000000",
       "screenshotArguments": ["import"],
-      "probe": {"kind": "injected-test-script"}
+      "probe": {"kind": "injected-test-script"},
+      "clientControl": {"kind": "probe-command-file"}
     },
     {
       "selector": "windows-desktop-01",
@@ -75,7 +77,8 @@
       "oculixSha256": "0000000000000000000000000000000000000000000000000000000000000000",
       "javaExecutable": "java.exe",
       "javaArguments": [],
-      "probe": {"kind": "injected-test-script"}
+      "probe": {"kind": "injected-test-script"},
+      "clientControl": {"kind": "probe-command-file"}
     },
     {
       "selector": "macos-desktop-01",
@@ -90,7 +93,8 @@
       "oculixSha256": "0000000000000000000000000000000000000000000000000000000000000000",
       "javaExecutable": "java",
       "javaArguments": [],
-      "probe": {"kind": "injected-test-script"}
+      "probe": {"kind": "injected-test-script"},
+      "clientControl": {"kind": "probe-command-file"}
     }
   ]
 }
