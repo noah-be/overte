@@ -110,8 +110,13 @@ resource.
   `input.fly` then produces configurable height gain with both `inAir=true`
   and `flying=true`.
 - Tablet: both open and closed state transitions are observed in Interface,
-  not inferred from a successful click/key command.
-- Launch/soak: process identity remains stable and foreground state is observed.
+  not inferred from a successful click, key, or gesture command.
+- Sound: fixture request telemetry, decoded `SoundObject` readiness, two fresh
+  active injector samples, regular finish or stop, and stable process identity
+  are all required. This is an in-client proof, not a physical-output proof;
+  see [`SOUND_E2E.md`](SOUND_E2E.md).
+- Launch and soak: process identity remains stable and foreground state is
+  observed throughout the selected sequence.
 - Domain entry: the probe reports the fixture's exact UUID and host, leaves
   serverless mode, observes the complete assignment-owned marker set for
   consecutive stable samples, and retains foreground/process identity.

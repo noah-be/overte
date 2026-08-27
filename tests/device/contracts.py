@@ -80,6 +80,39 @@ def validate_operation_arguments(operation: str, value: object) -> dict:
                 or parsed.query or parsed.fragment):
             raise ValueError(
                 "navigation.enter-domain requires a credential-free hifi URL with explicit port")
+    elif operation == "asset.load":
+        if set(value) != {"assetId", "url", "entityName"}:
+            raise ValueError("asset.load requires only assetId, url and entityName")
+        asset_id = value["assetId"]
+        url = value["url"]
+        entity_name = value["entityName"]
+        if not isinstance(asset_id, str) or not IDENTIFIER.fullmatch(asset_id):
+            raise ValueError("asset.load assetId must be a lowercase identifier")
+        if (not isinstance(entity_name, str)
+                or not entity_name.startswith("OVERTE_E2E_ASSET_LOAD")):
+            raise ValueError("asset.load entityName must use the controlled prefix")
+        if not isinstance(url, str):
+            raise ValueError("asset.load url must be an absolute HTTP URL")
+        parsed = urlsplit(url)
+        if (parsed.scheme not in {"http", "https"} or not parsed.netloc
+                or parsed.username is not None or parsed.password is not None
+                or parsed.fragment):
+            raise ValueError("asset.load url must be an absolute HTTP URL")
+    elif operation == "sound.play":
+        if set(value) != {"schemaVersion", "commandId", "url", "commandUrl"}:
+            raise ValueError("sound.play requires only its versioned command fields")
+        command_id = value.get("commandId")
+        if (value.get("schemaVersion") != 1 or not isinstance(command_id, str)
+                or not command_id or len(command_id) > 128
+                or command_id.strip() != command_id):
+            raise ValueError("sound.play requires schema version 1 and a bounded commandId")
+        for field in ("url", "commandUrl"):
+            url = value.get(field)
+            parsed = urlsplit(url) if isinstance(url, str) else None
+            if (parsed is None or parsed.scheme not in {"http", "https"}
+                    or not parsed.hostname or parsed.username is not None
+                    or parsed.password is not None):
+                raise ValueError(f"sound.play {field} must be an absolute HTTP(S) URL")
     return value
 
 
@@ -226,4 +259,66 @@ def validate_probe_snapshot(value: object) -> dict:
                     and math.isfinite(float(rotation[axis]))
                     for axis in ("x", "y", "z", "w")):
                 raise ValueError(f"probe controller pose {hand} requires finite rotation")
+    asset = value.get("asset")
+    if asset is not None:
+        if not isinstance(asset, dict):
+            raise ValueError("probe asset must be an object or null")
+        asset_id = asset.get("assetId")
+        resource = asset.get("resource")
+        entity = asset.get("entity")
+        if not isinstance(asset_id, str) or not asset_id:
+            raise ValueError("probe asset requires a non-empty assetId")
+        if not isinstance(resource, dict):
+            raise ValueError("probe asset requires resource evidence")
+        resource_url = resource.get("url")
+        if not isinstance(resource_url, str) or "://" not in resource_url:
+            raise ValueError("probe asset resource requires an absolute URL")
+        if resource.get("state") not in {"queued", "loading", "loaded", "finished", "failed"}:
+            raise ValueError("probe asset resource has an invalid state")
+        if not isinstance(entity, dict):
+            raise ValueError("probe asset requires entity evidence")
+        if (not isinstance(entity.get("id"), str) or not entity["id"]
+                or not isinstance(entity.get("name"), str) or not entity["name"]
+                or entity.get("type") != "Image"):
+            raise ValueError("probe asset entity requires id, name and Image type")
+        image_url = entity.get("imageURL")
+        if not isinstance(image_url, str) or image_url != resource_url:
+            raise ValueError("probe asset entity imageURL must match the resource URL")
+        dimensions = entity.get("naturalDimensions")
+        if not isinstance(dimensions, dict) or not all(
+                isinstance(dimensions.get(axis), (int, float))
+                and not isinstance(dimensions.get(axis), bool)
+                and math.isfinite(float(dimensions[axis]))
+                for axis in ("x", "y", "z")):
+            raise ValueError("probe asset entity requires finite naturalDimensions")
+    sound = value.get("sound")
+    if sound is not None:
+        if not isinstance(sound, dict):
+            raise ValueError("probe sound must be an object")
+        boolean_fields = ("commandObserved", "resourceReady", "injectorCreated",
+                          "started", "playing", "finished")
+        if not all(isinstance(sound.get(field), bool) for field in boolean_fields):
+            raise ValueError("probe sound state flags must be boolean")
+        if (not isinstance(sound.get("commandId"), str)
+                or not isinstance(sound.get("url"), str)
+                or sound.get("format") not in {"unknown", "wav"}
+                or sound.get("finishReason") not in {"none", "natural", "stopped"}):
+            raise ValueError("probe sound identifiers or enums are invalid")
+        duration = sound.get("durationSeconds")
+        if (not isinstance(duration, (int, float)) or isinstance(duration, bool)
+                or not math.isfinite(float(duration)) or duration < 0.0):
+            raise ValueError("probe sound durationSeconds must be finite and non-negative")
+        if sound["commandObserved"] and (not sound["commandId"] or "://" not in sound["url"]):
+            raise ValueError("probe sound observed command requires an ID and absolute URL")
+        if sound["resourceReady"] and duration <= 0.0:
+            raise ValueError("probe sound ready resource requires a positive duration")
+        if sound["injectorCreated"] and not sound["resourceReady"]:
+            raise ValueError("probe sound injector requires a ready resource")
+        if sound["playing"] and (not sound["injectorCreated"] or not sound["started"]):
+            raise ValueError("probe sound playing state requires a started injector")
+        if sound["finished"] and (sound["playing"] or not sound["started"]
+                                  or sound["finishReason"] == "none"):
+            raise ValueError("probe sound finished state is inconsistent")
+        if not sound["finished"] and sound["finishReason"] != "none":
+            raise ValueError("probe sound unfinished state cannot have a finish reason")
     return value

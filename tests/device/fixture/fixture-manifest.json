@@ -11,5 +11,27 @@
     "OVERTE_E2E_NORTH",
     "OVERTE_E2E_ORIGIN"
   ],
-  "externalResources": false
+  "externalResources": false,
+  "asset": {
+    "id": "texture-rgb-3x1-v1",
+    "route": "/assets/asset-load-texture.png",
+    "source": "asset-load-texture.png.base64",
+    "encoding": "base64",
+    "contentType": "image/png",
+    "sha256": "dc9ac26e9ea44a71a847262dc727c9b48b9b3852f85c5995e47a07579b448448",
+    "bytes": 88,
+    "width": 3,
+    "height": 1,
+    "entityName": "OVERTE_E2E_ASSET_LOAD"
+  },
+  "sound": {
+    "path": "audio/overte-e2e-tone.wav",
+    "sha256": "e9492f9ed0356257540e6295e1928d9561ff11db1866087d7921f62ea0d3ebd5",
+    "mimeType": "audio/wav",
+    "sampleRate": 8000,
+    "channels": 1,
+    "bitsPerSample": 16,
+    "durationSeconds": 2.0,
+    "frequencyHz": 440.0
+  }
 }
