@@ -19,6 +19,16 @@ on:
         description: Durable audited Qt 6 iOS artifact namespace
         required: true
         type: string
+      overte_reuse_run_id:
+        description: Explicit prior successful apple-ios run containing the unsigned E2E client
+        required: false
+        type: number
+        default: 0
+      overte_reuse_run_attempt:
+        description: Exact prior run attempt; legacy artifacts require attempt 1
+        required: false
+        type: number
+        default: 0
 
 permissions:
   contents: read
@@ -46,6 +56,8 @@ jobs:
           QT_IOS_CACHE_KEY: ${{ inputs.qt_ios_cache_key }}
           QT_HOST_ARTIFACT_PREFIX: ${{ inputs.qt_host_artifact_prefix }}
           QT_IOS_ARTIFACT_PREFIX: ${{ inputs.qt_ios_artifact_prefix }}
+          OVERTE_REUSE_RUN_ID: ${{ inputs.overte_reuse_run_id }}
+          OVERTE_REUSE_RUN_ATTEMPT: ${{ inputs.overte_reuse_run_attempt }}
         run: |
           set -euo pipefail
           [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]
@@ -57,10 +69,16 @@ jobs:
           [[ "$QT_IOS_CACHE_KEY" =~ ^overte-qt-ios-v2-[A-Za-z0-9._-]{1,190}-contract-[0-9a-f]{64}$ ]]
           [[ "$QT_HOST_ARTIFACT_PREFIX" =~ ^overte-qt-host-checkpoint-v1-[0-9a-f]{32}$ ]]
           [[ "$QT_IOS_ARTIFACT_PREFIX" =~ ^overte-qt-ios-checkpoint-v1-[0-9a-f]{32}$ ]]
+          [[ "$OVERTE_REUSE_RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$OVERTE_REUSE_RUN_ATTEMPT" =~ ^[0-9]+$ ]]
+          if (( OVERTE_REUSE_RUN_ID > 0 || OVERTE_REUSE_RUN_ATTEMPT > 0 )); then
+            (( OVERTE_REUSE_RUN_ID > 0 && OVERTE_REUSE_RUN_ATTEMPT == 1 ))
+          fi
 
   unsigned-e2e-client:
     name: Build unsigned Overte E2E Full Client
     needs: authorize-source
+    if: inputs.overte_reuse_run_id == 0
     uses: ./.github/workflows/ios-integrated.yml
     permissions:
       actions: write
@@ -76,7 +94,11 @@ jobs:
 
   package-unsigned-kit:
     name: Package unsigned Overte and WebDriverAgent kit
-    needs: unsigned-e2e-client
+    needs: [authorize-source, unsigned-e2e-client]
+    if: >-
+      always() &&
+      needs.authorize-source.result == 'success' &&
+      (inputs.overte_reuse_run_id > 0 || needs.unsigned-e2e-client.result == 'success')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -104,10 +126,26 @@ jobs:
           [[ "$WDA_VERSION" == "16.8.0" ]]
 
       - name: Download exact same-run unsigned Overte artifact
+        if: inputs.overte_reuse_run_id == 0
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ${{ github.run_number }}-overte-ios-integrated-e2e-unsigned-${{ github.run_id }}
           path: ${{ env.KIT_ROOT }}/integrated
+
+      - name: Download exact prior-run unsigned Overte artifact
+        if: inputs.overte_reuse_run_id > 0
+        env:
+          OVERTE_GITHUB_TOKEN: ${{ github.token }}
+          OVERTE_REUSE_RUN_ID: ${{ inputs.overte_reuse_run_id }}
+          OVERTE_REUSE_RUN_ATTEMPT: ${{ inputs.overte_reuse_run_attempt }}
+        run: |
+          set -euo pipefail
+          python3 tests/device/ios/fetch_reusable_overte_artifact.py \
+            --repository "$GITHUB_REPOSITORY" \
+            --run-id "$OVERTE_REUSE_RUN_ID" \
+            --run-attempt "$OVERTE_REUSE_RUN_ATTEMPT" \
+            --assembly-revision "$GITHUB_SHA" \
+            --destination "$KIT_ROOT/integrated"
 
       - name: Download and verify WebDriverAgent 16.8.0
         run: |
@@ -183,6 +221,11 @@ jobs:
             exit 1
           fi
           created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          reuse_args=()
+          if [[ -f "$KIT_ROOT/integrated/overte-reuse-provenance.json" ]]; then
+            reuse_args=(--overte-reuse-provenance \
+              "$KIT_ROOT/integrated/overte-reuse-provenance.json")
+          fi
           python3 ios/ci/create-personal-team-e2e-kit.py \
             --overte-ipa "${ipas[0]}" \
             --overte-manifest "${manifests[0]}" \
@@ -197,7 +240,8 @@ jobs:
             --reusable-workflow .github/workflows/ios-personal-team-e2e-kit.yml \
             --run-id "$GITHUB_RUN_ID" \
             --run-attempt "$GITHUB_RUN_ATTEMPT" \
-            --rcodesign "$KIT_ROOT/security-tools/rcodesign-0.29.0/rcodesign"
+            --rcodesign "$KIT_ROOT/security-tools/rcodesign-0.29.0/rcodesign" \
+            "${reuse_args[@]}"
 
       - name: Upload public unsigned Personal Team kit
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0

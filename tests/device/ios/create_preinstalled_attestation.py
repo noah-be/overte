@@ -36,6 +36,7 @@ TOOLCHAIN = {
     "webdriverAgent": "16.8.0",
 }
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+REUSE_CONTRACT = "overte-ios-reusable-e2e-client-v1"
 
 
 def fail(message: str) -> "NoReturn":
@@ -48,6 +49,61 @@ def sha256_file(path: Path) -> str:
         while block := source.read(1024 * 1024):
             digest.update(block)
     return digest.hexdigest()
+
+
+def validate_overte_reuse(value: object, source_revision: str) -> None:
+    if value is None:
+        return
+    if not isinstance(value, dict) or set(value) != {
+        "schemaVersion", "contract", "assemblyRevision", "sourceRevision",
+        "provenance", "artifacts",
+    }:
+        fail("unsigned kit Overte reuse provenance is invalid")
+    provenance = value.get("provenance")
+    artifacts = value.get("artifacts")
+    if (
+        value.get("schemaVersion") != 1
+        or value.get("contract") != REUSE_CONTRACT
+        or value.get("sourceRevision") != source_revision
+        or not isinstance(value.get("assemblyRevision"), str)
+        or re.fullmatch(r"[0-9a-f]{40}", value["assemblyRevision"]) is None
+        or not isinstance(provenance, dict)
+        or set(provenance) != {
+            "repository", "repositoryId", "workflow", "ref", "runId",
+            "runAttempt", "runNumber", "artifactId", "artifactName",
+            "artifactSize", "artifactCreatedAt", "actionsArchiveSha256",
+        }
+        or provenance.get("repository") != "noah-be/overte"
+        or provenance.get("workflow") != ".github/workflows/ios-bootstrap.yml"
+        or provenance.get("ref") != "refs/heads/apple-ios"
+        or provenance.get("runAttempt") != 1
+        or any(not isinstance(provenance.get(key), int)
+               or isinstance(provenance[key], bool) or provenance[key] <= 0
+               for key in ("repositoryId", "runId", "runNumber", "artifactId",
+                           "artifactSize"))
+        or provenance.get("artifactName") !=
+        f"{provenance.get('runNumber')}-overte-ios-integrated-e2e-unsigned-"
+        f"{provenance.get('runId')}"
+        or not isinstance(provenance.get("artifactCreatedAt"), str)
+        or re.fullmatch(
+            r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z",
+            provenance["artifactCreatedAt"],
+        ) is None
+        or not isinstance(provenance.get("actionsArchiveSha256"), str)
+        or re.fullmatch(r"[0-9a-f]{64}", provenance["actionsArchiveSha256"]) is None
+        or not isinstance(artifacts, dict)
+        or set(artifacts) != {"overte", "integratedManifest"}
+    ):
+        fail("unsigned kit Overte reuse provenance is invalid")
+    for metadata in artifacts.values():
+        if (not isinstance(metadata, dict)
+                or set(metadata) != {"name", "size", "sha256"}
+                or not isinstance(metadata.get("name"), str)
+                or not isinstance(metadata.get("size"), int)
+                or isinstance(metadata["size"], bool) or metadata["size"] <= 0
+                or not isinstance(metadata.get("sha256"), str)
+                or re.fullmatch(r"[0-9a-f]{64}", metadata["sha256"]) is None):
+            fail("unsigned kit Overte reuse inventory is invalid")
 
 
 def inside_repository(path: Path) -> bool:
@@ -74,7 +130,7 @@ def validate_kit(path: Path, *, private: bool = True) -> dict:
         "schemaVersion", "contract", "sourceRevision", "createdAt", "provenance",
         "xcuitestDriverVersion", "webDriverAgentVersion", "desiredBundleIdentifiers",
         "webDriverAgentCredentialFreeSigning", "humanSigningBoundary", "upstream",
-        "artifacts",
+        "artifacts", "overteArtifactReuse",
     }
     provenance = value.get("provenance") if isinstance(value, dict) else None
     artifacts = value.get("artifacts") if isinstance(value, dict) else None
@@ -126,6 +182,7 @@ def validate_kit(path: Path, *, private: bool = True) -> dict:
                 or not isinstance(artifact.get("size"), int)
                 or isinstance(artifact["size"], bool) or artifact["size"] <= 0):
             fail("unsigned kit artifact inventory is invalid")
+    validate_overte_reuse(value.get("overteArtifactReuse"), value["sourceRevision"])
     return value
 
 

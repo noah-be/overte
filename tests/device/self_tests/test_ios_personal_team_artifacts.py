@@ -93,6 +93,7 @@ class IosPersonalTeamArtifactsTest(unittest.TestCase):
                 "38ec705d6fa2c7825513adbc9406d4fda5d6a084a8d3980ceff9a265e62f9623",
             },
             "artifacts": {"overte": unsigned_overte, "webDriverAgent": unsigned_wda},
+            "overteArtifactReuse": None,
         }
         self.kit.write_text(json.dumps(kit), encoding="utf-8")
         self.kit.chmod(0o600)
