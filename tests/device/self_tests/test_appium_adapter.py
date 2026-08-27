@@ -224,6 +224,15 @@ class FakeXCUITest:
 
 
 class AppiumAdapterTests(unittest.TestCase):
+    def test_ios_runtime_revision_matches_the_toolchain_lock(self) -> None:
+        lock = json.loads(
+            (DEVICE_ROOT / "ios" / "toolchain.lock.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            lock["serviceRuntimeRevision"],
+            APPIUM.AppiumAdapter.IOS_SERVICE_RUNTIME_REVISION,
+        )
+
     def test_session_creation_has_a_bounded_physical_wda_start_timeout(self) -> None:
         response = mock.MagicMock()
         response.headers = {}
@@ -782,7 +791,7 @@ class AppiumAdapterTests(unittest.TestCase):
                 "notAfter": (now + timedelta(days=2)).isoformat().replace("+00:00", "Z"),
                 "provenance": {
                     "mode": "personal-team-manual-signing",
-                    "unsignedKitContract": "overte-ios-personal-team-e2e-kit-v2",
+                    "unsignedKitContract": "overte-ios-personal-team-e2e-kit-v3",
                     "unsignedKitManifestSha256": "c" * 64,
                     "attestationContract": "overte-ios-personal-team-signed-handoff-v1",
                     "derivationBinding": "human-verified",
@@ -847,7 +856,7 @@ class AppiumAdapterTests(unittest.TestCase):
                     "installationProxyValidated": True,
                     "bundleIdentifierMode": "fixed",
                     "attestationSha256": "e" * 64,
-                    "unsignedKitContract": "overte-ios-personal-team-e2e-kit-v2",
+                    "unsignedKitContract": "overte-ios-personal-team-e2e-kit-v3",
                     "unsignedKitManifestSha256": "f" * 64,
                     "attestationContract":
                         "overte-ios-personal-team-preinstalled-attestation-v2",

@@ -40,14 +40,14 @@ The manifest binds both credential-free files by SHA-256 and size to the real
 Overte source revision and the exact kit-assembly repository ID,
 bootstrap/reusable workflow, protected ref, run ID and attempt. It also binds
 XCUITest Driver 12.8.0, WDA 16.8.0, the
-three fixed identifiers, and the `overte-ios-personal-team-e2e-kit-v2` contract.
-Version 2 is intentionally incompatible with the earlier kit: the pinned
-open-source `rcodesign` 0.29.0 adds a public ad-hoc signature to the nested
-`WebDriverAgentRunner.xctest` and its embedded framework after their final
-credential-free metadata rewrite. The outer WDA application remains without
-bundle CodeResources or a provisioning profile and still requires Sideloadly's
-Personal-Team signing. No Apple credential, certificate, private key, profile,
-team identity, or device identity is used by this preparation step.
+three fixed identifiers, and the `overte-ios-personal-team-e2e-kit-v3` contract.
+Version 3 is intentionally incompatible with the earlier kit: neither the outer
+WDA runner nor its nested `WebDriverAgentRunner.xctest` and embedded framework
+carry an ad-hoc signature. The hardware gate proved that iPadOS rejects that
+nested ad-hoc signature after a direct Sideloadly install. The signing tool must
+instead recursively Personal-Team-sign all three Mach-O bundles. No Apple
+credential, certificate, private key, profile, team identity, or device identity
+is used by the public preparation step.
 It declares
 `derivationBinding: human-verified` and
 `signedBytesDerivableFromUnsignedKit: false`: a re-signing tool changes bundle
@@ -79,9 +79,9 @@ proof that the Personal-Team-signed installation bytes were exported.
 2. In Sideloadly, select Apple ID sideload and the intended trusted device.
    Prefer the fixed identifiers. If Sideloadly remaps them, do not create extra
    duplicate installations and use the explicit remapped-attestation flag
-   below. Never remove WDA's nested XCTest plug-in. A tool that rewrites the
-   nested XCTest `Info.plist` must also re-sign that nested bundle; otherwise
-   iOS invalidates its ad-hoc signature and WDA closes immediately. The first
+   below. Never remove WDA's nested XCTest plug-in. The signing result must give
+   the nested XCTest and its framework valid Personal-Team signatures; signing
+   only the outer runner makes WDA close immediately. The first
    controlled Appium/XCTest session is therefore still a mandatory hardware
    gate even after InstallationProxy accepts the two outer applications.
 3. Install the Overte IPA and then the WDA IPA with the same Apple account.

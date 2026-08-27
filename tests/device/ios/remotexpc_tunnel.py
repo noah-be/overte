@@ -997,7 +997,7 @@ def validate_install_receipt(path: Path) -> dict:
             "attestationContract", "derivationBinding"}
             or provenance.get("mode") != "personal-team-manual-signing"
             or provenance.get("unsignedKitContract")
-            != "overte-ios-personal-team-e2e-kit-v2"
+            != "overte-ios-personal-team-e2e-kit-v3"
             or provenance.get("attestationContract")
             != "overte-ios-personal-team-signed-handoff-v1"
             or provenance.get("derivationBinding") != "human-verified"
