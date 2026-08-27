@@ -84,6 +84,20 @@ class PicoWorldStateTests(unittest.TestCase):
         self.assertLess(remote_connect, remote_commit)
         self.assertLess(remote_commit, calls[1])
 
+    def test_startup_fallback_import_preserves_explicit_serverless_url(self):
+        fallback = APPLICATION.index("static bool picoStartupImportRequested")
+        load = APPLICATION.index("loadServerlessDomain(startupWorld);", fallback)
+        body = APPLICATION[fallback:load]
+        self.assertIn("const auto explicitStartupScheme = _urlParam.scheme();", body)
+        self.assertIn("!_urlParam.isEmpty() && _urlParam.isValid()", body)
+        self.assertIn("explicitStartupScheme == HIFI_URL_SCHEME_FILE", body)
+        self.assertIn("explicitStartupScheme == HIFI_URL_SCHEME_HTTP", body)
+        self.assertIn("explicitStartupScheme == HIFI_URL_SCHEME_HTTPS", body)
+        self.assertIn("const QUrl startupWorld = hasExplicitServerlessStartupUrl", body)
+        self.assertIn("? _urlParam", body)
+        self.assertIn("overte-hub-pico4-optimized-spawn.json", body)
+        self.assertLess(body.index("const QUrl startupWorld"), body.index("updateStartupImport"))
+
     def test_reentrant_serverless_url_does_not_restart_active_import(self):
         load_body = function_body(
             "void Application::loadServerlessDomain",

@@ -3138,9 +3138,23 @@ void Application::update(float deltaTime) {
                 !_picoServerlessSceneImportCommitted &&
                 !picoStartupImportRequested && getEntities()->getTree()) {
             picoStartupImportRequested = true;
-            const QUrl startupWorld(QStringLiteral(
-                "file:///~/serverless/overte-hub-pico4-optimized-spawn.json"));
-            qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE updateStartupImport" << startupWorld;
+            const auto explicitStartupScheme = _urlParam.scheme();
+            const bool hasExplicitServerlessStartupUrl =
+                !_urlParam.isEmpty() && _urlParam.isValid() &&
+                (explicitStartupScheme == HIFI_URL_SCHEME_FILE ||
+                 explicitStartupScheme == HIFI_URL_SCHEME_HTTP ||
+                 explicitStartupScheme == HIFI_URL_SCHEME_HTTPS);
+            // AddressManager owns the NodeList thread, so its startup URL can
+            // still be queued when Pico's first update needs to begin the
+            // synchronous serverless import. Preserve that explicit URL here;
+            // otherwise the fallback imports the bundled Hub and the initial
+            // handoff rejects the requested world as a competing destination.
+            const QUrl startupWorld = hasExplicitServerlessStartupUrl
+                ? _urlParam
+                : QUrl(QStringLiteral(
+                    "file:///~/serverless/overte-hub-pico4-optimized-spawn.json"));
+            qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE updateStartupImport"
+                << startupWorld << "explicit" << hasExplicitServerlessStartupUrl;
             loadServerlessDomain(startupWorld);
         }
         serverlessImportReady = _picoServerlessSceneImportCommitted;
