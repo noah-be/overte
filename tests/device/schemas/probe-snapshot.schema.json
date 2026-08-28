@@ -165,6 +165,9 @@
               ]
             },
             "standardLy": {"type": "number"},
+            "translateYAction": {"type": "number"},
+            "rawTranslateYDriveKey": {"type": "number"},
+            "translateYDriveKeyDisabled": {"type": "boolean"},
             "translateZAction": {"type": "number"},
             "rawTranslateZDriveKey": {"type": "number"},
             "translateZDriveKeyDisabled": {"type": "boolean"}

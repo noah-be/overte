@@ -14,8 +14,7 @@ main
 │   └── android-vr
 │       └── android-vr-pico
 ├── apple-main
-│   ├── apple-ios
-│   └── apple-macos
+│   └── apple-ios
 ├── linux-main
 └── windows-main
 ```
@@ -36,9 +35,8 @@ After a reviewed change reaches `main`, synchronize it in this order:
 4. `android-vr` → `android-vr-pico`
 5. `main` → `apple-main`
 6. `apple-main` → `apple-ios`
-7. `apple-main` → `apple-macos`
-8. `main` → `linux-main`
-9. `main` → `windows-main`
+7. `main` → `linux-main`
+8. `main` → `windows-main`
 
 The Android, Apple, Linux, and Windows lines are independent after their
 respective `main` merge, but each parent must be merged before its children.
@@ -47,10 +45,10 @@ every boundary. The synchronization bot reads these direct relationships from
 `.github/branch-policy.json`; every `main` update therefore opens or refreshes
 the guarded sync pull requests for both desktop operating-system branches.
 
-`android-vr-quest` is a frozen archival branch, not a child in this hierarchy.
-It must not receive synchronization PRs or new product work. Its last commit is
-retained as historical, hardware-unverified evidence under the dedicated
-archived-branch ruleset.
+`android-vr-quest` and `apple-macos` are frozen archival branches, not children
+in this hierarchy. They must not receive synchronization PRs or new product
+work. Their last commits are retained as historical evidence under the
+dedicated archived-branch ruleset.
 
 ## Reconciliation merges
 
@@ -79,12 +77,10 @@ selector-backed adapters remain in their product branch:
 - iPhone and iPad adapter: `apple-ios`
 - Linux desktop adapter: `linux-main`
 - Windows desktop adapter: `windows-main`
-- macOS desktop adapter: `apple-macos`
 
-VR branches do not inherit Phone touch adapters, and `apple-macos` does not
-inherit the iOS adapter. A new adapter starts on its product branch and must not
-be promoted to a parent unless the implementation genuinely applies to every
-child of that parent.
+VR branches do not inherit Phone touch adapters. A new adapter starts on its
+product branch and must not be promoted to a parent unless the implementation
+genuinely applies to every child of that parent.
 
 Desktop adapter implementations must not be owned by `main`, `android-main`,
 or an Android product branch. Only the portable adapter protocol, behavior
@@ -106,7 +102,6 @@ git merge-base --is-ancestor origin/android-main origin/android-vr
 git merge-base --is-ancestor origin/android-vr origin/android-vr-pico
 git merge-base --is-ancestor origin/main origin/apple-main
 git merge-base --is-ancestor origin/apple-main origin/apple-ios
-git merge-base --is-ancestor origin/apple-main origin/apple-macos
 git merge-base --is-ancestor origin/main origin/linux-main
 git merge-base --is-ancestor origin/main origin/windows-main
 ```
