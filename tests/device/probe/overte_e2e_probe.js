@@ -16,6 +16,8 @@
     var controlledAssetEntity = null;
     var controlledKey = null;
     var controlledKeyCommandId = "";
+    var controlledInputMappingName = "org.overte.e2e.probe.controlled-input";
+    var controlledInputMapping = Controller.newMapping(controlledInputMappingName);
     // Resolve while the script file is the active execution context. Timer
     // callbacks do not retain that source context on every script engine.
     var clientCommandFallbackUrl = String(Script.resolvePath("e2e-client-command.json"));
@@ -50,6 +52,21 @@
     var domainMarkers = ["OVERTE_E2E_DOMAIN_FLOOR", "OVERTE_E2E_DOMAIN_NORTH",
         "OVERTE_E2E_DOMAIN_EAST", "OVERTE_E2E_DOMAIN_ORIGIN"];
     var expectedSpawn = { x: 0.0, y: 2.0, z: 4.0 };
+
+    function addControlledInputRoute(name, action) {
+        controlledInputMapping.from(function () {
+            return controlledKey === name ? 1.0 : 0.0;
+        }).to(action);
+    }
+
+    addControlledInputRoute("backward", Controller.Actions.Backward);
+    addControlledInputRoute("down", Controller.Actions.Down);
+    addControlledInputRoute("forward", Controller.Actions.Forward);
+    addControlledInputRoute("jump", Controller.Actions.Up);
+    addControlledInputRoute("left", Controller.Actions.StrafeLeft);
+    addControlledInputRoute("right", Controller.Actions.StrafeRight);
+    addControlledInputRoute("tablet", Controller.Actions.ContextMenu);
+    Controller.enableMapping(controlledInputMappingName);
 
     function vector(value) {
         return { x: Number(value.x), y: Number(value.y), z: Number(value.z) };
@@ -306,20 +323,19 @@
 
     function controlledKeySpec(name) {
         var keys = {
-            backward: { key: 83, text: "s" },
-            down: { key: 67, text: "c" },
-            forward: { key: 87, text: "w" },
-            jump: { key: 32, text: " " },
-            left: { key: 65, text: "a" },
-            right: { key: 68, text: "d" },
-            tablet: { key: 16777217, text: "\t" }
+            backward: true,
+            down: true,
+            forward: true,
+            jump: true,
+            left: true,
+            right: true,
+            tablet: true
         };
-        return Object.prototype.hasOwnProperty.call(keys, name) ? keys[name] : null;
+        return Object.prototype.hasOwnProperty.call(keys, name) ? String(name) : null;
     }
 
     function releaseControlledKey(commandId) {
         if (controlledKey !== null && controlledKeyCommandId === commandId) {
-            Keyboard.emitKeyEvent(controlledKey, false);
             controlledKey = null;
             controlledKeyCommandId = "";
         }
@@ -336,7 +352,6 @@
         releaseControlledKey(controlledKeyCommandId);
         controlledKey = key;
         controlledKeyCommandId = String(command.commandId);
-        Keyboard.emitKeyEvent(controlledKey, true);
         Script.setTimeout(function () {
             releaseControlledKey(String(command.commandId));
         }, durationMs);
@@ -614,6 +629,7 @@
     Script.scriptEnding.connect(function () {
         Script.clearInterval(timer);
         releaseControlledKey(controlledKeyCommandId);
+        Controller.disableMapping(controlledInputMappingName);
         releaseAssetResource();
         if (controlledAssetEntity !== null) {
             Entities.deleteEntity(controlledAssetEntity);

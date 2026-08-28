@@ -67,11 +67,16 @@ class ProbeCommandChannelTest(unittest.TestCase):
         self.assertIn("resetSceneObservation()", self.source)
         self.assertIn("controlledAssetEntity = Entities.addEntity({", self.source)
         self.assertIn("soundCommandUrl = String(command.url)", self.source)
-        self.assertIn("Keyboard.emitKeyEvent(controlledKey, true)", self.source)
-        self.assertIn("Keyboard.emitKeyEvent(controlledKey, false)", self.source)
+        self.assertIn("Controller.newMapping(controlledInputMappingName)", self.source)
+        for action in ("Backward", "Down", "Forward", "Up", "StrafeLeft",
+                       "StrafeRight", "ContextMenu"):
+            self.assertIn(f"Controller.Actions.{action}", self.source)
+        self.assertIn("Controller.disableMapping(controlledInputMappingName)", self.source)
+        self.assertNotIn("Keyboard.emitKeyEvent", self.source)
         self.assertNotIn("Clipboard", self.source)
         self.assertNotIn("Desktop.openUrl", self.source)
         self.assertNotIn("MyAvatar.position =", self.source)
+        self.assertNotIn("MyAvatar.velocity =", self.source)
 
     def test_fixture_channel_round_trips_only_strict_commands(self) -> None:
         command = {
