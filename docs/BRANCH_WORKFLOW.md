@@ -12,7 +12,6 @@ main
 ├── android-main
 │   ├── android-phone
 │   └── android-vr
-│       ├── android-vr-quest
 │       └── android-vr-pico
 ├── apple-main
 │   ├── apple-ios
@@ -41,13 +40,12 @@ After a reviewed change reaches `main`, synchronize it in this order:
 1. `main` → `android-main`
 2. `android-main` → `android-phone`
 3. `android-main` → `android-vr`
-4. `android-vr` → `android-vr-quest`
-5. `android-vr` → `android-vr-pico`
-6. `main` → `apple-main`
-7. `apple-main` → `apple-ios`
-8. `apple-main` → `apple-macos`
-9. `main` → `linux-main`
-10. `main` → `windows-main`
+4. `android-vr` → `android-vr-pico`
+5. `main` → `apple-main`
+6. `apple-main` → `apple-ios`
+7. `apple-main` → `apple-macos`
+8. `main` → `linux-main`
+9. `main` → `windows-main`
 
 The Android, Apple, Linux, and Windows lines are independent after their
 respective `main` merge, but each parent must be merged before its children.
@@ -55,6 +53,11 @@ Use normal pull requests so branch protection and target-specific CI run at
 every boundary. The synchronization bot reads these direct relationships from
 `.github/branch-policy.json`; every `main` update therefore opens or refreshes
 the guarded sync pull requests for both desktop operating-system branches.
+
+`android-vr-quest` is a frozen archival branch, not a child in this hierarchy.
+It must not receive synchronization PRs or new product work. Its last commit is
+retained as historical, hardware-unverified evidence under the dedicated
+archived-branch ruleset.
 
 ## Reconciliation merges
 
@@ -113,7 +116,6 @@ git fetch origin --prune
 git merge-base --is-ancestor origin/main origin/android-main
 git merge-base --is-ancestor origin/android-main origin/android-phone
 git merge-base --is-ancestor origin/android-main origin/android-vr
-git merge-base --is-ancestor origin/android-vr origin/android-vr-quest
 git merge-base --is-ancestor origin/android-vr origin/android-vr-pico
 git merge-base --is-ancestor origin/main origin/apple-main
 git merge-base --is-ancestor origin/apple-main origin/apple-ios

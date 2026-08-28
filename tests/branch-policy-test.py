@@ -15,6 +15,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 CHECKER = ROOT / "tools/branch-policy/check.py"
 POLICY = ROOT / ".github/branch-policy.json"
+ARCHIVED_BRANCH_RULESET = ROOT / ".github/rulesets/archived-branches.json"
 SPEC = importlib.util.spec_from_file_location("branch_policy", CHECKER)
 assert SPEC and SPEC.loader
 BRANCH_POLICY = importlib.util.module_from_spec(SPEC)
@@ -32,9 +33,29 @@ class BranchPolicyTests(unittest.TestCase):
             set(self.branches),
             {
                 "main", "android-main", "android-phone", "android-vr",
-                "android-vr-pico", "android-vr-quest", "apple-main",
-                "apple-ios", "apple-macos", "linux-main", "windows-main",
+                "android-vr-pico", "apple-main", "apple-ios", "apple-macos",
+                "linux-main", "windows-main",
             },
+        )
+
+    def test_quest_is_frozen_outside_the_active_hierarchy(self):
+        self.assertNotIn("android-vr-quest", self.branches)
+        with self.assertRaises(BRANCH_POLICY.PolicyError):
+            BRANCH_POLICY.classify_pull_request(
+                self.branches,
+                "android-vr-quest",
+                "feature/android-quest/controllers",
+            )
+
+        ruleset = json.loads(ARCHIVED_BRANCH_RULESET.read_text(encoding="utf-8"))
+        self.assertEqual(ruleset["enforcement"], "active")
+        self.assertEqual(
+            ruleset["conditions"]["ref_name"]["include"],
+            ["refs/heads/android-vr-quest"],
+        )
+        self.assertEqual(
+            {rule["type"] for rule in ruleset["rules"]},
+            {"deletion", "non_fast_forward", "update"},
         )
 
     def test_desktop_operating_system_branches_are_direct_main_children(self):
@@ -83,7 +104,7 @@ class BranchPolicyTests(unittest.TestCase):
                     "scoped-change",
                 )
 
-    def test_sync_for_wrong_target_scope_is_rejected(self):
+    def test_archived_quest_scope_is_rejected(self):
         with self.assertRaises(BRANCH_POLICY.PolicyError):
             BRANCH_POLICY.classify_pull_request(
                 self.branches,
@@ -94,7 +115,7 @@ class BranchPolicyTests(unittest.TestCase):
     def test_child_to_parent_and_sibling_merges_are_blocked(self):
         blocked = (
             ("android-vr", "android-vr-pico"),
-            ("android-vr-pico", "android-vr-quest"),
+            ("android-vr-pico", "android-phone"),
             ("apple-main", "apple-ios"),
             ("main", "android-main"),
             ("main", "linux-main"),
