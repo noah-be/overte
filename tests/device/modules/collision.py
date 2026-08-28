@@ -8,7 +8,8 @@ from overte_session import OverteSession
 def main() -> None:
     session = OverteSession()
     before, after = session.assert_collision_wall()
-    distance = session.movement_projection(before, after, "forward")
+    distance = (float(before["avatar"]["position"]["z"])
+                - float(after["avatar"]["position"]["z"]))
     print(f"Collision wall stopped the avatar after {distance:.3f} meters.")
 
 

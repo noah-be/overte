@@ -72,6 +72,7 @@ class ProbeCommandChannelTest(unittest.TestCase):
                        "StrafeRight", "ContextMenu"):
             self.assertIn(f"Controller.Actions.{action}", self.source)
         self.assertIn("Controller.disableMapping(controlledInputMappingName)", self.source)
+        self.assertIn('(name === "tablet" || !controlledTabletOpen())', self.source)
         self.assertNotIn("Keyboard.emitKeyEvent", self.source)
         self.assertNotIn("Clipboard", self.source)
         self.assertNotIn("Desktop.openUrl", self.source)
