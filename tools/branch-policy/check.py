@@ -103,6 +103,7 @@ def parse_arguments() -> argparse.Namespace:
     check.add_argument("--head", required=True)
     children = subparsers.add_parser("children", help="print direct children, one per line")
     children.add_argument("--parent", required=True)
+    subparsers.add_parser("parents", help="print branches with direct children, one per line")
     subparsers.add_parser("validate", help="validate the policy document")
     return parser.parse_args()
 
@@ -118,6 +119,10 @@ def main() -> int:
             if args.parent not in branches:
                 raise PolicyError(f"unknown permanent branch {args.parent!r}")
             print("\n".join(branches[args.parent].children))
+        elif args.command == "parents":
+            print("\n".join(
+                branch.name for branch in branches.values() if branch.children
+            ))
         else:
             print(f"valid: {len(branches)} permanent branches")
     except PolicyError as error:
