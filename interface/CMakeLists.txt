@@ -160,6 +160,13 @@ if (APPLE)
     # its consumers are excluded below at the source level.
     get_filename_component(SPEECH_RECOGNIZER_MM "src/SpeechRecognizer.mm" ABSOLUTE)
     list(REMOVE_ITEM INTERFACE_OBJCPP_SRCS ${SPEECH_RECOGNIZER_MM})
+    # The UIKit metrics bridge owns notification tokens and accessibility
+    # activation blocks with ARC transfer/weak semantics. Keep ARC local to
+    # this iOS source instead of changing legacy Objective-C++ ownership.
+    set_source_files_properties(
+      "${CMAKE_CURRENT_SOURCE_DIR}/src/IOSTouchUiMetrics.mm"
+      PROPERTIES COMPILE_OPTIONS "-fobjc-arc"
+    )
   endif()
   list(APPEND INTERFACE_SRCS ${INTERFACE_OBJCPP_SRCS})
 endif ()
