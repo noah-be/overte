@@ -381,6 +381,8 @@ class AndroidAdapterTest(unittest.TestCase):
         self.assertEqual(1, probe.count("androidAssetEntityId = Entities.addEntity("))
         self.assertIn("overteE2EAssetId: command.assetId", probe)
         self.assertIn('}, "local")', probe)
+        self.assertIn("appendAssetCandidate(candidates, androidAssetEntityId)", probe)
+        self.assertIn("appendAssetCandidate(candidates, controlledAssetEntity)", probe)
         self.assertIn("soundCommandUrl = String(command.commandUrl)", probe)
         self.assertIn("SoundCache.getSound(soundState.url)", probe)
         self.assertIn("Audio.playSound(soundResource", probe)

@@ -123,14 +123,32 @@
         return "failed";
     }
 
+    function appendAssetCandidate(candidates, id) {
+        if (id === null || id === undefined) {
+            return;
+        }
+        var index;
+        for (index = 0; index < candidates.length; index += 1) {
+            if (String(candidates[index]) === String(id)) {
+                return;
+            }
+        }
+        var identity = Entities.getEntityProperties(id, ["name"]);
+        if (String(identity.name).indexOf("OVERTE_E2E_ASSET_LOAD") === 0) {
+            candidates.push(id);
+        }
+    }
+
     function observeAsset(ids) {
         var candidates = [];
+        // Locally hosted entities are not guaranteed to participate in the
+        // spatial query on every client.  The production addEntity return
+        // value is the authoritative identity for both controlled channels.
+        appendAssetCandidate(candidates, androidAssetEntityId);
+        appendAssetCandidate(candidates, controlledAssetEntity);
         var index;
         for (index = 0; index < ids.length; index += 1) {
-            var identity = Entities.getEntityProperties(ids[index], ["name"]);
-            if (String(identity.name).indexOf("OVERTE_E2E_ASSET_LOAD") === 0) {
-                candidates.push(ids[index]);
-            }
+            appendAssetCandidate(candidates, ids[index]);
         }
         if (candidates.length !== 1) {
             releaseAssetResource();
