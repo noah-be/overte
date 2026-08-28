@@ -63,6 +63,19 @@ class CoreSequenceTest(unittest.TestCase):
         self.assertIn("return Boolean(tablet.tabletShown || HMD.showTablet)", probe)
         self.assertIn('(name === "tablet" || !controlledTabletOpen())', probe)
 
+    def test_probe_normalizes_only_the_initial_flight_state(self):
+        probe = (DEVICE_ROOT / "probe/overte_e2e_probe.js").read_text(
+            encoding="utf-8")
+        self.assertIn("flightNormalizationAllowed && !flightNormalizationActive", probe)
+        self.assertIn("MyAvatar.setFlyingEnabled(false)", probe)
+        self.assertGreaterEqual(
+            probe.count("MyAvatar.setFlyingEnabled(flyingEnabledBeforeNormalization)"), 2)
+        self.assertIn("!flightNormalizationActive && !MyAvatar.isInAir()", probe)
+        self.assertIn("flightNormalizationAllowed = false;", probe)
+        self.assertIn("Controller.Actions.TranslateY", probe)
+        self.assertIn("DriveKeys.TRANSLATE_Y", probe)
+        self.assertIn("velocity: vector(MyAvatar.velocity)", probe)
+
     def test_complete_core_suite_reuses_one_app_session(self):
         with tempfile.TemporaryDirectory(prefix="overte-e2e-core-") as temporary:
             root = Path(temporary)
