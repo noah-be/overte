@@ -11,6 +11,7 @@ import tempfile
 import time
 import unittest
 from unittest.mock import patch
+import subprocess
 import xml.etree.ElementTree as ET
 
 
@@ -103,6 +104,133 @@ class JenkinsGlueTest(unittest.TestCase):
             self.assertEqual("passed", json.loads(
                 (output / "summary.json").read_text())["status"])
             self.assertFalse((output / "fixture-ready.json").exists())
+
+    def test_asset_and_sound_suites_receive_network_fixture_contracts(self):
+        for suite in ("asset-smoke", "sound-smoke"):
+            with self.subTest(suite=suite), tempfile.TemporaryDirectory(
+                    prefix=f"overte-jenkins-{suite}-test-") as name:
+                temporary = Path(name)
+                values = self.configuration(temporary)
+                values["OVERTE_CI_SUITE"] = suite
+                values["OVERTE_CI_FIXTURE_MODE"] = "embedded"
+                with patch.dict(os.environ, values, clear=False):
+                    self.assertEqual(0, RUN_CI.run_suite())
+                output = Path(values["OVERTE_CI_OUTPUT_DIR"])
+                summary = json.loads((output / "summary.json").read_text())
+                self.assertEqual("passed", summary["status"])
+                self.assertTrue((output / "fixture-ready.json").is_file())
+
+    def test_domain_suite_owns_fixture_and_passes_exact_ready_contract(self):
+        with tempfile.TemporaryDirectory(prefix="overte-jenkins-domain-test-") as name:
+            temporary = Path(name)
+            domain_server = temporary / "domain-server"
+            assignment_client = temporary / "assignment-client"
+            for executable in (domain_server, assignment_client):
+                executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+                executable.chmod(0o700)
+            values = self.configuration(temporary)
+            values.update({
+                "OVERTE_CI_SUITE": "domain-smoke",
+                "OVERTE_CI_DOMAIN_SERVER_EXECUTABLE": str(domain_server),
+                "OVERTE_CI_ASSIGNMENT_CLIENT_EXECUTABLE": str(assignment_client),
+            })
+            ready = {
+                "schemaVersion": 1,
+                "domainUrl": "hifi://127.0.0.1:40102/0.0,2.0,4.0/0,0,0,1",
+                "domainHost": "127.0.0.1",
+                "domainId": "11111111-2222-4333-8444-555555555555",
+                "requiredMarkers": [
+                    "OVERTE_E2E_DOMAIN_EAST", "OVERTE_E2E_DOMAIN_FLOOR",
+                    "OVERTE_E2E_DOMAIN_NORTH", "OVERTE_E2E_DOMAIN_ORIGIN",
+                ],
+            }
+            domain_commands = []
+            real_popen = subprocess.Popen
+
+            class CompletedFixture:
+                @staticmethod
+                def poll():
+                    return 0
+
+            def spawn(command, *arguments, **options):
+                if len(command) > 1 and str(command[1]).endswith("fixture/domain.py"):
+                    domain_commands.append(command)
+                    ready_path = Path(command[command.index("--ready-file") + 1])
+                    ready_path.write_text(json.dumps(ready), encoding="utf-8")
+                    fixture_output = Path(command[command.index("--output-dir") + 1])
+                    fixture_output.mkdir()
+                    (fixture_output / "domain-config.json").write_text(
+                        "{}\n", encoding="utf-8")
+                    (fixture_output / "domain-server.log").write_text(
+                        "domain ready\n", encoding="utf-8")
+                    (fixture_output / "assignment-client.log").write_text(
+                        "assignments ready\n", encoding="utf-8")
+                    return CompletedFixture()
+                return real_popen(command, *arguments, **options)
+
+            with patch.dict(os.environ, values, clear=False), \
+                    patch.object(RUN_CI.subprocess, "Popen", side_effect=spawn):
+                self.assertEqual(0, RUN_CI.run_suite())
+
+            self.assertEqual(1, len(domain_commands))
+            command = domain_commands[0]
+            self.assertEqual("127.0.0.1", command[command.index("--bind") + 1])
+            self.assertEqual(str(domain_server),
+                             command[command.index("--domain-server") + 1])
+            output = Path(values["OVERTE_CI_OUTPUT_DIR"])
+            self.assertEqual("passed", json.loads(
+                (output / "summary.json").read_text())[
+                    "status"])
+            self.assertTrue((output / "fixture-ready.json").is_file())
+            self.assertTrue((output / "domain-fixture/domain-server.log").is_file())
+
+    def test_domain_executables_must_be_absolute_executable_and_symlink_free(self):
+        with tempfile.TemporaryDirectory(prefix="overte-domain-executable-test-") as name:
+            executable = Path(name) / "domain-server"
+            executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            values = {"OVERTE_CI_DOMAIN_SERVER_EXECUTABLE": str(executable)}
+            with patch.dict(os.environ, values, clear=False):
+                with self.assertRaisesRegex(ValueError, "executable file"):
+                    RUN_CI.checked_executable("OVERTE_CI_DOMAIN_SERVER_EXECUTABLE")
+                executable.chmod(0o700)
+                self.assertEqual(executable.resolve(), RUN_CI.checked_executable(
+                    "OVERTE_CI_DOMAIN_SERVER_EXECUTABLE"))
+                link = Path(name) / "domain-link"
+                link.symlink_to(executable)
+                os.environ["OVERTE_CI_DOMAIN_SERVER_EXECUTABLE"] = str(link)
+                with self.assertRaisesRegex(ValueError, "symbolic-link"):
+                    RUN_CI.checked_executable("OVERTE_CI_DOMAIN_SERVER_EXECUTABLE")
+
+    def test_controlled_android_suite_launches_before_capability_discovery(self):
+        with tempfile.TemporaryDirectory(prefix="overte-android-bootstrap-test-") as name:
+            manifest = Path(name) / "android.json"
+            manifest.write_text(json.dumps({
+                "schemaVersion": 1,
+                "id": "android-phone-adb",
+                "command": ["adapter.py", "--kind", "phone"],
+            }), encoding="utf-8")
+            before = json.dumps([{
+                "selector": "private-target", "capabilities": ["app.launch"],
+            }])
+            ready = json.dumps([{
+                "selector": "private-target",
+                "capabilities": ["app.launch", "asset.load"],
+            }])
+            results = [
+                subprocess.CompletedProcess([], 0, "{}\n", ""),
+                subprocess.CompletedProcess([], 0, before, ""),
+                subprocess.CompletedProcess([], 0, ready, ""),
+            ]
+            with patch.object(RUN_CI, "load_adapter_command", return_value=["adapter"]), \
+                    patch.object(RUN_CI.subprocess, "run", side_effect=results) as execute, \
+                    patch.object(RUN_CI.time, "sleep"):
+                RUN_CI.prepare_controlled_android_target(
+                    ROOT, manifest, "private-target", "asset-smoke", {"SAFE": "1"},
+                )
+            self.assertEqual("invoke", execute.call_args_list[0].args[0][1])
+            self.assertEqual("app.launch", execute.call_args_list[0].args[0][5])
+            self.assertEqual("discover", execute.call_args_list[1].args[0][1])
+            self.assertEqual(3, execute.call_count)
 
     def test_private_selector_leak_is_quarantined(self):
         with tempfile.TemporaryDirectory(prefix="overte-jenkins-secret-test-") as name:
@@ -446,18 +574,6 @@ class JenkinsGlueTest(unittest.TestCase):
                         source.index("runDeviceSuite('stability'"))
         self.assertLess(source.index("runDeviceSuite('stability'"),
                         source.index("runDeviceSuite('lifecycle-stability'"))
-        self.assertIn("!params.TARGET_PROFILE.startsWith('desktop-')", source)
-        for expected in (
-            "RUN_DOMAIN_ENTER", "RUN_ASSET_LOAD", "RUN_SOUND_PLAYBACK",
-            "runDeviceSuite('domain-smoke'", "runDeviceSuite('asset-smoke'",
-            "runDeviceSuite('sound-smoke'", "DOMAIN_SERVER_EXECUTABLE",
-            "ASSIGNMENT_CLIENT_EXECUTABLE",
-        ):
-            self.assertIn(expected, source)
-
-    def test_content_suites_are_accepted_by_ci_glue(self):
-        self.assertTrue({"domain-smoke", "asset-smoke", "sound-smoke"}
-                        .issubset(RUN_CI.SUITES))
 
 
 if __name__ == "__main__":

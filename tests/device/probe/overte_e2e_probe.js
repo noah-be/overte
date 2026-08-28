@@ -10,8 +10,6 @@
     var stableAvatarSamples = 0;
     var previousAvatarPosition = null;
     var sceneReady = false;
-    var spawnApplied = false;
-    var spawnRequestPending = false;
     var sampleSequence = 0;
     var probeErrorCount = 0;
     var lastProbeError = "";
@@ -20,21 +18,30 @@
     var sampleIntervalMs = 250;
     var heartbeatIntervalMs = 5000;
     var previousLocationKey = "";
-    var androidControlMarkerRequestPending = false;
-    var androidControlCommandRequestPending = false;
     var androidControlAvailable = false;
     var lastAndroidControlCommandId = "";
     var androidAssetEntityId = null;
+    var flightNormalizationAllowed = true;
+    var flightNormalizationActive = false;
+    var flightNormalizationStableSamples = 0;
+    var flyingEnabledBeforeNormalization = false;
     var assetResource = null;
     var assetResourceUrl = "";
     var controlledAssetEntity = null;
-    var clientCommandRequestPending = false;
+    var clientCommandRequest = null;
+    var controlledKey = null;
+    var controlledKeyCommandId = "";
+    var controlledInputMappingName = "org.overte.e2e.probe.controlled-input";
+    var controlledInputMapping = Controller.newMapping(controlledInputMappingName);
+    // Resolve while the script file is the active execution context. Timer
+    // callbacks do not retain that source context on every script engine.
+    var clientCommandFallbackUrl = String(Script.resolvePath("e2e-client-command.json"));
     var clientCommandUnavailable = false;
     var lastClientCommandId = "";
-    var soundCommandRequestPending = false;
-    // Preserve the shared network-loaded probe contract. Desktop's private
-    // probe copy replaces this local fallback only after the adapter has
-    // posted an exact command to the controlled fixture endpoint.
+    var soundCommandRequest = null;
+    // Network-loaded probes retain the fixture-relative fallback. A target
+    // adapter's private probe copy can replace it through the narrow command
+    // channel only after the fixture has accepted an exact sound command.
     var soundCommandUrl = Script.resolvePath("sound-command.json");
     var lastSoundControlCommandId = "";
     var soundResource = null;
@@ -53,10 +60,34 @@
         finished: false,
         finishReason: "none"
     };
-    var fixtureMarkers = ["OVERTE_E2E_FLOOR", "OVERTE_E2E_NORTH", "OVERTE_E2E_EAST", "OVERTE_E2E_ORIGIN"];
+    var fixtureMarkers = ["OVERTE_E2E_COLLISION_WALL", "OVERTE_E2E_EAST",
+        "OVERTE_E2E_FLOOR", "OVERTE_E2E_NORTH", "OVERTE_E2E_ORIGIN"];
     var domainMarkers = ["OVERTE_E2E_DOMAIN_FLOOR", "OVERTE_E2E_DOMAIN_NORTH",
         "OVERTE_E2E_DOMAIN_EAST", "OVERTE_E2E_DOMAIN_ORIGIN"];
     var expectedSpawn = { x: 0.0, y: 2.0, z: 4.0 };
+
+    function controlledTabletOpen() {
+        return Boolean(tablet.tabletShown || HMD.showTablet);
+    }
+
+    function addControlledInputRoute(name, action) {
+        controlledInputMapping.from(function () {
+            // A physical desktop key is consumed by the focused tablet before
+            // it can reach world locomotion. Preserve that routing boundary
+            // for semantic in-client input while leaving ContextMenu active.
+            return controlledKey === name
+                && (name === "tablet" || !controlledTabletOpen()) ? 1.0 : 0.0;
+        }).to(action);
+    }
+
+    addControlledInputRoute("backward", Controller.Actions.Backward);
+    addControlledInputRoute("down", Controller.Actions.Down);
+    addControlledInputRoute("forward", Controller.Actions.Forward);
+    addControlledInputRoute("jump", Controller.Actions.Up);
+    addControlledInputRoute("left", Controller.Actions.StrafeLeft);
+    addControlledInputRoute("right", Controller.Actions.StrafeRight);
+    addControlledInputRoute("tablet", Controller.Actions.ContextMenu);
+    Controller.enableMapping(controlledInputMappingName);
 
     function vector(value) {
         return { x: Number(value.x), y: Number(value.y), z: Number(value.z) };
@@ -97,7 +128,7 @@
         var right = Number(Controller.getValue(application.RightHandDominant)) > 0.5;
         var left = Number(Controller.getValue(application.LeftHandDominant)) > 0.5;
         return {
-            dominantHand: right && !left ? "right" : (left && !right ? "left" : "invalid"),
+            dominantHand: right && !left ? "right" : (left && !right ? "left" : "unknown"),
             advancedMovementControls:
                 Number(Controller.getValue(application.AdvancedMovement)) > 0.5
         };
@@ -129,12 +160,30 @@
 
     function observeAsset(ids) {
         var candidates = [];
+        var seen = {};
+
+        function consider(id) {
+            var key = String(id);
+            if (seen[key]) {
+                return;
+            }
+            seen[key] = true;
+            var identity = Entities.getEntityProperties(id, ["name"]);
+            if (String(identity.name).indexOf("OVERTE_E2E_ASSET_LOAD") === 0) {
+                candidates.push(id);
+            }
+        }
+
+        // Local Image entities can be rendered on Android serverless scenes
+        // without appearing in the broad spatial query. Prefer the exact ID
+        // returned by our controlled addEntity call, then retain discovery for
+        // network-loaded probe commands.
+        if (androidAssetEntityId !== null) {
+            consider(androidAssetEntityId);
+        }
         var index;
         for (index = 0; index < ids.length; index += 1) {
-            var identity = Entities.getEntityProperties(ids[index], ["name"]);
-            if (String(identity.name).indexOf("OVERTE_E2E_ASSET_LOAD") === 0) {
-                candidates.push(ids[index]);
-            }
+            consider(ids[index]);
         }
         if (candidates.length !== 1) {
             releaseAssetResource();
@@ -142,7 +191,7 @@
         }
         var id = candidates[0];
         var properties = Entities.getEntityProperties(id, [
-            "name", "type", "imageURL", "userData", "naturalDimensions"
+            "name", "type", "imageURL", "userData", "dimensions", "naturalDimensions"
         ]);
         var metadata;
         try {
@@ -155,6 +204,9 @@
         var imageURL = String(properties.imageURL);
         if (typeof assetId !== "string" || assetId.length === 0 || imageURL.length === 0) {
             releaseAssetResource();
+            return null;
+        }
+        if (!properties.naturalDimensions) {
             return null;
         }
         if (assetResource === null || assetResourceUrl !== imageURL) {
@@ -262,12 +314,148 @@
     }
 
     function httpUrl(value) {
-        return typeof value === "string" && /^https?:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\])(?::[0-9]+)?(?:[/?#]|$)/.test(value);
+        return typeof value === "string"
+            && /^https?:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\])(?::[0-9]+)?(?:[/?#]|$)/.test(value);
+    }
+
+    function clientCommandEndpoint() {
+        if (httpUrl(clientCommandFallbackUrl)) {
+            return clientCommandFallbackUrl;
+        }
+        var currentAddress = String(location.href);
+        var origin = /^(https?:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\])(?::[0-9]+)?)(?:[/?#]|$)/
+            .exec(currentAddress);
+        return origin ? origin[1] + "/e2e-client-command.json" : "";
+    }
+
+    function controlledSceneLocation(value) {
+        var queryStart = value.indexOf("?");
+        if (queryStart === -1) {
+            return "";
+        }
+        var fragmentStart = value.indexOf("#", queryStart);
+        var query = value.slice(queryStart + 1,
+            fragmentStart === -1 ? value.length : fragmentStart);
+        var parts = query.split("&");
+        var index;
+        for (index = 0; index < parts.length; index += 1) {
+            var separator = parts[index].indexOf("=");
+            if (separator === -1) {
+                continue;
+            }
+            var name;
+            var path;
+            try {
+                name = decodeURIComponent(parts[index].slice(0, separator).replace(/\+/g, "%20"));
+                path = decodeURIComponent(parts[index].slice(separator + 1).replace(/\+/g, "%20"));
+            } catch (error) {
+                return "";
+            }
+            if (name !== "location") {
+                continue;
+            }
+            var sections = path.split("/");
+            if (sections.length !== 3 || sections[0] !== "") {
+                return "";
+            }
+            var position = sections[1].split(",");
+            var orientation = sections[2].split(",");
+            if (position.length !== 3 || orientation.length !== 4) {
+                return "";
+            }
+            var components = position.concat(orientation);
+            var component;
+            for (component = 0; component < components.length; component += 1) {
+                if (!/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/.test(components[component])
+                        || !isFinite(Number(components[component]))
+                        || Math.abs(Number(components[component])) > (component < 3 ? 100000 : 1.01)) {
+                    return "";
+                }
+            }
+            return path;
+        }
+        return "";
+    }
+
+    function resetSceneObservation() {
+        stableEntitySamples = 0;
+        previousEntityCount = -1;
+        stableAvatarSamples = 0;
+        previousAvatarPosition = null;
+        sceneReady = false;
+    }
+
+    function applySceneLocation(commandId, scenePath) {
+        if (scenePath !== "" && lastClientCommandId === commandId && !sceneReady) {
+            // The serverless scene may reset the avatar after the initial URL
+            // lookup. Reapply its bounded viewpoint only after loading settles.
+            Window.location = scenePath;
+        }
+    }
+
+    function controlledKeySpec(name) {
+        var keys = {
+            backward: true,
+            down: true,
+            forward: true,
+            jump: true,
+            left: true,
+            right: true,
+            tablet: true
+        };
+        return Object.prototype.hasOwnProperty.call(keys, name) ? String(name) : null;
+    }
+
+    function releaseControlledKey(commandId) {
+        if (controlledKey !== null && controlledKeyCommandId === commandId) {
+            controlledKey = null;
+            controlledKeyCommandId = "";
+        }
+    }
+
+    function applyControlledKey(command) {
+        var key = controlledKeySpec(command.key);
+        var durationMs = Number(command.durationMs);
+        if (key === null || typeof command.durationMs !== "number"
+                || !isFinite(durationMs) || Math.floor(durationMs) !== durationMs
+                || durationMs < 50 || durationMs > 10000) {
+            return false;
+        }
+        releaseControlledKey(controlledKeyCommandId);
+        controlledKey = key;
+        controlledKeyCommandId = String(command.commandId);
+        Script.setTimeout(function () {
+            releaseControlledKey(String(command.commandId));
+        }, durationMs);
+        return true;
     }
 
     function applyClientCommand(command) {
         if (!command || command.schemaVersion !== 1 || !command.commandId
                 || command.commandId === lastClientCommandId) {
+            return;
+        }
+        if (command.action === "key-hold"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action",
+                    "key", "durationMs"])
+                && applyControlledKey(command)) {
+            lastClientCommandId = String(command.commandId);
+            return;
+        }
+        if (command.action === "scene-load"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "url"])
+                && httpUrl(command.url)) {
+            var sceneCommandId = String(command.commandId);
+            var scenePath = controlledSceneLocation(command.url);
+            lastClientCommandId = sceneCommandId;
+            resetSceneObservation();
+            Window.location = command.url;
+            Script.setTimeout(function () {
+                applySceneLocation(sceneCommandId, scenePath);
+            }, 1500);
+            Script.setTimeout(function () {
+                applySceneLocation(sceneCommandId, scenePath);
+            }, 3500);
             return;
         }
         if (command.action === "navigate"
@@ -310,30 +498,35 @@
     }
 
     function pollClientCommand() {
-        if (clientCommandUnavailable || clientCommandRequestPending) {
+        if (clientCommandUnavailable || clientCommandRequest !== null) {
             return;
         }
-        clientCommandRequestPending = true;
+        var commandUrl = clientCommandEndpoint();
+        if (commandUrl === "") {
+            return;
+        }
         var request = new XMLHttpRequest();
+        clientCommandRequest = request;
         request.onreadystatechange = function () {
             if (request.readyState !== request.DONE) {
                 return;
             }
-            clientCommandRequestPending = false;
-            if (request.status === 0 || request.status === 200) {
+            clientCommandRequest = null;
+            if ((request.status === 0 || request.status === 200)
+                    && request.responseText) {
                 try {
                     applyClientCommand(JSON.parse(request.responseText));
                 } catch (error) {
                     print("OVERTE_E2E_CLIENT_COMMAND_ERROR " + safeErrorText(error));
                 }
-            } else if (request.status >= 400) {
-                // A network-loaded shared probe has no desktop command file.
-                // Keep its pre-existing sound endpoint behavior without
-                // polling a permanent 404 for the rest of the session.
+            } else if (request.status >= 400
+                    || (request.status === 0 && !request.responseText)) {
+                // A network-loaded shared probe has no private command file.
+                // Stop polling a permanent miss for the rest of the session.
                 clientCommandUnavailable = true;
             }
         };
-        request.open("GET", Script.resolvePath("desktop-command.json"));
+        request.open("GET", commandUrl);
         request.send();
     }
 
@@ -360,7 +553,7 @@
                 && typeof command.url === "string"
                 && /^hifi:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\]):[0-9]+(?:\/|$)/.test(command.url)) {
             lastAndroidControlCommandId = String(command.commandId);
-            location.href = command.url;
+            location.handleLookupString(command.url);
             return;
         }
         if (command.action === "load-asset"
@@ -397,69 +590,50 @@
     }
 
     function pollAndroidControlCommand() {
-        if (!androidControlAvailable || androidControlCommandRequestPending) {
+        if (!androidControlAvailable) {
             return;
         }
-        androidControlCommandRequestPending = true;
-        var request = new XMLHttpRequest();
-        request.onreadystatechange = function () {
-            if (request.readyState !== request.DONE) {
-                return;
-            }
-            androidControlCommandRequestPending = false;
-            if ((request.status === 0 || request.status === 200) && request.responseText) {
-                try {
-                    applyAndroidControlCommand(JSON.parse(request.responseText));
-                } catch (error) {
-                    print("OVERTE_E2E_ANDROID_COMMAND_ERROR " + safeErrorText(error));
-                }
-            }
-        };
-        request.open("GET", Script.resolvePath("android-control-command.json")
-            + "?sample=" + sampleSequence);
-        request.send();
+        try {
+            // Script.require reads local JSON through the sandboxed module
+            // loader. XMLHttpRequest uses Qt's custom-request path, which is
+            // intended for HTTP and does not reliably read file:// on Android.
+            // A distinct query keeps each atomically replaced command fresh.
+            var command = Script.require("./android-control-command.json?sample="
+                + sampleSequence);
+            applyAndroidControlCommand(command);
+        } catch (error) {
+            // The launcher intentionally starts without a command. The host
+            // creates the file only when a controlled operation is invoked.
+        }
     }
 
     function pollAndroidControlMarker() {
-        if (androidControlAvailable || androidControlMarkerRequestPending) {
+        if (androidControlAvailable) {
             pollAndroidControlCommand();
             return;
         }
-        androidControlMarkerRequestPending = true;
-        var request = new XMLHttpRequest();
-        request.onreadystatechange = function () {
-            if (request.readyState !== request.DONE) {
-                return;
-            }
-            androidControlMarkerRequestPending = false;
-            if ((request.status === 0 || request.status === 200) && request.responseText) {
-                try {
-                    var marker = JSON.parse(request.responseText);
-                    androidControlAvailable = marker.schemaVersion === 1
-                        && marker.channel === "android-debug-file-v1"
-                        && marker.probe === "overte_e2e_probe.js";
-                } catch (error) {
-                    androidControlAvailable = false;
-                }
-            }
-            pollAndroidControlCommand();
-        };
-        request.open("GET", Script.resolvePath("android-control.json")
-            + "?sample=" + sampleSequence);
-        request.send();
+        try {
+            var marker = Script.require("./android-control.json");
+            androidControlAvailable = marker.schemaVersion === 1
+                && marker.channel === "android-debug-file-v1"
+                && marker.probe === "overte_e2e_probe.js";
+        } catch (error) {
+            androidControlAvailable = false;
+        }
+        pollAndroidControlCommand();
     }
 
     function pollSoundCommand() {
-        if (!soundCommandUrl || soundCommandRequestPending) {
+        if (!soundCommandUrl || soundCommandRequest !== null) {
             return;
         }
-        soundCommandRequestPending = true;
         var request = new XMLHttpRequest();
+        soundCommandRequest = request;
         request.onreadystatechange = function () {
             if (request.readyState !== request.DONE) {
                 return;
             }
-            soundCommandRequestPending = false;
+            soundCommandRequest = null;
             if (request.status === 200) {
                 try {
                     applySoundCommand(JSON.parse(request.responseText));
@@ -470,6 +644,31 @@
         };
         request.open("GET", soundCommandUrl);
         request.send();
+    }
+
+    function normalizeInitialFlightState() {
+        if (flightNormalizationAllowed && !flightNormalizationActive
+                && MyAvatar.isFlying()) {
+            flyingEnabledBeforeNormalization = Boolean(MyAvatar.getFlyingEnabled());
+            flightNormalizationActive = true;
+            flightNormalizationStableSamples = 0;
+            MyAvatar.setFlyingEnabled(false);
+            print("OVERTE_E2E_FLIGHT_NORMALIZATION stage=started");
+        }
+        if (!flightNormalizationActive) {
+            return;
+        }
+        if (!MyAvatar.isInAir() && !MyAvatar.isFlying()) {
+            flightNormalizationStableSamples += 1;
+        } else {
+            flightNormalizationStableSamples = 0;
+        }
+        if (flightNormalizationStableSamples >= 2) {
+            MyAvatar.setFlyingEnabled(flyingEnabledBeforeNormalization);
+            flightNormalizationActive = false;
+            flightNormalizationAllowed = false;
+            print("OVERTE_E2E_FLIGHT_NORMALIZATION stage=completed");
+        }
     }
 
     function sample(now) {
@@ -485,14 +684,16 @@
             stableAvatarSamples = 0;
             previousAvatarPosition = null;
             sceneReady = false;
-            spawnApplied = false;
-            spawnRequestPending = false;
+            flightNormalizationAllowed = true;
+            flightNormalizationStableSamples = 0;
         }
         previousLocationKey = currentLocationKey;
+        normalizeInitialFlightState();
         var ids = Entities.findEntities(MyAvatar.position, 1000.0);
         var foundMarkers = {};
         var foundDomainMarkers = {};
         var floorTopY = null;
+        var collisionWall = null;
         var index;
         for (index = 0; index < ids.length; index += 1) {
             var properties = Entities.getEntityProperties(ids[index], ["name", "position", "dimensions"]);
@@ -505,6 +706,13 @@
             if (properties.name === "OVERTE_E2E_FLOOR") {
                 floorTopY = Number(properties.position.y) + Number(properties.dimensions.y) / 2.0;
             }
+            if (properties.name === "OVERTE_E2E_COLLISION_WALL") {
+                collisionWall = {
+                    name: String(properties.name),
+                    center: vector(properties.position),
+                    dimensions: vector(properties.dimensions)
+                };
+            }
         }
         if (ids.length === previousEntityCount) {
             stableEntitySamples += 1;
@@ -513,22 +721,12 @@
             previousEntityCount = ids.length;
         }
         var markerCount = Object.keys(foundMarkers).length;
+        var foundFixtureMarkers = Object.keys(foundMarkers).sort();
         var domainMarkerCount = Object.keys(foundDomainMarkers).length;
         var avatarPosition = vector(MyAvatar.position);
         var spawnDeltaX = avatarPosition.x - expectedSpawn.x;
         var spawnDeltaZ = avatarPosition.z - expectedSpawn.z;
         var avatarAtSpawn = spawnDeltaX * spawnDeltaX + spawnDeltaZ * spawnDeltaZ <= 1.0;
-        if (!spawnApplied && markerCount === fixtureMarkers.length && floorTopY !== null) {
-            if (spawnRequestPending && avatarAtSpawn) {
-                spawnApplied = true;
-            } else {
-                MyAvatar.velocity = { x: 0.0, y: 0.0, z: 0.0 };
-                MyAvatar.goToLocation(expectedSpawn, false);
-                previousAvatarPosition = null;
-                stableAvatarSamples = 0;
-                spawnRequestPending = true;
-            }
-        }
         if (previousAvatarPosition !== null) {
             var deltaX = avatarPosition.x - previousAvatarPosition.x;
             var deltaY = avatarPosition.y - previousAvatarPosition.y;
@@ -541,20 +739,30 @@
         spawnDeltaZ = avatarPosition.z - expectedSpawn.z;
         var avatarAboveFloor = floorTopY !== null && avatarPosition.y >= floorTopY - 0.05;
         avatarAtSpawn = spawnDeltaX * spawnDeltaX + spawnDeltaZ * spawnDeltaZ <= 1.0;
-        if (!sceneReady && spawnApplied && markerCount === fixtureMarkers.length && stableEntitySamples >= 3
-                && stableAvatarSamples >= 4 && avatarAboveFloor && avatarAtSpawn) {
+        if (!sceneReady && markerCount === fixtureMarkers.length && stableEntitySamples >= 3
+                && stableAvatarSamples >= 4 && avatarAboveFloor && avatarAtSpawn
+                && !flightNormalizationActive && !MyAvatar.isInAir()
+                && !MyAvatar.isFlying()) {
             sceneReady = true;
+            flightNormalizationAllowed = false;
         }
         var orientation = Quat.safeEulerAngles(Camera.orientation);
         if (soundInjector && !soundState.finished) {
             soundState.playing = Boolean(soundInjector.playing);
             if (soundState.playing) {
                 soundState.started = true;
+            } else if (soundState.started) {
+                // Android can transition playing to false without forwarding
+                // AudioInjector.finished into the script engine. A prior true
+                // sample makes this a real non-looping injector completion,
+                // not a successful-call surrogate.
+                soundState.finished = true;
+                soundState.finishReason = soundStopRequested ? "stopped" : "natural";
             }
         }
         sampleSequence += 1;
         Test.saveObject({
-            schemaVersion: 1,
+            schemaVersion: 2,
             sampleEpochMs: now,
             sampleSequence: sampleSequence,
             build: {
@@ -572,7 +780,10 @@
                 probe: "overte_e2e_probe.js"
             } : null,
             domain: {
-                connected: Boolean(location.isConnected),
+                // A file-backed serverless scene can report location.isConnected
+                // even though no domain server or domain UUID exists.
+                connected: Boolean(location.isConnected)
+                    && String(location.protocol) !== "file",
                 hostname: String(location.hostname),
                 id: String(location.domainID),
                 protocol: String(location.protocol),
@@ -584,15 +795,18 @@
                 ready: sceneReady,
                 entityCount: ids.length,
                 fixtureMarkerCount: markerCount,
+                fixtureMarkers: foundFixtureMarkers,
                 domainMarkerCount: domainMarkerCount,
                 domainMarkers: Object.keys(foundDomainMarkers).sort(),
                 floorTopY: floorTopY,
                 avatarAboveFloor: avatarAboveFloor,
-                spawnApplied: spawnApplied,
-                spawnValidated: sceneReady
+                spawnLocationObserved: avatarAtSpawn,
+                spawnValidated: sceneReady,
+                collisionWall: collisionWall
             },
             avatar: {
                 position: avatarPosition,
+                velocity: vector(MyAvatar.velocity),
                 bodyYawDegrees: Number(MyAvatar.bodyYaw),
                 inAir: Boolean(MyAvatar.isInAir()),
                 flying: Boolean(MyAvatar.isFlying()),
@@ -602,7 +816,10 @@
                 orientation: vector(orientation)
             },
             tablet: {
-                open: Boolean(tablet.tabletShown),
+                // tabletShown is explicitly unused in desktop toolbar mode.
+                // HMD.showTablet is the application-level ContextMenu state
+                // shared by toolbar and world-tablet presentations.
+                open: controlledTabletOpen(),
                 home: Boolean(tablet.onHomeScreen()),
                 toolbarMode: Boolean(tablet.toolbarMode)
             },
@@ -610,6 +827,9 @@
                 route: {
                     openxrAxes: openXrAxes(),
                     standardLy: Number(Controller.getValue(Controller.Standard.LY)),
+                    translateYAction: Number(Controller.getValue(Controller.Actions.TranslateY)),
+                    rawTranslateYDriveKey: Number(MyAvatar.getRawDriveKey(DriveKeys.TRANSLATE_Y)),
+                    translateYDriveKeyDisabled: Boolean(MyAvatar.isDriveKeyDisabled(DriveKeys.TRANSLATE_Y)),
                     translateZAction: Number(Controller.getValue(Controller.Actions.TranslateZ)),
                     rawTranslateZDriveKey: Number(MyAvatar.getRawDriveKey(DriveKeys.TRANSLATE_Z)),
                     translateZDriveKeyDisabled: Boolean(MyAvatar.isDriveKeyDisabled(DriveKeys.TRANSLATE_Z))
@@ -688,6 +908,12 @@
         if (androidAssetEntityId !== null) {
             Entities.deleteEntity(androidAssetEntityId);
             androidAssetEntityId = null;
+        }
+        releaseControlledKey(controlledKeyCommandId);
+        Controller.disableMapping(controlledInputMappingName);
+        if (flightNormalizationActive) {
+            MyAvatar.setFlyingEnabled(flyingEnabledBeforeNormalization);
+            flightNormalizationActive = false;
         }
         releaseAssetResource();
         if (controlledAssetEntity !== null) {

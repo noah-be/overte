@@ -360,7 +360,13 @@ class AndroidAdapter:
             return {"installed": True}
         if operation == "app.launch":
             if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") == "1":
-                self.launch_debug_app(target)
+                # The controlled-suite bootstrap has already started and
+                # confirmed this exact Phone process before runner discovery.
+                # Preserve it when launch-smoke invokes app.launch again so
+                # the following controlled module keeps the same identity.
+                if (self.kind != "phone"
+                        or self.controlled_debug_identity(target) is None):
+                    self.launch_debug_app(target)
             else:
                 self.adb.shell(target, "am", "start", "-W", "-n", self.profile["activity"])
             return {"launched": True}
@@ -409,7 +415,17 @@ class AndroidAdapter:
             return self.read_probe_snapshot(target, package, after_sequence)
         if operation in {"input.look", "input.move", "tablet.open", "tablet.close"}:
             identity = self.require_pico_session_identity(target)
-            return self.pico_input_session(target).stage(identity, operation, values)
+            staged_values = dict(values)
+            if operation == "input.look":
+                # Keep the target-owned OpenXR override observable across slow
+                # physical headset sampling without expanding the common API.
+                staged_values.setdefault("durationSeconds", 6.0)
+            elif operation == "input.move":
+                staged_values.setdefault("strength", 0.4)
+            else:
+                staged_values.setdefault("holdMilliseconds", 1000)
+            return self.pico_input_session(target).stage(
+                identity, operation, staged_values)
         fail(f"unsupported operation: {operation}")
 
     def cleanup(self, target: str) -> dict:

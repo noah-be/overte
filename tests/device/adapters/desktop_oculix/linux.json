@@ -1,5 +1,0 @@
-{
-  "schemaVersion": 1,
-  "id": "desktop-oculix-linux",
-  "command": ["adapter.py", "--platform", "linux"]
-}

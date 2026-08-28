@@ -4,7 +4,7 @@
     "main": {
       "parent": null,
       "scope": "main",
-      "children": ["android-main", "apple-main"]
+      "children": ["android-main", "apple-main", "linux-main", "windows-main"]
     },
     "android-main": {
       "parent": "main",
@@ -19,31 +19,31 @@
     "android-vr": {
       "parent": "android-main",
       "scope": "android-vr",
-      "children": ["android-vr-pico", "android-vr-quest"]
+      "children": ["android-vr-pico"]
     },
     "android-vr-pico": {
       "parent": "android-vr",
       "scope": "android-pico",
       "children": []
     },
-    "android-vr-quest": {
-      "parent": "android-vr",
-      "scope": "android-quest",
-      "children": []
-    },
     "apple-main": {
       "parent": "main",
       "scope": "apple",
-      "children": ["apple-ios", "apple-macos"]
+      "children": ["apple-ios"]
     },
     "apple-ios": {
       "parent": "apple-main",
       "scope": "ios",
       "children": []
     },
-    "apple-macos": {
-      "parent": "apple-main",
-      "scope": "macos",
+    "linux-main": {
+      "parent": "main",
+      "scope": "linux",
+      "children": []
+    },
+    "windows-main": {
+      "parent": "main",
+      "scope": "windows",
       "children": []
     }
   }

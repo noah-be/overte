@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parent
 PROBE = ROOT.parent / "probe" / "overte_e2e_probe.js"
 URL = re.compile(r"(?:https?|ftp)://", re.IGNORECASE)
 REQUEST_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+CLIENT_COMMAND_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 
 def controlled_scene_url(base_url: str, manifest: dict) -> str:
@@ -64,6 +65,8 @@ def validate_fixture() -> dict:
     spawn = manifest.get("spawnPosition")
     floor = next((entity for entity in entities
                   if entity.get("name") == "OVERTE_E2E_FLOOR"), None)
+    collision_wall = next((entity for entity in entities
+                           if entity.get("name") == "OVERTE_E2E_COLLISION_WALL"), None)
     if (not isinstance(spawn, dict) or set(spawn) != {"x", "y", "z"}
             or not all(isinstance(spawn[axis], (int, float)) for axis in ("x", "y", "z"))
             or spawn["y"] < 2.0):
@@ -84,6 +87,16 @@ def validate_fixture() -> dict:
             or not isinstance(position.get("y"), (int, float))
             or abs(position["y"] + thickness / 2.0) > 1e-6):
         raise ValueError("fixture floor must be thick with its top fixed at y=0")
+    wall_contract = manifest.get("collisionWall")
+    if (not isinstance(collision_wall, dict) or not isinstance(wall_contract, dict)
+            or set(wall_contract) != {"approachDirection", "center", "dimensions", "name"}
+            or wall_contract.get("name") != "OVERTE_E2E_COLLISION_WALL"
+            or collision_wall.get("collisionless") is not False
+            or collision_wall.get("locked") is not True
+            or wall_contract.get("approachDirection") != "forward"
+            or collision_wall.get("position") != wall_contract.get("center")
+            or collision_wall.get("dimensions") != wall_contract.get("dimensions")):
+        raise ValueError("fixture collision wall does not match its manifest")
     if manifest.get("externalResources") is not False or URL.search(json.dumps(scene)):
         raise ValueError("controlled fixture must not depend on external resources")
     asset = manifest.get("asset")
@@ -119,9 +132,9 @@ def validate_fixture() -> dict:
     sound_bytes = sound_path.read_bytes()
     if (sound["mimeType"] != "audio/wav" or sound["sampleRate"] != 8000
             or sound["channels"] != 1 or sound["bitsPerSample"] != 16
-            or sound["durationSeconds"] != 2.0 or sound["frequencyHz"] != 440.0
+            or sound["durationSeconds"] != 8.0 or sound["frequencyHz"] != 440.0
             or hashlib.sha256(sound_bytes).hexdigest() != sound["sha256"]
-            or len(sound_bytes) != 32044):
+            or len(sound_bytes) != 128044):
         raise ValueError("fixture sound does not match its deterministic PCM WAV contract")
     probe = PROBE.read_text(encoding="utf-8")
     if "Test.saveObject" not in probe or '"overte-probe.json"' not in probe:
@@ -245,6 +258,16 @@ class FixtureHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(payload)
             return
+        if request_path == "/e2e-client-command.json":
+            payload = (json.dumps(
+                self.server.fixture_state.snapshot_client_command(), sort_keys=True
+            ) + "\n").encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
         if request_path == "/sound-requests.json":
             payload = (json.dumps({
                 "schemaVersion": 1,
@@ -290,7 +313,8 @@ class FixtureHandler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
-        if urlsplit(self.path).path != "/sound-command.json":
+        request_path = urlsplit(self.path).path
+        if request_path not in {"/e2e-client-command.json", "/sound-command.json"}:
             self.send_error(404)
             return
         try:
@@ -303,7 +327,9 @@ class FixtureHandler(SimpleHTTPRequestHandler):
             return
         try:
             command = json.loads(self.rfile.read(length))
-            command = self.server.fixture_state.set_command(command)
+            command = (self.server.fixture_state.set_command(command)
+                       if request_path == "/sound-command.json"
+                       else self.server.fixture_state.set_client_command(command))
         except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
             self.send_error(400, str(error))
             return
@@ -324,6 +350,72 @@ class FixtureState:
         self._requests: list[dict] = []
         self.command = {"schemaVersion": 1, "commandId": "", "action": "idle",
                         "soundUrl": ""}
+        self.client_command = {"schemaVersion": 1, "commandId": "", "action": "idle"}
+
+    @staticmethod
+    def _web_url(value: object) -> bool:
+        if not isinstance(value, str):
+            return False
+        parsed = urlsplit(value)
+        try:
+            parsed.port
+        except ValueError:
+            return False
+        return (parsed.scheme in {"http", "https"} and bool(parsed.hostname)
+                and parsed.username is None and parsed.password is None
+                and not parsed.fragment)
+
+    def set_client_command(self, command: object) -> dict:
+        if command == {"schemaVersion": 1, "commandId": "", "action": "idle"}:
+            with self._lock:
+                self.client_command = dict(command)
+                return dict(self.client_command)
+        if (not isinstance(command, dict) or command.get("schemaVersion") != 1
+                or not isinstance(command.get("commandId"), str)
+                or not CLIENT_COMMAND_ID.fullmatch(command["commandId"])):
+            raise ValueError("invalid client command envelope")
+        action = command.get("action")
+        if action == "scene-load":
+            valid = (set(command) == {"schemaVersion", "commandId", "action", "url"}
+                     and self._web_url(command.get("url")))
+        elif action == "navigate":
+            navigation_url = command.get("url")
+            parsed = urlsplit(navigation_url if isinstance(navigation_url, str) else "")
+            try:
+                port = parsed.port
+            except ValueError:
+                port = None
+            valid = (set(command) == {"schemaVersion", "commandId", "action", "url"}
+                     and parsed.scheme == "hifi" and bool(parsed.hostname)
+                     and port is not None and parsed.username is None
+                     and parsed.password is None)
+        elif action == "asset-load":
+            valid = (set(command) == {"schemaVersion", "commandId", "action",
+                                      "assetId", "url", "entityName"}
+                     and isinstance(command.get("assetId"), str)
+                     and bool(command["assetId"])
+                     and isinstance(command.get("entityName"), str)
+                     and command["entityName"].startswith("OVERTE_E2E_ASSET_LOAD")
+                     and self._web_url(command.get("url")))
+        elif action == "sound-channel":
+            valid = (set(command) == {"schemaVersion", "commandId", "action", "url"}
+                     and self._web_url(command.get("url")))
+        elif action == "key-hold":
+            valid = (set(command) == {"schemaVersion", "commandId", "action",
+                                      "key", "durationMs"}
+                     and command.get("key") in {
+                         "backward", "down", "forward", "jump", "left", "right", "tablet"
+                     }
+                     and isinstance(command.get("durationMs"), int)
+                     and not isinstance(command["durationMs"], bool)
+                     and 50 <= command["durationMs"] <= 10000)
+        else:
+            valid = False
+        if not valid:
+            raise ValueError("invalid client command")
+        with self._lock:
+            self.client_command = dict(command)
+            return dict(self.client_command)
 
     def set_command(self, command: object) -> dict:
         if (not isinstance(command, dict)
@@ -358,6 +450,10 @@ class FixtureState:
     def snapshot_command(self) -> dict:
         with self._lock:
             return dict(self.command)
+
+    def snapshot_client_command(self) -> dict:
+        with self._lock:
+            return dict(self.client_command)
 
     def snapshot_requests(self) -> list[dict]:
         with self._lock:
@@ -396,6 +492,7 @@ def main() -> int:
     ready = {"schemaVersion": 1, "baseUrl": base_url,
              "sceneUrl": controlled_scene_url(base_url, manifest),
              "probeScriptUrl": f"{base_url}/overte_e2e_probe.js",
+             "clientCommandUrl": f"{base_url}/e2e-client-command.json",
              "asset": {
                  "id": asset["id"], "url": f"{base_url}{asset['route']}",
                  "telemetryUrl": f"{base_url}/telemetry/asset-requests",

@@ -547,6 +547,7 @@ private:
     QReadWriteLock _hmdNameLock;
     Mutex _checkDevicesMutex;
     QTimer* _checkDevicesTimer { nullptr };
+    bool _audioLifecycleRunning { false };
     Mutex _checkPeakValuesMutex;
     QTimer* _checkPeakValuesTimer { nullptr };
 

@@ -1,4 +1,4 @@
-# Physical-device and desktop E2E test strategy
+# Physical-device E2E test strategy
 
 ## Objective
 
@@ -8,14 +8,15 @@ operations per target. The initial behavior contract is deliberately small:
 1. start Overte once;
 2. load a controlled local scene;
 3. observe a valid spawn above the ground;
-4. perform look input and observe an orientation change;
-5. perform movement input and observe an avatar-position change;
-6. open the system tablet and observe its state;
-7. close the system tablet and observe its state;
-8. enter a controlled domain and receive its assignment-owned
+4. perform signed look input in every direction;
+5. perform body-relative movement in every direction and reject stuck input;
+6. collide with the controlled wall, jump and fly;
+7. open and close the system tablet and reject world-input leakage;
+8. reload the scene and optionally stop/relaunch the application;
+9. enter a controlled domain and receive its assignment-owned
    content without a process restart.
-9. evaluate process identity, probe state, errors, and artifacts; and
-10. clean up the application session and target transport.
+10. evaluate process identity, probe state, errors, and artifacts; and
+11. clean up the application session and target transport.
 
 The shared modules own expectations. Adapters own device discovery, process
 lifecycle, UI/input translation, probe transport, and cleanup. Jenkins owns
@@ -23,43 +24,27 @@ neither behavior nor platform logic.
 
 ## Implementation sequence and status
 
-1. **Portable runner and capability schema — implemented.** The runner works
-   on POSIX and Windows, launches Python commands portably, distinguishes
-   assertion/skip/infrastructure outcomes, and validates the versioned registry.
-2. **Controlled local/network fixture — implemented.** The four-entity
-   serverless scene is dependency-free, self-validating, and served by the
-   Python standard library with a health endpoint.
-3. **Overte probe and `OverteSession` — implemented.** One Interface test
-   script emits the observable state used by every platform.
-4. **Phone/Pico ADB behind adapter operations — implemented.** Existing
-   release scripts remain stronger packaging/provenance gates; the universal
-   adapters expose their runtime primitives.
-5. **Common scene/look/move/tablet modules — implemented.** A deterministic
-   state-machine adapter executes the entire suite in hardware-free CI.
-6. **Appium transport — Android implemented; iOS software contract
-   implemented, signed artifact gated.** W3C transport, source capture and
-   audited-label checks are tested against a fake Appium server. Android has a
-   debug-only controlled launcher. iOS now has a fail-closed test-build
-   contract, runtime plist attestation, controlled relaunch arguments, and
-   Documents probe transfer. This checkout has no maintained iOS application
-   target, so producing/signing that artifact and auditing the real QML tree
-   remain hardware/platform gates.
-7. **Desktop adapter — Linux contracts implemented, OS acceptance remains.**
-   Visible Fedora/GNOME uses RemoteDesktop portal v2 plus a persistent `libei`
-   sender. Headless Linux owns a private GPU-backed Mutter/Xwayland session and
-   uses `xdotool` only inside it. Windows and macOS retain the OculiX visual driver;
-   Windows rejects Session 0 and macOS requires Accessibility and Screen
-   Recording. Each advertised physical behavior remains gated until exercised
-   in the matching session.
-8. **Local Jenkins device lab — implemented.** Start with `smoke`, add
-   `e2e-core` on an input-capable profile, and enable lifecycle/thermal soaks
-   only after target pass rates are stable.
-9. **Controlled domain-entry contract — implemented, adapter rollout gated.**
-   An ephemeral local domain/assignment fixture, exact identity/content checks,
-   and hardware-free positive and negative tests are in place. Configured
-   Desktop/Oculix targets use the in-client probe command path; Android and
-   Appium adapters intentionally remain disabled until separately activated and
-   accepted.
+- The portable runner works on POSIX and Windows, launches adapter commands
+  portably, validates the versioned registry, and distinguishes assertion,
+  skip, and infrastructure outcomes.
+- The controlled five-entity serverless scene is dependency-free,
+  self-validating, and served by the Python standard library.
+- One schema-v2 Interface probe emits monotonic, strict observable state used
+  by every platform while retaining domain, asset, and sound evidence.
+- The common scene, look, movement, tablet, accessibility, launch, and soak
+  modules consume only versioned adapter capabilities.
+- A deterministic state-machine adapter executes the full baseline in
+  hardware-free CI.
+- The controlled domain-entry contract includes an ephemeral local
+  domain/assignment fixture, exact identity/content checks, and hardware-free
+  positive and negative tests. Product adapters intentionally omit
+  `navigation.enter-domain` until separately activated and accepted.
+
+Android adds an embedded debug fixture, Appium/ADB transports, and the gated
+Pico OpenXR input transport without changing those shared behavior contracts.
+Concrete transports, package formats, signing rules, system services, device
+selectors, accessibility mappings, and toolchain locks belong to product
+branches.
 
 ## Target matrix
 
@@ -68,16 +53,6 @@ neither behavior nor platform logic.
 | Android Phone | Appium UiAutomator2; ADB lifecycle | Overte probe | Linux/macOS/Windows with USB access |
 | Pico/Android VR | ADB lifecycle; test-only OpenXR API-layer prototype | Overte probe | Host with authorized ADB |
 | iPhone/iPad | Appium XCUITest + RemoteXPC | Lifecycle and test-build/probe contract; physical behavior after signed artifact acceptance | Protected macOS build/sign producer; Fedora physical-device agent on iOS 18+ |
-| Linux desktop, visible Fedora/GNOME | XDG RemoteDesktop portal v2 + persistent `libei` sender | Overte probe; no screen capture capability | Logged-in GPU session; one explicit persistent input grant during provisioning |
-| Linux desktop, headless | Owned GPU-headless Mutter/Xwayland + `xdotool`; ImageMagick window capture | Overte probe + private screenshot artifact | Direct-rendered allowlisted GPU; portal-free private session |
-| Windows desktop | OculiX | Overte probe | Unlocked interactive user session |
-| macOS desktop | OculiX | Overte probe | Accessibility + Screen Recording grants |
-
-Direct `xdotool`, XTEST, Java Robot, and OculiX input are prohibited on the
-visible GNOME Wayland host. They are not a fallback if the persistent portal
-session cannot be restored. The visible run stops and reports infrastructure
-failure instead of opening repeated remote-interaction dialogs. `xdotool` and
-ImageMagick are confined to the adapter-owned headless X11 display.
 
 Pico/Quest head pose and tracked-controller input cannot honestly be emulated
 by ordinary ADB. [`openxr_input/`](openxr_input/) now defines and validates a
@@ -99,11 +74,16 @@ resource.
   Android fixture the adapter declares marker verification. In both cases all
   four fixture markers exist and the nearby entity count is stable for
   consecutive probe samples.
-- Look: the camera's observed Euler-angle delta crosses a configurable minimum.
-- Move: the avatar baseline is stable before input, then displacement crosses a
-  configurable minimum in the controlled collision scene.
 - Spawn: the avatar position is finite and above the fixture ground within the
   declared tolerance.
+- Look: each signed camera-orientation delta crosses a configurable minimum in
+  the requested left, right, up, or down direction.
+- Move: the avatar baseline is neutral before input, then displacement crosses
+  a configurable minimum along the requested body-yaw-relative axis.
+- Neutral input: velocity, positional drift, and view drift remain below their
+  configured bounds for consecutive fresh samples.
+- Collision: the avatar approaches the repository-owned wall, cannot pass its
+  near face, and does not stop implausibly far away.
 - Jump: a stable grounded baseline precedes exactly one `input.jump`; the probe
   then observes configurable height gain with `inAir=true` and `flying=false`,
   followed by `inAir=false` near the baseline height.
@@ -112,6 +92,10 @@ resource.
   and `flying=true`.
 - Tablet: both open and closed state transitions are observed in Interface,
   not inferred from a successful click, key, or gesture command.
+- Tablet isolation: movement input while the tablet owns focus produces no
+  observable world displacement or velocity.
+- Recovery: scene reload restores the controlled fixture; application restart
+  proves stop state, relaunch, a new identity, foreground state, and stability.
 - Sound: fixture request telemetry, decoded `SoundObject` readiness, two fresh
   active injector samples, regular finish or stop, and stable process identity
   are all required. This is an in-client proof, not a physical-output proof;
@@ -135,8 +119,8 @@ an archived result identifies the Overte binary that produced the evidence.
 - **Skipped:** target truthfully lacks the declared capability; runner result
   `skipped`, not passed.
 - **Assertion failure:** Overte ran but did not exhibit the required behavior.
-- **Infrastructure error:** disconnected device, Appium/desktop-driver failure,
-  stale probe, revoked portal restore, or automation transport error; module
+- **Infrastructure error:** disconnected device, Appium/ADB failure, stale
+  probe, or automation transport error; module
   exit `75`, JUnit `<error>`.
 
 This distinction prevents an offline phone from being counted as a product
@@ -145,10 +129,8 @@ regression and prevents an unsupported operation from being counted as success.
 ## Open-source tooling boundary
 
 The harness and probe are Apache-2.0 with Overte. Jenkins and its Lockable
-Resources/JUnit plugins, Appium, UiAutomator2, Appium XCUITest driver, ADB,
-OculiX, OpenCV, Java runtimes, XDG Desktop Portal, libei, Mutter, Xwayland,
-GLX/RandR utilities,
-`xdotool`, and ImageMagick all have open-source implementations.
+Resources/JUnit plugins, Appium, UiAutomator2, Appium XCUITest driver, ADB, and
+Java runtimes all have open-source implementations.
 
 iOS has an unavoidable producer exception: builds and signatures require
 Apple's proprietary Xcode toolchain, device signing, and provisioning. The
@@ -170,8 +152,7 @@ effect. Before a target receives a Jenkins schedule, record evidence for:
 - fixture reachability from the device network;
 - all advertised operation effects observed through the probe;
 - screenshot/log collection with no private selector leakage where the target
-  advertises capture; visible Fedora intentionally supplies probe/log evidence
-  without requesting screen-sharing authority;
+  advertises capture;
 - repeatability of at least 20 short `e2e-core` runs;
 - recovery after cable removal, Appium restart, application crash, and timeout;
 - OS-specific permissions in the same login context as the Jenkins agent.
@@ -183,11 +164,5 @@ an unreliable short suite.
 
 - [Appium UiAutomator2 setup](https://appium.io/docs/en/latest/quickstart/uiauto2-driver/)
 - [Appium XCUITest physical-device preparation](https://appium.github.io/appium-xcuitest-driver/latest/getting-started/device-setup/)
-- [OculiX changelog and 4.x module boundary](https://github.com/oculix-org/Oculix/blob/master/CHANGELOG.md)
-- [XDG RemoteDesktop portal v2](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.RemoteDesktop.html)
-- [libei sender API](https://libinput.pages.freedesktop.org/libei/api/group__libei-sender.html)
 - [Jenkins Lockable Resources Pipeline step](https://www.jenkins.io/doc/pipeline/steps/lockable-resources/)
 - [Jenkins credential handling](https://www.jenkins.io/doc/book/using/using-credentials/)
-- [Microsoft Session 0 restrictions](https://learn.microsoft.com/en-us/windows/win32/services/interactive-services)
-- [Apple Accessibility permission](https://support.apple.com/guide/mac-help/mh43185/mac)
-- [Apple Screen Recording permission](https://support.apple.com/guide/mac-help/mchld6aa7d23/mac)

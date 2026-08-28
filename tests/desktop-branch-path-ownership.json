@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "parentOwnedPrefixes": [
+    "tests/device/"
+  ],
+  "parentOwnedFiles": [
+    ".github/workflows/desktop-branch-topology.yml",
+    "docs/BRANCH_WORKFLOW.md",
+    "tests/desktop-branch-path-ownership.json",
+    "tests/desktop-branch-topology-check.py",
+    "tests/desktop-branch-topology-test.py"
+  ],
+  "targets": {
+    "linux-main": {
+      "ownedPrefixes": [
+        "tests/device/adapters/linux/"
+      ],
+      "ownedFiles": []
+    },
+    "windows-main": {
+      "ownedPrefixes": [
+        "tests/device/adapters/windows/"
+      ],
+      "ownedFiles": []
+    }
+  }
+}

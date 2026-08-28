@@ -3,16 +3,16 @@
 The `sound-smoke` suite proves the strongest sound-specific behavior exposed by
 the current Interface scripting APIs without recording audio. It uses the
 repository-owned network fixture, the in-client test probe, and the shared
-`sound-playback` module. Desktop/Oculix targets with the injected probe command
-channel advertise this suite; other real adapters remain gated.
+`sound-playback` module. Android ADB and controlled Appium targets advertise
+this suite; other real adapters remain gated.
 
 ## Controlled signal
 
 [`fixture/audio/overte-e2e-tone.wav`](fixture/audio/overte-e2e-tone.wav) is a
-deterministically generated 2.0-second, 440 Hz sine wave at 20% amplitude. It is
-mono, signed 16-bit little-endian PCM at 8,000 Hz and is 32,044 bytes including
+deterministically generated 8.0-second, 440 Hz sine wave at 20% amplitude. It is
+mono, signed 16-bit little-endian PCM at 8,000 Hz and is 128,044 bytes including
 the WAV header. Its SHA-256 is
-`e9492f9ed0356257540e6295e1928d9561ff11db1866087d7921f62ea0d3ebd5`.
+`cb325e92a358cbd38a97d9cbfa1e02878ab190d6b29fda6922834b972f1e0e50`.
 [`fixture/generate_sound_fixture.py`](fixture/generate_sound_fixture.py)
 reproduces the file using only the Python standard library. The non-native
 sample rate intentionally exercises `SoundProcessor::interpretAsWav()` and the
@@ -44,9 +44,10 @@ The module requires all of these independent observations:
    call alone cannot pass the module.
 6. The injector remains playing in at least two probe snapshots whose
    `sampleSequence` and `sampleEpochMs` both strictly advance.
-7. The productive `AudioInjector.finished` signal is observed, `playing` is
-   false, and the probe classifies the result as natural completion or an
-   explicitly requested stop.
+7. The productive `AudioInjector.finished` signal, or Android's transition to
+   `playing === false` after a previously sampled true state, is observed. The
+   probe classifies the result as natural completion or an explicitly requested
+   stop.
 8. `app.process` retains exactly the same non-empty identity before, throughout,
    and after playback.
 
@@ -65,11 +66,10 @@ adapter implementation can post the versioned command there and must
 return only `{requested: true, commandId: string}`. The probe and request
 telemetry remain the independent acceptance evidence.
 
-The deterministic mock and explicitly controlled Desktop/Oculix profiles
-advertise `sound.play`. Desktop copies the repository probe into private target
-state, tells that running probe the exact fixture command endpoint, and leaves
-resource/injector state entirely to the probe. Other product adapters are
-deliberately unchanged.
+The deterministic mock and explicitly controlled Android/Appium profiles
+advertise `sound.play`. Their target-owned command transports tell the running
+probe the exact fixture command endpoint and leave resource/injector state
+entirely to the probe. Other product adapters are deliberately unchanged.
 
 ## Proof boundary
 

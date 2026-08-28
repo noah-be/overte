@@ -10,7 +10,7 @@ SPDX-License-Identifier: Apache-2.0
 > [!CAUTION]
 > **AI-assisted experimental fork**
 >
-> This repository is an experimental fork of the [original Overte project](https://github.com/overte-org/overte). I am currently developing interfaces for the Pico 4 VR headset, Android phones, iPhones, iPads, and Mac computers. I am not a member of the Overte development team. I maintain this fork as a personal hobby project with the goal of making Overte playable by as many different people as possible.
+> This repository is an experimental fork of the [original Overte project](https://github.com/overte-org/overte). I am currently developing interfaces for the Pico 4 VR headset, Android phones, iPhones, and iPads. I am not a member of the Overte development team. I maintain this fork as a personal hobby project with the goal of making Overte playable by as many different people as possible.
 >
 > I use AI tools to assist with experiments and implementation work in this fork. Code in this repository may therefore be incomplete, poorly tested, insecure, or otherwise dangerous, including quick-and-dirty fixes and vulnerabilities that have not yet been identified. Building or running it may expose your device, data, accounts, or network to security risks. Review the code carefully and use it entirely at your own risk. Do not treat this fork as a clean, stable, or production-ready version of Overte.
 >
@@ -25,18 +25,28 @@ main
 ├── Android (android-main)
 │   ├── Android phones (android-phone)
 │   └── VR headsets (android-vr)
-│       ├── Pico 4 (android-vr-pico)
-│       └── Meta Quest (android-vr-quest)
-└── Apple (apple-main)
-    ├── iPhone and iPad (apple-ios)
-    └── Mac computers (apple-macos)
+│       └── Pico 4 (android-vr-pico)
+├── Apple (apple-main)
+│   └── iPhone and iPad (apple-ios)
+├── Linux desktop (linux-main)
+└── Windows desktop (windows-main)
 ```
 
 The Android source tree mirrors the same ownership boundaries inside
 [`android/`](android/README.md): shared infrastructure lives in `common`, Phone
-code in `phone`, and headset code below `vr/pico` or `vr/quest`. The `vr/common`
-directory is reserved for implementation genuinely shared by multiple Android
-VR targets.
+code in `phone`, and the active headset target below `vr/pico`. Historical
+Quest source remains below `vr/quest`, but Quest is not an active development
+or synchronization target. The `vr/common` directory is reserved for reusable
+Android VR implementation.
+
+The frozen `android-vr-quest` and `apple-macos` branches are retained only as
+historical evidence. They are outside the active branch hierarchy, reject
+updates and deletion, and receive no automatic synchronization from their
+former parents.
+
+Linux distributions and Windows releases are execution targets rather than
+permanent child branches. Their desktop adapters, lab integration, and target
+matrices are owned by `linux-main` and `windows-main`, respectively.
 
 Changes are propagated from shared branches to increasingly specific branches;
 the reviewed order and merge rules are documented in
@@ -49,7 +59,7 @@ are maintained in the experimental fork [`roadmap`](docs/ROADMAP.md).
 
 ### Interfaces in development
 
-The four ports use a shared documentation layout described in
+The three active ports use a shared documentation layout described in
 [`docs/interfaces/`](docs/interfaces/README.md). The platform documentation is
 maintained on its corresponding development branch.
 

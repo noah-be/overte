@@ -4,7 +4,7 @@
 > This roadmap describes an unofficial, AI-assisted hobby fork. It is not an
 > Overte project commitment or a statement of official platform support.
 
-- **Updated:** 2026-08-24
+- **Updated:** 2026-08-28
 - **Baseline before this roadmap:** `main@9f00d77028`
 - **Current primary milestone:** `PICO-P1`
 - **Current maintenance milestone:** `R0`
@@ -95,14 +95,16 @@ unique work before removing anything.
 - Optional signing, notarization, store work, and wider device support begin
   only after the corresponding personal alpha is repeatable.
 
-## PARKED
+## ARCHIVED
 
-- **QUEST-Q0 — Meta Quest.** Preserve the product branch and existing preview
-  evidence, but do not resume implementation until a named physical Quest is
-  available. Virtual or simulated testing is not a substitute for this gate.
-- **MAC-P1 — macOS personal alpha.** Preserve the current hosted Intel evidence,
-  but do not resume product work until a named physical Mac is available.
-  Further virtual/software-renderer testing is not a substitute for this gate.
+- **Meta Quest.** Quest is not a development target for this fork. The frozen
+  `android-vr-quest` branch and its hardware-unverified preview evidence are
+  retained for history only. There is no resume milestone or synchronization
+  path from `android-vr`.
+- **macOS.** macOS is not a development target for this fork. The frozen
+  `apple-macos` branch, hosted Intel evidence, and unfinished diagnostic work
+  are retained for history only. There is no resume milestone or
+  synchronization path from `apple-main`.
 
 ## Portfolio
 
@@ -115,9 +117,10 @@ does not imply that a target is actively being developed.
 | Pico 4 | NOW | Host-verified and build-ready; device acceptance incomplete | `android-vr-pico` | Interface roadmap and status reviewed 2026-08-24 | `PICO-P1` |
 | Android phones | NEXT 1 | Emulator-verified and build-ready; device coverage incomplete | `android-phone` | Interface roadmap and status reviewed 2026-08-24 | `PHONE-P1` after Pico |
 | iPhone and iPad | NEXT 2 | Simulator-verified bootstrap; integrated client experimental | `apple-ios` | iPad roadmap and status reviewed 2026-08-24 | `IOS-P1` after Android Phone |
-| macOS | PARKED | Hosted Intel runtime-verified; physical hardware unavailable | `apple-macos` | Interface status reviewed 2026-08-24 | Resume `MAC-P1` with a named physical Mac |
-| Meta Quest | PARKED | Experimental; physical hardware unavailable | `android-vr-quest` | Branch and preview delta reviewed 2026-08-24 | Resume `QUEST-Q0` with a named physical Quest |
-| Linux and Windows desktop | OUT OF SCOPE | Inherited historical baseline | `main` | Fork baseline | Fork regression checks only |
+| macOS | ARCHIVED | Historical hosted Intel evidence; never accepted on owned physical hardware | frozen `apple-macos` | Branch frozen 2026-08-28 | None; not a project target |
+| Meta Quest | ARCHIVED | Historical experimental code; never accepted on physical hardware | frozen `android-vr-quest` | Branch frozen 2026-08-28 | None; not a project target |
+| Linux desktop | OUT OF SCOPE product; E2E MAINTENANCE | Inherited client baseline; dedicated adapter ownership being established | `linux-main` | Desktop E2E migration, 2026-08-28 | Repeatable Linux `e2e-core` target evidence |
+| Windows desktop | OUT OF SCOPE product; E2E MAINTENANCE | Inherited client baseline; dedicated adapter ownership being established | `windows-main` | Desktop E2E migration, 2026-08-28 | Hardware-free adapter contracts, then an interactive target |
 
 Detailed technical facts and evidence remain authoritative in the interface
 documentation on each named product branch. This table records only portfolio
@@ -147,9 +150,7 @@ Use stable identifiers in roadmaps and pull requests:
 - `R<n>` for repository-wide maintenance;
 - `PICO-P<n>` and `PHONE-P<n>` for Android personal-alpha milestones;
 - `IOS-P<n>` for iPhone and iPad personal-alpha milestones;
-- `MAC-P<n>` for macOS personal-alpha milestones;
-- `<TARGET>-V<n>` for broader preview milestones; and
-- `QUEST-Q<n>` for Quest incubation milestones.
+- `<TARGET>-V<n>` for broader preview milestones.
 
 Pull requests should name the milestone they advance and the exit criterion
 affected. Completing a task is not sufficient by itself; the resulting evidence

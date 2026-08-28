@@ -9,10 +9,10 @@ on:
       - android-phone
       - android-vr
       - android-vr-pico
-      - android-vr-quest
       - apple-main
       - apple-ios
-      - apple-macos
+      - linux-main
+      - windows-main
 
 permissions:
   contents: read

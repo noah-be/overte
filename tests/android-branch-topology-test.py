@@ -92,6 +92,22 @@ class AndroidBranchTopologyTest(unittest.TestCase):
         )
         self.assertTrue(any("current android-vr history" in error for error in errors))
 
+    def test_quest_is_not_an_active_android_target(self):
+        self.assertEqual(
+            ["unsupported Android target branch: android-vr-quest"],
+            MODULE.validate(
+                self.repo,
+                "android-vr-quest",
+                self.android_main,
+                self.android_vr,
+                self.android_vr,
+            ),
+        )
+        self.assertNotIn(
+            "android-vr-quest",
+            WORKFLOW.read_text(encoding="utf-8"),
+        )
+
     def test_shared_harness_change_is_rejected(self):
         run(self.repo, "checkout", "-q", self.android_main)
         head = self.commit("tests/device/core", "changed directly\n")
