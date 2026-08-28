@@ -4,7 +4,6 @@ on:
   pull_request:
     branches:
       - apple-ios
-      - apple-macos
 
 permissions:
   contents: read

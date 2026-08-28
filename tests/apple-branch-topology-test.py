@@ -13,6 +13,7 @@ import unittest
 
 
 CHECK = Path(__file__).with_name("apple-branch-topology-check.py")
+WORKFLOW = CHECK.parents[1] / ".github/workflows/apple-branch-topology.yml"
 SPEC = importlib.util.spec_from_file_location("apple_topology", CHECK)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader
@@ -37,10 +38,6 @@ POLICY = {
                 "tests/device/jenkins/",
             ],
             "ownedFiles": ["tests/device/TOOLCHAIN.md"],
-        },
-        "apple-macos": {
-            "ownedPrefixes": ["tests/device/adapters/macos/"],
-            "ownedFiles": [],
         },
     },
 }
@@ -92,21 +89,23 @@ class AppleBranchTopologyTest(unittest.TestCase):
     def validate(self, head: str, target: str = "apple-ios") -> list[str]:
         return MODULE.validate(self.repo, self.apple_main, head, target)
 
-    def test_ios_owned_directory_change_is_allowed_only_on_ios(self):
+    def test_ios_owned_directory_change_is_allowed(self):
         head = self.commit("tests/device/ios/backend.py", "ios\n")
         self.assertEqual([], self.validate(head))
-        self.assertTrue(any("apple-main-owned path" in error
-                            for error in self.validate(head, "apple-macos")))
 
     def test_ios_owned_appium_directory_is_allowed(self):
         head = self.commit("tests/device/adapters/appium/adapter.py", "ios\n")
         self.assertEqual([], self.validate(head))
 
-    def test_macos_owned_adapter_directory_is_allowed_only_on_macos(self):
-        head = self.commit("tests/device/adapters/macos/adapter.py", "macos\n")
-        self.assertEqual([], self.validate(head, "apple-macos"))
-        self.assertTrue(any("apple-main-owned path" in error
-                            for error in self.validate(head, "apple-ios")))
+    def test_macos_is_not_an_active_apple_target(self):
+        self.assertEqual(
+            ["unsupported Apple target: apple-macos"],
+            self.validate(self.apple_main, "apple-macos"),
+        )
+        self.assertNotIn(
+            "apple-macos",
+            WORKFLOW.read_text(encoding="utf-8"),
+        )
 
     def test_exact_ios_owned_file_is_allowed(self):
         head = self.commit("tests/device/TOOLCHAIN.md", "ios pins\n")
