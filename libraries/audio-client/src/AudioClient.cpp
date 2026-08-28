@@ -72,6 +72,9 @@ const int AudioClient::MIN_BUFFER_FRAMES = 1;
 
 const int AudioClient::MAX_BUFFER_FRAMES = 20;
 
+static constexpr int DEVICE_CHECK_INTERVAL_MSECS = 2 * 1000;
+static constexpr int PEAK_VALUES_CHECK_INTERVAL_MSECS = 50;
+
 #if defined(Q_OS_ANDROID)
 static const int CHECK_INPUT_READS_MSECS = 2000;
 static const int MIN_READS_TO_CONSIDER_INPUT_ALIVE = 10;
@@ -536,7 +539,7 @@ void AudioClient::checkDevices() {
     // Make sure we're not shutting down
     Lock timerMutex(_checkDevicesMutex);
     // If we HAVE shut down after we were queued, but prior to execution, early exit
-    if (nullptr == _checkDevicesTimer) {
+    if (!_audioLifecycleRunning || nullptr == _checkDevicesTimer) {
         return;
     }
 
@@ -745,14 +748,18 @@ AudioClient::AudioClient() {
     checkDevices();
     // start a thread to detect any device changes
     _checkDevicesTimer = new QTimer(this);
-    const unsigned long DEVICE_CHECK_INTERVAL_MSECS = 2 * 1000;
     connect(_checkDevicesTimer, &QTimer::timeout, this, [=, this] {
         QtConcurrent::run(QThreadPool::globalInstance(), [=, this] {
             checkDevices();
             // On some systems (Ubuntu) checking all the audio devices can take more than 2 seconds.  To
             // avoid consuming all of the thread pool, don't start the check interval until the previous
             // check has completed.
-            QMetaObject::invokeMethod(_checkDevicesTimer, "start", Q_ARG(int, DEVICE_CHECK_INTERVAL_MSECS));
+            QMetaObject::invokeMethod(this, [this] {
+                Lock lock(_checkDevicesMutex);
+                if (_audioLifecycleRunning && _checkDevicesTimer) {
+                    _checkDevicesTimer->start(DEVICE_CHECK_INTERVAL_MSECS);
+                }
+            }, Qt::QueuedConnection);
         });
     });
     _checkDevicesTimer->setSingleShot(true);
@@ -763,7 +770,6 @@ AudioClient::AudioClient() {
     connect(_checkPeakValuesTimer, &QTimer::timeout, this, [this] {
         QtConcurrent::run(QThreadPool::globalInstance(), [this] { checkPeakValues(); });
     });
-    const unsigned long PEAK_VALUES_CHECK_INTERVAL_MSECS = 50;
     _checkPeakValuesTimer->start(PEAK_VALUES_CHECK_INTERVAL_MSECS);
 
     configureReverb();
@@ -1189,6 +1195,23 @@ int possibleResampling(AudioSRC* resampler,
 
 void AudioClient::start() {
 
+    {
+        Lock lock(_checkDevicesMutex);
+        if (_audioLifecycleRunning) {
+            return;
+        }
+        _audioLifecycleRunning = true;
+        if (_checkDevicesTimer && !_checkDevicesTimer->isActive()) {
+            _checkDevicesTimer->start(DEVICE_CHECK_INTERVAL_MSECS);
+        }
+    }
+    {
+        Lock lock(_checkPeakValuesMutex);
+        if (_checkPeakValuesTimer && !_checkPeakValuesTimer->isActive()) {
+            _checkPeakValuesTimer->start(PEAK_VALUES_CHECK_INTERVAL_MSECS);
+        }
+    }
+
 #if defined(ANDROID_APP_PICO_INTERFACE)
     prioritizeAndroidAudioThread();
 #endif
@@ -1224,26 +1247,28 @@ void AudioClient::start() {
 }
 
 void AudioClient::stop() {
+    {
+        Lock lock(_checkDevicesMutex);
+        if (!_audioLifecycleRunning) {
+            return;
+        }
+        _audioLifecycleRunning = false;
+        if (_checkDevicesTimer) {
+            _checkDevicesTimer->stop();
+        }
+    }
+    {
+        Lock lock(_checkPeakValuesMutex);
+        if (_checkPeakValuesTimer) {
+            _checkPeakValuesTimer->stop();
+        }
+    }
+
     qCDebug(audioclient) << "AudioClient::stop(), requesting switchInputToAudioDevice() to shut down";
     switchInputToAudioDevice(HifiAudioDeviceInfo(), true);
 
     qCDebug(audioclient) << "AudioClient::stop(), requesting switchOutputToAudioDevice() to shut down";
     switchOutputToAudioDevice(HifiAudioDeviceInfo(), true);
-
-    // Stop triggering the checks
-    QObject::disconnect(_checkPeakValuesTimer, &QTimer::timeout, nullptr, nullptr);
-    QObject::disconnect(_checkDevicesTimer, &QTimer::timeout, nullptr, nullptr);
-
-    // Destruction of the pointers will occur when the parent object (this) is destroyed)
-    {
-        Lock lock(_checkDevicesMutex);
-        _checkDevicesTimer->stop();
-        _checkDevicesTimer = nullptr;
-    }
-    {
-        Lock lock(_checkPeakValuesMutex);
-        _checkPeakValuesTimer = nullptr;
-    }
 
 #if defined(Q_OS_ANDROID)
     _checkInputTimer.stop();
@@ -2084,6 +2109,11 @@ void AudioClient::processMicAudioInput(QByteArray& inputByteArray) {
                 inputAudioSamples.get(), networkAudioSamples,
                 inputSamplesRequired, numNetworkSamples,
                 _inputFormat.channelCount(), _desiredInputFormat.channelCount());
+        } else {
+            // handleAudioInput intentionally sends one final non-silent packet
+            // on the transition to mute so the codec can flush. Make that
+            // packet silent instead of reusing the previous 10 ms mic frame.
+            memset(networkAudioSamples, 0, numNetworkBytes);
         }
         int bytesInInputRingBuffer = _inputRingBuffer.samplesAvailable() * AudioConstants::SAMPLE_SIZE;
         float msecsInInputRingBuffer = bytesInInputRingBuffer / (float)(_inputFormat.bytesForDuration(USECS_PER_MSEC));
