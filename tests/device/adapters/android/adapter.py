@@ -9,6 +9,9 @@ import os
 from pathlib import Path
 import sys
 import time
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+import uuid
 
 
 REPOSITORY = Path(__file__).resolve().parents[4]
@@ -21,6 +24,7 @@ from android.common.device_tests.adb_transport import AdbTransport  # noqa: E402
 from adapters.common import (EMBEDDED_FIXTURE_URL, emit, fail,  # noqa: E402
                              parse_operation_arguments,
                              require_fresh_snapshot)
+from contracts import validate_operation_arguments  # noqa: E402
 from openxr_input.adapter_session import (  # noqa: E402
     PicoOpenXrAdapterSession, pico_openxr_opted_in,
     validate_pico_openxr_configuration,
@@ -44,6 +48,13 @@ PROFILES = {
 }
 
 ANDROID_DEBUG_PROBE = "files/overte-e2e/overte-probe.json"
+ANDROID_CONTROL_MARKER = "files/overte-e2e/android-control.json"
+ANDROID_CONTROL_COMMAND = "files/overte-e2e/android-control-command.json"
+ANDROID_CONTROL_CONTRACT = {
+    "schemaVersion": 1,
+    "channel": "android-debug-file-v1",
+    "probe": "overte_e2e_probe.js",
+}
 
 
 def cli() -> argparse.Namespace:
@@ -93,17 +104,95 @@ class AndroidAdapter:
                 and gles.isdigit() and int(gles) >= 196610
                 and "feature:android.hardware.touchscreen" in features)
 
-    def capabilities(self) -> list[str]:
+    def capabilities(self, target: str | None = None) -> list[str]:
         values = ["app.foreground", "app.launch", "app.process",
                   "lifecycle.background", "telemetry.snapshot"]
         if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") == "1":
             values += ["probe.snapshot", "scene.load"]
+            if target is not None and self.controlled_debug_identity(target) is not None:
+                values += ["asset.load", "navigation.enter-domain", "sound.play"]
         if self.kind == "pico" and os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
             # An explicit opt-in with incomplete isolation is a configuration
             # error, not a silent capability downgrade.
             validate_pico_openxr_configuration()
             values += ["input.look", "input.move", "tablet.close", "tablet.open"]
         return sorted(values)
+
+    @staticmethod
+    def decode_json(raw: str) -> dict | None:
+        try:
+            value = json.loads(raw)
+        except json.JSONDecodeError:
+            return None
+        return value if isinstance(value, dict) else None
+
+    def controlled_debug_identity(self, target: str) -> str | None:
+        """Return the stable process identity only for the fixed debug control contract."""
+        if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") != "1":
+            return None
+        package = self.profile["package"]
+        before = self.adb.process_state(target, package)
+        identity = before.get("identity")
+        if before.get("running") is not True or not isinstance(identity, str) or not identity:
+            return None
+        marker = self.decode_json(self.adb.read_debug_app_file(
+            target, package, ANDROID_CONTROL_MARKER, attempts=1))
+        if marker != ANDROID_CONTROL_CONTRACT:
+            return None
+        probe = self.decode_json(self.adb.read_debug_app_file(
+            target, package, ANDROID_DEBUG_PROBE, attempts=1))
+        if probe is None:
+            return None
+        try:
+            probe = require_fresh_snapshot(probe)
+        except RuntimeError:
+            return None
+        control = probe.get("control")
+        if (control != ANDROID_CONTROL_CONTRACT
+                or probe.get("application", {}).get("running") is not True):
+            return None
+        after = self.adb.process_state(target, package)
+        if after.get("running") is not True or after.get("identity") != identity:
+            return None
+        return identity
+
+    def require_controlled_debug_identity(self, target: str) -> str:
+        if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") != "1":
+            fail("Android controlled operations require an E2E-enabled debug APK")
+        identity = self.controlled_debug_identity(target)
+        if identity is None:
+            fail("Android controlled operations require a fresh probe and confirmed debug channel")
+        if self.kind == "pico" and pico_openxr_opted_in():
+            if self.require_pico_session_identity(target) != identity:
+                fail("Android controlled operation process identity changed")
+        return identity
+
+    def require_same_process(self, target: str, identity: str, operation: str) -> None:
+        state = self.adb.process_state(target, self.profile["package"])
+        if state.get("running") is not True or state.get("identity") != identity:
+            fail(f"Android process changed during {operation}")
+
+    def write_control_command(self, target: str, identity: str,
+                              operation: str, command: dict) -> None:
+        payload = json.dumps(command, separators=(",", ":"), sort_keys=True) + "\n"
+        self.adb.write_debug_app_file(
+            target, self.profile["package"], ANDROID_CONTROL_COMMAND, payload)
+        self.require_same_process(target, identity, operation)
+
+    @staticmethod
+    def post_sound_command(command_url: str, command: dict) -> None:
+        payload = json.dumps(command, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        request = Request(command_url, data=payload,
+                          headers={"Content-Type": "application/json"}, method="POST")
+        try:
+            with urlopen(request, timeout=5) as response:
+                if response.status != 200:
+                    fail("controlled sound channel rejected the command")
+                observed = json.load(response)
+        except (HTTPError, URLError, OSError, json.JSONDecodeError) as error:
+            fail(f"controlled sound channel is unavailable: {error}")
+        if observed != command:
+            fail("controlled sound channel did not confirm the exact command")
 
     def pico_input_session(self, target: str) -> PicoOpenXrAdapterSession:
         if self.kind != "pico" or not pico_openxr_opted_in():
@@ -200,7 +289,7 @@ class AndroidAdapter:
                 "displayName": model,
                 "platform": "android",
                 "physical": self.adb.prop(selector, "ro.kernel.qemu") != "1",
-                "capabilities": self.capabilities(),
+                "capabilities": self.capabilities(selector),
             })
         return targets
 
@@ -222,6 +311,46 @@ class AndroidAdapter:
     def invoke(self, target: str, operation: str, values: dict) -> dict:
         self.require(target)
         package = self.profile["package"]
+        if operation in {"navigation.enter-domain", "asset.load", "sound.play"}:
+            try:
+                values = validate_operation_arguments(operation, values)
+            except ValueError as error:
+                fail(str(error))
+            identity = self.require_controlled_debug_identity(target)
+            command_id = f"android-{operation.replace('.', '-')}-{uuid.uuid4().hex}"
+            if operation == "navigation.enter-domain":
+                self.write_control_command(target, identity, operation, {
+                    "schemaVersion": 1,
+                    "commandId": command_id,
+                    "action": "enter-domain",
+                    "url": values["url"],
+                })
+                return {"requested": True}
+            if operation == "asset.load":
+                self.write_control_command(target, identity, operation, {
+                    "schemaVersion": 1,
+                    "commandId": command_id,
+                    "action": "load-asset",
+                    "assetId": values["assetId"],
+                    "entityName": values["entityName"],
+                    "url": values["url"],
+                })
+                return {"requested": True}
+            sound_command = {
+                "schemaVersion": 1,
+                "commandId": values["commandId"],
+                "action": "play",
+                "soundUrl": values["url"],
+            }
+            self.write_control_command(target, identity, operation, {
+                "schemaVersion": 1,
+                "commandId": command_id,
+                "action": "sound-channel",
+                "commandUrl": values["commandUrl"],
+            })
+            self.post_sound_command(values["commandUrl"], sound_command)
+            self.require_same_process(target, identity, operation)
+            return {"requested": True, "commandId": values["commandId"]}
         if operation == "app.install":
             apk = values.get("path")
             if not isinstance(apk, str) or not Path(apk).is_file():
