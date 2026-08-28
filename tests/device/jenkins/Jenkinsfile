@@ -206,6 +206,11 @@ pipeline {
             defaultValue: false,
             description: 'Run the controlled WAV loading and injector lifecycle E2E suite.'
         )
+        booleanParam(
+            name: 'RUN_VERTICAL_LOCOMOTION',
+            defaultValue: false,
+            description: 'Run physical jump, landing and upward-flight verification.'
+        )
         string(
             name: 'DOMAIN_SERVER_EXECUTABLE',
             defaultValue: '',
@@ -267,6 +272,10 @@ pipeline {
                     if (params.RUN_DOMAIN_ENTER && (!params.DOMAIN_SERVER_EXECUTABLE.trim() ||
                             !params.ASSIGNMENT_CLIENT_EXECUTABLE.trim())) {
                         error('Both domain fixture executable paths are required for domain entry')
+                    }
+                    if (params.RUN_VERTICAL_LOCOMOTION &&
+                            params.TARGET_PROFILE != 'android-pico-adb') {
+                        error('RUN_VERTICAL_LOCOMOTION is currently accepted only for android-pico-adb')
                     }
                     adapterManifest(params.TARGET_PROFILE)
                     env.OVERTE_TARGET_NEEDS_CLEANUP = '0'
@@ -342,6 +351,13 @@ pipeline {
             when { expression { params.RUN_SOUND_PLAYBACK } }
             steps {
                 script { runDeviceSuite('sound-smoke', 10) }
+            }
+        }
+
+        stage('Pico vertical locomotion') {
+            when { expression { params.RUN_VERTICAL_LOCOMOTION } }
+            steps {
+                script { runDeviceSuite('vertical-locomotion', 15) }
             }
         }
 

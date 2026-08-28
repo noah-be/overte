@@ -490,11 +490,13 @@ class JenkinsGlueTest(unittest.TestCase):
             "runDeviceSuite('domain-smoke'", "runDeviceSuite('asset-smoke'",
             "runDeviceSuite('sound-smoke'", "DOMAIN_SERVER_EXECUTABLE",
             "ASSIGNMENT_CLIENT_EXECUTABLE",
+            "RUN_VERTICAL_LOCOMOTION", "runDeviceSuite('vertical-locomotion'",
         ):
             self.assertIn(expected, source)
 
     def test_content_suites_are_accepted_by_ci_glue(self):
-        self.assertTrue({"domain-smoke", "asset-smoke", "sound-smoke"}
+        self.assertTrue({"domain-smoke", "asset-smoke", "sound-smoke",
+                         "vertical-locomotion"}
                         .issubset(RUN_CI.SUITES))
 
 
