@@ -394,17 +394,32 @@ class OverteSession:
         return before, after, neutral
 
     @staticmethod
-    def movement_projection(before: dict, after: dict, direction: str) -> float:
-        yaw = math.radians(float(before["avatar"]["bodyYawDegrees"]))
+    def movement_vector(body_yaw_degrees: float, direction: str) -> tuple[float, float]:
+        yaw = math.radians(float(body_yaw_degrees))
         forward = (-math.sin(yaw), -math.cos(yaw))
         right = (math.cos(yaw), -math.sin(yaw))
+        axis = forward if direction in {"forward", "backward"} else right
+        sign = 1.0 if direction in {"forward", "right"} else -1.0
+        return axis[0] * sign, axis[1] * sign
+
+    @classmethod
+    def movement_projection(cls, before: dict, after: dict, direction: str) -> float:
+        vector = cls.movement_vector(
+            float(before["avatar"]["bodyYawDegrees"]), direction)
         position_before = before["avatar"]["position"]
         position_after = after["avatar"]["position"]
         displacement = (float(position_after["x"]) - float(position_before["x"]),
                         float(position_after["z"]) - float(position_before["z"]))
-        axis = forward if direction in {"forward", "backward"} else right
-        sign = 1.0 if direction in {"forward", "right"} else -1.0
-        return sign * (displacement[0] * axis[0] + displacement[1] * axis[1])
+        return displacement[0] * vector[0] + displacement[1] * vector[1]
+
+    @classmethod
+    def direction_toward_world_negative_z(cls, body_yaw_degrees: float) -> str:
+        directions = ("forward", "backward", "left", "right")
+        return max(
+            directions,
+            key=lambda direction: -cls.movement_vector(
+                body_yaw_degrees, direction)[1],
+        )
 
     def move(self, direction: str, duration_seconds: float = 1.5) -> tuple[dict, dict, dict]:
         before = self.input_neutral_snapshot(f"move-{direction}-before.json")
@@ -505,14 +520,16 @@ class OverteSession:
         near_face_z = float(center["z"]) + float(dimensions["z"]) / 2.0
         if float(before["avatar"]["position"]["z"]) <= near_face_z:
             raise InfrastructureError("collision fixture spawn is not in front of its wall")
-        self._invoke("input.move", {"direction": "forward", "durationSeconds": 5.0})
+        direction = self.direction_toward_world_negative_z(
+            float(before["avatar"]["bodyYawDegrees"]))
+        self._invoke("input.move", {"direction": direction, "durationSeconds": 5.0})
         after = self.input_neutral_snapshot("collision-after.json")
         minimum = self._float_environment(
             "OVERTE_E2E_MIN_COLLISION_APPROACH_METERS", 1.0, 0.1, 10.0)
         stopping_tolerance = self._float_environment(
             "OVERTE_E2E_COLLISION_STOP_TOLERANCE_METERS", 1.0, 0.05, 3.0)
         z = float(after["avatar"]["position"]["z"])
-        if self.movement_projection(before, after, "forward") < minimum:
+        if self.movement_projection(before, after, direction) < minimum:
             fail("avatar did not approach the collision wall")
         if z < near_face_z - 0.05:
             fail("avatar passed through the collision wall")
