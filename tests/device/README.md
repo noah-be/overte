@@ -140,10 +140,11 @@ orientation, tablet state, controlled asset resource/entity evidence, sound
 resource and injector state, monotonic sample sequence, and build identity
 through Interface's existing test-script result API. It records no audio
 samples. Product adapters own the exact launch and result transport used to
-load it. An adapter may place a mode-0600 `e2e-client-command.json` beside its
-  private probe copy. The probe accepts only strict, versioned HTTP scene,
-  domain navigation, controlled local Image-entity, and fixture sound-channel commands; a
-network-loaded probe without that file stops polling the private channel.
+load it. The fixture exposes a same-origin `/e2e-client-command.json` channel;
+controlled adapters POST strict commands there and verify the exact response.
+The probe accepts only versioned HTTP scene, domain navigation, controlled
+local Image-entity, and fixture sound-channel commands. A probe without the
+controlled HTTP route stops polling the channel.
 
 [`fixture/domain.py`](fixture/domain.py) owns the complementary ephemeral
 domain-server and assignment-client stack. The `domain-smoke` assertion waits
