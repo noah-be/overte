@@ -37,7 +37,9 @@
       ]
     },
     "apple-macos": {
-      "ownedPrefixes": [],
+      "ownedPrefixes": [
+        "tests/device/adapters/macos/"
+      ],
       "ownedFiles": []
     }
   }
