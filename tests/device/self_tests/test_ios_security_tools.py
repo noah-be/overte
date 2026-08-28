@@ -102,6 +102,9 @@ class IosSecurityToolsTest(unittest.TestCase):
                 "rcodesign": {"version": "0.29.0", "executableSha256": "3" * 64,
                               "artifact": {"url": "https://github.com/rcodesign",
                                            "sha256": "4" * 64}},
+                "resigner": {"version": "0.3.1", "executableSha256": "5" * 64,
+                             "artifact": {"url": "https://github.com/resigner",
+                                          "sha256": "6" * 64}},
             }}
         }
         executable = self.root / "tools/rcodesign-0.29.0/rcodesign"
@@ -117,6 +120,36 @@ class IosSecurityToolsTest(unittest.TestCase):
               mock.patch.object(TOOLS, "extract_executable", side_effect=fake_extract)):
             installed = TOOLS.install(self.root / "tools", ("rcodesign",))
         self.assertEqual({"rcodesign": executable}, installed)
+        self.assertEqual(1, download.call_count)
+
+    def test_appium_resigner_uses_exact_release_member(self):
+        lock = {
+            "appium": {"iosSecurity": {
+                "resigner": {
+                    "version": "0.3.1",
+                    "executableSha256": "5" * 64,
+                    "artifact": {
+                        "url": "https://github.com/appium/resigner/releases/download/"
+                               "v0.3.1/linux-amd64.tar.gz",
+                        "sha256": "6" * 64,
+                    },
+                },
+            }}
+        }
+        executable = self.root / "tools/resigner-0.3.1/resigner"
+
+        def fake_extract(_archive, member, destination, digest):
+            self.assertEqual("linux-amd64/resigner", member)
+            self.assertEqual("5" * 64, digest)
+            destination.write_bytes(b"appium resigner")
+
+        with (mock.patch.object(TOOLS.platform, "system", return_value="Linux"),
+              mock.patch.object(TOOLS.platform, "machine", return_value="x86_64"),
+              mock.patch.object(TOOLS.json, "loads", return_value=lock),
+              mock.patch.object(TOOLS, "download") as download,
+              mock.patch.object(TOOLS, "extract_executable", side_effect=fake_extract)):
+            installed = TOOLS.install(self.root / "tools", ("resigner",))
+        self.assertEqual({"resigner": executable}, installed)
         self.assertEqual(1, download.call_count)
 
     def test_selected_install_rejects_duplicates_or_unknown_tools(self):

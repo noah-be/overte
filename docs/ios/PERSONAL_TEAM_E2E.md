@@ -123,6 +123,57 @@ same Personal Team, and leave the Overte E2E plist contract enabled. Do not put
 Apple credentials, certificates, private keys, profiles, device identifiers, or
 signed IPAs in GitHub artifacts or the repository.
 
+### Recursively sign WDA on Fedora
+
+If Sideloadly has already created the Personal-Team identity and provisioning
+profile, the WDA half can be reproduced offline on Fedora. This does not create
+another App ID and does not need Xcode. It also does not automate Apple's
+account login, two-factor authentication, device registration, trust prompt, or
+seven-day profile renewal: those remain the unavoidable Sideloadly/Apple steps.
+
+Keep the exported PKCS#12 identity, its password file, provisioning profile,
+device-identity file, and output below in one private mode-0700 directory
+outside the checkout. Install the repository-pinned open-source tools, then run
+the recursive signer:
+
+```bash
+umask 077
+python3 tests/device/ios/security_tools.py \
+  --root /private/personal-team/tools \
+  --tool resigner \
+  --tool rcodesign
+
+python3 tests/device/ios/sign_personal_team_wda.py \
+  --unsigned-wda-ipa /private/personal-team/WebDriverAgentRunner-16.8.0-PersonalTeam-unsigned.ipa \
+  --unsigned-kit-manifest /private/personal-team/personal-team-e2e-kit.json \
+  --p12-file /private/personal-team/personal-team.p12 \
+  --p12-password-file /private/personal-team/p12-password.txt \
+  --profile-file /private/personal-team/wda.mobileprovision \
+  --device-udid-file /private/personal-team/device-udid.txt \
+  --apple-root-ca-pem /private/personal-team/AppleRootCA-G3.pem \
+  --resigner /private/personal-team/tools/resigner-0.3.1/resigner \
+  --rcodesign /private/personal-team/tools/rcodesign-0.29.0/rcodesign \
+  --output-ipa /private/personal-team/WebDriverAgentRunner-16.8.0-PersonalTeam-signed.ipa
+```
+
+The helper first verifies the unsigned-kit hash and both executable pins. It
+uses Appium resigner for recursive identifier/profile placement, then replaces
+all three generated code signatures with pinned `rcodesign`: the outer runner,
+nested XCTest, and embedded WDA framework. It finally verifies the Mach-O code
+signatures, CMS signer leaves, embedded profiles, team/application identifiers,
+expiry, and the exact archive structure. Password contents are supplied through
+a private file and never placed in the command line. OpenSSL PKCS#12 reads use
+legacy compatibility locally because Appium resigner 0.3.1 expects the legacy
+PKCS#12 encoding; this does not change the Apple certificate or IPA signature.
+The fetcher's exact run/attempt and GitHub archive-digest verification is the
+download provenance boundary; run it before this offline helper and retain its
+private receipt. The signer independently rechecks the kit manifest and IPA
+hash, but deliberately does not make a second GitHub API request.
+
+Successful offline verification is not an installation claim. InstallationProxy
+must still report `ProfileValidated`, and the first real RemoteXPC/XCTest WDA
+session remains the final Apple-policy gate.
+
 After visually reviewing that both outputs came from the downloaded kit, create
 the private human-boundary record:
 

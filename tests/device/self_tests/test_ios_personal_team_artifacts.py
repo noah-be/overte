@@ -9,10 +9,12 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import plistlib
 import tempfile
 import unittest
 from unittest import mock
 import sys
+import zipfile
 
 
 DEVICE_ROOT = Path(__file__).resolve().parents[1]
@@ -144,14 +146,15 @@ class IosPersonalTeamArtifactsTest(unittest.TestCase):
         bundle_results = [
             (signing, "Payload/Overte.app/", set()),
             (signing, "Payload/WebDriverAgentRunner-Runner.app/", {
-                nested + "Info.plist", nested + "embedded.mobileprovision",
-                nested + "_CodeSignature/CodeResources",
+                nested + "Info.plist", nested + "_CodeSignature/CodeResources",
             }),
-            (signing, "Payload/WebDriverAgentRunner-Runner.app/", set()),
         ]
         with mock.patch.object(
                 VERIFY.VERIFY, "validate_rcodesign", return_value=self.root / "rcodesign"), \
                 mock.patch.object(VERIFY, "verify_bundle", side_effect=bundle_results), \
+                mock.patch.object(VERIFY, "bundle_leaf_signer", return_value=b"leaf"), \
+                mock.patch.object(VERIFY, "verify_nested_xctest") as nested_verifier, \
+                mock.patch.object(VERIFY, "verify_nested_framework") as framework_verifier, \
                 mock.patch.object(VERIFY.VERIFY, "archive_plist", side_effect=[({
                     "OverteE2ETestBuildContractVersion": 1, "UIFileSharingEnabled": True,
                 }, "Payload/Overte.app/", set()), ({
@@ -162,6 +165,16 @@ class IosPersonalTeamArtifactsTest(unittest.TestCase):
                     VERIFY.VERIFY, "extract_prebuilt_wda",
                     return_value=(self.root / "WebDriverAgentRunner-Runner.app", "4" * 64)):
             self.assertEqual(0, VERIFY.run(self.arguments()))
+        nested_verifier.assert_called_once_with(
+            self.wda.resolve(), nested, bundle_results[1][2], VERIFY.BUNDLES["wdaXCTest"],
+            signing["teamIdentifier"], b"leaf", self.root / "rcodesign",
+        )
+        framework_verifier.assert_called_once_with(
+            self.wda.resolve(),
+            nested + "Frameworks/WebDriverAgentLib.framework/",
+            bundle_results[1][2], signing["teamIdentifier"], b"leaf",
+            self.root / "rcodesign",
+        )
         receipt = json.loads(self.receipt.read_text(encoding="utf-8"))
         self.assertEqual(VERIFY.RECEIPT_CONTRACT, receipt["contract"])
         self.assertEqual({"path", "sha256", "bundleId"}, set(receipt["overte"]))
@@ -171,18 +184,13 @@ class IosPersonalTeamArtifactsTest(unittest.TestCase):
         self.assertEqual("human-verified", receipt["provenance"]["derivationBinding"])
         self.assertEqual(0o600, self.receipt.stat().st_mode & 0o777)
 
-    def test_different_personal_teams_fail_closed(self):
+    def test_overte_and_wda_runner_different_personal_teams_fail_closed(self):
         signing_a = {"teamIdentifier": "TEAM123456"}
         signing_b = {"teamIdentifier": "OTHER12345"}
-        nested = "Payload/WebDriverAgentRunner-Runner.app/PlugIns/WebDriverAgentRunner.xctest/"
         with mock.patch.object(
                 VERIFY.VERIFY, "validate_rcodesign", return_value=self.root / "rcodesign"), \
                 mock.patch.object(VERIFY, "verify_bundle", side_effect=[
                     (signing_a, "Payload/Overte.app/", set()),
-                    (signing_b, "Payload/WebDriverAgentRunner-Runner.app/", {
-                        nested + "Info.plist", nested + "embedded.mobileprovision",
-                        nested + "_CodeSignature/CodeResources",
-                    }),
                     (signing_b, "Payload/WebDriverAgentRunner-Runner.app/", set()),
                 ]), mock.patch.object(VERIFY.VERIFY, "archive_plist", side_effect=[({
                     "OverteE2ETestBuildContractVersion": 1, "UIFileSharingEnabled": True,
@@ -192,6 +200,166 @@ class IosPersonalTeamArtifactsTest(unittest.TestCase):
                 }, "Payload/WebDriverAgentRunner-Runner.app/", set())]):
             with self.assertRaisesRegex(VERIFY.VERIFY.VerificationError, "same Personal Team"):
                 VERIFY.run(self.arguments())
+
+    @staticmethod
+    def nested_signature_info(*, xml: object = mock.sentinel.missing,
+                              der: object = mock.sentinel.missing,
+                              team: str = "TEAM123456") -> list[dict]:
+        signature = {
+            "code_directory": {
+                "identifier": VERIFY.BUNDLES["wdaXCTest"], "team_name": team,
+            },
+            "cms": {
+                "certificates": [{
+                    "apple_team_id": team,
+                    "apple_certificate_profile": "apple-development",
+                }],
+                "signers": [{"signature_verifies": True}],
+            },
+        }
+        if xml is not mock.sentinel.missing:
+            signature["entitlements_plist"] = xml
+        if der is not mock.sentinel.missing:
+            signature["entitlements_der_plist"] = der
+        return [{"entity": {"mach_o": {"signature": signature}}}]
+
+    def test_nested_signature_accepts_no_entitlement_slots(self):
+        VERIFY.validate_nested_signature_info(
+            self.nested_signature_info(), "webdriveragent xctest", "TEAM123456",
+            VERIFY.BUNDLES["wdaXCTest"],
+        )
+
+    def test_nested_signature_rejects_even_empty_xml_entitlement_slot(self):
+        with self.assertRaisesRegex(
+                VERIFY.VERIFY.VerificationError, "entitlement slot"):
+            VERIFY.validate_nested_signature_info(
+                self.nested_signature_info(xml=["<?xml version='1.0'?>", "<plist/>"]),
+                "webdriveragent xctest", "TEAM123456", VERIFY.BUNDLES["wdaXCTest"],
+            )
+
+    def test_nested_signature_rejects_der_entitlement_slot(self):
+        with self.assertRaisesRegex(
+                VERIFY.VERIFY.VerificationError, "entitlement slot"):
+            VERIFY.validate_nested_signature_info(
+                self.nested_signature_info(der=[]), "webdriveragent xctest",
+                "TEAM123456", VERIFY.BUNDLES["wdaXCTest"],
+            )
+
+    def test_nested_signature_rejects_wrong_cms_team(self):
+        value = self.nested_signature_info()
+        value[0]["entity"]["mach_o"]["signature"]["cms"]["certificates"][0][
+            "apple_team_id"
+        ] = "OTHER12345"
+        with self.assertRaisesRegex(
+                VERIFY.VERIFY.VerificationError, "signer team differs"):
+            VERIFY.validate_nested_signature_info(
+                value, "webdriveragent xctest", "TEAM123456",
+                VERIFY.BUNDLES["wdaXCTest"],
+            )
+
+    def test_nested_xctest_requires_code_resources(self):
+        root = "Payload/Runner.app/PlugIns/WebDriverAgentRunner.xctest/"
+        with self.assertRaisesRegex(
+                VERIFY.VERIFY.VerificationError, "signed nested XCTest bundle"):
+            VERIFY.verify_nested_xctest(
+                self.wda, root, {root + "Info.plist"}, VERIFY.BUNDLES["wdaXCTest"],
+                "TEAM123456", b"leaf", self.root / "rcodesign",
+            )
+
+    def test_nested_xctest_rejects_embedded_profile(self):
+        root = "Payload/Runner.app/PlugIns/WebDriverAgentRunner.xctest/"
+        names = {
+            root + "Info.plist", root + "_CodeSignature/CodeResources",
+            root + "embedded.mobileprovision",
+        }
+        with self.assertRaisesRegex(
+                VERIFY.VERIFY.VerificationError, "must not contain a provisioning profile"):
+            VERIFY.verify_nested_xctest(
+                self.wda, root, names, VERIFY.BUNDLES["wdaXCTest"],
+                "TEAM123456", b"leaf", self.root / "rcodesign",
+            )
+
+    def test_nested_xctest_rejects_alternative_embedded_profile_name(self):
+        root = "Payload/Runner.app/PlugIns/WebDriverAgentRunner.xctest/"
+        names = {
+            root + "Info.plist", root + "_CodeSignature/CodeResources",
+            root + "embedded.provisionprofile",
+        }
+        with self.assertRaisesRegex(
+                VERIFY.VERIFY.VerificationError, "must not contain a provisioning profile"):
+            VERIFY.verify_nested_xctest(
+                self.wda, root, names, VERIFY.BUNDLES["wdaXCTest"],
+                "TEAM123456", b"leaf", self.root / "rcodesign",
+            )
+
+    def test_nested_framework_is_identity_entitlement_and_leaf_attested(self):
+        ipa = self.root / "framework.ipa"
+        root = ("Payload/Runner.app/PlugIns/WebDriverAgentRunner.xctest/"
+                "Frameworks/WebDriverAgentLib.framework/")
+        plist = {
+            "CFBundleIdentifier": VERIFY.WDA_FRAMEWORK_BUNDLE_ID,
+            "CFBundlePackageType": "FMWK", "CFBundleExecutable": "Framework",
+        }
+        with zipfile.ZipFile(ipa, "w") as archive:
+            archive.writestr(root + "Info.plist", plistlib.dumps(plist))
+            archive.writestr(root + "Framework", b"signed executable")
+            archive.writestr(root + "_CodeSignature/CodeResources", b"resources")
+        with zipfile.ZipFile(ipa) as archive:
+            names = set(archive.namelist())
+        signature_info = self.nested_signature_info()
+        signature_info[0]["entity"]["mach_o"]["signature"]["code_directory"][
+            "identifier"
+        ] = VERIFY.WDA_FRAMEWORK_BUNDLE_ID
+        completed = mock.Mock(returncode=0)
+        with mock.patch.object(VERIFY.subprocess, "run", return_value=completed), \
+                mock.patch.object(
+                    VERIFY, "load_signature_info", return_value=signature_info
+                ) as signature_loader, mock.patch.object(
+                    VERIFY, "verified_leaf_signer", return_value=b"runner"):
+            VERIFY.verify_nested_framework(
+                ipa, root, names, "TEAM123456", b"runner", self.root / "rcodesign"
+            )
+        signature_loader.assert_called_once()
+
+        signature_info[0]["entity"]["mach_o"]["signature"][
+            "entitlements_plist"
+        ] = []
+        with mock.patch.object(VERIFY.subprocess, "run", return_value=completed), \
+                mock.patch.object(
+                    VERIFY, "load_signature_info", return_value=signature_info
+                ), mock.patch.object(
+                    VERIFY, "verified_leaf_signer", return_value=b"runner"):
+            with self.assertRaisesRegex(
+                    VERIFY.VERIFY.VerificationError, "entitlement slot"):
+                VERIFY.verify_nested_framework(
+                    ipa, root, names, "TEAM123456", b"runner",
+                    self.root / "rcodesign",
+                )
+
+    def test_nested_xctest_rejects_different_leaf_signer(self):
+        ipa = self.root / "nested.ipa"
+        root = "Payload/Runner.app/PlugIns/WebDriverAgentRunner.xctest/"
+        plist = {
+            "CFBundleIdentifier": VERIFY.BUNDLES["wdaXCTest"],
+            "CFBundlePackageType": "BNDL", "CFBundleExecutable": "Runner",
+        }
+        with zipfile.ZipFile(ipa, "w") as archive:
+            archive.writestr(root + "Info.plist", plistlib.dumps(plist))
+            archive.writestr(root + "Runner", b"signed executable")
+            archive.writestr(root + "_CodeSignature/CodeResources", b"resources")
+        with zipfile.ZipFile(ipa) as archive:
+            names = set(archive.namelist())
+        completed = mock.Mock(returncode=0)
+        with mock.patch.object(VERIFY.subprocess, "run", return_value=completed), \
+                mock.patch.object(
+                    VERIFY, "load_signature_info", return_value=self.nested_signature_info()
+                ), mock.patch.object(VERIFY, "verified_leaf_signer", return_value=b"other"):
+            with self.assertRaisesRegex(
+                    VERIFY.VERIFY.VerificationError, "different leaf signers"):
+                VERIFY.verify_nested_xctest(
+                    ipa, root, names, VERIFY.BUNDLES["wdaXCTest"],
+                    "TEAM123456", b"runner", self.root / "rcodesign",
+                )
 
     def test_preinstalled_attestation_creator_is_short_private_and_kit_bound(self):
         output = self.root / "private-observation/preinstalled.json"

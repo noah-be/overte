@@ -114,6 +114,7 @@ class FakeXCUITest:
     def __init__(self) -> None:
         self.events: list[tuple[str, str, object]] = []
         self.app_state = 1
+        self.launch_state = 4
         self.pid = 4123
         self.bundle = "org.overte.e2e"
         self.orientation_y = 0.0
@@ -147,7 +148,7 @@ class FakeXCUITest:
         if script == "mobile: activeAppInfo":
             return {"pid": self.pid, "bundleId": self.bundle}
         if script == "mobile: launchApp":
-            self.app_state = 4
+            self.app_state = self.launch_state
             return None
         if script == "mobile: activateApp":
             self.app_state = 4
@@ -298,6 +299,27 @@ class AppiumAdapterTests(unittest.TestCase):
                 APPIUM.WebDriver("http://127.0.0.1:4723").call("POST", "/session", {})
         self.assertNotIn(private_value, str(raised.exception))
 
+    def test_http_error_classifies_wda_background_10300_without_private_values(self) -> None:
+        private_identifier = "com.private.wda.00000000-1111-2222-3333-444444444444"
+        body = json.dumps({
+            "value": {
+                "error": "unknown error",
+                "message": (
+                    "Error Domain=XCTestErrorDomain Code=10300 Failed to background "
+                    f"test runner within 30.0s. Runner={private_identifier}"
+                ),
+            },
+        }).encode("utf-8")
+        error = HTTPError(
+            "http://127.0.0.1:4723/session", 500, "error", {}, io.BytesIO(body))
+        with mock.patch.object(APPIUM, "urlopen", side_effect=error):
+            with self.assertRaisesRegex(
+                    RuntimeError,
+                    r"HTTP 500 \(the preinstalled WebDriverAgent runner could not enter "
+                    r"the background\)") as raised:
+                APPIUM.WebDriver("http://127.0.0.1:4723").call("POST", "/session", {})
+        self.assertNotIn(private_identifier, str(raised.exception))
+
     def adapter_and_session(self) -> tuple[object, FakeXCUITest, dict, dict]:
         target = ios_target()
         client = FakeXCUITest()
@@ -306,6 +328,7 @@ class AppiumAdapterTests(unittest.TestCase):
         adapter = APPIUM.AppiumAdapter.__new__(APPIUM.AppiumAdapter)
         adapter.platform = "ios"
         adapter.adapter_id = "appium-ios"
+        adapter.IOS_LAUNCH_STABILITY_SECONDS = 0
         adapter.targets = {"private-ipad": target}
         adapter.ensure_session = lambda _selector: (client, "fake-session", state)
         adapter.save_session = lambda _selector, _value: None
@@ -319,6 +342,7 @@ class AppiumAdapterTests(unittest.TestCase):
         self.assertNotIn("osVersion", description)
 
         adapter.invoke("private-ipad", "app.launch", {})
+        self.assertEqual("4123", state["processIdentity"])
         identity = adapter.invoke("private-ipad", "app.process", {})["identity"]
         adapter.invoke("private-ipad", "scene.load", {"url": scene_url})
         ready = adapter.invoke("private-ipad", "probe.snapshot", {})
@@ -337,6 +361,11 @@ class AppiumAdapterTests(unittest.TestCase):
         launches = [event for event in client.events
                     if event[:2] == ("execute", "mobile: launchApp")]
         self.assertEqual(1, len(launches))
+        launch_index = client.events.index(launches[0])
+        self.assertEqual(
+            ["mobile: queryAppState", "mobile: activeAppInfo"],
+            [event[1] for event in client.events[launch_index + 1:launch_index + 3]],
+        )
         self.assertFalse(any(event[:2] == ("execute", "mobile: activateApp")
                              for event in client.events))
         self.assertEqual([
@@ -360,6 +389,74 @@ class AppiumAdapterTests(unittest.TestCase):
         self.assertIs(closed["tablet"]["open"], False)
         self.assertTrue(state["iosE2ELaunchCompleted"])
 
+    def test_ios_launch_rejects_an_app_that_immediately_leaves_foreground(self) -> None:
+        for observed_state in (1, 3):
+            with self.subTest(observed_state=observed_state):
+                adapter, client, state, _target = self.adapter_and_session()
+                client.launch_state = observed_state
+
+                with self.assertRaisesRegex(
+                        RuntimeError, "iOS application is not foregrounded"):
+                    adapter.invoke("private-ipad", "app.launch", {})
+
+                self.assertEqual(1, len([
+                    event for event in client.events
+                    if event[:2] == ("execute", "mobile: launchApp")
+                ]))
+                self.assertFalse(any(
+                    event[:2] == ("execute", "mobile: activeAppInfo")
+                    for event in client.events
+                ))
+                self.assertNotIn("processIdentity", state)
+                self.assertNotIn("iosE2ELaunchCompleted", state)
+                self.assertNotIn("iosE2ESceneUrl", state)
+
+    def test_ios_launch_rejects_invalid_active_application_identity(self) -> None:
+        invalid_identities = (
+            ("org.overte.some-other-app", 4123),
+            ("org.overte.e2e", 0),
+            ("org.overte.e2e", True),
+            ("org.overte.e2e", "4123"),
+        )
+        for bundle, pid in invalid_identities:
+            with self.subTest(bundle=bundle, pid=pid):
+                adapter, client, state, _target = self.adapter_and_session()
+                client.bundle = bundle
+                client.pid = pid
+
+                with self.assertRaisesRegex(
+                        RuntimeError, "did not identify the configured application"):
+                    adapter.invoke("private-ipad", "app.launch", {})
+
+                self.assertEqual(1, len([
+                    event for event in client.events
+                    if event[:2] == ("execute", "mobile: launchApp")
+                ]))
+                self.assertNotIn("processIdentity", state)
+                self.assertNotIn("iosE2ELaunchCompleted", state)
+                self.assertNotIn("iosE2ESceneUrl", state)
+
+    def test_ios_launch_rejects_a_delayed_flash_crash_before_success_marker(self) -> None:
+        adapter, client, state, _target = self.adapter_and_session()
+        adapter.IOS_LAUNCH_STABILITY_SECONDS = 1.0
+
+        def exit_during_stability_window(_seconds: float) -> None:
+            client.app_state = 1
+
+        with mock.patch.object(
+                APPIUM.time, "sleep", side_effect=exit_during_stability_window) as delay, \
+                self.assertRaisesRegex(
+                    RuntimeError, "iOS application is not foregrounded"):
+            adapter.invoke("private-ipad", "app.launch", {})
+
+        delay.assert_called_once_with(1.0)
+        self.assertEqual(1, len([
+            event for event in client.events
+            if event[:2] == ("execute", "mobile: launchApp")
+        ]))
+        self.assertEqual("4123", state["processIdentity"])
+        self.assertNotIn("iosE2ELaunchCompleted", state)
+        self.assertNotIn("iosE2ESceneUrl", state)
     def test_ios_sound_capability_is_exactly_gated(self) -> None:
         adapter, _client, _state, target = self.adapter_and_session()
         advertised = adapter.advertised_capabilities(target)
@@ -652,6 +749,34 @@ class AppiumAdapterTests(unittest.TestCase):
                 self.assertEqual(mock.call("fake-session", "mobile: deviceInfo"),
                                  client.execute.call_args_list[-1])
 
+    def test_physical_attestation_accepts_current_lockdown_identity_shape(self) -> None:
+        adapter, client, _state, target = self.adapter_and_session()
+        target.pop("testBuild")
+        client.execute = mock.Mock(return_value={
+            "isSimulator": False,
+            "uuid": "dvt-session-uuid-is-not-the-device-id",
+            "lockdownInfo": {
+                "UniqueDeviceID": "private-device-id",
+                "ProductVersion": "18.6.0",
+            },
+        })
+        adapter.attest_physical_target(client, "fake-session", target)
+
+    def test_physical_attestation_rejects_conflicting_lockdown_identity(self) -> None:
+        adapter, client, _state, target = self.adapter_and_session()
+        target.pop("testBuild")
+        client.execute = mock.Mock(return_value={
+            "isSimulator": False,
+            "udid": "private-device-id",
+            "productVersion": "18.6",
+            "lockdownInfo": {
+                "UniqueDeviceID": "different-test-device",
+                "ProductVersion": "18.6.0",
+            },
+        })
+        with self.assertRaisesRegex(RuntimeError, "device identity"):
+            adapter.attest_physical_target(client, "fake-session", target)
+
     def test_immutable_pre_session_helper_keeps_device_identity_out_of_argv_and_output(self) -> None:
         adapter, _client, _state, target = self.adapter_and_session()
         target["_receiptWdaBundleId"] = "org.overte.WebDriverAgentRunner.xctrunner"
@@ -678,6 +803,19 @@ class AppiumAdapterTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "private device preflight") as raised:
                 adapter.pre_session_device_attestation(target)
         self.assertNotIn("private-device-id", str(raised.exception))
+
+    def test_ios_session_bootstrap_is_rejected_as_obsolete(self) -> None:
+        target = ios_target()
+        target["iosSessionBootstrap"] = {"backgroundWdaRunner": True}
+        with tempfile.TemporaryDirectory(prefix="overte-obsolete-bootstrap-") as name:
+            path = Path(name) / "targets.json"
+            path.write_text(json.dumps({
+                "schemaVersion": 1, "targets": [target],
+            }), encoding="utf-8")
+            path.chmod(0o600)
+            with mock.patch.dict(os.environ, {"OVERTE_APPIUM_TARGETS": str(path)}):
+                with self.assertRaisesRegex(RuntimeError, "obsolete.*r11"):
+                    APPIUM.AppiumAdapter("ios").targets()
 
     def test_signed_mode_installs_receipt_pair_before_preflight_without_private_argv(self) -> None:
         adapter, _client, _state, target = self.adapter_and_session()

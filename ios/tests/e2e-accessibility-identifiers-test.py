@@ -22,6 +22,12 @@ def main() -> None:
     button_qml = (
         ROOT / "interface/resources/qml/hifi/+android_interface/button.qml"
     ).read_text(encoding="utf-8")
+    native_bridge = (
+        ROOT / "interface/src/IOSTouchUiMetrics.mm"
+    ).read_text(encoding="utf-8")
+    application = (
+        ROOT / "interface/src/Application_Graphics.cpp"
+    ).read_text(encoding="utf-8")
 
     assert action_bar.count('objectName: "OverteTabletOpen"') == 1
     assert tablet_home.count('objectName: "OverteTabletClose"') == 1
@@ -34,6 +40,17 @@ def main() -> None:
     assert "activeFocusOnTab: true" in button_qml
     assert "Accessible.id: objectName" in tablet_home
     assert "Accessible.onPressAction: tabletProxy.hideAndroidTablet()" in tablet_home
+    assert native_bridge.count('@"OverteTabletOpen"') == 1
+    assert native_bridge.count('@"OverteTabletClose"') == 1
+    assert "OverteIOSAccessibilityElement : UIAccessibilityElement" in native_bridge
+    assert "UIAccessibilityTraitButton" in native_bridge
+    assert "guardedTablet->showAndroidTablet(width, height)" in native_bridge
+    assert "guardedTablet->hideAndroidTablet()" in native_bridge
+    assert "OverteIOSAccessibilityOverlay : UIView" in native_bridge
+    assert "pointInside:(CGPoint)point withEvent:(UIEvent*)event" in native_bridge
+    assert "return NO;" in native_bridge
+    assert "updateIOSTabletAccessibilityControls(systemTablet" in application
+    assert "&TabletProxy::tabletShownChanged" in application
     print("PASS stable iOS tablet accessibility identifiers")
 
 

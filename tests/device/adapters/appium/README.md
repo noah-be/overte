@@ -74,3 +74,11 @@ Sideloadly-remapped pair. For a remapped suffixless WDA it binds
 session rechecks those exact receipt-bound IDs rather than rediscovering apps.
 Signing remains a manual Apple/Sideloadly boundary or an optional protected
 macOS-producer boundary. Jenkins receives no Apple credentials.
+
+Runtime revision 11 starts the preinstalled WDA on Fedora through the pinned
+pymobiledevice3 XCTest/testmanagerd handshake and the already attested RSD
+endpoint. This replaces revision 9's out-of-band Home-event workaround.
+Artifact synchronization removes a stale `iosSessionBootstrap` section from
+private targets so it cannot race the real XCTest launch. The Fedora path uses
+the fixed WDA port and bounded process execution; custom Xcode-only or WDA
+launch-environment capabilities remain unsupported.

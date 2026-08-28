@@ -16,6 +16,7 @@ import re
 import stat
 import subprocess
 import tempfile
+import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
@@ -84,6 +85,9 @@ class WebDriver:
         if not isinstance(message, str):
             return None
         normalized = message.casefold()
+        if ("failed to background test runner" in normalized
+                and ("10300" in normalized or "within 30.0s" in normalized)):
+            return "the preinstalled WebDriverAgent runner could not enter the background"
         if "remotexpc" in normalized:
             return "RemoteXPC could not establish the XCUITest transport"
         if ("unable to launch webdriveragent" in normalized
@@ -169,7 +173,8 @@ class AppiumAdapter:
         "appium:keychainPath", "appium:keychainPassword",
         "appium:allowProvisioningDeviceRegistration", "appium:resultBundlePath",
     }
-    IOS_SERVICE_RUNTIME_REVISION = 7
+    IOS_SERVICE_RUNTIME_REVISION = 11
+    IOS_LAUNCH_STABILITY_SECONDS = 1.0
 
     def __init__(self, platform: str) -> None:
         self.platform = platform
@@ -210,6 +215,8 @@ class AppiumAdapter:
             for section in ("process", "scene", "controls", "probe", "background"):
                 if not isinstance(entry.get(section, {}), dict):
                     fail(f"Appium target {section} must be an object")
+            if "iosSessionBootstrap" in entry:
+                fail("iosSessionBootstrap is obsolete with the immutable r11 XCTest keeper")
             if not isinstance(entry.get("soundControl", {}), dict):
                 fail("Appium target soundControl must be an object")
             tablet = entry.get("controls", {}).get("tablet", {})
@@ -865,17 +872,28 @@ class AppiumAdapter:
             value = client.execute(session, "mobile: deviceInfo")
             if not isinstance(value, dict) or value.get("isSimulator") not in (False, 0):
                 fail("configured physical iOS target is a simulator or cannot be attested")
-            observed_udid = value.get("udid", value.get("uniqueDeviceIdentifier"))
+            lockdown = value.get("lockdownInfo", {})
+            if not isinstance(lockdown, dict):
+                fail("XCUITest device identity evidence is invalid")
             expected_udid = target["capabilities"].get("appium:udid")
-            if (not isinstance(observed_udid, str) or not observed_udid
-                    or observed_udid != expected_udid):
+            observed_udids = [item for item in (
+                value.get("udid"), value.get("uniqueDeviceIdentifier"),
+                lockdown.get("UniqueDeviceID"),
+            ) if item is not None]
+            if (not observed_udids
+                    or any(not isinstance(item, str) or not item
+                           or item != expected_udid for item in observed_udids)):
                 fail("XCUITest device identity does not match the private target")
-            observed_version = next((value.get(key) for key in (
-                "platformVersion", "productVersion", "ProductVersion", "osVersion")
-                if value.get(key) is not None), None)
+            observed_versions = [item for item in (
+                *(value.get(key) for key in (
+                    "platformVersion", "productVersion", "ProductVersion", "osVersion")),
+                lockdown.get("ProductVersion"),
+            ) if item is not None]
             expected_version = target["capabilities"].get("appium:platformVersion")
-            if (self.normalized_ios_version(observed_version)
-                    != self.normalized_ios_version(expected_version)):
+            normalized_expected = self.normalized_ios_version(expected_version)
+            if (not observed_versions or normalized_expected is None
+                    or any(self.normalized_ios_version(item) != normalized_expected
+                           for item in observed_versions)):
                 fail("XCUITest platform version does not match the private target")
             if target.get("testBuild"):
                 apps = client.execute(session, "mobile: listApps", {
@@ -942,6 +960,11 @@ class AppiumAdapter:
                     or not directory and not stat.S_ISREG(value.st_mode)):
                 fail("immutable iOS device preflight runtime failed attestation")
         return wrapper
+
+    def create_appium_session(self, client: WebDriver, target: dict) -> object:
+        return client.call("POST", "/session", {
+            "capabilities": {"alwaysMatch": target["capabilities"], "firstMatch": [{}]},
+        })
 
     def pre_session_device_attestation(self, target: dict) -> None:
         if self.platform != "ios":
@@ -1026,9 +1049,7 @@ class AppiumAdapter:
             self.validate_ios_artifact_receipt(target, hash_files=True)
             self.install_receipt_bound_ios_apps(target)
             self.pre_session_device_attestation(target)
-        value = client.call("POST", "/session", {
-            "capabilities": {"alwaysMatch": target["capabilities"], "firstMatch": [{}]},
-        })
+        value = self.create_appium_session(client, target)
         if not isinstance(value, dict) or not isinstance(value.get("sessionId"), str):
             fail("Appium did not create a WebDriver session")
         generation = previous_generation + 1
@@ -1416,6 +1437,12 @@ class AppiumAdapter:
             "arguments": arguments,
             "environment": contract["launchEnvironment"],
         })
+        # A successful launchApp response does not prove that the application
+        # remained alive. Bind its foreground PID before persisting any launch
+        # success marker so an immediate iOS process exit fails this operation.
+        self.assert_ios_process_identity(selector, client, session, state, target)
+        time.sleep(self.IOS_LAUNCH_STABILITY_SECONDS)
+        self.assert_ios_process_identity(selector, client, session, state, target)
         state["iosE2ELaunchCompleted"] = True
         state["iosE2ESceneUrl"] = scene_url
         self.save_session(selector, state)

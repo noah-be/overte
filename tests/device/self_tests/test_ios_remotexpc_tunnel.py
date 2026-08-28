@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+import ast
+import asyncio
+import hashlib
 import importlib.util
 import io
 import json
@@ -12,6 +15,7 @@ import plistlib
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -36,6 +40,87 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
         self.assertNotIn("00008101", value)
         self.assertNotIn("aabbccdd", value)
         self.assertEqual(2, value.count("<redacted-device>"))
+
+    def test_pymobiledevice3_keeper_ignores_test_plan_completion(self):
+        source = TUNNEL.PYMOBILEDEVICE3_XCTEST_FILE.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        keep_alive_class = next(
+            node for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "AppiumKeepAliveEvent"
+        )
+        namespace = {"asyncio": asyncio}
+        module = ast.fix_missing_locations(ast.Module(
+            body=[keep_alive_class], type_ignores=[]
+        ))
+        exec(compile(module, str(TUNNEL.PYMOBILEDEVICE3_XCTEST_FILE), "exec"),
+             namespace)
+
+        async def exercise() -> None:
+            event = namespace["AppiumKeepAliveEvent"]()
+            event.set()
+            self.assertFalse(event.is_set())
+
+        asyncio.run(exercise())
+        run_calls = [
+            node for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "run"
+            and any(keyword.arg == "test_done_event"
+                    and isinstance(keyword.value, ast.Name)
+                    and keyword.value.id == "keep_alive"
+                    for keyword in node.keywords)
+        ]
+        self.assertEqual(1, len(run_calls))
+
+    def test_pymobiledevice3_keeper_diagnostics_are_phase_only(self):
+        source = TUNNEL.PYMOBILEDEVICE3_XCTEST_FILE.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        phases = {
+            "host-platform", "parent-death-signal", "parent-lost", "request",
+            "request-endpoint", "request-environment", "runtime-version",
+            "rsd-connect", "rsd-identity", "xctest-config", "xctest-start",
+            "wda-ready", "wda-ready-runner-disconnected",
+            "wda-ready-runner-error", "wda-ready-runner-returned",
+            "wda-ready-runner-runtime", "wda-ready-runner-timeout",
+            "wda-ready-timeout", "session-lifetime",
+            "session-lifetime-runner-disconnected",
+            "session-lifetime-runner-error",
+            "session-lifetime-runner-returned",
+            "session-lifetime-runner-runtime",
+            "session-lifetime-runner-timeout", "unexpected",
+        }
+        assignment = next(
+            node for node in tree.body
+            if isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == "FAILURE_PHASES"
+                    for target in node.targets)
+        )
+        self.assertEqual(phases, ast.literal_eval(assignment.value))
+        self.assertIn(
+            "error: immutable Fedora XCTest keeper failed phase={phase}", source
+        )
+        self.assertNotIn("str(error)", source)
+
+        host_ops = TUNNEL.WDA_HOST_OPS_FILE.read_text(encoding="utf-8")
+        self.assertIn("stdio: ['pipe', 'pipe', 'pipe']", host_ops)
+        self.assertIn("KEEPER_FAILURE_PHASES.has(match[1])", host_ops)
+        self.assertIn("(phase: ${diagnosticPhase})", host_ops)
+        self.assertNotIn("{cause: error}", host_ops)
+        self.assertIn(
+            "child.exitCode !== null || child.signalCode !== null", host_ops
+        )
+        self.assertIn("XCTest keeper could not be reaped", host_ops)
+        self.assertIn("'host-platform', 'keeper-reap',", host_ops)
+        self.assertIn("phase || (keeperCleanupFailed ? 'keeper-reap' : null)", host_ops)
+        self.assertGreaterEqual(host_ops.count("setTimeout(() => resolve(false), 3000)"), 2)
+        previous_guard = host_ops.index("if (previous) {")
+        readiness_timeout = host_ops.index("const boundedTimeout", previous_guard)
+        guarded_startup = host_ops[previous_guard:readiness_timeout]
+        self.assertEqual(1, guarded_startup.count("terminateExactRunner"))
+        self.assertNotIn(
+            "}\n    await terminateExactRunner(driver, udid, bundleId);",
+            guarded_startup,
+        )
 
     def make_source_runtime(self, root: Path) -> tuple[Path, Path]:
         appium_home = root / "appium-home"
@@ -76,10 +161,43 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
         )
         real_device.parent.mkdir(parents=True, exist_ok=True)
         real_device.write_text("export class RealDevice {}\n", encoding="utf-8")
+        host_ops = appium_home.joinpath(*TUNNEL.XCUITEST_WDA_HOST_OPS.parts[1:])
+        host_ops.write_text("export const upstreamHostOps = true;\n", encoding="utf-8")
         node = root / "node"
         node.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         node.chmod(0o700)
         return appium_home, node
+
+    def make_pymobiledevice3_runtime(self, root: Path, appium_home: Path) -> tuple[Path, dict]:
+        home = root / "pymobiledevice3-home"
+        site_packages = home / "lib/python3.14/site-packages"
+        package = site_packages / "pymobiledevice3"
+        distribution = site_packages / "pymobiledevice3-11.1.5.dist-info"
+        package.mkdir(parents=True)
+        distribution.mkdir()
+        (package / "__init__.py").write_text(
+            "__version__ = '11.1.5'\n", encoding="utf-8",
+        )
+        (distribution / "METADATA").write_text(
+            "Metadata-Version: 2.1\nName: pymobiledevice3\nVersion: 11.1.5\n",
+            encoding="utf-8",
+        )
+        (distribution / "RECORD").write_text("\n", encoding="utf-8")
+        upstream_host_ops = appium_home.joinpath(
+            *TUNNEL.XCUITEST_WDA_HOST_OPS.parts[1:]
+        )
+        locked = dict(TUNNEL.load_lock()["appium"]["iosRuntime"]["pymobiledevice3"])
+        locked.update({
+            "distributionCount": 1,
+            "freezeSha256": hashlib.sha256(
+                b"pymobiledevice3==11.1.5\n"
+            ).hexdigest(),
+            "sitePackagesTreeSha256": TUNNEL.python_site_packages_tree_sha256(
+                site_packages
+            ),
+            "upstreamWdaHostOpsSha256": TUNNEL.file_sha256(upstream_host_ops),
+        })
+        return home, locked
 
     @staticmethod
     def make_tree_writable(root: Path) -> None:
@@ -118,10 +236,63 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
             with self.assertRaisesRegex(TUNNEL.TunnelError, "differs from its exact pin"):
                 TUNNEL.resolve_runtime(appium_home)
 
+    def test_pymobiledevice3_site_packages_are_inventory_and_tree_attested(self):
+        with tempfile.TemporaryDirectory(prefix="overte-pymobiledevice3-runtime-") as name:
+            root = Path(name)
+            appium_home, _node = self.make_source_runtime(root)
+            home, locked = self.make_pymobiledevice3_runtime(root, appium_home)
+            site_packages = home / "lib/python3.14/site-packages"
+            with patch.object(TUNNEL, "pymobiledevice3_lock", return_value=locked):
+                self.assertEqual(
+                    site_packages, TUNNEL.pymobiledevice3_site_packages(
+                        home, TUNNEL.load_lock()
+                    ),
+                )
+                (site_packages / "pymobiledevice3/__init__.py").write_text(
+                    "__version__ = 'tampered'\n", encoding="utf-8",
+                )
+                with self.assertRaisesRegex(
+                        TUNNEL.TunnelError, "site-packages bytes differ"):
+                    TUNNEL.pymobiledevice3_site_packages(home, TUNNEL.load_lock())
+
+    def test_install_rejects_drifted_upstream_host_ops_before_overlay(self):
+        with tempfile.TemporaryDirectory(prefix="overte-host-ops-drift-") as name:
+            root = Path(name)
+            appium_home, node = self.make_source_runtime(root)
+            pymobiledevice3_home, locked = self.make_pymobiledevice3_runtime(
+                root, appium_home
+            )
+            upstream = appium_home.joinpath(*TUNNEL.XCUITEST_WDA_HOST_OPS.parts[1:])
+            upstream.write_text("export const drifted = true;\n", encoding="utf-8")
+            service_root = root / "service"
+            try:
+                with patch.object(
+                        TUNNEL, "resolve_runtime", return_value=(
+                            node, appium_home / "node_modules/appium-ios-remotexpc/"
+                            "scripts/tunnel-creation.mjs",
+                        )), patch.object(
+                            TUNNEL, "prepare_appium_extension_template",
+                            side_effect=self.fake_extension_template), patch.object(
+                            TUNNEL, "pymobiledevice3_lock", return_value=locked), \
+                        patch.object(
+                            TUNNEL, "validate_host_python",
+                            return_value=Path(sys.executable).resolve()):
+                    with self.assertRaisesRegex(
+                            TUNNEL.TunnelError, "host operations differ"):
+                        TUNNEL.install_service_runtime(
+                            appium_home, pymobiledevice3_home,
+                            service_root=service_root,
+                        )
+            finally:
+                if service_root.exists():
+                    self.make_tree_writable(service_root)
+
     def test_install_creates_versioned_immutable_runtime_copy(self):
         with tempfile.TemporaryDirectory(prefix="overte-remotexpc-install-") as name:
             root = Path(name)
             appium_home, node = self.make_source_runtime(root)
+            pymobiledevice3_home, pymobiledevice3_lock = \
+                self.make_pymobiledevice3_runtime(root, appium_home)
             xattr_source = appium_home / "package.json"
             xattr_added = False
             try:
@@ -137,10 +308,16 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                                       "scripts/tunnel-creation.mjs")), patch.object(
                         TUNNEL, "prepare_appium_extension_template",
                         side_effect=self.fake_extension_template), patch.object(
+                        TUNNEL, "pymobiledevice3_lock",
+                        return_value=pymobiledevice3_lock), patch.object(
+                        TUNNEL, "validate_host_python",
+                        return_value=Path(sys.executable).resolve()), patch.object(
                         TUNNEL, "restore_security_context") as restore_context:
-                    installed = TUNNEL.install_service_runtime(appium_home, service_root)
+                    installed = TUNNEL.install_service_runtime(
+                        appium_home, pymobiledevice3_home, service_root=service_root,
+                    )
                     self.assertEqual(installed, restore_context.call_args.args[0])
-                self.assertEqual(service_root / "5.15.3-r7", installed)
+                self.assertEqual(service_root / "5.15.3-r11", installed)
                 self.assertEqual(
                     Path(TUNNEL.__file__).read_bytes(),
                     (installed / "remotexpc_tunnel.py").read_bytes(),
@@ -158,6 +335,24 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                     (installed / TUNNEL.DEVICE_DDI_FILE.name).read_bytes(),
                 )
                 self.assertEqual(
+                    TUNNEL.PYMOBILEDEVICE3_XCTEST_FILE.read_bytes(),
+                    (installed / TUNNEL.PYMOBILEDEVICE3_XCTEST_FILE.name).read_bytes(),
+                )
+                self.assertEqual(
+                    TUNNEL.WDA_HOST_OPS_FILE.read_bytes(),
+                    (installed / TUNNEL.XCUITEST_WDA_HOST_OPS).read_bytes(),
+                )
+                self.assertEqual(
+                    TUNNEL.WDA_HOST_OPS_FILE.read_bytes(),
+                    (installed / TUNNEL.WDA_HOST_OPS_FILE.name).read_bytes(),
+                )
+                self.assertEqual(
+                    pymobiledevice3_lock["sitePackagesTreeSha256"],
+                    TUNNEL.python_site_packages_tree_sha256(
+                        installed / TUNNEL.PYMOBILEDEVICE3_SITE_PACKAGES
+                    ),
+                )
+                self.assertEqual(
                     TUNNEL.ARTIFACT_TREE_FILE.read_bytes(),
                     (installed / TUNNEL.ARTIFACT_TREE_FILE.name).read_bytes(),
                 )
@@ -167,9 +362,18 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                         "user.overte-copy-test",
                         os.listxattr(installed / "appium/package.json"),
                     )
-                TUNNEL.verify_service_runtime(installed, os.geteuid())
                 with patch.object(
-                        TUNNEL, "visible_system_root_owner_uid", return_value=os.geteuid()):
+                        TUNNEL, "pymobiledevice3_lock",
+                        return_value=pymobiledevice3_lock), patch.object(
+                        TUNNEL, "validate_host_python",
+                        return_value=Path(sys.executable).resolve()):
+                    TUNNEL.verify_service_runtime(installed, os.geteuid())
+                with patch.object(
+                        TUNNEL, "visible_system_root_owner_uid", return_value=os.geteuid()), \
+                        patch.object(TUNNEL, "pymobiledevice3_lock",
+                                     return_value=pymobiledevice3_lock), patch.object(
+                            TUNNEL, "validate_host_python",
+                            return_value=Path(sys.executable).resolve()):
                     TUNNEL.verify_service_runtime(installed)
                 source_file = TUNNEL.__file__
                 try:
@@ -185,10 +389,16 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                         TUNNEL, "resolve_runtime",
                         return_value=(node, appium_home / "node_modules/appium-ios-remotexpc/"
                                       "scripts/tunnel-creation.mjs")), patch.object(
+                        TUNNEL, "pymobiledevice3_lock",
+                        return_value=pymobiledevice3_lock), patch.object(
+                        TUNNEL, "validate_host_python",
+                        return_value=Path(sys.executable).resolve()), patch.object(
                         TUNNEL, "restore_security_context") as restore_existing:
                     self.assertEqual(
                         installed,
-                        TUNNEL.install_service_runtime(appium_home, service_root),
+                        TUNNEL.install_service_runtime(
+                            appium_home, pymobiledevice3_home, service_root=service_root,
+                        ),
                     )
                     restore_existing.assert_called_once_with(installed)
 
@@ -200,10 +410,16 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                         return_value=(node, appium_home / "node_modules/appium-ios-remotexpc/"
                                       "scripts/tunnel-creation.mjs")), patch.object(
                         TUNNEL, "DEVICE_PREFLIGHT_FILE", drifted_helper), patch.object(
+                        TUNNEL, "pymobiledevice3_lock",
+                        return_value=pymobiledevice3_lock), patch.object(
+                        TUNNEL, "validate_host_python",
+                        return_value=Path(sys.executable).resolve()), patch.object(
                         TUNNEL, "restore_security_context") as rejected_restore:
                     with self.assertRaisesRegex(
                             TUNNEL.TunnelError, "differs from the audited source"):
-                        TUNNEL.install_service_runtime(appium_home, service_root)
+                        TUNNEL.install_service_runtime(
+                            appium_home, pymobiledevice3_home, service_root=service_root,
+                        )
                     rejected_restore.assert_not_called()
             finally:
                 if service_root.exists():
@@ -228,11 +444,26 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
         with self.assertRaisesRegex(TUNNEL.TunnelError, "unexpected owner"):
             TUNNEL.visible_root_owner_uid(root, overflow)
 
+    def test_host_python_accepts_the_visible_root_owner_in_a_user_namespace(self):
+        configured = Path(
+            TUNNEL.pymobiledevice3_lock(TUNNEL.load_lock())["pythonExecutable"]
+        )
+        with patch.object(
+                TUNNEL, "visible_root_owner_uid",
+                return_value=configured.lstat().st_uid):
+            self.assertEqual(configured, TUNNEL.validate_host_python(TUNNEL.load_lock()))
+        with patch.object(
+                TUNNEL, "visible_root_owner_uid",
+                return_value=configured.lstat().st_uid + 1):
+            with self.assertRaisesRegex(
+                    TUNNEL.TunnelError, "host Python executable differs"):
+                TUNNEL.validate_host_python(TUNNEL.load_lock())
+
     def test_trusted_runtime_path_rejects_drift_writable_or_symlink_parent(self):
         with tempfile.TemporaryDirectory(prefix="overte-runtime-parents-") as name:
             base = Path(name)
             service_root = base / "service"
-            runtime = service_root / "5.15.3-r7"
+            runtime = service_root / "5.15.3-r11"
             runtime.mkdir(parents=True)
             owner = os.geteuid()
             with patch.object(
@@ -253,7 +484,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                         TUNNEL.require_trusted_runtime_path(runtime, owner)
 
     def test_visible_system_owner_rejects_unprivileged_caller_identity(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r7")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r11")
         with patch.object(TUNNEL, "visible_root_owner_uid", return_value=1000), patch.object(
                 TUNNEL.os, "geteuid", return_value=1000):
             with self.assertRaisesRegex(TUNNEL.TunnelError, "unprivileged caller"):
@@ -296,6 +527,8 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="overte-remotexpc-mode-") as name:
             root = Path(name)
             appium_home, node = self.make_source_runtime(root)
+            pymobiledevice3_home, pymobiledevice3_lock = \
+                self.make_pymobiledevice3_runtime(root, appium_home)
             service_root = root / "service"
             try:
                 with patch.object(
@@ -303,21 +536,37 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                         return_value=(node, appium_home / "node_modules/appium-ios-remotexpc/"
                                       "scripts/tunnel-creation.mjs")), patch.object(
                         TUNNEL, "prepare_appium_extension_template",
-                        side_effect=self.fake_extension_template):
-                    installed = TUNNEL.install_service_runtime(appium_home, service_root)
+                        side_effect=self.fake_extension_template), patch.object(
+                        TUNNEL, "pymobiledevice3_lock",
+                        return_value=pymobiledevice3_lock), patch.object(
+                        TUNNEL, "validate_host_python",
+                        return_value=Path(sys.executable).resolve()):
+                    installed = TUNNEL.install_service_runtime(
+                        appium_home, pymobiledevice3_home, service_root=service_root,
+                    )
                 marker = installed / TUNNEL.RUNTIME_MARKER
                 marker.chmod(0o644)
-                with self.assertRaisesRegex(TUNNEL.TunnelError, "writable"):
-                    TUNNEL.verify_service_runtime(installed, os.geteuid())
+                with patch.object(
+                        TUNNEL, "pymobiledevice3_lock",
+                        return_value=pymobiledevice3_lock), patch.object(
+                        TUNNEL, "validate_host_python",
+                        return_value=Path(sys.executable).resolve()):
+                    with self.assertRaisesRegex(TUNNEL.TunnelError, "writable"):
+                        TUNNEL.verify_service_runtime(installed, os.geteuid())
                 marker.chmod(0o444)
-                with self.assertRaisesRegex(TUNNEL.TunnelError, "owned by root"):
-                    TUNNEL.verify_service_runtime(installed, os.geteuid() + 1)
+                with patch.object(
+                        TUNNEL, "pymobiledevice3_lock",
+                        return_value=pymobiledevice3_lock), patch.object(
+                        TUNNEL, "validate_host_python",
+                        return_value=Path(sys.executable).resolve()):
+                    with self.assertRaisesRegex(TUNNEL.TunnelError, "owned by root"):
+                        TUNNEL.verify_service_runtime(installed, os.geteuid() + 1)
             finally:
                 if service_root.exists():
                     self.make_tree_writable(service_root)
 
     def test_unit_executes_only_installed_runtime_and_is_hardened(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r7")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r11")
         unit = TUNNEL.service_unit(runtime, TUNNEL.DEFAULT_PORT)
         exec_start = next(line for line in unit.splitlines() if line.startswith("ExecStart="))
         working_directory = next(
@@ -339,9 +588,11 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
         self.assertNotIn("/root", unit)
         parsed = TUNNEL.parser().parse_args([
             "install-unit", "--appium-home", "/private/appium",
+            "--pymobiledevice3-home", "/private/pymobiledevice3",
         ])
         self.assertEqual(Path("/etc/systemd/system/overte-ios-remotexpc.service"),
                          parsed.unit_path)
+        self.assertEqual(Path("/private/pymobiledevice3"), parsed.pymobiledevice3_home)
         with tempfile.TemporaryDirectory(prefix="overte-remotexpc-unit-") as name:
             unit_path = Path(name) / TUNNEL.UNIT_NAME
             unit_path.write_text(unit, encoding="utf-8")
@@ -390,13 +641,13 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
     def test_status_defaults_to_versioned_service_runtime_not_appium_home(self):
         arguments = TUNNEL.parser().parse_args(["status"])
         self.assertEqual(
-            Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r7"),
+            Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r11"),
             arguments.service_runtime,
         )
         self.assertFalse(hasattr(arguments, "appium_home"))
 
     def test_appium_server_is_root_owned_loopback_and_privacy_bounded(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r7")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r11")
         with tempfile.TemporaryDirectory(prefix="overte-appium-state-") as name:
             state = Path(name)
             state.chmod(0o700)
@@ -443,7 +694,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
             self.assertEqual([], list(state.iterdir()))
 
     def test_device_preflight_passes_udid_only_over_stdin_and_redacts_output(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r7")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r11")
         arguments = TUNNEL.parser().parse_args(["device-preflight"])
         private_udid = "00008101-1234567890ABCDEF"
         stdin = MagicMock()
@@ -483,6 +734,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
             self.assertEqual(0, TUNNEL.device_preflight(arguments))
         self.assertEqual(inventory, json.loads(output.getvalue()))
         self.assertNotIn(private_udid, output.getvalue())
+
 
     def test_private_developer_disk_image_is_digest_and_manifest_bound(self):
         with tempfile.TemporaryDirectory(prefix="overte-private-ddi-") as name:
@@ -556,7 +808,7 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
                 TUNNEL.validate_developer_disk_image(linked_request, lock)
 
     def test_device_ddi_passes_private_values_only_on_stdin(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r7")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r11")
         private_udid = "00008101-1234567890ABCDEF"
         private_root = Path("/private/operator-ddi")
         request = {
@@ -631,6 +883,7 @@ export const Services = {{
       return mounted ? [process.env.FAKE_WRONG_SIGNATURE === '1'
         ? Buffer.from('wrong') : expectedHash] : [];
     }},
+    unmountImage: async () => {{ record('unmount'); mounted = false; }},
     mount: async () => {{ record('mount'); mounted = true; }},
     cleanup: async () => record('cleanup'),
   }}),
@@ -671,6 +924,25 @@ export async function resolveTunnelServicePorts(_udid, services) {{
             self.assertEqual(0, mount.returncode, mount.stderr)
             self.assertEqual(1, operations.read_text().splitlines().count("mount"))
 
+            operations.unlink()
+            remount = subprocess.run(
+                ["node", str(helper)], input=json.dumps({
+                    **base, "action": "mount", "image": "/private/Image.dmg",
+                    "manifest": "/private/BuildManifest.plist",
+                    "trustcache": "/private/Image.dmg.trustcache",
+                }), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                env={**os.environ, "FAKE_MOUNTED": "1"},
+                timeout=10, check=False,
+            )
+            self.assertEqual(0, remount.returncode, remount.stderr)
+            self.assertEqual(
+                ["lookup", "unmount", "mount", "lookup",
+                 "services:com.apple.dt.testmanagerd.remote,"
+                 "com.apple.instruments.dtservicehub", "cleanup"],
+                operations.read_text(encoding="utf-8").splitlines(),
+            )
+
+            operations.unlink()
             rejected = subprocess.run(
                 ["node", str(helper)], input=json.dumps(base), text=True,
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -679,10 +951,12 @@ export async function resolveTunnelServicePorts(_udid, services) {{
             )
             self.assertEqual(2, rejected.returncode)
             self.assertNotIn(private_udid, rejected.stdout + rejected.stderr)
-            self.assertEqual("cleanup", operations.read_text().splitlines()[-1])
+            rejected_operations = operations.read_text().splitlines()
+            self.assertEqual("cleanup", rejected_operations[-1])
+            self.assertNotIn("unmount", rejected_operations)
 
     def test_device_install_revalidates_receipt_and_passes_private_values_only_on_stdin(self):
-        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r7")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r11")
         with tempfile.TemporaryDirectory(prefix="overte-ios-device-install-") as name:
             root = Path(name)
             overte = root / "Overte.ipa"

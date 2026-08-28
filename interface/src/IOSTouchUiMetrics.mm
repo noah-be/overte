@@ -10,11 +10,35 @@
 
 #include <QCoreApplication>
 #include <QJSEngine>
+#include <QMetaObject>
+#include <QPointer>
 #include <QQmlEngine>
 #include <QTimer>
 #include <QtQml>
 
 #include <shared/IOSRuntimeLogging.h>
+#include <ui/TabletScriptingInterface.h>
+
+@interface OverteIOSAccessibilityElement : UIAccessibilityElement
+@property(nonatomic, copy) BOOL (^activationHandler)(void);
+@end
+
+@implementation OverteIOSAccessibilityElement
+- (BOOL)accessibilityActivate {
+    return self.activationHandler != nil && self.activationHandler();
+}
+@end
+
+@interface OverteIOSAccessibilityOverlay : UIView
+@end
+
+@implementation OverteIOSAccessibilityOverlay
+- (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent*)event {
+    (void)point;
+    (void)event;
+    return NO;
+}
+@end
 
 namespace {
 UIWindow* activeWindow() {
@@ -106,6 +130,25 @@ void dismissActiveWindowEditing() {
         [responder resignFirstResponder];
         [window endEditing:YES];
     }
+}
+
+UIView* tabletAccessibilityOverlay(UIWindow* window) {
+    static __weak UIWindow* installedWindow = nil;
+    static UIView* overlay = nil;
+    if (installedWindow != window || overlay == nil) {
+        [overlay removeFromSuperview];
+        overlay = [[OverteIOSAccessibilityOverlay alloc] initWithFrame:window.bounds];
+        overlay.backgroundColor = UIColor.clearColor;
+        overlay.isAccessibilityElement = NO;
+        overlay.accessibilityViewIsModal = NO;
+        overlay.autoresizingMask = UIViewAutoresizingFlexibleWidth |
+            UIViewAutoresizingFlexibleHeight;
+        [window addSubview:overlay];
+        installedWindow = window;
+    }
+    overlay.frame = window.bounds;
+    [window bringSubviewToFront:overlay];
+    return overlay;
 }
 }
 
@@ -210,6 +253,68 @@ void registerIOSTouchUiMetricsQmlType() {
         [](QQmlEngine*, QJSEngine*) -> QObject* {
             return new IOSTouchUiMetrics(QCoreApplication::instance());
         });
+}
+
+void updateIOSTabletAccessibilityControls(
+        TabletProxy* tablet, const IOSTouchUiMetrics* metrics) {
+    if (tablet == nullptr || metrics == nullptr || !NSThread.isMainThread) {
+        return;
+    }
+    UIWindow* window = activeWindow();
+    if (window == nil || metrics->surfaceWidth() <= 0.0 ||
+            metrics->surfaceHeight() <= 0.0) {
+        return;
+    }
+
+    UIView* overlay = tabletAccessibilityOverlay(window);
+    const bool tabletShown = tablet->property("tabletShown").toBool();
+    OverteIOSAccessibilityElement* element =
+        [[OverteIOSAccessibilityElement alloc] initWithAccessibilityContainer:overlay];
+    element.accessibilityTraits = UIAccessibilityTraitButton;
+    QPointer<TabletProxy> guardedTablet(tablet);
+    CGRect safeBounds = UIEdgeInsetsInsetRect(window.bounds, window.safeAreaInsets);
+    if (tabletShown) {
+        element.accessibilityIdentifier = @"OverteTabletClose";
+        element.accessibilityLabel = @"Close tablet";
+        element.accessibilityHint = @"Return to the world controls";
+        const CGFloat width = std::min<CGFloat>(240.0, safeBounds.size.width * 0.30);
+        element.accessibilityFrameInContainerSpace = CGRectMake(
+            CGRectGetMidX(safeBounds) - width * 0.5,
+            CGRectGetMaxY(safeBounds) - 72.0, width, 56.0);
+        element.activationHandler = ^BOOL {
+            if (!guardedTablet) {
+                return NO;
+            }
+            QMetaObject::invokeMethod(guardedTablet.data(), [guardedTablet] {
+                if (guardedTablet) {
+                    guardedTablet->hideAndroidTablet();
+                }
+            }, Qt::QueuedConnection);
+            return YES;
+        };
+    } else {
+        element.accessibilityIdentifier = @"OverteTabletOpen";
+        element.accessibilityLabel = @"Open tablet";
+        element.accessibilityHint = @"Open the Overte tablet controls";
+        element.accessibilityFrameInContainerSpace = CGRectMake(
+            CGRectGetMinX(safeBounds) + 16.0,
+            CGRectGetMinY(safeBounds) + 16.0, 128.0, 64.0);
+        const int width = std::lround(metrics->surfaceWidth());
+        const int height = std::lround(metrics->surfaceHeight());
+        element.activationHandler = ^BOOL {
+            if (!guardedTablet) {
+                return NO;
+            }
+            QMetaObject::invokeMethod(guardedTablet.data(), [guardedTablet, width, height] {
+                if (guardedTablet) {
+                    guardedTablet->showAndroidTablet(width, height);
+                }
+            }, Qt::QueuedConnection);
+            return YES;
+        };
+    }
+    overlay.accessibilityElements = @[element];
+    UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification, element);
 }
 
 void dismissIOSKeyboard() {

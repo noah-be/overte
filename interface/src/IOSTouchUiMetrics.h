@@ -5,6 +5,8 @@
 
 #include <QObject>
 
+class TabletProxy;
+
 class IOSTouchUiMetrics final : public QObject {
     Q_OBJECT
     Q_PROPERTY(qreal safeInsetLeft READ safeInsetLeft NOTIFY metricsChanged)
@@ -55,3 +57,5 @@ private:
 void registerIOSTouchUiMetricsQmlType();
 void dismissIOSKeyboard();
 void suppressIOSKeyboardAssistant();
+void updateIOSTabletAccessibilityControls(
+    TabletProxy* tablet, const IOSTouchUiMetrics* metrics);

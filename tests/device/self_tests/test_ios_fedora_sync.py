@@ -231,6 +231,7 @@ class IosFedoraSyncTest(unittest.TestCase):
                 "enabled": True,
                 "appId": "old.app",
                 "artifactReceipt": "/old/receipt",
+                "iosSessionBootstrap": {"backgroundWdaRunner": True},
                 "testBuild": {"scenePath": SYNC.SCENE_PATH},
                 "capabilities": {
                     "appium:udid": "private-device-id",
@@ -278,6 +279,7 @@ class IosFedoraSyncTest(unittest.TestCase):
         self.assertFalse(target["capabilities"]["appium:enforceAppInstall"])
         self.assertFalse(target["capabilities"]["appium:autoLaunch"])
         self.assertEqual("signed-ipa", target["artifactMode"])
+        self.assertNotIn("iosSessionBootstrap", target)
         self.assertEqual(SYNC.SCENE_PATH, target["testBuild"]["scenePath"])
         self.assertEqual("org.overte.interface.e2e", target["appId"])
         self.assertEqual(
@@ -305,6 +307,7 @@ class IosFedoraSyncTest(unittest.TestCase):
             "schemaVersion": 1,
             "targets": [{
                 "selector": "private-selector", "platform": "ios", "enabled": False,
+                "iosSessionBootstrap": {"backgroundWdaRunner": True},
                 "testBuild": {"scenePath": SYNC.SCENE_PATH},
                 "capabilities": {
                     "appium:udid": "private-device-id",
@@ -356,7 +359,7 @@ class IosFedoraSyncTest(unittest.TestCase):
         arguments = mock.Mock(
             attestation=attestation.resolve(), destination=(self.root / "runs"),
             target_config=config_path.resolve(), target_selector="private-selector",
-            service_runtime=Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r7"),
+            service_runtime=Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r11"),
         )
         discovered = {
             "overteBundleId": "com.sideloadly.slot.overte",
@@ -388,6 +391,7 @@ class IosFedoraSyncTest(unittest.TestCase):
             self.assertEqual(1, execute.call_count)
         target = json.loads(config_path.read_text(encoding="utf-8"))["targets"][0]
         self.assertEqual("personal-team-preinstalled", target["artifactMode"])
+        self.assertNotIn("iosSessionBootstrap", target)
         self.assertNotIn("appium:app", target["capabilities"])
         self.assertNotIn("appium:prebuiltWDAPath", target["capabilities"])
         self.assertFalse(target["capabilities"]["appium:enforceAppInstall"])

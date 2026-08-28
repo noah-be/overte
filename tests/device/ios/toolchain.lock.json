@@ -1,11 +1,13 @@
 {
   "schemaVersion": 1,
-  "serviceRuntimeRevision": 7,
-  "resolvedAt": "2026-08-27",
+  "serviceRuntimeRevision": 11,
+  "resolvedAt": "2026-08-28",
   "sources": {
     "npmRegistry": "https://registry.npmjs.org/",
     "ageRelease": "https://github.com/FiloSottile/age/releases/tag/v1.2.1",
-    "rcodesignRelease": "https://github.com/indygreg/apple-platform-rs/releases/tag/apple-codesign%2F0.29.0"
+    "rcodesignRelease": "https://github.com/indygreg/apple-platform-rs/releases/tag/apple-codesign%2F0.29.0",
+    "resignerRelease": "https://github.com/appium/resigner/releases/tag/v0.3.1",
+    "pymobiledevice3Release": "https://github.com/doronz88/pymobiledevice3/releases/tag/v11.1.5"
   },
   "developerDiskImage": {
     "provenance": {
@@ -67,6 +69,19 @@
       }
     },
     "iosRuntime": {
+      "pymobiledevice3": {
+        "package": "pymobiledevice3",
+        "version": "11.1.5",
+        "license": "GPL-3.0-or-later",
+        "pythonAbi": "cp314",
+        "pythonVersion": "3.14.7",
+        "pythonExecutable": "/usr/bin/python3.14",
+        "pythonExecutableSha256": "0d64bd6d66d68dac91cdadafc46e22d4f09f22bdc997aaae870f42865b024a3e",
+        "distributionCount": 99,
+        "freezeSha256": "c923e1fab35b08c006a3a9a155b4bb1e070e5af96bfe1a94da3e016f54902dbd",
+        "sitePackagesTreeSha256": "fb5f409445fa43bbab84a3d059a29dc080b8b48786679c21c6cb1e233b37219c",
+        "upstreamWdaHostOpsSha256": "04e4ec6b9e4f7c1d48812fc8ca71503a31d842cc2f3a02e761b0ef172ce39aa7"
+      },
       "remoteXpc": {
         "package": "appium-ios-remotexpc",
         "version": "5.15.3",
@@ -105,6 +120,15 @@
         "artifact": {
           "url": "https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.29.0/apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz",
           "sha256": "dbe85cedd8ee4217b64e9a0e4c2aef92ab8bcaaa41f20bde99781ff02e600002"
+        }
+      },
+      "resigner": {
+        "version": "0.3.1",
+        "license": "Apache-2.0",
+        "executableSha256": "57a837d4674a5bb4eea9ff0d006b84fd5273fdd0c9d3c05143a46135ae4b988e",
+        "artifact": {
+          "url": "https://github.com/appium/resigner/releases/download/v0.3.1/linux-amd64.tar.gz",
+          "sha256": "e8672bfcced781bee017f84d17a84f645668bb664fe709d7dda011c9f1d8d0cd"
         }
       }
     }
