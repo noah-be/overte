@@ -244,7 +244,8 @@ class PicoOpenXrAdapterSession:
                 if status["state"] == "error" or status["enabled"] is not True:
                     raise AdapterSessionError(
                         "native Pico OpenXR view override failed before consumption")
-                if status["viewAppliedSequence"] == sequence:
+                if (status["state"] == "active"
+                        and status["viewAppliedSequence"] == sequence):
                     return status
             except TransportError as error:
                 last_error = error
@@ -276,7 +277,11 @@ class PicoOpenXrAdapterSession:
                     status["booleanAppliedSequence"] == sequence and
                     status["rightSecondaryApplied"] is True)
                 boolean_applied = left_secondary_applied or right_secondary_applied
-                if vector_applied or boolean_applied:
+                # Applied-sequence evidence intentionally survives the native
+                # neutral window. It proves historical consumption, but must
+                # not let a completed pulse masquerade as input that is still
+                # active when the behavioral test starts observing it.
+                if status["state"] == "active" and (vector_applied or boolean_applied):
                     return status
             except TransportError as error:
                 last_error = error

@@ -25,6 +25,7 @@ PROFILE_SHA256 = "922e091c38f5cb1ec6c3e55c80b81de0a876524d951318c61e7feb4821eab4
 REMOTE_DIRECTORY = "files/overte-e2e/openxr-input"
 MAX_GRANT_LIFETIME_MS = 5 * 60 * 1000
 ADB_TIMEOUT_SECONDS = 20
+EXCLUSIVE_TARGET_LEASE_SECONDS = 15.0
 Runner = Callable[..., subprocess.CompletedProcess]
 
 
@@ -49,6 +50,7 @@ class AndroidOpenXrTransport:
         self.selector = selector
         self.server_port = server_port
         self.runner = runner
+        self._exclusive_target_verified_at: float | None = None
         if (not self.selector or any(character.isspace() for character in self.selector)
                 or len(self.selector) > 255):
             raise TransportError("private Pico selector is invalid")
@@ -105,6 +107,13 @@ class AndroidOpenXrTransport:
                           purpose="target-state").decode("utf-8").strip()
         if state != "device":
             raise TransportError("private Pico target is not ready")
+        self._exclusive_target_verified_at = time.monotonic()
+
+    def _require_recent_exclusive_target(self) -> None:
+        verified = self._exclusive_target_verified_at
+        if (verified is None
+                or time.monotonic() - verified > EXCLUSIVE_TARGET_LEASE_SECONDS):
+            self.require_exclusive_target()
 
     def _atomic_write(self, name: str, payload: bytes) -> None:
         if name not in {"commands.json", "grant.json"}:
@@ -174,7 +183,12 @@ class AndroidOpenXrTransport:
 
     def read_status(self, *, expected_nonce: str | None = None,
                     expected_sequence: int | None = None) -> dict[str, Any]:
-        self.require_exclusive_target()
+        # A stage already proved the selected target immediately before its
+        # atomic writes. Repeating discovery and get-state for every 100 ms
+        # acknowledgement poll can consume the complete bounded input window
+        # on WLAN-ADB. The explicit `-s` selector remains on every status read;
+        # a later standalone read or an expired lease revalidates exclusivity.
+        self._require_recent_exclusive_target()
         script = (
             f"file='{REMOTE_DIRECTORY}/status.json'; "
             '[ -f "$file" ] && [ ! -L "$file" ] && cat "$file"'

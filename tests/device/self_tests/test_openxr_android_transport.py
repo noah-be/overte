@@ -212,6 +212,37 @@ class OpenXrAndroidTransportTests(unittest.TestCase):
         with self.assertRaisesRegex(TransportError, "values"):
             self.transport.read_status()
 
+    def test_staged_status_poll_reuses_only_a_recent_exclusivity_proof(self) -> None:
+        self.transport.stage(
+            self.envelope(), PROFILE, now_ms=2_000_000_000_000)
+        self.runner.status = json.dumps({
+            "schemaVersion": 1,
+            "buildMarker": BUILD_MARKER,
+            "consumer": CONSUMER,
+            "profileId": PROFILE_ID,
+            "bindingProfileSha256": PROFILE_SHA256,
+            "enabled": True,
+            "acceptedSequence": 4,
+            "viewAppliedSequence": 0,
+            "viewAppliedYawDegrees": 0.0,
+            "viewAppliedPitchDegrees": 0.0,
+            "vectorAppliedSequence": 4,
+            "leftThumbstickAppliedY": 0.4,
+            "booleanAppliedSequence": 0,
+            "leftSecondaryApplied": False,
+            "rightSecondaryApplied": False,
+            "acceptedNonce": NONCE,
+            "activeCommandId": "move-forward",
+            "state": "active",
+            "detail": "vector-consumed",
+            "updatedEpochMs": 2_000_000_000_000,
+        }).encode()
+        self.transport.read_status(expected_nonce=NONCE, expected_sequence=4)
+        self.assertEqual(
+            1, sum(command[-1] == "devices" for command, _ in self.runner.calls))
+        self.assertEqual(
+            1, sum(command[-1] == "get-state" for command, _ in self.runner.calls))
+
     def test_cleanup_removes_only_allowlisted_private_transport_files(self) -> None:
         self.transport.cleanup()
         cleanup = self.runner.calls[-1][0]

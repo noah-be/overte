@@ -33,6 +33,8 @@ class FakeTransport:
             "acceptedSequence": sequence,
             "acceptedNonce": "[redacted]",
             "state": "active" if expected_sequence is not None else "neutral",
+            "activeCommandId": (f"{operation.replace('.', '-')}-{sequence}"
+                                if expected_sequence is not None else ""),
             "viewAppliedSequence": sequence if operation == "input.look" else 0,
             "viewAppliedYawDegrees": 25.0 if operation == "input.look" else 0.0,
             "viewAppliedPitchDegrees": 0.0,

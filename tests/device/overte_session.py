@@ -439,6 +439,12 @@ class OverteSession:
         before = self.stable_ground_snapshot("fly-before.json")
         if before["avatar"]["flyingEnabled"] is not True:
             fail("avatar flying is not enabled")
+        if self.pico_openxr:
+            # A fresh app-private Pico probe can take several seconds over
+            # isolated WLAN-ADB. Keep the bounded hold active long enough for
+            # the independent avatar probe to overlap it, matching the Pico
+            # look-input observation window above.
+            duration_seconds = 6.0
         arguments = validate_operation_arguments(
             "input.fly", {"durationSeconds": duration_seconds})
         validate_performed_result("input.fly", operation("input.fly", arguments))

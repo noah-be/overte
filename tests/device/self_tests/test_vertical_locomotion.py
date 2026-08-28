@@ -132,6 +132,11 @@ class VerticalLocomotionTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_performed_result("input.fly", {"performed": False})
 
+    def test_pico_fly_window_covers_delayed_independent_probe(self):
+        source = (DEVICE_ROOT / "overte_session.py").read_text(encoding="utf-8")
+        self.assertIn("if self.pico_openxr:", source)
+        self.assertIn("duration_seconds = 6.0", source)
+
     def test_probe_requires_vertical_state_and_rejects_inconsistent_avatar(self):
         self.assertEqual(snapshot(), validate_probe_snapshot(snapshot()))
         for invalid in (
