@@ -259,6 +259,7 @@ def compile_envelope(envelope_raw: Any, profile_raw: Any) -> dict[str, Any]:
         operation = command["operation"]
         arguments = command["arguments"]
         state = deepcopy(neutral)
+        start = cursor
         if operation == "controller.button":
             hand = arguments["hand"]
             duration = int(arguments.get("holdMilliseconds", 120))
@@ -322,18 +323,28 @@ def compile_envelope(envelope_raw: Any, profile_raw: Any) -> dict[str, Any]:
             runtime_y = strength if arguments["direction"] == "forward" else -strength
             state["vector2f"][action] = [0.0, runtime_y]
             required.add("xrGetActionStateVector2f")
-        elif operation in {"input.jump", "input.fly"}:
-            duration = (JUMP_HOLD_MS if operation == "input.jump" else
-                        round(float(arguments["durationSeconds"]) * 1000))
+        elif operation == "input.jump":
+            duration = JUMP_HOLD_MS
             action = profile["controls"]["buttons"]["right.secondary"]
             state["boolean"][action] = True
             required.add("xrGetActionStateBoolean")
+        elif operation == "input.fly":
+            # Pico enters flight through a jump followed by a held second
+            # press. Keep both physical phases in one native event schedule so
+            # WLAN-ADB latency cannot stretch the double-press gap.
+            duration = round(float(arguments["durationSeconds"]) * 1000)
+            action = profile["controls"]["buttons"]["right.secondary"]
+            state["boolean"][action] = True
+            required.add("xrGetActionStateBoolean")
+            events.append({"atMs": start, "state": deepcopy(state)})
+            events.append({"atMs": start + JUMP_HOLD_MS,
+                           "state": deepcopy(neutral)})
+            start += JUMP_HOLD_MS + INTER_COMMAND_GAP_MS
         else:
             duration = int(arguments.get("holdMilliseconds", 120))
             action = profile["controls"]["buttons"]["left.secondary"]
             state["boolean"][action] = True
             required.add("xrGetActionStateBoolean")
-        start = cursor
         release = start + duration
         events.append({"atMs": start, "state": state})
         events.append({"atMs": release, "state": deepcopy(neutral)})
