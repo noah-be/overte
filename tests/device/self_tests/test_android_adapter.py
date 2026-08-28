@@ -357,6 +357,21 @@ class AndroidAdapterTest(unittest.TestCase):
                              for command in adb_commands))
         self.assertFalse(any("force-stop" in command for command in adb_commands))
 
+    def test_controlled_phone_launch_preserves_confirmed_process(self):
+        process, _payload_log, argv_log = self.enable_controlled_phone()
+
+        result = self.invoke_phone("app.launch", {})
+
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertEqual({"launched": True}, json.loads(result.stdout))
+        self.assertEqual("running", process.read_text(encoding="utf-8"))
+        adb_commands = [json.loads(line) for line in
+                        argv_log.read_text(encoding="utf-8").splitlines()]
+        self.assertFalse(any(command[:3] == ["shell", "am", "force-stop"]
+                             for command in adb_commands))
+        self.assertFalse(any(command[:4] == ["shell", "am", "start", "-W"]
+                             for command in adb_commands))
+
     def test_probe_executes_real_controlled_actions_and_reports_observations(self):
         probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
         self.assertIn("location.href = command.url", probe)
