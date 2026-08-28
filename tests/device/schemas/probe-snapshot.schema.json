@@ -123,6 +123,83 @@
         "toolbarMode": {"type": "boolean"}
       }
     },
+    "controller": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["axes", "buttons", "poses"],
+      "properties": {
+        "route": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["openxrAxes", "standardLy", "translateZAction", "rawTranslateZDriveKey", "translateZDriveKeyDisabled"],
+          "properties": {
+            "openxrAxes": {
+              "oneOf": [
+                {"type": "null"},
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["lx", "ly", "rx", "ry"],
+                  "properties": {
+                    "lx": {"type": "number"},
+                    "ly": {"type": "number"},
+                    "rx": {"type": "number"},
+                    "ry": {"type": "number"}
+                  }
+                }
+              ]
+            },
+            "standardLy": {"type": "number"},
+            "translateYAction": {"type": "number"},
+            "rawTranslateYDriveKey": {"type": "number"},
+            "translateYDriveKeyDisabled": {"type": "boolean"},
+            "translateZAction": {"type": "number"},
+            "rawTranslateZDriveKey": {"type": "number"},
+            "translateZDriveKeyDisabled": {"type": "boolean"}
+          }
+        },
+        "axes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["lx", "ly", "rx", "ry", "leftTrigger", "rightTrigger", "leftGrip", "rightGrip"],
+          "properties": {
+            "lx": {"type": "number"},
+            "ly": {"type": "number"},
+            "rx": {"type": "number"},
+            "ry": {"type": "number"},
+            "leftTrigger": {"type": "number"},
+            "rightTrigger": {"type": "number"},
+            "leftGrip": {"type": "number"},
+            "rightGrip": {"type": "number"}
+          }
+        },
+        "buttons": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["menu", "leftPrimary", "leftSecondary", "leftThumbstick", "leftTrigger", "rightPrimary", "rightSecondary", "rightThumbstick", "rightTrigger"],
+          "properties": {
+            "menu": {"type": "boolean"},
+            "leftPrimary": {"type": "boolean"},
+            "leftSecondary": {"type": "boolean"},
+            "leftThumbstick": {"type": "boolean"},
+            "leftTrigger": {"type": "boolean"},
+            "rightPrimary": {"type": "boolean"},
+            "rightSecondary": {"type": "boolean"},
+            "rightThumbstick": {"type": "boolean"},
+            "rightTrigger": {"type": "boolean"}
+          }
+        },
+        "poses": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["left", "right"],
+          "properties": {
+            "left": {"$ref": "#/$defs/controllerPose"},
+            "right": {"$ref": "#/$defs/controllerPose"}
+          }
+        }
+      }
+    },
     "asset": {
       "oneOf": [
         {"type": "null"},
@@ -186,6 +263,41 @@
         "y": {"type": "number"},
         "z": {"type": "number"}
       }
+    },
+    "quaternion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "z", "w"],
+      "properties": {
+        "x": {"type": "number"},
+        "y": {"type": "number"},
+        "z": {"type": "number"},
+        "w": {"type": "number"}
+      }
+    },
+    "controllerPose": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["valid", "translation", "rotation"],
+          "properties": {
+            "valid": {"const": false},
+            "translation": {"type": "null"},
+            "rotation": {"type": "null"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["valid", "translation", "rotation"],
+          "properties": {
+            "valid": {"const": true},
+            "translation": {"$ref": "#/$defs/vector3"},
+            "rotation": {"$ref": "#/$defs/quaternion"}
+          }
+        }
+      ]
     },
     "positiveVector3": {
       "type": "object",

@@ -11,6 +11,10 @@
     var previousAvatarPosition = null;
     var sceneReady = false;
     var previousLocationKey = "";
+    var flightNormalizationAllowed = true;
+    var flightNormalizationActive = false;
+    var flightNormalizationStableSamples = 0;
+    var flyingEnabledBeforeNormalization = false;
     var assetResource = null;
     var assetResourceUrl = "";
     var controlledAssetEntity = null;
@@ -78,6 +82,36 @@
 
     function vector(value) {
         return { x: Number(value.x), y: Number(value.y), z: Number(value.z) };
+    }
+
+    function controllerPose(channel) {
+        var pose = Controller.getPoseValue(channel);
+        if (!pose || !pose.valid) {
+            return { valid: false, translation: null, rotation: null };
+        }
+        return {
+            valid: true,
+            translation: vector(pose.translation),
+            rotation: {
+                x: Number(pose.rotation.x),
+                y: Number(pose.rotation.y),
+                z: Number(pose.rotation.z),
+                w: Number(pose.rotation.w)
+            }
+        };
+    }
+
+    function openXrAxes() {
+        var openXr = Controller.Hardware.OpenXR;
+        if (openXr === undefined) {
+            return null;
+        }
+        return {
+            lx: Number(Controller.getValue(openXr.LX)),
+            ly: Number(Controller.getValue(openXr.LY)),
+            rx: Number(Controller.getValue(openXr.RX)),
+            ry: Number(Controller.getValue(openXr.RY))
+        };
     }
 
     function effectiveInputState() {
@@ -489,6 +523,31 @@
         request.send();
     }
 
+    function normalizeInitialFlightState() {
+        if (flightNormalizationAllowed && !flightNormalizationActive
+                && MyAvatar.isFlying()) {
+            flyingEnabledBeforeNormalization = Boolean(MyAvatar.getFlyingEnabled());
+            flightNormalizationActive = true;
+            flightNormalizationStableSamples = 0;
+            MyAvatar.setFlyingEnabled(false);
+            print("OVERTE_E2E_FLIGHT_NORMALIZATION stage=started");
+        }
+        if (!flightNormalizationActive) {
+            return;
+        }
+        if (!MyAvatar.isInAir() && !MyAvatar.isFlying()) {
+            flightNormalizationStableSamples += 1;
+        } else {
+            flightNormalizationStableSamples = 0;
+        }
+        if (flightNormalizationStableSamples >= 2) {
+            MyAvatar.setFlyingEnabled(flyingEnabledBeforeNormalization);
+            flightNormalizationActive = false;
+            flightNormalizationAllowed = false;
+            print("OVERTE_E2E_FLIGHT_NORMALIZATION stage=completed");
+        }
+    }
+
     function sample() {
         pollClientCommand();
         pollSoundCommand();
@@ -501,8 +560,11 @@
             stableAvatarSamples = 0;
             previousAvatarPosition = null;
             sceneReady = false;
+            flightNormalizationAllowed = true;
+            flightNormalizationStableSamples = 0;
         }
         previousLocationKey = currentLocationKey;
+        normalizeInitialFlightState();
         var ids = Entities.findEntities(MyAvatar.position, 1000.0);
         var foundMarkers = {};
         var foundDomainMarkers = {};
@@ -554,8 +616,11 @@
         var avatarAboveFloor = floorTopY !== null && avatarPosition.y >= floorTopY - 0.05;
         avatarAtSpawn = spawnDeltaX * spawnDeltaX + spawnDeltaZ * spawnDeltaZ <= 1.0;
         if (!sceneReady && markerCount === fixtureMarkers.length && stableEntitySamples >= 3
-                && stableAvatarSamples >= 4 && avatarAboveFloor && avatarAtSpawn) {
+                && stableAvatarSamples >= 4 && avatarAboveFloor && avatarAtSpawn
+                && !flightNormalizationActive && !MyAvatar.isInAir()
+                && !MyAvatar.isFlying()) {
             sceneReady = true;
+            flightNormalizationAllowed = false;
         }
         var orientation = Quat.safeEulerAngles(Camera.orientation);
         if (soundInjector && !soundState.finished) {
@@ -619,6 +684,43 @@
                 home: Boolean(tablet.onHomeScreen()),
                 toolbarMode: Boolean(tablet.toolbarMode)
             },
+            controller: {
+                route: {
+                    openxrAxes: openXrAxes(),
+                    standardLy: Number(Controller.getValue(Controller.Standard.LY)),
+                    translateYAction: Number(Controller.getValue(Controller.Actions.TranslateY)),
+                    rawTranslateYDriveKey: Number(MyAvatar.getRawDriveKey(DriveKeys.TRANSLATE_Y)),
+                    translateYDriveKeyDisabled: Boolean(MyAvatar.isDriveKeyDisabled(DriveKeys.TRANSLATE_Y)),
+                    translateZAction: Number(Controller.getValue(Controller.Actions.TranslateZ)),
+                    rawTranslateZDriveKey: Number(MyAvatar.getRawDriveKey(DriveKeys.TRANSLATE_Z)),
+                    translateZDriveKeyDisabled: Boolean(MyAvatar.isDriveKeyDisabled(DriveKeys.TRANSLATE_Z))
+                },
+                axes: {
+                    lx: Number(Controller.getValue(Controller.Standard.LX)),
+                    ly: Number(Controller.getValue(Controller.Standard.LY)),
+                    rx: Number(Controller.getValue(Controller.Standard.RX)),
+                    ry: Number(Controller.getValue(Controller.Standard.RY)),
+                    leftTrigger: Number(Controller.getValue(Controller.Standard.LT)),
+                    rightTrigger: Number(Controller.getValue(Controller.Standard.RT)),
+                    leftGrip: Number(Controller.getValue(Controller.Standard.LeftGrip)),
+                    rightGrip: Number(Controller.getValue(Controller.Standard.RightGrip))
+                },
+                buttons: {
+                    menu: Boolean(Controller.getValue(Controller.Standard.Start)),
+                    leftPrimary: Boolean(Controller.getValue(Controller.Standard.LeftPrimaryThumb)),
+                    leftSecondary: Boolean(Controller.getValue(Controller.Standard.LeftSecondaryThumb)),
+                    leftThumbstick: Boolean(Controller.getValue(Controller.Standard.LS)),
+                    leftTrigger: Boolean(Controller.getValue(Controller.Standard.LTClick)),
+                    rightPrimary: Boolean(Controller.getValue(Controller.Standard.RightPrimaryThumb)),
+                    rightSecondary: Boolean(Controller.getValue(Controller.Standard.RightSecondaryThumb)),
+                    rightThumbstick: Boolean(Controller.getValue(Controller.Standard.RS)),
+                    rightTrigger: Boolean(Controller.getValue(Controller.Standard.RTClick))
+                },
+                poses: {
+                    left: controllerPose(Controller.Standard.LeftHand),
+                    right: controllerPose(Controller.Standard.RightHand)
+                }
+            },
             asset: observeAsset(ids),
             sound: {
                 commandId: soundState.commandId,
@@ -641,6 +743,10 @@
         Script.clearInterval(timer);
         releaseControlledKey(controlledKeyCommandId);
         Controller.disableMapping(controlledInputMappingName);
+        if (flightNormalizationActive) {
+            MyAvatar.setFlyingEnabled(flyingEnabledBeforeNormalization);
+            flightNormalizationActive = false;
+        }
         releaseAssetResource();
         if (controlledAssetEntity !== null) {
             Entities.deleteEntity(controlledAssetEntity);
