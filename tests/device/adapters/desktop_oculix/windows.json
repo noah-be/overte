@@ -1,5 +1,0 @@
-{
-  "schemaVersion": 1,
-  "id": "desktop-oculix-windows",
-  "command": ["adapter.py", "--platform", "windows"]
-}
