@@ -350,6 +350,16 @@
         sceneReady = false;
     }
 
+    function reloadControlledScene(commandId) {
+        var currentAddress = String(location.href);
+        var fragmentStart = currentAddress.indexOf("#");
+        var baseAddress = fragmentStart === -1
+            ? currentAddress : currentAddress.slice(0, fragmentStart);
+        resetSceneObservation();
+        Window.location = baseAddress + "#overte-e2e-reload-"
+            + encodeURIComponent(String(commandId));
+    }
+
     function controlledKeySpec(name) {
         var keys = {
             backward: true,
@@ -495,6 +505,13 @@
     function applyAndroidControlCommand(command) {
         if (!command || command.schemaVersion !== 1 || !command.commandId
                 || command.commandId === lastAndroidControlCommandId) {
+            return;
+        }
+        if (command.action === "reload-scene"
+                && objectKeysMatch(command,
+                    ["schemaVersion", "commandId", "action"])) {
+            lastAndroidControlCommandId = String(command.commandId);
+            reloadControlledScene(lastAndroidControlCommandId);
             return;
         }
         if (command.action === "enter-domain"
@@ -727,7 +744,8 @@
             control: androidControlAvailable ? {
                 schemaVersion: 1,
                 channel: "android-debug-file-v1",
-                probe: "overte_e2e_probe.js"
+                probe: "overte_e2e_probe.js",
+                lastCommandId: lastAndroidControlCommandId
             } : null,
             domain: {
                 connected: Boolean(location.isConnected),

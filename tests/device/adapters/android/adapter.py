@@ -160,8 +160,10 @@ class AndroidAdapter:
             after = self.adb.process_state(target, package)
             if after.get("running") is not True or after.get("identity") != identity:
                 return None
+            control = probe.get("control", {}) if probe is not None else {}
             if (marker == ANDROID_CONTROL_CONTRACT and probe is not None
-                    and probe.get("control") == ANDROID_CONTROL_CONTRACT
+                    and all(control.get(key) == value
+                            for key, value in ANDROID_CONTROL_CONTRACT.items())
                     and probe.get("application", {}).get("running") is True):
                 return identity
             if attempt + 1 < attempts:
@@ -190,6 +192,21 @@ class AndroidAdapter:
         self.adb.write_debug_app_file(
             target, self.profile["package"], ANDROID_CONTROL_COMMAND, payload)
         self.require_same_process(target, identity, operation)
+
+    def wait_for_control_command(self, target: str, identity: str,
+                                 operation: str, command_id: str) -> None:
+        attempts, interval = self.probe_retry_policy()
+        package = self.profile["package"]
+        for attempt in range(attempts):
+            snapshot = self.decode_json(self.adb.read_debug_app_file(
+                target, package, ANDROID_DEBUG_PROBE, attempts=1))
+            control = snapshot.get("control", {}) if snapshot is not None else {}
+            self.require_same_process(target, identity, operation)
+            if control.get("lastCommandId") == command_id:
+                return
+            if attempt + 1 < attempts:
+                time.sleep(interval)
+        fail(f"Android controlled {operation} was not acknowledged")
 
     @staticmethod
     def post_sound_command(command_url: str, command: dict) -> None:
@@ -461,10 +478,15 @@ class AndroidAdapter:
                 fail("Android debug scene.load accepts only the embedded fixture URL")
             if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") != "1":
                 fail("scene.load requires an E2E-enabled debug APK")
-            if self.kind == "pico" and pico_openxr_opted_in():
-                self.require_pico_session_identity(target)
-            else:
-                self.launch_debug_app(target)
+            identity = self.require_controlled_debug_identity(target)
+            command_id = f"android-scene-reload-{uuid.uuid4().hex}"
+            self.write_control_command(target, identity, operation, {
+                "schemaVersion": 1,
+                "commandId": command_id,
+                "action": "reload-scene",
+            })
+            self.wait_for_control_command(
+                target, identity, operation, command_id)
             return {"requested": True, "verification": "fixture-markers"}
         if operation == "probe.snapshot":
             if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") != "1":

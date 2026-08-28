@@ -34,11 +34,12 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["schemaVersion", "channel", "probe"],
+          "required": ["schemaVersion", "channel", "probe", "lastCommandId"],
           "properties": {
             "schemaVersion": {"const": 1},
             "channel": {"const": "android-debug-file-v1"},
-            "probe": {"const": "overte_e2e_probe.js"}
+            "probe": {"const": "overte_e2e_probe.js"},
+            "lastCommandId": {"type": "string"}
           }
         }
       ]

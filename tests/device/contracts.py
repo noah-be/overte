@@ -232,11 +232,13 @@ def validate_probe_snapshot(value: object) -> dict:
     if control is not None:
         if not isinstance(control, dict):
             raise ValueError("probe control must be an object or null")
-        _require_exact_fields(control, {"channel", "probe", "schemaVersion"},
+        _require_exact_fields(control,
+                              {"channel", "lastCommandId", "probe", "schemaVersion"},
                               "probe control")
         if (control.get("schemaVersion") != 1
                 or control.get("channel") != "android-debug-file-v1"
-                or control.get("probe") != "overte_e2e_probe.js"):
+                or control.get("probe") != "overte_e2e_probe.js"
+                or not isinstance(control.get("lastCommandId"), str)):
             raise ValueError("probe control has an invalid Android debug contract")
 
     domain = value["domain"]

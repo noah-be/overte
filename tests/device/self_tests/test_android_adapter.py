@@ -191,8 +191,16 @@ elif cmd[:4] == ["shell", "run-as", "org.overte.phone", "cat"] or cmd[:4] == ["s
           "view":{"orientation":{"x":0,"y":0,"z":0}},
           "tablet":{"open":False}}
         if control_available and probe_sequence > probe_control_after:
+            last_command_id=""
+            if control_state_path and os.path.exists(control_state_path):
+                try:
+                    last_command_id=json.loads(
+                        open(control_state_path).read()).get("commandId","")
+                except (OSError,ValueError,TypeError):
+                    last_command_id=""
             snapshot["control"]={"schemaVersion":1,"channel":"android-debug-file-v1",
-                                 "probe":"overte_e2e_probe.js"}
+                                 "probe":"overte_e2e_probe.js",
+                                 "lastCommandId":last_command_id}
         print(json.dumps(snapshot))
 else: print("Success")
 '''
@@ -634,7 +642,7 @@ class AndroidAdapterTest(unittest.TestCase):
         self.assertEqual(1, len(payload_log.read_text(encoding="utf-8").splitlines()))
 
     def test_debug_launcher_accepts_only_the_embedded_fixture_identifier(self):
-        self.environment["OVERTE_ANDROID_E2E_DEBUG"] = "1"
+        _process, payload_log, _argv_log = self.enable_controlled_phone()
         common = [sys.executable, str(ADAPTER), "--kind", "phone", "invoke",
                   "--target", "phone-secret", "--operation", "scene.load"]
         accepted = subprocess.run(
@@ -643,6 +651,11 @@ class AndroidAdapterTest(unittest.TestCase):
             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             env=self.environment, check=False)
         self.assertEqual(0, accepted.returncode, accepted.stdout)
+        command = json.loads(json.loads(
+            payload_log.read_text(encoding="utf-8").splitlines()[0])["payload"])
+        self.assertEqual({"schemaVersion", "commandId", "action"}, set(command))
+        self.assertTrue(command["commandId"].startswith("android-scene-reload-"))
+        self.assertEqual("reload-scene", command["action"])
         rejected = subprocess.run(
             [*common, "--arguments", json.dumps({
                 "url": "https://production.invalid/scene.json"})],
@@ -668,6 +681,8 @@ class AndroidAdapterTest(unittest.TestCase):
             "MOCK_PICO_OPENXR_STATUS": str(Path(self.temporary.name) / "status.json"),
             "MOCK_PICO_OPENXR_GRANTS": str(grants),
             "MOCK_ANDROID_CONTROL_AVAILABLE": "1",
+            "MOCK_ANDROID_CONTROL_STATE": str(
+                Path(self.temporary.name) / "pico-control-command.json"),
             "MOCK_ANDROID_PROCESS_STATE": str(process),
             "MOCK_ADB_ARGV_LOG": str(argv_log),
         })

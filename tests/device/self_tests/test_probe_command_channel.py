@@ -61,6 +61,9 @@ class ProbeCommandChannelTest(unittest.TestCase):
         for action in ('"scene-load"', '"navigate"', '"asset-load"', '"sound-channel"',
                        '"key-hold"'):
             self.assertIn(f"command.action === {action}", self.source)
+        self.assertIn('command.action === "reload-scene"', self.source)
+        self.assertIn("Window.location = baseAddress", self.source)
+        self.assertIn('baseAddress + "#overte-e2e-reload-"', self.source)
         self.assertIn("Window.location = command.url", self.source)
         self.assertNotIn("controlledSceneLocation(command.url)", self.source)
         self.assertNotIn("Window.location = scenePath", self.source)
