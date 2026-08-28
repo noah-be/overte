@@ -6,16 +6,16 @@ from __future__ import annotations
 import os
 import time
 
-from module_support import (assert_foreground, assert_process, module_main,
-                            operation, wait_for_process, write_json)
+from module_support import (assert_foreground, assert_process, contract_operation,
+                            module_main, nonnegative_integer_environment,
+                            wait_for_process, write_json)
 
 
 def main() -> None:
-    operation("app.launch")
+    contract_operation("app.launch")
     identity = wait_for_process()
-    settle = int(os.environ.get("OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS", "10"))
-    if settle < 0 or settle > 60:
-        raise RuntimeError("OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS must be from 0 through 60")
+    settle = nonnegative_integer_environment(
+        "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS", 10, 60)
     if (os.environ.get("OVERTE_ANDROID_E2E_DEBUG") == "1"
             and os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1"):
         # Pico can hand the foreground back to a late guardian/see-through

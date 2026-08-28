@@ -41,7 +41,13 @@ def validate_target(target: object, selectors: set[str]) -> dict:
     if not target["selector"] or target["selector"] in selectors:
         raise ValueError("target selectors must be unique non-empty strings")
     selectors.add(target["selector"])
-    validate_capabilities(target["capabilities"])
+    capabilities = target["capabilities"]
+    if (not all(isinstance(item, str) and item for item in capabilities)
+            or len(capabilities) != len(set(capabilities))):
+        raise ValueError("target capabilities must be unique non-empty strings")
+    if capabilities != sorted(capabilities):
+        raise ValueError("target capabilities must use deterministic sorted order")
+    validate_capabilities(capabilities)
     return target
 
 
