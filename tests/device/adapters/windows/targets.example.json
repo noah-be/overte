@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "targets": [
+    {
+      "selector": "windows-desktop-01",
+      "displayName": "Windows Desktop 01",
+      "platform": "windows",
+      "physical": true,
+      "enabled": false,
+      "executable": "${OVERTE_INTERFACE_EXECUTABLE}",
+      "arguments": [],
+      "windowTitle": "Overte",
+      "oculixJar": "${OCULIX_IDE_JAR}",
+      "oculixSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "javaExecutable": "java.exe",
+      "javaArguments": [],
+      "probe": {
+        "kind": "injected-test-script"
+      },
+      "clientControl": {
+        "kind": "probe-command-file"
+      }
+    }
+  ]
+}
