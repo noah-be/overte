@@ -23,7 +23,7 @@ class ProbeCommandChannelTest(unittest.TestCase):
         self.assertNotIn("desktop-command.json", self.source)
 
     def test_channel_exposes_only_bounded_behavior_commands(self) -> None:
-        for action in ('"navigate"', '"asset-load"', '"sound-channel"'):
+        for action in ('"scene-load"', '"navigate"', '"asset-load"', '"sound-channel"'):
             self.assertIn(f"command.action === {action}", self.source)
         self.assertIn("Window.location = command.url", self.source)
         self.assertIn("controlledAssetEntity = Entities.addEntity({", self.source)
