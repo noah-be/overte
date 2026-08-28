@@ -150,7 +150,7 @@ class OpenXrControllerProtocolTests(unittest.TestCase):
         }]), self.profile)
         active = next(event["state"] for event in compiled["events"]
                       if event["state"]["viewOffset"]["active"])
-        self.assertLess(active["viewOffset"]["pitchDegrees"], 0.0)
+        self.assertGreater(active["viewOffset"]["pitchDegrees"], 0.0)
         self.assertFalse(any(active["boolean"].values()))
         self.assertFalse(any(active["float"].values()))
         self.assertTrue(all(value == [0.0, 0.0]

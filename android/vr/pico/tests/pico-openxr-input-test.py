@@ -139,7 +139,8 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertIn('{ "booleanAppliedSequence",', protocol)
         self.assertIn('direction != QLatin1String("left")', protocol)
         self.assertIn('direction != QLatin1String("right")', protocol)
-        self.assertIn("-vertical / 0.45 * 30.0", protocol)
+        self.assertIn("vertical / 0.45 * 30.0", protocol)
+        self.assertNotIn("-vertical / 0.45 * 30.0", protocol)
         self.assertEqual(
             "XR_APILAYER_OVERTE_e2e_input", manifest["api_layer"]["name"]
         )

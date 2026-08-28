@@ -305,10 +305,7 @@ def compile_envelope(envelope_raw: Any, profile_raw: Any) -> dict[str, Any]:
             action = "view-reference-space-offset"
             yaw = (float(arguments["horizontal"]) / 0.45 *
                    float(profile["viewInjection"]["maxYawDegrees"]))
-            # Overte's OpenXR view composition uses negative X rotation for a
-            # semantic upward look. Keep the public command convention
-            # positive=up and translate it at the Pico compiler boundary.
-            pitch = (-float(arguments.get("vertical", 0.0)) / 0.45 *
+            pitch = (float(arguments.get("vertical", 0.0)) / 0.45 *
                      float(profile["viewInjection"]["maxPitchDegrees"]))
             yaw_half = math.radians(yaw) / 2.0
             pitch_half = math.radians(pitch) / 2.0

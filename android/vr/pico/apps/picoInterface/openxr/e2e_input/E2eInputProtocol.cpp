@@ -598,10 +598,7 @@ bool Protocol::tryAccept(std::int64_t epochMilliseconds,
             }
             active.viewActive = true;
             active.viewYawDegrees = static_cast<float>(horizontal / 0.45 * 45.0);
-            // The semantic adapter defines positive vertical input as looking
-            // up. Overte's OpenXR pose convention needs a negative X rotation
-            // for that direction.
-            active.viewPitchDegrees = static_cast<float>(-vertical / 0.45 * 30.0);
+            active.viewPitchDegrees = static_cast<float>(vertical / 0.45 * 30.0);
             active.viewOrientation = lookQuaternion(active.viewYawDegrees,
                                                      active.viewPitchDegrees);
             duration = static_cast<std::int64_t>(std::llround(seconds * 1000.0));

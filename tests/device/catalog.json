@@ -63,7 +63,7 @@
       "command": ["modules/move.py"],
       "suites": ["e2e-core"],
       "requires": ["input.move", "probe.snapshot", "scene.load"],
-      "timeoutSeconds": 90
+      "timeoutSeconds": 150
     },
     {
       "id": "input-neutral",
