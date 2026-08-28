@@ -26,10 +26,10 @@
     var assetResource = null;
     var assetResourceUrl = "";
     var controlledAssetEntity = null;
-    var clientCommandRequestPending = false;
+    var clientCommandRequest = null;
     var clientCommandUnavailable = false;
     var lastClientCommandId = "";
-    var soundCommandRequestPending = false;
+    var soundCommandRequest = null;
     // Network-loaded probes retain the fixture-relative fallback. A target
     // adapter's private probe copy can replace it through the narrow command
     // channel only after the fixture has accepted an exact sound command.
@@ -330,16 +330,16 @@
     }
 
     function pollClientCommand() {
-        if (clientCommandUnavailable || clientCommandRequestPending) {
+        if (clientCommandUnavailable || clientCommandRequest !== null) {
             return;
         }
-        clientCommandRequestPending = true;
         var request = new XMLHttpRequest();
+        clientCommandRequest = request;
         request.onreadystatechange = function () {
             if (request.readyState !== request.DONE) {
                 return;
             }
-            clientCommandRequestPending = false;
+            clientCommandRequest = null;
             if ((request.status === 0 || request.status === 200)
                     && request.responseText) {
                 try {
@@ -452,16 +452,16 @@
     }
 
     function pollSoundCommand() {
-        if (!soundCommandUrl || soundCommandRequestPending) {
+        if (!soundCommandUrl || soundCommandRequest !== null) {
             return;
         }
-        soundCommandRequestPending = true;
         var request = new XMLHttpRequest();
+        soundCommandRequest = request;
         request.onreadystatechange = function () {
             if (request.readyState !== request.DONE) {
                 return;
             }
-            soundCommandRequestPending = false;
+            soundCommandRequest = null;
             if (request.status === 200) {
                 try {
                     applySoundCommand(JSON.parse(request.responseText));
