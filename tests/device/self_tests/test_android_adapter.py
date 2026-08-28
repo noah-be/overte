@@ -353,6 +353,13 @@ class AndroidAdapterTest(unittest.TestCase):
 
         adb_commands = [json.loads(line) for line in
                         argv_log.read_text(encoding="utf-8").splitlines()]
+        writes = [command for command in adb_commands
+                  if "-c" in command and command[-1].endswith(
+                      "android-control-command.json")]
+        self.assertEqual(3, len(writes))
+        self.assertTrue(all(command[command.index("-c") + 1].startswith("'")
+                            and command[command.index("-c") + 1].endswith("'")
+                            for command in writes))
         self.assertFalse(any("am" in command and "start" in command
                              for command in adb_commands))
         self.assertFalse(any("force-stop" in command for command in adb_commands))
