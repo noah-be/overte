@@ -371,8 +371,17 @@ class AndroidAdapter:
             fail("Pico cleanup discovery returned an invalid target")
         return selector
 
+    def require_connected(self, target: str) -> None:
+        # A Pico connected through the isolated WLAN-ADB server can briefly
+        # disappear while Pico Home resumes after the preceding suite. Wait
+        # only at explicit lifecycle boundaries; USB phone targets retain the
+        # transport's single-attempt behavior.
+        attempts = 60 if self.kind == "pico" else 1
+        self.adb.require_connected(
+            target, attempts=attempts, interval_seconds=0.25)
+
     def require(self, target: str) -> None:
-        self.adb.require_connected(target)
+        self.require_connected(target)
         if not self.eligible(target):
             fail("target does not satisfy this Android adapter profile")
 
@@ -536,7 +545,7 @@ class AndroidAdapter:
         fail(f"unsupported operation: {operation}")
 
     def cleanup(self, target: str) -> dict:
-        self.adb.require_connected(target)
+        self.require_connected(target)
         package = self.profile["package"]
         running = self.adb.process_state(target, package)["running"] is True
         cleanup_error = None

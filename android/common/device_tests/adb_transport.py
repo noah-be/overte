@@ -77,9 +77,33 @@ class AdbTransport:
         return [parts[0] for line in lines
                 if len(parts := line.split()) >= 2 and parts[1] == "device"]
 
-    def require_connected(self, target: str) -> None:
-        if self.execute(["get-state"], target=target, check=False).strip() != "device":
-            raise RuntimeError("target is not connected and authorized")
+    def require_connected(self, target: str, *, attempts: int = 1,
+                          interval_seconds: float = 0.25) -> None:
+        if (isinstance(attempts, bool) or not isinstance(attempts, int)
+                or not 1 <= attempts <= 120
+                or isinstance(interval_seconds, bool)
+                or not isinstance(interval_seconds, (int, float))
+                or not 0.0 <= interval_seconds <= 1.0):
+            raise RuntimeError("ADB connection retry policy is invalid")
+        host, separator, port = target.rpartition(":")
+        network_target = bool(
+            separator and host and port.isdigit() and 1 <= int(port) <= 65535)
+        for attempt in range(attempts):
+            if self.execute(
+                    ["get-state"], target=target, check=False).strip() == "device":
+                return
+            if attempt == 0 and network_target:
+                # `get-state` does not recreate a dropped ADB-over-TCP
+                # transport. Keep the reconnect scoped to the exact selected
+                # endpoint and suppress ADB's selector-bearing response.
+                try:
+                    self.execute(
+                        ["connect", target], timeout=5, check=False)
+                except RuntimeError:
+                    pass
+            if attempt + 1 < attempts:
+                time.sleep(interval_seconds)
+        raise RuntimeError("target is not connected and authorized")
 
     def read_debug_app_file(self, target: str, package: str, relative_path: str,
                             *, attempts: int = 60, interval_seconds: float = 0.25) -> str:

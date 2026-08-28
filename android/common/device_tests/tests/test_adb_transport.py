@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 from android.common.device_tests.adb_transport import AdbTransport
 
@@ -64,6 +65,39 @@ class AdbTransportTest(unittest.TestCase):
         self.assertEqual(["secret"], transport.authorized_targets())
         transport.require_connected("secret")
         self.assertTrue(transport.process_state("secret", "org.overte.test")["running"])
+
+    def test_connection_retry_is_bounded_and_recovers(self):
+        with mock.patch.object(
+                self.transport, "execute",
+                side_effect=["offline\n", "device\n"]) as execute, mock.patch(
+                    "android.common.device_tests.adb_transport.time.sleep") as sleep:
+            self.transport.require_connected(
+                "secret", attempts=2, interval_seconds=0.25)
+        self.assertEqual(2, execute.call_count)
+        sleep.assert_called_once_with(0.25)
+
+    def test_network_connection_retry_reconnects_only_the_exact_target(self):
+        target = "127.0.0.1:5555"
+        with mock.patch.object(
+                self.transport, "execute",
+                side_effect=["offline\n", "connected\n", "device\n"]) as execute, mock.patch(
+                    "android.common.device_tests.adb_transport.time.sleep") as sleep:
+            self.transport.require_connected(
+                target, attempts=2, interval_seconds=0.25)
+        self.assertEqual([
+            mock.call(["get-state"], target=target, check=False),
+            mock.call(["connect", target], timeout=5, check=False),
+            mock.call(["get-state"], target=target, check=False),
+        ], execute.call_args_list)
+        sleep.assert_called_once_with(0.25)
+
+    def test_invalid_connection_retry_policy_is_rejected(self):
+        for attempts, interval in ((0, 0.25), (True, 0.25), (121, 0.25),
+                                   (1, -0.1), (1, True), (1, 1.1)):
+            with self.subTest(attempts=attempts, interval=interval), self.assertRaisesRegex(
+                    RuntimeError, "retry policy is invalid"):
+                self.transport.require_connected(
+                    "secret", attempts=attempts, interval_seconds=interval)
 
     def test_invalid_explicit_server_ports_fail_closed(self):
         for value in (True, 0, 65536, "5041"):

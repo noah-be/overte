@@ -46,6 +46,8 @@ control_after=int(os.environ.get("MOCK_ANDROID_CONTROL_AFTER_READS", "0"))
 control_sequence_path=os.environ.get("MOCK_ANDROID_CONTROL_SEQUENCE_STATE", "")
 control_sequence=(int(open(control_sequence_path).read())
                   if control_sequence_path and os.path.exists(control_sequence_path) else 0)
+connection_state_path=os.environ.get("MOCK_ANDROID_CONNECTION_STATE", "")
+connection_offline_reads=int(os.environ.get("MOCK_ANDROID_CONNECTION_OFFLINE_READS", "0"))
 probe_available=os.environ.get("MOCK_ANDROID_PROBE_AVAILABLE", "1") == "1"
 probe_control_after=int(os.environ.get("MOCK_ANDROID_PROBE_CONTROL_AFTER_READS", "0"))
 control_payload_log=os.environ.get("MOCK_ANDROID_CONTROL_PAYLOAD_LOG", "")
@@ -58,7 +60,11 @@ if cmd in (["devices", "-l"], ["devices"]):
             "pico-secret" + ("" if index == 0 else "-" + str(index + 1)) + " device"
             for index in range(count)))
     else: print("List of devices attached\nphone-secret device model:Phone\npico-secret device model:PICO")
-elif cmd == ["get-state"]: print("device")
+elif cmd == ["get-state"]:
+    connection_reads=(int(open(connection_state_path).read())
+                      if connection_state_path and os.path.exists(connection_state_path) else 0)
+    if connection_state_path: open(connection_state_path,"w").write(str(connection_reads + 1))
+    print("offline" if connection_reads < connection_offline_reads else "device")
 elif cmd[:2] == ["shell", "getprop"]:
     prop=cmd[2]
     pico=bool(target and target.startswith("pico-secret"))
@@ -496,6 +502,32 @@ class AndroidAdapterTest(unittest.TestCase):
                             for command in payloads))
         self.assertTrue(any(command[:4] == ["shell", "am", "start", "-W"]
                             for command in payloads))
+
+    def test_pico_launch_waits_for_transient_wlan_reconnect(self):
+        state = Path(self.temporary.name) / "reconnect-openxr-state"
+        state.mkdir(mode=0o700)
+        process = Path(self.temporary.name) / "reconnect-process"
+        process.write_text("stopped", encoding="utf-8")
+        connection = Path(self.temporary.name) / "reconnect-reads"
+        self.environment.update({
+            "OVERTE_ANDROID_E2E_DEBUG": "1",
+            "OVERTE_PICO_OPENXR_INPUT": "1",
+            "ANDROID_ADB_SERVER_PORT": "5041",
+            "OVERTE_PICO_OPENXR_STATE_DIR": str(state),
+            "MOCK_ANDROID_PROCESS_STATE": str(process),
+            "MOCK_ANDROID_CONNECTION_STATE": str(connection),
+            "MOCK_ANDROID_CONNECTION_OFFLINE_READS": "1",
+        })
+
+        result = subprocess.run([
+            sys.executable, str(ADAPTER), "--kind", "pico", "invoke",
+            "--target", "pico-secret", "--operation", "app.launch",
+            "--arguments", "{}",
+        ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+           env=self.environment, check=False)
+
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertGreaterEqual(int(connection.read_text(encoding="utf-8")), 2)
 
     def test_controlled_pico_launch_reactivates_background_process(self):
         state = Path(self.temporary.name) / "reactivate-state"
