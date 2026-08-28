@@ -64,6 +64,8 @@ def validate_fixture() -> dict:
     spawn = manifest.get("spawnPosition")
     floor = next((entity for entity in entities
                   if entity.get("name") == "OVERTE_E2E_FLOOR"), None)
+    collision_wall = next((entity for entity in entities
+                           if entity.get("name") == "OVERTE_E2E_COLLISION_WALL"), None)
     if (not isinstance(spawn, dict) or set(spawn) != {"x", "y", "z"}
             or not all(isinstance(spawn[axis], (int, float)) for axis in ("x", "y", "z"))
             or spawn["y"] < 2.0):
@@ -84,6 +86,16 @@ def validate_fixture() -> dict:
             or not isinstance(position.get("y"), (int, float))
             or abs(position["y"] + thickness / 2.0) > 1e-6):
         raise ValueError("fixture floor must be thick with its top fixed at y=0")
+    wall_contract = manifest.get("collisionWall")
+    if (not isinstance(collision_wall, dict) or not isinstance(wall_contract, dict)
+            or set(wall_contract) != {"approachDirection", "center", "dimensions", "name"}
+            or wall_contract.get("name") != "OVERTE_E2E_COLLISION_WALL"
+            or collision_wall.get("collisionless") is not False
+            or collision_wall.get("locked") is not True
+            or wall_contract.get("approachDirection") != "forward"
+            or collision_wall.get("position") != wall_contract.get("center")
+            or collision_wall.get("dimensions") != wall_contract.get("dimensions")):
+        raise ValueError("fixture collision wall does not match its manifest")
     if manifest.get("externalResources") is not False or URL.search(json.dumps(scene)):
         raise ValueError("controlled fixture must not depend on external resources")
     asset = manifest.get("asset")

@@ -23,6 +23,7 @@ if str(ROOT) not in sys.path:
 
 from contracts import (load_capability_registry, validate_operation_arguments,
                        validate_probe_snapshot)  # noqa: E402
+from test_vertical_locomotion import snapshot as probe_snapshot  # noqa: E402
 
 
 class SoundPlaybackTest(unittest.TestCase):
@@ -79,14 +80,14 @@ class SoundPlaybackTest(unittest.TestCase):
         return result, output, temporary
 
     def assert_rejected(self, *, sound_url: str | None = None,
-                        failure: str = "", message: str) -> None:
+                        failure: str = "", message: str, status: str = "failed") -> None:
         result, output, temporary = self.run_suite(sound_url=sound_url, failure=failure)
         try:
             self.assertEqual(1, result.returncode, result.stdout)
             summary = json.loads((output / "summary.json").read_text(encoding="utf-8"))
             sound = next(item for item in summary["results"]
                          if item["id"] == "sound-playback")
-            self.assertEqual("failed", sound["status"])
+            self.assertEqual(status, sound["status"])
             log = (output / "modules/sound-playback/module.log").read_text(encoding="utf-8")
             self.assertIn(message, log)
         finally:
@@ -94,25 +95,15 @@ class SoundPlaybackTest(unittest.TestCase):
 
     @staticmethod
     def snapshot() -> dict:
-        return {
-            "schemaVersion": 1, "sampleEpochMs": 1, "sampleSequence": 1,
-            "build": {"platform": "Mock", "version": "1", "date": "1970-01-01"},
-            "application": {"running": True},
-            "scene": {"ready": False, "entityCount": 0},
-            "avatar": {
-                "position": {"x": 0, "y": 1, "z": 4},
-                "inAir": False, "flying": False, "flyingEnabled": True,
-            },
-            "view": {"orientation": {"x": 0, "y": 0, "z": 0}},
-            "tablet": {"open": False},
-            "sound": {
-                "commandId": "sound-test", "url": "http://fixture/sound.wav",
-                "commandObserved": True, "resourceReady": True,
-                "durationSeconds": 2.0, "format": "wav",
-                "injectorCreated": True, "started": True, "playing": True,
-                "finished": False, "finishReason": "none",
-            },
+        value = probe_snapshot()
+        value["sound"] = {
+            "commandId": "sound-test", "url": "http://fixture/sound.wav",
+            "commandObserved": True, "resourceReady": True,
+            "durationSeconds": 2.0, "format": "wav",
+            "injectorCreated": True, "started": True, "playing": True,
+            "finished": False, "finishReason": "none",
         }
+        return value
 
     def test_fixture_serves_deterministic_wav_without_caching_and_reports_requests(self):
         with urlopen(self.ready["soundUrl"], timeout=2) as response:
@@ -227,7 +218,8 @@ class SoundPlaybackTest(unittest.TestCase):
         self.assert_rejected(failure="process-restart", message="application process restarted")
 
     def test_stale_probe_samples_are_rejected(self):
-        self.assert_rejected(failure="stale-probe", message="fresh sound probe sample")
+        self.assert_rejected(failure="stale-probe",
+                             message="sampleSequence did not advance", status="error")
 
     def test_inconsistent_probe_samples_are_rejected(self):
         self.assert_rejected(failure="inconsistent-probe", message="inconsistent or out of order")

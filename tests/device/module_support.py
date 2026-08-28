@@ -10,6 +10,7 @@ import time
 from typing import Callable, NoReturn
 
 from adapter_client import invoke
+from contracts import validate_operation_arguments, validate_operation_result
 
 
 MANIFEST = Path(os.environ["OVERTE_DEVICE_ADAPTER_MANIFEST"])
@@ -41,6 +42,15 @@ def operation(name: str, arguments: dict[str, object] | None = None) -> dict:
     return value
 
 
+def contract_operation(name: str, arguments: dict[str, object] | None = None) -> dict:
+    """Invoke and validate one operation from the shared portable contract."""
+    try:
+        validated = validate_operation_arguments(name, arguments or {})
+        return validate_operation_result(name, operation(name, validated))
+    except ValueError as error:
+        raise InfrastructureError(str(error)) from error
+
+
 def fail(message: str) -> NoReturn:
     raise AssertionFailure(message)
 
@@ -70,6 +80,13 @@ def positive_integer_environment(name: str, default: int, maximum: int) -> int:
     return int(value)
 
 
+def nonnegative_integer_environment(name: str, default: int, maximum: int) -> int:
+    value = os.environ.get(name, str(default))
+    if not value.isdigit() or int(value) > maximum:
+        raise InfrastructureError(f"{name} must be an integer from 0 through {maximum}")
+    return int(value)
+
+
 def advertised_capabilities() -> set[str]:
     """Return the runner-attested operations available on this target."""
     try:
@@ -83,7 +100,7 @@ def advertised_capabilities() -> set[str]:
 
 
 def process_identity() -> str:
-    state = operation("app.process")
+    state = contract_operation("app.process")
     identity = state.get("identity")
     if state.get("running") is not True or not isinstance(identity, str) or not identity:
         fail("application process is not running")
@@ -91,7 +108,7 @@ def process_identity() -> str:
 
 
 def assert_process(identity: str, phase: str) -> None:
-    observed = operation("app.process")
+    observed = contract_operation("app.process")
     if observed.get("running") is not True:
         fail(f"{phase}: application process exited")
     if observed.get("identity") != identity:
@@ -101,7 +118,7 @@ def assert_process(identity: str, phase: str) -> None:
 def wait_for_process(timeout_seconds: int = 30) -> str:
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
-        state = operation("app.process")
+        state = contract_operation("app.process")
         identity = state.get("identity")
         if state.get("running") is True and isinstance(identity, str) and identity:
             return identity
@@ -110,8 +127,17 @@ def wait_for_process(timeout_seconds: int = 30) -> str:
 
 
 def assert_foreground(phase: str) -> None:
-    if operation("app.foreground").get("foreground") is not True:
+    if contract_operation("app.foreground").get("foreground") is not True:
         fail(f"{phase}: application is not foregrounded")
+
+
+def wait_for_process_stopped(timeout_seconds: int = 30) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if contract_operation("app.process")["running"] is False:
+            return
+        time.sleep(1)
+    fail("application process did not stop")
 
 
 def write_json(name: str, value: object) -> None:
