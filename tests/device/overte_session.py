@@ -87,9 +87,13 @@ class OverteSession:
         result = self._invoke("scene.load", {"url": url})
         expected = url.split("#", 1)[0]
         marker_verification = result.get("verification") == "fixture-markers"
+        command_id = result.get("commandId")
+        if command_id is not None and (not isinstance(command_id, str) or not command_id):
+            raise InfrastructureError("scene.load returned an invalid command identity")
         snapshot = self.wait_until(
             "the controlled scene to become ready",
             lambda value: self._fixture_ready(value) and
+            (command_id is None or value["scene"].get("commandId") == command_id) and
             (marker_verification or
              self._same_scene(str(value["scene"].get("url", "")), expected)),
         )
@@ -98,6 +102,20 @@ class OverteSession:
 
     def load_controlled_scene(self) -> dict:
         return self.load_scene(os.environ.get("OVERTE_E2E_SCENE_URL", ""))
+
+    def reload_controlled_scene(self) -> dict:
+        url = os.environ.get("OVERTE_E2E_SCENE_URL", "")
+        result = self._invoke("scene.reload", {"url": url})
+        command_id = result.get("commandId")
+        if not isinstance(command_id, str) or not command_id:
+            raise InfrastructureError("scene.reload returned no command identity")
+        snapshot = self.wait_until(
+            "the explicitly reloaded controlled scene to become ready",
+            lambda value: self._fixture_ready(value)
+            and value["scene"].get("commandId") == command_id,
+        )
+        write_json("scene-ready.json", snapshot)
+        return snapshot
 
     def load_asset(self, asset_id: str, url: str, entity_name: str,
                    width: int, height: int, identity: str) -> dict:
@@ -157,8 +175,24 @@ class OverteSession:
             expected = url.split("#", 1)[0]
             embedded = url == "overte-e2e://fixture/scene"
             scene = snapshot["scene"]
-            if (self._fixture_ready(snapshot)
-                    and (embedded or self._same_scene(str(scene.get("url", "")), expected))):
+            same_scene = embedded or self._same_scene(
+                str(scene.get("url", "")), expected)
+            if self._fixture_ready(snapshot) and same_scene:
+                write_json("scene-ready.json", snapshot)
+                return snapshot
+            command_id = scene.get("commandId")
+            if (same_scene and isinstance(command_id, str) and command_id):
+                # A prior module may observe the bounded location fallback while
+                # it temporarily re-arms readiness. Waiting for that exact
+                # command prevents a second scene.load from creating a reload
+                # cascade across otherwise independent modules.
+                snapshot = self.wait_until(
+                    "the existing controlled scene command to become ready",
+                    lambda value: self._fixture_ready(value)
+                    and value["scene"].get("commandId") == command_id
+                    and (embedded or self._same_scene(
+                        str(value["scene"].get("url", "")), expected)),
+                )
                 write_json("scene-ready.json", snapshot)
                 return snapshot
         return self.load_scene(url)
@@ -441,20 +475,38 @@ class OverteSession:
 
     def jump(self) -> tuple[dict, dict, dict]:
         before = self.stable_ground_snapshot("jump-before.json")
+        before_events = before.get("verticalEvents")
+        if before_events is None:
+            fail("probe does not provide vertical event history")
+        before_count = before_events["jumpCount"]
         self._invoke("input.jump", {})
         minimum = self._float_environment("OVERTE_E2E_MIN_JUMP_METERS", 0.15, 0.01, 5.0)
-        airborne = self.wait_until(
-            f"a non-flying jump height gain of at least {minimum} meters",
-            lambda value: value["avatar"]["inAir"] is True
-            and value["avatar"]["flying"] is False
-            and self._height(value) - self._height(before) >= minimum,
-        )
-        write_json("jump-airborne.json", airborne)
         landing_tolerance = self._float_environment(
             "OVERTE_E2E_LANDING_TOLERANCE_METERS", 0.12, 0.01, 1.0)
+
+        def jump_observed(value: dict) -> bool:
+            events = value.get("verticalEvents")
+            return (events is not None
+                    and events["jumpCount"] > before_count
+                    and events["lastJumpStartY"] is not None
+                    and events["lastJumpPeakY"] is not None
+                    and abs(events["lastJumpStartY"] - self._height(before))
+                    <= landing_tolerance
+                    and events["lastJumpPeakY"] - events["lastJumpStartY"] >= minimum)
+
+        airborne = self.wait_until(
+            f"a non-flying jump height gain of at least {minimum} meters",
+            jump_observed,
+        )
+        write_json("jump-airborne.json", airborne)
+        observed_count = airborne["verticalEvents"]["jumpCount"]
         landed = self.wait_until(
             f"landing within {landing_tolerance} meters of the baseline",
-            lambda value: value["avatar"]["inAir"] is False
+            lambda value: value["verticalEvents"]["jumpCompletedCount"] >= observed_count
+            and value["verticalEvents"]["lastJumpLandingY"] is not None
+            and abs(value["verticalEvents"]["lastJumpLandingY"]
+                    - self._height(before)) <= landing_tolerance
+            and value["avatar"]["inAir"] is False
             and value["avatar"]["flying"] is False
             and abs(self._height(value) - self._height(before)) <= landing_tolerance,
         )
@@ -465,14 +517,20 @@ class OverteSession:
         before = self.stable_ground_snapshot("fly-before.json")
         if before["avatar"]["flyingEnabled"] is not True:
             fail("avatar flying is not enabled")
+        before_events = before.get("verticalEvents")
+        if before_events is None:
+            fail("probe does not provide vertical event history")
+        before_count = before_events["flightCount"]
         self._invoke("input.fly", {"durationSeconds": duration_seconds})
         minimum = self._float_environment("OVERTE_E2E_MIN_FLY_METERS", 0.5, 0.05, 20.0)
         flying = self.wait_until(
             f"active flight with a height gain of at least {minimum} meters",
-            lambda value: value["avatar"]["inAir"] is True
-            and value["avatar"]["flying"] is True
-            and value["avatar"]["flyingEnabled"] is True
-            and self._height(value) - self._height(before) >= minimum,
+            lambda value: value["verticalEvents"]["flightCount"] > before_count
+            and value["verticalEvents"]["lastFlightStartY"] is not None
+            and value["verticalEvents"]["lastFlightPeakY"] is not None
+            and value["verticalEvents"]["lastFlightPeakY"]
+            - value["verticalEvents"]["lastFlightStartY"] >= minimum
+            and value["avatar"]["flyingEnabled"] is True,
         )
         write_json("fly-active.json", flying)
         return before, flying
@@ -512,7 +570,7 @@ class OverteSession:
             self.set_tablet(False)
 
     def assert_collision_wall(self) -> tuple[dict, dict]:
-        self.load_controlled_scene()
+        self.ensure_controlled_scene()
         before = self.assert_spawn_grounded()
         wall = before["scene"]["collisionWall"]
         center = wall["center"]
@@ -538,10 +596,29 @@ class OverteSession:
         return before, after
 
     def reload_scene(self) -> tuple[dict, dict]:
-        before = self.ensure_controlled_scene()
-        after = self.load_controlled_scene()
-        if (after["scene"]["entityCount"] != before["scene"]["entityCount"]
+        before = self.snapshot()
+        scene = before["scene"]
+        if before["application"]["running"] is not True:
+            fail("application was not running before scene reload")
+        fixture_present = (
+            tuple(scene["fixtureMarkers"]) == self.FIXTURE_MARKERS
+            and scene["fixtureMarkerCount"] == len(self.FIXTURE_MARKERS)
+            and scene["floorTopY"] is not None
+            and scene["collisionWall"] is not None
+        )
+        after = (self.reload_controlled_scene() if fixture_present
+                 else self.load_controlled_scene())
+        after = self.assert_spawn_grounded()
+        if ((fixture_present
+                and after["scene"]["entityCount"] != before["scene"]["entityCount"])
                 or not after["scene"]["spawnValidated"]):
             fail("controlled scene reload did not restore the fixture")
+        wall = after["scene"]["collisionWall"]
+        near_face_z = (float(wall["center"]["z"])
+                       + float(wall["dimensions"]["z"]) / 2.0)
+        minimum_clearance = self._float_environment(
+            "OVERTE_E2E_MIN_VERTICAL_WALL_CLEARANCE_METERS", 1.0, 0.1, 20.0)
+        if float(after["avatar"]["position"]["z"]) - near_face_z < minimum_clearance:
+            fail("controlled scene reload did not restore free vertical locomotion space")
         write_json("scene-reloaded.json", after)
         return before, after

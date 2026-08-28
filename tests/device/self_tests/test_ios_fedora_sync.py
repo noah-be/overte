@@ -278,6 +278,7 @@ class IosFedoraSyncTest(unittest.TestCase):
         self.assertTrue(target["capabilities"]["appium:usePreinstalledWDA"])
         self.assertFalse(target["capabilities"]["appium:enforceAppInstall"])
         self.assertFalse(target["capabilities"]["appium:autoLaunch"])
+        self.assertEqual(0, target["capabilities"]["appium:waitForIdleTimeout"])
         self.assertEqual("signed-ipa", target["artifactMode"])
         self.assertNotIn("iosSessionBootstrap", target)
         self.assertEqual(SYNC.SCENE_PATH, target["testBuild"]["scenePath"])

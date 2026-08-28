@@ -82,6 +82,14 @@
       "timeoutSeconds": 120
     },
     {
+      "id": "scene-reload",
+      "description": "Reload the fixture and verify it restores a free grounded spawn before vertical locomotion.",
+      "command": ["modules/scene_reload.py"],
+      "suites": ["e2e-core", "e2e-recovery"],
+      "requires": ["probe.snapshot", "scene.reload"],
+      "timeoutSeconds": 120
+    },
+    {
       "id": "jump",
       "description": "Jump once, observe a non-flying ascent, and verify landing near the baseline.",
       "command": ["modules/jump.py"],
@@ -112,14 +120,6 @@
       "suites": ["e2e-core"],
       "requires": ["input.move", "probe.snapshot", "scene.load", "tablet.close", "tablet.open"],
       "timeoutSeconds": 90
-    },
-    {
-      "id": "scene-reload",
-      "description": "Reload the fixture and verify entity, spawn, and readiness state are restored.",
-      "command": ["modules/scene_reload.py"],
-      "suites": ["e2e-core", "e2e-recovery"],
-      "requires": ["probe.snapshot", "scene.load"],
-      "timeoutSeconds": 120
     },
     {
       "id": "app-restart",

@@ -63,7 +63,7 @@ class CoreSequenceTest(unittest.TestCase):
         self.assertIn("return Boolean(tablet.tabletShown || HMD.showTablet)", probe)
         self.assertIn('(name === "tablet" || !controlledTabletOpen())', probe)
 
-    def test_probe_normalizes_only_the_initial_flight_state(self):
+    def test_probe_normalizes_initial_and_controlled_reload_flight_state(self):
         probe = (DEVICE_ROOT / "probe/overte_e2e_probe.js").read_text(
             encoding="utf-8")
         self.assertIn("flightNormalizationAllowed && !flightNormalizationActive", probe)
@@ -72,6 +72,12 @@ class CoreSequenceTest(unittest.TestCase):
             probe.count("MyAvatar.setFlyingEnabled(flyingEnabledBeforeNormalization)"), 2)
         self.assertIn("!flightNormalizationActive && !MyAvatar.isInAir()", probe)
         self.assertIn("flightNormalizationAllowed = false;", probe)
+        reset = probe.split("function resetSceneObservation()", 1)[1].split("}", 1)[0]
+        self.assertIn("flightNormalizationAllowed = true;", reset)
+        self.assertIn("flightNormalizationStableSamples = 0;", reset)
+        reapply = probe.split("function applySceneLocation", 1)[1].split("}", 1)[0]
+        self.assertIn("resetSceneObservation();", reapply)
+        self.assertIn("!avatarAtExpectedSpawn()", reapply)
         self.assertIn("Controller.Actions.TranslateY", probe)
         self.assertIn("DriveKeys.TRANSLATE_Y", probe)
         self.assertIn("velocity: vector(MyAvatar.velocity)", probe)
@@ -108,13 +114,13 @@ class CoreSequenceTest(unittest.TestCase):
             self.assertEqual("passed", summary["status"])
             self.assertEqual(
                 ["launch-smoke", "scene", "spawn-grounded", "look", "move",
-                 "input-neutral", "collision", "jump", "fly", "tablet",
-                 "tablet-input-isolation", "scene-reload"],
+                 "input-neutral", "collision", "scene-reload", "jump", "fly",
+                 "tablet", "tablet-input-isolation"],
                 [entry["id"] for entry in summary["results"]],
             )
             state = json.loads((root / "state.json").read_text(encoding="utf-8"))
             self.assertEqual(1, state["launchCount"])
-            self.assertEqual(3, state["sceneLoadCount"])
+            self.assertEqual(2, state["sceneLoadCount"])
             junit = ET.parse(output / "junit.xml").getroot()
             self.assertEqual("12", junit.attrib["tests"])
             self.assertEqual("0", junit.attrib["failures"])
@@ -150,7 +156,7 @@ class CoreSequenceTest(unittest.TestCase):
             self.assertNotEqual(restart["beforeIdentity"], restart["afterIdentity"])
             state = json.loads((root / "state.json").read_text(encoding="utf-8"))
             self.assertEqual(2, state["launchCount"])
-            self.assertEqual(2, state["sceneLoadCount"])
+            self.assertEqual(1, state["sceneLoadCount"])
 
     def test_domain_smoke_enters_controlled_domain_without_process_restart(self):
         with tempfile.TemporaryDirectory(prefix="overte-domain-e2e-core-") as temporary:
