@@ -144,23 +144,23 @@ class AndroidAdapter:
         identity = before.get("identity")
         if before.get("running") is not True or not isinstance(identity, str) or not identity:
             return None
-        marker = self.decode_json(self.adb.read_debug_app_file(
-            target, package, ANDROID_CONTROL_MARKER, attempts=1))
-        if marker != ANDROID_CONTROL_CONTRACT:
-            return None
         attempts, interval = self.probe_retry_policy()
         for attempt in range(attempts):
-            probe = self.decode_json(self.adb.read_debug_app_file(
-                target, package, ANDROID_DEBUG_PROBE, attempts=1))
-            if probe is not None:
-                try:
-                    probe = require_fresh_snapshot(probe)
-                except RuntimeError:
-                    probe = None
+            marker = self.decode_json(self.adb.read_debug_app_file(
+                target, package, ANDROID_CONTROL_MARKER, attempts=1))
+            probe = None
+            if marker == ANDROID_CONTROL_CONTRACT:
+                probe = self.decode_json(self.adb.read_debug_app_file(
+                    target, package, ANDROID_DEBUG_PROBE, attempts=1))
+                if probe is not None:
+                    try:
+                        probe = require_fresh_snapshot(probe)
+                    except RuntimeError:
+                        probe = None
             after = self.adb.process_state(target, package)
             if after.get("running") is not True or after.get("identity") != identity:
                 return None
-            if (probe is not None
+            if (marker == ANDROID_CONTROL_CONTRACT and probe is not None
                     and probe.get("control") == ANDROID_CONTROL_CONTRACT
                     and probe.get("application", {}).get("running") is True):
                 return identity

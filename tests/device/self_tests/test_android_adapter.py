@@ -42,6 +42,10 @@ foreground_state=(open(foreground_path).read().strip()
                   if foreground_path and os.path.exists(foreground_path) else "foreground")
 control_state_path=os.environ.get("MOCK_ANDROID_CONTROL_STATE", "")
 control_available=os.environ.get("MOCK_ANDROID_CONTROL_AVAILABLE", "") == "1"
+control_after=int(os.environ.get("MOCK_ANDROID_CONTROL_AFTER_READS", "0"))
+control_sequence_path=os.environ.get("MOCK_ANDROID_CONTROL_SEQUENCE_STATE", "")
+control_sequence=(int(open(control_sequence_path).read())
+                  if control_sequence_path and os.path.exists(control_sequence_path) else 0)
 probe_available=os.environ.get("MOCK_ANDROID_PROBE_AVAILABLE", "1") == "1"
 probe_control_after=int(os.environ.get("MOCK_ANDROID_PROBE_CONTROL_AFTER_READS", "0"))
 control_payload_log=os.environ.get("MOCK_ANDROID_CONTROL_PAYLOAD_LOG", "")
@@ -163,7 +167,10 @@ elif (len(cmd) == 2 and cmd[0] == "shell"
 elif cmd[:4] == ["shell", "run-as", "org.overte.phone", "cat"] or cmd[:4] == ["shell", "run-as", "org.overte.pico", "cat"]:
     remote=cmd[4]
     if remote.endswith("android-control.json"):
-        if control_available:
+        control_sequence += 1
+        if control_sequence_path:
+            open(control_sequence_path,"w").write(str(control_sequence))
+        if control_available and control_sequence > control_after:
             print(json.dumps({"schemaVersion":1,"channel":"android-debug-file-v1",
                               "probe":"overte_e2e_probe.js"},separators=(",",":"),sort_keys=True))
     elif remote.endswith("android-control-command.json"):
@@ -531,14 +538,18 @@ class AndroidAdapterTest(unittest.TestCase):
         self.assertNotIn("soundState.resourceReady = true", probe)
         self.assertNotIn("soundState.injectorCreated = true", probe)
 
-    def test_controlled_identity_waits_for_probe_channel_without_process_change(self):
+    def test_controlled_identity_waits_for_marker_and_probe_without_process_change(self):
         self.enable_controlled_phone()
-        sequence = Path(self.temporary.name) / "controlled-probe-sequence"
-        sequence.write_text("0", encoding="utf-8")
+        marker_sequence = Path(self.temporary.name) / "controlled-marker-sequence"
+        marker_sequence.write_text("0", encoding="utf-8")
+        probe_sequence = Path(self.temporary.name) / "controlled-probe-sequence"
+        probe_sequence.write_text("0", encoding="utf-8")
         self.environment.update({
+            "MOCK_ANDROID_CONTROL_AFTER_READS": "2",
+            "MOCK_ANDROID_CONTROL_SEQUENCE_STATE": str(marker_sequence),
             "MOCK_ANDROID_PROBE_CONTROL_AFTER_READS": "2",
-            "MOCK_PROBE_SEQUENCE_STATE": str(sequence),
-            "OVERTE_ANDROID_E2E_PROBE_ATTEMPTS": "3",
+            "MOCK_PROBE_SEQUENCE_STATE": str(probe_sequence),
+            "OVERTE_ANDROID_E2E_PROBE_ATTEMPTS": "6",
             "OVERTE_ANDROID_E2E_PROBE_POLL_SECONDS": "0.01",
         })
         result = self.invoke_phone("asset.load", {
