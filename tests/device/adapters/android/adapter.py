@@ -226,6 +226,18 @@ class AndroidAdapter:
             time.sleep(0.25)
         fail("Android E2E launcher process did not start")
 
+    def wait_for_process_stopped(self, target: str,
+                                 timeout_seconds: float = 30.0) -> None:
+        package = self.profile["package"]
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            pid = self.adb.shell(
+                target, "pidof", "-s", package, check=False).strip()
+            if not pid.isdigit():
+                return
+            time.sleep(0.25)
+        fail("Android E2E launcher process did not stop")
+
     def launch_debug_app(self, target: str) -> str | None:
         package = self.profile["package"]
         running = self.adb.process_state(target, package)["running"] is True
@@ -469,8 +481,12 @@ class AndroidAdapter:
                 session.cleanup(running)
             except RuntimeError as error:
                 cleanup_error = error
-        if running:
-            self.adb.shell(target, "am", "force-stop", package, check=False)
+        # Cleanup is an idempotent lifecycle boundary between suites.  Always
+        # issue and confirm force-stop: a transient empty process probe must
+        # never allow the preceding suite's process to survive into the next
+        # single-launch Pico session.
+        self.adb.shell(target, "am", "force-stop", package)
+        self.wait_for_process_stopped(target)
         if session is not None:
             session.discard_local_state()
         if cleanup_error is not None:

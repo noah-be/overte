@@ -183,8 +183,11 @@ class AndroidAdapterTest(unittest.TestCase):
                 "OVERTE_ANDROID_E2E_DEBUG", "OVERTE_PICO_OPENXR_INPUT",
                 "ANDROID_ADB_SERVER_PORT", "OVERTE_PICO_OPENXR_STATE_DIR"):
             self.environment.pop(name, None)
+        default_process = Path(self.temporary.name) / "default-process"
+        default_process.write_text("running", encoding="utf-8")
         self.environment["OVERTE_ANDROID_ADB"] = str(self.adb)
         self.environment["OVERTE_ANDROID_E2E_PROBE_ATTEMPTS"] = "1"
+        self.environment["MOCK_ANDROID_PROCESS_STATE"] = str(default_process)
 
     def tearDown(self):
         self.temporary.cleanup()
@@ -685,6 +688,33 @@ class AndroidAdapterTest(unittest.TestCase):
             env=self.environment, check=False)
         self.assertEqual(2, phone.returncode, phone.stdout)
         self.assertIn("cleanup requires --target", phone.stdout)
+
+    def test_cleanup_force_stops_and_confirms_process_exit(self):
+        process = Path(self.temporary.name) / "cleanup-process"
+        process.write_text("running", encoding="utf-8")
+        argv_log = Path(self.temporary.name) / "cleanup-adb.jsonl"
+        self.environment.update({
+            "MOCK_ANDROID_PROCESS_STATE": str(process),
+            "MOCK_ADB_ARGV_LOG": str(argv_log),
+        })
+
+        cleaned = subprocess.run(
+            [sys.executable, str(ADAPTER), "--kind", "phone", "cleanup",
+             "--target", "phone-secret"], text=True, stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, env=self.environment, check=False)
+
+        self.assertEqual(0, cleaned.returncode, cleaned.stdout)
+        self.assertEqual("stopped", process.read_text(encoding="utf-8"))
+        commands = [json.loads(line) for line in argv_log.read_text().splitlines()]
+        force_stop = [index for index, command in enumerate(commands)
+                      if command[2:] == ["shell", "am", "force-stop",
+                                         "org.overte.phone"]]
+        stopped_probe = [index for index, command in enumerate(commands)
+                         if command[2:] == ["shell", "pidof", "-s",
+                                            "org.overte.phone"]]
+        self.assertEqual(1, len(force_stop))
+        self.assertTrue(stopped_probe)
+        self.assertGreater(stopped_probe[-1], force_stop[0])
 
     def test_phone_ignores_pico_server_port_without_openxr_opt_in(self):
         argv_log = Path(self.temporary.name) / "phone-adb-argv.jsonl"
