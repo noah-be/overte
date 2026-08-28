@@ -13,8 +13,16 @@
     var previousLocationKey = "";
     var assetResource = null;
     var assetResourceUrl = "";
+    var controlledAssetEntity = null;
+    var clientCommandRequestPending = false;
+    var clientCommandUnavailable = false;
+    var lastClientCommandId = "";
     var sampleSequence = 0;
     var soundCommandRequestPending = false;
+    // Network-loaded probes retain the fixture-relative fallback. A target
+    // adapter's private probe copy can replace it through the narrow command
+    // channel only after the fixture has accepted an exact sound command.
+    var soundCommandUrl = Script.resolvePath("sound-command.json");
     var lastSoundControlCommandId = "";
     var soundResource = null;
     var soundInjector = null;
@@ -203,8 +211,93 @@
             .replace(/[\r\n]+/g, " ").slice(0, 160);
     }
 
+    function objectKeysMatch(value, expected) {
+        if (!value || typeof value !== "object") {
+            return false;
+        }
+        return Object.keys(value).sort().join("|") === expected.slice().sort().join("|");
+    }
+
+    function httpUrl(value) {
+        return typeof value === "string"
+            && /^https?:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\])(?::[0-9]+)?(?:[/?#]|$)/.test(value);
+    }
+
+    function applyClientCommand(command) {
+        if (!command || command.schemaVersion !== 1 || !command.commandId
+                || command.commandId === lastClientCommandId) {
+            return;
+        }
+        if (command.action === "navigate"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "url"])
+                && typeof command.url === "string"
+                && /^hifi:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\]):[0-9]+(?:\/|$)/.test(command.url)) {
+            lastClientCommandId = String(command.commandId);
+            Window.location = command.url;
+            return;
+        }
+        if (command.action === "asset-load"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action",
+                    "assetId", "url", "entityName"])
+                && typeof command.assetId === "string" && command.assetId.length > 0
+                && typeof command.entityName === "string"
+                && command.entityName.indexOf("OVERTE_E2E_ASSET_LOAD") === 0
+                && httpUrl(command.url)) {
+            if (controlledAssetEntity !== null) {
+                Entities.deleteEntity(controlledAssetEntity);
+                controlledAssetEntity = null;
+            }
+            controlledAssetEntity = Entities.addEntity({
+                type: "Image",
+                name: command.entityName,
+                imageURL: command.url,
+                userData: JSON.stringify({ overteE2EAssetId: command.assetId }),
+                position: Vec3.sum(MyAvatar.position, Vec3.multiply(
+                    2.0, Quat.getForward(Camera.orientation))),
+                dimensions: { x: 1.0, y: 1.0, z: 0.01 }
+            }, "local");
+            lastClientCommandId = String(command.commandId);
+            return;
+        }
+        if (command.action === "sound-channel"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "url"])
+                && httpUrl(command.url)) {
+            soundCommandUrl = String(command.url);
+            lastClientCommandId = String(command.commandId);
+        }
+    }
+
+    function pollClientCommand() {
+        if (clientCommandUnavailable || clientCommandRequestPending) {
+            return;
+        }
+        clientCommandRequestPending = true;
+        var request = new XMLHttpRequest();
+        request.onreadystatechange = function () {
+            if (request.readyState !== request.DONE) {
+                return;
+            }
+            clientCommandRequestPending = false;
+            if ((request.status === 0 || request.status === 200)
+                    && request.responseText) {
+                try {
+                    applyClientCommand(JSON.parse(request.responseText));
+                } catch (error) {
+                    print("OVERTE_E2E_CLIENT_COMMAND_ERROR " + safeErrorText(error));
+                }
+            } else if (request.status >= 400
+                    || (request.status === 0 && !request.responseText)) {
+                // A network-loaded shared probe has no private command file.
+                // Stop polling a permanent miss for the rest of the session.
+                clientCommandUnavailable = true;
+            }
+        };
+        request.open("GET", Script.resolvePath("e2e-client-command.json"));
+        request.send();
+    }
+
     function pollSoundCommand() {
-        if (soundCommandRequestPending) {
+        if (!soundCommandUrl || soundCommandRequestPending) {
             return;
         }
         soundCommandRequestPending = true;
@@ -222,11 +315,12 @@
                 }
             }
         };
-        request.open("GET", Script.resolvePath("sound-command.json"));
+        request.open("GET", soundCommandUrl);
         request.send();
     }
 
     function sample() {
+        pollClientCommand();
         pollSoundCommand();
         var currentAddress = String(location.href);
         var currentLocationKey = [String(location.protocol), String(location.hostname),
@@ -361,6 +455,10 @@
     Script.scriptEnding.connect(function () {
         Script.clearInterval(timer);
         releaseAssetResource();
+        if (controlledAssetEntity !== null) {
+            Entities.deleteEntity(controlledAssetEntity);
+            controlledAssetEntity = null;
+        }
     });
     sample();
 }());
