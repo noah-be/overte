@@ -59,6 +59,7 @@ class CoreSequenceTest(unittest.TestCase):
         self.assertNotIn("MyAvatar.position =", probe)
         self.assertNotIn("MyAvatar.velocity =", probe)
         self.assertIn("Window.location = scenePath", probe)
+        self.assertIn('&& String(location.protocol) !== "file"', probe)
         self.assertIn("spawnLocationObserved: avatarAtSpawn", probe)
         self.assertIn("return Boolean(tablet.tabletShown || HMD.showTablet)", probe)
         self.assertIn('(name === "tablet" || !controlledTabletOpen())', probe)
