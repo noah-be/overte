@@ -168,16 +168,16 @@ class AndroidAdapterTest(unittest.TestCase):
 
     def test_probe_retains_asynchronous_control_requests_until_completion(self):
         probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
-        for name in ("clientCommandRequest", "soundCommandRequest"):
-            self.assertIn(f"var {name} = null;", probe)
-            self.assertIn(f"{name} = request;", probe)
-            self.assertIn(f"{name} = null;", probe)
+        for name in ("clientCommandRequestPending", "soundCommandRequestPending"):
+            self.assertIn(f"var {name} = false;", probe)
+            self.assertIn(f"{name} = true;", probe)
+            self.assertIn(f"{name} = false;", probe)
         self.assertIn('Script.require("./android-control.json")', probe)
         self.assertIn('Script.require("./android-control-command.json?sample="', probe)
-        for obsolete_name in ("clientCommandRequestPending",
-                              "androidControlCommandRequestPending",
+        for obsolete_name in ("androidControlCommandRequestPending",
                               "androidControlMarkerRequestPending",
-                              "soundCommandRequestPending"):
+                              "clientCommandRequest =",
+                              "soundCommandRequest ="):
             self.assertNotIn(obsolete_name, probe)
 
     def verify(self, kind: str) -> subprocess.CompletedProcess:

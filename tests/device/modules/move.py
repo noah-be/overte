@@ -10,9 +10,13 @@ from overte_session import OverteSession
 def main() -> None:
     session = OverteSession()
     session.ensure_controlled_scene()
-    before, after = session.move()
-    distance = session._distance(before["avatar"]["position"], after["avatar"]["position"])
-    print(f"Avatar moved {distance:.3f} meters after automated input.")
+    distances = {}
+    for direction in ("forward", "backward", "left", "right"):
+        before, after, _ = session.move(direction)
+        distances[direction] = session.movement_projection(before, after, direction)
+    summary = ", ".join(
+        f"{direction}={distance:.3f}" for direction, distance in distances.items())
+    print(f"Body-relative movement observed in every direction: {summary} meters.")
 
 
 module_main(main)
