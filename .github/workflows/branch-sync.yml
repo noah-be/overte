@@ -44,7 +44,7 @@ jobs:
           if [[ "$EVENT_NAME" == "push" ]]; then
             parents=("$PUSH_PARENT")
           else
-            parents=(main android-main android-vr apple-main)
+            mapfile -t parents < <(python3 tools/branch-policy/check.py parents)
           fi
 
           for parent in "${parents[@]}"; do

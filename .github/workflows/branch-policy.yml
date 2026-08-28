@@ -13,6 +13,8 @@ on:
       - apple-main
       - apple-ios
       - apple-macos
+      - linux-main
+      - windows-main
 
 permissions:
   contents: read

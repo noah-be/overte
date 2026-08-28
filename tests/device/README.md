@@ -33,8 +33,12 @@ assertion failure.
   activation remains pending. See [`ASSET_LOAD_E2E.md`](ASSET_LOAD_E2E.md).
 - `sound-smoke`: controlled WAV request, decode readiness, and observable
   in-client injector lifecycle; see [`SOUND_E2E.md`](SOUND_E2E.md).
-- `e2e-core`: launch, controlled scene load, look, movement, and tablet
-  open/close behavior.
+- `e2e-core`: launch, controlled scene and grounded spawn, signed look in four
+  directions, body-relative movement in four directions, neutral input,
+  collision, jump, flight, tablet transitions and input isolation, and scene
+  reload.
+- `e2e-recovery`: controlled scene reload followed by a stop/relaunch cycle
+  that must produce a new stable process identity.
 - `domain-smoke`: launch, enter an ephemeral controlled domain, and verify its
   exact identity and assignment-owned content without restarting Interface.
 - `vertical-locomotion`: one jump with observed ascent and landing, followed by
@@ -48,9 +52,9 @@ assertion failure.
 - `lifecycle-stability`: repeated background and activation cycles with a
   stable process identity on targets that support lifecycle automation.
 
-The `scene`, `look`, `move`, and `tablet` modules use `OverteSession` and
-verify effects through `probe.snapshot`. A successful input command alone is
-never enough to pass a behavior.
+All behavioral modules use `OverteSession` and verify effects through fresh
+schema-v2 `probe.snapshot` samples. A successful input command alone is never
+enough to pass a behavior.
 
 `domain-smoke` is fully specified and hardware-free tested, but intentionally
 not advertised by a real adapter yet. Adapter enablement remains a separate
@@ -85,11 +89,18 @@ names and results are versioned in [`capabilities.json`](capabilities.json).
 Machine-readable catalog, manifest, and probe schemas are in
 [`schemas/`](schemas/).
 
-The vertical-locomotion adapter contract is deliberately small:
+The common input and lifecycle contract is deliberately small:
 
 - `input.jump` accepts `{}` and returns at least `{"performed": true}`.
 - `input.fly` accepts only `{"durationSeconds": NUMBER}`, bounded from `0.1`
   through `10.0`, and returns at least `{"performed": true}`.
+- `input.look` accepts bounded non-zero horizontal and vertical components;
+  positive values mean right and up.
+- `input.move` accepts one of `forward`, `backward`, `left`, or `right` and a
+  duration from `0.1` through `10.0` seconds.
+- `probe.snapshot` accepts an optional positive `afterSampleSequence` cursor;
+  the returned v2 sample must advance beyond it.
+- `app.stop` accepts `{}` and confirms `{"stopped": true}`.
 
 No shared module knows controller buttons, native events, or input routes.
 
@@ -102,8 +113,9 @@ credentials.
 
 ## Controlled fixture and probe
 
-[`fixture/scene.json`](fixture/scene.json) contains four local primitive
-entities and no external assets. Start an ephemeral localhost server with:
+[`fixture/scene.json`](fixture/scene.json) contains five local primitive
+entities, including a deterministic collision wall, and no external assets.
+Start an ephemeral localhost server with:
 
 ```bash
 python3 tests/device/fixture/serve.py --ready-file /tmp/overte-fixture.json
@@ -122,12 +134,27 @@ The server exposes the repository-owned probe at `/overte_e2e_probe.js` and the
 pinned texture plus per-request telemetry used by `asset-smoke`, together with
 the deterministic sound described in [`SOUND_E2E.md`](SOUND_E2E.md). The
 in-client [`probe/overte_e2e_probe.js`](probe/overte_e2e_probe.js) records
-application focus, scene readiness and markers, avatar position, `inAir`,
-`flying`, `flyingEnabled`, camera orientation, tablet state, controlled asset
-resource/entity evidence, sound resource and injector state, and build identity
+application focus, scene readiness and markers, collision geometry, avatar
+position, velocity and body yaw, `inAir`, `flying`, `flyingEnabled`, camera
+orientation, tablet state, controlled asset resource/entity evidence, sound
+resource and injector state, monotonic sample sequence, and build identity
 through Interface's existing test-script result API. It records no audio
 samples. Product adapters own the exact launch and result transport used to
-load it.
+load it. The fixture exposes a same-origin `/e2e-client-command.json` channel;
+controlled adapters POST strict commands there and verify the exact response.
+The probe accepts only versioned HTTP scene, domain navigation, controlled
+local Image-entity, fixture sound-channel, and bounded allowlisted semantic
+input-hold commands. The probe routes those holds through temporary Controller
+actions, without requiring synthetic-key permissions or directly changing
+avatar state. Every held input is released on its timer or probe shutdown. A
+probe without the controlled HTTP route stops polling the channel.
+
+The tablet observation combines `tabletShown` with the application-level
+`HMD.showTablet` state because `tabletShown` is intentionally unused when a
+desktop target presents the tablet in toolbar mode.
+Semantic world-input routes remain neutral while that tablet state is active,
+matching the focus boundary applied to physical desktop keyboard input; the
+ContextMenu route remains available so the same bounded command can close it.
 
 [`fixture/domain.py`](fixture/domain.py) owns the complementary ephemeral
 domain-server and assignment-client stack. The `domain-smoke` assertion waits
