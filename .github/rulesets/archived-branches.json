@@ -6,7 +6,8 @@
   "conditions": {
     "ref_name": {
       "include": [
-        "refs/heads/android-vr-quest"
+        "refs/heads/android-vr-quest",
+        "refs/heads/apple-macos"
       ],
       "exclude": []
     }
