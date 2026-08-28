@@ -38,7 +38,10 @@ POLICY = {
             ],
             "ownedFiles": ["tests/device/TOOLCHAIN.md"],
         },
-        "apple-macos": {"ownedPrefixes": [], "ownedFiles": []},
+        "apple-macos": {
+            "ownedPrefixes": ["tests/device/adapters/macos/"],
+            "ownedFiles": [],
+        },
     },
 }
 
@@ -98,6 +101,12 @@ class AppleBranchTopologyTest(unittest.TestCase):
     def test_ios_owned_appium_directory_is_allowed(self):
         head = self.commit("tests/device/adapters/appium/adapter.py", "ios\n")
         self.assertEqual([], self.validate(head))
+
+    def test_macos_owned_adapter_directory_is_allowed_only_on_macos(self):
+        head = self.commit("tests/device/adapters/macos/adapter.py", "macos\n")
+        self.assertEqual([], self.validate(head, "apple-macos"))
+        self.assertTrue(any("apple-main-owned path" in error
+                            for error in self.validate(head, "apple-ios")))
 
     def test_exact_ios_owned_file_is_allowed(self):
         head = self.commit("tests/device/TOOLCHAIN.md", "ios pins\n")
