@@ -598,7 +598,10 @@ bool Protocol::tryAccept(std::int64_t epochMilliseconds,
             }
             active.viewActive = true;
             active.viewYawDegrees = static_cast<float>(horizontal / 0.45 * 45.0);
-            active.viewPitchDegrees = static_cast<float>(vertical / 0.45 * 30.0);
+            // The semantic adapter defines positive vertical input as looking
+            // up. Overte's OpenXR pose convention needs a negative X rotation
+            // for that direction.
+            active.viewPitchDegrees = static_cast<float>(-vertical / 0.45 * 30.0);
             active.viewOrientation = lookQuaternion(active.viewYawDegrees,
                                                      active.viewPitchDegrees);
             duration = static_cast<std::int64_t>(std::llround(seconds * 1000.0));
@@ -610,16 +613,21 @@ bool Protocol::tryAccept(std::int64_t epochMilliseconds,
             double seconds { 0.0 };
             double strength { 0.8 };
             if ((direction != QLatin1String("forward") &&
-                 direction != QLatin1String("backward")) ||
+                 direction != QLatin1String("backward") &&
+                 direction != QLatin1String("left") &&
+                 direction != QLatin1String("right")) ||
                     !finiteNumber(arguments.value("durationSeconds"), 0.1, 8.0, seconds) ||
                     (arguments.contains("strength") &&
                      !finiteNumber(arguments.value("strength"), 0.2, 1.0, strength))) {
                 return false;
             }
-            active.vectors[static_cast<std::size_t>(VectorChannel::LeftThumbstick)] = {
-                0.0f,
-                static_cast<float>(direction == QLatin1String("forward") ? strength : -strength),
-            };
+            const float x = direction == QLatin1String("right")
+                ? static_cast<float>(strength)
+                : direction == QLatin1String("left") ? static_cast<float>(-strength) : 0.0f;
+            const float y = direction == QLatin1String("forward")
+                ? static_cast<float>(strength)
+                : direction == QLatin1String("backward") ? static_cast<float>(-strength) : 0.0f;
+            active.vectors[static_cast<std::size_t>(VectorChannel::LeftThumbstick)] = { x, y };
             duration = static_cast<std::int64_t>(std::llround(seconds * 1000.0));
         } else if (operation == QLatin1String("input.jump")) {
             if (!exactKeys(arguments, {})) {
@@ -684,6 +692,7 @@ bool Protocol::tryAccept(std::int64_t epochMilliseconds,
     _viewAppliedYawDegrees = 0.0;
     _viewAppliedPitchDegrees = 0.0;
     _vectorAppliedSequence = 0;
+    _leftThumbstickAppliedX = 0.0;
     _leftThumbstickAppliedY = 0.0;
     _booleanAppliedSequence = 0;
     _leftSecondaryApplied = false;
@@ -744,11 +753,13 @@ void Protocol::recordViewApplication(std::int64_t epochMilliseconds) {
 void Protocol::recordVectorApplication(VectorChannel channel, const XrVector2f& value,
                                        std::int64_t epochMilliseconds) {
     if (!_current.overrideEnabled || _activeCommandId.empty() ||
-            channel != VectorChannel::LeftThumbstick || std::abs(value.y) < 0.01f ||
+            channel != VectorChannel::LeftThumbstick ||
+            (std::abs(value.x) < 0.01f && std::abs(value.y) < 0.01f) ||
             _vectorAppliedSequence == _acceptedSequence) {
         return;
     }
     _vectorAppliedSequence = _acceptedSequence;
+    _leftThumbstickAppliedX = value.x;
     _leftThumbstickAppliedY = value.y;
     publishStatus("active", "vector-consumed", epochMilliseconds);
 }
@@ -797,6 +808,7 @@ void Protocol::publishStatus(const char* state, const char* detail,
         { "viewAppliedYawDegrees", _viewAppliedYawDegrees },
         { "viewAppliedPitchDegrees", _viewAppliedPitchDegrees },
         { "vectorAppliedSequence", static_cast<double>(_vectorAppliedSequence) },
+        { "leftThumbstickAppliedX", _leftThumbstickAppliedX },
         { "leftThumbstickAppliedY", _leftThumbstickAppliedY },
         { "booleanAppliedSequence", static_cast<double>(_booleanAppliedSequence) },
         { "leftSecondaryApplied", _leftSecondaryApplied },

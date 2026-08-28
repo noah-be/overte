@@ -118,6 +118,7 @@ elif len(cmd) == 3 and cmd[:2] == ["shell", "-T"]:
           "viewAppliedYawDegrees":25.0 if is_look else 0.0,
           "viewAppliedPitchDegrees":0.0,
           "vectorAppliedSequence":grant["sequence"] if is_move else 0,
+          "leftThumbstickAppliedX":0.0,
           "leftThumbstickAppliedY":0.4 if is_move else 0.0,
           "booleanAppliedSequence":grant["sequence"] if (is_tablet or is_vertical) else 0,
           "leftSecondaryApplied":is_tablet,"rightSecondaryApplied":is_vertical,
@@ -724,6 +725,7 @@ class AndroidAdapterTest(unittest.TestCase):
         self.assertTrue(outputs[0]["viewApplied"])
         self.assertEqual(25.0, outputs[0]["viewYawDegrees"])
         self.assertTrue(outputs[1]["openXrVectorApplied"])
+        self.assertEqual(0.0, outputs[1]["openXrLeftThumbstickX"])
         self.assertEqual(0.4, outputs[1]["openXrLeftThumbstickY"])
         self.assertTrue(outputs[2]["openXrBooleanApplied"])
         self.assertTrue(outputs[2]["openXrRightSecondaryApplied"])

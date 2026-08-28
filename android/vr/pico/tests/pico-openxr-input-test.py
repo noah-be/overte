@@ -135,7 +135,11 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertIn("recordVectorApplication", header)
         self.assertIn("recordBooleanApplication", header)
         self.assertIn('{ "vectorAppliedSequence",', protocol)
+        self.assertIn('{ "leftThumbstickAppliedX",', protocol)
         self.assertIn('{ "booleanAppliedSequence",', protocol)
+        self.assertIn('direction != QLatin1String("left")', protocol)
+        self.assertIn('direction != QLatin1String("right")', protocol)
+        self.assertIn("-vertical / 0.45 * 30.0", protocol)
         self.assertEqual(
             "XR_APILAYER_OVERTE_e2e_input", manifest["api_layer"]["name"]
         )
@@ -145,6 +149,23 @@ class OpenXrInputStateTest(unittest.TestCase):
         )
         release_manifest = app_root / "src/release/assets/openxr/1/api_layers/explicit.d"
         self.assertFalse(release_manifest.exists())
+
+    def test_e2e_pose_layer_passes_real_controller_pose_without_explicit_override(self):
+        layer = (E2E_ROOT / "XrApiLayer.cpp").read_text(encoding="utf-8")
+        action_state = layer.rsplit("layerGetActionStatePose(", 1)[1].split(
+            "layerLocateSpace(", 1)[0]
+        self.assertIn("poses[binding->second.channel].active", action_state)
+        self.assertNotIn("? XR_TRUE : XR_FALSE", action_state)
+
+        locate = layer.rsplit("layerLocateSpace(", 1)[1].split(
+            "layerLocateViews(", 1)[0]
+        pose_lookup = locate.index("const PoseOverride& pose")
+        active_gate = locate.index("if (pose.active)", pose_lookup)
+        stage_gate = locate.index("if (!stageBase)", active_gate)
+        fail_closed = locate.index('failClosed("pose-base-not-stage"', stage_gate)
+        self.assertLess(active_gate, stage_gate)
+        self.assertLess(stage_gate, fail_closed)
+        self.assertNotIn("location->locationFlags = 0;\n            }", locate)
 
     def test_transient_input_maps_reset_before_any_early_return(self):
         update = re.search(

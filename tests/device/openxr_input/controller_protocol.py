@@ -209,8 +209,8 @@ def validate_envelope(raw: Any, profile_raw: Any) -> dict[str, Any]:
         elif operation == "input.move":
             _exact_keys(arguments, {"direction", "durationSeconds"}, {"strength"},
                         f"commands[{index}].arguments")
-            if arguments["direction"] not in {"backward", "forward"}:
-                raise ControllerContractError("Pico common movement supports forward/backward only")
+            if arguments["direction"] not in {"backward", "forward", "left", "right"}:
+                raise ControllerContractError("Pico common movement direction is unsupported")
             _number(arguments["durationSeconds"], "move durationSeconds", 0.1, 8.0)
             _number(arguments.get("strength", 0.8), "move strength", 0.2, 1.0)
         elif operation == "input.jump":
@@ -305,7 +305,10 @@ def compile_envelope(envelope_raw: Any, profile_raw: Any) -> dict[str, Any]:
             action = "view-reference-space-offset"
             yaw = (float(arguments["horizontal"]) / 0.45 *
                    float(profile["viewInjection"]["maxYawDegrees"]))
-            pitch = (float(arguments.get("vertical", 0.0)) / 0.45 *
+            # Overte's OpenXR view composition uses negative X rotation for a
+            # semantic upward look. Keep the public command convention
+            # positive=up and translate it at the Pico compiler boundary.
+            pitch = (-float(arguments.get("vertical", 0.0)) / 0.45 *
                      float(profile["viewInjection"]["maxPitchDegrees"]))
             yaw_half = math.radians(yaw) / 2.0
             pitch_half = math.radians(pitch) / 2.0
@@ -322,8 +325,12 @@ def compile_envelope(envelope_raw: Any, profile_raw: Any) -> dict[str, Any]:
             duration = round(float(arguments["durationSeconds"]) * 1000)
             action = profile["controls"]["thumbsticks"]["left"]
             strength = float(arguments.get("strength", 0.8))
-            runtime_y = strength if arguments["direction"] == "forward" else -strength
-            state["vector2f"][action] = [0.0, runtime_y]
+            direction = arguments["direction"]
+            runtime_x = (strength if direction == "right" else
+                         -strength if direction == "left" else 0.0)
+            runtime_y = (strength if direction == "forward" else
+                         -strength if direction == "backward" else 0.0)
+            state["vector2f"][action] = [runtime_x, runtime_y]
             required.add("xrGetActionStateVector2f")
         elif operation == "input.jump":
             duration = JUMP_HOLD_MS

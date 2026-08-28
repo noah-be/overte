@@ -204,7 +204,7 @@ class AndroidOpenXrTransport:
             "bindingProfileSha256", "enabled", "acceptedSequence", "acceptedNonce",
             "activeCommandId", "state", "detail", "updatedEpochMs",
             "viewAppliedSequence", "viewAppliedYawDegrees", "viewAppliedPitchDegrees",
-            "vectorAppliedSequence", "leftThumbstickAppliedY",
+            "vectorAppliedSequence", "leftThumbstickAppliedX", "leftThumbstickAppliedY",
             "booleanAppliedSequence", "leftSecondaryApplied",
             "rightSecondaryApplied",
         }
@@ -236,12 +236,17 @@ class AndroidOpenXrTransport:
                 or isinstance(status["vectorAppliedSequence"], bool)
                 or not isinstance(status["vectorAppliedSequence"], int)
                 or not 0 <= status["vectorAppliedSequence"] <= status["acceptedSequence"]
+                or isinstance(status["leftThumbstickAppliedX"], bool)
+                or not isinstance(status["leftThumbstickAppliedX"], (int, float))
+                or not math.isfinite(status["leftThumbstickAppliedX"])
+                or not -1.0 <= status["leftThumbstickAppliedX"] <= 1.0
                 or isinstance(status["leftThumbstickAppliedY"], bool)
                 or not isinstance(status["leftThumbstickAppliedY"], (int, float))
                 or not math.isfinite(status["leftThumbstickAppliedY"])
                 or not -1.0 <= status["leftThumbstickAppliedY"] <= 1.0
                 or (status["vectorAppliedSequence"] == 0 and
-                    status["leftThumbstickAppliedY"] != 0)
+                    (status["leftThumbstickAppliedX"] != 0 or
+                     status["leftThumbstickAppliedY"] != 0))
                 or isinstance(status["booleanAppliedSequence"], bool)
                 or not isinstance(status["booleanAppliedSequence"], int)
                 or not 0 <= status["booleanAppliedSequence"] <= status["acceptedSequence"]

@@ -128,6 +128,7 @@ private:
     double _viewAppliedYawDegrees { 0.0 };
     double _viewAppliedPitchDegrees { 0.0 };
     std::uint64_t _vectorAppliedSequence { 0 };
+    double _leftThumbstickAppliedX { 0.0 };
     double _leftThumbstickAppliedY { 0.0 };
     std::uint64_t _booleanAppliedSequence { 0 };
     bool _leftSecondaryApplied { false };

@@ -39,6 +39,7 @@ class FakeTransport:
             "viewAppliedYawDegrees": 25.0 if operation == "input.look" else 0.0,
             "viewAppliedPitchDegrees": 0.0,
             "vectorAppliedSequence": sequence if operation == "input.move" else 0,
+            "leftThumbstickAppliedX": 0.0,
             "leftThumbstickAppliedY": 0.4 if operation == "input.move" else 0.0,
             "booleanAppliedSequence": sequence if (
                 operation.startswith("tablet.") or
@@ -78,6 +79,7 @@ class PicoOpenXrAdapterSessionTests(unittest.TestCase):
         self.assertEqual(25.0, first["viewYawDegrees"])
         self.assertEqual("controller-action", second["inputDomain"])
         self.assertTrue(second["openXrVectorApplied"])
+        self.assertEqual(0.0, second["openXrLeftThumbstickX"])
         self.assertEqual(0.4, second["openXrLeftThumbstickY"])
         serialized = str((first, second))
         self.assertNotIn(self.transport.envelopes[0]["sessionNonce"], serialized)

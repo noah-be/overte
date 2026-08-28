@@ -275,7 +275,8 @@ class PicoOpenXrAdapterSession:
                         "native Pico OpenXR controller override failed before consumption")
                 vector_applied = (operation == "input.move" and
                                   status["vectorAppliedSequence"] == sequence and
-                                  abs(float(status["leftThumbstickAppliedY"])) >= 0.01)
+                                  (abs(float(status["leftThumbstickAppliedX"])) >= 0.01 or
+                                   abs(float(status["leftThumbstickAppliedY"])) >= 0.01))
                 left_secondary_applied = (
                     operation in {"tablet.open", "tablet.close"} and
                     status["booleanAppliedSequence"] == sequence and
@@ -354,6 +355,7 @@ class PicoOpenXrAdapterSession:
         elif operation == "input.move":
             result.update({
                 "openXrVectorApplied": True,
+                "openXrLeftThumbstickX": status["leftThumbstickAppliedX"],
                 "openXrLeftThumbstickY": status["leftThumbstickAppliedY"],
             })
         elif operation in {"tablet.open", "tablet.close"}:

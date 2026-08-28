@@ -138,6 +138,8 @@ class PicoPackageContractTests(unittest.TestCase):
         self.assertIn("#if defined(OVERTE_E2E_OPENXR_INPUT_V1)", pico_setup)
         self.assertIn("setE2eAdvancedMovementControlsOverride", pico_setup)
         self.assertIn("setE2eFlyingEnabledOverride", pico_setup)
+        self.assertIn("picoE2eInputMappingOverrideActive()", pico_setup.split(
+            "setInputVariant(STATE_STRAFE_ENABLED", 1)[1].split("});", 1)[0])
 
         avatar_header = (ROOT / "interface/src/avatar/MyAvatar.h").read_text(
             encoding="utf-8"
@@ -193,6 +195,39 @@ class PicoPackageContractTests(unittest.TestCase):
             and "Application.RightHandDominant" in route.get("when", [])
             for route in standard_mapping
         ))
+
+    def test_hmd_tablet_blocks_standard_world_locomotion_routes(self):
+        for relative in (
+            "interface/src/Application_Setup.cpp",
+            "android/vr/pico/apps/picoInterface/overrides/Application_Setup.cpp",
+        ):
+            source = (ROOT / relative).read_text(encoding="utf-8")
+            self.assertIn('STATE_TABLET_SHOWN = "TabletShown"', source)
+            self.assertIn("setInputVariant(STATE_TABLET_SHOWN", source)
+            self.assertIn("getShouldShowTablet()", source)
+
+        channels = json.loads(
+            (ROOT / "interface/resources/controllers/standard.json").read_text(
+                encoding="utf-8")
+        )["channels"]
+        world_actions = {
+            "Actions.TranslateX", "Actions.TranslateZ", "Actions.Pitch",
+            "Actions.Yaw", "Actions.StepYaw", "Actions.Up", "Actions.Down",
+        }
+        controller_inputs = {
+            "Standard.LX", "Standard.LY", "Standard.RX", "Standard.RY",
+            "Standard.LeftSecondaryThumb", "Standard.RightSecondaryThumb",
+            "Standard.A", "Standard.B",
+        }
+        routes = [route for route in channels
+                  if route.get("from") in controller_inputs
+                  and route.get("to") in world_actions]
+        self.assertTrue(routes)
+        for route in routes:
+            conditions = route.get("when", [])
+            if isinstance(conditions, str):
+                conditions = [conditions]
+            self.assertIn("!Application.TabletShown", conditions, route)
 
 
 if __name__ == "__main__":

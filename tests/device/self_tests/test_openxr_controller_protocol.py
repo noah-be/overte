@@ -150,6 +150,7 @@ class OpenXrControllerProtocolTests(unittest.TestCase):
         }]), self.profile)
         active = next(event["state"] for event in compiled["events"]
                       if event["state"]["viewOffset"]["active"])
+        self.assertLess(active["viewOffset"]["pitchDegrees"], 0.0)
         self.assertFalse(any(active["boolean"].values()))
         self.assertFalse(any(active["float"].values()))
         self.assertTrue(all(value == [0.0, 0.0]
@@ -159,6 +160,23 @@ class OpenXrControllerProtocolTests(unittest.TestCase):
         self.assertNotIn("xrGetActionStateBoolean", compiled["requiredInterception"])
         self.assertNotIn("xrGetActionStateFloat", compiled["requiredInterception"])
         self.assertNotIn("xrGetActionStateVector2f", compiled["requiredInterception"])
+
+    def test_common_movement_supports_both_thumbstick_axes(self) -> None:
+        for direction, expected in {
+                "forward": [0.0, 0.5], "backward": [0.0, -0.5],
+                "left": [-0.5, 0.0], "right": [0.5, 0.0]}.items():
+            with self.subTest(direction=direction):
+                compiled = compile_envelope(self.envelope([{
+                    "id": f"move-{direction}", "operation": "input.move",
+                    "arguments": {"direction": direction, "durationSeconds": 0.5,
+                                  "strength": 0.5},
+                }]), self.profile)
+                active = next(
+                    event["state"]["vector2f"]["left_thumbstick"]
+                    for event in compiled["events"]
+                    if event["state"]["vector2f"]["left_thumbstick"] != [0.0, 0.0]
+                )
+                self.assertEqual(expected, active)
 
     def test_jump_and_fly_map_to_bounded_right_secondary_windows(self) -> None:
         compiled = compile_envelope(self.envelope([

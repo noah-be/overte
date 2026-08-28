@@ -46,11 +46,10 @@ are Overte implementation details and therefore live in
 [`profiles/pico4-overte.json`](profiles/pico4-overte.json), not in the common
 command envelope.
 
-The current Pico profile permits forward/backward movement only and requires
-right-hand dominance. In Overte's standard mapping, lateral stick input can be
-yaw or strafe depending on application movement settings. Claiming left/right
-movement without fixing and verifying those settings would be nondeterministic,
-so the profile rejects it.
+The Pico profile requires right-hand dominance and advanced movement with
+strafing. The debug-only Pico runtime override supplies those deterministic
+preconditions without changing the user's stored movement preferences, so all
+four common movement directions use the left OpenXR thumbstick.
 
 ## Contracts
 

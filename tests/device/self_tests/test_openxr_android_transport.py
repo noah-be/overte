@@ -181,6 +181,7 @@ class OpenXrAndroidTransportTests(unittest.TestCase):
             "viewAppliedYawDegrees": 25.0,
             "viewAppliedPitchDegrees": 0.0,
             "vectorAppliedSequence": 4,
+            "leftThumbstickAppliedX": 0.0,
             "leftThumbstickAppliedY": 0.4,
             "booleanAppliedSequence": 0,
             "leftSecondaryApplied": False,
@@ -195,6 +196,7 @@ class OpenXrAndroidTransportTests(unittest.TestCase):
         self.assertEqual("[redacted]", status["acceptedNonce"])
         self.assertEqual(4, status["viewAppliedSequence"])
         self.assertEqual(25.0, status["viewAppliedYawDegrees"])
+        self.assertEqual(0.0, status["leftThumbstickAppliedX"])
         self.assertEqual(0.4, status["leftThumbstickAppliedY"])
         with self.assertRaisesRegex(TransportError, "nonce"):
             self.transport.read_status(expected_nonce="e" * 64)
@@ -227,6 +229,7 @@ class OpenXrAndroidTransportTests(unittest.TestCase):
             "viewAppliedYawDegrees": 0.0,
             "viewAppliedPitchDegrees": 0.0,
             "vectorAppliedSequence": 4,
+            "leftThumbstickAppliedX": 0.0,
             "leftThumbstickAppliedY": 0.4,
             "booleanAppliedSequence": 0,
             "leftSecondaryApplied": False,
