@@ -148,6 +148,16 @@ pipeline {
             defaultValue: '0',
             description: 'Fixture TCP port; 0 selects an ephemeral port.'
         )
+        booleanParam(
+            name: 'REBUILD_INSTALL_APK',
+            defaultValue: false,
+            description: 'Incrementally build the current lab branch and install its debug APK before the suite.'
+        )
+        string(
+            name: 'PHONE_LAB_SOURCE_ROOT',
+            defaultValue: '/home/user/Documents/github/overte-android-phone-e2e',
+            description: 'Trusted local Phone lab worktree containing the incremental Android build cache.'
+        )
     }
 
     environment {
@@ -207,6 +217,43 @@ pipeline {
                             python3 -m unittest \
                                 android.phone.device-tests.tests.test_adapter'
                 '''
+            }
+        }
+
+        stage('Build and install current Phone APK') {
+            when { expression { params.REBUILD_INSTALL_APK ?: false } }
+            steps {
+                script {
+                    String sourceRoot = params.PHONE_LAB_SOURCE_ROOT ?: ''
+                    if (sourceRoot != '/home/user/Documents/github/overte-android-phone-e2e') {
+                        error('PHONE_LAB_SOURCE_ROOT does not match the trusted local lab worktree')
+                    }
+                    dir(sourceRoot) {
+                        sh '''#!/bin/sh
+                            set -eu
+                            git diff --quiet --ignore-submodules --
+                            git diff --cached --quiet --ignore-submodules --
+                            test "$(git rev-parse HEAD)" = "$(git -C "$WORKSPACE" rev-parse HEAD)"
+                            PHONE_SHARED_CONAN_HOME=/home/user/overte-device-lab/config/conan-cache/homes/android-phone \
+                                PHONE_BUILD_JOBS=8 CMAKE_BUILD_PARALLEL_LEVEL=8 SHADERGEN_JOBS=8 \
+                                ./android/phone/build.sh all
+                        '''
+                        lock(resource: params.DEVICE_RESOURCE.trim(), inversePrecedence: true) {
+                            withCredentials([string(
+                                credentialsId: params.TARGET_SELECTOR_CREDENTIAL_ID.trim(),
+                                variable: 'OVERTE_DEVICE_TARGET_SELECTOR'
+                            )]) {
+                                sh '''#!/bin/sh
+                                    set -eu
+                                    set +x
+                                    PHONE_ADB="$OVERTE_ANDROID_ADB" \
+                                        PHONE_APK="$PWD/android/phone/apps/phoneInterface/build/outputs/apk/debug/phoneInterface-debug.apk" \
+                                        ./android/phone/build.sh install
+                                '''
+                            }
+                        }
+                    }
+                }
             }
         }
 
