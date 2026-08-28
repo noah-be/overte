@@ -37,6 +37,10 @@
       "probe": {
         "kind": "android-run-as",
         "relativePath": "files/overte-e2e/overte-probe.json"
+      },
+      "clientControl": {
+        "kind": "android-run-as-command",
+        "relativePath": "files/overte-e2e/desktop-command.json"
       }
     },
     {
