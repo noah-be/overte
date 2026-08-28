@@ -180,8 +180,7 @@ class IosPersonalTeamWdaSigningTest(unittest.TestCase):
         self.manifest.chmod(0o600)
 
     def make_fake_resigner(self, *, version: str = "v0.3.1",
-                           omit_nested_profile: bool = False,
-                           add_framework_profile: bool = False,
+                           omit_outer_profile: bool = False,
                            add_debug_symbols: bool = False,
                            signing_exit: int = 0) -> None:
         source = f'''#!/usr/bin/env python3
@@ -217,21 +216,26 @@ root = "Payload/WebDriverAgentRunner-Runner.app"
 xctest = root + "/PlugIns/WebDriverAgentRunner.xctest"
 framework = xctest + "/Frameworks/WebDriverAgentLib.framework"
 with zipfile.ZipFile(target) as original, zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_DEFLATED) as output:
+    has_xctest = any(
+        entry.filename == xctest or entry.filename.startswith(xctest + "/")
+        for entry in original.infolist()
+    )
     for entry in original.infolist():
         data = original.read(entry)
         if entry.filename in {{root + "/Info.plist", xctest + "/Info.plist", framework + "/Info.plist"}}:
             value = plistlib.loads(data)
-            value["CFBundleIdentifier"] = remaps[value["CFBundleIdentifier"]]
+            value["CFBundleIdentifier"] = remaps.get(
+                value["CFBundleIdentifier"], value["CFBundleIdentifier"]
+            )
             data = plistlib.dumps(value, fmt=plistlib.FMT_BINARY, sort_keys=True)
+        elif entry.filename == xctest + "/WebDriverAgentRunner":
+            data = b"resigner-signed xctest with unwanted app entitlements"
         output.writestr(entry.filename, data)
     output.writestr(root + "/_CodeSignature/CodeResources", b"outer seal")
-    output.writestr(root + "/embedded.mobileprovision", profile)
-    output.writestr(xctest + "/_CodeSignature/CodeResources", b"xctest seal")
-    if not {omit_nested_profile!r}:
-        output.writestr(xctest + "/embedded.mobileprovision", profile)
-    output.writestr(framework + "/_CodeSignature/CodeResources", b"framework seal")
-    if {add_framework_profile!r}:
-        output.writestr(framework + "/embedded.mobileprovision", profile)
+    if not {omit_outer_profile!r}:
+        output.writestr(root + "/embedded.mobileprovision", profile)
+    if has_xctest:
+        output.writestr(xctest + "/_CodeSignature/CodeResources", b"xctest seal")
     if {add_debug_symbols!r}:
         output.writestr(
             xctest + ".dSYM/Contents/Resources/DWARF/WebDriverAgentRunner",
@@ -259,6 +263,13 @@ if args == ["--version"]:
 if args and args[0] == "sign":
     if any(Path(args[-1]).rglob("*.dSYM")):
         raise SystemExit(12)
+    application = Path(args[-1])
+    xctest = application / "PlugIns/WebDriverAgentRunner.xctest"
+    framework = xctest / "Frameworks/WebDriverAgentLib.framework"
+    for bundle in (application, xctest, framework):
+        signature = bundle / "_CodeSignature"
+        signature.mkdir(mode=0o700, parents=True, exist_ok=True)
+        (signature / "CodeResources").write_bytes(b"recursive seal")
     raise SystemExit(0)
 if args and args[0] == "verify":
     if {verify_failure_name!r} and Path(args[-1]).name.startswith({verify_failure_name!r}):
@@ -266,16 +277,20 @@ if args and args[0] == "verify":
     raise SystemExit({verify_exit})
 if args and args[0] == "print-signature-info":
     executable = Path(args[-1]).name
-    entitlements = {{}}
-    if not executable.startswith("framework"):
+    identifiers = {{
+        "runner-executable": "local.personal.wda",
+        "xctest-executable": "org.overte.WebDriverAgentRunner",
+        "framework-executable": "com.facebook.WebDriverAgentLib",
+    }}
+    identifier = identifiers[executable]
+    if executable.startswith("runner"):
         entitlements = {{
             "application-identifier": "TEAM123456.local.personal.wda",
             "com.apple.developer.team-identifier": "TEAM123456",
         }}
-    lines = plistlib.dumps(entitlements, fmt=plistlib.FMT_XML).decode().splitlines()
     signature = {{
         "code_directory": {{
-            "identifier": "local.personal.wda",
+            "identifier": identifier,
             "team_name": "TEAM123456",
         }},
         "cms": {{
@@ -285,9 +300,11 @@ if args and args[0] == "print-signature-info":
             }}],
             "signers": [{{"signature_verifies": True}}],
         }},
-        "entitlements_plist": lines,
-        "entitlements_der_plist": lines,
     }}
+    if executable.startswith("runner"):
+        lines = plistlib.dumps(entitlements, fmt=plistlib.FMT_XML).decode().splitlines()
+        signature["entitlements_plist"] = lines
+        signature["entitlements_der_plist"] = lines
     print(json.dumps([{{"entity": {{"mach_o": {{"signature": signature}}}}}}]))
     raise SystemExit(0)
 raise SystemExit(3)
@@ -343,7 +360,7 @@ raise SystemExit(3)
                 SIGN, "verify_signer_leaf"):
             return SIGN.run(self.arguments())
 
-    def test_success_uses_one_isolated_profile_and_explicit_recursive_remaps(self):
+    def test_success_remaps_only_provisioned_runner_and_keeps_nested_identities(self):
         self.assertEqual(0, self.run_with_fakes())
         self.assertTrue(self.output.is_file())
         self.assertEqual(0o600, self.output.stat().st_mode & 0o777)
@@ -358,8 +375,7 @@ raise SystemExit(3)
             if value == "--bundle-id-remap"
         }
         self.assertEqual({
-            source + "=local.personal.wda"
-            for source in SIGN.SOURCE_BUNDLE_IDS.values()
+            SIGN.SOURCE_BUNDLE_IDS["runner"] + "=local.personal.wda"
         }, remaps)
         self.assertFalse(records[2]["passwordPresent"])
         self.assertIn("--only-verify", records[2]["args"])
@@ -369,11 +385,33 @@ raise SystemExit(3)
             names = set(archive.namelist())
             nested = ("Payload/WebDriverAgentRunner-Runner.app/PlugIns/"
                       "WebDriverAgentRunner.xctest/")
-            self.assertIn(nested + "embedded.mobileprovision", names)
+            self.assertNotIn(nested + "embedded.mobileprovision", names)
             self.assertIn(nested + "_CodeSignature/CodeResources", names)
             self.assertIn(
                 nested + "Frameworks/WebDriverAgentLib.framework/"
                 "_CodeSignature/CodeResources", names,
+            )
+            self.assertEqual(
+                b"xctest macho",
+                archive.read(nested + "WebDriverAgentRunner"),
+            )
+            self.assertEqual(
+                "local.personal.wda",
+                plistlib.loads(archive.read(
+                    "Payload/WebDriverAgentRunner-Runner.app/Info.plist"
+                ))["CFBundleIdentifier"],
+            )
+            self.assertEqual(
+                SIGN.SOURCE_BUNDLE_IDS["xctest"],
+                plistlib.loads(archive.read(nested + "Info.plist"))[
+                    "CFBundleIdentifier"
+                ],
+            )
+            self.assertEqual(
+                SIGN.SOURCE_BUNDLE_IDS["framework"],
+                plistlib.loads(archive.read(
+                    nested + "Frameworks/WebDriverAgentLib.framework/Info.plist"
+                ))["CFBundleIdentifier"],
             )
 
         rcodesign_records = [
@@ -388,7 +426,11 @@ raise SystemExit(3)
         self.assertFalse(signing["passwordPresent"])
         self.assertNotIn("correct horse battery staple", "\n".join(signing["args"]))
         self.assertIn(str(self.password), signing["args"])
-        self.assertEqual(2, signing["args"].count("--entitlements-xml-file"))
+        self.assertEqual(1, signing["args"].count("--entitlements-xml-file"))
+        self.assertFalse(any(
+            value.startswith("PlugIns/WebDriverAgentRunner.xctest:")
+            for value in signing["args"]
+        ))
         self.assertIn("--timestamp-url", signing["args"])
         self.assertIn("none", signing["args"])
 
@@ -559,8 +601,8 @@ raise SystemExit(3)
         self.make_fake_resigner(version="v0.3.0")
         with self.assertRaisesRegex(SIGN.SigningError, "required v0.3.1"):
             self.run_with_fakes()
-        self.make_fake_resigner(omit_nested_profile=True)
-        with self.assertRaisesRegex(SIGN.SigningError, "recursive profile"):
+        self.make_fake_resigner(omit_outer_profile=True)
+        with self.assertRaisesRegex(SIGN.SigningError, "profile or CodeResources"):
             self.run_with_fakes()
         self.make_fake_resigner()
         self.make_fake_rcodesign(verify_exit=8)
@@ -783,6 +825,62 @@ raise SystemExit(3)
         SIGN.parse_signature_info(
             value(), "runner", team, bundle_id, require_entitlements=True
         )
+        with self.assertRaisesRegex(SIGN.SigningError, "nested code"):
+            SIGN.parse_signature_info(
+                value(), "xctest", team, bundle_id,
+                require_entitlements=False,
+            )
+        empty_lines = plistlib.dumps(
+            {}, fmt=plistlib.FMT_XML
+        ).decode().splitlines()
+        for metadata in (
+                {"entitlements_plist": empty_lines},
+                {"entitlements_der_plist": empty_lines},
+                {
+                    "entitlements_plist": empty_lines,
+                    "entitlements_der_plist": empty_lines,
+                },
+                {"entitlements_plist": None}):
+            with self.subTest(metadata=tuple(metadata)):
+                empty_nested = value()
+                empty_nested_signature = empty_nested[0]["entity"]["mach_o"][
+                    "signature"
+                ]
+                empty_nested_signature["code_directory"]["identifier"] = (
+                    SIGN.SOURCE_BUNDLE_IDS["xctest"]
+                )
+                del empty_nested_signature["entitlements_plist"]
+                del empty_nested_signature["entitlements_der_plist"]
+                empty_nested_signature.update(metadata)
+                with self.assertRaisesRegex(
+                        SIGN.SigningError, "entitlement metadata"):
+                    SIGN.parse_signature_info(
+                        empty_nested, "xctest", team,
+                        SIGN.SOURCE_BUNDLE_IDS["xctest"],
+                        require_entitlements=False,
+                    )
+        clean_nested = value()
+        clean_nested_signature = clean_nested[0]["entity"]["mach_o"]["signature"]
+        clean_nested_signature["code_directory"]["identifier"] = (
+            SIGN.SOURCE_BUNDLE_IDS["xctest"]
+        )
+        del clean_nested_signature["entitlements_plist"]
+        del clean_nested_signature["entitlements_der_plist"]
+        SIGN.parse_signature_info(
+            clean_nested, "xctest", team,
+            SIGN.SOURCE_BUNDLE_IDS["xctest"],
+            require_entitlements=False,
+        )
+        wrong_nested_identity = json.loads(json.dumps(clean_nested))
+        wrong_nested_identity[0]["entity"]["mach_o"]["signature"][
+            "code_directory"
+        ]["identifier"] = bundle_id
+        with self.assertRaisesRegex(SIGN.SigningError, "code-directory identity"):
+            SIGN.parse_signature_info(
+                wrong_nested_identity, "xctest", team,
+                SIGN.SOURCE_BUNDLE_IDS["xctest"],
+                require_entitlements=False,
+            )
         missing_cms = value()
         missing_cms[0]["entity"]["mach_o"]["signature"]["cms"] = None
         with self.assertRaisesRegex(SIGN.SigningError, "no cryptographic CMS"):
@@ -831,10 +929,23 @@ raise SystemExit(3)
             )
 
     def test_signed_framework_must_not_embed_a_profile(self):
-        self.make_fake_resigner(add_framework_profile=True)
+        self.assertEqual(0, self.run_with_fakes())
+        rewritten = self.private / "framework-profile.ipa"
+        framework_profile = (
+            "Payload/WebDriverAgentRunner-Runner.app/PlugIns/"
+            "WebDriverAgentRunner.xctest/Frameworks/"
+            "WebDriverAgentLib.framework/embedded.mobileprovision"
+        )
+        with zipfile.ZipFile(self.output) as original, zipfile.ZipFile(
+                rewritten, "w", compression=zipfile.ZIP_DEFLATED) as output:
+            for entry in original.infolist():
+                output.writestr(entry, original.read(entry))
+            output.writestr(framework_profile, self.profile.read_bytes())
+        rewritten.chmod(0o600)
         with self.assertRaisesRegex(SIGN.SigningError, "framework must never embed"):
-            self.run_with_fakes()
-        self.assertFalse(self.output.exists())
+            SIGN.inspect_signed_wda(
+                rewritten, "local.personal.wda", self.profile.read_bytes()
+            )
 
 
 if __name__ == "__main__":

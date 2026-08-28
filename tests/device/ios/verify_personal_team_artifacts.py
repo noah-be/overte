@@ -30,6 +30,7 @@ BUNDLES = {
     "wdaRunner": "org.overte.WebDriverAgentRunner.xctrunner",
     "wdaXCTest": "org.overte.WebDriverAgentRunner",
 }
+WDA_FRAMEWORK_BUNDLE_ID = "com.facebook.WebDriverAgentLib"
 WDA_CREDENTIAL_FREE_SIGNING = {
     "nestedBundle": "PlugIns/WebDriverAgentRunner.xctest",
     "method": "unsigned-requires-recursive-personal-team-signing",
@@ -293,6 +294,213 @@ def verify_bundle(ipa: Path, label: str, bundle_id: str, rcodesign: Path,
     return signing, discovered_root, names
 
 
+def executable_name(plist: dict, label: str) -> str:
+    value = plist.get("CFBundleExecutable")
+    if (not isinstance(value, str) or not value
+            or Path(value).name != value or "/" in value or "\\" in value):
+        fail(f"{label} has an invalid executable name")
+    return value
+
+
+def load_signature_info(rcodesign: Path, executable: Path, label: str,
+                        temporary: Path) -> object:
+    output_path = temporary / "signature-info.yml"
+    with output_path.open("xb") as output:
+        result = subprocess.run(
+            [str(rcodesign), "print-signature-info", "--config-file", "/dev/null",
+             str(executable)],
+            stdout=output, stderr=subprocess.DEVNULL, timeout=120, check=False,
+        )
+    output_path.chmod(0o600)
+    if (result.returncode or not 0 < output_path.stat().st_size
+            <= VERIFY.MAX_SIGNATURE_INFO_BYTES):
+        fail(f"{label} signed identity metadata could not be extracted safely")
+    try:
+        import yaml  # Fedora package: python3-pyyaml; trusted, bounded rcodesign output.
+    except ImportError:
+        fail("python3-pyyaml is required to attest rcodesign identity metadata")
+    try:
+        return yaml.safe_load(output_path.read_text(encoding="utf-8"))
+    except (yaml.YAMLError, OSError, UnicodeError, ValueError) as error:
+        fail(f"{label} signed identity metadata is unreadable: {type(error).__name__}")
+
+
+def validate_nested_signature_info(value: object, label: str, team: str,
+                                   bundle_id: str) -> None:
+    if not isinstance(value, list) or len(value) != 1 or not isinstance(value[0], dict):
+        fail(f"{label} must contain exactly one signed Mach-O entity")
+    try:
+        signature = value[0]["entity"]["mach_o"]["signature"]
+        code_directory = signature["code_directory"]
+        cms = signature["cms"]
+    except (KeyError, TypeError):
+        fail(f"{label} rcodesign metadata is incomplete")
+    if (not isinstance(code_directory, dict)
+            or code_directory.get("identifier") != bundle_id
+            or code_directory.get("team_name") != team):
+        fail(f"{label} code-directory identity differs from the runner")
+    if not isinstance(cms, dict):
+        fail(f"{label} Mach-O has no cryptographic CMS signature")
+    certificates = cms.get("certificates")
+    signers = cms.get("signers")
+    if (not isinstance(certificates, list) or not isinstance(signers, list)
+            or len(signers) != 1 or not isinstance(signers[0], dict)
+            or signers[0].get("signature_verifies") is not True):
+        fail(f"{label} Mach-O CMS signer could not be cryptographically attested")
+    matching = [
+        certificate for certificate in certificates
+        if isinstance(certificate, dict)
+        and certificate.get("apple_team_id") == team
+    ]
+    if len(matching) != 1:
+        fail(f"{label} Mach-O signer team differs from the runner")
+    # A non-main XCTest Mach-O must have no entitlement slot at all.  Even an
+    # empty plist is still an entitlement slot and is rejected by iOS AMFI.
+    if ("entitlements_plist" in signature
+            or "entitlements_der_plist" in signature):
+        fail(f"{label} unexpectedly contains an entitlement slot")
+
+
+def verified_leaf_signer(rcodesign: Path, executable: Path, label: str,
+                         temporary: Path) -> bytes:
+    openssl = shutil.which("openssl")
+    if not openssl:
+        fail("OpenSSL is required to verify the Mach-O signer")
+    cms_path = temporary / "macho-signature.pem"
+    directory_path = temporary / "macho-code-directory.bin"
+    signer_path = temporary / "macho-signer.pem"
+    signer_der = temporary / "macho-signer.der"
+    with cms_path.open("xb") as output:
+        cms = subprocess.run(
+            [str(rcodesign), "extract", "--config-file", "/dev/null", "cms-pem",
+             str(executable)],
+            stdout=output, stderr=subprocess.DEVNULL, timeout=60, check=False,
+        )
+    cms_path.chmod(0o600)
+    with directory_path.open("xb") as output:
+        directory = subprocess.run(
+            [str(rcodesign), "extract", "--config-file", "/dev/null",
+             "code-directory-raw", str(executable)],
+            stdout=output, stderr=subprocess.DEVNULL, timeout=60, check=False,
+        )
+    directory_path.chmod(0o600)
+    if (cms.returncode or directory.returncode
+            or not 0 < cms_path.stat().st_size <= VERIFY.MAX_SIGNATURE_INFO_BYTES
+            or not 0 < directory_path.stat().st_size <= VERIFY.MAX_SIGNATURE_INFO_BYTES):
+        fail(f"{label} Mach-O signer material could not be extracted safely")
+    verification = subprocess.run(
+        [openssl, "cms", "-verify", "-inform", "PEM", "-noverify",
+         "-in", str(cms_path), "-binary", "-content", str(directory_path),
+         "-out", "/dev/null", "-signer", str(signer_path)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30, check=False,
+    )
+    conversion = subprocess.run(
+        [openssl, "x509", "-in", str(signer_path), "-outform", "DER",
+         "-out", str(signer_der)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15, check=False,
+    ) if verification.returncode == 0 and signer_path.is_file() else None
+    if (verification.returncode or conversion is None or conversion.returncode
+            or not signer_der.is_file()
+            or not 0 < signer_der.stat().st_size <= VERIFY.MAX_SIGNATURE_INFO_BYTES):
+        fail(f"{label} Mach-O CMS signer certificate is invalid")
+    return signer_der.read_bytes()
+
+
+def bundle_leaf_signer(ipa: Path, root: str, plist: dict, rcodesign: Path,
+                       label: str) -> bytes:
+    executable = executable_name(plist, label)
+    with zipfile.ZipFile(ipa) as archive, tempfile.TemporaryDirectory(
+            prefix="overte-personal-leaf-") as name:
+        try:
+            info = archive.getinfo(root + executable)
+        except KeyError:
+            fail(f"{label} lacks its signed executable")
+        temporary = Path(name)
+        extracted = temporary / "main"
+        VERIFY.extract_member(
+            archive, info, extracted, VERIFY.MAX_EXECUTABLE_BYTES, f"{label} executable"
+        )
+        extracted.chmod(0o700)
+        return verified_leaf_signer(rcodesign, extracted, label, temporary)
+
+
+def verify_nested_code_bundle(ipa: Path, root: str, names: set[str],
+                              bundle_id: str, package_type: str, label: str,
+                              runner_team: str, runner_leaf: bytes,
+                              rcodesign: Path) -> None:
+    info_name = root + "Info.plist"
+    resources_name = root + "_CodeSignature/CodeResources"
+    if info_name not in names or resources_name not in names:
+        fail(f"Personal-Team WDA lacks the signed nested {label} bundle")
+    profiles = {
+        root + "embedded.mobileprovision",
+        root + "embedded.provisionprofile",
+    }
+    if names & profiles:
+        fail(f"Personal-Team WDA nested {label} must not contain a provisioning profile")
+    with zipfile.ZipFile(ipa) as archive, tempfile.TemporaryDirectory(
+            prefix="overte-personal-nested-") as name:
+        try:
+            plist = plistlib.loads(VERIFY.read_member_limited(
+                archive, archive.getinfo(info_name), VERIFY.MAX_PLIST_BYTES,
+                f"webdriveragent {label} plist",
+            ))
+        except (KeyError, ValueError, plistlib.InvalidFileException):
+            fail(f"webdriveragent {label} plist is invalid")
+        if (not isinstance(plist, dict)
+                or plist.get("CFBundleIdentifier") != bundle_id
+                or plist.get("CFBundlePackageType") != package_type):
+            fail(f"webdriveragent {label} plist differs from its fixed bundle identity")
+        executable = executable_name(plist, f"webdriveragent {label}")
+        try:
+            executable_info = archive.getinfo(root + executable)
+        except KeyError:
+            fail(f"webdriveragent {label} lacks its signed executable")
+        temporary = Path(name)
+        extracted = temporary / "main"
+        VERIFY.extract_member(
+            archive, executable_info, extracted, VERIFY.MAX_EXECUTABLE_BYTES,
+            f"webdriveragent {label} executable",
+        )
+        extracted.chmod(0o700)
+        signature = subprocess.run(
+            [str(rcodesign), "verify", "--config-file", "/dev/null", str(extracted)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=120, check=False,
+        )
+        if signature.returncode:
+            fail(f"webdriveragent {label} Mach-O code signature failed verification")
+        validate_nested_signature_info(
+            load_signature_info(
+                rcodesign, extracted, f"webdriveragent {label}", temporary
+            ),
+            f"webdriveragent {label}", runner_team, bundle_id,
+        )
+        nested_leaf = verified_leaf_signer(
+            rcodesign, extracted, f"webdriveragent {label}", temporary
+        )
+        if nested_leaf != runner_leaf:
+            fail(f"WDA Runner and nested {label} have different leaf signers")
+
+
+def verify_nested_xctest(ipa: Path, root: str, names: set[str], bundle_id: str,
+                         runner_team: str, runner_leaf: bytes,
+                         rcodesign: Path) -> None:
+    verify_nested_code_bundle(
+        ipa, root, names, bundle_id, "BNDL", "XCTest",
+        runner_team, runner_leaf, rcodesign,
+    )
+
+
+def verify_nested_framework(ipa: Path, root: str, names: set[str],
+                            runner_team: str, runner_leaf: bytes,
+                            rcodesign: Path) -> None:
+    verify_nested_code_bundle(
+        ipa, root, names, WDA_FRAMEWORK_BUNDLE_ID, "FMWK", "framework",
+        runner_team, runner_leaf, rcodesign,
+    )
+
+
 def run(arguments: argparse.Namespace) -> int:
     if inside_repository(arguments.receipt):
         fail("Personal-Team receipt must remain outside the repository")
@@ -320,22 +528,20 @@ def run(arguments: argparse.Namespace) -> int:
             or wda_plist.get("OverteE2EXCUITestDriverVersion") != "12.8.0"):
         fail("Personal-Team WDA IPA lacks its exact XCUITest/WDA pairing markers")
     nested_root = wda_root + "PlugIns/WebDriverAgentRunner.xctest/"
-    required_nested = {
-        nested_root + "Info.plist", nested_root + "embedded.mobileprovision",
-        nested_root + "_CodeSignature/CodeResources",
-    }
-    if not required_nested.issubset(wda_names):
-        fail("Personal-Team WDA lacks the signed nested XCTest bundle")
-    xctest_signing, _, _ = verify_bundle(
-        arguments.wda_ipa, "webdriveragent xctest", BUNDLES["wdaXCTest"],
-        rcodesign, deadline, app_root=nested_root,
+    if overte_signing["teamIdentifier"] != wda_signing["teamIdentifier"]:
+        fail("Overte and WDA Runner are not signed by the same Personal Team")
+    runner_leaf = bundle_leaf_signer(
+        arguments.wda_ipa, wda_root, wda_plist, rcodesign, "webdriveragent"
     )
-    teams = {
-        overte_signing["teamIdentifier"], wda_signing["teamIdentifier"],
-        xctest_signing["teamIdentifier"],
-    }
-    if len(teams) != 1:
-        fail("Overte, WDA Runner, and WDA XCTest are not signed by the same Personal Team")
+    verify_nested_xctest(
+        arguments.wda_ipa, nested_root, wda_names, BUNDLES["wdaXCTest"],
+        wda_signing["teamIdentifier"], runner_leaf, rcodesign,
+    )
+    framework_root = nested_root + "Frameworks/WebDriverAgentLib.framework/"
+    verify_nested_framework(
+        arguments.wda_ipa, framework_root, wda_names,
+        wda_signing["teamIdentifier"], runner_leaf, rcodesign,
+    )
     prebuilt_path, prebuilt_digest = VERIFY.extract_prebuilt_wda(
         arguments.wda_ipa, arguments.receipt.parent / VERIFY.PREBUILT_WDA_NAME
     )

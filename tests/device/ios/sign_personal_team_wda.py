@@ -571,6 +571,10 @@ def parse_signature_info(value: object, label: str, team: str, bundle_id: str,
     ]
     if len(matching) != 1:
         fail(f"{label} signer is not the selected Apple team")
+    if not require_entitlements and (
+            "entitlements_plist" in signature
+            or "entitlements_der_plist" in signature):
+        fail(f"{label} nested code unexpectedly contains entitlement metadata")
     xml_lines = signature.get("entitlements_plist")
     der_lines = signature.get("entitlements_der_plist")
     entitlements: dict = {}
@@ -595,9 +599,6 @@ def parse_signature_info(value: object, label: str, team: str, bundle_id: str,
         if (entitlements.get("application-identifier") != f"{team}.{bundle_id}"
                 or entitlements.get("com.apple.developer.team-identifier") != team):
             fail(f"{label} entitlements differ from the selected profile identity")
-    elif any(key in entitlements for key in (
-            "application-identifier", "com.apple.developer.team-identifier")):
-        fail(f"{label} framework unexpectedly contains application entitlements")
 
 
 def macho_slices(executable: Path, label: str) -> list[bytes]:
@@ -755,7 +756,7 @@ def validate_signature_slots(executable: Path, label: str, team: str,
                     or entitlements.get("get-task-allow") is not True):
                 fail(f"{label} signed entitlements differ from the profile identity")
         elif xml_blob is not None or der_blob is not None:
-            fail(f"{label} framework unexpectedly contains application entitlements")
+            fail(f"{label} nested code unexpectedly contains application entitlements")
 
 
 def verify_signer_leaf(rcodesign: Path, executable: Path, profile: dict,
@@ -837,6 +838,9 @@ def verify_macho_signatures(ipa: Path, rcodesign: Path, profile: dict,
     except ImportError:
         fail("python3-pyyaml is required for WDA signature verification")
     for label, executable in extract_signed_executables(ipa, work).items():
+        expected_bundle_id = (
+            bundle_id if label == "runner" else SOURCE_BUNDLE_IDS[label]
+        )
         entity_work = work / f"verify-{label}"
         entity_work.mkdir(mode=0o700)
         run_process(
@@ -856,13 +860,13 @@ def verify_macho_signatures(ipa: Path, rcodesign: Path, profile: dict,
             except (yaml.YAMLError, ValueError):
                 fail(f"{label} rcodesign metadata is unreadable")
             parse_signature_info(
-                value, label, team, bundle_id,
-                require_entitlements=label != "framework",
+                value, label, team, expected_bundle_id,
+                require_entitlements=label == "runner",
             )
         else:
             validate_signature_slots(
-                executable, label, team, bundle_id,
-                require_entitlements=label != "framework",
+                executable, label, team, expected_bundle_id,
+                require_entitlements=label == "runner",
             )
         verify_signer_leaf(
             rcodesign, executable, profile, expected_leaf, entity_work, label
@@ -1125,8 +1129,10 @@ def signing_command(arguments: argparse.Namespace, profile_dir: Path, target: Pa
         "--force",
         "--team-id", team,
     ]
-    for source in SOURCE_BUNDLE_IDS.values():
-        command.extend(("--bundle-id-remap", f"{source}={bundle_id}"))
+    command.extend((
+        "--bundle-id-remap",
+        f"{SOURCE_BUNDLE_IDS['runner']}={bundle_id}",
+    ))
     command.append(str(target))
     return command
 
@@ -1173,6 +1179,64 @@ def extract_private_ipa(ipa: Path, destination: Path) -> Path:
     return application
 
 
+def repackage_private_tree(source_root: Path, destination: Path, label: str) -> None:
+    try:
+        with zipfile.ZipFile(
+                destination, "x", compression=zipfile.ZIP_DEFLATED,
+                compresslevel=6, allowZip64=True) as archive:
+            for source in sorted(source_root.rglob("*")):
+                if source.is_symlink():
+                    fail(f"{label} contains a symbolic link")
+                relative = source.relative_to(source_root).as_posix()
+                if source.is_dir():
+                    information = zipfile.ZipInfo(relative + "/")
+                    information.external_attr = (stat.S_IFDIR | 0o700) << 16
+                    archive.writestr(information, b"")
+                elif source.is_file():
+                    if source.stat().st_size > MAX_MEMBER_BYTES:
+                        fail(f"{label} contains an oversized file")
+                    information = zipfile.ZipInfo(relative)
+                    mode = 0o700 if source.stat().st_mode & 0o111 else 0o600
+                    information.external_attr = (stat.S_IFREG | mode) << 16
+                    information.compress_type = zipfile.ZIP_DEFLATED
+                    with source.open("rb") as input_stream, archive.open(
+                            information, "w", force_zip64=True) as output:
+                        shutil.copyfileobj(input_stream, output, 1024 * 1024)
+                else:
+                    fail(f"{label} contains a non-regular entry")
+    except (OSError, ValueError, zipfile.BadZipFile):
+        fail(f"{label} could not be repackaged")
+    destination.chmod(0o600)
+    if not 0 < destination.stat().st_size <= MAX_IPA_BYTES:
+        fail(f"{label} IPA size is invalid")
+
+
+def prepare_outer_runner_for_resigner(target: Path, work: Path) -> Path:
+    """Keep the fixed XCTest payload away from the profile-oriented resigner."""
+    extraction = work / "outer-resigner-input"
+    application = extract_private_ipa(target, extraction)
+    nested = application / WDA_XCTEST
+    if not nested.is_dir() or nested.is_symlink():
+        fail("unsigned WDA extraction lacks its fixed XCTest bundle")
+    saved_nested = work / "unsigned-xctest"
+    try:
+        nested.rename(saved_nested)
+    except OSError:
+        fail("unsigned WDA XCTest bundle could not be isolated")
+    debug_symbols = application / "PlugIns" / "WebDriverAgentRunner.xctest.dSYM"
+    if debug_symbols.exists():
+        if not debug_symbols.is_dir() or debug_symbols.is_symlink():
+            fail("WDA debug-symbol bundle is unsafe")
+        shutil.rmtree(debug_symbols)
+    outer_only = work / "outer-resigner-input.ipa"
+    repackage_private_tree(extraction, outer_only, "outer-only WDA")
+    try:
+        os.replace(outer_only, target)
+    except OSError:
+        fail("outer-only WDA could not replace its private intermediate")
+    return saved_nested
+
+
 def write_signing_entitlements(profile: dict, work: Path) -> Path:
     entitlements = profile.get("Entitlements")
     if not isinstance(entitlements, dict):
@@ -1202,14 +1266,13 @@ def rcodesign_command(arguments: argparse.Namespace, application: Path,
         "--team-name", team,
         "--timestamp-url", "none",
         "--entitlements-xml-file", str(entitlements),
-        "--entitlements-xml-file",
-        f"PlugIns/WebDriverAgentRunner.xctest:{entitlements}",
         str(application),
     ]
 
 
 def recursively_rcodesign_wda(arguments: argparse.Namespace, target: Path,
-                              profile: dict, team: str, work: Path) -> None:
+                              profile: dict, team: str, work: Path,
+                              unsigned_xctest: Path) -> None:
     extraction = work / "recursive-signing"
     application = extract_private_ipa(target, extraction)
     debug_symbols = application / "PlugIns" / "WebDriverAgentRunner.xctest.dSYM"
@@ -1217,45 +1280,72 @@ def recursively_rcodesign_wda(arguments: argparse.Namespace, target: Path,
         if not debug_symbols.is_dir() or debug_symbols.is_symlink():
             fail("WDA debug-symbol bundle is unsafe")
         shutil.rmtree(debug_symbols)
+    # The xctrunner application is the provisioned main executable.  Its
+    # loadable XCTest plug-in is signed by the same certificate, but it must
+    # not carry application entitlements or an embedded profile.  iOS AMFI
+    # rejects such entitlements on a non-main Mach-O before WDA can open 8100.
+    nested = application / WDA_XCTEST
+    if nested.exists():
+        fail("outer resigner unexpectedly injected a nested XCTest bundle")
+    try:
+        shutil.copytree(unsigned_xctest, nested, copy_function=shutil.copy2)
+    except OSError:
+        fail("fixed unsigned XCTest bundle could not be restored")
+    for profile_name in ("embedded.mobileprovision", "embedded.provisionprofile"):
+        if (nested / profile_name).exists():
+            fail("fixed unsigned XCTest bundle unexpectedly contains a profile")
     entitlements = write_signing_entitlements(profile, work)
     run_process(
         rcodesign_command(arguments, application, entitlements, team),
         base_environment(work), work, "rcodesign-recursive-sign", timeout=300,
     )
     repacked = work / "rcodesign-wda.ipa"
-    try:
-        with zipfile.ZipFile(
-                repacked, "x", compression=zipfile.ZIP_DEFLATED,
-                compresslevel=6, allowZip64=True) as archive:
-            for source in sorted(extraction.rglob("*")):
-                if source.is_symlink():
-                    fail("recursively signed WDA contains a symbolic link")
-                relative = source.relative_to(extraction).as_posix()
-                if source.is_dir():
-                    information = zipfile.ZipInfo(relative + "/")
-                    information.external_attr = (stat.S_IFDIR | 0o700) << 16
-                    archive.writestr(information, b"")
-                elif source.is_file():
-                    if source.stat().st_size > MAX_MEMBER_BYTES:
-                        fail("recursively signed WDA contains an oversized file")
-                    information = zipfile.ZipInfo(relative)
-                    mode = 0o700 if source.stat().st_mode & 0o111 else 0o600
-                    information.external_attr = (stat.S_IFREG | mode) << 16
-                    information.compress_type = zipfile.ZIP_DEFLATED
-                    with source.open("rb") as input_stream, archive.open(
-                            information, "w", force_zip64=True) as output:
-                        shutil.copyfileobj(input_stream, output, 1024 * 1024)
-                else:
-                    fail("recursively signed WDA contains a non-regular entry")
-    except (OSError, ValueError, zipfile.BadZipFile):
-        fail("recursively signed WDA could not be repackaged")
-    repacked.chmod(0o600)
-    if not 0 < repacked.stat().st_size <= MAX_IPA_BYTES:
-        fail("recursively signed WDA IPA size is invalid")
+    repackage_private_tree(extraction, repacked, "recursively signed WDA")
     try:
         os.replace(repacked, target)
     except OSError:
         fail("recursively signed WDA could not replace its private intermediate")
+
+
+def inspect_outer_resigner_output(path: Path, target_bundle_id: str,
+                                  profile_bytes: bytes) -> None:
+    try:
+        archive = zipfile.ZipFile(path)
+    except (OSError, zipfile.BadZipFile):
+        fail("outer resigner output is not a valid IPA")
+    with archive:
+        _entries, names = inspect_archive(archive)
+        root = f"Payload/{WDA_APP}"
+        if any(name not in {"Payload", root} and not name.startswith(root + "/")
+               for name in names):
+            fail("outer resigner output contains content outside its fixed application")
+        nested_prefix = f"{root}/{WDA_XCTEST}"
+        if any(name == nested_prefix or name.startswith(nested_prefix + "/")
+               for name in names):
+            fail("outer resigner unexpectedly injected a nested XCTest bundle")
+        runner = read_plist(archive, f"{root}/Info.plist", "signed runner Info.plist")
+        validate_bundle_plist(
+            runner, target_bundle_id, "APPL", "signed runner",
+            EXPECTED_EXECUTABLES["runner"],
+        )
+        required = {
+            f"{root}/_CodeSignature/CodeResources",
+            f"{root}/embedded.mobileprovision",
+        }
+        if not required.issubset(names):
+            fail("outer resigner output lacks its profile or CodeResources")
+        embedded_profiles = {
+            name for name in names
+            if PurePosixPath(name).name in {
+                "embedded.mobileprovision", "embedded.provisionprofile"
+            }
+        }
+        if embedded_profiles != {f"{root}/embedded.mobileprovision"}:
+            fail("only the outer WDA runner may embed a provisioning profile")
+        if read_member(
+                archive, f"{root}/embedded.mobileprovision", MAX_PROFILE_BYTES,
+                "embedded profile") != profile_bytes:
+            fail("outer resigner output does not embed the selected profile")
 
 
 def inspect_signed_wda(path: Path, target_bundle_id: str, profile_bytes: bytes) -> None:
@@ -1281,18 +1371,17 @@ def inspect_signed_wda(path: Path, target_bundle_id: str, profile_bytes: bytes) 
             EXPECTED_EXECUTABLES["runner"],
         )
         validate_bundle_plist(
-            xctest, target_bundle_id, "BNDL", "signed XCTest",
+            xctest, SOURCE_BUNDLE_IDS["xctest"], "BNDL", "signed XCTest",
             EXPECTED_EXECUTABLES["xctest"],
         )
         validate_bundle_plist(
-            framework, target_bundle_id, "FMWK", "signed framework",
+            framework, SOURCE_BUNDLE_IDS["framework"], "FMWK", "signed framework",
             EXPECTED_EXECUTABLES["framework"],
         )
         required = {
             f"{root}/_CodeSignature/CodeResources",
             f"{root}/embedded.mobileprovision",
             f"{root}/{WDA_XCTEST}/_CodeSignature/CodeResources",
-            f"{root}/{WDA_XCTEST}/embedded.mobileprovision",
             f"{root}/{WDA_FRAMEWORK}/_CodeSignature/CodeResources",
         }
         if not required.issubset(names):
@@ -1303,10 +1392,22 @@ def inspect_signed_wda(path: Path, target_bundle_id: str, profile_bytes: bytes) 
         }
         if names & forbidden_framework_profiles:
             fail("signed WDA framework must never embed a provisioning profile")
-        for member in (
-            f"{root}/embedded.mobileprovision",
+        nested_profiles = {
             f"{root}/{WDA_XCTEST}/embedded.mobileprovision",
-        ):
+            f"{root}/{WDA_XCTEST}/embedded.provisionprofile",
+        }
+        if names & nested_profiles:
+            fail("signed WDA XCTest plug-in must not embed a provisioning profile")
+        embedded_profiles = {
+            name for name in names
+            if PurePosixPath(name).name in {
+                "embedded.mobileprovision", "embedded.provisionprofile"
+            }
+        }
+        if embedded_profiles != {f"{root}/embedded.mobileprovision"}:
+            fail("only the outer WDA runner may embed a provisioning profile")
+        profile_members = [f"{root}/embedded.mobileprovision"]
+        for member in profile_members:
             if read_member(archive, member, MAX_PROFILE_BYTES, "embedded profile") \
                     != profile_bytes:
                 fail("signed WDA does not embed the explicitly selected profile")
@@ -1384,6 +1485,7 @@ def run(arguments: argparse.Namespace) -> int:
         profile_bytes = isolated_profile.read_bytes()
         target = temporary / "signed-wda.ipa"
         copy_private(arguments.unsigned_wda_ipa, target, MAX_IPA_BYTES)
+        unsigned_xctest = prepare_outer_runner_for_resigner(target, temporary)
         environment = base_environment(temporary)
         environment["P12_PASSWORD"] = password
         run_process(
@@ -1402,9 +1504,9 @@ def run(arguments: argparse.Namespace) -> int:
         if (not target.is_file() or target.is_symlink()
                 or not 0 < target.stat().st_size <= MAX_IPA_BYTES):
             fail("resigner output file is invalid")
-        inspect_signed_wda(target, target_bundle_id, profile_bytes)
+        inspect_outer_resigner_output(target, target_bundle_id, profile_bytes)
         recursively_rcodesign_wda(
-            arguments, target, profile_value, team, temporary
+            arguments, target, profile_value, team, temporary, unsigned_xctest
         )
         inspect_signed_wda(target, target_bundle_id, profile_bytes)
         run_process(
