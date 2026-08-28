@@ -483,8 +483,6 @@
             stableAvatarSamples = 0;
             previousAvatarPosition = null;
             sceneReady = false;
-            spawnApplied = false;
-            spawnRequestPending = false;
         }
         previousLocationKey = currentLocationKey;
         var ids = Entities.findEntities(MyAvatar.position, 1000.0);
