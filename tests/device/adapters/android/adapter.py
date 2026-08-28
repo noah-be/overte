@@ -480,7 +480,7 @@ class AndroidAdapter:
                 # physical headset sampling without expanding the common API.
                 staged_values.setdefault("durationSeconds", 6.0)
             elif operation == "input.move":
-                staged_values.setdefault("strength", 0.8)
+                staged_values.setdefault("strength", 0.4)
             elif operation == "input.fly":
                 staged_values.setdefault("durationSeconds", 6.0)
             elif operation in {"tablet.open", "tablet.close"}:

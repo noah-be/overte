@@ -108,7 +108,7 @@ class E2EStackTest(unittest.TestCase):
         adapter = (ROOT / "adapters/android/adapter.py").read_text(encoding="utf-8")
         launch = (ROOT / "modules/launch_smoke.py").read_text(encoding="utf-8")
         self.assertIn('staged_values.setdefault("durationSeconds", 6.0)', adapter)
-        self.assertIn('staged_values.setdefault("strength", 0.8)', adapter)
+        self.assertIn('staged_values.setdefault("strength", 0.4)', adapter)
         self.assertIn('staged_values.setdefault("holdMilliseconds", 1000)', adapter)
         self.assertNotIn("holdMilliseconds", session)
         self.assertNotIn('arguments["durationSeconds"] = 6.0', session)
