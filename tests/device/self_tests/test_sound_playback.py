@@ -180,14 +180,13 @@ class SoundPlaybackTest(unittest.TestCase):
 
     def test_only_implemented_real_adapters_may_advertise_sound_play(self):
         android = ROOT / "adapters/android/adapter.py"
-        desktop = ROOT / "adapters/desktop_oculix/adapter.py"
         appium = ROOT / "adapters/appium/adapter.py"
         for path in (ROOT / "adapters").rglob("*"):
             if (not path.is_file() or path.suffix not in {".py", ".json"}
-                    or "mock" in path.parts or path in {android, desktop, appium}):
+                    or "mock" in path.parts or path in {android, appium}):
                 continue
             self.assertNotIn("sound.play", path.read_text(encoding="utf-8"), str(path))
-        for path in (android, desktop, appium):
+        for path in (android, appium):
             self.assertIn("sound.play", path.read_text(encoding="utf-8"))
 
     def test_complete_sound_suite_passes_with_independent_evidence(self):

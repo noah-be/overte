@@ -11,12 +11,6 @@ String adapterManifest(String profile) {
             return 'tests/device/adapters/appium/android.json'
         case 'appium-ios':
             return 'tests/device/adapters/appium/ios.json'
-        case 'desktop-linux':
-            return 'tests/device/adapters/desktop_oculix/linux.json'
-        case 'desktop-windows':
-            return 'tests/device/adapters/desktop_oculix/windows.json'
-        case 'desktop-macos':
-            return 'tests/device/adapters/desktop_oculix/macos.json'
         default:
             error("Unsupported target profile: ${profile}")
     }
@@ -114,10 +108,7 @@ pipeline {
                 'android-phone-adb',
                 'android-pico-adb',
                 'appium-android',
-                'appium-ios',
-                'desktop-linux',
-                'desktop-windows',
-                'desktop-macos'
+                'appium-ios'
             ],
             description: 'Adapter implementation used for this physical target.'
         )
@@ -179,7 +170,7 @@ pipeline {
         choice(
             name: 'FIXTURE_MODE',
             choices: ['network', 'embedded'],
-            description: 'Use network for desktop/iOS, embedded for Android debug E2E APKs.'
+            description: 'Use network for iOS, embedded for Android debug E2E APKs.'
         )
         booleanParam(
             name: 'CAPTURE_FAILURE_ARTIFACTS',
@@ -189,7 +180,7 @@ pipeline {
         booleanParam(
             name: 'RUN_CORE',
             defaultValue: false,
-            description: 'Run scene, look, movement and tablet after smoke; requires a complete Appium/OculiX profile.'
+            description: 'Run scene, look, movement and tablet after smoke; requires a complete Appium profile.'
         )
         booleanParam(
             name: 'RUN_DOMAIN_ENTER',
@@ -409,9 +400,7 @@ pipeline {
             steps {
                 script {
                     runDeviceSuite('stability', 240)
-                    if (!params.TARGET_PROFILE.startsWith('desktop-')) {
-                        runDeviceSuite('lifecycle-stability', 60)
-                    }
+                    runDeviceSuite('lifecycle-stability', 60)
                 }
             }
         }

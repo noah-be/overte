@@ -28,9 +28,9 @@
     var clientCommandUnavailable = false;
     var lastClientCommandId = "";
     var soundCommandRequest = null;
-    // Preserve the shared network-loaded probe contract. Desktop's private
-    // probe copy replaces this local fallback only after the adapter has
-    // posted an exact command to the controlled fixture endpoint.
+    // Network-loaded probes retain the fixture-relative fallback. A target
+    // adapter's private probe copy can replace it through the narrow command
+    // channel only after the fixture has accepted an exact sound command.
     var soundCommandUrl = Script.resolvePath("sound-command.json");
     var lastSoundControlCommandId = "";
     var soundResource = null;
@@ -293,7 +293,8 @@
     }
 
     function httpUrl(value) {
-        return typeof value === "string" && /^https?:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\])(?::[0-9]+)?(?:[/?#]|$)/.test(value);
+        return typeof value === "string"
+            && /^https?:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\])(?::[0-9]+)?(?:[/?#]|$)/.test(value);
     }
 
     function applyClientCommand(command) {
@@ -360,13 +361,12 @@
                 }
             } else if (request.status >= 400
                     || (request.status === 0 && !request.responseText)) {
-                // A network-loaded shared probe has no desktop command file.
-                // Keep its pre-existing sound endpoint behavior without
-                // polling a permanent 404 for the rest of the session.
+                // A network-loaded shared probe has no private command file.
+                // Stop polling a permanent miss for the rest of the session.
                 clientCommandUnavailable = true;
             }
         };
-        request.open("GET", Script.resolvePath("desktop-command.json"));
+        request.open("GET", Script.resolvePath("e2e-client-command.json"));
         request.send();
     }
 

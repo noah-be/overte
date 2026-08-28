@@ -37,7 +37,7 @@ elif cmd == ["shell", "run-as", "org.overte.phone", "cat",
     with open(os.environ["OVERTE_MOCK_ANDROID_PROBE"], encoding="utf-8") as source:
         print(source.read(), end="")
 elif cmd == ["shell", "run-as", "org.overte.phone", "cat",
-             "files/overte-e2e/desktop-command.json"]:
+             "files/overte-e2e/e2e-client-command.json"]:
     path = os.environ["OVERTE_MOCK_ANDROID_COMMAND_FILE"]
     if os.path.exists(path):
         with open(path, encoding="utf-8") as source:
@@ -49,7 +49,7 @@ elif cmd == ["shell", "cat", "/proc/2468/stat"]:
     print("2468 (overte) S " + " ".join(["0"] * 18) + (" 101" if changed else " 100"))
 elif (len(cmd) == 2 and cmd[0] == "shell"
       and shlex.split(cmd[1])[:3] == ["run-as", "org.overte.phone", "sh"]
-      and shlex.split(cmd[1])[-1] == "files/overte-e2e/desktop-command.json"):
+      and shlex.split(cmd[1])[-1] == "files/overte-e2e/e2e-client-command.json"):
     remote_arguments = shlex.split(cmd[1])
     if remote_arguments[3] != "-c" or remote_arguments[5] != "overte-e2e-write":
         raise SystemExit(8)
@@ -287,7 +287,7 @@ class AppiumAdapterTest(unittest.TestCase):
         }
         target["clientControl"] = {
             "kind": "android-run-as-command",
-            "relativePath": "files/overte-e2e/desktop-command.json",
+            "relativePath": "files/overte-e2e/e2e-client-command.json",
         }
         self.config.write_text(json.dumps(payload), encoding="utf-8")
         return target

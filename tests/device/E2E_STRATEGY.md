@@ -1,4 +1,4 @@
-# Physical-device and desktop E2E test strategy
+# Physical-device E2E test strategy
 
 ## Objective
 
@@ -44,22 +44,14 @@ neither behavior nor platform logic.
    Documents probe transfer. This checkout has no maintained iOS application
    target, so producing/signing that artifact and auditing the real QML tree
    remain hardware/platform gates.
-7. **Desktop adapter — Linux contracts implemented, OS acceptance remains.**
-   Visible Fedora/GNOME uses RemoteDesktop portal v2 plus a persistent `libei`
-   sender. Headless Linux owns a private GPU-backed Mutter/Xwayland session and
-   uses `xdotool` only inside it. Windows and macOS retain the OculiX visual driver;
-   Windows rejects Session 0 and macOS requires Accessibility and Screen
-   Recording. Each advertised physical behavior remains gated until exercised
-   in the matching session.
-8. **Local Jenkins device lab — implemented.** Start with `smoke`, add
+7. **Local Jenkins device lab — implemented.** Start with `smoke`, add
    `e2e-core` on an input-capable profile, and enable lifecycle/thermal soaks
    only after target pass rates are stable.
-9. **Controlled domain-entry contract — implemented, adapter rollout gated.**
+8. **Controlled domain-entry contract — implemented, adapter rollout gated.**
    An ephemeral local domain/assignment fixture, exact identity/content checks,
-   and hardware-free positive and negative tests are in place. Configured
-   Desktop/Oculix targets use the in-client probe command path; Android and
-   Appium adapters intentionally remain disabled until separately activated and
-   accepted.
+   and hardware-free positive and negative tests are in place. Android and
+   Appium adapters expose only their target-owned controlled command paths and
+   remain disabled until separately activated and accepted.
 
 ## Target matrix
 
@@ -68,16 +60,6 @@ neither behavior nor platform logic.
 | Android Phone | Appium UiAutomator2; ADB lifecycle | Overte probe | Linux/macOS/Windows with USB access |
 | Pico/Android VR | ADB lifecycle; test-only OpenXR API-layer prototype | Overte probe | Host with authorized ADB |
 | iPhone/iPad | Appium XCUITest + RemoteXPC | Lifecycle and test-build/probe contract; physical behavior after signed artifact acceptance | Protected macOS build/sign producer; Fedora physical-device agent on iOS 18+ |
-| Linux desktop, visible Fedora/GNOME | XDG RemoteDesktop portal v2 + persistent `libei` sender | Overte probe; no screen capture capability | Logged-in GPU session; one explicit persistent input grant during provisioning |
-| Linux desktop, headless | Owned GPU-headless Mutter/Xwayland + `xdotool`; ImageMagick window capture | Overte probe + private screenshot artifact | Direct-rendered allowlisted GPU; portal-free private session |
-| Windows desktop | OculiX | Overte probe | Unlocked interactive user session |
-| macOS desktop | OculiX | Overte probe | Accessibility + Screen Recording grants |
-
-Direct `xdotool`, XTEST, Java Robot, and OculiX input are prohibited on the
-visible GNOME Wayland host. They are not a fallback if the persistent portal
-session cannot be restored. The visible run stops and reports infrastructure
-failure instead of opening repeated remote-interaction dialogs. `xdotool` and
-ImageMagick are confined to the adapter-owned headless X11 display.
 
 Pico/Quest head pose and tracked-controller input cannot honestly be emulated
 by ordinary ADB. [`openxr_input/`](openxr_input/) now defines and validates a
@@ -135,8 +117,8 @@ an archived result identifies the Overte binary that produced the evidence.
 - **Skipped:** target truthfully lacks the declared capability; runner result
   `skipped`, not passed.
 - **Assertion failure:** Overte ran but did not exhibit the required behavior.
-- **Infrastructure error:** disconnected device, Appium/desktop-driver failure,
-  stale probe, revoked portal restore, or automation transport error; module
+- **Infrastructure error:** disconnected device, Appium/ADB failure, stale
+  probe, or automation transport error; module
   exit `75`, JUnit `<error>`.
 
 This distinction prevents an offline phone from being counted as a product
@@ -145,10 +127,8 @@ regression and prevents an unsupported operation from being counted as success.
 ## Open-source tooling boundary
 
 The harness and probe are Apache-2.0 with Overte. Jenkins and its Lockable
-Resources/JUnit plugins, Appium, UiAutomator2, Appium XCUITest driver, ADB,
-OculiX, OpenCV, Java runtimes, XDG Desktop Portal, libei, Mutter, Xwayland,
-GLX/RandR utilities,
-`xdotool`, and ImageMagick all have open-source implementations.
+Resources/JUnit plugins, Appium, UiAutomator2, Appium XCUITest driver, ADB, and
+Java runtimes all have open-source implementations.
 
 iOS has an unavoidable producer exception: builds and signatures require
 Apple's proprietary Xcode toolchain, device signing, and provisioning. The
@@ -170,8 +150,7 @@ effect. Before a target receives a Jenkins schedule, record evidence for:
 - fixture reachability from the device network;
 - all advertised operation effects observed through the probe;
 - screenshot/log collection with no private selector leakage where the target
-  advertises capture; visible Fedora intentionally supplies probe/log evidence
-  without requesting screen-sharing authority;
+  advertises capture;
 - repeatability of at least 20 short `e2e-core` runs;
 - recovery after cable removal, Appium restart, application crash, and timeout;
 - OS-specific permissions in the same login context as the Jenkins agent.
@@ -183,11 +162,5 @@ an unreliable short suite.
 
 - [Appium UiAutomator2 setup](https://appium.io/docs/en/latest/quickstart/uiauto2-driver/)
 - [Appium XCUITest physical-device preparation](https://appium.github.io/appium-xcuitest-driver/latest/getting-started/device-setup/)
-- [OculiX changelog and 4.x module boundary](https://github.com/oculix-org/Oculix/blob/master/CHANGELOG.md)
-- [XDG RemoteDesktop portal v2](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.RemoteDesktop.html)
-- [libei sender API](https://libinput.pages.freedesktop.org/libei/api/group__libei-sender.html)
 - [Jenkins Lockable Resources Pipeline step](https://www.jenkins.io/doc/pipeline/steps/lockable-resources/)
 - [Jenkins credential handling](https://www.jenkins.io/doc/book/using/using-credentials/)
-- [Microsoft Session 0 restrictions](https://learn.microsoft.com/en-us/windows/win32/services/interactive-services)
-- [Apple Accessibility permission](https://support.apple.com/guide/mac-help/mh43185/mac)
-- [Apple Screen Recording permission](https://support.apple.com/guide/mac-help/mchld6aa7d23/mac)

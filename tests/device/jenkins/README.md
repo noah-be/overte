@@ -7,8 +7,8 @@ remain in `tests/device/catalog.json`, `tests/device/modules`, and
 `tests/device/adapters`.
 
 The intended first deployment has the Jenkins controller and one agent on the
-same computer. The agent must run in the logged-in graphical session that owns
-the attached devices:
+same computer. The agent owns the attached devices and their local transport
+services:
 
 ```text
 Jenkins controller (no executors)
@@ -18,16 +18,9 @@ Jenkins controller (no executors)
              -> adapter -> attached physical target
 ```
 
-Do not run the interactive agent as a headless service or inside the controller
-container. Linux GUI automation needs the user's X11 session; Windows
-needs an unlocked interactive desktop; macOS needs a LaunchAgent and the
-Accessibility permissions of that user. Android-only workers are less strict,
-but using the same agent layout keeps later desktop coverage possible.
-
-One computer can execute only the desktop adapter matching the operating system
-it is currently running. With separate Linux, Windows, and macOS hosts, add an
-OS-specific label and create one job per host/profile. Keep the common label
-only while the job is intentionally tied to the single local agent.
+Do not run device transports inside the controller container. Keep the agent in
+the same trusted host context that owns ADB, Appium, USB access, and any
+RemoteXPC service used by the selected physical target.
 
 ## Open-source Jenkins components
 
@@ -62,8 +55,7 @@ python3 tests/device/jenkins/local_lab.py install \
   --config-root "$HOME/.config/overte-device-lab" \
   --java /absolute/path/to/jdk-21/bin/java
 python3 tests/device/jenkins/prepare_private_targets.py \
-  --config-root "$HOME/.config/overte-device-lab" \
-  --interface-executable /absolute/path/to/interface
+  --config-root "$HOME/.config/overte-device-lab"
 ```
 
 On Linux, the bootstrap can install and start a loopback-only controller,
@@ -92,8 +84,8 @@ do not expose it directly to the Internet.
 ## Register one physical target
 
 1. In **Manage Jenkins -> Credentials**, create a **Secret text** credential.
-   Its secret is the adapter's private target selector (ADB serial, Appium
-   target alias, or desktop target alias). A useful credential ID is
+   Its secret is the adapter's private target selector (ADB serial or Appium
+   target alias). A useful credential ID is
    `overte-android-phone-01-selector`.
 2. In **Manage Jenkins -> Lockable Resources**, create a resource such as
    `android-phone-01`. Do not use the serial number as the resource name.
@@ -115,9 +107,9 @@ staging, and Conan state, so Phone and Pico may build concurrently without
 mutating each other's output or the Jenkins checkout.
 
 The selected adapter still needs its normal private host configuration. For
-example, configure `OVERTE_ANDROID_ADB`, `OVERTE_APPIUM_TARGETS`, or
-`OVERTE_DESKTOP_TARGETS` in the agent environment as documented by the
-adapter. Do not store a populated target file in Git or in archived artifacts.
+example, configure `OVERTE_ANDROID_ADB` or `OVERTE_APPIUM_TARGETS` in the agent
+environment as documented by the adapter. Do not store a populated target file
+in Git or in archived artifacts.
 
 For `appium-ios` on Fedora, add a Secret Text credential named, for example,
 `overte-ios-github-actions-token`. It needs Actions read/write on the producer
@@ -152,12 +144,12 @@ Select `FIXTURE_MODE=embedded` for a debug Android Phone/Pico APK containing the
 fixed repository scene and probe. No listener or public host is needed; the
 shell-protected debug launcher copies those assets into application storage.
 
-Select `FIXTURE_MODE=network` for desktop targets and for a signed iOS E2E
-test build. In this mode `e2e-core` starts `tests/device/fixture/serve.py` for
+Select `FIXTURE_MODE=network` for a signed iOS E2E test build. In this mode
+`e2e-core` starts `tests/device/fixture/serve.py` for
 the duration of the suite. Set `FIXTURE_PUBLIC_HOST` to a DNS name or LAN IPv4
-address of the agent that the physical device can reach. `127.0.0.1` is suitable
-only for a desktop client on the same host; on a phone or tablet it points to
-that device instead of the Jenkins agent. Port `0` is supported for iOS: after the
+address of the agent that the physical device can reach. On a phone or tablet,
+`127.0.0.1` points to that device instead of the Jenkins agent. Port `0` is
+supported for iOS: after the
 fixture binds, the helper atomically updates only the selected target's
 `testBuild.fixtureOrigin` in the mode-0600 per-build target copy before the
 adapter starts. The repository template and long-lived private source file are
@@ -205,14 +197,14 @@ by upward flight without replacing the running application process.
 
 `RUN_CORE` defaults off for the first setup run because the
 default ADB profile truthfully lacks touch/controller input. Enable core for a
-complete Appium Android or OculiX desktop profile. Long health/lifecycle jobs
+complete Appium Android or iOS profile. Long health/lifecycle jobs
 should start only after the same physical target has already passed repeatable
 short core runs through its input-capable adapter. Telemetry is optional on
-desktop/iOS and strict when advertised; PID-preserving lifecycle transitions
+iOS and strict when advertised; PID-preserving lifecycle transitions
 run only on Android/iOS.
 Per-suite timeouts are 10 minutes for smoke, asset, and sound; 15 minutes for
-domain and accessibility; 30 minutes for core,
-four hours for stability, and one hour for lifecycle stability. They start after the device lock is acquired so
+domain and accessibility; 30 minutes for core, four hours for stability, and
+one hour for lifecycle stability. They start after the device lock is acquired so
 cleanup can run outside an expired suite timeout while the lock is still held.
 The whole build, including time spent in the resource queue, has an eight-hour
 ceiling.
@@ -260,7 +252,7 @@ OVERTE_CI_WORKSPACE="$PWD" \
 This validates the fixture, all universal harness/adapter contracts, the
 Jenkins helper, the full core scenario through the deterministic mock adapter,
 cleanup behavior, secret quarantine, and the required Jenkinsfile safety
-layers. It does not start ADB, Appium, OculiX, or Overte.
+layers. It does not start ADB, Appium, or Overte.
 
 After smoke and core are repeatable on demand, add a Jenkins cron trigger to the
 job (for example a nightly `H H * * *`). Keep `RUN_SOAKS` off until short runs

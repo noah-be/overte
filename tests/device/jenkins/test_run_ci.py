@@ -630,7 +630,6 @@ class JenkinsGlueTest(unittest.TestCase):
                         source.index("runDeviceSuite('stability'"))
         self.assertLess(source.index("runDeviceSuite('stability'"),
                         source.index("runDeviceSuite('lifecycle-stability'"))
-        self.assertIn("!params.TARGET_PROFILE.startsWith('desktop-')", source)
         for expected in (
             "RUN_DOMAIN_ENTER", "RUN_ASSET_LOAD", "RUN_SOUND_PLAYBACK",
             "runDeviceSuite('domain-smoke'", "runDeviceSuite('asset-smoke'",
