@@ -592,7 +592,7 @@ bool Protocol::tryAccept(std::int64_t epochMilliseconds,
                     (arguments.contains("vertical") &&
                      !finiteNumber(arguments.value("vertical"), -0.45, 0.45, vertical)) ||
                     (arguments.contains("durationSeconds") &&
-                     !finiteNumber(arguments.value("durationSeconds"), 0.1, 8.0, seconds)) ||
+                     !finiteNumber(arguments.value("durationSeconds"), 0.1, 15.0, seconds)) ||
                     (std::abs(horizontal) < 0.01 && std::abs(vertical) < 0.01)) {
                 return false;
             }

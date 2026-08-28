@@ -146,7 +146,8 @@ class OpenXrControllerProtocolTests(unittest.TestCase):
     def test_head_look_never_injects_a_controller_action(self) -> None:
         compiled = compile_envelope(self.envelope([{
             "id": "head-look", "operation": "input.look",
-            "arguments": {"horizontal": 0.2, "vertical": 0.1},
+            "arguments": {"horizontal": 0.2, "vertical": 0.1,
+                          "durationSeconds": 12.0},
         }]), self.profile)
         active = next(event["state"] for event in compiled["events"]
                       if event["state"]["viewOffset"]["active"])
@@ -229,7 +230,7 @@ class OpenXrControllerProtocolTests(unittest.TestCase):
              "arguments": {"hand": "left", "positionMeters": [0, 1, 0],
                            "orientation": [0, 0, 0, 0.9]}},
             {"id": "long-look", "operation": "input.look",
-             "arguments": {"horizontal": 0.2, "durationSeconds": 8.001}},
+             "arguments": {"horizontal": 0.2, "durationSeconds": 15.001}},
             {"id": "long-move", "operation": "input.move",
              "arguments": {"direction": "forward", "durationSeconds": 8.001}},
             {"id": "bad-jump", "operation": "input.jump",

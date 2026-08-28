@@ -919,6 +919,9 @@
         }
         releaseControlledKey(controlledKeyCommandId);
         Controller.disableMapping(controlledInputMappingName);
+        if (controlledTabletOpen()) {
+            HMD.closeTablet();
+        }
         if (flightNormalizationActive) {
             MyAvatar.setFlyingEnabled(flyingEnabledBeforeNormalization);
             flightNormalizationActive = false;

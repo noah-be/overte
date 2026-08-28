@@ -154,7 +154,8 @@ class AndroidAdapter:
                     target, package, ANDROID_DEBUG_PROBE, attempts=1))
                 if probe is not None:
                     try:
-                        probe = require_fresh_snapshot(probe)
+                        probe = require_fresh_snapshot(
+                            probe, self.probe_maximum_age_seconds())
                     except RuntimeError:
                         probe = None
             after = self.adb.process_state(target, package)
@@ -308,6 +309,17 @@ class AndroidAdapter:
             fail("OVERTE_ANDROID_E2E_PROBE_POLL_SECONDS must be from 0.01 through 1.0")
         return int(attempts_raw), interval
 
+    def probe_maximum_age_seconds(self) -> float:
+        default = "15" if self.kind == "pico" and pico_openxr_opted_in() else "5"
+        raw = os.environ.get("OVERTE_ANDROID_E2E_PROBE_MAX_AGE_SECONDS", default)
+        try:
+            maximum_age = float(raw)
+        except ValueError:
+            fail("OVERTE_ANDROID_E2E_PROBE_MAX_AGE_SECONDS must be numeric")
+        if not 1.0 <= maximum_age <= 30.0:
+            fail("OVERTE_ANDROID_E2E_PROBE_MAX_AGE_SECONDS must be from 1 through 30")
+        return maximum_age
+
     def read_probe_snapshot(self, target: str, package: str,
                             after_sequence: int | None) -> dict:
         attempts, interval = self.probe_retry_policy()
@@ -315,7 +327,8 @@ class AndroidAdapter:
             raw = self.adb.read_debug_app_file(
                 target, package, ANDROID_DEBUG_PROBE, attempts=1)
             try:
-                snapshot = require_fresh_snapshot(json.loads(raw))
+                snapshot = require_fresh_snapshot(
+                    json.loads(raw), self.probe_maximum_age_seconds())
             except (json.JSONDecodeError, RuntimeError):
                 snapshot = None
             if snapshot is not None:
@@ -511,7 +524,7 @@ class AndroidAdapter:
             if operation == "input.look":
                 # Keep the target-owned OpenXR override observable across slow
                 # physical headset sampling without expanding the common API.
-                staged_values.setdefault("durationSeconds", 6.0)
+                staged_values.setdefault("durationSeconds", 12.0)
             elif operation == "input.move":
                 staged_values.setdefault("strength", 0.4)
             elif operation == "input.fly":

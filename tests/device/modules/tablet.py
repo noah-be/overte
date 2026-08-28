@@ -10,8 +10,10 @@ from overte_session import OverteSession
 def main() -> None:
     session = OverteSession()
     session.ensure_controlled_scene()
-    session.set_tablet(True)
-    session.set_tablet(False)
+    try:
+        session.set_tablet(True)
+    finally:
+        session.set_tablet(False)
     print("System tablet opened and closed with both transitions observed by Overte.")
 
 

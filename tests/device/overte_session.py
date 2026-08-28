@@ -558,13 +558,13 @@ class OverteSession:
         return after
 
     def assert_tablet_input_isolation(self) -> tuple[dict, dict]:
-        self.set_tablet(True)
-        before = self.input_neutral_snapshot("tablet-isolation-before.json")
-        maximum_drift = self._float_environment(
-            "OVERTE_E2E_MAX_TABLET_WORLD_DRIFT_METERS", 0.08, 0.001, 1.0)
-        maximum_speed = self._float_environment(
-            "OVERTE_E2E_MAX_NEUTRAL_SPEED_MPS", 0.08, 0.001, 2.0)
         try:
+            self.set_tablet(True)
+            before = self.input_neutral_snapshot("tablet-isolation-before.json")
+            maximum_drift = self._float_environment(
+                "OVERTE_E2E_MAX_TABLET_WORLD_DRIFT_METERS", 0.08, 0.001, 1.0)
+            maximum_speed = self._float_environment(
+                "OVERTE_E2E_MAX_NEUTRAL_SPEED_MPS", 0.08, 0.001, 2.0)
             self._invoke("input.move", {"direction": "forward", "durationSeconds": 1.0})
             after = self.snapshot()
             for _ in range(2):
