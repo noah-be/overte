@@ -175,10 +175,11 @@ class SoundPlaybackTest(unittest.TestCase):
         self.assertIn("_audioData = std::move(audioData)", sound_source)
         self.assertIn("emit ready()", sound_source)
 
-    def test_no_real_adapter_advertises_sound_play(self):
+    def test_only_appium_real_adapter_may_advertise_sound_play(self):
+        allowed = ROOT / "adapters/appium/adapter.py"
         for path in (ROOT / "adapters").rglob("*"):
             if (not path.is_file() or path.suffix not in {".py", ".json"}
-                    or "mock" in path.parts):
+                    or "mock" in path.parts or path == allowed):
                 continue
             self.assertNotIn("sound.play", path.read_text(encoding="utf-8"), str(path))
 
