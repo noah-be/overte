@@ -60,6 +60,7 @@ class CoreSequenceTest(unittest.TestCase):
         self.assertNotIn("MyAvatar.velocity =", probe)
         self.assertIn("Window.location = scenePath", probe)
         self.assertIn("spawnLocationObserved: avatarAtSpawn", probe)
+        self.assertIn("Boolean(tablet.tabletShown || HMD.showTablet)", probe)
 
     def test_complete_core_suite_reuses_one_app_session(self):
         with tempfile.TemporaryDirectory(prefix="overte-e2e-core-") as temporary:
