@@ -14,14 +14,18 @@ main
 │   └── android-vr
 │       ├── android-vr-quest
 │       └── android-vr-pico
-└── apple-main
-    ├── apple-ios
-    └── apple-macos
+├── apple-main
+│   ├── apple-ios
+│   └── apple-macos
+├── linux-main
+└── windows-main
 ```
 
-`main` owns platform-neutral code. `android-main` and `apple-main` own code
-shared by their operating-system families. Product branches own adapters,
-packaging, runtime integration and policy that apply only to that product.
+`main` owns platform-neutral code. `android-main`, `apple-main`, `linux-main`,
+and `windows-main` own code shared by their operating-system families. Product
+branches own adapters, packaging, runtime integration and policy that apply
+only to that product. Linux distributions and Windows releases are CI and lab
+targets within their operating-system branch, not permanent child branches.
 
 The common device-test harness under `tests/device/` is parent-owned by
 default. `tests/apple-branch-path-ownership.json` lists the narrow paths that a
@@ -42,10 +46,15 @@ After a reviewed change reaches `main`, synchronize it in this order:
 6. `main` → `apple-main`
 7. `apple-main` → `apple-ios`
 8. `apple-main` → `apple-macos`
+9. `main` → `linux-main`
+10. `main` → `windows-main`
 
-The Android and Apple halves are independent after their respective parent
-merges, but each parent must be merged before its children. Use normal pull
-requests so branch protection and target-specific CI run at every boundary.
+The Android, Apple, Linux, and Windows lines are independent after their
+respective `main` merge, but each parent must be merged before its children.
+Use normal pull requests so branch protection and target-specific CI run at
+every boundary. The synchronization bot reads these direct relationships from
+`.github/branch-policy.json`; every `main` update therefore opens or refreshes
+the guarded sync pull requests for both desktop operating-system branches.
 
 ## Reconciliation merges
 
@@ -72,6 +81,9 @@ selector-backed adapters remain in their product branch:
 
 - Android Phone adapter: `android-phone`
 - iPhone and iPad adapter: `apple-ios`
+- Linux desktop adapter: `linux-main`
+- Windows desktop adapter: `windows-main`
+- macOS desktop adapter: `apple-macos`
 
 VR branches do not inherit Phone touch adapters, and `apple-macos` does not
 inherit the iOS adapter. A new adapter starts on its product branch and must not
@@ -83,6 +95,13 @@ from `origin/apple-main`. A child pull request therefore cannot approve a
 change by weakening its own copy of the rule. Changes to parent-owned harness
 paths must go through `apple-main`; explicitly listed product-owned paths may
 differ only on their matching target branch.
+
+Desktop adapter implementations must not be owned by `main`, `android-main`,
+or an Android product branch. Only the portable adapter protocol, behavior
+modules, fixtures, and in-client probe remain on `main`. Fedora, Ubuntu,
+openSUSE, display-server, desktop-environment, and Windows-version differences
+are expressed as private target configuration and CI matrices inside the
+owning operating-system branch.
 
 ## Verification
 
@@ -99,6 +118,8 @@ git merge-base --is-ancestor origin/android-vr origin/android-vr-pico
 git merge-base --is-ancestor origin/main origin/apple-main
 git merge-base --is-ancestor origin/apple-main origin/apple-ios
 git merge-base --is-ancestor origin/apple-main origin/apple-macos
+git merge-base --is-ancestor origin/main origin/linux-main
+git merge-base --is-ancestor origin/main origin/windows-main
 ```
 
 Each command must exit successfully. Also use `git branch -r --contains` for a

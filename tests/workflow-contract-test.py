@@ -16,6 +16,7 @@ ANDROID_TESTS_WORKFLOW = ROOT / ".github/workflows/android-tests.yml"
 DOCUMENTATION_WORKFLOW = ROOT / ".github/workflows/documentation-checks.yml"
 BRANCH_POLICY_WORKFLOW = ROOT / ".github/workflows/branch-policy.yml"
 BRANCH_SYNC_WORKFLOW = ROOT / ".github/workflows/branch-sync.yml"
+DESKTOP_TOPOLOGY_WORKFLOW = ROOT / ".github/workflows/desktop-branch-topology.yml"
 IOS_WORKFLOW = ROOT / ".github/workflows/ios-bootstrap.yml"
 MACOS_WORKFLOW = ROOT / ".github/workflows/macos-bootstrap.yml"
 ACTION_USE = re.compile(r"^\s*uses:\s*([^\s#]+)", re.MULTILINE)
@@ -88,6 +89,37 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         self.assertIn("cancel-in-progress: false", source)
         self.assertIn("Skipping $parent -> $child", source)
         self.assertIn("continue", source)
+        self.assertIn("tools/branch-policy/check.py parents", source)
+        self.assertNotIn("parents=(main android-main android-vr apple-main)", source)
+
+    def test_main_sync_policy_includes_linux_and_windows(self):
+        policy = (ROOT / ".github/branch-policy.json").read_text(encoding="utf-8")
+        self.assertRegex(
+            policy,
+            r'"children": \["android-main", "apple-main", "linux-main", "windows-main"\]',
+        )
+
+    def test_desktop_topology_uses_trusted_main_policy(self):
+        source = DESKTOP_TOPOLOGY_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("linux-main", source)
+        self.assertIn("windows-main", source)
+        self.assertIn("origin/main:tests/desktop-branch-topology-check.py", source)
+        self.assertIn("--main origin/main", source)
+        self.assertIn("persist-credentials: false", source)
+        self.assertRegex(source, r"(?m)^permissions:\n  contents: read$")
+        actions = ACTION_USE.findall(source)
+        self.assertGreaterEqual(len(actions), 1)
+        self.assertEqual(
+            [action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], []
+        )
+
+    def test_desktop_ruleset_requires_topology_check(self):
+        source = (ROOT / ".github/rulesets/desktop-branches.json").read_text(
+            encoding="utf-8"
+        )
+        for branch in ("refs/heads/linux-main", "refs/heads/windows-main"):
+            self.assertIn(branch, source)
+        self.assertIn('"context": "desktop-branch-topology"', source)
 
 
 class PicoWorkflowContracts(unittest.TestCase):
