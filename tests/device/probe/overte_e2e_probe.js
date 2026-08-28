@@ -14,6 +14,9 @@
     var assetResource = null;
     var assetResourceUrl = "";
     var controlledAssetEntity = null;
+    // Resolve while the script file is the active execution context. Timer
+    // callbacks do not retain that source context on every script engine.
+    var clientCommandUrl = Script.resolvePath("e2e-client-command.json");
     var clientCommandRequestPending = false;
     var clientCommandUnavailable = false;
     var lastClientCommandId = "";
@@ -374,7 +377,7 @@
                 clientCommandUnavailable = true;
             }
         };
-        request.open("GET", Script.resolvePath("e2e-client-command.json"));
+        request.open("GET", clientCommandUrl);
         request.send();
     }
 
