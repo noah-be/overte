@@ -13,7 +13,6 @@
         "refs/heads/android-vr-pico",
         "refs/heads/apple-main",
         "refs/heads/apple-ios",
-        "refs/heads/apple-macos",
         "refs/heads/linux-main",
         "refs/heads/windows-main"
       ],

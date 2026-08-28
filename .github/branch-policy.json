@@ -29,16 +29,11 @@
     "apple-main": {
       "parent": "main",
       "scope": "apple",
-      "children": ["apple-ios", "apple-macos"]
+      "children": ["apple-ios"]
     },
     "apple-ios": {
       "parent": "apple-main",
       "scope": "ios",
-      "children": []
-    },
-    "apple-macos": {
-      "parent": "apple-main",
-      "scope": "macos",
       "children": []
     },
     "linux-main": {
