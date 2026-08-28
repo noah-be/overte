@@ -642,6 +642,7 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
                 "name: 'REBUILD_INSTALL_APK'",
                 "./android/phone/build.sh all",
                 "./android/phone/build.sh install",
+                "rsync -a --delete",
                 "OVERTE_ANDROID_PHONE_E2E_INPUT = '1'",
                 "OVERTE_ANDROID_E2E_DEBUG = '1'",
                 "OVERTE_ANDROID_ADB",

@@ -234,8 +234,13 @@ pipeline {
                             git diff --quiet --ignore-submodules --
                             git diff --cached --quiet --ignore-submodules --
                             test "$(git rev-parse HEAD)" = "$(git -C "$WORKSPACE" rev-parse HEAD)"
-                            PHONE_SHARED_CONAN_HOME=/home/user/overte-device-lab/config/conan-cache/homes/android-phone \
-                                PHONE_BUILD_JOBS=8 CMAKE_BUILD_PARALLEL_LEVEL=8 SHADERGEN_JOBS=8 \
+                            dependency_seed=/home/user/Documents/github/overte-main/android/common/conan
+                            test -f "$dependency_seed/phone-nonqt-16k-debug/.phone-16k-dependencies.ready"
+                            rsync -a --delete "$dependency_seed/phone-16k-debug/" \
+                                android/common/conan/phone-16k-debug/
+                            rsync -a --delete "$dependency_seed/phone-nonqt-16k-debug/" \
+                                android/common/conan/phone-nonqt-16k-debug/
+                            PHONE_BUILD_JOBS=8 CMAKE_BUILD_PARALLEL_LEVEL=8 SHADERGEN_JOBS=8 \
                                 ./android/phone/build.sh all
                         '''
                         lock(resource: params.DEVICE_RESOURCE.trim(), inversePrecedence: true) {
