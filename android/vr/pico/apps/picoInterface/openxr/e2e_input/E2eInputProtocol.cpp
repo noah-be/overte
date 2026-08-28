@@ -634,6 +634,13 @@ bool Protocol::tryAccept(std::int64_t epochMilliseconds,
                 return false;
             }
             active.booleans[static_cast<std::size_t>(BooleanChannel::RightSecondary)] = true;
+            // Flight is a double-press gesture. Compile the takeoff pulse and
+            // its neutral gap into this same native grant so transport latency
+            // cannot change the timing before the held second press below.
+            compiled.push_back({ cursor, active, identifier.toStdString() });
+            cursor += JUMP_HOLD_MS;
+            compiled.push_back({ cursor, neutralOverride(), {} });
+            cursor += INTER_COMMAND_GAP_MS;
             duration = static_cast<std::int64_t>(std::llround(seconds * 1000.0));
         } else if (operation == QLatin1String("tablet.open") ||
                    operation == QLatin1String("tablet.close")) {
