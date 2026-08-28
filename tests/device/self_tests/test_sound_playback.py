@@ -183,6 +183,8 @@ class SoundPlaybackTest(unittest.TestCase):
                     or any(root in path.parents for root in target_owned)):
                 continue
             self.assertNotIn("sound.play", path.read_text(encoding="utf-8"), str(path))
+        for path in (android, appium):
+            self.assertIn("sound.play", path.read_text(encoding="utf-8"))
 
     def test_complete_sound_suite_passes_with_independent_evidence(self):
         result, output, temporary = self.run_suite()
