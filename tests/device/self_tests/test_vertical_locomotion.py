@@ -23,20 +23,48 @@ from contracts import (load_capability_registry, validate_operation_arguments,
 def snapshot(**avatar_overrides: object) -> dict:
     avatar = {
         "position": {"x": 0.0, "y": 1.0, "z": 4.0},
+        "velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
+        "bodyYawDegrees": 0.0,
         "inAir": False,
         "flying": False,
         "flyingEnabled": True,
     }
     avatar.update(avatar_overrides)
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "sampleEpochMs": 1,
+        "sampleSequence": 1,
         "build": {"platform": "Mock", "version": "1", "date": "1970-01-01"},
-        "application": {"running": True},
-        "scene": {"ready": True, "entityCount": 4},
+        "application": {"running": True, "foreground": True},
+        "domain": {"connected": False, "hostname": "", "id": "",
+                   "protocol": "file", "serverless": True},
+        "input": {"dominantHand": "right", "advancedMovementControls": True},
+        "scene": {
+            "url": "http://fixture.invalid/scene.json", "ready": True,
+            "entityCount": 5, "fixtureMarkerCount": 5,
+            "fixtureMarkers": [
+                "OVERTE_E2E_COLLISION_WALL", "OVERTE_E2E_EAST", "OVERTE_E2E_FLOOR",
+                "OVERTE_E2E_NORTH", "OVERTE_E2E_ORIGIN",
+            ],
+            "domainMarkerCount": 0, "domainMarkers": [], "floorTopY": 0.0,
+            "avatarAboveFloor": True, "spawnLocationObserved": True,
+            "spawnValidated": True,
+            "collisionWall": {
+                "name": "OVERTE_E2E_COLLISION_WALL",
+                "center": {"x": 0.0, "y": 2.0, "z": 0.5},
+                "dimensions": {"x": 8.0, "y": 4.0, "z": 0.5},
+            },
+        },
         "avatar": avatar,
         "view": {"orientation": {"x": 0.0, "y": 0.0, "z": 0.0}},
-        "tablet": {"open": False},
+        "tablet": {"open": False, "home": False, "toolbarMode": False},
+        "asset": None,
+        "sound": {
+            "commandId": "", "url": "", "commandObserved": False,
+            "resourceReady": False, "durationSeconds": 0.0, "format": "unknown",
+            "injectorCreated": False, "started": False, "playing": False,
+            "finished": False, "finishReason": "none",
+        },
     }
 
 
