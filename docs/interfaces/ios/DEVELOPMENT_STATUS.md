@@ -98,7 +98,9 @@ finish, while `virtualPadScalePercent` accepts 50 through 200. `cameraMode` is
 `third-person` (the iOS default), `first-person`, or `persisted`.
 `touchInputTraceLimit` bounds classification markers for move, view and button
 touches; set it to 0 after input acceptance. `touchJumpMinimumPulseMs` keeps a
-short jump tap visible to at least one mapper update. `offscreenKeyTraceLimit`
+short jump tap visible to at least one mapper update even when the first iOS
+frame after release exceeds the configured pulse; `stage=jump-pulse-exposed`
+records that guaranteed sample. `offscreenKeyTraceLimit`
 bounds hardware-keyboard routing markers without logging typed text, and
 `locomotionTraceIntervalMs` controls the active locomotion-state marker cadence.
 Set either trace value to 0 to disable its corresponding diagnostic.

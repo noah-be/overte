@@ -53,6 +53,14 @@ def main() -> None:
     assert "OverteIOSAccessibilityOverlay : UIView" in native_bridge
     assert "pointInside:(CGPoint)point withEvent:(UIEvent*)event" in native_bridge
     assert "return NO;" in native_bridge
+    assert native_bridge.count("#if defined(OVERTE_IOS_E2E_TEST_BUILD)") == 3
+    assert "OverteIOSE2EAccessibilityButton : UIButton" in native_bridge
+    assert "forControlEvents:UIControlEventTouchUpInside" in native_bridge
+    assert "overlay.accessibilityElements = @[];" in native_bridge
+    assert "button.frame = controlFrame;" in native_bridge
+    assert "button.activationHandler = activationHandler;" in native_bridge
+    assert "#else\n    OverteIOSAccessibilityElement* element" in native_bridge
+    assert native_bridge.count("UIAccessibilityPostNotification(") == 2
     assert re.search(
         r'set_source_files_properties\(\s*'
         r'"\$\{CMAKE_CURRENT_SOURCE_DIR\}/src/IOSTouchUiMetrics[.]mm"\s*'

@@ -783,7 +783,7 @@ class AppiumAdapter:
             value["jumpPoint"], "controls.verticalLocomotion.jumpPoint")
         cls.bounded_seconds(
             value["jumpPressSeconds"],
-            "controls.verticalLocomotion.jumpPressSeconds", 0.05, 0.5)
+            "controls.verticalLocomotion.jumpPressSeconds", 0.05, 0.1)
         cls.bounded_seconds(
             value["flightSecondPressDelaySeconds"],
             "controls.verticalLocomotion.flightSecondPressDelaySeconds", 0.15, 1.0)
@@ -1283,31 +1283,53 @@ class AppiumAdapter:
         x, y = self.fractional_viewport_point(
             client, session, control["jumpPoint"],
             "controls.verticalLocomotion.jumpPoint")
+        # XCTest can stretch a W3C pointer-down/pause/up sequence beyond its
+        # requested pause while it snapshots the application. Overte treats a
+        # Jump held for 500 ms as Fly, so this configured pulse must remain
+        # bounded below that threshold. Keep the proven landscape viewport
+        # coordinates; XCUITest's mobile: tap can silently miss this native
+        # virtual control in landscape.
         press_ms = round(self.bounded_seconds(
             control["jumpPressSeconds"],
-            "controls.verticalLocomotion.jumpPressSeconds", 0.05, 0.5) * 1000)
-        actions = [
+            "controls.verticalLocomotion.jumpPressSeconds", 0.05, 0.1) * 1000)
+        tap_actions = [
             {"type": "pointerMove", "duration": 0, "origin": "viewport",
              "x": x, "y": y},
             {"type": "pointerDown", "button": 0},
             {"type": "pause", "duration": press_ms},
             {"type": "pointerUp", "button": 0},
         ]
-        if flight_duration is not None:
-            delay_ms = round(self.bounded_seconds(
-                control["flightSecondPressDelaySeconds"],
-                "controls.verticalLocomotion.flightSecondPressDelaySeconds",
-                0.15, 1.0) * 1000)
-            hold_ms = round(self.bounded_seconds(
-                flight_duration, "input.fly durationSeconds", 0.1, 10.0) * 1000)
-            actions += [
-                {"type": "pause", "duration": delay_ms},
-                {"type": "pointerDown", "button": 0},
-                {"type": "pause", "duration": hold_ms},
-                {"type": "pointerUp", "button": 0},
-            ]
+        tap_body = {"actions": [{
+            "type": "pointer", "id": "overte-ios-jump-press",
+            "parameters": {"pointerType": "touch"}, "actions": tap_actions,
+        }]}
+        try:
+            client.call("POST", f"/session/{session}/actions", tap_body)
+        except Exception:
+            try:
+                client.call("DELETE", f"/session/{session}/actions")
+            except (OSError, RuntimeError, ValueError):
+                pass
+            raise
+        client.call("DELETE", f"/session/{session}/actions")
+        if flight_duration is None:
+            return
+
+        delay = self.bounded_seconds(
+            control["flightSecondPressDelaySeconds"],
+            "controls.verticalLocomotion.flightSecondPressDelaySeconds", 0.15, 1.0)
+        hold_ms = round(self.bounded_seconds(
+            flight_duration, "input.fly durationSeconds", 0.1, 10.0) * 1000)
+        time.sleep(delay)
+        actions = [
+            {"type": "pointerMove", "duration": 0, "origin": "viewport",
+             "x": x, "y": y},
+            {"type": "pointerDown", "button": 0},
+            {"type": "pause", "duration": hold_ms},
+            {"type": "pointerUp", "button": 0},
+        ]
         body = {"actions": [{
-            "type": "pointer", "id": "overte-ios-vertical-locomotion",
+            "type": "pointer", "id": "overte-ios-flight-hold",
             "parameters": {"pointerType": "touch"}, "actions": actions,
         }]}
         try:

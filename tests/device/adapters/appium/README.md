@@ -53,7 +53,9 @@ The optional iOS `verticalLocomotion` control drives the rendered Overte
 virtual-pad Jump button, not a private test hook. Its fractional `jumpPoint`
 must be copied into private target configuration only after the real landscape
 control position has been audited; the adapter has no coordinate fallback. A
-single bounded press implements `input.jump`. `input.fly` follows Overte's
+single 50–100 ms bounded press implements `input.jump`; longer configured
+presses are rejected before Appium can reach Overte's 500 ms hold-to-fly
+threshold. `input.fly` follows Overte's
 normal double-jump gesture and holds the second press for the contract's
 `durationSeconds` value. Both operations guard the original foreground PID
 before and after the W3C touch sequence. The checked-in example values describe
