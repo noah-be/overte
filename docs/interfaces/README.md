@@ -15,11 +15,10 @@ compared without guessing which document is authoritative.
 | Pico 4 | `docs/interfaces/pico4/README.md` | `android-vr-pico` |
 | Android phones | `docs/interfaces/android-phone/README.md` | `android-phone` |
 | iPhone and iPad | `docs/interfaces/ios/README.md` | `apple-ios` |
-| macOS | `docs/interfaces/macos/README.md` | `apple-macos` |
 
-The platform branches contain the corresponding documentation. A missing path
-on another branch does not imply that the platform has been abandoned; inspect
-the named development branch at its current revision.
+The active platform branches contain their corresponding documentation.
+Historical platform documentation may remain on a frozen archival branch, but
+it is not a current development or support target.
 
 ## Shared document roles
 

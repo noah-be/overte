@@ -17,8 +17,8 @@
 
 Before removing a ref or worktree:
 
-1. confirm that it is not one of the ten active permanent branches or the
-   frozen `android-vr-quest` archive;
+1. confirm that it is not one of the nine active permanent branches or the
+   frozen `android-vr-quest` and `apple-macos` archives;
 2. confirm that no open pull request uses it;
 3. inspect the worktree with `git status --short`;
 4. compare its unique commits with the intended permanent target;
@@ -37,7 +37,6 @@ Do not use an upstream ref as a cleanup target or source.
 - `android-vr-pico`
 - `apple-main`
 - `apple-ios`
-- `apple-macos`
 - `linux-main`
 - `windows-main`
 
@@ -46,14 +45,17 @@ Do not use an upstream ref as a cleanup target or source.
 - `android-vr-quest`, preserved at archival tag
   `archive/android-vr-quest-2026-08-28`; do not synchronize, update, or delete
   it.
+- `apple-macos`, preserved at archival tag
+  `archive/apple-macos-2026-08-28`; do not synchronize, update, or delete it.
 
 ## Existing work to close or pause
 
 - [ ] `fix/ios/ipad-fast-dev-texture-reuse`: finish or deliberately stop the
   existing iPad checkpoint, then pause iOS expansion until `PICO-P1` and
   `PHONE-P1` are complete.
-- [ ] `test/macos/qemu-low-power-diagnostic`: resolve pull request #176, then
-  return macOS to `LATER`.
+- [x] `test/macos/qemu-low-power-diagnostic`: pull request #176 closed without
+  merging and its unique commit preserved at archival tag
+  `archive/macos-qemu-low-power-pr176-2026-08-28`.
 
 These are existing work boundaries, not permission to start another product
 track. `PICO-P1` remains the first product milestone after R0.
@@ -119,15 +121,15 @@ one verified branch/worktree pair at a time.
   topology checks are complete.
 - **Review:** device-stability, emulator-testing, interface-test, iOS common,
   Qt 6 Tablet, and universal-touch validation worktrees.
-- **Archive review:** Quest preview worktree; preserve unique evidence, then
-  retire it rather than resuming development.
+- **Archive review:** Quest and macOS worktrees; preserve unique evidence, then
+  retire them rather than resuming development.
 - **Cleanup candidate:** superseded roadmap and completed topic worktrees after
   their unique work and local status have been verified.
 
 ## Exit criteria
 
-- [ ] all ten active permanent branches and the frozen Quest archive remain
-  intact;
+- [ ] all nine active permanent branches and the frozen Quest and macOS
+  archives remain intact;
 - [ ] no more than three topic branches are active;
 - [ ] every remaining topic branch is active, parked, or an explicit backup;
 - [ ] every remaining worktree has a current purpose;
