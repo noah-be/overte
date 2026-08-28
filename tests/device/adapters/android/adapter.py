@@ -50,6 +50,7 @@ PROFILES = {
 ANDROID_DEBUG_PROBE = "files/overte-e2e/overte-probe.json"
 ANDROID_CONTROL_MARKER = "files/overte-e2e/android-control.json"
 ANDROID_CONTROL_COMMAND = "files/overte-e2e/android-control-command.json"
+PICO_ADB_RECONNECT_WAIT_SECONDS = 30
 ANDROID_CONTROL_CONTRACT = {
     "schemaVersion": 1,
     "channel": "android-debug-file-v1",
@@ -336,7 +337,8 @@ class AndroidAdapter:
         # transport at suite boundaries; connected devices still take the
         # immediate path and phone behavior remains unchanged.
         self.adb.require_connected(
-            target, wait_seconds=15 if self.kind == "pico" else 0)
+            target, wait_seconds=(PICO_ADB_RECONNECT_WAIT_SECONDS
+                                  if self.kind == "pico" else 0))
         if not self.eligible(target):
             fail("target does not satisfy this Android adapter profile")
 
@@ -496,7 +498,8 @@ class AndroidAdapter:
 
     def cleanup(self, target: str) -> dict:
         self.adb.require_connected(
-            target, wait_seconds=15 if self.kind == "pico" else 0)
+            target, wait_seconds=(PICO_ADB_RECONNECT_WAIT_SECONDS
+                                  if self.kind == "pico" else 0))
         package = self.profile["package"]
         running = self.adb.process_state(target, package)["running"] is True
         cleanup_error = None
