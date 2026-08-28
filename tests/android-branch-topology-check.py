@@ -13,7 +13,6 @@ PARENTS = {
     "android-phone": "android-main",
     "android-vr": "android-main",
     "android-vr-pico": "android-vr",
-    "android-vr-quest": "android-vr",
 }
 SHARED_PATHS = ("tests/device", "android/common/device_tests")
 
