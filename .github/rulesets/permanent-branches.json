@@ -11,7 +11,6 @@
         "refs/heads/android-phone",
         "refs/heads/android-vr",
         "refs/heads/android-vr-pico",
-        "refs/heads/android-vr-quest",
         "refs/heads/apple-main",
         "refs/heads/apple-ios",
         "refs/heads/apple-macos",

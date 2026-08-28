@@ -97,12 +97,16 @@ unique work before removing anything.
 
 ## PARKED
 
-- **QUEST-Q0 — Meta Quest.** Preserve the product branch and existing preview
-  evidence, but do not resume implementation until a named physical Quest is
-  available. Virtual or simulated testing is not a substitute for this gate.
 - **MAC-P1 — macOS personal alpha.** Preserve the current hosted Intel evidence,
   but do not resume product work until a named physical Mac is available.
   Further virtual/software-renderer testing is not a substitute for this gate.
+
+## ARCHIVED
+
+- **Meta Quest.** Quest is not a development target for this fork. The frozen
+  `android-vr-quest` branch and its hardware-unverified preview evidence are
+  retained for history only. There is no resume milestone or synchronization
+  path from `android-vr`.
 
 ## Portfolio
 
@@ -116,7 +120,7 @@ does not imply that a target is actively being developed.
 | Android phones | NEXT 1 | Emulator-verified and build-ready; device coverage incomplete | `android-phone` | Interface roadmap and status reviewed 2026-08-24 | `PHONE-P1` after Pico |
 | iPhone and iPad | NEXT 2 | Simulator-verified bootstrap; integrated client experimental | `apple-ios` | iPad roadmap and status reviewed 2026-08-24 | `IOS-P1` after Android Phone |
 | macOS | PARKED | Hosted Intel runtime-verified; physical hardware unavailable | `apple-macos` | Interface status reviewed 2026-08-24 | Resume `MAC-P1` with a named physical Mac |
-| Meta Quest | PARKED | Experimental; physical hardware unavailable | `android-vr-quest` | Branch and preview delta reviewed 2026-08-24 | Resume `QUEST-Q0` with a named physical Quest |
+| Meta Quest | ARCHIVED | Historical experimental code; never accepted on physical hardware | frozen `android-vr-quest` | Branch frozen 2026-08-28 | None; not a project target |
 | Linux desktop | OUT OF SCOPE product; E2E MAINTENANCE | Inherited client baseline; dedicated adapter ownership being established | `linux-main` | Desktop E2E migration, 2026-08-28 | Repeatable Linux `e2e-core` target evidence |
 | Windows desktop | OUT OF SCOPE product; E2E MAINTENANCE | Inherited client baseline; dedicated adapter ownership being established | `windows-main` | Desktop E2E migration, 2026-08-28 | Hardware-free adapter contracts, then an interactive target |
 
@@ -149,8 +153,7 @@ Use stable identifiers in roadmaps and pull requests:
 - `PICO-P<n>` and `PHONE-P<n>` for Android personal-alpha milestones;
 - `IOS-P<n>` for iPhone and iPad personal-alpha milestones;
 - `MAC-P<n>` for macOS personal-alpha milestones;
-- `<TARGET>-V<n>` for broader preview milestones; and
-- `QUEST-Q<n>` for Quest incubation milestones.
+- `<TARGET>-V<n>` for broader preview milestones.
 
 Pull requests should name the milestone they advance and the exit criterion
 affected. Completing a task is not sufficient by itself; the resulting evidence
