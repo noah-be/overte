@@ -14,6 +14,11 @@
     var assetResource = null;
     var assetResourceUrl = "";
     var controlledAssetEntity = null;
+    var controlledKey = null;
+    var controlledKeyCommandId = "";
+    // Resolve while the script file is the active execution context. Timer
+    // callbacks do not retain that source context on every script engine.
+    var clientCommandFallbackUrl = String(Script.resolvePath("e2e-client-command.json"));
     var clientCommandRequestPending = false;
     var clientCommandUnavailable = false;
     var lastClientCommandId = "";
@@ -40,7 +45,8 @@
         finished: false,
         finishReason: "none"
     };
-    var fixtureMarkers = ["OVERTE_E2E_FLOOR", "OVERTE_E2E_NORTH", "OVERTE_E2E_EAST", "OVERTE_E2E_ORIGIN"];
+    var fixtureMarkers = ["OVERTE_E2E_COLLISION_WALL", "OVERTE_E2E_EAST",
+        "OVERTE_E2E_FLOOR", "OVERTE_E2E_NORTH", "OVERTE_E2E_ORIGIN"];
     var domainMarkers = ["OVERTE_E2E_DOMAIN_FLOOR", "OVERTE_E2E_DOMAIN_NORTH",
         "OVERTE_E2E_DOMAIN_EAST", "OVERTE_E2E_DOMAIN_ORIGIN"];
     var expectedSpawn = { x: 0.0, y: 2.0, z: 4.0 };
@@ -54,7 +60,7 @@
         var right = Number(Controller.getValue(application.RightHandDominant)) > 0.5;
         var left = Number(Controller.getValue(application.LeftHandDominant)) > 0.5;
         return {
-            dominantHand: right && !left ? "right" : (left && !right ? "left" : "invalid"),
+            dominantHand: right && !left ? "right" : (left && !right ? "left" : "unknown"),
             advancedMovementControls:
                 Number(Controller.getValue(application.AdvancedMovement)) > 0.5
         };
@@ -223,9 +229,146 @@
             && /^https?:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\])(?::[0-9]+)?(?:[/?#]|$)/.test(value);
     }
 
+    function clientCommandEndpoint() {
+        if (httpUrl(clientCommandFallbackUrl)) {
+            return clientCommandFallbackUrl;
+        }
+        var currentAddress = String(location.href);
+        var origin = /^(https?:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\])(?::[0-9]+)?)(?:[/?#]|$)/
+            .exec(currentAddress);
+        return origin ? origin[1] + "/e2e-client-command.json" : "";
+    }
+
+    function controlledSceneLocation(value) {
+        var queryStart = value.indexOf("?");
+        if (queryStart === -1) {
+            return "";
+        }
+        var fragmentStart = value.indexOf("#", queryStart);
+        var query = value.slice(queryStart + 1,
+            fragmentStart === -1 ? value.length : fragmentStart);
+        var parts = query.split("&");
+        var index;
+        for (index = 0; index < parts.length; index += 1) {
+            var separator = parts[index].indexOf("=");
+            if (separator === -1) {
+                continue;
+            }
+            var name;
+            var path;
+            try {
+                name = decodeURIComponent(parts[index].slice(0, separator).replace(/\+/g, "%20"));
+                path = decodeURIComponent(parts[index].slice(separator + 1).replace(/\+/g, "%20"));
+            } catch (error) {
+                return "";
+            }
+            if (name !== "location") {
+                continue;
+            }
+            var sections = path.split("/");
+            if (sections.length !== 3 || sections[0] !== "") {
+                return "";
+            }
+            var position = sections[1].split(",");
+            var orientation = sections[2].split(",");
+            if (position.length !== 3 || orientation.length !== 4) {
+                return "";
+            }
+            var components = position.concat(orientation);
+            var component;
+            for (component = 0; component < components.length; component += 1) {
+                if (!/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/.test(components[component])
+                        || !isFinite(Number(components[component]))
+                        || Math.abs(Number(components[component])) > (component < 3 ? 100000 : 1.01)) {
+                    return "";
+                }
+            }
+            return path;
+        }
+        return "";
+    }
+
+    function resetSceneObservation() {
+        stableEntitySamples = 0;
+        previousEntityCount = -1;
+        stableAvatarSamples = 0;
+        previousAvatarPosition = null;
+        sceneReady = false;
+    }
+
+    function applySceneLocation(commandId, scenePath) {
+        if (scenePath !== "" && lastClientCommandId === commandId && !sceneReady) {
+            // The serverless scene may reset the avatar after the initial URL
+            // lookup. Reapply its bounded viewpoint only after loading settles.
+            Window.location = scenePath;
+        }
+    }
+
+    function controlledKeySpec(name) {
+        var keys = {
+            backward: { key: 83, text: "s" },
+            down: { key: 67, text: "c" },
+            forward: { key: 87, text: "w" },
+            jump: { key: 32, text: " " },
+            left: { key: 65, text: "a" },
+            right: { key: 68, text: "d" },
+            tablet: { key: 16777217, text: "\t" }
+        };
+        return Object.prototype.hasOwnProperty.call(keys, name) ? keys[name] : null;
+    }
+
+    function releaseControlledKey(commandId) {
+        if (controlledKey !== null && controlledKeyCommandId === commandId) {
+            Keyboard.emitKeyEvent(controlledKey, false);
+            controlledKey = null;
+            controlledKeyCommandId = "";
+        }
+    }
+
+    function applyControlledKey(command) {
+        var key = controlledKeySpec(command.key);
+        var durationMs = Number(command.durationMs);
+        if (key === null || typeof command.durationMs !== "number"
+                || !isFinite(durationMs) || Math.floor(durationMs) !== durationMs
+                || durationMs < 50 || durationMs > 10000) {
+            return false;
+        }
+        releaseControlledKey(controlledKeyCommandId);
+        controlledKey = key;
+        controlledKeyCommandId = String(command.commandId);
+        Keyboard.emitKeyEvent(controlledKey, true);
+        Script.setTimeout(function () {
+            releaseControlledKey(String(command.commandId));
+        }, durationMs);
+        return true;
+    }
+
     function applyClientCommand(command) {
         if (!command || command.schemaVersion !== 1 || !command.commandId
                 || command.commandId === lastClientCommandId) {
+            return;
+        }
+        if (command.action === "key-hold"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action",
+                    "key", "durationMs"])
+                && applyControlledKey(command)) {
+            lastClientCommandId = String(command.commandId);
+            return;
+        }
+        if (command.action === "scene-load"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "url"])
+                && httpUrl(command.url)) {
+            var sceneCommandId = String(command.commandId);
+            var scenePath = controlledSceneLocation(command.url);
+            lastClientCommandId = sceneCommandId;
+            resetSceneObservation();
+            Window.location = command.url;
+            Script.setTimeout(function () {
+                applySceneLocation(sceneCommandId, scenePath);
+            }, 1500);
+            Script.setTimeout(function () {
+                applySceneLocation(sceneCommandId, scenePath);
+            }, 3500);
             return;
         }
         if (command.action === "navigate"
@@ -271,6 +414,10 @@
         if (clientCommandUnavailable || clientCommandRequestPending) {
             return;
         }
+        var commandUrl = clientCommandEndpoint();
+        if (commandUrl === "") {
+            return;
+        }
         clientCommandRequestPending = true;
         var request = new XMLHttpRequest();
         request.onreadystatechange = function () {
@@ -292,7 +439,7 @@
                 clientCommandUnavailable = true;
             }
         };
-        request.open("GET", Script.resolvePath("e2e-client-command.json"));
+        request.open("GET", commandUrl);
         request.send();
     }
 
@@ -337,6 +484,7 @@
         var foundMarkers = {};
         var foundDomainMarkers = {};
         var floorTopY = null;
+        var collisionWall = null;
         var index;
         for (index = 0; index < ids.length; index += 1) {
             var properties = Entities.getEntityProperties(ids[index], ["name", "position", "dimensions"]);
@@ -349,6 +497,13 @@
             if (properties.name === "OVERTE_E2E_FLOOR") {
                 floorTopY = Number(properties.position.y) + Number(properties.dimensions.y) / 2.0;
             }
+            if (properties.name === "OVERTE_E2E_COLLISION_WALL") {
+                collisionWall = {
+                    name: String(properties.name),
+                    center: vector(properties.position),
+                    dimensions: vector(properties.dimensions)
+                };
+            }
         }
         if (ids.length === previousEntityCount) {
             stableEntitySamples += 1;
@@ -357,6 +512,7 @@
             previousEntityCount = ids.length;
         }
         var markerCount = Object.keys(foundMarkers).length;
+        var foundFixtureMarkers = Object.keys(foundMarkers).sort();
         var domainMarkerCount = Object.keys(foundDomainMarkers).length;
         var avatarPosition = vector(MyAvatar.position);
         var spawnDeltaX = avatarPosition.x - expectedSpawn.x;
@@ -387,7 +543,7 @@
         }
         sampleSequence += 1;
         Test.saveObject({
-            schemaVersion: 1,
+            schemaVersion: 2,
             sampleEpochMs: Date.now(),
             sampleSequence: sampleSequence,
             build: {
@@ -412,15 +568,18 @@
                 ready: sceneReady,
                 entityCount: ids.length,
                 fixtureMarkerCount: markerCount,
+                fixtureMarkers: foundFixtureMarkers,
                 domainMarkerCount: domainMarkerCount,
                 domainMarkers: Object.keys(foundDomainMarkers).sort(),
                 floorTopY: floorTopY,
                 avatarAboveFloor: avatarAboveFloor,
                 spawnLocationObserved: avatarAtSpawn,
-                spawnValidated: sceneReady
+                spawnValidated: sceneReady,
+                collisionWall: collisionWall
             },
             avatar: {
                 position: avatarPosition,
+                velocity: vector(MyAvatar.velocity),
                 bodyYawDegrees: Number(MyAvatar.bodyYaw),
                 inAir: Boolean(MyAvatar.isInAir()),
                 flying: Boolean(MyAvatar.isFlying()),
@@ -454,6 +613,7 @@
     var timer = Script.setInterval(sample, 250);
     Script.scriptEnding.connect(function () {
         Script.clearInterval(timer);
+        releaseControlledKey(controlledKeyCommandId);
         releaseAssetResource();
         if (controlledAssetEntity !== null) {
             Entities.deleteEntity(controlledAssetEntity);
