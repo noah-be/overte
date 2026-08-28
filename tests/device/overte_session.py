@@ -423,14 +423,37 @@ class OverteSession:
             fail("look direction is unsupported")
         horizontal, vertical, axis, sign = self.LOOK_INPUTS[direction]
         before = self.input_neutral_snapshot(f"look-{direction}-before.json")
-        self._invoke("input.look", {"horizontal": horizontal, "vertical": vertical})
+        command = self._invoke(
+            "input.look", {"horizontal": horizontal, "vertical": vertical})
+        write_json(f"look-{direction}-command.json", command)
         minimum = self._float_environment(
             "OVERTE_E2E_MIN_LOOK_DEGREES", 5.0, 0.1, 90.0)
-        after = self.wait_until(
-            f"view orientation to turn {direction} by at least {minimum} degrees",
-            lambda value: sign * self._signed_angle_delta(
-                before["view"]["orientation"], value["view"]["orientation"], axis) >= minimum,
-        )
+        observations = {
+            "axis": axis,
+            "direction": direction,
+            "maximumDirectedDeltaDegrees": float("-inf"),
+            "minimumDirectedDeltaDegrees": float("inf"),
+            "samples": 0,
+        }
+
+        def turned(value: dict) -> bool:
+            directed_delta = sign * self._signed_angle_delta(
+                before["view"]["orientation"], value["view"]["orientation"], axis)
+            observations["maximumDirectedDeltaDegrees"] = max(
+                observations["maximumDirectedDeltaDegrees"], directed_delta)
+            observations["minimumDirectedDeltaDegrees"] = min(
+                observations["minimumDirectedDeltaDegrees"], directed_delta)
+            observations["samples"] += 1
+            return directed_delta >= minimum
+
+        try:
+            after = self.wait_until(
+                f"view orientation to turn {direction} by at least {minimum} degrees",
+                turned,
+            )
+        finally:
+            if observations["samples"]:
+                write_json(f"look-{direction}-observations.json", observations)
         write_json(f"look-{direction}-after.json", after)
         neutral = self.input_neutral_snapshot(f"look-{direction}-neutral.json")
         return before, after, neutral

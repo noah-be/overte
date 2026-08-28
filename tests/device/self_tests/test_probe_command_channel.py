@@ -63,7 +63,13 @@ class ProbeCommandChannelTest(unittest.TestCase):
             self.assertIn(f"command.action === {action}", self.source)
         self.assertIn('command.action === "reload-scene"', self.source)
         self.assertIn("Window.location = baseAddress", self.source)
-        self.assertIn('baseAddress + "#overte-e2e-reload-"', self.source)
+        self.assertIn('"overteE2EReloadCommandId="', self.source)
+        self.assertIn(
+            "lastAndroidControlCommandId = reloadCommandIdFromAddress(location.href)",
+            self.source,
+        )
+        self.assertIn("connected: !serverless && Boolean(location.isConnected)",
+                      self.source)
         self.assertIn("Window.location = command.url", self.source)
         self.assertNotIn("controlledSceneLocation(command.url)", self.source)
         self.assertNotIn("Window.location = scenePath", self.source)

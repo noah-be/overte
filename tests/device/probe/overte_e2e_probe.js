@@ -4,6 +4,38 @@
 (function () {
     "use strict";
 
+    function reloadCommandIdFromAddress(address) {
+        var match = String(address).match(
+            /[?&]overteE2EReloadCommandId=([^&#]*)/);
+        if (!match) {
+            return "";
+        }
+        try {
+            return decodeURIComponent(match[1]);
+        } catch (error) {
+            return "";
+        }
+    }
+
+    function addressWithoutReloadCommand(address) {
+        var withoutFragment = String(address).split("#", 1)[0];
+        var queryStart = withoutFragment.indexOf("?");
+        if (queryStart === -1) {
+            return withoutFragment;
+        }
+        var path = withoutFragment.slice(0, queryStart);
+        var components = withoutFragment.slice(queryStart + 1).split("&");
+        var retained = [];
+        var index;
+        for (index = 0; index < components.length; index += 1) {
+            if (components[index]
+                    && components[index].indexOf("overteE2EReloadCommandId=") !== 0) {
+                retained.push(components[index]);
+            }
+        }
+        return path + (retained.length ? "?" + retained.join("&") : "");
+    }
+
     var tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
     var stableEntitySamples = 0;
     var previousEntityCount = -1;
@@ -19,7 +51,10 @@
     var heartbeatIntervalMs = 5000;
     var previousLocationKey = "";
     var androidControlAvailable = false;
-    var lastAndroidControlCommandId = "";
+    // A world reload restarts this test script. Recover the acknowledged
+    // one-shot command from the address so the retained private command file
+    // cannot trigger a reload loop in the new script instance.
+    var lastAndroidControlCommandId = reloadCommandIdFromAddress(location.href);
     var androidAssetEntityId = null;
     var flightNormalizationAllowed = true;
     var flightNormalizationActive = false;
@@ -351,12 +386,10 @@
     }
 
     function reloadControlledScene(commandId) {
-        var currentAddress = String(location.href);
-        var fragmentStart = currentAddress.indexOf("#");
-        var baseAddress = fragmentStart === -1
-            ? currentAddress : currentAddress.slice(0, fragmentStart);
+        var baseAddress = addressWithoutReloadCommand(location.href);
+        var separator = baseAddress.indexOf("?") === -1 ? "?" : "&";
         resetSceneObservation();
-        Window.location = baseAddress + "#overte-e2e-reload-"
+        Window.location = baseAddress + separator + "overteE2EReloadCommandId="
             + encodeURIComponent(String(commandId));
     }
 
@@ -728,6 +761,8 @@
             }
         }
         sampleSequence += 1;
+        var locationProtocol = String(location.protocol);
+        var serverless = locationProtocol === "file";
         Test.saveObject({
             schemaVersion: 2,
             sampleEpochMs: now,
@@ -748,11 +783,11 @@
                 lastCommandId: lastAndroidControlCommandId
             } : null,
             domain: {
-                connected: Boolean(location.isConnected),
+                connected: !serverless && Boolean(location.isConnected),
                 hostname: String(location.hostname),
                 id: String(location.domainID),
-                protocol: String(location.protocol),
-                serverless: String(location.protocol) === "file"
+                protocol: locationProtocol,
+                serverless: serverless
             },
             input: effectiveInputState(),
             scene: {
