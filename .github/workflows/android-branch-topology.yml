@@ -6,7 +6,6 @@ on:
       - android-phone
       - android-vr
       - android-vr-pico
-      - android-vr-quest
 
 permissions:
   contents: read
@@ -24,7 +23,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$TARGET_BRANCH" in
-            android-phone|android-vr|android-vr-pico|android-vr-quest) ;;
+            android-phone|android-vr|android-vr-pico) ;;
             *) echo "Unsupported Android target: $TARGET_BRANCH" >&2; exit 2 ;;
           esac
 
