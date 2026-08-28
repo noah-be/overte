@@ -62,6 +62,7 @@ public final class PhoneInterfaceActivity extends QtActivity
             boolean hardwareKeyboardSupported,
             boolean hapticsSupported);
     private static native boolean nativeSetE2eFlyingOverride(int mode);
+    private static native boolean nativeSetForegroundState(boolean foreground);
     private static final long URL_RETRY_DELAY_MS = 100;
     private static final int MAX_URL_RETRY_ATTEMPTS = 300;
     private static final long METRICS_RETRY_DELAY_MS = 100;
@@ -113,6 +114,15 @@ public final class PhoneInterfaceActivity extends QtActivity
             return nativeHandleBack();
         } catch (UnsatisfiedLinkError error) {
             return false;
+        }
+    }
+
+    private void publishNativeForegroundState(boolean foreground) {
+        try {
+            nativeSetForegroundState(foreground);
+        } catch (UnsatisfiedLinkError error) {
+            // Qt can still be loading while Android delivers early lifecycle
+            // callbacks. The next callback will publish the current state.
         }
     }
 
@@ -198,6 +208,7 @@ public final class PhoneInterfaceActivity extends QtActivity
     protected void onResume() {
         super.onResume();
         resumed = true;
+        publishNativeForegroundState(true);
         registerInputDeviceListener();
         applyPhoneWindowBounds();
         captureTouchUiMetrics();
@@ -217,6 +228,7 @@ public final class PhoneInterfaceActivity extends QtActivity
         mainHandler.removeCallbacks(drainTouchUiMetricsTask);
         mainHandler.removeCallbacks(drainE2eFlyingOverrideTask);
         unregisterInputDeviceListener();
+        publishNativeForegroundState(false);
         super.onPause();
     }
 

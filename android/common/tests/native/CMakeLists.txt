@@ -107,6 +107,10 @@ add_overte_native_test(
     "${CMAKE_CURRENT_LIST_DIR}/phone_pending_handoff_move_test.cpp")
 
 add_overte_native_test(
+    phone_lifecycle_handoff
+    "${CMAKE_CURRENT_LIST_DIR}/phone_lifecycle_handoff_test.cpp")
+
+add_overte_native_test(
     phone_touch_ui_metrics
     "${CMAKE_CURRENT_LIST_DIR}/phone_touch_ui_metrics_test.cpp")
 

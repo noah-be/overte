@@ -7,6 +7,8 @@ readonly repo_root="$(cd -- "$script_dir/../../.." && pwd)"
 readonly events="$repo_root/interface/src/Application_Events.cpp"
 readonly activity="$repo_root/android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java"
 readonly address_dialog="$repo_root/interface/resources/qml/+android_phoneInterface/AddressBarDialog.qml"
+readonly audio_client="$repo_root/libraries/audio-client/src/AudioClient.cpp"
+readonly audio_client_header="$repo_root/libraries/audio-client/src/AudioClient.h"
 
 require() {
     local file="$1" pattern="$2" description="$3"
@@ -31,17 +33,75 @@ else
 fi
 
 if awk '
+        /protected void onResume\(\)/ { in_resume = 1 }
+        in_resume && /super[.]onResume\(\)/ { parent = NR }
+        in_resume && /resumed = true;/ { resumed = NR }
+        in_resume && /publishNativeForegroundState\(true\)/ { foreground = NR; exit }
+        END { exit !(parent && resumed && foreground &&
+                     parent < resumed && resumed < foreground) }
+    ' "$activity"; then
+    printf 'PASS: Activity resume publishes foreground state after parent startup\n'
+else
+    printf 'FAIL: Activity resume does not safely publish native foreground state\n' >&2
+    exit 1
+fi
+
+if awk '
         /protected void onPause\(\)/ { in_pause = 1 }
         in_pause && /resumed = false;/ { paused = NR }
         in_pause && /nativeBackConsumed = false;/ { cleared = NR }
         in_pause && /removeCallbacks\(drainPendingUrlTask\)/ { callbacks = NR }
+        in_pause && /publishNativeForegroundState\(false\)/ { background = NR }
         in_pause && /super[.]onPause\(\)/ { parent = NR; exit }
-        END { exit !(paused && cleared && callbacks && parent &&
-                     paused < cleared && cleared < callbacks && callbacks < parent) }
+        END { exit !(paused && cleared && callbacks && background && parent &&
+                     paused < cleared && cleared < callbacks &&
+                     callbacks < background && background < parent) }
     ' "$activity"; then
-    printf 'PASS: Activity pause clears transient Back state before parent teardown\n'
+    printf 'PASS: Activity pause clears transient state and publishes native background state\n'
 else
-    printf 'FAIL: Activity pause does not safely clear transient Back state\n' >&2
+    printf 'FAIL: Activity pause does not safely publish native background state\n' >&2
+    exit 1
+fi
+
+require "$activity" 'private static native boolean nativeSetForegroundState\(boolean foreground\)' \
+    'Activity declares the native lifecycle bridge'
+require "$activity" 'private void publishNativeForegroundState\(boolean foreground\)' \
+    'Activity centralizes native lifecycle publication'
+require "$audio_client_header" 'bool _audioLifecycleRunning \{ false \};' \
+    'audio client retains an explicit lifecycle state'
+
+if awk '
+        /void AudioClient::start\(\)/ { in_start = 1 }
+        in_start && /if \(_audioLifecycleRunning\)/ { duplicate = NR }
+        in_start && /_audioLifecycleRunning = true;/ { running = NR }
+        in_start && /_checkDevicesTimer->start\(DEVICE_CHECK_INTERVAL_MSECS\)/ { devices = NR }
+        in_start && /_checkPeakValuesTimer->start\(PEAK_VALUES_CHECK_INTERVAL_MSECS\)/ { peaks = NR }
+        /void AudioClient::stop\(\)/ { exit }
+        END { exit !(duplicate && running && devices && peaks &&
+                     duplicate < running && running < devices && devices < peaks) }
+    ' "$audio_client"; then
+    printf 'PASS: audio foreground entry is idempotent and restarts monitoring\n'
+else
+    printf 'FAIL: audio foreground entry can duplicate or omit monitoring\n' >&2
+    exit 1
+fi
+
+if awk '
+        /void AudioClient::stop\(\)/ { in_stop = 1 }
+        in_stop && /if \(!_audioLifecycleRunning\)/ { duplicate = NR }
+        in_stop && /_audioLifecycleRunning = false;/ { stopped = NR }
+        in_stop && /if \(_checkDevicesTimer\)/ { devices = NR }
+        in_stop && /_checkDevicesTimer->stop\(\)/ { devices_stop = NR }
+        in_stop && /if \(_checkPeakValuesTimer\)/ { peaks = NR }
+        in_stop && /_checkPeakValuesTimer->stop\(\)/ { peaks_stop = NR }
+        /void AudioClient::handleAudioEnvironmentDataPacket/ { exit }
+        END { exit !(duplicate && stopped && devices && devices_stop && peaks && peaks_stop &&
+                     duplicate < stopped && stopped < devices && devices < devices_stop &&
+                     devices_stop < peaks && peaks < peaks_stop) }
+    ' "$audio_client"; then
+    printf 'PASS: audio background entry is idempotent and guards monitoring timers\n'
+else
+    printf 'FAIL: repeated audio background entry can dereference a stale timer\n' >&2
     exit 1
 fi
 
