@@ -17,7 +17,7 @@
 
 Before removing a ref or worktree:
 
-1. confirm that it is not one of the nine permanent branches;
+1. confirm that it is not one of the eleven permanent branches;
 2. confirm that no open pull request uses it;
 3. inspect the worktree with `git status --short`;
 4. compare its unique commits with the intended permanent target;
@@ -38,6 +38,8 @@ Do not use an upstream ref as a cleanup target or source.
 - `apple-main`
 - `apple-ios`
 - `apple-macos`
+- `linux-main`
+- `windows-main`
 
 ## Existing work to close or pause
 
@@ -117,7 +119,7 @@ one verified branch/worktree pair at a time.
 
 ## Exit criteria
 
-- [ ] all nine permanent branches remain intact;
+- [ ] all eleven permanent branches remain intact;
 - [ ] no more than three topic branches are active;
 - [ ] every remaining topic branch is active, parked, or an explicit backup;
 - [ ] every remaining worktree has a current purpose;

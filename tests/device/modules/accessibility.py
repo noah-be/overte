@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 from module_support import (
     InfrastructureError,
     assert_process,
+    contract_operation,
     fail,
     module_main,
     operation,
@@ -50,7 +51,7 @@ def main() -> None:
     if open_identifier == close_identifier:
         raise InfrastructureError("tablet open and close accessibility identifiers must differ")
 
-    operation("app.launch")
+    contract_operation("app.launch")
     session = OverteSession()
     session.ensure_controlled_scene()
     identity = process_identity()
