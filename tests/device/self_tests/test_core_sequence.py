@@ -18,23 +18,13 @@ if str(DEVICE_ROOT) not in sys.path:
     sys.path.insert(0, str(DEVICE_ROOT))
 
 from contracts import validate_probe_snapshot  # noqa: E402
+from test_vertical_locomotion import snapshot as probe_snapshot  # noqa: E402
 
 
 class CoreSequenceTest(unittest.TestCase):
     @staticmethod
     def snapshot() -> dict:
-        return {
-            "schemaVersion": 1, "sampleEpochMs": 1,
-            "build": {"platform": "Mock", "version": "1", "date": "1970-01-01"},
-            "application": {"running": True},
-            "scene": {"ready": True, "entityCount": 4},
-            "avatar": {
-                "position": {"x": 0, "y": 1, "z": 4},
-                "inAir": False, "flying": False, "flyingEnabled": True,
-            },
-            "view": {"orientation": {"x": 0, "y": 0, "z": 0}},
-            "tablet": {"open": False},
-        }
+        return probe_snapshot()
 
     def test_probe_contract_validates_connected_domain_identity_and_markers(self):
         snapshot = self.snapshot()
@@ -69,7 +59,7 @@ class CoreSequenceTest(unittest.TestCase):
         self.assertNotIn("MyAvatar.velocity =", probe)
         self.assertIn("spawnLocationObserved: avatarAtSpawn", probe)
 
-    def test_complete_core_suite_reuses_one_launch_and_one_scene(self):
+    def test_complete_core_suite_reuses_one_app_session(self):
         with tempfile.TemporaryDirectory(prefix="overte-e2e-core-") as temporary:
             root = Path(temporary)
             output = root / "results"
@@ -100,16 +90,50 @@ class CoreSequenceTest(unittest.TestCase):
             summary = json.loads((output / "summary.json").read_text(encoding="utf-8"))
             self.assertEqual("passed", summary["status"])
             self.assertEqual(
-                ["launch-smoke", "scene", "look", "move", "tablet"],
+                ["launch-smoke", "scene", "spawn-grounded", "look", "move",
+                 "input-neutral", "collision", "jump", "fly", "tablet",
+                 "tablet-input-isolation", "scene-reload"],
                 [entry["id"] for entry in summary["results"]],
             )
             state = json.loads((root / "state.json").read_text(encoding="utf-8"))
             self.assertEqual(1, state["launchCount"])
-            self.assertEqual(1, state["sceneLoadCount"])
+            self.assertEqual(3, state["sceneLoadCount"])
             junit = ET.parse(output / "junit.xml").getroot()
-            self.assertEqual("5", junit.attrib["tests"])
+            self.assertEqual("12", junit.attrib["tests"])
             self.assertEqual("0", junit.attrib["failures"])
             self.assertEqual("0", junit.attrib["errors"])
+
+    def test_recovery_suite_reloads_scene_and_restarts_with_new_identity(self):
+        with tempfile.TemporaryDirectory(prefix="overte-e2e-recovery-") as temporary:
+            root = Path(temporary)
+            output = root / "results"
+            environment = os.environ.copy()
+            environment.update({
+                "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+                "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
+                "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",
+                "OVERTE_E2E_POLL_SECONDS": "0.05",
+            })
+            result = subprocess.run([
+                sys.executable, str(DEVICE_ROOT / "run.py"),
+                "--adapter-manifest", str(DEVICE_ROOT / "adapters/mock/adapter.json"),
+                "--catalog", str(DEVICE_ROOT / "catalog.json"),
+                "--suite", "e2e-recovery", "--allow-virtual", "--require-complete",
+                "--output-dir", str(output),
+            ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+               env=environment, check=False)
+            self.assertEqual(0, result.returncode, result.stdout)
+            summary = json.loads((output / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(
+                ["launch-smoke", "scene-reload", "app-restart"],
+                [entry["id"] for entry in summary["results"]],
+            )
+            restart = json.loads(
+                (output / "modules/app-restart/restart.json").read_text(encoding="utf-8"))
+            self.assertNotEqual(restart["beforeIdentity"], restart["afterIdentity"])
+            state = json.loads((root / "state.json").read_text(encoding="utf-8"))
+            self.assertEqual(2, state["launchCount"])
+            self.assertEqual(2, state["sceneLoadCount"])
 
     def test_domain_smoke_enters_controlled_domain_without_process_restart(self):
         with tempfile.TemporaryDirectory(prefix="overte-domain-e2e-core-") as temporary:

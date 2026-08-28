@@ -10,6 +10,7 @@ import subprocess
 import sys
 
 from adapter_client import load_command
+from contracts import validate_capabilities
 
 
 def call(command: list[str], *arguments: str) -> object:
@@ -46,6 +47,7 @@ def validate_target(target: object, selectors: set[str]) -> dict:
         raise ValueError("target capabilities must be unique non-empty strings")
     if capabilities != sorted(capabilities):
         raise ValueError("target capabilities must use deterministic sorted order")
+    validate_capabilities(capabilities)
     return target
 
 
@@ -92,4 +94,3 @@ if __name__ == "__main__":
     except (OSError, ValueError, json.JSONDecodeError, subprocess.TimeoutExpired) as error:
         print(f"error: {error}", file=sys.stderr)
         raise SystemExit(2)
-
