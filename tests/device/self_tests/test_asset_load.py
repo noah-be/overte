@@ -21,6 +21,7 @@ DEVICE_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(DEVICE_ROOT))
 
 from contracts import validate_operation_arguments, validate_probe_snapshot  # noqa: E402
+from test_vertical_locomotion import snapshot as probe_snapshot  # noqa: E402
 
 
 class AssetLoadTest(unittest.TestCase):
@@ -152,12 +153,12 @@ class AssetLoadTest(unittest.TestCase):
         finally:
             temporary.cleanup()
 
-    def assert_asset_failure(self, flag: str, expected: str) -> None:
+    def assert_asset_failure(self, flag: str, expected: str, status: str = "failed") -> None:
         temporary, root, result = self.run_asset_suite(flag)
         try:
             self.assertEqual(1, result.returncode, result.stdout)
             summary = json.loads((root / "results/summary.json").read_text())
-            self.assertEqual(["passed", "failed"],
+            self.assertEqual(["passed", status],
                              [entry["status"] for entry in summary["results"]])
             log = (root / "results/modules/asset-load/module.log").read_text()
             self.assertIn(expected, log)
@@ -179,7 +180,7 @@ class AssetLoadTest(unittest.TestCase):
 
     def test_incomplete_probe_asset_data_is_rejected(self):
         self.assert_asset_failure(
-            "OVERTE_MOCK_ASSET_INCOMPLETE_PROBE", "requires entity evidence")
+            "OVERTE_MOCK_ASSET_INCOMPLETE_PROBE", "requires entity evidence", "error")
 
     def test_process_restart_during_asset_load_is_rejected(self):
         self.assert_asset_failure("OVERTE_MOCK_ASSET_RESTART", "process restarted")
@@ -189,19 +190,8 @@ class AssetLoadTest(unittest.TestCase):
             "OVERTE_MOCK_ASSET_NEVER_FINISH", "timed out waiting for the controlled asset")
 
     def test_probe_contract_rejects_incomplete_and_inconsistent_asset_evidence(self):
-        snapshot = {
-            "schemaVersion": 1, "sampleEpochMs": 1,
-            "build": {"platform": "Mock", "version": "1", "date": "1970-01-01"},
-            "application": {"running": True},
-            "scene": {"ready": True, "entityCount": 1},
-            "avatar": {
-                "position": {"x": 0, "y": 1, "z": 0},
-                "inAir": False, "flying": False, "flyingEnabled": True,
-            },
-            "view": {"orientation": {"x": 0, "y": 0, "z": 0}},
-            "tablet": {"open": False},
-            "asset": {"assetId": "texture-rgb-3x1-v1"},
-        }
+        snapshot = probe_snapshot()
+        snapshot["asset"] = {"assetId": "texture-rgb-3x1-v1"}
         with self.assertRaisesRegex(ValueError, "resource evidence"):
             validate_probe_snapshot(snapshot)
         snapshot["asset"] = {

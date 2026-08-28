@@ -21,6 +21,10 @@
       "operation": "app.process",
       "result": "{running: boolean, identity: string|null}"
     },
+    "app.stop": {
+      "operation": "app.stop",
+      "result": "{stopped: true}; arguments: {}"
+    },
     "artifact.screenshot": {
       "operation": "artifact.screenshot",
       "result": "{artifact: string}"
@@ -39,11 +43,11 @@
     },
     "input.look": {
       "operation": "input.look",
-      "result": "{performed: true}"
+      "result": "{performed: true}; arguments: {horizontal: number from -1.0 through 1.0, vertical: number from -1.0 through 1.0}; positive means right/up"
     },
     "input.move": {
       "operation": "input.move",
-      "result": "{performed: true}"
+      "result": "{performed: true}; arguments: {direction: backward|forward|left|right, durationSeconds: number from 0.1 through 10.0}"
     },
     "lifecycle.background": {
       "operation": "lifecycle.background",
@@ -55,11 +59,11 @@
     },
     "probe.snapshot": {
       "operation": "probe.snapshot",
-      "result": "Overte probe snapshot schema version 1"
+      "result": "Overte probe snapshot schema version 2; arguments: {afterSampleSequence?: positive integer}; result sequence must be greater when supplied"
     },
     "scene.load": {
       "operation": "scene.load",
-      "result": "{requested: true, verification?: fixture-markers}"
+      "result": "{requested: true, verification?: fixture-markers}; arguments: {url: absolute URL}"
     },
     "sound.play": {
       "operation": "sound.play",
