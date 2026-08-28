@@ -16,7 +16,7 @@
     var controlledAssetEntity = null;
     // Resolve while the script file is the active execution context. Timer
     // callbacks do not retain that source context on every script engine.
-    var clientCommandUrl = Script.resolvePath("e2e-client-command.json");
+    var clientCommandFallbackUrl = String(Script.resolvePath("e2e-client-command.json"));
     var clientCommandRequestPending = false;
     var clientCommandUnavailable = false;
     var lastClientCommandId = "";
@@ -227,6 +227,16 @@
             && /^https?:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\])(?::[0-9]+)?(?:[/?#]|$)/.test(value);
     }
 
+    function clientCommandEndpoint() {
+        if (httpUrl(clientCommandFallbackUrl)) {
+            return clientCommandFallbackUrl;
+        }
+        var currentAddress = String(location.href);
+        var origin = /^(https?:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\])(?::[0-9]+)?)(?:[/?#]|$)/
+            .exec(currentAddress);
+        return origin ? origin[1] + "/e2e-client-command.json" : "";
+    }
+
     function controlledSceneLocation(value) {
         var queryStart = value.indexOf("?");
         if (queryStart === -1) {
@@ -356,6 +366,10 @@
         if (clientCommandUnavailable || clientCommandRequestPending) {
             return;
         }
+        var commandUrl = clientCommandEndpoint();
+        if (commandUrl === "") {
+            return;
+        }
         clientCommandRequestPending = true;
         var request = new XMLHttpRequest();
         request.onreadystatechange = function () {
@@ -377,7 +391,7 @@
                 clientCommandUnavailable = true;
             }
         };
-        request.open("GET", clientCommandUrl);
+        request.open("GET", commandUrl);
         request.send();
     }
 
