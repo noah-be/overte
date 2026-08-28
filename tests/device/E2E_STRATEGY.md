@@ -7,7 +7,7 @@ operations per target. The initial behavior contract is deliberately small:
 
 1. start Overte once;
 2. load a controlled local scene;
-3. observe a valid spawn above the ground;
+3. observe a valid grounded spawn on the controlled floor;
 4. perform look input and observe an orientation change;
 5. perform movement input and observe an avatar-position change;
 6. open the system tablet and observe its state;
@@ -102,8 +102,8 @@ resource.
 - Look: the camera's observed Euler-angle delta crosses a configurable minimum.
 - Move: the avatar baseline is stable before input, then displacement crosses a
   configurable minimum in the controlled collision scene.
-- Spawn: the avatar position is finite and above the fixture ground within the
-  declared tolerance.
+- Spawn: the avatar feet position is finite and on the fixture floor within the
+  declared tolerance, with both `inAir=false` and `flying=false`.
 - Jump: a stable grounded baseline precedes exactly one `input.jump`; the probe
   then observes configurable height gain with `inAir=true` and `flying=false`,
   followed by `inAir=false` near the baseline height.

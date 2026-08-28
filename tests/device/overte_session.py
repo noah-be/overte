@@ -101,11 +101,14 @@ class OverteSession:
             fail("Pico fixture floor top is not y=0")
         if scene.get("spawnValidated") is not True:
             fail("Pico fixture spawn was not validated")
-        expected = {"x": 0.0, "y": 2.0, "z": 4.0}
+        expected = {"x": 0.0, "y": 0.0, "z": 4.0}
         spawn_tolerance = self._float_environment(
             "OVERTE_E2E_SPAWN_TOLERANCE_METERS", 0.75, 0.05, 5.0)
         if self._distance(feet_position, expected) > spawn_tolerance:
             fail("Pico avatar did not stabilize near the fixture spawn")
+        if initial["avatar"].get("inAir") is not False \
+                or initial["avatar"].get("flying") is not False:
+            fail("Pico avatar did not start grounded at the fixture spawn")
 
         tolerance = self._float_environment(
             "OVERTE_E2E_MAX_BASELINE_DRIFT_METERS", 0.03, 0.001, 1.0)

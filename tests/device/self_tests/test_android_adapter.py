@@ -306,7 +306,7 @@ class AndroidAdapterTest(unittest.TestCase):
     def test_controlled_operations_deliver_exact_payloads_without_relaunch(self):
         _process, payload_log, argv_log = self.enable_controlled_phone()
         _fixture_process, fixture = self.start_fixture()
-        domain_url = "hifi://127.0.0.1:40102/0,2,4/0,0,0,1"
+        domain_url = "hifi://127.0.0.1:40102/0,0,4/0,0,0,1"
         asset_arguments = {
             "assetId": fixture["asset"]["id"],
             "url": fixture["asset"]["url"] + "?requestId=android-exact",

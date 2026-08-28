@@ -199,7 +199,7 @@ class E2EStackTest(unittest.TestCase):
                 "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
                 "OVERTE_MOCK_E2E_DOMAIN_ID": domain_id,
                 "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
-                "OVERTE_E2E_DOMAIN_URL": "hifi://127.0.0.1:40102/0,2,4/0,0,0,1",
+                "OVERTE_E2E_DOMAIN_URL": "hifi://127.0.0.1:40102/0,0,4/0,0,0,1",
                 "OVERTE_E2E_DOMAIN_HOST": "127.0.0.1",
                 "OVERTE_E2E_DOMAIN_ID": domain_id,
                 "OVERTE_E2E_DOMAIN_MARKERS_JSON": json.dumps(manifest["requiredMarkers"]),
@@ -256,7 +256,7 @@ class E2EStackTest(unittest.TestCase):
                     "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
                     "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
                     "OVERTE_E2E_DOMAIN_URL":
-                        "hifi://127.0.0.1:40102/0,2,4/0,0,0,1",
+                        "hifi://127.0.0.1:40102/0,0,4/0,0,0,1",
                     "OVERTE_E2E_DOMAIN_HOST": "127.0.0.1",
                     "OVERTE_E2E_DOMAIN_ID": expected_id,
                     "OVERTE_E2E_DOMAIN_MARKERS_JSON": json.dumps(
@@ -339,7 +339,7 @@ class E2EStackTest(unittest.TestCase):
                 if module == "tablet":
                     self.assertTrue(input_result["openXrBooleanApplied"])
 
-    def test_fixture_requires_a_thick_floor_and_explicit_safe_spawn(self):
+    def test_fixture_requires_a_thick_floor_and_explicit_grounded_spawn(self):
         from fixture.serve import controlled_scene_url
 
         fixture = ROOT / "fixture"
@@ -350,7 +350,7 @@ class E2EStackTest(unittest.TestCase):
         spawn = manifest["spawnPosition"]
         self.assertEqual(0.0, floor["position"]["y"] + floor["dimensions"]["y"] / 2.0)
         self.assertGreaterEqual(floor["dimensions"]["y"], manifest["minimumFloorThickness"])
-        self.assertGreaterEqual(spawn["y"], 2.0)
+        self.assertEqual(0.0, spawn["y"])
         self.assertEqual(
             f"/{spawn['x']},{spawn['y']},{spawn['z']}/0,0,0,1",
             manifest["spawnPath"])

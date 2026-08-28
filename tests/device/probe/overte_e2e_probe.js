@@ -52,7 +52,7 @@
     var fixtureMarkers = ["OVERTE_E2E_FLOOR", "OVERTE_E2E_NORTH", "OVERTE_E2E_EAST", "OVERTE_E2E_ORIGIN"];
     var domainMarkers = ["OVERTE_E2E_DOMAIN_FLOOR", "OVERTE_E2E_DOMAIN_NORTH",
         "OVERTE_E2E_DOMAIN_EAST", "OVERTE_E2E_DOMAIN_ORIGIN"];
-    var expectedSpawn = { x: 0.0, y: 2.0, z: 4.0 };
+    var expectedSpawn = { x: 0.0, y: 0.0, z: 4.0 };
 
     function vector(value) {
         return { x: Number(value.x), y: Number(value.y), z: Number(value.z) };

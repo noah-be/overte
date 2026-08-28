@@ -329,12 +329,12 @@ class DesktopAdapterTest(unittest.TestCase):
                     DESKTOP_MODULE.subprocess, "Popen") as spawn:
             navigation = adapter.invoke(
                 "macos-alias", "navigation.enter-domain",
-                {"url": "hifi://127.0.0.1:40102/0,2,4/0,0,0,1"})
+                {"url": "hifi://127.0.0.1:40102/0,0,4/0,0,0,1"})
         spawn.assert_not_called()
         self.assertEqual({"requested": True}, navigation)
         command = json.loads(adapter.client_command_path("macos-alias").read_text())
         self.assertEqual("navigate", command["action"])
-        self.assertEqual("hifi://127.0.0.1:40102/0,2,4/0,0,0,1", command["url"])
+        self.assertEqual("hifi://127.0.0.1:40102/0,0,4/0,0,0,1", command["url"])
 
         values = {
             "assetId": "texture-rgb-3x1-v1",
