@@ -591,6 +591,15 @@ def stage_results() -> int:
 
 def self_check() -> int:
     root = workspace()
+    child_environment = os.environ.copy()
+    # Device-free contracts must not inherit the selected physical target's
+    # opt-ins. Several negative tests intentionally prove that these controls
+    # fail closed when absent.
+    for name in (
+            "OVERTE_DEVICE_TARGET_SELECTOR", "OVERTE_ANDROID_E2E_DEBUG",
+            "OVERTE_PICO_OPENXR_INPUT", "OVERTE_PICO_OPENXR_STATE_DIR",
+            "ANDROID_ADB_SERVER_PORT"):
+        child_environment.pop(name, None)
     commands = [
         [sys.executable, str(root / "tests/device/fixture/serve.py"), "--check"],
         [sys.executable, str(root / "tests/device/fixture/domain.py"), "--check"],
@@ -601,7 +610,7 @@ def self_check() -> int:
         [sys.executable, str(root / "tests/device/jenkins/test_android_build_workspace.py"), "-v"],
     ]
     for command in commands:
-        result = subprocess.run(command, cwd=root, check=False)
+        result = subprocess.run(command, cwd=root, env=child_environment, check=False)
         if result.returncode:
             return result.returncode
     return 0

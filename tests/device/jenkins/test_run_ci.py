@@ -502,6 +502,31 @@ class JenkinsGlueTest(unittest.TestCase):
                          "vertical-locomotion"}
                         .issubset(RUN_CI.SUITES))
 
+    def test_self_check_removes_physical_pico_opt_ins(self):
+        observed = []
+
+        def capture(_command, **kwargs):
+            observed.append(kwargs["env"])
+            return __import__("subprocess").CompletedProcess([], 0)
+
+        with patch.object(RUN_CI, "workspace", return_value=HERE.parents[2]), \
+                patch.object(RUN_CI.subprocess, "run", side_effect=capture), \
+                patch.dict(RUN_CI.os.environ, {
+                    "OVERTE_DEVICE_TARGET_SELECTOR": "private-target",
+                    "OVERTE_ANDROID_E2E_DEBUG": "1",
+                    "OVERTE_PICO_OPENXR_INPUT": "1",
+                    "OVERTE_PICO_OPENXR_STATE_DIR": "/private/state",
+                    "ANDROID_ADB_SERVER_PORT": "5039",
+                }, clear=False):
+            self.assertEqual(0, RUN_CI.self_check())
+        self.assertTrue(observed)
+        for environment_value in observed:
+            for name in (
+                    "OVERTE_DEVICE_TARGET_SELECTOR", "OVERTE_ANDROID_E2E_DEBUG",
+                    "OVERTE_PICO_OPENXR_INPUT", "OVERTE_PICO_OPENXR_STATE_DIR",
+                    "ANDROID_ADB_SERVER_PORT"):
+                self.assertNotIn(name, environment_value)
+
 
 if __name__ == "__main__":
     unittest.main()
