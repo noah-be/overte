@@ -487,6 +487,17 @@ class WindowsAdapterTest(unittest.TestCase):
                 "token", str(self.root / "other.exe"))):
             self.assertFalse(adapter.state_alive(state))
 
+    def test_malformed_persisted_state_fails_closed(self) -> None:
+        adapter = self.adapter()
+        with patch.dict(os.environ, self.environment, clear=True):
+            path = adapter.state_path("windows-lab")
+            path.write_text(json.dumps({
+                "schemaVersion": 2, "pid": 4242, "processToken": "token",
+                "identity": "wrong", "executablePath": str(self.executable),
+            }), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "process state is invalid"):
+                adapter.read_state("windows-lab")
+
     def test_driver_is_pid_scoped_bounded_and_recovers_held_input(self) -> None:
         source = (DEVICE_ROOT / "adapters/windows/overte.sikuli/overte.py").read_text(
             encoding="utf-8"

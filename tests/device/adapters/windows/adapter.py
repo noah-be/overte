@@ -277,7 +277,14 @@ class WindowsAdapter:
                 or isinstance(value.get("pid"), bool)
                 or value["pid"] <= 0
                 or not isinstance(value.get("processToken"), str)
-                or not value["processToken"]):
+                or not value["processToken"]
+                or value.get("identity") != f'{value["pid"]}:{value["processToken"]}'
+                or value.get("schemaVersion") not in (None, 2)
+                or (value.get("schemaVersion") == 2
+                    and (not isinstance(value.get("executablePath"), str)
+                         or not value["executablePath"]))
+                or (value.get("initialSceneUrl") is not None
+                    and not isinstance(value.get("initialSceneUrl"), str))):
             fail("Windows desktop process state is invalid")
         return value
 
@@ -444,7 +451,16 @@ class WindowsAdapter:
 
     @staticmethod
     def terminate_process_tree(pid: int, *, force: bool) -> None:
-        command = ["taskkill", "/PID", str(pid), "/T"]
+        taskkill = "taskkill"
+        if os.name == "nt":
+            system_root = os.environ.get("SystemRoot")
+            if not system_root:
+                fail("Windows SystemRoot is unavailable for process cleanup")
+            trusted = Path(system_root) / "System32" / "taskkill.exe"
+            if not trusted.is_file():
+                fail("trusted Windows taskkill.exe was not found")
+            taskkill = str(trusted)
+        command = [taskkill, "/PID", str(pid), "/T"]
         if force:
             command.append("/F")
         subprocess.run(

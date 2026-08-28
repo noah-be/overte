@@ -46,7 +46,8 @@ that same-origin route. The adapter never uses clipboard shortcuts, external
 URL handlers, or a second Interface process.
 
 At launch the shared probe is copied into the target's hashed private state
-directory. Process state and logs are restricted to the dedicated account.
+directory. The configured state root and its logs must be restricted to the
+dedicated account by the Windows ACL.
 Cleanup captures the exact root and recursive child identities before closing
 Interface, then uses normal and forced Windows process-tree termination only
 for identities that still match their captured creation token and image path.
