@@ -24,7 +24,7 @@ VERIFIER = ROOT / "verify_adapter.py"
 
 
 MOCK_ADB = r'''#!/usr/bin/env python3
-import os,sys
+import json,os,sys
 a=sys.argv[1:]
 target = a[1] if len(a) > 2 and a[0] == "-s" else None
 cmd = a[2:] if target else a
@@ -36,6 +36,18 @@ elif cmd == ["shell", "run-as", "org.overte.phone", "cat",
              "files/overte-e2e/overte-probe.json"]:
     with open(os.environ["OVERTE_MOCK_ANDROID_PROBE"], encoding="utf-8") as source:
         print(source.read(), end="")
+elif cmd == ["shell", "pidof", "-s", "org.overte.phone"]:
+    print("2468")
+elif cmd == ["shell", "cat", "/proc/2468/stat"]:
+    changed = os.path.exists(os.environ["OVERTE_MOCK_ANDROID_RESTART_MARKER"])
+    print("2468 (overte) S " + " ".join(["0"] * 18) + (" 101" if changed else " 100"))
+elif (len(cmd) >= 8 and cmd[:4] == ["exec-out", "run-as", "org.overte.phone", "sh"]
+      and cmd[-1] == "files/overte-e2e/desktop-command.json"):
+    content = sys.stdin.read()
+    with open(os.environ["OVERTE_MOCK_ANDROID_COMMAND_LOG"], "a", encoding="utf-8") as sink:
+        sink.write(json.dumps(json.loads(content), sort_keys=True) + "\n")
+    if os.environ.get("OVERTE_MOCK_ANDROID_RESTART_AFTER_WRITE") == "1":
+        open(os.environ["OVERTE_MOCK_ANDROID_RESTART_MARKER"], "w").close()
 '''
 
 
@@ -46,6 +58,9 @@ class AppiumHandler(BaseHTTPRequestHandler):
     probe_content = b""
     test_build_attested = True
     app_state = 1
+    sound_commands: list[dict] = []
+    reject_sound = False
+    reject_webdriver = False
 
     def response(self, value: object) -> None:
         content = json.dumps({"value": value}).encode("utf-8")
@@ -70,8 +85,21 @@ class AppiumHandler(BaseHTTPRequestHandler):
         self.calls.append(("POST", self.path))
         length = int(self.headers.get("Content-Length", "0"))
         payload = json.loads(self.rfile.read(length) or b"{}")
-        if self.path == "/session":
+        if self.path == "/sound-command.json":
+            if self.reject_sound:
+                self.send_error(503)
+                return
+            self.sound_commands.append(payload)
+            content = json.dumps(payload).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(content)))
+            self.end_headers()
+            self.wfile.write(content)
+        elif self.path == "/session":
             self.response({"sessionId": "session-private", "capabilities": {}})
+        elif self.path.endswith("/execute/sync") and self.reject_webdriver:
+            self.response({"error": "unknown error"})
         elif self.path.endswith("/execute/sync") and payload.get("script") == "mobile: queryAppState":
             arguments = payload.get("args", [{}])[0]
             self.response(4 if "appId" in arguments else self.app_state)
@@ -128,6 +156,9 @@ class AppiumAdapterTest(unittest.TestCase):
         AppiumHandler.action_payloads = []
         AppiumHandler.test_build_attested = True
         AppiumHandler.app_state = 1
+        AppiumHandler.sound_commands = []
+        AppiumHandler.reject_sound = False
+        AppiumHandler.reject_webdriver = False
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), AppiumHandler)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
@@ -199,6 +230,8 @@ class AppiumAdapterTest(unittest.TestCase):
             "OVERTE_E2E_CAPTURE_ARTIFACTS": "1",
             "OVERTE_ANDROID_ADB": str(self.adb),
             "OVERTE_MOCK_ANDROID_PROBE": str(self.probe),
+            "OVERTE_MOCK_ANDROID_COMMAND_LOG": str(self.root / "android-commands.jsonl"),
+            "OVERTE_MOCK_ANDROID_RESTART_MARKER": str(self.root / "android-restarted"),
         })
         (self.root / "artifacts").mkdir()
 
@@ -228,6 +261,28 @@ class AppiumAdapterTest(unittest.TestCase):
             sys.executable, str(ADAPTER), "--platform", platform, action, *arguments,
         ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
            env=self.environment, check=False)
+
+    def configure_controlled_android(self) -> dict:
+        payload = copy.deepcopy(self.targets)
+        target = payload["targets"][0]
+        target["physical"] = True
+        target["capabilities"]["appium:udid"] = "phone-mock"
+        target["process"]["selector"] = "phone-mock"
+        target["probe"] = {
+            "kind": "android-run-as",
+            "relativePath": "files/overte-e2e/overte-probe.json",
+        }
+        target["clientControl"] = {
+            "kind": "android-run-as-command",
+            "relativePath": "files/overte-e2e/desktop-command.json",
+        }
+        self.config.write_text(json.dumps(payload), encoding="utf-8")
+        return target
+
+    def android_commands(self) -> list[dict]:
+        path = self.root / "android-commands.jsonl"
+        return ([json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+                if path.exists() else [])
 
     def test_both_platform_manifests_satisfy_adapter_contract(self):
         for platform in ("android", "ios"):
@@ -275,6 +330,88 @@ class AppiumAdapterTest(unittest.TestCase):
             "--arguments", json.dumps({"url": "https://production.invalid/scene.json"}))
         self.assertEqual(2, result.returncode, result.stdout)
         self.assertIn("only the embedded fixture URL", result.stdout)
+
+    def test_android_controlled_channel_gates_and_delivers_new_operations(self):
+        uncontrolled = self.call("android", "discover")
+        advertised = json.loads(uncontrolled.stdout)[0]["capabilities"]
+        for capability in ("navigation.enter-domain", "asset.load", "sound.play"):
+            self.assertNotIn(capability, advertised)
+
+        self.configure_controlled_android()
+        controlled = self.call("android", "discover")
+        self.assertEqual(0, controlled.returncode, controlled.stdout)
+        advertised = json.loads(controlled.stdout)[0]["capabilities"]
+        for capability in ("navigation.enter-domain", "asset.load", "sound.play"):
+            self.assertIn(capability, advertised)
+
+        fixture = f"http://127.0.0.1:{self.server.server_address[1]}"
+        operations = (
+            ("navigation.enter-domain", {"url": "hifi://domain.example:40102"}),
+            ("asset.load", {"assetId": "fixture.image", "url": fixture + "/image.png",
+                            "entityName": "OVERTE_E2E_ASSET_LOAD_IMAGE"}),
+            ("sound.play", {"schemaVersion": 1, "commandId": "sound-123",
+                            "url": fixture + "/sound.wav",
+                            "commandUrl": fixture + "/sound-command.json"}),
+        )
+        for operation, arguments in operations:
+            result = self.call("android", "invoke", "--target", "phone-alias",
+                               "--operation", operation,
+                               "--arguments", json.dumps(arguments))
+            self.assertEqual(0, result.returncode, f"{operation}: {result.stdout}")
+        commands = self.android_commands()
+        self.assertEqual("navigation-enter-domain", commands[0]["action"])
+        self.assertEqual("hifi://domain.example:40102", commands[0]["url"])
+        self.assertEqual({"action": "asset-load", "assetId": "fixture.image",
+                          "entityName": "OVERTE_E2E_ASSET_LOAD_IMAGE",
+                          "schemaVersion": 1, "url": fixture + "/image.png"},
+                         {key: value for key, value in commands[1].items()
+                          if key != "commandId"})
+        self.assertEqual({"schemaVersion": 1, "commandId": "sound-123",
+                          "action": "play", "soundUrl": fixture + "/sound.wav"},
+                         AppiumHandler.sound_commands[-1])
+        self.assertEqual({"schemaVersion": 1, "commandId": "sound-channel-sound-123",
+                          "action": "sound-channel",
+                          "url": fixture + "/sound-command.json"}, commands[2])
+
+    def test_android_new_operations_fail_closed(self):
+        invalid = self.call("android", "invoke", "--target", "phone-alias",
+                            "--operation", "navigation.enter-domain", "--arguments",
+                            json.dumps({"url": "https://domain.example:40102"}))
+        self.assertEqual(2, invalid.returncode, invalid.stdout)
+        self.assertIn("credential-free hifi URL", invalid.stdout)
+
+        self.configure_controlled_android()
+        AppiumHandler.reject_webdriver = True
+        webdriver = self.call("android", "invoke", "--target", "phone-alias",
+                              "--operation", "asset.load", "--arguments", json.dumps({
+                                  "assetId": "fixture.image", "url": "http://fixture/image.png",
+                                  "entityName": "OVERTE_E2E_ASSET_LOAD_IMAGE"}))
+        self.assertEqual(2, webdriver.returncode, webdriver.stdout)
+        self.assertEqual([], self.android_commands())
+        AppiumHandler.reject_webdriver = False
+
+        self.environment["OVERTE_MOCK_ANDROID_RESTART_AFTER_WRITE"] = "1"
+        restarted = self.call("android", "invoke", "--target", "phone-alias",
+                              "--operation", "navigation.enter-domain", "--arguments",
+                              json.dumps({"url": "hifi://domain.example:40102"}))
+        self.assertEqual(2, restarted.returncode, restarted.stdout)
+        self.assertIn("process changed", restarted.stdout)
+
+    def test_android_sound_rejects_wrong_or_failed_control_endpoint(self):
+        self.configure_controlled_android()
+        fixture = f"http://127.0.0.1:{self.server.server_address[1]}"
+        arguments = {"schemaVersion": 1, "commandId": "sound-456",
+                     "url": fixture + "/sound.wav", "commandUrl": fixture + "/wrong.json"}
+        wrong = self.call("android", "invoke", "--target", "phone-alias",
+                          "--operation", "sound.play", "--arguments", json.dumps(arguments))
+        self.assertEqual(2, wrong.returncode, wrong.stdout)
+        self.assertIn("controlled fixture origin and command path", wrong.stdout)
+        arguments["commandUrl"] = fixture + "/sound-command.json"
+        AppiumHandler.reject_sound = True
+        rejected = self.call("android", "invoke", "--target", "phone-alias",
+                             "--operation", "sound.play", "--arguments", json.dumps(arguments))
+        self.assertEqual(2, rejected.returncode, rejected.stdout)
+        self.assertEqual([], self.android_commands())
 
     def test_physical_android_debug_probe_uses_fixed_private_run_as_path(self):
         payload = copy.deepcopy(self.targets)

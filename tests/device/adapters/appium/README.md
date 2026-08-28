@@ -33,6 +33,15 @@ app-private storage and is read through Android's debug-only `run-as` boundary;
 the adapter does not grant broad storage access. Keep this scene and probe
 configuration absent for release APKs.
 
+The three domain, asset, and sound capabilities are advertised on Android only
+when the physical debug target also configures the fixed
+`clientControl.kind=android-run-as-command` path shown in the example. Commands
+are atomically written inside the app sandbox. The adapter checks the exact ADB
+PID/start-time identity, foreground state, and Appium session before and after
+delivery. `sound.play` additionally requires the exact fixture
+`/sound-command.json` endpoint on the same origin as the sound resource; the
+probe observes the real client audio state rather than an adapter simulation.
+
 The disabled iOS example implements the fail-closed
 `overte-ios-e2e-v1` contract described in [`../../ios/`](../../ios/). For a
 physical target the adapter checks the installed app's test-only plist marker
