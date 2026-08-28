@@ -85,7 +85,7 @@ class WebDriver:
 
 class AppiumAdapter:
     ANDROID_DEBUG_PROBE = "files/overte-e2e/overte-probe.json"
-    ANDROID_CLIENT_COMMAND = "files/overte-e2e/desktop-command.json"
+    ANDROID_CLIENT_COMMAND = "files/overte-e2e/e2e-client-command.json"
     IOS_TEST_BUILD_CONTRACT = "overte-ios-e2e-v1"
     IOS_TEST_BUILD_PLIST_KEY = "OverteE2ETestBuildContractVersion"
     IOS_PROBE_SCRIPT_PATH = "/overte_e2e_probe.js"

@@ -112,11 +112,6 @@ def java_major(java: Path) -> int:
         fail("could not determine the configured Java version")
 
 
-def host_key() -> str:
-    value = platform.system().lower()
-    return "macos" if value == "darwin" else "windows" if value == "windows" else "linux"
-
-
 def paths(arguments: argparse.Namespace) -> dict[str, Path]:
     install = secure_directory(Path(arguments.install_root).expanduser())
     config = secure_directory(Path(arguments.config_root).expanduser())
@@ -225,9 +220,6 @@ def install(arguments: argparse.Namespace) -> int:
     manager_version = lock["jenkins"]["pluginInstallationManager"]["version"]
     manager = download(lock["jenkins"]["pluginInstallationManager"]["artifact"],
                        location["artifacts"] / f"jenkins-plugin-manager-{manager_version}.jar")
-    oculix_entry = lock["oculix"]["ideArtifacts"][host_key()]
-    oculix = download(oculix_entry,
-                      location["artifacts"] / Path(oculix_entry["url"]).name)
     install_plugins(java, manager, war, location["jenkinsHome"])
     appium_home = secure_directory(location["config"] / "appium-home")
     appium = None if arguments.skip_appium else install_appium(
@@ -247,8 +239,6 @@ def install(arguments: argparse.Namespace) -> int:
         "adminId": ADMIN_ID,
         "adminPasswordFile": str(location["password"]),
         "serverUrl": f"http://127.0.0.1:{arguments.port}",
-        "oculixJar": str(oculix),
-        "oculixSha256": oculix_entry["sha256"],
         "appiumExecutable": str(appium) if appium else None,
         "appiumHome": str(appium_home),
     }

@@ -7,8 +7,7 @@
     "jenkinsLts": "https://updates.jenkins.io/stable/latestCore.txt",
     "jenkinsJavaPolicy": "https://www.jenkins.io/doc/book/platform-information/support-policy-java/",
     "jenkinsPluginMetadata": "https://updates.jenkins.io/plugin-versions.json",
-    "jenkinsPluginManagerRelease": "https://github.com/jenkinsci/plugin-installation-manager-tool/releases/tag/2.15.0",
-    "oculixRelease": "https://github.com/oculix-org/Oculix/releases/tag/v4.0.0"
+    "jenkinsPluginManagerRelease": "https://github.com/jenkinsci/plugin-installation-manager-tool/releases/tag/2.15.0"
   },
   "appium": {
     "license": "Apache-2.0",
@@ -160,27 +159,6 @@
       "workflow-aggregator": {
         "url": "https://updates.jenkins.io/download/plugins/workflow-aggregator/608.v67378e9d3db_1/workflow-aggregator.hpi",
         "sha256": "7b94227c1afa01bb262c14919ad4a333412f1b51d947c0f21909ec2daff357dc"
-      }
-    }
-  },
-  "oculix": {
-    "license": "MIT",
-    "version": "4.0.0",
-    "minimumJavaMajor": 11,
-    "labJavaMajor": 21,
-    "releaseUrl": "https://github.com/oculix-org/Oculix/releases/tag/v4.0.0",
-    "ideArtifacts": {
-      "linux": {
-        "url": "https://github.com/oculix-org/Oculix/releases/download/v4.0.0/oculixide-4.0.0-linux.jar",
-        "sha256": "8930002c3e6d2e99e8819b4aec9bda30b739d91e2ab67de000b9461f4013568f"
-      },
-      "macos": {
-        "url": "https://github.com/oculix-org/Oculix/releases/download/v4.0.0/oculixide-4.0.0-macos.jar",
-        "sha256": "fb2101b7c03bf2a92f022aea6229b1aad2e1f0f5146fd038b2c250fd4dd0acc4"
-      },
-      "windows": {
-        "url": "https://github.com/oculix-org/Oculix/releases/download/v4.0.0/oculixide-4.0.0-windows.jar",
-        "sha256": "07cd907da8c4264bdfbc97f87e253ff2a5875331c4205d598ac479385f77a5c5"
       }
     }
   }

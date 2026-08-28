@@ -26,13 +26,13 @@
     var assetResource = null;
     var assetResourceUrl = "";
     var controlledAssetEntity = null;
-    var clientCommandRequest = null;
+    var clientCommandRequestPending = false;
     var clientCommandUnavailable = false;
     var lastClientCommandId = "";
-    var soundCommandRequest = null;
-    // Preserve the shared network-loaded probe contract. Desktop's private
-    // probe copy replaces this local fallback only after the adapter has
-    // posted an exact command to the controlled fixture endpoint.
+    var soundCommandRequestPending = false;
+    // Network-loaded probes retain the fixture-relative fallback. A target
+    // adapter's private probe copy can replace it through the narrow command
+    // channel only after the fixture has accepted an exact sound command.
     var soundCommandUrl = Script.resolvePath("sound-command.json");
     var lastSoundControlCommandId = "";
     var soundResource = null;
@@ -144,7 +144,7 @@
         // Local Image entities can be rendered on Android serverless scenes
         // without appearing in the broad spatial query. Prefer the exact ID
         // returned by our controlled addEntity call, then retain discovery for
-        // desktop/network-loaded probe commands.
+        // network-loaded probe commands.
         if (androidAssetEntityId !== null) {
             consider(androidAssetEntityId);
         }
@@ -281,7 +281,8 @@
     }
 
     function httpUrl(value) {
-        return typeof value === "string" && /^https?:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\])(?::[0-9]+)?(?:[/?#]|$)/.test(value);
+        return typeof value === "string"
+            && /^https?:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\])(?::[0-9]+)?(?:[/?#]|$)/.test(value);
     }
 
     function applyClientCommand(command) {
@@ -329,16 +330,16 @@
     }
 
     function pollClientCommand() {
-        if (clientCommandUnavailable || clientCommandRequest !== null) {
+        if (clientCommandUnavailable || clientCommandRequestPending) {
             return;
         }
+        clientCommandRequestPending = true;
         var request = new XMLHttpRequest();
-        clientCommandRequest = request;
         request.onreadystatechange = function () {
             if (request.readyState !== request.DONE) {
                 return;
             }
-            clientCommandRequest = null;
+            clientCommandRequestPending = false;
             if ((request.status === 0 || request.status === 200)
                     && request.responseText) {
                 try {
@@ -348,13 +349,12 @@
                 }
             } else if (request.status >= 400
                     || (request.status === 0 && !request.responseText)) {
-                // A network-loaded shared probe has no desktop command file.
-                // Keep its pre-existing sound endpoint behavior without
-                // polling a permanent 404 for the rest of the session.
+                // A network-loaded shared probe has no private command file.
+                // Stop polling a permanent miss for the rest of the session.
                 clientCommandUnavailable = true;
             }
         };
-        request.open("GET", Script.resolvePath("desktop-command.json"));
+        request.open("GET", Script.resolvePath("e2e-client-command.json"));
         request.send();
     }
 
@@ -452,16 +452,16 @@
     }
 
     function pollSoundCommand() {
-        if (!soundCommandUrl || soundCommandRequest !== null) {
+        if (!soundCommandUrl || soundCommandRequestPending) {
             return;
         }
+        soundCommandRequestPending = true;
         var request = new XMLHttpRequest();
-        soundCommandRequest = request;
         request.onreadystatechange = function () {
             if (request.readyState !== request.DONE) {
                 return;
             }
-            soundCommandRequest = null;
+            soundCommandRequestPending = false;
             if (request.status === 200) {
                 try {
                     applySoundCommand(JSON.parse(request.responseText));
