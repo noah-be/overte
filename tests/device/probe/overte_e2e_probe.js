@@ -604,7 +604,10 @@
                 orientation: vector(orientation)
             },
             tablet: {
-                open: Boolean(tablet.tabletShown),
+                // tabletShown is explicitly unused in desktop toolbar mode.
+                // HMD.showTablet is the application-level ContextMenu state
+                // shared by toolbar and world-tablet presentations.
+                open: Boolean(tablet.tabletShown || HMD.showTablet),
                 home: Boolean(tablet.onHomeScreen()),
                 toolbarMode: Boolean(tablet.toolbarMode)
             },

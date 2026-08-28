@@ -120,6 +120,33 @@ raise SystemExit(result.returncode)
 
 
 class VerticalLocomotionTest(unittest.TestCase):
+    def test_collision_direction_targets_world_negative_z_for_any_cardinal_heading(self):
+        environment = os.environ.copy()
+        environment.update({
+            "OVERTE_DEVICE_ADAPTER_MANIFEST": "unused.json",
+            "OVERTE_DEVICE_TARGET_SELECTOR": "unused",
+            "OVERTE_DEVICE_ARTIFACT_DIR": ".",
+        })
+        result = subprocess.run([
+            sys.executable, "-c",
+            "import json\n"
+            "from overte_session import OverteSession as Session\n"
+            "values={}\n"
+            "for yaw in (0.0,90.0,180.0,-90.0):\n"
+            " direction=Session.direction_toward_world_negative_z(yaw)\n"
+            " values[str(yaw)]=[direction,Session.movement_vector(yaw,direction)]\n"
+            "print(json.dumps(values))\n",
+        ], cwd=DEVICE_ROOT, env=environment, text=True,
+           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
+        self.assertEqual(0, result.returncode, result.stdout)
+        observed = json.loads(result.stdout)
+        expected = {"0.0": "forward", "90.0": "right",
+                    "180.0": "backward", "-90.0": "left"}
+        for yaw, direction in expected.items():
+            with self.subTest(yaw=yaw):
+                self.assertEqual(direction, observed[yaw][0])
+                self.assertAlmostEqual(-1.0, observed[yaw][1][1])
+
     def test_vertical_suite_catalog_selection_is_exact_and_ordered(self):
         result = subprocess.run([
             sys.executable, str(DEVICE_ROOT / "run.py"),
