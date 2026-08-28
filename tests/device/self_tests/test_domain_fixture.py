@@ -37,7 +37,16 @@ server.serve_forever()
 '''
 
 FAKE_ASSIGNMENT = r'''#!/usr/bin/env python3
-import signal, time
+import signal, sys, time
+arguments = sys.argv[1:]
+core = "-n" in arguments and arguments[arguments.index("-n") + 1] == "6" and "--pool" not in arguments
+agent = ("-t" in arguments and arguments[arguments.index("-t") + 1] == "2"
+         and "--pool" in arguments
+         and arguments[arguments.index("--pool") + 1] == "overte-e2e-domain")
+if not (core or agent):
+    raise SystemExit(12)
+if agent:
+    print("OVERTE_E2E_DOMAIN_FIXTURE_READY markers=4", flush=True)
 stopping = False
 def stop(*_):
     global stopping
@@ -109,6 +118,7 @@ class DomainFixtureTest(unittest.TestCase):
             self.assertTrue((output / "domain-config.json").is_file())
             self.assertTrue((output / "domain-server.log").is_file())
             self.assertTrue((output / "assignment-client.log").is_file())
+            self.assertTrue((output / "assignment-agent.log").is_file())
 
 
 if __name__ == "__main__":
