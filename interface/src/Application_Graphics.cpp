@@ -355,13 +355,15 @@ void Application::initializeUi() {
 
     {
         auto tabletScriptingInterface = DependencyManager::get<TabletScriptingInterface>();
-        tabletScriptingInterface->getTablet(SYSTEM_TABLET);
+        auto* systemTablet = qobject_cast<TabletProxy*>(
+            tabletScriptingInterface->getTablet(SYSTEM_TABLET));
 #if defined(Q_OS_IOS)
         // The QML singleton is instantiated only when the tablet tree imports
         // OverteIOS. Publishing from the native application breaks that cycle:
         // screen metrics can now size/auto-open the tablet before its QML exists.
         auto* touchUiMetrics = new IOSTouchUiMetrics(this);
-        auto publishTouchUiMetrics = [touchUiMetrics, tabletScriptingInterface] {
+        auto publishTouchUiMetrics = [touchUiMetrics, tabletScriptingInterface,
+                                      systemTablet] {
             const bool valid = touchUiMetrics->surfaceWidth() > 0.0 &&
                 touchUiMetrics->surfaceHeight() > 0.0;
             QVariantMap metrics {
@@ -388,6 +390,7 @@ void Application::initializeUi() {
             qApp->setProperty("overteIosSafeInsetRight", touchUiMetrics->safeInsetRight());
             qApp->setProperty("overteIosSafeInsetBottom", touchUiMetrics->safeInsetBottom());
             tabletScriptingInterface->setTouchUiRuntimeMetrics(metrics);
+            updateIOSTabletAccessibilityControls(systemTablet, touchUiMetrics);
             logIOSRuntimeMarker(
                 "OVERTE_IOS_TOUCH_UI_GATE stage=native-metrics-published",
                 "valid=", valid,
@@ -403,6 +406,13 @@ void Application::initializeUi() {
         };
         connect(touchUiMetrics, &IOSTouchUiMetrics::metricsChanged,
             this, publishTouchUiMetrics);
+        if (systemTablet != nullptr) {
+            connect(systemTablet, &TabletProxy::tabletShownChanged,
+                this, [touchUiMetrics, systemTablet] {
+                    updateIOSTabletAccessibilityControls(
+                        systemTablet, touchUiMetrics);
+                });
+        }
         publishTouchUiMetrics();
 #endif
     }
