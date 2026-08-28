@@ -47,9 +47,9 @@ class AdbTransport:
         if target:
             command += ["-s", target]
         try:
-            result = subprocess.run([*command, *arguments], text=True,
+            result = subprocess.run([*command, *arguments], text=True, input=input_text,
                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                    input=input_text, timeout=timeout, check=False)
+                                    timeout=timeout, check=False)
         except subprocess.TimeoutExpired as error:
             raise RuntimeError("ADB operation timed out") from error
         if check and result.returncode != 0:
@@ -64,20 +64,6 @@ class AdbTransport:
                 or any(part in {"", ".", ".."} for part in path.parts)
                 or str(path) != relative_path):
             raise RuntimeError("debug app file selector is unsafe")
-
-    def write_debug_app_file(self, target: str, package: str, relative_path: str,
-                             content: str) -> None:
-        """Atomically replace one bounded app-private debug control file."""
-        self._validate_debug_app_file(package, relative_path)
-        if (not isinstance(content, str) or "\0" in content
-                or len(content.encode("utf-8")) > 16 * 1024):
-            raise RuntimeError("debug app file content is invalid or oversized")
-        script = ('umask 077; temporary="$1.tmp"; cat > "$temporary" '
-                  '&& chmod 600 "$temporary" && mv "$temporary" "$1"')
-        self.execute([
-            "exec-out", "run-as", package, "sh", "-c", script,
-            "overte-e2e-write", relative_path,
-        ], target=target, input_text=content)
 
     def shell(self, target: str, *arguments: str, check: bool = True) -> str:
         return self.execute(["shell", *arguments], target=target, check=check)
@@ -107,6 +93,23 @@ class AdbTransport:
             if attempt + 1 < attempts:
                 time.sleep(interval_seconds)
         return ""
+
+    def write_debug_app_file(self, target: str, package: str, relative_path: str,
+                             content: str) -> None:
+        """Atomically write one fixed app-private debug control file through run-as."""
+        self._validate_debug_app_file(package, relative_path)
+        if (not isinstance(content, str) or "\0" in content
+                or len(content.encode("utf-8")) > 16 * 1024):
+            raise RuntimeError("debug app file content is invalid or oversized")
+        script = ('umask 077; temporary="$1.tmp"; cat > "$temporary" '
+                  '&& chmod 600 "$temporary" && mv "$temporary" "$1"')
+        self.execute([
+            "shell", "run-as", package, "sh", "-c", script,
+            "overte-e2e-write", relative_path,
+        ], target=target, input_text=content)
+        if self.read_debug_app_file(
+                target, package, relative_path, attempts=1) != content:
+            raise RuntimeError("debug app control file could not be confirmed")
 
     def process_state(self, target: str, package: str) -> dict:
         pid = self.shell(target, "pidof", "-s", package, check=False).strip()

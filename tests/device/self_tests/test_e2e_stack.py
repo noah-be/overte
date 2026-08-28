@@ -277,11 +277,10 @@ class E2EStackTest(unittest.TestCase):
                 self.assertTrue(
                     (output / "modules/domain-enter/domain-last-probe.json").is_file())
 
-    def test_only_controlled_real_adapters_advertise_domain_navigation(self):
+    def test_only_implemented_real_adapters_may_advertise_domain_navigation(self):
         adapter_root = ROOT / "adapters"
-        self.assertNotIn("navigation.enter-domain",
-                         (adapter_root / "android/adapter.py").read_text(encoding="utf-8"))
-        for source in (adapter_root / "desktop_oculix/adapter.py",
+        for source in (adapter_root / "android/adapter.py",
+                       adapter_root / "desktop_oculix/adapter.py",
                        adapter_root / "appium/adapter.py"):
             self.assertIn("navigation.enter-domain", source.read_text(encoding="utf-8"))
 

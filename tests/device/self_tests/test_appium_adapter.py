@@ -36,14 +36,22 @@ elif cmd == ["shell", "run-as", "org.overte.phone", "cat",
              "files/overte-e2e/overte-probe.json"]:
     with open(os.environ["OVERTE_MOCK_ANDROID_PROBE"], encoding="utf-8") as source:
         print(source.read(), end="")
+elif cmd == ["shell", "run-as", "org.overte.phone", "cat",
+             "files/overte-e2e/desktop-command.json"]:
+    path = os.environ["OVERTE_MOCK_ANDROID_COMMAND_FILE"]
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as source:
+            print(source.read(), end="")
 elif cmd == ["shell", "pidof", "-s", "org.overte.phone"]:
     print("2468")
 elif cmd == ["shell", "cat", "/proc/2468/stat"]:
     changed = os.path.exists(os.environ["OVERTE_MOCK_ANDROID_RESTART_MARKER"])
     print("2468 (overte) S " + " ".join(["0"] * 18) + (" 101" if changed else " 100"))
-elif (len(cmd) >= 8 and cmd[:4] == ["exec-out", "run-as", "org.overte.phone", "sh"]
+elif (len(cmd) >= 8 and cmd[:4] == ["shell", "run-as", "org.overte.phone", "sh"]
       and cmd[-1] == "files/overte-e2e/desktop-command.json"):
     content = sys.stdin.read()
+    with open(os.environ["OVERTE_MOCK_ANDROID_COMMAND_FILE"], "w", encoding="utf-8") as sink:
+        sink.write(content)
     with open(os.environ["OVERTE_MOCK_ANDROID_COMMAND_LOG"], "a", encoding="utf-8") as sink:
         sink.write(json.dumps(json.loads(content), sort_keys=True) + "\n")
     if os.environ.get("OVERTE_MOCK_ANDROID_RESTART_AFTER_WRITE") == "1":
@@ -231,6 +239,7 @@ class AppiumAdapterTest(unittest.TestCase):
             "OVERTE_ANDROID_ADB": str(self.adb),
             "OVERTE_MOCK_ANDROID_PROBE": str(self.probe),
             "OVERTE_MOCK_ANDROID_COMMAND_LOG": str(self.root / "android-commands.jsonl"),
+            "OVERTE_MOCK_ANDROID_COMMAND_FILE": str(self.root / "android-command.json"),
             "OVERTE_MOCK_ANDROID_RESTART_MARKER": str(self.root / "android-restarted"),
         })
         (self.root / "artifacts").mkdir()
