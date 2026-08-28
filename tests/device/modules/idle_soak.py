@@ -8,7 +8,7 @@ import os
 import time
 
 from module_support import (ARTIFACT_DIR, advertised_capabilities, assert_foreground,
-                            assert_process, fail, module_main, operation,
+                            assert_process, contract_operation, fail, module_main, operation,
                             positive_integer_environment, wait_for_process, write_json)
 
 
@@ -38,7 +38,7 @@ def main() -> None:
     if max_thermal < 0 or max_thermal > 6:
         fail("OVERTE_DEVICE_MAX_THERMAL_STATUS must be from 0 through 6")
     telemetry_available = "telemetry.snapshot" in advertised_capabilities()
-    operation("app.launch")
+    contract_operation("app.launch")
     identity = wait_for_process()
     assert_foreground("idle soak start")
     started = time.monotonic()
