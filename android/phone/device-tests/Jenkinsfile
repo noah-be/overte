@@ -240,6 +240,7 @@ pipeline {
                                 android/common/conan/phone-16k-debug/
                             rsync -a --delete "$dependency_seed/phone-nonqt-16k-debug/" \
                                 android/common/conan/phone-nonqt-16k-debug/
+                            mkdir -p android/common/runtime-overrides/arm64-v8a
                             rsync -a --delete \
                                 /home/user/Documents/github/overte-main/android/common/runtime-overrides/arm64-v8a/ \
                                 android/common/runtime-overrides/arm64-v8a/
