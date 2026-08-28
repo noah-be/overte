@@ -1124,24 +1124,33 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         return;
     }
 #if defined(Q_OS_IOS)
-    const auto scheduleServerlessRootViewpoint = [this, domainURL](
+    const auto scheduleServerlessViewpoint = [this, domainURL](
             const std::map<QString, QString>& namedPaths) {
         // AddressManager asks for the root path immediately after changing the
-        // domain URL. A synchronous local import can complete before that path
-        // request, and iOS startup can subsequently restore the avatar's old
-        // position. Re-apply the authored root once the current event turn has
-        // completed. An explicit location query remains authoritative.
-        if (QUrlQuery(domainURL).hasQueryItem(QStringLiteral("location"))) {
+        // domain URL. Both synchronous and asynchronous imports can complete
+        // after that request, and iOS startup can subsequently restore the
+        // avatar's old position. Re-apply the explicit location query, or the
+        // authored root when no query exists, after the import commits.
+        const QUrlQuery query(domainURL);
+        const QString locationKey = QStringLiteral("location");
+        QString viewpoint;
+        QString path;
+        if (query.hasQueryItem(locationKey)) {
+            viewpoint = query.queryItemValue(locationKey);
+        } else {
+            const auto root = namedPaths.find(QStringLiteral("/"));
+            if (root == namedPaths.end()) {
+                return;
+            }
+            viewpoint = root->second;
+            path = QStringLiteral("/");
+        }
+        if (viewpoint.isEmpty()) {
             return;
         }
-        const auto root = namedPaths.find(QStringLiteral("/"));
-        if (root == namedPaths.end() || root->second.isEmpty()) {
-            return;
-        }
-        const QString viewpoint = root->second;
-        QTimer::singleShot(0, this, [viewpoint] {
+        QTimer::singleShot(0, this, [viewpoint, path] {
             const bool applied = DependencyManager::get<AddressManager>()->goToViewpointForPath(
-                viewpoint, QStringLiteral("/"));
+                viewpoint, path);
             if (QCoreApplication::arguments().contains(QStringLiteral("--ios-world-evidence"))) {
                 logIOSRuntimeMarker("OVERTE_IOS_WORLD_GATE serverless_viewpoint_applied",
                                     "success=", applied ? QStringLiteral("1") : QStringLiteral("0"));
@@ -1193,7 +1202,7 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         nodeList->getDomainHandler().connectedToServerless(namedPaths);
         setIsServerlessMode(true);
 #if defined(Q_OS_IOS)
-        scheduleServerlessRootViewpoint(namedPaths);
+        scheduleServerlessViewpoint(namedPaths);
 #endif
         _octreeProcessor->getFullSceneReceivedCounter()++;
         if (QCoreApplication::arguments().contains(QStringLiteral("--ios-world-evidence"))) {
@@ -1307,7 +1316,7 @@ void Application::loadServerlessDomain(QUrl domainURL) {
             // RECEIVING_WORLD indefinitely.
             setIsServerlessMode(true);
 #if defined(Q_OS_IOS)
-            scheduleServerlessRootViewpoint(namedPaths);
+            scheduleServerlessViewpoint(namedPaths);
 #endif
             _octreeProcessor->getFullSceneReceivedCounter()++;
 #if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
