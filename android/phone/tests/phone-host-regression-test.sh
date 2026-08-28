@@ -105,6 +105,10 @@ require_text "$cmake" '../../../common/src/OffscreenGLCanvas[.]cpp' \
     'phone native build uses the shared Android OffscreenGLCanvas override'
 require_text "$gradle" '../../../common/runtime-overrides/arm64-v8a' \
     'phone packaging uses shared Android runtime overrides'
+require_text "$gradle" 'HIFI_ANDROID_HOST_TOOLS=.*../../../vr/pico/pico-host-tools' \
+    'phone native build selects the prepared shared host tools'
+require_text 'common/cmake/pico-bootstrap.cmake' 'HIFI_ANDROID_HOST_TOOLS must name' \
+    'Android native bootstrap requires an explicit prepared host-tool directory'
 reject_text "$cmake" '(\.\./|apps/)picoInterface/' \
     'phone native build does not compile Pico-owned sources'
 reject_text "$gradle" '(\.\./|apps/)picoInterface/' \

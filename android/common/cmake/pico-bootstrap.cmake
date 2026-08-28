@@ -1,8 +1,11 @@
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/cmake")
-set(ENV{SCRIBE_DIR} "${CMAKE_CURRENT_LIST_DIR}/pico-host-tools")
-set(ENV{GLSLANG_DIR} "${CMAKE_CURRENT_LIST_DIR}/pico-host-tools")
-set(ENV{SPIRV_CROSS_DIR} "${CMAKE_CURRENT_LIST_DIR}/pico-host-tools")
-set(ENV{SPIRV_TOOLS_DIR} "${CMAKE_CURRENT_LIST_DIR}/pico-host-tools")
+if(NOT HIFI_ANDROID_HOST_TOOLS OR NOT IS_DIRECTORY "${HIFI_ANDROID_HOST_TOOLS}")
+    message(FATAL_ERROR "HIFI_ANDROID_HOST_TOOLS must name the prepared host-tool directory")
+endif()
+set(ENV{SCRIBE_DIR} "${HIFI_ANDROID_HOST_TOOLS}")
+set(ENV{GLSLANG_DIR} "${HIFI_ANDROID_HOST_TOOLS}")
+set(ENV{SPIRV_CROSS_DIR} "${HIFI_ANDROID_HOST_TOOLS}")
+set(ENV{SPIRV_TOOLS_DIR} "${HIFI_ANDROID_HOST_TOOLS}")
 
 # Gradle invokes Ninja directly, so CMAKE_BUILD_PARALLEL_LEVEL alone does not
 # limit native compilation. A CMake job pool carries the Pico host limit into
