@@ -21,9 +21,7 @@ import sys
 import tempfile
 import time
 import xml.etree.ElementTree as ET
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import urlopen
 
 
 SUITES = {"smoke", "e2e-core", "accessibility", "stability", "lifecycle-stability"}
@@ -319,28 +317,26 @@ def prewarm_ios_appium_session(root: Path, manifest: Path, selector: str,
         )
 
 
-def require_ios_probe_request(ready: dict, timeout_seconds: int = IOS_PROBE_REQUEST_TIMEOUT_SECONDS) -> None:
+def require_ios_probe_request(fixture_log: Path,
+                              timeout_seconds: int = IOS_PROBE_REQUEST_TIMEOUT_SECONDS) -> None:
     """Prove the launched iOS client fetched the repository-owned test script."""
-    raw_url = ready.get("probeRequestsUrl")
-    parsed = urlsplit(raw_url) if isinstance(raw_url, str) else None
-    if (parsed is None or parsed.scheme not in {"http", "https"} or not parsed.hostname
-            or parsed.username is not None or parsed.password is not None
-            or parsed.path != "/telemetry/probe-requests" or parsed.query or parsed.fragment):
-        fail("fixture probe telemetry URL is invalid")
+    if fixture_log.is_symlink() or not fixture_log.is_file():
+        fail("private fixture access log is unavailable")
+    metadata = fixture_log.lstat()
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.geteuid():
+        fail("private fixture access log is unsafe")
+    expected = re.compile(
+        rb'^fixture: "GET /overte_e2e_probe[.]js HTTP/1[.][01]" 200 -$', re.MULTILINE)
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
         try:
-            with urlopen(raw_url, timeout=2) as response:
-                payload = response.read(4097)
-            value = json.loads(payload)
-            if (len(payload) <= 4096 and isinstance(value, dict)
-                    and set(value) == {"schemaVersion", "requests"}
-                    and value.get("schemaVersion") == 1
-                    and isinstance(value.get("requests"), int)
-                    and not isinstance(value["requests"], bool)
-                    and value["requests"] >= 1):
+            with fixture_log.open("rb") as source:
+                payload = source.read(1024 * 1024 + 1)
+            if len(payload) > 1024 * 1024:
+                fail("private fixture access log exceeded its safety limit")
+            if expected.search(payload):
                 return
-        except (HTTPError, URLError, OSError, UnicodeError, json.JSONDecodeError):
+        except OSError:
             pass
         time.sleep(0.1)
     fail("iOS application did not request the controlled probe script")
@@ -408,7 +404,7 @@ def run_suite() -> int:
             prewarm_ios_appium_session(
                 root, manifest, selector, runner_environment, active_adapter_processes,
             )
-            require_ios_probe_request(ready)
+            require_ios_probe_request(fixture_log)
 
         command = [
             sys.executable, str(root / "tests/device/run.py"),

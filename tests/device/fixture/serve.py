@@ -198,17 +198,6 @@ class FixtureHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
             self.wfile.write(payload)
-            self.server.fixture_state.record_probe_request()
-            return
-        if request_path == "/telemetry/probe-requests":
-            payload = (json.dumps(
-                self.server.fixture_state.snapshot_probe_requests(), sort_keys=True,
-            ) + "\n").encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(payload)))
-            self.end_headers()
-            self.wfile.write(payload)
             return
         asset = self.server.manifest["asset"]
         if request_path == asset["route"]:
@@ -333,17 +322,8 @@ class FixtureState:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._requests: list[dict] = []
-        self._probe_requests = 0
         self.command = {"schemaVersion": 1, "commandId": "", "action": "idle",
                         "soundUrl": ""}
-
-    def record_probe_request(self) -> None:
-        with self._lock:
-            self._probe_requests += 1
-
-    def snapshot_probe_requests(self) -> dict:
-        with self._lock:
-            return {"schemaVersion": 1, "requests": self._probe_requests}
 
     def set_command(self, command: object) -> dict:
         if (not isinstance(command, dict)
@@ -416,7 +396,6 @@ def main() -> int:
     ready = {"schemaVersion": 1, "baseUrl": base_url,
              "sceneUrl": controlled_scene_url(base_url, manifest),
              "probeScriptUrl": f"{base_url}/overte_e2e_probe.js",
-             "probeRequestsUrl": f"{base_url}/telemetry/probe-requests",
              "asset": {
                  "id": asset["id"], "url": f"{base_url}{asset['route']}",
                  "telemetryUrl": f"{base_url}/telemetry/asset-requests",

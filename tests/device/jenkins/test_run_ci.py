@@ -297,28 +297,21 @@ class JenkinsGlueTest(unittest.TestCase):
         self.assertNotIn(selector, str(failure.exception))
 
     def test_ios_probe_request_gate_requires_a_successful_script_fetch(self):
-        response = MagicMock()
-        response.read.side_effect = [
-            b'{"schemaVersion":1,"requests":0}',
-            b'{"schemaVersion":1,"requests":1}',
-        ]
-        response.__enter__.return_value = response
-        with patch.object(RUN_CI, "urlopen", return_value=response) as request, \
-                patch.object(RUN_CI.time, "sleep"):
-            RUN_CI.require_ios_probe_request({
-                "probeRequestsUrl": "http://fixture.example:18080/telemetry/probe-requests",
-            })
-        self.assertEqual(2, request.call_count)
+        with tempfile.TemporaryDirectory(prefix="overte-probe-request-") as name:
+            fixture_log = Path(name) / "fixture.log"
+            fixture_log.write_text(
+                'fixture: "GET /overte_e2e_probe.js HTTP/1.1" 200 -\n',
+                encoding="utf-8",
+            )
+            RUN_CI.require_ios_probe_request(fixture_log)
 
-        response.read.side_effect = None
-        response.read.return_value = b'{"schemaVersion":1,"requests":0}'
-        with patch.object(RUN_CI, "urlopen", return_value=response), patch.object(
-                RUN_CI.time, "monotonic", side_effect=[0, 0, 11]), patch.object(
-                RUN_CI.time, "sleep"):
-            with self.assertRaisesRegex(ValueError, "did not request"):
-                RUN_CI.require_ios_probe_request({
-                    "probeRequestsUrl": "http://fixture.example:18080/telemetry/probe-requests",
-                })
+            fixture_log.write_text(
+                'fixture: "GET /scene.json HTTP/1.1" 200 -\n', encoding="utf-8")
+            with patch.object(
+                    RUN_CI.time, "monotonic", side_effect=[0, 0, 11]), patch.object(
+                    RUN_CI.time, "sleep"):
+                with self.assertRaisesRegex(ValueError, "did not request"):
+                    RUN_CI.require_ios_probe_request(fixture_log)
 
     def test_ios_core_updates_fixture_before_session_prewarm_and_common_runner(self):
         with tempfile.TemporaryDirectory(prefix="overte-ios-ordering-") as name:
@@ -338,8 +331,8 @@ class JenkinsGlueTest(unittest.TestCase):
                 self.assertTrue(origin.startswith("http://127.0.0.1:"))
                 observed.append("prewarm")
 
-            def require_probe(ready):
-                self.assertTrue(ready["probeRequestsUrl"].startswith("http://127.0.0.1:"))
+            def require_probe(fixture_log):
+                self.assertEqual("fixture.log", fixture_log.name)
                 observed.append("probe-request")
 
             with patch.dict(os.environ, values, clear=False), patch.object(
@@ -364,9 +357,6 @@ class JenkinsGlueTest(unittest.TestCase):
                     with patch.object(RUN_CI, "wait_for_ready", return_value={
                             "baseUrl": "http://127.0.0.1:43127",
                             "sceneUrl": "http://127.0.0.1:43127/scene.json",
-                            "probeRequestsUrl": (
-                                "http://127.0.0.1:43127/telemetry/probe-requests"
-                            ),
                     }):
                         self.assertEqual(0, RUN_CI.run_suite())
             self.assertEqual(["prewarm", "probe-request"], observed)
