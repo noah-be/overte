@@ -4,7 +4,7 @@
 > This roadmap describes an unofficial, AI-assisted hobby fork. It is not an
 > Overte project commitment or a statement of official platform support.
 
-- **Updated:** 2026-08-24
+- **Updated:** 2026-08-28
 - **Baseline before this roadmap:** `main@9f00d77028`
 - **Current primary milestone:** `PICO-P1`
 - **Current maintenance milestone:** `R0`
@@ -117,7 +117,8 @@ does not imply that a target is actively being developed.
 | iPhone and iPad | NEXT 2 | Simulator-verified bootstrap; integrated client experimental | `apple-ios` | iPad roadmap and status reviewed 2026-08-24 | `IOS-P1` after Android Phone |
 | macOS | PARKED | Hosted Intel runtime-verified; physical hardware unavailable | `apple-macos` | Interface status reviewed 2026-08-24 | Resume `MAC-P1` with a named physical Mac |
 | Meta Quest | PARKED | Experimental; physical hardware unavailable | `android-vr-quest` | Branch and preview delta reviewed 2026-08-24 | Resume `QUEST-Q0` with a named physical Quest |
-| Linux and Windows desktop | OUT OF SCOPE | Inherited historical baseline | `main` | Fork baseline | Fork regression checks only |
+| Linux desktop | OUT OF SCOPE product; E2E MAINTENANCE | Inherited client baseline; dedicated adapter ownership being established | `linux-main` | Desktop E2E migration, 2026-08-28 | Repeatable Linux `e2e-core` target evidence |
+| Windows desktop | OUT OF SCOPE product; E2E MAINTENANCE | Inherited client baseline; dedicated adapter ownership being established | `windows-main` | Desktop E2E migration, 2026-08-28 | Hardware-free adapter contracts, then an interactive target |
 
 Detailed technical facts and evidence remain authoritative in the interface
 documentation on each named product branch. This table records only portfolio
