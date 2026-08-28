@@ -41,6 +41,8 @@ String phoneAdapterManifest(String suite) {
 def runPhoneSuite(String suite) {
     int timeoutMinutes = suiteTimeoutMinutes(suite)
     String adapterManifest = phoneAdapterManifest(suite)
+    String fixturePublicHost = params.FIXTURE_PUBLIC_HOST ?: ''
+    String fixturePort = params.FIXTURE_PORT ?: '0'
     String externalOutput = "${env.OVERTE_EXTERNAL_RESULT_ROOT}/${suite}"
     String stagedOutput =
         "${env.WORKSPACE}/device-ci-artifacts/${env.BUILD_NUMBER}/${suite}"
@@ -52,9 +54,9 @@ def runPhoneSuite(String suite) {
         "OVERTE_CI_OUTPUT_DIR=${externalOutput}",
         "OVERTE_CI_STAGED_OUTPUT_DIR=${stagedOutput}",
         'OVERTE_CI_FIXTURE_MODE=embedded',
-        "OVERTE_CI_FIXTURE_PUBLIC_HOST=${params.FIXTURE_PUBLIC_HOST.trim()}",
+        "OVERTE_CI_FIXTURE_PUBLIC_HOST=${fixturePublicHost.trim()}",
         'OVERTE_CI_FIXTURE_BIND=0.0.0.0',
-        "OVERTE_CI_FIXTURE_PORT=${params.FIXTURE_PORT.trim()}",
+        "OVERTE_CI_FIXTURE_PORT=${fixturePort.trim()}",
         'OVERTE_CI_ALLOW_VIRTUAL=0',
         'OVERTE_E2E_CAPTURE_ARTIFACTS=0',
     ]) {
@@ -172,7 +174,7 @@ pipeline {
                         error('TARGET_SELECTOR_CREDENTIAL_ID is required')
                     }
                     if (params.TEST_SUITE in ['asset-smoke', 'sound-smoke']
-                            && !params.FIXTURE_PUBLIC_HOST.trim()) {
+                            && !(params.FIXTURE_PUBLIC_HOST ?: '').trim()) {
                         error('FIXTURE_PUBLIC_HOST is required for asset and sound tests')
                     }
                     env.OVERTE_TARGET_NEEDS_CLEANUP = '0'
