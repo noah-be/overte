@@ -996,6 +996,8 @@ void Application::initialize(const QCommandLineParser &parser) {
     // mutated. A normal or Release session constructs the flag as false.
     qApp->getMyAvatar()->setE2eAdvancedMovementControlsOverride(
         picoE2eInputMappingOverrideActive());
+    qApp->getMyAvatar()->setE2eFlyingEnabledOverride(
+        picoE2eInputMappingOverrideActive());
 #endif
 
     _applicationStateDevice->setInputVariant(STATE_IN_HMD, []() -> float {

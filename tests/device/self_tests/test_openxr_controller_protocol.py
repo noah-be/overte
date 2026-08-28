@@ -160,6 +160,33 @@ class OpenXrControllerProtocolTests(unittest.TestCase):
         self.assertNotIn("xrGetActionStateFloat", compiled["requiredInterception"])
         self.assertNotIn("xrGetActionStateVector2f", compiled["requiredInterception"])
 
+    def test_jump_and_fly_map_to_bounded_right_secondary_windows(self) -> None:
+        compiled = compile_envelope(self.envelope([
+            {"id": "jump", "operation": "input.jump", "arguments": {}},
+            {"id": "fly", "operation": "input.fly",
+             "arguments": {"durationSeconds": 3.0}},
+        ]), self.profile)
+        self.assertEqual(
+            ["right_secondary_click", "right_secondary_click"],
+            [result["actionName"] for result in compiled["results"]],
+        )
+        self.assertEqual(
+            [{"startMs": 100, "endMs": 220},
+             {"startMs": 320, "endMs": 3320}],
+            [result["activeWindow"] for result in compiled["results"]],
+        )
+        self.assertEqual(
+            ["probe.avatar.inAir", "probe.avatar.flying"],
+            [result["verification"] for result in compiled["results"]],
+        )
+        active = [
+            event for event in compiled["events"]
+            if event["state"]["boolean"]["right_secondary_click"]
+        ]
+        self.assertEqual(2, len(active))
+        self.assertFalse(any(compiled["events"][-1]["state"]["boolean"].values()))
+        self.assertIn("xrGetActionStateBoolean", compiled["requiredInterception"])
+
     def test_invalid_or_unsafe_commands_fail_closed(self) -> None:
         cases = [
             {"id": "system", "operation": "controller.button",
@@ -179,6 +206,12 @@ class OpenXrControllerProtocolTests(unittest.TestCase):
              "arguments": {"horizontal": 0.2, "durationSeconds": 8.001}},
             {"id": "long-move", "operation": "input.move",
              "arguments": {"direction": "forward", "durationSeconds": 8.001}},
+            {"id": "bad-jump", "operation": "input.jump",
+             "arguments": {"durationSeconds": 0.1}},
+            {"id": "short-fly", "operation": "input.fly",
+             "arguments": {"durationSeconds": 0.499}},
+            {"id": "long-fly", "operation": "input.fly",
+             "arguments": {"durationSeconds": 8.001}},
             {"id": "long-tablet", "operation": "tablet.open",
              "arguments": {"holdMilliseconds": 8001}},
         ]
@@ -193,7 +226,8 @@ class OpenXrControllerProtocolTests(unittest.TestCase):
                 encoding="utf-8"))
         self.assertEqual("https://json-schema.org/draft/2020-12/schema", schema["$schema"])
         self.assertFalse(schema["additionalProperties"])
-        for definition in ("button", "scalar", "thumbstick", "pose"):
+        for definition in ("button", "scalar", "thumbstick", "pose",
+                           "jump", "fly"):
             self.assertFalse(schema["$defs"][definition]["additionalProperties"])
 
     def test_profile_identity_and_release_exclusion_are_mechanical(self) -> None:

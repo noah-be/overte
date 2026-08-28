@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Device-free packaging and platform contracts for the Pico 4 APK."""
 
+import json
 from pathlib import Path
 import re
 import unittest
@@ -136,6 +137,7 @@ class PicoPackageContractTests(unittest.TestCase):
         )
         self.assertIn("#if defined(OVERTE_E2E_OPENXR_INPUT_V1)", pico_setup)
         self.assertIn("setE2eAdvancedMovementControlsOverride", pico_setup)
+        self.assertIn("setE2eFlyingEnabledOverride", pico_setup)
 
         avatar_header = (ROOT / "interface/src/avatar/MyAvatar.h").read_text(
             encoding="utf-8"
@@ -147,6 +149,12 @@ class PicoPackageContractTests(unittest.TestCase):
         )[1].split("}", 1)[0]
         self.assertNotIn("Q_INVOKABLE", declaration)
         self.assertNotIn("_useAdvancedMovementControls.set", declaration)
+        self.assertIn("_e2eFlyingEnabledOverride.set(enabled)", avatar_header)
+        flying_declaration = avatar_header.split(
+            "void setE2eFlyingEnabledOverride", 1
+        )[1].split("}", 1)[0]
+        self.assertNotIn("Q_INVOKABLE", flying_declaration)
+        self.assertNotIn("_flyingHMDSetting.set", flying_declaration)
         self.assertIn("if(OVERTE_PICO_E2E_OPENXR_INPUT)", CMAKE)
         self.assertIn(
             "target_compile_definitions(interface PRIVATE OVERTE_E2E_OPENXR_INPUT_V1=1)",
@@ -159,6 +167,32 @@ class PicoPackageContractTests(unittest.TestCase):
             "if (!useAdvancedMovementControls() && qApp->isHMDMode())",
             avatar_source,
         )
+        self.assertIn("if (e2eFlyingEnabledOverride())", avatar_source)
+        self.assertIn("getFlyingEnabled())))", avatar_source)
+        self.assertNotIn(
+            "setFlyingHMDPref(true)",
+            pico_setup,
+        )
+
+        openxr_mapping = json.loads(
+            (ROOT / "interface/resources/controllers/openxr.json").read_text(
+                encoding="utf-8")
+        )["channels"]
+        self.assertIn(
+            {"from": "OpenXR.RightSecondary",
+             "to": "Standard.RightSecondaryThumb"},
+            openxr_mapping,
+        )
+        standard_mapping = json.loads(
+            (ROOT / "interface/resources/controllers/standard.json").read_text(
+                encoding="utf-8")
+        )["channels"]
+        self.assertTrue(any(
+            route.get("from") == "Standard.RightSecondaryThumb"
+            and route.get("to") == "Actions.Up"
+            and "Application.RightHandDominant" in route.get("when", [])
+            for route in standard_mapping
+        ))
 
 
 if __name__ == "__main__":

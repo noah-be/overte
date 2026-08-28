@@ -159,6 +159,7 @@ class OpenXrAndroidTransportTests(unittest.TestCase):
             "leftThumbstickAppliedY": 0.4,
             "booleanAppliedSequence": 0,
             "leftSecondaryApplied": False,
+            "rightSecondaryApplied": False,
             "acceptedNonce": NONCE,
             "activeCommandId": "move-forward",
             "state": "active",

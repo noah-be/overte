@@ -267,9 +267,15 @@ class PicoOpenXrAdapterSession:
                 vector_applied = (operation == "input.move" and
                                   status["vectorAppliedSequence"] == sequence and
                                   abs(float(status["leftThumbstickAppliedY"])) >= 0.01)
-                boolean_applied = (operation in {"tablet.open", "tablet.close"} and
-                                   status["booleanAppliedSequence"] == sequence and
-                                   status["leftSecondaryApplied"] is True)
+                left_secondary_applied = (
+                    operation in {"tablet.open", "tablet.close"} and
+                    status["booleanAppliedSequence"] == sequence and
+                    status["leftSecondaryApplied"] is True)
+                right_secondary_applied = (
+                    operation in {"input.jump", "input.fly"} and
+                    status["booleanAppliedSequence"] == sequence and
+                    status["rightSecondaryApplied"] is True)
+                boolean_applied = left_secondary_applied or right_secondary_applied
                 if vector_applied or boolean_applied:
                     return status
             except TransportError as error:
@@ -313,7 +319,9 @@ class PicoOpenXrAdapterSession:
             if operation == "input.look":
                 status = self._wait_for_view_application(
                     state["sessionNonce"], sequence)
-            elif operation in {"input.move", "tablet.open", "tablet.close"}:
+            elif operation in {
+                    "input.fly", "input.jump", "input.move",
+                    "tablet.open", "tablet.close"}:
                 status = self._wait_for_controller_application(
                     state["sessionNonce"], sequence, operation)
         result = {
@@ -339,6 +347,11 @@ class PicoOpenXrAdapterSession:
             result.update({
                 "openXrBooleanApplied": True,
                 "openXrLeftSecondaryApplied": status["leftSecondaryApplied"],
+            })
+        elif operation in {"input.jump", "input.fly"}:
+            result.update({
+                "openXrBooleanApplied": True,
+                "openXrRightSecondaryApplied": status["rightSecondaryApplied"],
             })
         return result
 

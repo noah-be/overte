@@ -115,7 +115,10 @@ class AndroidAdapter:
             # An explicit opt-in with incomplete isolation is a configuration
             # error, not a silent capability downgrade.
             validate_pico_openxr_configuration()
-            values += ["input.look", "input.move", "tablet.close", "tablet.open"]
+            values += [
+                "input.fly", "input.jump", "input.look", "input.move",
+                "tablet.close", "tablet.open",
+            ]
         return sorted(values)
 
     @staticmethod
@@ -407,7 +410,9 @@ class AndroidAdapter:
                     or after_sequence < 0)):
                 fail("afterSampleSequence must be a non-negative integer")
             return self.read_probe_snapshot(target, package, after_sequence)
-        if operation in {"input.look", "input.move", "tablet.open", "tablet.close"}:
+        if operation in {
+                "input.fly", "input.jump", "input.look", "input.move",
+                "tablet.open", "tablet.close"}:
             identity = self.require_pico_session_identity(target)
             return self.pico_input_session(target).stage(identity, operation, values)
         fail(f"unsupported operation: {operation}")

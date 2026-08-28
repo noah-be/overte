@@ -34,8 +34,11 @@ the hardware gates may explicitly set all of:
   private `XDG_RUNTIME_DIR`.
 
 Only then does the Pico adapter advertise `input.look`, `input.move`,
-`tablet.open`, and `tablet.close`. The validated port is passed as an explicit
-`adb -P` argument for discovery, installation, launch, process/probe calls,
+`input.jump`, `input.fly`, `tablet.open`, and `tablet.close`. Jump and flight
+are Pico bindings for the shared semantic operations: a bounded right-secondary
+press performs a jump and a bounded hold enters upward flight. The validated
+port is passed as an explicit `adb -P` argument for discovery, installation,
+launch, process/probe calls,
 cleanup, and the OpenXR transport; the phone adapter retains the default ADB
 command. The adapter keeps one nonce and monotonically increasing sequence
 across its short-lived CLI processes, binds it to the one E2E launcher process,
