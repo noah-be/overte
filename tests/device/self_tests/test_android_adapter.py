@@ -173,6 +173,10 @@ class AndroidAdapterTest(unittest.TestCase):
         self.adb.write_text(MOCK_ADB, encoding="utf-8")
         self.adb.chmod(0o700)
         self.environment = os.environ.copy()
+        for name in (
+                "OVERTE_ANDROID_E2E_DEBUG", "OVERTE_PICO_OPENXR_INPUT",
+                "ANDROID_ADB_SERVER_PORT", "OVERTE_PICO_OPENXR_STATE_DIR"):
+            self.environment.pop(name, None)
         self.environment["OVERTE_ANDROID_ADB"] = str(self.adb)
 
     def tearDown(self):
