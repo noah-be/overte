@@ -31,6 +31,12 @@ SUITES = {
 PUBLIC_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 STAGED_MARKER = ".overte-device-ci-staged"
 EMBEDDED_FIXTURE_URL = "overte-e2e://fixture/scene"
+ANDROID_CONTROLLED_SUITES = {
+    "asset-smoke": "asset.load",
+    "domain-smoke": "navigation.enter-domain",
+    "sound-smoke": "sound.play",
+}
+ANDROID_ADAPTER_IDS = {"android-phone-adb", "android-pico-adb"}
 
 
 def fail(message: str) -> "NoReturn":
@@ -298,6 +304,59 @@ def subprocess_group_options() -> dict[str, object]:
     return {"start_new_session": True}
 
 
+def adapter_manifest_id(manifest: Path) -> str:
+    try:
+        value = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        fail("adapter manifest is unreadable")
+    identifier = value.get("id") if isinstance(value, dict) else None
+    if not isinstance(identifier, str) or not identifier:
+        fail("adapter manifest has no identifier")
+    return identifier
+
+
+def prepare_controlled_android_target(root: Path, manifest: Path, selector: str,
+                                      suite: str, runner_environment: dict[str, str]) -> None:
+    """Start and confirm the runtime-gated Android channel before discovery."""
+    required_capability = ANDROID_CONTROLLED_SUITES.get(suite)
+    if (required_capability is None
+            or adapter_manifest_id(manifest) not in ANDROID_ADAPTER_IDS):
+        return
+    command = load_adapter_command(manifest)
+    launch = subprocess.run([
+        *command, "invoke", "--target", selector, "--operation", "app.launch",
+        "--arguments", "{}",
+    ], cwd=root, env=runner_environment, text=True, stdout=subprocess.PIPE,
+       stderr=subprocess.PIPE, timeout=60, check=False)
+    if launch.returncode != 0:
+        detail = (launch.stderr.strip() or "adapter launch failed").replace(
+            selector, "<target>")
+        fail(f"controlled Android channel launch failed: {detail}")
+
+    deadline = time.monotonic() + 45
+    while time.monotonic() < deadline:
+        discovered = subprocess.run(
+            [*command, "discover"], cwd=root, env=runner_environment, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30, check=False,
+        )
+        if discovered.returncode == 0:
+            try:
+                targets = json.loads(discovered.stdout)
+            except json.JSONDecodeError:
+                targets = None
+            if isinstance(targets, list):
+                matches = [target for target in targets if isinstance(target, dict)
+                           and target.get("selector") == selector]
+                if len(matches) == 1:
+                    capabilities = matches[0].get("capabilities")
+                    if (isinstance(capabilities, list)
+                            and required_capability in capabilities):
+                        print("Android controlled E2E channel is ready.")
+                        return
+        time.sleep(0.25)
+    fail("controlled Android channel was not confirmed within 45 seconds")
+
+
 def run_suite() -> int:
     root = workspace()
     manifest = repository_file(root, "OVERTE_CI_ADAPTER_MANIFEST")
@@ -341,6 +400,10 @@ def run_suite() -> int:
             if suite == "e2e-core":
                 runner_environment["OVERTE_E2E_SCENE_URL"] = ready["sceneUrl"]
             apply_http_fixture_environment(runner_environment, ready)
+
+        prepare_controlled_android_target(
+            root, manifest, selector, suite, runner_environment,
+        )
 
         command = [
             sys.executable, str(root / "tests/device/run.py"),

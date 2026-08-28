@@ -415,8 +415,10 @@
                 }
             }
         };
-        request.open("GET", Script.resolvePath("android-control-command.json")
-            + "?sample=" + sampleSequence);
+        // These commands are app-private local files. A URL query is useful
+        // for HTTP cache busting, but Qt's local-file backend can treat it as
+        // part of the filename and then never expose the command contents.
+        request.open("GET", Script.resolvePath("android-control-command.json"));
         request.send();
     }
 
@@ -444,8 +446,7 @@
             }
             pollAndroidControlCommand();
         };
-        request.open("GET", Script.resolvePath("android-control.json")
-            + "?sample=" + sampleSequence);
+        request.open("GET", Script.resolvePath("android-control.json"));
         request.send();
     }
 

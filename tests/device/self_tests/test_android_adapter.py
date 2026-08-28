@@ -160,6 +160,12 @@ class AndroidAdapterTest(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
+    def test_android_control_reads_app_private_files_without_http_query(self):
+        probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
+        self.assertIn('Script.resolvePath("android-control.json")', probe)
+        self.assertIn('Script.resolvePath("android-control-command.json")', probe)
+        self.assertNotIn('"?sample=" + sampleSequence', probe)
+
     def verify(self, kind: str) -> subprocess.CompletedProcess:
         return subprocess.run([
             sys.executable, str(VERIFIER), "--adapter-manifest",

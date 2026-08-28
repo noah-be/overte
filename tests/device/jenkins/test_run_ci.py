@@ -11,6 +11,7 @@ import tempfile
 import time
 import unittest
 from unittest.mock import patch
+import subprocess
 import xml.etree.ElementTree as ET
 
 
@@ -118,6 +119,37 @@ class JenkinsGlueTest(unittest.TestCase):
                 summary = json.loads((output / "summary.json").read_text())
                 self.assertEqual("passed", summary["status"])
                 self.assertTrue((output / "fixture-ready.json").is_file())
+
+    def test_controlled_android_suite_launches_before_capability_discovery(self):
+        with tempfile.TemporaryDirectory(prefix="overte-android-bootstrap-test-") as name:
+            manifest = Path(name) / "android.json"
+            manifest.write_text(json.dumps({
+                "schemaVersion": 1,
+                "id": "android-phone-adb",
+                "command": ["adapter.py", "--kind", "phone"],
+            }), encoding="utf-8")
+            before = json.dumps([{
+                "selector": "private-target", "capabilities": ["app.launch"],
+            }])
+            ready = json.dumps([{
+                "selector": "private-target",
+                "capabilities": ["app.launch", "asset.load"],
+            }])
+            results = [
+                subprocess.CompletedProcess([], 0, "{}\n", ""),
+                subprocess.CompletedProcess([], 0, before, ""),
+                subprocess.CompletedProcess([], 0, ready, ""),
+            ]
+            with patch.object(RUN_CI, "load_adapter_command", return_value=["adapter"]), \
+                    patch.object(RUN_CI.subprocess, "run", side_effect=results) as execute, \
+                    patch.object(RUN_CI.time, "sleep"):
+                RUN_CI.prepare_controlled_android_target(
+                    ROOT, manifest, "private-target", "asset-smoke", {"SAFE": "1"},
+                )
+            self.assertEqual("invoke", execute.call_args_list[0].args[0][1])
+            self.assertEqual("app.launch", execute.call_args_list[0].args[0][5])
+            self.assertEqual("discover", execute.call_args_list[1].args[0][1])
+            self.assertEqual(3, execute.call_count)
 
     def test_private_selector_leak_is_quarantined(self):
         with tempfile.TemporaryDirectory(prefix="overte-jenkins-secret-test-") as name:
