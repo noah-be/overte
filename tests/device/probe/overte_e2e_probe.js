@@ -20,18 +20,16 @@
     var sampleIntervalMs = 250;
     var heartbeatIntervalMs = 5000;
     var previousLocationKey = "";
-    var androidControlMarkerRequestPending = false;
-    var androidControlCommandRequestPending = false;
     var androidControlAvailable = false;
     var lastAndroidControlCommandId = "";
     var androidAssetEntityId = null;
     var assetResource = null;
     var assetResourceUrl = "";
     var controlledAssetEntity = null;
-    var clientCommandRequestPending = false;
+    var clientCommandRequest = null;
     var clientCommandUnavailable = false;
     var lastClientCommandId = "";
-    var soundCommandRequestPending = false;
+    var soundCommandRequest = null;
     // Preserve the shared network-loaded probe contract. Desktop's private
     // probe copy replaces this local fallback only after the adapter has
     // posted an exact command to the controlled fixture endpoint.
@@ -129,12 +127,30 @@
 
     function observeAsset(ids) {
         var candidates = [];
+        var seen = {};
+
+        function consider(id) {
+            var key = String(id);
+            if (seen[key]) {
+                return;
+            }
+            seen[key] = true;
+            var identity = Entities.getEntityProperties(id, ["name"]);
+            if (String(identity.name).indexOf("OVERTE_E2E_ASSET_LOAD") === 0) {
+                candidates.push(id);
+            }
+        }
+
+        // Local Image entities can be rendered on Android serverless scenes
+        // without appearing in the broad spatial query. Prefer the exact ID
+        // returned by our controlled addEntity call, then retain discovery for
+        // desktop/network-loaded probe commands.
+        if (androidAssetEntityId !== null) {
+            consider(androidAssetEntityId);
+        }
         var index;
         for (index = 0; index < ids.length; index += 1) {
-            var identity = Entities.getEntityProperties(ids[index], ["name"]);
-            if (String(identity.name).indexOf("OVERTE_E2E_ASSET_LOAD") === 0) {
-                candidates.push(ids[index]);
-            }
+            consider(ids[index]);
         }
         if (candidates.length !== 1) {
             releaseAssetResource();
@@ -142,7 +158,7 @@
         }
         var id = candidates[0];
         var properties = Entities.getEntityProperties(id, [
-            "name", "type", "imageURL", "userData", "naturalDimensions"
+            "name", "type", "imageURL", "userData", "dimensions", "naturalDimensions"
         ]);
         var metadata;
         try {
@@ -155,6 +171,9 @@
         var imageURL = String(properties.imageURL);
         if (typeof assetId !== "string" || assetId.length === 0 || imageURL.length === 0) {
             releaseAssetResource();
+            return null;
+        }
+        if (!properties.naturalDimensions) {
             return null;
         }
         if (assetResource === null || assetResourceUrl !== imageURL) {
@@ -310,23 +329,25 @@
     }
 
     function pollClientCommand() {
-        if (clientCommandUnavailable || clientCommandRequestPending) {
+        if (clientCommandUnavailable || clientCommandRequest !== null) {
             return;
         }
-        clientCommandRequestPending = true;
         var request = new XMLHttpRequest();
+        clientCommandRequest = request;
         request.onreadystatechange = function () {
             if (request.readyState !== request.DONE) {
                 return;
             }
-            clientCommandRequestPending = false;
-            if (request.status === 0 || request.status === 200) {
+            clientCommandRequest = null;
+            if ((request.status === 0 || request.status === 200)
+                    && request.responseText) {
                 try {
                     applyClientCommand(JSON.parse(request.responseText));
                 } catch (error) {
                     print("OVERTE_E2E_CLIENT_COMMAND_ERROR " + safeErrorText(error));
                 }
-            } else if (request.status >= 400) {
+            } else if (request.status >= 400
+                    || (request.status === 0 && !request.responseText)) {
                 // A network-loaded shared probe has no desktop command file.
                 // Keep its pre-existing sound endpoint behavior without
                 // polling a permanent 404 for the rest of the session.
@@ -360,7 +381,7 @@
                 && typeof command.url === "string"
                 && /^hifi:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\]):[0-9]+(?:\/|$)/.test(command.url)) {
             lastAndroidControlCommandId = String(command.commandId);
-            location.href = command.url;
+            location.handleLookupString(command.url);
             return;
         }
         if (command.action === "load-asset"
@@ -397,69 +418,50 @@
     }
 
     function pollAndroidControlCommand() {
-        if (!androidControlAvailable || androidControlCommandRequestPending) {
+        if (!androidControlAvailable) {
             return;
         }
-        androidControlCommandRequestPending = true;
-        var request = new XMLHttpRequest();
-        request.onreadystatechange = function () {
-            if (request.readyState !== request.DONE) {
-                return;
-            }
-            androidControlCommandRequestPending = false;
-            if ((request.status === 0 || request.status === 200) && request.responseText) {
-                try {
-                    applyAndroidControlCommand(JSON.parse(request.responseText));
-                } catch (error) {
-                    print("OVERTE_E2E_ANDROID_COMMAND_ERROR " + safeErrorText(error));
-                }
-            }
-        };
-        request.open("GET", Script.resolvePath("android-control-command.json")
-            + "?sample=" + sampleSequence);
-        request.send();
+        try {
+            // Script.require reads local JSON through the sandboxed module
+            // loader. XMLHttpRequest uses Qt's custom-request path, which is
+            // intended for HTTP and does not reliably read file:// on Android.
+            // A distinct query keeps each atomically replaced command fresh.
+            var command = Script.require("./android-control-command.json?sample="
+                + sampleSequence);
+            applyAndroidControlCommand(command);
+        } catch (error) {
+            // The launcher intentionally starts without a command. The host
+            // creates the file only when a controlled operation is invoked.
+        }
     }
 
     function pollAndroidControlMarker() {
-        if (androidControlAvailable || androidControlMarkerRequestPending) {
+        if (androidControlAvailable) {
             pollAndroidControlCommand();
             return;
         }
-        androidControlMarkerRequestPending = true;
-        var request = new XMLHttpRequest();
-        request.onreadystatechange = function () {
-            if (request.readyState !== request.DONE) {
-                return;
-            }
-            androidControlMarkerRequestPending = false;
-            if ((request.status === 0 || request.status === 200) && request.responseText) {
-                try {
-                    var marker = JSON.parse(request.responseText);
-                    androidControlAvailable = marker.schemaVersion === 1
-                        && marker.channel === "android-debug-file-v1"
-                        && marker.probe === "overte_e2e_probe.js";
-                } catch (error) {
-                    androidControlAvailable = false;
-                }
-            }
-            pollAndroidControlCommand();
-        };
-        request.open("GET", Script.resolvePath("android-control.json")
-            + "?sample=" + sampleSequence);
-        request.send();
+        try {
+            var marker = Script.require("./android-control.json");
+            androidControlAvailable = marker.schemaVersion === 1
+                && marker.channel === "android-debug-file-v1"
+                && marker.probe === "overte_e2e_probe.js";
+        } catch (error) {
+            androidControlAvailable = false;
+        }
+        pollAndroidControlCommand();
     }
 
     function pollSoundCommand() {
-        if (!soundCommandUrl || soundCommandRequestPending) {
+        if (!soundCommandUrl || soundCommandRequest !== null) {
             return;
         }
-        soundCommandRequestPending = true;
         var request = new XMLHttpRequest();
+        soundCommandRequest = request;
         request.onreadystatechange = function () {
             if (request.readyState !== request.DONE) {
                 return;
             }
-            soundCommandRequestPending = false;
+            soundCommandRequest = null;
             if (request.status === 200) {
                 try {
                     applySoundCommand(JSON.parse(request.responseText));
@@ -550,6 +552,13 @@
             soundState.playing = Boolean(soundInjector.playing);
             if (soundState.playing) {
                 soundState.started = true;
+            } else if (soundState.started) {
+                // Android can transition playing to false without forwarding
+                // AudioInjector.finished into the script engine. A prior true
+                // sample makes this a real non-looping injector completion,
+                // not a successful-call surrogate.
+                soundState.finished = true;
+                soundState.finishReason = soundStopRequested ? "stopped" : "natural";
             }
         }
         sampleSequence += 1;
