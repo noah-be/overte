@@ -35,12 +35,6 @@
         "tests/device/toolchain.lock.json",
         "tests/device/validate_toolchain_lock.py"
       ]
-    },
-    "apple-macos": {
-      "ownedPrefixes": [
-        "tests/device/adapters/macos/"
-      ],
-      "ownedFiles": []
     }
   }
 }

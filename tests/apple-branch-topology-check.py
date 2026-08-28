@@ -12,7 +12,7 @@ from typing import Any
 
 
 POLICY_PATH = "tests/apple-branch-path-ownership.json"
-TARGETS = ("apple-ios", "apple-macos")
+TARGETS = ("apple-ios",)
 
 
 def git(repository: Path, *arguments: str) -> subprocess.CompletedProcess[bytes]:
@@ -79,7 +79,7 @@ def load_policy(repository: Path, apple_main: str) -> dict[str, Any]:
         raise ValueError("ownership policy must protect itself")
     targets = policy["targets"]
     if not isinstance(targets, dict) or set(targets) != set(TARGETS):
-        raise ValueError("ownership policy must define exactly apple-ios and apple-macos")
+        raise ValueError("ownership policy must define exactly apple-ios")
 
     for target in TARGETS:
         rules = targets[target]
