@@ -31,6 +31,12 @@ SUITES = {
 PUBLIC_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 STAGED_MARKER = ".overte-device-ci-staged"
 EMBEDDED_FIXTURE_URL = "overte-e2e://fixture/scene"
+ANDROID_CONTROLLED_SUITES = {
+    "asset-smoke": "asset.load",
+    "domain-smoke": "navigation.enter-domain",
+    "sound-smoke": "sound.play",
+}
+ANDROID_ADAPTER_IDS = {"android-phone-adb", "android-pico-adb"}
 
 
 def fail(message: str) -> "NoReturn":
@@ -289,13 +295,140 @@ def wait_for_ready(process: subprocess.Popen, ready_file: Path, timeout_seconds:
         if process.poll() is not None:
             fail("fixture server exited before becoming ready")
         time.sleep(0.05)
-    fail("fixture server did not become ready within 10 seconds")
+    fail(f"fixture server did not become ready within {timeout_seconds} seconds")
+
+
+def apply_http_fixture_environment(environment_values: dict[str, str], ready: dict) -> None:
+    asset = ready.get("asset")
+    sound = ready.get("sound")
+    required_asset = {
+        "id", "url", "telemetryUrl", "contentType", "sha256", "bytes",
+        "width", "height", "entityName",
+    }
+    if (not isinstance(asset, dict) or not required_asset.issubset(asset)
+            or not isinstance(sound, dict)
+            or not isinstance(ready.get("soundUrl"), str)
+            or not isinstance(ready.get("soundCommandUrl"), str)
+            or not isinstance(ready.get("soundRequestsUrl"), str)):
+        fail("fixture ready file has incomplete asset or sound metadata")
+    environment_values.update({
+        "OVERTE_E2E_ASSET_ID": str(asset["id"]),
+        "OVERTE_E2E_ASSET_URL": str(asset["url"]),
+        "OVERTE_E2E_ASSET_TELEMETRY_URL": str(asset["telemetryUrl"]),
+        "OVERTE_E2E_ASSET_ENTITY_NAME": str(asset["entityName"]),
+        "OVERTE_E2E_ASSET_CONTENT_TYPE": str(asset["contentType"]),
+        "OVERTE_E2E_ASSET_SHA256": str(asset["sha256"]),
+        "OVERTE_E2E_ASSET_BYTES": str(asset["bytes"]),
+        "OVERTE_E2E_ASSET_WIDTH": str(asset["width"]),
+        "OVERTE_E2E_ASSET_HEIGHT": str(asset["height"]),
+        "OVERTE_E2E_SOUND_URL": str(ready["soundUrl"]),
+        "OVERTE_E2E_SOUND_COMMAND_URL": str(ready["soundCommandUrl"]),
+        "OVERTE_E2E_SOUND_REQUESTS_URL": str(ready["soundRequestsUrl"]),
+        "OVERTE_E2E_SOUND_DURATION_SECONDS": str(sound["durationSeconds"]),
+    })
+
+
+def apply_domain_fixture_environment(environment_values: dict[str, str], ready: dict) -> None:
+    markers = ready.get("requiredMarkers") if isinstance(ready, dict) else None
+    if (not isinstance(ready, dict)
+            or not isinstance(ready.get("domainUrl"), str)
+            or not ready["domainUrl"].startswith("hifi://")
+            or not isinstance(ready.get("domainHost"), str)
+            or not isinstance(ready.get("domainId"), str)
+            or not isinstance(markers, list) or not markers
+            or not all(isinstance(marker, str) and marker for marker in markers)):
+        fail("domain fixture ready file has incomplete metadata")
+    environment_values.update({
+        "OVERTE_E2E_DOMAIN_URL": ready["domainUrl"],
+        "OVERTE_E2E_DOMAIN_HOST": ready["domainHost"],
+        "OVERTE_E2E_DOMAIN_ID": ready["domainId"],
+        "OVERTE_E2E_DOMAIN_MARKERS_JSON": json.dumps(markers, separators=(",", ":")),
+    })
+
+
+def copy_domain_fixture_artifacts(source: Path, output: Path) -> None:
+    if not source.is_dir():
+        return
+    destination = output / "domain-fixture"
+    copied = False
+    for name in ("domain-config.json", "domain-server.log", "assignment-client.log",
+                 "assignment-agent.log"):
+        candidate = source / name
+        if candidate.is_file() and not candidate.is_symlink():
+            destination.mkdir(parents=True, exist_ok=True, mode=0o700)
+            shutil.copy2(candidate, destination / name)
+            copied = True
+    assignment_logs = source / "assignment-logs"
+    if assignment_logs.is_dir() and not assignment_logs.is_symlink():
+        regular_logs = [path for path in assignment_logs.iterdir()
+                        if path.is_file() and not path.is_symlink()]
+        if regular_logs:
+            target = destination / "assignment-logs"
+            target.mkdir(parents=True, exist_ok=True, mode=0o700)
+            for path in regular_logs:
+                shutil.copy2(path, target / path.name)
+            copied = True
+    if not copied and destination.exists():
+        destination.rmdir()
 
 
 def subprocess_group_options() -> dict[str, object]:
     if os.name == "nt":
         return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
     return {"start_new_session": True}
+
+
+def adapter_manifest_id(manifest: Path) -> str:
+    try:
+        value = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        fail("adapter manifest is unreadable")
+    identifier = value.get("id") if isinstance(value, dict) else None
+    if not isinstance(identifier, str) or not identifier:
+        fail("adapter manifest has no identifier")
+    return identifier
+
+
+def prepare_controlled_android_target(root: Path, manifest: Path, selector: str,
+                                      suite: str, runner_environment: dict[str, str]) -> None:
+    """Start and confirm the runtime-gated Android channel before discovery."""
+    required_capability = ANDROID_CONTROLLED_SUITES.get(suite)
+    if (required_capability is None
+            or adapter_manifest_id(manifest) not in ANDROID_ADAPTER_IDS):
+        return
+    command = load_adapter_command(manifest)
+    launch = subprocess.run([
+        *command, "invoke", "--target", selector, "--operation", "app.launch",
+        "--arguments", "{}",
+    ], cwd=root, env=runner_environment, text=True, stdout=subprocess.PIPE,
+       stderr=subprocess.PIPE, timeout=60, check=False)
+    if launch.returncode != 0:
+        detail = (launch.stderr.strip() or "adapter launch failed").replace(
+            selector, "<target>")
+        fail(f"controlled Android channel launch failed: {detail}")
+
+    deadline = time.monotonic() + 45
+    while time.monotonic() < deadline:
+        discovered = subprocess.run(
+            [*command, "discover"], cwd=root, env=runner_environment, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30, check=False,
+        )
+        if discovered.returncode == 0:
+            try:
+                targets = json.loads(discovered.stdout)
+            except json.JSONDecodeError:
+                targets = None
+            if isinstance(targets, list):
+                matches = [target for target in targets if isinstance(target, dict)
+                           and target.get("selector") == selector]
+                if len(matches) == 1:
+                    capabilities = matches[0].get("capabilities")
+                    if (isinstance(capabilities, list)
+                            and required_capability in capabilities):
+                        print("Android controlled E2E channel is ready.")
+                        return
+        time.sleep(0.25)
+    fail("controlled Android channel was not confirmed within 45 seconds")
 
 
 def run_suite() -> int:
@@ -314,8 +447,9 @@ def run_suite() -> int:
     fixture_metadata = output.parent / f".{output.name}-fixture"
     fixture_log = fixture_metadata / "fixture.log"
     fixture_ready = fixture_metadata / "ready.json"
+    domain_output = fixture_metadata / "domain"
     runner_environment = os.environ.copy()
-    target_arguments = runner_target_arguments(manifest, runner_environment)
+    selector = environment("OVERTE_DEVICE_TARGET_SELECTOR")
     previous_handlers: dict[int, object] = {}
 
     try:
@@ -335,18 +469,13 @@ def run_suite() -> int:
                 "--domain-server", str(domain_server),
                 "--assignment-client", str(assignment_client),
                 "--bind", bind, "--public-host", host,
-                "--output-dir", str(fixture_metadata / "domain"),
+                "--domain-host", host, "--output-dir", str(domain_output),
                 "--ready-file", str(fixture_ready),
             ], cwd=root, stdout=fixture_log_handle, stderr=subprocess.STDOUT,
                text=True, **subprocess_group_options())
-            ready = wait_for_ready(fixture, fixture_ready, timeout_seconds=30,
+            ready = wait_for_ready(fixture, fixture_ready, timeout_seconds=75,
                                    required_key="domainUrl")
-            runner_environment.update({
-                "OVERTE_E2E_DOMAIN_URL": ready["domainUrl"],
-                "OVERTE_E2E_DOMAIN_HOST": ready["domainHost"],
-                "OVERTE_E2E_DOMAIN_ID": ready["domainId"],
-                "OVERTE_E2E_DOMAIN_MARKERS_JSON": json.dumps(ready["requiredMarkers"]),
-            })
+            apply_domain_fixture_environment(runner_environment, ready)
         elif suite in {"e2e-core", "vertical-locomotion"} \
                 and checked_fixture_mode() == "embedded":
             runner_environment["OVERTE_E2E_SCENE_URL"] = EMBEDDED_FIXTURE_URL
@@ -366,31 +495,15 @@ def run_suite() -> int:
                text=True, **subprocess_group_options())
             ready = wait_for_ready(fixture, fixture_ready)
             if is_ios_appium_manifest(manifest):
-                selector = environment("OVERTE_DEVICE_TARGET_SELECTOR")
                 update_ios_fixture_origin(root, selector, ready.get("baseUrl"))
             if suite in {"e2e-core", "vertical-locomotion"}:
                 runner_environment["OVERTE_E2E_SCENE_URL"] = ready["sceneUrl"]
-            elif suite == "asset-smoke":
-                asset = ready["asset"]
-                runner_environment.update({
-                    "OVERTE_E2E_ASSET_ID": asset["id"],
-                    "OVERTE_E2E_ASSET_URL": asset["url"],
-                    "OVERTE_E2E_ASSET_TELEMETRY_URL": asset["telemetryUrl"],
-                    "OVERTE_E2E_ASSET_ENTITY_NAME": asset["entityName"],
-                    "OVERTE_E2E_ASSET_CONTENT_TYPE": asset["contentType"],
-                    "OVERTE_E2E_ASSET_SHA256": asset["sha256"],
-                    "OVERTE_E2E_ASSET_BYTES": str(asset["bytes"]),
-                    "OVERTE_E2E_ASSET_WIDTH": str(asset["width"]),
-                    "OVERTE_E2E_ASSET_HEIGHT": str(asset["height"]),
-                })
-            else:
-                runner_environment.update({
-                    "OVERTE_E2E_SOUND_URL": ready["soundUrl"],
-                    "OVERTE_E2E_SOUND_COMMAND_URL": ready["soundCommandUrl"],
-                    "OVERTE_E2E_SOUND_REQUESTS_URL": ready["soundRequestsUrl"],
-                    "OVERTE_E2E_SOUND_DURATION_SECONDS":
-                        str(ready["sound"]["durationSeconds"]),
-                })
+            apply_http_fixture_environment(runner_environment, ready)
+
+        prepare_controlled_android_target(
+            root, manifest, selector, suite, runner_environment,
+        )
+        target_arguments = runner_target_arguments(manifest, runner_environment)
 
         command = [
             sys.executable, str(root / "tests/device/run.py"),
@@ -428,6 +541,7 @@ def run_suite() -> int:
                 shutil.copy2(fixture_log, output / "fixture.log")
             if fixture_ready.exists():
                 shutil.copy2(fixture_ready, output / "fixture-ready.json")
+            copy_domain_fixture_artifacts(domain_output, output)
 
 
 def load_adapter_command(manifest: Path) -> list[str]:

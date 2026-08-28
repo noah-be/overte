@@ -152,7 +152,10 @@ def validate_probe_snapshot(value: object) -> dict:
                 or not all(isinstance(domain.get(field), str)
                            for field in ("hostname", "id", "protocol"))):
             raise ValueError("probe domain requires connection, identity and protocol state")
-        if domain["connected"] and (not domain["hostname"] or not domain["id"]):
+        if domain["serverless"] and domain["protocol"] != "file":
+            raise ValueError("serverless probe domain requires file protocol")
+        if (domain["connected"] and not domain["serverless"]
+                and (not domain["hostname"] or not domain["id"])):
             raise ValueError("connected probe domain requires hostname and id")
     input_state = value.get("input")
     if input_state is not None:

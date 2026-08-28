@@ -68,11 +68,15 @@ def validate_domain_fixture() -> dict:
         raise ValueError("domain bootstrap must create domain entities")
     if "Entities.serversExist() || !Entities.canRez()" not in script:
         raise ValueError("domain bootstrap must wait for entity server permissions")
+    if 'Script.resolvePath("domain-ready")' not in script:
+        raise ValueError("domain bootstrap must report readiness to its fixture controller")
     return manifest
 
 
 class DomainResourceHandler(SimpleHTTPRequestHandler):
     bootstrap_path = ""
+    content_ready = threading.Event()
+    expected_marker_count = 0
 
     def end_headers(self) -> None:
         self.send_header("Cache-Control", "no-store")
@@ -93,6 +97,30 @@ class DomainResourceHandler(SimpleHTTPRequestHandler):
             self.send_error(404)
             return
         super().do_GET()
+
+    def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+        if self.path != "/domain-ready":
+            self.send_error(404)
+            return
+        try:
+            length = int(self.headers.get("Content-Length", ""))
+        except ValueError:
+            self.send_error(400)
+            return
+        if not 1 <= length <= 256:
+            self.send_error(400)
+            return
+        try:
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self.send_error(400)
+            return
+        if payload != {"schemaVersion": 1, "markerCount": self.expected_marker_count}:
+            self.send_error(400)
+            return
+        self.content_ready.set()
+        self.send_response(204)
+        self.end_headers()
 
     def log_message(self, format_string: str, *arguments: object) -> None:
         print("domain-fixture-http: " + format_string % arguments, file=sys.stderr)
@@ -170,10 +198,16 @@ def wait_for_domain(process: subprocess.Popen, url: str, timeout_seconds: int) -
 
 
 def wait_for_assignment_content(processes: tuple[subprocess.Popen, ...], log_path: Path,
-                                expected_count: int, timeout_seconds: int) -> None:
+                                expected_count: int, timeout_seconds: int,
+                                stopping: threading.Event | None = None,
+                                content_ready: threading.Event | None = None) -> None:
     marker = f"OVERTE_E2E_DOMAIN_FIXTURE_READY markers={expected_count}"
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
+        if content_ready is not None and content_ready.is_set():
+            return
+        if stopping is not None and stopping.is_set():
+            raise RuntimeError("domain fixture stopped before content became ready")
         if any(process.poll() is not None for process in processes):
             raise RuntimeError("domain fixture process exited before content became ready")
         try:
@@ -204,7 +238,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--script-port", type=int, default=0)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--ready-file", type=Path)
-    parser.add_argument("--startup-timeout-seconds", type=int, default=30)
+    parser.add_argument("--startup-timeout-seconds", type=int, default=60)
     parser.add_argument("--assignment-warmup-seconds", type=float, default=2.0)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
@@ -242,6 +276,8 @@ def main() -> int:
             raise ValueError(f"{label} must be a DNS name or IPv4 address")
 
     DomainResourceHandler.bootstrap_path = f"/{manifest['bootstrapScript']}"
+    DomainResourceHandler.content_ready = threading.Event()
+    DomainResourceHandler.expected_marker_count = manifest["expectedEntityCount"]
     handler = partial(DomainResourceHandler, directory=str(ROOT))
     resources = ThreadingHTTPServer((args.bind, args.script_port), handler)
     resource_thread = threading.Thread(target=resources.serve_forever, daemon=True)
@@ -279,7 +315,8 @@ def main() -> int:
     assignment_log = (output / "assignment-client.log").open("w", encoding="utf-8")
     assignment_agent_log = (output / "assignment-agent.log").open("w", encoding="utf-8")
     (output / "assignment-logs").mkdir(mode=0o700)
-    domain_process = assignment_process = assignment_agent_process = None
+    domain_process = assignment_agent_process = None
+    assignment_processes: list[subprocess.Popen] = []
     stopping = threading.Event()
 
     def request_stop(_signal=None, _frame=None) -> None:
@@ -296,13 +333,14 @@ def main() -> int:
         domain_id = wait_for_domain(
             domain_process, f"http://127.0.0.1:{args.http_port}/id",
             args.startup_timeout_seconds)
-        assignment_process = subprocess.Popen(
-            [str(assignment_client), "-n", "6", "-a", "127.0.0.1",
-             "--server-port", str(args.domain_port),
-             "--disable-domain-port-auto-discovery",
-             "--log-directory", str(output / "assignment-logs"),
-             "--logOptions", "nocolor,process_id,milliseconds"],
-            **process_options(environment, assignment_log))
+        for assignment_type in ("0", "1", "3", "4", "5", "6"):
+            assignment_processes.append(subprocess.Popen(
+                [str(assignment_client), "-t", assignment_type, "-a", "127.0.0.1",
+                 "--server-port", str(args.domain_port),
+                 "--disable-domain-port-auto-discovery",
+                 "--log-directory", str(output / "assignment-logs"),
+                 "--logOptions", "nocolor,process_id,milliseconds"],
+                **process_options(environment, assignment_log)))
         assignment_agent_process = subprocess.Popen(
             [str(assignment_client), "-t", "2", "--pool", "overte-e2e-domain",
              "-a", "127.0.0.1", "--server-port", str(args.domain_port),
@@ -312,14 +350,17 @@ def main() -> int:
             **process_options(environment, assignment_agent_log))
         deadline = time.monotonic() + args.assignment_warmup_seconds
         while time.monotonic() < deadline:
-            if (domain_process.poll() is not None or assignment_process.poll() is not None
+            if (domain_process.poll() is not None
+                    or any(process.poll() is not None for process in assignment_processes)
                     or assignment_agent_process.poll() is not None):
                 raise RuntimeError("domain fixture process exited during assignment warmup")
             time.sleep(min(0.1, max(0.0, deadline - time.monotonic())))
+        fixture_processes = (
+            domain_process, *assignment_processes, assignment_agent_process)
         wait_for_assignment_content(
-            (domain_process, assignment_process, assignment_agent_process),
+            fixture_processes,
             output / "assignment-agent.log", manifest["expectedEntityCount"],
-            args.startup_timeout_seconds)
+            args.startup_timeout_seconds, stopping, DomainResourceHandler.content_ready)
         ready = {
             "schemaVersion": 1,
             "domainUrl": f"hifi://{domain_host}:{args.domain_port}{manifest['spawnPath']}",
@@ -335,13 +376,14 @@ def main() -> int:
         while not stopping.wait(0.25):
             if domain_process.poll() is not None:
                 raise RuntimeError("domain-server exited while fixture was active")
-            if assignment_process.poll() is not None:
+            if any(process.poll() is not None for process in assignment_processes):
                 raise RuntimeError("assignment-client exited while fixture was active")
             if assignment_agent_process.poll() is not None:
                 raise RuntimeError("assignment agent exited while fixture was active")
     finally:
         stop_process(assignment_agent_process)
-        stop_process(assignment_process)
+        for assignment_process in reversed(assignment_processes):
+            stop_process(assignment_process)
         stop_process(domain_process)
         resources.shutdown()
         resources.server_close()
