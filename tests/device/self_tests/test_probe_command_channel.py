@@ -26,10 +26,14 @@ class ProbeCommandChannelTest(unittest.TestCase):
         for action in ('"scene-load"', '"navigate"', '"asset-load"', '"sound-channel"'):
             self.assertIn(f"command.action === {action}", self.source)
         self.assertIn("Window.location = command.url", self.source)
+        self.assertIn("controlledSceneLocation(command.url)", self.source)
+        self.assertIn("Window.location = scenePath", self.source)
+        self.assertIn("resetSceneObservation()", self.source)
         self.assertIn("controlledAssetEntity = Entities.addEntity({", self.source)
         self.assertIn("soundCommandUrl = String(command.url)", self.source)
         self.assertNotIn("Clipboard", self.source)
         self.assertNotIn("Desktop.openUrl", self.source)
+        self.assertNotIn("MyAvatar.position =", self.source)
 
     def test_adapter_owned_entity_is_removed_on_replacement_and_shutdown(self) -> None:
         self.assertGreaterEqual(
