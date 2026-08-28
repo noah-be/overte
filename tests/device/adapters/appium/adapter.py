@@ -1348,13 +1348,23 @@ class AppiumAdapter:
             contract = target.get("testBuild", {})
             remote = (f"@{target['appId']}:documents/"
                       f"{contract['resultsDirectory']}/overte-probe.json")
-            value = client.execute(session, "mobile: pullFile", {"remotePath": remote})
-            if not isinstance(value, str):
-                fail("iOS Documents probe pull did not return base64 content")
-            try:
-                snapshot = json.loads(base64.b64decode(value, validate=True).decode("utf-8"))
-            except (ValueError, UnicodeError, json.JSONDecodeError):
-                fail("iOS Documents probe pull returned invalid content")
+            snapshot = None
+            # Test.saveObject rewrites the live snapshot every 250 ms without
+            # an atomic rename. A file transfer can therefore observe the tiny
+            # truncate/write window. Retry only malformed transport content;
+            # valid-but-wrong snapshots still fail their contract immediately.
+            for attempt in range(5):
+                value = client.execute(session, "mobile: pullFile", {"remotePath": remote})
+                if not isinstance(value, str):
+                    fail("iOS Documents probe pull did not return base64 content")
+                try:
+                    snapshot = json.loads(
+                        base64.b64decode(value, validate=True).decode("utf-8"))
+                    break
+                except (ValueError, UnicodeError, json.JSONDecodeError):
+                    if attempt == 4:
+                        fail("iOS Documents probe pull returned invalid content")
+                    time.sleep(0.05)
             result = self.validate_probe(snapshot)
             self.assert_ios_process_identity(selector, client, session, state, target)
             return result

@@ -296,6 +296,23 @@ class JenkinsGlueTest(unittest.TestCase):
         stop.assert_called_once_with(timed_out, grace_seconds=2)
         self.assertNotIn(selector, str(failure.exception))
 
+    def test_ios_probe_request_gate_requires_a_successful_script_fetch(self):
+        with tempfile.TemporaryDirectory(prefix="overte-probe-request-") as name:
+            fixture_log = Path(name) / "fixture.log"
+            fixture_log.write_text(
+                'fixture: "GET /overte_e2e_probe.js HTTP/1.1" 200 -\n',
+                encoding="utf-8",
+            )
+            RUN_CI.require_ios_probe_request(fixture_log)
+
+            fixture_log.write_text(
+                'fixture: "GET /scene.json HTTP/1.1" 200 -\n', encoding="utf-8")
+            with patch.object(
+                    RUN_CI.time, "monotonic", side_effect=[0, 0, 11]), patch.object(
+                    RUN_CI.time, "sleep"):
+                with self.assertRaisesRegex(ValueError, "did not request"):
+                    RUN_CI.require_ios_probe_request(fixture_log)
+
     def test_ios_core_updates_fixture_before_session_prewarm_and_common_runner(self):
         with tempfile.TemporaryDirectory(prefix="overte-ios-ordering-") as name:
             temporary = Path(name)
@@ -314,8 +331,13 @@ class JenkinsGlueTest(unittest.TestCase):
                 self.assertTrue(origin.startswith("http://127.0.0.1:"))
                 observed.append("prewarm")
 
+            def require_probe(fixture_log):
+                self.assertEqual("fixture.log", fixture_log.name)
+                observed.append("probe-request")
+
             with patch.dict(os.environ, values, clear=False), patch.object(
                     RUN_CI, "prewarm_ios_appium_session", side_effect=prewarm), patch.object(
+                    RUN_CI, "require_ios_probe_request", side_effect=require_probe), patch.object(
                     RUN_CI, "is_ios_appium_manifest", return_value=True), patch.object(
                     RUN_CI, "load_adapter_command", return_value=[
                         "python3", str(ROOT / "tests/device/adapters/mock/adapter.py"),
@@ -337,7 +359,7 @@ class JenkinsGlueTest(unittest.TestCase):
                             "sceneUrl": "http://127.0.0.1:43127/scene.json",
                     }):
                         self.assertEqual(0, RUN_CI.run_suite())
-            self.assertEqual(["prewarm"], observed)
+            self.assertEqual(["prewarm", "probe-request"], observed)
 
     def test_ios_ddi_gate_keeps_device_and_paths_out_of_argv_and_output(self):
         with tempfile.TemporaryDirectory(prefix="overte-ios-ddi-glue-") as name:

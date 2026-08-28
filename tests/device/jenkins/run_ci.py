@@ -39,6 +39,7 @@ PUBLIC_RESULT_NAMES = {
 }
 IOS_SESSION_PREWARM_TIMEOUT_SECONDS = 210
 IOS_SIGNED_INSTALL_PREWARM_TIMEOUT_SECONDS = 20 * 60
+IOS_PROBE_REQUEST_TIMEOUT_SECONDS = 10
 
 
 def fail(message: str) -> "NoReturn":
@@ -316,6 +317,31 @@ def prewarm_ios_appium_session(root: Path, manifest: Path, selector: str,
         )
 
 
+def require_ios_probe_request(fixture_log: Path,
+                              timeout_seconds: int = IOS_PROBE_REQUEST_TIMEOUT_SECONDS) -> None:
+    """Prove the launched iOS client fetched the repository-owned test script."""
+    if fixture_log.is_symlink() or not fixture_log.is_file():
+        fail("private fixture access log is unavailable")
+    metadata = fixture_log.lstat()
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.geteuid():
+        fail("private fixture access log is unsafe")
+    expected = re.compile(
+        rb'^fixture: "GET /overte_e2e_probe[.]js HTTP/1[.][01]" 200 -$', re.MULTILINE)
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        try:
+            with fixture_log.open("rb") as source:
+                payload = source.read(1024 * 1024 + 1)
+            if len(payload) > 1024 * 1024:
+                fail("private fixture access log exceeded its safety limit")
+            if expected.search(payload):
+                return
+        except OSError:
+            pass
+        time.sleep(0.1)
+    fail("iOS application did not request the controlled probe script")
+
+
 def run_suite() -> int:
     root = workspace()
     manifest = repository_file(root, "OVERTE_CI_ADAPTER_MANIFEST")
@@ -378,6 +404,7 @@ def run_suite() -> int:
             prewarm_ios_appium_session(
                 root, manifest, selector, runner_environment, active_adapter_processes,
             )
+            require_ios_probe_request(fixture_log)
 
         command = [
             sys.executable, str(root / "tests/device/run.py"),
