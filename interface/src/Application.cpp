@@ -1136,7 +1136,11 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         QString viewpoint;
         QString path;
         if (query.hasQueryItem(locationKey)) {
-            viewpoint = query.queryItemValue(locationKey);
+            // PrettyDecoded deliberately preserves percent-encoded reserved
+            // characters. The controlled HTTP URL encodes the viewpoint's
+            // slashes and commas, while AddressManager's viewpoint parser
+            // requires their decoded form.
+            viewpoint = query.queryItemValue(locationKey, QUrl::FullyDecoded);
         } else {
             const auto root = namedPaths.find(QStringLiteral("/"));
             if (root == namedPaths.end()) {

@@ -153,9 +153,9 @@ class LocalLabBootstrapTest(unittest.TestCase):
                     patch.object(LAB, "wait_controller"), \
                     patch.object(LAB.subprocess, "run") as run_process, \
                     patch.object(LAB, "immutable_appium_command", return_value=[
-                        "/usr/local/lib/overte-ios-remotexpc/5.15.3-r11/remotexpc_tunnel.py",
+                        "/usr/local/lib/overte-ios-remotexpc/5.15.3-r12/remotexpc_tunnel.py",
                         "appium-server", "--service-runtime",
-                        "/usr/local/lib/overte-ios-remotexpc/5.15.3-r11",
+                        "/usr/local/lib/overte-ios-remotexpc/5.15.3-r12",
                         "--state-root", str(private / "appium-state"),
                     ]) as immutable_appium:
                 self.assertEqual(0, LAB.install_systemd_user_services(arguments))

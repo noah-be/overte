@@ -249,7 +249,7 @@ sudo python3 tests/device/ios/remotexpc_tunnel.py install-unit \
 Run it only from an audited, quiescent checkout and staging tree. It atomically
 copies the pinned Node executable, package files, complete npm tree, tunnel
 wrapper, validated pymobiledevice3 site-packages, and toolchain lock into
-`/usr/local/lib/overte-ios-remotexpc/5.15.3-r11`. The suffix is the immutable
+`/usr/local/lib/overte-ios-remotexpc/5.15.3-r12`. The suffix is the immutable
 Overte packaging revision; the pinned RemoteXPC package remains 5.15.3. Source
 and destination trees are hashed before publication. Every installed file is
 root-owned and immutable. Existing content and modes are only attested, never
@@ -273,7 +273,7 @@ sudo systemctl stop overte-ios-remotexpc.service
 sudo systemctl clean --what=state overte-ios-remotexpc.service
 ```
 
-The immutable copy also contains three deliberately quiet device helpers. Under
+The immutable copy also contains four deliberately quiet device helpers. Under
 the exclusive Jenkins device lock, a signed-IPA target is handled in this exact
 order: attest/mount the pinned Personalized Developer Disk Image, revalidate the
 receipt and both IPA hashes, replace WDA and Overte with `device-install`, run
@@ -291,6 +291,9 @@ pinned installation-proxy implementation. It removes stale same-version apps,
 installs WDA then Overte, and emits only a generic PASS/error. The weaker
 `personal-team-preinstalled` mode never invokes this installer; it observes the
 already installed apps and proceeds directly to the same marker/team preflight.
+`device-app-terminate` is the WDA-independent cleanup path. It accepts only an
+exact UDID and bundle ID on stdin, kills that bundle through DVT, polls until no
+process remains, and emits no device or bundle identity.
 
 Physical iOS/iPadOS 17 and newer also requires Apple's Personalized Developer
 Disk Image before WDA can load XCTest. The repository does not redistribute or
@@ -310,14 +313,14 @@ directory through the private `IOS_DDI_ROOT` parameter.
 Attest status without elevation:
 
 ```bash
-python3 /usr/local/lib/overte-ios-remotexpc/5.15.3-r11/remotexpc_tunnel.py status
+python3 /usr/local/lib/overte-ios-remotexpc/5.15.3-r12/remotexpc_tunnel.py status
 ```
 
 Jenkins must also start Appium from the immutable runtime, never from a mutable
 user `node_modules`:
 
 ```bash
-/usr/local/lib/overte-ios-remotexpc/5.15.3-r11/remotexpc_tunnel.py appium-server \
+/usr/local/lib/overte-ios-remotexpc/5.15.3-r12/remotexpc_tunnel.py appium-server \
   --state-root /private/jenkins-job/appium-state \
   --address 127.0.0.1 --port 4723
 ```

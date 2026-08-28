@@ -49,6 +49,15 @@ def cli() -> argparse.Namespace:
     return parser.parse_args()
 
 
+class WebDriverRequestError(RuntimeError):
+    """Privacy-safe WebDriver transport failure with its HTTP status."""
+
+    def __init__(self, status: int, diagnosis: str | None = None) -> None:
+        self.status = status
+        detail = f" ({diagnosis})" if diagnosis else ""
+        super().__init__(f"Appium request failed with HTTP {status}{detail}")
+
+
 class WebDriver:
     MAX_RESPONSE_BYTES = 32 * 1024 * 1024
     MAX_ERROR_RESPONSE_BYTES = 64 * 1024
@@ -130,8 +139,7 @@ class WebDriver:
                 document = json.loads(raw)
         except HTTPError as error:
             diagnosis = self.classify_http_error(error)
-            detail = f" ({diagnosis})" if diagnosis else ""
-            fail(f"Appium request failed with HTTP {error.code}{detail}")
+            raise WebDriverRequestError(error.code, diagnosis) from None
         except (URLError, OSError, json.JSONDecodeError):
             fail("Appium server is unavailable or returned an invalid response")
         if not isinstance(document, dict) or "value" not in document:
@@ -173,7 +181,7 @@ class AppiumAdapter:
         "appium:keychainPath", "appium:keychainPassword",
         "appium:allowProvisioningDeviceRegistration", "appium:resultBundlePath",
     }
-    IOS_SERVICE_RUNTIME_REVISION = 11
+    IOS_SERVICE_RUNTIME_REVISION = 12
     IOS_LAUNCH_STABILITY_SECONDS = 1.0
 
     def __init__(self, platform: str) -> None:
@@ -216,7 +224,7 @@ class AppiumAdapter:
                 if not isinstance(entry.get(section, {}), dict):
                     fail(f"Appium target {section} must be an object")
             if "iosSessionBootstrap" in entry:
-                fail("iosSessionBootstrap is obsolete with the immutable r11 XCTest keeper")
+                fail("iosSessionBootstrap is obsolete with the immutable r12 XCTest keeper")
             if not isinstance(entry.get("soundControl", {}), dict):
                 fail("Appium target soundControl must be an object")
             tablet = entry.get("controls", {}).get("tablet", {})
@@ -992,6 +1000,27 @@ class AppiumAdapter:
         if result.returncode != 0:
             fail("installed iOS applications failed the private device preflight")
 
+    def terminate_ios_app_without_wda(self, target: dict) -> None:
+        """Terminate and verify the exact receipt-bound app over DVT."""
+        udid = target["capabilities"].get("appium:udid")
+        bundle = target.get("appId")
+        if (not isinstance(udid, str) or not udid
+                or not isinstance(bundle, str) or not bundle):
+            fail("physical iOS target identity is unavailable for cleanup")
+        wrapper = self.immutable_ios_runtime_wrapper()
+        try:
+            result = subprocess.run(
+                [str(wrapper), "device-app-terminate"],
+                input=json.dumps({"udid": udid, "bundleId": bundle},
+                                 separators=(",", ":")),
+                text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                timeout=65, check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            fail("immutable iOS application cleanup could not run")
+        if result.returncode != 0:
+            fail("immutable iOS application cleanup did not complete")
+
     def install_receipt_bound_ios_apps(self, target: dict) -> None:
         """Replace both strong-mode apps through the immutable device helper.
 
@@ -1623,12 +1652,43 @@ class AppiumAdapter:
     def cleanup(self, selector: str) -> dict:
         target = self.target(selector)
         state = self.read_session(selector)
+        if self.platform == "ios":
+            session_failure = False
+            session_absent = state is None
+            if state:
+                client = WebDriver(target["serverUrl"])
+                try:
+                    client.execute(state["sessionId"], "mobile: terminateApp",
+                                   {"bundleId": target["appId"]})
+                except RuntimeError:
+                    # The DVT path below is the authoritative fallback and
+                    # independently verifies that the process is gone.
+                    pass
+                try:
+                    client.call("DELETE", f"/session/{state['sessionId']}")
+                except WebDriverRequestError as error:
+                    session_absent = error.status == 404
+                    session_failure = not session_absent
+                except RuntimeError:
+                    session_failure = True
+                else:
+                    session_absent = True
+            dvt_failure = False
+            try:
+                self.terminate_ios_app_without_wda(target)
+            except RuntimeError:
+                dvt_failure = True
+            if session_absent and not dvt_failure:
+                self.state_path(selector).unlink(missing_ok=True)
+            if session_failure or dvt_failure or not session_absent:
+                fail("Appium target cleanup did not complete")
+            return {"cleaned": True}
         if state:
             client = WebDriver(target["serverUrl"])
             failed = False
             try:
-                key = "appId" if self.platform == "android" else "bundleId"
-                client.execute(state["sessionId"], "mobile: terminateApp", {key: target["appId"]})
+                client.execute(state["sessionId"], "mobile: terminateApp",
+                               {"appId": target["appId"]})
             except RuntimeError:
                 failed = True
             deleted = False

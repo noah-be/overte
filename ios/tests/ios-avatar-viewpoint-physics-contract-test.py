@@ -51,13 +51,14 @@ for token in (
     "const QUrlQuery query(domainURL);",
     'const QString locationKey = QStringLiteral("location");',
     "query.hasQueryItem(locationKey)",
-    "query.queryItemValue(locationKey)",
+    "query.queryItemValue(locationKey, QUrl::FullyDecoded)",
     'namedPaths.find(QStringLiteral("/"))',
     "QTimer::singleShot(0",
     "goToViewpointForPath(",
     "viewpoint, path);",
 ):
     assert token in viewpoint, f"iOS committed serverless viewpoint missing {token}"
+assert "query.queryItemValue(locationKey);" not in viewpoint
 assert application.count("scheduleServerlessViewpoint(namedPaths);") == 2
 
 print("PASS iOS startup viewpoint remains pending until physics handoff")

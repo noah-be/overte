@@ -359,7 +359,7 @@ class IosFedoraSyncTest(unittest.TestCase):
         arguments = mock.Mock(
             attestation=attestation.resolve(), destination=(self.root / "runs"),
             target_config=config_path.resolve(), target_selector="private-selector",
-            service_runtime=Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r11"),
+            service_runtime=Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r12"),
         )
         discovered = {
             "overteBundleId": "com.sideloadly.slot.overte",
