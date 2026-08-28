@@ -250,6 +250,39 @@ class JenkinsGlueTest(unittest.TestCase):
             self.assertEqual("discover", execute.call_args_list[1].args[0][1])
             self.assertEqual(3, execute.call_count)
 
+    def test_controlled_pico_bootstrap_auto_selects_without_stale_credential(self):
+        with tempfile.TemporaryDirectory(prefix="overte-pico-bootstrap-test-") as name:
+            manifest = Path(name) / "pico.json"
+            manifest.write_text(json.dumps({
+                "schemaVersion": 1,
+                "id": "android-pico-adb",
+                "command": ["adapter.py", "--kind", "pico"],
+            }), encoding="utf-8")
+            ready = json.dumps([{
+                "selector": "live-network-target",
+                "capabilities": ["app.launch", "navigation.enter-domain"],
+            }])
+            results = [
+                subprocess.CompletedProcess([], 0, "{}\n", ""),
+                subprocess.CompletedProcess([], 0, ready, ""),
+            ]
+            child_environment = {
+                "SAFE": "1",
+                "OVERTE_DEVICE_TARGET_SELECTOR": "stale-private-selector",
+            }
+            with patch.object(RUN_CI, "load_adapter_command", return_value=["adapter"]), \
+                    patch.object(RUN_CI.subprocess, "run", side_effect=results) as execute:
+                RUN_CI.prepare_controlled_android_target(
+                    ROOT, manifest, "stale-private-selector", "domain-smoke",
+                    child_environment,
+                )
+            launch = execute.call_args_list[0]
+            self.assertNotIn("--target", launch.args[0])
+            self.assertNotIn("stale-private-selector", launch.args[0])
+            self.assertNotIn(
+                "OVERTE_DEVICE_TARGET_SELECTOR", launch.kwargs["env"])
+            self.assertEqual(2, execute.call_count)
+
     def test_private_selector_leak_is_quarantined(self):
         with tempfile.TemporaryDirectory(prefix="overte-jenkins-secret-test-") as name:
             temporary = Path(name)

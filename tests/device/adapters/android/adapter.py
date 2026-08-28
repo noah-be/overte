@@ -358,18 +358,23 @@ class AndroidAdapter:
             })
         return targets
 
-    def cleanup_target(self, requested: str | None) -> str:
+    def selected_target(self, requested: str | None, action: str) -> str:
         if requested:
             return requested
         if self.kind != "pico":
-            fail("cleanup requires --target")
+            fail(f"{action} requires --target")
         targets = self.discover()
         if len(targets) != 1:
-            fail("Pico cleanup requires exactly one eligible target on the isolated ADB server")
+            fail(
+                f"Pico {action} requires exactly one eligible target "
+                "on the isolated ADB server")
         selector = targets[0].get("selector")
         if not isinstance(selector, str) or not selector:
-            fail("Pico cleanup discovery returned an invalid target")
+            fail(f"Pico {action} discovery returned an invalid target")
         return selector
+
+    def cleanup_target(self, requested: str | None) -> str:
+        return self.selected_target(requested, "cleanup")
 
     def require_connected(self, target: str) -> None:
         # A Pico connected through the isolated WLAN-ADB server can briefly
@@ -578,14 +583,13 @@ def main() -> int:
     if args.action == "cleanup":
         emit(adapter.cleanup(adapter.cleanup_target(args.target)))
         return 0
-    if not args.target:
-        fail(f"{args.action} requires --target")
+    target = adapter.selected_target(args.target, args.action)
     if args.action == "describe":
-        emit(adapter.describe(args.target))
+        emit(adapter.describe(target))
     else:
         if not args.operation:
             fail("invoke requires --operation")
-        emit(adapter.invoke(args.target, args.operation,
+        emit(adapter.invoke(target, args.operation,
                             parse_operation_arguments(args.arguments)))
     return 0
 

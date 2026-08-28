@@ -529,6 +529,28 @@ class AndroidAdapterTest(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stdout)
         self.assertGreaterEqual(int(connection.read_text(encoding="utf-8")), 2)
 
+    def test_pico_invoke_auto_selects_the_isolated_live_target(self):
+        state = Path(self.temporary.name) / "auto-select-openxr-state"
+        state.mkdir(mode=0o700)
+        process = Path(self.temporary.name) / "auto-select-process"
+        process.write_text("stopped", encoding="utf-8")
+        self.environment.update({
+            "OVERTE_ANDROID_E2E_DEBUG": "1",
+            "OVERTE_PICO_OPENXR_INPUT": "1",
+            "ANDROID_ADB_SERVER_PORT": "5041",
+            "OVERTE_PICO_OPENXR_STATE_DIR": str(state),
+            "MOCK_ANDROID_PROCESS_STATE": str(process),
+        })
+
+        result = subprocess.run([
+            sys.executable, str(ADAPTER), "--kind", "pico", "invoke",
+            "--operation", "app.launch", "--arguments", "{}",
+        ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+           env=self.environment, check=False)
+
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertEqual({"launched": True}, json.loads(result.stdout))
+
     def test_controlled_pico_launch_reactivates_background_process(self):
         state = Path(self.temporary.name) / "reactivate-state"
         state.mkdir(mode=0o700)

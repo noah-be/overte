@@ -397,8 +397,17 @@ def prepare_controlled_android_target(root: Path, manifest: Path, selector: str,
             or adapter_manifest_id(manifest) not in ANDROID_ADAPTER_IDS):
         return
     command = load_adapter_command(manifest)
+    isolated_pico = is_isolated_pico_manifest(manifest)
+    if isolated_pico:
+        # Resolve the one live Pico from its isolated ADB server. The Jenkins
+        # credential can be stale after switching from USB to WLAN and must not
+        # override the same auto-selection used by the suite runner and cleanup.
+        runner_environment.pop("OVERTE_DEVICE_TARGET_SELECTOR", None)
+        target_arguments = []
+    else:
+        target_arguments = ["--target", selector]
     launch = subprocess.run([
-        *command, "invoke", "--target", selector, "--operation", "app.launch",
+        *command, "invoke", *target_arguments, "--operation", "app.launch",
         "--arguments", "{}",
     ], cwd=root, env=runner_environment, text=True, stdout=subprocess.PIPE,
        stderr=subprocess.PIPE, timeout=60, check=False)
@@ -420,7 +429,7 @@ def prepare_controlled_android_target(root: Path, manifest: Path, selector: str,
                 targets = None
             if isinstance(targets, list):
                 matches = [target for target in targets if isinstance(target, dict)
-                           and target.get("selector") == selector]
+                           and (isolated_pico or target.get("selector") == selector)]
                 if len(matches) == 1:
                     capabilities = matches[0].get("capabilities")
                     if (isinstance(capabilities, list)
