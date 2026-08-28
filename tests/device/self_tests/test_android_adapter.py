@@ -9,7 +9,9 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
+from urllib.request import urlopen
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,6 +36,10 @@ status_path=os.environ.get("MOCK_PICO_OPENXR_STATUS", "")
 grant_log=os.environ.get("MOCK_PICO_OPENXR_GRANTS", "")
 process_path=os.environ.get("MOCK_ANDROID_PROCESS_STATE", "")
 process_state=open(process_path).read().strip() if process_path and os.path.exists(process_path) else "running"
+control_state_path=os.environ.get("MOCK_ANDROID_CONTROL_STATE", "")
+control_available=os.environ.get("MOCK_ANDROID_CONTROL_AVAILABLE", "") == "1"
+probe_available=os.environ.get("MOCK_ANDROID_PROBE_AVAILABLE", "1") == "1"
+control_payload_log=os.environ.get("MOCK_ANDROID_CONTROL_PAYLOAD_LOG", "")
 probe_sequence_path=os.environ.get("MOCK_PROBE_SEQUENCE_STATE", "")
 probe_sequence=int(open(probe_sequence_path).read()) if probe_sequence_path and os.path.exists(probe_sequence_path) else 0
 if cmd in (["devices", "-l"], ["devices"]):
@@ -58,11 +64,12 @@ elif cmd[:2] == ["shell", "getprop"]:
       "ro.opengles.version": "196610", "ro.kernel.qemu": "0"}
     print(values.get(prop, ""))
 elif cmd == ["shell", "pm", "list", "features"]: print("feature:android.hardware.touchscreen")
-elif cmd[:4] == ["shell", "pidof", "-s", "org.overte.phone"] and process_state != "stopped": print("42")
+elif cmd[:4] == ["shell", "pidof", "-s", "org.overte.phone"] and process_state != "stopped": print("45" if process_state == "restarted" else "42")
 elif cmd[:4] == ["shell", "pidof", "-s", "org.overte.pico"] and process_state != "stopped": print("44" if process_state == "restarted" else "43")
 elif cmd[:3] == ["shell", "cat", "/proc/42/stat"]: print("42 (app) S " + "0 "*18 + "123 0")
 elif cmd[:3] == ["shell", "cat", "/proc/43/stat"]: print("43 (app) S " + "0 "*18 + "124 0")
 elif cmd[:3] == ["shell", "cat", "/proc/44/stat"]: print("44 (app) S " + "0 "*18 + "125 0")
+elif cmd[:3] == ["shell", "cat", "/proc/45/stat"]: print("45 (app) S " + "0 "*18 + "126 0")
 elif cmd == ["shell", "dumpsys", "activity", "activities"]:
     package="org.overte.pico" if target and target.startswith("pico-secret") else "org.overte.phone"
     print("mResumedActivity: x u0 " + package + "/.Main t1")
@@ -119,19 +126,42 @@ elif cmd and cmd[0] == "exec-out" and "grant.json" in cmd[-1]:
         status=json.loads(open(status_path).read()); status["state"]="neutral"
         status["detail"]="grant-removed"; status["updatedEpochMs"]=int(time.time()*1000)
         open(status_path,"w").write(json.dumps(status))
+elif (cmd[:4] == ["shell", "run-as", "org.overte.phone", "sh"]
+      or cmd[:4] == ["shell", "run-as", "org.overte.pico", "sh"]):
+    payload=sys.stdin.read()
+    remote=cmd[-1]
+    if control_state_path: open(control_state_path,"w").write(payload)
+    if control_payload_log:
+        with open(control_payload_log,"a") as output:
+            output.write(json.dumps({"path":remote,"payload":payload})+"\n")
+    if os.environ.get("MOCK_ANDROID_RESTART_ON_CONTROL", "") == "1" and process_path:
+        open(process_path,"w").write("restarted")
 elif cmd[:4] == ["shell", "run-as", "org.overte.phone", "cat"] or cmd[:4] == ["shell", "run-as", "org.overte.pico", "cat"]:
-    probe_sequence += 1
-    if probe_sequence_path: open(probe_sequence_path,"w").write(str(probe_sequence))
-    stale_reads=int(os.environ.get("MOCK_PROBE_STALE_READS", "0"))
-    sampled=1 if probe_sequence <= stale_reads else int(time.time()*1000)
-    print(json.dumps({"schemaVersion":1,"sampleEpochMs":sampled,"sampleSequence":probe_sequence,
-      "build":{"platform":"Mock","version":"android-contract","date":"1970-01-01"},
-      "application":{"running":True,"foreground":True},
-      "scene":{"url":"file:///fixture/scene.json","ready":True,"entityCount":4,
-               "fixtureMarkerCount":4},
-      "avatar":{"position":{"x":0,"y":1,"z":4}},
-      "view":{"orientation":{"x":0,"y":0,"z":0}},
-      "tablet":{"open":False}}))
+    remote=cmd[4]
+    if remote.endswith("android-control.json"):
+        if control_available:
+            print(json.dumps({"schemaVersion":1,"channel":"android-debug-file-v1",
+                              "probe":"overte_e2e_probe.js"},separators=(",",":"),sort_keys=True))
+    elif remote.endswith("android-control-command.json"):
+        if control_state_path and os.path.exists(control_state_path):
+            print(open(control_state_path).read(),end="")
+    elif probe_available:
+        probe_sequence += 1
+        if probe_sequence_path: open(probe_sequence_path,"w").write(str(probe_sequence))
+        stale_reads=int(os.environ.get("MOCK_PROBE_STALE_READS", "0"))
+        sampled=1 if probe_sequence <= stale_reads else int(time.time()*1000)
+        snapshot={"schemaVersion":1,"sampleEpochMs":sampled,"sampleSequence":probe_sequence,
+          "build":{"platform":"Mock","version":"android-contract","date":"1970-01-01"},
+          "application":{"running":True,"foreground":True},
+          "scene":{"url":"file:///fixture/scene.json","ready":True,"entityCount":4,
+                   "fixtureMarkerCount":4},
+          "avatar":{"position":{"x":0,"y":1,"z":4}},
+          "view":{"orientation":{"x":0,"y":0,"z":0}},
+          "tablet":{"open":False}}
+        if control_available:
+            snapshot["control"]={"schemaVersion":1,"channel":"android-debug-file-v1",
+                                 "probe":"overte_e2e_probe.js"}
+        print(json.dumps(snapshot))
 else: print("Success")
 '''
 
@@ -176,6 +206,56 @@ class AndroidAdapterTest(unittest.TestCase):
         self.assertEqual(0, launched.returncode, launched.stdout)
         return common
 
+    def enable_controlled_phone(self) -> tuple[Path, Path, Path]:
+        process = Path(self.temporary.name) / "phone-process"
+        process.write_text("running", encoding="utf-8")
+        state = Path(self.temporary.name) / "android-control-command.json"
+        payload_log = Path(self.temporary.name) / "android-control-payloads.jsonl"
+        argv_log = Path(self.temporary.name) / "android-control-adb.jsonl"
+        self.environment.update({
+            "OVERTE_ANDROID_E2E_DEBUG": "1",
+            "MOCK_ANDROID_CONTROL_AVAILABLE": "1",
+            "MOCK_ANDROID_CONTROL_STATE": str(state),
+            "MOCK_ANDROID_CONTROL_PAYLOAD_LOG": str(payload_log),
+            "MOCK_ANDROID_PROCESS_STATE": str(process),
+            "MOCK_ADB_ARGV_LOG": str(argv_log),
+        })
+        return process, payload_log, argv_log
+
+    def discover_phone(self) -> list[str]:
+        result = subprocess.run(
+            [sys.executable, str(ADAPTER), "--kind", "phone", "discover"],
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=self.environment, check=False)
+        self.assertEqual(0, result.returncode, result.stdout)
+        return json.loads(result.stdout)[0]["capabilities"]
+
+    def invoke_phone(self, operation: str, arguments: dict) -> subprocess.CompletedProcess:
+        return subprocess.run([
+            sys.executable, str(ADAPTER), "--kind", "phone", "invoke",
+            "--target", "phone-secret", "--operation", operation,
+            "--arguments", json.dumps(arguments),
+        ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=self.environment, check=False)
+
+    def start_fixture(self) -> tuple[subprocess.Popen, dict]:
+        ready = Path(self.temporary.name) / "fixture-ready.json"
+        process = subprocess.Popen([
+            sys.executable, str(ROOT / "fixture/serve.py"),
+            "--ready-file", str(ready),
+        ], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        deadline = time.monotonic() + 5
+        while not ready.exists() and time.monotonic() < deadline:
+            if process.poll() is not None:
+                break
+            time.sleep(0.02)
+        if not ready.exists():
+            stdout, stderr = process.communicate(timeout=2)
+            self.fail(f"fixture failed: {stdout}\n{stderr}")
+        self.addCleanup(process.communicate, timeout=5)
+        self.addCleanup(process.terminate)
+        return process, json.loads(ready.read_text(encoding="utf-8"))
+
     def test_phone_profile_discovers_only_phone(self):
         result = self.verify("phone")
         self.assertEqual(0, result.returncode, result.stdout)
@@ -191,6 +271,148 @@ class AndroidAdapterTest(unittest.TestCase):
         for kind in ("phone", "pico"):
             result = self.verify(kind)
             self.assertEqual(0, result.returncode, result.stdout)
+
+    def test_controlled_capabilities_require_debug_marker_and_fresh_probe(self):
+        controlled = {"asset.load", "navigation.enter-domain", "sound.play"}
+        self.assertTrue(controlled.isdisjoint(self.discover_phone()))
+
+        self.environment["OVERTE_ANDROID_E2E_DEBUG"] = "1"
+        self.assertTrue(controlled.isdisjoint(self.discover_phone()))
+
+        self.environment["MOCK_ANDROID_CONTROL_AVAILABLE"] = "1"
+        self.environment["MOCK_ANDROID_PROBE_AVAILABLE"] = "0"
+        self.assertTrue(controlled.isdisjoint(self.discover_phone()))
+
+        self.environment["MOCK_ANDROID_PROBE_AVAILABLE"] = "1"
+        self.environment["MOCK_PROBE_STALE_READS"] = "999"
+        self.assertTrue(controlled.isdisjoint(self.discover_phone()))
+
+        self.environment.pop("MOCK_PROBE_STALE_READS")
+        self.assertTrue(controlled.issubset(self.discover_phone()))
+
+    def test_controlled_operations_deliver_exact_payloads_without_relaunch(self):
+        _process, payload_log, argv_log = self.enable_controlled_phone()
+        _fixture_process, fixture = self.start_fixture()
+        domain_url = "hifi://127.0.0.1:40102/0,2,4/0,0,0,1"
+        asset_arguments = {
+            "assetId": fixture["asset"]["id"],
+            "url": fixture["asset"]["url"] + "?requestId=android-exact",
+            "entityName": fixture["asset"]["entityName"],
+        }
+        sound_arguments = {
+            "schemaVersion": 1,
+            "commandId": "sound-android-exact",
+            "url": fixture["soundUrl"] + "?e2eCommand=sound-android-exact",
+            "commandUrl": fixture["soundCommandUrl"],
+        }
+        for operation, arguments in (
+                ("navigation.enter-domain", {"url": domain_url}),
+                ("asset.load", asset_arguments),
+                ("sound.play", sound_arguments)):
+            result = self.invoke_phone(operation, arguments)
+            self.assertEqual(0, result.returncode, result.stdout)
+            response = json.loads(result.stdout)
+            self.assertTrue(response["requested"])
+            if operation == "sound.play":
+                self.assertEqual(sound_arguments["commandId"], response["commandId"])
+
+        payloads = [json.loads(item)["payload"]
+                    for item in payload_log.read_text(encoding="utf-8").splitlines()]
+        commands = [json.loads(item) for item in payloads]
+        self.assertEqual({"schemaVersion", "commandId", "action", "url"},
+                         set(commands[0]))
+        self.assertTrue(commands[0]["commandId"].startswith(
+            "android-navigation-enter-domain-"))
+        self.assertEqual("enter-domain", commands[0]["action"])
+        self.assertEqual(domain_url, commands[0]["url"])
+        self.assertEqual({"schemaVersion", "commandId", "action", "assetId",
+                          "entityName", "url"}, set(commands[1]))
+        self.assertTrue(commands[1]["commandId"].startswith("android-asset-load-"))
+        self.assertEqual({
+            "action": "load-asset",
+            "assetId": asset_arguments["assetId"],
+            "entityName": asset_arguments["entityName"],
+            "url": asset_arguments["url"],
+        }, {key: commands[1][key] for key in
+            ("action", "assetId", "entityName", "url")})
+        self.assertEqual("sound-channel", commands[2]["action"])
+        self.assertEqual({"schemaVersion", "commandId", "action", "commandUrl"},
+                         set(commands[2]))
+        self.assertTrue(commands[2]["commandId"].startswith("android-sound-play-"))
+        self.assertEqual(sound_arguments["commandUrl"], commands[2]["commandUrl"])
+        with urlopen(fixture["soundCommandUrl"], timeout=2) as response:
+            sound_command = json.load(response)
+        self.assertEqual({
+            "schemaVersion": 1,
+            "commandId": sound_arguments["commandId"],
+            "action": "play",
+            "soundUrl": sound_arguments["url"],
+        }, sound_command)
+
+        adb_commands = [json.loads(line) for line in
+                        argv_log.read_text(encoding="utf-8").splitlines()]
+        self.assertFalse(any("am" in command and "start" in command
+                             for command in adb_commands))
+        self.assertFalse(any("force-stop" in command for command in adb_commands))
+
+    def test_probe_executes_real_controlled_actions_and_reports_observations(self):
+        probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
+        self.assertIn("location.href = command.url", probe)
+        self.assertEqual(1, probe.count("androidAssetEntityId = Entities.addEntity("))
+        self.assertIn("overteE2EAssetId: command.assetId", probe)
+        self.assertIn('}, "local")', probe)
+        self.assertIn("soundCommandUrl = String(command.commandUrl)", probe)
+        self.assertIn("SoundCache.getSound(soundState.url)", probe)
+        self.assertIn("Audio.playSound(soundResource", probe)
+        self.assertNotIn("soundState.resourceReady = true", probe)
+        self.assertNotIn("soundState.injectorCreated = true", probe)
+
+    def test_controlled_operations_reject_invalid_arguments_before_delivery(self):
+        _process, payload_log, _argv_log = self.enable_controlled_phone()
+        cases = (
+            ("navigation.enter-domain", {"url": "hifi://user@host:40102"}),
+            ("asset.load", {
+                "assetId": "bad id", "url": "file:///tmp/asset.png",
+                "entityName": "OVERTE_E2E_ASSET_LOAD",
+            }),
+            ("sound.play", {
+                "schemaVersion": 1, "commandId": "sound-invalid",
+                "url": "file:///tmp/sound.wav", "commandUrl": "not-a-url",
+            }),
+        )
+        for operation, arguments in cases:
+            with self.subTest(operation=operation):
+                result = self.invoke_phone(operation, arguments)
+                self.assertEqual(2, result.returncode, result.stdout)
+        self.assertFalse(payload_log.exists())
+
+    def test_controlled_operations_fail_without_debug_or_probe_channel(self):
+        arguments = {"url": "hifi://127.0.0.1:40102"}
+        missing_debug = self.invoke_phone("navigation.enter-domain", arguments)
+        self.assertEqual(2, missing_debug.returncode, missing_debug.stdout)
+        self.assertIn("E2E-enabled debug APK", missing_debug.stdout)
+
+        self.environment.update({
+            "OVERTE_ANDROID_E2E_DEBUG": "1",
+            "MOCK_ANDROID_CONTROL_AVAILABLE": "1",
+            "MOCK_ANDROID_PROBE_AVAILABLE": "0",
+        })
+        missing_probe = self.invoke_phone("navigation.enter-domain", arguments)
+        self.assertEqual(2, missing_probe.returncode, missing_probe.stdout)
+        self.assertIn("fresh probe and confirmed debug channel", missing_probe.stdout)
+
+    def test_controlled_operation_rejects_process_change_during_delivery(self):
+        process, payload_log, _argv_log = self.enable_controlled_phone()
+        self.environment["MOCK_ANDROID_RESTART_ON_CONTROL"] = "1"
+        result = self.invoke_phone("asset.load", {
+            "assetId": "texture-rgb-3x1-v1",
+            "url": "http://127.0.0.1:18080/asset.png?requestId=restart",
+            "entityName": "OVERTE_E2E_ASSET_LOAD",
+        })
+        self.assertEqual(2, result.returncode, result.stdout)
+        self.assertIn("process changed during asset.load", result.stdout)
+        self.assertEqual("restarted", process.read_text(encoding="utf-8"))
+        self.assertEqual(1, len(payload_log.read_text(encoding="utf-8").splitlines()))
 
     def test_debug_launcher_accepts_only_the_embedded_fixture_identifier(self):
         self.environment["OVERTE_ANDROID_E2E_DEBUG"] = "1"

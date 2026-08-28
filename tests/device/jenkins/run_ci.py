@@ -24,7 +24,10 @@ import xml.etree.ElementTree as ET
 from urllib.parse import urlsplit
 
 
-SUITES = {"smoke", "e2e-core", "accessibility", "stability", "lifecycle-stability"}
+SUITES = {
+    "smoke", "domain-smoke", "asset-smoke", "sound-smoke", "e2e-core",
+    "accessibility", "stability", "lifecycle-stability",
+}
 PUBLIC_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 STAGED_MARKER = ".overte-device-ci-staged"
 EMBEDDED_FIXTURE_URL = "overte-e2e://fixture/scene"
@@ -81,6 +84,16 @@ def repository_file(root: Path, variable: str) -> Path:
     path = path.resolve()
     if not is_within(path, root) or not path.is_file():
         fail(f"{variable} must name an existing file inside the workspace")
+    return path
+
+
+def checked_executable(variable: str) -> Path:
+    path = Path(environment(variable)).expanduser()
+    if not path.is_absolute() or has_symlink_component(path):
+        fail(f"{variable} must be an absolute path without symbolic-link components")
+    path = path.resolve()
+    if not path.is_file() or not os.access(path, os.X_OK):
+        fail(f"{variable} must name an executable file")
     return path
 
 
@@ -264,12 +277,13 @@ def stop_process(process: subprocess.Popen | None, grace_seconds: int = 5) -> No
         process.wait(timeout=grace_seconds)
 
 
-def wait_for_ready(process: subprocess.Popen, ready_file: Path, timeout_seconds: int = 10) -> dict:
+def wait_for_ready(process: subprocess.Popen, ready_file: Path, timeout_seconds: int = 10,
+                   required_key: str = "sceneUrl") -> dict:
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
         if ready_file.exists():
             value = json.loads(ready_file.read_text(encoding="utf-8"))
-            if isinstance(value, dict) and isinstance(value.get("sceneUrl"), str):
+            if isinstance(value, dict) and isinstance(value.get(required_key), str):
                 return value
             fail("fixture ready file has an invalid shape")
         if process.poll() is not None:
@@ -305,9 +319,34 @@ def run_suite() -> int:
     previous_handlers: dict[int, object] = {}
 
     try:
-        if suite == "e2e-core" and checked_fixture_mode() == "embedded":
+        if suite == "domain-smoke":
+            host = checked_public_host()
+            domain_server = checked_executable("OVERTE_CI_DOMAIN_SERVER_EXECUTABLE")
+            assignment_client = checked_executable(
+                "OVERTE_CI_ASSIGNMENT_CLIENT_EXECUTABLE")
+            if fixture_metadata.exists():
+                fail("fixture metadata directory already exists")
+            fixture_metadata.mkdir(mode=0o700)
+            fixture_log_handle = fixture_log.open("w", encoding="utf-8")
+            fixture = subprocess.Popen([
+                sys.executable, str(root / "tests/device/fixture/domain.py"),
+                "--domain-server", str(domain_server),
+                "--assignment-client", str(assignment_client),
+                "--public-host", host, "--output-dir", str(fixture_metadata / "domain"),
+                "--ready-file", str(fixture_ready),
+            ], cwd=root, stdout=fixture_log_handle, stderr=subprocess.STDOUT,
+               text=True, **subprocess_group_options())
+            ready = wait_for_ready(fixture, fixture_ready, timeout_seconds=30,
+                                   required_key="domainUrl")
+            runner_environment.update({
+                "OVERTE_E2E_DOMAIN_URL": ready["domainUrl"],
+                "OVERTE_E2E_DOMAIN_HOST": ready["domainHost"],
+                "OVERTE_E2E_DOMAIN_ID": ready["domainId"],
+                "OVERTE_E2E_DOMAIN_MARKERS_JSON": json.dumps(ready["requiredMarkers"]),
+            })
+        elif suite == "e2e-core" and checked_fixture_mode() == "embedded":
             runner_environment["OVERTE_E2E_SCENE_URL"] = EMBEDDED_FIXTURE_URL
-        elif suite == "e2e-core":
+        elif suite in {"e2e-core", "asset-smoke", "sound-smoke"}:
             host = checked_public_host()
             bind = environment("OVERTE_CI_FIXTURE_BIND", required=False, default="0.0.0.0")
             port = checked_fixture_port()
@@ -325,7 +364,29 @@ def run_suite() -> int:
             if is_ios_appium_manifest(manifest):
                 selector = environment("OVERTE_DEVICE_TARGET_SELECTOR")
                 update_ios_fixture_origin(root, selector, ready.get("baseUrl"))
-            runner_environment["OVERTE_E2E_SCENE_URL"] = ready["sceneUrl"]
+            if suite == "e2e-core":
+                runner_environment["OVERTE_E2E_SCENE_URL"] = ready["sceneUrl"]
+            elif suite == "asset-smoke":
+                asset = ready["asset"]
+                runner_environment.update({
+                    "OVERTE_E2E_ASSET_ID": asset["id"],
+                    "OVERTE_E2E_ASSET_URL": asset["url"],
+                    "OVERTE_E2E_ASSET_TELEMETRY_URL": asset["telemetryUrl"],
+                    "OVERTE_E2E_ASSET_ENTITY_NAME": asset["entityName"],
+                    "OVERTE_E2E_ASSET_CONTENT_TYPE": asset["contentType"],
+                    "OVERTE_E2E_ASSET_SHA256": asset["sha256"],
+                    "OVERTE_E2E_ASSET_BYTES": str(asset["bytes"]),
+                    "OVERTE_E2E_ASSET_WIDTH": str(asset["width"]),
+                    "OVERTE_E2E_ASSET_HEIGHT": str(asset["height"]),
+                })
+            else:
+                runner_environment.update({
+                    "OVERTE_E2E_SOUND_URL": ready["soundUrl"],
+                    "OVERTE_E2E_SOUND_COMMAND_URL": ready["soundCommandUrl"],
+                    "OVERTE_E2E_SOUND_REQUESTS_URL": ready["soundRequestsUrl"],
+                    "OVERTE_E2E_SOUND_DURATION_SECONDS":
+                        str(ready["sound"]["durationSeconds"]),
+                })
 
         command = [
             sys.executable, str(root / "tests/device/run.py"),
@@ -532,6 +593,7 @@ def self_check() -> int:
     root = workspace()
     commands = [
         [sys.executable, str(root / "tests/device/fixture/serve.py"), "--check"],
+        [sys.executable, str(root / "tests/device/fixture/domain.py"), "--check"],
         [sys.executable, "-m", "unittest", "discover", "-s",
          str(root / "tests/device/self_tests"), "-v"],
         [sys.executable, str(root / "tests/device/jenkins/test_run_ci.py"), "-v"],

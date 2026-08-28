@@ -485,6 +485,17 @@ class JenkinsGlueTest(unittest.TestCase):
         self.assertLess(source.index("runDeviceSuite('stability'"),
                         source.index("runDeviceSuite('lifecycle-stability'"))
         self.assertIn("!params.TARGET_PROFILE.startsWith('desktop-')", source)
+        for expected in (
+            "RUN_DOMAIN_ENTER", "RUN_ASSET_LOAD", "RUN_SOUND_PLAYBACK",
+            "runDeviceSuite('domain-smoke'", "runDeviceSuite('asset-smoke'",
+            "runDeviceSuite('sound-smoke'", "DOMAIN_SERVER_EXECUTABLE",
+            "ASSIGNMENT_CLIENT_EXECUTABLE",
+        ):
+            self.assertIn(expected, source)
+
+    def test_content_suites_are_accepted_by_ci_glue(self):
+        self.assertTrue({"domain-smoke", "asset-smoke", "sound-smoke"}
+                        .issubset(RUN_CI.SUITES))
 
 
 if __name__ == "__main__":

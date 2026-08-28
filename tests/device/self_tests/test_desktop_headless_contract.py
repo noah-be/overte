@@ -134,6 +134,16 @@ class HeadlessDesktopContractTest(unittest.TestCase):
         return [json.loads(line) for line in self.log.read_text(
             encoding="utf-8").splitlines()]
 
+    def test_isolated_x11_advertises_control_operations_only_with_injected_probe(self) -> None:
+        controlled = dict(self.target)
+        controlled["probe"] = {"kind": "injected-test-script"}
+        controlled["clientControl"] = {"kind": "probe-command-file"}
+        expected = {"asset.load", "navigation.enter-domain", "sound.play"}
+        self.assertTrue(expected.issubset(
+            ADAPTER_MODULE.DesktopAdapter.capabilities(controlled)))
+        self.assertTrue(expected.isdisjoint(
+            ADAPTER_MODULE.DesktopAdapter.capabilities(self.target)))
+
     def test_scene_is_bound_to_initial_process_and_never_relaunches(self) -> None:
         state = {
             "pid": 4242, "identity": "4242:token", "processToken": "token",

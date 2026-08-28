@@ -41,12 +41,13 @@ class AdbTransport:
         raise RuntimeError("ADB executable was not found")
 
     def execute(self, arguments: list[str], *, target: str | None = None,
-                timeout: int = 20, check: bool = True) -> str:
+                timeout: int = 20, check: bool = True,
+                input_text: str | None = None) -> str:
         command = list(self.command)
         if target:
             command += ["-s", target]
         try:
-            result = subprocess.run([*command, *arguments], text=True,
+            result = subprocess.run([*command, *arguments], text=True, input=input_text,
                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                     timeout=timeout, check=False)
         except subprocess.TimeoutExpired as error:
@@ -54,6 +55,15 @@ class AdbTransport:
         if check and result.returncode != 0:
             raise RuntimeError("ADB operation failed")
         return result.stdout.replace("\r", "")
+
+    @staticmethod
+    def _validate_debug_app_file(package: str, relative_path: str) -> None:
+        path = PurePosixPath(relative_path)
+        if (not re.fullmatch(r"[A-Za-z0-9_]+(?:[.][A-Za-z0-9_]+)+", package)
+                or not relative_path or "\\" in relative_path or path.is_absolute()
+                or any(part in {"", ".", ".."} for part in path.parts)
+                or str(path) != relative_path):
+            raise RuntimeError("debug app file selector is unsafe")
 
     def shell(self, target: str, *arguments: str, check: bool = True) -> str:
         return self.execute(["shell", *arguments], target=target, check=check)
@@ -73,12 +83,7 @@ class AdbTransport:
     def read_debug_app_file(self, target: str, package: str, relative_path: str,
                             *, attempts: int = 60, interval_seconds: float = 0.25) -> str:
         """Read one app-private debug artifact without granting broad storage access."""
-        path = PurePosixPath(relative_path)
-        if (not re.fullmatch(r"[A-Za-z0-9_]+(?:[.][A-Za-z0-9_]+)+", package)
-                or not relative_path or "\\" in relative_path or path.is_absolute()
-                or any(part in {"", ".", ".."} for part in path.parts)
-                or str(path) != relative_path):
-            raise RuntimeError("debug app file selector is unsafe")
+        self._validate_debug_app_file(package, relative_path)
         if attempts < 1 or interval_seconds < 0:
             raise RuntimeError("debug app file retry policy is invalid")
         for attempt in range(attempts):
@@ -88,6 +93,23 @@ class AdbTransport:
             if attempt + 1 < attempts:
                 time.sleep(interval_seconds)
         return ""
+
+    def write_debug_app_file(self, target: str, package: str, relative_path: str,
+                             content: str) -> None:
+        """Atomically write one fixed app-private debug control file through run-as."""
+        self._validate_debug_app_file(package, relative_path)
+        if (not isinstance(content, str) or "\0" in content
+                or len(content.encode("utf-8")) > 16 * 1024):
+            raise RuntimeError("debug app file content is invalid or oversized")
+        script = ('umask 077; temporary="$1.tmp"; cat > "$temporary" '
+                  '&& chmod 600 "$temporary" && mv "$temporary" "$1"')
+        self.execute([
+            "shell", "run-as", package, "sh", "-c", script,
+            "overte-e2e-write", relative_path,
+        ], target=target, input_text=content)
+        if self.read_debug_app_file(
+                target, package, relative_path, attempts=1) != content:
+            raise RuntimeError("debug app control file could not be confirmed")
 
     def process_state(self, target: str, package: str) -> dict:
         pid = self.shell(target, "pidof", "-s", package, check=False).strip()

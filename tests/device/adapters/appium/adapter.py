@@ -12,6 +12,7 @@ from pathlib import Path, PurePosixPath
 import sys
 import math
 import re
+import uuid
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
@@ -27,6 +28,7 @@ from adapters.common import (EMBEDDED_FIXTURE_URL, emit, fail,  # noqa: E402
                              parse_operation_arguments,
                              read_fresh_json, require_fresh_snapshot,
                              state_directory)
+from contracts import validate_operation_arguments  # noqa: E402
 
 
 def cli() -> argparse.Namespace:
@@ -83,6 +85,7 @@ class WebDriver:
 
 class AppiumAdapter:
     ANDROID_DEBUG_PROBE = "files/overte-e2e/overte-probe.json"
+    ANDROID_CLIENT_COMMAND = "files/overte-e2e/desktop-command.json"
     IOS_TEST_BUILD_CONTRACT = "overte-ios-e2e-v1"
     IOS_TEST_BUILD_PLIST_KEY = "OverteE2ETestBuildContractVersion"
     IOS_PROBE_SCRIPT_PATH = "/overte_e2e_probe.js"
@@ -130,6 +133,8 @@ class AppiumAdapter:
             for section in ("process", "scene", "controls", "probe", "background"):
                 if not isinstance(entry.get(section, {}), dict):
                     fail(f"Appium target {section} must be an object")
+            if not isinstance(entry.get("clientControl", {}), dict):
+                fail("Appium target clientControl must be an object")
             tablet = entry.get("controls", {}).get("tablet", {})
             if not isinstance(tablet, dict):
                 fail("Appium target controls.tablet must be an object")
@@ -174,6 +179,15 @@ class AppiumAdapter:
                     and probe != {"kind": "android-run-as",
                                   "relativePath": self.ANDROID_DEBUG_PROBE}):
                 fail("physical Android debug E2E targets require the app-private run-as probe")
+            client_control = entry.get("clientControl", {})
+            if client_control and (entry["platform"] != "android"
+                    or client_control != {"kind": "android-run-as-command",
+                                          "relativePath": self.ANDROID_CLIENT_COMMAND}
+                    or scene != {"kind": "android-debug-e2e"}
+                    or probe != {"kind": "android-run-as",
+                                 "relativePath": self.ANDROID_DEBUG_PROBE}
+                    or process.get("kind") != "adb"):
+                fail("Android clientControl requires the fixed controlled debug-build channel")
             if entry["platform"] == "ios":
                 self.validate_ios_host_strategy(entry)
                 self.validate_ios_test_build(entry)
@@ -356,8 +370,21 @@ class AppiumAdapter:
         if contract.get("fixtureOrigin") != origin:
             fail("iOS testBuild fixtureOrigin must use normalized lowercase spelling")
 
-    @staticmethod
-    def advertised_capabilities(target: dict) -> list[str]:
+    @classmethod
+    def controlled_android_client(cls, target: dict) -> bool:
+        return (target.get("platform") == "android"
+                and target.get("physical") is True
+                and target.get("scene") == {"kind": "android-debug-e2e"}
+                and target.get("probe") == {"kind": "android-run-as",
+                                             "relativePath": cls.ANDROID_DEBUG_PROBE}
+                and target.get("process", {}).get("kind") == "adb"
+                and target.get("clientControl") == {
+                    "kind": "android-run-as-command",
+                    "relativePath": cls.ANDROID_CLIENT_COMMAND,
+                })
+
+    @classmethod
+    def advertised_capabilities(cls, target: dict) -> list[str]:
         values = ["accessibility.snapshot", "app.foreground", "app.launch",
                   "artifact.screenshot", "lifecycle.background"]
         process = target.get("process", {})
@@ -365,6 +392,8 @@ class AppiumAdapter:
             values.append("app.process")
         if target["platform"] == "android" and process.get("kind") == "adb":
             values.append("telemetry.snapshot")
+        if cls.controlled_android_client(target):
+            values += ["asset.load", "navigation.enter-domain", "sound.play"]
         controls = target.get("controls", {})
         if target.get("scene"):
             values.append("scene.load")
@@ -685,6 +714,94 @@ class AppiumAdapter:
         return {"running": True, "identity": identity}
 
     @staticmethod
+    def controlled_http_url(value: str, label: str) -> tuple[str, str, int | None]:
+        parsed = urlsplit(value)
+        try:
+            port = parsed.port
+        except ValueError:
+            fail(f"{label} has an invalid port")
+        if (parsed.scheme not in {"http", "https"} or not parsed.hostname
+                or parsed.username is not None or parsed.password is not None
+                or parsed.fragment):
+            fail(f"{label} must be an absolute credential-free HTTP(S) URL")
+        return parsed.scheme, parsed.hostname.lower(), port
+
+    def android_client_identity(self, client: WebDriver, session: str,
+                                target: dict) -> dict:
+        if not self.controlled_android_client(target):
+            fail("Android operation requires the controlled app-private client channel")
+        if self.query_app_state(client, session, target) != 4:
+            fail("Android client must remain foregrounded for the in-client command")
+        process = target["process"]
+        device = process.get("selector") or target["capabilities"].get("appium:udid")
+        if not isinstance(device, str) or not device or device.startswith("REPLACE_"):
+            fail("Android client command requires a private ADB device selector")
+        from android.common.device_tests.adb_transport import AdbTransport
+        adb = AdbTransport()
+        adb.require_connected(device)
+        before = adb.process_state(device, target["appId"])
+        if before.get("running") is not True or not isinstance(before.get("identity"), str):
+            fail("Android client process is not running before the in-client command")
+        return before
+
+    def write_android_client_command(self, client: WebDriver, session: str,
+                                     target: dict, command: dict,
+                                     expected_process: dict | None = None) -> None:
+        before = self.android_client_identity(client, session, target)
+        if expected_process is not None and before != expected_process:
+            fail("Android client process changed before the in-client command")
+        process = target["process"]
+        device = process.get("selector") or target["capabilities"].get("appium:udid")
+        from android.common.device_tests.adb_transport import AdbTransport
+        adb = AdbTransport()
+        adb.require_connected(device)
+        adb.write_debug_app_file(
+            device, target["appId"], self.ANDROID_CLIENT_COMMAND,
+            json.dumps(command, sort_keys=True, separators=(",", ":")) + "\n")
+        if self.query_app_state(client, session, target) != 4:
+            fail("Android client left the foreground while delivering the in-client command")
+        after = adb.process_state(device, target["appId"])
+        if after != before:
+            fail("Android client process changed while delivering the in-client command")
+
+    def request_android_sound(self, client: WebDriver, session: str,
+                              target: dict, values: dict) -> dict:
+        sound_origin = self.controlled_http_url(values["url"], "sound.play url")
+        command_origin = self.controlled_http_url(values["commandUrl"], "sound.play commandUrl")
+        command_url = urlsplit(values["commandUrl"])
+        if (sound_origin != command_origin or command_url.path != "/sound-command.json"
+                or command_url.query):
+            fail("sound.play URLs must use the same controlled fixture origin and command path")
+        payload = {"schemaVersion": 1, "commandId": values["commandId"],
+                   "action": "play", "soundUrl": values["url"]}
+        expected_process = self.android_client_identity(client, session, target)
+        request = Request(values["commandUrl"],
+                          data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
+                          headers={"Content-Type": "application/json"}, method="POST")
+        try:
+            with urlopen(request, timeout=5) as response:
+                if response.status != 200:
+                    fail("controlled fixture rejected the sound command")
+                encoded = response.read(4097)
+        except HTTPError as error:
+            fail(f"controlled fixture rejected the sound command with HTTP {error.code}")
+        except (URLError, OSError):
+            fail("controlled fixture sound command endpoint is unavailable")
+        if len(encoded) > 4096:
+            fail("controlled fixture returned an oversized sound response")
+        try:
+            accepted = json.loads(encoded)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            fail("controlled fixture returned an invalid sound response")
+        if accepted != payload:
+            fail("controlled fixture did not acknowledge the exact sound command")
+        self.write_android_client_command(client, session, target, {
+            "schemaVersion": 1, "commandId": "sound-channel-" + values["commandId"],
+            "action": "sound-channel", "url": values["commandUrl"],
+        }, expected_process)
+        return {"requested": True, "commandId": values["commandId"]}
+
+    @staticmethod
     def start_android_e2e(client: WebDriver, session: str, target: dict) -> None:
         component = f"{target['appId']}/.E2eLauncherActivity"
         client.execute(session, "mobile: startActivity", {
@@ -727,6 +844,26 @@ class AppiumAdapter:
     def invoke(self, selector: str, operation: str, values: dict) -> dict:
         target = self.target(selector)
         client, session, state = self.ensure_session(selector)
+        if operation in {"navigation.enter-domain", "asset.load", "sound.play"}:
+            arguments = validate_operation_arguments(operation, values)
+            if self.platform != "android" or not self.controlled_android_client(target):
+                fail("Appium target has no controlled client channel for this operation")
+            if operation == "navigation.enter-domain":
+                self.write_android_client_command(client, session, target, {
+                    "schemaVersion": 1, "commandId": "navigation-" + uuid.uuid4().hex,
+                    "action": "navigation-enter-domain", "url": arguments["url"],
+                })
+                return {"requested": True}
+            if operation == "asset.load":
+                command_id = "asset-" + hashlib.sha256(json.dumps(
+                    arguments, sort_keys=True, separators=(",", ":")).encode()).hexdigest()[:24]
+                self.write_android_client_command(client, session, target, {
+                    "schemaVersion": 1, "commandId": command_id, "action": "asset-load",
+                    "assetId": arguments["assetId"], "url": arguments["url"],
+                    "entityName": arguments["entityName"],
+                })
+                return {"requested": True, "assetId": arguments["assetId"]}
+            return self.request_android_sound(client, session, target, arguments)
         if operation == "app.launch":
             if self.platform == "android" and target.get("scene", {}).get("kind") == "android-debug-e2e":
                 if self.query_app_state(client, session, target) >= 2:
