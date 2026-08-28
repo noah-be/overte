@@ -512,8 +512,17 @@ class JenkinsGlueTest(unittest.TestCase):
             "OVERTE_ANDROID_ADB", "ANDROID_ADB_SERVER_PORT",
             "OVERTE_ANDROID_E2E_DEBUG", "OVERTE_PICO_OPENXR_INPUT",
             "OVERTE_PICO_OPENXR_STATE_DIR",
+            "RUN_ACCESSIBILITY is unsupported for android-pico-adb",
+            "OpenXR surface does not expose an audited native accessibility tree",
         ):
             self.assertIn(expected, source)
+
+        accessibility_guard = source.split(
+            "if (params.RUN_ACCESSIBILITY &&", 1)[1].split(
+                "adapterManifest(params.TARGET_PROFILE)", 1)[0]
+        self.assertIn("params.TARGET_PROFILE == 'android-pico-adb'",
+                      accessibility_guard)
+        self.assertIn("error(", accessibility_guard)
 
     def test_content_suites_are_accepted_by_ci_glue(self):
         self.assertTrue({"domain-smoke", "asset-smoke", "sound-smoke",

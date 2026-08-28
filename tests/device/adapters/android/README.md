@@ -55,6 +55,13 @@ a generic OpenXR or shell surface. See `PICO4_CONTROLLER_AUTOMATION.md` for the
 capability matrix and required physical-device evidence. Phone/iPad touch
 automation remains owned by the Appium adapter.
 
+The Pico adapter deliberately does not advertise `accessibility.snapshot`.
+Overte's Pico UI is rendered through an OpenXR surface, for which the laboratory
+has no audited native Android accessibility tree. Jenkins rejects
+`RUN_ACCESSIBILITY=true` with `android-pico-adb` instead of skipping the module
+or manufacturing accessibility evidence. A dedicated VR accessibility contract
+can be added separately if the product defines one.
+
 The older `phone-device-test.sh` and Pico release-acceptance scripts remain
 packaging/release gates. Their runtime primitives are represented here without
 weakening their APK provenance and confirmation checks.

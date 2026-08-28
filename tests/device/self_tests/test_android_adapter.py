@@ -282,6 +282,23 @@ class AndroidAdapterTest(unittest.TestCase):
             result = self.verify(kind)
             self.assertEqual(0, result.returncode, result.stdout)
 
+    def test_pico_does_not_advertise_an_unaudited_accessibility_tree(self):
+        state = Path(self.temporary.name) / "accessibility-state"
+        state.mkdir(mode=0o700)
+        self.environment.update({
+            "OVERTE_ANDROID_E2E_DEBUG": "1",
+            "OVERTE_PICO_OPENXR_INPUT": "1",
+            "ANDROID_ADB_SERVER_PORT": "5041",
+            "OVERTE_PICO_OPENXR_STATE_DIR": str(state),
+        })
+        result = subprocess.run(
+            [sys.executable, str(ADAPTER), "--kind", "pico", "discover"],
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=self.environment, check=False)
+        self.assertEqual(0, result.returncode, result.stdout)
+        capabilities = json.loads(result.stdout)[0]["capabilities"]
+        self.assertNotIn("accessibility.snapshot", capabilities)
+
     def test_controlled_capabilities_are_declared_before_suite_launch(self):
         controlled = {"asset.load", "navigation.enter-domain", "sound.play"}
         self.assertTrue(controlled.isdisjoint(self.discover_phone()))

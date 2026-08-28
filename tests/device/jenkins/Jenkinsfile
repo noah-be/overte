@@ -249,7 +249,7 @@ pipeline {
         booleanParam(
             name: 'RUN_ACCESSIBILITY',
             defaultValue: false,
-            description: 'Run the audited native accessibility contract after core.'
+            description: 'Run the audited native accessibility contract after core; unsupported on android-pico-adb.'
         )
         booleanParam(
             name: 'RUN_SOAKS',
@@ -301,6 +301,10 @@ pipeline {
                     if (params.RUN_VERTICAL_LOCOMOTION &&
                             params.TARGET_PROFILE != 'android-pico-adb') {
                         error('RUN_VERTICAL_LOCOMOTION is currently accepted only for android-pico-adb')
+                    }
+                    if (params.RUN_ACCESSIBILITY &&
+                            params.TARGET_PROFILE == 'android-pico-adb') {
+                        error('RUN_ACCESSIBILITY is unsupported for android-pico-adb because the OpenXR surface does not expose an audited native accessibility tree')
                     }
                     adapterManifest(params.TARGET_PROFILE)
                     env.OVERTE_TARGET_NEEDS_CLEANUP = '0'
