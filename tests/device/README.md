@@ -143,8 +143,9 @@ samples. Product adapters own the exact launch and result transport used to
 load it. The fixture exposes a same-origin `/e2e-client-command.json` channel;
 controlled adapters POST strict commands there and verify the exact response.
 The probe accepts only versioned HTTP scene, domain navigation, controlled
-local Image-entity, and fixture sound-channel commands. A probe without the
-controlled HTTP route stops polling the channel.
+local Image-entity, fixture sound-channel, and bounded allowlisted key-hold
+commands. Every held key is released on its timer or probe shutdown. A probe
+without the controlled HTTP route stops polling the channel.
 
 [`fixture/domain.py`](fixture/domain.py) owns the complementary ephemeral
 domain-server and assignment-client stack. The `domain-smoke` assertion waits

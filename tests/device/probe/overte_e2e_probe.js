@@ -14,6 +14,8 @@
     var assetResource = null;
     var assetResourceUrl = "";
     var controlledAssetEntity = null;
+    var controlledKey = null;
+    var controlledKeyCommandId = "";
     // Resolve while the script file is the active execution context. Timer
     // callbacks do not retain that source context on every script engine.
     var clientCommandFallbackUrl = String(Script.resolvePath("e2e-client-command.json"));
@@ -302,9 +304,55 @@
         }
     }
 
+    function controlledKeySpec(name) {
+        var keys = {
+            backward: { key: 83, text: "s" },
+            down: { key: 67, text: "c" },
+            forward: { key: 87, text: "w" },
+            jump: { key: 32, text: " " },
+            left: { key: 65, text: "a" },
+            right: { key: 68, text: "d" },
+            tablet: { key: 16777217, text: "\t" }
+        };
+        return Object.prototype.hasOwnProperty.call(keys, name) ? keys[name] : null;
+    }
+
+    function releaseControlledKey(commandId) {
+        if (controlledKey !== null && controlledKeyCommandId === commandId) {
+            Keyboard.emitKeyEvent(controlledKey, false);
+            controlledKey = null;
+            controlledKeyCommandId = "";
+        }
+    }
+
+    function applyControlledKey(command) {
+        var key = controlledKeySpec(command.key);
+        var durationMs = Number(command.durationMs);
+        if (key === null || typeof command.durationMs !== "number"
+                || !isFinite(durationMs) || Math.floor(durationMs) !== durationMs
+                || durationMs < 50 || durationMs > 10000) {
+            return false;
+        }
+        releaseControlledKey(controlledKeyCommandId);
+        controlledKey = key;
+        controlledKeyCommandId = String(command.commandId);
+        Keyboard.emitKeyEvent(controlledKey, true);
+        Script.setTimeout(function () {
+            releaseControlledKey(String(command.commandId));
+        }, durationMs);
+        return true;
+    }
+
     function applyClientCommand(command) {
         if (!command || command.schemaVersion !== 1 || !command.commandId
                 || command.commandId === lastClientCommandId) {
+            return;
+        }
+        if (command.action === "key-hold"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action",
+                    "key", "durationMs"])
+                && applyControlledKey(command)) {
+            lastClientCommandId = String(command.commandId);
             return;
         }
         if (command.action === "scene-load"
@@ -565,6 +613,7 @@
     var timer = Script.setInterval(sample, 250);
     Script.scriptEnding.connect(function () {
         Script.clearInterval(timer);
+        releaseControlledKey(controlledKeyCommandId);
         releaseAssetResource();
         if (controlledAssetEntity !== null) {
             Entities.deleteEntity(controlledAssetEntity);

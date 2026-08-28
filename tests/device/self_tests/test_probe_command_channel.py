@@ -58,7 +58,8 @@ class ProbeCommandChannelTest(unittest.TestCase):
         self.assertNotIn("desktop-command.json", self.source)
 
     def test_channel_exposes_only_bounded_behavior_commands(self) -> None:
-        for action in ('"scene-load"', '"navigate"', '"asset-load"', '"sound-channel"'):
+        for action in ('"scene-load"', '"navigate"', '"asset-load"', '"sound-channel"',
+                       '"key-hold"'):
             self.assertIn(f"command.action === {action}", self.source)
         self.assertIn("Window.location = command.url", self.source)
         self.assertIn("controlledSceneLocation(command.url)", self.source)
@@ -66,6 +67,8 @@ class ProbeCommandChannelTest(unittest.TestCase):
         self.assertIn("resetSceneObservation()", self.source)
         self.assertIn("controlledAssetEntity = Entities.addEntity({", self.source)
         self.assertIn("soundCommandUrl = String(command.url)", self.source)
+        self.assertIn("Keyboard.emitKeyEvent(controlledKey, true)", self.source)
+        self.assertIn("Keyboard.emitKeyEvent(controlledKey, false)", self.source)
         self.assertNotIn("Clipboard", self.source)
         self.assertNotIn("Desktop.openUrl", self.source)
         self.assertNotIn("MyAvatar.position =", self.source)
@@ -84,6 +87,16 @@ class ProbeCommandChannelTest(unittest.TestCase):
             self.post_command(command | {"extra": True})
         self.assertEqual(400, rejected.exception.code)
         rejected.exception.close()
+
+        key_command = {
+            "schemaVersion": 1, "commandId": "key-exact", "action": "key-hold",
+            "key": "forward", "durationMs": 1500,
+        }
+        self.assertEqual(key_command, self.post_command(key_command))
+        with self.assertRaises(HTTPError) as rejected_key:
+            self.post_command(key_command | {"key": "escape"})
+        self.assertEqual(400, rejected_key.exception.code)
+        rejected_key.exception.close()
 
     def test_adapter_owned_entity_is_removed_on_replacement_and_shutdown(self) -> None:
         self.assertGreaterEqual(
