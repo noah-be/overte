@@ -9,7 +9,20 @@ telemetry operations. For a debug APK built with the repository's shell-only
 E2E launcher, set `OVERTE_ANDROID_E2E_DEBUG=1` to add `scene.load` and
 `probe.snapshot`. That launcher maps the common requested fixture to embedded,
 repository-owned scene/probe assets and writes the snapshot under the app's
-external-files `overte-e2e` directory. Release APKs never advertise this path.
+private `overte-e2e` directory. Release APKs never advertise this path.
+
+`navigation.enter-domain`, `asset.load`, and `sound.play` have a stricter
+runtime gate. They are advertised only while the debug launcher process is
+running, its app-private marker matches `android-debug-file-v1`, and its probe
+is both fresh and reporting the same channel contract. Every command is
+argument-validated and atomically committed with `run-as`; the adapter confirms
+the command bytes and unchanged PID/start ticks but leaves behavioral success
+to the independent probe and fixture HTTP telemetry. Domain navigation assigns
+the exact requested `hifi` URL in the existing process. Asset loading creates
+one local controlled Image entity. Sound binds the probe to the validated
+fixture command endpoint and posts the exact command ID and sound URL. A normal
+production launch, stale or missing probe, unavailable `run-as` channel, or
+process change exposes none of these capabilities and rejects direct invokes.
 
 Pico OpenXR input capabilities are disabled by default. A lab that has passed
 the hardware gates may explicitly set all of:
