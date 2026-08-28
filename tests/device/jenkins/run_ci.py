@@ -321,6 +321,8 @@ def run_suite() -> int:
     try:
         if suite == "domain-smoke":
             host = checked_public_host()
+            bind = environment(
+                "OVERTE_CI_FIXTURE_BIND", required=False, default="0.0.0.0")
             domain_server = checked_executable("OVERTE_CI_DOMAIN_SERVER_EXECUTABLE")
             assignment_client = checked_executable(
                 "OVERTE_CI_ASSIGNMENT_CLIENT_EXECUTABLE")
@@ -332,7 +334,8 @@ def run_suite() -> int:
                 sys.executable, str(root / "tests/device/fixture/domain.py"),
                 "--domain-server", str(domain_server),
                 "--assignment-client", str(assignment_client),
-                "--public-host", host, "--output-dir", str(fixture_metadata / "domain"),
+                "--bind", bind, "--public-host", host,
+                "--output-dir", str(fixture_metadata / "domain"),
                 "--ready-file", str(fixture_ready),
             ], cwd=root, stdout=fixture_log_handle, stderr=subprocess.STDOUT,
                text=True, **subprocess_group_options())

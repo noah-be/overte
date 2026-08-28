@@ -520,6 +520,13 @@ class JenkinsGlueTest(unittest.TestCase):
                          "vertical-locomotion"}
                         .issubset(RUN_CI.SUITES))
 
+    def test_domain_fixture_uses_the_configured_network_bind(self):
+        source = (HERE / "run_ci.py").read_text(encoding="utf-8")
+        domain_block = source.split('if suite == "domain-smoke":', 1)[1].split(
+            'elif suite in {"e2e-core", "vertical-locomotion"}', 1)[0]
+        self.assertIn('"OVERTE_CI_FIXTURE_BIND"', domain_block)
+        self.assertIn('"--bind", bind, "--public-host", host', domain_block)
+
     def test_self_check_removes_physical_pico_opt_ins(self):
         observed = []
 
