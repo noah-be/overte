@@ -169,6 +169,22 @@ def wait_for_domain(process: subprocess.Popen, url: str, timeout_seconds: int) -
     raise RuntimeError(f"domain-server readiness timed out: {last_error}")
 
 
+def wait_for_assignment_content(processes: tuple[subprocess.Popen, ...], log_path: Path,
+                                expected_count: int, timeout_seconds: int) -> None:
+    marker = f"OVERTE_E2E_DOMAIN_FIXTURE_READY markers={expected_count}"
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if any(process.poll() is not None for process in processes):
+            raise RuntimeError("domain fixture process exited before content became ready")
+        try:
+            if marker in log_path.read_text(encoding="utf-8"):
+                return
+        except OSError:
+            pass
+        time.sleep(0.1)
+    raise RuntimeError("assignment-owned domain content did not become ready")
+
+
 def atomic_json(path: Path, value: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
@@ -261,8 +277,9 @@ def main() -> int:
 
     domain_log = (output / "domain-server.log").open("w", encoding="utf-8")
     assignment_log = (output / "assignment-client.log").open("w", encoding="utf-8")
+    assignment_agent_log = (output / "assignment-agent.log").open("w", encoding="utf-8")
     (output / "assignment-logs").mkdir(mode=0o700)
-    domain_process = assignment_process = None
+    domain_process = assignment_process = assignment_agent_process = None
     stopping = threading.Event()
 
     def request_stop(_signal=None, _frame=None) -> None:
@@ -280,17 +297,29 @@ def main() -> int:
             domain_process, f"http://127.0.0.1:{args.http_port}/id",
             args.startup_timeout_seconds)
         assignment_process = subprocess.Popen(
-            [str(assignment_client), "-n", "7", "-a", "127.0.0.1",
+            [str(assignment_client), "-n", "6", "-a", "127.0.0.1",
              "--server-port", str(args.domain_port),
              "--disable-domain-port-auto-discovery",
              "--log-directory", str(output / "assignment-logs"),
              "--logOptions", "nocolor,process_id,milliseconds"],
             **process_options(environment, assignment_log))
+        assignment_agent_process = subprocess.Popen(
+            [str(assignment_client), "-t", "2", "--pool", "overte-e2e-domain",
+             "-a", "127.0.0.1", "--server-port", str(args.domain_port),
+             "--disable-domain-port-auto-discovery",
+             "--log-directory", str(output / "assignment-logs"),
+             "--logOptions", "nocolor,process_id,milliseconds"],
+            **process_options(environment, assignment_agent_log))
         deadline = time.monotonic() + args.assignment_warmup_seconds
         while time.monotonic() < deadline:
-            if domain_process.poll() is not None or assignment_process.poll() is not None:
+            if (domain_process.poll() is not None or assignment_process.poll() is not None
+                    or assignment_agent_process.poll() is not None):
                 raise RuntimeError("domain fixture process exited during assignment warmup")
             time.sleep(min(0.1, max(0.0, deadline - time.monotonic())))
+        wait_for_assignment_content(
+            (domain_process, assignment_process, assignment_agent_process),
+            output / "assignment-agent.log", manifest["expectedEntityCount"],
+            args.startup_timeout_seconds)
         ready = {
             "schemaVersion": 1,
             "domainUrl": f"hifi://{domain_host}:{args.domain_port}{manifest['spawnPath']}",
@@ -308,13 +337,17 @@ def main() -> int:
                 raise RuntimeError("domain-server exited while fixture was active")
             if assignment_process.poll() is not None:
                 raise RuntimeError("assignment-client exited while fixture was active")
+            if assignment_agent_process.poll() is not None:
+                raise RuntimeError("assignment agent exited while fixture was active")
     finally:
+        stop_process(assignment_agent_process)
         stop_process(assignment_process)
         stop_process(domain_process)
         resources.shutdown()
         resources.server_close()
         resource_thread.join(timeout=2)
         assignment_log.close()
+        assignment_agent_log.close()
         domain_log.close()
     return 0
 
