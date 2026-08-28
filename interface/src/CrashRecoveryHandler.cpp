@@ -11,6 +11,7 @@
 //
 
 #include "CrashRecoveryHandler.h"
+#include "CrashRecoveryPolicy.h"
 
 #include <QCoreApplication>
 #include <QDialog>
@@ -37,6 +38,15 @@
 #include <BuildInfo.h>
 
 bool CrashRecoveryHandler::checkForResetSettings(bool wasLikelyCrash, bool suppressPrompt) {
+    const auto startupDecision = CrashRecoveryPolicy::evaluateStartup(
+        CrashRecoveryPolicy::currentPlatform(), wasLikelyCrash);
+    if (!startupDecision.shouldEvaluateSettingsReset()) {
+        // iOS may preserve the running marker when the process is suspended or
+        // terminated without unwinding main(). Keep the crash state available
+        // for diagnostics, but never offer or perform a settings reset there.
+        return startupDecision.previousSessionCrashed;
+    }
+
     Setting::Handle<bool> crashReportingAsked { "CrashReportingAsked", false };
 
     Settings settings;

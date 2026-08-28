@@ -12,8 +12,10 @@ operations per target. The initial behavior contract is deliberately small:
 5. perform movement input and observe an avatar-position change;
 6. open the system tablet and observe its state;
 7. close the system tablet and observe its state;
-8. evaluate process identity, probe state, errors, and artifacts; and
-9. clean up the application session and target transport.
+8. enter a controlled domain and receive its assignment-owned
+   content without a process restart.
+9. evaluate process identity, probe state, errors, and artifacts; and
+10. clean up the application session and target transport.
 
 The baseline runs in one application session after the initial controlled
 launch. Shared modules own expectations. Product adapters own target discovery,
@@ -33,6 +35,10 @@ logic.
   modules consume only versioned adapter capabilities.
 - A deterministic state-machine adapter executes the full baseline in
   hardware-free CI.
+- The controlled domain-entry contract includes an ephemeral local
+  domain/assignment fixture, exact identity/content checks, and hardware-free
+  positive and negative tests. Product adapters intentionally omit
+  `navigation.enter-domain` until separately activated and accepted.
 
 Concrete transports, package formats, signing rules, system services, device
 selectors, accessibility mappings, and toolchain locks belong to product
@@ -56,8 +62,15 @@ that parent can use the same implementation without importing a child backend.
   and `flying=true`.
 - Tablet: both open and closed state transitions are observed in Interface,
   not inferred from a successful click, key, or gesture command.
+- Sound: fixture request telemetry, decoded `SoundObject` readiness, two fresh
+  active injector samples, regular finish or stop, and stable process identity
+  are all required. This is an in-client proof, not a physical-output proof;
+  see [`SOUND_E2E.md`](SOUND_E2E.md).
 - Launch and soak: process identity remains stable and foreground state is
   observed throughout the selected sequence.
+- Domain entry: the probe reports the fixture's exact UUID and host, leaves
+  serverless mode, observes the complete assignment-owned marker set for
+  consecutive stable samples, and retains foreground/process identity.
 
 Every module retains its last, before, and after probe snapshots. Target
 adapters may add redacted screenshots, accessibility trees, or private device

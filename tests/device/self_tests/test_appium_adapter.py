@@ -92,6 +92,7 @@ def ios_target(*, enabled: bool = True) -> dict:
                        "closeAccessibilityId": "OverteTabletClose"},
         },
         "probe": {"kind": "ios-documents"},
+        "soundControl": {"kind": "fixture-http", "commandPath": "/sound-command.json"},
     }
 
 
@@ -456,6 +457,89 @@ class AppiumAdapterTests(unittest.TestCase):
         self.assertEqual("4123", state["processIdentity"])
         self.assertNotIn("iosE2ELaunchCompleted", state)
         self.assertNotIn("iosE2ESceneUrl", state)
+    def test_ios_sound_capability_is_exactly_gated(self) -> None:
+        adapter, _client, _state, target = self.adapter_and_session()
+        advertised = adapter.advertised_capabilities(target)
+        self.assertIn("sound.play", advertised)
+        self.assertNotIn("navigation.enter-domain", advertised)
+        self.assertNotIn("asset.load", advertised)
+        for mutation in (
+                lambda value: value.pop("soundControl"),
+                lambda value: value["soundControl"].__setitem__("commandPath", "/other.json"),
+                lambda value: value.pop("testBuild"),
+                lambda value: value.__setitem__("probe", {})):
+            candidate = ios_target()
+            mutation(candidate)
+            self.assertNotIn("sound.play", adapter.advertised_capabilities(candidate))
+
+    def test_ios_sound_posts_exact_payload_and_preserves_pid(self) -> None:
+        adapter, client, state, target = self.adapter_and_session()
+        adapter.invoke("private-ipad", "app.launch", {})
+        identity = adapter.invoke("private-ipad", "app.process", {})["identity"]
+        payload = {"schemaVersion": 1, "commandId": "ios-sound-1", "action": "play",
+                   "soundUrl": "http://lab.example:18080/sound.wav?requestId=one"}
+        response = mock.MagicMock(status=200)
+        response.read.return_value = json.dumps(payload).encode("utf-8")
+        response.__enter__.return_value = response
+        arguments = {"schemaVersion": 1, "commandId": "ios-sound-1",
+                     "url": payload["soundUrl"],
+                     "commandUrl": "http://lab.example:18080/sound-command.json"}
+        with mock.patch.object(APPIUM, "urlopen", return_value=response) as post:
+            result = adapter.invoke("private-ipad", "sound.play", arguments)
+        self.assertEqual({"requested": True, "commandId": "ios-sound-1"}, result)
+        request = post.call_args.args[0]
+        self.assertEqual(arguments["commandUrl"], request.full_url)
+        self.assertEqual(payload, json.loads(request.data))
+        self.assertEqual(5, post.call_args.kwargs["timeout"])
+        self.assertEqual(identity, state["processIdentity"])
+        self.assertEqual(1, len([event for event in client.events
+                                if event[:2] == ("execute", "mobile: launchApp")]))
+
+    def test_ios_sound_rejects_invalid_or_missing_channel_before_post(self) -> None:
+        adapter, _client, _state, target = self.adapter_and_session()
+        adapter.invoke("private-ipad", "app.launch", {})
+        base = {"schemaVersion": 1, "commandId": "ios-sound-2",
+                "url": "http://lab.example:18080/sound.wav",
+                "commandUrl": "http://lab.example:18080/sound-command.json"}
+        for invalid in (base | {"url": "file:///private/sound.wav"},
+                        base | {"commandUrl": "http://other.example/sound-command.json"},
+                        base | {"commandUrl": "http://lab.example:18080/other.json"}):
+            with self.subTest(invalid=invalid), \
+                    self.assertRaisesRegex(RuntimeError, "sound.play"):
+                adapter.invoke("private-ipad", "sound.play", invalid)
+        target.pop("soundControl")
+        with mock.patch.object(APPIUM, "urlopen") as post, \
+                self.assertRaisesRegex(RuntimeError, "controlled fixture sound channel"):
+            adapter.invoke("private-ipad", "sound.play", base)
+        post.assert_not_called()
+
+    def test_ios_sound_detects_webdriver_failure_and_process_restart(self) -> None:
+        adapter, client, _state, _target = self.adapter_and_session()
+        adapter.invoke("private-ipad", "app.launch", {})
+        arguments = {"schemaVersion": 1, "commandId": "ios-sound-3",
+                     "url": "http://lab.example:18080/sound.wav",
+                     "commandUrl": "http://lab.example:18080/sound-command.json"}
+        original_execute = client.execute
+        client.execute = mock.Mock(side_effect=RuntimeError("Appium rejected command"))
+        with mock.patch.object(APPIUM, "urlopen") as post, \
+                self.assertRaisesRegex(RuntimeError, "Appium rejected command"):
+            adapter.invoke("private-ipad", "sound.play", arguments)
+        post.assert_not_called()
+        client.execute = original_execute
+
+        payload = {"schemaVersion": 1, "commandId": "ios-sound-3", "action": "play",
+                   "soundUrl": arguments["url"]}
+        response = mock.MagicMock(status=200)
+        response.read.return_value = json.dumps(payload).encode("utf-8")
+        response.__enter__.return_value = response
+
+        def restart_after_post(_request, **_kwargs):
+            client.pid += 1
+            return response
+
+        with mock.patch.object(APPIUM, "urlopen", side_effect=restart_after_post), \
+                self.assertRaisesRegex(RuntimeError, "process restarted"):
+            adapter.invoke("private-ipad", "sound.play", arguments)
 
     def test_ios_jump_and_flight_use_the_real_virtual_pad_in_one_process(self) -> None:
         adapter, client, state, target = self.adapter_and_session()
@@ -564,6 +648,9 @@ class AppiumAdapterTests(unittest.TestCase):
         support.fail = fail
         support.operation = operation
         support.write_json = lambda _name, _value: None
+        support.process_identity = lambda: identity
+        support.assert_process = lambda expected, _label: self.assertEqual(identity, expected)
+        support.assert_foreground = lambda _label: None
         common_spec = importlib.util.spec_from_file_location(
             "overte_ios_common_vertical_session", DEVICE_ROOT / "overte_session.py")
         assert common_spec and common_spec.loader

@@ -1399,6 +1399,14 @@ void Application::resumeAfterLoginDialogActionTaken() {
     // restart domain handler.
     nodeList->getDomainHandler().resetting();
 
+    // Loading an explicit test script is independent of the platform's Sandbox availability.
+    QVariant testProperty = property(hifi::properties::TEST);
+    if (testProperty.isValid()) {
+        const auto testScript = testProperty.toUrl();
+        // Set last parameter to exit interface when the test script finishes, if so requested
+        DependencyManager::get<ScriptEngines>()->loadScript(testScript, false, false, false, false, _quitWhenFinished);
+    }
+
 #if defined(Q_OS_IOS)
     // iOS cannot host Overte's companion desktop Sandbox process, so waiting
     // for http://localhost:60332/status only delays (or can indefinitely block)
@@ -1408,11 +1416,7 @@ void Application::resumeAfterLoginDialogActionTaken() {
         handleSandboxStatus(nullptr);
     }, Qt::QueuedConnection);
 #else
-    QVariant testProperty = property(hifi::properties::TEST);
     if (testProperty.isValid()) {
-        const auto testScript = property(hifi::properties::TEST).toUrl();
-        // Set last parameter to exit interface when the test script finishes, if so requested
-        DependencyManager::get<ScriptEngines>()->loadScript(testScript, false, false, false, false, _quitWhenFinished);
         // This is done so we don't get a "connection time-out" message when we haven't passed in a URL.
         if (!_urlParam.isEmpty()) {
             auto reply = SandboxUtils::getStatus();
