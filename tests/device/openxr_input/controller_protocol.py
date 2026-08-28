@@ -21,7 +21,7 @@ NEUTRAL_HOLD_MS = 100
 # Physical Pico runs have missed shorter pulses even after an OpenXR query
 # consumed them. Keep a full 100 ms margin below CharacterController's default
 # 500 ms jump-to-hover threshold.
-JUMP_HOLD_MS = 400
+JUMP_HOLD_MS = 450
 
 
 class ControllerContractError(ValueError):

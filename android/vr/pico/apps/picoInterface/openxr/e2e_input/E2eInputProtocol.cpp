@@ -36,7 +36,7 @@ constexpr std::int64_t INITIAL_NEUTRAL_MS = 100;
 // Physical Pico runs have missed shorter pulses even after an OpenXR query
 // consumed them. Keep a full 100 ms margin below CharacterController's default
 // 500 ms jump-to-hover threshold.
-constexpr std::int64_t JUMP_HOLD_MS = 400;
+constexpr std::int64_t JUMP_HOLD_MS = 450;
 constexpr double PI = 3.14159265358979323846;
 
 struct FileIdentity {

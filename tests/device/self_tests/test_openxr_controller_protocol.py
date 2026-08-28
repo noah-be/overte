@@ -171,16 +171,16 @@ class OpenXrControllerProtocolTests(unittest.TestCase):
             [result["actionName"] for result in compiled["results"]],
         )
         self.assertEqual(
-            [{"startMs": 100, "endMs": 500},
-             {"startMs": 1100, "endMs": 4100}],
+            [{"startMs": 100, "endMs": 550},
+             {"startMs": 1200, "endMs": 4200}],
             [result["activeWindow"] for result in compiled["results"]],
         )
         fly_states = [
             (event["atMs"], event["state"]["boolean"]["right_secondary_click"])
-            for event in compiled["events"] if event["atMs"] in {600, 1000, 1100, 4100}
+            for event in compiled["events"] if event["atMs"] in {650, 1100, 1200, 4200}
         ]
         self.assertEqual(
-            [(600, True), (1000, False), (1100, True), (4100, False)],
+            [(650, True), (1100, False), (1200, True), (4200, False)],
             fly_states,
         )
         self.assertEqual(
