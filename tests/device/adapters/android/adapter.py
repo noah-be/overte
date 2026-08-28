@@ -249,7 +249,13 @@ class AndroidAdapter:
         isolated_pico = self.kind == "pico" and pico_openxr_opted_in()
         if isolated_pico:
             if running:
-                fail("Pico E2E launcher must be stopped before its single launch")
+                # Pico Home can recreate the most recently launched VR
+                # activity after the preceding suite has already confirmed
+                # force-stop. No controlled identity is bound at this point,
+                # so establish the new suite boundary by stopping that orphan
+                # before creating exactly one fresh launcher process.
+                self.adb.shell(target, "am", "force-stop", package)
+                self.wait_for_process_stopped(target)
             session = self.pico_input_session(target)
             session.cleanup(False)
             session.discard_local_state()

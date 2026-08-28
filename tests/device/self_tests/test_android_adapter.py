@@ -458,6 +458,36 @@ class AndroidAdapterTest(unittest.TestCase):
         self.assertFalse(any(command[:4] == ["shell", "am", "start", "-W"]
                              for command in adb_commands))
 
+    def test_pico_launch_replaces_an_unbound_orphan_process(self):
+        state = Path(self.temporary.name) / "orphan-state"
+        state.mkdir(mode=0o700)
+        process = Path(self.temporary.name) / "orphan-process"
+        process.write_text("running", encoding="utf-8")
+        argv_log = Path(self.temporary.name) / "orphan-adb.jsonl"
+        self.environment.update({
+            "OVERTE_ANDROID_E2E_DEBUG": "1",
+            "OVERTE_PICO_OPENXR_INPUT": "1",
+            "ANDROID_ADB_SERVER_PORT": "5041",
+            "OVERTE_PICO_OPENXR_STATE_DIR": str(state),
+            "MOCK_ANDROID_PROCESS_STATE": str(process),
+            "MOCK_ADB_ARGV_LOG": str(argv_log),
+        })
+        result = subprocess.run([
+            sys.executable, str(ADAPTER), "--kind", "pico", "invoke",
+            "--target", "pico-secret", "--operation", "app.launch",
+            "--arguments", "{}",
+        ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+           env=self.environment, check=False)
+
+        self.assertEqual(0, result.returncode, result.stdout)
+        commands = [json.loads(line) for line in argv_log.read_text().splitlines()]
+        payloads = [command[4:] if command[2:3] == ["-s"] else command[2:]
+                    for command in commands]
+        self.assertTrue(any(command[:3] == ["shell", "am", "force-stop"]
+                            for command in payloads))
+        self.assertTrue(any(command[:4] == ["shell", "am", "start", "-W"]
+                            for command in payloads))
+
     def test_controlled_pico_launch_reactivates_background_process(self):
         state = Path(self.temporary.name) / "reactivate-state"
         state.mkdir(mode=0o700)
