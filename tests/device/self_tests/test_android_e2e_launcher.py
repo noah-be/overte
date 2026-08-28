@@ -28,7 +28,7 @@ class AndroidE2ELauncherTest(unittest.TestCase):
             'putExtra("applicationArguments", arguments)',
             'new File(getFilesDir(), DIRECTORY)',
             'new File(launchDirectory, "overte-probe.json")',
-            'SPAWN_VIEWPOINT = "/0,2,4/0,0,0,1"',
+            'SPAWN_VIEWPOINT = "/0,1,4/0,0,0,1"',
             'appendQueryParameter("location", SPAWN_VIEWPOINT)',
         ):
             self.assertIn(required, source)

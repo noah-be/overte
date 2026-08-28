@@ -27,10 +27,10 @@ public abstract class E2eLauncherActivityBase extends Activity {
             "{\"channel\":\"android-debug-file-v1\",\"probe\":\"overte_e2e_probe.js\","
                     + "\"schemaVersion\":1}\n";
     private static final String EMPTY_CONTROL_COMMAND = "{\"schemaVersion\":1}\n";
-    // AddressManager applies viewpoint coordinates to the avatar body. Start
-    // safely above the floor and let the character controller settle the
-    // canonical feet position onto y=0 before the probe accepts the fixture.
-    private static final String SPAWN_VIEWPOINT = "/0,2,4/0,0,0,1";
+    // AddressManager applies viewpoint coordinates to the avatar body. A body
+    // height of one metre places the capsule at immediate floor support; the
+    // probe still requires the canonical feet position to settle onto y=0.
+    private static final String SPAWN_VIEWPOINT = "/0,1,4/0,0,0,1";
 
     protected abstract Class<? extends Activity> interfaceActivity();
 

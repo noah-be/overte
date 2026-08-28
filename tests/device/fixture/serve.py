@@ -71,8 +71,8 @@ def validate_fixture() -> dict:
             or not all(isinstance(spawn[axis], (int, float))
                        and not isinstance(spawn[axis], bool)
                        for axis in ("x", "y", "z"))
-            or spawn["y"] < 2.0):
-        raise ValueError("fixture spawn must be explicit and safely above the floor")
+            or spawn["y"] < 1.0):
+        raise ValueError("fixture body spawn must be explicit at a grounded capsule height")
     expected_spawn_path = (f"/{spawn['x']},{spawn['y']},{spawn['z']}"
                            "/0,0,0,1")
     if manifest["spawnPath"] != expected_spawn_path:
