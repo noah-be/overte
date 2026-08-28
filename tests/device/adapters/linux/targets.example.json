@@ -28,7 +28,7 @@
         "kind": "injected-test-script"
       },
       "clientControl": {
-        "kind": "probe-command-file"
+        "kind": "fixture-command-http"
       }
     },
     {
@@ -82,7 +82,7 @@
         "kind": "injected-test-script"
       },
       "clientControl": {
-        "kind": "probe-command-file"
+        "kind": "fixture-command-http"
       }
     }
   ]

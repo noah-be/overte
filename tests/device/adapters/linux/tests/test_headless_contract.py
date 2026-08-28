@@ -138,7 +138,7 @@ class HeadlessDesktopContractTest(unittest.TestCase):
 
     def test_scene_reload_uses_control_channel_and_never_relaunches(self) -> None:
         self.target["probe"] = {"kind": "injected-test-script"}
-        self.target["clientControl"] = {"kind": "probe-command-file"}
+        self.target["clientControl"] = {"kind": "fixture-command-http"}
         self.adapter.prepare_injected_probe("headless")
         state = {
             "pid": 4242, "identity": "4242:token", "processToken": "token",
@@ -147,18 +147,19 @@ class HeadlessDesktopContractTest(unittest.TestCase):
         with patch.object(self.adapter, "read_state", return_value=state), patch.object(
                 self.adapter, "state_alive", return_value=True), patch.object(
                 self.adapter, "visual_action") as visual, patch.object(
+                self.adapter, "settle_controlled_scene") as settle, patch.object(
+                self.adapter, "post_client_command") as post, patch.object(
                 ADAPTER_MODULE.subprocess, "Popen") as spawn:
             result = self.adapter.invoke(
                 "headless", "scene.load", {"url": "http://fixture/scene.json"})
             self.assertEqual({"requested": True, "lifecycle": "same-process"}, result)
-            first = json.loads(self.adapter.client_command_path(
-                "headless").read_text(encoding="utf-8"))
+            first = post.call_args.args[1]
             result = self.adapter.invoke(
                 "headless", "scene.load", {"url": "http://fixture/scene.json"})
             self.assertEqual({"requested": True, "lifecycle": "same-process"}, result)
-            second = json.loads(self.adapter.client_command_path(
-                "headless").read_text(encoding="utf-8"))
+            second = post.call_args.args[1]
             visual.assert_not_called()
+            self.assertEqual(2, settle.call_count)
             spawn.assert_not_called()
             self.assertEqual("scene-load", first["action"])
             self.assertEqual("http://fixture/scene.json", first["url"])
@@ -176,11 +177,20 @@ class HeadlessDesktopContractTest(unittest.TestCase):
                 self.adapter.launch("headless", self.target)
         lifecycle.cleanup.assert_called_once_with()
 
-    def test_look_move_and_tab_toggle_use_only_private_xdotool(self) -> None:
+    def test_pointer_uses_private_xdotool_and_keyboard_uses_probe_channel(self) -> None:
         environment = self.safe_environment()
+        self.target["probe"] = {"kind": "injected-test-script"}
+        self.target["clientControl"] = {"kind": "fixture-command-http"}
+        state = {
+            "pid": 4242, "identity": "4242:token", "processToken": "token",
+            "initialSceneUrl": "http://fixture/scene.json",
+        }
         with patch.object(self.adapter, "runtime_environment",
                           return_value=environment), patch.object(
-                              ADAPTER_MODULE.time, "sleep", return_value=None) as sleep:
+                              ADAPTER_MODULE.time, "sleep", return_value=None) as sleep, patch.object(
+                                  self.adapter, "read_state", return_value=state), patch.object(
+                                      self.adapter, "state_alive", return_value=True), patch.object(
+                                          self.adapter, "post_client_command") as post:
             self.adapter.linux_visual_action(
                 self.target, "look", {"processId": 4242,
                                       "horizontal": 0.25, "vertical": 0.1})
@@ -207,19 +217,12 @@ class HeadlessDesktopContractTest(unittest.TestCase):
                          "raw XSetInputFocus must not bypass WM activation")
         self.assertIn(["mousedown", "3"], arguments)
         self.assertIn(["mouseup", "3"], arguments)
-        self.assertEqual(1, arguments.count(
-            ["keydown", "w", "sleep", "0.1", "keyup", "w"]))
-        self.assertEqual(2, arguments.count(
-            ["keydown", "Tab", "sleep", "0.05", "keyup", "Tab"]))
-        for argument in arguments:
-            if argument and argument[0] in {"keydown", "keyup", "key"}:
-                self.assertNotIn(
-                    "--window", argument,
-                    "focused headless keyboard input must use global XTEST events")
-        keyboard_calls = [argument for argument in arguments
-                          if argument and argument[0] == "keydown"]
-        self.assertEqual(3, len(keyboard_calls),
-                         "each key hold must use exactly one xdotool process")
+        self.assertFalse(any(argument and argument[0] in {"keydown", "keyup", "key"}
+                             for argument in arguments))
+        commands = [item.args[1] for item in post.call_args_list]
+        self.assertEqual(["forward", "tablet", "tablet"],
+                         [item["key"] for item in commands])
+        self.assertEqual([100, 100, 100], [item["durationMs"] for item in commands])
         flattened = " ".join(" ".join(argument) for argument in arguments)
         self.assertNotIn("ctrl", flattened.lower())
         self.assertNotIn("click", flattened.lower())
@@ -243,11 +246,20 @@ class HeadlessDesktopContractTest(unittest.TestCase):
             self.assertEqual("0", child["GTK_USE_PORTAL"])
             self.assertEqual("1", child["QT_NO_XDG_DESKTOP_PORTAL"])
 
-    def test_move_hold_is_one_bounded_process_after_exact_pid_activation(self) -> None:
+    def test_move_hold_is_one_bounded_command_after_exact_pid_activation(self) -> None:
         environment = self.safe_environment()
+        self.target["probe"] = {"kind": "injected-test-script"}
+        self.target["clientControl"] = {"kind": "fixture-command-http"}
+        state = {
+            "pid": 4242, "identity": "4242:token", "processToken": "token",
+            "initialSceneUrl": "http://fixture/scene.json",
+        }
         with patch.object(self.adapter, "runtime_environment",
                           return_value=environment), patch.object(
-                              ADAPTER_MODULE.time, "sleep", return_value=None):
+                              ADAPTER_MODULE.time, "sleep", return_value=None), patch.object(
+                                  self.adapter, "read_state", return_value=state), patch.object(
+                                      self.adapter, "state_alive", return_value=True), patch.object(
+                                          self.adapter, "post_client_command") as post:
             self.adapter.linux_visual_action(
                 self.target, "move", {"processId": 4242,
                                       "direction": "forward",
@@ -260,14 +272,11 @@ class HeadlessDesktopContractTest(unittest.TestCase):
             ["getactivewindow"]))
         self.assertEqual(1, arguments.count(
             ["windowactivate", "--sync", "1001"]))
-        self.assertEqual(1, arguments.count(
-            ["keydown", "w", "sleep", "2", "keyup", "w"]))
-        self.assertEqual(1, len([
-            argument for argument in arguments
-            if argument and argument[0] == "keydown"
-        ]), "the entire hold must use one xdotool process")
-        self.assertFalse(any("--window" in argument for argument in arguments
-                             if argument and argument[0] in {"keydown", "keyup", "key"}))
+        post.assert_called_once()
+        self.assertEqual("forward", post.call_args.args[1]["key"])
+        self.assertEqual(2000, post.call_args.args[1]["durationMs"])
+        self.assertFalse(any(argument and argument[0] in {"keydown", "keyup", "key"}
+                             for argument in arguments))
         self.assertFalse(any("1002" in argument for argument in arguments
                              if argument and argument[0] == "windowactivate"))
 

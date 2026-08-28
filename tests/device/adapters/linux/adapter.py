@@ -16,7 +16,7 @@ import subprocess
 import sys
 import time
 import uuid
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 
@@ -129,8 +129,8 @@ class LinuxAdapter:
             control = entry.get("clientControl")
             if control is not None:
                 if (not isinstance(control, dict)
-                        or control != {"kind": "probe-command-file"}):
-                    fail("desktop clientControl must select only probe-command-file")
+                        or control != {"kind": "fixture-command-http"}):
+                    fail("desktop clientControl must select only fixture-command-http")
                 if not isinstance(probe, dict) or probe.get("kind") != "injected-test-script":
                     fail("desktop clientControl requires the injected in-client probe")
             if not isinstance(entry.get("xwayland", False), bool):
@@ -202,13 +202,19 @@ class LinuxAdapter:
 
     @staticmethod
     def capabilities(target: dict) -> list[str]:
-        values = ["app.foreground", "app.launch", "app.process",
-                  "input.look", "input.move"]
+        controlled = LinuxAdapter.controlled_client(target)
+        keyboard_input = not target.get("isolatedX11") or controlled
+        values = ["app.foreground", "app.launch", "app.process", "app.stop",
+                  "input.look"]
+        if keyboard_input:
+            values += ["input.fly", "input.jump", "input.move"]
         if target.get("isolatedX11"):
             values.append("artifact.screenshot")
         if target.get("probe"):
-            values += ["probe.snapshot", "tablet.close", "tablet.open"]
-        if LinuxAdapter.controlled_client(target):
+            values.append("probe.snapshot")
+            if keyboard_input:
+                values += ["tablet.close", "tablet.open"]
+        if controlled:
             values += ["asset.load", "navigation.enter-domain", "scene.load",
                        "sound.play"]
         return sorted(values)
@@ -218,7 +224,7 @@ class LinuxAdapter:
         probe = target.get("probe")
         return (isinstance(probe, dict)
                 and probe.get("kind") == "injected-test-script"
-                and target.get("clientControl") == {"kind": "probe-command-file"})
+                and target.get("clientControl") == {"kind": "fixture-command-http"})
 
     def discover(self) -> list[dict]:
         self.require_interactive_host()
@@ -494,18 +500,6 @@ class LinuxAdapter:
     def probe_script_path(self, selector: str) -> Path:
         return state_directory(self.adapter_id, selector) / "probe" / PROBE_SCRIPT.name
 
-    def client_command_path(self, selector: str) -> Path:
-        return state_directory(self.adapter_id, selector) / "probe" / "e2e-client-command.json"
-
-    @staticmethod
-    def write_private_json(path: Path, value: dict) -> None:
-        temporary = path.with_suffix(path.suffix + ".tmp")
-        temporary.write_text(
-            json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n",
-            encoding="utf-8")
-        temporary.chmod(0o600)
-        temporary.replace(path)
-
     def prepare_injected_probe(self, selector: str) -> Path:
         result_dir = self.probe_script_path(selector).parent
         result_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -514,10 +508,34 @@ class LinuxAdapter:
         shutil.copyfile(PROBE_SCRIPT, temporary)
         temporary.chmod(0o600)
         temporary.replace(script)
-        self.write_private_json(self.client_command_path(selector), {
-            "schemaVersion": 1, "commandId": "", "action": "idle",
-        })
         return script
+
+    def client_command_endpoint(self, scene_url: str) -> str:
+        self.controlled_http_url(scene_url, "controlled scene URL")
+        parsed = urlsplit(scene_url)
+        return urlunsplit((parsed.scheme, parsed.netloc,
+                           "/e2e-client-command.json", "", ""))
+
+    def post_client_command(self, scene_url: str, command: dict) -> None:
+        payload = json.dumps(command, separators=(",", ":")).encode("utf-8")
+        if len(payload) > 4096:
+            fail("desktop client command exceeds the fixture limit")
+        request = Request(
+            self.client_command_endpoint(scene_url), data=payload,
+            headers={"Content-Type": "application/json"}, method="POST")
+        with urlopen(request, timeout=5) as response:
+            if response.status != 200:
+                fail("controlled fixture rejected the desktop client command")
+            encoded = response.read(4097)
+        if len(encoded) > 4096:
+            fail("controlled fixture returned an oversized client command response")
+        try:
+            accepted = json.loads(encoded)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise RuntimeError(
+                "controlled fixture returned an invalid client command response") from error
+        if accepted != command:
+            fail("controlled fixture did not acknowledge the exact desktop client command")
 
     def write_client_command(
             self, selector: str, target: dict, state: dict, command: dict) -> None:
@@ -525,12 +543,112 @@ class LinuxAdapter:
             fail("desktop operation requires the controlled in-client probe channel")
         if not self.state_alive(state):
             fail("Overte desktop process changed before the in-client command")
-        path = self.client_command_path(selector)
-        if not path.parent.is_dir():
-            fail("desktop in-client command channel was not prepared at app.launch")
-        self.write_private_json(path, command)
+        scene_url = state.get("initialSceneUrl")
+        if not isinstance(scene_url, str):
+            fail("desktop in-client command channel requires the controlled scene origin")
+        self.post_client_command(scene_url, command)
         if not self.state_alive(state):
             fail("Overte desktop process changed while delivering the in-client command")
+
+    def controlled_key_hold(
+            self, selector: str, target: dict, state: dict,
+            key: str, duration_seconds: float) -> None:
+        if not target.get("isolatedX11"):
+            fail("controlled key holds are restricted to private headless X11")
+        duration_ms = round(float(duration_seconds) * 1000.0)
+        if not 50 <= duration_ms <= 10000:
+            fail("controlled key hold duration must be from 50 through 10000 ms")
+        self.write_client_command(selector, target, state, {
+            "schemaVersion": 1,
+            "commandId": "key-" + uuid.uuid4().hex,
+            "action": "key-hold",
+            "key": key,
+            "durationMs": duration_ms,
+        })
+
+    def probe_snapshot(
+            self, selector: str, target: dict, state: dict,
+            after_sample_sequence: int | None) -> dict:
+        deadline = time.monotonic() + 5.0
+        while True:
+            if not self.state_alive(state):
+                fail("Overte desktop process changed while reading the probe snapshot")
+            snapshot = read_fresh_json(self.probe_path(selector, target))
+            sequence = snapshot.get("sampleSequence")
+            if after_sample_sequence is None or (
+                    isinstance(sequence, int) and not isinstance(sequence, bool)
+                    and sequence > after_sample_sequence):
+                return snapshot
+            if time.monotonic() >= deadline:
+                fail("probe snapshot sampleSequence did not advance")
+            time.sleep(0.05)
+
+    @staticmethod
+    def signed_angle_delta(first: float, second: float) -> float:
+        return (float(second) - float(first) + 180.0) % 360.0 - 180.0
+
+    def controlled_look(
+            self, selector: str, target: dict, state: dict, values: dict) -> None:
+        if not target.get("probe") or not target.get("isolatedX11"):
+            self.visual_action(target, "look", {**values, "processId": state["pid"]})
+            return
+        before = read_fresh_json(self.probe_path(selector, target))
+        orientation = before.get("view", {}).get("orientation", {})
+        horizontal = float(values.get("horizontal", 0.25))
+        vertical = float(values.get("vertical", 0.0))
+        axis = "y" if abs(horizontal) >= abs(vertical) else "x"
+        requested = horizontal if axis == "y" else vertical
+        requested_sign = 1.0 if requested > 0.0 else -1.0
+        baseline = orientation.get(axis)
+        sequence = before.get("sampleSequence")
+        if (not isinstance(baseline, (int, float)) or isinstance(baseline, bool)
+                or not isinstance(sequence, int) or isinstance(sequence, bool)):
+            fail("desktop probe has no usable look orientation")
+        for _attempt in range(3):
+            self.visual_action(target, "look", {**values, "processId": state["pid"]})
+            for _sample in range(10):
+                current = read_fresh_json(self.probe_path(selector, target))
+                current_sequence = current.get("sampleSequence")
+                current_axis = current.get("view", {}).get("orientation", {}).get(axis)
+                if (isinstance(current_sequence, int) and not isinstance(
+                        current_sequence, bool) and current_sequence > sequence
+                        and isinstance(current_axis, (int, float))
+                        and not isinstance(current_axis, bool)
+                        and requested_sign * self.signed_angle_delta(
+                            float(baseline), float(current_axis)) >= 1.0):
+                    return
+                time.sleep(0.1)
+        fail("desktop look input did not produce the requested camera rotation")
+
+    def settle_controlled_scene(
+            self, selector: str, target: dict, state: dict,
+            observe_after_monotonic: float = 0.0) -> None:
+        deadline = time.monotonic() + 30.0
+        requested_grounding = False
+        while time.monotonic() < deadline:
+            if not self.state_alive(state):
+                fail("Overte desktop process changed while grounding the controlled scene")
+            try:
+                snapshot = read_fresh_json(self.probe_path(selector, target))
+                scene = snapshot["scene"]
+                avatar = snapshot["avatar"]
+            except (KeyError, TypeError, RuntimeError):
+                time.sleep(0.1)
+                continue
+            if scene.get("ready") is True and scene.get("spawnValidated") is True:
+                # The shared probe deliberately reapplies a fixture viewpoint
+                # at 1.5 and 3.5 seconds. Do not accept or alter the avatar
+                # until those bounded reload timers have completed.
+                if time.monotonic() < observe_after_monotonic:
+                    time.sleep(0.1)
+                    continue
+                if avatar.get("inAir") is False and avatar.get("flying") is False:
+                    return
+                if not requested_grounding:
+                    self.visual_action(target, "settle", {"processId": state["pid"]})
+                    requested_grounding = True
+            time.sleep(0.1)
+        fail("controlled desktop scene did not reach a grounded spawn")
 
     @staticmethod
     def controlled_http_url(value: str, label: str) -> tuple[str, str, int | None]:
@@ -619,6 +737,12 @@ class LinuxAdapter:
             # can race its local socket, display a second mode selector, and
             # makes process lifecycle assertions ambiguous.
             arguments += ["--url", initial_scene_url]
+        if self.controlled_client(target):
+            if not initial_scene_url:
+                fail("controlled desktop target requires OVERTE_E2E_SCENE_URL")
+            self.post_client_command(initial_scene_url, {
+                "schemaVersion": 1, "commandId": "", "action": "idle",
+            })
         probe = target.get("probe", {})
         if probe.get("kind") == "injected-test-script":
             result_dir = self.probe_path(selector, target).parent
@@ -725,27 +849,6 @@ class LinuxAdapter:
             time.sleep(0.25)
         fail("launched Overte process has no visible X11 window")
 
-    def xdotool_key_hold(self, target: dict, key: str, duration: float) -> None:
-        """Send one bounded XTEST key hold in one xdotool process."""
-        if (not isinstance(key, str) or not key or "\x00" in key
-                or not isinstance(duration, (int, float))
-                or isinstance(duration, bool) or not math.isfinite(float(duration))
-                or not 0.05 <= float(duration) <= 10.0):
-            fail("headless key hold arguments are invalid")
-        duration = float(duration)
-        duration_text = f"{duration:.3f}".rstrip("0").rstrip(".")
-        try:
-            # xdotool command chaining retains one X connection and one XTEST
-            # keyboard state across the bounded hold.
-            self.xdotool(
-                target, "keydown", key, "sleep", duration_text, "keyup", key,
-                timeout=duration + 2.0)
-        except RuntimeError:
-            # Best-effort release is intentionally separate only on the error
-            # path, preventing a stuck key if the atomic process failed.
-            self.xdotool(target, "keyup", key, check=False)
-            raise
-
     def linux_activate_window(self, target: dict, window: str) -> None:
         """Activate one already PID-resolved window and let Qt observe it."""
         self.xdotool(target, "windowactivate", "--sync", window)
@@ -798,34 +901,24 @@ class LinuxAdapter:
             finally:
                 self.xdotool(target, "mouseup", "3")
             return
-        if action == "move":
-            keys = {"forward": "w", "backward": "s",
-                    "left": "a", "right": "d"}
-            direction = values.get("direction", "forward")
-            if direction not in keys:
-                fail("unsupported movement direction")
-            key = keys[direction]
-            # xdotool --window sends keyboard events through XSendEvent, which
-            # Qt/Overte does not handle like real keyboard input. The exact
-            # PID-bound window was focused above; use global XTEST key events.
-            self.xdotool_key_hold(
-                target, key, float(values.get("durationSeconds", 1.5)))
-            return
-        if action == "tablet-open":
-            if values.get("normalizeKeyUp") is True:
-                # A Qt focus transition while the tablet is being created can
-                # swallow the previous release.  Before a probe-gated retry,
-                # normalize the global XTEST state while the exact PID window
-                # is active, then leave one bounded event-loop interval.
-                self.xdotool(target, "keyup", "Tab", check=False)
-                time.sleep(0.05)
-            self.xdotool_key_hold(target, "Tab", 0.05)
-            return
-        if action == "tablet-close":
-            if values.get("normalizeKeyUp") is True:
-                self.xdotool(target, "keyup", "Tab", check=False)
-                time.sleep(0.05)
-            self.xdotool_key_hold(target, "Tab", 0.05)
+        if action in {"fly", "jump", "move", "settle", "tablet-close", "tablet-open"}:
+            keys = {
+                "fly": "jump", "jump": "jump", "settle": "down",
+                "tablet-close": "tablet", "tablet-open": "tablet",
+            }
+            key = (values.get("direction") if action == "move" else keys[action])
+            if key not in {"backward", "down", "forward", "jump",
+                           "left", "right", "tablet"}:
+                fail("unsupported controlled keyboard action")
+            durations = {"jump": 0.1, "settle": 2.5,
+                         "tablet-close": 0.1, "tablet-open": 0.1}
+            duration = float(values.get(
+                "durationSeconds", durations.get(action, 1.5)))
+            selector = self.selector_for_target(target)
+            state = self.read_state(selector)
+            if not state or state.get("pid") != pid or not self.state_alive(state):
+                fail("controlled keyboard action requires the launched process")
+            self.controlled_key_hold(selector, target, state, key, duration)
             return
         if action == "close":
             self.xdotool(target, "windowclose", window)
@@ -868,6 +961,16 @@ class LinuxAdapter:
                     time.sleep(float(values.get("durationSeconds", 1.5)))
                 finally:
                     client.key(key, "up")
+                return
+            if action in {"fly", "jump", "settle"}:
+                keys = {"fly": 57, "jump": 57, "settle": 46}
+                durations = {"jump": 0.1, "settle": 2.5}
+                client.key(keys[action], "down")
+                try:
+                    time.sleep(float(values.get(
+                        "durationSeconds", durations.get(action, 1.5))))
+                finally:
+                    client.key(keys[action], "up")
                 return
             if action == "tablet-open":
                 client.key(15, "down")  # KEY_TAB / Actions.ContextMenu
@@ -922,9 +1025,18 @@ class LinuxAdapter:
         running = bool(state and self.state_alive(state))
         if operation == "app.process":
             return {"running": running, "identity": state["identity"] if running else None}
+        if operation == "app.stop":
+            self.cleanup(selector)
+            return {"stopped": True}
         if not running:
             fail("Overte desktop process is not running")
         if operation == "app.foreground":
+            if target.get("isolatedX11"):
+                # Window.hasFocus() is not reliable in a private Xwayland
+                # compositor. linux_window() independently requires the
+                # EWMH-active, PID-owned top-level before activation succeeds.
+                self.visual_action(target, "focus", {"processId": state["pid"]})
+                return {"foreground": True}
             probe = target.get("probe")
             if probe:
                 try:
@@ -935,7 +1047,8 @@ class LinuxAdapter:
             self.visual_action(target, "focus", {"processId": state["pid"]})
             return {"foreground": True}
         if operation == "probe.snapshot":
-            return read_fresh_json(self.probe_path(selector, target))
+            return self.probe_snapshot(
+                selector, target, state, values.get("afterSampleSequence"))
         if operation == "navigation.enter-domain":
             self.write_client_command(selector, target, state, {
                 "schemaVersion": 1,
@@ -969,6 +1082,8 @@ class LinuxAdapter:
                 "action": "scene-load",
                 "url": url,
             })
+            self.settle_controlled_scene(
+                selector, target, state, time.monotonic() + 5.0)
             return {"requested": True, "lifecycle": "same-process"}
         if operation == "input.look":
             horizontal = values.get("horizontal", 0.25)
@@ -977,7 +1092,7 @@ class LinuxAdapter:
                         and math.isfinite(float(item)) for item in (horizontal, vertical))
                     or abs(float(horizontal)) > 0.45 or abs(float(vertical)) > 0.45):
                 fail("desktop look input must use finite fractions from -0.45 through 0.45")
-            self.visual_action(target, "look", {**values, "processId": state["pid"]})
+            self.controlled_look(selector, target, state, values)
             return {"performed": True}
         if operation == "input.move":
             duration = values.get("durationSeconds", 1.5)
@@ -985,6 +1100,12 @@ class LinuxAdapter:
                     or not math.isfinite(float(duration)) or not 0.05 <= duration <= 10.0):
                 fail("desktop movement duration must be from 0.05 through 10 seconds")
             self.visual_action(target, "move", {**values, "processId": state["pid"]})
+            return {"performed": True}
+        if operation == "input.jump":
+            self.visual_action(target, "jump", {"processId": state["pid"]})
+            return {"performed": True}
+        if operation == "input.fly":
+            self.visual_action(target, "fly", {**values, "processId": state["pid"]})
             return {"performed": True}
         if operation in {"tablet.open", "tablet.close"}:
             if not target.get("probe"):
@@ -1065,7 +1186,6 @@ class LinuxAdapter:
             if self.process_tree_alive(state):
                 fail("Overte desktop process could not be terminated")
         self.state_path(selector).unlink(missing_ok=True)
-        self.client_command_path(selector).unlink(missing_ok=True)
         self.probe_script_path(selector).unlink(missing_ok=True)
         if target.get("isolatedX11"):
             self.gpu_headless_lifecycle(target).cleanup()

@@ -9,25 +9,27 @@ Fedora, Ubuntu, and openSUSE are CI/lab rows rather than code branches; see
 | Target session | Input backend | Screenshot evidence |
 | --- | --- | --- |
 | Visible Fedora/GNOME Wayland | XDG RemoteDesktop portal v2 plus a persistent `libei` sender | Not advertised; use the in-client probe and adapter logs |
-| Headless Linux | Private GPU-backed Mutter/Xwayland session plus `xdotool` | ImageMagick, restricted to the owned X11 window |
+| Headless Linux | Private GPU-backed Mutter/Xwayland; `xdotool` pointer plus bounded probe Controller actions | ImageMagick, restricted to the owned X11 window |
 
 The in-client probe verifies the camera, avatar, scene, process, and tablet
-state after each input operation. A successfully delivered key or pointer
+state after each input operation. A successfully delivered semantic input or pointer
 event alone never counts as passed behavior.
 
 Targets that set both `probe.kind: injected-test-script` and
-`clientControl.kind: probe-command-file` additionally advertise
+`clientControl.kind: fixture-command-http` additionally advertise
 `navigation.enter-domain`, `asset.load`, `scene.load`, and `sound.play`. At
 launch the adapter copies the repository probe into the target's private state
-directory and creates a mode-0600 `e2e-client-command.json` beside it. The
-running probe accepts only versioned scene reload, navigation, controlled
-Image-entity, and sound-channel commands. Scene reload and navigation assign
-`Window.location` inside the existing Interface process; asset loading creates
-exactly one client-local tagged Image entity. Sound commands are POSTed
+directory. Commands are POSTed to the controlled fixture's same-origin
+`/e2e-client-command.json` route and must be echoed exactly before success is
+reported. The running probe accepts only versioned scene reload, navigation,
+controlled Image-entity, sound-channel, and semantic input-hold commands. Scene
+reload and navigation assign `Window.location` inside the existing Interface
+process; asset loading creates exactly one client-local tagged Image entity.
+Sound commands are POSTed
 unchanged to the controlled fixture's
 `/sound-command.json` endpoint, and the probe polls that endpoint directly.
 Probe snapshots and fixture HTTP telemetry remain independent completion
-evidence. A missing probe, command file, fixture acknowledgment, or stable
+evidence. A missing probe, command route, fixture acknowledgment, or stable
 Interface process identity fails closed.
 
 This in-client path never uses the clipboard, global keyboard shortcuts,
@@ -97,23 +99,21 @@ address are not inherited.
 
 Only this owned X11 session may use the configured, SHA-256-pinned `xdotool`.
 ImageMagick captures the resolved Overte window into a mode-0600 artifact.
-Headless look uses a bounded right-button drag, movement uses one bounded
-atomic key hold, and tablet open/close use probe-gated 50 ms Tab presses matching
-`Actions.ContextMenu`; every held button or key is released in `finally`.
-Keyboard events are global XTEST events after PID-scoped
-`windowactivate --sync`; raw `windowfocus`/XSetInputFocus is forbidden because
-it bypasses the window manager activation contract.
-`xdotool --window` is intentionally forbidden for keyboard events because its
-XSendEvent path is not equivalent to real keyboard input for Qt/Overte. A bounded 350 ms settle
-after the activation acknowledgement lets Qt receive the activation event
-before the first global input event. Each press is one atomic xdotool command
-chain (`keydown`, bounded `sleep`, `keyup`) so one X connection retains the
-synthetic keyboard state for the whole press; the adapter timeout is two
-seconds longer than the already validated press duration.
-Tablet toggles stop as soon as the probe observes the requested state.  At
-most three pulses are allowed within five seconds; a retry reactivates the
-exact PID window and normalizes a possibly lost release with global `keyup`
-before the next bounded press.
+Headless look uses a bounded right-button drag. PID-scoped
+`windowactivate --sync` precedes every input; raw `windowfocus`/XSetInputFocus
+is forbidden because it bypasses the window-manager activation contract.
+
+Mutter headless Xwayland discards both global XTEST keyboard events and
+window-directed XSendEvent keyboard events on the validated Fedora host. The
+headless adapter therefore sends only semantic `forward`, `backward`, `left`,
+`right`, `down`, `jump`, and `tablet` input holds through the controlled local
+probe. The fixture validates the whitelist and a 50-10000 ms duration before
+the probe routes the hold to its corresponding temporary Controller action;
+replacement, timer expiry, and probe shutdown all release the held action.
+The probe never assigns avatar position or velocity. Movement, jump, flight,
+grounding, and tablet behavior still require independent probe evidence. Tablet toggles
+stop as soon as the probe observes the requested state, with at most three
+pulses in five seconds.
 Mutter, Xwayland, `dbus-run-session`, `dbus-daemon`, Python, `glxinfo`, `xrandr`,
 `xdotool`, and ImageMagick must have absolute paths and verified digests in the private
 target file. Headless execution is GPU-only; a software renderer is an

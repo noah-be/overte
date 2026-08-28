@@ -220,7 +220,7 @@ class LinuxAdapterTest(unittest.TestCase):
         payload = json.loads(self.config.read_text(encoding="utf-8"))
         target = next(item for item in payload["targets"] if item["platform"] == platform)
         target["probe"] = {"kind": "injected-test-script"}
-        target["clientControl"] = {"kind": "probe-command-file"}
+        target["clientControl"] = {"kind": "fixture-command-http"}
         self.config.write_text(json.dumps(payload), encoding="utf-8")
         with patch.dict(os.environ, self.environment, clear=True):
             adapter = DESKTOP_MODULE.LinuxAdapter()
@@ -228,7 +228,8 @@ class LinuxAdapterTest(unittest.TestCase):
 
     @staticmethod
     def running_state() -> dict:
-        return {"pid": 4242, "processToken": "token", "identity": "4242:token"}
+        return {"pid": 4242, "processToken": "token", "identity": "4242:token",
+                "initialSceneUrl": "http://127.0.0.1:41000/scene.json"}
 
     def test_new_capabilities_require_probe_command_control_on_every_desktop_variant(self):
         payload = json.loads(self.config.read_text(encoding="utf-8"))
@@ -239,7 +240,7 @@ class LinuxAdapterTest(unittest.TestCase):
                 self.assertTrue(controlled.isdisjoint(
                     DESKTOP_MODULE.LinuxAdapter.capabilities(target)))
             target["probe"] = {"kind": "injected-test-script"}
-            target["clientControl"] = {"kind": "probe-command-file"}
+            target["clientControl"] = {"kind": "fixture-command-http"}
             with self.subTest(platform=target["platform"], controlled=True):
                 self.assertTrue(controlled.issubset(
                     DESKTOP_MODULE.LinuxAdapter.capabilities(target)))
@@ -252,7 +253,7 @@ class LinuxAdapterTest(unittest.TestCase):
     def test_contradictory_or_uncontrolled_probe_configuration_fails_closed(self):
         payload = json.loads(self.config.read_text(encoding="utf-8"))
         linux = next(item for item in payload["targets"] if item["platform"] == "linux")
-        linux["clientControl"] = {"kind": "probe-command-file"}
+        linux["clientControl"] = {"kind": "fixture-command-http"}
         self.config.write_text(json.dumps(payload), encoding="utf-8")
         with patch.dict(os.environ, self.environment, clear=True), self.assertRaisesRegex(
                 RuntimeError, "injected in-client probe"):
@@ -262,7 +263,7 @@ class LinuxAdapterTest(unittest.TestCase):
         linux["clientControl"] = {"kind": "portal"}
         self.config.write_text(json.dumps(payload), encoding="utf-8")
         with patch.dict(os.environ, self.environment, clear=True), self.assertRaisesRegex(
-                RuntimeError, "probe-command-file"):
+                RuntimeError, "fixture-command-http"):
             DESKTOP_MODULE.LinuxAdapter()
 
     def test_navigation_and_asset_payloads_use_the_running_probe_process(self):
@@ -271,13 +272,14 @@ class LinuxAdapterTest(unittest.TestCase):
         state = self.running_state()
         with patch.object(adapter, "read_state", return_value=state), patch.object(
                 adapter, "state_alive", return_value=True), patch.object(
+                    adapter, "post_client_command") as post, patch.object(
                     DESKTOP_MODULE.subprocess, "Popen") as spawn:
             navigation = adapter.invoke(
                 "linux-alias", "navigation.enter-domain",
                 {"url": "hifi://127.0.0.1:40102/0,2,4/0,0,0,1"})
         spawn.assert_not_called()
         self.assertEqual({"requested": True}, navigation)
-        command = json.loads(adapter.client_command_path("linux-alias").read_text())
+        command = post.call_args.args[1]
         self.assertEqual("navigate", command["action"])
         self.assertEqual("hifi://127.0.0.1:40102/0,2,4/0,0,0,1", command["url"])
 
@@ -287,10 +289,11 @@ class LinuxAdapterTest(unittest.TestCase):
             "entityName": "OVERTE_E2E_ASSET_LOAD",
         }
         with patch.object(adapter, "read_state", return_value=state), patch.object(
-                adapter, "state_alive", return_value=True):
+                adapter, "state_alive", return_value=True), patch.object(
+                    adapter, "post_client_command") as post:
             asset = adapter.invoke("linux-alias", "asset.load", values)
         self.assertEqual({"requested": True}, asset)
-        command = json.loads(adapter.client_command_path("linux-alias").read_text())
+        command = post.call_args.args[1]
         self.assertEqual({"action": "asset-load", **values}, {
             key: command[key] for key in ("action", *values)})
         probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
@@ -300,8 +303,33 @@ class LinuxAdapterTest(unittest.TestCase):
         self.assertIn('overteE2EAssetId: command.assetId', probe)
         self.assertNotIn("Clipboard", probe)
 
-    def test_controlled_launch_uses_private_probe_copy_in_the_authoritative_process(self):
-        self.controlled_adapter("linux")
+    def test_client_commands_use_the_scene_fixture_origin_and_exact_acknowledgment(self):
+        adapter, _target = self.controlled_adapter("linux")
+        command = {
+            "schemaVersion": 1, "commandId": "scene-exact",
+            "action": "scene-load", "url": "http://127.0.0.1:41000/scene.json",
+        }
+        response = MagicMock()
+        response.status = 200
+        response.read.return_value = json.dumps(command).encode("utf-8")
+        response.__enter__.return_value = response
+        with patch.object(DESKTOP_MODULE, "urlopen", return_value=response) as opened:
+            adapter.post_client_command(
+                "http://127.0.0.1:41000/scene.json?location=%2F0%2C2%2C4", command)
+        request = opened.call_args.args[0]
+        self.assertEqual(
+            "http://127.0.0.1:41000/e2e-client-command.json", request.full_url)
+        self.assertEqual(command, json.loads(request.data))
+
+        response.read.return_value = b'{"schemaVersion":1}'
+        with patch.object(DESKTOP_MODULE, "urlopen", return_value=response), \
+                self.assertRaisesRegex(RuntimeError, "exact desktop client command"):
+            adapter.post_client_command("http://127.0.0.1:41000/scene.json", command)
+
+    def test_injected_launch_uses_private_probe_copy_in_the_authoritative_process(self):
+        payload = json.loads(self.config.read_text(encoding="utf-8"))
+        payload["targets"][0]["probe"] = {"kind": "injected-test-script"}
+        self.config.write_text(json.dumps(payload), encoding="utf-8")
         (self.root / "interface-calls.log").unlink(missing_ok=True)
         result = self.call(
             "linux", "invoke", "--target", "linux-alias",
@@ -320,7 +348,6 @@ class LinuxAdapterTest(unittest.TestCase):
         self.assertEqual(results, script.parent)
         self.assertNotEqual(ROOT / "probe/overte_e2e_probe.js", script)
         self.assertEqual(0o600, script.stat().st_mode & 0o777)
-        self.assertTrue((results / "e2e-client-command.json").is_file())
         process = self.call(
             "linux", "invoke", "--target", "linux-alias",
             "--operation", "app.process")
@@ -347,13 +374,14 @@ class LinuxAdapterTest(unittest.TestCase):
         response.__enter__.return_value = response
         with patch.object(adapter, "read_state", return_value=state), patch.object(
                 adapter, "state_alive", return_value=True), patch.object(
+                    adapter, "post_client_command") as post, patch.object(
                     DESKTOP_MODULE, "urlopen", return_value=response) as opened:
             result = adapter.invoke("linux-alias", "sound.play", values)
         self.assertEqual({"requested": True, "commandId": "sound-exact"}, result)
         request = opened.call_args.args[0]
         self.assertEqual(values["commandUrl"], request.full_url)
         self.assertEqual(accepted, json.loads(request.data))
-        command = json.loads(adapter.client_command_path("linux-alias").read_text())
+        command = post.call_args.args[1]
         self.assertEqual("sound-channel", command["action"])
         self.assertEqual(values["commandUrl"], command["url"])
         self.assertNotIn("resourceReady", command)
@@ -375,7 +403,8 @@ class LinuxAdapterTest(unittest.TestCase):
                 adapter.invoke("linux-alias", operation, arguments)
 
         with patch.object(adapter, "read_state", return_value=state), patch.object(
-                adapter, "state_alive", side_effect=[True, True, False]), self.assertRaisesRegex(
+                adapter, "state_alive", side_effect=[True, True, False]), patch.object(
+                    adapter, "post_client_command"), self.assertRaisesRegex(
                     RuntimeError, "process changed"):
             adapter.invoke("linux-alias", "navigation.enter-domain", {
                 "url": "hifi://127.0.0.1:40102/",
@@ -395,16 +424,106 @@ class LinuxAdapterTest(unittest.TestCase):
                 "url": "hifi://127.0.0.1:40102/",
             })
 
-    def test_cleanup_removes_private_probe_control_artifacts(self):
+    def test_scene_grounding_uses_one_bounded_down_action(self):
+        adapter, target = self.controlled_adapter("linux")
+        target["isolatedX11"] = True
+        state = self.running_state()
+        airborne = {
+            "scene": {"ready": True, "spawnValidated": True},
+            "avatar": {"inAir": True, "flying": True},
+        }
+        grounded = {
+            "scene": {"ready": True, "spawnValidated": True},
+            "avatar": {"inAir": False, "flying": False},
+        }
+        with patch.object(adapter, "state_alive", return_value=True), patch.object(
+                DESKTOP_MODULE, "read_fresh_json", side_effect=[airborne, grounded]), patch.object(
+                    DESKTOP_MODULE.time, "sleep", return_value=None), patch.object(
+                        adapter, "visual_action") as visual:
+            adapter.settle_controlled_scene("linux-alias", target, state)
+        visual.assert_called_once_with(target, "settle", {"processId": 4242})
+
+    def test_probe_snapshot_waits_for_the_requested_sequence(self):
+        adapter, _target = self.controlled_adapter("linux")
+        state = self.running_state()
+        old = {"sampleSequence": 41}
+        fresh = {"sampleSequence": 42}
+        with patch.object(adapter, "read_state", return_value=state), patch.object(
+                adapter, "state_alive", return_value=True), patch.object(
+                    DESKTOP_MODULE, "read_fresh_json", side_effect=[old, fresh]), patch.object(
+                        DESKTOP_MODULE.time, "sleep", return_value=None):
+            self.assertIs(fresh, adapter.invoke(
+                "linux-alias", "probe.snapshot", {"afterSampleSequence": 41}))
+
+    def test_private_x11_foreground_uses_the_pid_owned_active_window(self):
+        adapter, target = self.controlled_adapter("linux")
+        target["isolatedX11"] = True
+        state = self.running_state()
+        with patch.object(adapter, "read_state", return_value=state), patch.object(
+                adapter, "state_alive", return_value=True), patch.object(
+                    adapter, "visual_action") as visual:
+            self.assertEqual({"foreground": True}, adapter.invoke(
+                "linux-alias", "app.foreground", {}))
+        visual.assert_called_once_with(
+            target, "focus", {"processId": state["pid"]})
+
+    def test_look_retries_until_the_probe_observes_the_requested_sign(self):
+        adapter, target = self.controlled_adapter("linux")
+        target["isolatedX11"] = True
+        state = self.running_state()
+        before = {
+            "sampleSequence": 10,
+            "view": {"orientation": {"x": 0.0, "y": 0.0, "z": 0.0}},
+        }
+        unchanged = [
+            {"sampleSequence": 11 + index,
+             "view": {"orientation": {"x": 0.0, "y": 0.0, "z": 0.0}}}
+            for index in range(10)
+        ]
+        changed = {
+            "sampleSequence": 21,
+            "view": {"orientation": {"x": 0.0, "y": -6.0, "z": 0.0}},
+        }
+        with patch.object(adapter, "read_state", return_value=state), patch.object(
+                adapter, "state_alive", return_value=True), patch.object(
+                    adapter, "visual_action") as visual, patch.object(
+                        DESKTOP_MODULE, "read_fresh_json",
+                        side_effect=[before, *unchanged, changed]), patch.object(
+                            DESKTOP_MODULE.time, "sleep", return_value=None):
+            self.assertEqual({"performed": True}, adapter.invoke(
+                "linux-alias", "input.look", {
+                    "horizontal": -0.25, "vertical": 0.0,
+                }))
+        self.assertEqual(2, visual.call_count)
+
+    def test_vertical_input_and_stop_use_the_owned_process_lifecycle(self):
+        adapter, _target = self.controlled_adapter("linux")
+        state = self.running_state()
+        with patch.object(adapter, "read_state", return_value=state), patch.object(
+                adapter, "state_alive", return_value=True), patch.object(
+                    adapter, "visual_action") as visual:
+            self.assertEqual({"performed": True}, adapter.invoke(
+                "linux-alias", "input.jump", {}))
+            self.assertEqual({"performed": True}, adapter.invoke(
+                "linux-alias", "input.fly", {"durationSeconds": 2.0}))
+        self.assertEqual("jump", visual.call_args_list[0].args[1])
+        self.assertEqual("fly", visual.call_args_list[1].args[1])
+        self.assertEqual(2.0, visual.call_args_list[1].args[2]["durationSeconds"])
+
+        with patch.object(adapter, "read_state", return_value=state), patch.object(
+                adapter, "state_alive", return_value=True), patch.object(
+                    adapter, "cleanup", return_value={"cleaned": True}) as cleanup:
+            self.assertEqual({"stopped": True}, adapter.invoke(
+                "linux-alias", "app.stop", {}))
+        cleanup.assert_called_once_with("linux-alias")
+
+    def test_cleanup_removes_private_probe_artifact(self):
         adapter, _target = self.controlled_adapter("linux")
         script = adapter.prepare_injected_probe("linux-alias")
-        command = adapter.client_command_path("linux-alias")
         self.assertEqual(0o600, script.stat().st_mode & 0o777)
-        self.assertEqual(0o600, command.stat().st_mode & 0o777)
         with patch.object(adapter, "read_state", return_value=None):
             self.assertEqual({"cleaned": True}, adapter.cleanup("linux-alias"))
         self.assertFalse(script.exists())
-        self.assertFalse(command.exists())
 
     def test_all_desktop_manifests_satisfy_protocol(self):
         for platform in ("linux",):
