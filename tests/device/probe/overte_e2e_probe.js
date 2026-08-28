@@ -780,7 +780,10 @@
                 probe: "overte_e2e_probe.js"
             } : null,
             domain: {
-                connected: Boolean(location.isConnected),
+                // A file-backed serverless scene can report location.isConnected
+                // even though no domain server or domain UUID exists.
+                connected: Boolean(location.isConnected)
+                    && String(location.protocol) !== "file",
                 hostname: String(location.hostname),
                 id: String(location.domainID),
                 protocol: String(location.protocol),
