@@ -547,6 +547,13 @@
             soundState.playing = Boolean(soundInjector.playing);
             if (soundState.playing) {
                 soundState.started = true;
+            } else if (soundState.started) {
+                // Android can transition playing to false without forwarding
+                // AudioInjector.finished into the script engine. A prior true
+                // sample makes this a real non-looping injector completion,
+                // not a successful-call surrogate.
+                soundState.finished = true;
+                soundState.finishReason = soundStopRequested ? "stopped" : "natural";
             }
         }
         sampleSequence += 1;
