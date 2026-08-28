@@ -574,7 +574,6 @@ class JenkinsGlueTest(unittest.TestCase):
                         source.index("runDeviceSuite('stability'"))
         self.assertLess(source.index("runDeviceSuite('stability'"),
                         source.index("runDeviceSuite('lifecycle-stability'"))
-        self.assertIn("!params.TARGET_PROFILE.startsWith('desktop-')", source)
 
 
 if __name__ == "__main__":

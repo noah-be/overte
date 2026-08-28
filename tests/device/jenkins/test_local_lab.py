@@ -70,7 +70,6 @@ class LocalLabBootstrapTest(unittest.TestCase):
             state = json.loads(state_path.read_text(encoding="utf-8"))
             self.assertEqual("http://127.0.0.1:18080", state["serverUrl"])
             self.assertEqual(str(appium), state["appiumExecutable"])
-            self.assertTrue(Path(state["oculixJar"]).is_file())
             self.assertNotIn(
                 (root / "private/admin-password").read_text().strip(),
                 (root / "private/jenkins.yaml").read_text(encoding="utf-8"),
@@ -124,30 +123,19 @@ class LocalLabBootstrapTest(unittest.TestCase):
             root = Path(name)
             state = {
                 "schemaVersion": 1,
-                "oculixJar": "/private/tools/oculix.jar",
-                "oculixSha256": "a" * 64,
                 "java": "/private/jdk/bin/java",
                 "appiumHome": "/private/appium-home",
             }
             LAB.secure_write(root / "local-lab.json", json.dumps(state))
-            interface = root / "build/interface"
             arguments = argparse.Namespace(
-                config_root=str(root), interface_executable=str(interface),
-                environment_only=False)
+                config_root=str(root), environment_only=False)
             self.assertEqual(0, TARGETS.prepare(arguments))
-            for filename in ("appium.json", "desktop.json"):
-                payload = json.loads((root / "targets" / filename).read_text())
-                self.assertTrue(payload["targets"])
-                self.assertTrue(all(target["enabled"] is False
-                                    for target in payload["targets"]))
-            desktop = json.loads((root / "targets/desktop.json").read_text())
-            linux = next(item for item in desktop["targets"]
-                         if item["platform"] == "linux")
-            self.assertEqual(str(interface.resolve()), linux["executable"])
-            self.assertEqual("a" * 64, linux["oculixSha256"])
+            payload = json.loads((root / "targets/appium.json").read_text())
+            self.assertTrue(payload["targets"])
+            self.assertTrue(all(target["enabled"] is False
+                                for target in payload["targets"]))
             agent_environment = (root / "agent.env").read_text(encoding="utf-8")
             self.assertIn("OVERTE_APPIUM_TARGETS=", agent_environment)
-            self.assertIn("OVERTE_DESKTOP_TARGETS=", agent_environment)
             self.assertIn("OVERTE_CONAN_CACHE_ROOT=", agent_environment)
             self.assertIn("OVERTE_ANDROID_BUILD_ROOT=", agent_environment)
             self.assertNotIn("REPLACE_WITH_PRIVATE_UDID", agent_environment)
