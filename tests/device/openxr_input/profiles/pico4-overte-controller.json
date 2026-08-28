@@ -32,7 +32,7 @@
   "prototypeOnly": true,
   "schemaVersion": 1,
   "viewInjection": {
-    "maxPitchDegrees": 30,
+    "maxPitchDegrees": 45,
     "maxYawDegrees": 45,
     "mode": "view-reference-space-offset"
   }

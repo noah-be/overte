@@ -205,7 +205,7 @@ def validate_envelope(raw: Any, profile_raw: Any) -> dict[str, Any]:
             if abs(horizontal) < 0.01 and abs(vertical) < 0.01:
                 raise ControllerContractError("look command must be non-neutral")
             _number(arguments.get("durationSeconds", 0.35),
-                    "look durationSeconds", 0.1, 15.0)
+                    "look durationSeconds", 0.1, 30.0)
         elif operation == "input.move":
             _exact_keys(arguments, {"direction", "durationSeconds"}, {"strength"},
                         f"commands[{index}].arguments")

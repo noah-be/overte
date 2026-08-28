@@ -21,7 +21,7 @@ BUILD_MARKER = "OVERTE_E2E_OPENXR_INPUT_V1"
 CONSUMER = "XR_APILAYER_OVERTE_e2e_input"
 CHANNEL = "app-private-file"
 PROFILE_ID = "overte-pico4-controller-v1"
-PROFILE_SHA256 = "922e091c38f5cb1ec6c3e55c80b81de0a876524d951318c61e7feb4821eab481"
+PROFILE_SHA256 = "da7ef170275af8c058da53210c8a88aa6920e6315b5cdc0daaedf072dc1b3284"
 REMOTE_DIRECTORY = "files/overte-e2e/openxr-input"
 MAX_GRANT_LIFETIME_MS = 5 * 60 * 1000
 ADB_TIMEOUT_SECONDS = 20
@@ -229,7 +229,7 @@ class AndroidOpenXrTransport:
                 or isinstance(status["viewAppliedPitchDegrees"], bool)
                 or not isinstance(status["viewAppliedPitchDegrees"], (int, float))
                 or not math.isfinite(status["viewAppliedPitchDegrees"])
-                or not -30.0 <= status["viewAppliedPitchDegrees"] <= 30.0
+                or not -45.0 <= status["viewAppliedPitchDegrees"] <= 45.0
                 or (status["viewAppliedSequence"] == 0 and
                     (status["viewAppliedYawDegrees"] != 0 or
                      status["viewAppliedPitchDegrees"] != 0))

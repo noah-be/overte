@@ -107,7 +107,7 @@
         "arguments": {
           "additionalProperties": false,
           "properties": {
-            "durationSeconds": { "maximum": 15.0, "minimum": 0.1, "type": "number" },
+            "durationSeconds": { "maximum": 30.0, "minimum": 0.1, "type": "number" },
             "horizontal": { "maximum": 0.45, "minimum": -0.45, "type": "number" },
             "vertical": { "maximum": 0.45, "minimum": -0.45, "type": "number" }
           },

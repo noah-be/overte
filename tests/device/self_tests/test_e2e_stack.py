@@ -107,7 +107,7 @@ class E2EStackTest(unittest.TestCase):
         session = (ROOT / "overte_session.py").read_text(encoding="utf-8")
         adapter = (ROOT / "adapters/android/adapter.py").read_text(encoding="utf-8")
         launch = (ROOT / "modules/launch_smoke.py").read_text(encoding="utf-8")
-        self.assertIn('staged_values.setdefault("durationSeconds", 12.0)', adapter)
+        self.assertIn('staged_values.setdefault("durationSeconds", 20.0)', adapter)
         self.assertIn('staged_values.setdefault("strength", 0.4)', adapter)
         self.assertIn('staged_values.setdefault("holdMilliseconds", 1000)', adapter)
         self.assertIn('default = "15" if self.kind == "pico"', adapter)

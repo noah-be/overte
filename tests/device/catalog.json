@@ -55,7 +55,7 @@
       "command": ["modules/look.py"],
       "suites": ["e2e-core"],
       "requires": ["input.look", "probe.snapshot", "scene.load"],
-      "timeoutSeconds": 150
+      "timeoutSeconds": 240
     },
     {
       "id": "move",

@@ -592,13 +592,13 @@ bool Protocol::tryAccept(std::int64_t epochMilliseconds,
                     (arguments.contains("vertical") &&
                      !finiteNumber(arguments.value("vertical"), -0.45, 0.45, vertical)) ||
                     (arguments.contains("durationSeconds") &&
-                     !finiteNumber(arguments.value("durationSeconds"), 0.1, 15.0, seconds)) ||
+                     !finiteNumber(arguments.value("durationSeconds"), 0.1, 30.0, seconds)) ||
                     (std::abs(horizontal) < 0.01 && std::abs(vertical) < 0.01)) {
                 return false;
             }
             active.viewActive = true;
             active.viewYawDegrees = static_cast<float>(horizontal / 0.45 * 45.0);
-            active.viewPitchDegrees = static_cast<float>(vertical / 0.45 * 30.0);
+            active.viewPitchDegrees = static_cast<float>(vertical / 0.45 * 45.0);
             active.viewOrientation = lookQuaternion(active.viewYawDegrees,
                                                      active.viewPitchDegrees);
             duration = static_cast<std::int64_t>(std::llround(seconds * 1000.0));

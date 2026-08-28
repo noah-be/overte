@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[4]
 E2E_ROOT = ROOT / "android/vr/pico/apps/picoInterface/openxr/e2e_input"
 PROFILE_PATH = ROOT / "tests/device/openxr_input/profiles/pico4-overte-controller.json"
 PROFILE_ID = "overte-pico4-controller-v1"
-PROFILE_SHA256 = "922e091c38f5cb1ec6c3e55c80b81de0a876524d951318c61e7feb4821eab481"
+PROFILE_SHA256 = "da7ef170275af8c058da53210c8a88aa6920e6315b5cdc0daaedf072dc1b3284"
 
 
 class OpenXrInputStateTest(unittest.TestCase):
@@ -107,7 +107,7 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertIn("arguments '-DOVERTE_PICO_E2E_OPENXR_INPUT=ON'", gradle)
         self.assertIn("arguments '-DOVERTE_PICO_E2E_OPENXR_INPUT=OFF'", gradle)
         self.assertIn("enabledApiLayerNames = &E2E_INPUT_LAYER", context)
-        self.assertIn('0.1, 15.0, seconds', protocol)
+        self.assertIn('0.1, 30.0, seconds', protocol)
         self.assertIn('0.1, 8.0, seconds', protocol)
         self.assertIn('exactKeys(arguments, {}, { "holdMilliseconds" })', protocol)
         self.assertIn('operation == QLatin1String("input.jump")', protocol)
@@ -140,8 +140,8 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertIn('{ "booleanAppliedSequence",', protocol)
         self.assertIn('direction != QLatin1String("left")', protocol)
         self.assertIn('direction != QLatin1String("right")', protocol)
-        self.assertIn("vertical / 0.45 * 30.0", protocol)
-        self.assertNotIn("-vertical / 0.45 * 30.0", protocol)
+        self.assertIn("vertical / 0.45 * 45.0", protocol)
+        self.assertNotIn("-vertical / 0.45 * 45.0", protocol)
         self.assertEqual(
             "XR_APILAYER_OVERTE_e2e_input", manifest["api_layer"]["name"]
         )

@@ -524,7 +524,7 @@ class AndroidAdapter:
             if operation == "input.look":
                 # Keep the target-owned OpenXR override observable across slow
                 # physical headset sampling without expanding the common API.
-                staged_values.setdefault("durationSeconds", 12.0)
+                staged_values.setdefault("durationSeconds", 20.0)
             elif operation == "input.move":
                 staged_values.setdefault("strength", 0.4)
             elif operation == "input.fly":
