@@ -1195,11 +1195,21 @@ void Application::pauseUntilLoginDetermined() {
     }
 
     auto myAvatar = getMyAvatar();
+#if defined(Q_OS_IOS)
+    // There is no visible desktop login suggestion in the current iOS policy.
+    // Keep the ordinary avatar and camera stable across its queued one-turn
+    // startup boundary instead of briefly presenting the hidden login scene.
+    const bool useTemporaryLoginPresentation = !_noLoginSuggestion;
+#else
+    constexpr bool useTemporaryLoginPresentation = true;
+#endif
     _previousAvatarTargetScale = myAvatar->getTargetScale();
     _previousAvatarSkeletonModel = myAvatar->getSkeletonModelURL().toString();
-    myAvatar->setTargetScale(1.0f);
-    myAvatar->setSkeletonModelURLFromScript(myAvatar->defaultFullAvatarModelUrl().toString());
-    myAvatar->setEnableMeshVisible(false);
+    if (useTemporaryLoginPresentation) {
+        myAvatar->setTargetScale(1.0f);
+        myAvatar->setSkeletonModelURLFromScript(myAvatar->defaultFullAvatarModelUrl().toString());
+        myAvatar->setEnableMeshVisible(false);
+    }
 
     _controllerScriptingInterface->disableMapping(STANDARD_TO_ACTION_MAPPING_NAME);
 
@@ -1278,11 +1288,17 @@ void Application::pauseUntilLoginDetermined() {
     _previousCameraMode = _myCamera.getMode();
 #if defined(Q_OS_IOS)
     logIOSRuntimeMarker(
-        "OVERTE_IOS_CAMERA_GATE stage=login-temporary-first-person",
+        "OVERTE_IOS_CAMERA_GATE stage=login-temporary-policy",
+        "enabled=", useTemporaryLoginPresentation,
         "saved_mode=", static_cast<int>(_previousCameraMode));
-#endif
+    if (useTemporaryLoginPresentation) {
+        _myCamera.setMode(CAMERA_MODE_FIRST_PERSON_LOOK_AT);
+        cameraModeChanged();
+    }
+#else
     _myCamera.setMode(CAMERA_MODE_FIRST_PERSON_LOOK_AT);
     cameraModeChanged();
+#endif
 
     // disconnect domain handler.
     nodeList->getDomainHandler().disconnect("Pause until login determined");

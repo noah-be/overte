@@ -477,6 +477,48 @@ assert "if (_noLoginSuggestion || _resumeAfterLoginDialogActionTaken_WasPostpone
 assert "Qt::QueuedConnection" in ios_resume_boundary
 assert 'invokeMethod(this, "resumeAfterLoginDialogActionTaken"' not in application_ui_source
 assert 'invokeMethod(this, "pauseUntilLoginDetermined"' not in application_ui_source
+pause_method = application_ui_source.index("void Application::pauseUntilLoginDetermined()")
+temporary_camera_policy = application_ui_source.index(
+    "const bool useTemporaryLoginPresentation = !_noLoginSuggestion;", pause_method
+)
+temporary_policy_ios_guard = application_ui_source.rfind(
+    "#if defined(Q_OS_IOS)", pause_method, temporary_camera_policy
+)
+temporary_policy_desktop_branch = application_ui_source.index(
+    "#else", temporary_camera_policy
+)
+temporary_policy_guard_end = application_ui_source.index(
+    "#endif", temporary_policy_desktop_branch
+)
+assert (
+    temporary_policy_ios_guard < temporary_camera_policy
+    < temporary_policy_desktop_branch < temporary_policy_guard_end
+)
+assert "constexpr bool useTemporaryLoginPresentation = true;" in application_ui_source[
+    temporary_policy_desktop_branch:temporary_policy_guard_end
+]
+avatar_presentation_branch = application_ui_source.index(
+    "if (useTemporaryLoginPresentation) {", temporary_camera_policy
+)
+avatar_hidden = application_ui_source.index(
+    "myAvatar->setEnableMeshVisible(false);", avatar_presentation_branch
+)
+temporary_camera_marker = application_ui_source.index(
+    "stage=login-temporary-policy", avatar_hidden
+)
+temporary_camera_branch = application_ui_source.index(
+    "if (useTemporaryLoginPresentation) {", temporary_camera_marker
+)
+temporary_camera_change = application_ui_source.index(
+    "_myCamera.setMode(CAMERA_MODE_FIRST_PERSON_LOOK_AT);", temporary_camera_branch
+)
+assert (
+    pause_method < temporary_camera_policy < avatar_presentation_branch < avatar_hidden
+    < temporary_camera_marker < temporary_camera_branch < temporary_camera_change < safe_resume
+)
+assert "stage=login-temporary-policy" in application_ui_source[
+    avatar_hidden:temporary_camera_branch
+]
 toolbar_lookup = application_ui_source.index(
     'getToolbar("com.highfidelity.interface.toolbar.system")', resume_method
 )
