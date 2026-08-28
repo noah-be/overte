@@ -14,7 +14,9 @@
         "refs/heads/android-vr-quest",
         "refs/heads/apple-main",
         "refs/heads/apple-ios",
-        "refs/heads/apple-macos"
+        "refs/heads/apple-macos",
+        "refs/heads/linux-main",
+        "refs/heads/windows-main"
       ],
       "exclude": []
     }
