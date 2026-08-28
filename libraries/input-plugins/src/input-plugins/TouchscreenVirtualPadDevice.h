@@ -84,6 +84,7 @@ protected:
 
 #if defined(Q_OS_IOS)
         float _jumpReleaseDelayMs { 0.0f };
+        bool _jumpReleaseAwaitingMapperSample { false };
 #endif
 
         friend class TouchscreenVirtualPadDevice;

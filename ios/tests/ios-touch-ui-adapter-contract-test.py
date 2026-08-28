@@ -225,6 +225,11 @@ assert "x = 0" in WINDOW_ROOT
 assert 'Qt.platform.os === "ios"' in WINDOW_ROOT
 assert "x = screenSpaceSafeInsetLeft" in WINDOW_ROOT
 assert 'iosRuntimeDiagnosticInt("touchJumpMinimumPulseMs", 120, 0, 500)' in VIRTUAL_PAD
+assert "_jumpReleaseAwaitingMapperSample { false }" in VIRTUAL_PAD_HEADER
+assert "if (_jumpReleaseAwaitingMapperSample)" in VIRTUAL_PAD
+assert "_jumpReleaseAwaitingMapperSample = false" in VIRTUAL_PAD
+assert "_jumpReleaseAwaitingMapperSample = true" in VIRTUAL_PAD
+assert "stage=jump-pulse-exposed" in VIRTUAL_PAD
 application_source = (ROOT / "interface/src/Application.cpp").read_text()
 assert "OVERTE_IOS_LOCOMOTION_GATE stage=active" in application_source
 assert '"velocity=", myAvatar->getWorldVelocity()' in application_source

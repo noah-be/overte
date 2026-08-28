@@ -40,6 +40,39 @@
 }
 @end
 
+#if defined(OVERTE_IOS_E2E_TEST_BUILD)
+@interface OverteIOSE2EAccessibilityButton : UIButton
+@property(nonatomic, copy) BOOL (^activationHandler)(void);
+@end
+
+@implementation OverteIOSE2EAccessibilityButton
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self != nil) {
+        self.backgroundColor = UIColor.clearColor;
+        self.opaque = NO;
+        self.isAccessibilityElement = YES;
+        self.accessibilityTraits = UIAccessibilityTraitButton;
+        self.exclusiveTouch = YES;
+        [self addTarget:self action:@selector(overteActivate:)
+             forControlEvents:UIControlEventTouchUpInside];
+    }
+    return self;
+}
+
+- (void)overteActivate:(id)sender {
+    (void)sender;
+    if (self.activationHandler != nil) {
+        self.activationHandler();
+    }
+}
+
+- (BOOL)accessibilityActivate {
+    return self.activationHandler != nil && self.activationHandler();
+}
+@end
+#endif
+
 namespace {
 UIWindow* activeWindow() {
     UIWindow* fallback = nil;
@@ -150,6 +183,21 @@ UIView* tabletAccessibilityOverlay(UIWindow* window) {
     [window bringSubviewToFront:overlay];
     return overlay;
 }
+
+#if defined(OVERTE_IOS_E2E_TEST_BUILD)
+OverteIOSE2EAccessibilityButton* tabletE2EAccessibilityButton(UIWindow* window) {
+    static __weak UIWindow* installedWindow = nil;
+    static OverteIOSE2EAccessibilityButton* button = nil;
+    if (installedWindow != window || button == nil) {
+        [button removeFromSuperview];
+        button = [[OverteIOSE2EAccessibilityButton alloc] initWithFrame:CGRectZero];
+        [window addSubview:button];
+        installedWindow = window;
+    }
+    [window bringSubviewToFront:button];
+    return button;
+}
+#endif
 }
 
 IOSTouchUiMetrics::IOSTouchUiMetrics(QObject* parent) : QObject(parent) {
@@ -268,20 +316,22 @@ void updateIOSTabletAccessibilityControls(
 
     UIView* overlay = tabletAccessibilityOverlay(window);
     const bool tabletShown = tablet->property("tabletShown").toBool();
-    OverteIOSAccessibilityElement* element =
-        [[OverteIOSAccessibilityElement alloc] initWithAccessibilityContainer:overlay];
-    element.accessibilityTraits = UIAccessibilityTraitButton;
     QPointer<TabletProxy> guardedTablet(tablet);
     CGRect safeBounds = UIEdgeInsetsInsetRect(window.bounds, window.safeAreaInsets);
+    NSString* identifier = nil;
+    NSString* label = nil;
+    NSString* hint = nil;
+    CGRect controlFrame = CGRectZero;
+    BOOL (^activationHandler)(void) = nil;
     if (tabletShown) {
-        element.accessibilityIdentifier = @"OverteTabletClose";
-        element.accessibilityLabel = @"Close tablet";
-        element.accessibilityHint = @"Return to the world controls";
+        identifier = @"OverteTabletClose";
+        label = @"Close tablet";
+        hint = @"Return to the world controls";
         const CGFloat width = std::min<CGFloat>(240.0, safeBounds.size.width * 0.30);
-        element.accessibilityFrameInContainerSpace = CGRectMake(
+        controlFrame = CGRectMake(
             CGRectGetMidX(safeBounds) - width * 0.5,
             CGRectGetMaxY(safeBounds) - 72.0, width, 56.0);
-        element.activationHandler = ^BOOL {
+        activationHandler = ^BOOL {
             if (!guardedTablet) {
                 return NO;
             }
@@ -293,15 +343,15 @@ void updateIOSTabletAccessibilityControls(
             return YES;
         };
     } else {
-        element.accessibilityIdentifier = @"OverteTabletOpen";
-        element.accessibilityLabel = @"Open tablet";
-        element.accessibilityHint = @"Open the Overte tablet controls";
-        element.accessibilityFrameInContainerSpace = CGRectMake(
+        identifier = @"OverteTabletOpen";
+        label = @"Open tablet";
+        hint = @"Open the Overte tablet controls";
+        controlFrame = CGRectMake(
             CGRectGetMinX(safeBounds) + 16.0,
             CGRectGetMinY(safeBounds) + 16.0, 128.0, 64.0);
         const int width = std::lround(metrics->surfaceWidth());
         const int height = std::lround(metrics->surfaceHeight());
-        element.activationHandler = ^BOOL {
+        activationHandler = ^BOOL {
             if (!guardedTablet) {
                 return NO;
             }
@@ -313,8 +363,32 @@ void updateIOSTabletAccessibilityControls(
             return YES;
         };
     }
+
+#if defined(OVERTE_IOS_E2E_TEST_BUILD)
+    // XCUITest's element click synthesizes a physical tap; it does not call a
+    // synthetic UIAccessibilityElement's accessibilityActivate method. Keep
+    // the production overlay passive, but give E2E builds one real invisible
+    // native control whose hit target exactly matches the exposed identifier.
+    overlay.accessibilityElements = @[];
+    OverteIOSE2EAccessibilityButton* button = tabletE2EAccessibilityButton(window);
+    button.frame = controlFrame;
+    button.accessibilityIdentifier = identifier;
+    button.accessibilityLabel = label;
+    button.accessibilityHint = hint;
+    button.activationHandler = activationHandler;
+    UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification, button);
+#else
+    OverteIOSAccessibilityElement* element =
+        [[OverteIOSAccessibilityElement alloc] initWithAccessibilityContainer:overlay];
+    element.accessibilityTraits = UIAccessibilityTraitButton;
+    element.accessibilityIdentifier = identifier;
+    element.accessibilityLabel = label;
+    element.accessibilityHint = hint;
+    element.accessibilityFrameInContainerSpace = controlFrame;
+    element.activationHandler = activationHandler;
     overlay.accessibilityElements = @[element];
     UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification, element);
+#endif
 }
 
 void dismissIOSKeyboard() {

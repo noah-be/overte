@@ -317,12 +317,23 @@ void TouchscreenVirtualPadDevice::pluginUpdate(float deltaTime, const controller
 void TouchscreenVirtualPadDevice::InputDevice::update(float deltaTime, const controller::InputCalibrationData& inputCalibrationData) {
 #if defined(Q_OS_IOS)
     if (_jumpReleaseDelayMs > 0.0f) {
-        _jumpReleaseDelayMs -= std::max(0.0f, deltaTime) * 1000.0f;
-        if (_jumpReleaseDelayMs <= 0.0f) {
-            _jumpReleaseDelayMs = 0.0f;
-            _buttonPressedMap.erase(TouchButtonChannel::JUMP);
+        if (_jumpReleaseAwaitingMapperSample) {
+            // Application updates input plugins immediately before the mapper.
+            // A slow iOS frame can exceed the complete minimum pulse, so
+            // decrementing here would erase Jump before the mapper has ever
+            // observed it. Preserve this first post-release sample and start
+            // the bounded countdown on the following plugin update.
+            _jumpReleaseAwaitingMapperSample = false;
             logIOSRuntimeMarker(
-                "OVERTE_IOS_TOUCH_INPUT_GATE stage=jump-pulse-finished");
+                "OVERTE_IOS_TOUCH_INPUT_GATE stage=jump-pulse-exposed");
+        } else {
+            _jumpReleaseDelayMs -= std::max(0.0f, deltaTime) * 1000.0f;
+            if (_jumpReleaseDelayMs <= 0.0f) {
+                _jumpReleaseDelayMs = 0.0f;
+                _buttonPressedMap.erase(TouchButtonChannel::JUMP);
+                logIOSRuntimeMarker(
+                    "OVERTE_IOS_TOUCH_INPUT_GATE stage=jump-pulse-finished");
+            }
         }
     }
 #endif
@@ -697,6 +708,7 @@ void TouchscreenVirtualPadDevice::TouchscreenButton::touchBegin(glm::vec2 touchP
 #if defined(Q_OS_IOS)
         if (channel == TouchButtonChannel::JUMP) {
             _inputDevice->_jumpReleaseDelayMs = 0.0f;
+            _inputDevice->_jumpReleaseAwaitingMapperSample = false;
         }
 #endif
         _inputDevice->_buttonPressedMap.insert(channel);
@@ -726,7 +738,10 @@ void TouchscreenVirtualPadDevice::TouchscreenButton::touchEnd() {
             _inputDevice->_jumpReleaseDelayMs = static_cast<float>(
                 iosRuntimeDiagnosticInt("touchJumpMinimumPulseMs", 120, 0, 500));
             if (_inputDevice->_jumpReleaseDelayMs <= 0.0f) {
+                _inputDevice->_jumpReleaseAwaitingMapperSample = false;
                 _inputDevice->_buttonPressedMap.erase(channel);
+            } else {
+                _inputDevice->_jumpReleaseAwaitingMapperSample = true;
             }
         } else {
             _inputDevice->_buttonPressedMap.erase(channel);

@@ -11,6 +11,10 @@
     var previousAvatarPosition = null;
     var sceneReady = false;
     var previousLocationKey = "";
+    var flightNormalizationAllowed = true;
+    var flightNormalizationActive = false;
+    var flightNormalizationStableSamples = 0;
+    var flyingEnabledBeforeNormalization = false;
     var assetResource = null;
     var assetResourceUrl = "";
     var controlledAssetEntity = null;
@@ -519,6 +523,31 @@
         request.send();
     }
 
+    function normalizeInitialFlightState() {
+        if (flightNormalizationAllowed && !flightNormalizationActive
+                && MyAvatar.isFlying()) {
+            flyingEnabledBeforeNormalization = Boolean(MyAvatar.getFlyingEnabled());
+            flightNormalizationActive = true;
+            flightNormalizationStableSamples = 0;
+            MyAvatar.setFlyingEnabled(false);
+            print("OVERTE_E2E_FLIGHT_NORMALIZATION stage=started");
+        }
+        if (!flightNormalizationActive) {
+            return;
+        }
+        if (!MyAvatar.isInAir() && !MyAvatar.isFlying()) {
+            flightNormalizationStableSamples += 1;
+        } else {
+            flightNormalizationStableSamples = 0;
+        }
+        if (flightNormalizationStableSamples >= 2) {
+            MyAvatar.setFlyingEnabled(flyingEnabledBeforeNormalization);
+            flightNormalizationActive = false;
+            flightNormalizationAllowed = false;
+            print("OVERTE_E2E_FLIGHT_NORMALIZATION stage=completed");
+        }
+    }
+
     function sample() {
         pollClientCommand();
         pollSoundCommand();
@@ -531,8 +560,11 @@
             stableAvatarSamples = 0;
             previousAvatarPosition = null;
             sceneReady = false;
+            flightNormalizationAllowed = true;
+            flightNormalizationStableSamples = 0;
         }
         previousLocationKey = currentLocationKey;
+        normalizeInitialFlightState();
         var ids = Entities.findEntities(MyAvatar.position, 1000.0);
         var foundMarkers = {};
         var foundDomainMarkers = {};
@@ -584,8 +616,11 @@
         var avatarAboveFloor = floorTopY !== null && avatarPosition.y >= floorTopY - 0.05;
         avatarAtSpawn = spawnDeltaX * spawnDeltaX + spawnDeltaZ * spawnDeltaZ <= 1.0;
         if (!sceneReady && markerCount === fixtureMarkers.length && stableEntitySamples >= 3
-                && stableAvatarSamples >= 4 && avatarAboveFloor && avatarAtSpawn) {
+                && stableAvatarSamples >= 4 && avatarAboveFloor && avatarAtSpawn
+                && !flightNormalizationActive && !MyAvatar.isInAir()
+                && !MyAvatar.isFlying()) {
             sceneReady = true;
+            flightNormalizationAllowed = false;
         }
         var orientation = Quat.safeEulerAngles(Camera.orientation);
         if (soundInjector && !soundState.finished) {
@@ -653,6 +688,9 @@
                 route: {
                     openxrAxes: openXrAxes(),
                     standardLy: Number(Controller.getValue(Controller.Standard.LY)),
+                    translateYAction: Number(Controller.getValue(Controller.Actions.TranslateY)),
+                    rawTranslateYDriveKey: Number(MyAvatar.getRawDriveKey(DriveKeys.TRANSLATE_Y)),
+                    translateYDriveKeyDisabled: Boolean(MyAvatar.isDriveKeyDisabled(DriveKeys.TRANSLATE_Y)),
                     translateZAction: Number(Controller.getValue(Controller.Actions.TranslateZ)),
                     rawTranslateZDriveKey: Number(MyAvatar.getRawDriveKey(DriveKeys.TRANSLATE_Z)),
                     translateZDriveKeyDisabled: Boolean(MyAvatar.isDriveKeyDisabled(DriveKeys.TRANSLATE_Z))
@@ -705,6 +743,10 @@
         Script.clearInterval(timer);
         releaseControlledKey(controlledKeyCommandId);
         Controller.disableMapping(controlledInputMappingName);
+        if (flightNormalizationActive) {
+            MyAvatar.setFlyingEnabled(flyingEnabledBeforeNormalization);
+            flightNormalizationActive = false;
+        }
         releaseAssetResource();
         if (controlledAssetEntity !== null) {
             Entities.deleteEntity(controlledAssetEntity);
