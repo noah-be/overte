@@ -68,15 +68,28 @@ async function main() {
   );
   try {
     let signatures = await imageMounter.lookup();
-    if ((!Array.isArray(signatures) || signatures.length === 0) &&
-        request.action === 'mount') {
+    if (!Array.isArray(signatures)) {
+      throw new Error('Personalized Developer Disk Image lookup is invalid');
+    }
+    const expectedImageHash = Buffer.from(request.imageSha384, 'hex');
+    if (signatures.length > 0 && !signatures.some((signature) =>
+      Buffer.isBuffer(signature) && signature.equals(expectedImageHash))) {
+      throw new Error('mounted Personalized Developer Disk Image differs from the pin');
+    }
+    if (request.action === 'mount') {
+      // A successful XCTest run can leave the mounted developer services in a
+      // stale state even though the DDI signature still attests correctly.
+      // Unmount only after authenticating the existing image, then always
+      // mount the validated private snapshot to obtain fresh services.
+      if (signatures.length > 0) {
+        await imageMounter.unmountImage();
+      }
       await imageMounter.mount(request.image, request.manifest, request.trustcache);
       signatures = await imageMounter.lookup();
     }
     if (!Array.isArray(signatures) || signatures.length === 0) {
       throw new Error('Personalized Developer Disk Image is missing');
     }
-    const expectedImageHash = Buffer.from(request.imageSha384, 'hex');
     if (!signatures.some((signature) =>
       Buffer.isBuffer(signature) && signature.equals(expectedImageHash))) {
       throw new Error('mounted Personalized Developer Disk Image differs from the pin');

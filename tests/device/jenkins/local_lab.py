@@ -100,6 +100,19 @@ def existing_private_directory(path: Path, label: str) -> Path:
     return absolute
 
 
+def existing_protected_directory(path: Path, label: str) -> Path:
+    """Accept an account-owned, non-writable dependency tree outside the repo."""
+    absolute = require_outside_repository(path, label)
+    if has_symlink_component(absolute) or not absolute.is_dir():
+        fail(f"{label} must be an existing symlink-free directory")
+    value = absolute.lstat()
+    if (not stat.S_ISDIR(value.st_mode)
+            or os.name != "nt" and (value.st_uid != os.geteuid()
+                                     or value.st_mode & 0o022)):
+        fail(f"{label} must be account-owned and protected from shared writes")
+    return absolute
+
+
 def secure_write(path: Path, value: str) -> None:
     parent = secure_directory(path.parent)
     destination = parent / path.name
@@ -186,8 +199,11 @@ def appium_dependencies(appium: dict) -> dict[str, str]:
     dependencies = {appium["core"]["package"]: appium["core"]["version"]}
     dependencies.update({entry["package"]: entry["version"]
                          for entry in appium["drivers"].values()})
-    dependencies.update({entry["package"]: entry["version"]
-                         for entry in appium.get("iosRuntime", {}).values()})
+    dependencies.update({
+        entry["package"]: entry["version"]
+        for name, entry in appium.get("iosRuntime", {}).items()
+        if name in {"remoteXpc", "webdriverAgent"}
+    })
     return dependencies
 
 
@@ -266,8 +282,15 @@ def install_appium(lock: dict, install_root: Path, npm: str) -> Path:
     secure_write(root / "package-lock.json", package_lock_source.read_text(encoding="utf-8"))
     subprocess.run([npm, "ci", "--ignore-scripts", "--no-audit", "--no-fund"],
                    cwd=root, timeout=900, check=True)
-    pinned_packages = {"core": appium["core"], **appium["drivers"],
-                       **appium.get("iosRuntime", {})}
+    pinned_packages = {
+        "core": appium["core"],
+        **appium["drivers"],
+        **{
+            name: entry
+            for name, entry in appium.get("iosRuntime", {}).items()
+            if name in {"remoteXpc", "webdriverAgent"}
+        },
+    }
     for name, entry in pinned_packages.items():
         package_file = root / "node_modules" / entry["package"] / "package.json"
         if not package_file.is_file():
@@ -281,7 +304,7 @@ def install_appium(lock: dict, install_root: Path, npm: str) -> Path:
 def immutable_appium_command(lock: dict, state_root: Path) -> list[str]:
     version = lock["appium"]["iosRuntime"]["remoteXpc"]["version"]
     revision = lock.get("serviceRuntimeRevision")
-    if revision != 9:
+    if revision != 11:
         fail("unsupported immutable iOS Appium runtime revision")
     runtime = Path("/usr/local/lib/overte-ios-remotexpc") / f"{version}-r{revision}"
     wrapper = runtime / "remotexpc_tunnel.py"
@@ -325,6 +348,13 @@ def install(arguments: argparse.Namespace) -> int:
     appium = None if arguments.skip_appium else install_appium(
         load_ios_lock(lock), location["install"], arguments.npm)
     appium_bootstrap_root = location["install"] / "appium"
+    pymobiledevice3_home = None
+    if appium:
+        if not arguments.pymobiledevice3_home:
+            fail("--pymobiledevice3-home is required when installing iOS Appium")
+        pymobiledevice3_home = existing_protected_directory(
+            Path(arguments.pymobiledevice3_home), "--pymobiledevice3-home"
+        )
 
     if not location["password"].exists():
         secure_write(location["password"], secrets.token_urlsafe(32) + "\n")
@@ -341,6 +371,9 @@ def install(arguments: argparse.Namespace) -> int:
         "adminPasswordFile": str(location["password"]),
         "serverUrl": f"http://127.0.0.1:{arguments.port}",
         "appiumBootstrapRoot": str(appium_bootstrap_root) if appium else None,
+        "pymobiledevice3BootstrapRoot": (
+            str(pymobiledevice3_home) if pymobiledevice3_home else None
+        ),
         "appiumStateRoot": str(location["appiumStateRoot"]),
     }
     secure_write(location["state"], json.dumps(state, indent=2, sort_keys=True) + "\n")
@@ -349,7 +382,8 @@ def install(arguments: argparse.Namespace) -> int:
     if appium:
         print("Root provisioning gate (run once after review):")
         print(f"sudo {sys.executable} {DEVICE_ROOT / 'ios' / 'remotexpc_tunnel.py'} "
-              f"install-unit --appium-home {appium_bootstrap_root}")
+              f"install-unit --appium-home {appium_bootstrap_root} "
+              f"--pymobiledevice3-home {pymobiledevice3_home}")
     return 0
 
 
@@ -553,6 +587,7 @@ def parser() -> argparse.ArgumentParser:
     install_parser.add_argument("--install-root", required=True)
     install_parser.add_argument("--java", required=True)
     install_parser.add_argument("--npm", default="npm")
+    install_parser.add_argument("--pymobiledevice3-home")
     install_parser.add_argument("--port", type=int, default=8080)
     install_parser.add_argument("--skip-appium", action="store_true")
     install_parser.set_defaults(function=install)

@@ -75,16 +75,10 @@ session rechecks those exact receipt-bound IDs rather than rediscovering apps.
 Signing remains a manual Apple/Sideloadly boundary or an optional protected
 macOS-producer boundary. Jenkins receives no Apple credentials.
 
-iOS 26 Personal-Team installations may opt into the narrowly scoped private
-`iosSessionBootstrap: {"backgroundWdaRunner": true}` target section. It is
-rejected for simulators, older iOS versions, signed-IPA mode, or a target that
-does not use preinstalled WDA. Immediately before the single `POST /session`,
-the adapter starts the root-owned immutable Runtime's
-`wda-session-bootstrap` helper action. The exact private UDID and the
-receipt-bound WDA bundle ID are sent only as one JSON line on standard input;
-neither is placed in arguments or helper output. The helper runs concurrently
-with Appium session creation only after its bounded, exact `READY` handshake
-has captured the pre-session runner baseline. It must then finish with exactly
-`PASS` and is always joined or terminated within fixed bounds. There is no
-session retry. The adapter always derives the helper from the pinned RemoteXPC
-Runtime; no environment or target field may replace that executable.
+Runtime revision 11 starts the preinstalled WDA on Fedora through the pinned
+pymobiledevice3 XCTest/testmanagerd handshake and the already attested RSD
+endpoint. This replaces revision 9's out-of-band Home-event workaround.
+Artifact synchronization removes a stale `iosSessionBootstrap` section from
+private targets so it cannot race the real XCTest launch. The Fedora path uses
+the fixed WDA port and bounded process execution; custom Xcode-only or WDA
+launch-environment capabilities remain unsupported.

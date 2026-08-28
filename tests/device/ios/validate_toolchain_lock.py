@@ -93,7 +93,8 @@ def npm_entries(lock: dict) -> dict[str, dict]:
         fail("Appium engine contract drifted")
     drivers = exact_keys(appium["drivers"], {"xcuitest"}, "Appium driver lock")
     ios_runtime = exact_keys(
-        appium["iosRuntime"], {"remoteXpc", "webdriverAgent"}, "iOS runtime lock"
+        appium["iosRuntime"], {"pymobiledevice3", "remoteXpc", "webdriverAgent"},
+        "iOS runtime lock",
     )
     values = {
         "core": appium["core"],
@@ -129,6 +130,31 @@ def npm_entries(lock: dict) -> dict[str, dict]:
             or xcuitest["webdriverAgentRange"] != "^16.8.0"):
         fail("XCUITest peer/runtime ranges drifted")
     return result
+
+
+def validate_pymobiledevice3(lock: dict) -> None:
+    value = exact_keys(
+        lock["appium"]["iosRuntime"]["pymobiledevice3"],
+        {"package", "version", "license", "pythonAbi", "pythonVersion",
+         "pythonExecutable", "pythonExecutableSha256", "distributionCount",
+         "freezeSha256", "sitePackagesTreeSha256", "upstreamWdaHostOpsSha256"},
+        "PyMobileDevice3 runtime",
+    )
+    if ({key: value[key] for key in (
+            "package", "version", "license", "pythonAbi", "pythonVersion",
+            "pythonExecutable", "distributionCount")} != {
+                "package": "pymobiledevice3",
+                "version": "11.1.5",
+                "license": "GPL-3.0-or-later",
+                "pythonAbi": "cp314",
+                "pythonVersion": "3.14.7",
+                "pythonExecutable": "/usr/bin/python3.14",
+                "distributionCount": 99,
+            }
+            or any(not isinstance(value[key], str) or not SHA256.fullmatch(value[key])
+                   for key in ("pythonExecutableSha256", "freezeSha256",
+                               "sitePackagesTreeSha256", "upstreamWdaHostOpsSha256"))):
+        fail("PyMobileDevice3 runtime pin drifted")
 
 
 def validate_security_tools(lock: dict) -> None:
@@ -293,12 +319,13 @@ def validate(lock_path: Path = DEFAULT_LOCK, package_path: Path = DEFAULT_PACKAG
          "developerDiskImage", "appium"},
         "Fedora iOS toolchain lock",
     )
-    if (lock["schemaVersion"] != 1 or lock["serviceRuntimeRevision"] != 9
-            or lock["resolvedAt"] != "2026-08-27"):
+    if (lock["schemaVersion"] != 1 or lock["serviceRuntimeRevision"] != 11
+            or lock["resolvedAt"] != "2026-08-28"):
         fail("Fedora iOS toolchain lock header drifted")
     sources = exact_keys(
         lock["sources"],
-        {"npmRegistry", "ageRelease", "rcodesignRelease", "resignerRelease"},
+        {"npmRegistry", "ageRelease", "rcodesignRelease", "resignerRelease",
+         "pymobiledevice3Release"},
         "sources",
     )
     for label, value in lock["sources"].items():
@@ -307,7 +334,12 @@ def validate(lock_path: Path = DEFAULT_LOCK, package_path: Path = DEFAULT_PACKAG
         "https://github.com/appium/resigner/releases/tag/v0.3.1"
     ):
         fail("Appium resigner release source pin drifted")
+    if sources["pymobiledevice3Release"] != (
+        "https://github.com/doronz88/pymobiledevice3/releases/tag/v11.1.5"
+    ):
+        fail("PyMobileDevice3 release source pin drifted")
     entries = npm_entries(lock)
+    validate_pymobiledevice3(lock)
     validate_security_tools(lock)
     validate_developer_disk_image(lock)
     validate_npm_lock(package_path, npm_lock_path, entries)

@@ -6,19 +6,18 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timedelta, timezone
 import hashlib
+from importlib.metadata import distributions
 import json
 import os
 from pathlib import Path
 import plistlib
 import re
-import select
 import shutil
 import signal
 import stat
 import subprocess
 import sys
 import tempfile
-import time
 from urllib.error import URLError
 from urllib.request import urlopen
 
@@ -29,7 +28,10 @@ NPM_LOCK_FILE = Path(__file__).with_name("package-lock.json")
 DEVICE_PREFLIGHT_FILE = Path(__file__).with_name("appium_device_preflight.js")
 DEVICE_INSTALL_FILE = Path(__file__).with_name("appium_device_install.js")
 DEVICE_DDI_FILE = Path(__file__).with_name("appium_device_ddi.js")
-WDA_SESSION_BOOTSTRAP_FILE = Path(__file__).with_name("appium_wda_session_bootstrap.js")
+WDA_HOST_OPS_FILE = Path(__file__).with_name("appium_wda_host_ops.js")
+PYMOBILEDEVICE3_XCTEST_FILE = Path(__file__).with_name(
+    "pymobiledevice3_wda_xctest.py"
+)
 ARTIFACT_TREE_FILE = Path(__file__).with_name("private_artifact_tree.py")
 DEFAULT_PORT = 42314
 TUNNEL_PORT_ITEM = Path(
@@ -49,6 +51,11 @@ SELINUX_ENFORCE_FILE = Path("/sys/fs/selinux/enforce")
 OVERFLOW_UID_FILE = Path("/proc/sys/kernel/overflowuid")
 APPIUM_EXTENSION_TEMPLATE = "appium-extensions.yaml"
 MAX_APPIUM_EXTENSION_BYTES = 128 * 1024
+PYMOBILEDEVICE3_DIRECTORY = "pymobiledevice3"
+PYMOBILEDEVICE3_SITE_PACKAGES = Path(PYMOBILEDEVICE3_DIRECTORY) / "site-packages"
+XCUITEST_WDA_HOST_OPS = Path(
+    "appium/node_modules/appium-xcuitest-driver/build/lib/device/wda-host-ops.js"
+)
 DEVICE_TOKEN_PATTERNS = (
     re.compile(r"(?<![A-Za-z0-9])[0-9a-fA-F]{24,64}(?![A-Za-z0-9])"),
     re.compile(r"(?<![A-Za-z0-9])[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}(?![A-Za-z0-9])"),
@@ -122,6 +129,88 @@ def remote_xpc_lock(lock: dict) -> dict:
                                 runtime["version"])):
         fail("toolchain lock has an invalid RemoteXPC runtime")
     return runtime
+
+
+def pymobiledevice3_lock(lock: dict) -> dict:
+    try:
+        runtime = lock["appium"]["iosRuntime"]["pymobiledevice3"]
+    except (KeyError, TypeError):
+        fail("toolchain lock has no PyMobileDevice3 runtime")
+    expected_keys = {
+        "package", "version", "license", "pythonAbi", "pythonVersion",
+        "pythonExecutable", "pythonExecutableSha256", "distributionCount",
+        "freezeSha256", "sitePackagesTreeSha256", "upstreamWdaHostOpsSha256",
+    }
+    if (not isinstance(runtime, dict) or set(runtime) != expected_keys
+            or runtime.get("package") != "pymobiledevice3"
+            or runtime.get("version") != "11.1.5"
+            or runtime.get("license") != "GPL-3.0-or-later"
+            or runtime.get("pythonAbi") != "cp314"
+            or runtime.get("pythonVersion") != "3.14.7"
+            or runtime.get("pythonExecutable") != "/usr/bin/python3.14"
+            or runtime.get("distributionCount") != 99
+            or any(not isinstance(runtime.get(key), str)
+                   or not re.fullmatch(r"[0-9a-f]{64}", runtime[key])
+                   for key in ("pythonExecutableSha256", "freezeSha256",
+                               "sitePackagesTreeSha256", "upstreamWdaHostOpsSha256"))):
+        fail("toolchain lock has an invalid PyMobileDevice3 runtime")
+    return runtime
+
+
+def validate_host_python(lock: dict) -> Path:
+    runtime = pymobiledevice3_lock(lock)
+    configured = Path(runtime["pythonExecutable"])
+    public = Path("/usr/bin/python3")
+    owner_uid = visible_root_owner_uid()
+    try:
+        resolved = public.resolve(strict=True)
+        value = resolved.lstat()
+    except OSError:
+        fail("pinned host Python is unavailable")
+    if (configured != resolved or configured.is_symlink()
+            or not stat.S_ISREG(value.st_mode) or value.st_uid != owner_uid
+            or value.st_mode & 0o022 or not value.st_mode & 0o111
+            or file_sha256(configured) != runtime["pythonExecutableSha256"]):
+        fail("pinned host Python executable differs from the toolchain lock")
+    completed = subprocess.run(
+        [str(configured), "-S", "-P", "-B", "-c",
+         "import platform;print(platform.python_version())"],
+        text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        timeout=10, check=False,
+    )
+    if completed.returncode or completed.stdout.strip() != runtime["pythonVersion"]:
+        fail("pinned host Python version differs from the toolchain lock")
+    return configured
+
+
+def pymobiledevice3_site_packages(home: Path, lock: dict) -> Path:
+    runtime = pymobiledevice3_lock(lock)
+    if not home.is_absolute() or home.is_symlink() or not home.is_dir():
+        fail("PyMobileDevice3 home must be a safe absolute virtual environment")
+    site_packages = home / "lib/python3.14/site-packages"
+    if (site_packages.is_symlink() or not site_packages.is_dir()
+            or site_packages.resolve() != site_packages):
+        fail("PyMobileDevice3 virtual environment has no fixed cp314 site-packages")
+    entries = []
+    try:
+        for distribution in distributions(path=[str(site_packages)]):
+            name = distribution.metadata["Name"]
+            version = distribution.version
+            if (not isinstance(name, str) or not name
+                    or not isinstance(version, str) or not version
+                    or any(character in name + version for character in "\0\r\n")):
+                fail("PyMobileDevice3 distribution inventory is invalid")
+            entries.append(f"{name}=={version}")
+    except (OSError, UnicodeError, KeyError, TypeError):
+        fail("PyMobileDevice3 distribution inventory is unreadable")
+    frozen = ("\n".join(sorted(entries)) + "\n").encode("utf-8")
+    if (len(entries) != runtime["distributionCount"]
+            or hashlib.sha256(frozen).hexdigest() != runtime["freezeSha256"]):
+        fail("PyMobileDevice3 dependency inventory differs from the exact lock")
+    if python_site_packages_tree_sha256(site_packages) \
+            != runtime["sitePackagesTreeSha256"]:
+        fail("PyMobileDevice3 site-packages bytes differ from the exact lock")
+    return site_packages
 
 
 def resolve_package(node_modules: Path, lock: dict) -> Path:
@@ -228,7 +317,7 @@ def list_installed_drivers(node: Path, appium_entry: Path, appium_home: Path,
 
 def service_runtime_revision(lock: dict) -> int:
     revision = lock.get("serviceRuntimeRevision")
-    if revision != 9:
+    if revision != 11:
         fail("unsupported immutable service-runtime revision")
     return revision
 
@@ -339,6 +428,30 @@ def tree_sha256(root: Path) -> str:
     return digest.hexdigest()
 
 
+def python_site_packages_tree_sha256(root: Path) -> str:
+    """Hash immutable Python payload bytes while ignoring interpreter caches."""
+    digest = hashlib.sha256()
+    if not root.is_dir() or root.is_symlink():
+        fail("PyMobileDevice3 site-packages is not a safe directory")
+    for path in sorted(root.rglob("*"), key=lambda item: item.as_posix()):
+        relative = path.relative_to(root)
+        if "__pycache__" in relative.parts or path.suffix in {".pyc", ".pyo"}:
+            continue
+        value = path.lstat()
+        if stat.S_ISLNK(value.st_mode):
+            fail("PyMobileDevice3 site-packages contains a symbolic link")
+        encoded = relative.as_posix().encode("utf-8")
+        if stat.S_ISDIR(value.st_mode):
+            digest.update(b"D\0" + encoded + b"\0")
+        elif stat.S_ISREG(value.st_mode):
+            digest.update(b"F\0" + encoded + b"\0")
+            digest.update(b"X" if value.st_mode & 0o111 else b"-")
+            digest.update(bytes.fromhex(file_sha256(path)))
+        else:
+            fail("PyMobileDevice3 site-packages contains a special file")
+    return digest.hexdigest()
+
+
 def harden_tree(root: Path, executables: set[Path]) -> None:
     for path in sorted(root.rglob("*"), key=lambda item: len(item.parts), reverse=True):
         value = path.lstat()
@@ -373,6 +486,28 @@ def copy_plain_tree(source: Path, destination: Path) -> None:
             target.chmod(0o700 if value.st_mode & 0o111 else 0o600)
         else:
             fail("Appium runtime contains an unsupported special file")
+
+
+def copy_python_site_packages(source: Path, destination: Path) -> None:
+    """Copy a previously attested Python tree without caches or host metadata."""
+    if not source.is_dir() or source.is_symlink() or destination.exists():
+        fail("PyMobileDevice3 runtime copy paths are unsafe")
+    destination.mkdir(mode=0o700, parents=True)
+    for path in sorted(source.rglob("*"), key=lambda item: item.as_posix()):
+        relative = path.relative_to(source)
+        if "__pycache__" in relative.parts or path.suffix in {".pyc", ".pyo"}:
+            continue
+        value = path.lstat()
+        target = destination / relative
+        if stat.S_ISLNK(value.st_mode):
+            fail("PyMobileDevice3 site-packages contains a symbolic link")
+        if stat.S_ISDIR(value.st_mode):
+            target.mkdir(mode=0o700)
+        elif stat.S_ISREG(value.st_mode):
+            shutil.copyfile(path, target)
+            target.chmod(0o700 if value.st_mode & 0o111 else 0o600)
+        else:
+            fail("PyMobileDevice3 site-packages contains a special file")
 
 
 def require_immutable_tree(root: Path, owner_uid: int = 0) -> None:
@@ -460,6 +595,10 @@ def verify_service_runtime(runtime_root: Path,
     except (OSError, json.JSONDecodeError):
         fail("installed service runtime has no valid installation marker")
     appium_tree_sha256 = tree_sha256(runtime_root / "appium")
+    pymobiledevice3_tree_sha256 = python_site_packages_tree_sha256(
+        runtime_root / PYMOBILEDEVICE3_SITE_PACKAGES
+    )
+    python = validate_host_python(local_lock)
     if marker != {
         "schemaVersion": 1,
         "serviceRuntimeRevision": revision,
@@ -472,10 +611,13 @@ def verify_service_runtime(runtime_root: Path,
         ),
         "deviceInstallSha256": file_sha256(runtime_root / DEVICE_INSTALL_FILE.name),
         "deviceDdiSha256": file_sha256(runtime_root / DEVICE_DDI_FILE.name),
-        "wdaSessionBootstrapSha256": file_sha256(
-            runtime_root / WDA_SESSION_BOOTSTRAP_FILE.name
+        "wdaHostOpsSha256": file_sha256(runtime_root / XCUITEST_WDA_HOST_OPS),
+        "pymobiledevice3XctestSha256": file_sha256(
+            runtime_root / PYMOBILEDEVICE3_XCTEST_FILE.name
         ),
         "artifactTreeSha256": file_sha256(runtime_root / ARTIFACT_TREE_FILE.name),
+        "pythonExecutableSha256": file_sha256(python),
+        "pymobiledevice3TreeSha256": pymobiledevice3_tree_sha256,
         "lockSha256": file_sha256(runtime_root / "toolchain.lock.json"),
         "packageJsonSha256": file_sha256(runtime_root / "package.json"),
         "packageLockSha256": file_sha256(runtime_root / "package-lock.json"),
@@ -483,8 +625,17 @@ def verify_service_runtime(runtime_root: Path,
             runtime_root / APPIUM_EXTENSION_TEMPLATE
         ),
         "appiumTreeSha256": appium_tree_sha256,
+        "appiumSourceTreeSha256": marker.get("appiumSourceTreeSha256"),
     }:
         fail("installed service runtime marker does not match its contents")
+    if (marker.get("wdaHostOpsSha256") != file_sha256(WDA_HOST_OPS_FILE)
+            or marker.get("pymobiledevice3XctestSha256")
+            != file_sha256(PYMOBILEDEVICE3_XCTEST_FILE)
+            or pymobiledevice3_tree_sha256
+            != pymobiledevice3_lock(local_lock)["sitePackagesTreeSha256"]
+            or not isinstance(marker.get("appiumSourceTreeSha256"), str)
+            or not re.fullmatch(r"[0-9a-f]{64}", marker["appiumSourceTreeSha256"])):
+        fail("installed Fedora XCTest launcher differs from its immutable source")
     appium_entry, script = validate_appium_project(runtime_root / "appium", local_lock)
     wrapper = runtime_root / "remotexpc_tunnel.py"
     node = runtime_root / "bin/node"
@@ -520,7 +671,8 @@ def restore_security_context(runtime_root: Path, *, owner_uid: int = 0) -> None:
 
 
 def verify_runtime_matches_source(runtime_root: Path, node: Path,
-                                  appium_tree_sha256: str) -> None:
+                                  appium_source_tree_sha256: str,
+                                  pymobiledevice3_tree_sha256: str) -> None:
     try:
         marker = json.loads((runtime_root / RUNTIME_MARKER).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -532,24 +684,35 @@ def verify_runtime_matches_source(runtime_root: Path, node: Path,
         "devicePreflightSha256": file_sha256(DEVICE_PREFLIGHT_FILE),
         "deviceInstallSha256": file_sha256(DEVICE_INSTALL_FILE),
         "deviceDdiSha256": file_sha256(DEVICE_DDI_FILE),
-        "wdaSessionBootstrapSha256": file_sha256(WDA_SESSION_BOOTSTRAP_FILE),
+        "wdaHostOpsSha256": file_sha256(WDA_HOST_OPS_FILE),
+        "pymobiledevice3XctestSha256": file_sha256(PYMOBILEDEVICE3_XCTEST_FILE),
         "artifactTreeSha256": file_sha256(ARTIFACT_TREE_FILE),
+        "pythonExecutableSha256": file_sha256(validate_host_python(load_lock())),
+        "pymobiledevice3TreeSha256": pymobiledevice3_tree_sha256,
         "lockSha256": file_sha256(LOCK_FILE),
         "packageJsonSha256": file_sha256(PACKAGE_FILE),
         "packageLockSha256": file_sha256(NPM_LOCK_FILE),
-        "appiumTreeSha256": appium_tree_sha256,
+        "appiumSourceTreeSha256": appium_source_tree_sha256,
     }
     if any(marker.get(key) != value for key, value in expected.items()):
         fail("existing immutable service runtime differs from the audited source")
 
 
-def install_service_runtime(appium_home: Path, service_root: Path = SERVICE_ROOT) -> Path:
+def install_service_runtime(appium_home: Path, pymobiledevice3_home: Path,
+                            service_root: Path = SERVICE_ROOT) -> Path:
     """Create an immutable version directory and never update it in place."""
     lock = load_lock()
     runtime = remote_xpc_lock(lock)
     node, _script = resolve_runtime(appium_home)
     validate_appium_project(appium_home, lock)
+    validate_host_python(lock)
+    pymobiledevice3_source = pymobiledevice3_site_packages(
+        pymobiledevice3_home, lock
+    )
     source_digest = tree_sha256(appium_home)
+    pymobiledevice3_source_digest = python_site_packages_tree_sha256(
+        pymobiledevice3_source
+    )
 
     if not service_root.is_absolute() or service_root.is_symlink():
         fail("service root must be a safe absolute directory")
@@ -563,7 +726,9 @@ def install_service_runtime(appium_home: Path, service_root: Path = SERVICE_ROOT
     destination = service_runtime_path(service_root, lock)
     if destination.exists() or destination.is_symlink():
         verify_service_runtime(destination, os.geteuid())
-        verify_runtime_matches_source(destination, node, source_digest)
+        verify_runtime_matches_source(
+            destination, node, source_digest, pymobiledevice3_source_digest
+        )
         restore_security_context(destination)
         verify_service_runtime(destination, os.geteuid())
         return destination
@@ -576,8 +741,10 @@ def install_service_runtime(appium_home: Path, service_root: Path = SERVICE_ROOT
         shutil.copyfile(DEVICE_INSTALL_FILE, staging / DEVICE_INSTALL_FILE.name)
         shutil.copyfile(DEVICE_DDI_FILE, staging / DEVICE_DDI_FILE.name)
         shutil.copyfile(
-            WDA_SESSION_BOOTSTRAP_FILE, staging / WDA_SESSION_BOOTSTRAP_FILE.name
+            PYMOBILEDEVICE3_XCTEST_FILE,
+            staging / PYMOBILEDEVICE3_XCTEST_FILE.name,
         )
+        shutil.copyfile(WDA_HOST_OPS_FILE, staging / WDA_HOST_OPS_FILE.name)
         shutil.copyfile(ARTIFACT_TREE_FILE, staging / ARTIFACT_TREE_FILE.name)
         shutil.copyfile(LOCK_FILE, staging / "toolchain.lock.json")
         shutil.copyfile(PACKAGE_FILE, staging / "package.json")
@@ -589,6 +756,22 @@ def install_service_runtime(appium_home: Path, service_root: Path = SERVICE_ROOT
         if copied_digest != source_digest or tree_sha256(appium_home) != source_digest:
             fail("Appium runtime changed while its service copy was created")
         validate_appium_project(staging / "appium", load_lock(staging / "toolchain.lock.json"))
+        upstream_host_ops = staging / XCUITEST_WDA_HOST_OPS
+        if file_sha256(upstream_host_ops) != pymobiledevice3_lock(lock)[
+                "upstreamWdaHostOpsSha256"]:
+            fail("pinned XCUITest WDA host operations differ from the audited upstream")
+        shutil.copyfile(WDA_HOST_OPS_FILE, upstream_host_ops)
+        upstream_host_ops.chmod(0o600)
+        copy_python_site_packages(
+            pymobiledevice3_source, staging / PYMOBILEDEVICE3_SITE_PACKAGES
+        )
+        copied_python_digest = python_site_packages_tree_sha256(
+            staging / PYMOBILEDEVICE3_SITE_PACKAGES
+        )
+        if (copied_python_digest != pymobiledevice3_source_digest
+                or python_site_packages_tree_sha256(pymobiledevice3_source)
+                != pymobiledevice3_source_digest):
+            fail("PyMobileDevice3 changed while its service copy was created")
         prepare_appium_extension_template(
             staging / "appium", staging / "bin/node", destination,
             staging / APPIUM_EXTENSION_TEMPLATE,
@@ -606,10 +789,13 @@ def install_service_runtime(appium_home: Path, service_root: Path = SERVICE_ROOT
             ),
             "deviceInstallSha256": file_sha256(staging / DEVICE_INSTALL_FILE.name),
             "deviceDdiSha256": file_sha256(staging / DEVICE_DDI_FILE.name),
-            "wdaSessionBootstrapSha256": file_sha256(
-                staging / WDA_SESSION_BOOTSTRAP_FILE.name
+            "wdaHostOpsSha256": file_sha256(staging / XCUITEST_WDA_HOST_OPS),
+            "pymobiledevice3XctestSha256": file_sha256(
+                staging / PYMOBILEDEVICE3_XCTEST_FILE.name
             ),
             "artifactTreeSha256": file_sha256(staging / ARTIFACT_TREE_FILE.name),
+            "pythonExecutableSha256": file_sha256(validate_host_python(lock)),
+            "pymobiledevice3TreeSha256": copied_python_digest,
             "lockSha256": file_sha256(staging / "toolchain.lock.json"),
             "packageJsonSha256": file_sha256(staging / "package.json"),
             "packageLockSha256": file_sha256(staging / "package-lock.json"),
@@ -617,6 +803,7 @@ def install_service_runtime(appium_home: Path, service_root: Path = SERVICE_ROOT
                 staging / APPIUM_EXTENSION_TEMPLATE
             ),
             "appiumTreeSha256": copied_digest,
+            "appiumSourceTreeSha256": source_digest,
         }
         (staging / RUNTIME_MARKER).write_text(
             json.dumps(marker, sort_keys=True, separators=(",", ":")) + "\n",
@@ -1167,101 +1354,6 @@ def device_preflight(arguments: argparse.Namespace) -> int:
     return 0
 
 
-def wda_session_bootstrap(arguments: argparse.Namespace) -> int:
-    """Send one out-of-band Home event to the exact newly launched WDA runner."""
-    node, _script = verify_service_runtime(arguments.service_runtime)
-    payload = sys.stdin.buffer.read(4097)
-    if len(payload) > 4096:
-        fail("private WDA bootstrap request exceeded its safety limit")
-    if (b"\r" in payload or payload.count(b"\n") > 1
-            or b"\n" in payload and not payload.endswith(b"\n")):
-        fail("private WDA bootstrap request must be one JSON line")
-    try:
-        request = json.loads(payload)
-    except (UnicodeError, json.JSONDecodeError):
-        fail("private WDA bootstrap request is invalid")
-    if (not isinstance(request, dict)
-            or set(request) != {"schemaVersion", "udid", "wdaBundleId"}
-            or request.get("schemaVersion") != 1
-            or isinstance(request.get("schemaVersion"), bool)
-            or not isinstance(request.get("udid"), str)
-            or not 8 <= len(request["udid"]) <= 128
-            or any(character in request["udid"] for character in "\0\r\n")
-            or not isinstance(request.get("wdaBundleId"), str)
-            or len(request["wdaBundleId"]) > 255
-            or not BUNDLE_ID_RE.fullmatch(request["wdaBundleId"])):
-        fail("private WDA bootstrap request is invalid")
-    helper = arguments.service_runtime / WDA_SESSION_BOOTSTRAP_FILE.name
-    environment = {
-        "PATH": str(arguments.service_runtime / "bin") + ":/usr/sbin:/usr/bin",
-        "HOME": "/nonexistent",
-    }
-    process = subprocess.Popen(
-        [str(node), str(helper)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL, cwd=arguments.service_runtime, env=environment,
-        # The adapter makes the wrapper a new session/process-group leader.  Node
-        # must remain in that same group so one fail-closed killpg cleans both.
-        start_new_session=False,
-    )
-    assert process.stdin is not None and process.stdout is not None
-    deadline = time.monotonic() + 30
-    observed: list[bytes] = []
-    pending = bytearray()
-    try:
-        process.stdin.write(payload)
-        process.stdin.flush()
-        process.stdin.close()
-        descriptor = process.stdout.fileno()
-        os.set_blocking(descriptor, False)
-        while len(observed) < 2:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                fail("WDA runner background recovery timed out")
-            readable, _writable, _exceptional = select.select(
-                [descriptor], [], [], remaining
-            )
-            if not readable:
-                fail("WDA runner background recovery timed out")
-            try:
-                block = os.read(descriptor, 64)
-            except BlockingIOError:
-                continue
-            if not block:
-                break
-            pending.extend(block)
-            while len(observed) < 2:
-                expected = b"READY\n" if not observed else b"PASS\n"
-                if len(pending) < len(expected):
-                    if not expected.startswith(pending):
-                        fail("WDA runner background recovery returned invalid status")
-                    break
-                if bytes(pending[:len(expected)]) != expected:
-                    fail("WDA runner background recovery returned invalid status")
-                del pending[:len(expected)]
-                observed.append(expected)
-                sys.stdout.write(expected.decode("ascii"))
-                sys.stdout.flush()
-            if len(observed) == 2 and pending:
-                fail("WDA runner background recovery returned invalid status")
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            fail("WDA runner background recovery timed out")
-        returncode = process.wait(timeout=remaining)
-        if (returncode != 0 or observed != [b"READY\n", b"PASS\n"]
-                or pending or process.stdout.read(1)):
-            fail("WDA runner background recovery failed")
-        return 0
-    finally:
-        if process.poll() is None:
-            process.terminate()
-            try:
-                process.wait(timeout=1)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait(timeout=1)
-        process.stdout.close()
-
-
 def appium_server(arguments: argparse.Namespace) -> int:
     if os.name != "posix" or not sys.platform.startswith("linux"):
         fail("immutable Appium server entry is supported only on Linux")
@@ -1305,6 +1397,12 @@ def appium_server(arguments: argparse.Namespace) -> int:
         # pairing state to the unprivileged Appium process.
         environment["XDG_DATA_HOME"] = str(data_home)
         environment["PATH"] = str(arguments.service_runtime / "bin") + ":/usr/sbin:/usr/bin"
+        environment["OVERTE_PYMOBILEDEVICE3_SITE_PACKAGES"] = str(
+            arguments.service_runtime / PYMOBILEDEVICE3_SITE_PACKAGES
+        )
+        environment["OVERTE_PYMOBILEDEVICE3_XCTEST_HELPER"] = str(
+            arguments.service_runtime / PYMOBILEDEVICE3_XCTEST_FILE.name
+        )
         command = [
             str(node), str(appium_entry), "--address", arguments.address,
             "--port", str(arguments.port), "--base-path", arguments.base_path,
@@ -1327,7 +1425,9 @@ def appium_server(arguments: argparse.Namespace) -> int:
 
 
 def verify_installed_unit(runtime_root: Path, port: int, unit_path: Path = UNIT_PATH,
-                          owner_uid: int = 0) -> None:
+                          owner_uid: int | None = None) -> None:
+    if owner_uid is None:
+        owner_uid = visible_root_owner_uid()
     if (not unit_path.is_absolute() or unit_path.is_symlink() or not unit_path.is_file()
             or unit_path.resolve() != unit_path):
         fail("installed RemoteXPC systemd unit path is unsafe")
@@ -1358,7 +1458,9 @@ def install_unit(arguments: argparse.Namespace) -> int:
     if os.geteuid() != 0:
         fail("install-unit must run as root")
     preflight(arguments.appium_home)
-    runtime_root = install_service_runtime(arguments.appium_home)
+    runtime_root = install_service_runtime(
+        arguments.appium_home, arguments.pymobiledevice3_home
+    )
     verify_service_runtime(runtime_root)
     unit = service_unit(runtime_root, arguments.port)
     destination = arguments.unit_path.resolve()
@@ -1422,11 +1524,6 @@ def parser() -> argparse.ArgumentParser:
         "--service-runtime", type=Path, default=default_service_runtime(),
     )
 
-    wda_bootstrap_parser = subparsers.add_parser("wda-session-bootstrap")
-    wda_bootstrap_parser.add_argument(
-        "--service-runtime", type=Path, default=default_service_runtime(),
-    )
-
     device_install_parser = subparsers.add_parser("device-install")
     device_install_parser.add_argument(
         "--service-runtime", type=Path, default=default_service_runtime(),
@@ -1441,6 +1538,7 @@ def parser() -> argparse.ArgumentParser:
 
     install_parser = subparsers.add_parser("install-unit")
     install_parser.add_argument("--appium-home", type=Path, required=True)
+    install_parser.add_argument("--pymobiledevice3-home", type=Path, required=True)
     install_parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     install_parser.add_argument("--unit-path", type=Path, default=UNIT_PATH)
     return value
@@ -1466,8 +1564,6 @@ def main() -> int:
             return appium_server(arguments)
         if arguments.action == "device-preflight":
             return device_preflight(arguments)
-        if arguments.action == "wda-session-bootstrap":
-            return wda_session_bootstrap(arguments)
         if arguments.action == "device-install":
             return device_install(arguments)
         if arguments.action in {"device-ddi-status", "device-ddi-mount"}:

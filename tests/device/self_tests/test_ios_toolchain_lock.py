@@ -22,11 +22,16 @@ SPEC.loader.exec_module(LOCK)
 class IosToolchainLockTest(unittest.TestCase):
     def test_checked_in_lock_and_full_npm_resolution_are_exact(self):
         value = LOCK.validate()
-        self.assertEqual(9, value["serviceRuntimeRevision"])
+        self.assertEqual(11, value["serviceRuntimeRevision"])
         self.assertEqual("3.7.0", value["appium"]["core"]["version"])
         self.assertEqual("12.8.0", value["appium"]["drivers"]["xcuitest"]["version"])
         self.assertEqual("5.15.3", value["appium"]["iosRuntime"]["remoteXpc"]["version"])
         self.assertEqual("16.8.0", value["appium"]["iosRuntime"]["webdriverAgent"]["version"])
+        pymobiledevice3 = value["appium"]["iosRuntime"]["pymobiledevice3"]
+        self.assertEqual("11.1.5", pymobiledevice3["version"])
+        self.assertEqual("GPL-3.0-or-later", pymobiledevice3["license"])
+        self.assertEqual("cp314", pymobiledevice3["pythonAbi"])
+        self.assertEqual(99, pymobiledevice3["distributionCount"])
         npm_lock = json.loads((IOS_ROOT / "package-lock.json").read_text(encoding="utf-8"))
         self.assertEqual(
             "3.1.21",

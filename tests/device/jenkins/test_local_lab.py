@@ -75,9 +75,12 @@ class LocalLabBootstrapTest(unittest.TestCase):
             root = Path(name)
             java = root / "java"
             java.touch()
+            pymobiledevice3 = root / "pymobiledevice3"
+            pymobiledevice3.mkdir()
             arguments = argparse.Namespace(
                 install_root=str(root / "software"), config_root=str(root / "private"),
                 java=str(java), npm="npm", port=18080, skip_appium=False,
+                pymobiledevice3_home=str(pymobiledevice3),
             )
 
             def fake_download(_artifact, destination):
@@ -104,6 +107,9 @@ class LocalLabBootstrapTest(unittest.TestCase):
             state = json.loads(state_path.read_text(encoding="utf-8"))
             self.assertEqual("http://127.0.0.1:18080", state["serverUrl"])
             self.assertEqual(str(appium), state["appiumBootstrapRoot"])
+            self.assertEqual(
+                str(pymobiledevice3), state["pymobiledevice3BootstrapRoot"]
+            )
             appium_state = Path(state["appiumStateRoot"])
             self.assertTrue(appium_state.is_dir())
             self.assertEqual(0o700, appium_state.stat().st_mode & 0o777)
@@ -147,9 +153,9 @@ class LocalLabBootstrapTest(unittest.TestCase):
                     patch.object(LAB, "wait_controller"), \
                     patch.object(LAB.subprocess, "run") as run_process, \
                     patch.object(LAB, "immutable_appium_command", return_value=[
-                        "/usr/local/lib/overte-ios-remotexpc/5.15.3-r9/remotexpc_tunnel.py",
+                        "/usr/local/lib/overte-ios-remotexpc/5.15.3-r11/remotexpc_tunnel.py",
                         "appium-server", "--service-runtime",
-                        "/usr/local/lib/overte-ios-remotexpc/5.15.3-r9",
+                        "/usr/local/lib/overte-ios-remotexpc/5.15.3-r11",
                         "--state-root", str(private / "appium-state"),
                     ]) as immutable_appium:
                 self.assertEqual(0, LAB.install_systemd_user_services(arguments))

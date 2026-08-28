@@ -749,6 +749,34 @@ class AppiumAdapterTests(unittest.TestCase):
                 self.assertEqual(mock.call("fake-session", "mobile: deviceInfo"),
                                  client.execute.call_args_list[-1])
 
+    def test_physical_attestation_accepts_current_lockdown_identity_shape(self) -> None:
+        adapter, client, _state, target = self.adapter_and_session()
+        target.pop("testBuild")
+        client.execute = mock.Mock(return_value={
+            "isSimulator": False,
+            "uuid": "dvt-session-uuid-is-not-the-device-id",
+            "lockdownInfo": {
+                "UniqueDeviceID": "private-device-id",
+                "ProductVersion": "18.6.0",
+            },
+        })
+        adapter.attest_physical_target(client, "fake-session", target)
+
+    def test_physical_attestation_rejects_conflicting_lockdown_identity(self) -> None:
+        adapter, client, _state, target = self.adapter_and_session()
+        target.pop("testBuild")
+        client.execute = mock.Mock(return_value={
+            "isSimulator": False,
+            "udid": "private-device-id",
+            "productVersion": "18.6",
+            "lockdownInfo": {
+                "UniqueDeviceID": "different-test-device",
+                "ProductVersion": "18.6.0",
+            },
+        })
+        with self.assertRaisesRegex(RuntimeError, "device identity"):
+            adapter.attest_physical_target(client, "fake-session", target)
+
     def test_immutable_pre_session_helper_keeps_device_identity_out_of_argv_and_output(self) -> None:
         adapter, _client, _state, target = self.adapter_and_session()
         target["_receiptWdaBundleId"] = "org.overte.WebDriverAgentRunner.xctrunner"
@@ -776,284 +804,18 @@ class AppiumAdapterTests(unittest.TestCase):
                 adapter.pre_session_device_attestation(target)
         self.assertNotIn("private-device-id", str(raised.exception))
 
-    def test_ios_session_bootstrap_is_strictly_limited_to_ios26_personal_team(self) -> None:
+    def test_ios_session_bootstrap_is_rejected_as_obsolete(self) -> None:
         target = ios_target()
-        target.update({
-            "artifactMode": "personal-team-preinstalled",
-            "iosSessionBootstrap": {"backgroundWdaRunner": True},
-        })
-        target["capabilities"]["appium:platformVersion"] = "26.0"
-        APPIUM.AppiumAdapter.validate_ios_session_bootstrap(target)
-
-        invalid_mutations = (
-            lambda value: value.update(platform="android"),
-            lambda value: value.update(physical=False),
-            lambda value: value.update(artifactMode="signed-ipa"),
-            lambda value: value["capabilities"].update(
-                {"appium:usePreinstalledWDA": False}),
-            lambda value: value["capabilities"].update(
-                {"appium:platformVersion": "25.9"}),
-            lambda value: value.update(
-                iosSessionBootstrap={"backgroundWdaRunner": True, "retry": True}),
-            lambda value: value.update(
-                iosSessionBootstrap={"backgroundWdaRunner": False}),
-            lambda value: value.update(
-                iosSessionBootstrap={"backgroundWdaRunner": 1}),
-        )
-        for mutate in invalid_mutations:
-            with self.subTest(mutation=mutate):
-                invalid = json.loads(json.dumps(target))
-                mutate(invalid)
-                with self.assertRaisesRegex(RuntimeError, "iosSessionBootstrap|bootstrap"):
-                    APPIUM.AppiumAdapter.validate_ios_session_bootstrap(invalid)
-
-    def test_ios_session_bootstrap_runs_parallel_to_exactly_one_session_post(self) -> None:
-        adapter, client, _state, target = self.adapter_and_session()
-        del adapter.ensure_session
-        target.update({
-            "artifactMode": "personal-team-preinstalled",
-            "_artifactMode": "personal-team-preinstalled",
-            "_receiptWdaBundleId": "com.private.wda.runner",
-            "iosSessionBootstrap": {"backgroundWdaRunner": True},
-        })
-        target["capabilities"]["appium:platformVersion"] = "26.0"
-        adapter.read_session = lambda _selector: None
-        adapter.validate_ios_artifact_receipt = lambda _target, hash_files=False: None
-        adapter.install_receipt_bound_ios_apps = mock.Mock()
-        adapter.pre_session_device_attestation = mock.Mock()
-        adapter.attest_physical_target = mock.Mock()
-        adapter.save_session = mock.Mock()
-
-        events: list[str] = []
-        input_pipe = mock.Mock()
-        input_pipe.close.side_effect = lambda: events.append("stdin-closed")
-        output_pipe = mock.Mock()
-        output_pipe.fileno.return_value = 73
-        process = mock.Mock(returncode=0, stdin=input_pipe, stdout=output_pipe)
-
-        def communicate(*, timeout: int) -> tuple[str, str]:
-            self.assertEqual(
-                APPIUM.AppiumAdapter.IOS_SESSION_BOOTSTRAP_JOIN_TIMEOUT_SECONDS,
-                timeout,
-            )
-            events.append("helper-joined")
-            return "PASS\n", ""
-
-        process.communicate.side_effect = communicate
-
-        def start_helper(*args, **kwargs):
-            events.append("helper-started")
-            return process
-
-        def appium_call(method: str, path: str, payload: dict | None = None) -> object:
-            events.append(f"{method} {path}")
-            if method == "POST" and path == "/session":
-                self.assertIn("stdin-closed", events)
-                self.assertNotIn("helper-joined", events)
-                return {"sessionId": "new-session"}
-            raise AssertionError(f"unexpected WebDriver call: {method} {path}")
-
-        client.call = mock.Mock(side_effect=appium_call)
-        with mock.patch.object(APPIUM, "WebDriver", return_value=client), \
-                mock.patch.object(adapter, "immutable_ios_runtime_wrapper",
-                                  return_value=Path("/immutable/remotexpc_tunnel.py")), \
-                mock.patch.dict(os.environ, {
-                    "OVERTE_IOS_SESSION_BOOTSTRAP_HELPER": "/usr/bin/bash",
-                }), \
-                mock.patch.object(APPIUM.select, "select",
-                                  return_value=([73], [], [])), \
-                mock.patch.object(APPIUM.os, "read", side_effect=lambda _fd, _limit: (
-                    events.append("helper-ready") or b"READY\n")), \
-                mock.patch.object(APPIUM.subprocess, "Popen",
-                                  side_effect=start_helper) as popen:
-            _client, session, _saved = adapter.ensure_session("private-ipad")
-
-        self.assertEqual("new-session", session)
-        self.assertEqual(
-            ["helper-started", "stdin-closed", "helper-ready",
-             "POST /session", "helper-joined"],
-            events,
-        )
-        self.assertEqual(1, sum(
-            call.args[:2] == ("POST", "/session") for call in client.call.call_args_list))
-        argv = popen.call_args.args[0]
-        self.assertEqual([
-            "/immutable/remotexpc_tunnel.py", "wda-session-bootstrap",
-            "--service-runtime", "/immutable",
-        ], argv)
-        self.assertNotIn("private-device-id", " ".join(argv))
-        self.assertNotIn("com.private.wda.runner", " ".join(argv))
-        self.assertIs(popen.call_args.kwargs["start_new_session"], True)
-        expected_request = json.dumps({
-            "schemaVersion": 1,
-            "udid": "private-device-id",
-            "wdaBundleId": "com.private.wda.runner",
-        }, separators=(",", ":")) + "\n"
-        input_pipe.write.assert_called_once_with(expected_request)
-        input_pipe.flush.assert_called_once_with()
-        input_pipe.close.assert_called_once_with()
-
-    def test_ios_session_bootstrap_is_reaped_when_session_post_fails(self) -> None:
-        adapter, client, _state, target = self.adapter_and_session()
-        target.update({
-            "artifactMode": "personal-team-preinstalled",
-            "_artifactMode": "personal-team-preinstalled",
-            "_receiptWdaBundleId": "com.private.wda.runner",
-            "iosSessionBootstrap": {"backgroundWdaRunner": True},
-        })
-        target["capabilities"]["appium:platformVersion"] = "26.0"
-        input_pipe = mock.Mock()
-        output_pipe = mock.Mock()
-        output_pipe.fileno.return_value = 73
-        process = mock.Mock(returncode=0, stdin=input_pipe, stdout=output_pipe)
-        process.communicate.return_value = ("PASS\n", "")
-        client.call = mock.Mock(side_effect=RuntimeError("redacted Appium failure"))
-        with mock.patch.object(adapter, "immutable_ios_runtime_wrapper",
-                               return_value=Path("/immutable/remotexpc_tunnel.py")), \
-                mock.patch.object(APPIUM.select, "select",
-                                  return_value=([73], [], [])), \
-                mock.patch.object(APPIUM.os, "read", return_value=b"READY\n"), \
-                mock.patch.object(APPIUM.subprocess, "Popen", return_value=process):
-            with self.assertRaisesRegex(RuntimeError, "redacted Appium failure"):
-                adapter.create_appium_session(client, target)
-        self.assertEqual(1, client.call.call_count)
-        self.assertEqual(("POST", "/session"), client.call.call_args.args[:2])
-        process.communicate.assert_called_once_with(
-            timeout=APPIUM.AppiumAdapter.IOS_SESSION_BOOTSTRAP_JOIN_TIMEOUT_SECONDS)
-
-    def test_ios_session_bootstrap_timeout_terminates_and_reaps_without_output(self) -> None:
-        private_value = "private-device-id"
-        process = mock.Mock(returncode=None, stdin=None, pid=424242)
-        process.poll.return_value = None
-        process.communicate.side_effect = [
-            APPIUM.subprocess.TimeoutExpired("private-helper", 45,
-                                             output=private_value, stderr=private_value),
-            APPIUM.subprocess.TimeoutExpired("private-helper", 5,
-                                             output=private_value, stderr=private_value),
-            (private_value, private_value),
-        ]
-        with mock.patch.object(APPIUM.os, "killpg") as kill_group:
-            with self.assertRaisesRegex(RuntimeError, "bounded runtime") as raised:
-                APPIUM.AppiumAdapter.finish_ios_session_bootstrap(process)
-        self.assertEqual([
-            mock.call(424242, APPIUM.signal.SIGTERM),
-            mock.call(424242, APPIUM.signal.SIGKILL),
-        ], kill_group.call_args_list)
-        process.terminate.assert_not_called()
-        process.kill.assert_not_called()
-        self.assertEqual(3, process.communicate.call_count)
-        self.assertNotIn(private_value, str(raised.exception))
-
-    def test_ios_session_bootstrap_cleans_group_after_wrapper_already_exited(self) -> None:
-        process = mock.Mock(returncode=2, pid=424244)
-        process.poll.return_value = 2
-        process.communicate.return_value = ("", "")
-        with mock.patch.object(APPIUM.os, "killpg") as kill_group:
-            APPIUM.AppiumAdapter._stop_ios_session_bootstrap(process)
-        kill_group.assert_called_once_with(424244, APPIUM.signal.SIGTERM)
-        process.communicate.assert_called_once_with(
-            timeout=APPIUM.AppiumAdapter.IOS_SESSION_BOOTSTRAP_STOP_TIMEOUT_SECONDS)
-
-    def test_ios_session_bootstrap_rejects_non_generic_completion_output(self) -> None:
-        private_value = "PASS:private-device-id\n"
-        process = mock.Mock(returncode=0)
-        process.communicate.return_value = (private_value, "")
-        with self.assertRaisesRegex(RuntimeError, "runner transition") as raised:
-            APPIUM.AppiumAdapter.finish_ios_session_bootstrap(process)
-        self.assertNotIn(private_value.strip(), str(raised.exception))
-
-    def test_ios_session_bootstrap_requires_ready_before_any_session_post(self) -> None:
-        adapter, client, _state, target = self.adapter_and_session()
-        target.update({
-            "artifactMode": "personal-team-preinstalled",
-            "_artifactMode": "personal-team-preinstalled",
-            "_receiptWdaBundleId": "com.private.wda.runner",
-            "iosSessionBootstrap": {"backgroundWdaRunner": True},
-        })
-        target["capabilities"]["appium:platformVersion"] = "26.0"
-        input_pipe = mock.Mock()
-        output_pipe = mock.Mock()
-        process = mock.Mock(returncode=None, stdin=input_pipe, stdout=output_pipe,
-                            pid=434343)
-        process.poll.return_value = None
-        process.communicate.return_value = ("", "")
-        client.call = mock.Mock()
-        with mock.patch.object(adapter, "immutable_ios_runtime_wrapper",
-                               return_value=Path("/immutable/remotexpc_tunnel.py")), \
-                mock.patch.object(APPIUM.select, "select", return_value=([], [], [])), \
-                mock.patch.object(APPIUM.os, "killpg") as kill_group, \
-                mock.patch.object(APPIUM.subprocess, "Popen", return_value=process):
-            with self.assertRaisesRegex(RuntimeError, "did not become ready"):
-                adapter.create_appium_session(client, target)
-        client.call.assert_not_called()
-        kill_group.assert_called_once_with(434343, APPIUM.signal.SIGTERM)
-        process.terminate.assert_not_called()
-        process.communicate.assert_called_once_with(
-            timeout=APPIUM.AppiumAdapter.IOS_SESSION_BOOTSTRAP_STOP_TIMEOUT_SECONDS)
-
-    def test_ios_session_bootstrap_preserves_failed_session_for_later_cleanup(self) -> None:
-        adapter, client, _state, target = self.adapter_and_session()
-        target.update({
-            "artifactMode": "personal-team-preinstalled",
-            "_artifactMode": "personal-team-preinstalled",
-            "_receiptWdaBundleId": "com.private.wda.runner",
-            "iosSessionBootstrap": {"backgroundWdaRunner": True},
-        })
-        target["capabilities"]["appium:platformVersion"] = "26.0"
-        process = mock.Mock(returncode=2)
-        process.communicate.return_value = ("", "")
-        client.call = mock.Mock(side_effect=[
-            {"sessionId": "cleanup-session"},
-            RuntimeError("redacted cleanup failure"),
-        ])
-        adapter.start_ios_session_bootstrap = mock.Mock(return_value=process)
-        adapter.save_session = mock.Mock()
-
-        with self.assertRaisesRegex(RuntimeError, "runner transition"):
-            adapter.create_appium_session(client, target)
-
-        self.assertEqual([
-            mock.call("POST", "/session", mock.ANY),
-            mock.call("DELETE", "/session/cleanup-session"),
-        ], client.call.call_args_list)
-        adapter.save_session.assert_called_once_with("private-ipad", {
-            "sessionId": "cleanup-session",
-            "generation": 0,
-            "targetFingerprint": "bootstrap-cleanup-pending",
-            "bootstrapCleanupPending": True,
-        })
-
-    def test_pending_bootstrap_session_is_deleted_before_new_session(self) -> None:
-        adapter, client, _state, target = self.adapter_and_session()
-        del adapter.ensure_session
-        pending = {
-            "sessionId": "cleanup-session",
-            "generation": 0,
-            "targetFingerprint": "bootstrap-cleanup-pending",
-            "bootstrapCleanupPending": True,
-        }
-        adapter.read_session = mock.Mock(return_value=pending)
-        adapter.state_path = mock.Mock()
-        pending_path = mock.Mock()
-        adapter.state_path.return_value = pending_path
-        adapter.validate_ios_artifact_receipt = mock.Mock()
-        adapter.install_receipt_bound_ios_apps = mock.Mock()
-        adapter.pre_session_device_attestation = mock.Mock()
-        adapter.create_appium_session = mock.Mock(
-            return_value={"sessionId": "replacement-session"})
-        adapter.attest_physical_target = mock.Mock()
-        adapter.save_session = mock.Mock()
-        client.call = mock.Mock(return_value=None)
-
-        with mock.patch.object(APPIUM, "WebDriver", return_value=client):
-            _client, session, _state = adapter.ensure_session("private-ipad")
-
-        self.assertEqual("replacement-session", session)
-        self.assertEqual(
-            mock.call("DELETE", "/session/cleanup-session"),
-            client.call.call_args_list[0],
-        )
-        pending_path.unlink.assert_called_once_with(missing_ok=True)
+        target["iosSessionBootstrap"] = {"backgroundWdaRunner": True}
+        with tempfile.TemporaryDirectory(prefix="overte-obsolete-bootstrap-") as name:
+            path = Path(name) / "targets.json"
+            path.write_text(json.dumps({
+                "schemaVersion": 1, "targets": [target],
+            }), encoding="utf-8")
+            path.chmod(0o600)
+            with mock.patch.dict(os.environ, {"OVERTE_APPIUM_TARGETS": str(path)}):
+                with self.assertRaisesRegex(RuntimeError, "obsolete.*r11"):
+                    APPIUM.AppiumAdapter("ios").targets()
 
     def test_signed_mode_installs_receipt_pair_before_preflight_without_private_argv(self) -> None:
         adapter, _client, _state, target = self.adapter_and_session()

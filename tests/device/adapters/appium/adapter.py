@@ -13,8 +13,6 @@ from pathlib import Path, PurePosixPath
 import sys
 import math
 import re
-import select
-import signal
 import stat
 import subprocess
 import tempfile
@@ -175,10 +173,7 @@ class AppiumAdapter:
         "appium:keychainPath", "appium:keychainPassword",
         "appium:allowProvisioningDeviceRegistration", "appium:resultBundlePath",
     }
-    IOS_SERVICE_RUNTIME_REVISION = 9
-    IOS_SESSION_BOOTSTRAP_READY_TIMEOUT_SECONDS = 10
-    IOS_SESSION_BOOTSTRAP_JOIN_TIMEOUT_SECONDS = 45
-    IOS_SESSION_BOOTSTRAP_STOP_TIMEOUT_SECONDS = 5
+    IOS_SERVICE_RUNTIME_REVISION = 11
     IOS_LAUNCH_STABILITY_SECONDS = 1.0
 
     def __init__(self, platform: str) -> None:
@@ -220,7 +215,8 @@ class AppiumAdapter:
             for section in ("process", "scene", "controls", "probe", "background"):
                 if not isinstance(entry.get(section, {}), dict):
                     fail(f"Appium target {section} must be an object")
-            self.validate_ios_session_bootstrap(entry)
+            if "iosSessionBootstrap" in entry:
+                fail("iosSessionBootstrap is obsolete with the immutable r11 XCTest keeper")
             if not isinstance(entry.get("soundControl", {}), dict):
                 fail("Appium target soundControl must be an object")
             tablet = entry.get("controls", {}).get("tablet", {})
@@ -288,25 +284,6 @@ class AppiumAdapter:
                 fail("soundControl is supported only by iOS Appium targets")
             targets[selector] = entry
         return {key: value for key, value in targets.items() if value["platform"] == self.platform}
-
-    @staticmethod
-    def validate_ios_session_bootstrap(target: dict) -> None:
-        bootstrap = target.get("iosSessionBootstrap")
-        if bootstrap is None:
-            return
-        if (not isinstance(bootstrap, dict)
-                or set(bootstrap) != {"backgroundWdaRunner"}
-                or bootstrap["backgroundWdaRunner"] is not True):
-            fail("iosSessionBootstrap requires exactly backgroundWdaRunner=true")
-        capabilities = target.get("capabilities", {})
-        platform_version = capabilities.get("appium:platformVersion")
-        match = re.fullmatch(r"([0-9]+)(?:[.][0-9]+){0,2}", platform_version or "")
-        if (target.get("platform") != "ios" or target.get("physical") is not True
-                or target.get("artifactMode") != "personal-team-preinstalled"
-                or capabilities.get("appium:usePreinstalledWDA") is not True
-                or not match or int(match.group(1)) < 26):
-            fail("iOS WDA session bootstrap requires physical iOS 26 or newer "
-                 "with Personal-Team preinstalled WDA")
 
     @staticmethod
     def normalized_http_origin(value: object, label: str) -> str:
@@ -895,17 +872,28 @@ class AppiumAdapter:
             value = client.execute(session, "mobile: deviceInfo")
             if not isinstance(value, dict) or value.get("isSimulator") not in (False, 0):
                 fail("configured physical iOS target is a simulator or cannot be attested")
-            observed_udid = value.get("udid", value.get("uniqueDeviceIdentifier"))
+            lockdown = value.get("lockdownInfo", {})
+            if not isinstance(lockdown, dict):
+                fail("XCUITest device identity evidence is invalid")
             expected_udid = target["capabilities"].get("appium:udid")
-            if (not isinstance(observed_udid, str) or not observed_udid
-                    or observed_udid != expected_udid):
+            observed_udids = [item for item in (
+                value.get("udid"), value.get("uniqueDeviceIdentifier"),
+                lockdown.get("UniqueDeviceID"),
+            ) if item is not None]
+            if (not observed_udids
+                    or any(not isinstance(item, str) or not item
+                           or item != expected_udid for item in observed_udids)):
                 fail("XCUITest device identity does not match the private target")
-            observed_version = next((value.get(key) for key in (
-                "platformVersion", "productVersion", "ProductVersion", "osVersion")
-                if value.get(key) is not None), None)
+            observed_versions = [item for item in (
+                *(value.get(key) for key in (
+                    "platformVersion", "productVersion", "ProductVersion", "osVersion")),
+                lockdown.get("ProductVersion"),
+            ) if item is not None]
             expected_version = target["capabilities"].get("appium:platformVersion")
-            if (self.normalized_ios_version(observed_version)
-                    != self.normalized_ios_version(expected_version)):
+            normalized_expected = self.normalized_ios_version(expected_version)
+            if (not observed_versions or normalized_expected is None
+                    or any(self.normalized_ios_version(item) != normalized_expected
+                           for item in observed_versions)):
                 fail("XCUITest platform version does not match the private target")
             if target.get("testBuild"):
                 apps = client.execute(session, "mobile: listApps", {
@@ -973,160 +961,10 @@ class AppiumAdapter:
                 fail("immutable iOS device preflight runtime failed attestation")
         return wrapper
 
-    @classmethod
-    def _stop_ios_session_bootstrap(cls, process: subprocess.Popen) -> None:
-        pid = getattr(process, "pid", None)
-        if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
-            fail("iOS session-bootstrap process group identity is invalid")
-        group_signal_failed = False
-        try:
-            os.killpg(pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
-        except OSError:
-            group_signal_failed = True
-            try:
-                process.terminate()
-            except OSError:
-                pass
-        try:
-            process.communicate(timeout=cls.IOS_SESSION_BOOTSTRAP_STOP_TIMEOUT_SECONDS)
-            if group_signal_failed:
-                fail("iOS session-bootstrap process group could not be terminated")
-            return
-        except (OSError, ValueError, subprocess.TimeoutExpired):
-            try:
-                os.killpg(pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            except OSError:
-                group_signal_failed = True
-                try:
-                    process.kill()
-                except OSError:
-                    pass
-        try:
-            process.communicate(timeout=cls.IOS_SESSION_BOOTSTRAP_STOP_TIMEOUT_SECONDS)
-        except (OSError, ValueError, subprocess.TimeoutExpired):
-            fail("iOS session-bootstrap helper could not be reaped")
-        if group_signal_failed:
-            fail("iOS session-bootstrap process group could not be terminated")
-
-    def start_ios_session_bootstrap(self, target: dict) -> subprocess.Popen | None:
-        if target.get("iosSessionBootstrap") is None:
-            return None
-        self.validate_ios_session_bootstrap(target)
-        if target.get("_artifactMode") != "personal-team-preinstalled":
-            fail("iOS session bootstrap requires a verified Personal-Team receipt")
-        udid = target.get("capabilities", {}).get("appium:udid")
-        wda_bundle = target.get("_receiptWdaBundleId")
-        if (not isinstance(udid, str) or not udid
-                or not isinstance(wda_bundle, str) or not wda_bundle):
-            fail("receipt-bound iOS session-bootstrap identity is unavailable")
-        helper = self.immutable_ios_runtime_wrapper()
-        try:
-            process = subprocess.Popen(
-                [str(helper), "wda-session-bootstrap", "--service-runtime",
-                 str(helper.parent)],
-                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                text=True, start_new_session=True,
-            )
-        except OSError:
-            fail("immutable iOS session-bootstrap helper could not start")
-        request = json.dumps({
-            "schemaVersion": 1, "udid": udid, "wdaBundleId": wda_bundle,
-        }, separators=(",", ":")) + "\n"
-        try:
-            if process.stdin is None:
-                raise OSError("bootstrap stdin is unavailable")
-            process.stdin.write(request)
-            process.stdin.flush()
-            process.stdin.close()
-            # communicate() otherwise tries to flush the deliberately closed pipe.
-            process.stdin = None
-        except (BrokenPipeError, OSError, ValueError):
-            self._stop_ios_session_bootstrap(process)
-            fail("immutable iOS session-bootstrap helper rejected its private request")
-        self.wait_ios_session_bootstrap_ready(process)
-        return process
-
-    @classmethod
-    def wait_ios_session_bootstrap_ready(cls, process: subprocess.Popen) -> None:
-        if process.stdout is None:
-            cls._stop_ios_session_bootstrap(process)
-            fail("iOS session-bootstrap helper has no readiness channel")
-        try:
-            descriptor = process.stdout.fileno()
-            deadline = time.monotonic() + cls.IOS_SESSION_BOOTSTRAP_READY_TIMEOUT_SECONDS
-            raw = bytearray()
-            while len(raw) < 6 and b"\n" not in raw:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    break
-                readable, _, _ = select.select([descriptor], [], [], remaining)
-                if not readable:
-                    break
-                block = os.read(descriptor, 6 - len(raw))
-                if not block:
-                    break
-                raw.extend(block)
-            ready = bytes(raw)
-        except (OSError, TypeError, ValueError):
-            cls._stop_ios_session_bootstrap(process)
-            fail("iOS session-bootstrap helper readiness check failed")
-        if ready != b"READY\n":
-            cls._stop_ios_session_bootstrap(process)
-            fail("iOS session-bootstrap helper did not become ready")
-
-    @classmethod
-    def finish_ios_session_bootstrap(cls, process: subprocess.Popen | None) -> None:
-        if process is None:
-            return
-        try:
-            stdout, stderr = process.communicate(
-                timeout=cls.IOS_SESSION_BOOTSTRAP_JOIN_TIMEOUT_SECONDS)
-        except (OSError, ValueError):
-            cls._stop_ios_session_bootstrap(process)
-            fail("iOS session-bootstrap helper did not complete safely")
-        except subprocess.TimeoutExpired:
-            cls._stop_ios_session_bootstrap(process)
-            fail("iOS session-bootstrap helper exceeded its bounded runtime")
-        if process.returncode != 0 or stdout != "PASS\n" or stderr != "":
-            fail("iOS session-bootstrap helper rejected the WDA runner transition")
-
     def create_appium_session(self, client: WebDriver, target: dict) -> object:
-        process = self.start_ios_session_bootstrap(target)
-        try:
-            value = client.call("POST", "/session", {
-                "capabilities": {"alwaysMatch": target["capabilities"], "firstMatch": [{}]},
-            })
-        except BaseException:
-            try:
-                self.finish_ios_session_bootstrap(process)
-            except RuntimeError:
-                # Keep Appium's already-redacted transport diagnosis as the
-                # primary failure while still guaranteeing helper cleanup.
-                pass
-            raise
-        try:
-            self.finish_ios_session_bootstrap(process)
-        except RuntimeError:
-            session = value.get("sessionId") if isinstance(value, dict) else None
-            if isinstance(session, str):
-                try:
-                    client.call("DELETE", f"/session/{session}")
-                except (OSError, RuntimeError, ValueError):
-                    selector = target.get("selector")
-                    if not isinstance(selector, str) or not selector:
-                        fail("failed Appium bootstrap session cannot be tracked for cleanup")
-                    self.save_session(selector, {
-                        "sessionId": session,
-                        "generation": 0,
-                        "targetFingerprint": "bootstrap-cleanup-pending",
-                        "bootstrapCleanupPending": True,
-                    })
-            raise
-        return value
+        return client.call("POST", "/session", {
+            "capabilities": {"alwaysMatch": target["capabilities"], "firstMatch": [{}]},
+        })
 
     def pre_session_device_attestation(self, target: dict) -> None:
         if self.platform != "ios":
@@ -1189,13 +1027,6 @@ class AppiumAdapter:
         fingerprint = hashlib.sha256(json.dumps(target, sort_keys=True,
                                                  separators=(",", ":")).encode()).hexdigest()
         previous_generation = int((state or {}).get("generation", 0))
-        if state and state.get("bootstrapCleanupPending") is True:
-            try:
-                client.call("DELETE", f"/session/{state['sessionId']}")
-            except (OSError, RuntimeError, ValueError):
-                fail("prior Appium bootstrap session cleanup is still pending")
-            self.state_path(selector).unlink(missing_ok=True)
-            state = None
         if state and state.get("targetFingerprint") != fingerprint:
             try:
                 client.call("DELETE", f"/session/{state['sessionId']}")

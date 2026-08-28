@@ -242,13 +242,14 @@ The exact one-time privileged publication command is:
 
 ```bash
 sudo python3 tests/device/ios/remotexpc_tunnel.py install-unit \
-  --appium-home /private/ios-lab/appium-staging
+  --appium-home /private/ios-lab/appium-staging \
+  --pymobiledevice3-home /private/ios-lab/pymobiledevice3-11.1.5
 ```
 
 Run it only from an audited, quiescent checkout and staging tree. It atomically
 copies the pinned Node executable, package files, complete npm tree, tunnel
-wrapper, and toolchain lock into
-`/usr/local/lib/overte-ios-remotexpc/5.15.3-r9`. The suffix is the immutable
+wrapper, validated pymobiledevice3 site-packages, and toolchain lock into
+`/usr/local/lib/overte-ios-remotexpc/5.15.3-r11`. The suffix is the immutable
 Overte packaging revision; the pinned RemoteXPC package remains 5.15.3. Source
 and destination trees are hashed before publication. Every installed file is
 root-owned and immutable. Existing content and modes are only attested, never
@@ -300,21 +301,23 @@ operator-supplied payload to DeveloperDiskImage commit
 `5423e4e955fbb3a9eef3e1212acfbfc6e7a26236`, build `27A5228h`, exact sizes,
 SHA-256 values, and manifest SHA-384 bindings. `device-ddi-mount` snapshots the
 validated bytes into an ephemeral private directory, suppresses all TSS and
-device output, and compares the mounted image signature directly to the pinned
-SHA-384 before attesting both XCTest services. Jenkins supplies this
+device output, and compares an existing mounted image signature directly to
+the pinned SHA-384 before it may unmount anything. It then always remounts the
+validated snapshot so XCTest receives fresh developer services, rechecks the
+mounted signature, and attests both XCTest services. Jenkins supplies this
 directory through the private `IOS_DDI_ROOT` parameter.
 
 Attest status without elevation:
 
 ```bash
-python3 /usr/local/lib/overte-ios-remotexpc/5.15.3-r9/remotexpc_tunnel.py status
+python3 /usr/local/lib/overte-ios-remotexpc/5.15.3-r11/remotexpc_tunnel.py status
 ```
 
 Jenkins must also start Appium from the immutable runtime, never from a mutable
 user `node_modules`:
 
 ```bash
-/usr/local/lib/overte-ios-remotexpc/5.15.3-r9/remotexpc_tunnel.py appium-server \
+/usr/local/lib/overte-ios-remotexpc/5.15.3-r11/remotexpc_tunnel.py appium-server \
   --state-root /private/jenkins-job/appium-state \
   --address 127.0.0.1 --port 4723
 ```

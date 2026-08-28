@@ -47,7 +47,7 @@ PERSONAL_WDA_IPA = "WebDriverAgentRunner-16.8.0-PersonalTeam-signed.ipa"
 PROTECTED_RECEIPT = "overte-ios-fedora-e2e-receipt-v1"
 PERSONAL_RECEIPT = "overte-ios-personal-team-artifact-receipt-v1"
 PREINSTALLED_RECEIPT = "overte-ios-personal-team-preinstalled-receipt-v1"
-PINNED_SERVICE_RUNTIME = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r9")
+PINNED_SERVICE_RUNTIME = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r11")
 MAX_ACTIONS_ARCHIVE_BYTES = 4 * 1024 * 1024 * 1024
 MAX_ENCRYPTED_BYTES = 4 * 1024 * 1024 * 1024
 MAX_INNER_ZIP_BYTES = 4 * 1024 * 1024 * 1024
@@ -522,6 +522,10 @@ def activate_target(config_path: Path, selector: str, receipt_path: Path) -> Non
     target["enabled"] = True
     target["appId"] = overte["bundleId"]
     target["artifactReceipt"] = str(receipt_path.resolve())
+    # Revision 11 starts WDA with a complete XCTest/testmanagerd handshake.
+    # Remove the revision-9 Home-event workaround from existing private
+    # targets so it cannot race that launch.
+    target.pop("iosSessionBootstrap", None)
     preinstalled = receipt["contract"] == PREINSTALLED_RECEIPT
     target["artifactMode"] = "personal-team-preinstalled" if preinstalled else "signed-ipa"
     capabilities["appium:bundleId"] = overte["bundleId"]
