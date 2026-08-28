@@ -57,15 +57,7 @@ class ToolchainLockTest(unittest.TestCase):
 
     def test_repository_lock_is_valid_and_complete(self):
         artifacts = validate_lock()
-        self.assertEqual(81, len(artifacts))
-        self.assertEqual(
-            {"linux", "macos", "windows"},
-            {
-                artifact_id.removeprefix("oculix.ide.")
-                for artifact_id in artifacts
-                if artifact_id.startswith("oculix.ide.")
-            },
-        )
+        self.assertEqual(78, len(artifacts))
         self.assertIn("jenkins.plugins.configuration-as-code", artifacts)
         self.assertIn("jenkins.plugins.git", artifacts)
         self.assertIn("appium.iosRuntime.remoteXpc", artifacts)
@@ -100,8 +92,8 @@ class ToolchainLockTest(unittest.TestCase):
 
     def test_rejects_non_https_and_placeholder_hashes(self):
         changed = copy.deepcopy(self.data)
-        artifact = changed["oculix"]["ideArtifacts"]["linux"]
-        artifact["url"] = "http://example.invalid/oculix.jar"
+        artifact = changed["appium"]["core"]["artifact"]
+        artifact["url"] = "http://example.invalid/appium.tgz"
         artifact["sha256"] = "0" * 64
         with self.assertRaises(LockValidationError) as raised:
             self.validate_copy(changed)

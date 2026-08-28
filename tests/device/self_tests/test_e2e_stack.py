@@ -294,7 +294,6 @@ class E2EStackTest(unittest.TestCase):
     def test_only_implemented_real_adapters_may_advertise_domain_navigation(self):
         adapter_root = ROOT / "adapters"
         for source in (adapter_root / "android/adapter.py",
-                       adapter_root / "desktop_oculix/adapter.py",
                        adapter_root / "appium/adapter.py"):
             self.assertIn("navigation.enter-domain", source.read_text(encoding="utf-8"))
 

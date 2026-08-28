@@ -63,9 +63,8 @@ def prepare(arguments: argparse.Namespace) -> int:
     targets.mkdir(parents=True, exist_ok=True, mode=0o700)
 
     appium_path = targets / "appium.json"
-    desktop_path = targets / "desktop.json"
     if arguments.environment_only:
-        if not appium_path.is_file() or not desktop_path.is_file():
+        if not appium_path.is_file():
             fail("environment-only requires existing private target files")
     else:
         appium = load_json(DEVICE_ROOT / "adapters/appium/targets.example.json")
@@ -73,26 +72,11 @@ def prepare(arguments: argparse.Namespace) -> int:
             target["enabled"] = False
         private_write(appium_path, appium)
 
-        desktop = load_json(DEVICE_ROOT / "adapters/desktop_oculix/targets.example.json")
-        interface = Path(arguments.interface_executable).expanduser().resolve() \
-            if arguments.interface_executable else None
-        for target in desktop["targets"]:
-            target["enabled"] = False
-            target["oculixJar"] = state["oculixJar"]
-            target["oculixSha256"] = state["oculixSha256"]
-            target["javaExecutable"] = state["java"]
-            if target["platform"] == "linux" and interface is not None:
-                target["executable"] = str(interface)
-                target["workingDirectory"] = str(interface.parent)
-        private_write(desktop_path, desktop)
-
     environment = {
         "schemaVersion": 1,
         "variables": {
             "OVERTE_APPIUM_TARGETS": str(appium_path),
-            "OVERTE_DESKTOP_TARGETS": str(desktop_path),
             "APPIUM_HOME": state["appiumHome"],
-            "OCULIX_IDE_JAR": state["oculixJar"],
             "OVERTE_CONAN_CACHE_ROOT": str(root / "conan-cache"),
             "OVERTE_ANDROID_BUILD_ROOT": str(root / "android-build-workspaces"),
         },
@@ -114,7 +98,6 @@ def prepare(arguments: argparse.Namespace) -> int:
 def parser() -> argparse.ArgumentParser:
     value = argparse.ArgumentParser(description=__doc__)
     value.add_argument("--config-root", required=True)
-    value.add_argument("--interface-executable")
     value.add_argument("--environment-only", action="store_true")
     return value
 

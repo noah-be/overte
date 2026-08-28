@@ -3,8 +3,8 @@
 The `sound-smoke` suite proves the strongest sound-specific behavior exposed by
 the current Interface scripting APIs without recording audio. It uses the
 repository-owned network fixture, the in-client test probe, and the shared
-`sound-playback` module. Desktop/Oculix targets with the injected probe command
-channel advertise this suite; other real adapters remain gated.
+`sound-playback` module. Android ADB and controlled Appium targets advertise
+this suite; other real adapters remain gated.
 
 ## Controlled signal
 
@@ -66,11 +66,10 @@ adapter implementation can post the versioned command there and must
 return only `{requested: true, commandId: string}`. The probe and request
 telemetry remain the independent acceptance evidence.
 
-The deterministic mock and explicitly controlled Desktop/Oculix profiles
-advertise `sound.play`. Desktop copies the repository probe into private target
-state, tells that running probe the exact fixture command endpoint, and leaves
-resource/injector state entirely to the probe. Other product adapters are
-deliberately unchanged.
+The deterministic mock and explicitly controlled Android/Appium profiles
+advertise `sound.play`. Their target-owned command transports tell the running
+probe the exact fixture command endpoint and leave resource/injector state
+entirely to the probe. Other product adapters are deliberately unchanged.
 
 ## Proof boundary
 
