@@ -331,12 +331,7 @@ class AndroidAdapter:
         return selector
 
     def require(self, target: str) -> None:
-        # A stopped Pico can briefly withdraw its WLAN-ADB transport while
-        # returning to Pico Home. Let ADB wait for that exact configured
-        # transport at suite boundaries; connected devices still take the
-        # immediate path and phone behavior remains unchanged.
-        self.adb.require_connected(
-            target, wait_seconds=15 if self.kind == "pico" else 0)
+        self.adb.require_connected(target)
         if not self.eligible(target):
             fail("target does not satisfy this Android adapter profile")
 
@@ -495,8 +490,7 @@ class AndroidAdapter:
         fail(f"unsupported operation: {operation}")
 
     def cleanup(self, target: str) -> dict:
-        self.adb.require_connected(
-            target, wait_seconds=15 if self.kind == "pico" else 0)
+        self.adb.require_connected(target)
         package = self.profile["package"]
         running = self.adb.process_state(target, package)["running"] is True
         cleanup_error = None

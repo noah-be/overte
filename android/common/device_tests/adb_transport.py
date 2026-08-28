@@ -77,22 +77,9 @@ class AdbTransport:
         return [parts[0] for line in lines
                 if len(parts := line.split()) >= 2 and parts[1] == "device"]
 
-    def require_connected(self, target: str, *, wait_seconds: int = 0) -> None:
-        if (isinstance(wait_seconds, bool) or not isinstance(wait_seconds, int)
-                or not 0 <= wait_seconds <= 60):
-            raise RuntimeError("ADB connection wait is invalid")
-        if self.execute(["get-state"], target=target, check=False).strip() == "device":
-            return
-        if wait_seconds:
-            try:
-                self.execute(["wait-for-device"], target=target,
-                             timeout=wait_seconds)
-            except RuntimeError:
-                pass
-            if self.execute(
-                    ["get-state"], target=target, check=False).strip() == "device":
-                return
-        raise RuntimeError("target is not connected and authorized")
+    def require_connected(self, target: str) -> None:
+        if self.execute(["get-state"], target=target, check=False).strip() != "device":
+            raise RuntimeError("target is not connected and authorized")
 
     def read_debug_app_file(self, target: str, package: str, relative_path: str,
                             *, attempts: int = 60, interval_seconds: float = 0.25) -> str:

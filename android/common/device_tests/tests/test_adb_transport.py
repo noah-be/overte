@@ -7,7 +7,6 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import call, Mock
 
 from android.common.device_tests.adb_transport import AdbTransport
 
@@ -71,24 +70,6 @@ class AdbTransportTest(unittest.TestCase):
             with self.subTest(value=value), self.assertRaisesRegex(
                     RuntimeError, "server port is invalid"):
                 AdbTransport(str(self.adb), server_port=value)
-
-    def test_bounded_wait_accepts_a_transiently_missing_transport(self):
-        execute = Mock(side_effect=["offline\n", "", "device\n"])
-        self.transport.execute = execute
-
-        self.transport.require_connected("secret", wait_seconds=15)
-
-        self.assertEqual([
-            call(["get-state"], target="secret", check=False),
-            call(["wait-for-device"], target="secret", timeout=15),
-            call(["get-state"], target="secret", check=False),
-        ], execute.call_args_list)
-
-    def test_connection_wait_is_strictly_bounded(self):
-        for value in (True, -1, 61, 1.5):
-            with self.subTest(value=value), self.assertRaisesRegex(
-                    RuntimeError, "connection wait is invalid"):
-                self.transport.require_connected("secret", wait_seconds=value)
 
     def test_debug_file_write_preserves_remote_shell_argument_boundaries(self):
         state = Path(self.temporary.name) / "control.json"
