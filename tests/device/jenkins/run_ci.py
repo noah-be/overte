@@ -93,6 +93,16 @@ def repository_file(root: Path, variable: str) -> Path:
     return path
 
 
+def checked_executable(variable: str) -> Path:
+    path = Path(environment(variable)).expanduser()
+    if not path.is_absolute() or has_symlink_component(path):
+        fail(f"{variable} must be an absolute path without symbolic-link components")
+    path = path.resolve()
+    if not path.is_file() or not os.access(path, os.X_OK):
+        fail(f"{variable} must name an executable file")
+    return path
+
+
 def external_directory(root: Path, variable: str) -> Path:
     raw_path = Path(environment(variable)).expanduser()
     if has_symlink_component(raw_path):
@@ -254,12 +264,13 @@ def stop_process(process: subprocess.Popen | None, grace_seconds: int = 5) -> No
         process.wait(timeout=grace_seconds)
 
 
-def wait_for_ready(process: subprocess.Popen, ready_file: Path, timeout_seconds: int = 10) -> dict:
+def wait_for_ready(process: subprocess.Popen, ready_file: Path, timeout_seconds: int = 10,
+                   required_key: str = "sceneUrl") -> dict:
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
         if ready_file.exists():
             value = json.loads(ready_file.read_text(encoding="utf-8"))
-            if isinstance(value, dict) and isinstance(value.get("sceneUrl"), str):
+            if isinstance(value, dict) and isinstance(value.get(required_key), str):
                 return value
             fail("fixture ready file has an invalid shape")
         if process.poll() is not None:
@@ -296,6 +307,49 @@ def apply_http_fixture_environment(environment_values: dict[str, str], ready: di
         "OVERTE_E2E_SOUND_REQUESTS_URL": str(ready["soundRequestsUrl"]),
         "OVERTE_E2E_SOUND_DURATION_SECONDS": str(sound["durationSeconds"]),
     })
+
+
+def apply_domain_fixture_environment(environment_values: dict[str, str], ready: dict) -> None:
+    markers = ready.get("requiredMarkers") if isinstance(ready, dict) else None
+    if (not isinstance(ready, dict)
+            or not isinstance(ready.get("domainUrl"), str)
+            or not ready["domainUrl"].startswith("hifi://")
+            or not isinstance(ready.get("domainHost"), str)
+            or not isinstance(ready.get("domainId"), str)
+            or not isinstance(markers, list) or not markers
+            or not all(isinstance(marker, str) and marker for marker in markers)):
+        fail("domain fixture ready file has incomplete metadata")
+    environment_values.update({
+        "OVERTE_E2E_DOMAIN_URL": ready["domainUrl"],
+        "OVERTE_E2E_DOMAIN_HOST": ready["domainHost"],
+        "OVERTE_E2E_DOMAIN_ID": ready["domainId"],
+        "OVERTE_E2E_DOMAIN_MARKERS_JSON": json.dumps(markers, separators=(",", ":")),
+    })
+
+
+def copy_domain_fixture_artifacts(source: Path, output: Path) -> None:
+    if not source.is_dir():
+        return
+    destination = output / "domain-fixture"
+    copied = False
+    for name in ("domain-config.json", "domain-server.log", "assignment-client.log"):
+        candidate = source / name
+        if candidate.is_file() and not candidate.is_symlink():
+            destination.mkdir(parents=True, exist_ok=True, mode=0o700)
+            shutil.copy2(candidate, destination / name)
+            copied = True
+    assignment_logs = source / "assignment-logs"
+    if assignment_logs.is_dir() and not assignment_logs.is_symlink():
+        regular_logs = [path for path in assignment_logs.iterdir()
+                        if path.is_file() and not path.is_symlink()]
+        if regular_logs:
+            target = destination / "assignment-logs"
+            target.mkdir(parents=True, exist_ok=True, mode=0o700)
+            for path in regular_logs:
+                shutil.copy2(path, target / path.name)
+            copied = True
+    if not copied and destination.exists():
+        destination.rmdir()
 
 
 def subprocess_group_options() -> dict[str, object]:
@@ -374,11 +428,34 @@ def run_suite() -> int:
     fixture_metadata = output.parent / f".{output.name}-fixture"
     fixture_log = fixture_metadata / "fixture.log"
     fixture_ready = fixture_metadata / "ready.json"
+    domain_output = fixture_metadata / "domain"
     runner_environment = os.environ.copy()
     previous_handlers: dict[int, object] = {}
 
     try:
-        if suite == "e2e-core" and checked_fixture_mode() == "embedded":
+        if suite == "domain-smoke":
+            host = checked_public_host()
+            bind = environment("OVERTE_CI_FIXTURE_BIND", required=False, default="0.0.0.0")
+            domain_server = checked_executable("OVERTE_CI_DOMAIN_SERVER_EXECUTABLE")
+            assignment_client = checked_executable(
+                "OVERTE_CI_ASSIGNMENT_CLIENT_EXECUTABLE")
+            if fixture_metadata.exists():
+                fail("fixture metadata directory already exists")
+            fixture_metadata.mkdir(mode=0o700)
+            fixture_log_handle = fixture_log.open("w", encoding="utf-8")
+            fixture = subprocess.Popen([
+                sys.executable, str(root / "tests/device/fixture/domain.py"),
+                "--domain-server", str(domain_server),
+                "--assignment-client", str(assignment_client),
+                "--bind", bind, "--public-host", host,
+                "--domain-host", host, "--output-dir", str(domain_output),
+                "--ready-file", str(fixture_ready),
+            ], cwd=root, stdout=fixture_log_handle, stderr=subprocess.STDOUT,
+               text=True, **subprocess_group_options())
+            ready = wait_for_ready(fixture, fixture_ready, timeout_seconds=30,
+                                   required_key="domainUrl")
+            apply_domain_fixture_environment(runner_environment, ready)
+        elif suite == "e2e-core" and checked_fixture_mode() == "embedded":
             runner_environment["OVERTE_E2E_SCENE_URL"] = EMBEDDED_FIXTURE_URL
         elif suite in {"e2e-core", "asset-smoke", "sound-smoke"}:
             host = checked_public_host()
@@ -441,6 +518,7 @@ def run_suite() -> int:
                 shutil.copy2(fixture_log, output / "fixture.log")
             if fixture_ready.exists():
                 shutil.copy2(fixture_ready, output / "fixture-ready.json")
+            copy_domain_fixture_artifacts(domain_output, output)
 
 
 def load_adapter_command(manifest: Path) -> list[str]:

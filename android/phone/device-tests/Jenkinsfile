@@ -59,6 +59,8 @@ def runPhoneSuite(String suite) {
         "OVERTE_CI_FIXTURE_PORT=${fixturePort.trim()}",
         'OVERTE_CI_ALLOW_VIRTUAL=0',
         'OVERTE_E2E_CAPTURE_ARTIFACTS=0',
+        "OVERTE_CI_DOMAIN_SERVER_EXECUTABLE=${params.DOMAIN_SERVER_EXECUTABLE ?: ''}",
+        "OVERTE_CI_ASSIGNMENT_CLIENT_EXECUTABLE=${params.ASSIGNMENT_CLIENT_EXECUTABLE ?: ''}",
     ]) {
         try {
             lock(resource: params.DEVICE_RESOURCE.trim(), inversePrecedence: true) {
@@ -158,6 +160,16 @@ pipeline {
             defaultValue: '/home/user/Documents/github/overte-android-phone-e2e',
             description: 'Trusted local Phone lab worktree containing the incremental Android build cache.'
         )
+        string(
+            name: 'DOMAIN_SERVER_EXECUTABLE',
+            defaultValue: '',
+            description: 'Absolute path to the trusted local domain-server executable.'
+        )
+        string(
+            name: 'ASSIGNMENT_CLIENT_EXECUTABLE',
+            defaultValue: '',
+            description: 'Absolute path to the trusted local assignment-client executable.'
+        )
     }
 
     environment {
@@ -183,9 +195,14 @@ pipeline {
                     if (!params.TARGET_SELECTOR_CREDENTIAL_ID.trim()) {
                         error('TARGET_SELECTOR_CREDENTIAL_ID is required')
                     }
-                    if (params.TEST_SUITE in ['asset-smoke', 'sound-smoke']
+                    if (params.TEST_SUITE in ['domain-smoke', 'asset-smoke', 'sound-smoke']
                             && !(params.FIXTURE_PUBLIC_HOST ?: '').trim()) {
-                        error('FIXTURE_PUBLIC_HOST is required for asset and sound tests')
+                        error('FIXTURE_PUBLIC_HOST is required for domain, asset, and sound tests')
+                    }
+                    if (params.TEST_SUITE == 'domain-smoke'
+                            && (!(params.DOMAIN_SERVER_EXECUTABLE ?: '').trim()
+                                || !(params.ASSIGNMENT_CLIENT_EXECUTABLE ?: '').trim())) {
+                        error('Domain and assignment executables are required for domain-smoke')
                     }
                     env.OVERTE_TARGET_NEEDS_CLEANUP = '0'
                     env.OVERTE_EXTERNAL_RESULT_ROOT =

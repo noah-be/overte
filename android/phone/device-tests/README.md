@@ -91,8 +91,9 @@ or persist flying preferences or any other user setting.
 ## Jenkins Phone lab
 
 [`Jenkinsfile`](Jenkinsfile) runs one selected fully supported Phone suite on
-the generic local device-lab agent: `smoke`, `vertical-locomotion`,
-`lifecycle-stability`, or `stability`. The agent must provide a private
+the generic local device-lab agent: `smoke`, `domain-smoke`, `asset-smoke`,
+`sound-smoke`, `vertical-locomotion`, `lifecycle-stability`, or `stability`.
+The agent must provide a private
 executable, selector-redacting `OVERTE_ANDROID_ADB` wrapper; its transport may
 be USB or Wi-Fi. Jenkins binds only the wrapper's redacted target alias from
 Secret Text, reserves the configured Lockable Resource, publishes the runner's
@@ -100,3 +101,13 @@ JUnit and sanitized artifacts, and performs locked cleanup after success,
 failure, or timeout. The Phone-scoped [`jenkins_ci.py`](jenkins_ci.py)
 registers the supported suite set with the shared CI helper; the shared runner
 and suite implementations remain unchanged.
+
+`asset-smoke` and `sound-smoke` start the repository-owned HTTP fixture on the
+configured LAN host. `domain-smoke` additionally requires absolute paths to
+trusted local `domain-server` and `assignment-client` executables. Jenkins
+starts the repository-owned domain controller with those binaries, waits for
+its exact domain UUID, supplies the controlled domain URL and marker allowlist
+to the runner, and always terminates the complete fixture stack. The fixture
+bind address must be reachable from the Phone so both the domain and its
+persistent content script remain local to the lab while still being accessible
+over the LAN.
