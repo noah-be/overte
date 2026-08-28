@@ -40,6 +40,8 @@ process_state=open(process_path).read().strip() if process_path and os.path.exis
 foreground_path=os.environ.get("MOCK_ANDROID_FOREGROUND_STATE", "")
 foreground_state=(open(foreground_path).read().strip()
                   if foreground_path and os.path.exists(foreground_path) else "foreground")
+home_state_path=os.environ.get("MOCK_ANDROID_HOME_STATE", "")
+home_ignored_events=int(os.environ.get("MOCK_ANDROID_HOME_IGNORED_EVENTS", "0"))
 control_state_path=os.environ.get("MOCK_ANDROID_CONTROL_STATE", "")
 control_available=os.environ.get("MOCK_ANDROID_CONTROL_AVAILABLE", "") == "1"
 control_after=int(os.environ.get("MOCK_ANDROID_CONTROL_AFTER_READS", "0"))
@@ -96,7 +98,11 @@ elif cmd[:4] == ["shell", "am", "start", "-W"]:
     if foreground_path: open(foreground_path,"w").write("foreground")
     print("Status: ok")
 elif cmd == ["shell", "input", "keyevent", "KEYCODE_HOME"]:
-    if foreground_path: open(foreground_path,"w").write("background")
+    home_events=(int(open(home_state_path).read())
+                 if home_state_path and os.path.exists(home_state_path) else 0)
+    if home_state_path: open(home_state_path,"w").write(str(home_events + 1))
+    if foreground_path and home_events >= home_ignored_events:
+        open(foreground_path,"w").write("background")
 elif cmd[:3] == ["install", "-r", "-g"]:
     if process_path: open(process_path,"w").write("stopped")
     print("Success")
@@ -558,6 +564,7 @@ class AndroidAdapterTest(unittest.TestCase):
         process.write_text("stopped", encoding="utf-8")
         foreground = Path(self.temporary.name) / "reactivate-foreground"
         foreground.write_text("background", encoding="utf-8")
+        home_state = Path(self.temporary.name) / "reactivate-home-events"
         argv_log = Path(self.temporary.name) / "reactivate-adb.jsonl"
         self.environment.update({
             "OVERTE_ANDROID_E2E_DEBUG": "1",
@@ -567,6 +574,8 @@ class AndroidAdapterTest(unittest.TestCase):
             "MOCK_ANDROID_CONTROL_AVAILABLE": "1",
             "MOCK_ANDROID_PROCESS_STATE": str(process),
             "MOCK_ANDROID_FOREGROUND_STATE": str(foreground),
+            "MOCK_ANDROID_HOME_STATE": str(home_state),
+            "MOCK_ANDROID_HOME_IGNORED_EVENTS": "1",
             "MOCK_ADB_ARGV_LOG": str(argv_log),
         })
         common = [sys.executable, str(ADAPTER), "--kind", "pico", "invoke",
@@ -589,6 +598,7 @@ class AndroidAdapterTest(unittest.TestCase):
         backgrounded = invoke("lifecycle.background")
         self.assertTrue(backgrounded["backgrounded"])
         self.assertFalse(invoke("app.foreground")["foreground"])
+        self.assertEqual("2", home_state.read_text(encoding="utf-8"))
 
         second = subprocess.run(
             [*common, "--operation", "app.launch", "--arguments", "{}"],

@@ -187,6 +187,31 @@ class AndroidAdapter:
         if state.get("running") is not True or state.get("identity") != identity:
             fail(f"Android process changed during {operation}")
 
+    def background_app(self, target: str) -> None:
+        package = self.profile["package"]
+        if self.kind != "pico":
+            self.adb.shell(target, "input", "keyevent", "KEYCODE_HOME")
+            return
+        state = self.adb.process_state(target, package)
+        identity = state.get("identity")
+        if (state.get("running") is not True or not isinstance(identity, str)
+                or not identity):
+            fail("Pico E2E launcher process is not running")
+        # Pico Home consumes the first HOME event after some programmatic VR
+        # foreground transitions without changing the resumed activity. Do not
+        # report success for an ignored event: retry only until the bounded,
+        # process-preserving background transition is actually observed.
+        for _attempt in range(3):
+            self.adb.shell(target, "input", "keyevent", "KEYCODE_HOME")
+            deadline = time.monotonic() + 1.5
+            while time.monotonic() < deadline:
+                self.require_same_process(target, identity, "lifecycle background")
+                if self.adb.foreground_package(target) != package:
+                    self.require_same_process(target, identity, "lifecycle background")
+                    return
+                time.sleep(0.25)
+        fail("Pico application did not enter the background")
+
     def write_control_command(self, target: str, identity: str,
                               operation: str, command: dict) -> None:
         payload = json.dumps(command, separators=(",", ":"), sort_keys=True) + "\n"
@@ -495,7 +520,7 @@ class AndroidAdapter:
                 self.require_pico_session_identity(target)
             return {"foreground": self.adb.foreground_package(target) == package}
         if operation == "lifecycle.background":
-            self.adb.shell(target, "input", "keyevent", "KEYCODE_HOME")
+            self.background_app(target)
             return {"backgrounded": True}
         if operation == "telemetry.snapshot":
             return self.adb.telemetry_snapshot(target, package)
