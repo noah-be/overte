@@ -22,6 +22,10 @@ it private, fill in the Interface, Java, and OculiX paths and all three SHA-256
 digests, then export `OVERTE_WINDOWS_TARGETS`. The adapter checks every digest
 before discovery and again at use. Selectors, account paths, and target
 configuration must never be published in CI artifacts.
+Interface and OculiX inherit only a bounded set of ordinary Windows session
+variables plus explicit target environment entries. Harness paths, selectors,
+GitHub tokens, and Jenkins-prefixed values are removed before either child is
+started.
 
 The Jenkins agent must run as an interactive process in the dedicated lab
 user's active input desktop. Windows Session 0 and an inaccessible input

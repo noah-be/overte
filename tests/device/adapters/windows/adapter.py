@@ -32,6 +32,23 @@ from contracts import validate_operation_arguments  # noqa: E402
 DRIVER = Path(__file__).resolve().parent / "overte.sikuli"
 PROBE_SCRIPT = DEVICE_ROOT / "probe" / "overte_e2e_probe.js"
 HASH_PATTERN = re.compile(r"[0-9a-fA-F]{64}")
+WINDOWS_CHILD_ENVIRONMENT = frozenset({
+    "ALLUSERSPROFILE", "APPDATA", "COMMONPROGRAMFILES",
+    "COMMONPROGRAMFILES(X86)", "COMMONPROGRAMW6432", "COMSPEC",
+    "HOMEDRIVE", "HOMEPATH", "JAVA_HOME", "LOCALAPPDATA",
+    "NUMBER_OF_PROCESSORS", "ONEDRIVE", "OS", "PATH", "PATHEXT",
+    "PROCESSOR_ARCHITECTURE", "PROCESSOR_IDENTIFIER", "PROCESSOR_LEVEL",
+    "PROCESSOR_REVISION", "PROGRAMDATA", "PROGRAMFILES",
+    "PROGRAMFILES(X86)", "PROGRAMW6432", "PUBLIC", "SESSIONNAME",
+    "SYSTEMDRIVE", "SYSTEMROOT", "TEMP", "TMP", "USERDOMAIN",
+    "USERDOMAIN_ROAMINGPROFILE", "USERNAME", "USERPROFILE", "WINDIR",
+})
+PRIVATE_CHILD_ENVIRONMENT = frozenset({
+    "GH_TOKEN", "GITHUB_TOKEN", "HIFI_ALLOW_MULTIPLE_INSTANCES",
+    "OVERTE_DEVICE_ADAPTER_MANIFEST", "OVERTE_DEVICE_ARTIFACT_DIR",
+    "OVERTE_DEVICE_STATE_ROOT", "OVERTE_DEVICE_TARGET_SELECTOR",
+    "OVERTE_E2E_SCENE_URL", "OVERTE_WINDOWS_TARGETS",
+})
 
 
 def cli() -> argparse.Namespace:
@@ -238,9 +255,15 @@ class WindowsAdapter:
     def target_environment(
             self, target: dict, *, visual_driver: bool = False) -> dict[str, str]:
         del visual_driver
-        environment = os.environ.copy()
+        environment = {
+            key: value for key, value in os.environ.items()
+            if key.upper() in WINDOWS_CHILD_ENVIRONMENT
+        }
         environment.update(target.get("environment", {}))
-        environment.pop("HIFI_ALLOW_MULTIPLE_INSTANCES", None)
+        for name in list(environment):
+            if (name.upper() in PRIVATE_CHILD_ENVIRONMENT
+                    or name.upper().startswith(("JENKINS_", "GITHUB_"))):
+                environment.pop(name, None)
         return environment
 
     def runtime_environment(

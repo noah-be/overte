@@ -188,8 +188,17 @@ class WindowsAdapterTest(unittest.TestCase):
     def test_target_environment_cannot_reenable_multiple_instances(self) -> None:
         self.target["environment"]["HIFI_ALLOW_MULTIPLE_INSTANCES"] = "1"
         self.write_config()
-        environment = self.adapter().target_environment(self.target)
+        inherited = dict(self.environment)
+        inherited["GH_TOKEN"] = "must-not-reach-interface"
+        inherited["JENKINS_PRIVATE_VALUE"] = "must-not-reach-interface"
+        with patch.dict(os.environ, inherited, clear=True):
+            environment = WINDOWS.WindowsAdapter().target_environment(self.target)
         self.assertNotIn("HIFI_ALLOW_MULTIPLE_INSTANCES", environment)
+        self.assertNotIn("OVERTE_WINDOWS_TARGETS", environment)
+        self.assertNotIn("OVERTE_DEVICE_TARGET_SELECTOR", environment)
+        self.assertNotIn("GH_TOKEN", environment)
+        self.assertNotIn("JENKINS_PRIVATE_VALUE", environment)
+        self.assertEqual("1", environment["OVERTE_WINDOWS_TEST"])
 
     def test_oculix_is_hash_pinned_pid_scoped_and_environment_bounded(self) -> None:
         adapter = self.adapter()
