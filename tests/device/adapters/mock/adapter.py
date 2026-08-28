@@ -250,7 +250,7 @@ def invoke(operation: str, arguments: dict) -> dict:
                   "sequence": state["inputSequence"]}
         if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
             result.update({"openXrVectorApplied": True,
-                           "openXrLeftThumbstickY": 0.4})
+                           "openXrLeftThumbstickY": arguments.get("strength", 0.8)})
     elif operation == "input.jump":
         state["locomotion"] = "jump"
         state["locomotionSamples"] = 0

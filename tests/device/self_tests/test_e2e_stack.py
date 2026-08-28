@@ -349,7 +349,7 @@ class E2EStackTest(unittest.TestCase):
                     self.assertTrue(input_result["neutralBeforeCommand"])
                 if module == "move":
                     self.assertTrue(input_result["openXrVectorApplied"])
-                    self.assertEqual(0.4, input_result["openXrLeftThumbstickY"])
+                    self.assertEqual(0.8, input_result["openXrLeftThumbstickY"])
                 if module == "tablet":
                     self.assertTrue(input_result["openXrBooleanApplied"])
 
@@ -386,7 +386,7 @@ class E2EStackTest(unittest.TestCase):
         session = (ROOT / "overte_session.py").read_text(encoding="utf-8")
         launch = (ROOT / "modules/launch_smoke.py").read_text(encoding="utf-8")
         self.assertIn('arguments["durationSeconds"] = 6.0', session)
-        self.assertIn('move_arguments.update({"durationSeconds": 3.0, "strength": 0.4})',
+        self.assertIn('move_arguments.update({"durationSeconds": 3.0, "strength": 0.8})',
                       session)
         self.assertIn('{"holdMilliseconds": 1000} if self.pico_openxr else None',
                       session)

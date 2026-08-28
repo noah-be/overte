@@ -483,7 +483,7 @@ class OverteSession:
                 fail("Pico movement requires effective advanced movement controls")
         move_arguments = {"direction": direction, "durationSeconds": duration_seconds}
         if pico:
-            move_arguments.update({"durationSeconds": 3.0, "strength": 0.4})
+            move_arguments.update({"durationSeconds": 3.0, "strength": 0.8})
         result = operation("input.move", move_arguments)
         write_json("move-input-result.json", result)
         if pico:
