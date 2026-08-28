@@ -59,6 +59,7 @@ def initial_state() -> dict:
         "picoRouteActive": False, "inputSequence": 0,
         "processRevision": 0, "asset": None,
         "sampleSequence": 0, "sampleEpochMs": 0,
+        "soundObservationCount": 0,
         "sound": {
             "commandId": "", "url": "", "commandObserved": False,
             "resourceReady": False, "durationSeconds": 0.0, "format": "unknown",
@@ -302,6 +303,11 @@ def invoke(operation: str, arguments: dict) -> dict:
             domain_markers = []
         failure = os.environ.get("OVERTE_MOCK_SOUND_FAILURE", "")
         sound_active = bool(state.get("sound", {}).get("commandObserved"))
+        if sound_active:
+            state["soundObservationCount"] = state.get("soundObservationCount", 0) + 1
+            if (failure == "end-after-two-active-samples"
+                    and state["soundObservationCount"] > 2):
+                state["sound"]["playbackEndEpochMs"] = 0
         if not (failure == "stale-probe" and sound_active):
             state["sampleSequence"] += 1
         now = int(time.time() * 1000)
