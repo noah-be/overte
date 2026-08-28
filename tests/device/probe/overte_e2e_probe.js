@@ -62,9 +62,17 @@
         "OVERTE_E2E_DOMAIN_EAST", "OVERTE_E2E_DOMAIN_ORIGIN"];
     var expectedSpawn = { x: 0.0, y: 2.0, z: 4.0 };
 
+    function controlledTabletOpen() {
+        return Boolean(tablet.tabletShown || HMD.showTablet);
+    }
+
     function addControlledInputRoute(name, action) {
         controlledInputMapping.from(function () {
-            return controlledKey === name ? 1.0 : 0.0;
+            // A physical desktop key is consumed by the focused tablet before
+            // it can reach world locomotion. Preserve that routing boundary
+            // for semantic in-client input while leaving ContextMenu active.
+            return controlledKey === name
+                && (name === "tablet" || !controlledTabletOpen()) ? 1.0 : 0.0;
         }).to(action);
     }
 
@@ -770,7 +778,10 @@
                 orientation: vector(orientation)
             },
             tablet: {
-                open: Boolean(tablet.tabletShown),
+                // tabletShown is explicitly unused in desktop toolbar mode.
+                // HMD.showTablet is the application-level ContextMenu state
+                // shared by toolbar and world-tablet presentations.
+                open: controlledTabletOpen(),
                 home: Boolean(tablet.onHomeScreen()),
                 toolbarMode: Boolean(tablet.toolbarMode)
             },

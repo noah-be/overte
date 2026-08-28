@@ -167,6 +167,13 @@ actions, without requiring synthetic-key permissions or directly changing
 avatar state. Every held input is released on its timer or probe shutdown. A
 probe without the controlled HTTP route stops polling the channel.
 
+The tablet observation combines `tabletShown` with the application-level
+`HMD.showTablet` state because `tabletShown` is intentionally unused when a
+desktop target presents the tablet in toolbar mode.
+Semantic world-input routes remain neutral while that tablet state is active,
+matching the focus boundary applied to physical desktop keyboard input; the
+ContextMenu route remains available so the same bounded command can close it.
+
 [`fixture/domain.py`](fixture/domain.py) owns the complementary ephemeral
 domain-server and assignment-client stack. The `domain-smoke` assertion waits
 for the exact `/id` UUID, host, all repository-owned domain markers, stable
