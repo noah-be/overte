@@ -20,7 +20,7 @@ ADAPTER = ROOT / "adapters/android/adapter.py"
 
 
 MOCK_ADB = r'''#!/usr/bin/env python3
-import json,os,sys,time
+import json,os,shlex,sys,time
 raw=sys.argv[1:]
 argv_log=os.environ.get("MOCK_ADB_ARGV_LOG", "")
 if argv_log:
@@ -127,10 +127,14 @@ elif cmd and cmd[0] == "exec-out" and "grant.json" in cmd[-1]:
         status=json.loads(open(status_path).read()); status["state"]="neutral"
         status["detail"]="grant-removed"; status["updatedEpochMs"]=int(time.time()*1000)
         open(status_path,"w").write(json.dumps(status))
-elif (cmd[:4] == ["shell", "run-as", "org.overte.phone", "sh"]
-      or cmd[:4] == ["shell", "run-as", "org.overte.pico", "sh"]):
+elif (len(cmd) == 2 and cmd[0] == "shell"
+      and (shlex.split(cmd[1])[:3] == ["run-as", "org.overte.phone", "sh"]
+           or shlex.split(cmd[1])[:3] == ["run-as", "org.overte.pico", "sh"])):
     payload=sys.stdin.read()
-    remote=cmd[-1]
+    remote_arguments=shlex.split(cmd[1])
+    if remote_arguments[3] != "-c" or remote_arguments[5] != "overte-e2e-write":
+        raise SystemExit(8)
+    remote=remote_arguments[6]
     if control_state_path: open(control_state_path,"w").write(payload)
     if control_payload_log:
         with open(control_payload_log,"a") as output:

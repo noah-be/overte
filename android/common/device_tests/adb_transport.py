@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 from pathlib import Path, PurePosixPath
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -103,10 +104,15 @@ class AdbTransport:
             raise RuntimeError("debug app file content is invalid or oversized")
         script = ('umask 077; temporary="$1.tmp"; cat > "$temporary" '
                   '&& chmod 600 "$temporary" && mv "$temporary" "$1"')
-        self.execute([
-            "shell", "run-as", package, "sh", "-c", script,
+        # `adb shell ARG...` joins its host-side arguments into one remote
+        # command line.  Preserve the `sh -c` script and positional arguments
+        # explicitly instead of relying on host argv boundaries that are lost
+        # before Android's shell parses the command.
+        remote = " ".join(shlex.quote(value) for value in (
+            "run-as", package, "sh", "-c", script,
             "overte-e2e-write", relative_path,
-        ], target=target, input_text=content)
+        ))
+        self.execute(["shell", remote], target=target, input_text=content)
         if self.read_debug_app_file(
                 target, package, relative_path, attempts=1) != content:
             raise RuntimeError("debug app control file could not be confirmed")

@@ -12,7 +12,7 @@ from android.common.device_tests.adb_transport import AdbTransport
 
 
 MOCK = r'''#!/usr/bin/env python3
-import sys
+import os,shlex,sys
 a=sys.argv[1:]
 if len(a) >= 2 and a[0] == "-P":
     if a[1] != "5041": raise SystemExit(4)
@@ -22,6 +22,16 @@ elif a == ["-s", "secret", "get-state"]: print("device")
 elif a[-4:] == ["shell", "pidof", "-s", "org.overte.test"]: print("42")
 elif a[-3:] == ["shell", "cat", "/proc/42/stat"]: print("42 (app) S " + "0 "*18 + "123 0")
 elif a[-4:] == ["shell", "dumpsys", "activity", "activities"]: print("  ResumedActivity: x u0 org.overte.test/.Main t1")
+elif len(a) >= 4 and a[-2] == "shell" and a[-1].startswith("run-as "):
+    remote=shlex.split(a[-1])
+    expected=["run-as","org.overte.test","sh","-c",
+      'umask 077; temporary="$1.tmp"; cat > "$temporary" && chmod 600 "$temporary" && mv "$temporary" "$1"',
+      "overte-e2e-write","files/overte-e2e/control.json"]
+    if remote != expected: raise SystemExit(5)
+    payload=sys.stdin.read()
+    open(os.environ["MOCK_CONTROL_STATE"],"w").write(payload)
+elif a[-5:] == ["shell","run-as","org.overte.test","cat","files/overte-e2e/control.json"]:
+    print(open(os.environ["MOCK_CONTROL_STATE"]).read(),end="")
 else: raise SystemExit(3)
 '''
 
@@ -60,6 +70,19 @@ class AdbTransportTest(unittest.TestCase):
             with self.subTest(value=value), self.assertRaisesRegex(
                     RuntimeError, "server port is invalid"):
                 AdbTransport(str(self.adb), server_port=value)
+
+    def test_debug_file_write_preserves_remote_shell_argument_boundaries(self):
+        state = Path(self.temporary.name) / "control.json"
+        previous = os.environ.get("MOCK_CONTROL_STATE")
+        os.environ["MOCK_CONTROL_STATE"] = str(state)
+        self.addCleanup(
+            lambda: (os.environ.pop("MOCK_CONTROL_STATE", None)
+                     if previous is None
+                     else os.environ.__setitem__("MOCK_CONTROL_STATE", previous)))
+        payload = '{"schemaVersion":1}\n'
+        self.transport.write_debug_app_file(
+            "secret", "org.overte.test", "files/overte-e2e/control.json", payload)
+        self.assertEqual(payload, state.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
