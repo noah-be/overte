@@ -19,23 +19,13 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from contracts import validate_probe_snapshot  # noqa: E402
+from test_vertical_locomotion import snapshot as probe_snapshot  # noqa: E402
 
 
 class E2EStackTest(unittest.TestCase):
     @staticmethod
     def snapshot() -> dict:
-        return {
-            "schemaVersion": 1, "sampleEpochMs": 1, "sampleSequence": 1,
-            "build": {"platform": "Mock", "version": "1", "date": "1970-01-01"},
-            "application": {"running": True},
-            "scene": {"ready": True, "entityCount": 4},
-            "avatar": {
-                "position": {"x": 0, "y": 1, "z": 4},
-                "inAir": False, "flying": False, "flyingEnabled": True,
-            },
-            "view": {"orientation": {"x": 0, "y": 0, "z": 0}},
-            "tablet": {"open": False},
-        }
+        return probe_snapshot()
 
     def test_probe_contract_rejects_boolean_counts_and_non_finite_vectors(self):
         snapshot = self.snapshot()
@@ -79,7 +69,7 @@ class E2EStackTest(unittest.TestCase):
 
         snapshot = self.snapshot()
         snapshot["domain"] = {
-            "connected": True,
+            "connected": False,
             "hostname": "",
             "id": "{00000000-0000-0000-0000-000000000000}",
             "protocol": "file",
@@ -186,13 +176,16 @@ class E2EStackTest(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stdout)
             summary = json.loads((output / "summary.json").read_text(encoding="utf-8"))
             self.assertEqual("passed", summary["status"])
-            self.assertEqual(["launch-smoke", "scene", "look", "move", "tablet"],
-                             [item["id"] for item in summary["results"]])
+            self.assertEqual([
+                "launch-smoke", "scene", "spawn-grounded", "look", "move",
+                "input-neutral", "collision", "jump", "fly", "tablet",
+                "tablet-input-isolation", "scene-reload",
+            ], [item["id"] for item in summary["results"]])
             state = json.loads((root / "state.json").read_text(encoding="utf-8"))
             self.assertEqual(1, state["launchCount"])
-            self.assertEqual(1, state["sceneLoadCount"])
+            self.assertEqual(3, state["sceneLoadCount"])
             junit = ET.parse(output / "junit.xml").getroot()
-            self.assertEqual("5", junit.attrib["tests"])
+            self.assertEqual("12", junit.attrib["tests"])
             self.assertEqual("0", junit.attrib["failures"])
             self.assertEqual("0", junit.attrib["errors"])
 
@@ -366,9 +359,9 @@ class E2EStackTest(unittest.TestCase):
         self.assertEqual("/scene.json", served.path)
         probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
         self.assertIn("avatarAboveFloor", probe)
-        self.assertIn("MyAvatar.goToLocation(expectedSpawn, false)", probe)
-        self.assertIn("!spawnApplied && markerCount === fixtureMarkers.length", probe)
-        self.assertIn("spawnRequestPending && avatarAtSpawn", probe)
+        self.assertNotIn("MyAvatar.goToLocation", probe)
+        self.assertNotIn("MyAvatar.velocity =", probe)
+        self.assertIn("!sceneReady && markerCount === fixtureMarkers.length", probe)
         self.assertIn("stableAvatarSamples >= 4", probe)
         self.assertIn("spawnValidated: sceneReady", probe)
 
