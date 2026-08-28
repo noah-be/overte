@@ -8,23 +8,24 @@ import os
 import time
 
 from module_support import (ARTIFACT_DIR, assert_foreground, assert_process,
-                            module_main, operation, positive_integer_environment, wait_for_process,
-                            write_json)
+                            contract_operation, fail, module_main, operation,
+                            positive_integer_environment,
+                            wait_for_process, write_json)
 
 
 def main() -> None:
     cycles = positive_integer_environment("OVERTE_DEVICE_LIFECYCLE_CYCLES", 10, 1000)
     delay = positive_integer_environment("OVERTE_DEVICE_LIFECYCLE_DELAY_SECONDS", 2, 60)
-    operation("app.launch")
+    contract_operation("app.launch")
     identity = wait_for_process()
     records = []
     for cycle in range(1, cycles + 1):
         operation("lifecycle.background")
         time.sleep(delay)
         assert_process(identity, f"cycle {cycle} background")
-        if operation("app.foreground").get("foreground") is not False:
-            raise RuntimeError(f"cycle {cycle}: application did not enter background")
-        operation("app.launch")
+        if contract_operation("app.foreground").get("foreground") is not False:
+            fail(f"cycle {cycle}: application did not enter background")
+        contract_operation("app.launch")
         time.sleep(delay)
         assert_process(identity, f"cycle {cycle} foreground")
         assert_foreground(f"cycle {cycle}")
