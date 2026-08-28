@@ -590,6 +590,8 @@ def self_check() -> int:
         [sys.executable, str(root / "tests/device/fixture/serve.py"), "--check"],
         [sys.executable, "-m", "unittest", "discover", "-s",
          str(root / "tests/device/self_tests"), "-v"],
+        [sys.executable, "-m", "unittest", "discover", "-s",
+         str(root / "tests/device/ios"), "-p", "test_*.py", "-v"],
         [sys.executable, str(root / "tests/device/jenkins/test_run_ci.py"), "-v"],
         [sys.executable, str(root / "tests/device/jenkins/test_local_lab.py"), "-v"],
         [sys.executable, str(root / "tests/device/ios/validate_toolchain_lock.py")],

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Device-free tests for the offline Personal-Team WDA signer."""
+"""iOS-owned device-free tests for the offline Personal-Team WDA signer."""
 
 # Copyright 2026 Overte e.V.
 # SPDX-License-Identifier: Apache-2.0
