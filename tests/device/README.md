@@ -154,7 +154,10 @@ scene readiness and markers, avatar position, `inAir`, `flying`,
 asset resource/entity evidence, sound resource and injector state, and build
 identity through the existing `Test.saveObject` API. It records no audio
 samples. Product adapters own the exact launch and result transport used to
-load it.
+load it. An adapter may place a mode-0600 `e2e-client-command.json` beside its
+private probe copy. The probe accepts only strict, versioned navigation,
+controlled local Image-entity, and fixture sound-channel commands; a
+network-loaded probe without that file stops polling the private channel.
 
 [`fixture/domain.py`](fixture/domain.py) owns the complementary ephemeral
 domain-server and assignment-client stack. The `domain-smoke` assertion waits
