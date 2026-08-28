@@ -22,6 +22,7 @@ NEUTRAL_HOLD_MS = 100
 # consumed them. Keep a full 100 ms margin below CharacterController's default
 # 500 ms jump-to-hover threshold.
 JUMP_HOLD_MS = 450
+FLY_ARM_HOLD_MS = 400
 
 
 class ControllerContractError(ValueError):
@@ -338,9 +339,9 @@ def compile_envelope(envelope_raw: Any, profile_raw: Any) -> dict[str, Any]:
             state["boolean"][action] = True
             required.add("xrGetActionStateBoolean")
             events.append({"atMs": start, "state": deepcopy(state)})
-            events.append({"atMs": start + JUMP_HOLD_MS,
+            events.append({"atMs": start + FLY_ARM_HOLD_MS,
                            "state": deepcopy(neutral)})
-            start += JUMP_HOLD_MS + INTER_COMMAND_GAP_MS
+            start += FLY_ARM_HOLD_MS + INTER_COMMAND_GAP_MS
         else:
             duration = int(arguments.get("holdMilliseconds", 120))
             action = profile["controls"]["buttons"]["left.secondary"]

@@ -37,6 +37,7 @@ constexpr std::int64_t INITIAL_NEUTRAL_MS = 100;
 // consumed them. Keep a full 100 ms margin below CharacterController's default
 // 500 ms jump-to-hover threshold.
 constexpr std::int64_t JUMP_HOLD_MS = 450;
+constexpr std::int64_t FLY_ARM_HOLD_MS = 400;
 constexpr double PI = 3.14159265358979323846;
 
 struct FileIdentity {
@@ -639,7 +640,7 @@ bool Protocol::tryAccept(std::int64_t epochMilliseconds,
             // its neutral gap into this same native grant so transport latency
             // cannot change the timing before the held second press below.
             compiled.push_back({ cursor, active, identifier.toStdString() });
-            cursor += JUMP_HOLD_MS;
+            cursor += FLY_ARM_HOLD_MS;
             compiled.push_back({ cursor, neutralOverride(), {} });
             cursor += INTER_COMMAND_GAP_MS;
             duration = static_cast<std::int64_t>(std::llround(seconds * 1000.0));

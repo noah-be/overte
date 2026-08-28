@@ -112,9 +112,10 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertIn('operation == QLatin1String("input.jump")', protocol)
         self.assertIn('operation == QLatin1String("input.fly")', protocol)
         self.assertIn("constexpr std::int64_t JUMP_HOLD_MS = 450", protocol)
+        self.assertIn("constexpr std::int64_t FLY_ARM_HOLD_MS = 400", protocol)
         self.assertIn("duration = JUMP_HOLD_MS", protocol)
         self.assertIn(
-            "cursor += JUMP_HOLD_MS;\n"
+            "cursor += FLY_ARM_HOLD_MS;\n"
             "            compiled.push_back({ cursor, neutralOverride(), {} });\n"
             "            cursor += INTER_COMMAND_GAP_MS;",
             protocol,
