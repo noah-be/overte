@@ -229,6 +229,13 @@
                 || command.commandId === lastClientCommandId) {
             return;
         }
+        if (command.action === "scene-load"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "url"])
+                && httpUrl(command.url)) {
+            lastClientCommandId = String(command.commandId);
+            Window.location = command.url;
+            return;
+        }
         if (command.action === "navigate"
                 && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "url"])
                 && typeof command.url === "string"
