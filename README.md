@@ -27,9 +27,11 @@ main
 │   └── VR headsets (android-vr)
 │       ├── Pico 4 (android-vr-pico)
 │       └── Meta Quest (android-vr-quest)
-└── Apple (apple-main)
-    ├── iPhone and iPad (apple-ios)
-    └── Mac computers (apple-macos)
+├── Apple (apple-main)
+│   ├── iPhone and iPad (apple-ios)
+│   └── Mac computers (apple-macos)
+├── Linux desktop (linux-main)
+└── Windows desktop (windows-main)
 ```
 
 The Android source tree mirrors the same ownership boundaries inside
@@ -37,6 +39,10 @@ The Android source tree mirrors the same ownership boundaries inside
 code in `phone`, and headset code below `vr/pico` or `vr/quest`. The `vr/common`
 directory is reserved for implementation genuinely shared by multiple Android
 VR targets.
+
+Linux distributions and Windows releases are execution targets rather than
+permanent child branches. Their desktop adapters, lab integration, and target
+matrices are owned by `linux-main` and `windows-main`, respectively.
 
 Changes are propagated from shared branches to increasingly specific branches;
 the reviewed order and merge rules are documented in
