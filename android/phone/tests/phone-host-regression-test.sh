@@ -86,13 +86,29 @@ deep_link='phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneDeepLin
 deep_link_normalizer='phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneDeepLinkNormalizer.java'
 url_handler='phone/apps/phoneInterface/src/PhoneUrlHandler.cpp'
 phone_defaults='../scripts/+android_phoneInterface/defaultScripts.js'
+e2e_manifest='phone/apps/phoneInterface/src/debug/AndroidManifest.xml'
+e2e_launcher='phone/apps/phoneInterface/src/debug/java/org/overte/phone/E2eLauncherActivity.java'
 
 require_text "$gradle" 'Declare the module identity before dependency preflight failures' \
     'phone Gradle diagnostics initialize AGP identity before dependency preflight'
+require_text "$gradle" 'common/device_tests/e2e_android/src/main/java' \
+    'phone debug source set compiles the shared E2E launcher base'
+require_text "$gradle" 'tests/device/probe/overte_e2e_probe[.]js' \
+    'phone debug APK packages the shared E2E probe without a private copy'
+require_text "$gradle" 'tests/device/fixture/scene[.]json' \
+    'phone debug APK packages the shared fixture without a private copy'
+require_text "$e2e_manifest" 'android:permission="android[.]permission[.]DUMP"' \
+    'phone E2E launcher remains restricted to the Android shell permission'
+require_text "$e2e_launcher" 'extends E2eLauncherActivityBase' \
+    'phone E2E launcher delegates fixture preparation to the shared base'
 require_text "$cmake" '../../../common/src/OffscreenGLCanvas[.]cpp' \
     'phone native build uses the shared Android OffscreenGLCanvas override'
 require_text "$gradle" '../../../common/runtime-overrides/arm64-v8a' \
     'phone packaging uses shared Android runtime overrides'
+require_text "$gradle" 'HIFI_ANDROID_HOST_TOOLS=.*../../../vr/pico/pico-host-tools' \
+    'phone native build selects the prepared shared host tools'
+require_text 'common/cmake/pico-bootstrap.cmake' 'HIFI_ANDROID_HOST_TOOLS must name' \
+    'Android native bootstrap requires an explicit prepared host-tool directory'
 reject_text "$cmake" '(\.\./|apps/)picoInterface/' \
     'phone native build does not compile Pico-owned sources'
 reject_text "$gradle" '(\.\./|apps/)picoInterface/' \
@@ -128,6 +144,8 @@ for source_file in \
         "$gradle" \
         "$cmake" \
         "$manifest" \
+        "$e2e_manifest" \
+        "$e2e_launcher" \
         "$permissions_activity" \
         "$interface_activity" \
         "$deep_link" \
@@ -348,6 +366,8 @@ require_text "$cmake" 'add_subdirectory\("\$\{CMAKE_SOURCE_DIR\}/interface"' \
     'phone native target includes the main Interface client'
 require_text "$cmake" 'src/PhoneUrlHandler\.cpp' \
     'CMake includes the runtime deep-link bridge'
+reject_text phone/apps/phoneInterface/src/PhoneUrlHandler.cpp 'TabletScriptingInterface\.h' \
+    'phone JNI bridge avoids the tablet implementation header dependency graph'
 
 require_text "$manifest" 'android\.hardware\.touchscreen' \
     'manifest requires a touchscreen'

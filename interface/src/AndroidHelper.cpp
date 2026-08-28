@@ -172,3 +172,24 @@ void AndroidHelper::setMyAvatarUrl(const QString &avatarUrl) {
     QUrl url = QUrl(avatarUrl);
     DependencyManager::get<AvatarManager>()->getMyAvatar()->useFullAvatarURL(url);
 }
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+bool AndroidHelper::setPhoneE2eFlyingEnabledOverride(int mode) {
+    if (mode < -1 || mode > 1) {
+        return false;
+    }
+
+    const auto avatarManager = DependencyManager::get<AvatarManager>();
+    const auto avatar = avatarManager ? avatarManager->getMyAvatar() : nullptr;
+    if (!avatar) {
+        return false;
+    }
+
+    if (mode < 0) {
+        avatar->clearPhoneE2eFlyingEnabledOverride();
+    } else {
+        avatar->setPhoneE2eFlyingEnabledOverride(mode > 0);
+    }
+    return true;
+}
+#endif

@@ -14,11 +14,9 @@
 #include <QThread>
 #include <QVariantMap>
 
-#include <DependencyManager.h>
 #include "AndroidHelper.h"
 #include "PhonePendingHandoff.h"
 #include "PhoneTouchUiMetrics.h"
-#include "ui/TabletScriptingInterface.h"
 #include "ui/PhoneDialogRouter.h"
 
 namespace {
@@ -124,11 +122,9 @@ private:
         if (!_hasPending || !AndroidHelper::instance().isLoadComplete()) {
             return;
         }
-        auto tablet = DependencyManager::get<TabletScriptingInterface>();
-        if (!tablet) {
+        if (!phone::updateTouchUiRuntimeMetrics(touchUiMetricsMap(_pending))) {
             return;
         }
-        tablet->setTouchUiRuntimeMetrics(touchUiMetricsMap(_pending));
         _hasPending = false;
     }
 
@@ -140,6 +136,44 @@ PendingTouchUiMetricsDelivery* touchUiMetricsDelivery(QCoreApplication* applicat
     static QPointer<PendingTouchUiMetricsDelivery> delivery;
     if (!delivery) {
         delivery = new PendingTouchUiMetricsDelivery(application);
+    }
+    return delivery;
+}
+
+class PendingFlyingOverrideDelivery final : public QObject {
+public:
+    explicit PendingFlyingOverrideDelivery(QCoreApplication* application)
+        : QObject(application) {
+        auto& helper = AndroidHelper::instance();
+        connect(&helper, &AndroidHelper::qtAppLoadComplete,
+                this, [this]() { deliverIfReady(); });
+    }
+
+    void submit(int mode) {
+        _pendingMode = mode;
+        deliverIfReady();
+    }
+
+private:
+    void deliverIfReady() {
+        if (_pendingMode < -1 || !AndroidHelper::instance().isLoadComplete()) {
+            return;
+        }
+        if (AndroidHelper::instance().setPhoneE2eFlyingEnabledOverride(
+                _pendingMode)) {
+            _pendingMode = NO_PENDING_MODE;
+        }
+    }
+
+    static constexpr int NO_PENDING_MODE = -2;
+    int _pendingMode { NO_PENDING_MODE };
+};
+
+PendingFlyingOverrideDelivery* flyingOverrideDelivery(
+        QCoreApplication* application) {
+    static QPointer<PendingFlyingOverrideDelivery> delivery;
+    if (!delivery) {
+        delivery = new PendingFlyingOverrideDelivery(application);
     }
     return delivery;
 }
@@ -232,6 +266,28 @@ Java_org_overte_phone_PhoneInterfaceActivity_nativeUpdateTouchUiMetrics(
         application,
         [application, metrics]() {
             touchUiMetricsDelivery(application)->submit(metrics);
+        },
+        Qt::QueuedConnection);
+    return ownedByNative ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_org_overte_phone_PhoneInterfaceActivity_nativeSetE2eFlyingOverride(
+        JNIEnv* /* env */, jclass /* activityClass */, jint mode) {
+    auto* application = QCoreApplication::instance();
+    if (!application || mode < -1 || mode > 1) {
+        return JNI_FALSE;
+    }
+
+    // Android invokes this from Activity.onResume while Qt can still be
+    // constructing its display surface. Taking ownership asynchronously keeps
+    // the Android UI thread available to that startup path. The delivery waits
+    // for Application's established load-complete boundary before touching the
+    // avatar runtime.
+    const bool ownedByNative = QMetaObject::invokeMethod(
+        application,
+        [application, mode]() {
+            flyingOverrideDelivery(application)->submit(mode);
         },
         Qt::QueuedConnection);
     return ownedByNative ? JNI_TRUE : JNI_FALSE;

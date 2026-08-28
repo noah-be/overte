@@ -1,0 +1,318 @@
+// General physical Android Phone E2E pipeline.
+// The private, selector-redacting ADB wrapper is supplied by the Jenkins agent environment.
+
+def ciPython(String action, boolean returnStatus = false) {
+    return sh(
+        script: "#!/bin/sh\nset +x\nexec python3 android/phone/device-tests/jenkins_ci.py ${action}\n",
+        returnStatus: returnStatus
+    )
+}
+
+def cleanupPhoneTarget(boolean returnStatus = false) {
+    return ciPython('cleanup-target', returnStatus)
+}
+
+int suiteTimeoutMinutes(String suite) {
+    switch (suite) {
+        case 'smoke':
+            return 10
+        case 'domain-smoke':
+        case 'asset-smoke':
+        case 'sound-smoke':
+            return 10
+        case 'vertical-locomotion':
+            return 5
+        case 'lifecycle-stability':
+            return 60
+        case 'stability':
+            return 240
+        default:
+            error("Unsupported Android Phone E2E suite: ${suite}")
+    }
+}
+
+String phoneAdapterManifest(String suite) {
+    if (suite in ['domain-smoke', 'asset-smoke', 'sound-smoke']) {
+        return 'tests/device/adapters/android/phone.json'
+    }
+    return 'android/phone/device-tests/adapter.json'
+}
+
+def runPhoneSuite(String suite) {
+    int timeoutMinutes = suiteTimeoutMinutes(suite)
+    String adapterManifest = phoneAdapterManifest(suite)
+    String fixturePublicHost = params.FIXTURE_PUBLIC_HOST ?: ''
+    String fixturePort = params.FIXTURE_PORT ?: '0'
+    String externalOutput = "${env.OVERTE_EXTERNAL_RESULT_ROOT}/${suite}"
+    String stagedOutput =
+        "${env.WORKSPACE}/device-ci-artifacts/${env.BUILD_NUMBER}/${suite}"
+    withEnv([
+        "OVERTE_CI_WORKSPACE=${env.WORKSPACE}",
+        "OVERTE_CI_ADAPTER_MANIFEST=${adapterManifest}",
+        'OVERTE_CI_CATALOG=tests/device/catalog.json',
+        "OVERTE_CI_SUITE=${suite}",
+        "OVERTE_CI_OUTPUT_DIR=${externalOutput}",
+        "OVERTE_CI_STAGED_OUTPUT_DIR=${stagedOutput}",
+        'OVERTE_CI_FIXTURE_MODE=embedded',
+        "OVERTE_CI_FIXTURE_PUBLIC_HOST=${fixturePublicHost.trim()}",
+        'OVERTE_CI_FIXTURE_BIND=0.0.0.0',
+        "OVERTE_CI_FIXTURE_PORT=${fixturePort.trim()}",
+        'OVERTE_CI_ALLOW_VIRTUAL=0',
+        'OVERTE_E2E_CAPTURE_ARTIFACTS=0',
+        "OVERTE_CI_DOMAIN_SERVER_EXECUTABLE=${params.DOMAIN_SERVER_EXECUTABLE ?: ''}",
+        "OVERTE_CI_ASSIGNMENT_CLIENT_EXECUTABLE=${params.ASSIGNMENT_CLIENT_EXECUTABLE ?: ''}",
+    ]) {
+        try {
+            lock(resource: params.DEVICE_RESOURCE.trim(), inversePrecedence: true) {
+                withCredentials([string(
+                    credentialsId: params.TARGET_SELECTOR_CREDENTIAL_ID.trim(),
+                    variable: 'OVERTE_DEVICE_TARGET_SELECTOR'
+                )]) {
+                    env.OVERTE_TARGET_NEEDS_CLEANUP = '1'
+                    try {
+                        timeout(time: timeoutMinutes, unit: 'MINUTES') {
+                            ciPython('run-suite')
+                        }
+                    } finally {
+                        int cleanupStatus = cleanupPhoneTarget(true)
+                        if (cleanupStatus != 0) {
+                            error("Target cleanup failed with exit code ${cleanupStatus}")
+                        }
+                        env.OVERTE_TARGET_NEEDS_CLEANUP = '0'
+                    }
+                }
+            }
+        } finally {
+            int stagingStatus = 0
+            withCredentials([string(
+                credentialsId: params.TARGET_SELECTOR_CREDENTIAL_ID.trim(),
+                variable: 'OVERTE_DEVICE_TARGET_SELECTOR'
+            )]) {
+                stagingStatus = ciPython('stage-results', true)
+            }
+            junit(
+                testResults: "device-ci-artifacts/${env.BUILD_NUMBER}/${suite}/junit.xml",
+                allowEmptyResults: false,
+                keepLongStdio: true
+            )
+            archiveArtifacts(
+                artifacts: "device-ci-artifacts/${env.BUILD_NUMBER}/${suite}/**",
+                allowEmptyArchive: false,
+                fingerprint: true
+            )
+            if (stagingStatus != 0) {
+                error('Result staging reported an infrastructure failure')
+            }
+        }
+    }
+}
+
+pipeline {
+    agent { label 'overte-device-interactive' }
+
+    options {
+        timeout(time: 4, unit: 'HOURS')
+        disableConcurrentBuilds(abortPrevious: false)
+        buildDiscarder(logRotator(numToKeepStr: '30', artifactNumToKeepStr: '15'))
+    }
+
+    parameters {
+        string(
+            name: 'DEVICE_RESOURCE',
+            defaultValue: 'android-device-01',
+            description: 'Lockable Resources name; never use a device selector here.'
+        )
+        string(
+            name: 'TARGET_SELECTOR_CREDENTIAL_ID',
+            defaultValue: 'overte-android-device-selector',
+            description: 'Secret Text credential containing the wrapper target alias.'
+        )
+        choice(
+            name: 'TEST_SUITE',
+            choices: [
+                'smoke',
+                'domain-smoke',
+                'asset-smoke',
+                'sound-smoke',
+                'vertical-locomotion',
+                'lifecycle-stability',
+                'stability'
+            ],
+            description: 'Physical Android E2E suite to execute.'
+        )
+        string(
+            name: 'FIXTURE_PUBLIC_HOST',
+            defaultValue: '',
+            description: 'DNS name or LAN IPv4 address of this Jenkins agent, reachable by the phone.'
+        )
+        string(
+            name: 'FIXTURE_PORT',
+            defaultValue: '0',
+            description: 'Fixture TCP port; 0 selects an ephemeral port.'
+        )
+        booleanParam(
+            name: 'REBUILD_INSTALL_APK',
+            defaultValue: false,
+            description: 'Incrementally build the current lab branch and install its debug APK before the suite.'
+        )
+        string(
+            name: 'PHONE_LAB_SOURCE_ROOT',
+            defaultValue: '/home/user/Documents/github/overte-android-phone-e2e',
+            description: 'Trusted local Phone lab worktree containing the incremental Android build cache.'
+        )
+        string(
+            name: 'DOMAIN_SERVER_EXECUTABLE',
+            defaultValue: '',
+            description: 'Absolute path to the trusted local domain-server executable.'
+        )
+        string(
+            name: 'ASSIGNMENT_CLIENT_EXECUTABLE',
+            defaultValue: '',
+            description: 'Absolute path to the trusted local assignment-client executable.'
+        )
+    }
+
+    environment {
+        OVERTE_ANDROID_E2E_DEBUG = '1'
+        OVERTE_ANDROID_PHONE_E2E_INPUT = '1'
+        OVERTE_E2E_SCENE_URL = 'overte-e2e://fixture/scene'
+        OVERTE_E2E_POLL_SECONDS = '0.1'
+        OVERTE_E2E_TIMEOUT_SECONDS = '45'
+        OVERTE_ANDROID_E2E_PROBE_ATTEMPTS = '120'
+        OVERTE_ANDROID_E2E_PROBE_POLL_SECONDS = '0.1'
+        PHONE_BUILD_JOBS = '8'
+        CMAKE_BUILD_PARALLEL_LEVEL = '8'
+        SHADERGEN_JOBS = '8'
+    }
+
+    stages {
+        stage('Validate Phone lab') {
+            steps {
+                script {
+                    if (!(params.DEVICE_RESOURCE ==~ /[A-Za-z0-9][A-Za-z0-9_.:-]*/)) {
+                        error('DEVICE_RESOURCE contains unsupported characters')
+                    }
+                    if (!params.TARGET_SELECTOR_CREDENTIAL_ID.trim()) {
+                        error('TARGET_SELECTOR_CREDENTIAL_ID is required')
+                    }
+                    if (params.TEST_SUITE in ['domain-smoke', 'asset-smoke', 'sound-smoke']
+                            && !(params.FIXTURE_PUBLIC_HOST ?: '').trim()) {
+                        error('FIXTURE_PUBLIC_HOST is required for domain, asset, and sound tests')
+                    }
+                    if (params.TEST_SUITE == 'domain-smoke'
+                            && (!(params.DOMAIN_SERVER_EXECUTABLE ?: '').trim()
+                                || !(params.ASSIGNMENT_CLIENT_EXECUTABLE ?: '').trim())) {
+                        error('Domain and assignment executables are required for domain-smoke')
+                    }
+                    env.OVERTE_TARGET_NEEDS_CLEANUP = '0'
+                    env.OVERTE_EXTERNAL_RESULT_ROOT =
+                        "${pwd(tmp: true)}/overte-android-phone-results/${env.BUILD_NUMBER}"
+                }
+                sh '''#!/bin/sh
+                    set -eu
+                    set +x
+                    test -n "${OVERTE_ANDROID_ADB:-}"
+                    test -x "$OVERTE_ANDROID_ADB"
+                    test -f android/phone/device-tests/adapter.json
+                    test -f tests/device/catalog.json
+                '''
+            }
+        }
+
+        stage('Phone adapter contracts') {
+            steps {
+                sh '''#!/bin/sh
+                    set -eu
+                    systemd-run --user --scope --quiet \
+                        -p MemoryMax=16G -p MemorySwapMax=0 \
+                        env PHONE_BUILD_JOBS=8 CMAKE_BUILD_PARALLEL_LEVEL=8 \
+                        SHADERGEN_JOBS=8 sh -c '\
+                            python3 -m py_compile \
+                                android/phone/device-tests/adapter.py \
+                                android/phone/device-tests/jenkins_ci.py \
+                                android/phone/device-tests/tests/test_adapter.py && \
+                            python3 -m unittest \
+                                android.phone.device-tests.tests.test_adapter'
+                '''
+            }
+        }
+
+        stage('Build and install current Phone APK') {
+            when { expression { params.REBUILD_INSTALL_APK ?: false } }
+            steps {
+                script {
+                    String sourceRoot = params.PHONE_LAB_SOURCE_ROOT ?: ''
+                    if (sourceRoot != '/home/user/Documents/github/overte-android-phone-e2e') {
+                        error('PHONE_LAB_SOURCE_ROOT does not match the trusted local lab worktree')
+                    }
+                    dir(sourceRoot) {
+                        sh '''#!/bin/sh
+                            set -eu
+                            git diff --quiet --ignore-submodules --
+                            git diff --cached --quiet --ignore-submodules --
+                            test "$(git rev-parse HEAD)" = "$(git -C "$WORKSPACE" rev-parse HEAD)"
+                            dependency_seed=/home/user/Documents/github/overte-main/android/common/conan
+                            test -f "$dependency_seed/phone-nonqt-16k-debug/.phone-16k-dependencies.ready"
+                            rsync -a --delete "$dependency_seed/phone-16k-debug/" \
+                                android/common/conan/phone-16k-debug/
+                            rsync -a --delete "$dependency_seed/phone-nonqt-16k-debug/" \
+                                android/common/conan/phone-nonqt-16k-debug/
+                            mkdir -p android/common/runtime-overrides/arm64-v8a
+                            rsync -a --delete \
+                                /home/user/Documents/github/overte-main/android/common/runtime-overrides/arm64-v8a/ \
+                                android/common/runtime-overrides/arm64-v8a/
+                            PHONE_BUILD_JOBS=8 CMAKE_BUILD_PARALLEL_LEVEL=8 SHADERGEN_JOBS=8 \
+                                ./android/phone/build.sh all
+                        '''
+                        lock(resource: params.DEVICE_RESOURCE.trim(), inversePrecedence: true) {
+                            withCredentials([string(
+                                credentialsId: params.TARGET_SELECTOR_CREDENTIAL_ID.trim(),
+                                variable: 'OVERTE_DEVICE_TARGET_SELECTOR'
+                            )]) {
+                                sh '''#!/bin/sh
+                                    set -eu
+                                    set +x
+                                    PHONE_ADB="$OVERTE_ANDROID_ADB" \
+                                        PHONE_APK="$PWD/android/phone/apps/phoneInterface/build/outputs/apk/debug/phoneInterface-debug.apk" \
+                                        ./android/phone/build.sh install
+                                '''
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Physical Android E2E') {
+            steps {
+                script {
+                    runPhoneSuite(params.TEST_SUITE)
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                if (env.OVERTE_TARGET_NEEDS_CLEANUP == '1'
+                        && (params.DEVICE_RESOURCE ==~ /[A-Za-z0-9][A-Za-z0-9_.:-]*/)
+                        && params.TARGET_SELECTOR_CREDENTIAL_ID.trim()) {
+                    lock(resource: params.DEVICE_RESOURCE.trim(), inversePrecedence: true) {
+                        withCredentials([string(
+                            credentialsId: params.TARGET_SELECTOR_CREDENTIAL_ID.trim(),
+                            variable: 'OVERTE_DEVICE_TARGET_SELECTOR'
+                        )]) {
+                            withEnv([
+                                "OVERTE_CI_WORKSPACE=${env.WORKSPACE}",
+                                "OVERTE_CI_ADAPTER_MANIFEST=${phoneAdapterManifest(params.TEST_SUITE)}",
+                            ]) {
+                                cleanupPhoneTarget(true)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

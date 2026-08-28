@@ -1017,6 +1017,25 @@ public:
     void setUseAdvancedMovementControls(bool useAdvancedMovementControls)
         { _useAdvancedMovementControls.set(useAdvancedMovementControls); }
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // The shell-restricted Android Phone E2E launcher may temporarily force
+    // comfort flying off while the controlled fixture settles, then on for
+    // the bounded flight gesture. This process-only value deliberately does
+    // not mutate either stored flying preference.
+    void setPhoneE2eFlyingEnabledOverride(bool enabled) {
+        _phoneE2eFlyingEnabledOverride.set(enabled ? 1 : 0);
+    }
+    void clearPhoneE2eFlyingEnabledOverride() {
+        _phoneE2eFlyingEnabledOverride.set(-1);
+    }
+    bool phoneE2eFlyingEnabledOverrideActive() const {
+        return _phoneE2eFlyingEnabledOverride.get() >= 0;
+    }
+    bool phoneE2eFlyingEnabledOverride() const {
+        return _phoneE2eFlyingEnabledOverride.get() > 0;
+    }
+#endif
+
     bool getAllowTeleporting() { return _allowTeleportingSetting.get(); }
     void setAllowTeleporting(bool allowTeleporting) { _allowTeleportingSetting.set(allowTeleporting); }
 
@@ -2646,6 +2665,9 @@ private:
 
     Setting::Handle<float> _realWorldFieldOfView;
     Setting::Handle<bool> _useAdvancedMovementControls;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    ThreadSafeValueCache<int> _phoneE2eFlyingEnabledOverride { -1 };
+#endif
     Setting::Handle<bool> _showPlayArea;
 
     // Smoothing.

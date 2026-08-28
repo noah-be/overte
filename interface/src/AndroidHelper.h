@@ -46,6 +46,9 @@ public:
     QString getDisplayName();
     void setDisplayName(const QString &displayName);
     void setMyAvatarUrl(const QString &avatarUrl);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    bool setPhoneE2eFlyingEnabledOverride(int mode);
+#endif
 
 public slots:
     void showLoginDialog(QUrl url);
