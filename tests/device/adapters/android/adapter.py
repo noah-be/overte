@@ -409,12 +409,15 @@ class AndroidAdapter:
         if operation == "app.launch":
             if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") == "1":
                 # The controlled-suite bootstrap has already started and
-                # confirmed this exact Phone process before runner discovery.
+                # confirmed this exact Android process before runner discovery.
                 # Preserve it when launch-smoke invokes app.launch again so
                 # the following controlled module keeps the same identity.
-                if (self.kind != "phone"
-                        or self.controlled_debug_identity(target) is None):
+                identity = self.controlled_debug_identity(target)
+                if identity is None:
                     self.launch_debug_app(target)
+                elif self.kind == "pico" and pico_openxr_opted_in():
+                    if self.require_pico_session_identity(target) != identity:
+                        fail("Android controlled launch process identity changed")
             else:
                 self.adb.shell(target, "am", "start", "-W", "-n", self.profile["activity"])
             return {"launched": True}

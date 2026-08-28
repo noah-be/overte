@@ -559,6 +559,7 @@ class AndroidAdapterTest(unittest.TestCase):
             "OVERTE_PICO_OPENXR_STATE_DIR": str(state),
             "MOCK_PICO_OPENXR_STATUS": str(Path(self.temporary.name) / "status.json"),
             "MOCK_PICO_OPENXR_GRANTS": str(grants),
+            "MOCK_ANDROID_CONTROL_AVAILABLE": "1",
             "MOCK_ANDROID_PROCESS_STATE": str(process),
             "MOCK_ADB_ARGV_LOG": str(argv_log),
         })
@@ -630,8 +631,8 @@ class AndroidAdapterTest(unittest.TestCase):
             [*common, "--operation", "app.launch", "--arguments", "{}"],
             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             env=self.environment, check=False)
-        self.assertEqual(2, second_launch.returncode, second_launch.stdout)
-        self.assertIn("single launch", second_launch.stdout)
+        self.assertEqual(0, second_launch.returncode, second_launch.stdout)
+        self.assertEqual({"launched": True}, json.loads(second_launch.stdout))
 
         process.write_text("restarted", encoding="utf-8")
         changed = subprocess.run(
