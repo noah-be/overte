@@ -722,6 +722,7 @@ class AndroidAdapterTest(unittest.TestCase):
         self.assertEqual("4", sequence.read_text(encoding="utf-8"))
         commands = [json.loads(line) for line in argv_log.read_text().splitlines()]
         self.assertFalse(any("getprop" in command for command in commands))
+        self.assertFalse(any("pidof" in command for command in commands), commands)
         cleaned = subprocess.run(
             [sys.executable, str(ADAPTER), "--kind", "pico", "cleanup",
              "--target", "pico-secret"], text=True, stdout=subprocess.PIPE,

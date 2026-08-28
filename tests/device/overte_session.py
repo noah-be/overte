@@ -414,6 +414,7 @@ class OverteSession:
 
     def jump(self) -> tuple[dict, dict, dict]:
         before = self.stable_ground_snapshot("jump-before.json")
+        identity = process_identity()
         arguments = validate_operation_arguments("input.jump", {})
         validate_performed_result("input.jump", operation("input.jump", arguments))
         minimum = self._float_environment("OVERTE_E2E_MIN_JUMP_METERS", 0.15, 0.01, 5.0)
@@ -433,10 +434,12 @@ class OverteSession:
             and abs(self._height(value) - self._height(before)) <= landing_tolerance,
         )
         write_json("jump-landed.json", landed)
+        assert_process(identity, "jump and landing")
         return before, airborne, landed
 
     def fly(self, duration_seconds: float = 2.0) -> tuple[dict, dict]:
         before = self.stable_ground_snapshot("fly-before.json")
+        identity = process_identity()
         if before["avatar"]["flyingEnabled"] is not True:
             fail("avatar flying is not enabled")
         if self.pico_openxr:
@@ -464,6 +467,7 @@ class OverteSession:
             and self._height(value) - self._height(before) >= minimum,
         )
         write_json("fly-active.json", flying)
+        assert_process(identity, "active flight")
         return before, flying
 
     def move(self, direction: str = "forward", duration_seconds: float = 1.5) -> tuple[dict, dict]:

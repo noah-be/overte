@@ -187,6 +187,14 @@ class PicoOpenXrAdapterSession:
             if state["processIdentity"] != process_identity:
                 raise AdapterSessionError("Pico E2E launcher process identity changed")
 
+    def bound_process_identity(self) -> str:
+        """Return the process identity already attested by the single launch."""
+        with self._lock():
+            state = self._load()
+            if state is None:
+                raise AdapterSessionError("Pico E2E launcher session is not established")
+            return state["processIdentity"]
+
     @staticmethod
     def _ack_timeout() -> float:
         raw = os.environ.get("OVERTE_PICO_OPENXR_ACK_SECONDS", "8")

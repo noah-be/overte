@@ -338,11 +338,12 @@ class AndroidAdapter:
         if (self.kind == "pico" and pico_openxr_opted_in()
                 and operation == "probe.snapshot"):
             # The private session is keyed by the exact selector and bound to
-            # the one launcher process. Revalidating the complete hardware
-            # profile here would add several WLAN-ADB round trips to every
-            # transient observation. The process/session proof is the tighter
-            # identity check for an already launched probe.
-            pico_probe_identity = self.require_pico_session_identity(target)
+            # the one launcher process. Input/content operations verify that
+            # live identity immediately around their action; repeating PID and
+            # hardware queries before every read can skip an entire transient
+            # jump over WLAN-ADB. Keep polling to one explicit-target file read.
+            pico_probe_identity = self.pico_input_session(
+                target).bound_process_identity()
         else:
             self.require(target)
         package = self.profile["package"]
@@ -415,8 +416,7 @@ class AndroidAdapter:
                 self.pico_input_session(target).require_process_identity(identity)
             return state
         if operation == "app.foreground":
-            if (self.kind == "pico" and pico_openxr_opted_in()
-                    and pico_probe_identity is None):
+            if self.kind == "pico" and pico_openxr_opted_in():
                 self.require_pico_session_identity(target)
             return {"foreground": self.adb.foreground_package(target) == package}
         if operation == "lifecycle.background":
@@ -438,7 +438,8 @@ class AndroidAdapter:
         if operation == "probe.snapshot":
             if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") != "1":
                 fail("probe.snapshot requires an E2E-enabled debug APK")
-            if self.kind == "pico" and pico_openxr_opted_in():
+            if (self.kind == "pico" and pico_openxr_opted_in()
+                    and pico_probe_identity is None):
                 self.require_pico_session_identity(target)
             unexpected = set(values) - {"afterSampleSequence"}
             if unexpected:
