@@ -148,22 +148,25 @@ class AndroidAdapter:
             target, package, ANDROID_CONTROL_MARKER, attempts=1))
         if marker != ANDROID_CONTROL_CONTRACT:
             return None
-        probe = self.decode_json(self.adb.read_debug_app_file(
-            target, package, ANDROID_DEBUG_PROBE, attempts=1))
-        if probe is None:
-            return None
-        try:
-            probe = require_fresh_snapshot(probe)
-        except RuntimeError:
-            return None
-        control = probe.get("control")
-        if (control != ANDROID_CONTROL_CONTRACT
-                or probe.get("application", {}).get("running") is not True):
-            return None
-        after = self.adb.process_state(target, package)
-        if after.get("running") is not True or after.get("identity") != identity:
-            return None
-        return identity
+        attempts, interval = self.probe_retry_policy()
+        for attempt in range(attempts):
+            probe = self.decode_json(self.adb.read_debug_app_file(
+                target, package, ANDROID_DEBUG_PROBE, attempts=1))
+            if probe is not None:
+                try:
+                    probe = require_fresh_snapshot(probe)
+                except RuntimeError:
+                    probe = None
+            after = self.adb.process_state(target, package)
+            if after.get("running") is not True or after.get("identity") != identity:
+                return None
+            if (probe is not None
+                    and probe.get("control") == ANDROID_CONTROL_CONTRACT
+                    and probe.get("application", {}).get("running") is True):
+                return identity
+            if attempt + 1 < attempts:
+                time.sleep(interval)
+        return None
 
     def require_controlled_debug_identity(self, target: str) -> str:
         if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") != "1":

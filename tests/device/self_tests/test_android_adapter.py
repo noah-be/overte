@@ -39,6 +39,7 @@ process_state=open(process_path).read().strip() if process_path and os.path.exis
 control_state_path=os.environ.get("MOCK_ANDROID_CONTROL_STATE", "")
 control_available=os.environ.get("MOCK_ANDROID_CONTROL_AVAILABLE", "") == "1"
 probe_available=os.environ.get("MOCK_ANDROID_PROBE_AVAILABLE", "1") == "1"
+probe_control_after=int(os.environ.get("MOCK_ANDROID_PROBE_CONTROL_AFTER_READS", "0"))
 control_payload_log=os.environ.get("MOCK_ANDROID_CONTROL_PAYLOAD_LOG", "")
 probe_sequence_path=os.environ.get("MOCK_PROBE_SEQUENCE_STATE", "")
 probe_sequence=int(open(probe_sequence_path).read()) if probe_sequence_path and os.path.exists(probe_sequence_path) else 0
@@ -158,7 +159,7 @@ elif cmd[:4] == ["shell", "run-as", "org.overte.phone", "cat"] or cmd[:4] == ["s
           "avatar":{"position":{"x":0,"y":1,"z":4}},
           "view":{"orientation":{"x":0,"y":0,"z":0}},
           "tablet":{"open":False}}
-        if control_available:
+        if control_available and probe_sequence > probe_control_after:
             snapshot["control"]={"schemaVersion":1,"channel":"android-debug-file-v1",
                                  "probe":"overte_e2e_probe.js"}
         print(json.dumps(snapshot))
@@ -178,6 +179,7 @@ class AndroidAdapterTest(unittest.TestCase):
                 "ANDROID_ADB_SERVER_PORT", "OVERTE_PICO_OPENXR_STATE_DIR"):
             self.environment.pop(name, None)
         self.environment["OVERTE_ANDROID_ADB"] = str(self.adb)
+        self.environment["OVERTE_ANDROID_E2E_PROBE_ATTEMPTS"] = "1"
 
     def tearDown(self):
         self.temporary.cleanup()
@@ -380,6 +382,23 @@ class AndroidAdapterTest(unittest.TestCase):
         self.assertIn("Audio.playSound(soundResource", probe)
         self.assertNotIn("soundState.resourceReady = true", probe)
         self.assertNotIn("soundState.injectorCreated = true", probe)
+
+    def test_controlled_identity_waits_for_probe_channel_without_process_change(self):
+        self.enable_controlled_phone()
+        sequence = Path(self.temporary.name) / "controlled-probe-sequence"
+        sequence.write_text("0", encoding="utf-8")
+        self.environment.update({
+            "MOCK_ANDROID_PROBE_CONTROL_AFTER_READS": "2",
+            "MOCK_PROBE_SEQUENCE_STATE": str(sequence),
+            "OVERTE_ANDROID_E2E_PROBE_ATTEMPTS": "3",
+            "OVERTE_ANDROID_E2E_PROBE_POLL_SECONDS": "0.01",
+        })
+        result = self.invoke_phone("asset.load", {
+            "assetId": "texture-rgb-3x1-v1",
+            "url": "http://fixture.invalid/asset.png",
+            "entityName": "OVERTE_E2E_ASSET_LOAD_retry",
+        })
+        self.assertEqual(0, result.returncode, result.stdout)
 
     def test_controlled_operations_reject_invalid_arguments_before_delivery(self):
         _process, payload_log, _argv_log = self.enable_controlled_phone()
