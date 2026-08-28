@@ -33,9 +33,20 @@ class BranchPolicyTests(unittest.TestCase):
             {
                 "main", "android-main", "android-phone", "android-vr",
                 "android-vr-pico", "android-vr-quest", "apple-main",
-                "apple-ios", "apple-macos",
+                "apple-ios", "apple-macos", "linux-main", "windows-main",
             },
         )
+
+    def test_desktop_operating_system_branches_are_direct_main_children(self):
+        self.assertEqual(self.branches["linux-main"].parent, "main")
+        self.assertEqual(self.branches["windows-main"].parent, "main")
+        self.assertEqual(self.branches["linux-main"].scope, "linux")
+        self.assertEqual(self.branches["windows-main"].scope, "windows")
+        for target in ("linux-main", "windows-main"):
+            self.assertEqual(
+                BRANCH_POLICY.classify_pull_request(self.branches, target, "main"),
+                "downstream-sync",
+            )
 
     def test_every_child_accepts_its_direct_parent(self):
         for branch in self.branches.values():
@@ -86,6 +97,8 @@ class BranchPolicyTests(unittest.TestCase):
             ("android-vr-pico", "android-vr-quest"),
             ("apple-main", "apple-ios"),
             ("main", "android-main"),
+            ("main", "linux-main"),
+            ("linux-main", "windows-main"),
         )
         for base, head in blocked:
             with self.subTest(base=base, head=head):
