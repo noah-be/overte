@@ -17,13 +17,14 @@ event alone never counts as passed behavior.
 
 Targets that set both `probe.kind: injected-test-script` and
 `clientControl.kind: probe-command-file` additionally advertise
-`navigation.enter-domain`, `asset.load`, and `sound.play`. At launch the adapter
-copies the repository probe into the target's private state directory and
-creates a mode-0600 `e2e-client-command.json` beside it. The running probe accepts only
-versioned navigation, controlled Image-entity, and sound-channel commands.
-Navigation assigns `Window.location` inside the existing Interface process;
-asset loading creates exactly one client-local tagged Image entity. Sound
-commands are POSTed unchanged to the controlled fixture's
+`navigation.enter-domain`, `asset.load`, `scene.load`, and `sound.play`. At
+launch the adapter copies the repository probe into the target's private state
+directory and creates a mode-0600 `e2e-client-command.json` beside it. The
+running probe accepts only versioned scene reload, navigation, controlled
+Image-entity, and sound-channel commands. Scene reload and navigation assign
+`Window.location` inside the existing Interface process; asset loading creates
+exactly one client-local tagged Image entity. Sound commands are POSTed
+unchanged to the controlled fixture's
 `/sound-command.json` endpoint, and the probe polls that endpoint directly.
 Probe snapshots and fixture HTTP telemetry remain independent completion
 evidence. A missing probe, command file, fixture acknowledgment, or stable
@@ -33,7 +34,7 @@ This in-client path never uses the clipboard, global keyboard shortcuts,
 external URL handlers, or desktop portals. It therefore behaves identically on
 visible Wayland/Xwayland and private GPU-backed X11 without expanding their
 input or screen-capture authority. Omitting `clientControl`
-keeps the three capabilities disabled; pairing it with a host-file probe is a
+keeps the four capabilities disabled; pairing it with a host-file probe is a
 configuration error.
 
 Copy `targets.example.json` outside the checkout, keep that file mode 0600, and
