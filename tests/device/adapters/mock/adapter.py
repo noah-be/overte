@@ -70,6 +70,7 @@ def initial_state() -> dict:
         "groundY": 1.0, "inAir": False, "flying": False, "flyingEnabled": True,
         "locomotion": None, "locomotionSamples": 0,
         "orientation": {"x": 0.0, "y": 0.0, "z": 0.0}, "tablet": False,
+        "orientationHistory": [], "pendingOrientationSample": None,
         "processRevision": 0, "asset": None,
         "sampleSequence": 0, "sampleEpochMs": 0,
         "verticalEvents": {
@@ -309,9 +310,13 @@ def invoke(operation: str, arguments: dict) -> dict:
     elif operation == "sound.play":
         result = begin_sound(state, arguments)
     elif operation == "input.look":
+        before_orientation = copy.deepcopy(state["orientation"])
         scale = 2.0 if "small-look" in failures() else 120.0
         state["orientation"]["y"] += float(arguments["horizontal"]) * scale
         state["orientation"]["x"] += float(arguments["vertical"]) * scale
+        if "transient-look" in failures():
+            state["pendingOrientationSample"] = copy.deepcopy(state["orientation"])
+            state["orientation"] = before_orientation
         result = {"performed": True}
     elif operation == "input.move":
         apply_move(state, arguments["direction"], float(arguments["durationSeconds"]))
@@ -409,6 +414,18 @@ def invoke(operation: str, arguments: dict) -> dict:
         stale_common = "stale-sequence" in failures() and state["sampleSequence"] > 0
         if not (failure == "stale-probe" and sound_active) and not stale_common:
             state["sampleSequence"] += 1
+        orientation_sample = (state["pendingOrientationSample"]
+                              if state["pendingOrientationSample"] is not None
+                              else state["orientation"])
+        if (not state["orientationHistory"]
+                or state["orientationHistory"][-1]["sampleSequence"]
+                < state["sampleSequence"]):
+            state["orientationHistory"].append({
+                "sampleSequence": state["sampleSequence"],
+                "orientation": copy.deepcopy(orientation_sample),
+            })
+            state["orientationHistory"] = state["orientationHistory"][-48:]
+        state["pendingOrientationSample"] = None
         now = int(time.time() * 1000)
         if failure == "inconsistent-probe" and sound_active:
             state["sampleEpochMs"] = max(1, state["sampleEpochMs"] - 1)
@@ -453,7 +470,8 @@ def invoke(operation: str, arguments: dict) -> dict:
                        "bodyYawDegrees": state["bodyYawDegrees"], "inAir": state["inAir"],
                        "flying": state["flying"], "flyingEnabled": state["flyingEnabled"]},
             "verticalEvents": copy.deepcopy(state["verticalEvents"]),
-            "view": {"orientation": state["orientation"]},
+            "view": {"orientation": state["orientation"],
+                     "orientationHistory": copy.deepcopy(state["orientationHistory"])},
             "tablet": {"open": state["tablet"], "home": state["tablet"],
                        "toolbarMode": False},
             "asset": copy.deepcopy(state.get("asset")),

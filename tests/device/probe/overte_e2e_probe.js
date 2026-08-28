@@ -30,6 +30,7 @@
     var lastClientCommandId = "";
     var lastSceneCommandId = "";
     var sampleSequence = 0;
+    var orientationHistory = [];
     var verticalObservationPrevious = null;
     var verticalJumpActive = false;
     var verticalEvents = {
@@ -372,6 +373,7 @@
         // normalization used at initial startup before declaring readiness.
         flightNormalizationAllowed = true;
         flightNormalizationStableSamples = 0;
+        orientationHistory = [];
     }
 
     function avatarAtExpectedSpawn() {
@@ -713,6 +715,13 @@
             }
         }
         sampleSequence += 1;
+        orientationHistory.push({
+            sampleSequence: sampleSequence,
+            orientation: vector(orientation)
+        });
+        if (orientationHistory.length > 48) {
+            orientationHistory.shift();
+        }
         Test.saveObject({
             schemaVersion: 2,
             sampleEpochMs: Date.now(),
@@ -759,7 +768,8 @@
             },
             verticalEvents: verticalEvents,
             view: {
-                orientation: vector(orientation)
+                orientation: vector(orientation),
+                orientationHistory: orientationHistory
             },
             tablet: {
                 // tabletShown is explicitly unused in desktop toolbar mode.

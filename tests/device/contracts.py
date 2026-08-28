@@ -342,8 +342,31 @@ def validate_probe_snapshot(value: object) -> dict:
               or vertical_events["lastFlightPeakY"]
               < vertical_events["lastFlightStartY"]):
             raise ValueError("probe flight event requires ordered start and peak heights")
-    _require_exact_fields(value["view"], {"orientation"}, "probe view")
-    _validate_vector(value["view"].get("orientation"), "probe view.orientation")
+    view = value["view"]
+    view_fields = {"orientation"}
+    if "orientationHistory" in view:
+        view_fields.add("orientationHistory")
+    _require_exact_fields(view, view_fields, "probe view")
+    _validate_vector(view.get("orientation"), "probe view.orientation")
+    orientation_history = view.get("orientationHistory")
+    if orientation_history is not None:
+        if not isinstance(orientation_history, list) or len(orientation_history) > 48:
+            raise ValueError("probe view.orientationHistory must be a bounded list")
+        previous_sequence = 0
+        for index, observation in enumerate(orientation_history):
+            if not isinstance(observation, dict):
+                raise ValueError("probe view orientation history entry must be an object")
+            _require_exact_fields(
+                observation, {"orientation", "sampleSequence"},
+                f"probe view orientation history entry {index}")
+            sequence = observation.get("sampleSequence")
+            if (not isinstance(sequence, int) or isinstance(sequence, bool)
+                    or sequence <= previous_sequence or sequence > value["sampleSequence"]):
+                raise ValueError("probe view orientation history sequence is invalid")
+            _validate_vector(
+                observation.get("orientation"),
+                f"probe view orientation history entry {index}.orientation")
+            previous_sequence = sequence
     _require_exact_fields(value["tablet"], {"home", "open", "toolbarMode"}, "probe tablet")
     for field in ("open", "home", "toolbarMode"):
         if not isinstance(value["tablet"].get(field), bool):

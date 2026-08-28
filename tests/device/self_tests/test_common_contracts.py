@@ -94,6 +94,26 @@ class CommonContractTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     validate_probe_snapshot(invalid)
 
+    def test_probe_orientation_history_is_bounded_ordered_and_current(self):
+        valid = snapshot()
+        valid["sampleSequence"] = 9
+        valid["view"]["orientationHistory"] = [
+            {"sampleSequence": 8, "orientation": {"x": 0.0, "y": -12.0, "z": 0.0}},
+            {"sampleSequence": 9, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0}},
+        ]
+        self.assertIs(valid, validate_probe_snapshot(valid))
+        for history in (
+                [{"sampleSequence": 10,
+                  "orientation": {"x": 0.0, "y": 0.0, "z": 0.0}}],
+                [{"sampleSequence": 8,
+                  "orientation": {"x": 0.0, "y": 0.0, "z": 0.0}},
+                 {"sampleSequence": 8,
+                  "orientation": {"x": 0.0, "y": 1.0, "z": 0.0}}]):
+            invalid = copy.deepcopy(valid)
+            invalid["view"]["orientationHistory"] = history
+            with self.assertRaisesRegex(ValueError, "orientation history sequence"):
+                validate_probe_snapshot(invalid)
+
 
 if __name__ == "__main__":
     unittest.main()

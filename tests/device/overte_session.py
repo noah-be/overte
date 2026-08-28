@@ -420,12 +420,26 @@ class OverteSession:
             "OVERTE_E2E_MIN_LOOK_DEGREES", 5.0, 0.1, 90.0)
         after = self.wait_until(
             f"view orientation to turn {direction} by at least {minimum} degrees",
-            lambda value: sign * self._signed_angle_delta(
-                before["view"]["orientation"], value["view"]["orientation"], axis) >= minimum,
+            lambda value: self.look_direction_delta(before, value, direction) >= minimum,
         )
         write_json(f"look-{direction}-after.json", after)
         neutral = self.input_neutral_snapshot(f"look-{direction}-neutral.json")
         return before, after, neutral
+
+    def look_direction_delta(self, before: dict, after: dict, direction: str) -> float:
+        """Return the largest directionally correct view delta observed after before."""
+        if direction not in self.LOOK_INPUTS:
+            fail("look direction is unsupported")
+        _horizontal, _vertical, axis, sign = self.LOOK_INPUTS[direction]
+        candidates = [after["view"]["orientation"]]
+        candidates.extend(
+            observation["orientation"]
+            for observation in after["view"].get("orientationHistory", [])
+            if observation["sampleSequence"] > before["sampleSequence"]
+        )
+        return max(sign * self._signed_angle_delta(
+            before["view"]["orientation"], orientation, axis)
+                   for orientation in candidates)
 
     @staticmethod
     def movement_vector(body_yaw_degrees: float, direction: str) -> tuple[float, float]:
