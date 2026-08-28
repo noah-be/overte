@@ -18,8 +18,6 @@
     var sampleIntervalMs = 250;
     var heartbeatIntervalMs = 5000;
     var previousLocationKey = "";
-    var androidControlMarkerRequestPending = false;
-    var androidControlCommandRequestPending = false;
     var androidControlAvailable = false;
     var lastAndroidControlCommandId = "";
     var androidAssetEntityId = null;
@@ -394,57 +392,34 @@
         }
     }
 
+    function requireUncachedLocalJson(moduleId) {
+        try {
+            var resolved = Script.require.resolve(moduleId);
+            delete Script.require.cache[resolved];
+            return Script.require(moduleId);
+        } catch (error) {
+            return null;
+        }
+    }
+
     function pollAndroidControlCommand() {
-        if (!androidControlAvailable || androidControlCommandRequestPending) {
+        if (!androidControlAvailable) {
             return;
         }
-        androidControlCommandRequestPending = true;
-        var request = new XMLHttpRequest();
-        request.onreadystatechange = function () {
-            if (request.readyState !== request.DONE) {
-                return;
-            }
-            androidControlCommandRequestPending = false;
-            if ((request.status === 0 || request.status === 200) && request.responseText) {
-                try {
-                    applyAndroidControlCommand(JSON.parse(request.responseText));
-                } catch (error) {
-                    print("OVERTE_E2E_ANDROID_COMMAND_ERROR " + safeErrorText(error));
-                }
-            }
-        };
-        request.open("GET", Script.resolvePath("android-control-command.json")
-            + "?sample=" + sampleSequence);
-        request.send();
+        applyAndroidControlCommand(requireUncachedLocalJson("./android-control-command.json"));
     }
 
     function pollAndroidControlMarker() {
-        if (androidControlAvailable || androidControlMarkerRequestPending) {
+        if (androidControlAvailable) {
             pollAndroidControlCommand();
             return;
         }
-        androidControlMarkerRequestPending = true;
-        var request = new XMLHttpRequest();
-        request.onreadystatechange = function () {
-            if (request.readyState !== request.DONE) {
-                return;
-            }
-            androidControlMarkerRequestPending = false;
-            if ((request.status === 0 || request.status === 200) && request.responseText) {
-                try {
-                    var marker = JSON.parse(request.responseText);
-                    androidControlAvailable = marker.schemaVersion === 1
-                        && marker.channel === "android-debug-file-v1"
-                        && marker.probe === "overte_e2e_probe.js";
-                } catch (error) {
-                    androidControlAvailable = false;
-                }
-            }
-            pollAndroidControlCommand();
-        };
-        request.open("GET", Script.resolvePath("android-control.json")
-            + "?sample=" + sampleSequence);
-        request.send();
+        var marker = requireUncachedLocalJson("./android-control.json");
+        androidControlAvailable = marker !== null
+            && marker.schemaVersion === 1
+            && marker.channel === "android-debug-file-v1"
+            && marker.probe === "overte_e2e_probe.js";
+        pollAndroidControlCommand();
     }
 
     function pollSoundCommand() {

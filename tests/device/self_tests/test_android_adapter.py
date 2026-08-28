@@ -364,6 +364,13 @@ class AndroidAdapterTest(unittest.TestCase):
 
     def test_probe_executes_real_controlled_actions_and_reports_observations(self):
         probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
+        self.assertIn('Script.require.resolve(moduleId)', probe)
+        self.assertIn('delete Script.require.cache[resolved]', probe)
+        self.assertIn('Script.require(moduleId)', probe)
+        self.assertIn('requireUncachedLocalJson("./android-control.json")', probe)
+        self.assertIn('requireUncachedLocalJson("./android-control-command.json")', probe)
+        self.assertNotIn('Script.resolvePath("android-control.json")', probe)
+        self.assertNotIn('Script.resolvePath("android-control-command.json")', probe)
         self.assertIn("location.href = command.url", probe)
         self.assertEqual(1, probe.count("androidAssetEntityId = Entities.addEntity("))
         self.assertIn("overteE2EAssetId: command.assetId", probe)
