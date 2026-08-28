@@ -830,7 +830,7 @@ class AppiumAdapterTests(unittest.TestCase):
             }), encoding="utf-8")
             path.chmod(0o600)
             with mock.patch.dict(os.environ, {"OVERTE_APPIUM_TARGETS": str(path)}):
-                with self.assertRaisesRegex(RuntimeError, "obsolete.*r11"):
+                with self.assertRaisesRegex(RuntimeError, "obsolete.*r12"):
                     APPIUM.AppiumAdapter("ios").targets()
 
     def test_signed_mode_installs_receipt_pair_before_preflight_without_private_argv(self) -> None:
@@ -1191,11 +1191,55 @@ class AppiumAdapterTests(unittest.TestCase):
             adapter.read_session = lambda _selector: state
             client.execute = mock.Mock(side_effect=RuntimeError("private-device-id"))
             client.call = mock.Mock(side_effect=RuntimeError("private-device-id"))
+            adapter.terminate_ios_app_without_wda = mock.Mock(
+                side_effect=RuntimeError("private-device-id"))
             with mock.patch.object(APPIUM, "WebDriver", return_value=client):
                 with self.assertRaisesRegex(RuntimeError, "cleanup did not complete") as raised:
                     adapter.cleanup("private-ipad")
             self.assertNotIn("private-device-id", str(raised.exception))
             self.assertTrue(state_path.is_file())
+
+    def test_ios_cleanup_recovers_a_lost_appium_session_through_dvt(self) -> None:
+        adapter, client, state, target = self.adapter_and_session()
+        with tempfile.TemporaryDirectory(prefix="overte-appium-cleanup-") as name:
+            state_path = Path(name) / "session.json"
+            state_path.write_text(json.dumps(state), encoding="utf-8")
+            adapter.state_path = lambda _selector: state_path
+            adapter.read_session = lambda _selector: state
+            missing = APPIUM.WebDriverRequestError(404)
+            client.execute = mock.Mock(side_effect=missing)
+            client.call = mock.Mock(side_effect=missing)
+            adapter.terminate_ios_app_without_wda = mock.Mock()
+            with mock.patch.object(APPIUM, "WebDriver", return_value=client):
+                self.assertEqual({"cleaned": True}, adapter.cleanup("private-ipad"))
+            adapter.terminate_ios_app_without_wda.assert_called_once_with(target)
+            self.assertFalse(state_path.exists())
+
+    def test_ios_cleanup_uses_dvt_even_without_local_session_state(self) -> None:
+        adapter, _client, _state, target = self.adapter_and_session()
+        adapter.read_session = lambda _selector: None
+        adapter.terminate_ios_app_without_wda = mock.Mock()
+        with tempfile.TemporaryDirectory(prefix="overte-appium-cleanup-") as name:
+            state_path = Path(name) / "session.json"
+            adapter.state_path = lambda _selector: state_path
+            self.assertEqual({"cleaned": True}, adapter.cleanup("private-ipad"))
+        adapter.terminate_ios_app_without_wda.assert_called_once_with(target)
+
+    def test_ios_dvt_cleanup_keeps_private_values_off_argv_and_output(self) -> None:
+        adapter, _client, _state, target = self.adapter_and_session()
+        completed = mock.Mock(returncode=0, stdout="PASS\n", stderr="")
+        with mock.patch.object(adapter, "immutable_ios_runtime_wrapper",
+                               return_value=Path("/immutable/remotexpc_tunnel.py")), \
+                mock.patch.object(APPIUM.subprocess, "run", return_value=completed) as execute:
+            adapter.terminate_ios_app_without_wda(target)
+        self.assertEqual(
+            ["/immutable/remotexpc_tunnel.py", "device-app-terminate"],
+            execute.call_args.args[0],
+        )
+        self.assertNotIn("private-device-id", " ".join(execute.call_args.args[0]))
+        self.assertEqual({
+            "udid": "private-device-id", "bundleId": target["appId"],
+        }, json.loads(execute.call_args.kwargs["input"]))
 
 
 if __name__ == "__main__":

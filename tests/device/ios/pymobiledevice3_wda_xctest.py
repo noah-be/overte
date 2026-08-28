@@ -24,7 +24,8 @@ from pymobiledevice3.services.wda import WdaServiceClient
 
 
 MAX_REQUEST_BYTES = 16 * 1024
-READY_TIMEOUT_SECONDS = 30.0
+READY_TIMEOUT_SECONDS = 34.0
+GRACEFUL_STOP_TIMEOUT_SECONDS = 10.0
 BUNDLE_ID = re.compile(
     r"[A-Za-z0-9][A-Za-z0-9-]*(?:[.][A-Za-z0-9][A-Za-z0-9-]*)+"
 )
@@ -80,6 +81,17 @@ class AppiumKeepAliveEvent(asyncio.Event):
 
     def set(self) -> None:
         pass
+
+    def stop(self) -> None:
+        """Complete the test plan only when Appium releases its ownership.
+
+        XCTest's own completion callback must not end WDA while the Appium
+        session is alive.  Conversely, cancelling XCUITestService.run during
+        Appium cleanup closes its DTX providers abruptly and can leave
+        testmanagerd unable to accept the next runner.  This explicit path
+        lets the service unwind all three providers in protocol order.
+        """
+        super().set()
 
 
 def completed_runner_phase(runner: asyncio.Task, prefix: str) -> str:
@@ -213,12 +225,24 @@ async def run_xctest(request: dict) -> None:
             if runner in done and not stop.is_set():
                 failure_phase = completed_runner_phase(runner, "session-lifetime")
                 raise LaunchError(failure_phase)
+            if stop.is_set():
+                keep_alive.stop()
+                try:
+                    await asyncio.wait_for(
+                        asyncio.shield(runner),
+                        timeout=GRACEFUL_STOP_TIMEOUT_SECONDS,
+                    )
+                except TimeoutError as error:
+                    raise LaunchError("session-lifetime-runner-timeout") from error
+                failure_phase = completed_runner_phase(runner, "session-lifetime")
+                if failure_phase != "session-lifetime-runner-returned":
+                    raise LaunchError(failure_phase)
     except LaunchError:
         raise
     except BaseException as error:
         raise LaunchError(phase) from error
     finally:
-        if "runner" in locals():
+        if "runner" in locals() and not runner.done():
             runner.cancel()
             with suppress(asyncio.CancelledError, Exception):
                 await runner

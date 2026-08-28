@@ -304,7 +304,7 @@ def install_appium(lock: dict, install_root: Path, npm: str) -> Path:
 def immutable_appium_command(lock: dict, state_root: Path) -> list[str]:
     version = lock["appium"]["iosRuntime"]["remoteXpc"]["version"]
     revision = lock.get("serviceRuntimeRevision")
-    if revision != 11:
+    if revision != 12:
         fail("unsupported immutable iOS Appium runtime revision")
     runtime = Path("/usr/local/lib/overte-ios-remotexpc") / f"{version}-r{revision}"
     wrapper = runtime / "remotexpc_tunnel.py"

@@ -13,6 +13,8 @@ import {supportsApiLevel18, supportsApiLevel27} from '../utils/index.js';
 const PYTHON = '/usr/bin/python3.14';
 const WDA_PORT = 8100;
 const MAX_TOOL_OUTPUT = 64 * 1024;
+const KEEPER_GRACEFUL_STOP_MS = 12000;
+const KEEPER_FORCE_REAP_MS = 3000;
 const KEEPER_FAILURE_PHASES = new Set([
     'host-platform', 'keeper-reap', 'parent-death-signal', 'parent-lost', 'request',
     'request-endpoint', 'request-environment', 'runtime-version',
@@ -153,14 +155,18 @@ async function stopXctestKeeper(child) {
     let timer;
     const graceful = await Promise.race([
         exited.then(() => true),
-        new Promise((resolve) => { timer = setTimeout(() => resolve(false), 3000); }),
+        new Promise((resolve) => {
+            timer = setTimeout(() => resolve(false), KEEPER_GRACEFUL_STOP_MS);
+        }),
     ]);
     clearTimeout(timer);
     if (!graceful && child.exitCode === null && child.signalCode === null) {
         child.kill('SIGKILL');
         const killed = await Promise.race([
             exited.then(() => true),
-            new Promise((resolve) => { timer = setTimeout(() => resolve(false), 3000); }),
+            new Promise((resolve) => {
+                timer = setTimeout(() => resolve(false), KEEPER_FORCE_REAP_MS);
+            }),
         ]);
         clearTimeout(timer);
         if (!killed && child.exitCode === null && child.signalCode === null) {

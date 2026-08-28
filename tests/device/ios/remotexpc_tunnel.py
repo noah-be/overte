@@ -28,6 +28,7 @@ NPM_LOCK_FILE = Path(__file__).with_name("package-lock.json")
 DEVICE_PREFLIGHT_FILE = Path(__file__).with_name("appium_device_preflight.js")
 DEVICE_INSTALL_FILE = Path(__file__).with_name("appium_device_install.js")
 DEVICE_DDI_FILE = Path(__file__).with_name("appium_device_ddi.js")
+DEVICE_PROCESS_FILE = Path(__file__).with_name("appium_device_process.js")
 WDA_HOST_OPS_FILE = Path(__file__).with_name("appium_wda_host_ops.js")
 PYMOBILEDEVICE3_XCTEST_FILE = Path(__file__).with_name(
     "pymobiledevice3_wda_xctest.py"
@@ -317,7 +318,7 @@ def list_installed_drivers(node: Path, appium_entry: Path, appium_home: Path,
 
 def service_runtime_revision(lock: dict) -> int:
     revision = lock.get("serviceRuntimeRevision")
-    if revision != 11:
+    if revision != 12:
         fail("unsupported immutable service-runtime revision")
     return revision
 
@@ -611,6 +612,7 @@ def verify_service_runtime(runtime_root: Path,
         ),
         "deviceInstallSha256": file_sha256(runtime_root / DEVICE_INSTALL_FILE.name),
         "deviceDdiSha256": file_sha256(runtime_root / DEVICE_DDI_FILE.name),
+        "deviceProcessSha256": file_sha256(runtime_root / DEVICE_PROCESS_FILE.name),
         "wdaHostOpsSha256": file_sha256(runtime_root / XCUITEST_WDA_HOST_OPS),
         "pymobiledevice3XctestSha256": file_sha256(
             runtime_root / PYMOBILEDEVICE3_XCTEST_FILE.name
@@ -684,6 +686,7 @@ def verify_runtime_matches_source(runtime_root: Path, node: Path,
         "devicePreflightSha256": file_sha256(DEVICE_PREFLIGHT_FILE),
         "deviceInstallSha256": file_sha256(DEVICE_INSTALL_FILE),
         "deviceDdiSha256": file_sha256(DEVICE_DDI_FILE),
+        "deviceProcessSha256": file_sha256(DEVICE_PROCESS_FILE),
         "wdaHostOpsSha256": file_sha256(WDA_HOST_OPS_FILE),
         "pymobiledevice3XctestSha256": file_sha256(PYMOBILEDEVICE3_XCTEST_FILE),
         "artifactTreeSha256": file_sha256(ARTIFACT_TREE_FILE),
@@ -740,6 +743,7 @@ def install_service_runtime(appium_home: Path, pymobiledevice3_home: Path,
         shutil.copyfile(DEVICE_PREFLIGHT_FILE, staging / DEVICE_PREFLIGHT_FILE.name)
         shutil.copyfile(DEVICE_INSTALL_FILE, staging / DEVICE_INSTALL_FILE.name)
         shutil.copyfile(DEVICE_DDI_FILE, staging / DEVICE_DDI_FILE.name)
+        shutil.copyfile(DEVICE_PROCESS_FILE, staging / DEVICE_PROCESS_FILE.name)
         shutil.copyfile(
             PYMOBILEDEVICE3_XCTEST_FILE,
             staging / PYMOBILEDEVICE3_XCTEST_FILE.name,
@@ -789,6 +793,7 @@ def install_service_runtime(appium_home: Path, pymobiledevice3_home: Path,
             ),
             "deviceInstallSha256": file_sha256(staging / DEVICE_INSTALL_FILE.name),
             "deviceDdiSha256": file_sha256(staging / DEVICE_DDI_FILE.name),
+            "deviceProcessSha256": file_sha256(staging / DEVICE_PROCESS_FILE.name),
             "wdaHostOpsSha256": file_sha256(staging / XCUITEST_WDA_HOST_OPS),
             "pymobiledevice3XctestSha256": file_sha256(
                 staging / PYMOBILEDEVICE3_XCTEST_FILE.name
@@ -1131,6 +1136,55 @@ def device_ddi(arguments: argparse.Namespace) -> int:
             plistlib.InvalidFileException, subprocess.SubprocessError, KeyError, TypeError):
         fail("private iOS Developer Disk Image request failed")
     print("PASS: iOS Personalized DDI and XCTest services are ready")
+    return 0
+
+
+def device_app_terminate(arguments: argparse.Namespace) -> int:
+    """Terminate one exact bundle over DVT without requiring WDA or Appium."""
+    try:
+        node, _script = verify_service_runtime(arguments.service_runtime)
+        payload = sys.stdin.buffer.read(4097)
+        if len(payload) > 4096:
+            fail("private iOS application request exceeded its safety limit")
+        request = json.loads(payload)
+        if (not isinstance(request, dict) or set(request) != {"udid", "bundleId"}
+                or not isinstance(request.get("udid"), str)
+                or not 8 <= len(request["udid"]) <= 128
+                or any(character in request["udid"] for character in "\0\r\n")
+                or not isinstance(request.get("bundleId"), str)
+                or len(request["bundleId"]) > 255
+                or not BUNDLE_ID_RE.fullmatch(request["bundleId"])):
+            fail("private iOS application request is invalid")
+        with tempfile.TemporaryDirectory(prefix="overte-ios-process-") as name:
+            data_home = Path(name) / "data"
+            data_home.mkdir(mode=0o700)
+            port_file = data_home / TUNNEL_PORT_ITEM
+            port_file.parent.mkdir(parents=True, mode=0o700)
+            descriptor = os.open(
+                port_file,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+                0o600,
+            )
+            with os.fdopen(descriptor, "w", encoding="ascii") as output:
+                output.write(str(arguments.port))
+                output.flush()
+                os.fsync(output.fileno())
+            environment = {
+                "PATH": str(arguments.service_runtime / "bin") + ":/usr/sbin:/usr/bin",
+                "HOME": "/nonexistent",
+                "XDG_DATA_HOME": str(data_home),
+            }
+            result = subprocess.run(
+                [str(node), str(arguments.service_runtime / DEVICE_PROCESS_FILE.name)],
+                input=payload, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                cwd=arguments.service_runtime, env=environment, timeout=60, check=False,
+            )
+        if result.returncode:
+            fail("private iOS application helper failed")
+    except (TunnelError, OSError, UnicodeError, json.JSONDecodeError,
+            subprocess.SubprocessError, TypeError):
+        fail("private iOS application termination request failed")
+    print("PASS: iOS application is not running")
     return 0
 
 
@@ -1536,6 +1590,12 @@ def parser() -> argparse.ArgumentParser:
         )
         ddi_parser.add_argument("--port", type=int, default=DEFAULT_PORT)
 
+    device_process_parser = subparsers.add_parser("device-app-terminate")
+    device_process_parser.add_argument(
+        "--service-runtime", type=Path, default=default_service_runtime(),
+    )
+    device_process_parser.add_argument("--port", type=int, default=DEFAULT_PORT)
+
     install_parser = subparsers.add_parser("install-unit")
     install_parser.add_argument("--appium-home", type=Path, required=True)
     install_parser.add_argument("--pymobiledevice3-home", type=Path, required=True)
@@ -1568,6 +1628,8 @@ def main() -> int:
             return device_install(arguments)
         if arguments.action in {"device-ddi-status", "device-ddi-mount"}:
             return device_ddi(arguments)
+        if arguments.action == "device-app-terminate":
+            return device_app_terminate(arguments)
         return install_unit(arguments)
     except (TunnelError, OSError, subprocess.SubprocessError, json.JSONDecodeError) as error:
         print(f"error: {error}", file=sys.stderr)
