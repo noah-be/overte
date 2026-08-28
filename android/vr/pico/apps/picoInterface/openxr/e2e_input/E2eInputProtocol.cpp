@@ -33,6 +33,11 @@ constexpr int MAX_COMMANDS = 32;
 constexpr std::int64_t MAX_GRANT_LIFETIME_MS = 5 * 60 * 1000;
 constexpr std::int64_t INTER_COMMAND_GAP_MS = 100;
 constexpr std::int64_t INITIAL_NEUTRAL_MS = 100;
+// Physical Pico runs have missed shorter pulses even after an OpenXR query
+// consumed them. Keep a full 100 ms margin below CharacterController's default
+// 500 ms jump-to-hover threshold.
+constexpr std::int64_t JUMP_HOLD_MS = 450;
+constexpr std::int64_t FLY_ARM_HOLD_MS = 400;
 constexpr double PI = 3.14159265358979323846;
 
 struct FileIdentity {
@@ -587,13 +592,13 @@ bool Protocol::tryAccept(std::int64_t epochMilliseconds,
                     (arguments.contains("vertical") &&
                      !finiteNumber(arguments.value("vertical"), -0.45, 0.45, vertical)) ||
                     (arguments.contains("durationSeconds") &&
-                     !finiteNumber(arguments.value("durationSeconds"), 0.1, 8.0, seconds)) ||
+                     !finiteNumber(arguments.value("durationSeconds"), 0.1, 30.0, seconds)) ||
                     (std::abs(horizontal) < 0.01 && std::abs(vertical) < 0.01)) {
                 return false;
             }
             active.viewActive = true;
             active.viewYawDegrees = static_cast<float>(horizontal / 0.45 * 45.0);
-            active.viewPitchDegrees = static_cast<float>(vertical / 0.45 * 30.0);
+            active.viewPitchDegrees = static_cast<float>(vertical / 0.45 * 45.0);
             active.viewOrientation = lookQuaternion(active.viewYawDegrees,
                                                      active.viewPitchDegrees);
             duration = static_cast<std::int64_t>(std::llround(seconds * 1000.0));
@@ -605,16 +610,44 @@ bool Protocol::tryAccept(std::int64_t epochMilliseconds,
             double seconds { 0.0 };
             double strength { 0.8 };
             if ((direction != QLatin1String("forward") &&
-                 direction != QLatin1String("backward")) ||
+                 direction != QLatin1String("backward") &&
+                 direction != QLatin1String("left") &&
+                 direction != QLatin1String("right")) ||
                     !finiteNumber(arguments.value("durationSeconds"), 0.1, 8.0, seconds) ||
                     (arguments.contains("strength") &&
                      !finiteNumber(arguments.value("strength"), 0.2, 1.0, strength))) {
                 return false;
             }
-            active.vectors[static_cast<std::size_t>(VectorChannel::LeftThumbstick)] = {
-                0.0f,
-                static_cast<float>(direction == QLatin1String("forward") ? strength : -strength),
-            };
+            const float x = direction == QLatin1String("right")
+                ? static_cast<float>(strength)
+                : direction == QLatin1String("left") ? static_cast<float>(-strength) : 0.0f;
+            const float y = direction == QLatin1String("forward")
+                ? static_cast<float>(strength)
+                : direction == QLatin1String("backward") ? static_cast<float>(-strength) : 0.0f;
+            active.vectors[static_cast<std::size_t>(VectorChannel::LeftThumbstick)] = { x, y };
+            duration = static_cast<std::int64_t>(std::llround(seconds * 1000.0));
+        } else if (operation == QLatin1String("input.jump")) {
+            if (!exactKeys(arguments, {})) {
+                return false;
+            }
+            active.booleans[static_cast<std::size_t>(BooleanChannel::RightSecondary)] = true;
+            duration = JUMP_HOLD_MS;
+        } else if (operation == QLatin1String("input.fly")) {
+            if (!exactKeys(arguments, { "durationSeconds" })) {
+                return false;
+            }
+            double seconds { 0.0 };
+            if (!finiteNumber(arguments.value("durationSeconds"), 0.5, 8.0, seconds)) {
+                return false;
+            }
+            active.booleans[static_cast<std::size_t>(BooleanChannel::RightSecondary)] = true;
+            // Flight is a double-press gesture. Compile the takeoff pulse and
+            // its neutral gap into this same native grant so transport latency
+            // cannot change the timing before the held second press below.
+            compiled.push_back({ cursor, active, identifier.toStdString() });
+            cursor += FLY_ARM_HOLD_MS;
+            compiled.push_back({ cursor, neutralOverride(), {} });
+            cursor += INTER_COMMAND_GAP_MS;
             duration = static_cast<std::int64_t>(std::llround(seconds * 1000.0));
         } else if (operation == QLatin1String("tablet.open") ||
                    operation == QLatin1String("tablet.close")) {
@@ -656,9 +689,11 @@ bool Protocol::tryAccept(std::int64_t epochMilliseconds,
     _viewAppliedYawDegrees = 0.0;
     _viewAppliedPitchDegrees = 0.0;
     _vectorAppliedSequence = 0;
+    _leftThumbstickAppliedX = 0.0;
     _leftThumbstickAppliedY = 0.0;
     _booleanAppliedSequence = 0;
     _leftSecondaryApplied = false;
+    _rightSecondaryApplied = false;
     _acceptedNonce = nonce.toStdString();
     _current = _events.front().state;
     _activeCommandId.clear();
@@ -715,11 +750,13 @@ void Protocol::recordViewApplication(std::int64_t epochMilliseconds) {
 void Protocol::recordVectorApplication(VectorChannel channel, const XrVector2f& value,
                                        std::int64_t epochMilliseconds) {
     if (!_current.overrideEnabled || _activeCommandId.empty() ||
-            channel != VectorChannel::LeftThumbstick || std::abs(value.y) < 0.01f ||
+            channel != VectorChannel::LeftThumbstick ||
+            (std::abs(value.x) < 0.01f && std::abs(value.y) < 0.01f) ||
             _vectorAppliedSequence == _acceptedSequence) {
         return;
     }
     _vectorAppliedSequence = _acceptedSequence;
+    _leftThumbstickAppliedX = value.x;
     _leftThumbstickAppliedY = value.y;
     publishStatus("active", "vector-consumed", epochMilliseconds);
 }
@@ -727,12 +764,20 @@ void Protocol::recordVectorApplication(VectorChannel channel, const XrVector2f& 
 void Protocol::recordBooleanApplication(BooleanChannel channel, bool value,
                                         std::int64_t epochMilliseconds) {
     if (!_current.overrideEnabled || _activeCommandId.empty() || !value ||
-            channel != BooleanChannel::LeftSecondary ||
-            _booleanAppliedSequence == _acceptedSequence) {
+            (channel != BooleanChannel::LeftSecondary &&
+             channel != BooleanChannel::RightSecondary)) {
+        return;
+    }
+    if ((channel == BooleanChannel::LeftSecondary && _leftSecondaryApplied) ||
+            (channel == BooleanChannel::RightSecondary && _rightSecondaryApplied)) {
         return;
     }
     _booleanAppliedSequence = _acceptedSequence;
-    _leftSecondaryApplied = true;
+    if (channel == BooleanChannel::LeftSecondary) {
+        _leftSecondaryApplied = true;
+    } else {
+        _rightSecondaryApplied = true;
+    }
     publishStatus("active", "boolean-consumed", epochMilliseconds);
 }
 
@@ -760,9 +805,11 @@ void Protocol::publishStatus(const char* state, const char* detail,
         { "viewAppliedYawDegrees", _viewAppliedYawDegrees },
         { "viewAppliedPitchDegrees", _viewAppliedPitchDegrees },
         { "vectorAppliedSequence", static_cast<double>(_vectorAppliedSequence) },
+        { "leftThumbstickAppliedX", _leftThumbstickAppliedX },
         { "leftThumbstickAppliedY", _leftThumbstickAppliedY },
         { "booleanAppliedSequence", static_cast<double>(_booleanAppliedSequence) },
         { "leftSecondaryApplied", _leftSecondaryApplied },
+        { "rightSecondaryApplied", _rightSecondaryApplied },
         { "acceptedNonce", QString::fromStdString(_acceptedNonce) },
         { "activeCommandId", QString::fromStdString(_activeCommandId) },
         { "state", QLatin1String(state) },

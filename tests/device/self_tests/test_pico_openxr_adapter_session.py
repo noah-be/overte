@@ -33,13 +33,19 @@ class FakeTransport:
             "acceptedSequence": sequence,
             "acceptedNonce": "[redacted]",
             "state": "active" if expected_sequence is not None else "neutral",
+            "activeCommandId": (f"{operation.replace('.', '-')}-{sequence}"
+                                if expected_sequence is not None else ""),
             "viewAppliedSequence": sequence if operation == "input.look" else 0,
             "viewAppliedYawDegrees": 25.0 if operation == "input.look" else 0.0,
             "viewAppliedPitchDegrees": 0.0,
             "vectorAppliedSequence": sequence if operation == "input.move" else 0,
+            "leftThumbstickAppliedX": 0.0,
             "leftThumbstickAppliedY": 0.4 if operation == "input.move" else 0.0,
-            "booleanAppliedSequence": sequence if operation.startswith("tablet.") else 0,
+            "booleanAppliedSequence": sequence if (
+                operation.startswith("tablet.") or
+                operation in {"input.jump", "input.fly"}) else 0,
             "leftSecondaryApplied": operation.startswith("tablet."),
+            "rightSecondaryApplied": operation in {"input.jump", "input.fly"},
         }
 
     def cleanup(self):
@@ -73,6 +79,7 @@ class PicoOpenXrAdapterSessionTests(unittest.TestCase):
         self.assertEqual(25.0, first["viewYawDegrees"])
         self.assertEqual("controller-action", second["inputDomain"])
         self.assertTrue(second["openXrVectorApplied"])
+        self.assertEqual(0.0, second["openXrLeftThumbstickX"])
         self.assertEqual(0.4, second["openXrLeftThumbstickY"])
         serialized = str((first, second))
         self.assertNotIn(self.transport.envelopes[0]["sessionNonce"], serialized)
@@ -88,6 +95,24 @@ class PicoOpenXrAdapterSessionTests(unittest.TestCase):
         self.assertEqual(0, self.transport.cleanup_count)
         self.assertEqual(1, self.transport.envelopes[-1]["sequence"])
         self.assertEqual(old_nonce, self.transport.envelopes[-1]["sessionNonce"])
+
+    def test_jump_and_fly_use_right_secondary_with_one_shared_session(self) -> None:
+        self.session.begin("42:100")
+        jumped = self.session.stage("42:100", "input.jump", {})
+        flew = self.session.stage(
+            "42:100", "input.fly", {"durationSeconds": 3.0})
+        self.assertEqual([1, 2], [
+            envelope["sequence"] for envelope in self.transport.envelopes])
+        self.assertEqual(
+            self.transport.envelopes[0]["sessionNonce"],
+            self.transport.envelopes[1]["sessionNonce"],
+        )
+        self.assertTrue(jumped["openXrBooleanApplied"])
+        self.assertTrue(jumped["openXrRightSecondaryApplied"])
+        self.assertTrue(flew["openXrBooleanApplied"])
+        self.assertTrue(flew["openXrRightSecondaryApplied"])
+        self.assertFalse(jumped["neutralBeforeCommand"])
+        self.assertTrue(flew["neutralBeforeCommand"])
 
     def test_cleanup_is_neutral_and_idempotent(self) -> None:
         self.session.begin("42:100")

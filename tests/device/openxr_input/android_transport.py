@@ -21,10 +21,11 @@ BUILD_MARKER = "OVERTE_E2E_OPENXR_INPUT_V1"
 CONSUMER = "XR_APILAYER_OVERTE_e2e_input"
 CHANNEL = "app-private-file"
 PROFILE_ID = "overte-pico4-controller-v1"
-PROFILE_SHA256 = "922e091c38f5cb1ec6c3e55c80b81de0a876524d951318c61e7feb4821eab481"
+PROFILE_SHA256 = "da7ef170275af8c058da53210c8a88aa6920e6315b5cdc0daaedf072dc1b3284"
 REMOTE_DIRECTORY = "files/overte-e2e/openxr-input"
 MAX_GRANT_LIFETIME_MS = 5 * 60 * 1000
 ADB_TIMEOUT_SECONDS = 20
+EXCLUSIVE_TARGET_LEASE_SECONDS = 15.0
 Runner = Callable[..., subprocess.CompletedProcess]
 
 
@@ -49,6 +50,7 @@ class AndroidOpenXrTransport:
         self.selector = selector
         self.server_port = server_port
         self.runner = runner
+        self._exclusive_target_verified_at: float | None = None
         if (not self.selector or any(character.isspace() for character in self.selector)
                 or len(self.selector) > 255):
             raise TransportError("private Pico selector is invalid")
@@ -91,12 +93,27 @@ class AndroidOpenXrTransport:
             fields = line.split()
             if len(fields) >= 2:
                 devices.append((fields[0], fields[1]))
-        if devices != [(self.selector, "device")]:
+        active = [device for device in devices if device[1] == "device"]
+        inactive_states = [state for _, state in devices if state != "device"]
+        # `adb detach` deliberately keeps the disconnected USB transport in
+        # the server inventory as `detached`. It is not an authorized or
+        # addressable target, and retaining it is how a USB-attached headset
+        # can be forced onto the isolated WLAN transport. All other inactive
+        # states remain fail-closed because they were not explicitly detached.
+        if (active != [(self.selector, "device")]
+                or any(state != "detached" for state in inactive_states)):
             raise TransportError("isolated ADB server must expose exactly the private Pico target")
         state = self._run([*self._base(), "get-state"],
                           purpose="target-state").decode("utf-8").strip()
         if state != "device":
             raise TransportError("private Pico target is not ready")
+        self._exclusive_target_verified_at = time.monotonic()
+
+    def _require_recent_exclusive_target(self) -> None:
+        verified = self._exclusive_target_verified_at
+        if (verified is None
+                or time.monotonic() - verified > EXCLUSIVE_TARGET_LEASE_SECONDS):
+            self.require_exclusive_target()
 
     def _atomic_write(self, name: str, payload: bytes) -> None:
         if name not in {"commands.json", "grant.json"}:
@@ -166,7 +183,12 @@ class AndroidOpenXrTransport:
 
     def read_status(self, *, expected_nonce: str | None = None,
                     expected_sequence: int | None = None) -> dict[str, Any]:
-        self.require_exclusive_target()
+        # A stage already proved the selected target immediately before its
+        # atomic writes. Repeating discovery and get-state for every 100 ms
+        # acknowledgement poll can consume the complete bounded input window
+        # on WLAN-ADB. The explicit `-s` selector remains on every status read;
+        # a later standalone read or an expired lease revalidates exclusivity.
+        self._require_recent_exclusive_target()
         script = (
             f"file='{REMOTE_DIRECTORY}/status.json'; "
             '[ -f "$file" ] && [ ! -L "$file" ] && cat "$file"'
@@ -182,8 +204,9 @@ class AndroidOpenXrTransport:
             "bindingProfileSha256", "enabled", "acceptedSequence", "acceptedNonce",
             "activeCommandId", "state", "detail", "updatedEpochMs",
             "viewAppliedSequence", "viewAppliedYawDegrees", "viewAppliedPitchDegrees",
-            "vectorAppliedSequence", "leftThumbstickAppliedY",
+            "vectorAppliedSequence", "leftThumbstickAppliedX", "leftThumbstickAppliedY",
             "booleanAppliedSequence", "leftSecondaryApplied",
+            "rightSecondaryApplied",
         }
         if not isinstance(status, dict) or set(status) != required:
             raise TransportError("native OpenXR input status contract is invalid")
@@ -206,25 +229,32 @@ class AndroidOpenXrTransport:
                 or isinstance(status["viewAppliedPitchDegrees"], bool)
                 or not isinstance(status["viewAppliedPitchDegrees"], (int, float))
                 or not math.isfinite(status["viewAppliedPitchDegrees"])
-                or not -30.0 <= status["viewAppliedPitchDegrees"] <= 30.0
+                or not -45.0 <= status["viewAppliedPitchDegrees"] <= 45.0
                 or (status["viewAppliedSequence"] == 0 and
                     (status["viewAppliedYawDegrees"] != 0 or
                      status["viewAppliedPitchDegrees"] != 0))
                 or isinstance(status["vectorAppliedSequence"], bool)
                 or not isinstance(status["vectorAppliedSequence"], int)
                 or not 0 <= status["vectorAppliedSequence"] <= status["acceptedSequence"]
+                or isinstance(status["leftThumbstickAppliedX"], bool)
+                or not isinstance(status["leftThumbstickAppliedX"], (int, float))
+                or not math.isfinite(status["leftThumbstickAppliedX"])
+                or not -1.0 <= status["leftThumbstickAppliedX"] <= 1.0
                 or isinstance(status["leftThumbstickAppliedY"], bool)
                 or not isinstance(status["leftThumbstickAppliedY"], (int, float))
                 or not math.isfinite(status["leftThumbstickAppliedY"])
                 or not -1.0 <= status["leftThumbstickAppliedY"] <= 1.0
                 or (status["vectorAppliedSequence"] == 0 and
-                    status["leftThumbstickAppliedY"] != 0)
+                    (status["leftThumbstickAppliedX"] != 0 or
+                     status["leftThumbstickAppliedY"] != 0))
                 or isinstance(status["booleanAppliedSequence"], bool)
                 or not isinstance(status["booleanAppliedSequence"], int)
                 or not 0 <= status["booleanAppliedSequence"] <= status["acceptedSequence"]
                 or not isinstance(status["leftSecondaryApplied"], bool)
+                or not isinstance(status["rightSecondaryApplied"], bool)
                 or (status["booleanAppliedSequence"] == 0 and
-                    status["leftSecondaryApplied"] is not False)
+                    (status["leftSecondaryApplied"] is not False or
+                     status["rightSecondaryApplied"] is not False))
                 or not isinstance(status["acceptedNonce"], str)
                 or (status["acceptedNonce"] != ""
                     and re.fullmatch(r"[0-9a-f]{32,128}", status["acceptedNonce"]) is None)

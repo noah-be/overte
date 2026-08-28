@@ -322,8 +322,13 @@ def invoke(operation: str, arguments: dict) -> dict:
         apply_move(state, arguments["direction"], float(arguments["durationSeconds"]))
         result = {"performed": True, "sequence": state["inputSequence"]}
         if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
+            strength = arguments.get("strength", 0.8)
+            direction = arguments["direction"]
             result.update({"openXrVectorApplied": True,
-                           "openXrLeftThumbstickY": 0.4})
+                           "openXrLeftThumbstickX": (strength if direction == "right" else
+                                                     -strength if direction == "left" else 0.0),
+                           "openXrLeftThumbstickY": (strength if direction == "forward" else
+                                                     -strength if direction == "backward" else 0.0)})
     elif operation == "input.jump":
         state["locomotion"] = "jump"
         state["locomotionSamples"] = 0
@@ -430,7 +435,13 @@ def invoke(operation: str, arguments: dict) -> dict:
                                          and len(fixture_markers) == len(FIXTURE_MARKERS)),
                       "collisionWall": (COLLISION_WALL if state["sceneReady"]
                                         and not state["domainConnected"] else None)},
-            "avatar": {"position": state["position"], "velocity": state["velocity"],
+            "avatar": {"position": state["position"],
+                       "feetPosition": {
+                           "x": state["position"]["x"],
+                           "y": state["position"]["y"] - state["groundY"],
+                           "z": state["position"]["z"],
+                       },
+                       "velocity": state["velocity"],
                        "bodyYawDegrees": state["bodyYawDegrees"], "inAir": state["inAir"],
                        "flying": state["flying"], "flyingEnabled": state["flyingEnabled"]},
             "view": {"orientation": state["orientation"]},

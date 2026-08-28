@@ -55,7 +55,7 @@
       "command": ["modules/look.py"],
       "suites": ["e2e-core"],
       "requires": ["input.look", "probe.snapshot", "scene.load"],
-      "timeoutSeconds": 90
+      "timeoutSeconds": 240
     },
     {
       "id": "move",
@@ -63,7 +63,7 @@
       "command": ["modules/move.py"],
       "suites": ["e2e-core"],
       "requires": ["input.move", "probe.snapshot", "scene.load"],
-      "timeoutSeconds": 90
+      "timeoutSeconds": 210
     },
     {
       "id": "input-neutral",

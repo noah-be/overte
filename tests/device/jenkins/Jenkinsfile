@@ -197,6 +197,11 @@ pipeline {
             defaultValue: false,
             description: 'Run the controlled WAV loading and injector lifecycle E2E suite.'
         )
+        booleanParam(
+            name: 'RUN_VERTICAL_LOCOMOTION',
+            defaultValue: false,
+            description: 'Run physical jump, landing and upward-flight verification.'
+        )
         string(
             name: 'DOMAIN_SERVER_EXECUTABLE',
             defaultValue: '',
@@ -207,10 +212,35 @@ pipeline {
             defaultValue: '',
             description: 'Absolute path to the trusted local assignment-client executable.'
         )
+        string(
+            name: 'OVERTE_ANDROID_ADB',
+            defaultValue: '/usr/bin/adb',
+            description: 'ADB executable used by Android profiles.'
+        )
+        string(
+            name: 'ANDROID_ADB_SERVER_PORT',
+            defaultValue: '',
+            description: 'Non-default isolated ADB server port required by Pico OpenXR input.'
+        )
+        string(
+            name: 'OVERTE_ANDROID_E2E_DEBUG',
+            defaultValue: '0',
+            description: 'Set to 1 only for an audited debug E2E APK.'
+        )
+        string(
+            name: 'OVERTE_PICO_OPENXR_INPUT',
+            defaultValue: '0',
+            description: 'Set to 1 to enable the debug-only Pico OpenXR input layer.'
+        )
+        string(
+            name: 'OVERTE_PICO_OPENXR_STATE_DIR',
+            defaultValue: '',
+            description: 'Absolute private runtime-state directory for Pico OpenXR input.'
+        )
         booleanParam(
             name: 'RUN_ACCESSIBILITY',
             defaultValue: false,
-            description: 'Run the audited native accessibility contract after core.'
+            description: 'Run the audited native accessibility contract after core; unsupported on android-pico-adb.'
         )
         booleanParam(
             name: 'RUN_SOAKS',
@@ -258,6 +288,14 @@ pipeline {
                     if (params.RUN_DOMAIN_ENTER && (!params.DOMAIN_SERVER_EXECUTABLE.trim() ||
                             !params.ASSIGNMENT_CLIENT_EXECUTABLE.trim())) {
                         error('Both domain fixture executable paths are required for domain entry')
+                    }
+                    if (params.RUN_VERTICAL_LOCOMOTION &&
+                            params.TARGET_PROFILE != 'android-pico-adb') {
+                        error('RUN_VERTICAL_LOCOMOTION is currently accepted only for android-pico-adb')
+                    }
+                    if (params.RUN_ACCESSIBILITY &&
+                            params.TARGET_PROFILE == 'android-pico-adb') {
+                        error('RUN_ACCESSIBILITY is unsupported for android-pico-adb because the OpenXR surface does not expose an audited native accessibility tree')
                     }
                     adapterManifest(params.TARGET_PROFILE)
                     env.OVERTE_TARGET_NEEDS_CLEANUP = '0'
@@ -333,6 +371,13 @@ pipeline {
             when { expression { params.RUN_SOUND_PLAYBACK } }
             steps {
                 script { runDeviceSuite('sound-smoke', 10) }
+            }
+        }
+
+        stage('Pico vertical locomotion') {
+            when { expression { params.RUN_VERTICAL_LOCOMOTION } }
+            steps {
+                script { runDeviceSuite('vertical-locomotion', 15) }
             }
         }
 

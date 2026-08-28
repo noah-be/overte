@@ -24,7 +24,7 @@ VERIFIER = ROOT / "verify_adapter.py"
 
 
 MOCK_ADB = r'''#!/usr/bin/env python3
-import json,os,sys
+import json,os,shlex,sys
 a=sys.argv[1:]
 target = a[1] if len(a) > 2 and a[0] == "-s" else None
 cmd = a[2:] if target else a
@@ -47,8 +47,12 @@ elif cmd == ["shell", "pidof", "-s", "org.overte.phone"]:
 elif cmd == ["shell", "cat", "/proc/2468/stat"]:
     changed = os.path.exists(os.environ["OVERTE_MOCK_ANDROID_RESTART_MARKER"])
     print("2468 (overte) S " + " ".join(["0"] * 18) + (" 101" if changed else " 100"))
-elif (len(cmd) >= 8 and cmd[:4] == ["shell", "run-as", "org.overte.phone", "sh"]
-      and cmd[-1] == "files/overte-e2e/e2e-client-command.json"):
+elif (len(cmd) == 2 and cmd[0] == "shell"
+      and shlex.split(cmd[1])[:3] == ["run-as", "org.overte.phone", "sh"]
+      and shlex.split(cmd[1])[-1] == "files/overte-e2e/e2e-client-command.json"):
+    remote_arguments = shlex.split(cmd[1])
+    if remote_arguments[3] != "-c" or remote_arguments[5] != "overte-e2e-write":
+        raise SystemExit(8)
     content = sys.stdin.read()
     with open(os.environ["OVERTE_MOCK_ANDROID_COMMAND_FILE"], "w", encoding="utf-8") as sink:
         sink.write(content)

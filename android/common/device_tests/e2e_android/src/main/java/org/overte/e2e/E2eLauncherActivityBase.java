@@ -22,10 +22,15 @@ public abstract class E2eLauncherActivityBase extends Activity {
     private static final String PROBE_ASSET = "overte_e2e_probe.js";
     private static final String SCENE_ASSET = "scene.json";
     private static final String CONTROL_MARKER = "android-control.json";
+    private static final String CONTROL_COMMAND = "android-control-command.json";
     private static final String CONTROL_CONTRACT =
             "{\"channel\":\"android-debug-file-v1\",\"probe\":\"overte_e2e_probe.js\","
                     + "\"schemaVersion\":1}\n";
-    private static final String SPAWN_VIEWPOINT = "/0,2,4/0,0,0,1";
+    private static final String EMPTY_CONTROL_COMMAND = "{\"schemaVersion\":1}\n";
+    // AddressManager treats viewpoint coordinates as the avatar's feet
+    // position. The controlled fixture floor ends at y=0, so starting at y=0
+    // gives the character controller immediate ground support.
+    private static final String SPAWN_VIEWPOINT = "/0,0,4/0,0,0,1";
 
     protected abstract Class<? extends Activity> interfaceActivity();
 
@@ -39,10 +44,9 @@ public abstract class E2eLauncherActivityBase extends Activity {
             File probe = copyAsset(PROBE_ASSET, launchDirectory);
             File scene = copyAsset(SCENE_ASSET, launchDirectory);
             writeAtomically(CONTROL_MARKER, CONTROL_CONTRACT, launchDirectory);
+            writeAtomically(CONTROL_COMMAND, EMPTY_CONTROL_COMMAND, launchDirectory);
             File previousProbe = new File(launchDirectory, "overte-probe.json");
             deleteIfPresent(previousProbe, "previous probe snapshot");
-            deleteIfPresent(new File(launchDirectory, "android-control-command.json"),
-                    "previous control command");
 
             Uri sceneUrl = Uri.fromFile(scene).buildUpon()
                     .appendQueryParameter("location", SPAWN_VIEWPOINT)
