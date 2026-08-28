@@ -344,9 +344,10 @@ def run_suite() -> int:
                 "OVERTE_E2E_DOMAIN_ID": ready["domainId"],
                 "OVERTE_E2E_DOMAIN_MARKERS_JSON": json.dumps(ready["requiredMarkers"]),
             })
-        elif suite == "e2e-core" and checked_fixture_mode() == "embedded":
+        elif suite in {"e2e-core", "vertical-locomotion"} \
+                and checked_fixture_mode() == "embedded":
             runner_environment["OVERTE_E2E_SCENE_URL"] = EMBEDDED_FIXTURE_URL
-        elif suite in {"e2e-core", "asset-smoke", "sound-smoke"}:
+        elif suite in {"e2e-core", "vertical-locomotion", "asset-smoke", "sound-smoke"}:
             host = checked_public_host()
             bind = environment("OVERTE_CI_FIXTURE_BIND", required=False, default="0.0.0.0")
             port = checked_fixture_port()
@@ -364,7 +365,7 @@ def run_suite() -> int:
             if is_ios_appium_manifest(manifest):
                 selector = environment("OVERTE_DEVICE_TARGET_SELECTOR")
                 update_ios_fixture_origin(root, selector, ready.get("baseUrl"))
-            if suite == "e2e-core":
+            if suite in {"e2e-core", "vertical-locomotion"}:
                 runner_environment["OVERTE_E2E_SCENE_URL"] = ready["sceneUrl"]
             elif suite == "asset-smoke":
                 asset = ready["asset"]

@@ -104,6 +104,24 @@ class JenkinsGlueTest(unittest.TestCase):
                 (output / "summary.json").read_text())["status"])
             self.assertFalse((output / "fixture-ready.json").exists())
 
+    def test_embedded_vertical_run_receives_the_scene_without_network_fixture(self):
+        with tempfile.TemporaryDirectory(prefix="overte-jenkins-vertical-test-") as name:
+            temporary = Path(name)
+            values = self.configuration(temporary)
+            values.update({
+                "OVERTE_CI_SUITE": "vertical-locomotion",
+                "OVERTE_CI_FIXTURE_MODE": "embedded",
+                "OVERTE_CI_OUTPUT_DIR": str(temporary / "outside/vertical-results"),
+            })
+            values.pop("OVERTE_CI_FIXTURE_PUBLIC_HOST")
+            with patch.dict(os.environ, values, clear=False):
+                os.environ.pop("OVERTE_CI_FIXTURE_PUBLIC_HOST", None)
+                self.assertEqual(0, RUN_CI.run_suite())
+            output = Path(values["OVERTE_CI_OUTPUT_DIR"])
+            self.assertEqual("passed", json.loads(
+                (output / "summary.json").read_text())["status"])
+            self.assertFalse((output / "fixture-ready.json").exists())
+
     def test_private_selector_leak_is_quarantined(self):
         with tempfile.TemporaryDirectory(prefix="overte-jenkins-secret-test-") as name:
             temporary = Path(name)
