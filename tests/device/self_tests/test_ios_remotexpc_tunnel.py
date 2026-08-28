@@ -102,6 +102,8 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
             "error: immutable Fedora XCTest keeper failed phase={phase}", source
         )
         self.assertNotIn("str(error)", source)
+        self.assertIn("timeout=min(2.5, remaining)", source)
+        self.assertIn("deadline - loop.time()", source)
 
         host_ops = TUNNEL.WDA_HOST_OPS_FILE.read_text(encoding="utf-8")
         self.assertIn("stdio: ['pipe', 'pipe', 'pipe']", host_ops)

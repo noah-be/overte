@@ -202,12 +202,15 @@ async def run_xctest(request: dict) -> None:
                 if runner.done():
                     failure_phase = completed_runner_phase(runner, "wda-ready")
                     raise LaunchError(failure_phase)
-                if loop.time() >= deadline:
+                remaining = deadline - loop.time()
+                if remaining <= 0:
                     raise LaunchError("wda-ready-timeout")
                 try:
-                    status = await asyncio.wait_for(client.get_status(), timeout=2.5)
+                    status = await asyncio.wait_for(
+                        client.get_status(), timeout=min(2.5, remaining)
+                    )
                 except Exception:
-                    await asyncio.sleep(0.1)
+                    await asyncio.sleep(min(0.1, max(0.0, deadline - loop.time())))
                     continue
                 if (isinstance(status, dict)
                         and isinstance(status.get("value"), dict)
