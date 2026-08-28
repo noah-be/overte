@@ -19,7 +19,43 @@
     var lastHeartbeatEpochMs = 0;
     var sampleIntervalMs = 250;
     var heartbeatIntervalMs = 5000;
+    var previousLocationKey = "";
+    var androidControlMarkerRequestPending = false;
+    var androidControlCommandRequestPending = false;
+    var androidControlAvailable = false;
+    var lastAndroidControlCommandId = "";
+    var androidAssetEntityId = null;
+    var assetResource = null;
+    var assetResourceUrl = "";
+    var controlledAssetEntity = null;
+    var clientCommandRequestPending = false;
+    var clientCommandUnavailable = false;
+    var lastClientCommandId = "";
+    var soundCommandRequestPending = false;
+    // Preserve the shared network-loaded probe contract. Desktop's private
+    // probe copy replaces this local fallback only after the adapter has
+    // posted an exact command to the controlled fixture endpoint.
+    var soundCommandUrl = Script.resolvePath("sound-command.json");
+    var lastSoundControlCommandId = "";
+    var soundResource = null;
+    var soundInjector = null;
+    var soundStopRequested = false;
+    var soundState = {
+        commandId: "",
+        url: "",
+        commandObserved: false,
+        resourceReady: false,
+        durationSeconds: 0.0,
+        format: "unknown",
+        injectorCreated: false,
+        started: false,
+        playing: false,
+        finished: false,
+        finishReason: "none"
+    };
     var fixtureMarkers = ["OVERTE_E2E_FLOOR", "OVERTE_E2E_NORTH", "OVERTE_E2E_EAST", "OVERTE_E2E_ORIGIN"];
+    var domainMarkers = ["OVERTE_E2E_DOMAIN_FLOOR", "OVERTE_E2E_DOMAIN_NORTH",
+        "OVERTE_E2E_DOMAIN_EAST", "OVERTE_E2E_DOMAIN_ORIGIN"];
     var expectedSpawn = { x: 0.0, y: 2.0, z: 4.0 };
 
     function vector(value) {
@@ -67,15 +103,404 @@
         };
     }
 
+    function releaseAssetResource() {
+        if (assetResource !== null) {
+            assetResource.release();
+            assetResource = null;
+        }
+        assetResourceUrl = "";
+    }
+
+    function resourceStateName(state) {
+        if (state === Resource.State.QUEUED) {
+            return "queued";
+        }
+        if (state === Resource.State.LOADING) {
+            return "loading";
+        }
+        if (state === Resource.State.LOADED) {
+            return "loaded";
+        }
+        if (state === Resource.State.FINISHED) {
+            return "finished";
+        }
+        return "failed";
+    }
+
+    function observeAsset(ids) {
+        var candidates = [];
+        var index;
+        for (index = 0; index < ids.length; index += 1) {
+            var identity = Entities.getEntityProperties(ids[index], ["name"]);
+            if (String(identity.name).indexOf("OVERTE_E2E_ASSET_LOAD") === 0) {
+                candidates.push(ids[index]);
+            }
+        }
+        if (candidates.length !== 1) {
+            releaseAssetResource();
+            return null;
+        }
+        var id = candidates[0];
+        var properties = Entities.getEntityProperties(id, [
+            "name", "type", "imageURL", "userData", "naturalDimensions"
+        ]);
+        var metadata;
+        try {
+            metadata = JSON.parse(String(properties.userData));
+        } catch (error) {
+            releaseAssetResource();
+            return null;
+        }
+        var assetId = metadata && metadata.overteE2EAssetId;
+        var imageURL = String(properties.imageURL);
+        if (typeof assetId !== "string" || assetId.length === 0 || imageURL.length === 0) {
+            releaseAssetResource();
+            return null;
+        }
+        if (assetResource === null || assetResourceUrl !== imageURL) {
+            releaseAssetResource();
+            assetResourceUrl = imageURL;
+            assetResource = TextureCache.prefetch(imageURL);
+        }
+        return {
+            assetId: assetId,
+            resource: {
+                url: String(assetResource.url),
+                state: resourceStateName(assetResource.state)
+            },
+            entity: {
+                id: String(id),
+                name: String(properties.name),
+                type: String(properties.type),
+                imageURL: imageURL,
+                naturalDimensions: vector(properties.naturalDimensions)
+            }
+        };
+    }
+
+    function soundFormat(url) {
+        return String(url).split("?", 1)[0].toLowerCase().slice(-4) === ".wav"
+            ? "wav" : "unknown";
+    }
+
+    function startSound(command) {
+        if (soundInjector && soundInjector.playing) {
+            soundInjector.stop();
+        }
+        soundResource = null;
+        soundInjector = null;
+        soundStopRequested = false;
+        soundState = {
+            commandId: String(command.commandId),
+            url: String(command.soundUrl),
+            commandObserved: true,
+            resourceReady: false,
+            durationSeconds: 0.0,
+            format: soundFormat(command.soundUrl),
+            injectorCreated: false,
+            started: false,
+            playing: false,
+            finished: false,
+            finishReason: "none"
+        };
+        soundResource = SoundCache.getSound(soundState.url);
+
+        function playReadySound() {
+            if (!soundResource || soundState.commandId !== String(command.commandId)) {
+                return;
+            }
+            soundState.resourceReady = Boolean(soundResource.downloaded);
+            soundState.durationSeconds = Number(soundResource.duration);
+            if (!soundState.resourceReady || soundState.durationSeconds <= 0.0) {
+                return;
+            }
+            soundInjector = Audio.playSound(soundResource, {
+                localOnly: true,
+                volume: 0.1
+            });
+            soundState.injectorCreated = Boolean(soundInjector);
+            if (soundInjector) {
+                soundInjector.finished.connect(function () {
+                    soundState.playing = false;
+                    soundState.finished = true;
+                    soundState.finishReason = soundStopRequested ? "stopped" : "natural";
+                });
+            }
+        }
+
+        if (soundResource.downloaded) {
+            playReadySound();
+        } else {
+            soundResource.ready.connect(playReadySound);
+        }
+    }
+
+    function applySoundCommand(command) {
+        if (!command || command.schemaVersion !== 1 || !command.commandId
+                || command.commandId === lastSoundControlCommandId) {
+            return;
+        }
+        lastSoundControlCommandId = String(command.commandId);
+        if (command.action === "play" && command.soundUrl) {
+            startSound(command);
+        } else if (command.action === "stop" && soundInjector) {
+            soundStopRequested = true;
+            soundInjector.stop();
+        }
+    }
+
+    function safeErrorText(error) {
+        return String(error && error.message ? error.message : error)
+            .replace(/[\r\n]+/g, " ").slice(0, 160);
+    }
+
+    function objectKeysMatch(value, expected) {
+        if (!value || typeof value !== "object") {
+            return false;
+        }
+        return Object.keys(value).sort().join("|") === expected.slice().sort().join("|");
+    }
+
+    function httpUrl(value) {
+        return typeof value === "string" && /^https?:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\])(?::[0-9]+)?(?:[/?#]|$)/.test(value);
+    }
+
+    function applyClientCommand(command) {
+        if (!command || command.schemaVersion !== 1 || !command.commandId
+                || command.commandId === lastClientCommandId) {
+            return;
+        }
+        if (command.action === "navigate"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "url"])
+                && typeof command.url === "string"
+                && /^hifi:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\]):[0-9]+(?:\/|$)/.test(command.url)) {
+            lastClientCommandId = String(command.commandId);
+            Window.location = command.url;
+            return;
+        }
+        if (command.action === "asset-load"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action",
+                    "assetId", "url", "entityName"])
+                && typeof command.assetId === "string" && command.assetId.length > 0
+                && typeof command.entityName === "string"
+                && command.entityName.indexOf("OVERTE_E2E_ASSET_LOAD") === 0
+                && httpUrl(command.url)) {
+            if (controlledAssetEntity !== null) {
+                Entities.deleteEntity(controlledAssetEntity);
+                controlledAssetEntity = null;
+            }
+            controlledAssetEntity = Entities.addEntity({
+                type: "Image",
+                name: command.entityName,
+                imageURL: command.url,
+                userData: JSON.stringify({ overteE2EAssetId: command.assetId }),
+                position: Vec3.sum(MyAvatar.position, Vec3.multiply(
+                    2.0, Quat.getForward(Camera.orientation))),
+                dimensions: { x: 1.0, y: 1.0, z: 0.01 }
+            }, "local");
+            lastClientCommandId = String(command.commandId);
+            return;
+        }
+        if (command.action === "sound-channel"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "url"])
+                && httpUrl(command.url)) {
+            soundCommandUrl = String(command.url);
+            lastClientCommandId = String(command.commandId);
+        }
+    }
+
+    function pollClientCommand() {
+        if (clientCommandUnavailable || clientCommandRequestPending) {
+            return;
+        }
+        clientCommandRequestPending = true;
+        var request = new XMLHttpRequest();
+        request.onreadystatechange = function () {
+            if (request.readyState !== request.DONE) {
+                return;
+            }
+            clientCommandRequestPending = false;
+            if (request.status === 0 || request.status === 200) {
+                try {
+                    applyClientCommand(JSON.parse(request.responseText));
+                } catch (error) {
+                    print("OVERTE_E2E_CLIENT_COMMAND_ERROR " + safeErrorText(error));
+                }
+            } else if (request.status >= 400) {
+                // A network-loaded shared probe has no desktop command file.
+                // Keep its pre-existing sound endpoint behavior without
+                // polling a permanent 404 for the rest of the session.
+                clientCommandUnavailable = true;
+            }
+        };
+        request.open("GET", Script.resolvePath("desktop-command.json"));
+        request.send();
+    }
+
+    function removeAndroidControlledAssetEntities() {
+        var ids = Entities.findEntities(MyAvatar.position, 1000.0);
+        var index;
+        for (index = 0; index < ids.length; index += 1) {
+            var properties = Entities.getEntityProperties(ids[index], ["name"]);
+            if (String(properties.name).indexOf("OVERTE_E2E_ASSET_LOAD") === 0) {
+                Entities.deleteEntity(ids[index]);
+            }
+        }
+        androidAssetEntityId = null;
+        releaseAssetResource();
+    }
+
+    function applyAndroidControlCommand(command) {
+        if (!command || command.schemaVersion !== 1 || !command.commandId
+                || command.commandId === lastAndroidControlCommandId) {
+            return;
+        }
+        if (command.action === "enter-domain"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "url"])
+                && typeof command.url === "string"
+                && /^hifi:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\]):[0-9]+(?:\/|$)/.test(command.url)) {
+            lastAndroidControlCommandId = String(command.commandId);
+            location.href = command.url;
+            return;
+        }
+        if (command.action === "load-asset"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action",
+                    "assetId", "entityName", "url"])
+                && typeof command.assetId === "string" && command.assetId.length > 0
+                && typeof command.entityName === "string"
+                && command.entityName.indexOf("OVERTE_E2E_ASSET_LOAD") === 0
+                && httpUrl(command.url)) {
+            removeAndroidControlledAssetEntities();
+            androidAssetEntityId = Entities.addEntity({
+                type: "Image",
+                name: command.entityName,
+                imageURL: command.url,
+                userData: JSON.stringify({ overteE2EAssetId: command.assetId }),
+                position: {
+                    x: Number(MyAvatar.position.x),
+                    y: Number(MyAvatar.position.y),
+                    z: Number(MyAvatar.position.z) - 2.0
+                },
+                dimensions: { x: 1.0, y: 1.0, z: 0.01 },
+                lifetime: 300
+            }, "local");
+            lastAndroidControlCommandId = String(command.commandId);
+            return;
+        }
+        if (command.action === "sound-channel"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action",
+                    "commandUrl"])
+                && httpUrl(command.commandUrl)) {
+            soundCommandUrl = String(command.commandUrl);
+            lastAndroidControlCommandId = String(command.commandId);
+        }
+    }
+
+    function pollAndroidControlCommand() {
+        if (!androidControlAvailable || androidControlCommandRequestPending) {
+            return;
+        }
+        androidControlCommandRequestPending = true;
+        var request = new XMLHttpRequest();
+        request.onreadystatechange = function () {
+            if (request.readyState !== request.DONE) {
+                return;
+            }
+            androidControlCommandRequestPending = false;
+            if ((request.status === 0 || request.status === 200) && request.responseText) {
+                try {
+                    applyAndroidControlCommand(JSON.parse(request.responseText));
+                } catch (error) {
+                    print("OVERTE_E2E_ANDROID_COMMAND_ERROR " + safeErrorText(error));
+                }
+            }
+        };
+        request.open("GET", Script.resolvePath("android-control-command.json")
+            + "?sample=" + sampleSequence);
+        request.send();
+    }
+
+    function pollAndroidControlMarker() {
+        if (androidControlAvailable || androidControlMarkerRequestPending) {
+            pollAndroidControlCommand();
+            return;
+        }
+        androidControlMarkerRequestPending = true;
+        var request = new XMLHttpRequest();
+        request.onreadystatechange = function () {
+            if (request.readyState !== request.DONE) {
+                return;
+            }
+            androidControlMarkerRequestPending = false;
+            if ((request.status === 0 || request.status === 200) && request.responseText) {
+                try {
+                    var marker = JSON.parse(request.responseText);
+                    androidControlAvailable = marker.schemaVersion === 1
+                        && marker.channel === "android-debug-file-v1"
+                        && marker.probe === "overte_e2e_probe.js";
+                } catch (error) {
+                    androidControlAvailable = false;
+                }
+            }
+            pollAndroidControlCommand();
+        };
+        request.open("GET", Script.resolvePath("android-control.json")
+            + "?sample=" + sampleSequence);
+        request.send();
+    }
+
+    function pollSoundCommand() {
+        if (!soundCommandUrl || soundCommandRequestPending) {
+            return;
+        }
+        soundCommandRequestPending = true;
+        var request = new XMLHttpRequest();
+        request.onreadystatechange = function () {
+            if (request.readyState !== request.DONE) {
+                return;
+            }
+            soundCommandRequestPending = false;
+            if (request.status === 200) {
+                try {
+                    applySoundCommand(JSON.parse(request.responseText));
+                } catch (error) {
+                    print("OVERTE_E2E_SOUND_COMMAND_ERROR " + safeErrorText(error));
+                }
+            }
+        };
+        request.open("GET", soundCommandUrl);
+        request.send();
+    }
+
     function sample(now) {
+        pollAndroidControlMarker();
+        pollClientCommand();
+        pollSoundCommand();
+        var currentAddress = String(location.href);
+        var currentLocationKey = [String(location.protocol), String(location.hostname),
+            String(location.domainID)].join("|");
+        if (previousLocationKey !== "" && currentLocationKey !== previousLocationKey) {
+            stableEntitySamples = 0;
+            previousEntityCount = -1;
+            stableAvatarSamples = 0;
+            previousAvatarPosition = null;
+            sceneReady = false;
+            spawnApplied = false;
+            spawnRequestPending = false;
+        }
+        previousLocationKey = currentLocationKey;
         var ids = Entities.findEntities(MyAvatar.position, 1000.0);
         var foundMarkers = {};
+        var foundDomainMarkers = {};
         var floorTopY = null;
         var index;
         for (index = 0; index < ids.length; index += 1) {
             var properties = Entities.getEntityProperties(ids[index], ["name", "position", "dimensions"]);
             if (fixtureMarkers.indexOf(properties.name) !== -1) {
                 foundMarkers[properties.name] = true;
+            }
+            if (domainMarkers.indexOf(properties.name) !== -1) {
+                foundDomainMarkers[properties.name] = true;
             }
             if (properties.name === "OVERTE_E2E_FLOOR") {
                 floorTopY = Number(properties.position.y) + Number(properties.dimensions.y) / 2.0;
@@ -88,6 +513,7 @@
             previousEntityCount = ids.length;
         }
         var markerCount = Object.keys(foundMarkers).length;
+        var domainMarkerCount = Object.keys(foundDomainMarkers).length;
         var avatarPosition = vector(MyAvatar.position);
         var spawnDeltaX = avatarPosition.x - expectedSpawn.x;
         var spawnDeltaZ = avatarPosition.z - expectedSpawn.z;
@@ -120,6 +546,12 @@
             sceneReady = true;
         }
         var orientation = Quat.safeEulerAngles(Camera.orientation);
+        if (soundInjector && !soundState.finished) {
+            soundState.playing = Boolean(soundInjector.playing);
+            if (soundState.playing) {
+                soundState.started = true;
+            }
+        }
         sampleSequence += 1;
         Test.saveObject({
             schemaVersion: 1,
@@ -134,12 +566,26 @@
                 running: true,
                 foreground: Boolean(Window.hasFocus())
             },
+            control: androidControlAvailable ? {
+                schemaVersion: 1,
+                channel: "android-debug-file-v1",
+                probe: "overte_e2e_probe.js"
+            } : null,
+            domain: {
+                connected: Boolean(location.isConnected),
+                hostname: String(location.hostname),
+                id: String(location.domainID),
+                protocol: String(location.protocol),
+                serverless: String(location.protocol) === "file"
+            },
             input: effectiveInputState(),
             scene: {
-                url: String(AddressManager.href),
+                url: currentAddress,
                 ready: sceneReady,
                 entityCount: ids.length,
                 fixtureMarkerCount: markerCount,
+                domainMarkerCount: domainMarkerCount,
+                domainMarkers: Object.keys(foundDomainMarkers).sort(),
                 floorTopY: floorTopY,
                 avatarAboveFloor: avatarAboveFloor,
                 spawnApplied: spawnApplied,
@@ -193,13 +639,22 @@
                     left: controllerPose(Controller.Standard.LeftHand),
                     right: controllerPose(Controller.Standard.RightHand)
                 }
+            },
+            asset: observeAsset(ids),
+            sound: {
+                commandId: soundState.commandId,
+                url: soundState.url,
+                commandObserved: soundState.commandObserved,
+                resourceReady: soundState.resourceReady,
+                durationSeconds: soundState.durationSeconds,
+                format: soundState.format,
+                injectorCreated: soundState.injectorCreated,
+                started: soundState.started,
+                playing: soundState.playing,
+                finished: soundState.finished,
+                finishReason: soundState.finishReason
             }
         }, "overte-probe.json");
-    }
-
-    function safeErrorText(error) {
-        return String(error && error.message ? error.message : error)
-            .replace(/[\r\n]+/g, " ").slice(0, 160);
     }
 
     function updateProbe() {
@@ -230,6 +685,15 @@
     Script.update.connect(updateProbe);
     Script.scriptEnding.connect(function () {
         Script.update.disconnect(updateProbe);
+        if (androidAssetEntityId !== null) {
+            Entities.deleteEntity(androidAssetEntityId);
+            androidAssetEntityId = null;
+        }
+        releaseAssetResource();
+        if (controlledAssetEntity !== null) {
+            Entities.deleteEntity(controlledAssetEntity);
+            controlledAssetEntity = null;
+        }
     });
     updateProbe();
 }());
