@@ -440,6 +440,13 @@ class OverteSession:
         if before["avatar"]["flyingEnabled"] is not True:
             fail("avatar flying is not enabled")
         if self.pico_openxr:
+            # Make the Pico flight gesture self-contained. CharacterController
+            # enters hover from an airborne takeoff, so a short first press and
+            # a separately acknowledged second hold must be in the same test
+            # step. Do not rely on the earlier jump module: WLAN probe reads
+            # intentionally leave an unbounded wall-clock gap between modules.
+            takeoff = validate_operation_arguments("input.jump", {})
+            validate_performed_result("input.jump", operation("input.jump", takeoff))
             # A fresh app-private Pico probe can take several seconds over
             # isolated WLAN-ADB. Keep the bounded hold active long enough for
             # the independent avatar probe to overlap it, matching the Pico
