@@ -203,13 +203,14 @@ class LinuxAdapter:
     @staticmethod
     def capabilities(target: dict) -> list[str]:
         values = ["app.foreground", "app.launch", "app.process",
-                  "input.look", "input.move", "scene.load"]
+                  "input.look", "input.move"]
         if target.get("isolatedX11"):
             values.append("artifact.screenshot")
         if target.get("probe"):
             values += ["probe.snapshot", "tablet.close", "tablet.open"]
         if LinuxAdapter.controlled_client(target):
-            values += ["asset.load", "navigation.enter-domain", "sound.play"]
+            values += ["asset.load", "navigation.enter-domain", "scene.load",
+                       "sound.play"]
         return sorted(values)
 
     @staticmethod
@@ -961,8 +962,14 @@ class LinuxAdapter:
             if not isinstance(url, str) or "://" not in url:
                 fail("scene.load requires an absolute URL")
             if state.get("initialSceneUrl") != url:
-                fail("desktop scene must be supplied at app.launch; live relaunch is forbidden")
-            return {"requested": True, "lifecycle": "initial-process"}
+                fail("desktop scene URL must match app.launch; live relaunch is forbidden")
+            self.write_client_command(selector, target, state, {
+                "schemaVersion": 1,
+                "commandId": "scene-" + uuid.uuid4().hex,
+                "action": "scene-load",
+                "url": url,
+            })
+            return {"requested": True, "lifecycle": "same-process"}
         if operation == "input.look":
             horizontal = values.get("horizontal", 0.25)
             vertical = values.get("vertical", 0.0)

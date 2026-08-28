@@ -232,7 +232,8 @@ class LinuxAdapterTest(unittest.TestCase):
 
     def test_new_capabilities_require_probe_command_control_on_every_desktop_variant(self):
         payload = json.loads(self.config.read_text(encoding="utf-8"))
-        controlled = {"asset.load", "navigation.enter-domain", "sound.play"}
+        controlled = {"asset.load", "navigation.enter-domain", "scene.load",
+                      "sound.play"}
         for target in payload["targets"]:
             with self.subTest(platform=target["platform"], controlled=False):
                 self.assertTrue(controlled.isdisjoint(
@@ -510,8 +511,7 @@ class LinuxAdapterTest(unittest.TestCase):
         self.assertEqual(0, launched.returncode, launched.stdout)
         for operation, values in (
             ("app.process", {}), ("app.foreground", {}),
-            ("scene.load", {"url": "http://fixture/scene.json"}),
-            ("input.look", {"horizontal": 0.25}),
+            ("input.look", {"horizontal": 0.25, "vertical": 0.0}),
             ("input.move", {"direction": "forward", "durationSeconds": 0.1}),
             ("tablet.open", {}), ("tablet.close", {}),
         ):

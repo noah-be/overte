@@ -136,19 +136,34 @@ class HeadlessDesktopContractTest(unittest.TestCase):
         return [json.loads(line) for line in self.log.read_text(
             encoding="utf-8").splitlines()]
 
-    def test_scene_is_bound_to_initial_process_and_never_relaunches(self) -> None:
+    def test_scene_reload_uses_control_channel_and_never_relaunches(self) -> None:
+        self.target["probe"] = {"kind": "injected-test-script"}
+        self.target["clientControl"] = {"kind": "probe-command-file"}
+        self.adapter.prepare_injected_probe("headless")
         state = {
             "pid": 4242, "identity": "4242:token", "processToken": "token",
             "initialSceneUrl": "http://fixture/scene.json",
         }
         with patch.object(self.adapter, "read_state", return_value=state), patch.object(
                 self.adapter, "state_alive", return_value=True), patch.object(
-                self.adapter, "visual_action") as visual:
+                self.adapter, "visual_action") as visual, patch.object(
+                ADAPTER_MODULE.subprocess, "Popen") as spawn:
             result = self.adapter.invoke(
                 "headless", "scene.load", {"url": "http://fixture/scene.json"})
-            self.assertEqual({"requested": True, "lifecycle": "initial-process"}, result)
+            self.assertEqual({"requested": True, "lifecycle": "same-process"}, result)
+            first = json.loads(self.adapter.client_command_path(
+                "headless").read_text(encoding="utf-8"))
+            result = self.adapter.invoke(
+                "headless", "scene.load", {"url": "http://fixture/scene.json"})
+            self.assertEqual({"requested": True, "lifecycle": "same-process"}, result)
+            second = json.loads(self.adapter.client_command_path(
+                "headless").read_text(encoding="utf-8"))
             visual.assert_not_called()
-            with self.assertRaisesRegex(RuntimeError, "initial-process|live relaunch"):
+            spawn.assert_not_called()
+            self.assertEqual("scene-load", first["action"])
+            self.assertEqual("http://fixture/scene.json", first["url"])
+            self.assertNotEqual(first["commandId"], second["commandId"])
+            with self.assertRaisesRegex(RuntimeError, "app.launch|live relaunch"):
                 self.adapter.invoke(
                     "headless", "scene.load", {"url": "http://other/scene.json"})
 
