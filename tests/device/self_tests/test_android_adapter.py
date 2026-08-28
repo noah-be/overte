@@ -119,16 +119,27 @@ elif len(cmd) == 3 and cmd[:2] == ["shell", "-T"]:
           "leftSecondaryApplied":is_tablet,"rightSecondaryApplied":is_vertical,
           "activeCommandId":"mock-command","state":"active","detail":"command-window",
           "updatedEpochMs":int(time.time()*1000)}
-        if status_path: open(status_path,"w").write(json.dumps(status))
+        if status_path:
+            open(status_path,"w").write(json.dumps(status))
+            open(status_path+".reads","w").write("0")
         if grant_log:
             with open(grant_log,"a") as output: output.write(json.dumps(grant)+"\n")
 elif cmd and cmd[0] == "exec-out" and "status.json" in cmd[-1]:
     if status_path and os.path.exists(status_path):
         status=json.loads(open(status_path).read())
-        if status["state"] == "active" and int(time.time()*1000)-status["updatedEpochMs"] >= 50:
+        reads_path=status_path+".reads"
+        reads=(int(open(reads_path).read())
+               if os.path.exists(reads_path) else 0)
+        # Model the two distinct native observations deterministically: the
+        # first read acknowledges the grant and the second proves that an
+        # action query consumed it. The following read exposes the neutral
+        # inter-command window without depending on host scheduling latency.
+        if status["state"] == "active" and reads >= 2:
             status["state"]="neutral"; status["detail"]="neutral-window"
             status["updatedEpochMs"]=int(time.time()*1000)
             open(status_path,"w").write(json.dumps(status))
+        elif status["state"] == "active":
+            open(reads_path,"w").write(str(reads+1))
         print(json.dumps(status))
 elif cmd and cmd[0] == "exec-out" and "grant.json" in cmd[-1]:
     if status_path and os.path.exists(status_path):
