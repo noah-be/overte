@@ -400,6 +400,15 @@ class FixtureState:
         elif action == "sound-channel":
             valid = (set(command) == {"schemaVersion", "commandId", "action", "url"}
                      and self._web_url(command.get("url")))
+        elif action == "key-hold":
+            valid = (set(command) == {"schemaVersion", "commandId", "action",
+                                      "key", "durationMs"}
+                     and command.get("key") in {
+                         "backward", "down", "forward", "jump", "left", "right", "tablet"
+                     }
+                     and isinstance(command.get("durationMs"), int)
+                     and not isinstance(command["durationMs"], bool)
+                     and 50 <= command["durationMs"] <= 10000)
         else:
             valid = False
         if not valid:
