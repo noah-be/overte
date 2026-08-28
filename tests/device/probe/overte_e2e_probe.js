@@ -20,8 +20,6 @@
     var sampleIntervalMs = 250;
     var heartbeatIntervalMs = 5000;
     var previousLocationKey = "";
-    var androidControlMarkerRequest = null;
-    var androidControlCommandRequest = null;
     var androidControlAvailable = false;
     var lastAndroidControlCommandId = "";
     var androidAssetEntityId = null;
@@ -399,57 +397,37 @@
     }
 
     function pollAndroidControlCommand() {
-        if (!androidControlAvailable || androidControlCommandRequest !== null) {
+        if (!androidControlAvailable) {
             return;
         }
-        var request = new XMLHttpRequest();
-        androidControlCommandRequest = request;
-        request.onreadystatechange = function () {
-            if (request.readyState !== request.DONE) {
-                return;
-            }
-            androidControlCommandRequest = null;
-            if ((request.status === 0 || request.status === 200) && request.responseText) {
-                try {
-                    applyAndroidControlCommand(JSON.parse(request.responseText));
-                } catch (error) {
-                    print("OVERTE_E2E_ANDROID_COMMAND_ERROR " + safeErrorText(error));
-                }
-            }
-        };
-        // These commands are app-private local files. A URL query is useful
-        // for HTTP cache busting, but Qt's local-file backend can treat it as
-        // part of the filename and then never expose the command contents.
-        request.open("GET", Script.resolvePath("android-control-command.json"));
-        request.send();
+        try {
+            // Script.require reads local JSON through the sandboxed module
+            // loader. XMLHttpRequest uses Qt's custom-request path, which is
+            // intended for HTTP and does not reliably read file:// on Android.
+            // A distinct query keeps each atomically replaced command fresh.
+            var command = Script.require("./android-control-command.json?sample="
+                + sampleSequence);
+            applyAndroidControlCommand(command);
+        } catch (error) {
+            // The launcher intentionally starts without a command. The host
+            // creates the file only when a controlled operation is invoked.
+        }
     }
 
     function pollAndroidControlMarker() {
-        if (androidControlAvailable || androidControlMarkerRequest !== null) {
+        if (androidControlAvailable) {
             pollAndroidControlCommand();
             return;
         }
-        var request = new XMLHttpRequest();
-        androidControlMarkerRequest = request;
-        request.onreadystatechange = function () {
-            if (request.readyState !== request.DONE) {
-                return;
-            }
-            androidControlMarkerRequest = null;
-            if ((request.status === 0 || request.status === 200) && request.responseText) {
-                try {
-                    var marker = JSON.parse(request.responseText);
-                    androidControlAvailable = marker.schemaVersion === 1
-                        && marker.channel === "android-debug-file-v1"
-                        && marker.probe === "overte_e2e_probe.js";
-                } catch (error) {
-                    androidControlAvailable = false;
-                }
-            }
-            pollAndroidControlCommand();
-        };
-        request.open("GET", Script.resolvePath("android-control.json"));
-        request.send();
+        try {
+            var marker = Script.require("./android-control.json");
+            androidControlAvailable = marker.schemaVersion === 1
+                && marker.channel === "android-debug-file-v1"
+                && marker.probe === "overte_e2e_probe.js";
+        } catch (error) {
+            androidControlAvailable = false;
+        }
+        pollAndroidControlCommand();
     }
 
     function pollSoundCommand() {

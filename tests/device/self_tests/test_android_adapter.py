@@ -160,19 +160,20 @@ class AndroidAdapterTest(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
-    def test_android_control_reads_app_private_files_without_http_query(self):
+    def test_android_control_reads_app_private_files_through_module_loader(self):
         probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
-        self.assertIn('Script.resolvePath("android-control.json")', probe)
-        self.assertIn('Script.resolvePath("android-control-command.json")', probe)
-        self.assertNotIn('"?sample=" + sampleSequence', probe)
+        self.assertIn('Script.require("./android-control.json")', probe)
+        self.assertIn('Script.require("./android-control-command.json?sample="', probe)
+        self.assertNotIn('request.open("GET", Script.resolvePath("android-control', probe)
 
     def test_probe_retains_asynchronous_control_requests_until_completion(self):
         probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
-        for name in ("clientCommandRequest", "androidControlCommandRequest",
-                     "androidControlMarkerRequest", "soundCommandRequest"):
+        for name in ("clientCommandRequest", "soundCommandRequest"):
             self.assertIn(f"var {name} = null;", probe)
             self.assertIn(f"{name} = request;", probe)
             self.assertIn(f"{name} = null;", probe)
+        self.assertIn('Script.require("./android-control.json")', probe)
+        self.assertIn('Script.require("./android-control-command.json?sample="', probe)
         for obsolete_name in ("clientCommandRequestPending",
                               "androidControlCommandRequestPending",
                               "androidControlMarkerRequestPending",
