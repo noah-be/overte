@@ -344,7 +344,8 @@ void OpenXrInputPlugin::pluginUpdate(float deltaTime, const controller::InputCal
     e2eControllerOverrideActive =
         (leftY != _inputDevice->_axisStateMap.end() && leftY->second.valid &&
          std::abs(leftY->second.value) >= 0.01f) ||
-        _inputDevice->_buttonPressedMap.contains(controller::LEFT_SECONDARY_THUMB);
+        _inputDevice->_buttonPressedMap.contains(controller::LEFT_SECONDARY_THUMB) ||
+        _inputDevice->_buttonPressedMap.contains(controller::RIGHT_SECONDARY_THUMB);
 #endif
     if (_inputDevice->_trackedControllers == 0 && !e2eControllerOverrideActive &&
             _registeredWithInputMapper) {

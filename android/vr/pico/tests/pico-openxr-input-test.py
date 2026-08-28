@@ -50,6 +50,18 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertIn("e2eControllerOverrideActive", SOURCE)
         self.assertIn("!e2eControllerOverrideActive", SOURCE)
 
+    def test_e2e_controller_stays_registered_for_every_injected_control(self):
+        override = re.search(
+            r"bool e2eControllerOverrideActive = false;(.*?)#endif",
+            SOURCE,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(override)
+        body = override.group(1)
+        self.assertIn("controller::LY", body)
+        self.assertIn("controller::LEFT_SECONDARY_THUMB", body)
+        self.assertIn("controller::RIGHT_SECONDARY_THUMB", body)
+
     def test_native_e2e_layer_identity_and_release_exclusion_are_mechanical(self):
         header = (E2E_ROOT / "E2eInputProtocol.h").read_text(encoding="utf-8")
         protocol = (E2E_ROOT / "E2eInputProtocol.cpp").read_text(encoding="utf-8")
