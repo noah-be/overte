@@ -58,6 +58,14 @@
         return { x: Number(value.x), y: Number(value.y), z: Number(value.z) };
     }
 
+    function pendingVector(value) {
+        if (!value || !isFinite(Number(value.x)) || !isFinite(Number(value.y))
+                || !isFinite(Number(value.z))) {
+            return { x: 0.0, y: 0.0, z: 0.0 };
+        }
+        return vector(value);
+    }
+
     function controllerPose(channel) {
         var pose = Controller.getPoseValue(channel);
         if (!pose || !pose.valid) {
@@ -156,7 +164,9 @@
         }
         var id = candidates[0];
         var properties = Entities.getEntityProperties(id, [
-            "name", "type", "imageURL", "userData", "naturalDimensions"
+            // EntityItemProperties exposes the read-only naturalDimensions
+            // value under the common dimensions property flag.
+            "name", "type", "imageURL", "userData", "dimensions", "naturalDimensions"
         ]);
         var metadata;
         try {
@@ -187,7 +197,11 @@
                 name: String(properties.name),
                 type: String(properties.type),
                 imageURL: imageURL,
-                naturalDimensions: vector(properties.naturalDimensions)
+                // Image naturalDimensions is absent while the renderer is
+                // still resolving a newly assigned texture.  Zero is a
+                // non-ready observation; the harness still requires the
+                // finished resource and exact decoded aspect ratio.
+                naturalDimensions: pendingVector(properties.naturalDimensions)
             }
         };
     }
@@ -652,6 +666,13 @@
         } catch (error) {
             probeErrorCount += 1;
             var detail = safeErrorText(error);
+            Test.saveObject({
+                schemaVersion: 1,
+                sampleEpochMs: now,
+                sampleSequence: sampleSequence,
+                errorCount: probeErrorCount,
+                detail: detail
+            }, "overte-probe-error.json");
             if (detail !== lastProbeError) {
                 print("OVERTE_E2E_PROBE_ERROR " + detail);
                 lastProbeError = detail;
