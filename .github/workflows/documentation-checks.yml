@@ -8,7 +8,7 @@ on:
       - "tests/check-documentation.py"
       - ".github/workflows/documentation-checks.yml"
   push:
-    branches: [main, android-phone, android-vr-pico, apple-ios, apple-macos, linux-main, windows-main]
+    branches: [main, android-phone, android-vr-pico, apple-ios, linux-main, windows-main]
     paths:
       - "**/*.md"
       - "docs/**"
