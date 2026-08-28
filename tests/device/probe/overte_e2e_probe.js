@@ -127,12 +127,30 @@
 
     function observeAsset(ids) {
         var candidates = [];
+        var seen = {};
+
+        function consider(id) {
+            var key = String(id);
+            if (seen[key]) {
+                return;
+            }
+            seen[key] = true;
+            var identity = Entities.getEntityProperties(id, ["name"]);
+            if (String(identity.name).indexOf("OVERTE_E2E_ASSET_LOAD") === 0) {
+                candidates.push(id);
+            }
+        }
+
+        // Local Image entities can be rendered on Android serverless scenes
+        // without appearing in the broad spatial query. Prefer the exact ID
+        // returned by our controlled addEntity call, then retain discovery for
+        // desktop/network-loaded probe commands.
+        if (androidAssetEntityId !== null) {
+            consider(androidAssetEntityId);
+        }
         var index;
         for (index = 0; index < ids.length; index += 1) {
-            var identity = Entities.getEntityProperties(ids[index], ["name"]);
-            if (String(identity.name).indexOf("OVERTE_E2E_ASSET_LOAD") === 0) {
-                candidates.push(ids[index]);
-            }
+            consider(ids[index]);
         }
         if (candidates.length !== 1) {
             releaseAssetResource();
@@ -140,7 +158,7 @@
         }
         var id = candidates[0];
         var properties = Entities.getEntityProperties(id, [
-            "name", "type", "imageURL", "userData", "naturalDimensions"
+            "name", "type", "imageURL", "userData", "dimensions", "naturalDimensions"
         ]);
         var metadata;
         try {
@@ -153,6 +171,9 @@
         var imageURL = String(properties.imageURL);
         if (typeof assetId !== "string" || assetId.length === 0 || imageURL.length === 0) {
             releaseAssetResource();
+            return null;
+        }
+        if (!properties.naturalDimensions) {
             return null;
         }
         if (assetResource === null || assetResourceUrl !== imageURL) {
