@@ -388,7 +388,7 @@
                 && typeof command.url === "string"
                 && /^hifi:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\]):[0-9]+(?:\/|$)/.test(command.url)) {
             lastAndroidControlCommandId = String(command.commandId);
-            location.href = command.url;
+            location.handleLookupString(command.url);
             return;
         }
         if (command.action === "load-asset"
