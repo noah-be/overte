@@ -108,9 +108,15 @@ class AndroidAdapter:
         values = ["app.foreground", "app.launch", "app.process",
                   "lifecycle.background", "telemetry.snapshot"]
         if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") == "1":
-            values += ["probe.snapshot", "scene.load"]
-            if target is not None and self.controlled_debug_identity(target) is not None:
-                values += ["asset.load", "navigation.enter-domain", "sound.play"]
+            # Discovery happens once, before the suite's launch-smoke module
+            # starts the fixed E2E Activity.  Advertise the configured debug
+            # build's operations here; every invocation still requires the
+            # live control marker, a fresh probe, and an unchanged process
+            # identity through require_controlled_debug_identity().
+            values += [
+                "asset.load", "navigation.enter-domain", "probe.snapshot",
+                "scene.load", "sound.play",
+            ]
         if self.kind == "pico" and os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
             # An explicit opt-in with incomplete isolation is a configuration
             # error, not a silent capability downgrade.

@@ -276,20 +276,23 @@ class AndroidAdapterTest(unittest.TestCase):
             result = self.verify(kind)
             self.assertEqual(0, result.returncode, result.stdout)
 
-    def test_controlled_capabilities_require_debug_marker_and_fresh_probe(self):
+    def test_controlled_capabilities_are_declared_before_suite_launch(self):
         controlled = {"asset.load", "navigation.enter-domain", "sound.play"}
         self.assertTrue(controlled.isdisjoint(self.discover_phone()))
 
         self.environment["OVERTE_ANDROID_E2E_DEBUG"] = "1"
-        self.assertTrue(controlled.isdisjoint(self.discover_phone()))
+        self.assertTrue(controlled.issubset(self.discover_phone()))
 
+        # Capabilities describe what the configured debug build can do after
+        # launch-smoke.  Transient marker/probe state is validated only when
+        # the operation is invoked, not during the runner's one-time discovery.
         self.environment["MOCK_ANDROID_CONTROL_AVAILABLE"] = "1"
         self.environment["MOCK_ANDROID_PROBE_AVAILABLE"] = "0"
-        self.assertTrue(controlled.isdisjoint(self.discover_phone()))
+        self.assertTrue(controlled.issubset(self.discover_phone()))
 
         self.environment["MOCK_ANDROID_PROBE_AVAILABLE"] = "1"
         self.environment["MOCK_PROBE_STALE_READS"] = "999"
-        self.assertTrue(controlled.isdisjoint(self.discover_phone()))
+        self.assertTrue(controlled.issubset(self.discover_phone()))
 
         self.environment.pop("MOCK_PROBE_STALE_READS")
         self.assertTrue(controlled.issubset(self.discover_phone()))
