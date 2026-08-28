@@ -25,8 +25,8 @@ from urllib.parse import urlsplit
 
 
 SUITES = {
-    "smoke", "domain-smoke", "e2e-core", "accessibility", "stability",
-    "lifecycle-stability",
+    "smoke", "domain-smoke", "asset-smoke", "sound-smoke", "e2e-core",
+    "accessibility", "stability", "lifecycle-stability",
 }
 PUBLIC_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 STAGED_MARKER = ".overte-device-ci-staged"
@@ -262,6 +262,36 @@ def wait_for_ready(process: subprocess.Popen, ready_file: Path, timeout_seconds:
     fail("fixture server did not become ready within 10 seconds")
 
 
+def apply_http_fixture_environment(environment_values: dict[str, str], ready: dict) -> None:
+    asset = ready.get("asset")
+    sound = ready.get("sound")
+    required_asset = {
+        "id", "url", "telemetryUrl", "contentType", "sha256", "bytes",
+        "width", "height", "entityName",
+    }
+    if (not isinstance(asset, dict) or not required_asset.issubset(asset)
+            or not isinstance(sound, dict)
+            or not isinstance(ready.get("soundUrl"), str)
+            or not isinstance(ready.get("soundCommandUrl"), str)
+            or not isinstance(ready.get("soundRequestsUrl"), str)):
+        fail("fixture ready file has incomplete asset or sound metadata")
+    environment_values.update({
+        "OVERTE_E2E_ASSET_ID": str(asset["id"]),
+        "OVERTE_E2E_ASSET_URL": str(asset["url"]),
+        "OVERTE_E2E_ASSET_TELEMETRY_URL": str(asset["telemetryUrl"]),
+        "OVERTE_E2E_ASSET_ENTITY_NAME": str(asset["entityName"]),
+        "OVERTE_E2E_ASSET_CONTENT_TYPE": str(asset["contentType"]),
+        "OVERTE_E2E_ASSET_SHA256": str(asset["sha256"]),
+        "OVERTE_E2E_ASSET_BYTES": str(asset["bytes"]),
+        "OVERTE_E2E_ASSET_WIDTH": str(asset["width"]),
+        "OVERTE_E2E_ASSET_HEIGHT": str(asset["height"]),
+        "OVERTE_E2E_SOUND_URL": str(ready["soundUrl"]),
+        "OVERTE_E2E_SOUND_COMMAND_URL": str(ready["soundCommandUrl"]),
+        "OVERTE_E2E_SOUND_REQUESTS_URL": str(ready["soundRequestsUrl"]),
+        "OVERTE_E2E_SOUND_DURATION_SECONDS": str(sound["durationSeconds"]),
+    })
+
+
 def subprocess_group_options() -> dict[str, object]:
     if os.name == "nt":
         return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
@@ -291,7 +321,7 @@ def run_suite() -> int:
     try:
         if suite == "e2e-core" and checked_fixture_mode() == "embedded":
             runner_environment["OVERTE_E2E_SCENE_URL"] = EMBEDDED_FIXTURE_URL
-        elif suite == "e2e-core":
+        elif suite in {"e2e-core", "asset-smoke", "sound-smoke"}:
             host = checked_public_host()
             bind = environment("OVERTE_CI_FIXTURE_BIND", required=False, default="0.0.0.0")
             port = checked_fixture_port()
@@ -308,7 +338,9 @@ def run_suite() -> int:
             ready = wait_for_ready(fixture, fixture_ready)
             if is_ios_appium_manifest(manifest):
                 update_ios_fixture_origin(root, selector, ready.get("baseUrl"))
-            runner_environment["OVERTE_E2E_SCENE_URL"] = ready["sceneUrl"]
+            if suite == "e2e-core":
+                runner_environment["OVERTE_E2E_SCENE_URL"] = ready["sceneUrl"]
+            apply_http_fixture_environment(runner_environment, ready)
 
         command = [
             sys.executable, str(root / "tests/device/run.py"),

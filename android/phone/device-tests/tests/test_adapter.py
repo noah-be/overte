@@ -626,11 +626,15 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
                 "agent { label 'overte-device-interactive' }",
                 "lock(resource: params.DEVICE_RESOURCE.trim()",
                 "withCredentials([string(",
-                "OVERTE_CI_ADAPTER_MANIFEST=android/phone/device-tests/adapter.json",
+                "return 'android/phone/device-tests/adapter.json'",
+                "tests/device/adapters/android/phone.json",
                 "defaultValue: 'android-device-01'",
                 "defaultValue: 'overte-android-device-selector'",
                 "name: 'TEST_SUITE'",
                 "'smoke'",
+                "'domain-smoke'",
+                "'asset-smoke'",
+                "'sound-smoke'",
                 "'vertical-locomotion'",
                 "'lifecycle-stability'",
                 "'stability'",
@@ -651,6 +655,9 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
         helper = JENKINS_CI.read_text(encoding="utf-8")
         self.assertIn('SHARED_HELPER = REPOSITORY_ROOT / "tests/device/jenkins/run_ci.py"',
                       helper)
+        self.assertIn('"domain-smoke"', helper)
+        self.assertIn('"asset-smoke"', helper)
+        self.assertIn('"sound-smoke"', helper)
         self.assertIn('"vertical-locomotion"', helper)
         self.assertIn("helper.SUITES.update(PHONE_SUITES)", helper)
         self.assertNotIn("android/vr", helper)

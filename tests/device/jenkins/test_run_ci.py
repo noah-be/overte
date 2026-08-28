@@ -104,6 +104,21 @@ class JenkinsGlueTest(unittest.TestCase):
                 (output / "summary.json").read_text())["status"])
             self.assertFalse((output / "fixture-ready.json").exists())
 
+    def test_asset_and_sound_suites_receive_network_fixture_contracts(self):
+        for suite in ("asset-smoke", "sound-smoke"):
+            with self.subTest(suite=suite), tempfile.TemporaryDirectory(
+                    prefix=f"overte-jenkins-{suite}-test-") as name:
+                temporary = Path(name)
+                values = self.configuration(temporary)
+                values["OVERTE_CI_SUITE"] = suite
+                values["OVERTE_CI_FIXTURE_MODE"] = "embedded"
+                with patch.dict(os.environ, values, clear=False):
+                    self.assertEqual(0, RUN_CI.run_suite())
+                output = Path(values["OVERTE_CI_OUTPUT_DIR"])
+                summary = json.loads((output / "summary.json").read_text())
+                self.assertEqual("passed", summary["status"])
+                self.assertTrue((output / "fixture-ready.json").is_file())
+
     def test_private_selector_leak_is_quarantined(self):
         with tempfile.TemporaryDirectory(prefix="overte-jenkins-secret-test-") as name:
             temporary = Path(name)

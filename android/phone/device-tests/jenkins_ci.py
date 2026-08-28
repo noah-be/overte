@@ -10,8 +10,11 @@ from pathlib import Path
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 SHARED_HELPER = REPOSITORY_ROOT / "tests/device/jenkins/run_ci.py"
 PHONE_SUITES = {
+    "asset-smoke",
+    "domain-smoke",
     "lifecycle-stability",
     "smoke",
+    "sound-smoke",
     "stability",
     "vertical-locomotion",
 }
