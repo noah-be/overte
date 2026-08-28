@@ -35,6 +35,22 @@ require "$handler" 'PendingFlyingOverrideDelivery' \
     'E2E flying setup waits behind the application load-complete boundary'
 require "$handler" 'flyingOverrideDelivery\(application\)->submit\(mode\)' \
     'E2E flying setup transfers ownership to the Qt application'
+require "$handler" 'PhoneInterfaceActivity_nativeSetForegroundState' \
+    'JNI exports the Activity foreground lifecycle bridge'
+require "$handler" 'PendingLifecycleDelivery' \
+    'native startup retains the latest Activity lifecycle state'
+require "$handler" 'lifecycleDelivery\(application\)->submit\(foreground == JNI_TRUE\)' \
+    'Activity lifecycle ownership transfers to the Qt application thread'
+require "$handler" 'notifyEnterBackground\(\)' \
+    'background delivery reaches the established Application audio stop path'
+require "$handler" 'notifyEnterForeground\(\)' \
+    'foreground delivery reaches the established Application audio restart path'
+if awk '/PhoneInterfaceActivity_nativeSetForegroundState/ { inside = 1 } inside' \
+        "$handler" | grep -q 'BlockingQueuedConnection'; then
+    printf 'FAIL: Activity lifecycle publication must not block the Android UI thread\n' >&2
+    exit 1
+fi
+printf 'PASS: Activity lifecycle publication never blocks the Android UI thread\n'
 if awk '/PhoneInterfaceActivity_nativeSetE2eFlyingOverride/ { inside = 1 } inside' \
         "$handler" | grep -q 'BlockingQueuedConnection'; then
     printf 'FAIL: E2E flying setup must not block Android Activity startup\n' >&2

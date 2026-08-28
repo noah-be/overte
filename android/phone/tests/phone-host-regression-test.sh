@@ -129,6 +129,7 @@ for source_file in \
         tests/phone-apk-padding-test.sh \
         tests/phone-archive-extraction-test.sh \
         tests/phone-actionbar-qml-lifetime-test.sh \
+        tests/phone-audio-mute-privacy-test.sh \
         tests/phone-audio-output-race-test.sh \
         tests/phone-device-lock-test.sh \
         tests/phone-device-smoke-mock-test.sh \
@@ -839,6 +840,9 @@ require_text prepare-phone-16k-conan-deps.sh \
 require_text prepare-phone-16k-conan-deps.sh \
     "--build='~qt/\\*'" \
     'non-Qt dependency rebuild explicitly excludes Qt source builds'
+require_text conan/conanfile-pico.py \
+    'parents\[3\] / "conanfile[.]py"' \
+    'Android Conan graph loads the repository-root recipe after source reorganization'
 require_text conan/conanfile-pico.py \
     'from conan\.tools\.cmake import CMakeDeps' \
     'Phone Conan graph uses the supported CMakeDeps generator API'

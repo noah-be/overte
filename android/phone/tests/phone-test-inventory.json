@@ -37,6 +37,7 @@
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhonePendingUrlPolicy.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhonePendingUrlPolicyTest.java"],
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhonePermissionFlow.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhonePermissionFlowTest.java"],
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneTouchUiMetricsPolicy.java": ["android/common/tests/java/org/overte/phone/PhoneTouchUiMetricsPolicyStandaloneTest.java"],
+    "android/phone/apps/phoneInterface/src/PhoneLifecycleHandoff.h": ["android/common/tests/native/phone_lifecycle_handoff_test.cpp"],
     "android/phone/apps/phoneInterface/src/PhonePendingHandoff.h": ["android/common/tests/native/phone_pending_handoff_lifecycle_test.cpp", "android/common/tests/native/phone_pending_handoff_replacement_test.cpp"],
     "android/phone/apps/phoneInterface/src/PhoneTouchUiMetrics.h": ["android/common/tests/native/phone_touch_ui_metrics_test.cpp"],
     "scripts/+android_phoneInterface/defaultScripts.js": ["android/common/tests/javascript/test/default-scripts.production.test.js"],

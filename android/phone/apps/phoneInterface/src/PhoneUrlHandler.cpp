@@ -15,6 +15,7 @@
 #include <QVariantMap>
 
 #include "AndroidHelper.h"
+#include "PhoneLifecycleHandoff.h"
 #include "PhonePendingHandoff.h"
 #include "PhoneTouchUiMetrics.h"
 #include "ui/PhoneDialogRouter.h"
@@ -178,6 +179,48 @@ PendingFlyingOverrideDelivery* flyingOverrideDelivery(
     return delivery;
 }
 
+class PendingLifecycleDelivery final : public QObject {
+public:
+    explicit PendingLifecycleDelivery(QCoreApplication* application)
+        : QObject(application) {
+        auto& helper = AndroidHelper::instance();
+        connect(&helper, &AndroidHelper::qtAppLoadComplete,
+                this, [this]() { apply(_handoff.markReady()); });
+        if (helper.isLoadComplete()) {
+            apply(_handoff.markReady());
+        }
+    }
+
+    void submit(bool foreground) {
+        apply(_handoff.setForeground(foreground));
+    }
+
+private:
+    static void apply(phone::LifecycleHandoff::Action action) {
+        auto& helper = AndroidHelper::instance();
+        switch (action) {
+            case phone::LifecycleHandoff::Action::EnterBackground:
+                helper.notifyEnterBackground();
+                break;
+            case phone::LifecycleHandoff::Action::EnterForeground:
+                helper.notifyEnterForeground();
+                break;
+            case phone::LifecycleHandoff::Action::None:
+                break;
+        }
+    }
+
+    phone::LifecycleHandoff _handoff;
+};
+
+PendingLifecycleDelivery* lifecycleDelivery(QCoreApplication* application) {
+    static QPointer<PendingLifecycleDelivery> delivery;
+    if (!delivery) {
+        delivery = new PendingLifecycleDelivery(application);
+    }
+    return delivery;
+}
+
 } // namespace
 
 extern "C" JNIEXPORT jboolean JNICALL
@@ -266,6 +309,26 @@ Java_org_overte_phone_PhoneInterfaceActivity_nativeUpdateTouchUiMetrics(
         application,
         [application, metrics]() {
             touchUiMetricsDelivery(application)->submit(metrics);
+        },
+        Qt::QueuedConnection);
+    return ownedByNative ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_org_overte_phone_PhoneInterfaceActivity_nativeSetForegroundState(
+        JNIEnv* /* env */, jclass /* activityClass */, jboolean foreground) {
+    auto* application = QCoreApplication::instance();
+    if (!application) {
+        return JNI_FALSE;
+    }
+
+    // Activity callbacks run on Android's UI thread. Preserve their order but
+    // hand ownership to Qt asynchronously, where AndroidHelper drives the
+    // established Application background/foreground (including audio) paths.
+    const bool ownedByNative = QMetaObject::invokeMethod(
+        application,
+        [application, foreground]() {
+            lifecycleDelivery(application)->submit(foreground == JNI_TRUE);
         },
         Qt::QueuedConnection);
     return ownedByNative ? JNI_TRUE : JNI_FALSE;
