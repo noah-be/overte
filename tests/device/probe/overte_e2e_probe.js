@@ -40,7 +40,8 @@
         finished: false,
         finishReason: "none"
     };
-    var fixtureMarkers = ["OVERTE_E2E_FLOOR", "OVERTE_E2E_NORTH", "OVERTE_E2E_EAST", "OVERTE_E2E_ORIGIN"];
+    var fixtureMarkers = ["OVERTE_E2E_COLLISION_WALL", "OVERTE_E2E_EAST",
+        "OVERTE_E2E_FLOOR", "OVERTE_E2E_NORTH", "OVERTE_E2E_ORIGIN"];
     var domainMarkers = ["OVERTE_E2E_DOMAIN_FLOOR", "OVERTE_E2E_DOMAIN_NORTH",
         "OVERTE_E2E_DOMAIN_EAST", "OVERTE_E2E_DOMAIN_ORIGIN"];
     var expectedSpawn = { x: 0.0, y: 2.0, z: 4.0 };
@@ -54,7 +55,7 @@
         var right = Number(Controller.getValue(application.RightHandDominant)) > 0.5;
         var left = Number(Controller.getValue(application.LeftHandDominant)) > 0.5;
         return {
-            dominantHand: right && !left ? "right" : (left && !right ? "left" : "invalid"),
+            dominantHand: right && !left ? "right" : (left && !right ? "left" : "unknown"),
             advancedMovementControls:
                 Number(Controller.getValue(application.AdvancedMovement)) > 0.5
         };
@@ -337,6 +338,7 @@
         var foundMarkers = {};
         var foundDomainMarkers = {};
         var floorTopY = null;
+        var collisionWall = null;
         var index;
         for (index = 0; index < ids.length; index += 1) {
             var properties = Entities.getEntityProperties(ids[index], ["name", "position", "dimensions"]);
@@ -349,6 +351,13 @@
             if (properties.name === "OVERTE_E2E_FLOOR") {
                 floorTopY = Number(properties.position.y) + Number(properties.dimensions.y) / 2.0;
             }
+            if (properties.name === "OVERTE_E2E_COLLISION_WALL") {
+                collisionWall = {
+                    name: String(properties.name),
+                    center: vector(properties.position),
+                    dimensions: vector(properties.dimensions)
+                };
+            }
         }
         if (ids.length === previousEntityCount) {
             stableEntitySamples += 1;
@@ -357,6 +366,7 @@
             previousEntityCount = ids.length;
         }
         var markerCount = Object.keys(foundMarkers).length;
+        var foundFixtureMarkers = Object.keys(foundMarkers).sort();
         var domainMarkerCount = Object.keys(foundDomainMarkers).length;
         var avatarPosition = vector(MyAvatar.position);
         var spawnDeltaX = avatarPosition.x - expectedSpawn.x;
@@ -387,7 +397,7 @@
         }
         sampleSequence += 1;
         Test.saveObject({
-            schemaVersion: 1,
+            schemaVersion: 2,
             sampleEpochMs: Date.now(),
             sampleSequence: sampleSequence,
             build: {
@@ -412,15 +422,18 @@
                 ready: sceneReady,
                 entityCount: ids.length,
                 fixtureMarkerCount: markerCount,
+                fixtureMarkers: foundFixtureMarkers,
                 domainMarkerCount: domainMarkerCount,
                 domainMarkers: Object.keys(foundDomainMarkers).sort(),
                 floorTopY: floorTopY,
                 avatarAboveFloor: avatarAboveFloor,
                 spawnLocationObserved: avatarAtSpawn,
-                spawnValidated: sceneReady
+                spawnValidated: sceneReady,
+                collisionWall: collisionWall
             },
             avatar: {
                 position: avatarPosition,
+                velocity: vector(MyAvatar.velocity),
                 bodyYawDegrees: Number(MyAvatar.bodyYaw),
                 inAir: Boolean(MyAvatar.isInAir()),
                 flying: Boolean(MyAvatar.isFlying()),
