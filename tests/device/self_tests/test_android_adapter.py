@@ -160,6 +160,26 @@ class AndroidAdapterTest(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
+    def test_android_control_reads_app_private_files_through_module_loader(self):
+        probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
+        self.assertIn('Script.require("./android-control.json")', probe)
+        self.assertIn('Script.require("./android-control-command.json?sample="', probe)
+        self.assertNotIn('request.open("GET", Script.resolvePath("android-control', probe)
+
+    def test_probe_retains_asynchronous_control_requests_until_completion(self):
+        probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
+        for name in ("clientCommandRequest", "soundCommandRequest"):
+            self.assertIn(f"var {name} = null;", probe)
+            self.assertIn(f"{name} = request;", probe)
+            self.assertIn(f"{name} = null;", probe)
+        self.assertIn('Script.require("./android-control.json")', probe)
+        self.assertIn('Script.require("./android-control-command.json?sample="', probe)
+        for obsolete_name in ("clientCommandRequestPending",
+                              "androidControlCommandRequestPending",
+                              "androidControlMarkerRequestPending",
+                              "soundCommandRequestPending"):
+            self.assertNotIn(obsolete_name, probe)
+
     def verify(self, kind: str) -> subprocess.CompletedProcess:
         return subprocess.run([
             sys.executable, str(VERIFIER), "--adapter-manifest",
@@ -333,14 +353,41 @@ class AndroidAdapterTest(unittest.TestCase):
 
         adb_commands = [json.loads(line) for line in
                         argv_log.read_text(encoding="utf-8").splitlines()]
+        writes = [command for command in adb_commands
+                  if "-c" in command and command[-1].endswith(
+                      "android-control-command.json")]
+        self.assertEqual(3, len(writes))
+        self.assertTrue(all(command[command.index("-c") + 1].startswith("'")
+                            and command[command.index("-c") + 1].endswith("'")
+                            for command in writes))
         self.assertFalse(any("am" in command and "start" in command
                              for command in adb_commands))
         self.assertFalse(any("force-stop" in command for command in adb_commands))
 
+    def test_controlled_phone_launch_preserves_confirmed_process(self):
+        process, _payload_log, argv_log = self.enable_controlled_phone()
+
+        result = self.invoke_phone("app.launch", {})
+
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertEqual({"launched": True}, json.loads(result.stdout))
+        self.assertEqual("running", process.read_text(encoding="utf-8"))
+        adb_commands = [json.loads(line) for line in
+                        argv_log.read_text(encoding="utf-8").splitlines()]
+        self.assertFalse(any(command[:3] == ["shell", "am", "force-stop"]
+                             for command in adb_commands))
+        self.assertFalse(any(command[:4] == ["shell", "am", "start", "-W"]
+                             for command in adb_commands))
+
     def test_probe_executes_real_controlled_actions_and_reports_observations(self):
         probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
-        self.assertIn("location.href = command.url", probe)
+        self.assertIn("location.handleLookupString(command.url)", probe)
+        self.assertNotIn("location.href = command.url", probe)
         self.assertEqual(1, probe.count("androidAssetEntityId = Entities.addEntity("))
+        self.assertIn("consider(androidAssetEntityId)", probe)
+        self.assertIn("seen[key] = true", probe)
+        self.assertIn('"userData", "dimensions", "naturalDimensions"', probe)
+        self.assertIn("if (!properties.naturalDimensions)", probe)
         self.assertIn("overteE2EAssetId: command.assetId", probe)
         self.assertIn('}, "local")', probe)
         self.assertIn("soundCommandUrl = String(command.commandUrl)", probe)

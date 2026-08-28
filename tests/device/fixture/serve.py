@@ -119,9 +119,9 @@ def validate_fixture() -> dict:
     sound_bytes = sound_path.read_bytes()
     if (sound["mimeType"] != "audio/wav" or sound["sampleRate"] != 8000
             or sound["channels"] != 1 or sound["bitsPerSample"] != 16
-            or sound["durationSeconds"] != 2.0 or sound["frequencyHz"] != 440.0
+            or sound["durationSeconds"] != 8.0 or sound["frequencyHz"] != 440.0
             or hashlib.sha256(sound_bytes).hexdigest() != sound["sha256"]
-            or len(sound_bytes) != 32044):
+            or len(sound_bytes) != 128044):
         raise ValueError("fixture sound does not match its deterministic PCM WAV contract")
     probe = PROBE.read_text(encoding="utf-8")
     if "Test.saveObject" not in probe or '"overte-probe.json"' not in probe:
