@@ -18,9 +18,10 @@ SCALAR_OPERATIONS = frozenset({"controller.grip", "controller.trigger"})
 HANDS = frozenset({"left", "right"})
 INTER_COMMAND_GAP_MS = 100
 NEUTRAL_HOLD_MS = 100
-# The physical Pico missed a 120 ms pulse after the OpenXR query consumed it.
-# Keep this below CharacterController's default 500 ms jump-to-hover threshold.
-JUMP_HOLD_MS = 300
+# Physical Pico runs have missed shorter pulses even after an OpenXR query
+# consumed them. Keep a full 100 ms margin below CharacterController's default
+# 500 ms jump-to-hover threshold.
+JUMP_HOLD_MS = 400
 
 
 class ControllerContractError(ValueError):
