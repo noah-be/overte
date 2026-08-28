@@ -46,43 +46,20 @@ class PicoWorldStateTests(unittest.TestCase):
         self.assertLess(failure_return, connect)
         self.assertLess(failure_return, commit)
 
-    def test_explicit_location_is_reapplied_only_after_successful_import(self):
+    def test_explicit_location_is_owned_by_the_single_address_lookup(self):
         body = function_body(
             "void Application::loadServerlessDomain",
             "void Application::loadErrorDomain",
         )
-        policy = body.index("const auto schedulePicoServerlessLocationQuery")
-        local_read = body.index("PICO_SERVERLESS_TRACE localRead")
-        self.assertLess(policy, local_read)
-        self.assertIn("query.hasQueryItem(locationKey)", body[policy:local_read])
-        self.assertIn("QUrl::FullyDecoded", body[policy:local_read])
-        self.assertIn("goToViewpointForPath", body[policy:local_read])
-        self.assertIn("QTimer::singleShot(0, this", body[policy:local_read])
-        self.assertIn(
-            "requestGeneration != _serverlessDomainRequestGeneration",
-            body[policy:local_read],
-        )
-        self.assertIn(
-            "committedURL != expectedURL",
-            body[policy:local_read],
-        )
+        self.assertNotIn("schedulePicoServerlessLocationQuery", body)
+        self.assertNotIn("goToViewpointForPath", body)
+        self.assertNotIn("locationApplyFailed", body)
 
-        calls = [
-            index for index in range(len(body))
-            if body.startswith("schedulePicoServerlessLocationQuery(domainURL);", index)
-        ]
-        self.assertEqual(len(calls), 2)
-
-        local_connect = body.index("connectedToServerless(namedPaths)", local_read)
-        local_commit = body.index("_picoServerlessSceneImportCommitted = true", local_connect)
-        self.assertLess(local_connect, local_commit)
-        self.assertLess(local_commit, calls[0])
-
-        remote_finished = body.index("ResourceRequest::finished")
-        remote_connect = body.index("connectedToServerless(namedPaths)", remote_finished)
-        remote_commit = body.index("_picoServerlessSceneImportCommitted = true", remote_connect)
-        self.assertLess(remote_connect, remote_commit)
-        self.assertLess(remote_commit, calls[1])
+        address = (ROOT / "libraries/networking/src/AddressManager.cpp").read_text(
+            encoding="utf-8")
+        self.assertIn('const QString LOCATION_QUERY_KEY = "location"', address)
+        self.assertIn("QUrl::FullyDecoded", address)
+        self.assertIn("handlePath(path, LookupTrigger::Internal, false)", address)
 
     def test_startup_fallback_import_preserves_explicit_serverless_url(self):
         fallback = APPLICATION.index("static bool picoStartupImportRequested")

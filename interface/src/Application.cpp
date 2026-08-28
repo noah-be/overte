@@ -1088,39 +1088,6 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         return;
     }
 #if defined(ANDROID_APP_PICO_INTERFACE)
-    const auto schedulePicoServerlessLocationQuery = [this, requestGeneration](
-            const QUrl& url) {
-        const QString locationKey = QStringLiteral("location");
-        const QUrlQuery query(url);
-        if (!query.hasQueryItem(locationKey)) {
-            return;
-        }
-
-        const QString viewpoint = query.queryItemValue(
-            locationKey, QUrl::FullyDecoded);
-        const QUrl expectedURL = PathUtils::expandToLocalDataAbsolutePath(url);
-        // connectedToServerless() and AddressManager both finish during the
-        // current event turn. A queued handoff from the previous serverless
-        // scene can still restore its old avatar position after those calls,
-        // so apply the requested viewpoint once that turn has drained. The
-        // generation and URL guards prevent stale navigation from moving the
-        // avatar in a newer scene.
-        QTimer::singleShot(0, this, [this, requestGeneration, expectedURL, viewpoint] {
-            const QUrl committedURL =
-                PathUtils::expandToLocalDataAbsolutePath(_picoServerlessSceneURL);
-            if (requestGeneration != _serverlessDomainRequestGeneration
-                    || !_picoServerlessSceneImportCommitted
-                    || committedURL != expectedURL) {
-                return;
-            }
-            if (!DependencyManager::get<AddressManager>()->goToViewpointForPath(
-                    viewpoint, QString())) {
-                qCWarning(interfaceapp)
-                    << "PICO_SERVERLESS_TRACE locationApplyFailed";
-            }
-        });
-    };
-
     const auto finishPicoServerlessImport = [this] {
         _picoServerlessSceneImportInProgress = false;
         if (!_picoDeferredServerlessSceneURL.isEmpty()) {
@@ -1169,7 +1136,6 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         _octreeProcessor->getFullSceneReceivedCounter()++;
         _picoServerlessSceneURL = domainURL;
         _picoServerlessSceneImportCommitted = true;
-        schedulePicoServerlessLocationQuery(domainURL);
         qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE importCommitted"
             << domainURL
             << "treeServerless" << isServerlessMode()
@@ -1240,7 +1206,6 @@ void Application::loadServerlessDomain(QUrl domainURL) {
 #if defined(ANDROID_APP_PICO_INTERFACE)
             _picoServerlessSceneURL = domainURL;
             _picoServerlessSceneImportCommitted = true;
-            schedulePicoServerlessLocationQuery(domainURL);
             qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE importCommitted"
                 << domainURL
                 << "treeServerless" << isServerlessMode()

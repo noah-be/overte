@@ -342,69 +342,12 @@
         return origin ? origin[1] + "/e2e-client-command.json" : "";
     }
 
-    function controlledSceneLocation(value) {
-        var queryStart = value.indexOf("?");
-        if (queryStart === -1) {
-            return "";
-        }
-        var fragmentStart = value.indexOf("#", queryStart);
-        var query = value.slice(queryStart + 1,
-            fragmentStart === -1 ? value.length : fragmentStart);
-        var parts = query.split("&");
-        var index;
-        for (index = 0; index < parts.length; index += 1) {
-            var separator = parts[index].indexOf("=");
-            if (separator === -1) {
-                continue;
-            }
-            var name;
-            var path;
-            try {
-                name = decodeURIComponent(parts[index].slice(0, separator).replace(/\+/g, "%20"));
-                path = decodeURIComponent(parts[index].slice(separator + 1).replace(/\+/g, "%20"));
-            } catch (error) {
-                return "";
-            }
-            if (name !== "location") {
-                continue;
-            }
-            var sections = path.split("/");
-            if (sections.length !== 3 || sections[0] !== "") {
-                return "";
-            }
-            var position = sections[1].split(",");
-            var orientation = sections[2].split(",");
-            if (position.length !== 3 || orientation.length !== 4) {
-                return "";
-            }
-            var components = position.concat(orientation);
-            var component;
-            for (component = 0; component < components.length; component += 1) {
-                if (!/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/.test(components[component])
-                        || !isFinite(Number(components[component]))
-                        || Math.abs(Number(components[component])) > (component < 3 ? 100000 : 1.01)) {
-                    return "";
-                }
-            }
-            return path;
-        }
-        return "";
-    }
-
     function resetSceneObservation() {
         stableEntitySamples = 0;
         previousEntityCount = -1;
         stableAvatarSamples = 0;
         previousAvatarPosition = null;
         sceneReady = false;
-    }
-
-    function applySceneLocation(commandId, scenePath) {
-        if (scenePath !== "" && lastClientCommandId === commandId && !sceneReady) {
-            // The serverless scene may reset the avatar after the initial URL
-            // lookup. Reapply its bounded viewpoint only after loading settles.
-            Window.location = scenePath;
-        }
     }
 
     function controlledKeySpec(name) {
@@ -459,17 +402,9 @@
         if (command.action === "scene-load"
                 && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "url"])
                 && httpUrl(command.url)) {
-            var sceneCommandId = String(command.commandId);
-            var scenePath = controlledSceneLocation(command.url);
-            lastClientCommandId = sceneCommandId;
+            lastClientCommandId = String(command.commandId);
             resetSceneObservation();
             Window.location = command.url;
-            Script.setTimeout(function () {
-                applySceneLocation(sceneCommandId, scenePath);
-            }, 1500);
-            Script.setTimeout(function () {
-                applySceneLocation(sceneCommandId, scenePath);
-            }, 3500);
             return;
         }
         if (command.action === "navigate"
