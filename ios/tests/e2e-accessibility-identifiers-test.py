@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 
@@ -24,6 +25,9 @@ def main() -> None:
     ).read_text(encoding="utf-8")
     native_bridge = (
         ROOT / "interface/src/IOSTouchUiMetrics.mm"
+    ).read_text(encoding="utf-8")
+    interface_cmake = (
+        ROOT / "interface/CMakeLists.txt"
     ).read_text(encoding="utf-8")
     application = (
         ROOT / "interface/src/Application_Graphics.cpp"
@@ -49,6 +53,12 @@ def main() -> None:
     assert "OverteIOSAccessibilityOverlay : UIView" in native_bridge
     assert "pointInside:(CGPoint)point withEvent:(UIEvent*)event" in native_bridge
     assert "return NO;" in native_bridge
+    assert re.search(
+        r'set_source_files_properties\(\s*'
+        r'"\$\{CMAKE_CURRENT_SOURCE_DIR\}/src/IOSTouchUiMetrics[.]mm"\s*'
+        r'PROPERTIES\s+COMPILE_OPTIONS\s+"-fobjc-arc"\s*\)',
+        interface_cmake,
+    )
     assert "updateIOSTabletAccessibilityControls(systemTablet" in application
     assert "&TabletProxy::tabletShownChanged" in application
     print("PASS stable iOS tablet accessibility identifiers")
