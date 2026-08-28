@@ -38,7 +38,7 @@ if(ANDROID)
         set_property(
             TARGET Qt5::AndroidExtras
             PROPERTY INTERFACE_INCLUDE_DIRECTORIES
-            "${CMAKE_CURRENT_LIST_DIR}/cmake-pico-compat"
+            "${CMAKE_CURRENT_LIST_DIR}/pico-compat"
         )
     endif()
 
@@ -52,7 +52,7 @@ if(ANDROID)
             set_property(
                 TARGET Qt5::${_pico_qt_web_target}
                 PROPERTY INTERFACE_INCLUDE_DIRECTORIES
-                "${CMAKE_CURRENT_LIST_DIR}/cmake-pico-compat"
+                "${CMAKE_CURRENT_LIST_DIR}/pico-compat"
             )
         endif()
     endforeach()
