@@ -18,6 +18,7 @@ class ProbeCommandChannelTest(unittest.TestCase):
 
     def test_private_channel_is_platform_neutral_and_fail_closed(self) -> None:
         self.assertIn('Script.resolvePath("e2e-client-command.json")', self.source)
+        self.assertIn('request.open("GET", clientCommandUrl)', self.source)
         self.assertIn("clientCommandUnavailable = true", self.source)
         self.assertIn("objectKeysMatch(command", self.source)
         self.assertNotIn("desktop-command.json", self.source)
