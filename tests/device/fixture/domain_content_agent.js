@@ -36,6 +36,13 @@
     ];
     var seeded = false;
 
+    function reportReady() {
+        var request = new XMLHttpRequest();
+        request.open("POST", Script.resolvePath("domain-ready"), true);
+        request.setRequestHeader("Content-Type", "application/json");
+        request.send(JSON.stringify({ schemaVersion: 1, markerCount: markers.length }));
+    }
+
     function seed() {
         if (seeded) {
             return;
@@ -52,6 +59,7 @@
             Entities.addEntity(properties, "domain");
         });
         seeded = true;
+        reportReady();
         print("OVERTE_E2E_DOMAIN_FIXTURE_READY markers=" + markers.length);
     }
 
