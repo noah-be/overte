@@ -9,8 +9,7 @@ main
 │   └── android-vr
 │       └── android-vr-pico
 ├── apple-main
-│   ├── apple-ios
-│   └── apple-macos
+│   └── apple-ios
 ├── linux-main
 └── windows-main
 ```
@@ -19,10 +18,10 @@ The machine-readable source of truth is
 [`../.github/branch-policy.json`](../.github/branch-policy.json). Changes to the
 hierarchy, CI policy, and this document must be reviewed together.
 
-`android-vr-quest` is deliberately outside the active hierarchy. It is kept as
-a frozen historical branch under `.github/rulesets/archived-branches.json`:
-updates, force-pushes, and deletion are prohibited, and the synchronization bot
-does not enumerate it.
+`android-vr-quest` and `apple-macos` are deliberately outside the active
+hierarchy. They are kept as frozen historical branches under
+`.github/rulesets/archived-branches.json`: updates, force-pushes, and deletion
+are prohibited, and the synchronization bot does not enumerate them.
 
 ## Required flow
 
