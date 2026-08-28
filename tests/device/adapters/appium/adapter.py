@@ -113,6 +113,13 @@ class WebDriver:
                     "timed out", "timeout", "could not proxy", "cannot proxy",
                 ))):
             return "WebDriverAgent did not become reachable"
+        if (("could not proxy command to the remote server" in normalized
+                or "cannot proxy command to the remote server" in normalized)
+                and any(token in normalized for token in (
+                    "connection refused", "econnrefused", "socket hang up",
+                    "timed out", "timeout",
+                ))):
+            return "the WebDriverAgent connection was lost"
         return None
 
     def call(self, method: str, path: str, payload: dict | None = None) -> object:

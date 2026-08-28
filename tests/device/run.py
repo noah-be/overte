@@ -250,7 +250,7 @@ def run_module(module: dict, catalog: Path, environment: dict[str, str],
     if timed_out:
         status = "failed"
         output += f"\nModule timed out after {module.get('timeoutSeconds', 600)} seconds.\n"
-    if (status in {"failed", "error"} and "artifact.screenshot" in capabilities
+    if (status == "failed" and "artifact.screenshot" in capabilities
             and environment.get("OVERTE_E2E_CAPTURE_ARTIFACTS") == "1"):
         try:
             capture = subprocess.run(
@@ -355,7 +355,19 @@ def main() -> int:
             description.pop("selector", None)
             (output / "device.json").write_text(
                 json.dumps(description, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            infrastructure_failure = False
             for module in modules:
+                if infrastructure_failure:
+                    results.append({
+                        "id": module["id"], "description": module["description"],
+                        "status": "skipped", "returncode": 77,
+                        "durationSeconds": 0.0,
+                        "output": (
+                            "Blocked by an earlier device infrastructure failure; "
+                            "no device command was sent.\n"
+                        ),
+                    })
+                    continue
                 missing = sorted(set(module.get("requires", [])) - capabilities)
                 if missing:
                     results.append({"id": module["id"], "description": module["description"],
@@ -367,8 +379,10 @@ def main() -> int:
                 artifact = output / "modules" / module["id"]
                 module_env = environment | {"OVERTE_DEVICE_ARTIFACT_DIR": str(artifact)}
                 print(f"[{module['id']}] {module['description']}", flush=True)
-                results.append(run_module(module, catalog_path, module_env, artifact, selector,
-                                          command, capabilities))
+                result = run_module(module, catalog_path, module_env, artifact, selector,
+                                    command, capabilities)
+                results.append(result)
+                infrastructure_failure = result["status"] == "error"
         finally:
             if not args.keep_running:
                 try:

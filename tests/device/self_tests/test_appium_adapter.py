@@ -357,6 +357,27 @@ class AppiumAdapterTests(unittest.TestCase):
                 APPIUM.WebDriver("http://127.0.0.1:4723").call("POST", "/session", {})
         self.assertNotIn(private_value, str(raised.exception))
 
+    def test_http_error_classifies_lost_wda_proxy_without_private_values(self) -> None:
+        private_identifier = "00000000-1111-2222-3333-444444444444"
+        body = json.dumps({
+            "value": {
+                "error": "unknown error",
+                "message": (
+                    "Could not proxy command to the remote server. Original error: "
+                    f"socket hang up for {private_identifier}"
+                ),
+            },
+        }).encode("utf-8")
+        error = HTTPError(
+            "http://127.0.0.1:4723/session", 500, "error", {}, io.BytesIO(body))
+        with mock.patch.object(APPIUM, "urlopen", side_effect=error):
+            with self.assertRaisesRegex(
+                    RuntimeError,
+                    r"HTTP 500 \(the WebDriverAgent connection was lost\)") as raised:
+                APPIUM.WebDriver("http://127.0.0.1:4723").call(
+                    "POST", "/session/private/execute/sync", {})
+        self.assertNotIn(private_identifier, str(raised.exception))
+
     def test_http_error_classifies_wda_background_10300_without_private_values(self) -> None:
         private_identifier = "com.private.wda.00000000-1111-2222-3333-444444444444"
         body = json.dumps({

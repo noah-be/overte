@@ -1643,6 +1643,44 @@ void Application::loadSettings(const QCommandLineParser& parser) {
     // On the first run, the Preset is evaluated from the
     getPerformanceManager().setupPerformancePresetSettings(_firstRun.get());
 
+#if defined(Q_OS_IOS)
+    // iPads are passively cooled and the XCUITest runner shares the same
+    // thermal budget as Interface.  A persisted desktop/realtime preset can
+    // otherwise drive the client at 60 Hz until iPadOS suspends the test
+    // runner under thermal pressure.  Apply a predictable mobile ceiling after
+    // the performance preset while preserving any user-selected render scale
+    // that is already lower than the supported iOS default.
+    constexpr int IOS_TARGET_FPS { 30 };
+    constexpr float IOS_MAX_VIEWPORT_RESOLUTION_SCALE { 0.8f };
+    auto iosRenderSettings = RenderScriptingInterface::getInstance();
+    iosRenderSettings->setShadowsEnabled(false);
+    iosRenderSettings->setBloomEnabled(false);
+    iosRenderSettings->setAmbientOcclusionEnabled(false);
+    iosRenderSettings->setAntialiasingMode(AntialiasingSetupConfig::Mode::NONE);
+    if (iosRenderSettings->getViewportResolutionScale() > IOS_MAX_VIEWPORT_RESOLUTION_SCALE) {
+        iosRenderSettings->setViewportResolutionScale(IOS_MAX_VIEWPORT_RESOLUTION_SCALE);
+    }
+    DependencyManager::get<LODManager>()->setWorldDetailQuality(WORLD_DETAIL_LOW);
+
+    auto& iosRefreshRateManager = getRefreshRateManager();
+    iosRefreshRateManager.setCustomRefreshRate(
+        RefreshRateManager::RefreshRateRegime::FOCUS_ACTIVE, IOS_TARGET_FPS);
+    iosRefreshRateManager.setCustomRefreshRate(
+        RefreshRateManager::RefreshRateRegime::FOCUS_INACTIVE, IOS_TARGET_FPS);
+    iosRefreshRateManager.setCustomRefreshRate(
+        RefreshRateManager::RefreshRateRegime::STARTUP, IOS_TARGET_FPS);
+    iosRefreshRateManager.setRefreshRateProfile(RefreshRateManager::RefreshRateProfile::CUSTOM);
+    logIOSRuntimeMarker(
+        "OVERTE_IOS_RENDER_PROFILE stage=mobile-budget-applied",
+        "target_fps=", IOS_TARGET_FPS,
+        "scale=", iosRenderSettings->getViewportResolutionScale(),
+        "shadows=", iosRenderSettings->getShadowsEnabled(),
+        "bloom=", iosRenderSettings->getBloomEnabled(),
+        "ambient_occlusion=", iosRenderSettings->getAmbientOcclusionEnabled(),
+        "antialiasing=", iosRenderSettings->getAntialiasingMode() != AntialiasingSetupConfig::Mode::NONE,
+        "world_detail=", WORLD_DETAIL_LOW);
+#endif
+
 #if defined(Q_OS_ANDROID)
     auto renderSettings = RenderScriptingInterface::getInstance();
     // Standalone headsets need a predictable baseline. The desktop platform
