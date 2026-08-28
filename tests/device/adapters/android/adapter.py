@@ -230,11 +230,16 @@ class AndroidAdapter:
                                  timeout_seconds: float = 30.0) -> None:
         package = self.profile["package"]
         deadline = time.monotonic() + timeout_seconds
+        stable_absent_samples = 0
         while time.monotonic() < deadline:
             pid = self.adb.shell(
                 target, "pidof", "-s", package, check=False).strip()
             if not pid.isdigit():
-                return
+                stable_absent_samples += 1
+                if stable_absent_samples >= 4:
+                    return
+            else:
+                stable_absent_samples = 0
             time.sleep(0.25)
         fail("Android E2E launcher process did not stop")
 
