@@ -342,6 +342,14 @@ def validate_probe_snapshot(value: object) -> dict:
                     raise ValueError(f"probe controller.route {name} must be finite")
             if not isinstance(route.get("translateZDriveKeyDisabled"), bool):
                 raise ValueError("probe controller.route drive-key state must be boolean")
+            vertical_names = ("translateYAction", "rawTranslateYDriveKey")
+            if any(name in route for name in (*vertical_names, "translateYDriveKeyDisabled")):
+                if not all(isinstance(route.get(name), (int, float))
+                           and not isinstance(route[name], bool)
+                           and math.isfinite(float(route[name])) for name in vertical_names):
+                    raise ValueError("probe controller.route vertical drive state must be finite")
+                if not isinstance(route.get("translateYDriveKeyDisabled"), bool):
+                    raise ValueError("probe controller.route vertical drive-key state must be boolean")
         for hand in ("left", "right"):
             pose = poses.get(hand)
             if not isinstance(pose, dict) or not isinstance(pose.get("valid"), bool):
