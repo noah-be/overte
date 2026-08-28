@@ -8,6 +8,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[4]
 APPLICATION = (ROOT / "interface/src/Application.cpp").read_text(encoding="utf-8")
 HEADER = (ROOT / "interface/src/Application.h").read_text(encoding="utf-8")
+ADDRESS_MANAGER = (ROOT / "libraries/networking/src/AddressManager.cpp").read_text(
+    encoding="utf-8")
 
 
 def function_body(signature: str, next_signature: str) -> str:
@@ -55,11 +57,20 @@ class PicoWorldStateTests(unittest.TestCase):
         self.assertNotIn("goToViewpointForPath", body)
         self.assertNotIn("locationApplyFailed", body)
 
-        address = (ROOT / "libraries/networking/src/AddressManager.cpp").read_text(
-            encoding="utf-8")
-        self.assertIn('const QString LOCATION_QUERY_KEY = "location"', address)
-        self.assertIn("QUrl::FullyDecoded", address)
-        self.assertIn("handlePath(path, LookupTrigger::Internal, false)", address)
+        self.assertIn('const QString LOCATION_QUERY_KEY = "location"', ADDRESS_MANAGER)
+        self.assertIn("QUrl::FullyDecoded", ADDRESS_MANAGER)
+        self.assertIn(
+            "handlePath(path, LookupTrigger::Internal, false)", ADDRESS_MANAGER)
+
+    def test_api_retry_cannot_reapply_a_serverless_spawn(self):
+        start = ADDRESS_MANAGER.index("void AddressManager::refreshPreviousLookup()")
+        end = ADDRESS_MANAGER.index("void AddressManager::copyAddress()", start)
+        body = ADDRESS_MANAGER[start:end]
+        self.assertIn("const QUrl address = currentAddress();", body)
+        self.assertIn("if (address.scheme() == URL_SCHEME_OVERTE)", body)
+        self.assertIn("handleUrl(address, LookupTrigger::AttemptedRefresh);", body)
+        self.assertNotIn(
+            "handleUrl(currentAddress(), LookupTrigger::AttemptedRefresh);", body)
 
     def test_startup_fallback_import_preserves_explicit_serverless_url(self):
         fallback = APPLICATION.index("static bool picoStartupImportRequested")
