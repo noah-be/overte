@@ -40,7 +40,7 @@
       },
       "clientControl": {
         "kind": "android-run-as-command",
-        "relativePath": "files/overte-e2e/desktop-command.json"
+        "relativePath": "files/overte-e2e/e2e-client-command.json"
       }
     },
     {

@@ -4,8 +4,8 @@
 
 The shared `asset-smoke` suite and its `asset-load` module are implemented.
 The deterministic mock adapter executes the complete contract without hardware.
-Desktop/Oculix targets with the injected probe command channel advertise and
-implement `asset.load`; targets without that controlled channel remain gated.
+Android ADB and controlled Appium targets advertise and implement `asset.load`;
+targets without an accepted command channel remain gated.
 No product-specific CI runner schedules this suite, and physical acceptance
 remains separate future work.
 

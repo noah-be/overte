@@ -251,7 +251,7 @@ def validate_lock(
     except (OSError, json.JSONDecodeError) as exc:
         raise LockValidationError([f"cannot read {lock_path}: {exc}"]) from exc
     root = _mapping(data, "lock", errors)
-    expected_root = {"schemaVersion", "resolvedAt", "sources", "appium", "jenkins", "oculix"}
+    expected_root = {"schemaVersion", "resolvedAt", "sources", "appium", "jenkins"}
     if set(root) != expected_root:
         missing = expected_root - set(root)
         unknown = set(root) - expected_root
@@ -440,27 +440,6 @@ def validate_lock(
         if plugin in direct and direct_artifact != artifact:
             errors.append(f"direct and resolved artifact metadata differs for {plugin}")
         artifacts[f"jenkins.plugins.{plugin}"] = artifact
-
-    oculix = _mapping(root.get("oculix"), "oculix", errors)
-    if oculix.get("license") != "MIT":
-        errors.append("oculix.license must be MIT")
-    oculix_version = _semver(oculix.get("version"), "oculix.version", errors)
-    minimum_java = oculix.get("minimumJavaMajor")
-    lab_java = oculix.get("labJavaMajor")
-    if not isinstance(minimum_java, int) or not isinstance(lab_java, int) or lab_java < minimum_java:
-        errors.append("oculix.labJavaMajor must be at least oculix.minimumJavaMajor")
-    _https_url(oculix.get("releaseUrl"), "oculix.releaseUrl", errors)
-    ide_artifacts = _mapping(oculix.get("ideArtifacts"), "oculix.ideArtifacts", errors)
-    expected_platforms = {"linux", "macos", "windows"}
-    if set(ide_artifacts) != expected_platforms:
-        errors.append("oculix.ideArtifacts must contain exactly linux, macos and windows")
-    for platform in sorted(expected_platforms):
-        artifact = _artifact(ide_artifacts.get(platform), f"oculix.ideArtifacts.{platform}", errors)
-        artifacts[f"oculix.ide.{platform}"] = artifact
-        if oculix_version is not None and artifact["url"]:
-            filename = f"oculixide-{oculix['version']}-{platform}.jar"
-            if not artifact["url"].endswith("/" + filename):
-                errors.append(f"oculix.ideArtifacts.{platform}.url does not identify {filename}")
 
     if errors:
         raise LockValidationError(errors)
