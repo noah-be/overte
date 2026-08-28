@@ -491,6 +491,9 @@ class JenkinsGlueTest(unittest.TestCase):
             "runDeviceSuite('sound-smoke'", "DOMAIN_SERVER_EXECUTABLE",
             "ASSIGNMENT_CLIENT_EXECUTABLE",
             "RUN_VERTICAL_LOCOMOTION", "runDeviceSuite('vertical-locomotion'",
+            "OVERTE_ANDROID_ADB", "ANDROID_ADB_SERVER_PORT",
+            "OVERTE_ANDROID_E2E_DEBUG", "OVERTE_PICO_OPENXR_INPUT",
+            "OVERTE_PICO_OPENXR_STATE_DIR",
         ):
             self.assertIn(expected, source)
 

@@ -221,6 +221,31 @@ pipeline {
             defaultValue: '',
             description: 'Absolute path to the trusted local assignment-client executable.'
         )
+        string(
+            name: 'OVERTE_ANDROID_ADB',
+            defaultValue: '/usr/bin/adb',
+            description: 'ADB executable used by Android profiles.'
+        )
+        string(
+            name: 'ANDROID_ADB_SERVER_PORT',
+            defaultValue: '',
+            description: 'Non-default isolated ADB server port required by Pico OpenXR input.'
+        )
+        string(
+            name: 'OVERTE_ANDROID_E2E_DEBUG',
+            defaultValue: '0',
+            description: 'Set to 1 only for an audited debug E2E APK.'
+        )
+        string(
+            name: 'OVERTE_PICO_OPENXR_INPUT',
+            defaultValue: '0',
+            description: 'Set to 1 to enable the debug-only Pico OpenXR input layer.'
+        )
+        string(
+            name: 'OVERTE_PICO_OPENXR_STATE_DIR',
+            defaultValue: '',
+            description: 'Absolute private runtime-state directory for Pico OpenXR input.'
+        )
         booleanParam(
             name: 'RUN_ACCESSIBILITY',
             defaultValue: false,
