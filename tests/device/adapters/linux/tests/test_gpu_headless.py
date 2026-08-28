@@ -329,6 +329,17 @@ class GpuHeadlessLifecycleTest(unittest.TestCase):
         self.assertTrue(self.lifecycle.cleanup())
         self.assertFalse(self.lifecycle.cleanup())
 
+    def test_wayland_socket_fits_the_default_state_root_and_rejects_long_roots(self) -> None:
+        default_state = (Path("/tmp/overte-device-adapter-state-1000")
+                         / ("a" * 24) / "gpu-headless")
+        socket_path = default_state / "runtime" / self.lifecycle.socket_name
+        self.assertLess(len(os.fsencode(str(socket_path))), GPU.SUN_PATH_BYTES)
+        self.assertEqual("overte-e2e", self.lifecycle.socket_name)
+
+        long_state = self.root / ("long-state-" + "x" * 80)
+        with self.assertRaisesRegex(RuntimeError, "socket path exceeds Linux limit"):
+            GPU.GpuHeadlessLifecycle(self.target, long_state)
+
     def test_renderer_gate_rejects_all_fail_closed_classes(self) -> None:
         cases = (
             ("indirect", "not direct-rendered"),
