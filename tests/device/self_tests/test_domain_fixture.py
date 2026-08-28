@@ -39,7 +39,8 @@ server.serve_forever()
 FAKE_ASSIGNMENT = r'''#!/usr/bin/env python3
 import signal, sys, time
 arguments = sys.argv[1:]
-core = "-n" in arguments and arguments[arguments.index("-n") + 1] == "6" and "--pool" not in arguments
+assignment_type = arguments[arguments.index("-t") + 1] if "-t" in arguments else ""
+core = assignment_type in {"0", "1", "3", "4", "5", "6"} and "--pool" not in arguments
 agent = ("-t" in arguments and arguments[arguments.index("-t") + 1] == "2"
          and "--pool" in arguments
          and arguments[arguments.index("--pool") + 1] == "overte-e2e-domain")
@@ -110,6 +111,7 @@ class DomainFixtureTest(unittest.TestCase):
                 with urlopen(metadata["bootstrapScriptUrl"], timeout=2) as response:
                     script = response.read().decode("utf-8")
                 self.assertIn('Entities.addEntity(properties, "domain")', script)
+                self.assertIn('Script.resolvePath("domain-ready")', script)
                 self.assertIsNone(process.poll())
             finally:
                 process.terminate()

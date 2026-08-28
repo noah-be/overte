@@ -276,7 +276,7 @@ def wait_for_ready(process: subprocess.Popen, ready_file: Path, timeout_seconds:
         if process.poll() is not None:
             fail("fixture server exited before becoming ready")
         time.sleep(0.05)
-    fail("fixture server did not become ready within 10 seconds")
+    fail(f"fixture server did not become ready within {timeout_seconds} seconds")
 
 
 def apply_http_fixture_environment(environment_values: dict[str, str], ready: dict) -> None:
@@ -332,7 +332,8 @@ def copy_domain_fixture_artifacts(source: Path, output: Path) -> None:
         return
     destination = output / "domain-fixture"
     copied = False
-    for name in ("domain-config.json", "domain-server.log", "assignment-client.log"):
+    for name in ("domain-config.json", "domain-server.log", "assignment-client.log",
+                 "assignment-agent.log"):
         candidate = source / name
         if candidate.is_file() and not candidate.is_symlink():
             destination.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -452,7 +453,7 @@ def run_suite() -> int:
                 "--ready-file", str(fixture_ready),
             ], cwd=root, stdout=fixture_log_handle, stderr=subprocess.STDOUT,
                text=True, **subprocess_group_options())
-            ready = wait_for_ready(fixture, fixture_ready, timeout_seconds=30,
+            ready = wait_for_ready(fixture, fixture_ready, timeout_seconds=75,
                                    required_key="domainUrl")
             apply_domain_fixture_environment(runner_environment, ready)
         elif suite == "e2e-core" and checked_fixture_mode() == "embedded":
