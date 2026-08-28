@@ -39,6 +39,16 @@ foreground state and PID without a lifecycle command. Look, move, tablet and Doc
 all require the originally observed PID and bundle. A PID change is a product
 failure; malformed Appium/XCUITest evidence is an infrastructure failure.
 
+`sound.play` is advertised only when the target also has the exact
+`soundControl.kind=fixture-http` configuration from the example. The sound and
+command URLs must share the configured fixture origin, the endpoint must be
+`/sound-command.json`, and the fixture must acknowledge the exact versioned
+payload. WDA verifies the original foreground PID before and after the request;
+audio readiness and playback remain observations of the real probe. iOS does
+not advertise `navigation.enter-domain` or `asset.load`: the current test build
+has no stable in-client control channel for live location changes or entity
+creation, and WDA UI gestures/text input are not accepted substitutes.
+
 The optional iOS `verticalLocomotion` control drives the rendered Overte
 virtual-pad Jump button, not a private test hook. Its fractional `jumpPoint`
 must be copied into private target configuration only after the real landscape

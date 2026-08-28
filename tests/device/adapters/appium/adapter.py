@@ -210,6 +210,8 @@ class AppiumAdapter:
             for section in ("process", "scene", "controls", "probe", "background"):
                 if not isinstance(entry.get(section, {}), dict):
                     fail(f"Appium target {section} must be an object")
+            if not isinstance(entry.get("soundControl", {}), dict):
+                fail("Appium target soundControl must be an object")
             tablet = entry.get("controls", {}).get("tablet", {})
             if not isinstance(tablet, dict):
                 fail("Appium target controls.tablet must be an object")
@@ -265,6 +267,14 @@ class AppiumAdapter:
                 self.validate_ios_artifact_receipt(entry)
                 self.validate_ios_host_strategy(entry)
                 self.validate_ios_test_build(entry)
+                sound_control = entry.get("soundControl", {})
+                if sound_control and (sound_control != {"kind": "fixture-http",
+                                                         "commandPath": "/sound-command.json"}
+                        or not entry.get("testBuild")
+                        or entry.get("probe") != {"kind": "ios-documents"}):
+                    fail("iOS soundControl requires the exact controlled test-build channel")
+            elif entry.get("soundControl"):
+                fail("soundControl is supported only by iOS Appium targets")
             targets[selector] = entry
         return {key: value for key, value in targets.items() if value["platform"] == self.platform}
 
@@ -702,6 +712,12 @@ class AppiumAdapter:
             values.append("app.process")
         if target["platform"] == "android" and process.get("kind") == "adb":
             values.append("telemetry.snapshot")
+        if (target["platform"] == "ios"
+                and target.get("soundControl") == {"kind": "fixture-http",
+                                                    "commandPath": "/sound-command.json"}
+                and target.get("testBuild")
+                and target.get("probe") == {"kind": "ios-documents"}):
+            values.append("sound.play")
         controls = target.get("controls", {})
         if target.get("scene"):
             values.append("scene.load")
@@ -1060,6 +1076,57 @@ class AppiumAdapter:
         return observed
 
     @staticmethod
+    def controlled_http_url(value: str, label: str) -> tuple[str, str, int | None]:
+        parsed = urlsplit(value)
+        try:
+            port = parsed.port
+        except ValueError:
+            fail(f"{label} has an invalid port")
+        if (parsed.scheme not in {"http", "https"} or not parsed.hostname
+                or parsed.username is not None or parsed.password is not None
+                or parsed.fragment):
+            fail(f"{label} must be an absolute credential-free HTTP(S) URL")
+        return parsed.scheme, parsed.hostname.lower(), port
+
+    def request_ios_sound(self, selector: str, client: WebDriver, session: str,
+                          state: dict, target: dict, values: dict) -> dict:
+        if target.get("soundControl") != {"kind": "fixture-http",
+                                          "commandPath": "/sound-command.json"}:
+            fail("iOS sound.play requires the controlled fixture sound channel")
+        contract = target.get("testBuild", {})
+        configured_url = contract.get("fixtureOrigin", "") + "/sound-command.json"
+        sound_origin = self.controlled_http_url(values["url"], "sound.play url")
+        command_origin = self.controlled_http_url(values["commandUrl"], "sound.play commandUrl")
+        if (values["commandUrl"] != configured_url or sound_origin != command_origin
+                or urlsplit(values["commandUrl"]).query):
+            fail("iOS sound.play URLs must use the configured fixture origin and command path")
+        payload = {"schemaVersion": 1, "commandId": values["commandId"],
+                   "action": "play", "soundUrl": values["url"]}
+        self.assert_ios_process_identity(selector, client, session, state, target)
+        request = Request(configured_url,
+                          data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
+                          headers={"Content-Type": "application/json"}, method="POST")
+        try:
+            with urlopen(request, timeout=5) as response:
+                if response.status != 200:
+                    fail("controlled fixture rejected the sound command")
+                encoded = response.read(4097)
+        except HTTPError as error:
+            fail(f"controlled fixture rejected the sound command with HTTP {error.code}")
+        except (URLError, OSError):
+            fail("controlled fixture sound command endpoint is unavailable")
+        if len(encoded) > 4096:
+            fail("controlled fixture returned an oversized sound response")
+        try:
+            accepted = json.loads(encoded)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            fail("controlled fixture returned an invalid sound response")
+        if accepted != payload:
+            fail("controlled fixture did not acknowledge the exact sound command")
+        self.assert_ios_process_identity(selector, client, session, state, target)
+        return {"requested": True, "commandId": values["commandId"]}
+
+    @staticmethod
     def expand(value: object, variables: dict[str, object]) -> object:
         if isinstance(value, str) and value.startswith("$") and value[1:] in variables:
             return variables[value[1:]]
@@ -1356,6 +1423,15 @@ class AppiumAdapter:
     def invoke(self, selector: str, operation: str, values: dict) -> dict:
         target = self.target(selector)
         client, session, state = self.ensure_session(selector)
+        if operation == "sound.play":
+            try:
+                arguments = validate_operation_arguments(operation, values)
+            except ValueError as error:
+                fail(str(error))
+            if self.platform != "ios":
+                fail("sound.play is unavailable on this Appium platform")
+            return self.request_ios_sound(
+                selector, client, session, state, target, arguments)
         if operation == "app.launch":
             if self.platform == "android" and target.get("scene", {}).get("kind") == "android-debug-e2e":
                 if self.query_app_state(client, session, target) >= 2:

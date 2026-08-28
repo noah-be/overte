@@ -55,6 +55,10 @@
       },
       "probe": {
         "kind": "ios-documents"
+      },
+      "soundControl": {
+        "kind": "fixture-http",
+        "commandPath": "/sound-command.json"
       }
     }
   ]
