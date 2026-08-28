@@ -418,6 +418,11 @@ class AndroidAdapter:
                 elif self.kind == "pico" and pico_openxr_opted_in():
                     if self.require_pico_session_identity(target) != identity:
                         fail("Android controlled launch process identity changed")
+                if self.adb.foreground_package(target) != package:
+                    self.adb.shell(target, "am", "start", "-W", "-n",
+                                   f"{package}/.E2eLauncherActivity")
+                    self.require_same_process(
+                        target, identity, "controlled foreground activation")
             else:
                 self.adb.shell(target, "am", "start", "-W", "-n", self.profile["activity"])
             return {"launched": True}

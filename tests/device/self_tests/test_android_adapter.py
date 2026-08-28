@@ -37,6 +37,9 @@ status_path=os.environ.get("MOCK_PICO_OPENXR_STATUS", "")
 grant_log=os.environ.get("MOCK_PICO_OPENXR_GRANTS", "")
 process_path=os.environ.get("MOCK_ANDROID_PROCESS_STATE", "")
 process_state=open(process_path).read().strip() if process_path and os.path.exists(process_path) else "running"
+foreground_path=os.environ.get("MOCK_ANDROID_FOREGROUND_STATE", "")
+foreground_state=(open(foreground_path).read().strip()
+                  if foreground_path and os.path.exists(foreground_path) else "foreground")
 control_state_path=os.environ.get("MOCK_ANDROID_CONTROL_STATE", "")
 control_available=os.environ.get("MOCK_ANDROID_CONTROL_AVAILABLE", "") == "1"
 probe_available=os.environ.get("MOCK_ANDROID_PROBE_AVAILABLE", "1") == "1"
@@ -73,13 +76,17 @@ elif cmd[:3] == ["shell", "cat", "/proc/43/stat"]: print("43 (app) S " + "0 "*18
 elif cmd[:3] == ["shell", "cat", "/proc/44/stat"]: print("44 (app) S " + "0 "*18 + "125 0")
 elif cmd[:3] == ["shell", "cat", "/proc/45/stat"]: print("45 (app) S " + "0 "*18 + "126 0")
 elif cmd == ["shell", "dumpsys", "activity", "activities"]:
-    package="org.overte.pico" if target and target.startswith("pico-secret") else "org.overte.phone"
+    package=("com.pvr.home" if foreground_state == "background" else
+             ("org.overte.pico" if target and target.startswith("pico-secret") else "org.overte.phone"))
     print("mResumedActivity: x u0 " + package + "/.Main t1")
 elif cmd[:3] == ["shell", "am", "force-stop"]:
     if process_path: open(process_path,"w").write("stopped")
 elif cmd[:4] == ["shell", "am", "start", "-W"]:
     if process_path: open(process_path,"w").write("running")
+    if foreground_path: open(foreground_path,"w").write("foreground")
     print("Status: ok")
+elif cmd == ["shell", "input", "keyevent", "KEYCODE_HOME"]:
+    if foreground_path: open(foreground_path,"w").write("background")
 elif cmd[:3] == ["install", "-r", "-g"]:
     if process_path: open(process_path,"w").write("stopped")
     print("Success")
@@ -433,6 +440,58 @@ class AndroidAdapterTest(unittest.TestCase):
                              for command in adb_commands))
         self.assertFalse(any(command[:4] == ["shell", "am", "start", "-W"]
                              for command in adb_commands))
+
+    def test_controlled_pico_launch_reactivates_background_process(self):
+        state = Path(self.temporary.name) / "reactivate-state"
+        state.mkdir(mode=0o700)
+        process = Path(self.temporary.name) / "reactivate-process"
+        process.write_text("stopped", encoding="utf-8")
+        foreground = Path(self.temporary.name) / "reactivate-foreground"
+        foreground.write_text("background", encoding="utf-8")
+        argv_log = Path(self.temporary.name) / "reactivate-adb.jsonl"
+        self.environment.update({
+            "OVERTE_ANDROID_E2E_DEBUG": "1",
+            "OVERTE_PICO_OPENXR_INPUT": "1",
+            "ANDROID_ADB_SERVER_PORT": "5041",
+            "OVERTE_PICO_OPENXR_STATE_DIR": str(state),
+            "MOCK_ANDROID_CONTROL_AVAILABLE": "1",
+            "MOCK_ANDROID_PROCESS_STATE": str(process),
+            "MOCK_ANDROID_FOREGROUND_STATE": str(foreground),
+            "MOCK_ADB_ARGV_LOG": str(argv_log),
+        })
+        common = [sys.executable, str(ADAPTER), "--kind", "pico", "invoke",
+                  "--target", "pico-secret"]
+
+        def invoke(operation: str) -> dict:
+            result = subprocess.run(
+                [*common, "--operation", operation, "--arguments", "{}"],
+                text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                env=self.environment, check=False)
+            self.assertEqual(0, result.returncode, result.stdout)
+            return json.loads(result.stdout)
+
+        first = subprocess.run(
+            [*common, "--operation", "app.launch", "--arguments", "{}"],
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=self.environment, check=False)
+        self.assertEqual(0, first.returncode, first.stdout)
+        before = invoke("app.process")
+        backgrounded = invoke("lifecycle.background")
+        self.assertTrue(backgrounded["backgrounded"])
+        self.assertFalse(invoke("app.foreground")["foreground"])
+
+        second = subprocess.run(
+            [*common, "--operation", "app.launch", "--arguments", "{}"],
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=self.environment, check=False)
+        self.assertEqual(0, second.returncode, second.stdout)
+        self.assertTrue(invoke("app.foreground")["foreground"])
+        self.assertEqual(before, invoke("app.process"))
+        commands = [json.loads(line) for line in argv_log.read_text().splitlines()]
+        payloads = [command[4:] if command[2:3] == ["-s"] else command[2:]
+                    for command in commands]
+        self.assertEqual(2, sum(command[:4] == ["shell", "am", "start", "-W"]
+                                for command in payloads))
 
     def test_probe_executes_real_controlled_actions_and_reports_observations(self):
         probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
