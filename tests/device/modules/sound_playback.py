@@ -174,13 +174,39 @@ def main() -> None:
     if ready["finished"] is True:
         fail("audio injector ended unexpectedly before active playback was sampled")
 
-    started_sample = (ready_sample if ready["started"] and ready["playing"] else fresh.wait(
-        "the audio injector to start playing",
-        lambda sound: sound["commandId"] == command_id and sound["injectorCreated"] is True
-        and sound["started"] is True and sound["playing"] is True,
-        timeout,
-    ))
-    active_samples = [started_sample]
+    def active_for_command(sample: dict) -> bool:
+        sound = sample.get("sound", {})
+        return (sound.get("commandId") == command_id
+                and sound.get("resourceReady") is True
+                and sound.get("injectorCreated") is True
+                and sound.get("started") is True
+                and sound.get("playing") is True
+                and sound.get("finished") is False)
+
+    # Playback can already be active while earlier independent evidence is being
+    # collected.  Those snapshots are still fresh, ordered probe observations and
+    # must not be discarded merely because the host reached the ready checkpoint
+    # later.
+    active_samples = []
+    active_sequences = set()
+    for sample in (command_sample, ready_sample):
+        sequence = sample.get("sampleSequence")
+        if active_for_command(sample) and sequence not in active_sequences:
+            active_samples.append(sample)
+            active_sequences.add(sequence)
+
+    if not active_samples:
+        started_sample = fresh.wait(
+            "the audio injector to start playing",
+            lambda sound: sound["commandId"] == command_id
+            and sound["resourceReady"] is True
+            and sound["injectorCreated"] is True
+            and sound["started"] is True and sound["playing"] is True,
+            timeout,
+        )
+        active_samples.append(started_sample)
+        active_sequences.add(started_sample["sampleSequence"])
+
     deadline = time.monotonic() + timeout
     while len(active_samples) < 2:
         sample = fresh.next(deadline)
@@ -189,7 +215,9 @@ def main() -> None:
             fail("sound probe switched commands during playback")
         if sound.get("finished") is True or sound.get("playing") is not True:
             fail("audio injector ended unexpectedly before two fresh active samples")
-        active_samples.append(sample)
+        if sample["sampleSequence"] not in active_sequences:
+            active_samples.append(sample)
+            active_sequences.add(sample["sampleSequence"])
     write_json("sound-active-samples.json", active_samples)
 
     finished_sample = fresh.wait(

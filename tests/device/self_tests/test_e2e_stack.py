@@ -77,6 +77,20 @@ class E2EStackTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "connected probe domain"):
             validate_probe_snapshot(snapshot)
 
+        snapshot = self.snapshot()
+        snapshot["domain"] = {
+            "connected": True,
+            "hostname": "",
+            "id": "{00000000-0000-0000-0000-000000000000}",
+            "protocol": "file",
+            "serverless": True,
+        }
+        self.assertIs(snapshot, validate_probe_snapshot(snapshot))
+
+        snapshot["domain"]["protocol"] = "hifi"
+        with self.assertRaisesRegex(ValueError, "serverless probe domain"):
+            validate_probe_snapshot(snapshot)
+
     def test_probe_contract_observes_standard_controller_values_and_poses(self):
         snapshot = self.snapshot()
         snapshot["input"] = {
