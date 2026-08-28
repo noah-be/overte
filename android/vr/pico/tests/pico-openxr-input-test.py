@@ -59,6 +59,8 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertIsNotNone(override)
         body = override.group(1)
         self.assertIn("controller::LY", body)
+        self.assertIn("leftY->second.valid", body)
+        self.assertNotIn("std::abs(leftY->second.value)", body)
         self.assertIn("controller::LEFT_SECONDARY_THUMB", body)
         self.assertIn("controller::RIGHT_SECONDARY_THUMB", body)
 

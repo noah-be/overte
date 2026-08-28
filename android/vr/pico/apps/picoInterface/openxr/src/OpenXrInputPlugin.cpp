@@ -342,8 +342,10 @@ void OpenXrInputPlugin::pluginUpdate(float deltaTime, const controller::InputCal
 #if defined(OVERTE_E2E_OPENXR_INPUT_V1)
     const auto leftY = _inputDevice->_axisStateMap.find(controller::LY);
     e2eControllerOverrideActive =
-        (leftY != _inputDevice->_axisStateMap.end() && leftY->second.valid &&
-         std::abs(leftY->second.value) >= 0.01f) ||
+        // The E2E layer publishes injected axes as active and therefore valid,
+        // including its deliberate neutral windows.  Keep the device routed
+        // through those windows so short button commands reach the mapper.
+        (leftY != _inputDevice->_axisStateMap.end() && leftY->second.valid) ||
         _inputDevice->_buttonPressedMap.contains(controller::LEFT_SECONDARY_THUMB) ||
         _inputDevice->_buttonPressedMap.contains(controller::RIGHT_SECONDARY_THUMB);
 #endif
