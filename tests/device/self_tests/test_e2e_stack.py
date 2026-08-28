@@ -277,16 +277,14 @@ class E2EStackTest(unittest.TestCase):
                 self.assertTrue(
                     (output / "modules/domain-enter/domain-last-probe.json").is_file())
 
-    def test_only_desktop_real_adapter_advertises_domain_navigation(self):
+    def test_only_implemented_real_adapters_may_advertise_domain_navigation(self):
         adapter_root = ROOT / "adapters"
-        for source in (
-                adapter_root / "android/adapter.py",
-                adapter_root / "appium/adapter.py"):
+        for source in (adapter_root / "appium/adapter.py",):
             self.assertNotIn("navigation.enter-domain", source.read_text(encoding="utf-8"),
                              str(source.relative_to(ROOT)))
-        self.assertIn(
-            "navigation.enter-domain",
-            (adapter_root / "desktop_oculix/adapter.py").read_text(encoding="utf-8"))
+        for source in (adapter_root / "android/adapter.py",
+                       adapter_root / "desktop_oculix/adapter.py"):
+            self.assertIn("navigation.enter-domain", source.read_text(encoding="utf-8"))
 
     def test_complete_core_suite_enforces_pico_hardware_evidence(self):
         with tempfile.TemporaryDirectory(prefix="overte-pico-e2e-stack-") as temporary:
