@@ -20,18 +20,18 @@
     var sampleIntervalMs = 250;
     var heartbeatIntervalMs = 5000;
     var previousLocationKey = "";
-    var androidControlMarkerRequestPending = false;
-    var androidControlCommandRequestPending = false;
+    var androidControlMarkerRequest = null;
+    var androidControlCommandRequest = null;
     var androidControlAvailable = false;
     var lastAndroidControlCommandId = "";
     var androidAssetEntityId = null;
     var assetResource = null;
     var assetResourceUrl = "";
     var controlledAssetEntity = null;
-    var clientCommandRequestPending = false;
+    var clientCommandRequest = null;
     var clientCommandUnavailable = false;
     var lastClientCommandId = "";
-    var soundCommandRequestPending = false;
+    var soundCommandRequest = null;
     // Preserve the shared network-loaded probe contract. Desktop's private
     // probe copy replaces this local fallback only after the adapter has
     // posted an exact command to the controlled fixture endpoint.
@@ -310,23 +310,25 @@
     }
 
     function pollClientCommand() {
-        if (clientCommandUnavailable || clientCommandRequestPending) {
+        if (clientCommandUnavailable || clientCommandRequest !== null) {
             return;
         }
-        clientCommandRequestPending = true;
         var request = new XMLHttpRequest();
+        clientCommandRequest = request;
         request.onreadystatechange = function () {
             if (request.readyState !== request.DONE) {
                 return;
             }
-            clientCommandRequestPending = false;
-            if (request.status === 0 || request.status === 200) {
+            clientCommandRequest = null;
+            if ((request.status === 0 || request.status === 200)
+                    && request.responseText) {
                 try {
                     applyClientCommand(JSON.parse(request.responseText));
                 } catch (error) {
                     print("OVERTE_E2E_CLIENT_COMMAND_ERROR " + safeErrorText(error));
                 }
-            } else if (request.status >= 400) {
+            } else if (request.status >= 400
+                    || (request.status === 0 && !request.responseText)) {
                 // A network-loaded shared probe has no desktop command file.
                 // Keep its pre-existing sound endpoint behavior without
                 // polling a permanent 404 for the rest of the session.
@@ -397,16 +399,16 @@
     }
 
     function pollAndroidControlCommand() {
-        if (!androidControlAvailable || androidControlCommandRequestPending) {
+        if (!androidControlAvailable || androidControlCommandRequest !== null) {
             return;
         }
-        androidControlCommandRequestPending = true;
         var request = new XMLHttpRequest();
+        androidControlCommandRequest = request;
         request.onreadystatechange = function () {
             if (request.readyState !== request.DONE) {
                 return;
             }
-            androidControlCommandRequestPending = false;
+            androidControlCommandRequest = null;
             if ((request.status === 0 || request.status === 200) && request.responseText) {
                 try {
                     applyAndroidControlCommand(JSON.parse(request.responseText));
@@ -423,17 +425,17 @@
     }
 
     function pollAndroidControlMarker() {
-        if (androidControlAvailable || androidControlMarkerRequestPending) {
+        if (androidControlAvailable || androidControlMarkerRequest !== null) {
             pollAndroidControlCommand();
             return;
         }
-        androidControlMarkerRequestPending = true;
         var request = new XMLHttpRequest();
+        androidControlMarkerRequest = request;
         request.onreadystatechange = function () {
             if (request.readyState !== request.DONE) {
                 return;
             }
-            androidControlMarkerRequestPending = false;
+            androidControlMarkerRequest = null;
             if ((request.status === 0 || request.status === 200) && request.responseText) {
                 try {
                     var marker = JSON.parse(request.responseText);
@@ -451,16 +453,16 @@
     }
 
     function pollSoundCommand() {
-        if (!soundCommandUrl || soundCommandRequestPending) {
+        if (!soundCommandUrl || soundCommandRequest !== null) {
             return;
         }
-        soundCommandRequestPending = true;
         var request = new XMLHttpRequest();
+        soundCommandRequest = request;
         request.onreadystatechange = function () {
             if (request.readyState !== request.DONE) {
                 return;
             }
-            soundCommandRequestPending = false;
+            soundCommandRequest = null;
             if (request.status === 200) {
                 try {
                     applySoundCommand(JSON.parse(request.responseText));

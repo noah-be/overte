@@ -166,6 +166,19 @@ class AndroidAdapterTest(unittest.TestCase):
         self.assertIn('Script.resolvePath("android-control-command.json")', probe)
         self.assertNotIn('"?sample=" + sampleSequence', probe)
 
+    def test_probe_retains_asynchronous_control_requests_until_completion(self):
+        probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
+        for name in ("clientCommandRequest", "androidControlCommandRequest",
+                     "androidControlMarkerRequest", "soundCommandRequest"):
+            self.assertIn(f"var {name} = null;", probe)
+            self.assertIn(f"{name} = request;", probe)
+            self.assertIn(f"{name} = null;", probe)
+        for obsolete_name in ("clientCommandRequestPending",
+                              "androidControlCommandRequestPending",
+                              "androidControlMarkerRequestPending",
+                              "soundCommandRequestPending"):
+            self.assertNotIn(obsolete_name, probe)
+
     def verify(self, kind: str) -> subprocess.CompletedProcess:
         return subprocess.run([
             sys.executable, str(VERIFIER), "--adapter-manifest",
