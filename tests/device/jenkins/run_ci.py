@@ -21,7 +21,9 @@ import sys
 import tempfile
 import time
 import xml.etree.ElementTree as ET
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
+from urllib.request import urlopen
 
 
 SUITES = {"smoke", "e2e-core", "accessibility", "stability", "lifecycle-stability"}
@@ -39,6 +41,7 @@ PUBLIC_RESULT_NAMES = {
 }
 IOS_SESSION_PREWARM_TIMEOUT_SECONDS = 210
 IOS_SIGNED_INSTALL_PREWARM_TIMEOUT_SECONDS = 20 * 60
+IOS_PROBE_REQUEST_TIMEOUT_SECONDS = 10
 
 
 def fail(message: str) -> "NoReturn":
@@ -316,6 +319,33 @@ def prewarm_ios_appium_session(root: Path, manifest: Path, selector: str,
         )
 
 
+def require_ios_probe_request(ready: dict, timeout_seconds: int = IOS_PROBE_REQUEST_TIMEOUT_SECONDS) -> None:
+    """Prove the launched iOS client fetched the repository-owned test script."""
+    raw_url = ready.get("probeRequestsUrl")
+    parsed = urlsplit(raw_url) if isinstance(raw_url, str) else None
+    if (parsed is None or parsed.scheme not in {"http", "https"} or not parsed.hostname
+            or parsed.username is not None or parsed.password is not None
+            or parsed.path != "/telemetry/probe-requests" or parsed.query or parsed.fragment):
+        fail("fixture probe telemetry URL is invalid")
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        try:
+            with urlopen(raw_url, timeout=2) as response:
+                payload = response.read(4097)
+            value = json.loads(payload)
+            if (len(payload) <= 4096 and isinstance(value, dict)
+                    and set(value) == {"schemaVersion", "requests"}
+                    and value.get("schemaVersion") == 1
+                    and isinstance(value.get("requests"), int)
+                    and not isinstance(value["requests"], bool)
+                    and value["requests"] >= 1):
+                return
+        except (HTTPError, URLError, OSError, UnicodeError, json.JSONDecodeError):
+            pass
+        time.sleep(0.1)
+    fail("iOS application did not request the controlled probe script")
+
+
 def run_suite() -> int:
     root = workspace()
     manifest = repository_file(root, "OVERTE_CI_ADAPTER_MANIFEST")
@@ -378,6 +408,7 @@ def run_suite() -> int:
             prewarm_ios_appium_session(
                 root, manifest, selector, runner_environment, active_adapter_processes,
             )
+            require_ios_probe_request(ready)
 
         command = [
             sys.executable, str(root / "tests/device/run.py"),

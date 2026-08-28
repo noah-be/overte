@@ -125,6 +125,7 @@ class FakeXCUITest:
         self.jump_snapshots_remaining = 0
         self.tablet_open = False
         self.last_identifier: str | None = None
+        self.pull_values: list[str] = []
 
     def current_snapshot(self) -> dict:
         value = snapshot(orientation_y=self.orientation_y,
@@ -157,6 +158,8 @@ class FakeXCUITest:
             self.app_state = 1
             return True
         if script == "mobile: pullFile":
+            if self.pull_values:
+                return self.pull_values.pop(0)
             raw = json.dumps(self.current_snapshot()).encode("utf-8")
             return base64.b64encode(raw).decode("ascii")
         if script == "mobile: deviceInfo":
@@ -388,6 +391,19 @@ class AppiumAdapterTests(unittest.TestCase):
         self.assertIs(opened["tablet"]["open"], True)
         self.assertIs(closed["tablet"]["open"], False)
         self.assertTrue(state["iosE2ELaunchCompleted"])
+
+    def test_ios_documents_probe_retries_a_concurrent_partial_write(self) -> None:
+        adapter, client, state, _target = self.adapter_and_session()
+        client.app_state = 4
+        state["processIdentity"] = "4123"
+        client.pull_values = [
+            base64.b64encode(b'{"schemaVersion":').decode("ascii"),
+            base64.b64encode(json.dumps(snapshot()).encode("utf-8")).decode("ascii"),
+        ]
+        with mock.patch.object(APPIUM.time, "sleep") as pause:
+            observed = adapter.invoke("private-ipad", "probe.snapshot", {})
+        self.assertEqual(1, observed["schemaVersion"])
+        pause.assert_called_once_with(0.05)
 
     def test_ios_launch_rejects_an_app_that_immediately_leaves_foreground(self) -> None:
         for observed_state in (1, 3):

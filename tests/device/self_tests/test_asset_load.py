@@ -127,6 +127,15 @@ class AssetLoadTest(unittest.TestCase):
         self.assertTrue(telemetry["latestCompleted"]["completed"])
         self.assertEqual("no-store", telemetry["latestCompleted"]["cacheControl"])
 
+    def test_fixture_counts_successful_probe_script_requests(self):
+        with urlopen(self.metadata["probeRequestsUrl"], timeout=2) as response:
+            before = json.load(response)
+        with urlopen(self.metadata["probeScriptUrl"], timeout=2) as response:
+            self.assertTrue(response.read().startswith(b"// In-client observation probe"))
+        with urlopen(self.metadata["probeRequestsUrl"], timeout=2) as response:
+            after = json.load(response)
+        self.assertEqual({"schemaVersion": 1, "requests": before["requests"] + 1}, after)
+
     def test_mock_runs_complete_asset_smoke_suite_in_one_process(self):
         temporary, root, result = self.run_asset_suite()
         try:
