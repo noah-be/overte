@@ -276,16 +276,6 @@
         "z": {"type": "number"}
       }
     },
-    "positiveVector3": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["x", "y", "z"],
-      "properties": {
-        "x": {"type": "number", "exclusiveMinimum": 0},
-        "y": {"type": "number", "exclusiveMinimum": 0},
-        "z": {"type": "number", "exclusiveMinimum": 0}
-      }
-    },
     "quaternion": {
       "type": "object",
       "additionalProperties": false,
@@ -320,6 +310,16 @@
           }
         }
       ]
+    },
+    "positiveVector3": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "z"],
+      "properties": {
+        "x": {"type": "number", "exclusiveMinimum": 0},
+        "y": {"type": "number", "exclusiveMinimum": 0},
+        "z": {"type": "number", "exclusiveMinimum": 0}
+      }
     }
   }
 }

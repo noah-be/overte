@@ -22,7 +22,7 @@ The shared modules own expectations. Adapters own device discovery, process
 lifecycle, UI/input translation, probe transport, and cleanup. Jenkins owns
 neither behavior nor platform logic.
 
-## Shared implementation
+## Implementation sequence and status
 
 - The portable runner works on POSIX and Windows, launches adapter commands
   portably, validates the versioned registry, and distinguishes assertion,
@@ -37,13 +37,14 @@ neither behavior nor platform logic.
   hardware-free CI.
 - The controlled domain-entry contract includes an ephemeral local
   domain/assignment fixture, exact identity/content checks, and hardware-free
-  positive and negative tests. Android adapters add their target-owned
-  controlled command paths only after separate activation and acceptance.
+  positive and negative tests. Product adapters intentionally omit
+  `navigation.enter-domain` until separately activated and accepted.
 
+Android adds an embedded debug fixture, Appium/ADB transports, and the gated
+Pico OpenXR input transport without changing those shared behavior contracts.
 Concrete transports, package formats, signing rules, system services, device
 selectors, accessibility mappings, and toolchain locks belong to product
-branches. A transport is promoted to a parent branch only when every child of
-that parent can use it without importing a child backend.
+branches.
 
 ## Target matrix
 
@@ -71,7 +72,7 @@ resource.
 
 - Scene: for a network fixture the requested URL is observed; for an embedded
   Android fixture the adapter declares marker verification. In both cases all
-  five fixture markers exist and the nearby entity count is stable for
+  four fixture markers exist and the nearby entity count is stable for
   consecutive probe samples.
 - Spawn: the avatar position is finite and above the fixture ground within the
   declared tolerance.

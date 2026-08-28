@@ -65,9 +65,9 @@ def initial_state() -> dict:
         "launchCount": 0, "sceneLoadCount": 0, "domainEnterCount": 0,
         "domainConnected": False, "domainHost": "", "domainId": "",
         "position": {"x": 0.0, "y": 2.0 if pico else 1.0, "z": 4.0},
+        "groundY": 2.0 if pico else 1.0,
         "velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
         "bodyYawDegrees": 0.0,
-        "groundY": 2.0 if pico else 1.0,
         "inAir": False, "flying": False, "flyingEnabled": True,
         "locomotion": None, "locomotionSamples": 0,
         "orientation": {"x": 0.0, "y": 0.0, "z": 0.0}, "tablet": False,
@@ -111,15 +111,14 @@ def failures() -> set[str]:
 
 
 def reset_scene(state: dict, url: str) -> None:
-    ground_y = float(state.get("groundY", 1.0))
     state.update({
         "sceneUrl": url,
         "sceneReady": True,
         "domainConnected": False,
         "domainHost": "",
         "domainId": "",
-        "position": {"x": 0.0, "y": -1.0 if "floor-fall-through" in failures()
-                     else ground_y,
+        "position": {"x": 0.0, "y": (-1.0 if "floor-fall-through" in failures()
+                                      else state["groundY"]),
                      "z": 4.0},
         "velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
         "bodyYawDegrees": 0.0,
@@ -227,15 +226,7 @@ def observed_sound(state: dict) -> dict:
 
 
 def invoke(operation: str, arguments: dict) -> dict:
-    portable_arguments = dict(arguments)
-    if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
-        if operation == "input.look":
-            portable_arguments.pop("durationSeconds", None)
-        elif operation == "input.move":
-            portable_arguments.pop("strength", None)
-        elif operation in {"tablet.open", "tablet.close"}:
-            portable_arguments.pop("holdMilliseconds", None)
-    validate_operation_arguments(operation, portable_arguments)
+    validate_operation_arguments(operation, arguments)
     state = load()
     if operation == "app.launch":
         state["running"] = state["foreground"] = True
@@ -320,17 +311,16 @@ def invoke(operation: str, arguments: dict) -> dict:
         scale = 2.0 if "small-look" in failures() else 120.0
         state["orientation"]["y"] += float(arguments["horizontal"]) * scale
         state["orientation"]["x"] += float(arguments["vertical"]) * scale
-        result = {"performed": True, "neutralBeforeCommand": False,
-                  "sequence": state["inputSequence"]}
+        result = {"performed": True, "sequence": state["inputSequence"]}
         if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
-            result.update({"viewApplied": True, "viewYawDegrees": 25.0,
-                           "viewPitchDegrees": 0.0})
+            result.update({"viewApplied": True,
+                           "viewYawDegrees": float(arguments["horizontal"]) * scale,
+                           "viewPitchDegrees": float(arguments["vertical"]) * scale})
     elif operation == "input.move":
         state["inputSequence"] += 1
         state["picoRouteActive"] = True
         apply_move(state, arguments["direction"], float(arguments["durationSeconds"]))
-        result = {"performed": True, "neutralBeforeCommand": True,
-                  "sequence": state["inputSequence"]}
+        result = {"performed": True, "sequence": state["inputSequence"]}
         if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
             result.update({"openXrVectorApplied": True,
                            "openXrLeftThumbstickY": 0.4})
@@ -346,8 +336,7 @@ def invoke(operation: str, arguments: dict) -> dict:
         state["inputSequence"] += 1
         if "tablet-transition" not in failures():
             state["tablet"] = True
-        result = {"performed": True, "neutralBeforeCommand": True,
-                  "sequence": state["inputSequence"]}
+        result = {"performed": True, "sequence": state["inputSequence"]}
         if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
             result.update({"openXrBooleanApplied": True,
                            "openXrLeftSecondaryApplied": True})
@@ -355,8 +344,7 @@ def invoke(operation: str, arguments: dict) -> dict:
         state["inputSequence"] += 1
         if "tablet-transition" not in failures():
             state["tablet"] = False
-        result = {"performed": True, "neutralBeforeCommand": True,
-                  "sequence": state["inputSequence"]}
+        result = {"performed": True, "sequence": state["inputSequence"]}
         if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
             result.update({"openXrBooleanApplied": True,
                            "openXrLeftSecondaryApplied": True})
@@ -453,6 +441,14 @@ def invoke(operation: str, arguments: dict) -> dict:
         }
         if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
             route_value = 0.8 if state["picoRouteActive"] else 0.0
+            snapshot["input"] = {
+                "dominantHand": "right", "advancedMovementControls": True,
+            }
+            snapshot["scene"].update({
+                "fixtureMarkerCount": len(FIXTURE_MARKERS) if state["sceneReady"] else 0,
+                "floorTopY": 0.0 if state["sceneReady"] else None,
+                "spawnValidated": state["sceneReady"],
+            })
             snapshot["controller"] = {
                 "route": {
                     "openxrAxes": {"lx": 0.0, "ly": route_value,

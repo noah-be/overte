@@ -145,26 +145,18 @@ python3 tests/device/fixture/serve.py \
 The Android debug E2E APK embeds the same scene and probe and can use
 `OVERTE_E2E_SCENE_URL=overte-e2e://fixture/scene`; its shell-protected launcher
 maps that logical request to the fixed local asset. Release APKs contain neither
-the launcher nor the two E2E assets. Signed iOS E2E builds use the HTTP fixture.
-The server exposes the repository-owned probe at `/overte_e2e_probe.js`, the
-pinned texture plus per-request telemetry used by `asset-smoke`, and the
-deterministic sound described in [`SOUND_E2E.md`](SOUND_E2E.md). The iOS adapter
-uses the probe resource only for a dedicated, runtime-attested test build; see
-[`ios/`](ios/). The application target and protected signed-artifact producer
-live on `apple-ios`. Fedora verifies the signed Overte/WDA handoff, installs both
-IPAs, and controls physical iOS 18+ devices through the pinned RemoteXPC tunnel.
-Jenkins can dispatch the producer itself, binds the exact returned workflow run
-and attempt, and keeps signed bytes and populated target configuration outside
-the checkout and archives.
+the launcher nor the two E2E assets.
 
-The in-client [`probe/overte_e2e_probe.js`](probe/overte_e2e_probe.js) runs only
-via Interface's existing `--testScript` mode. It records
+The server exposes the repository-owned probe at `/overte_e2e_probe.js` and the
+pinned texture plus per-request telemetry used by `asset-smoke`, together with
+the deterministic sound described in [`SOUND_E2E.md`](SOUND_E2E.md). The
+in-client [`probe/overte_e2e_probe.js`](probe/overte_e2e_probe.js) records
 application focus, scene readiness and markers, collision geometry, avatar
 position, velocity and body yaw, `inAir`, `flying`, `flyingEnabled`, camera
-orientation, tablet and optional controller state, controlled asset
-resource/entity evidence, sound resource and injector state, monotonic sample
-sequence, and build identity through the existing `Test.saveObject` API. It
-records no audio
+orientation, tablet state, controlled asset resource/entity evidence, sound
+resource and injector state, monotonic sample sequence, and build identity
+through Interface's existing test-script result API. Android additionally
+records controller state and the gated OpenXR route. It records no audio
 samples. Product adapters own the exact launch and result transport used to
 load it. The fixture exposes a same-origin `/e2e-client-command.json` channel;
 controlled adapters POST strict commands there and verify the exact response.

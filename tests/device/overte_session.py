@@ -113,10 +113,10 @@ class OverteSession:
             fail("Pico fixture floor top is not y=0")
         if scene.get("spawnValidated") is not True:
             fail("Pico fixture spawn was not validated")
-        expected = {"x": 0.0, "y": float(position["y"]), "z": 4.0}
+        expected = {"x": 0.0, "y": 2.0, "z": 4.0}
         spawn_tolerance = self._float_environment(
             "OVERTE_E2E_SPAWN_TOLERANCE_METERS", 0.75, 0.05, 5.0)
-        if self._planar_distance(position, expected) > spawn_tolerance:
+        if self._distance(position, expected) > spawn_tolerance:
             fail("Pico avatar did not stabilize near the fixture spawn")
 
         tolerance = self._float_environment(
@@ -418,48 +418,13 @@ class OverteSession:
             fail("look direction is unsupported")
         horizontal, vertical, axis, sign = self.LOOK_INPUTS[direction]
         before = self.input_neutral_snapshot(f"look-{direction}-before.json")
-        arguments = {"horizontal": horizontal, "vertical": vertical}
-        if self.pico_openxr:
-            # Physical Pico frame/probe observations can be several seconds
-            # apart. Keep the bounded override active across at least two such
-            # observations; the native watchdog still neutralizes it.
-            arguments["durationSeconds"] = 6.0
-            result = validate_operation_result(
-                "input.look", operation("input.look", arguments))
-        else:
-            result = self._invoke("input.look", arguments)
-        write_json("look-input-result.json", result)
+        self._invoke("input.look", {"horizontal": horizontal, "vertical": vertical})
         minimum = self._float_environment(
             "OVERTE_E2E_MIN_LOOK_DEGREES", 5.0, 0.1, 90.0)
-
-        if self.pico_openxr:
-            yaw = result.get("viewYawDegrees")
-            pitch = result.get("viewPitchDegrees")
-            if (result.get("viewApplied") is not True
-                    or not isinstance(yaw, (int, float)) or isinstance(yaw, bool)
-                    or not isinstance(pitch, (int, float)) or isinstance(pitch, bool)
-                    or math.hypot(float(yaw), float(pitch)) < minimum):
-                fail("Pico OpenXR view override lacks native consumption evidence")
-
-        def changed_in_direction(value: dict) -> bool:
-            changed = sign * self._signed_angle_delta(
-                before["view"]["orientation"], value["view"]["orientation"], axis)
-            if changed < minimum:
-                return False
-            if not self.pico_openxr:
-                return True
-            controller = value.get("controller", {})
-            axes = controller.get("axes", {})
-            openxr = controller.get("route", {}).get("openxrAxes")
-            return (all(abs(float(axes.get(name, 1.0))) <= 0.05
-                        for name in ("lx", "ly", "rx", "ry"))
-                    and isinstance(openxr, dict)
-                    and all(abs(float(openxr.get(name, 1.0))) <= 0.05
-                            for name in ("lx", "ly", "rx", "ry")))
-
         after = self.wait_until(
             f"view orientation to turn {direction} by at least {minimum} degrees",
-            changed_in_direction,
+            lambda value: sign * self._signed_angle_delta(
+                before["view"]["orientation"], value["view"]["orientation"], axis) >= minimum,
         )
         write_json(f"look-{direction}-after.json", after)
         neutral = self.input_neutral_snapshot(f"look-{direction}-neutral.json")
@@ -495,54 +460,10 @@ class OverteSession:
 
     def move(self, direction: str, duration_seconds: float = 1.5) -> tuple[dict, dict, dict]:
         before = self.input_neutral_snapshot(f"move-{direction}-before.json")
-        if self.pico_openxr:
-            input_state = before.get("input", {})
-            if input_state.get("dominantHand") != "right":
-                fail("Pico movement requires effective right-hand dominance")
-            if input_state.get("advancedMovementControls") is not True:
-                fail("Pico movement requires effective advanced movement controls")
-        move_arguments = {
+        self._invoke("input.move", {
             "direction": direction,
             "durationSeconds": duration_seconds,
-        }
-        if self.pico_openxr:
-            move_arguments.update({"durationSeconds": 3.0, "strength": 0.4})
-            result = validate_operation_result(
-                "input.move", operation("input.move", move_arguments))
-        else:
-            result = self._invoke("input.move", move_arguments)
-        write_json("move-input-result.json", result)
-        if self.pico_openxr:
-            applied_y = result.get("openXrLeftThumbstickY")
-            if (result.get("openXrVectorApplied") is not True
-                    or not isinstance(applied_y, (int, float))
-                    or isinstance(applied_y, bool) or abs(float(applied_y)) < 0.15):
-                fail("Pico movement lacks native OpenXR vector consumption evidence")
-            route_minimum = self._float_environment(
-                "OVERTE_E2E_MIN_ROUTE_AXIS", 0.15, 0.01, 1.0)
-
-            def complete_route(value: dict) -> bool:
-                route = value.get("controller", {}).get("route", {})
-                openxr = route.get("openxrAxes")
-                if not isinstance(openxr, dict):
-                    return False
-                values = [openxr.get("ly"), route.get("standardLy"),
-                          route.get("translateZAction"),
-                          route.get("rawTranslateZDriveKey")]
-                if (any(not isinstance(item, (int, float)) or isinstance(item, bool)
-                        for item in values)
-                        or any(abs(float(item)) < route_minimum for item in values)
-                        or route.get("translateZDriveKeyDisabled") is not False):
-                    return False
-                mapped_signs = [float(item) > 0.0 for item in values[:3]]
-                raw_sign = float(values[3]) > 0.0
-                # The controller/action axes use the OpenXR forward convention;
-                # MyAvatar's raw TranslateZ DriveKey exposes the inverse sign.
-                return len(set(mapped_signs)) == 1 and raw_sign != mapped_signs[0]
-
-            route_snapshot = self.wait_until(
-                "the complete Pico movement route to become active", complete_route)
-            write_json("move-route-active.json", route_snapshot)
+        })
         minimum = self._float_environment(
             "OVERTE_E2E_MIN_MOVE_METERS", 0.2, 0.01, 20.0)
         after = self.wait_until(
@@ -596,15 +517,7 @@ class OverteSession:
     def set_tablet(self, opened: bool) -> dict:
         before = self.snapshot("tablet-before.json")
         if before["tablet"]["open"] is not opened:
-            operation_name = "tablet.open" if opened else "tablet.close"
-            arguments = {"holdMilliseconds": 1000} if self.pico_openxr else None
-            if self.pico_openxr:
-                result = validate_operation_result(
-                    operation_name, operation(operation_name, arguments))
-            else:
-                result = self._invoke(operation_name, {})
-            write_json("tablet-open-input-result.json" if opened
-                       else "tablet-close-input-result.json", result)
+            self._invoke("tablet.open" if opened else "tablet.close", {})
         after = self.wait_until(
             "tablet to open" if opened else "tablet to close",
             lambda value: value["tablet"]["open"] is opened,

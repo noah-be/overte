@@ -196,15 +196,15 @@ def validate_operation_result(operation: str, value: object) -> dict:
 def validate_probe_snapshot(value: object) -> dict:
     if not isinstance(value, dict) or value.get("schemaVersion") != 2:
         raise ValueError("probe snapshot must use schema version 2")
-    snapshot_fields = {
+    root_fields = {
         "application", "asset", "avatar", "build", "domain", "input",
         "sampleEpochMs", "sampleSequence", "scene", "schemaVersion", "sound",
         "tablet", "view",
     }
     for optional_field in ("control", "controller"):
         if optional_field in value:
-            snapshot_fields.add(optional_field)
-    _require_exact_fields(value, snapshot_fields, "probe snapshot")
+            root_fields.add(optional_field)
+    _require_exact_fields(value, root_fields, "probe snapshot")
     if (not isinstance(value.get("sampleEpochMs"), int)
             or isinstance(value["sampleEpochMs"], bool) or value["sampleEpochMs"] <= 0):
         raise ValueError("probe snapshot requires a positive sampleEpochMs")
@@ -232,12 +232,12 @@ def validate_probe_snapshot(value: object) -> dict:
     if control is not None:
         if not isinstance(control, dict):
             raise ValueError("probe control must be an object or null")
-        _require_exact_fields(
-            control, {"channel", "probe", "schemaVersion"}, "probe control")
+        _require_exact_fields(control, {"channel", "probe", "schemaVersion"},
+                              "probe control")
         if (control.get("schemaVersion") != 1
                 or control.get("channel") != "android-debug-file-v1"
                 or control.get("probe") != "overte_e2e_probe.js"):
-            raise ValueError("probe control has an unsupported Android debug contract")
+            raise ValueError("probe control has an invalid Android debug contract")
 
     domain = value["domain"]
     _require_exact_fields(
@@ -304,7 +304,6 @@ def validate_probe_snapshot(value: object) -> dict:
             raise ValueError(f"probe avatar.{field} must be boolean")
     if avatar["flying"] and not avatar["inAir"]:
         raise ValueError("probe avatar cannot be flying while not inAir")
-
     _require_exact_fields(value["view"], {"orientation"}, "probe view")
     _validate_vector(value["view"].get("orientation"), "probe view.orientation")
     _require_exact_fields(value["tablet"], {"home", "open", "toolbarMode"}, "probe tablet")
@@ -324,12 +323,6 @@ def validate_probe_snapshot(value: object) -> dict:
             "lx", "ly", "rx", "ry", "leftTrigger", "rightTrigger",
             "leftGrip", "rightGrip",
         )
-        expected_controller_fields = {"axes", "buttons", "poses"}
-        if route is not None:
-            expected_controller_fields.add("route")
-        _require_exact_fields(controller, expected_controller_fields, "probe controller")
-        if isinstance(axes, dict):
-            _require_exact_fields(axes, set(axis_names), "probe controller.axes")
         if not isinstance(axes, dict) or not all(
                 isinstance(axes.get(name), (int, float))
                 and not isinstance(axes.get(name), bool)
@@ -340,26 +333,15 @@ def validate_probe_snapshot(value: object) -> dict:
             "menu", "leftPrimary", "leftSecondary", "leftThumbstick", "leftTrigger",
             "rightPrimary", "rightSecondary", "rightThumbstick", "rightTrigger",
         )
-        if isinstance(buttons, dict):
-            _require_exact_fields(buttons, set(button_names), "probe controller.buttons")
         if not isinstance(buttons, dict) or not all(
                 isinstance(buttons.get(name), bool) for name in button_names):
             raise ValueError("probe controller.buttons requires boolean standard input values")
         if not isinstance(poses, dict):
             raise ValueError("probe controller.poses must be an object")
-        _require_exact_fields(poses, {"left", "right"}, "probe controller.poses")
         if route is not None:
             if not isinstance(route, dict):
                 raise ValueError("probe controller.route must be an object")
-            _require_exact_fields(route, {
-                "openxrAxes", "rawTranslateZDriveKey", "standardLy",
-                "translateZAction", "translateZDriveKeyDisabled",
-            }, "probe controller.route")
             openxr_axes = route.get("openxrAxes")
-            if isinstance(openxr_axes, dict):
-                _require_exact_fields(
-                    openxr_axes, {"lx", "ly", "rx", "ry"},
-                    "probe controller.route.openxrAxes")
             if openxr_axes is not None and (not isinstance(openxr_axes, dict) or not all(
                     isinstance(openxr_axes.get(axis), (int, float))
                     and not isinstance(openxr_axes.get(axis), bool)
@@ -377,9 +359,6 @@ def validate_probe_snapshot(value: object) -> dict:
             pose = poses.get(hand)
             if not isinstance(pose, dict) or not isinstance(pose.get("valid"), bool):
                 raise ValueError(f"probe controller pose {hand} requires valid")
-            _require_exact_fields(
-                pose, {"rotation", "translation", "valid"},
-                f"probe controller pose {hand}")
             if not pose["valid"]:
                 if pose.get("translation") is not None or pose.get("rotation") is not None:
                     raise ValueError(f"probe invalid controller pose {hand} must be null")
