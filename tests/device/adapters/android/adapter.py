@@ -334,7 +334,17 @@ class AndroidAdapter:
         }
 
     def invoke(self, target: str, operation: str, values: dict) -> dict:
-        self.require(target)
+        pico_probe_identity = None
+        if (self.kind == "pico" and pico_openxr_opted_in()
+                and operation == "probe.snapshot"):
+            # The private session is keyed by the exact selector and bound to
+            # the one launcher process. Revalidating the complete hardware
+            # profile here would add several WLAN-ADB round trips to every
+            # transient observation. The process/session proof is the tighter
+            # identity check for an already launched probe.
+            pico_probe_identity = self.require_pico_session_identity(target)
+        else:
+            self.require(target)
         package = self.profile["package"]
         if operation in {"navigation.enter-domain", "asset.load", "sound.play"}:
             try:
@@ -405,7 +415,8 @@ class AndroidAdapter:
                 self.pico_input_session(target).require_process_identity(identity)
             return state
         if operation == "app.foreground":
-            if self.kind == "pico" and pico_openxr_opted_in():
+            if (self.kind == "pico" and pico_openxr_opted_in()
+                    and pico_probe_identity is None):
                 self.require_pico_session_identity(target)
             return {"foreground": self.adb.foreground_package(target) == package}
         if operation == "lifecycle.background":

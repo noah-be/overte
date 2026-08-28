@@ -704,9 +704,11 @@ class AndroidAdapterTest(unittest.TestCase):
     def test_pico_probe_polls_from_stale_to_newer_sequence(self):
         common = self.prepare_pico_session("advancing-probe")
         sequence = Path(self.temporary.name) / "advancing-probe-sequence"
+        argv_log = Path(self.temporary.name) / "advancing-probe-adb.jsonl"
         self.environment.update({
             "MOCK_PROBE_SEQUENCE_STATE": str(sequence),
             "MOCK_PROBE_STALE_READS": "2",
+            "MOCK_ADB_ARGV_LOG": str(argv_log),
             "OVERTE_ANDROID_E2E_PROBE_ATTEMPTS": "5",
             "OVERTE_ANDROID_E2E_PROBE_POLL_SECONDS": "0.01",
         })
@@ -718,6 +720,8 @@ class AndroidAdapterTest(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stdout)
         self.assertEqual(4, json.loads(result.stdout)["sampleSequence"])
         self.assertEqual("4", sequence.read_text(encoding="utf-8"))
+        commands = [json.loads(line) for line in argv_log.read_text().splitlines()]
+        self.assertFalse(any("getprop" in command for command in commands))
         cleaned = subprocess.run(
             [sys.executable, str(ADAPTER), "--kind", "pico", "cleanup",
              "--target", "pico-secret"], text=True, stdout=subprocess.PIPE,
