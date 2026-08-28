@@ -474,7 +474,19 @@ class AndroidAdapter:
                 "input.fly", "input.jump", "input.look", "input.move",
                 "tablet.open", "tablet.close"}:
             identity = self.require_pico_session_identity(target)
-            return self.pico_input_session(target).stage(identity, operation, values)
+            staged_values = dict(values)
+            if operation == "input.look":
+                # Keep the target-owned OpenXR override observable across slow
+                # physical headset sampling without expanding the common API.
+                staged_values.setdefault("durationSeconds", 6.0)
+            elif operation == "input.move":
+                staged_values.setdefault("strength", 0.8)
+            elif operation == "input.fly":
+                staged_values.setdefault("durationSeconds", 6.0)
+            elif operation in {"tablet.open", "tablet.close"}:
+                staged_values.setdefault("holdMilliseconds", 1000)
+            return self.pico_input_session(target).stage(
+                identity, operation, staged_values)
         fail(f"unsupported operation: {operation}")
 
     def cleanup(self, target: str) -> dict:

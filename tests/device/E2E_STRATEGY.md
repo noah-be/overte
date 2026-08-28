@@ -7,15 +7,16 @@ operations per target. The initial behavior contract is deliberately small:
 
 1. start Overte once;
 2. load a controlled local scene;
-3. observe a valid grounded spawn on the controlled floor;
-4. perform look input and observe an orientation change;
-5. perform movement input and observe an avatar-position change;
-6. open the system tablet and observe its state;
-7. close the system tablet and observe its state;
-8. enter a controlled domain and receive its assignment-owned
+3. observe a valid grounded spawn with the canonical avatar feet on the floor;
+4. perform signed look input in every direction;
+5. perform body-relative movement in every direction and reject stuck input;
+6. collide with the controlled wall, jump and fly;
+7. open and close the system tablet and reject world-input leakage;
+8. reload the scene and optionally stop/relaunch the application;
+9. enter a controlled domain and receive its assignment-owned
    content without a process restart.
-9. evaluate process identity, probe state, errors, and artifacts; and
-10. clean up the application session and target transport.
+10. evaluate process identity, probe state, errors, and artifacts; and
+11. clean up the application session and target transport.
 
 The shared modules own expectations. Adapters own device discovery, process
 lifecycle, UI/input translation, probe transport, and cleanup. Jenkins owns
@@ -23,35 +24,27 @@ neither behavior nor platform logic.
 
 ## Implementation sequence and status
 
-1. **Portable runner and capability schema — implemented.** The runner works
-   on POSIX and Windows, launches Python commands portably, distinguishes
-   assertion/skip/infrastructure outcomes, and validates the versioned registry.
-2. **Controlled local/network fixture — implemented.** The four-entity
-   serverless scene is dependency-free, self-validating, and served by the
-   Python standard library with a health endpoint.
-3. **Overte probe and `OverteSession` — implemented.** One Interface test
-   script emits the observable state used by every platform.
-4. **Phone/Pico ADB behind adapter operations — implemented.** Existing
-   release scripts remain stronger packaging/provenance gates; the universal
-   adapters expose their runtime primitives.
-5. **Common scene/look/move/tablet modules — implemented.** A deterministic
-   state-machine adapter executes the entire suite in hardware-free CI.
-6. **Appium transport — Android implemented; iOS software contract
-   implemented, signed artifact gated.** W3C transport, source capture and
-   audited-label checks are tested against a fake Appium server. Android has a
-   debug-only controlled launcher. iOS now has a fail-closed test-build
-   contract, runtime plist attestation, controlled relaunch arguments, and
-   Documents probe transfer. This checkout has no maintained iOS application
-   target, so producing/signing that artifact and auditing the real QML tree
-   remain hardware/platform gates.
-7. **Local Jenkins device lab — implemented.** Start with `smoke`, add
-   `e2e-core` on an input-capable profile, and enable lifecycle/thermal soaks
-   only after target pass rates are stable.
-8. **Controlled domain-entry contract — implemented, adapter rollout gated.**
-   An ephemeral local domain/assignment fixture, exact identity/content checks,
-   and hardware-free positive and negative tests are in place. Android and
-   Appium adapters expose only their target-owned controlled command paths and
-   remain disabled until separately activated and accepted.
+- The portable runner works on POSIX and Windows, launches adapter commands
+  portably, validates the versioned registry, and distinguishes assertion,
+  skip, and infrastructure outcomes.
+- The controlled five-entity serverless scene is dependency-free,
+  self-validating, and served by the Python standard library.
+- One schema-v2 Interface probe emits monotonic, strict observable state used
+  by every platform while retaining domain, asset, and sound evidence.
+- The common scene, look, movement, tablet, accessibility, launch, and soak
+  modules consume only versioned adapter capabilities.
+- A deterministic state-machine adapter executes the full baseline in
+  hardware-free CI.
+- The controlled domain-entry contract includes an ephemeral local
+  domain/assignment fixture, exact identity/content checks, and hardware-free
+  positive and negative tests. Product adapters intentionally omit
+  `navigation.enter-domain` until separately activated and accepted.
+
+Android adds an embedded debug fixture, Appium/ADB transports, and the gated
+Pico OpenXR input transport without changing those shared behavior contracts.
+Concrete transports, package formats, signing rules, system services, device
+selectors, accessibility mappings, and toolchain locks belong to product
+branches.
 
 ## Target matrix
 
@@ -81,11 +74,17 @@ resource.
   Android fixture the adapter declares marker verification. In both cases all
   four fixture markers exist and the nearby entity count is stable for
   consecutive probe samples.
-- Look: the camera's observed Euler-angle delta crosses a configurable minimum.
-- Move: the avatar baseline is stable before input, then displacement crosses a
-  configurable minimum in the controlled collision scene.
-- Spawn: the avatar feet position is finite and on the fixture floor within the
-  declared tolerance, with both `inAir=false` and `flying=false`.
+- Spawn: the canonical avatar feet position is finite and on the fixture floor
+  within the declared tolerance, the body position is above the floor, and both
+  `inAir=false` and `flying=false`.
+- Look: each signed camera-orientation delta crosses a configurable minimum in
+  the requested left, right, up, or down direction.
+- Move: the avatar baseline is neutral before input, then displacement crosses
+  a configurable minimum along the requested body-yaw-relative axis.
+- Neutral input: velocity, positional drift, and view drift remain below their
+  configured bounds for consecutive fresh samples.
+- Collision: the avatar approaches the repository-owned wall, cannot pass its
+  near face, and does not stop implausibly far away.
 - Jump: a stable grounded baseline precedes exactly one `input.jump`; the probe
   then observes configurable height gain with `inAir=true` and `flying=false`,
   followed by `inAir=false` near the baseline height.
@@ -94,6 +93,10 @@ resource.
   and `flying=true`.
 - Tablet: both open and closed state transitions are observed in Interface,
   not inferred from a successful click, key, or gesture command.
+- Tablet isolation: movement input while the tablet owns focus produces no
+  observable world displacement or velocity.
+- Recovery: scene reload restores the controlled fixture; application restart
+  proves stop state, relaunch, a new identity, foreground state, and stability.
 - Sound: fixture request telemetry, decoded `SoundObject` readiness, two fresh
   active injector samples, regular finish or stop, and stable process identity
   are all required. This is an in-client proof, not a physical-output proof;

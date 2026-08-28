@@ -118,7 +118,7 @@ elif len(cmd) == 3 and cmd[:2] == ["shell", "-T"]:
           "viewAppliedYawDegrees":25.0 if is_look else 0.0,
           "viewAppliedPitchDegrees":0.0,
           "vectorAppliedSequence":grant["sequence"] if is_move else 0,
-          "leftThumbstickAppliedY":0.4 if is_move else 0.0,
+          "leftThumbstickAppliedY":0.8 if is_move else 0.0,
           "booleanAppliedSequence":grant["sequence"] if (is_tablet or is_vertical) else 0,
           "leftSecondaryApplied":is_tablet,"rightSecondaryApplied":is_vertical,
           "activeCommandId":"mock-command","state":"active","detail":"command-window",
@@ -219,24 +219,23 @@ class AndroidAdapterTest(unittest.TestCase):
 
     def test_android_control_reads_app_private_files_through_module_loader(self):
         probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
-        self.assertIn('requireUncachedLocalJson("./android-control.json")', probe)
+        self.assertIn('Script.require("./android-control.json")', probe)
         self.assertIn(
-            'requireUncachedLocalJson("./android-control-command.json")', probe)
+            'Script.require("./android-control-command.json?sample="', probe)
         self.assertNotIn('request.open("GET", Script.resolvePath("android-control', probe)
 
     def test_probe_retains_asynchronous_control_requests_until_completion(self):
         probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
-        for name in ("clientCommandRequest", "soundCommandRequest"):
-            self.assertIn(f"var {name} = null;", probe)
-            self.assertIn(f"{name} = request;", probe)
-            self.assertIn(f"{name} = null;", probe)
-        self.assertIn('requireUncachedLocalJson("./android-control.json")', probe)
-        self.assertIn(
-            'requireUncachedLocalJson("./android-control-command.json")', probe)
-        for obsolete_name in ("clientCommandRequestPending",
-                              "androidControlCommandRequestPending",
+        for name in ("clientCommandRequestPending", "soundCommandRequestPending"):
+            self.assertIn(f"var {name} = false;", probe)
+            self.assertIn(f"{name} = true;", probe)
+            self.assertIn(f"{name} = false;", probe)
+        self.assertIn('Script.require("./android-control.json")', probe)
+        self.assertIn('Script.require("./android-control-command.json?sample="', probe)
+        for obsolete_name in ("androidControlCommandRequestPending",
                               "androidControlMarkerRequestPending",
-                              "soundCommandRequestPending"):
+                              "clientCommandRequest =",
+                              "soundCommandRequest ="):
             self.assertNotIn(obsolete_name, probe)
 
     def verify(self, kind: str) -> subprocess.CompletedProcess:
@@ -513,11 +512,8 @@ class AndroidAdapterTest(unittest.TestCase):
 
     def test_probe_executes_real_controlled_actions_and_reports_observations(self):
         probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
-        self.assertIn('Script.require.resolve(moduleId)', probe)
-        self.assertIn('delete Script.require.cache[resolved]', probe)
-        self.assertIn('Script.require(moduleId)', probe)
-        self.assertIn('requireUncachedLocalJson("./android-control.json")', probe)
-        self.assertIn('requireUncachedLocalJson("./android-control-command.json")', probe)
+        self.assertIn('Script.require("./android-control.json")', probe)
+        self.assertIn('Script.require("./android-control-command.json?sample="', probe)
         self.assertNotIn('Script.resolvePath("android-control.json")', probe)
         self.assertNotIn('Script.resolvePath("android-control-command.json")', probe)
         self.assertIn("location.handleLookupString(command.url)", probe)
@@ -698,7 +694,7 @@ class AndroidAdapterTest(unittest.TestCase):
         self.assertTrue(outputs[0]["viewApplied"])
         self.assertEqual(25.0, outputs[0]["viewYawDegrees"])
         self.assertTrue(outputs[1]["openXrVectorApplied"])
-        self.assertEqual(0.4, outputs[1]["openXrLeftThumbstickY"])
+        self.assertEqual(0.8, outputs[1]["openXrLeftThumbstickY"])
         self.assertTrue(outputs[2]["openXrBooleanApplied"])
         self.assertTrue(outputs[2]["openXrRightSecondaryApplied"])
         self.assertTrue(outputs[3]["openXrBooleanApplied"])
