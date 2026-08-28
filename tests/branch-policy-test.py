@@ -33,25 +33,31 @@ class BranchPolicyTests(unittest.TestCase):
             set(self.branches),
             {
                 "main", "android-main", "android-phone", "android-vr",
-                "android-vr-pico", "apple-main", "apple-ios", "apple-macos",
-                "linux-main", "windows-main",
+                "android-vr-pico", "apple-main", "apple-ios", "linux-main",
+                "windows-main",
             },
         )
 
-    def test_quest_is_frozen_outside_the_active_hierarchy(self):
-        self.assertNotIn("android-vr-quest", self.branches)
-        with self.assertRaises(BRANCH_POLICY.PolicyError):
-            BRANCH_POLICY.classify_pull_request(
-                self.branches,
-                "android-vr-quest",
-                "feature/android-quest/controllers",
-            )
+    def test_retired_targets_are_frozen_outside_the_active_hierarchy(self):
+        archived_targets = {
+            "android-vr-quest": "feature/android-quest/controllers",
+            "apple-macos": "feature/macos/rendering",
+        }
+        for target, head in archived_targets.items():
+            with self.subTest(target=target):
+                self.assertNotIn(target, self.branches)
+                with self.assertRaises(BRANCH_POLICY.PolicyError):
+                    BRANCH_POLICY.classify_pull_request(
+                        self.branches,
+                        target,
+                        head,
+                    )
 
         ruleset = json.loads(ARCHIVED_BRANCH_RULESET.read_text(encoding="utf-8"))
         self.assertEqual(ruleset["enforcement"], "active")
         self.assertEqual(
             ruleset["conditions"]["ref_name"]["include"],
-            ["refs/heads/android-vr-quest"],
+            ["refs/heads/android-vr-quest", "refs/heads/apple-macos"],
         )
         self.assertEqual(
             {rule["type"] for rule in ruleset["rules"]},
