@@ -19,16 +19,11 @@
     "android-vr": {
       "parent": "android-main",
       "scope": "android-vr",
-      "children": ["android-vr-pico", "android-vr-quest"]
+      "children": ["android-vr-pico"]
     },
     "android-vr-pico": {
       "parent": "android-vr",
       "scope": "android-pico",
-      "children": []
-    },
-    "android-vr-quest": {
-      "parent": "android-vr",
-      "scope": "android-quest",
       "children": []
     },
     "apple-main": {

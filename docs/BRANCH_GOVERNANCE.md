@@ -7,8 +7,7 @@ main
 ├── android-main
 │   ├── android-phone
 │   └── android-vr
-│       ├── android-vr-pico
-│       └── android-vr-quest
+│       └── android-vr-pico
 ├── apple-main
 │   ├── apple-ios
 │   └── apple-macos
@@ -19,6 +18,11 @@ main
 The machine-readable source of truth is
 [`../.github/branch-policy.json`](../.github/branch-policy.json). Changes to the
 hierarchy, CI policy, and this document must be reviewed together.
+
+`android-vr-quest` is deliberately outside the active hierarchy. It is kept as
+a frozen historical branch under `.github/rulesets/archived-branches.json`:
+updates, force-pushes, and deletion are prohibited, and the synchronization bot
+does not enumerate it.
 
 ## Required flow
 
@@ -80,8 +84,9 @@ system in this order:
 1. Merge the policy, checker, tests, and workflows into `main`.
 2. Confirm that the `Branch policy` workflow has produced the
    `branch-policy` check at least once.
-3. Create the repository ruleset from
-   `.github/rulesets/permanent-branches.json` using the GitHub Rulesets API or
+3. Create the repository rulesets from
+   `.github/rulesets/permanent-branches.json` and
+   `.github/rulesets/archived-branches.json` using the GitHub Rulesets API or
    repository settings.
 4. After `desktop-branch-topology` has run successfully on both desktop
    branches, create `.github/rulesets/desktop-branches.json` as a second

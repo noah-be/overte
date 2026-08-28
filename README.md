@@ -25,8 +25,7 @@ main
 ├── Android (android-main)
 │   ├── Android phones (android-phone)
 │   └── VR headsets (android-vr)
-│       ├── Pico 4 (android-vr-pico)
-│       └── Meta Quest (android-vr-quest)
+│       └── Pico 4 (android-vr-pico)
 ├── Apple (apple-main)
 │   ├── iPhone and iPad (apple-ios)
 │   └── Mac computers (apple-macos)
@@ -36,9 +35,14 @@ main
 
 The Android source tree mirrors the same ownership boundaries inside
 [`android/`](android/README.md): shared infrastructure lives in `common`, Phone
-code in `phone`, and headset code below `vr/pico` or `vr/quest`. The `vr/common`
-directory is reserved for implementation genuinely shared by multiple Android
-VR targets.
+code in `phone`, and the active headset target below `vr/pico`. Historical
+Quest source remains below `vr/quest`, but Quest is not an active development
+or synchronization target. The `vr/common` directory is reserved for reusable
+Android VR implementation.
+
+The frozen `android-vr-quest` branch is retained only as historical evidence.
+It is outside the active branch hierarchy, rejects updates and deletion, and
+does not receive automatic synchronization from `android-vr`.
 
 Linux distributions and Windows releases are execution targets rather than
 permanent child branches. Their desktop adapters, lab integration, and target
