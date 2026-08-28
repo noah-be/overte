@@ -87,7 +87,7 @@ class E2EStackTest(unittest.TestCase):
         spawn = manifest["spawnPosition"]
         self.assertEqual(0.0, floor["position"]["y"] + floor["dimensions"]["y"] / 2.0)
         self.assertGreaterEqual(floor["dimensions"]["y"], manifest["minimumFloorThickness"])
-        self.assertGreaterEqual(spawn["y"], 1.0)
+        self.assertEqual(0.0, spawn["y"])
         self.assertEqual(
             f"/{spawn['x']},{spawn['y']},{spawn['z']}/0,0,0,1",
             manifest["spawnPath"])
