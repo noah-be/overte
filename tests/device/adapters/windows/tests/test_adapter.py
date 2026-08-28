@@ -253,6 +253,30 @@ class WindowsAdapterTest(unittest.TestCase):
         self.assertEqual([4242, 4300, 4400], [item["pid"] for item in owned])
         self.assertEqual("child-b", owned[-1]["processToken"])
 
+    def test_cleanup_escalates_after_a_timed_out_normal_tree_kill(self) -> None:
+        adapter = self.adapter()
+        state = self.running_state()
+        owned = [{
+            "pid": 4242, "processToken": "token",
+            "executablePath": str(self.executable.resolve()),
+        }]
+        timeout = subprocess.TimeoutExpired(["taskkill"], 15)
+        with patch.dict(os.environ, self.environment, clear=True), patch.object(
+                adapter, "read_state", return_value=state), patch.object(
+                    adapter, "state_alive", side_effect=[True, False]), patch.object(
+                        adapter, "owned_processes", return_value=owned), patch.object(
+                            adapter, "visual_action"), patch.object(
+                                adapter, "owned_process_alive",
+                                side_effect=[True, True, True, False, False]), patch.object(
+                                    adapter, "terminate_process_tree",
+                                    side_effect=[timeout, None]) as terminate, patch.object(
+                                        WINDOWS.time, "monotonic",
+                                        side_effect=[0.0, 0.0, 6.0]):
+            self.assertEqual({"cleaned": True}, adapter.cleanup("windows-lab"))
+        self.assertEqual([
+            call(4242, force=False), call(4242, force=True),
+        ], terminate.call_args_list)
+
     def test_client_commands_use_scene_origin_and_exact_acknowledgement(self) -> None:
         adapter = self.adapter()
         command = {

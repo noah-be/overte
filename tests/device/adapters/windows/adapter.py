@@ -1006,7 +1006,7 @@ class WindowsAdapter:
                 continue
             try:
                 self.terminate_process_tree(int(process["pid"]), force=False)
-            except OSError:
+            except (OSError, subprocess.TimeoutExpired):
                 pass
         if owned:
             deadline = time.monotonic() + 5
@@ -1018,7 +1018,7 @@ class WindowsAdapter:
                     continue
                 try:
                     self.terminate_process_tree(int(process["pid"]), force=True)
-                except OSError:
+                except (OSError, subprocess.TimeoutExpired):
                     pass
             if any(self.owned_process_alive(process) for process in owned):
                 deadline = time.monotonic() + 5
