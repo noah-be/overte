@@ -13,6 +13,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 
 /** Debug-source-set-only launcher for the fixed, repository-owned E2E assets. */
 public abstract class E2eLauncherActivityBase extends Activity {
@@ -20,6 +21,10 @@ public abstract class E2eLauncherActivityBase extends Activity {
     private static final String DIRECTORY = "overte-e2e";
     private static final String PROBE_ASSET = "overte_e2e_probe.js";
     private static final String SCENE_ASSET = "scene.json";
+    private static final String CONTROL_MARKER = "android-control.json";
+    private static final String CONTROL_CONTRACT =
+            "{\"channel\":\"android-debug-file-v1\",\"probe\":\"overte_e2e_probe.js\","
+                    + "\"schemaVersion\":1}\n";
     private static final String SPAWN_VIEWPOINT = "/0,2,4/0,0,0,1";
 
     protected abstract Class<? extends Activity> interfaceActivity();
@@ -33,10 +38,11 @@ public abstract class E2eLauncherActivityBase extends Activity {
 
             File probe = copyAsset(PROBE_ASSET, launchDirectory);
             File scene = copyAsset(SCENE_ASSET, launchDirectory);
+            writeAtomically(CONTROL_MARKER, CONTROL_CONTRACT, launchDirectory);
             File previousProbe = new File(launchDirectory, "overte-probe.json");
-            if (previousProbe.exists() && !previousProbe.delete()) {
-                throw new IOException("could not remove previous probe snapshot");
-            }
+            deleteIfPresent(previousProbe, "previous probe snapshot");
+            deleteIfPresent(new File(launchDirectory, "android-control-command.json"),
+                    "previous control command");
 
             Uri sceneUrl = Uri.fromFile(scene).buildUpon()
                     .appendQueryParameter("location", SPAWN_VIEWPOINT)
@@ -80,5 +86,28 @@ public abstract class E2eLauncherActivityBase extends Activity {
             throw new IOException("could not commit E2E asset");
         }
         return destination;
+    }
+
+    private static File writeAtomically(String name, String value, File directory)
+            throws IOException {
+        File destination = new File(directory, name);
+        File temporary = new File(directory, name + ".tmp");
+        try (FileOutputStream output = new FileOutputStream(temporary, false)) {
+            output.write(value.getBytes(StandardCharsets.UTF_8));
+            output.getFD().sync();
+        }
+        if (destination.exists() && !destination.delete()) {
+            throw new IOException("could not replace E2E control marker");
+        }
+        if (!temporary.renameTo(destination)) {
+            throw new IOException("could not commit E2E control marker");
+        }
+        return destination;
+    }
+
+    private static void deleteIfPresent(File file, String label) throws IOException {
+        if (file.exists() && !file.delete()) {
+            throw new IOException("could not remove " + label);
+        }
     }
 }
