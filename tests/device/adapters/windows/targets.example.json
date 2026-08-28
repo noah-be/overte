@@ -8,17 +8,19 @@
       "physical": true,
       "enabled": false,
       "executable": "${OVERTE_INTERFACE_EXECUTABLE}",
+      "executableSha256": "0000000000000000000000000000000000000000000000000000000000000000",
       "arguments": [],
       "windowTitle": "Overte",
       "oculixJar": "${OCULIX_IDE_JAR}",
       "oculixSha256": "0000000000000000000000000000000000000000000000000000000000000000",
-      "javaExecutable": "java.exe",
+      "javaExecutable": "${JAVA_HOME}\\bin\\java.exe",
+      "javaSha256": "0000000000000000000000000000000000000000000000000000000000000000",
       "javaArguments": [],
       "probe": {
         "kind": "injected-test-script"
       },
       "clientControl": {
-        "kind": "probe-command-file"
+        "kind": "fixture-command-http"
       }
     }
   ]
