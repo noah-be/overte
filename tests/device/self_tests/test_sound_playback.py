@@ -212,6 +212,19 @@ class SoundPlaybackTest(unittest.TestCase):
         finally:
             temporary.cleanup()
 
+    def test_active_samples_collected_during_evidence_phases_are_retained(self):
+        result, output, temporary = self.run_suite(
+            failure="end-after-two-active-samples")
+        try:
+            self.assertEqual(0, result.returncode, result.stdout)
+            active = json.loads((output / "modules/sound-playback/sound-active-samples.json")
+                                .read_text(encoding="utf-8"))
+            self.assertEqual(2, len(active))
+            self.assertLess(active[0]["sampleSequence"], active[1]["sampleSequence"])
+            self.assertTrue(all(item["sound"]["playing"] for item in active))
+        finally:
+            temporary.cleanup()
+
     def test_http_404_is_rejected(self):
         self.assert_rejected(
             sound_url=self.ready["baseUrl"] + "/audio/missing.wav",
