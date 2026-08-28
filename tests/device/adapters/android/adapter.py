@@ -360,7 +360,13 @@ class AndroidAdapter:
             return {"installed": True}
         if operation == "app.launch":
             if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") == "1":
-                self.launch_debug_app(target)
+                # The controlled-suite bootstrap has already started and
+                # confirmed this exact Phone process before runner discovery.
+                # Preserve it when launch-smoke invokes app.launch again so
+                # the following controlled module keeps the same identity.
+                if (self.kind != "phone"
+                        or self.controlled_debug_identity(target) is None):
+                    self.launch_debug_app(target)
             else:
                 self.adb.shell(target, "am", "start", "-W", "-n", self.profile["activity"])
             return {"launched": True}
