@@ -44,6 +44,7 @@
 #include <QtConcurrent/QtConcurrent>
 #include <QtCore/QThreadPool>
 #include <QtCore/QBuffer>
+#include <QtCore/QPointer>
 
 #include <shared/QtHelpers.h>
 #include <ThreadHelpers.h>
@@ -72,6 +73,9 @@
 const int AudioClient::MIN_BUFFER_FRAMES = 1;
 
 const int AudioClient::MAX_BUFFER_FRAMES = 20;
+
+static constexpr int DEVICE_CHECK_INTERVAL_MSECS = 2 * 1000;
+static constexpr int PEAK_VALUES_CHECK_INTERVAL_MSECS = 50;
 
 #if defined(Q_OS_ANDROID)
 static const int CHECK_INPUT_READS_MSECS = 2000;
@@ -744,14 +748,18 @@ AudioClient::AudioClient() {
     checkDevices();
     // start a thread to detect any device changes
     _checkDevicesTimer = new QTimer(this);
-    const unsigned long DEVICE_CHECK_INTERVAL_MSECS = 2 * 1000;
     connect(_checkDevicesTimer, &QTimer::timeout, this, [=, this] {
-        QtConcurrent::run(QThreadPool::globalInstance(), [=, this] {
+        _checkDevicesFuture = QtConcurrent::run(QThreadPool::globalInstance(), [=, this] {
             checkDevices();
             // On some systems (Ubuntu) checking all the audio devices can take more than 2 seconds.  To
             // avoid consuming all of the thread pool, don't start the check interval until the previous
             // check has completed.
-            QMetaObject::invokeMethod(_checkDevicesTimer, "start", Q_ARG(int, DEVICE_CHECK_INTERVAL_MSECS));
+            QMetaObject::invokeMethod(this, [this] {
+                Lock lock(_checkDevicesMutex);
+                if (_checkDevicesTimer && !_isSuspended && !_isStopping) {
+                    _checkDevicesTimer->start(DEVICE_CHECK_INTERVAL_MSECS);
+                }
+            });
         });
     });
     _checkDevicesTimer->setSingleShot(true);
@@ -762,7 +770,6 @@ AudioClient::AudioClient() {
     connect(_checkPeakValuesTimer, &QTimer::timeout, this, [this] {
         QtConcurrent::run(QThreadPool::globalInstance(), [this] { checkPeakValues(); });
     });
-    const unsigned long PEAK_VALUES_CHECK_INTERVAL_MSECS = 50;
     _checkPeakValuesTimer->start(PEAK_VALUES_CHECK_INTERVAL_MSECS);
 
     configureReverb();
@@ -1179,14 +1186,44 @@ int possibleResampling(AudioSRC* resampler,
 }
 
 void AudioClient::start() {
+    Q_ASSERT_X(QThread::currentThread() == thread(), Q_FUNC_INFO, "Function invoked on wrong thread");
+
+    if (_isStopping) {
+        qCWarning(audioclient) << "AudioClient cannot restart after final stop";
+        return;
+    }
+    if (_isStarted) {
+        if (_isSuspended) {
+            resume();
+        }
+        return;
+    }
+
+    _isStarted = true;
+    _isSuspended = false;
 
 #if defined(ANDROID_APP_PICO_INTERFACE)
     prioritizeAndroidAudioThread();
 #endif
 #if defined(Q_OS_IOS)
-    overteIOSRequestMicrophonePermission();
+    const QPointer<AudioClient> guardedThis(this);
+    overteIOSSetAudioSessionEventHandler([guardedThis](OverteIOSAudioSessionEvent event,
+                                                       bool shouldResume, unsigned long reason) {
+        if (!guardedThis) {
+            return;
+        }
+        QMetaObject::invokeMethod(guardedThis.data(), [guardedThis, event, shouldResume, reason] {
+            if (guardedThis) {
+                guardedThis->handleIOSAudioSessionEvent(static_cast<int>(event), shouldResume, reason);
+            }
+        }, Qt::QueuedConnection);
+    });
+    requestIOSMicrophonePermission();
     if (!overteIOSActivateAudioSession()) {
-        qCWarning(audioclient) << "iOS audio session activation failed; Qt audio startup remains unverified";
+        _iosSessionInterrupted = true;
+        qCWarning(audioclient) << "iOS audio session activation failed; Qt device startup deferred";
+    } else {
+        _iosSessionInterrupted = false;
     }
 #endif
 
@@ -1208,35 +1245,145 @@ void AudioClient::start() {
 
     // Input was originally set to HifiAudioDeviceInfo(), but that was causing trouble.
     //Original comment: initialize input to the dummy device to prevent starves
-    switchInputToAudioDevice(defaultAudioDeviceForMode(HifiAudioDeviceMode::Input, QString()));
-    switchOutputToAudioDevice(defaultAudioDeviceForMode(HifiAudioDeviceMode::Output, QString()));
+#if defined(Q_OS_IOS)
+    if (_iosSessionInterrupted) {
+        switchInputToAudioDevice(HifiAudioDeviceInfo());
+        switchOutputToAudioDevice(HifiAudioDeviceInfo());
+    } else
+#endif
+    {
+        switchInputToAudioDevice(defaultAudioDeviceForMode(HifiAudioDeviceMode::Input, QString()));
+        switchOutputToAudioDevice(defaultAudioDeviceForMode(HifiAudioDeviceMode::Output, QString()));
+    }
 
 #if defined(Q_OS_ANDROID)
     connect(&_checkInputTimer, &QTimer::timeout, this, &AudioClient::checkInputTimeout);
     _checkInputTimer.start(CHECK_INPUT_READS_MSECS);
 #endif
+
+    setLifecycleTimersActive(true);
+    qCInfo(audioclient) << "Audio lifecycle state=started";
+}
+
+void AudioClient::setLifecycleTimersActive(bool active) {
+    {
+        Lock lock(_checkDevicesMutex);
+        if (_checkDevicesTimer) {
+            active ? _checkDevicesTimer->start(DEVICE_CHECK_INTERVAL_MSECS) : _checkDevicesTimer->stop();
+        }
+    }
+    {
+        Lock lock(_checkPeakValuesMutex);
+        if (_checkPeakValuesTimer) {
+            active ? _checkPeakValuesTimer->start(PEAK_VALUES_CHECK_INTERVAL_MSECS) : _checkPeakValuesTimer->stop();
+        }
+    }
+}
+
+void AudioClient::restartAudioDevices() {
+    HifiAudioDeviceInfo inputDevice = _resumeInputDeviceInfo;
+    HifiAudioDeviceInfo outputDevice = _resumeOutputDeviceInfo;
+    if (inputDevice.getDevice().isNull()) {
+        inputDevice = defaultAudioDeviceForMode(HifiAudioDeviceMode::Input, QString());
+    }
+    if (outputDevice.getDevice().isNull()) {
+        outputDevice = defaultAudioDeviceForMode(HifiAudioDeviceMode::Output, QString());
+    }
+    switchInputToAudioDevice(inputDevice);
+    switchOutputToAudioDevice(outputDevice);
+}
+
+void AudioClient::suspend() {
+    Q_ASSERT_X(QThread::currentThread() == thread(), Q_FUNC_INFO, "Function invoked on wrong thread");
+    if (!_isStarted || _isSuspended || _isStopping) {
+        return;
+    }
+
+    _isSuspended = true;
+    _resumeInputDeviceInfo = _inputDeviceInfo;
+    _resumeOutputDeviceInfo = _outputDeviceInfo;
+    switchInputToAudioDevice(HifiAudioDeviceInfo(), true);
+    switchOutputToAudioDevice(HifiAudioDeviceInfo(), true);
+    setLifecycleTimersActive(false);
+
+#if defined(Q_OS_ANDROID)
+    _checkInputTimer.stop();
+#endif
+#if defined(Q_OS_IOS)
+    if (!overteIOSDeactivateAudioSession()) {
+        qCWarning(audioclient) << "iOS audio session deactivation failed while suspending";
+    }
+#endif
+    qCInfo(audioclient) << "Audio lifecycle state=suspended";
+}
+
+void AudioClient::resume() {
+    Q_ASSERT_X(QThread::currentThread() == thread(), Q_FUNC_INFO, "Function invoked on wrong thread");
+    if (!_isStarted || !_isSuspended || _isStopping) {
+        return;
+    }
+
+    _isSuspended = false;
+#if defined(Q_OS_IOS)
+    requestIOSMicrophonePermission();
+    const bool sessionActivated = overteIOSActivateAudioSession();
+    if (!sessionActivated) {
+        _iosSessionInterrupted = true;
+        qCWarning(audioclient) << "iOS audio session activation failed while resuming";
+        return;
+    }
+    _iosSessionInterrupted = false;
+#endif
+    restartAudioDevices();
+    setLifecycleTimersActive(true);
+#if defined(Q_OS_ANDROID)
+    _checkInputTimer.start(CHECK_INPUT_READS_MSECS);
+#endif
+    qCInfo(audioclient) << "Audio lifecycle state=started reason=resume";
 }
 
 void AudioClient::stop() {
-    qCDebug(audioclient) << "AudioClient::stop(), requesting switchInputToAudioDevice() to shut down";
+    Q_ASSERT_X(QThread::currentThread() == thread(), Q_FUNC_INFO, "Function invoked on wrong thread");
+    if (_isStopping) {
+        return;
+    }
+    _isStopping = true;
+    _isSuspended = true;
+    _isStarted = false;
+
+    qCDebug(audioclient) << "AudioClient::stop(), requesting input shutdown";
     switchInputToAudioDevice(HifiAudioDeviceInfo(), true);
 
-    qCDebug(audioclient) << "AudioClient::stop(), requesting switchOutputToAudioDevice() to shut down";
+    qCDebug(audioclient) << "AudioClient::stop(), requesting output shutdown";
     switchOutputToAudioDevice(HifiAudioDeviceInfo(), true);
 
     // Stop triggering the checks
-    QObject::disconnect(_checkPeakValuesTimer, &QTimer::timeout, nullptr, nullptr);
-    QObject::disconnect(_checkDevicesTimer, &QTimer::timeout, nullptr, nullptr);
+    if (_checkPeakValuesTimer) {
+        QObject::disconnect(_checkPeakValuesTimer, &QTimer::timeout, nullptr, nullptr);
+    }
+    if (_checkDevicesTimer) {
+        QObject::disconnect(_checkDevicesTimer, &QTimer::timeout, nullptr, nullptr);
+        _checkDevicesTimer->stop();
+    }
+
+    // The worker posts its timer restart back to this object. Keep this object
+    // alive until that post has completed; the queued callback then sees null.
+    _checkDevicesFuture.waitForFinished();
 
     // Destruction of the pointers will occur when the parent object (this) is destroyed)
     {
         Lock lock(_checkDevicesMutex);
-        _checkDevicesTimer->stop();
-        _checkDevicesTimer = nullptr;
+        if (_checkDevicesTimer) {
+            _checkDevicesTimer->stop();
+            _checkDevicesTimer = nullptr;
+        }
     }
     {
         Lock lock(_checkPeakValuesMutex);
-        _checkPeakValuesTimer = nullptr;
+        if (_checkPeakValuesTimer) {
+            _checkPeakValuesTimer->stop();
+            _checkPeakValuesTimer = nullptr;
+        }
     }
 
 #if defined(Q_OS_ANDROID)
@@ -1244,11 +1391,104 @@ void AudioClient::stop() {
     disconnect(&_checkInputTimer, &QTimer::timeout, 0, 0);
 #endif
 #if defined(Q_OS_IOS)
+    overteIOSSetAudioSessionEventHandler({});
     if (!overteIOSDeactivateAudioSession()) {
         qCWarning(audioclient) << "iOS audio session deactivation failed";
     }
 #endif
+    qCInfo(audioclient) << "Audio lifecycle state=stopped";
 }
+
+#if defined(Q_OS_IOS)
+void AudioClient::requestIOSMicrophonePermission() {
+    const QPointer<AudioClient> guardedThis(this);
+    overteIOSRequestMicrophonePermission([guardedThis](OverteIOSMicrophonePermissionState state) {
+        if (!guardedThis) {
+            return;
+        }
+        QMetaObject::invokeMethod(guardedThis.data(), [guardedThis, state] {
+            if (!guardedThis || guardedThis->_isStopping) {
+                return;
+            }
+            QString status;
+            switch (state) {
+                case OverteIOSMicrophonePermissionState::Granted:
+                    status = "granted";
+                    break;
+                case OverteIOSMicrophonePermissionState::Denied:
+                    status = "denied";
+                    break;
+                case OverteIOSMicrophonePermissionState::Undetermined:
+                default:
+                    status = "undetermined";
+                    break;
+            }
+            if (guardedThis->_microphonePermissionStatus != status) {
+                guardedThis->_microphonePermissionStatus = status;
+                emit guardedThis->microphonePermissionStatusChanged(status);
+            }
+            qCInfo(audioclient) << "iOS microphone permission state=" << status;
+            if (state == OverteIOSMicrophonePermissionState::Granted && guardedThis->_isStarted &&
+                    !guardedThis->_isSuspended && !guardedThis->_iosSessionInterrupted &&
+                    !guardedThis->_audioInput) {
+                guardedThis->switchInputToAudioDevice(
+                    guardedThis->defaultAudioDeviceForMode(HifiAudioDeviceMode::Input, QString()));
+            }
+        }, Qt::QueuedConnection);
+    });
+}
+
+void AudioClient::handleIOSAudioSessionEvent(int rawEvent, bool shouldResume, unsigned long reason) {
+    Q_ASSERT_X(QThread::currentThread() == thread(), Q_FUNC_INFO, "Function invoked on wrong thread");
+    const auto event = static_cast<OverteIOSAudioSessionEvent>(rawEvent);
+    qCInfo(audioclient) << "iOS audio session event=" << rawEvent << "shouldResume=" << shouldResume
+                        << "reason=" << reason;
+
+    if (_isStopping || !_isStarted) {
+        return;
+    }
+    if (event == OverteIOSAudioSessionEvent::InterruptionBegan) {
+        _iosSessionInterrupted = true;
+        if (!_isSuspended) {
+            _resumeInputDeviceInfo = _inputDeviceInfo;
+            _resumeOutputDeviceInfo = _outputDeviceInfo;
+            switchInputToAudioDevice(HifiAudioDeviceInfo(), true);
+            switchOutputToAudioDevice(HifiAudioDeviceInfo(), true);
+        }
+        return;
+    }
+    if (_isSuspended) {
+        return;
+    }
+    if (event == OverteIOSAudioSessionEvent::InterruptionEnded) {
+        if (!shouldResume) {
+            return;
+        }
+        _iosSessionInterrupted = false;
+        if (overteIOSActivateAudioSession()) {
+            restartAudioDevices();
+        }
+        return;
+    }
+    if (event == OverteIOSAudioSessionEvent::RouteChanged) {
+        if (_iosSessionInterrupted) {
+            return;
+        }
+        _resumeInputDeviceInfo = defaultAudioDeviceForMode(HifiAudioDeviceMode::Input, QString());
+        _resumeOutputDeviceInfo = defaultAudioDeviceForMode(HifiAudioDeviceMode::Output, QString());
+        restartAudioDevices();
+        return;
+    }
+    if (event == OverteIOSAudioSessionEvent::MediaServicesReset) {
+        _iosSessionInterrupted = false;
+        if (overteIOSActivateAudioSession()) {
+            _resumeInputDeviceInfo = HifiAudioDeviceInfo();
+            _resumeOutputDeviceInfo = HifiAudioDeviceInfo();
+            restartAudioDevices();
+        }
+    }
+}
+#endif
 
 void AudioClient::handleAudioEnvironmentDataPacket(QSharedPointer<ReceivedMessage> message) {
     char bitset;
@@ -1614,7 +1854,13 @@ void AudioClient::configureWebrtc() {
     config.pre_amplifier.enabled = false;
     config.high_pass_filter.enabled = false;
     config.echo_canceller.enabled = true;
+#if defined(Q_OS_IOS)
+    // Qt owns the I/O unit, so AVAudioSession configures routing while WebRTC remains
+    // the single explicit echo canceller in the Overte pipeline.
+    config.echo_canceller.mobile_mode = true;
+#else
     config.echo_canceller.mobile_mode = false;
+#endif
     config.noise_suppression.enabled = false;
     config.noise_suppression.level = webrtc::AudioProcessing::Config::NoiseSuppression::kModerate;
     config.gain_controller1.enabled = false;
@@ -2761,6 +3007,16 @@ void AudioClient::outputNotify() {
                     if (newOutputBufferSizeFrames > oldOutputBufferSizeFrames) {
                         qCDebug(audioclient,
                                 "Starve threshold surpassed (%d starves in %d ms)", _outputStarveDetectionCount, dt);
+#if defined(Q_OS_IOS)
+                        const HifiAudioDeviceInfo outputDevice = _outputDeviceInfo;
+                        QMetaObject::invokeMethod(this, [this, outputDevice] {
+                            if (_isStarted && !_isSuspended && !_isStopping && !outputDevice.getDevice().isNull()) {
+                                qCInfo(audioclient) << "iOS audio output reopening with adaptive buffer frames="
+                                                    << _sessionOutputBufferSizeFrames;
+                                switchOutputToAudioDevice(outputDevice);
+                            }
+                        }, Qt::QueuedConnection);
+#endif
                     }
 
                     _outputStarveDetectionStartTimeMsec = now;
@@ -2883,6 +3139,10 @@ bool AudioClient::switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDevi
             // Workaround for a bug in Windows Qt audio plugin causing very high latency.
 #ifdef Q_OS_WINDOWS
             _audioOutput->setBufferSize(requestedSize);
+#elif defined(Q_OS_IOS)
+            // AVAudioSession requests a 10 ms hardware quantum. Start Qt with two
+            // network frames (20 ms) and let starve detection increase it as needed.
+            _audioOutput->setBufferSize(requestedSize * 2);
 #else
             _audioOutput->setBufferSize(requestedSize * 8);
 #endif

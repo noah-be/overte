@@ -837,7 +837,7 @@ void Application::beforeEnterBackground() {
 
 void Application::enterBackground() {
     QMetaObject::invokeMethod(DependencyManager::get<AudioClient>().data(),
-                              "stop", Qt::BlockingQueuedConnection);
+                              "suspend", Qt::QueuedConnection);
 // Quest only supports one plugin which can't be deactivated currently
 #if !defined(ANDROID_APP_QUEST_INTERFACE)
     auto displayPlugin = getActiveDisplayPlugin();
@@ -849,7 +849,7 @@ void Application::enterBackground() {
 
 void Application::enterForeground() {
     QMetaObject::invokeMethod(DependencyManager::get<AudioClient>().data(),
-                                  "start", Qt::BlockingQueuedConnection);
+                                  "resume", Qt::QueuedConnection);
 // Quest only supports one plugin which can't be deactivated currently
 #if !defined(ANDROID_APP_QUEST_INTERFACE)
     if (!getActiveDisplayPlugin() || getActiveDisplayPlugin()->isActive() || !getActiveDisplayPlugin()->activate()) {

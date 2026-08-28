@@ -20,7 +20,7 @@
       "files": [
         "libraries/audio-client/src/AudioDeviceCompat.h"
       ],
-      "exitCriterion": "The Qt 5-only names remain isolated behind AudioDeviceCompat compile guards until desktop Qt 5 support is removed; device naming and supported-channel enumeration remain behind the same boundary. Qt 6 uses QAudioDevice/QAudioSource/QAudioSink, QAudioDevice channel ranges, and preserves the 48 kHz network format."
+      "exitCriterion": "The Qt 5-only names remain isolated behind AudioDeviceCompat compile guards until desktop Qt 5 support is removed; device naming and supported-channel enumeration remain behind the same boundary. Qt 6 uses QAudioDevice/QAudioSource/QAudioSink, QAudioDevice channel ranges, and preserves the 24 kHz network format."
     },
     {
       "id": "core5compat-api",
@@ -60,7 +60,7 @@
         "libraries/audio-client/src/AudioClient.cpp",
         "libraries/audio-client/src/AudioDeviceCompat.h"
       ],
-      "exitCriterion": "On-device evidence confirms QAudioSink pull-cadence starvation telemetry and validates the conservative buffer-size allocation bound without treating it as backend period or latency."
+      "exitCriterion": "On-device evidence confirms QAudioSink pull-cadence starvation telemetry, validates the iOS 20 ms initial allocation and adaptive sink reopen, and does not treat the allocation as a backend period or measured latency."
     },
     {
       "id": "apple-desktop-framework",
@@ -132,7 +132,7 @@
         "libraries/audio-client/src/IOSAudioPermission.h",
         "libraries/audio-client/src/IOSAudioPermission.mm"
       ],
-      "exitCriterion": "Physical-device evidence separately covers bootstrap and full-client activation, interruption begin/end with ShouldResume, background deactivation, speaker and Bluetooth-HFP routes, and microphone denial; compile-time bridge coverage is not device success."
+      "exitCriterion": "Physical-device evidence separately covers bootstrap and full-client activation, ten background/foreground cycles, interruption begin/end with ShouldResume, media-services recovery, speaker, receiver, wired and Bluetooth-HFP routes, microphone allow/deny/Settings recovery, duplex AEC, and adaptive buffering; compile-time bridge coverage is not device success, and neither is simulator coverage."
     },
     {
       "id": "ios-local-network-device-validation",

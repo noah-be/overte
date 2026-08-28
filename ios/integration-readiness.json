@@ -89,8 +89,8 @@
       "status": "prepared",
       "requiresMac": true,
       "requiresDevice": true,
-      "evidence": ["ios/src/AppDelegate.mm", "docs/ios/QT6_MIGRATION.md"],
-      "remainingAction": "Finish the Qt 6 audio-device API migration and verify capture, interruption and route recovery."
+      "evidence": ["libraries/audio-client/src/IOSAudioPermission.mm", "libraries/audio-client/src/AudioClient.cpp", "ios/tests/audio-device-acceptance.json", "docs/ios/IOS_AUDIO.md"],
+      "remainingAction": "Run the prepared physical-device audio matrix and attach sanitized capture, interruption, route, AEC and latency evidence."
     },
     {
       "id": "iphone-ipad-adaptive-shell",

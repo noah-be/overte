@@ -110,6 +110,8 @@ class Audio : public AudioScriptingInterface, protected ReadWriteLockable {
     Q_PROPERTY(float inputLevel READ getInputLevel NOTIFY inputLevelChanged)
     Q_PROPERTY(bool clipping READ isClipping NOTIFY clippingChanged)
     Q_PROPERTY(QString context READ getContext NOTIFY contextChanged)
+    Q_PROPERTY(QString microphonePermissionStatus READ getMicrophonePermissionStatus
+               NOTIFY microphonePermissionStatusChanged)
     Q_PROPERTY(AudioDevices* devices READ getDevices NOTIFY nop)
     Q_PROPERTY(bool mutedDesktop READ getMutedDesktop WRITE setMutedDesktop NOTIFY mutedDesktopChanged)
     Q_PROPERTY(bool mutedHMD READ getMutedHMD WRITE setMutedHMD NOTIFY mutedHMDChanged)
@@ -142,6 +144,7 @@ public:
     float getInputLevel() const;
     bool isClipping() const;
     QString getContext() const;
+    QString getMicrophonePermissionStatus() const;
 
     void showMicMeter(bool show);
 
@@ -353,6 +356,7 @@ signals:
      * @deprecated This signal is deprecated and will be removed.
      */
     void nop();
+    void microphonePermissionStatusChanged(const QString& status);
 
     /*@jsdoc
      * Triggered when the audio input is muted or unmuted for the current context (desktop or HMD).
@@ -558,6 +562,7 @@ private slots:
     void enableAcousticEchoCancellation(bool enable);
     void setInputVolume(float volume);
     void onInputLoudnessChanged(float loudness, bool isClipping);
+    void setMicrophonePermissionStatus(const QString& status);
 
 protected:
     // Audio must live on a separate thread from AudioClient to avoid deadlocks
@@ -582,6 +587,7 @@ private:
     bool _enableWarnWhenMuted { true };
     bool _enableAcousticEchoCancellation { true }; // AudioClient::_isAECEnabled
     bool _contextIsHMD { false };
+    QString _microphonePermissionStatus { "notApplicable" };
     AudioDevices* getDevices() { return &_devices; }
     AudioDevices _devices;
     Setting::Handle<bool> _mutedDesktopSetting{ QStringList { Audio::AUDIO, "mutedDesktop" }, false };

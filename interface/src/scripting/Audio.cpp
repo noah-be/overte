@@ -50,6 +50,8 @@ Audio::Audio() : _devices(_contextIsHMD) {
     connect(client, &AudioClient::acousticEchoCancellationChanged, this, &Audio::enableAcousticEchoCancellation);
     connect(client, &AudioClient::inputLoudnessChanged, this, &Audio::onInputLoudnessChanged);
     connect(client, &AudioClient::inputVolumeChanged, this, &Audio::setInputVolume);
+    connect(client, &AudioClient::microphonePermissionStatusChanged,
+            this, &Audio::setMicrophonePermissionStatus);
     connect(this, &Audio::contextChanged, &_devices, &AudioDevices::onContextChanged);
     connect(this, &Audio::pushingToTalkChanged, this, &Audio::handlePushedToTalk);
     enableNoiseReduction(enableNoiseReductionSetting.get());
@@ -57,6 +59,23 @@ Audio::Audio() : _devices(_contextIsHMD) {
     setNoiseReductionThreshold(setNoiseReductionThresholdSetting.get());
     enableWarnWhenMuted(enableWarnWhenMutedSetting.get());
     enableAcousticEchoCancellation(enableAcousticEchoCancellationSetting.get());
+}
+
+QString Audio::getMicrophonePermissionStatus() const {
+    return resultWithReadLock<QString>([&] { return _microphonePermissionStatus; });
+}
+
+void Audio::setMicrophonePermissionStatus(const QString& status) {
+    bool changed { false };
+    withWriteLock([&] {
+        if (_microphonePermissionStatus != status) {
+            _microphonePermissionStatus = status;
+            changed = true;
+        }
+    });
+    if (changed) {
+        emit microphonePermissionStatusChanged(status);
+    }
 }
 
 QUuid Audio::startRecording() {

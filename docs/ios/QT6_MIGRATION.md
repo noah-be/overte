@@ -124,11 +124,13 @@ Apple's desktop `AudioHardware.h` fallback and explicit CoreAudio linkage are
 excluded from iOS. The full-client path uses Qt Multimedia's `QAudioDevice`,
 `QAudioSource`, and `QAudioSink`. Its permission bridge now configures and
 activates PlayAndRecord/game-chat on AudioClient start and deactivates with
-NotifyOthersOnDeactivation after AudioClient stop. All AVAudioSession mutations
-are synchronously marshalled to the main queue; interruption telemetry records
-only begin/end, ShouldResume, reactivation outcome, and numeric error code.
-Full-client interruption recovery, Bluetooth routing, microphone permission,
-and background behavior still require physical-device evidence.
+NotifyOthersOnDeactivation while AudioClient is suspended or stopped. Main-thread
+lifecycle callbacks enqueue `suspend` and `resume` on the audio thread instead of
+blocking it, so an audio-thread AVAudioSession mutation cannot deadlock against
+the UIKit main queue. Final `stop` is idempotent and is no longer used as a
+reversible background operation. The integrated bridge forwards interruptions,
+route changes, and media-services resets to AudioClient, which reopens Qt input
+and output only while the application audio lifecycle is active.
 
 Both the bootstrap and integrated Interface bundle use the audited iOS plist,
 including `NSMicrophoneUsageDescription`. The UIKit host requests record
@@ -136,8 +138,21 @@ permission, while the Qt full client also requests it at audio startup because
 Qt may own the application delegate. `AudioClient` treats both undetermined and
 denied states as unavailable input and falls back to its existing silent timer;
 it does not construct a `QAudioSource` until permission is explicitly granted.
-Only the coarse granted/denied state is logged. Grant/denial prompts and recovery
-after changing permission in Settings remain physical-device acceptance checks.
+The asynchronous permission result is returned to the audio thread; a grant
+automatically replaces the silent timer with the system-default microphone.
+The audio settings UI exposes `undetermined`, `denied`, and `granted` states and
+explains Settings recovery without exposing device identifiers. Grant/denial
+prompts and Settings recovery remain physical-device acceptance checks.
+
+The native session requests a 48 kHz hardware rate and a 10 ms I/O duration,
+then logs the actual negotiated values. This is a device-side format: Overte's
+wire format remains 24 kHz signed 16-bit PCM in 10 ms frames, and AudioClient
+resamples between the negotiated device format and that wire format. The iOS Qt
+sink begins with a 20 ms allocation; the existing starvation detector increases
+the frame count and now reopens the sink so that an increase takes effect.
+WebRTC audio processing remains the single explicit AEC stage and uses its
+mobile echo-controller mode on iOS; AVAudioSession owns category and routing,
+not a second application-controlled DSP pass.
 
 ## Local-network permission and domain UDP
 
@@ -609,9 +624,9 @@ The DPI update is skipped if neither lookup yields a display.
 The existing full-client mobile pause/resume boundary is now compiled for iOS
 as well as Android. On the first Qt `ApplicationHidden` or
 `ApplicationSuspended` transition after startup, it disables DomainServer
-check-ins, resets the stale connection and octree state, stops audio, and
+check-ins, resets the stale connection and octree state, suspends audio, and
 deactivates the active display plugin. A later `ApplicationActive` transition
-starts audio, reactivates that plugin (which recreates its platform surface as
+resumes audio, reactivates that plugin (which recreates its platform surface as
 needed), and enables check-ins so the normal DomainHandler reconnect path can
 run. `ApplicationInactive` deliberately remains only a refresh-rate change:
 short-lived iOS interruptions and system overlays must not tear down the domain.
@@ -627,7 +642,7 @@ entity-tree mutation, renderer payload, or bootstrap lifecycle mock was changed.
 
 Qt 6 replaced the legacy QAudioDeviceInfo/QAudioInput/QAudioOutput and sample
 format APIs. The migration must be implemented behind the audio-client device
-boundary and verified against the existing 48 kHz signed-16-bit network format.
+boundary and verified against the existing 24 kHz signed-16-bit network format.
 Device display names and channel-count capability also cross that boundary:
 Qt 6 uses `QAudioDevice::description()` and its minimum/maximum channel range,
 while the retained Qt 5 build continues to use `deviceName()` and
@@ -794,9 +809,12 @@ legacy macOS/Windows version enums only in the Qt 5 branch; Qt 6 populates the
 same platform-specific key from `QSysInfo::productVersion()`, alongside the
 existing cross-platform OS type/version fields. iOS is not classified as macOS.
 
-The audio gate requires device enumeration, route change, microphone consent,
-interruption recovery, Bluetooth behavior, mono input, stereo output, and
-resampling tests on physical hardware.
+The remaining physical audio gate is defined in
+`ios/tests/audio-device-acceptance.json` and requires route change, microphone
+allow/deny/Settings recovery, interruption recovery, Bluetooth-HFP behavior,
+mono input, stereo output, AEC talk-back, adaptive buffering, and device-to-wire
+resampling evidence. Host contracts and simulator permission automation prepare
+that gate but are not physical-device success.
 
 The simulator Qt checkpoint is now configured and validated explicitly as
 `arm64`. The first simulator link exposed that Qt's default source-build

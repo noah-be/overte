@@ -197,9 +197,12 @@ public:
 #endif
 
     int getNumLocalInjectors();
+    QString getMicrophonePermissionStatus() const { return _microphonePermissionStatus; }
 
 public slots:
     void start();
+    void suspend();
+    void resume();
     void stop();
 
     void handleAudioEnvironmentDataPacket(QSharedPointer<ReceivedMessage> message);
@@ -309,6 +312,7 @@ signals:
     void muteEnvironmentRequested(glm::vec3 position, float radius);
 
     void outputBufferReceived(const QByteArray _outputBuffer);
+    void microphonePermissionStatusChanged(const QString& status);
 
 protected:
     AudioClient();
@@ -335,6 +339,12 @@ private:
     // background tasks
     void checkDevices();
     void checkPeakValues();
+    void setLifecycleTimersActive(bool active);
+    void restartAudioDevices();
+#if defined(Q_OS_IOS)
+    void requestIOSMicrophonePermission();
+    void handleIOSAudioSessionEvent(int event, bool shouldResume, unsigned long reason);
+#endif
 
     void outputFormatChanged();
     void handleAudioInput(QByteArray& audioBuffer);
@@ -507,6 +517,8 @@ private:
 
     HifiAudioDeviceInfo _inputDeviceInfo;
     HifiAudioDeviceInfo _outputDeviceInfo;
+    HifiAudioDeviceInfo _resumeInputDeviceInfo;
+    HifiAudioDeviceInfo _resumeOutputDeviceInfo;
 
     QList<HifiAudioDeviceInfo> _inputDevices;
     QList<HifiAudioDeviceInfo> _outputDevices;
@@ -528,6 +540,11 @@ private:
 
     bool _isPlayingBackRecording { false };
     bool _audioPaused { false };
+    bool _isStarted { false };
+    bool _isSuspended { false };
+    bool _isStopping { false };
+    bool _iosSessionInterrupted { false };
+    QString _microphonePermissionStatus { "notApplicable" };
 
     CodecPluginPointer _codec;
     QString _selectedCodecName;
@@ -548,6 +565,7 @@ private:
     QReadWriteLock _hmdNameLock;
     Mutex _checkDevicesMutex;
     QTimer* _checkDevicesTimer { nullptr };
+    QFuture<void> _checkDevicesFuture;
     Mutex _checkPeakValuesMutex;
     QTimer* _checkPeakValuesTimer { nullptr };
 

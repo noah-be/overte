@@ -250,6 +250,19 @@ Flickable {
                 color: simplifiedUI.colors.text.white
             }
 
+            HifiStylesUit.FiraSansRegular {
+                visible: AudioScriptingInterface.microphonePermissionStatus === "denied" ||
+                         AudioScriptingInterface.microphonePermissionStatus === "undetermined"
+                text: AudioScriptingInterface.microphonePermissionStatus === "denied"
+                      ? "Microphone access is disabled. Enable Overte in iOS Settings and return to the app."
+                      : "Waiting for iOS microphone permission."
+                Layout.preferredWidth: parent.width
+                Layout.topMargin: 8
+                wrapMode: Text.WordWrap
+                size: 16
+                color: simplifiedUI.colors.text.white
+            }
+
             ButtonGroup { id: inputDeviceButtonGroup }
 
             ListView {

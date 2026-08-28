@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "product": "Overte Full Client for iOS",
+  "physicalExecutionRequired": true,
+  "sanitizedMarkers": [
+    "Audio lifecycle state=",
+    "iOS microphone permission state=",
+    "iOS audio session event=",
+    "iOS audio output reopening with adaptive buffer frames="
+  ],
+  "cases": [
+    {
+      "id": "permission-allow-first-launch",
+      "setup": "Fresh install with microphone permission reset",
+      "actions": ["Launch", "Allow microphone", "Join a reference domain", "Speak for 30 seconds"],
+      "expect": ["Permission becomes granted", "Silent input is replaced automatically", "Remote peer receives intelligible mono voice"]
+    },
+    {
+      "id": "permission-deny-and-settings-recovery",
+      "setup": "Fresh install with microphone permission reset",
+      "actions": ["Launch", "Deny microphone", "Verify receive-only audio", "Enable microphone in Settings", "Return to Overte"],
+      "expect": ["Denied status is visible", "No capture starts while denied", "Capture recovers without relaunch"]
+    },
+    {
+      "id": "background-foreground-10x",
+      "setup": "Connected with duplex audio active",
+      "actions": ["Background and foreground the app ten times"],
+      "expect": ["No deadlock", "Exactly one suspend/resume pair per cycle", "Input and output recover every cycle"]
+    },
+    {
+      "id": "interruption-recovery",
+      "setup": "Connected with duplex audio active",
+      "actions": ["Trigger Siri or a call interruption", "End the interruption with ShouldResume"],
+      "expect": ["Qt I/O stops on begin", "Session and Qt I/O restart on end", "No duplicate audio stream"]
+    },
+    {
+      "id": "route-speaker-receiver-wired-bluetooth-hfp",
+      "setup": "Connected with duplex audio active and a wired headset plus Bluetooth-HFP device available",
+      "actions": ["Exercise speaker", "Exercise receiver", "Attach/detach wired headset", "Connect/disconnect Bluetooth-HFP"],
+      "expect": ["Every route change is observed", "System-default devices reopen", "Capture and playback remain duplex"]
+    },
+    {
+      "id": "media-services-reset",
+      "setup": "Debug environment capable of resetting Core Audio media services",
+      "actions": ["Reset media services while connected"],
+      "expect": ["Session category and preferences are reapplied", "Qt input and output recover"]
+    },
+    {
+      "id": "aec-double-talk",
+      "setup": "Speaker route at normal volume with a remote reference voice",
+      "actions": ["Run far-end-only", "Run near-end-only", "Run double-talk", "Toggle Overte AEC for comparison"],
+      "expect": ["AEC-on reduces returned far-end energy", "Near-end speech remains intelligible", "No pumping consistent with stacked AEC"]
+    },
+    {
+      "id": "format-buffer-latency",
+      "setup": "Diagnostics enabled without identifiers or addresses",
+      "actions": ["Record negotiated hardware rate and I/O duration", "Measure round-trip latency", "Load CPU until at least one controlled starve occurs"],
+      "expect": ["Wire format remains 24 kHz PCM16 in 10 ms frames", "Hardware negotiation is recorded", "Adaptive buffer reopen occurs without crash"]
+    },
+    {
+      "id": "long-duplex-stability",
+      "setup": "Bluetooth-HFP and speaker runs on both iPhone and iPad",
+      "actions": ["Run duplex voice for 30 minutes per route"],
+      "expect": ["No progressive latency", "No route loss", "No audio-thread crash", "Thermal state is recorded separately"]
+    }
+  ]
+}

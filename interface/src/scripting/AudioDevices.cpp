@@ -339,6 +339,13 @@ void AudioDeviceList::onDevicesChanged(HifiAudioDeviceMode mode, const QList<Hif
         device.info = deviceInfo;
 
         if (deviceInfo.isDefault()) {
+#if defined(Q_OS_IOS)
+            if (deviceInfo.getMode() == HifiAudioDeviceMode::Input) {
+                device.display = "System default microphone (recommended)";
+            } else {
+                device.display = "System default audio route (recommended)";
+            }
+#else
             if (deviceInfo.getDeviceType() == HifiAudioDeviceInfo::desktop || deviceInfo.getDeviceType() == HifiAudioDeviceInfo::both) {
                 if (deviceInfo.getMode() == HifiAudioDeviceMode::Input) {
                     device.display = "Computer's default microphone (recommended)";
@@ -352,6 +359,7 @@ void AudioDeviceList::onDevicesChanged(HifiAudioDeviceMode mode, const QList<Hif
                     device.display = "Headset's default audio (recommended)";
                 }
             }
+#endif
         } else {
             device.display = device.info.deviceName()
                 .replace("High Definition", "HD")

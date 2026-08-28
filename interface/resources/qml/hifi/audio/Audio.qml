@@ -791,12 +791,37 @@ Rectangle {
             anchors.topMargin: 14;
         }
 
+        Rectangle {
+            id: microphonePermissionNotice
+            x: margins.paddings
+            width: parent.width - margins.paddings * 2
+            height: visible ? permissionText.implicitHeight + 20 : 0
+            anchors.top: thirdSeparator.bottom
+            anchors.topMargin: visible ? 10 : 0
+            radius: 4
+            color: AudioScriptingInterface.microphonePermissionStatus === "denied" ? "#6D2630" : "#5A4A21"
+            visible: AudioScriptingInterface.microphonePermissionStatus === "denied" ||
+                     AudioScriptingInterface.microphonePermissionStatus === "undetermined"
+
+            RalewayRegular {
+                id: permissionText
+                anchors.fill: parent
+                anchors.margins: 10
+                wrapMode: Text.WordWrap
+                size: Math.round(15 * touchConfiguration.textScale)
+                color: hifi.colors.white
+                text: AudioScriptingInterface.microphonePermissionStatus === "denied"
+                      ? qsTr("Microphone access is disabled. Enable it for Overte in iOS Settings, then return to the app.")
+                      : qsTr("Waiting for the iOS microphone permission decision. Audio input remains muted until access is granted.")
+            }
+        }
+
         Item {
             id: inputDeviceHeader
             x: margins.paddings;
             width: parent.width - margins.paddings*2;
             height: Math.max(36, touchConfiguration.adaptiveMinimumControlHeight);
-            anchors.top: thirdSeparator.bottom;
+            anchors.top: microphonePermissionNotice.bottom;
             anchors.topMargin: 10;
 
             HiFiGlyphs {
