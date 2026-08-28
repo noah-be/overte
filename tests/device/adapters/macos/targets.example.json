@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "targets": [
+    {
+      "selector": "macos-desktop-01",
+      "displayName": "macOS Desktop 01",
+      "platform": "macos",
+      "physical": true,
+      "enabled": false,
+      "executable": "${OVERTE_MACOS_APP}/Contents/MacOS/Overte",
+      "arguments": [],
+      "windowTitle": "Overte",
+      "oculixJar": "${OCULIX_IDE_JAR}",
+      "oculixSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "javaExecutable": "java",
+      "javaArguments": [],
+      "probe": {
+        "kind": "injected-test-script"
+      },
+      "clientControl": {
+        "kind": "probe-command-file"
+      }
+    }
+  ]
+}
