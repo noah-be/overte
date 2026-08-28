@@ -56,7 +56,9 @@ class CoreSequenceTest(unittest.TestCase):
         probe = (DEVICE_ROOT / "probe/overte_e2e_probe.js").read_text(
             encoding="utf-8")
         self.assertNotIn("MyAvatar.goToLocation", probe)
+        self.assertNotIn("MyAvatar.position =", probe)
         self.assertNotIn("MyAvatar.velocity =", probe)
+        self.assertIn("Window.location = scenePath", probe)
         self.assertIn("spawnLocationObserved: avatarAtSpawn", probe)
 
     def test_complete_core_suite_reuses_one_app_session(self):
