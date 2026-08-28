@@ -182,7 +182,7 @@ Every build follows this order:
 3. for iOS, require RemoteXPC and synchronize the protected signed producer;
 4. reserve the physical target and run `smoke`;
 5. optionally run the independently reported `domain-smoke`, `asset-smoke`,
-   and `sound-smoke` content suites;
+   `sound-smoke`, and Pico `vertical-locomotion` suites;
 6. run `e2e-core` only after smoke and the selected content suites pass;
 7. optionally run the accessibility audit;
 8. optionally run `stability` on every profile, followed by the separately
@@ -196,6 +196,12 @@ Domain entry additionally requires absolute trusted build paths in
 `DOMAIN_SERVER_EXECUTABLE` and `ASSIGNMENT_CLIENT_EXECUTABLE`. Asset and sound
 start the repository HTTP fixture automatically and may be used with an
 otherwise embedded Android fixture configuration.
+
+Enable `RUN_VERTICAL_LOCOMOTION` only for `android-pico-adb` after provisioning
+the debug-only OpenXR input layer and isolated ADB environment described in
+[`../openxr_input/PICO4_CONTROLLER_AUTOMATION.md`](../openxr_input/PICO4_CONTROLLER_AUTOMATION.md).
+The separately reported suite verifies one bounded jump and landing followed
+by upward flight without replacing the running application process.
 
 `RUN_CORE` defaults off for the first setup run because the
 default ADB profile truthfully lacks touch/controller input. Enable core for a

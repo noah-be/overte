@@ -26,7 +26,7 @@ from urllib.parse import urlsplit
 
 SUITES = {
     "smoke", "domain-smoke", "asset-smoke", "sound-smoke", "e2e-core",
-    "accessibility", "stability", "lifecycle-stability",
+    "accessibility", "vertical-locomotion", "stability", "lifecycle-stability",
 }
 PUBLIC_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 STAGED_MARKER = ".overte-device-ci-staged"
