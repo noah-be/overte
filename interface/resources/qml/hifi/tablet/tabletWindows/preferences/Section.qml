@@ -18,11 +18,13 @@ import "."
 
 Preference {
     id: root
+    objectName: semanticId
     property bool collapsable: false
     property bool expanded: false
     property bool isFirst: false
     property bool isLast: false
     property string name: "Header"
+    property string semanticId: ""
     property real spacing: 8
     property var sectionProperties: ({})
     default property alias preferences: contentContainer.children
@@ -191,4 +193,3 @@ Preference {
         }
     }
 }
-

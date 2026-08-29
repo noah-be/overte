@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://overte.org/schemas/device-tablet-product-policy-v1.json",
+  "title": "Overte tablet product expectations",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "schemaVersion", "profileId", "expectations"],
+  "properties": {
+    "contractVersion": {"const": 1},
+    "schemaVersion": {"const": 1},
+    "profileId": {
+      "type": "string",
+      "maxLength": 128,
+      "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$"
+    },
+    "expectations": {
+      "type": "object",
+      "minProperties": 2,
+      "propertyNames": {"$ref": "#/$defs/screenId"},
+      "additionalProperties": {"$ref": "#/$defs/screenExpectation"}
+    }
+  },
+  "$defs": {
+    "screenId": {
+      "enum": [
+        "settings.audio",
+        "settings.controllers",
+        "settings.general",
+        "settings.graphics",
+        "settings.home",
+        "settings.security",
+        "tablet.home"
+      ]
+    },
+    "controlId": {
+      "enum": [
+        "app.settings",
+        "nav.back",
+        "nav.close",
+        "nav.home",
+        "settings.audio",
+        "settings.controllers",
+        "settings.general",
+        "settings.graphics",
+        "settings.hmd-preferences",
+        "settings.security",
+        "settings.vr-render-resolution"
+      ]
+    },
+    "screenExpectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requiredControlIds", "forbiddenControlIds"],
+      "properties": {
+        "entryControlId": {"$ref": "#/$defs/controlId"},
+        "requiredControlIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/controlId"}
+        },
+        "forbiddenControlIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/controlId"}
+        }
+      }
+    }
+  }
+}
