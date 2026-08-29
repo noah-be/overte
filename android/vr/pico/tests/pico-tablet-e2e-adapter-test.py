@@ -40,13 +40,18 @@ class PicoTabletE2EAdapterTest(unittest.TestCase):
             policy["expectations"]["settings.graphics"]["requiredControlIds"],
         )
 
-    def test_bridge_observes_qml_and_uses_pointer_events(self):
+    def test_bridge_observes_qml_and_uses_the_vr_surface_pointer_path(self):
         self.assertIn("getTabletRoot()", BRIDGE)
         self.assertIn('property("semanticScreenId")', BRIDGE)
         self.assertIn("visibleControlIds", BRIDGE)
         self.assertIn("item->mapToScene(local)", BRIDGE)
-        self.assertIn("QEvent::MouseButtonPress", BRIDGE)
-        self.assertIn("QEvent::MouseButtonRelease", BRIDGE)
+        self.assertIn("getTabletSurface()", BRIDGE)
+        self.assertIn("surface->hoverBeginEvent", BRIDGE)
+        self.assertIn("surface->handlePointerEvent(press", BRIDGE)
+        self.assertIn("surface->handlePointerEvent(release", BRIDGE)
+        self.assertIn("surface->hoverEndEvent", BRIDGE)
+        self.assertIn("PointerEvent::Press", BRIDGE)
+        self.assertIn("PointerEvent::Release", BRIDGE)
         self.assertNotIn("pico4-tablet-policy.json", BRIDGE)
         self.assertNotIn("gotoHomeScreen", BRIDGE)
         self.assertNotIn("loadQMLSource", BRIDGE)

@@ -6,23 +6,24 @@
 #include <cmath>
 #include <functional>
 
-#include <QCoreApplication>
 #include <QDateTime>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QMouseEvent>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QRectF>
 #include <QSaveFile>
 #include <QSet>
 #include <QTimer>
+#include <QTouchDevice>
 
 #include <DependencyManager.h>
+#include <PointerEvent.h>
 #include <shared/GlobalAppProperties.h>
+#include <ui/OffscreenQmlSurface.h>
 #include <ui/TabletScriptingInterface.h>
 
 namespace overte::pico::e2e {
@@ -191,8 +192,23 @@ void writeStatus(const QString& commandId, bool performed, const QString& error)
     });
 }
 
-bool sendPointerClick(QQuickItem* item, QQuickWindow* window) {
-    if (!effectiveVisible(item) || !item->isEnabled() || !window) {
+QTouchDevice& bridgeTouchDevice() {
+    static QTouchDevice device;
+    static const bool configured = [] {
+        device.setCapabilities(QTouchDevice::Position);
+        device.setType(QTouchDevice::TouchScreen);
+        device.setName(QStringLiteral("PicoE2eTabletPointer"));
+        device.setMaximumTouchPoints(1);
+        return true;
+    }();
+    Q_UNUSED(configured)
+    return device;
+}
+
+bool sendPointerClick(QQuickItem* item, OffscreenQmlSurface* surface) {
+    auto window = surface ? surface->getWindow() : nullptr;
+    if (!effectiveVisible(item) || !item->isEnabled() || !surface || !window
+            || item->window() != window) {
         return false;
     }
     const QPointF local(item->width() / 2.0, item->height() / 2.0);
@@ -202,16 +218,25 @@ bool sendPointerClick(QQuickItem* item, QQuickWindow* window) {
             || position.x() >= window->width() || position.y() >= window->height()) {
         return false;
     }
-    QMouseEvent move(QEvent::MouseMove, position, Qt::NoButton, Qt::NoButton,
-                     Qt::NoModifier);
-    QMouseEvent press(QEvent::MouseButtonPress, position, Qt::LeftButton,
-                      Qt::LeftButton, Qt::NoModifier);
-    QMouseEvent release(QEvent::MouseButtonRelease, position, Qt::LeftButton,
-                        Qt::NoButton, Qt::NoModifier);
-    QCoreApplication::sendEvent(window, &move);
-    QCoreApplication::sendEvent(window, &press);
-    QCoreApplication::sendEvent(window, &release);
-    return true;
+    constexpr uint32_t POINTER_ID { 0xE2E00001u };
+    const glm::vec2 pointerPosition {
+        static_cast<float>(position.x()), static_cast<float>(position.y())
+    };
+    PointerEvent move(PointerEvent::Move, POINTER_ID, pointerPosition,
+                      PointerEvent::NoButtons, PointerEvent::NoButtons,
+                      Qt::NoModifier);
+    PointerEvent press(PointerEvent::Press, POINTER_ID, pointerPosition,
+                       PointerEvent::PrimaryButton, PointerEvent::PrimaryButton,
+                       Qt::NoModifier);
+    PointerEvent release(PointerEvent::Release, POINTER_ID, pointerPosition,
+                         PointerEvent::PrimaryButton, PointerEvent::NoButtons,
+                         Qt::NoModifier);
+    auto& touchDevice = bridgeTouchDevice();
+    surface->hoverBeginEvent(move, touchDevice);
+    const bool pressAccepted = surface->handlePointerEvent(press, touchDevice);
+    const bool releaseAccepted = surface->handlePointerEvent(release, touchDevice);
+    surface->hoverEndEvent(move, touchDevice);
+    return pressAccepted && releaseAccepted;
 }
 
 class TabletBridge : public QObject {
@@ -270,8 +295,9 @@ private:
             return;
         }
         auto tabletInterface = DependencyManager::get<TabletScriptingInterface>();
-        auto window = tabletInterface ? tabletInterface->getTabletWindow() : nullptr;
-        if (!sendPointerClick(observation.controls.value(controlId), window)) {
+        auto tablet = tabletInterface ? tabletInterface->getTablet(SYSTEM_TABLET) : nullptr;
+        auto surface = tablet ? tablet->getTabletSurface() : nullptr;
+        if (!sendPointerClick(observation.controls.value(controlId), surface)) {
             writeStatus(commandId, false, QStringLiteral("pointer-activation-failed"));
             return;
         }
