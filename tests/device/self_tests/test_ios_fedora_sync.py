@@ -130,8 +130,16 @@ class IosFedoraSyncTest(unittest.TestCase):
             wda_bundle_id="org.overte.WebDriverAgentRunner",
         )
         inputs = SYNC.dispatch_inputs(arguments)
-        self.assertEqual(7, len(inputs))
+        self.assertEqual({
+            "fedora_e2e_producer",
+            "qt_host_cache_key",
+            "qt_ios_cache_key",
+            "qt_host_artifact_prefix",
+            "qt_ios_artifact_prefix",
+        }, set(inputs))
         self.assertEqual("true", inputs["fedora_e2e_producer"])
+        self.assertNotIn("overte_bundle_id", inputs)
+        self.assertNotIn("wda_bundle_id", inputs)
         arguments.qt_host_cache_key = "safe; touch /tmp/injected"
         with self.assertRaises(SYNC.HandoffError):
             SYNC.dispatch_inputs(arguments)
