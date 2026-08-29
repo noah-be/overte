@@ -87,6 +87,7 @@ class V8IOSCheckpointContractTest(unittest.TestCase):
             "Restore pinned static JITless V8 for iOS",
             "Probe durable static JITless V8 checkpoint",
             "Restore durable static JITless V8 checkpoint",
+            "Restore trusted apple-ios V8 checkpoint for feature branches",
             "Restore reviewed legacy V8 checkpoint for v2 promotion",
             "Restore V8 compiler recovery checkpoint",
             "Report V8 checkpoint decision",
@@ -126,6 +127,9 @@ class V8IOSCheckpointContractTest(unittest.TestCase):
         self.assertIn("--max-age-days 75", v8)
         self.assertIn("retention-days: 90", v8)
         self.assertIn("OVERTE_IOS_V8_ROOT:", workflow)
+        self.assertIn("--expected-branch apple-ios", v8)
+        self.assertIn("github.ref_name != 'apple-ios'", v8)
+        self.assertIn("source=trusted-apple-ios-promotion", v8)
 
         build_step = v8[
             v8.index("- name: Build pinned static JITless V8 for iOS"):
@@ -133,9 +137,18 @@ class V8IOSCheckpointContractTest(unittest.TestCase):
         ]
         self.assertIn("steps.v8-cache.outputs.cache-hit != 'true'", build_step)
         self.assertIn("steps.v8-artifact.outputs.restored != 'true'", build_step)
+        self.assertIn("steps.v8-apple-ios-artifact.outputs.restored != 'true'", build_step)
         self.assertIn("steps.v8-legacy-artifact.outputs.restored != 'true'", build_step)
         self.assertNotIn("github.run_id", build_step)
         self.assertNotIn("github.run_attempt", build_step)
+
+        consumer = workflow[workflow.index("  integrated-configure:"):]
+        self.assertIn("id: integrated-v8-cache", consumer)
+        self.assertNotIn("fail-on-cache-miss: true", consumer)
+        self.assertIn("Restore durable V8 artifact after cache miss", consumer)
+        self.assertIn("needs.v8-checkpoint.outputs.artifact-prefix", consumer)
+        self.assertIn('--expected-branch "${{ github.ref_name }}"', consumer)
+        self.assertIn("Fail closed without validated V8", consumer)
 
     def test_reviewed_legacy_promotion_is_exact_and_digest_bound(self):
         legacy = (ROOT / "ios/v8-legacy-checkpoints.env").read_text(encoding="utf-8")
