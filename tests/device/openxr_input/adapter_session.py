@@ -187,6 +187,14 @@ class PicoOpenXrAdapterSession:
             if state["processIdentity"] != process_identity:
                 raise AdapterSessionError("Pico E2E launcher process identity changed")
 
+    def bound_process_identity(self) -> str:
+        """Return the process identity already attested by the single launch."""
+        with self._lock():
+            state = self._load()
+            if state is None:
+                raise AdapterSessionError("Pico E2E launcher session is not established")
+            return state["processIdentity"]
+
     @staticmethod
     def _ack_timeout() -> float:
         raw = os.environ.get("OVERTE_PICO_OPENXR_ACK_SECONDS", "8")
@@ -244,7 +252,8 @@ class PicoOpenXrAdapterSession:
                 if status["state"] == "error" or status["enabled"] is not True:
                     raise AdapterSessionError(
                         "native Pico OpenXR view override failed before consumption")
-                if status["viewAppliedSequence"] == sequence:
+                if (status["state"] == "active"
+                        and status["viewAppliedSequence"] == sequence):
                     return status
             except TransportError as error:
                 last_error = error
@@ -266,11 +275,22 @@ class PicoOpenXrAdapterSession:
                         "native Pico OpenXR controller override failed before consumption")
                 vector_applied = (operation == "input.move" and
                                   status["vectorAppliedSequence"] == sequence and
-                                  abs(float(status["leftThumbstickAppliedY"])) >= 0.01)
-                boolean_applied = (operation in {"tablet.open", "tablet.close"} and
-                                   status["booleanAppliedSequence"] == sequence and
-                                   status["leftSecondaryApplied"] is True)
-                if vector_applied or boolean_applied:
+                                  (abs(float(status["leftThumbstickAppliedX"])) >= 0.01 or
+                                   abs(float(status["leftThumbstickAppliedY"])) >= 0.01))
+                left_secondary_applied = (
+                    operation in {"tablet.open", "tablet.close"} and
+                    status["booleanAppliedSequence"] == sequence and
+                    status["leftSecondaryApplied"] is True)
+                right_secondary_applied = (
+                    operation in {"input.jump", "input.fly"} and
+                    status["booleanAppliedSequence"] == sequence and
+                    status["rightSecondaryApplied"] is True)
+                boolean_applied = left_secondary_applied or right_secondary_applied
+                # Applied-sequence evidence intentionally survives the native
+                # neutral window. It proves historical consumption, but must
+                # not let a completed pulse masquerade as input that is still
+                # active when the behavioral test starts observing it.
+                if status["state"] == "active" and (vector_applied or boolean_applied):
                     return status
             except TransportError as error:
                 last_error = error
@@ -313,7 +333,9 @@ class PicoOpenXrAdapterSession:
             if operation == "input.look":
                 status = self._wait_for_view_application(
                     state["sessionNonce"], sequence)
-            elif operation in {"input.move", "tablet.open", "tablet.close"}:
+            elif operation in {
+                    "input.fly", "input.jump", "input.move",
+                    "tablet.open", "tablet.close"}:
                 status = self._wait_for_controller_application(
                     state["sessionNonce"], sequence, operation)
         result = {
@@ -333,12 +355,18 @@ class PicoOpenXrAdapterSession:
         elif operation == "input.move":
             result.update({
                 "openXrVectorApplied": True,
+                "openXrLeftThumbstickX": status["leftThumbstickAppliedX"],
                 "openXrLeftThumbstickY": status["leftThumbstickAppliedY"],
             })
         elif operation in {"tablet.open", "tablet.close"}:
             result.update({
                 "openXrBooleanApplied": True,
                 "openXrLeftSecondaryApplied": status["leftSecondaryApplied"],
+            })
+        elif operation in {"input.jump", "input.fly"}:
+            result.update({
+                "openXrBooleanApplied": True,
+                "openXrRightSecondaryApplied": status["rightSecondaryApplied"],
             })
         return result
 

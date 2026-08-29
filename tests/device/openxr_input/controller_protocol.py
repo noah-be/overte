@@ -18,6 +18,11 @@ SCALAR_OPERATIONS = frozenset({"controller.grip", "controller.trigger"})
 HANDS = frozenset({"left", "right"})
 INTER_COMMAND_GAP_MS = 100
 NEUTRAL_HOLD_MS = 100
+# Physical Pico runs have missed shorter pulses even after an OpenXR query
+# consumed them. Keep a full 100 ms margin below CharacterController's default
+# 500 ms jump-to-hover threshold.
+JUMP_HOLD_MS = 450
+FLY_ARM_HOLD_MS = 400
 
 
 class ControllerContractError(ValueError):
@@ -200,14 +205,21 @@ def validate_envelope(raw: Any, profile_raw: Any) -> dict[str, Any]:
             if abs(horizontal) < 0.01 and abs(vertical) < 0.01:
                 raise ControllerContractError("look command must be non-neutral")
             _number(arguments.get("durationSeconds", 0.35),
-                    "look durationSeconds", 0.1, 8.0)
+                    "look durationSeconds", 0.1, 30.0)
         elif operation == "input.move":
             _exact_keys(arguments, {"direction", "durationSeconds"}, {"strength"},
                         f"commands[{index}].arguments")
-            if arguments["direction"] not in {"backward", "forward"}:
-                raise ControllerContractError("Pico common movement supports forward/backward only")
+            if arguments["direction"] not in {"backward", "forward", "left", "right"}:
+                raise ControllerContractError("Pico common movement direction is unsupported")
             _number(arguments["durationSeconds"], "move durationSeconds", 0.1, 8.0)
             _number(arguments.get("strength", 0.8), "move strength", 0.2, 1.0)
+        elif operation == "input.jump":
+            _exact_keys(arguments, set(), set(),
+                        f"commands[{index}].arguments")
+        elif operation == "input.fly":
+            _exact_keys(arguments, {"durationSeconds"}, set(),
+                        f"commands[{index}].arguments")
+            _number(arguments["durationSeconds"], "fly durationSeconds", 0.5, 8.0)
         elif operation in {"tablet.close", "tablet.open"}:
             _exact_keys(arguments, set(), {"holdMilliseconds"},
                         f"commands[{index}].arguments")
@@ -249,6 +261,7 @@ def compile_envelope(envelope_raw: Any, profile_raw: Any) -> dict[str, Any]:
         operation = command["operation"]
         arguments = command["arguments"]
         state = deepcopy(neutral)
+        start = cursor
         if operation == "controller.button":
             hand = arguments["hand"]
             duration = int(arguments.get("holdMilliseconds", 120))
@@ -309,15 +322,35 @@ def compile_envelope(envelope_raw: Any, profile_raw: Any) -> dict[str, Any]:
             duration = round(float(arguments["durationSeconds"]) * 1000)
             action = profile["controls"]["thumbsticks"]["left"]
             strength = float(arguments.get("strength", 0.8))
-            runtime_y = strength if arguments["direction"] == "forward" else -strength
-            state["vector2f"][action] = [0.0, runtime_y]
+            direction = arguments["direction"]
+            runtime_x = (strength if direction == "right" else
+                         -strength if direction == "left" else 0.0)
+            runtime_y = (strength if direction == "forward" else
+                         -strength if direction == "backward" else 0.0)
+            state["vector2f"][action] = [runtime_x, runtime_y]
             required.add("xrGetActionStateVector2f")
+        elif operation == "input.jump":
+            duration = JUMP_HOLD_MS
+            action = profile["controls"]["buttons"]["right.secondary"]
+            state["boolean"][action] = True
+            required.add("xrGetActionStateBoolean")
+        elif operation == "input.fly":
+            # Pico enters flight through a jump followed by a held second
+            # press. Keep both physical phases in one native event schedule so
+            # WLAN-ADB latency cannot stretch the double-press gap.
+            duration = round(float(arguments["durationSeconds"]) * 1000)
+            action = profile["controls"]["buttons"]["right.secondary"]
+            state["boolean"][action] = True
+            required.add("xrGetActionStateBoolean")
+            events.append({"atMs": start, "state": deepcopy(state)})
+            events.append({"atMs": start + FLY_ARM_HOLD_MS,
+                           "state": deepcopy(neutral)})
+            start += FLY_ARM_HOLD_MS + INTER_COMMAND_GAP_MS
         else:
             duration = int(arguments.get("holdMilliseconds", 120))
             action = profile["controls"]["buttons"]["left.secondary"]
             state["boolean"][action] = True
             required.add("xrGetActionStateBoolean")
-        start = cursor
         release = start + duration
         events.append({"atMs": start, "state": state})
         events.append({"atMs": release, "state": deepcopy(neutral)})
@@ -327,6 +360,12 @@ def compile_envelope(envelope_raw: Any, profile_raw: Any) -> dict[str, Any]:
         elif operation == "input.move":
             input_domain = "controller-action"
             verification = "probe.avatar.position"
+        elif operation == "input.jump":
+            input_domain = "controller-action"
+            verification = "probe.avatar.inAir"
+        elif operation == "input.fly":
+            input_domain = "controller-action"
+            verification = "probe.avatar.flying"
         elif operation in {"tablet.open", "tablet.close"}:
             input_domain = "controller-action"
             verification = "probe.tablet.open"

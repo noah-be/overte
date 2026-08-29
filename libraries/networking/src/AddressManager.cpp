@@ -941,7 +941,14 @@ void AddressManager::refreshPreviousLookup() {
     if (!_previousAPILookup.isEmpty()) {
         handleUrl(_previousAPILookup, LookupTrigger::AttemptedRefresh);
     } else {
-        handleUrl(currentAddress(), LookupTrigger::AttemptedRefresh);
+        const QUrl address = currentAddress();
+        // The DomainHandler retry timer exists to recover an online domain or
+        // Directory Services lookup. Replaying a serverless file/HTTP URL
+        // reapplies its location query every 2.5 seconds and teleports a
+        // moving avatar back to the scene spawn.
+        if (address.scheme() == URL_SCHEME_OVERTE) {
+            handleUrl(address, LookupTrigger::AttemptedRefresh);
+        }
     }
 }
 
