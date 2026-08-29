@@ -58,8 +58,12 @@ class CoreSequenceTest(unittest.TestCase):
         self.assertNotIn("MyAvatar.goToLocation", probe)
         self.assertNotIn("MyAvatar.position =", probe)
         self.assertNotIn("MyAvatar.velocity =", probe)
-        self.assertIn("Window.location = scenePath", probe)
-        self.assertIn('&& String(location.protocol) !== "file"', probe)
+        self.assertNotIn("applySceneLocation", probe)
+        self.assertNotIn("controlledSceneLocation", probe)
+        self.assertNotIn("Window.location = scenePath", probe)
+        scene_load = probe.split('command.action === "scene-load"', 1)[1].split(
+            'command.action === "navigate"', 1)[0]
+        self.assertEqual(1, scene_load.count("Window.location = command.url"))
         self.assertIn("spawnLocationObserved: avatarAtSpawn", probe)
         self.assertIn("return Boolean(tablet.tabletShown || HMD.showTablet)", probe)
         self.assertIn('(name === "tablet" || !controlledTabletOpen())', probe)

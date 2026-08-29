@@ -104,7 +104,9 @@ class OpenXrInputProtocolTests(unittest.TestCase):
             event["state"]["vector2f"]["left_thumbstick"]
             for event in compiled["events"]
             if event["state"]["vector2f"]["left_thumbstick"] != [0.0, 0.0]))
-        self.assertEqual({"application.dominantHand": "right"},
+        self.assertEqual({"application.advancedMovement": True,
+                          "application.dominantHand": "right",
+                          "application.strafeEnabled": True},
                          compiled["results"][1]["precondition"])
         quaternion = next(
             event["state"]["viewOffset"]["orientation"]
@@ -213,11 +215,14 @@ class OpenXrInputProtocolTests(unittest.TestCase):
             with self.subTest(command=command):
                 with self.assertRaises(ContractError):
                     validate_envelope(self.envelope([command]))
-        with self.assertRaisesRegex(ContractError, "does not support"):
-            self.compile([{
-                "id": "strafe-left", "operation": "input.move",
-                "arguments": {"direction": "left", "durationSeconds": 0.5},
-            }])
+        strafe = self.compile([{
+            "id": "strafe-left", "operation": "input.move",
+            "arguments": {"direction": "left", "durationSeconds": 0.5},
+        }])
+        active = next(event["state"]["vector2f"]["left_thumbstick"]
+                      for event in strafe["events"]
+                      if event["state"]["vector2f"]["left_thumbstick"] != [0.0, 0.0])
+        self.assertEqual([-0.8, 0.0], active)
 
     def test_schema_files_are_parseable_and_cli_requires_explicit_opt_in(self) -> None:
         for path in sorted((OPENXR_ROOT / "schemas").glob("*.json")):

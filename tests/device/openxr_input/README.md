@@ -1,10 +1,12 @@
 # OpenXR E2E input contract and device-free prototype
 
 This directory defines a target-neutral command contract for the E2E operations
-`input.look`, `input.move`, `tablet.open`, and `tablet.close`. It also contains a
-pure-Python compiler and consumer state machine. The prototype is device-free:
-it does **not** install an API layer, open ADB, control a headset, or advertise an
-adapter capability.
+`input.look`, `input.move`, `tablet.open`, and `tablet.close`. Its Pico-specific
+controller compiler also binds the shared `input.jump` and `input.fly`
+operations without defining their platform-neutral catalog/module contract.
+It also contains a pure-Python compiler and consumer state machine. The
+prototype is device-free: it does **not** install an API layer, open ADB,
+control a headset, or advertise an adapter capability.
 
 The recommended runtime implementation is an **explicit, app-packaged OpenXR
 API layer in an E2E-only debug APK**. OpenXR API layers are the standardized
@@ -32,6 +34,8 @@ They share activation, sequencing, and watchdog transport only.
 | --- | --- | --- |
 | `input.look` | additive VIEW-reference-space orientation offset | `view.orientation` changes |
 | `input.move` | bounded `XrActionStateVector2f` overlay | `avatar.position` changes |
+| `input.jump` | bounded right-secondary boolean pulse | avatar rises and returns to the floor |
+| `input.fly` | atomic right-secondary takeoff pulse plus bounded second hold | avatar enters flight and gains altitude |
 | `tablet.open` / `tablet.close` | bounded boolean action pulse after a probe precondition | `tablet.open` reaches the requested state |
 
 Overte's Pico OpenXR plugin already creates actions named `left_thumbstick` and
@@ -42,11 +46,10 @@ are Overte implementation details and therefore live in
 [`profiles/pico4-overte.json`](profiles/pico4-overte.json), not in the common
 command envelope.
 
-The current Pico profile permits forward/backward movement only and requires
-right-hand dominance. In Overte's standard mapping, lateral stick input can be
-yaw or strafe depending on application movement settings. Claiming left/right
-movement without fixing and verifying those settings would be nondeterministic,
-so the profile rejects it.
+The Pico profile requires right-hand dominance and advanced movement with
+strafing. The debug-only Pico runtime override supplies those deterministic
+preconditions without changing the user's stored movement preferences, so all
+four common movement directions use the left OpenXR thumbstick.
 
 ## Contracts
 
@@ -134,8 +137,8 @@ The compiled stream names the minimum intercept set:
 - `xrCreateReferenceSpace` records VIEW and stage/local handles;
 - `xrSyncActions` advances one immutable test snapshot;
 - `xrGetActionStateVector2f` overlays only the known locomotion action;
-- `xrGetActionStateBoolean` overlays only the known tablet-toggle action and
-  maintains `changedSinceLastSync` correctly;
+- `xrGetActionStateBoolean` overlays only the known tablet-toggle and vertical
+  locomotion actions and maintains `changedSinceLastSync` correctly;
 - `xrLocateSpace` and `xrLocateViews` compose the same additive HMD/head
   orientation offset, so Overtes head pose and rendered views agree. No
   controller action state is changed for `input.look`.
@@ -173,11 +176,12 @@ device side effects.
 
 ## Capability gate and remaining hardware work
 
-The Android Pico adapter omits `input.look`, `input.move`, `tablet.open`, and
-`tablet.close` by default. It advertises them only when a qualified lab sets the
-explicit Debug-E2E OpenXR opt-in and supplies a non-default, Pico-only ADB server
-plus a private host-state directory. That opt-in must be enabled only after all
-of the following are true for the connected test build:
+The Android Pico adapter omits `input.look`, `input.move`, `input.jump`,
+`input.fly`, `tablet.open`, and `tablet.close` by default. It advertises them
+only when a qualified lab sets the explicit Debug-E2E OpenXR opt-in and supplies
+a non-default, Pico-only ADB server plus a private host-state directory. That
+opt-in must be enabled only after all of the following are true for the
+connected test build:
 
 - the app reports the expected build marker, consumer name, binding hash, and a
   fresh accepted session nonce;

@@ -173,20 +173,38 @@ Every build follows this order:
 2. run all device-free contracts, including Conan isolation and iOS handoff;
 3. for iOS, require RemoteXPC and synchronize the protected signed producer;
 4. reserve the physical target and run `smoke`;
-5. run `e2e-core` only after smoke passes;
-6. optionally run the accessibility audit;
-7. optionally run `stability` on every profile, followed by the separately
+5. optionally run the independently reported `domain-smoke`, `asset-smoke`,
+   `sound-smoke`, and Pico `vertical-locomotion` suites;
+6. run `e2e-core` only after smoke and the selected content suites pass;
+7. optionally run the accessibility audit;
+8. optionally run `stability` on every profile, followed by the separately
    reported `lifecycle-stability` suite on Android/iOS only.
 
-Smoke is mandatory. `RUN_CORE` defaults off for the first setup run because the
+Smoke is mandatory. For the Pico 4 lab, select `android-pico-adb`, set its
+lockable resource and selector credential, then enable `RUN_DOMAIN_ENTER`,
+`RUN_ASSET_LOAD`, and `RUN_SOUND_PLAYBACK`. All three require
+`FIXTURE_PUBLIC_HOST` to be the agent's LAN address reachable from the headset.
+Domain entry additionally requires absolute trusted build paths in
+`DOMAIN_SERVER_EXECUTABLE` and `ASSIGNMENT_CLIENT_EXECUTABLE`. Asset and sound
+start the repository HTTP fixture automatically and may be used with an
+otherwise embedded Android fixture configuration.
+
+Enable `RUN_VERTICAL_LOCOMOTION` only for `android-pico-adb` after provisioning
+the debug-only OpenXR input layer and isolated ADB environment described in
+[`../openxr_input/PICO4_CONTROLLER_AUTOMATION.md`](../openxr_input/PICO4_CONTROLLER_AUTOMATION.md).
+The separately reported suite verifies one bounded jump and landing followed
+by upward flight without replacing the running application process.
+
+`RUN_CORE` defaults off for the first setup run because the
 default ADB profile truthfully lacks touch/controller input. Enable core for a
 complete Appium Android or iOS profile. Long health/lifecycle jobs
 should start only after the same physical target has already passed repeatable
-short core runs through its input-capable adapter. Telemetry is optional on iOS
-and strict when advertised; PID-preserving lifecycle transitions run on both
-Android and iOS.
-Per-suite timeouts are 10 minutes for smoke, 30 for core, 15 for accessibility,
-four hours for stability, and one hour for lifecycle stability. They start after the device lock is acquired so
+short core runs through its input-capable adapter. Telemetry is optional on
+iOS and strict when advertised; PID-preserving lifecycle transitions
+run only on Android/iOS.
+Per-suite timeouts are 10 minutes for smoke, asset, and sound; 15 minutes for
+domain and accessibility; 30 minutes for core, four hours for stability, and
+one hour for lifecycle stability. They start after the device lock is acquired so
 cleanup can run outside an expired suite timeout while the lock is still held.
 The whole build, including time spent in the resource queue, has an eight-hour
 ceiling.

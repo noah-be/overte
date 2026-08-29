@@ -34,11 +34,12 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["schemaVersion", "channel", "probe"],
+          "required": ["schemaVersion", "channel", "probe", "lastCommandId"],
           "properties": {
             "schemaVersion": {"const": 1},
             "channel": {"const": "android-debug-file-v1"},
-            "probe": {"const": "overte_e2e_probe.js"}
+            "probe": {"const": "overte_e2e_probe.js"},
+            "lastCommandId": {"type": "string"}
           }
         }
       ]
@@ -108,9 +109,10 @@
     "avatar": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["position", "velocity", "bodyYawDegrees", "inAir", "flying", "flyingEnabled"],
+      "required": ["position", "feetPosition", "velocity", "bodyYawDegrees", "inAir", "flying", "flyingEnabled"],
       "properties": {
         "position": {"$ref": "#/$defs/vector3"},
+        "feetPosition": {"$ref": "#/$defs/vector3"},
         "velocity": {"$ref": "#/$defs/vector3"},
         "bodyYawDegrees": {"type": "number"},
         "inAir": {"type": "boolean"},

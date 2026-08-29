@@ -7,7 +7,7 @@ operations per target. The initial behavior contract is deliberately small:
 
 1. start Overte once;
 2. load a controlled local scene;
-3. observe a valid spawn above the ground;
+3. observe a valid grounded spawn with the canonical avatar feet on the floor;
 4. perform signed look input in every direction;
 5. perform body-relative movement in every direction and reject stuck input;
 6. collide with the controlled wall, jump and fly;
@@ -74,8 +74,9 @@ resource.
   Android fixture the adapter declares marker verification. In both cases all
   four fixture markers exist and the nearby entity count is stable for
   consecutive probe samples.
-- Spawn: the avatar position is finite and above the fixture ground within the
-  declared tolerance.
+- Spawn: the canonical avatar feet position is finite and on the fixture floor
+  within the declared tolerance, the body position is above the floor, and both
+  `inAir=false` and `flying=false`.
 - Look: each signed camera-orientation delta crosses a configurable minimum in
   the requested left, right, up, or down direction.
 - Move: the avatar baseline is neutral before input, then displacement crosses

@@ -55,8 +55,8 @@ def validate_domain_fixture() -> dict:
     if (not isinstance(spawn, dict) or set(spawn) != {"x", "y", "z"}
             or not all(isinstance(spawn[axis], (int, float)) and not isinstance(spawn[axis], bool)
                        for axis in ("x", "y", "z"))
-            or spawn["y"] < 2.0):
-        raise ValueError("domain fixture spawn must be safely above the floor")
+            or abs(float(spawn["y"])) > 1e-6):
+        raise ValueError("domain fixture spawn must put the avatar's feet on the y=0 floor")
     expected_path = f"/{spawn['x']},{spawn['y']},{spawn['z']}/0,0,0,1"
     if manifest.get("spawnPath") != expected_path:
         raise ValueError("domain fixture spawn path and position disagree")

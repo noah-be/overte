@@ -108,14 +108,23 @@ class AndroidAdapter:
         values = ["app.foreground", "app.launch", "app.process",
                   "lifecycle.background", "telemetry.snapshot"]
         if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") == "1":
-            values += ["probe.snapshot", "scene.load"]
-            if target is not None and self.controlled_debug_identity(target) is not None:
-                values += ["asset.load", "navigation.enter-domain", "sound.play"]
+            # Discovery happens once, before the suite's launch-smoke module
+            # starts the fixed E2E Activity.  Advertise the configured debug
+            # build's operations here; every invocation still requires the
+            # live control marker, a fresh probe, and an unchanged process
+            # identity through require_controlled_debug_identity().
+            values += [
+                "asset.load", "navigation.enter-domain", "probe.snapshot",
+                "scene.load", "sound.play",
+            ]
         if self.kind == "pico" and os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
             # An explicit opt-in with incomplete isolation is a configuration
             # error, not a silent capability downgrade.
             validate_pico_openxr_configuration()
-            values += ["input.look", "input.move", "tablet.close", "tablet.open"]
+            values += [
+                "input.fly", "input.jump", "input.look", "input.move",
+                "tablet.close", "tablet.open",
+            ]
         return sorted(values)
 
     @staticmethod
@@ -135,26 +144,32 @@ class AndroidAdapter:
         identity = before.get("identity")
         if before.get("running") is not True or not isinstance(identity, str) or not identity:
             return None
-        marker = self.decode_json(self.adb.read_debug_app_file(
-            target, package, ANDROID_CONTROL_MARKER, attempts=1))
-        if marker != ANDROID_CONTROL_CONTRACT:
-            return None
-        probe = self.decode_json(self.adb.read_debug_app_file(
-            target, package, ANDROID_DEBUG_PROBE, attempts=1))
-        if probe is None:
-            return None
-        try:
-            probe = require_fresh_snapshot(probe)
-        except RuntimeError:
-            return None
-        control = probe.get("control")
-        if (control != ANDROID_CONTROL_CONTRACT
-                or probe.get("application", {}).get("running") is not True):
-            return None
-        after = self.adb.process_state(target, package)
-        if after.get("running") is not True or after.get("identity") != identity:
-            return None
-        return identity
+        attempts, interval = self.probe_retry_policy()
+        for attempt in range(attempts):
+            marker = self.decode_json(self.adb.read_debug_app_file(
+                target, package, ANDROID_CONTROL_MARKER, attempts=1))
+            probe = None
+            if marker == ANDROID_CONTROL_CONTRACT:
+                probe = self.decode_json(self.adb.read_debug_app_file(
+                    target, package, ANDROID_DEBUG_PROBE, attempts=1))
+                if probe is not None:
+                    try:
+                        probe = require_fresh_snapshot(
+                            probe, self.probe_maximum_age_seconds())
+                    except RuntimeError:
+                        probe = None
+            after = self.adb.process_state(target, package)
+            if after.get("running") is not True or after.get("identity") != identity:
+                return None
+            control = probe.get("control", {}) if probe is not None else {}
+            if (marker == ANDROID_CONTROL_CONTRACT and probe is not None
+                    and all(control.get(key) == value
+                            for key, value in ANDROID_CONTROL_CONTRACT.items())
+                    and probe.get("application", {}).get("running") is True):
+                return identity
+            if attempt + 1 < attempts:
+                time.sleep(interval)
+        return None
 
     def require_controlled_debug_identity(self, target: str) -> str:
         if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") != "1":
@@ -172,12 +187,52 @@ class AndroidAdapter:
         if state.get("running") is not True or state.get("identity") != identity:
             fail(f"Android process changed during {operation}")
 
+    def background_app(self, target: str) -> None:
+        package = self.profile["package"]
+        if self.kind != "pico":
+            self.adb.shell(target, "input", "keyevent", "KEYCODE_HOME")
+            return
+        state = self.adb.process_state(target, package)
+        identity = state.get("identity")
+        if (state.get("running") is not True or not isinstance(identity, str)
+                or not identity):
+            fail("Pico E2E launcher process is not running")
+        # Pico Home consumes the first HOME event after some programmatic VR
+        # foreground transitions without changing the resumed activity. Do not
+        # report success for an ignored event: retry only until the bounded,
+        # process-preserving background transition is actually observed.
+        for _attempt in range(3):
+            self.adb.shell(target, "input", "keyevent", "KEYCODE_HOME")
+            deadline = time.monotonic() + 1.5
+            while time.monotonic() < deadline:
+                self.require_same_process(target, identity, "lifecycle background")
+                if self.adb.foreground_package(target) != package:
+                    self.require_same_process(target, identity, "lifecycle background")
+                    return
+                time.sleep(0.25)
+        fail("Pico application did not enter the background")
+
     def write_control_command(self, target: str, identity: str,
                               operation: str, command: dict) -> None:
         payload = json.dumps(command, separators=(",", ":"), sort_keys=True) + "\n"
         self.adb.write_debug_app_file(
             target, self.profile["package"], ANDROID_CONTROL_COMMAND, payload)
         self.require_same_process(target, identity, operation)
+
+    def wait_for_control_command(self, target: str, identity: str,
+                                 operation: str, command_id: str) -> None:
+        attempts, interval = self.probe_retry_policy()
+        package = self.profile["package"]
+        for attempt in range(attempts):
+            snapshot = self.decode_json(self.adb.read_debug_app_file(
+                target, package, ANDROID_DEBUG_PROBE, attempts=1))
+            control = snapshot.get("control", {}) if snapshot is not None else {}
+            self.require_same_process(target, identity, operation)
+            if control.get("lastCommandId") == command_id:
+                return
+            if attempt + 1 < attempts:
+                time.sleep(interval)
+        fail(f"Android controlled {operation} was not acknowledged")
 
     @staticmethod
     def post_sound_command(command_url: str, command: dict) -> None:
@@ -214,13 +269,36 @@ class AndroidAdapter:
             time.sleep(0.25)
         fail("Android E2E launcher process did not start")
 
+    def wait_for_process_stopped(self, target: str,
+                                 timeout_seconds: float = 30.0) -> None:
+        package = self.profile["package"]
+        deadline = time.monotonic() + timeout_seconds
+        stable_absent_samples = 0
+        while time.monotonic() < deadline:
+            pid = self.adb.shell(
+                target, "pidof", "-s", package, check=False).strip()
+            if not pid.isdigit():
+                stable_absent_samples += 1
+                if stable_absent_samples >= 4:
+                    return
+            else:
+                stable_absent_samples = 0
+            time.sleep(0.25)
+        fail("Android E2E launcher process did not stop")
+
     def launch_debug_app(self, target: str) -> str | None:
         package = self.profile["package"]
         running = self.adb.process_state(target, package)["running"] is True
         isolated_pico = self.kind == "pico" and pico_openxr_opted_in()
         if isolated_pico:
             if running:
-                fail("Pico E2E launcher must be stopped before its single launch")
+                # Pico Home can recreate the most recently launched VR
+                # activity after the preceding suite has already confirmed
+                # force-stop. No controlled identity is bound at this point,
+                # so establish the new suite boundary by stopping that orphan
+                # before creating exactly one fresh launcher process.
+                self.adb.shell(target, "am", "force-stop", package)
+                self.wait_for_process_stopped(target)
             session = self.pico_input_session(target)
             session.cleanup(False)
             session.discard_local_state()
@@ -256,6 +334,17 @@ class AndroidAdapter:
             fail("OVERTE_ANDROID_E2E_PROBE_POLL_SECONDS must be from 0.01 through 1.0")
         return int(attempts_raw), interval
 
+    def probe_maximum_age_seconds(self) -> float:
+        default = "15" if self.kind == "pico" and pico_openxr_opted_in() else "5"
+        raw = os.environ.get("OVERTE_ANDROID_E2E_PROBE_MAX_AGE_SECONDS", default)
+        try:
+            maximum_age = float(raw)
+        except ValueError:
+            fail("OVERTE_ANDROID_E2E_PROBE_MAX_AGE_SECONDS must be numeric")
+        if not 1.0 <= maximum_age <= 30.0:
+            fail("OVERTE_ANDROID_E2E_PROBE_MAX_AGE_SECONDS must be from 1 through 30")
+        return maximum_age
+
     def read_probe_snapshot(self, target: str, package: str,
                             after_sequence: int | None) -> dict:
         attempts, interval = self.probe_retry_policy()
@@ -263,7 +352,8 @@ class AndroidAdapter:
             raw = self.adb.read_debug_app_file(
                 target, package, ANDROID_DEBUG_PROBE, attempts=1)
             try:
-                snapshot = require_fresh_snapshot(json.loads(raw))
+                snapshot = require_fresh_snapshot(
+                    json.loads(raw), self.probe_maximum_age_seconds())
             except (json.JSONDecodeError, RuntimeError):
                 snapshot = None
             if snapshot is not None:
@@ -293,8 +383,35 @@ class AndroidAdapter:
             })
         return targets
 
+    def selected_target(self, requested: str | None, action: str) -> str:
+        if requested:
+            return requested
+        if self.kind != "pico":
+            fail(f"{action} requires --target")
+        targets = self.discover()
+        if len(targets) != 1:
+            fail(
+                f"Pico {action} requires exactly one eligible target "
+                "on the isolated ADB server")
+        selector = targets[0].get("selector")
+        if not isinstance(selector, str) or not selector:
+            fail(f"Pico {action} discovery returned an invalid target")
+        return selector
+
+    def cleanup_target(self, requested: str | None) -> str:
+        return self.selected_target(requested, "cleanup")
+
+    def require_connected(self, target: str) -> None:
+        # A Pico connected through the isolated WLAN-ADB server can briefly
+        # disappear while Pico Home resumes after the preceding suite. Wait
+        # only at explicit lifecycle boundaries; USB phone targets retain the
+        # transport's single-attempt behavior.
+        attempts = 60 if self.kind == "pico" else 1
+        self.adb.require_connected(
+            target, attempts=attempts, interval_seconds=0.25)
+
     def require(self, target: str) -> None:
-        self.adb.require_connected(target)
+        self.require_connected(target)
         if not self.eligible(target):
             fail("target does not satisfy this Android adapter profile")
 
@@ -309,7 +426,18 @@ class AndroidAdapter:
         }
 
     def invoke(self, target: str, operation: str, values: dict) -> dict:
-        self.require(target)
+        pico_probe_identity = None
+        if (self.kind == "pico" and pico_openxr_opted_in()
+                and operation == "probe.snapshot"):
+            # The private session is keyed by the exact selector and bound to
+            # the one launcher process. Input/content operations verify that
+            # live identity immediately around their action; repeating PID and
+            # hardware queries before every read can skip an entire transient
+            # jump over WLAN-ADB. Keep polling to one explicit-target file read.
+            pico_probe_identity = self.pico_input_session(
+                target).bound_process_identity()
+        else:
+            self.require(target)
         package = self.profile["package"]
         if operation in {"navigation.enter-domain", "asset.load", "sound.play"}:
             try:
@@ -361,12 +489,20 @@ class AndroidAdapter:
         if operation == "app.launch":
             if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") == "1":
                 # The controlled-suite bootstrap has already started and
-                # confirmed this exact Phone process before runner discovery.
+                # confirmed this exact Android process before runner discovery.
                 # Preserve it when launch-smoke invokes app.launch again so
                 # the following controlled module keeps the same identity.
-                if (self.kind != "phone"
-                        or self.controlled_debug_identity(target) is None):
+                identity = self.controlled_debug_identity(target)
+                if identity is None:
                     self.launch_debug_app(target)
+                elif self.kind == "pico" and pico_openxr_opted_in():
+                    if self.require_pico_session_identity(target) != identity:
+                        fail("Android controlled launch process identity changed")
+                if self.adb.foreground_package(target) != package:
+                    self.adb.shell(target, "am", "start", "-W", "-n",
+                                   f"{package}/.E2eLauncherActivity")
+                    self.require_same_process(
+                        target, identity, "controlled foreground activation")
             else:
                 self.adb.shell(target, "am", "start", "-W", "-n", self.profile["activity"])
             return {"launched": True}
@@ -384,7 +520,7 @@ class AndroidAdapter:
                 self.require_pico_session_identity(target)
             return {"foreground": self.adb.foreground_package(target) == package}
         if operation == "lifecycle.background":
-            self.adb.shell(target, "input", "keyevent", "KEYCODE_HOME")
+            self.background_app(target)
             return {"backgrounded": True}
         if operation == "telemetry.snapshot":
             return self.adb.telemetry_snapshot(target, package)
@@ -394,15 +530,21 @@ class AndroidAdapter:
                 fail("Android debug scene.load accepts only the embedded fixture URL")
             if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") != "1":
                 fail("scene.load requires an E2E-enabled debug APK")
-            if self.kind == "pico" and pico_openxr_opted_in():
-                self.require_pico_session_identity(target)
-            else:
-                self.launch_debug_app(target)
+            identity = self.require_controlled_debug_identity(target)
+            command_id = f"android-scene-reload-{uuid.uuid4().hex}"
+            self.write_control_command(target, identity, operation, {
+                "schemaVersion": 1,
+                "commandId": command_id,
+                "action": "reload-scene",
+            })
+            self.wait_for_control_command(
+                target, identity, operation, command_id)
             return {"requested": True, "verification": "fixture-markers"}
         if operation == "probe.snapshot":
             if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") != "1":
                 fail("probe.snapshot requires an E2E-enabled debug APK")
-            if self.kind == "pico" and pico_openxr_opted_in():
+            if (self.kind == "pico" and pico_openxr_opted_in()
+                    and pico_probe_identity is None):
                 self.require_pico_session_identity(target)
             unexpected = set(values) - {"afterSampleSequence"}
             if unexpected:
@@ -413,23 +555,27 @@ class AndroidAdapter:
                     or after_sequence < 0)):
                 fail("afterSampleSequence must be a non-negative integer")
             return self.read_probe_snapshot(target, package, after_sequence)
-        if operation in {"input.look", "input.move", "tablet.open", "tablet.close"}:
+        if operation in {
+                "input.fly", "input.jump", "input.look", "input.move",
+                "tablet.open", "tablet.close"}:
             identity = self.require_pico_session_identity(target)
             staged_values = dict(values)
             if operation == "input.look":
                 # Keep the target-owned OpenXR override observable across slow
                 # physical headset sampling without expanding the common API.
-                staged_values.setdefault("durationSeconds", 6.0)
+                staged_values.setdefault("durationSeconds", 20.0)
             elif operation == "input.move":
                 staged_values.setdefault("strength", 0.4)
-            else:
+            elif operation == "input.fly":
+                staged_values.setdefault("durationSeconds", 6.0)
+            elif operation in {"tablet.open", "tablet.close"}:
                 staged_values.setdefault("holdMilliseconds", 1000)
             return self.pico_input_session(target).stage(
                 identity, operation, staged_values)
         fail(f"unsupported operation: {operation}")
 
     def cleanup(self, target: str) -> dict:
-        self.adb.require_connected(target)
+        self.require_connected(target)
         package = self.profile["package"]
         running = self.adb.process_state(target, package)["running"] is True
         cleanup_error = None
@@ -440,8 +586,12 @@ class AndroidAdapter:
                 session.cleanup(running)
             except RuntimeError as error:
                 cleanup_error = error
-        if running:
-            self.adb.shell(target, "am", "force-stop", package, check=False)
+        # Cleanup is an idempotent lifecycle boundary between suites.  Always
+        # issue and confirm force-stop: a transient empty process probe must
+        # never allow the preceding suite's process to survive into the next
+        # single-launch Pico session.
+        self.adb.shell(target, "am", "force-stop", package)
+        self.wait_for_process_stopped(target)
         if session is not None:
             session.discard_local_state()
         if cleanup_error is not None:
@@ -455,16 +605,16 @@ def main() -> int:
     if args.action == "discover":
         emit(adapter.discover())
         return 0
-    if not args.target:
-        fail(f"{args.action} requires --target")
+    if args.action == "cleanup":
+        emit(adapter.cleanup(adapter.cleanup_target(args.target)))
+        return 0
+    target = adapter.selected_target(args.target, args.action)
     if args.action == "describe":
-        emit(adapter.describe(args.target))
-    elif args.action == "cleanup":
-        emit(adapter.cleanup(args.target))
+        emit(adapter.describe(target))
     else:
         if not args.operation:
             fail("invoke requires --operation")
-        emit(adapter.invoke(args.target, args.operation,
+        emit(adapter.invoke(target, args.operation,
                             parse_operation_arguments(args.arguments)))
     return 0
 
