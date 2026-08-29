@@ -32,9 +32,19 @@ def main() -> None:
     application = (
         ROOT / "interface/src/Application_Graphics.cpp"
     ).read_text(encoding="utf-8")
+    tablet_proxy_header = (
+        ROOT / "libraries/ui/src/ui/TabletScriptingInterface.h"
+    ).read_text(encoding="utf-8")
+    tablet_proxy_source = (
+        ROOT / "libraries/ui/src/ui/TabletScriptingInterface.cpp"
+    ).read_text(encoding="utf-8")
+    window_root = (
+        ROOT / "interface/resources/qml/hifi/tablet/WindowRoot.qml"
+    ).read_text(encoding="utf-8")
 
     assert action_bar.count('objectName: "OverteTabletOpen"') == 1
     assert tablet_home.count('objectName: "OverteTabletClose"') == 1
+    assert tablet_home.count('property string semanticId: "nav.close"') == 1
     assert "tabletButton = addButton(navigationBar" in action_bar
     assert "onClicked: tabletProxy.hideAndroidTablet()" in tablet_home
     assert "Accessible.role: Accessible.Button" in button_qml
@@ -59,6 +69,23 @@ def main() -> None:
     assert "overlay.accessibilityElements = @[];" in native_bridge
     assert "button.frame = controlFrame;" in native_bridge
     assert "button.activationHandler = activationHandler;" in native_bridge
+    assert "OverteTabletScreen.%s" in native_bridge
+    assert "OverteTabletReady.%s" in native_bridge
+    assert "OverteTabletControl.%s" in native_bridge
+    assert "tabletE2EAccessibilityButtons" in native_bridge
+    assert "QAccessibleActionInterface::pressAction()" in native_bridge
+    assert "visibleTabletItem" in native_bridge
+    assert "tabletItemFrame" in native_bridge
+    assert 'item->property("semanticId").toString()' in native_bridge
+    assert "getIOSTabletRoot" in tablet_proxy_header
+    assert "QQuickItem* TabletProxy::getIOSTabletRoot() const" in tablet_proxy_source
+    assert "OVERTE_IOS_E2E_TEST_BUILD" in application
+    assert "tabletAccessibilityRefresh->setInterval(100)" in application
+    for semantic_navigation_id in ("nav.back", "nav.home", "nav.close"):
+        assert f'objectName: "{semantic_navigation_id}"' in window_root
+    assert "returnToPreviousSemanticScreen" in window_root
+    assert "tabletProxy.gotoHomeScreen()" in window_root
+    assert "tabletProxy.hideAndroidTablet()" in window_root
     assert "#else\n    OverteIOSAccessibilityElement* element" in native_bridge
     assert native_bridge.count("UIAccessibilityPostNotification(") == 2
     assert re.search(

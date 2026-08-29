@@ -13,6 +13,7 @@
 import "../../windows" as Windows
 import QtQuick 2.0
 import Hifi 1.0
+import TabletScriptingInterface 1.0
 
 import Qt.labs.settings 1.0
 import controlsUit 1.0 as HifiControls
@@ -25,6 +26,8 @@ Windows.ScrollingWindow {
 
     property var rootMenu;
     property string subMenu: ""
+    property var tabletProxy: Tablet.getTablet("com.highfidelity.interface.tablet.system")
+    property var semanticSourceHistory: []
     HifiControls.TouchUiProfile { id: touchUiProfile }
     property bool screenSpaceMode: false
     property real screenSpaceContentScale: touchUiProfile.screenSpaceContentScale
@@ -126,7 +129,22 @@ Windows.ScrollingWindow {
     }
 
     function loadSource(url) {
-        loader.load(url) 
+        if (url === "hifi/tablet/TabletHome.qml") {
+            semanticSourceHistory = []
+        } else if (loader.source !== "" && loader.source !== url) {
+            semanticSourceHistory = semanticSourceHistory.concat([loader.source])
+        }
+        loader.load(url)
+    }
+
+    function returnToPreviousSemanticScreen() {
+        if (semanticSourceHistory.length === 0) {
+            tabletProxy.gotoHomeScreen()
+            return
+        }
+        var previous = semanticSourceHistory[semanticSourceHistory.length - 1]
+        semanticSourceHistory = semanticSourceHistory.slice(0, -1)
+        loader.load(previous)
     }
 
     function loadWebContent(source, url, injectJavaScriptUrl) {
@@ -165,6 +183,120 @@ Windows.ScrollingWindow {
         id: buttonClickSound
         volume: 0.1
         source: "../../../sounds/Gamemaster-Audio-button-click.wav"
+    }
+
+    readonly property string semanticScreenId: {
+        if (!loader.item) {
+            return ""
+        }
+        if (loader.item.hasOwnProperty("semanticScreenId")) {
+            return loader.item.semanticScreenId
+        }
+        return loader.item.objectName || ""
+    }
+    readonly property bool semanticSettingsScreen:
+        semanticScreenId.indexOf("settings.") === 0
+    readonly property bool semanticBackUsesSettingsHeader:
+        loader.source.indexOf("scripts/system/settings/Settings.qml") !== -1
+
+    // Flat-touch iOS keeps navigation visible on every Settings screen. These
+    // are production controls; the E2E-only native bridge merely projects the
+    // same frames and Accessible press actions into XCUITest.
+    Row {
+        id: semanticNavigation
+        z: 100000
+        visible: Qt.platform.os === "ios" && tabletRoot.screenSpaceMode
+            && tabletRoot.semanticSettingsScreen
+        spacing: 12
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 8
+        height: 56
+        property real buttonWidth: Math.max(80, Math.min(112,
+            (tabletRoot.width - 2 * spacing - 16) / 3))
+
+        Rectangle {
+            id: semanticBack
+            objectName: "nav.back"
+            visible: tabletRoot.semanticScreenId !== "settings.home"
+                && !tabletRoot.semanticBackUsesSettingsHeader
+            width: visible ? semanticNavigation.buttonWidth : 0
+            height: parent.height
+            radius: 8
+            color: backMouse.pressed ? "#161616" : "#2b2b2b"
+            border.color: "#75ead5"
+            Accessible.id: objectName
+            Accessible.role: Accessible.Button
+            Accessible.name: qsTr("Back")
+            Accessible.onPressAction: activate()
+            function activate() { tabletRoot.returnToPreviousSemanticScreen() }
+            Text {
+                anchors.centerIn: parent
+                text: qsTr("BACK")
+                color: "white"
+                font.bold: true
+            }
+            MouseArea {
+                id: backMouse
+                anchors.fill: parent
+                Accessible.ignored: true
+                onClicked: semanticBack.activate()
+            }
+        }
+
+        Rectangle {
+            id: semanticHome
+            objectName: "nav.home"
+            width: semanticNavigation.buttonWidth
+            height: parent.height
+            radius: 8
+            color: homeMouse.pressed ? "#161616" : "#2b2b2b"
+            border.color: "#75ead5"
+            Accessible.id: objectName
+            Accessible.role: Accessible.Button
+            Accessible.name: qsTr("Tablet home")
+            Accessible.onPressAction: activate()
+            function activate() { tabletProxy.gotoHomeScreen() }
+            Text {
+                anchors.centerIn: parent
+                text: qsTr("HOME")
+                color: "white"
+                font.bold: true
+            }
+            MouseArea {
+                id: homeMouse
+                anchors.fill: parent
+                Accessible.ignored: true
+                onClicked: semanticHome.activate()
+            }
+        }
+
+        Rectangle {
+            id: semanticClose
+            objectName: "nav.close"
+            width: semanticNavigation.buttonWidth
+            height: parent.height
+            radius: 8
+            color: closeMouse.pressed ? "#169c86" : "#1fc6a6"
+            border.color: "#75ead5"
+            Accessible.id: objectName
+            Accessible.role: Accessible.Button
+            Accessible.name: qsTr("Close tablet")
+            Accessible.onPressAction: activate()
+            function activate() { tabletProxy.hideAndroidTablet() }
+            Text {
+                anchors.centerIn: parent
+                text: qsTr("CLOSE")
+                color: "#10252d"
+                font.bold: true
+            }
+            MouseArea {
+                id: closeMouse
+                anchors.fill: parent
+                Accessible.ignored: true
+                onClicked: semanticClose.activate()
+            }
+        }
     }
 
     function playButtonClickSound() {

@@ -437,7 +437,7 @@ Item {
 
             MouseArea {
                 id: closeTabletMouseArea
-                objectName: "nav.close"
+                property string semanticId: "nav.close"
                 anchors.fill: parent
                 objectName: "OverteTabletClose"
                 activeFocusOnTab: visible

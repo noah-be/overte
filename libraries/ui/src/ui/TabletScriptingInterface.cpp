@@ -1183,6 +1183,15 @@ OffscreenQmlSurface* TabletProxy::getTabletSurface() {
     return _qmlOffscreenSurface;
 }
 
+#if defined(Q_OS_IOS)
+QQuickItem* TabletProxy::getIOSTabletRoot() const {
+    if (_toolbarMode && _desktopWindow) {
+        return _desktopWindow->asQuickItem();
+    }
+    return _qmlTabletRoot;
+}
+#endif
+
 
 void TabletProxy::desktopWindowClosed() {
     gotoHomeScreen();

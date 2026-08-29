@@ -5,7 +5,9 @@ one of three explicit handoffs: observed Personal Team installations (the
 primary path), retained and verified Personal Team signed IPAs, or an optional
 protected-producer run. It
 serves the repository fixture on a fixed device-reachable LAN origin, and runs
-the shared `e2e-core` suite with `--require-complete`. It never publishes a
+the shared `e2e-core` and iOS `tablet-e2e` suites with `--require-complete`.
+The tablet suite always uses the checked-in `ios.flat-touch` product policy.
+It never publishes a
 UDID, platform version, target selector, receipt, target configuration, IPA,
 provisioning profile, raw accessibility tree, or Appium server log.
 
@@ -104,11 +106,12 @@ The traceable stages are:
 3. for the primary path, installed-app observation and weak receipt creation
    under the device lock;
 4. two stable privacy-safe thermal-headroom samples, the pinned Personalized
-   DDI/XCTest gate, then the required `e2e-core` baseline under one
-   uninterrupted locked Appium session;
-5. optional accessibility audit after the baseline;
-6. opt-in soaks;
-7. target/session cleanup while still locked, private IPA/config deletion, and
+    DDI/XCTest gate, then the required `e2e-core` baseline under one
+    uninterrupted locked Appium session;
+5. required semantic `tablet-e2e` policy sequence in a fresh locked session;
+6. optional accessibility audit after the baseline;
+7. opt-in soaks;
+8. target/session cleanup while still locked, private IPA/config deletion, and
    selector-scanned JUnit/diagnostic publication.
 
 Per-build IPA copies/decoded IPAs, receipts, and the job-private target copy

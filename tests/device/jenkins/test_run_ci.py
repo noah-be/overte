@@ -118,6 +118,24 @@ class JenkinsGlueTest(unittest.TestCase):
                 (output / "summary.json").read_text())["status"])
             self.assertFalse((output / "fixture-ready.json").exists())
 
+    def test_tablet_suite_uses_explicit_repository_product_policy(self):
+        with tempfile.TemporaryDirectory(prefix="overte-jenkins-tablet-") as name:
+            temporary = Path(name)
+            values = self.configuration(temporary)
+            values.update({
+                "OVERTE_CI_SUITE": "tablet-e2e",
+                "OVERTE_CI_TABLET_POLICY":
+                    "tests/device/adapters/appium/ios-flat-touch-policy.json",
+                "OVERTE_MOCK_TABLET_UI_PROFILE": "flat",
+                "OVERTE_MOCK_ASSERT_POLICY_ISOLATED": "1",
+                "OVERTE_E2E_TIMEOUT_SECONDS": "1",
+            })
+            with patch.dict(os.environ, values, clear=False):
+                self.assertEqual(0, RUN_CI.run_suite())
+            summary = json.loads(
+                (Path(values["OVERTE_CI_OUTPUT_DIR"]) / "summary.json").read_text())
+            self.assertEqual("passed", summary["status"])
+
     def test_private_selector_leak_is_quarantined(self):
         with tempfile.TemporaryDirectory(prefix="overte-jenkins-secret-test-") as name:
             temporary = Path(name)

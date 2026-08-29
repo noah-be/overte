@@ -24,7 +24,10 @@ import xml.etree.ElementTree as ET
 from urllib.parse import urlsplit
 
 
-SUITES = {"smoke", "e2e-core", "accessibility", "stability", "lifecycle-stability"}
+SUITES = {
+    "smoke", "e2e-core", "accessibility", "stability", "lifecycle-stability",
+    "tablet-e2e",
+}
 IOS_ARTIFACT_SOURCES = {
     "personal-team-preinstalled", "local-personal-team", "protected-github",
 }
@@ -380,10 +383,10 @@ def run_suite() -> int:
         signal.signal(signum, forward_signal)
 
     try:
-        if suite in {"e2e-core", "accessibility"} \
+        if suite in {"e2e-core", "accessibility", "tablet-e2e"} \
                 and checked_fixture_mode() == "embedded":
             runner_environment["OVERTE_E2E_SCENE_URL"] = EMBEDDED_FIXTURE_URL
-        elif suite in {"e2e-core", "accessibility"}:
+        elif suite in {"e2e-core", "accessibility", "tablet-e2e"}:
             host = checked_public_host()
             bind = environment("OVERTE_CI_FIXTURE_BIND", required=False, default="0.0.0.0")
             port = checked_fixture_port()
@@ -402,7 +405,8 @@ def run_suite() -> int:
                 update_ios_fixture_origin(root, selector, ready.get("baseUrl"))
             runner_environment["OVERTE_E2E_SCENE_URL"] = ready["sceneUrl"]
 
-        if is_ios_appium_manifest(manifest) and suite in {"e2e-core", "accessibility"}:
+        if is_ios_appium_manifest(manifest) and suite in {
+                "e2e-core", "accessibility", "tablet-e2e"}:
             if fixture is None:
                 fail("physical iOS fixture-backed suites require the network fixture")
             prewarm_ios_appium_session(
@@ -416,6 +420,9 @@ def run_suite() -> int:
             "--suite", suite, "--target", selector, "--output-dir", str(output),
             "--require-complete",
         ]
+        if suite == "tablet-e2e":
+            policy = repository_file(root, "OVERTE_CI_TABLET_POLICY")
+            command += ["--tablet-policy", str(policy)]
         if environment("OVERTE_CI_ALLOW_VIRTUAL", required=False, default="0") == "1":
             command.append("--allow-virtual")
 
