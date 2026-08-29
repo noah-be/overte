@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       integrated:
-        description: Provision validated Qt checkpoints and run the integrated full-client build
+        description: Provision validated Qt checkpoints and manually build the unsigned physical-device E2E client
         required: false
         type: boolean
         default: false
@@ -161,6 +161,8 @@ jobs:
       qt_ios_cache_key: ${{ needs.provision-qt-ios.outputs.qt_ios_cache_key }}
       qt_host_artifact_prefix: ${{ needs.provision-qt-ios.outputs.qt_host_artifact_prefix }}
       qt_ios_artifact_prefix: ${{ needs.provision-qt-ios.outputs.qt_ios_artifact_prefix }}
+      e2e_test_build: ${{ github.event_name == 'workflow_dispatch' && inputs.integrated }}
+      e2e_bundle_id: org.overte.interface.e2e
 
   fedora-e2e-producer:
     if: >-
