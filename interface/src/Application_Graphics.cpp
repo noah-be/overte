@@ -412,6 +412,19 @@ void Application::initializeUi() {
                     updateIOSTabletAccessibilityControls(
                         systemTablet, touchUiMetrics);
                 });
+#if defined(OVERTE_IOS_E2E_TEST_BUILD)
+            // Dynamic Settings pages can change their semantic screen without
+            // replacing the tablet QML source. Refresh only in the isolated
+            // E2E build so XCUITest observes the current rendered tree.
+            auto* tabletAccessibilityRefresh = new QTimer(this);
+            tabletAccessibilityRefresh->setInterval(100);
+            connect(tabletAccessibilityRefresh, &QTimer::timeout,
+                this, [touchUiMetrics, systemTablet] {
+                    updateIOSTabletAccessibilityControls(
+                        systemTablet, touchUiMetrics);
+                });
+            tabletAccessibilityRefresh->start();
+#endif
         }
         publishTouchUiMetrics();
 #endif

@@ -9,10 +9,13 @@
 #include <cmath>
 
 #include <QCoreApplication>
+#include <QAccessible>
 #include <QJSEngine>
 #include <QMetaObject>
 #include <QPointer>
+#include <QQuickItem>
 #include <QQmlEngine>
+#include <QSet>
 #include <QTimer>
 #include <QtQml>
 
@@ -197,6 +200,132 @@ OverteIOSE2EAccessibilityButton* tabletE2EAccessibilityButton(UIWindow* window) 
     [window bringSubviewToFront:button];
     return button;
 }
+
+
+NSMutableDictionary<NSString*, OverteIOSE2EAccessibilityButton*>*
+tabletE2EAccessibilityButtons(UIWindow* window) {
+    static __weak UIWindow* installedWindow = nil;
+    static NSMutableDictionary<NSString*, OverteIOSE2EAccessibilityButton*>* buttons = nil;
+    if (installedWindow != window || buttons == nil) {
+        for (OverteIOSE2EAccessibilityButton* button in buttons.allValues) {
+            [button removeFromSuperview];
+        }
+        buttons = [NSMutableDictionary dictionary];
+        installedWindow = window;
+    }
+    return buttons;
+}
+
+OverteIOSE2EAccessibilityButton* tabletE2EAccessibilityButton(
+        UIWindow* window, NSString* identifier) {
+    NSMutableDictionary* buttons = tabletE2EAccessibilityButtons(window);
+    OverteIOSE2EAccessibilityButton* button = buttons[identifier];
+    if (button == nil) {
+        button = [[OverteIOSE2EAccessibilityButton alloc] initWithFrame:CGRectZero];
+        buttons[identifier] = button;
+        [window addSubview:button];
+    }
+    [window bringSubviewToFront:button];
+    return button;
+}
+
+void retainTabletE2EAccessibilityButtons(
+        UIWindow* window, NSSet<NSString*>* activeIdentifiers) {
+    NSMutableDictionary* buttons = tabletE2EAccessibilityButtons(window);
+    for (NSString* identifier in buttons.allKeys.copy) {
+        if (![activeIdentifiers containsObject:identifier]) {
+            [buttons[identifier] removeFromSuperview];
+            [buttons removeObjectForKey:identifier];
+        }
+    }
+}
+
+const QSet<QString>& tabletSemanticScreenIds() {
+    static const QSet<QString> ids {
+        QStringLiteral("settings.audio"),
+        QStringLiteral("settings.controllers"),
+        QStringLiteral("settings.general"),
+        QStringLiteral("settings.graphics"),
+        QStringLiteral("settings.home"),
+        QStringLiteral("settings.security"),
+        QStringLiteral("tablet.home"),
+    };
+    return ids;
+}
+
+const QSet<QString>& tabletSemanticControlIds() {
+    static const QSet<QString> ids {
+        QStringLiteral("app.settings"),
+        QStringLiteral("nav.back"),
+        QStringLiteral("nav.close"),
+        QStringLiteral("nav.home"),
+        QStringLiteral("settings.audio"),
+        QStringLiteral("settings.controllers"),
+        QStringLiteral("settings.general"),
+        QStringLiteral("settings.graphics"),
+        QStringLiteral("settings.hmd-preferences"),
+        QStringLiteral("settings.security"),
+        QStringLiteral("settings.vr-render-resolution"),
+    };
+    return ids;
+}
+
+bool visibleTabletItem(QQuickItem* item) {
+    if (item == nullptr || !item->isVisible() || !item->isEnabled() ||
+            item->opacity() <= 0.01 || item->width() <= 0.0 || item->height() <= 0.0) {
+        return false;
+    }
+    const QRectF sceneRect = item->mapRectToScene(item->boundingRect());
+    return sceneRect.isValid() && sceneRect.width() > 0.0 && sceneRect.height() > 0.0;
+}
+
+CGRect tabletItemFrame(QQuickItem* item, CGRect safeBounds) {
+    const QRectF sceneRect = item->mapRectToScene(item->boundingRect());
+    CGRect frame = CGRectMake(
+        CGRectGetMinX(safeBounds) + sceneRect.x(),
+        CGRectGetMinY(safeBounds) + sceneRect.y(),
+        sceneRect.width(), sceneRect.height());
+    return CGRectIntersection(frame, safeBounds);
+}
+
+QString observedTabletScreen(QQuickItem* loadedItem) {
+    if (loadedItem == nullptr) {
+        return {};
+    }
+    QString screen = loadedItem->property("semanticScreenId").toString();
+    if (screen.isEmpty()) {
+        screen = loadedItem->objectName();
+    }
+    return tabletSemanticScreenIds().contains(screen) ? screen : QString();
+}
+
+BOOL activateTabletItem(QPointer<QQuickItem> guardedItem) {
+    if (!guardedItem || !visibleTabletItem(guardedItem.data())) {
+        return NO;
+    }
+    QMetaObject::invokeMethod(guardedItem.data(), [guardedItem] {
+        if (!guardedItem || !visibleTabletItem(guardedItem.data())) {
+            return;
+        }
+        // TabletButton and Settings rows expose their production activate()
+        // function directly. Prefer it when present; otherwise use the same
+        // Accessible press action that keyboard/assistive input invokes.
+        if (guardedItem->metaObject()->indexOfMethod("activate()") >= 0 &&
+                QMetaObject::invokeMethod(
+                    guardedItem.data(), "activate", Qt::DirectConnection)) {
+            return;
+        }
+        QAccessibleInterface* accessible = QAccessible::queryAccessibleInterface(
+            guardedItem.data());
+        QAccessibleActionInterface* action = accessible
+            ? accessible->actionInterface() : nullptr;
+        if (action && action->actionNames().contains(
+                QAccessibleActionInterface::pressAction())) {
+            action->doAction(QAccessibleActionInterface::pressAction());
+        }
+    }, Qt::QueuedConnection);
+    return YES;
+}
 #endif
 }
 
@@ -377,6 +506,102 @@ void updateIOSTabletAccessibilityControls(
     button.accessibilityHint = hint;
     button.activationHandler = activationHandler;
     UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification, button);
+
+    QQuickItem* tabletRoot = tablet->getIOSTabletRoot();
+    QQuickItem* loader = tabletRoot
+        ? tabletRoot->findChild<QQuickItem*>(QStringLiteral("loader")) : nullptr;
+    QObject* loadedObject = loader
+        ? loader->property("item").value<QObject*>() : nullptr;
+    QQuickItem* loadedItem = qobject_cast<QQuickItem*>(loadedObject);
+    const QString screenId = observedTabletScreen(loadedItem);
+    NSMutableSet<NSString*>* activeIdentifiers = [NSMutableSet setWithObject:identifier];
+
+    if (tabletShown && loadedItem != nullptr && !screenId.isEmpty()) {
+        NSString* screenIdentifier = [NSString stringWithFormat:
+            @"OverteTabletScreen.%s", screenId.toUtf8().constData()];
+        OverteIOSE2EAccessibilityButton* screenMarker =
+            tabletE2EAccessibilityButton(window, screenIdentifier);
+        screenMarker.frame = CGRectMake(
+            CGRectGetMinX(safeBounds), CGRectGetMinY(safeBounds), 1.0, 1.0);
+        screenMarker.accessibilityIdentifier = screenIdentifier;
+        screenMarker.accessibilityLabel = @"Tablet semantic screen";
+        screenMarker.accessibilityHint = nil;
+        screenMarker.accessibilityTraits = UIAccessibilityTraitStaticText;
+        screenMarker.activationHandler = nil;
+        screenMarker.enabled = NO;
+        [activeIdentifiers addObject:screenIdentifier];
+
+        const bool ready = visibleTabletItem(loadedItem) && loader != nullptr &&
+            !loader->property("source").toString().isEmpty();
+        if (ready) {
+            NSString* readyIdentifier = [NSString stringWithFormat:
+                @"OverteTabletReady.%s", screenId.toUtf8().constData()];
+            OverteIOSE2EAccessibilityButton* readyMarker =
+                tabletE2EAccessibilityButton(window, readyIdentifier);
+            readyMarker.frame = CGRectMake(
+                CGRectGetMinX(safeBounds) + 1.0, CGRectGetMinY(safeBounds), 1.0, 1.0);
+            readyMarker.accessibilityIdentifier = readyIdentifier;
+            readyMarker.accessibilityLabel = @"Tablet semantic screen ready";
+            readyMarker.accessibilityHint = nil;
+            readyMarker.accessibilityTraits = UIAccessibilityTraitStaticText;
+            readyMarker.activationHandler = nil;
+            readyMarker.enabled = NO;
+            [activeIdentifiers addObject:readyIdentifier];
+        }
+
+        QList<QQuickItem*> candidates = tabletRoot->findChildren<QQuickItem*>();
+        if (!candidates.contains(loadedItem)) {
+            candidates.append(loadedItem);
+        }
+        QSet<QString> exposedControls;
+        for (QQuickItem* item : candidates) {
+            QString controlId = item->property("semanticId").toString();
+            if (controlId.isEmpty()) {
+                controlId = item->objectName();
+            }
+            if (controlId == QStringLiteral("OverteTabletClose") &&
+                    screenId == QStringLiteral("tablet.home")) {
+                controlId = QStringLiteral("nav.close");
+            }
+            // Several contract IDs intentionally name both an entry control
+            // and the screen reached through it. The loaded page root is
+            // screen evidence, not another visible entry control.
+            if (controlId == screenId) {
+                continue;
+            }
+            if (!tabletSemanticControlIds().contains(controlId) ||
+                    exposedControls.contains(controlId) || !visibleTabletItem(item)) {
+                continue;
+            }
+            const CGRect itemFrame = tabletItemFrame(item, safeBounds);
+            if (CGRectIsNull(itemFrame) || CGRectIsEmpty(itemFrame)) {
+                continue;
+            }
+            NSString* controlIdentifier = [NSString stringWithFormat:
+                @"OverteTabletControl.%s", controlId.toUtf8().constData()];
+            OverteIOSE2EAccessibilityButton* control =
+                tabletE2EAccessibilityButton(window, controlIdentifier);
+            control.frame = itemFrame;
+            control.accessibilityIdentifier = controlIdentifier;
+            control.accessibilityLabel = @"Tablet semantic control";
+            control.accessibilityHint = nil;
+            control.accessibilityTraits = UIAccessibilityTraitButton;
+            QPointer<QQuickItem> guardedItem(item);
+            QAccessibleInterface* accessible = QAccessible::queryAccessibleInterface(item);
+            QAccessibleActionInterface* action = accessible
+                ? accessible->actionInterface() : nullptr;
+            const bool actionable = item->metaObject()->indexOfMethod("activate()") >= 0 ||
+                (action && action->actionNames().contains(
+                    QAccessibleActionInterface::pressAction()));
+            control.enabled = actionable;
+            control.activationHandler = actionable ? ^BOOL {
+                return activateTabletItem(guardedItem);
+            } : nil;
+            exposedControls.insert(controlId);
+            [activeIdentifiers addObject:controlIdentifier];
+        }
+    }
+    retainTabletE2EAccessibilityButtons(window, activeIdentifiers);
 #else
     OverteIOSAccessibilityElement* element =
         [[OverteIOSAccessibilityElement alloc] initWithAccessibilityContainer:overlay];

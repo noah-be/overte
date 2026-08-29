@@ -17,6 +17,7 @@ import stat
 import subprocess
 import tempfile
 import time
+import xml.etree.ElementTree as ET
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
@@ -32,7 +33,8 @@ from adapters.common import (EMBEDDED_FIXTURE_URL, emit, fail,  # noqa: E402
                              parse_operation_arguments,
                              read_fresh_json, require_fresh_snapshot,
                              state_directory)
-from contracts import validate_operation_arguments, validate_probe_snapshot  # noqa: E402
+from contracts import (load_tablet_ui_contract, validate_operation_arguments,
+                       validate_probe_snapshot, validate_tablet_ui_snapshot)  # noqa: E402
 from ios.private_artifact_tree import (  # noqa: E402
     ArtifactTreeError,
     tree_sha256 as private_artifact_tree_sha256,
@@ -175,6 +177,10 @@ class AppiumAdapter:
         "openAccessibilityId": "OverteTabletOpen",
         "closeAccessibilityId": "OverteTabletClose",
     }
+    IOS_TABLET_CONTROL_PREFIX = "OverteTabletControl."
+    IOS_TABLET_READY_PREFIX = "OverteTabletReady."
+    IOS_TABLET_SCREEN_PREFIX = "OverteTabletScreen."
+    IOS_TABLET_SOURCE_LIMIT_BYTES = 8 * 1024 * 1024
     IOS_XCODE_ONLY_CAPABILITIES = {
         "appium:usePrebuiltWDA", "appium:useXctestrunFile", "appium:prebuildWDA",
         "appium:xcodeOrgId", "appium:xcodeSigningId", "appium:xcodeConfigFile",
@@ -754,6 +760,8 @@ class AppiumAdapter:
                                            (tablet.get("openPoint") and
                                             tablet.get("closePoint"))))):
             values += ["tablet.close", "tablet.open"]
+            if target["platform"] == "ios" and target.get("testBuild"):
+                values += ["tablet.activate", "tablet.snapshot"]
         return sorted(values)
 
     @staticmethod
@@ -1352,6 +1360,119 @@ class AppiumAdapter:
             fail("Appium element reference is invalid")
         client.call("POST", f"/session/{session}/element/{element}/click", {})
 
+    @staticmethod
+    def _xml_boolean(value: object) -> bool:
+        return isinstance(value, str) and value.casefold() in {"1", "true"}
+
+    @classmethod
+    def parse_ios_tablet_source(cls, source: object) -> tuple[dict, set[str]]:
+        """Reduce a transient XCUITest tree to the closed public tablet contract."""
+        if not isinstance(source, str) or not source:
+            fail("iOS semantic tablet source is not text")
+        if len(source.encode("utf-8")) > cls.IOS_TABLET_SOURCE_LIMIT_BYTES:
+            fail("iOS semantic tablet source exceeds the safety limit")
+        if "<!DOCTYPE" in source.upper() or "<!ENTITY" in source.upper():
+            fail("iOS semantic tablet source contains unsupported declarations")
+        try:
+            root = ET.fromstring(source)
+        except ET.ParseError:
+            fail("iOS semantic tablet source is malformed")
+
+        vocabulary = load_tablet_ui_contract()
+        known_screens = set(vocabulary["screenIds"])
+        known_controls = set(vocabulary["controlIds"])
+        screens: list[str] = []
+        ready_screens: set[str] = set()
+        controls: list[str] = []
+        actionable: set[str] = set()
+
+        for element in root.iter():
+            name = element.attrib.get("name")
+            if not isinstance(name, str):
+                continue
+            visible = cls._xml_boolean(element.attrib.get("visible"))
+            if name.startswith(cls.IOS_TABLET_SCREEN_PREFIX):
+                screen_id = name.removeprefix(cls.IOS_TABLET_SCREEN_PREFIX)
+                if screen_id not in known_screens:
+                    fail("iOS semantic tablet source contains an unknown screen marker")
+                if visible:
+                    screens.append(screen_id)
+            elif name.startswith(cls.IOS_TABLET_READY_PREFIX):
+                screen_id = name.removeprefix(cls.IOS_TABLET_READY_PREFIX)
+                if screen_id not in known_screens:
+                    fail("iOS semantic tablet source contains an unknown ready marker")
+                if visible:
+                    ready_screens.add(screen_id)
+            elif name.startswith(cls.IOS_TABLET_CONTROL_PREFIX):
+                control_id = name.removeprefix(cls.IOS_TABLET_CONTROL_PREFIX)
+                if control_id not in known_controls:
+                    fail("iOS semantic tablet source contains an unknown control marker")
+                if visible:
+                    controls.append(control_id)
+                    if cls._xml_boolean(element.attrib.get("enabled")):
+                        actionable.add(control_id)
+
+        if len(screens) != 1:
+            fail("iOS semantic tablet source must expose exactly one visible screen marker")
+        if len(controls) != len(set(controls)):
+            fail("iOS semantic tablet source contains duplicate visible control markers")
+        screen_id = screens[0]
+        if ready_screens - {screen_id}:
+            fail("iOS semantic tablet ready marker does not match the visible screen")
+        snapshot = {
+            "contractVersion": vocabulary["contractVersion"],
+            "schemaVersion": 1,
+            "screenId": screen_id,
+            "ready": screen_id in ready_screens,
+            "visibleControlIds": sorted(controls),
+        }
+        try:
+            return validate_tablet_ui_snapshot(snapshot, vocabulary), actionable
+        except ValueError as error:
+            fail(str(error))
+
+    def ios_tablet_observation(self, selector: str, client: WebDriver, session: str,
+                               state: dict, target: dict) -> tuple[dict, set[str]]:
+        self.assert_ios_process_identity(selector, client, session, state, target)
+        source = client.call("GET", f"/session/{session}/source")
+        observation = self.parse_ios_tablet_source(source)
+        self.assert_ios_process_identity(selector, client, session, state, target)
+        return observation
+
+    def tablet_snapshot(self, selector: str, client: WebDriver, session: str,
+                        state: dict, target: dict, values: dict) -> dict:
+        if self.platform != "ios" or not target.get("testBuild"):
+            fail("semantic tablet observation is unavailable on this Appium target")
+        try:
+            validate_operation_arguments("tablet.snapshot", values)
+        except ValueError as error:
+            fail(str(error))
+        snapshot, _actionable = self.ios_tablet_observation(
+            selector, client, session, state, target)
+        return snapshot
+
+    def activate_tablet_control(self, selector: str, client: WebDriver, session: str,
+                                state: dict, target: dict, values: dict) -> dict:
+        if self.platform != "ios" or not target.get("testBuild"):
+            fail("semantic tablet activation is unavailable on this Appium target")
+        try:
+            arguments = validate_operation_arguments("tablet.activate", values)
+        except ValueError as error:
+            fail(str(error))
+        snapshot, actionable = self.ios_tablet_observation(
+            selector, client, session, state, target)
+        control_id = arguments["controlId"]
+        if not snapshot["ready"]:
+            fail("semantic tablet activation requires a ready screen")
+        if control_id not in snapshot["visibleControlIds"]:
+            fail("semantic tablet activation requires a visible control")
+        if control_id not in actionable:
+            fail("semantic tablet activation requires an actionable control")
+        self.click_accessibility(
+            client, session, self.IOS_TABLET_CONTROL_PREFIX + control_id)
+        self.assert_ios_process_identity(selector, client, session, state, target)
+        return {"performed": True}
+
     def probe_snapshot(self, selector: str, client: WebDriver, session: str,
                        state: dict, target: dict) -> dict:
         if self.platform == "ios":
@@ -1585,6 +1706,12 @@ class AppiumAdapter:
             # counts and explicitly requested identifiers. Raw account/user text
             # from the tree is never persisted as a Jenkins artifact.
             return {"source": source, "artifact": None}
+        if operation == "tablet.snapshot":
+            return self.tablet_snapshot(
+                selector, client, session, state, target, values)
+        if operation == "tablet.activate":
+            return self.activate_tablet_control(
+                selector, client, session, state, target, values)
         if operation == "artifact.screenshot":
             encoded = client.call("GET", f"/session/{session}/screenshot")
             artifact_dir = os.environ.get("OVERTE_DEVICE_ARTIFACT_DIR")

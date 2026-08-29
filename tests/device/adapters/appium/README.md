@@ -13,6 +13,15 @@ The adapter uses XCUITest's active-app PID and attests that the configured
 target is physical rather than a simulator.
 The configured iOS `appId` must equal `appium:bundleId`.
 
+The iOS E2E test build also advertises the complete Tablet Contract v1. It
+reduces the transient XCUITest tree to prefixed screen, ready, and control
+markers and never returns raw page source from `tablet.snapshot`. Activation
+uses the prefixed Accessibility ID for the currently visible actionable QML
+control, then the shared module independently observes the resulting screen.
+The checked-in product policy is
+[`ios-flat-touch-policy.json`](ios-flat-touch-policy.json); setup, mapping, and
+acceptance commands are in [`IOS_TABLET_E2E.md`](IOS_TABLET_E2E.md).
+
 The mandatory `e2e-core` baseline is the first application run. An optional
 `accessibility` audit runs afterward in its own clean session. Its public
 artifact contains only counts and the explicitly requested identifiers; raw

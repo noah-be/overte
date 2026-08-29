@@ -47,6 +47,11 @@ def runDeviceSuite(String suite, int timeoutMinutes) {
         configuration.add('OVERTE_E2E_TABLET_OPEN_ACCESSIBILITY_ID=OverteTabletOpen')
         configuration.add('OVERTE_E2E_TABLET_CLOSE_ACCESSIBILITY_ID=OverteTabletClose')
     }
+    if (suite == 'tablet-e2e') {
+        configuration.add(
+            'OVERTE_CI_TABLET_POLICY=tests/device/adapters/appium/ios-flat-touch-policy.json'
+        )
+    }
 
     withEnv(configuration) {
         try {
@@ -385,6 +390,12 @@ pipeline {
         stage('Physical iOS baseline') {
             steps {
                 script { runDeviceSuite('e2e-core', 45) }
+            }
+        }
+
+        stage('Physical iOS tablet contract') {
+            steps {
+                script { runDeviceSuite('tablet-e2e', 20) }
             }
         }
 

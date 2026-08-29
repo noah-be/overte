@@ -497,6 +497,12 @@ public:
 
     QQuickItem* getTabletRoot() const { return _qmlTabletRoot; }
 
+#if defined(Q_OS_IOS)
+    // Native iOS accessibility observes the active screen-space tablet host.
+    // This is intentionally not exposed to scripts.
+    QQuickItem* getIOSTabletRoot() const;
+#endif
+
     OffscreenQmlSurface* getTabletSurface();
 
     QQuickItem* getQmlTablet() const;

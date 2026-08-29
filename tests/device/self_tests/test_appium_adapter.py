@@ -26,6 +26,8 @@ assert SPEC and SPEC.loader
 APPIUM = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(APPIUM)
 
+from contracts import validate_tablet_product_policy  # noqa: E402
+
 
 def snapshot(*, orientation_y: float = 0.0, position_y: float = 2.0,
              position_z: float = 4.0, in_air: bool = False,
@@ -151,8 +153,17 @@ class FakeXCUITest:
         self.in_air = False
         self.flying = False
         self.jump_snapshots_remaining = 0
+        self.jump_count = 0
+        self.jump_completed_count = 0
+        self.last_jump_start_y: float | None = None
+        self.last_jump_peak_y: float | None = None
+        self.last_jump_landing_y: float | None = None
+        self.flight_count = 0
+        self.last_flight_start_y: float | None = None
+        self.last_flight_peak_y: float | None = None
         self.sample_sequence = 0
         self.tablet_open = False
+        self.tablet_screen = "tablet.home"
         self.last_identifier: str | None = None
         self.pull_values: list[str] = []
 
@@ -164,12 +175,24 @@ class FakeXCUITest:
                          in_air=self.in_air, flying=self.flying,
                          tablet_open=self.tablet_open)
         value["sampleSequence"] = self.sample_sequence
+        value["verticalEvents"] = {
+            "jumpCount": self.jump_count,
+            "jumpCompletedCount": self.jump_completed_count,
+            "flightCount": self.flight_count,
+            "lastJumpStartY": self.last_jump_start_y,
+            "lastJumpPeakY": self.last_jump_peak_y,
+            "lastJumpLandingY": self.last_jump_landing_y,
+            "lastFlightStartY": self.last_flight_start_y,
+            "lastFlightPeakY": self.last_flight_peak_y,
+        }
         if self.jump_snapshots_remaining > 0:
             self.jump_snapshots_remaining -= 1
             if self.jump_snapshots_remaining == 0:
                 self.position_y = 2.0
                 self.in_air = False
                 self.flying = False
+                self.jump_completed_count = self.jump_count
+                self.last_jump_landing_y = 2.0
         return value
 
     def execute(self, session: str, script: str, arguments: dict | None = None) -> object:
@@ -218,11 +241,39 @@ class FakeXCUITest:
             return {"x": 0, "y": 0, "width": 1000, "height": 1000}
         if method == "GET" and path.endswith("/source"):
             identifier = "OverteTabletClose" if self.tablet_open else "OverteTabletOpen"
-            return f'<AppiumAUT><XCUIElement name="{identifier}"/></AppiumAUT>'
+            semantic = ""
+            if self.tablet_open:
+                controls = {
+                    "tablet.home": ["app.settings", "nav.close"],
+                    "settings.home": [
+                        "nav.close", "nav.home", "settings.audio", "settings.general",
+                        "settings.graphics", "settings.security",
+                    ],
+                    "settings.audio": ["nav.back", "nav.close", "nav.home"],
+                    "settings.general": ["nav.back", "nav.close", "nav.home"],
+                    "settings.graphics": ["nav.back", "nav.close", "nav.home"],
+                    "settings.security": ["nav.back", "nav.close", "nav.home"],
+                }[self.tablet_screen]
+                semantic = (
+                    f'<XCUIElement name="OverteTabletScreen.{self.tablet_screen}" '
+                    'visible="true" enabled="false"/>'
+                    f'<XCUIElement name="OverteTabletReady.{self.tablet_screen}" '
+                    'visible="true" enabled="false"/>'
+                    + "".join(
+                        f'<XCUIElement name="OverteTabletControl.{control}" '
+                        'visible="true" enabled="true"/>' for control in controls
+                    )
+                )
+            return (f'<AppiumAUT><XCUIElement name="{identifier}" visible="true" '
+                    f'enabled="true"/>{semantic}</AppiumAUT>')
         if method == "POST" and path.endswith("/actions"):
             source = body["actions"][0]
             first = source["actions"][0]
             if source["id"] == "overte-ios-jump-press":
+                self.jump_count += 1
+                self.last_jump_start_y = 2.0
+                self.last_jump_peak_y = 2.5
+                self.last_jump_landing_y = None
                 self.position_y = 2.5
                 self.in_air = True
                 self.flying = False
@@ -231,6 +282,9 @@ class FakeXCUITest:
                 presses = sum(1 for action in source["actions"]
                               if action["type"] == "pointerDown")
                 if presses == 1:
+                    self.flight_count += 1
+                    self.last_flight_start_y = 2.0
+                    self.last_flight_peak_y = 4.0
                     self.position_y = 4.0
                     self.in_air = True
                     self.flying = True
@@ -249,6 +303,21 @@ class FakeXCUITest:
                 self.tablet_open = True
             elif self.last_identifier == "OverteTabletClose":
                 self.tablet_open = False
+            elif self.last_identifier == "OverteTabletControl.app.settings":
+                self.tablet_screen = "settings.home"
+            elif self.last_identifier in {
+                    "OverteTabletControl.settings.audio",
+                    "OverteTabletControl.settings.general",
+                    "OverteTabletControl.settings.graphics",
+                    "OverteTabletControl.settings.security"}:
+                self.tablet_screen = self.last_identifier.removeprefix(
+                    "OverteTabletControl.")
+            elif self.last_identifier == "OverteTabletControl.nav.back":
+                self.tablet_screen = "settings.home"
+            elif self.last_identifier == "OverteTabletControl.nav.home":
+                self.tablet_screen = "tablet.home"
+            elif self.last_identifier == "OverteTabletControl.nav.close":
+                self.tablet_open = False
             return None
         if method == "DELETE" and path.endswith("/actions"):
             return None
@@ -260,6 +329,26 @@ class FakeXCUITest:
 
 
 class AppiumAdapterTests(unittest.TestCase):
+    def test_ios_flat_touch_policy_is_complete_and_forbids_vr_controls(self) -> None:
+        policy = APPIUM.json.loads((
+            DEVICE_ROOT / "adapters/appium/ios-flat-touch-policy.json"
+        ).read_text(encoding="utf-8"))
+        validate_tablet_product_policy(policy)
+        self.assertEqual("ios.flat-touch", policy["profileId"])
+        self.assertEqual(
+            ["settings.controllers", "settings.hmd-preferences",
+             "settings.vr-render-resolution"],
+            policy["expectations"]["settings.home"]["forbiddenControlIds"],
+        )
+        self.assertIn(
+            "settings.hmd-preferences",
+            policy["expectations"]["settings.general"]["forbiddenControlIds"],
+        )
+        self.assertIn(
+            "settings.vr-render-resolution",
+            policy["expectations"]["settings.graphics"]["forbiddenControlIds"],
+        )
+
     def test_ios_runtime_revision_matches_the_toolchain_lock(self) -> None:
         lock = json.loads(
             (DEVICE_ROOT / "ios" / "toolchain.lock.json").read_text(encoding="utf-8")
@@ -769,6 +858,120 @@ class AppiumAdapterTests(unittest.TestCase):
         launches = [event for event in client.events
                     if event[:2] == ("execute", "mobile: launchApp")]
         self.assertEqual(1, len(launches))
+
+    def test_ios_semantic_tablet_flow_observes_then_activates_real_controls(self) -> None:
+        adapter, client, state, target = self.adapter_and_session()
+        adapter.invoke("private-ipad", "app.launch", {})
+        adapter.invoke("private-ipad", "tablet.open", {})
+        home = adapter.invoke("private-ipad", "tablet.snapshot", {})
+        self.assertEqual("tablet.home", home["screenId"])
+        self.assertTrue(home["ready"])
+        self.assertEqual(["app.settings", "nav.close"], home["visibleControlIds"])
+        self.assertIn("tablet.activate", adapter.advertised_capabilities(target))
+        self.assertIn("tablet.snapshot", adapter.advertised_capabilities(target))
+
+        self.assertEqual(
+            {"performed": True},
+            adapter.invoke("private-ipad", "tablet.activate", {
+                "contractVersion": 1, "controlId": "app.settings",
+            }),
+        )
+        settings = adapter.invoke("private-ipad", "tablet.snapshot", {})
+        self.assertEqual("settings.home", settings["screenId"])
+        self.assertNotIn("settings.controllers", settings["visibleControlIds"])
+        self.assertEqual("OverteTabletControl.app.settings", client.last_identifier)
+        self.assertEqual("4123", state["processIdentity"])
+
+        for screen in ("settings.audio", "settings.general", "settings.graphics",
+                       "settings.security"):
+            adapter.invoke("private-ipad", "tablet.activate", {
+                "contractVersion": 1, "controlId": screen,
+            })
+            observed = adapter.invoke("private-ipad", "tablet.snapshot", {})
+            self.assertEqual(screen, observed["screenId"])
+            self.assertEqual(["nav.back", "nav.close", "nav.home"],
+                             observed["visibleControlIds"])
+            adapter.invoke("private-ipad", "tablet.activate", {
+                "contractVersion": 1, "controlId": "nav.back",
+            })
+            self.assertEqual("settings.home", adapter.invoke(
+                "private-ipad", "tablet.snapshot", {})["screenId"])
+
+        adapter.invoke("private-ipad", "tablet.activate", {
+            "contractVersion": 1, "controlId": "nav.home",
+        })
+        self.assertEqual("tablet.home", adapter.invoke(
+            "private-ipad", "tablet.snapshot", {})["screenId"])
+
+    def test_ios_semantic_tablet_rejects_malformed_ambiguous_and_unknown_trees(self) -> None:
+        prefix = '<AppiumAUT><XCUIElement visible="true" enabled="true" name="'
+        suffix = '"/></AppiumAUT>'
+        cases = {
+            "malformed": "<AppiumAUT>",
+            "missing-screen": prefix + "OverteTabletControl.nav.home" + suffix,
+            "unknown-screen": prefix + "OverteTabletScreen.settings.unknown" + suffix,
+            "unknown-control": (
+                '<AppiumAUT><XCUIElement visible="true" name="OverteTabletScreen.tablet.home"/>'
+                '<XCUIElement visible="true" name="OverteTabletControl.settings.unknown"/>'
+                '</AppiumAUT>'
+            ),
+            "duplicate-control": (
+                '<AppiumAUT><XCUIElement visible="true" name="OverteTabletScreen.tablet.home"/>'
+                '<XCUIElement visible="true" name="OverteTabletControl.nav.close"/>'
+                '<XCUIElement visible="true" name="OverteTabletControl.nav.close"/>'
+                '</AppiumAUT>'
+            ),
+            "declaration": '<!DOCTYPE x [<!ENTITY y "z">]><AppiumAUT/>',
+        }
+        for name, source in cases.items():
+            with self.subTest(name=name):
+                with self.assertRaises(RuntimeError):
+                    APPIUM.AppiumAdapter.parse_ios_tablet_source(source)
+
+    def test_ios_semantic_tablet_requires_ready_visible_actionable_control(self) -> None:
+        adapter, client, state, _target = self.adapter_and_session()
+        client.app_state = 4
+        state["processIdentity"] = "4123"
+        source = (
+            '<AppiumAUT><XCUIElement name="OverteTabletScreen.tablet.home" '
+            'visible="true" enabled="false"/>'
+            '<XCUIElement name="OverteTabletControl.app.settings" '
+            'visible="true" enabled="false"/></AppiumAUT>'
+        )
+        original_call = client.call
+        client.call = lambda method, path, payload=None: (
+            source if method == "GET" and path.endswith("/source")
+            else original_call(method, path, payload)
+        )
+        observed = adapter.invoke("private-ipad", "tablet.snapshot", {})
+        self.assertFalse(observed["ready"])
+        with self.assertRaisesRegex(RuntimeError, "requires a ready screen"):
+            adapter.invoke("private-ipad", "tablet.activate", {
+                "contractVersion": 1, "controlId": "app.settings",
+            })
+
+    def test_ios_semantic_tablet_tap_does_not_claim_a_state_transition(self) -> None:
+        adapter, client, _state, _target = self.adapter_and_session()
+        adapter.invoke("private-ipad", "app.launch", {})
+        adapter.invoke("private-ipad", "tablet.open", {})
+        original_call = client.call
+
+        def call_without_transition(method, path, payload=None):
+            if method == "POST" and path.endswith("/click"):
+                return None
+            return original_call(method, path, payload)
+
+        client.call = call_without_transition
+        self.assertEqual(
+            {"performed": True},
+            adapter.invoke("private-ipad", "tablet.activate", {
+                "contractVersion": 1, "controlId": "app.settings",
+            }),
+        )
+        # tablet.activate reports only that XCUITest performed the tap. The
+        # shared suite independently snapshots and rejects this unchanged UI.
+        observed = adapter.invoke("private-ipad", "tablet.snapshot", {})
+        self.assertEqual("tablet.home", observed["screenId"])
 
     def test_probe_requires_current_schema_and_fresh_sample(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "stale"):
