@@ -28,6 +28,7 @@ Item {
 		}
 
 		MouseArea {
+			objectName: "nav.back"
 			anchors.fill: parent;
 			hoverEnabled: touchMetrics.hoverSupported
 			activeFocusOnTab: parent.visible

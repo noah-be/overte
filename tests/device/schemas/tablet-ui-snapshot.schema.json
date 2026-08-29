@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://overte.org/schemas/device-tablet-ui-snapshot-v1.json",
+  "title": "Overte semantic tablet UI snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "schemaVersion", "screenId", "ready", "visibleControlIds"],
+  "properties": {
+    "contractVersion": {"const": 1},
+    "schemaVersion": {"const": 1},
+    "screenId": {"$ref": "#/$defs/screenId"},
+    "ready": {"type": "boolean"},
+    "visibleControlIds": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/controlId"}
+    },
+    "selectedControlIds": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/controlId"}
+    }
+  },
+  "$defs": {
+    "screenId": {
+      "enum": [
+        "settings.audio",
+        "settings.controllers",
+        "settings.general",
+        "settings.graphics",
+        "settings.home",
+        "settings.security",
+        "tablet.home"
+      ]
+    },
+    "controlId": {
+      "enum": [
+        "app.settings",
+        "nav.back",
+        "nav.close",
+        "nav.home",
+        "settings.audio",
+        "settings.controllers",
+        "settings.general",
+        "settings.graphics",
+        "settings.hmd-preferences",
+        "settings.security",
+        "settings.vr-render-resolution"
+      ]
+    }
+  }
+}

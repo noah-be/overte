@@ -13,4 +13,9 @@ QtObject {
     // Pico render scale changes are specific to the separate VR client.
     readonly property bool showPicoResolutionSettings: false
     readonly property bool showPicoInteractionSettings: false
+
+    function admitsSemanticControl(controlId) {
+        return controlId === "settings.general" || controlId === "settings.audio"
+            || controlId === "settings.security"
+    }
 }

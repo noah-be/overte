@@ -40,6 +40,9 @@ assertion failure.
   reload.
 - `e2e-recovery`: controlled scene reload followed by a stop/relaunch cycle
   that must produce a new stable process identity.
+- `tablet-e2e`: one-process semantic tablet navigation and ready-state
+  observation against an external product policy; see
+  [`TABLET_E2E.md`](TABLET_E2E.md).
 - `domain-smoke`: launch, enter an ephemeral controlled domain, and verify its
   exact identity and assignment-owned content without restarting Interface.
 - `vertical-locomotion`: one jump with observed ascent and landing, followed by
@@ -104,6 +107,12 @@ The common input and lifecycle contract is deliberately small:
 - `app.stop` accepts `{}` and confirms `{"stopped": true}`.
 
 No shared module knows controller buttons, native events, or input routes.
+
+The semantic tablet extension adds `tablet.snapshot` and `tablet.activate`.
+Its version 1 taxonomy, exact request/response formats, policy separation and
+product-adapter handoff are documented in [`TABLET_E2E.md`](TABLET_E2E.md).
+The runner deliberately does not expose the selected policy path to adapter
+processes.
 
 Concrete adapters:
 
@@ -189,6 +198,17 @@ List a suite without contacting a target:
 python3 tests/device/run.py \
   --adapter-manifest tests/device/adapters/android/phone.json \
   --catalog tests/device/catalog.json --suite e2e-core --list
+
+python3 tests/device/run.py \
+  --adapter-manifest tests/device/adapters/mock/adapter.json \
+  --catalog tests/device/catalog.json --suite vertical-locomotion \
+  --output-dir /tmp/overte-device-run --require-complete
+
+OVERTE_MOCK_TABLET_UI_PROFILE=flat python3 tests/device/run.py \
+  --adapter-manifest tests/device/adapters/mock/adapter.json \
+  --catalog tests/device/catalog.json --suite tablet-e2e \
+  --tablet-policy tests/device/policies/mock-flat-touch.json \
+  --allow-virtual --require-complete
 ```
 
 Run on one discovered physical target and keep results outside the checkout:
@@ -211,6 +231,7 @@ Verify the device-free implementation:
 
 ```bash
 python3 -m unittest discover -s tests/device/self_tests -v
+tests/device/qml/run-qml-tests.sh
 python3 tests/device/fixture/serve.py --check
 python3 tests/device/fixture/domain.py --check
 ```
