@@ -97,6 +97,10 @@ resource.
   observable world displacement or velocity.
 - Recovery: scene reload restores the controlled fixture; application restart
   proves stop state, relaunch, a new identity, foreground state, and stability.
+- Semantic tablet: the expected ready screen and stable visible semantic IDs
+  are adapter observations, while required and forbidden features come from a
+  separately validated product policy. Negative assertions run only after a
+  stable ready screen. See [`TABLET_E2E.md`](TABLET_E2E.md).
 - Sound: fixture request telemetry, decoded `SoundObject` readiness, two fresh
   active injector samples, regular finish or stop, and stable process identity
   are all required. This is an in-client proof, not a physical-output proof;
