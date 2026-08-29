@@ -5,7 +5,7 @@
       "id": "launch-smoke",
       "description": "Launch the application and verify a stable foreground process.",
       "command": ["modules/launch_smoke.py"],
-      "suites": ["asset-smoke", "domain-smoke", "e2e-core", "e2e-recovery", "smoke", "sound-smoke", "stability", "vertical-locomotion"],
+      "suites": ["asset-smoke", "domain-smoke", "e2e-core", "e2e-recovery", "smoke", "sound-smoke", "stability", "tablet-e2e", "vertical-locomotion"],
       "requires": ["app.foreground", "app.launch", "app.process"],
       "timeoutSeconds": 120
     },
@@ -128,6 +128,14 @@
       "suites": ["e2e-recovery"],
       "requires": ["app.foreground", "app.launch", "app.process", "app.stop"],
       "timeoutSeconds": 120
+    },
+    {
+      "id": "tablet-e2e",
+      "description": "Navigate the semantic tablet UI and enforce an external product policy without restarting the application.",
+      "command": ["modules/tablet_e2e.py"],
+      "suites": ["tablet-e2e"],
+      "requires": ["app.process", "probe.snapshot", "tablet.activate", "tablet.close", "tablet.open", "tablet.snapshot"],
+      "timeoutSeconds": 180
     },
     {
       "id": "accessibility",

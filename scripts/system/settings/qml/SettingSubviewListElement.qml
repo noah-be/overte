@@ -5,6 +5,8 @@ import controlsUit 1.0 as HifiControls
 
 Item {
 	id: root;
+	objectName: semanticId
+	property string semanticId: ""
 	property color bgColor: index % 2 === 0 ? "transparent" : Qt.rgba(0.12,0.12,0.12,1);
 	property int initialTextXPosition;
 
