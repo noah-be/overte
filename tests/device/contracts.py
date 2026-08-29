@@ -224,11 +224,11 @@ def validate_operation_arguments(operation: str, value: object) -> dict:
             if (not isinstance(sequence, int) or isinstance(sequence, bool)
                     or sequence <= 0):
                 raise ValueError("probe.snapshot afterSampleSequence must be a positive integer")
-    elif operation == "scene.load":
+    elif operation in {"scene.load", "scene.reload"}:
         if set(value) != {"url"}:
-            raise ValueError("scene.load requires only url")
+            raise ValueError(f"{operation} requires only url")
         if not isinstance(value["url"], str) or "://" not in value["url"]:
-            raise ValueError("scene.load url must be an absolute URL")
+            raise ValueError(f"{operation} url must be an absolute URL")
     elif operation == "navigation.enter-domain":
         if set(value) != {"url"} or not isinstance(value.get("url"), str):
             raise ValueError("navigation.enter-domain requires only a URL string")
@@ -307,6 +307,7 @@ def validate_operation_result(operation: str, value: object) -> dict:
         "asset.load": "requested",
         "navigation.enter-domain": "requested",
         "scene.load": "requested",
+        "scene.reload": "requested",
         "sound.play": "requested",
     }.get(operation)
     if confirmation is not None and value.get(confirmation) is not True:
@@ -335,6 +336,8 @@ def validate_probe_snapshot(value: object) -> dict:
     }
     if "controller" in value:
         root_fields.add("controller")
+    if "verticalEvents" in value:
+        root_fields.add("verticalEvents")
     _require_exact_fields(value, root_fields, "probe snapshot")
     if (not isinstance(value.get("sampleEpochMs"), int)
             or isinstance(value["sampleEpochMs"], bool) or value["sampleEpochMs"] <= 0):
@@ -379,16 +382,21 @@ def validate_probe_snapshot(value: object) -> dict:
         raise ValueError("probe input requires dominantHand and advancedMovementControls")
 
     scene = value["scene"]
-    _require_exact_fields(scene, {
+    scene_fields = {
         "avatarAboveFloor", "collisionWall", "domainMarkerCount", "domainMarkers",
         "entityCount", "fixtureMarkerCount", "fixtureMarkers", "floorTopY", "ready",
         "spawnLocationObserved", "spawnValidated", "url",
-    }, "probe scene")
+    }
+    if "commandId" in scene:
+        scene_fields.add("commandId")
+    _require_exact_fields(scene, scene_fields, "probe scene")
     entity_count = scene.get("entityCount")
     if (not isinstance(scene.get("ready"), bool) or not isinstance(entity_count, int)
             or isinstance(entity_count, bool) or entity_count < 0
             or not isinstance(scene.get("url"), str)):
         raise ValueError("probe scene requires url, ready and entityCount")
+    if "commandId" in scene and not isinstance(scene["commandId"], str):
+        raise ValueError("probe scene.commandId must be a string")
     _validate_marker_list(scene, "fixtureMarkerCount", "fixtureMarkers",
                           r"OVERTE_E2E_[A-Z_]+", "fixture")
     _validate_marker_list(scene, "domainMarkerCount", "domainMarkers",
@@ -423,8 +431,74 @@ def validate_probe_snapshot(value: object) -> dict:
             raise ValueError(f"probe avatar.{field} must be boolean")
     if avatar["flying"] and not avatar["inAir"]:
         raise ValueError("probe avatar cannot be flying while not inAir")
-    _require_exact_fields(value["view"], {"orientation"}, "probe view")
-    _validate_vector(value["view"].get("orientation"), "probe view.orientation")
+
+    vertical_events = value.get("verticalEvents")
+    if vertical_events is not None:
+        if not isinstance(vertical_events, dict):
+            raise ValueError("probe verticalEvents must be an object")
+        _require_exact_fields(vertical_events, {
+            "flightCount", "jumpCompletedCount", "jumpCount",
+            "lastFlightPeakY", "lastFlightStartY", "lastJumpLandingY",
+            "lastJumpPeakY", "lastJumpStartY",
+        }, "probe verticalEvents")
+        for field in ("jumpCount", "jumpCompletedCount", "flightCount"):
+            count = vertical_events.get(field)
+            if (not isinstance(count, int) or isinstance(count, bool) or count < 0):
+                raise ValueError(f"probe verticalEvents.{field} must be non-negative")
+        if vertical_events["jumpCompletedCount"] > vertical_events["jumpCount"]:
+            raise ValueError("probe completed jump count cannot exceed jump count")
+        for field in ("lastJumpStartY", "lastJumpPeakY", "lastJumpLandingY",
+                      "lastFlightStartY", "lastFlightPeakY"):
+            if vertical_events.get(field) is not None:
+                _finite_number(vertical_events[field], f"probe verticalEvents.{field}")
+        if vertical_events["jumpCount"] == 0:
+            if any(vertical_events[field] is not None for field in (
+                    "lastJumpStartY", "lastJumpPeakY", "lastJumpLandingY")):
+                raise ValueError("probe without jumps cannot contain jump heights")
+        elif (vertical_events["lastJumpStartY"] is None
+              or vertical_events["lastJumpPeakY"] is None
+              or vertical_events["lastJumpPeakY"]
+              < vertical_events["lastJumpStartY"]):
+            raise ValueError("probe jump event requires ordered start and peak heights")
+        if (vertical_events["jumpCount"] > 0
+                and vertical_events["jumpCompletedCount"]
+                == vertical_events["jumpCount"]
+                and vertical_events["lastJumpLandingY"] is None):
+            raise ValueError("probe completed jump requires a landing height")
+        if vertical_events["flightCount"] == 0:
+            if any(vertical_events[field] is not None for field in (
+                    "lastFlightStartY", "lastFlightPeakY")):
+                raise ValueError("probe without flights cannot contain flight heights")
+        elif (vertical_events["lastFlightStartY"] is None
+              or vertical_events["lastFlightPeakY"] is None
+              or vertical_events["lastFlightPeakY"]
+              < vertical_events["lastFlightStartY"]):
+            raise ValueError("probe flight event requires ordered start and peak heights")
+    view = value["view"]
+    view_fields = {"orientation"}
+    if "orientationHistory" in view:
+        view_fields.add("orientationHistory")
+    _require_exact_fields(view, view_fields, "probe view")
+    _validate_vector(view.get("orientation"), "probe view.orientation")
+    orientation_history = view.get("orientationHistory")
+    if orientation_history is not None:
+        if not isinstance(orientation_history, list) or len(orientation_history) > 48:
+            raise ValueError("probe view.orientationHistory must be a bounded list")
+        previous_sequence = 0
+        for index, observation in enumerate(orientation_history):
+            if not isinstance(observation, dict):
+                raise ValueError("probe view orientation history entry must be an object")
+            _require_exact_fields(
+                observation, {"orientation", "sampleSequence"},
+                f"probe view orientation history entry {index}")
+            sequence = observation.get("sampleSequence")
+            if (not isinstance(sequence, int) or isinstance(sequence, bool)
+                    or sequence <= previous_sequence or sequence > value["sampleSequence"]):
+                raise ValueError("probe view orientation history sequence is invalid")
+            _validate_vector(
+                observation.get("orientation"),
+                f"probe view orientation history entry {index}.orientation")
+            previous_sequence = sequence
     _require_exact_fields(value["tablet"], {"home", "open", "toolbarMode"}, "probe tablet")
     for field in ("open", "home", "toolbarMode"):
         if not isinstance(value["tablet"].get(field), bool):

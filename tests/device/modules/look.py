@@ -13,8 +13,7 @@ def main() -> None:
     deltas = {}
     for direction in ("left", "right", "up", "down"):
         before, after, _ = session.look(direction)
-        deltas[direction] = session._angle_delta(
-            before["view"]["orientation"], after["view"]["orientation"])
+        deltas[direction] = session.look_direction_delta(before, after, direction)
     summary = ", ".join(f"{direction}={delta:.2f}" for direction, delta in deltas.items())
     print(f"Signed view rotations observed in every direction: {summary} degrees.")
 

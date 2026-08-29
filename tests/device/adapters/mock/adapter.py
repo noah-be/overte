@@ -25,7 +25,7 @@ from contracts import TABLET_CONTRACT_VERSION, validate_operation_arguments
 CAPABILITIES = sorted([
     "accessibility.snapshot", "app.foreground", "app.launch", "app.process", "app.stop",
     "asset.load", "input.fly", "input.jump", "input.look", "input.move",
-    "navigation.enter-domain", "probe.snapshot", "scene.load", "sound.play",
+    "navigation.enter-domain", "probe.snapshot", "scene.load", "scene.reload", "sound.play",
     "tablet.activate", "tablet.close", "tablet.open", "tablet.snapshot",
 ])
 FIXTURE_MARKERS = [
@@ -61,6 +61,7 @@ def state_path() -> Path:
 def initial_state() -> dict:
     return {
         "running": False, "foreground": False, "sceneUrl": "", "sceneReady": False,
+        "sceneCommandId": "",
         "launchCount": 0, "sceneLoadCount": 0, "domainEnterCount": 0,
         "domainConnected": False, "domainHost": "", "domainId": "",
         "position": {"x": 0.0, "y": 1.0, "z": 4.0},
@@ -69,9 +70,16 @@ def initial_state() -> dict:
         "groundY": 1.0, "inAir": False, "flying": False, "flyingEnabled": True,
         "locomotion": None, "locomotionSamples": 0,
         "orientation": {"x": 0.0, "y": 0.0, "z": 0.0}, "tablet": False,
+        "orientationHistory": [], "pendingOrientationSample": None,
         "tabletScreen": "tablet.home",
         "processRevision": 0, "asset": None,
         "sampleSequence": 0, "sampleEpochMs": 0,
+        "verticalEvents": {
+            "jumpCount": 0, "jumpCompletedCount": 0,
+            "lastJumpStartY": None, "lastJumpPeakY": None,
+            "lastJumpLandingY": None, "flightCount": 0,
+            "lastFlightStartY": None, "lastFlightPeakY": None,
+        },
         "sound": {
             "commandId": "", "url": "", "commandObserved": False,
             "resourceReady": False, "durationSeconds": 0.0, "format": "unknown",
@@ -352,10 +360,11 @@ def invoke(operation: str, arguments: dict) -> dict:
                 "identity": identity if state["running"] else None}
     elif operation == "app.foreground":
         return {"foreground": state["foreground"]}
-    elif operation == "scene.load":
+    elif operation in {"scene.load", "scene.reload"}:
         reset_scene(state, arguments["url"])
         state["sceneLoadCount"] += 1
-        result = {"requested": True}
+        state["sceneCommandId"] = f"scene-{state['sceneLoadCount']}"
+        result = {"requested": True, "commandId": state["sceneCommandId"]}
     elif operation == "navigation.enter-domain":
         requested = arguments.get("url", "")
         parsed = urlsplit(requested)
@@ -410,20 +419,38 @@ def invoke(operation: str, arguments: dict) -> dict:
     elif operation == "sound.play":
         result = begin_sound(state, arguments)
     elif operation == "input.look":
+        before_orientation = copy.deepcopy(state["orientation"])
         scale = 2.0 if "small-look" in failures() else 120.0
         state["orientation"]["y"] += float(arguments["horizontal"]) * scale
         state["orientation"]["x"] += float(arguments["vertical"]) * scale
+        if "transient-look" in failures():
+            state["pendingOrientationSample"] = copy.deepcopy(state["orientation"])
+            state["orientation"] = before_orientation
         result = {"performed": True}
     elif operation == "input.move":
         apply_move(state, arguments["direction"], float(arguments["durationSeconds"]))
         result = {"performed": True}
     elif operation == "input.jump":
-        state["locomotion"] = "jump"
-        state["locomotionSamples"] = 0
+        if "transient-vertical" in failures():
+            events = state["verticalEvents"]
+            events["jumpCount"] += 1
+            events["jumpCompletedCount"] = events["jumpCount"]
+            events["lastJumpStartY"] = state["groundY"]
+            events["lastJumpPeakY"] = state["groundY"] + 0.8
+            events["lastJumpLandingY"] = state["groundY"]
+        else:
+            state["locomotion"] = "jump"
+            state["locomotionSamples"] = 0
         result = {"performed": True}
     elif operation == "input.fly":
-        state["locomotion"] = "fly"
-        state["locomotionSamples"] = 0
+        if "transient-vertical" in failures():
+            events = state["verticalEvents"]
+            events["flightCount"] += 1
+            events["lastFlightStartY"] = state["groundY"]
+            events["lastFlightPeakY"] = state["groundY"] + 1.5
+        else:
+            state["locomotion"] = "fly"
+            state["locomotionSamples"] = 0
         result = {"performed": True}
     elif operation == "tablet.open":
         if "tablet-transition" not in failures():
@@ -443,22 +470,51 @@ def invoke(operation: str, arguments: dict) -> dict:
     elif operation == "probe.snapshot":
         if state["locomotion"] == "jump":
             state["locomotionSamples"] += 1
+            jump_is_flight = "jump-as-flight" in failures()
+            if state["locomotionSamples"] == 1 and not jump_is_flight:
+                events = state["verticalEvents"]
+                events["jumpCount"] += 1
+                events["lastJumpStartY"] = state["groundY"]
+                events["lastJumpPeakY"] = state["groundY"]
+                events["lastJumpLandingY"] = None
+            elif state["locomotionSamples"] == 1:
+                events = state["verticalEvents"]
+                events["flightCount"] += 1
+                events["lastFlightStartY"] = state["groundY"]
+                events["lastFlightPeakY"] = state["groundY"]
             airborne = (state["locomotionSamples"] <= 2
                         or "jump-no-landing" in failures())
             gain = 0.0 if "jump-no-height" in failures() else 0.8
             state["position"]["y"] = state["groundY"] + (gain if airborne else 0.0)
             state["inAir"] = airborne
-            state["flying"] = airborne and "jump-as-flight" in failures()
+            state["flying"] = airborne and jump_is_flight
             state["velocity"] = ({"x": 0.0, "y": 1.0, "z": 0.0} if airborne else
                                  {"x": 0.0, "y": 0.0, "z": 0.0})
+            if jump_is_flight:
+                state["verticalEvents"]["lastFlightPeakY"] = max(
+                    state["verticalEvents"]["lastFlightPeakY"], state["position"]["y"])
+            else:
+                state["verticalEvents"]["lastJumpPeakY"] = max(
+                    state["verticalEvents"]["lastJumpPeakY"], state["position"]["y"])
+            if not airborne and not jump_is_flight:
+                state["verticalEvents"]["jumpCompletedCount"] = state[
+                    "verticalEvents"]["jumpCount"]
+                state["verticalEvents"]["lastJumpLandingY"] = state["position"]["y"]
             if not airborne:
                 state["locomotion"] = None
         elif state["locomotion"] == "fly":
             state["locomotionSamples"] += 1
+            if state["locomotionSamples"] == 1:
+                events = state["verticalEvents"]
+                events["flightCount"] += 1
+                events["lastFlightStartY"] = state["groundY"]
+                events["lastFlightPeakY"] = state["groundY"]
             gain = 0.0 if "fly-no-height" in failures() else 1.5
             state["position"]["y"] = state["groundY"] + gain
             state["inAir"] = state["flying"] = True
             state["velocity"] = {"x": 0.0, "y": 0.0, "z": 0.0}
+            state["verticalEvents"]["lastFlightPeakY"] = max(
+                state["verticalEvents"]["lastFlightPeakY"], state["position"]["y"])
         domain_markers = [
             "OVERTE_E2E_DOMAIN_EAST", "OVERTE_E2E_DOMAIN_FLOOR",
             "OVERTE_E2E_DOMAIN_NORTH", "OVERTE_E2E_DOMAIN_ORIGIN",
@@ -474,6 +530,18 @@ def invoke(operation: str, arguments: dict) -> dict:
         stale_common = "stale-sequence" in failures() and state["sampleSequence"] > 0
         if not (failure == "stale-probe" and sound_active) and not stale_common:
             state["sampleSequence"] += 1
+        orientation_sample = (state["pendingOrientationSample"]
+                              if state["pendingOrientationSample"] is not None
+                              else state["orientation"])
+        if (not state["orientationHistory"]
+                or state["orientationHistory"][-1]["sampleSequence"]
+                < state["sampleSequence"]):
+            state["orientationHistory"].append({
+                "sampleSequence": state["sampleSequence"],
+                "orientation": copy.deepcopy(orientation_sample),
+            })
+            state["orientationHistory"] = state["orientationHistory"][-48:]
+        state["pendingOrientationSample"] = None
         now = int(time.time() * 1000)
         if failure == "inconsistent-probe" and sound_active:
             state["sampleEpochMs"] = max(1, state["sampleEpochMs"] - 1)
@@ -495,6 +563,7 @@ def invoke(operation: str, arguments: dict) -> dict:
             },
             "input": {"dominantHand": "right", "advancedMovementControls": True},
             "scene": {"url": state["sceneUrl"], "ready": state["sceneReady"],
+                      "commandId": state["sceneCommandId"],
                       "entityCount": (4 if state["domainConnected"] else
                                       len(FIXTURE_MARKERS) if state["sceneReady"] else 0),
                       "fixtureMarkerCount": (0 if state["domainConnected"] else
@@ -516,7 +585,9 @@ def invoke(operation: str, arguments: dict) -> dict:
             "avatar": {"position": state["position"], "velocity": state["velocity"],
                        "bodyYawDegrees": state["bodyYawDegrees"], "inAir": state["inAir"],
                        "flying": state["flying"], "flyingEnabled": state["flyingEnabled"]},
-            "view": {"orientation": state["orientation"]},
+            "verticalEvents": copy.deepcopy(state["verticalEvents"]),
+            "view": {"orientation": state["orientation"],
+                     "orientationHistory": copy.deepcopy(state["orientationHistory"])},
             "tablet": {"open": state["tablet"],
                        "home": (state["tablet"]
                                 and state.get("tabletScreen") == "tablet.home"),
