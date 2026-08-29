@@ -99,6 +99,10 @@ target_sources(interface PRIVATE
 )
 if(OVERTE_PICO_E2E_OPENXR_INPUT)
     target_compile_definitions(interface PRIVATE OVERTE_E2E_OPENXR_INPUT_V1=1)
+    target_sources(interface PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/e2e/PicoE2eTabletBridge.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/e2e/PicoE2eTabletBridge.h"
+    )
 endif()
 target_compile_options(audio-client PRIVATE -include jni.h)
 include_directories("${CMAKE_SOURCE_DIR}/interface/src")

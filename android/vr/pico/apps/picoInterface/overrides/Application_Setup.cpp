@@ -148,6 +148,9 @@
 #include "SpeechRecognizer.h"
 #endif
 #include "Util.h"
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+#include "../e2e/PicoE2eTabletBridge.h"
+#endif
 
 #if defined(Q_OS_WIN)
 #include <VersionHelpers.h>
@@ -1474,6 +1477,10 @@ void Application::setupSignalsAndOperators() {
     auto dialogsManager = DependencyManager::get<DialogsManager>();
     auto nodeList = DependencyManager::get<NodeList>();
     const DomainHandler& domainHandler = nodeList->getDomainHandler();
+
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+    overte::pico::e2e::installTabletBridge(this);
+#endif
 
     // General
     {
