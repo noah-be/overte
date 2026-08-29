@@ -39,6 +39,18 @@ class AndroidStartupUrlPathTest(unittest.TestCase):
             address_manager,
         )
 
+    def test_api_retry_does_not_replay_serverless_location_query(self):
+        address_manager = (ROOT / "libraries/networking/src/AddressManager.cpp").read_text(
+            encoding="utf-8")
+        start = address_manager.index("void AddressManager::refreshPreviousLookup()")
+        end = address_manager.index("void AddressManager::copyAddress()", start)
+        refresh = address_manager[start:end]
+
+        self.assertIn("const QUrl address = currentAddress();", refresh)
+        self.assertIn("address.scheme() == URL_SCHEME_OVERTE", refresh)
+        self.assertIn(
+            "handleUrl(address, LookupTrigger::AttemptedRefresh);", refresh)
+
     def test_all_android_products_compile_the_shared_interface(self):
         products = (
             "android/phone/apps/phoneInterface/CMakeLists.txt",

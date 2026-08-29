@@ -105,6 +105,24 @@ class JenkinsGlueTest(unittest.TestCase):
                 (output / "summary.json").read_text())["status"])
             self.assertFalse((output / "fixture-ready.json").exists())
 
+    def test_embedded_vertical_run_receives_the_scene_without_network_fixture(self):
+        with tempfile.TemporaryDirectory(prefix="overte-jenkins-vertical-test-") as name:
+            temporary = Path(name)
+            values = self.configuration(temporary)
+            values.update({
+                "OVERTE_CI_SUITE": "vertical-locomotion",
+                "OVERTE_CI_FIXTURE_MODE": "embedded",
+                "OVERTE_CI_OUTPUT_DIR": str(temporary / "outside/vertical-results"),
+            })
+            values.pop("OVERTE_CI_FIXTURE_PUBLIC_HOST")
+            with patch.dict(os.environ, values, clear=False):
+                os.environ.pop("OVERTE_CI_FIXTURE_PUBLIC_HOST", None)
+                self.assertEqual(0, RUN_CI.run_suite())
+            output = Path(values["OVERTE_CI_OUTPUT_DIR"])
+            self.assertEqual("passed", json.loads(
+                (output / "summary.json").read_text())["status"])
+            self.assertFalse((output / "fixture-ready.json").exists())
+
     def test_asset_and_sound_suites_receive_network_fixture_contracts(self):
         for suite in ("asset-smoke", "sound-smoke"):
             with self.subTest(suite=suite), tempfile.TemporaryDirectory(
@@ -232,6 +250,39 @@ class JenkinsGlueTest(unittest.TestCase):
             self.assertEqual("discover", execute.call_args_list[1].args[0][1])
             self.assertEqual(3, execute.call_count)
 
+    def test_controlled_pico_bootstrap_auto_selects_without_stale_credential(self):
+        with tempfile.TemporaryDirectory(prefix="overte-pico-bootstrap-test-") as name:
+            manifest = Path(name) / "pico.json"
+            manifest.write_text(json.dumps({
+                "schemaVersion": 1,
+                "id": "android-pico-adb",
+                "command": ["adapter.py", "--kind", "pico"],
+            }), encoding="utf-8")
+            ready = json.dumps([{
+                "selector": "live-network-target",
+                "capabilities": ["app.launch", "navigation.enter-domain"],
+            }])
+            results = [
+                subprocess.CompletedProcess([], 0, "{}\n", ""),
+                subprocess.CompletedProcess([], 0, ready, ""),
+            ]
+            child_environment = {
+                "SAFE": "1",
+                "OVERTE_DEVICE_TARGET_SELECTOR": "stale-private-selector",
+            }
+            with patch.object(RUN_CI, "load_adapter_command", return_value=["adapter"]), \
+                    patch.object(RUN_CI.subprocess, "run", side_effect=results) as execute:
+                RUN_CI.prepare_controlled_android_target(
+                    ROOT, manifest, "stale-private-selector", "domain-smoke",
+                    child_environment,
+                )
+            launch = execute.call_args_list[0]
+            self.assertNotIn("--target", launch.args[0])
+            self.assertNotIn("stale-private-selector", launch.args[0])
+            self.assertNotIn(
+                "OVERTE_DEVICE_TARGET_SELECTOR", launch.kwargs["env"])
+            self.assertEqual(2, execute.call_count)
+
     def test_private_selector_leak_is_quarantined(self):
         with tempfile.TemporaryDirectory(prefix="overte-jenkins-secret-test-") as name:
             temporary = Path(name)
@@ -337,6 +388,44 @@ class JenkinsGlueTest(unittest.TestCase):
                 self.assertEqual(0, RUN_CI.cleanup_target())
                 self.assertEqual(0, RUN_CI.cleanup_target())
             self.assertFalse(json.loads(state.read_text())["running"])
+
+    def test_pico_runner_and_cleanup_auto_select_without_private_selector(self):
+        pico_manifest = ROOT / "tests/device/adapters/android/pico.json"
+        child_environment = {
+            "PATH": os.environ.get("PATH", ""),
+            "OVERTE_DEVICE_TARGET_SELECTOR": "private-pico-selector",
+        }
+        with patch.dict(os.environ, {
+            "OVERTE_DEVICE_TARGET_SELECTOR": "private-pico-selector",
+        }, clear=False):
+            self.assertEqual([], RUN_CI.runner_target_arguments(
+                pico_manifest, child_environment))
+        self.assertNotIn("OVERTE_DEVICE_TARGET_SELECTOR", child_environment)
+
+        values = {
+            "OVERTE_CI_WORKSPACE": str(ROOT),
+            "OVERTE_CI_ADAPTER_MANIFEST": "tests/device/adapters/android/pico.json",
+            "OVERTE_DEVICE_TARGET_SELECTOR": "private-pico-selector",
+        }
+        with patch.dict(os.environ, values, clear=False), \
+                patch.object(RUN_CI, "load_adapter_command",
+                             return_value=["android-adapter", "--kind", "pico"]), \
+                patch.object(RUN_CI.subprocess, "run") as execute:
+            execute.return_value.returncode = 0
+            execute.return_value.stderr = ""
+            self.assertEqual(0, RUN_CI.cleanup_target())
+        command = execute.call_args.args[0]
+        self.assertEqual(["android-adapter", "--kind", "pico", "cleanup"], command)
+        self.assertNotIn(
+            "OVERTE_DEVICE_TARGET_SELECTOR", execute.call_args.kwargs["env"])
+
+    def test_non_pico_runner_still_requires_explicit_private_selector(self):
+        manifest = ROOT / "tests/device/adapters/android/phone.json"
+        child_environment = {"PATH": os.environ.get("PATH", "")}
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("OVERTE_DEVICE_TARGET_SELECTOR", None)
+            with self.assertRaisesRegex(ValueError, "OVERTE_DEVICE_TARGET_SELECTOR is required"):
+                RUN_CI.runner_target_arguments(manifest, child_environment)
 
     def test_runner_output_inside_checkout_is_rejected(self):
         with patch.dict(os.environ, {
@@ -574,6 +663,63 @@ class JenkinsGlueTest(unittest.TestCase):
                         source.index("runDeviceSuite('stability'"))
         self.assertLess(source.index("runDeviceSuite('stability'"),
                         source.index("runDeviceSuite('lifecycle-stability'"))
+        for expected in (
+            "RUN_DOMAIN_ENTER", "RUN_ASSET_LOAD", "RUN_SOUND_PLAYBACK",
+            "runDeviceSuite('domain-smoke'", "runDeviceSuite('asset-smoke'",
+            "runDeviceSuite('sound-smoke'", "DOMAIN_SERVER_EXECUTABLE",
+            "ASSIGNMENT_CLIENT_EXECUTABLE",
+            "RUN_VERTICAL_LOCOMOTION", "runDeviceSuite('vertical-locomotion'",
+            "OVERTE_ANDROID_ADB", "ANDROID_ADB_SERVER_PORT",
+            "OVERTE_ANDROID_E2E_DEBUG", "OVERTE_PICO_OPENXR_INPUT",
+            "OVERTE_PICO_OPENXR_STATE_DIR",
+            "RUN_ACCESSIBILITY is unsupported for android-pico-adb",
+            "OpenXR surface does not expose an audited native accessibility tree",
+        ):
+            self.assertIn(expected, source)
+
+        accessibility_guard = source.split(
+            "if (params.RUN_ACCESSIBILITY &&", 1)[1].split(
+                "adapterManifest(params.TARGET_PROFILE)", 1)[0]
+        self.assertIn("params.TARGET_PROFILE == 'android-pico-adb'",
+                      accessibility_guard)
+        self.assertIn("error(", accessibility_guard)
+
+    def test_content_suites_are_accepted_by_ci_glue(self):
+        self.assertTrue({"domain-smoke", "asset-smoke", "sound-smoke",
+                         "vertical-locomotion"}
+                        .issubset(RUN_CI.SUITES))
+
+    def test_domain_fixture_uses_the_configured_network_bind(self):
+        source = (HERE / "run_ci.py").read_text(encoding="utf-8")
+        domain_block = source.split('if suite == "domain-smoke":', 1)[1].split(
+            'elif suite in {"e2e-core", "vertical-locomotion"}', 1)[0]
+        self.assertIn('"OVERTE_CI_FIXTURE_BIND"', domain_block)
+        self.assertIn('"--bind", bind, "--public-host", host', domain_block)
+
+    def test_self_check_removes_physical_pico_opt_ins(self):
+        observed = []
+
+        def capture(_command, **kwargs):
+            observed.append(kwargs["env"])
+            return __import__("subprocess").CompletedProcess([], 0)
+
+        with patch.object(RUN_CI, "workspace", return_value=HERE.parents[2]), \
+                patch.object(RUN_CI.subprocess, "run", side_effect=capture), \
+                patch.dict(RUN_CI.os.environ, {
+                    "OVERTE_DEVICE_TARGET_SELECTOR": "private-target",
+                    "OVERTE_ANDROID_E2E_DEBUG": "1",
+                    "OVERTE_PICO_OPENXR_INPUT": "1",
+                    "OVERTE_PICO_OPENXR_STATE_DIR": "/private/state",
+                    "ANDROID_ADB_SERVER_PORT": "5039",
+                }, clear=False):
+            self.assertEqual(0, RUN_CI.self_check())
+        self.assertTrue(observed)
+        for environment_value in observed:
+            for name in (
+                    "OVERTE_DEVICE_TARGET_SELECTOR", "OVERTE_ANDROID_E2E_DEBUG",
+                    "OVERTE_PICO_OPENXR_INPUT", "OVERTE_PICO_OPENXR_STATE_DIR",
+                    "ANDROID_ADB_SERVER_PORT"):
+                self.assertNotIn(name, environment_value)
 
 
 if __name__ == "__main__":

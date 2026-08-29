@@ -40,6 +40,8 @@ def runDeviceSuite(String suite, int timeoutMinutes) {
         'OVERTE_CI_FIXTURE_BIND=0.0.0.0',
         "OVERTE_CI_FIXTURE_PORT=${params.FIXTURE_PORT.trim()}",
         "OVERTE_CI_FIXTURE_MODE=${params.FIXTURE_MODE}",
+        "OVERTE_CI_DOMAIN_SERVER_EXECUTABLE=${params.DOMAIN_SERVER_EXECUTABLE.trim()}",
+        "OVERTE_CI_ASSIGNMENT_CLIENT_EXECUTABLE=${params.ASSIGNMENT_CLIENT_EXECUTABLE.trim()}",
         'OVERTE_CI_ALLOW_VIRTUAL=0',
         "OVERTE_E2E_CAPTURE_ARTIFACTS=${params.CAPTURE_FAILURE_ARTIFACTS ? '1' : '0'}",
     ]
@@ -181,9 +183,64 @@ pipeline {
             description: 'Run scene, look, movement and tablet after smoke; requires a complete Appium profile.'
         )
         booleanParam(
+            name: 'RUN_DOMAIN_ENTER',
+            defaultValue: false,
+            description: 'Run the controlled domain-entry E2E suite.'
+        )
+        booleanParam(
+            name: 'RUN_ASSET_LOAD',
+            defaultValue: false,
+            description: 'Run the controlled texture loading E2E suite.'
+        )
+        booleanParam(
+            name: 'RUN_SOUND_PLAYBACK',
+            defaultValue: false,
+            description: 'Run the controlled WAV loading and injector lifecycle E2E suite.'
+        )
+        booleanParam(
+            name: 'RUN_VERTICAL_LOCOMOTION',
+            defaultValue: false,
+            description: 'Run physical jump, landing and upward-flight verification.'
+        )
+        string(
+            name: 'DOMAIN_SERVER_EXECUTABLE',
+            defaultValue: '',
+            description: 'Absolute path to the trusted local domain-server executable.'
+        )
+        string(
+            name: 'ASSIGNMENT_CLIENT_EXECUTABLE',
+            defaultValue: '',
+            description: 'Absolute path to the trusted local assignment-client executable.'
+        )
+        string(
+            name: 'OVERTE_ANDROID_ADB',
+            defaultValue: '/usr/bin/adb',
+            description: 'ADB executable used by Android profiles.'
+        )
+        string(
+            name: 'ANDROID_ADB_SERVER_PORT',
+            defaultValue: '',
+            description: 'Non-default isolated ADB server port required by Pico OpenXR input.'
+        )
+        string(
+            name: 'OVERTE_ANDROID_E2E_DEBUG',
+            defaultValue: '0',
+            description: 'Set to 1 only for an audited debug E2E APK.'
+        )
+        string(
+            name: 'OVERTE_PICO_OPENXR_INPUT',
+            defaultValue: '0',
+            description: 'Set to 1 to enable the debug-only Pico OpenXR input layer.'
+        )
+        string(
+            name: 'OVERTE_PICO_OPENXR_STATE_DIR',
+            defaultValue: '',
+            description: 'Absolute private runtime-state directory for Pico OpenXR input.'
+        )
+        booleanParam(
             name: 'RUN_ACCESSIBILITY',
             defaultValue: false,
-            description: 'Run the audited native accessibility contract after core.'
+            description: 'Run the audited native accessibility contract after core; unsupported on android-pico-adb.'
         )
         booleanParam(
             name: 'RUN_SOAKS',
@@ -222,9 +279,23 @@ pipeline {
                             error('all four audited Qt inputs are required to dispatch the iOS producer')
                         }
                     }
-                    if (params.RUN_CORE && params.FIXTURE_MODE == 'network' &&
+                    if ((params.RUN_DOMAIN_ENTER || params.RUN_ASSET_LOAD ||
+                            params.RUN_SOUND_PLAYBACK ||
+                            (params.RUN_CORE && params.FIXTURE_MODE == 'network')) &&
                             !params.FIXTURE_PUBLIC_HOST.trim()) {
-                        error('FIXTURE_PUBLIC_HOST is required for the core scene test')
+                        error('FIXTURE_PUBLIC_HOST is required for network-backed E2E tests')
+                    }
+                    if (params.RUN_DOMAIN_ENTER && (!params.DOMAIN_SERVER_EXECUTABLE.trim() ||
+                            !params.ASSIGNMENT_CLIENT_EXECUTABLE.trim())) {
+                        error('Both domain fixture executable paths are required for domain entry')
+                    }
+                    if (params.RUN_VERTICAL_LOCOMOTION &&
+                            params.TARGET_PROFILE != 'android-pico-adb') {
+                        error('RUN_VERTICAL_LOCOMOTION is currently accepted only for android-pico-adb')
+                    }
+                    if (params.RUN_ACCESSIBILITY &&
+                            params.TARGET_PROFILE == 'android-pico-adb') {
+                        error('RUN_ACCESSIBILITY is unsupported for android-pico-adb because the OpenXR surface does not expose an audited native accessibility tree')
                     }
                     adapterManifest(params.TARGET_PROFILE)
                     env.OVERTE_TARGET_NEEDS_CLEANUP = '0'
@@ -279,6 +350,34 @@ pipeline {
         stage('Physical smoke') {
             steps {
                 script { runDeviceSuite('smoke', 10) }
+            }
+        }
+
+        stage('Pico domain entry') {
+            when { expression { params.RUN_DOMAIN_ENTER } }
+            steps {
+                script { runDeviceSuite('domain-smoke', 15) }
+            }
+        }
+
+        stage('Pico asset load') {
+            when { expression { params.RUN_ASSET_LOAD } }
+            steps {
+                script { runDeviceSuite('asset-smoke', 10) }
+            }
+        }
+
+        stage('Pico sound playback') {
+            when { expression { params.RUN_SOUND_PLAYBACK } }
+            steps {
+                script { runDeviceSuite('sound-smoke', 10) }
+            }
+        }
+
+        stage('Pico vertical locomotion') {
+            when { expression { params.RUN_VERTICAL_LOCOMOTION } }
+            steps {
+                script { runDeviceSuite('vertical-locomotion', 15) }
             }
         }
 

@@ -2,13 +2,17 @@
   "actions": {
     "locomotion": {
       "applicationPreconditions": {
-        "dominantHand": "right"
+        "advancedMovement": true,
+        "dominantHand": "right",
+        "strafeEnabled": true
       },
       "forwardRuntimeY": 1,
       "name": "left_thumbstick",
       "supportedDirections": [
         "backward",
-        "forward"
+        "forward",
+        "left",
+        "right"
       ],
       "type": "vector2f"
     },

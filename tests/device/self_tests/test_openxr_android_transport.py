@@ -130,6 +130,19 @@ class OpenXrAndroidTransportTests(unittest.TestCase):
             transport.stage(self.envelope(), PROFILE, now_ms=2_000_000_000_000)
         self.assertFalse(any(payload for _, payload in runner.calls))
 
+        class OfflineRunner(FakeRunner):
+            def __call__(self, command, **kwargs):
+                result = super().__call__(command, **kwargs)
+                if command[-1] == "devices":
+                    result.stdout += b"unrelated\toffline\n"
+                return result
+
+        runner = OfflineRunner(self.selector)
+        transport = AndroidOpenXrTransport(self.adb, self.selector, runner=runner)
+        with self.assertRaisesRegex(TransportError, "exactly"):
+            transport.stage(self.envelope(), PROFILE, now_ms=2_000_000_000_000)
+        self.assertFalse(any(payload for _, payload in runner.calls))
+
         class UnauthorizedRunner(FakeRunner):
             def __call__(self, command, **kwargs):
                 result = super().__call__(command, **kwargs)
@@ -142,6 +155,18 @@ class OpenXrAndroidTransportTests(unittest.TestCase):
         with self.assertRaisesRegex(TransportError, "exactly"):
             transport.stage(self.envelope(), PROFILE, now_ms=2_000_000_000_000)
         self.assertFalse(any(payload for _, payload in runner.calls))
+
+    def test_explicitly_detached_usb_record_is_not_an_active_target(self) -> None:
+        class DetachedUsbRunner(FakeRunner):
+            def __call__(self, command, **kwargs):
+                result = super().__call__(command, **kwargs)
+                if command[-1] == "devices":
+                    result.stdout += b"detached-usb-transport\tdetached\n"
+                return result
+
+        runner = DetachedUsbRunner(self.selector)
+        transport = AndroidOpenXrTransport(self.adb, self.selector, runner=runner)
+        transport.require_exclusive_target()
 
     def test_status_validates_nonce_and_redacts_it(self) -> None:
         self.runner.status = json.dumps({
@@ -156,9 +181,11 @@ class OpenXrAndroidTransportTests(unittest.TestCase):
             "viewAppliedYawDegrees": 25.0,
             "viewAppliedPitchDegrees": 0.0,
             "vectorAppliedSequence": 4,
+            "leftThumbstickAppliedX": 0.0,
             "leftThumbstickAppliedY": 0.4,
             "booleanAppliedSequence": 0,
             "leftSecondaryApplied": False,
+            "rightSecondaryApplied": False,
             "acceptedNonce": NONCE,
             "activeCommandId": "move-forward",
             "state": "active",
@@ -169,6 +196,7 @@ class OpenXrAndroidTransportTests(unittest.TestCase):
         self.assertEqual("[redacted]", status["acceptedNonce"])
         self.assertEqual(4, status["viewAppliedSequence"])
         self.assertEqual(25.0, status["viewAppliedYawDegrees"])
+        self.assertEqual(0.0, status["leftThumbstickAppliedX"])
         self.assertEqual(0.4, status["leftThumbstickAppliedY"])
         with self.assertRaisesRegex(TransportError, "nonce"):
             self.transport.read_status(expected_nonce="e" * 64)
@@ -185,6 +213,38 @@ class OpenXrAndroidTransportTests(unittest.TestCase):
         self.runner.status = json.dumps(invalid).encode()
         with self.assertRaisesRegex(TransportError, "values"):
             self.transport.read_status()
+
+    def test_staged_status_poll_reuses_only_a_recent_exclusivity_proof(self) -> None:
+        self.transport.stage(
+            self.envelope(), PROFILE, now_ms=2_000_000_000_000)
+        self.runner.status = json.dumps({
+            "schemaVersion": 1,
+            "buildMarker": BUILD_MARKER,
+            "consumer": CONSUMER,
+            "profileId": PROFILE_ID,
+            "bindingProfileSha256": PROFILE_SHA256,
+            "enabled": True,
+            "acceptedSequence": 4,
+            "viewAppliedSequence": 0,
+            "viewAppliedYawDegrees": 0.0,
+            "viewAppliedPitchDegrees": 0.0,
+            "vectorAppliedSequence": 4,
+            "leftThumbstickAppliedX": 0.0,
+            "leftThumbstickAppliedY": 0.4,
+            "booleanAppliedSequence": 0,
+            "leftSecondaryApplied": False,
+            "rightSecondaryApplied": False,
+            "acceptedNonce": NONCE,
+            "activeCommandId": "move-forward",
+            "state": "active",
+            "detail": "vector-consumed",
+            "updatedEpochMs": 2_000_000_000_000,
+        }).encode()
+        self.transport.read_status(expected_nonce=NONCE, expected_sequence=4)
+        self.assertEqual(
+            1, sum(command[-1] == "devices" for command, _ in self.runner.calls))
+        self.assertEqual(
+            1, sum(command[-1] == "get-state" for command, _ in self.runner.calls))
 
     def test_cleanup_removes_only_allowlisted_private_transport_files(self) -> None:
         self.transport.cleanup()

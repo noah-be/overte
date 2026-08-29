@@ -138,13 +138,16 @@ def validate_profile(raw: Any) -> dict[str, Any]:
         raise ContractError("locomotion supportedDirections are invalid or unsorted")
     preconditions = _object(locomotion["applicationPreconditions"],
                             "profile.actions.locomotion.applicationPreconditions")
-    _exact_keys(preconditions, {"dominantHand"}, {"advancedMovement"},
+    _exact_keys(preconditions, {"dominantHand"}, {"advancedMovement", "strafeEnabled"},
                 "profile.actions.locomotion.applicationPreconditions")
     if preconditions["dominantHand"] not in {"left", "right"}:
         raise ContractError("locomotion dominantHand must be left or right")
     if ("advancedMovement" in preconditions and
             not isinstance(preconditions["advancedMovement"], bool)):
         raise ContractError("locomotion advancedMovement must be boolean")
+    if ("strafeEnabled" in preconditions and
+            not isinstance(preconditions["strafeEnabled"], bool)):
+        raise ContractError("locomotion strafeEnabled must be boolean")
 
     tablet = _object(actions["tabletToggle"], "profile.actions.tabletToggle")
     _exact_keys(tablet, {"name", "type", "pulseMilliseconds"}, set(),

@@ -1,7 +1,7 @@
 # Pico 4 controller automation decision
 
 This document covers physical-device E2E input for Overte on a PICO 4. Input is
-disabled by default. The Android Pico adapter exposes the four common operations
+disabled by default. The Android Pico adapter exposes the six semantic operations
 only behind the explicit Debug-E2E lab opt-in described below; CI and unqualified
 labs continue to omit them until the hardware gates are complete.
 
@@ -89,6 +89,12 @@ library for `arm64-v8a`. The same variant must explicitly add the layer name to
 `XrInstanceCreateInfo.enabledApiLayerNames`. Release builds must package neither
 artifact and must contain no activation marker.
 
+For vertical locomotion, the Pico binding maps a bounded
+`right_secondary_click` pulse or hold through `OpenXR.RightSecondary`,
+`Standard.RightSecondaryThumb`, and `Actions.Up`. The debug-only launcher makes
+right-hand dominance, advanced movement, and flying effective only for that
+process; it never writes the user's stored movement or flying preference.
+
 The existing short-lived session grant and app-private atomic ADB transport in
 this directory remain the activation boundary. The new controller envelope adds
 no path, shell, script, arbitrary action name, or raw OpenXR function field.
@@ -108,9 +114,10 @@ the API-layer acknowledgement in the app-private `status.json` transport.
 3. For every channel, inject one bounded pulse/hold and observe the corresponding
    Overte controller probe value. An acknowledgement from the layer is not
    sufficient.
-4. Verify Y opens/closes the tablet, the left stick moves the avatar, trigger
-   drives laser selection, grip drives grab state, and a known grip-pose delta
-   moves the rendered/controller probe by the expected amount.
+4. Verify Y opens/closes the tablet, the left stick moves the avatar, a short
+   right-secondary pulse jumps, a bounded right-secondary hold flies upward,
+   trigger drives laser selection, grip drives grab state, and a known grip-pose
+   delta moves the rendered/controller probe by the expected amount.
    The debug probe must first attest right-hand dominance and advanced movement
    controls; otherwise Overtes preference-dependent mapping may consume the
    left locomotion stick as a basic-movement turn command.
