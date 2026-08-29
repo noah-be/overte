@@ -64,7 +64,7 @@ class CoreSequenceTest(unittest.TestCase):
         self.assertIn("return Boolean(tablet.tabletShown || HMD.showTablet)", probe)
         self.assertIn('(name === "tablet" || !controlledTabletOpen())', probe)
 
-    def test_probe_normalizes_only_the_initial_flight_state(self):
+    def test_probe_normalizes_initial_and_controlled_reload_flight_state(self):
         probe = (DEVICE_ROOT / "probe/overte_e2e_probe.js").read_text(
             encoding="utf-8")
         self.assertIn("flightNormalizationAllowed && !flightNormalizationActive", probe)
@@ -73,6 +73,12 @@ class CoreSequenceTest(unittest.TestCase):
             probe.count("MyAvatar.setFlyingEnabled(flyingEnabledBeforeNormalization)"), 2)
         self.assertIn("!flightNormalizationActive && !MyAvatar.isInAir()", probe)
         self.assertIn("flightNormalizationAllowed = false;", probe)
+        reset = probe.split("function resetSceneObservation()", 1)[1].split("}", 1)[0]
+        self.assertIn("flightNormalizationAllowed = true;", reset)
+        self.assertIn("flightNormalizationStableSamples = 0;", reset)
+        reapply = probe.split("function applySceneLocation", 1)[1].split("}", 1)[0]
+        self.assertIn("resetSceneObservation();", reapply)
+        self.assertIn("!avatarAtExpectedSpawn()", reapply)
         self.assertIn("Controller.Actions.TranslateY", probe)
         self.assertIn("DriveKeys.TRANSLATE_Y", probe)
         self.assertIn("velocity: vector(MyAvatar.velocity)", probe)
@@ -104,22 +110,61 @@ class CoreSequenceTest(unittest.TestCase):
             ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                env=environment, check=False)
 
-            self.assertEqual(0, result.returncode, result.stdout)
+            diagnostic = result.stdout
+            if (output / "junit.xml").is_file():
+                diagnostic += (output / "junit.xml").read_text(encoding="utf-8")
+            self.assertEqual(0, result.returncode, diagnostic)
             summary = json.loads((output / "summary.json").read_text(encoding="utf-8"))
             self.assertEqual("passed", summary["status"])
             self.assertEqual(
                 ["launch-smoke", "scene", "spawn-grounded", "look", "move",
-                 "input-neutral", "collision", "jump", "fly", "tablet",
-                 "tablet-input-isolation", "scene-reload"],
+                 "input-neutral", "collision", "scene-reload", "jump", "fly",
+                 "tablet", "tablet-input-isolation"],
                 [entry["id"] for entry in summary["results"]],
             )
             state = json.loads((root / "state.json").read_text(encoding="utf-8"))
             self.assertEqual(1, state["launchCount"])
-            self.assertEqual(3, state["sceneLoadCount"])
+            self.assertEqual(2, state["sceneLoadCount"])
             junit = ET.parse(output / "junit.xml").getroot()
             self.assertEqual("12", junit.attrib["tests"])
             self.assertEqual("0", junit.attrib["failures"])
             self.assertEqual("0", junit.attrib["errors"])
+
+    def test_look_accepts_a_transient_observed_rotation_history(self):
+        with tempfile.TemporaryDirectory(prefix="overte-e2e-transient-look-") as temporary:
+            root = Path(temporary)
+            output = root / "results"
+            environment = os.environ.copy()
+            environment.update({
+                "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+                "OVERTE_MOCK_FAILURES": "transient-look",
+                "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
+                "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",
+                "OVERTE_E2E_POLL_SECONDS": "0.05",
+            })
+            catalog = root / "catalog.json"
+            source_catalog = json.loads(
+                (DEVICE_ROOT / "catalog.json").read_text(encoding="utf-8"))
+            source_catalog["modules"] = [
+                module for module in source_catalog["modules"]
+                if module["id"] in {"launch-smoke", "scene", "look"}
+            ]
+            for module in source_catalog["modules"]:
+                module["command"][0] = str(DEVICE_ROOT / module["command"][0])
+            catalog.write_text(json.dumps(source_catalog), encoding="utf-8")
+            result = subprocess.run([
+                sys.executable, str(DEVICE_ROOT / "run.py"),
+                "--adapter-manifest", str(DEVICE_ROOT / "adapters/mock/adapter.json"),
+                "--catalog", str(catalog), "--suite", "e2e-core",
+                "--allow-virtual", "--require-complete", "--output-dir", str(output),
+            ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+               env=environment, check=False)
+            diagnostic = result.stdout
+            if (output / "junit.xml").is_file():
+                diagnostic += (output / "junit.xml").read_text(encoding="utf-8")
+            self.assertEqual(0, result.returncode, diagnostic)
+            summary = json.loads((output / "summary.json").read_text(encoding="utf-8"))
+            self.assertEqual("passed", summary["status"])
 
     def test_recovery_suite_reloads_scene_and_restarts_with_new_identity(self):
         with tempfile.TemporaryDirectory(prefix="overte-e2e-recovery-") as temporary:
@@ -151,7 +196,7 @@ class CoreSequenceTest(unittest.TestCase):
             self.assertNotEqual(restart["beforeIdentity"], restart["afterIdentity"])
             state = json.loads((root / "state.json").read_text(encoding="utf-8"))
             self.assertEqual(2, state["launchCount"])
-            self.assertEqual(2, state["sceneLoadCount"])
+            self.assertEqual(1, state["sceneLoadCount"])
 
     def test_domain_smoke_enters_controlled_domain_without_process_restart(self):
         with tempfile.TemporaryDirectory(prefix="overte-domain-e2e-core-") as temporary:

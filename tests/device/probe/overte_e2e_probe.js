@@ -28,7 +28,21 @@
     var clientCommandRequestPending = false;
     var clientCommandUnavailable = false;
     var lastClientCommandId = "";
+    var lastSceneCommandId = "";
     var sampleSequence = 0;
+    var orientationHistory = [];
+    var verticalObservationPrevious = null;
+    var verticalJumpActive = false;
+    var verticalEvents = {
+        jumpCount: 0,
+        jumpCompletedCount: 0,
+        lastJumpStartY: null,
+        lastJumpPeakY: null,
+        lastJumpLandingY: null,
+        flightCount: 0,
+        lastFlightStartY: null,
+        lastFlightPeakY: null
+    };
     var soundCommandRequestPending = false;
     // Network-loaded probes retain the fixture-relative fallback. A target
     // adapter's private probe copy can replace it through the narrow command
@@ -353,12 +367,33 @@
         stableAvatarSamples = 0;
         previousAvatarPosition = null;
         sceneReady = false;
+        // Reloading the same serverless URL does not change the domain key,
+        // but Window.location can leave the avatar in the temporary flight
+        // state used while applying its viewpoint. Re-arm the same bounded
+        // normalization used at initial startup before declaring readiness.
+        flightNormalizationAllowed = true;
+        flightNormalizationStableSamples = 0;
+        orientationHistory = [];
+    }
+
+    function avatarAtExpectedSpawn() {
+        var position = MyAvatar.position;
+        var deltaX = Number(position.x) - expectedSpawn.x;
+        var deltaZ = Number(position.z) - expectedSpawn.z;
+        return deltaX * deltaX + deltaZ * deltaZ <= 1.0;
     }
 
     function applySceneLocation(commandId, scenePath) {
-        if (scenePath !== "" && lastClientCommandId === commandId && !sceneReady) {
+        if (scenePath !== "" && lastClientCommandId === commandId && !sceneReady
+                && !avatarAtExpectedSpawn()) {
             // The serverless scene may reset the avatar after the initial URL
-            // lookup. Reapply its bounded viewpoint only after loading settles.
+            // lookup. Reapply its bounded viewpoint only if the first load did
+            // not actually restore the expected horizontal spawn. Reapplying
+            // an already-correct location would repeatedly lift and drop the
+            // avatar while the physics state is still settling.
+            // Each reapply can transiently enter flight again, so it must also
+            // restart the readiness and flight-normalization observation.
+            resetSceneObservation();
             Window.location = scenePath;
         }
     }
@@ -418,6 +453,7 @@
             var sceneCommandId = String(command.commandId);
             var scenePath = controlledSceneLocation(command.url);
             lastClientCommandId = sceneCommandId;
+            lastSceneCommandId = sceneCommandId;
             resetSceneObservation();
             Window.location = command.url;
             Script.setTimeout(function () {
@@ -548,6 +584,55 @@
         }
     }
 
+    function observeVerticalMotion() {
+        var observation = {
+            y: Number(MyAvatar.position.y),
+            inAir: Boolean(MyAvatar.isInAir()),
+            flying: Boolean(MyAvatar.isFlying())
+        };
+        if (!sceneReady || flightNormalizationAllowed || flightNormalizationActive) {
+            verticalObservationPrevious = observation;
+            verticalJumpActive = false;
+            return;
+        }
+        if (verticalObservationPrevious === null) {
+            verticalObservationPrevious = observation;
+            return;
+        }
+
+        if (observation.flying && !verticalObservationPrevious.flying) {
+            verticalEvents.flightCount += 1;
+            verticalEvents.lastFlightStartY = verticalObservationPrevious.y;
+            verticalEvents.lastFlightPeakY = Math.max(
+                verticalObservationPrevious.y, observation.y);
+        } else if (observation.flying && verticalEvents.lastFlightPeakY !== null) {
+            verticalEvents.lastFlightPeakY = Math.max(
+                verticalEvents.lastFlightPeakY, observation.y);
+        }
+
+        if (observation.inAir && !observation.flying
+                && (!verticalObservationPrevious.inAir
+                    || verticalObservationPrevious.flying)) {
+            verticalEvents.jumpCount += 1;
+            verticalEvents.lastJumpStartY = verticalObservationPrevious.y;
+            verticalEvents.lastJumpPeakY = Math.max(
+                verticalObservationPrevious.y, observation.y);
+            verticalEvents.lastJumpLandingY = null;
+            verticalJumpActive = true;
+        }
+        if (verticalJumpActive && observation.inAir && !observation.flying) {
+            verticalEvents.lastJumpPeakY = Math.max(
+                verticalEvents.lastJumpPeakY, observation.y);
+        } else if (verticalJumpActive && !observation.inAir) {
+            verticalEvents.jumpCompletedCount = verticalEvents.jumpCount;
+            verticalEvents.lastJumpLandingY = observation.y;
+            verticalJumpActive = false;
+        } else if (verticalJumpActive && observation.flying) {
+            verticalJumpActive = false;
+        }
+        verticalObservationPrevious = observation;
+    }
+
     function sample() {
         pollClientCommand();
         pollSoundCommand();
@@ -630,6 +715,13 @@
             }
         }
         sampleSequence += 1;
+        orientationHistory.push({
+            sampleSequence: sampleSequence,
+            orientation: vector(orientation)
+        });
+        if (orientationHistory.length > 48) {
+            orientationHistory.shift();
+        }
         Test.saveObject({
             schemaVersion: 2,
             sampleEpochMs: Date.now(),
@@ -656,6 +748,7 @@
             input: effectiveInputState(),
             scene: {
                 url: currentAddress,
+                commandId: lastSceneCommandId,
                 ready: sceneReady,
                 entityCount: ids.length,
                 fixtureMarkerCount: markerCount,
@@ -676,8 +769,10 @@
                 flying: Boolean(MyAvatar.isFlying()),
                 flyingEnabled: Boolean(MyAvatar.getFlyingEnabled())
             },
+            verticalEvents: verticalEvents,
             view: {
-                orientation: vector(orientation)
+                orientation: vector(orientation),
+                orientationHistory: orientationHistory
             },
             tablet: {
                 // tabletShown is explicitly unused in desktop toolbar mode.
@@ -741,8 +836,10 @@
         }, "overte-probe.json");
     }
 
+    var verticalTimer = Script.setInterval(observeVerticalMotion, 50);
     var timer = Script.setInterval(sample, 250);
     Script.scriptEnding.connect(function () {
+        Script.clearInterval(verticalTimer);
         Script.clearInterval(timer);
         releaseControlledKey(controlledKeyCommandId);
         Controller.disableMapping(controlledInputMappingName);
