@@ -26,7 +26,7 @@ from urllib.parse import urlsplit
 
 SUITES = {
     "smoke", "domain-smoke", "asset-smoke", "sound-smoke", "e2e-core",
-    "accessibility", "stability", "lifecycle-stability",
+    "accessibility", "vertical-locomotion", "stability", "lifecycle-stability",
 }
 PUBLIC_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 STAGED_MARKER = ".overte-device-ci-staged"
@@ -156,12 +156,31 @@ def normalized_fixture_origin(value: object) -> str:
     return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
 
 
-def is_ios_appium_manifest(manifest: Path) -> bool:
+def adapter_manifest_id(manifest: Path) -> str:
     try:
         value = json.loads(manifest.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         fail("adapter manifest is unreadable")
-    return isinstance(value, dict) and value.get("id") == "appium-ios"
+    identifier = value.get("id") if isinstance(value, dict) else None
+    if not isinstance(identifier, str) or not identifier:
+        fail("adapter manifest has no valid id")
+    return identifier
+
+
+def is_ios_appium_manifest(manifest: Path) -> bool:
+    return adapter_manifest_id(manifest) == "appium-ios"
+
+
+def is_isolated_pico_manifest(manifest: Path) -> bool:
+    return adapter_manifest_id(manifest) == "android-pico-adb"
+
+
+def runner_target_arguments(manifest: Path, child_environment: dict[str, str]) -> list[str]:
+    """Keep the private Pico selector out of the runner process entirely."""
+    if is_isolated_pico_manifest(manifest):
+        child_environment.pop("OVERTE_DEVICE_TARGET_SELECTOR", None)
+        return []
+    return ["--target", environment("OVERTE_DEVICE_TARGET_SELECTOR")]
 
 
 def update_ios_fixture_origin(root: Path, selector: str, base_url: object) -> None:
@@ -378,8 +397,17 @@ def prepare_controlled_android_target(root: Path, manifest: Path, selector: str,
             or adapter_manifest_id(manifest) not in ANDROID_ADAPTER_IDS):
         return
     command = load_adapter_command(manifest)
+    isolated_pico = is_isolated_pico_manifest(manifest)
+    if isolated_pico:
+        # Resolve the one live Pico from its isolated ADB server. The Jenkins
+        # credential can be stale after switching from USB to WLAN and must not
+        # override the same auto-selection used by the suite runner and cleanup.
+        runner_environment.pop("OVERTE_DEVICE_TARGET_SELECTOR", None)
+        target_arguments = []
+    else:
+        target_arguments = ["--target", selector]
     launch = subprocess.run([
-        *command, "invoke", "--target", selector, "--operation", "app.launch",
+        *command, "invoke", *target_arguments, "--operation", "app.launch",
         "--arguments", "{}",
     ], cwd=root, env=runner_environment, text=True, stdout=subprocess.PIPE,
        stderr=subprocess.PIPE, timeout=60, check=False)
@@ -401,7 +429,7 @@ def prepare_controlled_android_target(root: Path, manifest: Path, selector: str,
                 targets = None
             if isinstance(targets, list):
                 matches = [target for target in targets if isinstance(target, dict)
-                           and target.get("selector") == selector]
+                           and (isolated_pico or target.get("selector") == selector)]
                 if len(matches) == 1:
                     capabilities = matches[0].get("capabilities")
                     if (isinstance(capabilities, list)
@@ -418,7 +446,6 @@ def run_suite() -> int:
     catalog = repository_file(root, "OVERTE_CI_CATALOG")
     output = external_directory(root, "OVERTE_CI_OUTPUT_DIR")
     suite = checked_suite()
-    selector = environment("OVERTE_DEVICE_TARGET_SELECTOR")
     if output.exists():
         fail("OVERTE_CI_OUTPUT_DIR must not already exist")
     output.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -431,12 +458,14 @@ def run_suite() -> int:
     fixture_ready = fixture_metadata / "ready.json"
     domain_output = fixture_metadata / "domain"
     runner_environment = os.environ.copy()
+    selector = environment("OVERTE_DEVICE_TARGET_SELECTOR")
     previous_handlers: dict[int, object] = {}
 
     try:
         if suite == "domain-smoke":
             host = checked_public_host()
-            bind = environment("OVERTE_CI_FIXTURE_BIND", required=False, default="0.0.0.0")
+            bind = environment(
+                "OVERTE_CI_FIXTURE_BIND", required=False, default="0.0.0.0")
             domain_server = checked_executable("OVERTE_CI_DOMAIN_SERVER_EXECUTABLE")
             assignment_client = checked_executable(
                 "OVERTE_CI_ASSIGNMENT_CLIENT_EXECUTABLE")
@@ -456,9 +485,10 @@ def run_suite() -> int:
             ready = wait_for_ready(fixture, fixture_ready, timeout_seconds=75,
                                    required_key="domainUrl")
             apply_domain_fixture_environment(runner_environment, ready)
-        elif suite == "e2e-core" and checked_fixture_mode() == "embedded":
+        elif suite in {"e2e-core", "vertical-locomotion"} \
+                and checked_fixture_mode() == "embedded":
             runner_environment["OVERTE_E2E_SCENE_URL"] = EMBEDDED_FIXTURE_URL
-        elif suite in {"e2e-core", "asset-smoke", "sound-smoke"}:
+        elif suite in {"e2e-core", "vertical-locomotion", "asset-smoke", "sound-smoke"}:
             host = checked_public_host()
             bind = environment("OVERTE_CI_FIXTURE_BIND", required=False, default="0.0.0.0")
             port = checked_fixture_port()
@@ -475,18 +505,19 @@ def run_suite() -> int:
             ready = wait_for_ready(fixture, fixture_ready)
             if is_ios_appium_manifest(manifest):
                 update_ios_fixture_origin(root, selector, ready.get("baseUrl"))
-            if suite == "e2e-core":
+            if suite in {"e2e-core", "vertical-locomotion"}:
                 runner_environment["OVERTE_E2E_SCENE_URL"] = ready["sceneUrl"]
             apply_http_fixture_environment(runner_environment, ready)
 
         prepare_controlled_android_target(
             root, manifest, selector, suite, runner_environment,
         )
+        target_arguments = runner_target_arguments(manifest, runner_environment)
 
         command = [
             sys.executable, str(root / "tests/device/run.py"),
             "--adapter-manifest", str(manifest), "--catalog", str(catalog),
-            "--suite", suite, "--target", selector, "--output-dir", str(output),
+            "--suite", suite, *target_arguments, "--output-dir", str(output),
             "--require-complete",
         ]
         if environment("OVERTE_CI_ALLOW_VIRTUAL", required=False, default="0") == "1":
@@ -537,18 +568,23 @@ def load_adapter_command(manifest: Path) -> list[str]:
 def cleanup_target() -> int:
     root = workspace()
     manifest = repository_file(root, "OVERTE_CI_ADAPTER_MANIFEST")
-    selector = environment("OVERTE_DEVICE_TARGET_SELECTOR")
+    child_environment = os.environ.copy()
+    target_arguments = runner_target_arguments(manifest, child_environment)
+    selector = os.environ.get("OVERTE_DEVICE_TARGET_SELECTOR", "")
     command = load_adapter_command(manifest)
     try:
         result = subprocess.run(
-            [*command, "cleanup", "--target", selector], cwd=root, text=True,
+            [*command, "cleanup", *target_arguments], cwd=root, text=True,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60, check=False,
+            env=child_environment,
         )
     except subprocess.TimeoutExpired:
         print("error: adapter cleanup timed out", file=sys.stderr)
         return 2
     if result.returncode != 0:
-        detail = (result.stderr.strip() or "adapter cleanup failed").replace(selector, "<target>")
+        detail = result.stderr.strip() or "adapter cleanup failed"
+        if selector:
+            detail = detail.replace(selector, "<target>")
         print(f"error: {detail}", file=sys.stderr)
         return result.returncode
     print("Target cleanup completed.")
@@ -682,6 +718,15 @@ def stage_results() -> int:
 
 def self_check() -> int:
     root = workspace()
+    child_environment = os.environ.copy()
+    # Device-free contracts must not inherit the selected physical target's
+    # opt-ins. Several negative tests intentionally prove that these controls
+    # fail closed when absent.
+    for name in (
+            "OVERTE_DEVICE_TARGET_SELECTOR", "OVERTE_ANDROID_E2E_DEBUG",
+            "OVERTE_PICO_OPENXR_INPUT", "OVERTE_PICO_OPENXR_STATE_DIR",
+            "ANDROID_ADB_SERVER_PORT"):
+        child_environment.pop(name, None)
     commands = [
         [sys.executable, str(root / "tests/device/fixture/serve.py"), "--check"],
         [sys.executable, str(root / "tests/device/fixture/domain.py"), "--check"],
@@ -692,7 +737,7 @@ def self_check() -> int:
         [sys.executable, str(root / "tests/device/jenkins/test_android_build_workspace.py"), "-v"],
     ]
     for command in commands:
-        result = subprocess.run(command, cwd=root, check=False)
+        result = subprocess.run(command, cwd=root, env=child_environment, check=False)
         if result.returncode:
             return result.returncode
     return 0

@@ -4,6 +4,38 @@
 (function () {
     "use strict";
 
+    function reloadCommandIdFromAddress(address) {
+        var match = String(address).match(
+            /[?&]overteE2EReloadCommandId=([^&#]*)/);
+        if (!match) {
+            return "";
+        }
+        try {
+            return decodeURIComponent(match[1]);
+        } catch (error) {
+            return "";
+        }
+    }
+
+    function addressWithoutReloadCommand(address) {
+        var withoutFragment = String(address).split("#", 1)[0];
+        var queryStart = withoutFragment.indexOf("?");
+        if (queryStart === -1) {
+            return withoutFragment;
+        }
+        var path = withoutFragment.slice(0, queryStart);
+        var components = withoutFragment.slice(queryStart + 1).split("&");
+        var retained = [];
+        var index;
+        for (index = 0; index < components.length; index += 1) {
+            if (components[index]
+                    && components[index].indexOf("overteE2EReloadCommandId=") !== 0) {
+                retained.push(components[index]);
+            }
+        }
+        return path + (retained.length ? "?" + retained.join("&") : "");
+    }
+
     var tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
     var stableEntitySamples = 0;
     var previousEntityCount = -1;
@@ -19,7 +51,10 @@
     var heartbeatIntervalMs = 5000;
     var previousLocationKey = "";
     var androidControlAvailable = false;
-    var lastAndroidControlCommandId = "";
+    // A world reload restarts this test script. Recover the acknowledged
+    // one-shot command from the address so the retained private command file
+    // cannot trigger a reload loop in the new script instance.
+    var lastAndroidControlCommandId = reloadCommandIdFromAddress(location.href);
     var androidAssetEntityId = null;
     var flightNormalizationAllowed = true;
     var flightNormalizationActive = false;
@@ -64,7 +99,7 @@
         "OVERTE_E2E_FLOOR", "OVERTE_E2E_NORTH", "OVERTE_E2E_ORIGIN"];
     var domainMarkers = ["OVERTE_E2E_DOMAIN_FLOOR", "OVERTE_E2E_DOMAIN_NORTH",
         "OVERTE_E2E_DOMAIN_EAST", "OVERTE_E2E_DOMAIN_ORIGIN"];
-    var expectedSpawn = { x: 0.0, y: 2.0, z: 4.0 };
+    var expectedSpawn = { x: 0.0, y: 0.0, z: 4.0 };
 
     function controlledTabletOpen() {
         return Boolean(tablet.tabletShown || HMD.showTablet);
@@ -91,6 +126,14 @@
 
     function vector(value) {
         return { x: Number(value.x), y: Number(value.y), z: Number(value.z) };
+    }
+
+    function pendingVector(value) {
+        if (!value || !isFinite(Number(value.x)) || !isFinite(Number(value.y))
+                || !isFinite(Number(value.z))) {
+            return { x: 0.0, y: 0.0, z: 0.0 };
+        }
+        return vector(value);
     }
 
     function controllerPose(channel) {
@@ -158,32 +201,32 @@
         return "failed";
     }
 
-    function observeAsset(ids) {
-        var candidates = [];
-        var seen = {};
-
-        function consider(id) {
-            var key = String(id);
-            if (seen[key]) {
-                return;
-            }
-            seen[key] = true;
-            var identity = Entities.getEntityProperties(id, ["name"]);
-            if (String(identity.name).indexOf("OVERTE_E2E_ASSET_LOAD") === 0) {
-                candidates.push(id);
-            }
-        }
-
-        // Local Image entities can be rendered on Android serverless scenes
-        // without appearing in the broad spatial query. Prefer the exact ID
-        // returned by our controlled addEntity call, then retain discovery for
-        // network-loaded probe commands.
-        if (androidAssetEntityId !== null) {
-            consider(androidAssetEntityId);
+    function appendAssetCandidate(candidates, id) {
+        if (id === null || id === undefined) {
+            return;
         }
         var index;
+        for (index = 0; index < candidates.length; index += 1) {
+            if (String(candidates[index]) === String(id)) {
+                return;
+            }
+        }
+        var identity = Entities.getEntityProperties(id, ["name"]);
+        if (String(identity.name).indexOf("OVERTE_E2E_ASSET_LOAD") === 0) {
+            candidates.push(id);
+        }
+    }
+
+    function observeAsset(ids) {
+        var candidates = [];
+        // Locally hosted entities are not guaranteed to participate in the
+        // spatial query on every client.  The production addEntity return
+        // value is the authoritative identity for both controlled channels.
+        appendAssetCandidate(candidates, androidAssetEntityId);
+        appendAssetCandidate(candidates, controlledAssetEntity);
+        var index;
         for (index = 0; index < ids.length; index += 1) {
-            consider(ids[index]);
+            appendAssetCandidate(candidates, ids[index]);
         }
         if (candidates.length !== 1) {
             releaseAssetResource();
@@ -191,6 +234,8 @@
         }
         var id = candidates[0];
         var properties = Entities.getEntityProperties(id, [
+            // EntityItemProperties exposes the read-only naturalDimensions
+            // value under the common dimensions property flag.
             "name", "type", "imageURL", "userData", "dimensions", "naturalDimensions"
         ]);
         var metadata;
@@ -225,7 +270,11 @@
                 name: String(properties.name),
                 type: String(properties.type),
                 imageURL: imageURL,
-                naturalDimensions: vector(properties.naturalDimensions)
+                // Image naturalDimensions is absent while the renderer is
+                // still resolving a newly assigned texture.  Zero is a
+                // non-ready observation; the harness still requires the
+                // finished resource and exact decoded aspect ratio.
+                naturalDimensions: pendingVector(properties.naturalDimensions)
             }
         };
     }
@@ -328,55 +377,6 @@
         return origin ? origin[1] + "/e2e-client-command.json" : "";
     }
 
-    function controlledSceneLocation(value) {
-        var queryStart = value.indexOf("?");
-        if (queryStart === -1) {
-            return "";
-        }
-        var fragmentStart = value.indexOf("#", queryStart);
-        var query = value.slice(queryStart + 1,
-            fragmentStart === -1 ? value.length : fragmentStart);
-        var parts = query.split("&");
-        var index;
-        for (index = 0; index < parts.length; index += 1) {
-            var separator = parts[index].indexOf("=");
-            if (separator === -1) {
-                continue;
-            }
-            var name;
-            var path;
-            try {
-                name = decodeURIComponent(parts[index].slice(0, separator).replace(/\+/g, "%20"));
-                path = decodeURIComponent(parts[index].slice(separator + 1).replace(/\+/g, "%20"));
-            } catch (error) {
-                return "";
-            }
-            if (name !== "location") {
-                continue;
-            }
-            var sections = path.split("/");
-            if (sections.length !== 3 || sections[0] !== "") {
-                return "";
-            }
-            var position = sections[1].split(",");
-            var orientation = sections[2].split(",");
-            if (position.length !== 3 || orientation.length !== 4) {
-                return "";
-            }
-            var components = position.concat(orientation);
-            var component;
-            for (component = 0; component < components.length; component += 1) {
-                if (!/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/.test(components[component])
-                        || !isFinite(Number(components[component]))
-                        || Math.abs(Number(components[component])) > (component < 3 ? 100000 : 1.01)) {
-                    return "";
-                }
-            }
-            return path;
-        }
-        return "";
-    }
-
     function resetSceneObservation() {
         stableEntitySamples = 0;
         previousEntityCount = -1;
@@ -385,12 +385,12 @@
         sceneReady = false;
     }
 
-    function applySceneLocation(commandId, scenePath) {
-        if (scenePath !== "" && lastClientCommandId === commandId && !sceneReady) {
-            // The serverless scene may reset the avatar after the initial URL
-            // lookup. Reapply its bounded viewpoint only after loading settles.
-            Window.location = scenePath;
-        }
+    function reloadControlledScene(commandId) {
+        var baseAddress = addressWithoutReloadCommand(location.href);
+        var separator = baseAddress.indexOf("?") === -1 ? "?" : "&";
+        resetSceneObservation();
+        Window.location = baseAddress + separator + "overteE2EReloadCommandId="
+            + encodeURIComponent(String(commandId));
     }
 
     function controlledKeySpec(name) {
@@ -445,17 +445,9 @@
         if (command.action === "scene-load"
                 && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "url"])
                 && httpUrl(command.url)) {
-            var sceneCommandId = String(command.commandId);
-            var scenePath = controlledSceneLocation(command.url);
-            lastClientCommandId = sceneCommandId;
+            lastClientCommandId = String(command.commandId);
             resetSceneObservation();
             Window.location = command.url;
-            Script.setTimeout(function () {
-                applySceneLocation(sceneCommandId, scenePath);
-            }, 1500);
-            Script.setTimeout(function () {
-                applySceneLocation(sceneCommandId, scenePath);
-            }, 3500);
             return;
         }
         if (command.action === "navigate"
@@ -548,6 +540,13 @@
                 || command.commandId === lastAndroidControlCommandId) {
             return;
         }
+        if (command.action === "reload-scene"
+                && objectKeysMatch(command,
+                    ["schemaVersion", "commandId", "action"])) {
+            lastAndroidControlCommandId = String(command.commandId);
+            reloadControlledScene(lastAndroidControlCommandId);
+            return;
+        }
         if (command.action === "enter-domain"
                 && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "url"])
                 && typeof command.url === "string"
@@ -594,16 +593,12 @@
             return;
         }
         try {
-            // Script.require reads local JSON through the sandboxed module
-            // loader. XMLHttpRequest uses Qt's custom-request path, which is
-            // intended for HTTP and does not reliably read file:// on Android.
             // A distinct query keeps each atomically replaced command fresh.
             var command = Script.require("./android-control-command.json?sample="
                 + sampleSequence);
             applyAndroidControlCommand(command);
         } catch (error) {
-            // The launcher intentionally starts without a command. The host
-            // creates the file only when a controlled operation is invoked.
+            // The host creates the command file only for a controlled operation.
         }
     }
 
@@ -724,9 +719,12 @@
         var foundFixtureMarkers = Object.keys(foundMarkers).sort();
         var domainMarkerCount = Object.keys(foundDomainMarkers).length;
         var avatarPosition = vector(MyAvatar.position);
-        var spawnDeltaX = avatarPosition.x - expectedSpawn.x;
-        var spawnDeltaZ = avatarPosition.z - expectedSpawn.z;
-        var avatarAtSpawn = spawnDeltaX * spawnDeltaX + spawnDeltaZ * spawnDeltaZ <= 1.0;
+        var avatarFeetPosition = vector(MyAvatar.feetPosition);
+        var spawnDeltaX = avatarFeetPosition.x - expectedSpawn.x;
+        var spawnDeltaY = avatarFeetPosition.y - expectedSpawn.y;
+        var spawnDeltaZ = avatarFeetPosition.z - expectedSpawn.z;
+        var avatarAtSpawn = spawnDeltaX * spawnDeltaX + spawnDeltaY * spawnDeltaY
+            + spawnDeltaZ * spawnDeltaZ <= 1.0;
         if (previousAvatarPosition !== null) {
             var deltaX = avatarPosition.x - previousAvatarPosition.x;
             var deltaY = avatarPosition.y - previousAvatarPosition.y;
@@ -735,10 +733,12 @@
                 ? stableAvatarSamples + 1 : 0;
         }
         previousAvatarPosition = avatarPosition;
-        spawnDeltaX = avatarPosition.x - expectedSpawn.x;
-        spawnDeltaZ = avatarPosition.z - expectedSpawn.z;
+        spawnDeltaX = avatarFeetPosition.x - expectedSpawn.x;
+        spawnDeltaY = avatarFeetPosition.y - expectedSpawn.y;
+        spawnDeltaZ = avatarFeetPosition.z - expectedSpawn.z;
         var avatarAboveFloor = floorTopY !== null && avatarPosition.y >= floorTopY - 0.05;
-        avatarAtSpawn = spawnDeltaX * spawnDeltaX + spawnDeltaZ * spawnDeltaZ <= 1.0;
+        avatarAtSpawn = spawnDeltaX * spawnDeltaX + spawnDeltaY * spawnDeltaY
+            + spawnDeltaZ * spawnDeltaZ <= 1.0;
         if (!sceneReady && markerCount === fixtureMarkers.length && stableEntitySamples >= 3
                 && stableAvatarSamples >= 4 && avatarAboveFloor && avatarAtSpawn
                 && !flightNormalizationActive && !MyAvatar.isInAir()
@@ -761,6 +761,8 @@
             }
         }
         sampleSequence += 1;
+        var locationProtocol = String(location.protocol);
+        var serverless = locationProtocol === "file";
         Test.saveObject({
             schemaVersion: 2,
             sampleEpochMs: now,
@@ -777,17 +779,15 @@
             control: androidControlAvailable ? {
                 schemaVersion: 1,
                 channel: "android-debug-file-v1",
-                probe: "overte_e2e_probe.js"
+                probe: "overte_e2e_probe.js",
+                lastCommandId: lastAndroidControlCommandId
             } : null,
             domain: {
-                // A file-backed serverless scene can report location.isConnected
-                // even though no domain server or domain UUID exists.
-                connected: Boolean(location.isConnected)
-                    && String(location.protocol) !== "file",
+                connected: !serverless && Boolean(location.isConnected),
                 hostname: String(location.hostname),
                 id: String(location.domainID),
-                protocol: String(location.protocol),
-                serverless: String(location.protocol) === "file"
+                protocol: locationProtocol,
+                serverless: serverless
             },
             input: effectiveInputState(),
             scene: {
@@ -806,6 +806,7 @@
             },
             avatar: {
                 position: avatarPosition,
+                feetPosition: avatarFeetPosition,
                 velocity: vector(MyAvatar.velocity),
                 bodyYawDegrees: Number(MyAvatar.bodyYaw),
                 inAir: Boolean(MyAvatar.isInAir()),
@@ -889,6 +890,13 @@
         } catch (error) {
             probeErrorCount += 1;
             var detail = safeErrorText(error);
+            Test.saveObject({
+                schemaVersion: 1,
+                sampleEpochMs: now,
+                sampleSequence: sampleSequence,
+                errorCount: probeErrorCount,
+                detail: detail
+            }, "overte-probe-error.json");
             if (detail !== lastProbeError) {
                 print("OVERTE_E2E_PROBE_ERROR " + detail);
                 lastProbeError = detail;
@@ -911,6 +919,9 @@
         }
         releaseControlledKey(controlledKeyCommandId);
         Controller.disableMapping(controlledInputMappingName);
+        if (controlledTabletOpen()) {
+            HMD.closeTablet();
+        }
         if (flightNormalizationActive) {
             MyAvatar.setFlyingEnabled(flyingEnabledBeforeNormalization);
             flightNormalizationActive = false;
