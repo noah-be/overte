@@ -38,6 +38,17 @@ A device adapter may set these profile inputs:
 - feature capabilities such as `graphicsSettingsAvailable` or
   `scriptingPluginsAvailable`
 
+The legacy `picoResolutionSettingsAvailable` profile input remains an
+implementation detail for compatibility. Shared presentation and E2E code
+projects it as the product-neutral `vrRenderResolutionAvailable` capability
+and `settings.vr-render-resolution` semantic feature ID.
+
+Shared tablet controls may expose a non-localized `semanticId`, `objectName`
+or `semanticScreenId` alongside their translated accessibility description.
+These IDs are automation identity, not visible labels. The versioned public
+taxonomy and product-policy boundary are documented in
+[`tests/device/TABLET_E2E.md`](../../tests/device/TABLET_E2E.md).
+
 Each feature supplies its current `availableWidth` and `availableHeight` to its
 presentation object. A host that has not already removed its safe area may
 also supply the four inset values directly to `TouchUiMetrics`.
