@@ -141,6 +141,28 @@ class HarnessTest(unittest.TestCase):
         self.assertTrue((self.output / "modules/health/INVALID").exists())
         self.assertEqual("failed", json.loads((self.output / "summary.json").read_text())["status"])
 
+    def test_infrastructure_failure_blocks_later_device_commands_and_cleans_up(self):
+        catalog = json.loads(self.catalog.read_text(encoding="utf-8"))
+        catalog["modules"].append({
+            "id": "later", "description": "Must not run after transport loss",
+            "command": ["module.py"], "suites": ["smoke"],
+            "requires": ["app.process"], "timeoutSeconds": 10,
+        })
+        self.catalog.write_text(json.dumps(catalog), encoding="utf-8")
+
+        result = self.run_harness(
+            "--require-complete", environment={"MOCK_MODULE_EXIT": "75"})
+
+        self.assertEqual(1, result.returncode, result.stdout)
+        self.assertTrue(self.cleanup_marker.exists())
+        self.assertFalse((self.output / "modules/later").exists())
+        summary = json.loads((self.output / "summary.json").read_text())
+        self.assertEqual(["error", "skipped"], [
+            entry["status"] for entry in summary["results"]])
+        junit = ET.parse(self.output / "junit.xml").getroot()
+        self.assertEqual("1", junit.attrib["errors"])
+        self.assertEqual("1", junit.attrib["skipped"])
+
     def test_missing_capability_is_reported_as_skip(self):
         result = self.run_harness(environment={"MOCK_CAPABILITIES": "telemetry.memory"})
         self.assertEqual(0, result.returncode, result.stdout)
