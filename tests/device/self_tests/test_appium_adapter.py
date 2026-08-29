@@ -73,6 +73,10 @@ class AppiumHandler(BaseHTTPRequestHandler):
     sound_commands: list[dict] = []
     reject_sound = False
     reject_webdriver = False
+    source_content = '<hierarchy><node content-desc="OverteTablet"/></hierarchy>'
+    element_requests: list[dict] = []
+    restart_on_element_click = False
+    restart_marker: Path | None = None
 
     def response(self, value: object) -> None:
         content = json.dumps({"value": value}).encode("utf-8")
@@ -87,7 +91,7 @@ class AppiumHandler(BaseHTTPRequestHandler):
         if self.path.endswith("/window/rect"):
             self.response({"x": 0, "y": 0, "width": 1000, "height": 500})
         elif self.path.endswith("/source"):
-            self.response('<hierarchy><node content-desc="OverteTablet"/></hierarchy>')
+            self.response(self.source_content)
         elif self.path.endswith("/screenshot"):
             self.response(base64.b64encode(b"mock-png").decode())
         else:
@@ -144,11 +148,15 @@ class AppiumHandler(BaseHTTPRequestHandler):
                     type(self).app_state = 2
                 self.response(None)
         elif self.path.endswith("/element"):
+            self.element_requests.append(payload)
             self.response({"element-6066-11e4-a52e-4f735466cecf": "element-private"})
         elif self.path.endswith("/actions"):
             self.action_payloads.append(payload)
             self.response(None)
         else:
+            if (self.path.endswith("/element/element-private/click")
+                    and self.restart_on_element_click and self.restart_marker is not None):
+                self.restart_marker.touch()
             self.response(None)
 
     def do_DELETE(self) -> None:  # noqa: N802
@@ -171,6 +179,11 @@ class AppiumAdapterTest(unittest.TestCase):
         AppiumHandler.sound_commands = []
         AppiumHandler.reject_sound = False
         AppiumHandler.reject_webdriver = False
+        AppiumHandler.source_content = (
+            '<hierarchy><node content-desc="OverteTablet"/></hierarchy>')
+        AppiumHandler.element_requests = []
+        AppiumHandler.restart_on_element_click = False
+        AppiumHandler.restart_marker = self.root / "android-restarted"
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), AppiumHandler)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
@@ -291,6 +304,28 @@ class AppiumAdapterTest(unittest.TestCase):
         }
         self.config.write_text(json.dumps(payload), encoding="utf-8")
         return target
+
+    def configure_semantic_android(self) -> dict:
+        payload = copy.deepcopy(self.targets)
+        target = payload["targets"][0]
+        target["controls"]["tablet"]["semanticUi"] = {"contractVersion": 1}
+        self.config.write_text(json.dumps(payload), encoding="utf-8")
+        return target
+
+    @staticmethod
+    def semantic_source(screen: str = "tablet.home", controls: tuple[str, ...] = (
+            "app.settings", "nav.close"), *, ready: bool = True,
+            private_prefix: str = "org.overte.phone:id/") -> str:
+        nodes = [
+            f'<node class="android.widget.TextView" clickable="false" '
+            f'resource-id="{private_prefix}{screen}" displayed="true" '
+            f'enabled="{str(ready).lower()}"/>'
+        ]
+        nodes.extend(
+            f'<node class="android.widget.Button" clickable="true" '
+            f'resource-id="{private_prefix}{control}" displayed="true" enabled="true"/>'
+            for control in controls)
+        return "<hierarchy>" + "".join(nodes) + "</hierarchy>"
 
     def android_commands(self) -> list[dict]:
         path = self.root / "android-commands.jsonl"
@@ -476,6 +511,181 @@ class AppiumAdapterTest(unittest.TestCase):
             "--operation", "tablet.open")
         self.assertEqual(2, rejected.returncode, rejected.stdout)
         self.assertIn("finite fractions", rejected.stdout)
+
+    def test_android_semantic_tablet_snapshot_and_real_element_activation(self):
+        self.configure_semantic_android()
+        AppiumHandler.source_content = self.semantic_source()
+        discovered = self.call("android", "discover")
+        capabilities = json.loads(discovered.stdout)[0]["capabilities"]
+        self.assertIn("tablet.snapshot", capabilities)
+        self.assertIn("tablet.activate", capabilities)
+
+        opened = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "tablet.open")
+        self.assertEqual(0, opened.returncode, opened.stdout)
+
+        snapshot = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "tablet.snapshot")
+        self.assertEqual(0, snapshot.returncode, snapshot.stdout)
+        self.assertEqual({
+            "contractVersion": 1,
+            "schemaVersion": 1,
+            "screenId": "tablet.home",
+            "ready": True,
+            "visibleControlIds": ["app.settings", "nav.close"],
+            "selectedControlIds": [],
+        }, json.loads(snapshot.stdout))
+
+        activated = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "tablet.activate", "--arguments",
+            json.dumps({"contractVersion": 1, "controlId": "app.settings"}))
+        self.assertEqual(0, activated.returncode, activated.stdout)
+        self.assertEqual({"performed": True}, json.loads(activated.stdout))
+        self.assertIn({"using": "id", "value": "org.overte.phone:id/app.settings"},
+                      AppiumHandler.element_requests)
+        # A click result is not navigation evidence; without a changed native
+        # tree the next independent snapshot still reports the prior screen.
+        unchanged = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "tablet.snapshot")
+        self.assertEqual("tablet.home", json.loads(unchanged.stdout)["screenId"])
+
+        settings_controls = ("nav.home", "settings.audio", "settings.general",
+                             "settings.security")
+        AppiumHandler.source_content = self.semantic_source(
+            "settings.home", settings_controls)
+        settings = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "tablet.snapshot")
+        self.assertEqual("settings.home", json.loads(settings.stdout)["screenId"])
+
+        for control_id, screen_id in (
+                ("settings.audio", "settings.audio"),
+                ("settings.general", "settings.general"),
+                ("settings.security", "settings.security")):
+            entered = self.call(
+                "android", "invoke", "--target", "phone-alias",
+                "--operation", "tablet.activate", "--arguments",
+                json.dumps({"contractVersion": 1, "controlId": control_id}))
+            self.assertEqual(0, entered.returncode, entered.stdout)
+            AppiumHandler.source_content = self.semantic_source(screen_id, ("nav.back",))
+            nested = self.call(
+                "android", "invoke", "--target", "phone-alias",
+                "--operation", "tablet.snapshot")
+            self.assertEqual(screen_id, json.loads(nested.stdout)["screenId"])
+            returned = self.call(
+                "android", "invoke", "--target", "phone-alias",
+                "--operation", "tablet.activate", "--arguments",
+                json.dumps({"contractVersion": 1, "controlId": "nav.back"}))
+            self.assertEqual(0, returned.returncode, returned.stdout)
+            AppiumHandler.source_content = self.semantic_source(
+                "settings.home", settings_controls)
+
+        home = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "tablet.activate", "--arguments",
+            json.dumps({"contractVersion": 1, "controlId": "nav.home"}))
+        self.assertEqual(0, home.returncode, home.stdout)
+        AppiumHandler.source_content = self.semantic_source()
+        returned_home = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "tablet.snapshot")
+        self.assertEqual("tablet.home", json.loads(returned_home.stdout)["screenId"])
+        closed = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "tablet.close")
+        self.assertEqual(0, closed.returncode, closed.stdout)
+
+    def test_android_semantic_tablet_reports_ready_and_actual_screen(self):
+        self.configure_semantic_android()
+        AppiumHandler.source_content = self.semantic_source(
+            "settings.home", ("nav.home", "settings.audio", "settings.general",
+                              "settings.security"), ready=False)
+        result = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "tablet.snapshot")
+        self.assertEqual(0, result.returncode, result.stdout)
+        value = json.loads(result.stdout)
+        self.assertEqual("settings.home", value["screenId"])
+        self.assertFalse(value["ready"])
+        self.assertEqual(["nav.home", "settings.audio", "settings.general",
+                          "settings.security"], value["visibleControlIds"])
+
+    def test_android_semantic_tablet_observes_forbidden_ids_for_policy_failure(self):
+        self.configure_semantic_android()
+        forbidden = ("settings.controllers", "settings.hmd-preferences",
+                     "settings.vr-render-resolution")
+        AppiumHandler.source_content = self.semantic_source(
+            "settings.home", forbidden)
+        result = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "tablet.snapshot")
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertEqual(sorted(forbidden), json.loads(result.stdout)["visibleControlIds"])
+
+    def test_android_semantic_tablet_rejects_missing_and_malformed_native_state(self):
+        self.configure_semantic_android()
+        cases = (
+            ("<hierarchy>", "invalid XML"),
+            ("<hierarchy/>", "exactly one screen"),
+            (self.semantic_source()[:-12]
+             + '<node resource-id="settings.home" displayed="true"/></hierarchy>',
+             "exactly one screen"),
+        )
+        for source, expected in cases:
+            with self.subTest(expected=expected):
+                AppiumHandler.source_content = source
+                result = self.call(
+                    "android", "invoke", "--target", "phone-alias",
+                    "--operation", "tablet.snapshot")
+                self.assertEqual(2, result.returncode, result.stdout)
+                self.assertIn(expected, result.stdout)
+
+        AppiumHandler.source_content = self.semantic_source(
+            "settings.home", ("nav.home",))
+        missing = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "tablet.activate", "--arguments",
+            json.dumps({"contractVersion": 1, "controlId": "settings.general"}))
+        self.assertEqual(2, missing.returncode, missing.stdout)
+        self.assertIn("not visible", missing.stdout)
+
+    def test_android_semantic_tablet_detects_process_restart_and_redacts_selectors(self):
+        self.configure_semantic_android()
+        private_prefix = "private-target-selector:id/"
+        AppiumHandler.source_content = self.semantic_source(private_prefix=private_prefix)
+        snapshot = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "tablet.snapshot")
+        self.assertEqual(0, snapshot.returncode, snapshot.stdout)
+        self.assertNotIn("private-target-selector", snapshot.stdout)
+
+        AppiumHandler.restart_on_element_click = True
+        restarted = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "tablet.activate", "--arguments",
+            json.dumps({"contractVersion": 1, "controlId": "app.settings"}))
+        self.assertEqual(2, restarted.returncode, restarted.stdout)
+        self.assertIn("process changed", restarted.stdout)
+        self.assertNotIn("private-target-selector", restarted.stdout)
+
+    def test_semantic_tablet_configuration_is_fail_closed_and_android_only(self):
+        cases = (
+            (0, {"contractVersion": 2}, "contract version 1"),
+            (1, {"contractVersion": 1}, "currently Android-only"),
+        )
+        for index, semantic, expected in cases:
+            with self.subTest(expected=expected):
+                payload = copy.deepcopy(self.targets)
+                payload["targets"][index]["controls"]["tablet"]["semanticUi"] = semantic
+                self.config.write_text(json.dumps(payload), encoding="utf-8")
+                result = self.call(
+                    "android" if index == 0 else "ios", "discover")
+                self.assertEqual(2, result.returncode, result.stdout)
+                self.assertIn(expected, result.stdout)
 
     def test_ios_initial_launch_sets_arguments_and_background_preserves_process(self):
         target = ("--target", "ipad-alias")

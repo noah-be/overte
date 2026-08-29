@@ -31,7 +31,10 @@
         },
         "tablet": {
           "openPoint": [0.045, 0.25],
-          "closePoint": [0.5, 0.965]
+          "closePoint": [0.5, 0.965],
+          "semanticUi": {
+            "contractVersion": 1
+          }
         }
       },
       "probe": {

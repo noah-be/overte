@@ -19,6 +19,7 @@ import controlsUit 1.0 as HifiControlsUit
 import "qrc:////qml//controls" as HifiControls
 
 Rectangle {
+    signal sendToScript(var message);
     HifiStylesUit.HifiConstants { id: hifi; }
     SecurityTouchConfiguration {
         id: touchConfiguration
@@ -28,9 +29,29 @@ Rectangle {
 
     id: root;
     objectName: "settings.security"
+    Accessible.role: Accessible.Client
+    Accessible.name: qsTr("Security settings")
     color: hifi.colors.baseGray;
     
     property string title: "Security Settings";
+
+    HifiControlsUit.Button {
+        id: semanticBackButton
+        objectName: "nav.back"
+        visible: touchConfiguration.directTouch
+        z: 1000
+        text: qsTr("Back")
+        width: Math.max(88, touchConfiguration.buttonHeight * 2)
+        height: touchConfiguration.buttonHeight
+        anchors.top: parent.top
+        anchors.right: parent.right
+        Accessible.role: Accessible.Button
+        Accessible.name: qsTr("Back to settings")
+        Accessible.description: qsTr("Return to the settings category list")
+        androidClickAction: function() {
+            root.sendToScript({ type: "settings.back" });
+        }
+    }
     
     QtObject {
         id: margins

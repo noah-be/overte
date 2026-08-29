@@ -17,8 +17,8 @@ StackView {
     id: profileRoot
     TabletGeneralPreferencesPolicy { id: preferencesPolicy }
     initialItem: root
-    objectName: "stack"
     readonly property string semanticScreenId: "settings.general"
+    objectName: "stack"
     property string title: "General Settings"
     property alias gotoPreviousApp: root.gotoPreviousApp;
     property alias gotoPreviousAppFromScript: root.gotoPreviousAppFromScript;
@@ -39,7 +39,9 @@ StackView {
 
     TabletPreferencesDialog {
         id: root
-        objectName: "TabletGeneralPreferences"
+        objectName: profileRoot.semanticScreenId
+        Accessible.role: Accessible.Client
+        Accessible.name: qsTr("General settings")
         showCategories: preferencesPolicy.allowedCategories
         categorySemanticIds: preferencesPolicy.categorySemanticIds
     }

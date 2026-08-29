@@ -13,6 +13,7 @@ import sys
 import math
 import re
 import uuid
+import xml.etree.ElementTree as ET
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
@@ -28,7 +29,13 @@ from adapters.common import (EMBEDDED_FIXTURE_URL, emit, fail,  # noqa: E402
                              parse_operation_arguments,
                              read_fresh_json, require_fresh_snapshot,
                              state_directory)
-from contracts import validate_operation_arguments  # noqa: E402
+from contracts import (TABLET_CONTRACT_VERSION, load_tablet_ui_contract,  # noqa: E402
+                       validate_operation_arguments)
+
+
+TABLET_UI_REGISTRY = load_tablet_ui_contract()
+TABLET_SCREEN_IDS = frozenset(TABLET_UI_REGISTRY["screenIds"])
+TABLET_CONTROL_IDS = frozenset(TABLET_UI_REGISTRY["controlIds"])
 
 
 def cli() -> argparse.Namespace:
@@ -138,6 +145,12 @@ class AppiumAdapter:
             tablet = entry.get("controls", {}).get("tablet", {})
             if not isinstance(tablet, dict):
                 fail("Appium target controls.tablet must be an object")
+            semantic_ui = tablet.get("semanticUi")
+            if semantic_ui is not None:
+                if semantic_ui != {"contractVersion": TABLET_CONTRACT_VERSION}:
+                    fail("controls.tablet.semanticUi must select tablet contract version 1")
+                if entry["platform"] != "android":
+                    fail("semantic tablet UI automation is currently Android-only")
             for point_name in ("togglePoint", "openPoint", "closePoint"):
                 if point_name in tablet:
                     self.validate_fractional_point(
@@ -411,6 +424,11 @@ class AppiumAdapter:
                                          (tablet.get("openPoint") and
                                           tablet.get("closePoint"))):
             values += ["tablet.close", "tablet.open"]
+        if (isinstance(tablet, dict)
+                and tablet.get("semanticUi") == {
+                    "contractVersion": TABLET_CONTRACT_VERSION,
+                }):
+            values += ["tablet.activate", "tablet.snapshot"]
         return sorted(values)
 
     @staticmethod
@@ -619,14 +637,132 @@ class AppiumAdapter:
         client.call("DELETE", f"/session/{session}/actions")
 
     def click_accessibility(self, client: WebDriver, session: str, identifier: str) -> None:
+        self.click_element(client, session, "accessibility id", identifier)
+
+    @staticmethod
+    def click_element(client: WebDriver, session: str, strategy: str, selector: str) -> None:
         value = client.call("POST", f"/session/{session}/element",
-                            {"using": "accessibility id", "value": identifier})
+                            {"using": strategy, "value": selector})
         if not isinstance(value, dict):
             fail("Appium did not return an element reference")
         element = value.get("element-6066-11e4-a52e-4f735466cecf") or value.get("ELEMENT")
         if not isinstance(element, str):
             fail("Appium element reference is invalid")
         client.call("POST", f"/session/{session}/element/{element}/click", {})
+
+    @staticmethod
+    def semantic_id(attribute: str, value: str, allowed: frozenset[str]) -> str | None:
+        if attribute == "content-desc":
+            return value if value in allowed else None
+        if attribute == "resource-id":
+            for semantic_id in allowed:
+                if value == semantic_id or value.endswith("/" + semantic_id):
+                    return semantic_id
+        return None
+
+    @staticmethod
+    def element_visible(element: ET.Element) -> bool:
+        return (element.attrib.get("displayed", "true").lower() not in {"0", "false"}
+                and element.attrib.get("visible", "true").lower() not in {"0", "false"})
+
+    @staticmethod
+    def element_actionable(element: ET.Element) -> bool:
+        class_name = element.attrib.get("class", "").lower()
+        return (element.attrib.get("clickable", "false").lower() in {"1", "true"}
+                or class_name.endswith(("button", "checkbox", "switch")))
+
+    def semantic_tablet_snapshot(self, client: WebDriver, session: str,
+                                 target: dict) -> tuple[dict, dict[str, tuple[str, str]]]:
+        tablet = target.get("controls", {}).get("tablet", {})
+        if (self.platform != "android" or tablet.get("semanticUi") != {
+                "contractVersion": TABLET_CONTRACT_VERSION}):
+            fail("Appium target has no audited semantic tablet UI")
+        source = client.call("GET", f"/session/{session}/source")
+        if not isinstance(source, str) or not source.strip():
+            fail("semantic tablet accessibility snapshot is empty")
+        if "<!DOCTYPE" in source.upper():
+            fail("semantic tablet accessibility snapshot contains unsupported markup")
+        try:
+            root = ET.fromstring(source)
+        except ET.ParseError:
+            fail("semantic tablet accessibility snapshot is invalid XML")
+
+        screens: dict[str, list[ET.Element]] = {}
+        controls: dict[str, list[tuple[ET.Element, str, str]]] = {}
+        for element in root.iter():
+            for attribute in ("resource-id", "content-desc"):
+                raw_value = element.attrib.get(attribute)
+                if not raw_value:
+                    continue
+                screen_id = self.semantic_id(attribute, raw_value, TABLET_SCREEN_IDS)
+                if (screen_id is not None
+                        and (screen_id not in TABLET_CONTROL_IDS
+                             or not self.element_actionable(element))):
+                    screens.setdefault(screen_id, []).append(element)
+                control_id = self.semantic_id(attribute, raw_value, TABLET_CONTROL_IDS)
+                if (control_id is not None
+                        and (control_id not in TABLET_SCREEN_IDS
+                             or self.element_actionable(element))):
+                    controls.setdefault(control_id, []).append(
+                        (element, "id" if attribute == "resource-id" else "accessibility id",
+                         raw_value))
+
+        visible_screens = sorted(screen_id for screen_id, elements in screens.items()
+                                 if any(self.element_visible(element) for element in elements))
+        if len(visible_screens) != 1:
+            fail("semantic tablet accessibility snapshot does not expose exactly one screen")
+        screen_id = visible_screens[0]
+        screen_ready = any(
+            self.element_visible(element)
+            and element.attrib.get("enabled", "true").lower() not in {"0", "false"}
+            for element in screens[screen_id])
+        visible_controls = sorted(
+            control_id for control_id, entries in controls.items()
+            if any(self.element_visible(element) for element, _, _ in entries))
+        selected_controls = sorted(
+            control_id for control_id, entries in controls.items()
+            if any(self.element_visible(element)
+                   and (element.attrib.get("selected", "false").lower() in {"1", "true"}
+                        or element.attrib.get("checked", "false").lower() in {"1", "true"})
+                   for element, _, _ in entries))
+        locators: dict[str, tuple[str, str]] = {}
+        for control_id in visible_controls:
+            entries = controls[control_id]
+            preferred = sorted(
+                ((strategy != "id", strategy, selector)
+                 for element, strategy, selector in entries if self.element_visible(element)))
+            if preferred:
+                _, strategy, selector = preferred[0]
+                locators[control_id] = (strategy, selector)
+        return ({
+            "contractVersion": TABLET_CONTRACT_VERSION,
+            "schemaVersion": 1,
+            "screenId": screen_id,
+            "ready": screen_ready,
+            "visibleControlIds": visible_controls,
+            "selectedControlIds": selected_controls,
+        }, locators)
+
+    def activate_semantic_tablet_control(self, selector: str, client: WebDriver,
+                                         session: str, state: dict, target: dict,
+                                         values: dict) -> dict:
+        arguments = validate_operation_arguments("tablet.activate", values)
+        snapshot, locators = self.semantic_tablet_snapshot(client, session, target)
+        control_id = arguments["controlId"]
+        locator = locators.get(control_id)
+        if control_id not in snapshot["visibleControlIds"] or locator is None:
+            fail("requested semantic tablet control is not visible")
+        before = None
+        if target.get("process", {}).get("kind") == "adb":
+            before = self.process_state(selector, client, session, state, target)
+            if before.get("running") is not True:
+                fail("application is not running before semantic tablet activation")
+        self.click_element(client, session, locator[0], locator[1])
+        if before is not None:
+            after = self.process_state(selector, client, session, state, target)
+            if after != before:
+                fail("application process changed during semantic tablet activation")
+        return {"performed": True}
 
     def probe_snapshot(self, client: WebDriver, session: str, target: dict) -> dict:
         probe = target.get("probe", {})
@@ -932,6 +1068,13 @@ class AppiumAdapter:
                 destination.chmod(0o600)
                 artifact = destination.name
             return {"source": source, "artifact": artifact}
+        if operation == "tablet.snapshot":
+            validate_operation_arguments(operation, values)
+            snapshot, _ = self.semantic_tablet_snapshot(client, session, target)
+            return snapshot
+        if operation == "tablet.activate":
+            return self.activate_semantic_tablet_control(
+                selector, client, session, state, target, values)
         if operation == "artifact.screenshot":
             encoded = client.call("GET", f"/session/{session}/screenshot")
             artifact_dir = os.environ.get("OVERTE_DEVICE_ARTIFACT_DIR")

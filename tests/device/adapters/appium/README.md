@@ -25,6 +25,40 @@ normalized `togglePoint`, or distinct `openPoint` and `closePoint`, instead.
 This touch fallback can verify tablet behavior through the probe, but it does
 not make the separate Accessibility gate pass.
 
+Android Phone semantic tablet automation is an explicit second audit gate.
+After confirming that UiAutomator2 exposes the checked-in non-localized QML
+object names as `resource-id` or `content-desc`, configure only:
+
+```json
+"semanticUi": {"contractVersion": 1}
+```
+
+under `controls.tablet`. The adapter then advertises `tablet.snapshot` and
+`tablet.activate` together. Snapshots are derived from the current native tree,
+contain only the versioned semantic screen/control IDs, and never return or
+persist native selectors. Activation first requires the requested ID to be
+currently visible, performs a W3C element click, and verifies that the Android
+process identity did not change. The following stable snapshot in the common
+suite—not the click result—is the navigation proof. Keep `semanticUi` absent
+when the Accessibility tree has not been audited or exposes only translated
+captions.
+
+The Android Phone acceptance policy is
+[`../../policies/android-phone-flat-touch.json`](../../policies/android-phone-flat-touch.json).
+It requires Home, General, Audio and Security, and requires the absence of the
+Controller, HMD and VR render-resolution features. Run it with:
+
+```bash
+python3 tests/device/run.py \
+  --adapter-manifest tests/device/adapters/appium/android.json \
+  --catalog tests/device/catalog.json --suite tablet-e2e \
+  --tablet-policy tests/device/policies/android-phone-flat-touch.json \
+  --output-dir /tmp/overte-android-phone-tablet-e2e --require-complete
+```
+
+If discovery returns more than one target, supply the private selector through
+the lab's protected configuration/runner. Do not place it in logs or reports.
+
 The Android example uses `scene.kind=android-debug-e2e`. This starts the
 shell-protected launcher that exists only in debug APKs; the launcher copies
 the repository-owned scene and probe assets into app-private storage and never
