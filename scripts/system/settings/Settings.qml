@@ -6,21 +6,24 @@ import "./qml/pages"
 
 Rectangle {
     signal sendToScript(var message);
+	readonly property string semanticScreenId: currentPage === "Settings"
+		? "settings.home" : currentPage === "Graphics" ? "settings.graphics" : ""
+	objectName: semanticScreenId
 	color: Qt.rgba(0.1,0.1,0.1,1);
 	width: parent.width;
 	height: parent.height;
 	anchors.centerIn: parent;
 	anchors.horizontalCenter: parent.horizontalCenter
 	property var allPages: [
-		{name: "General", icon: "../img/overte.svg", targetPage: "hifi/tablet/TabletGeneralPreferences.qml" },
+		{name: "General", semanticId: "settings.general", icon: "../img/overte.svg", targetPage: "hifi/tablet/TabletGeneralPreferences.qml" },
 		{name: "Graphics", icon: "../img/computer.svg", targetPage: "",
-			requiresGraphicsSettings: true },
-		{name: "Audio", icon: "../img/volume.svg", targetPage: "hifi/audio/Audio.qml" }, 
+			semanticId: "settings.graphics", requiresGraphicsSettings: true },
+		{name: "Audio", semanticId: "settings.audio", icon: "../img/volume.svg", targetPage: "hifi/audio/Audio.qml" },
 		{name: "Controls", icon: "../img/dpad.svg", targetPage: "hifi/tablet/ControllerSettings.qml",
-			requiresControllerSettings: true },
+			semanticId: "settings.controllers", requiresControllerSettings: true },
 		{name: "Pico Interaction", icon: "../img/dpad.svg", targetPage: "",
-			requiresPicoInteractionSettings: true },
-		{name: "Security", icon: "../img/badge.svg", targetPage: "hifi/dialogs/security/Security.qml" }, 
+			requiresControllerSettings: true, requiresPicoInteractionSettings: true },
+		{name: "Security", semanticId: "settings.security", icon: "../img/badge.svg", targetPage: "hifi/dialogs/security/Security.qml" },
 		{name: "QML Allowlist", icon: "../img/lock.svg", targetPage: "hifi/dialogs/security/EntityScriptQMLAllowlist.qml" }, 
 		{name: "Script Security", icon: "../img/shield.svg", targetPage: "hifi/dialogs/security/ScriptSecurity.qml" }, 
 	];
@@ -32,7 +35,8 @@ Rectangle {
 		availableHeight: parent.height
 	}
 	property var pages: allPages.filter(function (page) {
-		return (!page.requiresControllerSettings || touchConfiguration.showControllerSettings)
+		return (!page.semanticId || touchConfiguration.admitsSemanticControl(page.semanticId))
+			&& (!page.requiresControllerSettings || touchConfiguration.showControllerSettings)
 			&& (!page.requiresGraphicsSettings || touchConfiguration.showGraphicsSettings)
 			&& (!page.requiresPicoInteractionSettings
 				|| touchConfiguration.showPicoInteractionSettings);
@@ -62,6 +66,7 @@ Rectangle {
 				model: pages.length;
 				delegate: SettingSubviewListElement {
 					property string pageName: pages[index].name;
+					semanticId: pages[index].semanticId || "";
 					property string pageIcon: pages[index].icon;
 					property string targetPage: pages[index].targetPage;
 				}

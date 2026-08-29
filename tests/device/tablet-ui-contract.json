@@ -1,0 +1,26 @@
+{
+  "contractVersion": 1,
+  "schemaVersion": 1,
+  "controlIds": [
+    "app.settings",
+    "nav.back",
+    "nav.close",
+    "nav.home",
+    "settings.audio",
+    "settings.controllers",
+    "settings.general",
+    "settings.graphics",
+    "settings.hmd-preferences",
+    "settings.security",
+    "settings.vr-render-resolution"
+  ],
+  "screenIds": [
+    "settings.audio",
+    "settings.controllers",
+    "settings.general",
+    "settings.graphics",
+    "settings.home",
+    "settings.security",
+    "tablet.home"
+  ]
+}
