@@ -9,7 +9,8 @@ def main() -> None:
     session = OverteSession()
     session.ensure_controlled_scene()
     before, flying = session.fly()
-    gain = session._height(flying) - session._height(before)
+    events = flying["verticalEvents"]
+    gain = events["lastFlightPeakY"] - events["lastFlightStartY"]
     print(f"Active flight gained {gain:.3f} meters.")
 
 
