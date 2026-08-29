@@ -81,8 +81,12 @@ save = WORKFLOW.index("Save compiler recovery cache after a build failure")
 if not report < verify < diagnostics < stop < save:
     raise SystemExit("checkpoint verification/diagnostics/local recovery ordering drifted")
 verify_slice = WORKFLOW[verify:diagnostics]
-for invariant in ("requests_executed", "cache_hits", "cache_misses", "cache_write_errors",
-                  "multi_level", "write_failures"):
+for invariant in (
+    "report-sccache-stats.py",
+    "--require-activity",
+    "--max-remote-write-failure-rate 0.01",
+    "--max-remote-write-failures 32",
+):
     if invariant not in verify_slice:
         raise SystemExit(f"remote checkpoint verification omits {invariant}")
 

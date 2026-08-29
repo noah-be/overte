@@ -263,6 +263,43 @@ class JenkinsGlueTest(unittest.TestCase):
             self.assertNotIn("udid", " ".join(command).lower())
             self.assertNotIn("appium-home", " ".join(command).lower())
 
+    def test_ios_thermal_preflight_uses_private_environment_and_stable_samples(self):
+        target = {
+            "platform": "ios",
+            "capabilities": {"appium:udid": "private-device-identity"},
+        }
+        sample = MagicMock(
+            returncode=0,
+            stdout=json.dumps({"Temperature": 3000, "IsCharging": True}),
+            stderr="",
+        )
+        values = {
+            "OVERTE_CI_WORKSPACE": str(ROOT),
+            "OVERTE_DEVICE_TARGET_SELECTOR": "private-selector",
+            "OVERTE_GITHUB_TOKEN": "must-not-reach-probe",
+        }
+        with patch.dict(os.environ, values, clear=False), \
+                patch.object(RUN_CI, "selected_private_ios_target", return_value=target), \
+                patch.object(RUN_CI, "has_symlink_component", return_value=False), \
+                patch.object(RUN_CI.Path, "is_dir", return_value=True), \
+                patch.object(RUN_CI.Path, "is_file", return_value=True), \
+                patch.object(RUN_CI.Path, "resolve", autospec=True,
+                             side_effect=lambda value: value), \
+                patch.object(RUN_CI.subprocess, "run", return_value=sample) as execute, \
+                patch.object(RUN_CI.time, "sleep") as pause:
+            self.assertEqual(0, RUN_CI.ios_thermal_preflight())
+        self.assertEqual(2, execute.call_count)
+        for call in execute.call_args_list:
+            command = call.args[0]
+            self.assertNotIn("private-device-identity", command)
+            self.assertNotIn("private-selector", command)
+            probe_environment = call.kwargs["env"]
+            self.assertEqual(
+                "private-device-identity", probe_environment["PYMOBILEDEVICE3_UDID"])
+            self.assertNotIn("OVERTE_DEVICE_TARGET_SELECTOR", probe_environment)
+            self.assertNotIn("OVERTE_GITHUB_TOKEN", probe_environment)
+        pause.assert_called_once_with(RUN_CI.IOS_THERMAL_SAMPLE_INTERVAL_SECONDS)
+
     def test_ios_session_prewarm_has_its_own_bounded_private_launch(self):
         environment = {"OVERTE_APPIUM_TARGETS": "/private/targets.json"}
         child = MagicMock()
@@ -721,6 +758,7 @@ class JenkinsGlueTest(unittest.TestCase):
             "junit(testResults:",
             "archiveArtifacts(",
             "ciPython('ios-runtime-preflight')",
+            "ciPython('ios-thermal-preflight')",
             "ciPython('ios-ddi-preflight')",
             "ciPython('ios-artifact-sync')",
             "ciPython('cleanup-ios-private'",

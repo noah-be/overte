@@ -494,14 +494,19 @@ void Application::setDisplayPlugin(DisplayPluginPointer newDisplayPlugin) {
             RefreshRateManager::UXMode::DESKTOP;
 
         refreshRateManager.setUXMode(uxMode);
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
         // The present-thread operator is installed only when the display
         // plugin activates. Re-apply the previously selected custom profile
-        // now so the 30 Hz phone target becomes an active frame-pacing limit,
+        // now so the 30 Hz mobile target becomes an active frame-pacing limit,
         // including when UX mode was already DESKTOP and did not change.
         refreshRateManager.updateRefreshRateController();
+#if defined(Q_OS_IOS)
+        qCInfo(interfaceapp) << "OVERTE_IOS_FRAME_PACING"
+                             << "targetFps" << refreshRateManager.getActiveRefreshRate();
+#else
         qCInfo(interfaceapp) << "PHONE_FRAME_PACING"
                              << "targetFps" << refreshRateManager.getActiveRefreshRate();
+#endif
 #endif
     }
 

@@ -47,6 +47,19 @@ class CompilerWatchdogTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertLess(elapsed, 0.5, "watchdog delayed a completed object until the heartbeat")
 
+    def test_accepts_cmake_single_element_launcher_without_separator(self) -> None:
+        env = os.environ.copy()
+        env["OVERTE_COMPILER_WATCHDOG_DISABLE_SCCACHE"] = "1"
+        result = subprocess.run(
+            [sys.executable, str(WATCHDOG), sys.executable, "-c", "pass",
+             "cmake-launcher.cpp", "--target=arm64-apple-ios"],
+            text=True, capture_output=True, env=env, timeout=5, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        records = [json.loads(line) for line in result.stdout.splitlines()]
+        self.assertEqual(records[0]["source"], "cmake-launcher.cpp")
+        self.assertEqual(records[-1]["exit_code"], 0)
+
     def test_reports_each_active_invocation(self) -> None:
         result = self.invoke("import time; end=time.time()+.25\nwhile time.time()<end: pass")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

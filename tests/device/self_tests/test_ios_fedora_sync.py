@@ -278,6 +278,7 @@ class IosFedoraSyncTest(unittest.TestCase):
         self.assertTrue(target["capabilities"]["appium:usePreinstalledWDA"])
         self.assertFalse(target["capabilities"]["appium:enforceAppInstall"])
         self.assertFalse(target["capabilities"]["appium:autoLaunch"])
+        self.assertEqual(0, target["capabilities"]["appium:waitForIdleTimeout"])
         self.assertEqual("signed-ipa", target["artifactMode"])
         self.assertNotIn("iosSessionBootstrap", target)
         self.assertEqual(SYNC.SCENE_PATH, target["testBuild"]["scenePath"])
@@ -356,6 +357,16 @@ class IosFedoraSyncTest(unittest.TestCase):
         SYNC.secure_json(obsolete, obsolete_value)
         with self.assertRaisesRegex(SYNC.HandoffError, "contract is invalid"):
             SYNC.validate_preinstalled_attestation(obsolete)
+        integrated = self.root / "integrated-preinstalled-attestation.json"
+        integrated_value = json.loads(attestation.read_text(encoding="utf-8"))
+        integrated_value["unsignedKitContract"] = (
+            "overte-ios-integrated-client-manifest-v1"
+        )
+        SYNC.secure_json(integrated, integrated_value)
+        self.assertEqual(
+            "overte-ios-integrated-client-manifest-v1",
+            SYNC.validate_preinstalled_attestation(integrated)[0]["unsignedKitContract"],
+        )
         arguments = mock.Mock(
             attestation=attestation.resolve(), destination=(self.root / "runs"),
             target_config=config_path.resolve(), target_selector="private-selector",

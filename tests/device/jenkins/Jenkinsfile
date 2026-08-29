@@ -62,6 +62,7 @@ def runDeviceSuite(String suite, int timeoutMinutes) {
                     try {
                         timeout(time: timeoutMinutes, unit: 'MINUTES') {
                             if (params.TARGET_PROFILE == 'appium-ios') {
+                                ciPython('ios-thermal-preflight')
                                 ciPython('ios-ddi-preflight')
                             }
                             ciPython('run-suite')

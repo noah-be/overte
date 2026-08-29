@@ -64,6 +64,12 @@ def snapshot(*, orientation_y: float = 0.0, position_y: float = 2.0,
             "bodyYawDegrees": 0.0,
             "inAir": in_air, "flying": flying, "flyingEnabled": True,
         },
+        "verticalEvents": {
+            "jumpCount": 0, "jumpCompletedCount": 0,
+            "lastJumpStartY": None, "lastJumpPeakY": None,
+            "lastJumpLandingY": None, "flightCount": 0,
+            "lastFlightStartY": None, "lastFlightPeakY": None,
+        },
         "view": {"orientation": {"x": 0.0, "y": orientation_y, "z": 0.0}},
         "tablet": {"open": tablet_open, "home": False, "toolbarMode": False},
         "asset": None,
@@ -96,6 +102,7 @@ def ios_target(*, enabled: bool = True) -> dict:
             "appium:enforceAppInstall": False,
             "appium:usePreinstalledWDA": True,
             "appium:updatedWDABundleId": "org.overte.wda",
+            "appium:waitForIdleTimeout": 0,
         },
         "testBuild": {
             "contract": "overte-ios-e2e-v1",
@@ -153,17 +160,15 @@ class FakeXCUITest:
         self.in_air = False
         self.flying = False
         self.jump_snapshots_remaining = 0
-        self.jump_count = 0
-        self.jump_completed_count = 0
-        self.last_jump_start_y: float | None = None
-        self.last_jump_peak_y: float | None = None
-        self.last_jump_landing_y: float | None = None
-        self.flight_count = 0
-        self.last_flight_start_y: float | None = None
-        self.last_flight_peak_y: float | None = None
         self.sample_sequence = 0
         self.tablet_open = False
         self.tablet_screen = "tablet.home"
+        self.vertical_events = {
+            "jumpCount": 0, "jumpCompletedCount": 0,
+            "lastJumpStartY": None, "lastJumpPeakY": None,
+            "lastJumpLandingY": None, "flightCount": 0,
+            "lastFlightStartY": None, "lastFlightPeakY": None,
+        }
         self.last_identifier: str | None = None
         self.pull_values: list[str] = []
 
@@ -174,25 +179,17 @@ class FakeXCUITest:
                          position_z=self.position_z,
                          in_air=self.in_air, flying=self.flying,
                          tablet_open=self.tablet_open)
+        value["verticalEvents"] = dict(self.vertical_events)
         value["sampleSequence"] = self.sample_sequence
-        value["verticalEvents"] = {
-            "jumpCount": self.jump_count,
-            "jumpCompletedCount": self.jump_completed_count,
-            "flightCount": self.flight_count,
-            "lastJumpStartY": self.last_jump_start_y,
-            "lastJumpPeakY": self.last_jump_peak_y,
-            "lastJumpLandingY": self.last_jump_landing_y,
-            "lastFlightStartY": self.last_flight_start_y,
-            "lastFlightPeakY": self.last_flight_peak_y,
-        }
         if self.jump_snapshots_remaining > 0:
             self.jump_snapshots_remaining -= 1
             if self.jump_snapshots_remaining == 0:
                 self.position_y = 2.0
                 self.in_air = False
                 self.flying = False
-                self.jump_completed_count = self.jump_count
-                self.last_jump_landing_y = 2.0
+                self.vertical_events["jumpCompletedCount"] = self.vertical_events[
+                    "jumpCount"]
+                self.vertical_events["lastJumpLandingY"] = self.position_y
         return value
 
     def execute(self, session: str, script: str, arguments: dict | None = None) -> object:
@@ -270,10 +267,10 @@ class FakeXCUITest:
             source = body["actions"][0]
             first = source["actions"][0]
             if source["id"] == "overte-ios-jump-press":
-                self.jump_count += 1
-                self.last_jump_start_y = 2.0
-                self.last_jump_peak_y = 2.5
-                self.last_jump_landing_y = None
+                self.vertical_events["jumpCount"] += 1
+                self.vertical_events["lastJumpStartY"] = self.position_y
+                self.vertical_events["lastJumpPeakY"] = 2.5
+                self.vertical_events["lastJumpLandingY"] = None
                 self.position_y = 2.5
                 self.in_air = True
                 self.flying = False
@@ -282,9 +279,9 @@ class FakeXCUITest:
                 presses = sum(1 for action in source["actions"]
                               if action["type"] == "pointerDown")
                 if presses == 1:
-                    self.flight_count += 1
-                    self.last_flight_start_y = 2.0
-                    self.last_flight_peak_y = 4.0
+                    self.vertical_events["flightCount"] += 1
+                    self.vertical_events["lastFlightStartY"] = self.position_y
+                    self.vertical_events["lastFlightPeakY"] = 4.0
                     self.position_y = 4.0
                     self.in_air = True
                     self.flying = True
@@ -422,6 +419,27 @@ class AppiumAdapterTests(unittest.TestCase):
                 APPIUM.WebDriver("http://127.0.0.1:4723").call("POST", "/session", {})
         self.assertNotIn(private_value, str(raised.exception))
 
+    def test_http_error_classifies_lost_wda_proxy_without_private_values(self) -> None:
+        private_identifier = "00000000-1111-2222-3333-444444444444"
+        body = json.dumps({
+            "value": {
+                "error": "unknown error",
+                "message": (
+                    "Could not proxy command to the remote server. Original error: "
+                    f"socket hang up for {private_identifier}"
+                ),
+            },
+        }).encode("utf-8")
+        error = HTTPError(
+            "http://127.0.0.1:4723/session", 500, "error", {}, io.BytesIO(body))
+        with mock.patch.object(APPIUM, "urlopen", side_effect=error):
+            with self.assertRaisesRegex(
+                    RuntimeError,
+                    r"HTTP 500 \(the WebDriverAgent connection was lost\)") as raised:
+                APPIUM.WebDriver("http://127.0.0.1:4723").call(
+                    "POST", "/session/private/execute/sync", {})
+        self.assertNotIn(private_identifier, str(raised.exception))
+
     def test_http_error_classifies_wda_background_10300_without_private_values(self) -> None:
         private_identifier = "com.private.wda.00000000-1111-2222-3333-444444444444"
         body = json.dumps({
@@ -455,7 +473,86 @@ class AppiumAdapterTests(unittest.TestCase):
         adapter.targets = {"private-ipad": target}
         adapter.ensure_session = lambda _selector: (client, "fake-session", state)
         adapter.save_session = lambda _selector, _value: None
+        adapter.reset_ios_client_command = lambda _target: None
+        adapter.request_ios_scene_reload = lambda *_arguments: "scene-test"
         return adapter, client, state, target
+
+    def test_ios_fresh_launch_resets_retained_client_command_to_idle(self) -> None:
+        adapter, client, _state, target = self.adapter_and_session()
+        adapter.reset_ios_client_command = (
+            APPIUM.AppiumAdapter.reset_ios_client_command.__get__(adapter))
+        observed = {}
+
+        def accept(request, timeout):
+            observed["request"] = request
+            observed["timeout"] = timeout
+            response = mock.MagicMock(status=200)
+            response.read.return_value = request.data
+            response.__enter__.return_value = response
+            return response
+
+        with mock.patch.object(APPIUM, "urlopen", side_effect=accept):
+            adapter.invoke("private-ipad", "app.launch", {})
+
+        request = observed["request"]
+        self.assertEqual(
+            target["testBuild"]["fixtureOrigin"] + "/e2e-client-command.json",
+            request.full_url,
+        )
+        self.assertEqual(
+            {"schemaVersion": 1, "commandId": "", "action": "idle"},
+            json.loads(request.data),
+        )
+        self.assertEqual(5, observed["timeout"])
+        launches = [event for event in client.events
+                    if event[:2] == ("execute", "mobile: launchApp")]
+        self.assertEqual(1, len(launches))
+
+    def test_ios_scene_reload_posts_exact_runtime_command_and_preserves_pid(self) -> None:
+        adapter, client, state, target = self.adapter_and_session()
+        adapter.request_ios_scene_reload = (
+            APPIUM.AppiumAdapter.request_ios_scene_reload.__get__(adapter))
+        adapter.invoke("private-ipad", "app.launch", {})
+        identity = adapter.invoke("private-ipad", "app.process", {})["identity"]
+        scene_url = target["testBuild"]["fixtureOrigin"] + target["testBuild"]["scenePath"]
+        observed = {}
+
+        def accept(request, timeout):
+            observed["request"] = request
+            observed["timeout"] = timeout
+            response = mock.MagicMock(status=200)
+            response.read.return_value = request.data
+            response.__enter__.return_value = response
+            return response
+
+        with mock.patch.object(APPIUM, "urlopen", side_effect=accept):
+            result = adapter.invoke("private-ipad", "scene.reload", {"url": scene_url})
+        request = observed["request"]
+        self.assertEqual(
+            target["testBuild"]["fixtureOrigin"] + "/e2e-client-command.json",
+            request.full_url,
+        )
+        payload = json.loads(request.data)
+        self.assertEqual({"requested": True, "verification": "fixture-markers",
+                          "commandId": payload["commandId"]}, result)
+        self.assertEqual({"schemaVersion", "commandId", "action", "url"}, set(payload))
+        self.assertEqual("scene-load", payload["action"])
+        self.assertEqual(scene_url, payload["url"])
+        self.assertRegex(payload["commandId"], r"^scene-[0-9a-f]{32}$")
+        self.assertEqual(5, observed["timeout"])
+        self.assertEqual(identity, state["processIdentity"])
+
+    def test_initial_ios_scene_load_waits_for_launch_without_runtime_reload(self) -> None:
+        adapter, client, state, target = self.adapter_and_session()
+        requested = []
+        adapter.request_ios_scene_reload = lambda *_arguments: requested.append(True)
+        scene_url = target["testBuild"]["fixtureOrigin"] + target["testBuild"]["scenePath"]
+
+        result = adapter.invoke("private-ipad", "scene.load", {"url": scene_url})
+
+        self.assertEqual(
+            {"requested": True, "verification": "fixture-markers"}, result)
+        self.assertEqual([], requested)
 
     def test_full_ios_baseline_uses_one_launch_one_pid_and_documents_probe(self) -> None:
         adapter, client, state, target = self.adapter_and_session()
@@ -1176,6 +1273,20 @@ class AppiumAdapterTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "bounded loopback URL"):
                     APPIUM.AppiumAdapter.validate_ios_host_strategy(target)
 
+    def test_physical_ios_requires_disabled_wda_quiescence_wait(self) -> None:
+        for value in (None, True, 0.1, 10):
+            with self.subTest(value=value):
+                target = ios_target()
+                if value is None:
+                    target["capabilities"].pop("appium:waitForIdleTimeout")
+                else:
+                    target["capabilities"]["appium:waitForIdleTimeout"] = value
+                with self.assertRaisesRegex(RuntimeError, "waitForIdleTimeout=0"):
+                    APPIUM.AppiumAdapter.validate_ios_host_strategy(target)
+
+        with mock.patch.object(APPIUM.sys, "platform", "darwin"):
+            APPIUM.AppiumAdapter.validate_ios_host_strategy(ios_target())
+
     @unittest.skipIf(APPIUM.sys.platform == "darwin", "Fedora-only WDA strategy")
     def test_enabled_fedora_target_cannot_bypass_receipt_bound_prebuilt_wda(self) -> None:
         target = ios_target()
@@ -1370,6 +1481,11 @@ class AppiumAdapterTests(unittest.TestCase):
             target["artifactReceipt"] = str(receipt_path)
             APPIUM.AppiumAdapter.validate_ios_artifact_receipt(target, hash_files=True)
             APPIUM.AppiumAdapter.validate_ios_host_strategy(target)
+            receipt["provenance"]["unsignedKitContract"] = (
+                "overte-ios-integrated-client-manifest-v1"
+            )
+            receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+            APPIUM.AppiumAdapter.validate_ios_artifact_receipt(target, hash_files=True)
             self.assertNotIn("appium:app", target["capabilities"])
             self.assertNotIn("appium:prebuiltWDAPath", target["capabilities"])
 
@@ -1429,6 +1545,30 @@ class AppiumAdapterTests(unittest.TestCase):
                 ["install", "preflight", "/session", "/session/new-session"], ordering)
             self.assertEqual(mock.call("DELETE", "/session/new-session"),
                              client.call.call_args_list[-1])
+
+    def test_reused_session_persists_physical_attestation_once(self) -> None:
+        adapter, client, state, target = self.adapter_and_session()
+        del adapter.ensure_session
+        adapter.targets = {"private-ipad": target}
+        state["targetFingerprint"] = APPIUM.hashlib.sha256(json.dumps(
+            target, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        saved = []
+        adapter.read_session = lambda _selector: state
+        adapter.save_session = lambda _selector, value: saved.append(dict(value))
+        adapter.attest_physical_target = mock.Mock()
+        client.call = mock.Mock(return_value={})
+        with mock.patch.object(APPIUM, "WebDriver", return_value=client):
+            first = adapter.ensure_session("private-ipad")
+            second = adapter.ensure_session("private-ipad")
+        self.assertEqual("fake-session", first[1])
+        self.assertEqual("fake-session", second[1])
+        adapter.attest_physical_target.assert_called_once_with(
+            client, "fake-session", target)
+        self.assertEqual(1, len(saved))
+        self.assertIs(True, saved[0]["physicalTargetAttested"])
+        self.assertEqual(2, client.call.call_count)
+        self.assertTrue(all(call.args == ("GET", "/session/fake-session")
+                            for call in client.call.call_args_list))
 
     def test_cleanup_failure_is_infrastructure_error_and_retains_retry_state(self) -> None:
         adapter, client, state, _target = self.adapter_and_session()

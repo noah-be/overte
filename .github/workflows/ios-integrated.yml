@@ -99,6 +99,7 @@ jobs:
       contents: read
     outputs:
       cache-key: ${{ steps.v8-cache-key.outputs.key }}
+      artifact-prefix: ${{ steps.v8-cache-key.outputs.artifact-prefix }}
     env:
       OVERTE_IOS_V8_ROOT: ${{ github.workspace }}/build-ios/external/v8-ios
       IOS_RUNNER_TELEMETRY_DIR: ${{ github.workspace }}/build-ios/v8-telemetry
@@ -214,9 +215,33 @@ jobs:
             --install-root "${{ github.workspace }}/build-ios/external" \
             --github-output "$GITHUB_OUTPUT"
 
+      - name: Restore trusted apple-ios V8 checkpoint for feature branches
+        id: v8-apple-ios-artifact
+        if: >-
+          steps.v8-cache.outputs.cache-hit != 'true' &&
+          steps.v8-artifact.outputs.restored != 'true' &&
+          github.ref_name != 'apple-ios'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py restore \
+            --artifact-prefix "${{ steps.v8-cache-key.outputs.artifact-prefix }}" \
+            --kind v8 \
+            --cache-key "${{ steps.v8-cache-key.outputs.key }}" \
+            --expected-repository-id "${{ github.repository_id }}" \
+            --expected-branch apple-ios \
+            --max-age-days 75 \
+            --install-root "${{ github.workspace }}/build-ios/external" \
+            --github-output "$GITHUB_OUTPUT"
+
       - name: Restore reviewed legacy V8 checkpoint for v2 promotion
         id: v8-legacy-artifact
-        if: steps.v8-cache.outputs.cache-hit != 'true' && steps.v8-artifact.outputs.restored != 'true' && steps.v8-cache-key.outputs.legacy-compatible == 'true'
+        if: >-
+          steps.v8-cache.outputs.cache-hit != 'true' &&
+          steps.v8-artifact.outputs.restored != 'true' &&
+          steps.v8-apple-ios-artifact.outputs.restored != 'true' &&
+          steps.v8-cache-key.outputs.legacy-compatible == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -240,7 +265,11 @@ jobs:
 
       - name: Restore V8 compiler recovery checkpoint
         id: v8-sccache
-        if: steps.v8-cache.outputs.cache-hit != 'true' && steps.v8-artifact.outputs.restored != 'true' && steps.v8-legacy-artifact.outputs.restored != 'true'
+        if: >-
+          steps.v8-cache.outputs.cache-hit != 'true' &&
+          steps.v8-artifact.outputs.restored != 'true' &&
+          steps.v8-apple-ios-artifact.outputs.restored != 'true' &&
+          steps.v8-legacy-artifact.outputs.restored != 'true'
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ${{ env.SCCACHE_DIR }}
@@ -256,6 +285,9 @@ jobs:
           elif [[ "${{ steps.v8-artifact.outputs.restored }}" == true ]]; then
             source=durable-artifact
             reason="Actions cache was evicted; exact validated artifact restored"
+          elif [[ "${{ steps.v8-apple-ios-artifact.outputs.restored }}" == true ]]; then
+            source=trusted-apple-ios-promotion
+            reason="exact validated apple-ios artifact promoted into the feature branch"
           elif [[ "${{ steps.v8-legacy-artifact.outputs.restored }}" == true ]]; then
             source=reviewed-legacy-promotion
             reason="v2 namespace migration used the exact reviewed v1 library digest"
@@ -272,7 +304,11 @@ jobs:
 
       - name: Build pinned static JITless V8 for iOS
         id: v8-build
-        if: steps.v8-cache.outputs.cache-hit != 'true' && steps.v8-artifact.outputs.restored != 'true' && steps.v8-legacy-artifact.outputs.restored != 'true'
+        if: >-
+          steps.v8-cache.outputs.cache-hit != 'true' &&
+          steps.v8-artifact.outputs.restored != 'true' &&
+          steps.v8-apple-ios-artifact.outputs.restored != 'true' &&
+          steps.v8-legacy-artifact.outputs.restored != 'true'
         continue-on-error: true
         run: |
           mkdir -p "$IOS_RUNNER_TELEMETRY_DIR"
@@ -546,11 +582,35 @@ jobs:
           key: overte-moltenvk-ios-v1-${{ runner.arch }}-${{ hashFiles('ios/moltenvk.env') }}
 
       - name: Restore pinned static JITless V8 for iOS
+        id: integrated-v8-cache
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ${{ env.OVERTE_IOS_V8_ROOT }}
           key: ${{ needs.v8-checkpoint.outputs.cache-key }}
-          fail-on-cache-miss: true
+
+      - name: Restore durable V8 artifact after cache miss
+        id: integrated-v8-artifact
+        if: steps.integrated-v8-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py restore \
+            --artifact-prefix "${{ needs.v8-checkpoint.outputs.artifact-prefix }}" \
+            --kind v8 \
+            --cache-key "${{ needs.v8-checkpoint.outputs.cache-key }}" \
+            --expected-repository-id "${{ github.repository_id }}" \
+            --expected-branch "${{ github.ref_name }}" \
+            --max-age-days 75 \
+            --install-root "${{ github.workspace }}/build-ios/external" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Fail closed without validated V8
+        if: >-
+          steps.integrated-v8-cache.outputs.cache-hit != 'true' &&
+          steps.integrated-v8-artifact.outputs.restored != 'true'
+        run: |
+          echo "neither the exact V8 cache nor its validated artifact fallback was available" >&2
+          exit 1
 
       - name: Validate pinned static JITless V8 for iOS
         run: ios/tools/build-v8-ios.sh validate
@@ -561,6 +621,8 @@ jobs:
             || test "${{ steps.qt-host-artifact.outputs.restored }}" = true
           test "${{ steps.qt-ios-cache.outputs.cache-hit }}" = true \
             || test "${{ steps.qt-ios-artifact.outputs.restored }}" = true
+          test "${{ steps.integrated-v8-cache.outputs.cache-hit }}" = true \
+            || test "${{ steps.integrated-v8-artifact.outputs.restored }}" = true
           ios/tools/prepare-qt-ios.sh validate
           ios/build-ios.sh doctor --platform device --require-qt --require-moltenvk
 

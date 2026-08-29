@@ -43,6 +43,10 @@ PUBLIC_RESULT_NAMES = {
 IOS_SESSION_PREWARM_TIMEOUT_SECONDS = 210
 IOS_SIGNED_INSTALL_PREWARM_TIMEOUT_SECONDS = 20 * 60
 IOS_PROBE_REQUEST_TIMEOUT_SECONDS = 10
+IOS_THERMAL_MAX_TEMPERATURE_CENTI_C = 3050
+IOS_THERMAL_STABLE_SAMPLES = 2
+IOS_THERMAL_SAMPLE_INTERVAL_SECONDS = 15
+IOS_THERMAL_COOLDOWN_TIMEOUT_SECONDS = 10 * 60
 
 
 def fail(message: str) -> "NoReturn":
@@ -647,6 +651,96 @@ def ios_runtime_preflight() -> int:
     return subprocess.run(command, cwd=root, timeout=15, check=False).returncode
 
 
+def ios_thermal_preflight() -> int:
+    """Require stable battery-temperature headroom before starting XCUITest.
+
+    PyMobileDevice3 receives the physical identity only through its environment;
+    captured diagnostics are parsed locally and never copied into Jenkins logs.
+    The native client still owns the sustained-load budget. This gate prevents
+    a recently heated device from beginning a new WDA session without headroom.
+    """
+    root = workspace()
+    selector = environment("OVERTE_DEVICE_TARGET_SELECTOR")
+    target = selected_private_ios_target(root, selector)
+    capabilities = target.get("capabilities")
+    udid = capabilities.get("appium:udid") if isinstance(capabilities, dict) else None
+    if (not isinstance(udid, str) or not 8 <= len(udid) <= 128
+            or any(character in udid for character in "\0\r\n")):
+        fail("private iOS target has no physical device identity")
+
+    lock_path = root / "tests/device/ios/toolchain.lock.json"
+    lock = json.loads(lock_path.read_text(encoding="utf-8"))
+    revision = lock.get("serviceRuntimeRevision") if isinstance(lock, dict) else None
+    appium = lock.get("appium") if isinstance(lock, dict) else None
+    ios_runtime = appium.get("iosRuntime") if isinstance(appium, dict) else None
+    pymobiledevice3 = (ios_runtime.get("pymobiledevice3")
+                       if isinstance(ios_runtime, dict) else None)
+    python_executable = (pymobiledevice3.get("pythonExecutable")
+                         if isinstance(pymobiledevice3, dict) else None)
+    remote_xpc = ios_runtime.get("remoteXpc") if isinstance(ios_runtime, dict) else None
+    remote_xpc_version = remote_xpc.get("version") if isinstance(remote_xpc, dict) else None
+    if (not isinstance(revision, int) or revision < 1
+            or python_executable != "/usr/bin/python3.14"
+            or remote_xpc_version != "5.15.3"):
+        fail("locked iOS thermal probe runtime is invalid")
+    runtime = Path(
+        f"/usr/local/lib/overte-ios-remotexpc/{remote_xpc_version}-r{revision}")
+    site_packages = runtime / "pymobiledevice3/site-packages"
+    python_path = Path(python_executable)
+    if (has_symlink_component(runtime) or runtime.resolve() != runtime
+            or not runtime.is_dir() or not site_packages.is_dir()
+            or has_symlink_component(python_path) or not python_path.is_file()):
+        fail("locked iOS thermal probe runtime is unavailable")
+
+    probe_environment = {
+        "PATH": "/usr/bin:/bin",
+        "PYMOBILEDEVICE3_UDID": udid,
+        "PYTHONPATH": str(site_packages),
+        "PYTHONNOUSERSITE": "1",
+    }
+    for name in ("LANG", "LC_ALL", "USBMUXD_SOCKET_ADDRESS"):
+        if os.environ.get(name):
+            probe_environment[name] = os.environ[name]
+    command = [
+        python_executable, "-S", "-P", "-B", "-m", "pymobiledevice3",
+        "diagnostics", "battery", "single",
+    ]
+    deadline = time.monotonic() + IOS_THERMAL_COOLDOWN_TIMEOUT_SECONDS
+    stable_samples = 0
+    while True:
+        try:
+            completed = subprocess.run(
+                command, cwd=root, env=probe_environment, text=True,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                timeout=20, check=False,
+            )
+            document = json.loads(completed.stdout) if completed.returncode == 0 else None
+        except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
+            document = None
+        temperature = document.get("Temperature") if isinstance(document, dict) else None
+        if (not isinstance(temperature, int) or isinstance(temperature, bool)
+                or not 1500 <= temperature <= 6000):
+            print("error: private iOS thermal gate could not obtain a safe sample",
+                  file=sys.stderr)
+            return 2
+        if temperature <= IOS_THERMAL_MAX_TEMPERATURE_CENTI_C:
+            stable_samples += 1
+            print(
+                f"iOS thermal gate sample {stable_samples}/{IOS_THERMAL_STABLE_SAMPLES}: "
+                "within limit."
+            )
+            if stable_samples >= IOS_THERMAL_STABLE_SAMPLES:
+                print("iOS thermal headroom is stable.")
+                return 0
+        else:
+            stable_samples = 0
+            print("iOS thermal gate: cooldown required; waiting.")
+        if time.monotonic() >= deadline:
+            print("error: iOS thermal cooldown exceeded its safety limit", file=sys.stderr)
+            return 2
+        time.sleep(IOS_THERMAL_SAMPLE_INTERVAL_SECONDS)
+
+
 def selected_private_ios_target(root: Path, selector: str) -> dict:
     raw = Path(environment("OVERTE_IOS_JOB_TARGET_CONFIG")).expanduser()
     if not raw.is_absolute() or has_symlink_component(raw):
@@ -885,6 +979,7 @@ def arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("run-suite", "cleanup-target", "stage-results",
                                            "self-check", "ios-runtime-preflight",
+                                           "ios-thermal-preflight",
                                            "ios-ddi-preflight", "ios-artifact-sync",
                                            "cleanup-ios-private"))
     return parser.parse_args()
@@ -900,6 +995,8 @@ def main() -> int:
         return stage_results()
     if action == "ios-runtime-preflight":
         return ios_runtime_preflight()
+    if action == "ios-thermal-preflight":
+        return ios_thermal_preflight()
     if action == "ios-ddi-preflight":
         return ios_ddi_preflight()
     if action == "ios-artifact-sync":
