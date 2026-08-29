@@ -12,6 +12,7 @@ import "../audio" as HifiAudio
 Item {
     id: tablet
     objectName: "tablet"
+    readonly property string semanticScreenId: "tablet.home"
     property var tabletProxy: Tablet.getTablet("com.highfidelity.interface.tablet.system");
 
     property var currentGridItems: null
@@ -328,6 +329,9 @@ Item {
                                         tabletButton[key] = modelData.properties[key];
                                     }
                                 });
+                                if (tabletButton.semanticId !== "") {
+                                    tabletButton.objectName = tabletButton.semanticId;
+                                }
                             }
                         }
                     }
@@ -433,6 +437,7 @@ Item {
 
             MouseArea {
                 id: closeTabletMouseArea
+                objectName: "nav.close"
                 anchors.fill: parent
                 activeFocusOnTab: visible
                 Accessible.role: Accessible.Button

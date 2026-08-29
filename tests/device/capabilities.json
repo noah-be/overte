@@ -69,6 +69,10 @@
       "operation": "sound.play",
       "result": "{requested: true, commandId: string}; playback must be verified independently through probe.snapshot and fixture request telemetry"
     },
+    "tablet.activate": {
+      "operation": "tablet.activate",
+      "result": "{performed: true}; arguments: {contractVersion: 1, controlId: semantic ID from tablet-ui-contract.json}"
+    },
     "tablet.close": {
       "operation": "tablet.close",
       "result": "{performed: true}"
@@ -76,6 +80,10 @@
     "tablet.open": {
       "operation": "tablet.open",
       "result": "{performed: true}"
+    },
+    "tablet.snapshot": {
+      "operation": "tablet.snapshot",
+      "result": "Semantic tablet UI snapshot contract version 1, schema version 1"
     },
     "telemetry.memory": {
       "operation": null,

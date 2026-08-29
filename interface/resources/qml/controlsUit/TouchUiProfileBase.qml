@@ -34,7 +34,10 @@ QtObject {
 
     property bool graphicsSettingsAvailable: true
     property bool controllerSettingsAvailable: true
+    // Legacy selectors still own the product-named implementation flag. New
+    // shared consumers expose only this capability-neutral projection.
     property bool picoResolutionSettingsAvailable: true
+    readonly property bool vrRenderResolutionAvailable: picoResolutionSettingsAvailable
 
     property bool navigationPreferencesAvailable: false
     property bool userInterfacePreferencesAvailable: true
