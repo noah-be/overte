@@ -23,6 +23,7 @@ from contracts import (load_capability_registry, validate_operation_arguments,
 def snapshot(**avatar_overrides: object) -> dict:
     avatar = {
         "position": {"x": 0.0, "y": 1.0, "z": 4.0},
+        "feetPosition": {"x": 0.0, "y": 0.0, "z": 4.0},
         "velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
         "bodyYawDegrees": 0.0,
         "inAir": False,
@@ -186,6 +187,14 @@ class VerticalLocomotionTest(unittest.TestCase):
                     validate_operation_arguments(operation, arguments)
         with self.assertRaises(ValueError):
             validate_performed_result("input.fly", {"performed": False})
+
+    def test_pico_fly_gesture_is_self_contained_and_covers_delayed_probe(self):
+        session = (DEVICE_ROOT / "overte_session.py").read_text(encoding="utf-8")
+        adapter = (DEVICE_ROOT / "adapters/android/adapter.py").read_text(
+            encoding="utf-8")
+        self.assertNotIn('operation("input.jump", takeoff)', session)
+        self.assertNotIn("duration_seconds = 6.0", session)
+        self.assertIn('staged_values.setdefault("durationSeconds", 6.0)', adapter)
 
     def test_probe_requires_vertical_state_and_rejects_inconsistent_avatar(self):
         self.assertEqual(snapshot(), validate_probe_snapshot(snapshot()))

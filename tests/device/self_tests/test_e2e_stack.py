@@ -60,6 +60,13 @@ class E2EStackTest(unittest.TestCase):
         self.assertIn("Controller.getValue(openXr.LY)", probe)
         self.assertIn("Controller.getValue(Controller.Actions.TranslateZ)", probe)
         self.assertIn("MyAvatar.getRawDriveKey(DriveKeys.TRANSLATE_Z)", probe)
+        self.assertIn("sampleSequence: sampleSequence", probe)
+        self.assertIn("vector(MyAvatar.feetPosition)", probe)
+        self.assertIn("OVERTE_E2E_PROBE_HEARTBEAT", probe)
+        self.assertIn("OVERTE_E2E_PROBE_ERROR", probe)
+        self.assertIn("Script.update.connect(updateProbe)", probe)
+        self.assertIn("Script.update.disconnect(updateProbe)", probe)
+        self.assertNotIn("Script.setInterval", probe)
         self.assertNotIn('MyAvatar.setDominantHand("right")', probe)
         self.assertNotIn("MyAvatar.useAdvancedMovementControls = true", probe)
 
@@ -69,7 +76,7 @@ class E2EStackTest(unittest.TestCase):
                        adapter_root / "appium/adapter.py"):
             self.assertIn("navigation.enter-domain", source.read_text(encoding="utf-8"))
 
-    def test_fixture_requires_a_thick_floor_and_explicit_safe_spawn(self):
+    def test_fixture_requires_a_thick_floor_and_explicit_grounded_spawn(self):
         from fixture.serve import controlled_scene_url
 
         fixture = ROOT / "fixture"
@@ -80,15 +87,19 @@ class E2EStackTest(unittest.TestCase):
         spawn = manifest["spawnPosition"]
         self.assertEqual(0.0, floor["position"]["y"] + floor["dimensions"]["y"] / 2.0)
         self.assertGreaterEqual(floor["dimensions"]["y"], manifest["minimumFloorThickness"])
-        self.assertGreaterEqual(spawn["y"], 2.0)
+        self.assertEqual(0.0, spawn["y"])
         self.assertEqual(
             f"/{spawn['x']},{spawn['y']},{spawn['z']}/0,0,0,1",
             manifest["spawnPath"])
         served = urlsplit(controlled_scene_url("http://fixture.invalid", manifest))
         self.assertEqual([manifest["spawnPath"]], parse_qs(served.query)["location"])
         probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
+        self.assertIn("avatarAboveFloor", probe)
+        self.assertIn("spawnDeltaY * spawnDeltaY", probe)
         self.assertIn("avatarAtSpawn", probe)
         self.assertIn("stableAvatarSamples >= 4", probe)
+        self.assertIn("avatarAboveFloor && avatarAtSpawn", probe)
+        self.assertIn("spawnValidated: sceneReady", probe)
         self.assertNotIn("MyAvatar.goToLocation", probe)
         self.assertNotIn("MyAvatar.velocity =", probe)
 
@@ -96,9 +107,10 @@ class E2EStackTest(unittest.TestCase):
         session = (ROOT / "overte_session.py").read_text(encoding="utf-8")
         adapter = (ROOT / "adapters/android/adapter.py").read_text(encoding="utf-8")
         launch = (ROOT / "modules/launch_smoke.py").read_text(encoding="utf-8")
-        self.assertIn('staged_values.setdefault("durationSeconds", 6.0)', adapter)
+        self.assertIn('staged_values.setdefault("durationSeconds", 20.0)', adapter)
         self.assertIn('staged_values.setdefault("strength", 0.4)', adapter)
         self.assertIn('staged_values.setdefault("holdMilliseconds", 1000)', adapter)
+        self.assertIn('default = "15" if self.kind == "pico"', adapter)
         self.assertNotIn("holdMilliseconds", session)
         self.assertNotIn('arguments["durationSeconds"] = 6.0', session)
         self.assertIn("settle = max(settle, 25)", launch)

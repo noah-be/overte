@@ -21,13 +21,14 @@ class AndroidE2ELauncherTest(unittest.TestCase):
             'PROBE_ASSET = "overte_e2e_probe.js"',
             'SCENE_ASSET = "scene.json"',
             'CONTROL_MARKER = "android-control.json"',
+            'CONTROL_COMMAND = "android-control-command.json"',
             'android-debug-file-v1',
             'writeAtomically(CONTROL_MARKER, CONTROL_CONTRACT, launchDirectory)',
-            '"android-control-command.json"',
+            'writeAtomically(CONTROL_COMMAND, EMPTY_CONTROL_COMMAND, launchDirectory)',
             'putExtra("applicationArguments", arguments)',
             'new File(getFilesDir(), DIRECTORY)',
             'new File(launchDirectory, "overte-probe.json")',
-            'SPAWN_VIEWPOINT = "/0,2,4/0,0,0,1"',
+            'SPAWN_VIEWPOINT = "/0,0,4/0,0,0,1"',
             'appendQueryParameter("location", SPAWN_VIEWPOINT)',
         ):
             self.assertIn(required, source)

@@ -34,8 +34,11 @@ the hardware gates may explicitly set all of:
   private `XDG_RUNTIME_DIR`.
 
 Only then does the Pico adapter advertise `input.look`, `input.move`,
-`tablet.open`, and `tablet.close`. The validated port is passed as an explicit
-`adb -P` argument for discovery, installation, launch, process/probe calls,
+`input.jump`, `input.fly`, `tablet.open`, and `tablet.close`. Jump and flight
+are Pico bindings for the shared semantic operations: a bounded right-secondary
+press performs a jump and a bounded hold enters upward flight. The validated
+port is passed as an explicit `adb -P` argument for discovery, installation,
+launch, process/probe calls,
 cleanup, and the OpenXR transport; the phone adapter retains the default ADB
 command. The adapter keeps one nonce and monotonically increasing sequence
 across its short-lived CLI processes, binds it to the one E2E launcher process,
@@ -51,6 +54,13 @@ bounded controller buttons, sticks, triggers, grips, and poses without exposing
 a generic OpenXR or shell surface. See `PICO4_CONTROLLER_AUTOMATION.md` for the
 capability matrix and required physical-device evidence. Phone/iPad touch
 automation remains owned by the Appium adapter.
+
+The Pico adapter deliberately does not advertise `accessibility.snapshot`.
+Overte's Pico UI is rendered through an OpenXR surface, for which the laboratory
+has no audited native Android accessibility tree. Jenkins rejects
+`RUN_ACCESSIBILITY=true` with `android-pico-adb` instead of skipping the module
+or manufacturing accessibility evidence. A dedicated VR accessibility contract
+can be added separately if the product defines one.
 
 The older `phone-device-test.sh` and Pico release-acceptance scripts remain
 packaging/release gates. Their runtime primitives are represented here without
