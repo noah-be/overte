@@ -185,6 +185,7 @@ using namespace std;
  *     <tr><td><code>CameraIndependent</code></td><td>number</td><td>number</td><td>The camera is in independent mode.</td></tr>
  *     <tr><td><code>CameraEntity</code></td><td>number</td><td>number</td><td>The camera is in entity mode.</td></tr>
  *     <tr><td><code>InHMD</code></td><td>number</td><td>number</td><td>The user is in HMD mode.</td></tr>
+ *     <tr><td><code>TabletShown</code></td><td>number</td><td>number</td><td>The HMD tablet is visible.</td></tr>
  *     <tr><td><code>CaptureMouse</code></td><td>number</td><td>number</td><td>The mouse is captured.  In this mode,
  *       the mouse is invisible and cannot leave the bounds of Interface, as long as Interface is the active window and
  *       no menu item is selected.</td></tr>
@@ -205,6 +206,7 @@ using namespace std;
  */
 
 static const QString STATE_IN_HMD = "InHMD";
+static const QString STATE_TABLET_SHOWN = "TabletShown";
 static const QString STATE_CAMERA_FULL_SCREEN_MIRROR = "CameraFSM";
 static const QString STATE_CAMERA_FIRST_PERSON = "CameraFirstPerson";
 static const QString STATE_CAMERA_FIRST_PERSON_LOOK_AT = "CameraFirstPersonLookat";
@@ -433,7 +435,7 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     DependencyManager::set<InterfaceDynamicFactory>();
     DependencyManager::set<AudioInjectorManager>();
     DependencyManager::set<MessagesClient>();
-    controller::StateController::setStateVariables({ { STATE_IN_HMD, STATE_CAMERA_FULL_SCREEN_MIRROR,
+    controller::StateController::setStateVariables({ { STATE_IN_HMD, STATE_TABLET_SHOWN, STATE_CAMERA_FULL_SCREEN_MIRROR,
                     STATE_CAMERA_FIRST_PERSON, STATE_CAMERA_FIRST_PERSON_LOOK_AT, STATE_CAMERA_THIRD_PERSON,
                     STATE_CAMERA_ENTITY, STATE_CAMERA_INDEPENDENT, STATE_CAMERA_LOOK_AT, STATE_CAMERA_SELFIE, STATE_CAPTURE_MOUSE,
                     STATE_SNAP_TURN, STATE_ADVANCED_MOVEMENT_CONTROLS, STATE_GROUNDED, STATE_NAV_FOCUSED,
@@ -996,10 +998,16 @@ void Application::initialize(const QCommandLineParser &parser) {
     // mutated. A normal or Release session constructs the flag as false.
     qApp->getMyAvatar()->setE2eAdvancedMovementControlsOverride(
         picoE2eInputMappingOverrideActive());
+    qApp->getMyAvatar()->setE2eFlyingEnabledOverride(
+        picoE2eInputMappingOverrideActive());
 #endif
 
     _applicationStateDevice->setInputVariant(STATE_IN_HMD, []() -> float {
         return qApp->isHMDMode() ? 1 : 0;
+    });
+    _applicationStateDevice->setInputVariant(STATE_TABLET_SHOWN, []() -> float {
+        return qApp->isHMDMode() &&
+            DependencyManager::get<HMDScriptingInterface>()->getShouldShowTablet() ? 1 : 0;
     });
     _applicationStateDevice->setInputVariant(STATE_CAMERA_FULL_SCREEN_MIRROR, []() -> float {
         return qApp->getCamera().getMode() == CAMERA_MODE_MIRROR ? 1 : 0;
@@ -1051,6 +1059,11 @@ void Application::initialize(const QCommandLineParser &parser) {
 #endif
     });
     _applicationStateDevice->setInputVariant(STATE_STRAFE_ENABLED, []() -> float {
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+        if (picoE2eInputMappingOverrideActive()) {
+            return 1;
+        }
+#endif
         return qApp->getMyAvatar()->getStrafeEnabled() ? 1 : 0;
     });
 

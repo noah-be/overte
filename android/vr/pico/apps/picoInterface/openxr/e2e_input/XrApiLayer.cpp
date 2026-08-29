@@ -628,9 +628,9 @@ XRAPI_ATTR XrResult XRAPI_CALL layerGetActionStatePose(
         InstanceState* state = stateForInstance(instance);
         const auto binding = actions.find(getInfo->action);
         if (state && binding != actions.end() && binding->second.kind == ActionKind::Pose &&
-                state->protocol.current().overrideEnabled) {
-            output->isActive = state->protocol.current().poses[binding->second.channel].active
-                ? XR_TRUE : XR_FALSE;
+                state->protocol.current().overrideEnabled &&
+                state->protocol.current().poses[binding->second.channel].active) {
+            output->isActive = XR_TRUE;
         }
     }
     return result;
@@ -661,22 +661,20 @@ XRAPI_ATTR XrResult XRAPI_CALL layerLocateSpace(
         const bool stageBase = base != spaces.end() && !base->second.actionPose &&
             base->second.referenceType == XR_REFERENCE_SPACE_TYPE_STAGE;
         if (binding->second.actionPose) {
-            if (!stageBase) {
-                state->protocol.failClosed("pose-base-not-stage", epochMilliseconds());
-                location->locationFlags = 0;
-                return result;
-            }
             const PoseOverride& pose =
                 state->protocol.current().poses[binding->second.poseChannel];
             if (pose.active) {
+                if (!stageBase) {
+                    state->protocol.failClosed("pose-base-not-stage", epochMilliseconds());
+                    location->locationFlags = 0;
+                    return result;
+                }
                 location->pose = pose.pose;
                 location->locationFlags =
                     XR_SPACE_LOCATION_ORIENTATION_VALID_BIT |
                     XR_SPACE_LOCATION_POSITION_VALID_BIT |
                     XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT |
                     XR_SPACE_LOCATION_POSITION_TRACKED_BIT;
-            } else {
-                location->locationFlags = 0;
             }
         } else if (binding->second.referenceType == XR_REFERENCE_SPACE_TYPE_VIEW &&
                    stageBase && state->protocol.current().viewActive &&
