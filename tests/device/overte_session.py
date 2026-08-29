@@ -11,7 +11,8 @@ from typing import Callable
 from urllib.parse import urlsplit
 import uuid
 
-from contracts import (validate_operation_arguments, validate_operation_result,
+from contracts import (TABLET_CONTRACT_VERSION, load_tablet_ui_contract,
+                       validate_operation_arguments, validate_operation_result,
                        validate_probe_snapshot)
 from module_support import (InfrastructureError, assert_foreground, assert_process,
                             fail, operation, process_identity, write_json)
@@ -636,3 +637,49 @@ class OverteSession:
             fail("controlled scene reload did not restore free vertical locomotion space")
         write_json("scene-reloaded.json", after)
         return before, after
+
+    def tablet_ui_snapshot(self) -> dict:
+        """Observe semantic UI state; malformed adapter evidence is infrastructure."""
+        return self._invoke("tablet.snapshot", {})
+
+    def wait_for_tablet_screen(self, screen_id: str, identity: str,
+                               artifact: str) -> dict:
+        vocabulary = load_tablet_ui_contract()
+        if screen_id not in vocabulary["screenIds"]:
+            raise InfrastructureError(f"unknown expected tablet screen: {screen_id}")
+        try:
+            stable_required = int(os.environ.get("OVERTE_E2E_TABLET_STABLE_SAMPLES", "2"))
+        except ValueError as error:
+            raise InfrastructureError(
+                "OVERTE_E2E_TABLET_STABLE_SAMPLES must be from 2 through 10") from error
+        if not 2 <= stable_required <= 10:
+            raise InfrastructureError(
+                "OVERTE_E2E_TABLET_STABLE_SAMPLES must be from 2 through 10")
+
+        deadline = time.monotonic() + self.timeout_seconds
+        stable = 0
+        previous = None
+        last = None
+        while time.monotonic() < deadline:
+            assert_process(identity, f"waiting for {screen_id}")
+            last = self.tablet_ui_snapshot()
+            if last["ready"] is True and last["screenId"] == screen_id:
+                stable = stable + 1 if last == previous else 1
+                if stable >= stable_required:
+                    write_json(artifact, last)
+                    return last
+            else:
+                stable = 0
+            previous = last
+            time.sleep(self.poll_seconds)
+        if last is not None:
+            write_json("tablet-ui-last.json", last)
+        fail(f"timed out waiting for ready stable tablet screen {screen_id}")
+
+    def activate_tablet_control(self, control_id: str, identity: str) -> dict:
+        result = self._invoke("tablet.activate", {
+            "contractVersion": TABLET_CONTRACT_VERSION,
+            "controlId": control_id,
+        })
+        assert_process(identity, f"activating {control_id}")
+        return result

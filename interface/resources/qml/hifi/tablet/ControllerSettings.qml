@@ -23,6 +23,7 @@ import "../audio"
 
 Item {
     id: controllerSettings
+    objectName: "settings.controllers"
     height: parent.height
     width: parent.width
 

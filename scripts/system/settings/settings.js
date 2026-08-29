@@ -23,6 +23,7 @@
 		icon: Script.resolvePath("./img/icon_white.png"),
 		activeIcon: Script.resolvePath("./img/icon_black.png"),
 		text: "SETTINGS",
+		semanticId: "app.settings",
 		isActive: active,
 	});
 

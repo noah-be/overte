@@ -17,8 +17,8 @@ import time
 import xml.etree.ElementTree as ET
 
 from adapter_client import load_command
-from contracts import (load_capability_registry, validate_capabilities,
-                       validate_identifier)
+from contracts import (load_capability_registry, load_tablet_product_policy,
+                       validate_capabilities, validate_identifier)
 
 if os.name == "nt":
     import msvcrt
@@ -102,8 +102,11 @@ def adapter_call(command: list[str], action: str, target: str | None = None,
     argv = [*command, action]
     if target is not None:
         argv += ["--target", target]
+    adapter_environment = os.environ.copy()
+    adapter_environment.pop("OVERTE_E2E_TABLET_POLICY", None)
     result = subprocess.run(argv, text=True, stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE, timeout=timeout, check=False)
+                            stderr=subprocess.PIPE, timeout=timeout, check=False,
+                            env=adapter_environment)
     if result.returncode != 0:
         detail = result.stderr.strip() or f"adapter {action} failed"
         if target:
@@ -253,11 +256,13 @@ def run_module(module: dict, catalog: Path, environment: dict[str, str],
     if (status == "failed" and "artifact.screenshot" in capabilities
             and environment.get("OVERTE_E2E_CAPTURE_ARTIFACTS") == "1"):
         try:
+            capture_environment = environment.copy()
+            capture_environment.pop("OVERTE_E2E_TABLET_POLICY", None)
             capture = subprocess.run(
                 [*adapter_command, "invoke", "--target", selector,
                  "--operation", "artifact.screenshot", "--arguments", "{}"],
                 text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                timeout=30, check=False, env=environment,
+                timeout=30, check=False, env=capture_environment,
             )
             detail = (capture.stderr.strip() if capture.returncode else
                       "Failure screenshot captured.")
@@ -300,6 +305,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--adapter-manifest", required=True, type=Path)
     parser.add_argument("--catalog", required=True, type=Path)
     parser.add_argument("--suite", default="smoke")
+    parser.add_argument("--tablet-policy", type=Path,
+                        help="versioned product expectations required by tablet-e2e")
     parser.add_argument("--target", help="private adapter selector; never persisted")
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--allow-virtual", action="store_true")
@@ -320,6 +327,12 @@ def main() -> int:
         for module in modules:
             print(f"{module['id']}: {module['description']}")
         return 0
+    tablet_policy_path = None
+    if any(module["id"] == "tablet-e2e" for module in modules):
+        if args.tablet_policy is None:
+            fail("suite tablet-e2e requires --tablet-policy")
+        tablet_policy_path = args.tablet_policy.resolve()
+        load_tablet_product_policy(tablet_policy_path)
     command = load_command(manifest_path)
     target = discover(command, args.target, args.allow_virtual)
     selector = target["selector"]
@@ -345,6 +358,8 @@ def main() -> int:
         "OVERTE_DEVICE_TARGET_SELECTOR": selector,
         "OVERTE_DEVICE_CAPABILITIES_JSON": json.dumps(sorted(capabilities)),
     })
+    if tablet_policy_path is not None:
+        environment["OVERTE_E2E_TABLET_POLICY"] = str(tablet_policy_path)
     results = []
     lock_root = Path(os.environ.get("OVERTE_DEVICE_LOCK_ROOT", tempfile.gettempdir()))
     with target_lock(manifest["id"], selector, lock_root):

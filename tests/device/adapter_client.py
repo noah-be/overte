@@ -32,11 +32,16 @@ def invoke(manifest: Path, target: str, operation: str,
            arguments: dict[str, object] | None = None) -> object:
     command = load_command(manifest)
     timeout = 240 if operation == "app.install" else 60
+    adapter_environment = os.environ.copy()
+    # Product expectations belong exclusively to the shared assertion module.
+    # An adapter must report observed UI and must never receive the policy path.
+    adapter_environment.pop("OVERTE_E2E_TABLET_POLICY", None)
     try:
         result = subprocess.run(
             [*command, "invoke", "--target", target, "--operation", operation,
              "--arguments", json.dumps(arguments or {}, separators=(",", ":"))],
-            text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout, check=False,
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout,
+            check=False, env=adapter_environment,
         )
     except subprocess.TimeoutExpired as error:
         raise RuntimeError("adapter operation timed out") from error

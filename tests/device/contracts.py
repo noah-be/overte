@@ -16,6 +16,9 @@ MAX_FLY_DURATION_SECONDS = 10.0
 MAX_INPUT_DURATION_SECONDS = 10.0
 MAX_LOOK_COMPONENT = 1.0
 MOVEMENT_DIRECTIONS = {"backward", "forward", "left", "right"}
+TABLET_CONTRACT_VERSION = 1
+TABLET_SNAPSHOT_SCHEMA_VERSION = 1
+TABLET_POLICY_SCHEMA_VERSION = 1
 
 
 def load_capability_registry(path: Path | None = None) -> dict[str, dict]:
@@ -35,6 +38,122 @@ def load_capability_registry(path: Path | None = None) -> dict[str, dict]:
         if not isinstance(definition.get("result"), str) or not definition["result"]:
             raise ValueError(f"capability requires result documentation: {name}")
     return capabilities
+
+
+def load_tablet_ui_contract(path: Path | None = None) -> dict:
+    """Load the closed semantic-ID vocabulary shared by modules and adapters."""
+    source = path or ROOT / "tablet-ui-contract.json"
+    payload = json.loads(source.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or set(payload) != {
+            "contractVersion", "schemaVersion", "controlIds", "screenIds"}:
+        raise ValueError("tablet UI contract contains unsupported or missing fields")
+    if (payload.get("contractVersion") != TABLET_CONTRACT_VERSION
+            or payload.get("schemaVersion") != 1):
+        raise ValueError("unsupported tablet UI contract version")
+    for field in ("controlIds", "screenIds"):
+        values = payload.get(field)
+        if (not isinstance(values, list) or not values
+                or values != sorted(set(values))
+                or not all(isinstance(item, str) and IDENTIFIER.fullmatch(item)
+                           for item in values)):
+            raise ValueError(f"tablet UI contract {field} must be sorted unique identifiers")
+    return payload
+
+
+def _validate_tablet_id_list(value: object, label: str, known: set[str]) -> list[str]:
+    if (not isinstance(value, list) or value != sorted(set(value))
+            or not all(isinstance(item, str) and item in known for item in value)):
+        raise ValueError(f"{label} must be sorted, unique and contain only known semantic IDs")
+    return value
+
+
+def validate_tablet_ui_snapshot(value: object, contract: dict | None = None) -> dict:
+    """Reject ambiguous adapter observations before behavior is asserted."""
+    vocabulary = contract or load_tablet_ui_contract()
+    required = {"contractVersion", "schemaVersion", "screenId", "ready",
+                "visibleControlIds"}
+    optional = {"selectedControlIds"}
+    if not isinstance(value, dict) or not required <= set(value) or set(value) - required - optional:
+        raise ValueError("tablet snapshot contains unsupported or missing fields")
+    if value.get("contractVersion") != vocabulary["contractVersion"]:
+        raise ValueError("unsupported tablet UI contract version")
+    if value.get("schemaVersion") != TABLET_SNAPSHOT_SCHEMA_VERSION:
+        raise ValueError("unsupported tablet snapshot schema version")
+    if value.get("screenId") not in vocabulary["screenIds"]:
+        raise ValueError("tablet snapshot contains an unknown screen ID")
+    if not isinstance(value.get("ready"), bool):
+        raise ValueError("tablet snapshot ready must be boolean")
+    known_controls = set(vocabulary["controlIds"])
+    visible = _validate_tablet_id_list(
+        value.get("visibleControlIds"), "tablet snapshot visibleControlIds", known_controls)
+    if "selectedControlIds" in value:
+        selected = _validate_tablet_id_list(
+            value["selectedControlIds"], "tablet snapshot selectedControlIds", known_controls)
+        if not set(selected) <= set(visible):
+            raise ValueError("tablet snapshot selected controls must be visible")
+    return value
+
+
+def validate_tablet_product_policy(value: object, contract: dict | None = None) -> dict:
+    """Validate product expectations independently of an adapter observation."""
+    vocabulary = contract or load_tablet_ui_contract()
+    if not isinstance(value, dict) or set(value) != {
+            "contractVersion", "schemaVersion", "profileId", "expectations"}:
+        raise ValueError("tablet product policy contains unsupported or missing fields")
+    if value.get("contractVersion") != vocabulary["contractVersion"]:
+        raise ValueError("unsupported tablet product policy contract version")
+    if value.get("schemaVersion") != TABLET_POLICY_SCHEMA_VERSION:
+        raise ValueError("unsupported tablet product policy schema version")
+    profile_id = validate_identifier(
+        value.get("profileId"), "tablet product policy profileId")
+    if len(profile_id) > 128:
+        raise ValueError("tablet product policy profileId must not exceed 128 characters")
+    expectations = value.get("expectations")
+    if (not isinstance(expectations, dict)
+            or list(expectations) != sorted(expectations)
+            or not {"settings.home", "tablet.home"} <= set(expectations)):
+        raise ValueError(
+            "tablet product policy expectations must be sorted and include settings.home and tablet.home")
+    known_screens = set(vocabulary["screenIds"])
+    known_controls = set(vocabulary["controlIds"])
+    settings_home_required: set[str] = set()
+    for screen_id, expectation in expectations.items():
+        if screen_id not in known_screens or not isinstance(expectation, dict):
+            raise ValueError(f"tablet product policy contains unknown screen: {screen_id}")
+        required_fields = {"requiredControlIds", "forbiddenControlIds"}
+        optional_fields = {"entryControlId"}
+        if not required_fields <= set(expectation) or set(expectation) - required_fields - optional_fields:
+            raise ValueError(f"tablet product policy screen {screen_id} has invalid fields")
+        required = _validate_tablet_id_list(
+            expectation.get("requiredControlIds"),
+            f"tablet product policy {screen_id} requiredControlIds", known_controls)
+        forbidden = _validate_tablet_id_list(
+            expectation.get("forbiddenControlIds"),
+            f"tablet product policy {screen_id} forbiddenControlIds", known_controls)
+        if set(required) & set(forbidden):
+            raise ValueError(f"tablet product policy {screen_id} contradicts itself")
+        entry = expectation.get("entryControlId")
+        if screen_id == "tablet.home":
+            if entry is not None:
+                raise ValueError("tablet.home must not declare an entry control")
+        elif not isinstance(entry, str) or entry not in known_controls:
+            raise ValueError(f"tablet product policy {screen_id} requires a known entry control")
+        if screen_id == "settings.home" and entry != "app.settings":
+            raise ValueError("settings.home must be entered through app.settings")
+        if screen_id == "settings.home":
+            settings_home_required = set(required)
+    for screen_id, expectation in expectations.items():
+        if screen_id not in {"tablet.home", "settings.home"}:
+            entry = expectation["entryControlId"]
+            if entry not in settings_home_required:
+                raise ValueError(
+                    f"tablet product policy entry control {entry} must be required on settings.home")
+    return value
+
+
+def load_tablet_product_policy(path: Path, contract: dict | None = None) -> dict:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return validate_tablet_product_policy(payload, contract)
 
 
 def validate_identifier(value: object, label: str) -> str:
@@ -58,7 +177,18 @@ def validate_capabilities(values: object, registry: dict[str, dict] | None = Non
 def validate_operation_arguments(operation: str, value: object) -> dict:
     if not isinstance(value, dict):
         raise ValueError("operation arguments must be an object")
-    if operation in {
+    if operation == "tablet.snapshot":
+        if value:
+            raise ValueError("tablet.snapshot does not accept arguments")
+    elif operation == "tablet.activate":
+        if set(value) != {"contractVersion", "controlId"}:
+            raise ValueError("tablet.activate requires only contractVersion and controlId")
+        vocabulary = load_tablet_ui_contract()
+        if value.get("contractVersion") != vocabulary["contractVersion"]:
+            raise ValueError("tablet.activate uses an unsupported contract version")
+        if value.get("controlId") not in vocabulary["controlIds"]:
+            raise ValueError("tablet.activate requires a known semantic control ID")
+    elif operation in {
             "app.foreground", "app.launch", "app.process", "app.stop",
             "input.jump", "tablet.close", "tablet.open"}:
         if value:
@@ -167,8 +297,10 @@ def validate_operation_result(operation: str, value: object) -> dict:
     if not isinstance(value, dict):
         raise ValueError(f"{operation} result must be an object")
     if operation in {"input.fly", "input.jump", "input.look", "input.move",
-                     "tablet.close", "tablet.open"}:
+                     "tablet.activate", "tablet.close", "tablet.open"}:
         return validate_performed_result(operation, value)
+    if operation == "tablet.snapshot":
+        return validate_tablet_ui_snapshot(value)
     confirmation = {
         "app.launch": "launched",
         "app.stop": "stopped",

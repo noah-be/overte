@@ -1,0 +1,26 @@
+{
+  "contractVersion": 1,
+  "schemaVersion": 1,
+  "profileId": "mock.flat-touch",
+  "expectations": {
+    "settings.general": {
+      "entryControlId": "settings.general",
+      "requiredControlIds": ["nav.back", "nav.close", "nav.home"],
+      "forbiddenControlIds": ["settings.hmd-preferences"]
+    },
+    "settings.graphics": {
+      "entryControlId": "settings.graphics",
+      "requiredControlIds": ["nav.back", "nav.close", "nav.home"],
+      "forbiddenControlIds": ["settings.vr-render-resolution"]
+    },
+    "settings.home": {
+      "entryControlId": "app.settings",
+      "requiredControlIds": ["nav.close", "nav.home", "settings.audio", "settings.general", "settings.graphics", "settings.security"],
+      "forbiddenControlIds": ["settings.controllers", "settings.hmd-preferences", "settings.vr-render-resolution"]
+    },
+    "tablet.home": {
+      "requiredControlIds": ["app.settings", "nav.close"],
+      "forbiddenControlIds": []
+    }
+  }
+}
