@@ -27,6 +27,7 @@ Rectangle {
     }
 
     id: root;
+    objectName: "settings.security"
     color: hifi.colors.baseGray;
     
     property string title: "Security Settings";
