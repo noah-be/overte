@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[4]
 E2E_ROOT = ROOT / "android/vr/pico/apps/picoInterface/openxr/e2e_input"
 PROFILE_PATH = ROOT / "tests/device/openxr_input/profiles/pico4-overte-controller.json"
 PROFILE_ID = "overte-pico4-controller-v1"
-PROFILE_SHA256 = "922e091c38f5cb1ec6c3e55c80b81de0a876524d951318c61e7feb4821eab481"
+PROFILE_SHA256 = "da7ef170275af8c058da53210c8a88aa6920e6315b5cdc0daaedf072dc1b3284"
 
 
 class OpenXrInputStateTest(unittest.TestCase):
@@ -49,6 +49,20 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertIn('"OVERTE_E2E_CONTROLLER_AXIS"', SOURCE)
         self.assertIn("e2eControllerOverrideActive", SOURCE)
         self.assertIn("!e2eControllerOverrideActive", SOURCE)
+
+    def test_e2e_controller_stays_registered_for_every_injected_control(self):
+        override = re.search(
+            r"bool e2eControllerOverrideActive = false;(.*?)#endif",
+            SOURCE,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(override)
+        body = override.group(1)
+        self.assertIn("controller::LY", body)
+        self.assertIn("leftY->second.valid", body)
+        self.assertNotIn("std::abs(leftY->second.value)", body)
+        self.assertIn("controller::LEFT_SECONDARY_THUMB", body)
+        self.assertIn("controller::RIGHT_SECONDARY_THUMB", body)
 
     def test_native_e2e_layer_identity_and_release_exclusion_are_mechanical(self):
         header = (E2E_ROOT / "E2eInputProtocol.h").read_text(encoding="utf-8")
@@ -93,8 +107,22 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertIn("arguments '-DOVERTE_PICO_E2E_OPENXR_INPUT=ON'", gradle)
         self.assertIn("arguments '-DOVERTE_PICO_E2E_OPENXR_INPUT=OFF'", gradle)
         self.assertIn("enabledApiLayerNames = &E2E_INPUT_LAYER", context)
-        self.assertGreaterEqual(protocol.count("0.1, 8.0"), 2)
+        self.assertIn('0.1, 30.0, seconds', protocol)
+        self.assertIn('0.1, 8.0, seconds', protocol)
         self.assertIn('exactKeys(arguments, {}, { "holdMilliseconds" })', protocol)
+        self.assertIn('operation == QLatin1String("input.jump")', protocol)
+        self.assertIn('operation == QLatin1String("input.fly")', protocol)
+        self.assertIn("constexpr std::int64_t JUMP_HOLD_MS = 450", protocol)
+        self.assertIn("constexpr std::int64_t FLY_ARM_HOLD_MS = 400", protocol)
+        self.assertIn("duration = JUMP_HOLD_MS", protocol)
+        self.assertIn(
+            "cursor += FLY_ARM_HOLD_MS;\n"
+            "            compiled.push_back({ cursor, neutralOverride(), {} });\n"
+            "            cursor += INTER_COMMAND_GAP_MS;",
+            protocol,
+        )
+        self.assertIn("BooleanChannel::RightSecondary", protocol)
+        self.assertIn('{ "rightSecondaryApplied",', protocol)
         self.assertIn(
             "integerValue(arguments.value(\"holdMilliseconds\"), 100, 8000, hold)",
             protocol,
@@ -108,7 +136,12 @@ class OpenXrInputStateTest(unittest.TestCase):
         self.assertIn("recordVectorApplication", header)
         self.assertIn("recordBooleanApplication", header)
         self.assertIn('{ "vectorAppliedSequence",', protocol)
+        self.assertIn('{ "leftThumbstickAppliedX",', protocol)
         self.assertIn('{ "booleanAppliedSequence",', protocol)
+        self.assertIn('direction != QLatin1String("left")', protocol)
+        self.assertIn('direction != QLatin1String("right")', protocol)
+        self.assertIn("vertical / 0.45 * 45.0", protocol)
+        self.assertNotIn("-vertical / 0.45 * 45.0", protocol)
         self.assertEqual(
             "XR_APILAYER_OVERTE_e2e_input", manifest["api_layer"]["name"]
         )
@@ -118,6 +151,23 @@ class OpenXrInputStateTest(unittest.TestCase):
         )
         release_manifest = app_root / "src/release/assets/openxr/1/api_layers/explicit.d"
         self.assertFalse(release_manifest.exists())
+
+    def test_e2e_pose_layer_passes_real_controller_pose_without_explicit_override(self):
+        layer = (E2E_ROOT / "XrApiLayer.cpp").read_text(encoding="utf-8")
+        action_state = layer.rsplit("layerGetActionStatePose(", 1)[1].split(
+            "layerLocateSpace(", 1)[0]
+        self.assertIn("poses[binding->second.channel].active", action_state)
+        self.assertNotIn("? XR_TRUE : XR_FALSE", action_state)
+
+        locate = layer.rsplit("layerLocateSpace(", 1)[1].split(
+            "layerLocateViews(", 1)[0]
+        pose_lookup = locate.index("const PoseOverride& pose")
+        active_gate = locate.index("if (pose.active)", pose_lookup)
+        stage_gate = locate.index("if (!stageBase)", active_gate)
+        fail_closed = locate.index('failClosed("pose-base-not-stage"', stage_gate)
+        self.assertLess(active_gate, stage_gate)
+        self.assertLess(stage_gate, fail_closed)
+        self.assertNotIn("location->locationFlags = 0;\n            }", locate)
 
     def test_transient_input_maps_reset_before_any_early_return(self):
         update = re.search(

@@ -724,7 +724,7 @@ prepare() {
 
 build() {
     local option="${1:-}"
-    local variant="${2:-debug}" task output
+    local variant="${2:-debug}" task output gradle_jvm_args
     local -a gradle_diagnostics=()
     if [[ "$option" == "--stacktrace" ]]; then
         gradle_diagnostics+=(--stacktrace)
@@ -733,6 +733,11 @@ build() {
     fi
     detect_sdk
     detect_jdk
+    # The Gradle wrapper lives below android/common while the Pico settings
+    # file makes android/vr/pico the build root.  Gradle therefore does not
+    # discover android/common/gradle.properties and otherwise falls back to a
+    # 512 MiB daemon, which cannot package the large native Pico debug APK.
+    gradle_jvm_args="${PICO_GRADLE_JVM_ARGS:--Xms2g -Xmx4g}"
     if [[ "$variant" == "release" ]]; then
         task=assembleRelease
         output="$script_dir/apps/picoInterface/build/outputs/apk/release/picoInterface-release.apk"
@@ -745,6 +750,7 @@ build() {
     PICO_BUILD_JOBS="$jobs" CMAKE_BUILD_PARALLEL_LEVEL="$jobs" \
         SHADERGEN_JOBS="${PICO_SHADER_JOBS:-$jobs}" \
         "$android_root/common/gradlew" \
+        "-Dorg.gradle.jvmargs=$gradle_jvm_args" \
         --settings-file "$script_dir/settings.gradle" \
         ":picoInterface:$task" --max-workers="$jobs" "${gradle_diagnostics[@]}"
     echo "APK: $output"
