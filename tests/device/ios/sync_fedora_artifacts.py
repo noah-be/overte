@@ -600,8 +600,6 @@ def dispatch_inputs(arguments: argparse.Namespace) -> dict[str, str]:
         "qt_ios_cache_key": arguments.qt_ios_cache_key,
         "qt_host_artifact_prefix": arguments.qt_host_artifact_prefix,
         "qt_ios_artifact_prefix": arguments.qt_ios_artifact_prefix,
-        "overte_bundle_id": arguments.overte_bundle_id,
-        "wda_bundle_id": arguments.wda_bundle_id,
     }
     expected = {
         "fedora_e2e_producer": r"true",
@@ -609,13 +607,9 @@ def dispatch_inputs(arguments: argparse.Namespace) -> dict[str, str]:
         "qt_ios_cache_key": r"overte-qt-ios-v2-[A-Za-z0-9._-]{1,190}-contract-[0-9a-f]{64}",
         "qt_host_artifact_prefix": r"overte-qt-host-checkpoint-v1-[0-9a-f]{32}",
         "qt_ios_artifact_prefix": r"overte-qt-ios-checkpoint-v1-[0-9a-f]{32}",
-        "overte_bundle_id": r"[A-Za-z0-9][A-Za-z0-9.-]*[.]e2e",
-        "wda_bundle_id": r"[A-Za-z0-9][A-Za-z0-9-]*(?:[.][A-Za-z0-9][A-Za-z0-9-]*)+",
     }
     if any(not re.fullmatch(expected[name], value) for name, value in names.items()):
         fail("protected producer input does not satisfy its fixed provenance namespace")
-    if names["wda_bundle_id"].endswith(".xctrunner"):
-        fail("WDA workflow input must be the Appium base bundle identifier")
     return names
 
 
