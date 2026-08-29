@@ -147,6 +147,13 @@ python3 tests/device/ios/sync_fedora_artifacts.py personal-team-preinstalled \
   --target-config /private/jenkins-job/appium-targets.json
 ```
 
+For a local feature-branch hardware gate, the exact integrated Full Client
+manifest may replace `--unsigned-kit` with `--integrated-client-manifest`.
+This narrow path verifies the unsigned device-build contract and exact source
+revision, but remains a `none-device-observed` handoff: it does not bind the
+Sideloadly-rewritten installed bytes and cannot support a protected-branch or
+release provenance claim.
+
 Use `--fixed-bundle-identifiers-confirmed` only when the installed IDs were
 preserved. If Sideloadly remapped the two IDs because the Personal-Team quota
 was already occupied, replace that flag with
@@ -334,6 +341,14 @@ Appium/WDA session before entering the common module's 60-second operation
 window. `launch-smoke` immediately reuses that persisted session and fails if
 the one controlled Overte launch has exited or changed process identity; it
 does not launch the application a second time.
+Immediately before the DDI and session gates, Jenkins obtains two consecutive
+battery-temperature samples from the pinned PyMobileDevice3 runtime. The UDID
+is passed only through the child environment, the full response is captured
+privately, and the public log reports only whether thermal headroom is stable.
+The iOS client independently applies a 30 Hz mobile frame ceiling and disables
+the costly desktop shadow, bloom, ambient-occlusion, and antialiasing defaults;
+the preflight is cooldown protection, not a substitute for that sustained-load
+budget.
 Inside a hardened user-systemd namespace, host UID 0 is accepted only when it
 appears as the kernel-configured overflow UID; arbitrary remapped ownership is
 rejected. The exact `/`, `/usr`, `/usr/local`, `/usr/local/lib`, service-root,

@@ -15,6 +15,7 @@ import sys
 
 
 KIT_CONTRACT = "overte-ios-personal-team-e2e-kit-v3"
+INTEGRATED_CLIENT_CONTRACT = "overte-ios-integrated-client-manifest-v1"
 ATTESTATION_CONTRACT = "overte-ios-personal-team-preinstalled-attestation-v2"
 BUNDLES = {
     "overte": "org.overte.interface.e2e",
@@ -183,6 +184,46 @@ def validate_kit(path: Path, *, private: bool = True) -> dict:
     return value
 
 
+def validate_integrated_client(path: Path) -> dict:
+    if (not path.is_absolute() or path.is_symlink() or not path.is_file()
+            or inside_repository(path) or not 0 < path.stat().st_size <= 1024 * 1024):
+        fail("integrated client manifest must be a safe absolute file")
+    metadata = path.lstat()
+    if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.geteuid()
+            or metadata.st_nlink != 1 or metadata.st_mode & 0o022):
+        fail("integrated client manifest must be current-user-owned and non-writable")
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        fail("integrated client manifest is unreadable")
+    required = {
+        "schemaVersion", "product", "buildNumber", "artifact", "manifest",
+        "sha256", "sourceRevision", "platform", "architecture", "configuration",
+        "xcode", "sdk", "signed", "requiresSigning", "signing", "debugSymbols",
+        "windowsVm", "testBuildContractVersion",
+    }
+    if (not isinstance(value, dict) or set(value) != required
+            or value.get("schemaVersion") != 1
+            or value.get("product") != "overte-ios-integrated-client"
+            or not isinstance(value.get("buildNumber"), int)
+            or isinstance(value["buildNumber"], bool) or value["buildNumber"] <= 0
+            or re.fullmatch(
+                r"[0-9]{4}-OverteIOSClient-Release-device-unsigned[.]ipa",
+                value.get("artifact", ""),
+            ) is None
+            or value.get("manifest") != value["artifact"].removesuffix(".ipa") + ".json"
+            or re.fullmatch(r"[0-9a-f]{64}", value.get("sha256", "")) is None
+            or re.fullmatch(r"[0-9a-f]{40}", value.get("sourceRevision", "")) is None
+            or value.get("platform") != "iphoneos"
+            or value.get("architecture") != "arm64"
+            or value.get("configuration") != "Release"
+            or value.get("signed") is not False
+            or value.get("requiresSigning") is not True
+            or value.get("testBuildContractVersion") != 1):
+        fail("integrated client manifest contract is invalid")
+    return value
+
+
 def create(arguments: argparse.Namespace) -> dict:
     fixed_identifiers = arguments.fixed_bundle_identifiers_confirmed
     remapped_identifiers = arguments.accept_sideloadly_bundle_id_remapping
@@ -190,7 +231,18 @@ def create(arguments: argparse.Namespace) -> dict:
             or not all((arguments.device_observed, arguments.installed_with_sideloadly,
                         arguments.accept_no_cryptographic_byte_binding))):
         fail("all explicit preinstalled human attestations are required")
-    kit = validate_kit(arguments.unsigned_kit)
+    unsigned_kit = getattr(arguments, "unsigned_kit", None)
+    integrated_client = getattr(arguments, "integrated_client_manifest", None)
+    if (unsigned_kit is None) == (integrated_client is None):
+        fail("exactly one reviewed unsigned source manifest is required")
+    if unsigned_kit is not None:
+        source = validate_kit(unsigned_kit)
+        source_contract = KIT_CONTRACT
+        source_path = unsigned_kit
+    else:
+        source = validate_integrated_client(integrated_client)
+        source_contract = INTEGRATED_CLIENT_CONTRACT
+        source_path = integrated_client
     output = arguments.output
     if (not output.is_absolute() or inside_repository(output) or output.exists()
             or output.is_symlink()):
@@ -209,11 +261,11 @@ def create(arguments: argparse.Namespace) -> dict:
         human["acceptedSideloadlyBundleIdentifierRemapping"] = True
     value = {
         "schemaVersion": 1, "contract": ATTESTATION_CONTRACT,
-        "sourceRevision": kit["sourceRevision"],
+        "sourceRevision": source["sourceRevision"],
         "createdAt": created.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "notAfter": (created + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "unsignedKitContract": KIT_CONTRACT,
-        "unsignedKitManifestSha256": sha256_file(arguments.unsigned_kit),
+        "unsignedKitContract": source_contract,
+        "unsignedKitManifestSha256": sha256_file(source_path),
         "expectedBundleIdentifiers": BUNDLES,
         "bundleIdentifierMode": identifier_mode,
         "toolchain": TOOLCHAIN, "humanAttestation": human,
@@ -235,7 +287,9 @@ def create(arguments: argparse.Namespace) -> dict:
 
 def parser() -> argparse.ArgumentParser:
     value = argparse.ArgumentParser(description=__doc__)
-    value.add_argument("--unsigned-kit", type=Path, required=True)
+    source = value.add_mutually_exclusive_group(required=True)
+    source.add_argument("--unsigned-kit", type=Path)
+    source.add_argument("--integrated-client-manifest", type=Path)
     value.add_argument("--output", type=Path, required=True)
     value.add_argument("--device-observed", action="store_true")
     value.add_argument("--installed-with-sideloadly", action="store_true")

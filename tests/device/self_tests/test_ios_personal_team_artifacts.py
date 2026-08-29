@@ -365,6 +365,7 @@ class IosPersonalTeamArtifactsTest(unittest.TestCase):
         output = self.root / "private-observation/preinstalled.json"
         arguments = argparse.Namespace(
             unsigned_kit=self.kit.resolve(), output=output.resolve(),
+            integrated_client_manifest=None,
             device_observed=True, installed_with_sideloadly=True,
             fixed_bundle_identifiers_confirmed=True,
             accept_sideloadly_bundle_id_remapping=False,
@@ -398,6 +399,37 @@ class IosPersonalTeamArtifactsTest(unittest.TestCase):
         arguments.device_observed = False
         with self.assertRaisesRegex(ValueError, "all explicit"):
             CREATOR.create(arguments)
+
+    def test_preinstalled_attestation_accepts_integrated_feature_client_manifest(self):
+        manifest = self.root / "0573-OverteIOSClient-Release-device-unsigned.json"
+        manifest.write_text(json.dumps({
+            "schemaVersion": 1, "product": "overte-ios-integrated-client",
+            "buildNumber": 573,
+            "artifact": "0573-OverteIOSClient-Release-device-unsigned.ipa",
+            "manifest": "0573-OverteIOSClient-Release-device-unsigned.json",
+            "sha256": "1" * 64, "sourceRevision": "2" * 40,
+            "platform": "iphoneos", "architecture": "arm64",
+            "configuration": "Release", "xcode": "Xcode test", "sdk": "test",
+            "signed": False, "requiresSigning": True,
+            "signing": {}, "debugSymbols": {}, "windowsVm": {},
+            "testBuildContractVersion": 1,
+        }), encoding="utf-8")
+        manifest.chmod(0o444)
+        output = self.root / "private-observation/integrated.json"
+        arguments = argparse.Namespace(
+            unsigned_kit=None, integrated_client_manifest=manifest.resolve(),
+            output=output.resolve(), device_observed=True,
+            installed_with_sideloadly=True,
+            fixed_bundle_identifiers_confirmed=False,
+            accept_sideloadly_bundle_id_remapping=True,
+            accept_no_cryptographic_byte_binding=True,
+        )
+        value = CREATOR.create(arguments)
+        self.assertEqual("2" * 40, value["sourceRevision"])
+        self.assertEqual("overte-ios-integrated-client-manifest-v1",
+                         value["unsignedKitContract"])
+        self.assertEqual(hashlib.sha256(manifest.read_bytes()).hexdigest(),
+                         value["unsignedKitManifestSha256"])
 
 
 if __name__ == "__main__":

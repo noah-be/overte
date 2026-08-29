@@ -9,6 +9,8 @@ HEADER = (ROOT / "interface/src/IOSTouchUiMetrics.h").read_text()
 SOURCE = (ROOT / "interface/src/IOSTouchUiMetrics.mm").read_text()
 PROFILE = (ROOT / "interface/resources/qml/controlsUit/+ios/TouchUiProfile.qml").read_text()
 GRAPHICS = (ROOT / "interface/src/Application_Graphics.cpp").read_text()
+APPLICATION = (ROOT / "interface/src/Application.cpp").read_text()
+APPLICATION_PLUGINS = (ROOT / "interface/src/Application_Plugins.cpp").read_text()
 APPLICATION_EVENTS = (ROOT / "interface/src/Application_Events.cpp").read_text()
 APPLICATION_SETUP = (ROOT / "interface/src/Application_Setup.cpp").read_text()
 APPLICATION_UI = (ROOT / "interface/src/Application_UI.cpp").read_text()
@@ -178,6 +180,22 @@ assert '"viewportResolutionScale", 0.8f' in RENDER_HEADER
 assert '"iosViewportResolutionScaleDefaultApplied", false' in RENDER_SOURCE
 assert "_viewportResolutionScale = 0.8f" in RENDER_SOURCE
 assert "OVERTE_IOS_RENDER_PROFILE stage=resolution-scale-applied" in RENDER_SOURCE
+for mobile_budget_contract in (
+    "constexpr int IOS_TARGET_FPS { 30 }",
+    "IOS_MAX_VIEWPORT_RESOLUTION_SCALE { 0.8f }",
+    "iosRenderSettings->setShadowsEnabled(false)",
+    "iosRenderSettings->setBloomEnabled(false)",
+    "iosRenderSettings->setAmbientOcclusionEnabled(false)",
+    "iosRenderSettings->setAntialiasingMode(AntialiasingSetupConfig::Mode::NONE)",
+    "setWorldDetailQuality(WORLD_DETAIL_LOW)",
+    "RefreshRateManager::RefreshRateRegime::FOCUS_ACTIVE, IOS_TARGET_FPS",
+    "RefreshRateManager::RefreshRateRegime::FOCUS_INACTIVE, IOS_TARGET_FPS",
+    "RefreshRateManager::RefreshRateRegime::STARTUP, IOS_TARGET_FPS",
+    "OVERTE_IOS_RENDER_PROFILE stage=mobile-budget-applied",
+):
+    assert mobile_budget_contract in APPLICATION
+assert "defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)" in APPLICATION_PLUGINS
+assert "OVERTE_IOS_FRAME_PACING" in APPLICATION_PLUGINS
 assert "onClicked: modelData.clicked()" in TABLET_HOME
 assert "onClicked: tabletProxy.hideAndroidTablet()" in TABLET_HOME
 assert 'contentFlickableInteractive: Qt.platform.os !== "ios" || !screenSpaceMode' in WINDOW_ROOT

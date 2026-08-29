@@ -187,10 +187,10 @@ build_host() {
     local compiler_watchdog="$repo_root/ios/ci/compiler-watchdog.py"
     if command -v sccache >/dev/null 2>&1; then
         configure_tree host "$host_build" "$host_prefix" -- \
-            -D "CMAKE_C_COMPILER_LAUNCHER=$compiler_watchdog;--" \
-            -D "CMAKE_CXX_COMPILER_LAUNCHER=$compiler_watchdog;--" \
-            -D "CMAKE_OBJC_COMPILER_LAUNCHER=$compiler_watchdog;--" \
-            -D "CMAKE_OBJCXX_COMPILER_LAUNCHER=$compiler_watchdog;--"
+            -D "CMAKE_C_COMPILER_LAUNCHER=$compiler_watchdog" \
+            -D "CMAKE_CXX_COMPILER_LAUNCHER=$compiler_watchdog" \
+            -D "CMAKE_OBJC_COMPILER_LAUNCHER=$compiler_watchdog" \
+            -D "CMAKE_OBJCXX_COMPILER_LAUNCHER=$compiler_watchdog"
     else
         configure_tree host "$host_build" "$host_prefix"
     fi
@@ -222,10 +222,10 @@ build_ios() {
             -skip qtwebengine -platform macx-ios-clang -sdk "$target_sdk" -qt-host-path "$host_prefix" -- \
             -D "CMAKE_OSX_DEPLOYMENT_TARGET=$OVERTE_IOS_MIN_VERSION" \
             -D "CMAKE_OSX_ARCHITECTURES=arm64" \
-            -D "CMAKE_C_COMPILER_LAUNCHER=$compiler_watchdog;--" \
-            -D "CMAKE_CXX_COMPILER_LAUNCHER=$compiler_watchdog;--" \
-            -D "CMAKE_OBJC_COMPILER_LAUNCHER=$compiler_watchdog;--" \
-            -D "CMAKE_OBJCXX_COMPILER_LAUNCHER=$compiler_watchdog;--"
+            -D "CMAKE_C_COMPILER_LAUNCHER=$compiler_watchdog" \
+            -D "CMAKE_CXX_COMPILER_LAUNCHER=$compiler_watchdog" \
+            -D "CMAKE_OBJC_COMPILER_LAUNCHER=$compiler_watchdog" \
+            -D "CMAKE_OBJCXX_COMPILER_LAUNCHER=$compiler_watchdog"
     else
         configure_tree ios "$ios_build" "$ios_prefix" \
             -skip qtwebengine -platform macx-ios-clang -sdk "$target_sdk" -qt-host-path "$host_prefix" \

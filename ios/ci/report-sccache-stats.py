@@ -76,7 +76,11 @@ def summarize(stats: dict, cache_dir: pathlib.Path, phase: str) -> dict:
     }
 
 
-def validate_activity(summary: dict, max_remote_write_failure_rate: float = 0.05) -> None:
+def validate_activity(
+    summary: dict,
+    max_remote_write_failure_rate: float = 0.05,
+    max_remote_write_failures: int = 32,
+) -> None:
     if summary["requests"] < 1:
         raise ValueError("build produced no sccache compiler requests")
     if summary["hits"] + summary["misses"] < 1:
@@ -91,6 +95,11 @@ def validate_activity(summary: dict, max_remote_write_failure_rate: float = 0.05
     remote_writes = sum(level["writes"] for level in remote)
     remote_failures = sum(level["writeFailures"] for level in remote)
     attempts = remote_writes + remote_failures
+    if remote_failures > max_remote_write_failures:
+        raise ValueError(
+            "remote compiler checkpoint write failures exceed the absolute limit: "
+            f"{remote_failures}/{max_remote_write_failures}"
+        )
     if attempts and remote_failures / attempts > max_remote_write_failure_rate:
         raise ValueError(
             f"remote compiler checkpoint write failure rate is too high: {remote_failures}/{attempts}"
@@ -104,13 +113,20 @@ def main() -> int:
     parser.add_argument("--phase", choices=("before", "after"), required=True)
     parser.add_argument("--require-activity", action="store_true")
     parser.add_argument("--max-remote-write-failure-rate", type=float, default=0.05)
+    parser.add_argument("--max-remote-write-failures", type=int, default=32)
     args = parser.parse_args()
     try:
         summary = summarize(load_stats(args.stats), args.cache_dir, args.phase)
         if args.require_activity:
             if not 0.0 <= args.max_remote_write_failure_rate <= 1.0:
                 raise ValueError("remote write failure rate limit must be between zero and one")
-            validate_activity(summary, args.max_remote_write_failure_rate)
+            if args.max_remote_write_failures < 0:
+                raise ValueError("remote write failure limit must not be negative")
+            validate_activity(
+                summary,
+                args.max_remote_write_failure_rate,
+                args.max_remote_write_failures,
+            )
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"report-sccache-stats: {exc}", file=sys.stderr)
         return 1

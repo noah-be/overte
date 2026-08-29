@@ -1939,6 +1939,7 @@ def test_ci_contract() -> None:
     require_text(bootstrap_workflow, r"contains\(github\.event\.head_commit\.message, '\[ios-integrated\]'\)", "integrated-only fixes must be able to reuse provisioned Qt caches")
     require_text(bootstrap_workflow, r"workflow_dispatch:[\s\S]*?integrated:[\s\S]*?type: boolean[\s\S]*?default: false", "manual integrated retries need an explicit opt-in")
     require_text(bootstrap_workflow, r"github\.event_name == 'workflow_dispatch' && inputs\.integrated", "the explicit manual opt-in must start Qt provisioning")
+    require_text(bootstrap_workflow, r"e2e_test_build:\s*\$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.integrated \}\}", "a manual integrated build must produce the E2E Full Client")
     require_text(bootstrap_workflow, r"simulator:[\s\S]*!contains\(github\.event\.head_commit\.message, '\[ios-integrated\]'\)", "integrated-only retries must skip the independent simulator gate")
     require_text(bootstrap_workflow, r"unsigned-device-sdk:[\s\S]*!contains\(github\.event\.head_commit\.message, '\[ios-integrated\]'\)", "integrated-only retries must skip the independent device SDK gate")
     if bootstrap_workflow.read_text(encoding="utf-8").count("ios/tests/run-tests.sh") != 1:

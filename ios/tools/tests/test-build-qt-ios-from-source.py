@@ -106,7 +106,10 @@ class QtSourceBuildTest(unittest.TestCase):
         source = SCRIPT.read_text(encoding="utf-8")
         self.assertIn("ios/ci/compiler-watchdog.py", source)
         for language in ("C", "CXX", "OBJC", "OBJCXX"):
-            self.assertEqual(source.count(f"CMAKE_{language}_COMPILER_LAUNCHER=$compiler_watchdog;--"), 2)
+            self.assertEqual(
+                source.count(f"CMAKE_{language}_COMPILER_LAUNCHER=$compiler_watchdog\""), 2)
+            self.assertNotIn(
+                f"CMAKE_{language}_COMPILER_LAUNCHER=$compiler_watchdog;", source)
         self.assertIn("OVERTE_COMPILER_WATCHDOG_LOG", source)
         self.assertIn('tail -n 0 -F "$live_log"', source)
         self.assertIn('ios/ci/build-heartbeat.py', source)

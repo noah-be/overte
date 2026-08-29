@@ -103,8 +103,9 @@ The traceable stages are:
 2. root-runtime status plus the selected strong artifact handoff, if any;
 3. for the primary path, installed-app observation and weak receipt creation
    under the device lock;
-4. pinned Personalized DDI/XCTest gate, then required `e2e-core` baseline under
-   one uninterrupted locked Appium session;
+4. two stable privacy-safe thermal-headroom samples, the pinned Personalized
+   DDI/XCTest gate, then the required `e2e-core` baseline under one
+   uninterrupted locked Appium session;
 5. optional accessibility audit after the baseline;
 6. opt-in soaks;
 7. target/session cleanup while still locked, private IPA/config deletion, and
@@ -132,6 +133,9 @@ Do not install or launch until all gates are green:
   observation without claiming byte provenance;
 - device inclusion in both provisioning profiles and a launchable prebuilt WDA;
 - exclusive Jenkins resource ownership for the target;
+- two consecutive battery-temperature samples at or below the fixed 30.5 C
+  preflight ceiling; raw diagnostics and the private device identity stay out
+  of Jenkins output;
 - a real accessibility audit proving `OverteTabletOpen` and
   `OverteTabletClose` appear as actionable nodes. Coordinate fallbacks are
   forbidden.

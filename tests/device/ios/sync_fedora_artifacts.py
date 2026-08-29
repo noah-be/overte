@@ -532,6 +532,10 @@ def activate_target(config_path: Path, selector: str, receipt_path: Path) -> Non
     capabilities["appium:bundleId"] = overte["bundleId"]
     capabilities["appium:usePreinstalledWDA"] = True
     capabilities["appium:autoLaunch"] = False
+    # Overte renders continuously, so XCTest never reaches application idle.
+    # A nonzero WDA quiescence timeout can report a failed action after the
+    # touch itself was already delivered to the application.
+    capabilities["appium:waitForIdleTimeout"] = 0
     if preinstalled:
         suffix = wda.get("bundleIdSuffix")
         updated_wda = wda.get("updatedBundleId")
@@ -766,8 +770,10 @@ def validate_preinstalled_attestation(path: Path) -> tuple[dict, datetime]:
             or value.get("schemaVersion") != 1
             or value.get("contract")
             != "overte-ios-personal-team-preinstalled-attestation-v2"
-            or value.get("unsignedKitContract")
-            != "overte-ios-personal-team-e2e-kit-v3"
+            or value.get("unsignedKitContract") not in {
+                "overte-ios-personal-team-e2e-kit-v3",
+                "overte-ios-integrated-client-manifest-v1",
+            }
             or not isinstance(value.get("sourceRevision"), str)
             or not REVISION_RE.fullmatch(value["sourceRevision"])
             or not isinstance(value.get("unsignedKitManifestSha256"), str)

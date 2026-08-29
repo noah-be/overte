@@ -17,6 +17,7 @@ import stat
 import subprocess
 import tempfile
 import time
+import uuid
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
@@ -112,6 +113,13 @@ class WebDriver:
                     "timed out", "timeout", "could not proxy", "cannot proxy",
                 ))):
             return "WebDriverAgent did not become reachable"
+        if (("could not proxy command to the remote server" in normalized
+                or "cannot proxy command to the remote server" in normalized)
+                and any(token in normalized for token in (
+                    "connection refused", "econnrefused", "socket hang up",
+                    "timed out", "timeout",
+                ))):
+            return "the WebDriverAgent connection was lost"
         return None
 
     def call(self, method: str, path: str, payload: dict | None = None) -> object:
@@ -312,6 +320,11 @@ class AppiumAdapter:
         udid = capabilities.get("appium:udid")
         if not isinstance(udid, str) or not udid or udid.lower() == "auto":
             fail("physical iOS targets require an explicit private appium:udid")
+        idle_timeout = capabilities.get("appium:waitForIdleTimeout")
+        if (isinstance(idle_timeout, bool)
+                or not isinstance(idle_timeout, (int, float))
+                or idle_timeout != 0):
+            fail("physical iOS E2E targets require appium:waitForIdleTimeout=0")
         if sys.platform == "darwin":
             return
         try:
@@ -525,8 +538,10 @@ class AppiumAdapter:
                 and isinstance(provenance.get("attestationSha256"), str)
                 and re.fullmatch(r"[0-9a-f]{64}", provenance["attestationSha256"])
                 is not None
-                and provenance.get("unsignedKitContract")
-                == "overte-ios-personal-team-e2e-kit-v3"
+                and provenance.get("unsignedKitContract") in {
+                    "overte-ios-personal-team-e2e-kit-v3",
+                    "overte-ios-integrated-client-manifest-v1",
+                }
                 and isinstance(provenance.get("unsignedKitManifestSha256"), str)
                 and re.fullmatch(r"[0-9a-f]{64}",
                                  provenance["unsignedKitManifestSha256"]) is not None
@@ -736,6 +751,9 @@ class AppiumAdapter:
         controls = target.get("controls", {})
         if target.get("scene"):
             values.append("scene.load")
+        if (target["platform"] == "ios"
+                and target.get("scene", {}).get("kind") == "ios-test-build"):
+            values.append("scene.reload")
         if target.get("probe"):
             values.append("probe.snapshot")
         if isinstance(controls.get("look"), dict):
@@ -1066,7 +1084,10 @@ class AppiumAdapter:
         if state:
             try:
                 client.call("GET", f"/session/{state['sessionId']}")
-                self.attest_physical_target(client, state["sessionId"], target)
+                if state.get("physicalTargetAttested") is not True:
+                    self.attest_physical_target(client, state["sessionId"], target)
+                    state["physicalTargetAttested"] = True
+                    self.save_session(selector, state)
                 return client, state["sessionId"], state
             except RuntimeError:
                 try:
@@ -1083,10 +1104,12 @@ class AppiumAdapter:
             fail("Appium did not create a WebDriver session")
         generation = previous_generation + 1
         state = {"sessionId": value["sessionId"], "generation": generation,
-                 "targetFingerprint": fingerprint}
+                 "targetFingerprint": fingerprint, "physicalTargetAttested": False}
         self.save_session(selector, state)
         try:
             self.attest_physical_target(client, value["sessionId"], target)
+            state["physicalTargetAttested"] = True
+            self.save_session(selector, state)
         except Exception:
             try:
                 client.call("DELETE", f"/session/{value['sessionId']}")
@@ -1175,6 +1198,85 @@ class AppiumAdapter:
             fail("controlled fixture did not acknowledge the exact sound command")
         self.assert_ios_process_identity(selector, client, session, state, target)
         return {"requested": True, "commandId": values["commandId"]}
+
+    def request_ios_scene_reload(self, selector: str, client: WebDriver, session: str,
+                                 state: dict, target: dict, scene_url: str) -> str:
+        """Reload the exact fixture through its runtime-only command channel."""
+        contract = target.get("testBuild", {})
+        configured_scene = contract.get("fixtureOrigin", "") + contract.get("scenePath", "")
+        command_url = contract.get("fixtureOrigin", "") + "/e2e-client-command.json"
+        if scene_url != configured_scene:
+            fail("iOS scene reload requires the exact controlled fixture URL")
+        scene_origin = self.controlled_http_url(scene_url, "scene reload url")
+        command_origin = self.controlled_http_url(command_url, "scene reload command URL")
+        if scene_origin != command_origin or urlsplit(command_url).query:
+            fail("iOS scene reload must use the configured fixture command channel")
+        payload = {
+            "schemaVersion": 1,
+            "commandId": f"scene-{uuid.uuid4().hex}",
+            "action": "scene-load",
+            "url": scene_url,
+        }
+        self.assert_ios_process_identity(selector, client, session, state, target)
+        request = Request(
+            command_url,
+            data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
+            headers={"Content-Type": "application/json"}, method="POST",
+        )
+        try:
+            with urlopen(request, timeout=5) as response:
+                if response.status != 200:
+                    fail("controlled fixture rejected the scene reload command")
+                encoded = response.read(4097)
+        except HTTPError as error:
+            fail(f"controlled fixture rejected the scene reload command with HTTP {error.code}")
+        except (URLError, OSError):
+            fail("controlled fixture scene reload endpoint is unavailable")
+        if len(encoded) > 4096:
+            fail("controlled fixture returned an oversized scene reload response")
+        try:
+            accepted = json.loads(encoded)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            fail("controlled fixture returned an invalid scene reload response")
+        if accepted != payload:
+            fail("controlled fixture did not acknowledge the exact scene reload command")
+        self.assert_ios_process_identity(selector, client, session, state, target)
+        return payload["commandId"]
+
+    def reset_ios_client_command(self, target: dict) -> None:
+        """Clear a retained fixture command before a fresh probe starts polling."""
+        contract = target.get("testBuild", {})
+        fixture_origin = contract.get("fixtureOrigin", "")
+        command_url = fixture_origin + "/e2e-client-command.json"
+        command_origin = self.controlled_http_url(
+            command_url, "scene command reset URL")
+        fixture = self.controlled_http_url(
+            fixture_origin + contract.get("scenePath", ""), "controlled fixture URL")
+        if command_origin != fixture or urlsplit(command_url).query:
+            fail("iOS scene command reset must use the configured fixture channel")
+        payload = {"schemaVersion": 1, "commandId": "", "action": "idle"}
+        request = Request(
+            command_url,
+            data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
+            headers={"Content-Type": "application/json"}, method="POST",
+        )
+        try:
+            with urlopen(request, timeout=5) as response:
+                if response.status != 200:
+                    fail("controlled fixture rejected the scene command reset")
+                encoded = response.read(4097)
+        except HTTPError as error:
+            fail(f"controlled fixture rejected the scene command reset with HTTP {error.code}")
+        except (URLError, OSError):
+            fail("controlled fixture scene command reset endpoint is unavailable")
+        if len(encoded) > 4096:
+            fail("controlled fixture returned an oversized scene command reset")
+        try:
+            accepted = json.loads(encoded)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            fail("controlled fixture returned an invalid scene command reset")
+        if accepted != payload:
+            fail("controlled fixture did not acknowledge the exact scene command reset")
 
     @staticmethod
     def expand(value: object, variables: dict[str, object]) -> object:
@@ -1268,6 +1370,14 @@ class AppiumAdapter:
         client.call("POST", f"/session/{session}/actions", body)
         client.call("DELETE", f"/session/{session}/actions")
 
+    @staticmethod
+    def vertical_webdriver_call(client: WebDriver, method: str, path: str,
+                                payload: dict | None, phase: str) -> object:
+        try:
+            return client.call(method, path, payload)
+        except WebDriverRequestError as error:
+            raise RuntimeError(f"{error} during {phase}") from None
+
     def ios_vertical_locomotion_gesture(self, client: WebDriver, session: str,
                                         control: dict,
                                         flight_duration: float | None = None) -> None:
@@ -1280,9 +1390,12 @@ class AppiumAdapter:
         coordinate fallback in the adapter.
         """
         control = self.validate_ios_vertical_locomotion(control)
-        x, y = self.fractional_viewport_point(
-            client, session, control["jumpPoint"],
-            "controls.verticalLocomotion.jumpPoint")
+        try:
+            x, y = self.fractional_viewport_point(
+                client, session, control["jumpPoint"],
+                "controls.verticalLocomotion.jumpPoint")
+        except WebDriverRequestError as error:
+            raise RuntimeError(f"{error} during iOS vertical viewport lookup") from None
         # XCTest can stretch a W3C pointer-down/pause/up sequence beyond its
         # requested pause while it snapshots the application. Overte treats a
         # Jump held for 500 ms as Fly, so this configured pulse must remain
@@ -1304,14 +1417,18 @@ class AppiumAdapter:
             "parameters": {"pointerType": "touch"}, "actions": tap_actions,
         }]}
         try:
-            client.call("POST", f"/session/{session}/actions", tap_body)
+            self.vertical_webdriver_call(
+                client, "POST", f"/session/{session}/actions", tap_body,
+                "iOS vertical first press")
         except Exception:
             try:
                 client.call("DELETE", f"/session/{session}/actions")
             except (OSError, RuntimeError, ValueError):
                 pass
             raise
-        client.call("DELETE", f"/session/{session}/actions")
+        self.vertical_webdriver_call(
+            client, "DELETE", f"/session/{session}/actions", None,
+            "iOS vertical first release")
         if flight_duration is None:
             return
 
@@ -1333,14 +1450,18 @@ class AppiumAdapter:
             "parameters": {"pointerType": "touch"}, "actions": actions,
         }]}
         try:
-            client.call("POST", f"/session/{session}/actions", body)
+            self.vertical_webdriver_call(
+                client, "POST", f"/session/{session}/actions", body,
+                "iOS flight hold")
         except Exception:
             try:
                 client.call("DELETE", f"/session/{session}/actions")
             except (OSError, RuntimeError, ValueError):
                 pass
             raise
-        client.call("DELETE", f"/session/{session}/actions")
+        self.vertical_webdriver_call(
+            client, "DELETE", f"/session/{session}/actions", None,
+            "iOS flight release")
 
     def click_accessibility(self, client: WebDriver, session: str, identifier: str) -> None:
         value = client.call("POST", f"/session/{session}/element",
@@ -1492,6 +1613,10 @@ class AppiumAdapter:
         # sequence. Terminating a stale process first prevents inherited argv.
         if self.query_app_state(client, session, target) >= 2:
             client.execute(session, "mobile: terminateApp", {"bundleId": target["appId"]})
+        # The fixture intentionally retains the latest bounded command. A new
+        # probe has no prior command ID, so clear that retained value before it
+        # can replay a scene reload from an earlier application run.
+        self.reset_ios_client_command(target)
         state.pop("processIdentity", None)
         client.execute(session, "mobile: launchApp", {
             "bundleId": target["appId"],
@@ -1557,11 +1682,19 @@ class AppiumAdapter:
             adb = AdbTransport()
             adb.require_connected(device)
             return adb.telemetry_snapshot(device, target["appId"])
-        if operation == "scene.load":
+        if operation in {"scene.load", "scene.reload"}:
             scene = target.get("scene", {})
             url = values.get("url")
             if not isinstance(url, str) or "://" not in url:
-                fail("scene.load requires an absolute URL")
+                fail(f"{operation} requires an absolute URL")
+            if operation == "scene.reload":
+                if scene.get("kind") != "ios-test-build" or self.platform != "ios":
+                    fail("scene.reload requires the controlled iOS test build")
+                self.launch_ios_test_build(selector, client, session, state, target, url)
+                command_id = self.request_ios_scene_reload(
+                    selector, client, session, state, target, url)
+                return {"requested": True, "verification": "fixture-markers",
+                        "commandId": command_id}
             if scene.get("kind") == "android-debug-e2e" and self.platform == "android":
                 if url != EMBEDDED_FIXTURE_URL:
                     fail("Android debug scene.load accepts only the embedded fixture URL")

@@ -391,38 +391,13 @@ jobs:
           success() && steps.qt-ios-build.outcome == 'success' &&
           steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true'
         run: |
-          python3 - build-ios/compiler-watchdog-diagnostics/sccache-stats.json <<'PY'
-          import json
-          import pathlib
-          import sys
-
-          payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
-          stats = payload.get("stats", payload)
-
-          def total(counter):
-              if not isinstance(counter, dict):
-                  return 0
-              counts = counter.get("counts", {})
-              return sum((counts or counter.get("adv_counts", {})).values())
-
-          requests = int(stats.get("requests_executed", stats.get("compile_requests", 0)))
-          cacheable = total(stats.get("cache_hits", {})) + total(stats.get("cache_misses", {}))
-          write_errors = int(stats.get("cache_write_errors", 0))
-          remote_levels = [level for level in stats.get("multi_level", [])
-                           if "gha" in str(level.get("name", "")).lower()]
-          if requests < 1 or cacheable < 1:
-              raise SystemExit("Qt build produced no reusable compiler checkpoint entries")
-          if write_errors:
-              raise SystemExit(f"remote compiler checkpoint reported {write_errors} write errors")
-          if len(remote_levels) != 1:
-              raise SystemExit("Qt build did not expose exactly one remote GHA cache level")
-          remote_activity = (int(remote_levels[0].get("writes", 0)) +
-                             int(remote_levels[0].get("hits", 0)))
-          if remote_activity < 1:
-              raise SystemExit("Qt build produced neither remote GHA hits nor writes")
-          if int(remote_levels[0].get("write_failures", 0)):
-              raise SystemExit("remote GHA compiler checkpoint reported write failures")
-          PY
+          python3 ios/ci/report-sccache-stats.py \
+            build-ios/compiler-watchdog-diagnostics/sccache-stats.json \
+            --cache-dir "$SCCACHE_DIR" \
+            --phase after \
+            --require-activity \
+            --max-remote-write-failure-rate 0.01 \
+            --max-remote-write-failures 32
 
       - name: Upload compiler stall diagnostics
         if: failure() && !cancelled()

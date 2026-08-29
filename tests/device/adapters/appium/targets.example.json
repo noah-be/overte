@@ -20,6 +20,7 @@
         "appium:updatedWDABundleId": "org.overte.WebDriverAgentRunner",
         "appium:autoLaunch": false,
         "appium:enforceAppInstall": false,
+        "appium:waitForIdleTimeout": 0,
         "appium:noReset": true
       },
       "artifactReceipt": "/private/overte-device-lab/ios/personal-team-preinstalled-receipt.json",

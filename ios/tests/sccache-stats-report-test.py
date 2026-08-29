@@ -70,6 +70,14 @@ class SccacheStatsReportTest(unittest.TestCase):
                         "after",
                     )
                 )
+            with self.assertRaisesRegex(ValueError, "absolute limit"):
+                MODULE.validate_activity(
+                    MODULE.summarize(
+                        self.stats(misses=10_000, remote_writes=9_960, remote_failures=40),
+                        cache,
+                        "after",
+                    )
+                )
 
 
 if __name__ == "__main__":
