@@ -594,9 +594,13 @@ void updateIOSTabletAccessibilityControls(
                 (action && action->actionNames().contains(
                     QAccessibleActionInterface::pressAction()));
             control.enabled = actionable;
-            control.activationHandler = actionable ? ^BOOL {
-                return activateTabletItem(guardedItem);
-            } : nil;
+            if (actionable) {
+                control.activationHandler = ^BOOL {
+                    return activateTabletItem(guardedItem);
+                };
+            } else {
+                control.activationHandler = nil;
+            }
             exposedControls.insert(controlId);
             [activeIdentifiers addObject:controlIdentifier];
         }
