@@ -147,6 +147,13 @@ python3 tests/device/ios/sync_fedora_artifacts.py personal-team-preinstalled \
   --target-config /private/jenkins-job/appium-targets.json
 ```
 
+For a local feature-branch hardware gate, the exact integrated Full Client
+manifest may replace `--unsigned-kit` with `--integrated-client-manifest`.
+This narrow path verifies the unsigned device-build contract and exact source
+revision, but remains a `none-device-observed` handoff: it does not bind the
+Sideloadly-rewritten installed bytes and cannot support a protected-branch or
+release provenance claim.
+
 Use `--fixed-bundle-identifiers-confirmed` only when the installed IDs were
 preserved. If Sideloadly remapped the two IDs because the Personal-Team quota
 was already occupied, replace that flag with

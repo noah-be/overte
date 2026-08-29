@@ -538,8 +538,10 @@ class AppiumAdapter:
                 and isinstance(provenance.get("attestationSha256"), str)
                 and re.fullmatch(r"[0-9a-f]{64}", provenance["attestationSha256"])
                 is not None
-                and provenance.get("unsignedKitContract")
-                == "overte-ios-personal-team-e2e-kit-v3"
+                and provenance.get("unsignedKitContract") in {
+                    "overte-ios-personal-team-e2e-kit-v3",
+                    "overte-ios-integrated-client-manifest-v1",
+                }
                 and isinstance(provenance.get("unsignedKitManifestSha256"), str)
                 and re.fullmatch(r"[0-9a-f]{64}",
                                  provenance["unsignedKitManifestSha256"]) is not None

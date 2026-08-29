@@ -770,8 +770,10 @@ def validate_preinstalled_attestation(path: Path) -> tuple[dict, datetime]:
             or value.get("schemaVersion") != 1
             or value.get("contract")
             != "overte-ios-personal-team-preinstalled-attestation-v2"
-            or value.get("unsignedKitContract")
-            != "overte-ios-personal-team-e2e-kit-v3"
+            or value.get("unsignedKitContract") not in {
+                "overte-ios-personal-team-e2e-kit-v3",
+                "overte-ios-integrated-client-manifest-v1",
+            }
             or not isinstance(value.get("sourceRevision"), str)
             or not REVISION_RE.fullmatch(value["sourceRevision"])
             or not isinstance(value.get("unsignedKitManifestSha256"), str)

@@ -1305,6 +1305,11 @@ class AppiumAdapterTests(unittest.TestCase):
             target["artifactReceipt"] = str(receipt_path)
             APPIUM.AppiumAdapter.validate_ios_artifact_receipt(target, hash_files=True)
             APPIUM.AppiumAdapter.validate_ios_host_strategy(target)
+            receipt["provenance"]["unsignedKitContract"] = (
+                "overte-ios-integrated-client-manifest-v1"
+            )
+            receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+            APPIUM.AppiumAdapter.validate_ios_artifact_receipt(target, hash_files=True)
             self.assertNotIn("appium:app", target["capabilities"])
             self.assertNotIn("appium:prebuiltWDAPath", target["capabilities"])
 
