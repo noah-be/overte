@@ -31,6 +31,7 @@ Item {
     property var sections: []
     property var showCategories: []
     property var categoryProperties: ({})
+    property var categorySemanticIds: ({})
 
     property bool keyboardEnabled: false
     property bool keyboardRaised: false
@@ -180,7 +181,13 @@ Item {
                     for (i = 0; i < showCategories.length; i++) {
                         if (categoryMap[showCategories[i]]) {
                             var properties = categoryProperties.hasOwnProperty(showCategories[i]) ? categoryProperties[showCategories[i]] : {};
-                            sections.push(sectionBuilder.createObject(prefControls, {name: showCategories[i], sectionProperties: properties}));
+                            var semanticId = categorySemanticIds.hasOwnProperty(showCategories[i])
+                                ? categorySemanticIds[showCategories[i]] : "";
+                            sections.push(sectionBuilder.createObject(prefControls, {
+                                name: showCategories[i],
+                                sectionProperties: properties,
+                                semanticId: semanticId
+                            }));
                         }
                     }
 
