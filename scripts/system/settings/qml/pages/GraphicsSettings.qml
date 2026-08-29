@@ -4,6 +4,7 @@ import QtQuick.Layouts 1.3
 import "../"
 
 Flickable {
+    objectName: "settings.graphics"
     SettingsTouchConfiguration {
         id: touchConfiguration
         availableWidth: graphicsPage.width
@@ -199,6 +200,7 @@ Flickable {
 
         SettingComboBox {
             id: picoResolutionScale
+            objectName: "settings.vr-render-resolution"
             visible: touchConfiguration.showPicoResolutionSettings
             settingText: "Pico render resolution"
             options: ["50%", "60%", "70%", "75%", "80%", "85%", "100%"]

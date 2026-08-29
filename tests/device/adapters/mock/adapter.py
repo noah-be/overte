@@ -19,14 +19,14 @@ import wave
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from contracts import validate_operation_arguments
+from contracts import TABLET_CONTRACT_VERSION, validate_operation_arguments
 
 
 CAPABILITIES = sorted([
     "accessibility.snapshot", "app.foreground", "app.launch", "app.process", "app.stop",
     "asset.load", "input.fly", "input.jump", "input.look", "input.move",
     "navigation.enter-domain", "probe.snapshot", "scene.load", "sound.play",
-    "tablet.close", "tablet.open",
+    "tablet.activate", "tablet.close", "tablet.open", "tablet.snapshot",
 ])
 FIXTURE_MARKERS = [
     "OVERTE_E2E_COLLISION_WALL",
@@ -72,6 +72,7 @@ def initial_state() -> dict:
         "locomotion": None, "locomotionSamples": 0,
         "orientation": {"x": 0.0, "y": 0.0, "z": 0.0}, "tablet": False,
         "picoRouteActive": False, "inputSequence": 0,
+        "tabletScreen": "tablet.home",
         "processRevision": 0, "asset": None,
         "sampleSequence": 0, "sampleEpochMs": 0,
         "soundObservationCount": 0,
@@ -225,6 +226,114 @@ def observed_sound(state: dict) -> dict:
     )}
 
 
+def tablet_profile() -> str:
+    value = os.environ.get("OVERTE_MOCK_TABLET_UI_PROFILE", "flat")
+    if value not in {"flat", "vr"}:
+        raise RuntimeError("mock tablet UI profile must be flat or vr")
+    return value
+
+
+def tablet_controls(screen_id: str, profile: str) -> list[str]:
+    controls = {
+        "tablet.home": ["app.settings", "nav.close"],
+        "settings.home": [
+            "nav.close", "nav.home", "settings.audio", "settings.general",
+            "settings.graphics", "settings.security",
+        ],
+        "settings.general": ["nav.back", "nav.close", "nav.home"],
+        "settings.graphics": ["nav.back", "nav.close", "nav.home"],
+        "settings.audio": ["nav.back", "nav.close", "nav.home"],
+        "settings.controllers": ["nav.back", "nav.close", "nav.home"],
+        "settings.security": ["nav.back", "nav.close", "nav.home"],
+    }[screen_id]
+    if profile == "vr":
+        if screen_id == "settings.home":
+            controls.append("settings.controllers")
+        elif screen_id == "settings.general":
+            controls.append("settings.hmd-preferences")
+        elif screen_id == "settings.graphics":
+            controls.append("settings.vr-render-resolution")
+    return sorted(controls)
+
+
+def observed_tablet_ui(state: dict) -> dict:
+    if os.environ.get("OVERTE_MOCK_TABLET_INFRASTRUCTURE_FAILURE") == "1":
+        raise RuntimeError("mock semantic UI transport is unavailable")
+    screen_id = state.get("tabletScreen", "tablet.home")
+    controls = tablet_controls(screen_id, tablet_profile())
+    mutation = os.environ.get("OVERTE_MOCK_TABLET_MUTATION", "")
+    changes = {
+        "missing-required": ("settings.home", "settings.audio", False),
+        "show-hmd": ("settings.general", "settings.hmd-preferences", True),
+        "show-controllers": ("settings.home", "settings.controllers", True),
+        "show-vr-render-resolution": (
+            "settings.graphics", "settings.vr-render-resolution", True),
+        "missing-hmd": ("settings.general", "settings.hmd-preferences", False),
+        "missing-vr-render-resolution": (
+            "settings.graphics", "settings.vr-render-resolution", False),
+    }
+    if mutation in changes:
+        target_screen, control_id, add = changes[mutation]
+        if screen_id == target_screen:
+            if add and control_id not in controls:
+                controls.append(control_id)
+            elif not add and control_id in controls:
+                controls.remove(control_id)
+            controls.sort()
+    snapshot = {
+        "contractVersion": TABLET_CONTRACT_VERSION,
+        "schemaVersion": 1,
+        "screenId": screen_id,
+        "ready": state["tablet"] and not (
+            mutation == "not-ready" and screen_id == "settings.general"),
+        "visibleControlIds": controls,
+        "selectedControlIds": [],
+    }
+    if mutation == "malformed":
+        snapshot.pop("ready")
+    elif mutation == "duplicate-ids":
+        snapshot["visibleControlIds"].append(snapshot["visibleControlIds"][0])
+    elif mutation == "unsorted-ids":
+        snapshot["visibleControlIds"].reverse()
+    elif mutation == "unknown-id":
+        snapshot["visibleControlIds"].append("settings.unknown")
+    elif mutation == "unknown-version":
+        snapshot["contractVersion"] = 99
+    elif mutation == "unknown-schema-version":
+        snapshot["schemaVersion"] = 99
+    return snapshot
+
+
+def activate_tablet_control(state: dict, control_id: str) -> None:
+    if not state["tablet"]:
+        raise RuntimeError("semantic tablet activation requires an open tablet")
+    if os.environ.get("OVERTE_MOCK_TABLET_MUTATION") == "action-no-transition":
+        return
+    screen_id = state.get("tabletScreen", "tablet.home")
+    visible = tablet_controls(screen_id, tablet_profile())
+    if control_id not in visible:
+        raise RuntimeError("semantic tablet control is not visible")
+    if control_id == "app.settings":
+        state["tabletScreen"] = (
+            "settings.security"
+            if os.environ.get("OVERTE_MOCK_TABLET_MUTATION") == "wrong-screen"
+            else "settings.home")
+    elif control_id in {"settings.audio", "settings.controllers", "settings.general",
+                        "settings.graphics", "settings.security"}:
+        state["tabletScreen"] = control_id
+    elif control_id == "nav.back":
+        state["tabletScreen"] = "settings.home"
+    elif control_id == "nav.home":
+        state["tabletScreen"] = "tablet.home"
+    elif control_id == "nav.close":
+        state["tablet"] = False
+        state["tabletScreen"] = "tablet.home"
+    else:
+        raise RuntimeError("semantic tablet control is not actionable")
+    if os.environ.get("OVERTE_MOCK_TABLET_MUTATION") == "process-restart":
+        state["processRevision"] = state.get("processRevision", 0) + 1
+
+
 def invoke(operation: str, arguments: dict) -> dict:
     validate_operation_arguments(operation, arguments)
     state = load()
@@ -341,6 +450,7 @@ def invoke(operation: str, arguments: dict) -> dict:
         state["inputSequence"] += 1
         if "tablet-transition" not in failures():
             state["tablet"] = True
+            state["tabletScreen"] = "tablet.home"
         result = {"performed": True, "sequence": state["inputSequence"]}
         if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
             result.update({"openXrBooleanApplied": True,
@@ -349,10 +459,16 @@ def invoke(operation: str, arguments: dict) -> dict:
         state["inputSequence"] += 1
         if "tablet-transition" not in failures():
             state["tablet"] = False
+            state["tabletScreen"] = "tablet.home"
         result = {"performed": True, "sequence": state["inputSequence"]}
         if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
             result.update({"openXrBooleanApplied": True,
                            "openXrLeftSecondaryApplied": True})
+    elif operation == "tablet.snapshot":
+        return observed_tablet_ui(state)
+    elif operation == "tablet.activate":
+        activate_tablet_control(state, arguments["controlId"])
+        result = {"performed": True}
     elif operation == "probe.snapshot":
         after = arguments.get("afterSampleSequence")
         if (after is not None and (not isinstance(after, int) or isinstance(after, bool)
@@ -445,7 +561,9 @@ def invoke(operation: str, arguments: dict) -> dict:
                        "bodyYawDegrees": state["bodyYawDegrees"], "inAir": state["inAir"],
                        "flying": state["flying"], "flyingEnabled": state["flyingEnabled"]},
             "view": {"orientation": state["orientation"]},
-            "tablet": {"open": state["tablet"], "home": state["tablet"],
+            "tablet": {"open": state["tablet"],
+                       "home": (state["tablet"]
+                                and state.get("tabletScreen") == "tablet.home"),
                        "toolbarMode": False},
             "asset": copy.deepcopy(state.get("asset")),
             "sound": observed_sound(state),
@@ -509,9 +627,14 @@ def invoke(operation: str, arguments: dict) -> dict:
 
 def main() -> int:
     args = cli()
+    if (os.environ.get("OVERTE_MOCK_ASSERT_POLICY_ISOLATED") == "1"
+            and "OVERTE_E2E_TABLET_POLICY" in os.environ):
+        raise RuntimeError("adapter received product policy context")
     if args.action == "discover":
+        capabilities = [item for item in CAPABILITIES
+                        if item != os.environ.get("OVERTE_MOCK_MISSING_CAPABILITY")]
         emit([{"selector": "mock-e2e-target", "displayName": "Virtual E2E Contract",
-               "platform": "mock", "physical": False, "capabilities": CAPABILITIES}])
+               "platform": "mock", "physical": False, "capabilities": capabilities}])
     elif args.action == "describe":
         emit({"adapter": "mock-e2e", "model": "Device-free state machine", "os": "mock"})
     elif args.action == "cleanup":

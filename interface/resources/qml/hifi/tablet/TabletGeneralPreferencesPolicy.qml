@@ -29,6 +29,11 @@ HifiControls.TouchUiMetrics {
         return categories
     }
 
+    readonly property var semanticFeatureIds: profile.hmdPreferencesAvailable
+        ? ["settings.hmd-preferences"] : []
+    readonly property var categorySemanticIds: profile.hmdPreferencesAvailable
+        ? ({ "HMD": "settings.hmd-preferences" }) : ({})
+
     function admits(category) {
         return typeof category === "string" && allowedCategories.indexOf(category) !== -1
     }
