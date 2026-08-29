@@ -267,8 +267,12 @@ static bool picoE2eInputMappingOverrideActive() {
     if (!testScript.isLocalFile()) {
         return false;
     }
-    return QFileInfo(testScript.toLocalFile()).canonicalFilePath() ==
-        QStringLiteral("/data/user/0/org.overte.pico/files/overte-e2e/overte_e2e_probe.js");
+    const QString activeProbe = QFileInfo(testScript.toLocalFile()).canonicalFilePath();
+    const QString expectedProbe = QFileInfo(QStringLiteral(
+        "/data/user/0/org.overte.pico/files/overte-e2e/overte_e2e_probe.js"))
+        .canonicalFilePath();
+    return !activeProbe.isEmpty() && !expectedProbe.isEmpty()
+        && activeProbe == expectedProbe;
 }
 #endif
 

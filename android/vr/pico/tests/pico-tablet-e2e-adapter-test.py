@@ -59,6 +59,8 @@ class PicoTabletE2EAdapterTest(unittest.TestCase):
         self.assertIn("OVERTE_E2E_OPENXR_INPUT_V1", setup)
         self.assertIn("installTabletBridge(this)", setup)
         self.assertIn("/data/user/0/org.overte.pico/files/overte-e2e", BRIDGE)
+        self.assertIn("QFileInfo(PROBE_PATH).canonicalFilePath()", BRIDGE)
+        self.assertIn("activeProbe == expectedProbe", BRIDGE)
 
     def test_adapter_exposes_semantics_only_for_qualified_pico(self):
         capability_block = ADAPTER.split(

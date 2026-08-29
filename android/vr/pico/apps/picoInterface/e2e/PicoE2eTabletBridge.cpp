@@ -63,8 +63,13 @@ const QSet<QString> CONTROL_IDS {
 
 bool bridgeEnabled() {
     const QUrl testScript = qApp->property(hifi::properties::TEST).toUrl();
-    return testScript.isLocalFile()
-        && QFileInfo(testScript.toLocalFile()).canonicalFilePath() == PROBE_PATH;
+    if (!testScript.isLocalFile()) {
+        return false;
+    }
+    const QString activeProbe = QFileInfo(testScript.toLocalFile()).canonicalFilePath();
+    const QString expectedProbe = QFileInfo(PROBE_PATH).canonicalFilePath();
+    return !activeProbe.isEmpty() && !expectedProbe.isEmpty()
+        && activeProbe == expectedProbe;
 }
 
 bool effectiveVisible(const QQuickItem* item) {
