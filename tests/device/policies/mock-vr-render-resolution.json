@@ -1,0 +1,26 @@
+{
+  "contractVersion": 1,
+  "schemaVersion": 1,
+  "profileId": "mock.vr-render-resolution",
+  "expectations": {
+    "settings.general": {
+      "entryControlId": "settings.general",
+      "requiredControlIds": ["nav.back", "nav.close", "nav.home", "settings.hmd-preferences"],
+      "forbiddenControlIds": []
+    },
+    "settings.graphics": {
+      "entryControlId": "settings.graphics",
+      "requiredControlIds": ["nav.back", "nav.close", "nav.home", "settings.vr-render-resolution"],
+      "forbiddenControlIds": []
+    },
+    "settings.home": {
+      "entryControlId": "app.settings",
+      "requiredControlIds": ["nav.close", "nav.home", "settings.audio", "settings.controllers", "settings.general", "settings.graphics", "settings.security"],
+      "forbiddenControlIds": []
+    },
+    "tablet.home": {
+      "requiredControlIds": ["app.settings", "nav.close"],
+      "forbiddenControlIds": []
+    }
+  }
+}

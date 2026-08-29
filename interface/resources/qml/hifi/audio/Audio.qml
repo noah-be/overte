@@ -24,6 +24,7 @@ import "./" as AudioControls
 
 Rectangle {
     id: root;
+    objectName: "settings.audio"
 
     HifiConstants { id: hifi; }
     AudioTouchConfiguration {

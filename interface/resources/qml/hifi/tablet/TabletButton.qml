@@ -27,6 +27,10 @@ Item {
     property string hoverText: tabletButton.text
     property string activeText: tabletButton.text
     property string activeHoverText: tabletButton.activeText
+    // Stable, non-localized automation identity. Existing applications that
+    // do not opt in retain their visible caption as the accessibility name.
+    property string semanticId: ""
+    onSemanticIdChanged: if (semanticId !== "") objectName = semanticId
     property bool isActive: false
     property bool inDebugMode: false  // tablet only
     property bool isEntered: false
