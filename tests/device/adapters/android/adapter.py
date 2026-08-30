@@ -24,7 +24,8 @@ from android.common.device_tests.adb_transport import AdbTransport  # noqa: E402
 from adapters.common import (EMBEDDED_FIXTURE_URL, emit, fail,  # noqa: E402
                              parse_operation_arguments,
                              require_fresh_snapshot)
-from contracts import validate_operation_arguments  # noqa: E402
+from contracts import (validate_operation_arguments,  # noqa: E402
+                       validate_tablet_ui_snapshot)
 from openxr_input.adapter_session import (  # noqa: E402
     PicoOpenXrAdapterSession, pico_openxr_opted_in,
     validate_pico_openxr_configuration,
@@ -50,6 +51,9 @@ PROFILES = {
 ANDROID_DEBUG_PROBE = "files/overte-e2e/overte-probe.json"
 ANDROID_CONTROL_MARKER = "files/overte-e2e/android-control.json"
 ANDROID_CONTROL_COMMAND = "files/overte-e2e/android-control-command.json"
+PICO_TABLET_OBSERVATION = "files/overte-e2e/tablet-ui-observation.json"
+PICO_TABLET_COMMAND = "files/overte-e2e/tablet-ui-command.json"
+PICO_TABLET_STATUS = "files/overte-e2e/tablet-ui-status.json"
 ANDROID_CONTROL_CONTRACT = {
     "schemaVersion": 1,
     "channel": "android-debug-file-v1",
@@ -123,7 +127,8 @@ class AndroidAdapter:
             validate_pico_openxr_configuration()
             values += [
                 "input.fly", "input.jump", "input.look", "input.move",
-                "tablet.close", "tablet.open",
+                "tablet.activate", "tablet.close", "tablet.open",
+                "tablet.snapshot",
             ]
         return sorted(values)
 
@@ -368,6 +373,89 @@ class AndroidAdapter:
                 time.sleep(interval)
         fail("Android probe snapshot is unavailable, stale, or did not advance")
 
+    def read_pico_tablet_snapshot(self, target: str, identity: str) -> dict:
+        attempts, interval = self.probe_retry_policy()
+        package = self.profile["package"]
+        for attempt in range(attempts):
+            raw = self.adb.read_debug_app_file(
+                target, package, PICO_TABLET_OBSERVATION, attempts=1)
+            if raw:
+                try:
+                    observation = json.loads(raw)
+                except json.JSONDecodeError:
+                    fail("Pico tablet bridge returned malformed JSON")
+                if (not isinstance(observation, dict)
+                        or set(observation) != {
+                            "bridgeVersion", "updatedEpochMs", "snapshot"}
+                        or observation.get("bridgeVersion") != 1
+                        or isinstance(observation.get("updatedEpochMs"), bool)
+                        or not isinstance(observation.get("updatedEpochMs"), int)):
+                    fail("Pico tablet bridge observation contract is invalid")
+                age_ms = int(time.time() * 1000) - observation["updatedEpochMs"]
+                if age_ms < -5000 or age_ms > int(
+                        self.probe_maximum_age_seconds() * 1000):
+                    fail("Pico tablet bridge observation is stale")
+                try:
+                    snapshot = validate_tablet_ui_snapshot(observation["snapshot"])
+                except ValueError as error:
+                    fail(f"Pico tablet bridge snapshot is invalid: {error}")
+                self.require_same_process(target, identity, "tablet.snapshot")
+                return snapshot
+            self.require_same_process(target, identity, "tablet.snapshot")
+            if attempt + 1 < attempts:
+                time.sleep(interval)
+        fail("Pico tablet bridge observation is unavailable")
+
+    def activate_pico_tablet_control(self, target: str, identity: str,
+                                     values: dict) -> dict:
+        try:
+            values = validate_operation_arguments("tablet.activate", values)
+        except ValueError as error:
+            fail(str(error))
+        current = self.read_pico_tablet_snapshot(target, identity)
+        control_id = values["controlId"]
+        if current["ready"] is not True or control_id not in current["visibleControlIds"]:
+            fail("Pico tablet control is not visible on a ready screen")
+        command_id = f"pico-tablet-{uuid.uuid4().hex}"
+        command = {
+            "schemaVersion": 1,
+            "commandId": command_id,
+            "contractVersion": values["contractVersion"],
+            "controlId": control_id,
+        }
+        self.adb.write_debug_app_file(
+            target, self.profile["package"], PICO_TABLET_COMMAND,
+            json.dumps(command, separators=(",", ":"), sort_keys=True) + "\n")
+        self.require_same_process(target, identity, "tablet.activate")
+        attempts, interval = self.probe_retry_policy()
+        for attempt in range(attempts):
+            raw = self.adb.read_debug_app_file(
+                target, self.profile["package"], PICO_TABLET_STATUS, attempts=1)
+            self.require_same_process(target, identity, "tablet.activate")
+            if raw:
+                try:
+                    status = json.loads(raw)
+                except json.JSONDecodeError:
+                    fail("Pico tablet bridge returned malformed activation status")
+                if not isinstance(status, dict):
+                    fail("Pico tablet bridge activation status is invalid")
+                if status.get("commandId") == command_id:
+                    if (set(status) != {
+                                "schemaVersion", "commandId", "performed", "error",
+                                "updatedEpochMs"}
+                            or status.get("schemaVersion") != 1
+                            or not isinstance(status.get("performed"), bool)
+                            or not isinstance(status.get("error"), str)
+                            or isinstance(status.get("updatedEpochMs"), bool)
+                            or not isinstance(status.get("updatedEpochMs"), int)):
+                        fail("Pico tablet bridge activation status is invalid")
+                    if status["performed"] is not True or status["error"]:
+                        fail("Pico tablet pointer activation was rejected")
+                    return {"performed": True}
+            if attempt + 1 < attempts:
+                time.sleep(interval)
+        fail("Pico tablet pointer activation was not acknowledged")
+
     def discover(self) -> list[dict]:
         targets = []
         for selector in self.adb.authorized_targets():
@@ -555,6 +643,12 @@ class AndroidAdapter:
                     or after_sequence < 0)):
                 fail("afterSampleSequence must be a non-negative integer")
             return self.read_probe_snapshot(target, package, after_sequence)
+        if operation == "tablet.snapshot":
+            identity = self.require_pico_session_identity(target)
+            return self.read_pico_tablet_snapshot(target, identity)
+        if operation == "tablet.activate":
+            identity = self.require_pico_session_identity(target)
+            return self.activate_pico_tablet_control(target, identity, values)
         if operation in {
                 "input.fly", "input.jump", "input.look", "input.move",
                 "tablet.open", "tablet.close"}:

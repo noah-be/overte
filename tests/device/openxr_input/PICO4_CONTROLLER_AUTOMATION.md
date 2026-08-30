@@ -169,7 +169,12 @@ python3 -m unittest tests.device.self_tests.test_openxr_controller_protocol -v
 ```
 
 `adapter_session.py` connects the bounded transport to the universal Pico
-adapter without changing the common modules. Because each adapter invocation is
+adapter without changing the common modules. The same qualified Debug-E2E
+session enables the Pico-owned semantic tablet bridge: OpenXR controls tablet
+open/close and world-input isolation, while visible Settings controls are
+observed from the rendered QML tree and activated through the tablet surface's
+pointer event path. Policy expectations stay exclusively in the shared runner.
+Because each adapter invocation is
 a new host process, it stores only a hashed target key, process identity,
 private nonce, and next sequence in a mode-`0700` runtime directory with
 mode-`0600` state. A target-process restart fails the run closed instead of
