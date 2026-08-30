@@ -32,6 +32,8 @@ const phoneConfiguration = production(
     "scripts/system/settings/qml/+android_phoneInterface/SettingsTouchConfiguration.qml");
 const picoConfiguration = production(
     "scripts/system/settings/qml/+android_picoInterface/SettingsTouchConfiguration.qml");
+const picoSettingNumber = production(
+    "scripts/system/settings/qml/+android_picoInterface/SettingNumber.qml");
 const questConfiguration = production(
     "scripts/system/settings/qml/+android_questInterface/SettingsTouchConfiguration.qml");
 const fileUtils = production("libraries/shared/src/shared/FileUtils.cpp");
@@ -41,6 +43,9 @@ assert.match(phoneConfiguration, /showPicoInteractionSettings:\s*false/);
 assert.match(questConfiguration, /showPicoInteractionSettings:\s*false/);
 assert.match(picoConfiguration, /showPicoInteractionSettings:\s*true/);
 assert.match(picoConfiguration, /HifiControls\.TouchUiMetrics\s*\{/);
+assert.match(picoSettingNumber,
+    /^import QtQuick 2\.15\nimport QtQuick\.Controls 2\.15\n/);
+assert.match(picoSettingNumber, /RegularExpressionValidator/);
 assert.match(fileUtils, /extraSelectors << "android_" HIFI_ANDROID_APP/);
 assert.match(settings, /requiresPicoInteractionSettings:\s*true/);
 assert.match(settings, /active:\s*touchConfiguration\.showPicoInteractionSettings/);
