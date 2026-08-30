@@ -148,6 +148,9 @@
 #include "SpeechRecognizer.h"
 #endif
 #include "Util.h"
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+#include "../e2e/PicoE2eTabletBridge.h"
+#endif
 
 #if defined(Q_OS_WIN)
 #include <VersionHelpers.h>
@@ -264,8 +267,12 @@ static bool picoE2eInputMappingOverrideActive() {
     if (!testScript.isLocalFile()) {
         return false;
     }
-    return QFileInfo(testScript.toLocalFile()).canonicalFilePath() ==
-        QStringLiteral("/data/user/0/org.overte.pico/files/overte-e2e/overte_e2e_probe.js");
+    const QString activeProbe = QFileInfo(testScript.toLocalFile()).canonicalFilePath();
+    const QString expectedProbe = QFileInfo(QStringLiteral(
+        "/data/user/0/org.overte.pico/files/overte-e2e/overte_e2e_probe.js"))
+        .canonicalFilePath();
+    return !activeProbe.isEmpty() && !expectedProbe.isEmpty()
+        && activeProbe == expectedProbe;
 }
 #endif
 
@@ -1474,6 +1481,10 @@ void Application::setupSignalsAndOperators() {
     auto dialogsManager = DependencyManager::get<DialogsManager>();
     auto nodeList = DependencyManager::get<NodeList>();
     const DomainHandler& domainHandler = nodeList->getDomainHandler();
+
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+    overte::pico::e2e::installTabletBridge(this);
+#endif
 
     // General
     {

@@ -74,6 +74,88 @@ Flickable {
         anchors.horizontalCenter: parent.horizontalCenter;
         spacing: 10;
 
+        // Keep Pico's contract-bearing VR control inside the initially visible
+        // tablet viewport. It is hidden without the immutable Pico selector.
+        SettingComboBox {
+            id: picoResolutionScale
+            objectName: "settings.vr-render-resolution"
+            visible: touchConfiguration.showPicoResolutionSettings
+            settingText: "Pico render resolution"
+            options: ["50%", "60%", "70%", "75%", "80%", "85%", "100%"]
+            property var scales: [0.50, 0.60, 0.70, 0.75, 0.80, 0.85, 1.00]
+            property bool initialized: false
+            property int pendingIndex: -1
+
+            function syncFromSettings() {
+                var current = Number(Settings.getValue("pico/renderScale", 0.80))
+                var closest = 0
+                var distance = Math.abs(scales[0] - current)
+                for (var i = 1; i < scales.length; ++i) {
+                    var candidateDistance = Math.abs(scales[i] - current)
+                    if (candidateDistance < distance) {
+                        closest = i
+                        distance = candidateDistance
+                    }
+                }
+                setOptionIndex(closest)
+                initialized = true
+            }
+
+            Component.onCompleted: syncFromSettings()
+
+            onValueChanged: {
+                if (!initialized || scales[index] ===
+                        Number(Settings.getValue("pico/renderScale", 0.80))) {
+                    return
+                }
+                pendingIndex = index
+            }
+        }
+
+        Column {
+            id: picoResolutionConfirmation
+            width: parent.width
+            spacing: 8
+            visible: touchConfiguration.showPicoResolutionSettings && picoResolutionScale.pendingIndex >= 0
+
+            Text {
+                width: parent.width
+                wrapMode: Text.Wrap
+                font.pixelSize: 18
+                color: "#ffcc66"
+                text: picoResolutionScale.pendingIndex >= 0
+                    ? "Apply " + picoResolutionScale.options[picoResolutionScale.pendingIndex]
+                        + "? Changing the Pico render resolution restarts the app automatically."
+                    : "Changing the Pico render resolution restarts the app automatically."
+            }
+
+            Row {
+                spacing: 12
+
+                Button {
+                    text: "Apply and restart"
+                    onClicked: {
+                        var selectedIndex = picoResolutionScale.pendingIndex
+                        if (selectedIndex < 0) {
+                            return
+                        }
+                        Settings.setValue("pico/renderScale",
+                            picoResolutionScale.scales[selectedIndex])
+                        Window.restartApplication(AddressManager.href)
+                    }
+                }
+
+                Button {
+                    text: "Cancel"
+                    onClicked: {
+                        picoResolutionScale.pendingIndex = -1
+                        picoResolutionScale.initialized = false
+                        picoResolutionScale.syncFromSettings()
+                    }
+                }
+            }
+        }
+
         // Graphics Presets
         SettingComboBox {
             id: graphicsPresetCombobox;
@@ -195,86 +277,6 @@ Flickable {
 
             onSliderValueChanged: {
                 Render.viewportResolutionScale = value.toFixed(1)
-            }
-        }
-
-        SettingComboBox {
-            id: picoResolutionScale
-            objectName: "settings.vr-render-resolution"
-            visible: touchConfiguration.showPicoResolutionSettings
-            settingText: "Pico render resolution"
-            options: ["50%", "60%", "70%", "75%", "80%", "85%", "100%"]
-            property var scales: [0.50, 0.60, 0.70, 0.75, 0.80, 0.85, 1.00]
-            property bool initialized: false
-            property int pendingIndex: -1
-
-            function syncFromSettings() {
-                var current = Number(Settings.getValue("pico/renderScale", 0.80))
-                var closest = 0
-                var distance = Math.abs(scales[0] - current)
-                for (var i = 1; i < scales.length; ++i) {
-                    var candidateDistance = Math.abs(scales[i] - current)
-                    if (candidateDistance < distance) {
-                        closest = i
-                        distance = candidateDistance
-                    }
-                }
-                setOptionIndex(closest)
-                initialized = true
-            }
-
-            Component.onCompleted: syncFromSettings()
-
-            onValueChanged: {
-                if (!initialized || scales[index] ===
-                        Number(Settings.getValue("pico/renderScale", 0.80))) {
-                    return
-                }
-                pendingIndex = index
-            }
-        }
-
-        Column {
-            id: picoResolutionConfirmation
-            width: parent.width
-            spacing: 8
-            visible: touchConfiguration.showPicoResolutionSettings && picoResolutionScale.pendingIndex >= 0
-
-            Text {
-                width: parent.width
-                wrapMode: Text.Wrap
-                font.pixelSize: 18
-                color: "#ffcc66"
-                text: picoResolutionScale.pendingIndex >= 0
-                    ? "Apply " + picoResolutionScale.options[picoResolutionScale.pendingIndex]
-                        + "? Changing the Pico render resolution restarts the app automatically."
-                    : "Changing the Pico render resolution restarts the app automatically."
-            }
-
-            Row {
-                spacing: 12
-
-                Button {
-                    text: "Apply and restart"
-                    onClicked: {
-                        var selectedIndex = picoResolutionScale.pendingIndex
-                        if (selectedIndex < 0) {
-                            return
-                        }
-                        Settings.setValue("pico/renderScale",
-                            picoResolutionScale.scales[selectedIndex])
-                        Window.restartApplication(AddressManager.href)
-                    }
-                }
-
-                Button {
-                    text: "Cancel"
-                    onClicked: {
-                        picoResolutionScale.pendingIndex = -1
-                        picoResolutionScale.initialized = false
-                        picoResolutionScale.syncFromSettings()
-                    }
-                }
             }
         }
 

@@ -43,4 +43,42 @@ StackView {
         showCategories: preferencesPolicy.allowedCategories
         categorySemanticIds: preferencesPolicy.categorySemanticIds
     }
+
+    Rectangle {
+        id: semanticBackButton
+        z: 1000
+        width: 104
+        height: 52
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.margins: 8
+        radius: 6
+        color: semanticBackMouseArea.pressed ? "#169c86" : "#1fc6a6"
+
+        Text {
+            anchors.centerIn: parent
+            text: qsTr("BACK")
+            color: "#10252d"
+            font.bold: true
+            font.pixelSize: 18
+        }
+
+        MouseArea {
+            id: semanticBackMouseArea
+            objectName: "nav.back"
+            anchors.fill: parent
+            activeFocusOnTab: true
+            Accessible.role: Accessible.Button
+            Accessible.name: qsTr("Back to settings")
+            Accessible.description: qsTr("Return to the settings category list")
+            function activate() {
+                profileRoot.emitSendToScript({ type: "returnToSettings" })
+            }
+            Accessible.onPressAction: activate()
+            onClicked: activate()
+            Keys.onReturnPressed: activate()
+            Keys.onEnterPressed: activate()
+            Keys.onSpacePressed: activate()
+        }
+    }
 }

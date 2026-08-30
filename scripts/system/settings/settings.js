@@ -77,6 +77,11 @@
 	function fromQML(event) {
 		console.log(`New QML event:\n${JSON.stringify(event)}`);
 
+		if (event.type === "returnToSettings") {
+			tablet.loadQMLSource(url);
+			return;
+		}
+
 		if (event.type === "switchApp") {
 			if (event.appUrl == "hifi/dialogs/GeneralPreferencesDialog.qml") {
 				// This page needs to be opened like this just because.
