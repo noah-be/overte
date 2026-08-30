@@ -40,6 +40,7 @@ assert.match(baseConfiguration, /showPicoInteractionSettings:\s*false/);
 assert.match(phoneConfiguration, /showPicoInteractionSettings:\s*false/);
 assert.match(questConfiguration, /showPicoInteractionSettings:\s*false/);
 assert.match(picoConfiguration, /showPicoInteractionSettings:\s*true/);
+assert.match(picoConfiguration, /HifiControls\.TouchUiMetrics\s*\{/);
 assert.match(fileUtils, /extraSelectors << "android_" HIFI_ANDROID_APP/);
 assert.match(settings, /requiresPicoInteractionSettings:\s*true/);
 assert.match(settings, /active:\s*touchConfiguration\.showPicoInteractionSettings/);
