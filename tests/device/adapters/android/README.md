@@ -34,7 +34,8 @@ the hardware gates may explicitly set all of:
   private `XDG_RUNTIME_DIR`.
 
 Only then does the Pico adapter advertise `input.look`, `input.move`,
-`input.jump`, `input.fly`, `tablet.open`, and `tablet.close`. Jump and flight
+`input.jump`, `input.fly`, `tablet.open`, `tablet.close`, `tablet.snapshot`,
+and `tablet.activate`. Jump and flight
 are Pico bindings for the shared semantic operations: a bounded right-secondary
 press performs a jump and a bounded hold enters upward flight. The validated
 port is passed as an explicit `adb -P` argument for discovery, installation,
@@ -47,6 +48,15 @@ the PID/start-ticks identity changes. It removes the grant before the one final
 app shutdown. It deliberately leaves Pico display brightness and brightness
 mode untouched because changing either can alter the XR execution cadence.
 Selectors and nonces are never stored in artifacts or returned by an operation.
+
+The semantic tablet operations use a separate Debug-only Pico bridge. It walks
+the live `QQuickItem` tree of the rendered HMD tablet, reports only the closed
+contract-v1 screen/control vocabulary, and drives a visible enabled item's
+center through the tablet surface's normal pointer event path. The bridge does
+not receive product-policy data. `tablet.activate` acknowledges only pointer
+delivery; the following stable `tablet.snapshot` remains the independent
+behavioral proof. The app-private observation, command, and status files are
+atomic, bounded, process-bound, and never expose target selectors.
 
 The Debug-only explicit OpenXR layer and private host transport are implemented
 under `tests/device/openxr_input`; lower-level device gates can also exercise
