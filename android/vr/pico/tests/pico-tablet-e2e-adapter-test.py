@@ -43,6 +43,8 @@ class PicoTabletE2EAdapterTest(unittest.TestCase):
     def test_bridge_observes_qml_and_uses_the_vr_surface_pointer_path(self):
         self.assertIn("getTabletRoot()", BRIDGE)
         self.assertIn('property("semanticScreenId")', BRIDGE)
+        self.assertIn("bool semanticScreenFound { false };", BRIDGE)
+        self.assertIn("else if (!semanticScreenFound)", BRIDGE)
         self.assertIn("visibleControlIds", BRIDGE)
         self.assertIn("item->mapToScene(local)", BRIDGE)
         self.assertIn("getTabletSurface()", BRIDGE)

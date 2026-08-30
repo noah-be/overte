@@ -128,6 +128,7 @@ Observation observeTablet() {
     Observation result;
     QString screenId { QStringLiteral("tablet.home") };
     int screenDepth { -1 };
+    bool semanticScreenFound { false };
     QSet<QString> visibleControls;
 
     auto tabletInterface = DependencyManager::get<TabletScriptingInterface>();
@@ -139,13 +140,21 @@ Observation observeTablet() {
         if (!effectiveVisible(item)) {
             return;
         }
-        QString candidate = item->property("semanticScreenId").toString();
-        if (candidate.isEmpty()) {
-            candidate = item->objectName();
-        }
-        if (SCREEN_IDS.contains(candidate) && depth >= screenDepth) {
-            screenId = candidate;
-            screenDepth = depth;
+        // Entry controls intentionally share IDs with their destination screens.
+        // An explicit screen property must therefore outrank deeper objectName fallbacks.
+        const QString semanticCandidate = item->property("semanticScreenId").toString();
+        if (SCREEN_IDS.contains(semanticCandidate)) {
+            if (!semanticScreenFound || depth >= screenDepth) {
+                screenId = semanticCandidate;
+                screenDepth = depth;
+            }
+            semanticScreenFound = true;
+        } else if (!semanticScreenFound) {
+            const QString fallbackCandidate = item->objectName();
+            if (SCREEN_IDS.contains(fallbackCandidate) && depth >= screenDepth) {
+                screenId = fallbackCandidate;
+                screenDepth = depth;
+            }
         }
 
         const QString controlId = item->objectName();
