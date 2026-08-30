@@ -1066,6 +1066,55 @@ class AppiumAdapterTests(unittest.TestCase):
                 "contractVersion": 1, "controlId": "app.settings",
             })
 
+    def test_ios_semantic_tablet_resamples_a_transient_screen_transition(self) -> None:
+        adapter, client, state, _target = self.adapter_and_session()
+        client.app_state = 4
+        state["processIdentity"] = "4123"
+        sources = [
+            '<AppiumAUT><XCUIElement name="OverteTabletOpen" '
+            'visible="true" enabled="true"/></AppiumAUT>',
+            '<AppiumAUT>'
+            '<XCUIElement name="OverteTabletScreen.tablet.home" '
+            'visible="true" enabled="false"/>'
+            '<XCUIElement name="OverteTabletReady.tablet.home" '
+            'visible="true" enabled="false"/>'
+            '<XCUIElement name="OverteTabletControl.app.settings" '
+            'visible="true" enabled="true"/>'
+            '</AppiumAUT>',
+        ]
+        original_call = client.call
+
+        def transitioning_call(method, path, payload=None):
+            if method == "GET" and path.endswith("/source"):
+                return sources.pop(0)
+            return original_call(method, path, payload)
+
+        client.call = transitioning_call
+        with mock.patch.object(APPIUM.time, "sleep") as pause:
+            observed = adapter.invoke("private-ipad", "tablet.snapshot", {})
+
+        self.assertEqual("tablet.home", observed["screenId"])
+        self.assertTrue(observed["ready"])
+        pause.assert_called_once_with(0.1)
+
+    def test_ios_semantic_tablet_does_not_retry_unknown_markers(self) -> None:
+        adapter, client, state, _target = self.adapter_and_session()
+        client.app_state = 4
+        state["processIdentity"] = "4123"
+        original_call = client.call
+        client.call = lambda method, path, payload=None: (
+            '<AppiumAUT><XCUIElement visible="true" '
+            'name="OverteTabletScreen.settings.unknown"/></AppiumAUT>'
+            if method == "GET" and path.endswith("/source")
+            else original_call(method, path, payload)
+        )
+
+        with mock.patch.object(APPIUM.time, "sleep") as pause:
+            with self.assertRaisesRegex(RuntimeError, "unknown screen marker"):
+                adapter.invoke("private-ipad", "tablet.snapshot", {})
+
+        pause.assert_not_called()
+
     def test_ios_semantic_tablet_tap_does_not_claim_a_state_transition(self) -> None:
         adapter, client, _state, _target = self.adapter_and_session()
         adapter.invoke("private-ipad", "app.launch", {})

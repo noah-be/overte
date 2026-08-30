@@ -201,6 +201,13 @@ class AppiumAdapter:
     IOS_DOCUMENTS_PROBE_PULL_RETRY_BASE_SECONDS = 0.05
     IOS_DOCUMENTS_PROBE_PULL_RETRY_STEP_SECONDS = 0.017
     IOS_DOCUMENTS_PROBE_PULL_RETRY_MAX_SECONDS = 0.15
+    IOS_TABLET_SOURCE_TRANSITION_ATTEMPTS = 20
+    IOS_TABLET_SOURCE_TRANSITION_RETRY_SECONDS = 0.1
+    IOS_TABLET_SOURCE_TRANSITION_ERRORS = {
+        "iOS semantic tablet source must expose exactly one visible screen marker",
+        "iOS semantic tablet source contains duplicate visible control markers",
+        "iOS semantic tablet ready marker does not match the visible screen",
+    }
 
     def __init__(self, platform: str) -> None:
         self.platform = platform
@@ -1559,8 +1566,23 @@ class AppiumAdapter:
     def ios_tablet_observation(self, selector: str, client: WebDriver, session: str,
                                state: dict, target: dict) -> tuple[dict, set[str]]:
         self.assert_ios_process_identity(selector, client, session, state, target)
-        source = client.call("GET", f"/session/{session}/source")
-        observation = self.parse_ios_tablet_source(source)
+        observation = None
+        for attempt in range(self.IOS_TABLET_SOURCE_TRANSITION_ATTEMPTS):
+            source = client.call("GET", f"/session/{session}/source")
+            try:
+                observation = self.parse_ios_tablet_source(source)
+                break
+            except RuntimeError as error:
+                # Native/QML screen transitions can briefly expose the old and
+                # new accessibility elements together, or neither marker. Only
+                # retry these closed, known transient shapes. Unknown IDs,
+                # malformed XML, and every other contract error still fail on
+                # the first sample.
+                if (str(error) not in self.IOS_TABLET_SOURCE_TRANSITION_ERRORS
+                        or attempt == self.IOS_TABLET_SOURCE_TRANSITION_ATTEMPTS - 1):
+                    raise
+                time.sleep(self.IOS_TABLET_SOURCE_TRANSITION_RETRY_SECONDS)
+        assert observation is not None
         self.assert_ios_process_identity(selector, client, session, state, target)
         return observation
 
