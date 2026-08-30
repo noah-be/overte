@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "contractVersion": 1,
+  "platforms": {
+    "android": {"defaultEvidence": "", "defaultState": "implemented", "suites": {}},
+    "ios": {"defaultEvidence": "", "defaultState": "implemented", "suites": {}},
+    "linux": {"defaultEvidence": "", "defaultState": "implemented", "suites": {}},
+    "macos": {"defaultEvidence": "", "defaultState": "implemented", "suites": {}},
+    "mock": {"defaultEvidence": "", "defaultState": "implemented", "suites": {}},
+    "pico": {"defaultEvidence": "", "defaultState": "implemented", "suites": {}},
+    "windows": {"defaultEvidence": "", "defaultState": "implemented", "suites": {}}
+  }
+}

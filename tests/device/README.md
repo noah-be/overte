@@ -1,5 +1,9 @@
 # Overte device E2E harness
 
+The lifecycle policy, common CI flow, evidence contracts and portable suite
+frontier are documented in
+[`CROSS_PLATFORM_OPERATIONS.md`](CROSS_PLATFORM_OPERATIONS.md).
+
 This directory contains the platform-neutral orchestration layer for device
 and desktop E2E tests. Scenarios contain no operating-system, packaging, or
 transport details. Product branches provide adapters that translate the

@@ -5,6 +5,10 @@
       "operation": "accessibility.snapshot",
       "result": "Accessibility tree and optional artifact path"
     },
+    "app.crash": {
+      "operation": "app.crash",
+      "result": "{crashed: true}; arguments: {mode: abort}; the adapter must use a target-native forced crash path"
+    },
     "app.foreground": {
       "operation": "app.foreground",
       "result": "{foreground: boolean}"
@@ -25,6 +29,14 @@
       "operation": "app.stop",
       "result": "{stopped: true}; arguments: {}"
     },
+    "app.upgrade": {
+      "operation": "app.upgrade",
+      "result": "{applied: true}; arguments: {fromVersion, toVersion}; install the supplied candidate through the platform-native upgrade path"
+    },
+    "app.version": {
+      "operation": "app.version",
+      "result": "{schemaVersion: 1, version: string}; observe the installed Overte product version"
+    },
     "artifact.screenshot": {
       "operation": "artifact.screenshot",
       "result": "{artifact: string}"
@@ -36,6 +48,14 @@
     "audio.mute": {
       "operation": "audio.mute",
       "result": "{performed: true}; arguments: {muted: boolean}; use the target's real microphone-mute control path"
+    },
+    "collaboration.edit": {
+      "operation": "collaboration.edit",
+      "result": "{performed: true}; arguments: {entityName, value}; mutate the controlled entity through an independent fixture actor"
+    },
+    "collaboration.snapshot": {
+      "operation": "collaboration.snapshot",
+      "result": "{schemaVersion: 1, entityName, value, revision, actorId}; independently observe controlled shared entity state"
     },
     "input.fly": {
       "operation": "input.fly",
@@ -64,6 +84,14 @@
     "navigation.enter-domain": {
       "operation": "navigation.enter-domain",
       "result": "{requested: true}"
+    },
+    "permission.set": {
+      "operation": "permission.set",
+      "result": "{performed: true}; arguments: {permissionId: microphone, state: denied|granted}; drive the native OS permission path"
+    },
+    "permission.snapshot": {
+      "operation": "permission.snapshot",
+      "result": "{schemaVersion: 1, permissionId: microphone, state: denied|granted|unknown}"
     },
     "probe.snapshot": {
       "operation": "probe.snapshot",

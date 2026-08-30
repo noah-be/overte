@@ -236,6 +236,41 @@ def redact(text: str, private_values: set[str]) -> str:
     return text
 
 
+def append_timeline(path: Path, sequence: int, event: str, **fields: object) -> int:
+    """Append a selector-free, ordered execution event."""
+    payload = {
+        "schemaVersion": 1,
+        "sequence": sequence,
+        "epochMs": int(time.time() * 1000),
+        "event": event,
+        **fields,
+    }
+    with path.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n")
+    return sequence + 1
+
+
+def write_artifact_manifest(output: Path) -> None:
+    entries = []
+    for path in sorted(item for item in output.rglob("*") if item.is_file()
+                       and item.name != "artifact-manifest.json"):
+        digest = hashlib.sha256()
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        relative = path.relative_to(output).as_posix()
+        entries.append({
+            "path": relative,
+            "bytes": path.stat().st_size,
+            "sha256": digest.hexdigest(),
+            "kind": ("module" if relative.startswith("modules/") else
+                     "timeline" if relative == "timeline.jsonl" else "run"),
+        })
+    (output / "artifact-manifest.json").write_text(
+        json.dumps({"schemaVersion": 1, "artifacts": entries},
+                   indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def run_module(module: dict, catalog: Path, environment: dict[str, str],
                artifact_dir: Path, selector: str, private_values: set[str],
                adapter_command: list[str],
@@ -363,6 +398,10 @@ def main() -> int:
         fail("device artifacts must be stored outside the source worktree")
     run_started_epoch_ms = int(time.time() * 1000)
     run_started_monotonic = time.monotonic()
+    timeline = output / "timeline.jsonl"
+    timeline_sequence = append_timeline(
+        timeline, 1, "run-started", adapter=manifest["id"], suite=args.suite,
+        platform=target["platform"])
 
     environment = os.environ.copy()
     harness_python_path = str(Path(__file__).resolve().parent)
@@ -388,6 +427,8 @@ def main() -> int:
     private_values = {selector, reservation_key}
     try:
         with target_lock(reservation_key, lock_root, lock_timeout):
+            timeline_sequence = append_timeline(
+                timeline, timeline_sequence, "target-reserved")
             try:
                 description = adapter_call(command, "describe", selector)
                 if not isinstance(description, dict):
@@ -421,9 +462,15 @@ def main() -> int:
                     artifact = output / "modules" / module["id"]
                     module_env = environment | {"OVERTE_DEVICE_ARTIFACT_DIR": str(artifact)}
                     print(f"[{module['id']}] {module['description']}", flush=True)
+                    timeline_sequence = append_timeline(
+                        timeline, timeline_sequence, "module-started", module=module["id"])
                     result = run_module(module, catalog_path, module_env, artifact, selector,
                                         private_values, command, capabilities)
                     results.append(result)
+                    timeline_sequence = append_timeline(
+                        timeline, timeline_sequence, "module-finished",
+                        module=module["id"], status=result["status"],
+                        durationSeconds=result["durationSeconds"])
                     infrastructure_failure = result["status"] == "error"
             except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
                 detail = redact(str(error), private_values)
@@ -433,13 +480,19 @@ def main() -> int:
                                 "durationSeconds": 0.0, "output": detail + "\n"})
             finally:
                 if not args.keep_running:
+                    timeline_sequence = append_timeline(
+                        timeline, timeline_sequence, "cleanup-started")
                     try:
                         adapter_call(command, "cleanup", selector)
+                        timeline_sequence = append_timeline(
+                            timeline, timeline_sequence, "cleanup-finished", status="passed")
                     except Exception as error:
                         results.append({"id": "target-cleanup", "description": "Target cleanup",
                                         "status": "error", "returncode": 75,
                                         "durationSeconds": 0.0,
                                         "output": redact(str(error), private_values) + "\n"})
+                        timeline_sequence = append_timeline(
+                            timeline, timeline_sequence, "cleanup-finished", status="error")
     except TargetLockTimeout as error:
         results.append({"id": "target-reservation", "description": "Target reservation",
                         "status": "error", "returncode": 75,
@@ -468,6 +521,8 @@ def main() -> int:
     (output / "run-manifest.json").write_text(
         json.dumps(run_manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     write_junit(results, output / "junit.xml", args.suite)
+    append_timeline(timeline, timeline_sequence, "run-finished", status=summary["status"])
+    write_artifact_manifest(output)
     print(f"Results: {output}")
     return 1 if summary["status"] == "failed" else 0
 

@@ -23,10 +23,11 @@ from contracts import TABLET_CONTRACT_VERSION, validate_operation_arguments
 
 
 CAPABILITIES = sorted([
-    "accessibility.snapshot", "app.foreground", "app.launch", "app.process", "app.stop",
-    "asset.load", "audio.mute", "input.fly", "input.jump", "input.look", "input.move",
+    "accessibility.snapshot", "app.crash", "app.foreground", "app.launch", "app.process",
+    "app.stop", "app.upgrade", "app.version", "asset.load", "audio.mute",
+    "collaboration.edit", "collaboration.snapshot", "input.fly", "input.jump", "input.look", "input.move",
     "input.primary", "lifecycle.background", "navigation.enter-domain", "probe.snapshot",
-    "render.snapshot", "scene.load", "scene.reload", "setting.set", "sound.play",
+    "permission.set", "permission.snapshot", "render.snapshot", "scene.load", "scene.reload", "setting.set", "sound.play",
     "tablet.activate", "tablet.close", "tablet.open", "tablet.snapshot", "text.dismiss",
     "text.focus", "text.snapshot", "text.type",
 ])
@@ -83,6 +84,11 @@ def initial_state() -> dict:
         "textValue": "", "textFocused": False, "textKeyboardVisible": False,
         "textSubmittedCount": 0,
         "audioMuted": False, "audioWarnWhenMuted": True,
+        "permissionMicrophone": "granted",
+        "sharedEntityName": "OVERTE_E2E_SHARED_COLOR",
+        "sharedEntityValue": "orange", "sharedEntityRevision": 0,
+        "productVersion": os.environ.get("OVERTE_E2E_UPGRADE_FROM_VERSION", "1.0.0"),
+        "crashed": False,
         "renderFrameCount": 0, "renderLastFrameEpochMs": 0,
         "nativeFrameSequence": 0,
         "processRevision": 0, "asset": None,
@@ -354,8 +360,11 @@ def invoke(operation: str, arguments: dict) -> dict:
     validate_operation_arguments(operation, arguments)
     state = load()
     if operation == "app.launch":
+        if state.get("crashed") and "crash-relaunch-fails" in failures():
+            raise RuntimeError("mock crash recovery launch failed")
         was_running = state["running"]
         state["running"] = state["foreground"] = True
+        state["crashed"] = False
         if not was_running:
             state["launchCount"] += 1
             if (state["launchCount"] > 1
@@ -371,6 +380,25 @@ def invoke(operation: str, arguments: dict) -> dict:
     elif operation == "app.stop":
         state["running"] = state["foreground"] = False
         result = {"stopped": True}
+    elif operation == "app.crash":
+        if "crash-process-survives" not in failures():
+            state["running"] = state["foreground"] = False
+        state["crashed"] = True
+        state["processRevision"] += 1
+        result = {"crashed": True}
+    elif operation == "app.version":
+        return {"schemaVersion": 1, "version": state["productVersion"]}
+    elif operation == "app.upgrade":
+        if state["productVersion"] != arguments["fromVersion"]:
+            raise RuntimeError("installed mock version does not match upgrade source")
+        state["running"] = state["foreground"] = True
+        state["launchCount"] += 1
+        state["processRevision"] += 1
+        if "upgrade-version-unchanged" not in failures():
+            state["productVersion"] = arguments["toVersion"]
+        if "upgrade-settings-lost" in failures():
+            state["audioWarnWhenMuted"] = True
+        result = {"applied": True}
     elif operation == "app.process":
         identity = "mock-e2e-process"
         if state["launchCount"] > 1:
@@ -448,6 +476,33 @@ def invoke(operation: str, arguments: dict) -> dict:
     elif operation == "audio.mute":
         if "audio-mute-missing" not in failures():
             state["audioMuted"] = arguments["muted"]
+        result = {"performed": True}
+    elif operation == "collaboration.snapshot":
+        return {
+            "schemaVersion": 1,
+            "entityName": state["sharedEntityName"],
+            "value": state["sharedEntityValue"],
+            "revision": state["sharedEntityRevision"],
+            "actorId": ("OVERTE_E2E_ACTOR_WRONG" if "entity-sync-wrong-actor" in failures()
+                        else "OVERTE_E2E_ACTOR_FIXTURE"),
+        }
+    elif operation == "collaboration.edit":
+        if arguments["entityName"] != state["sharedEntityName"]:
+            raise RuntimeError("controlled shared entity was not found")
+        if "entity-sync-missing" not in failures():
+            state["sharedEntityValue"] = arguments["value"]
+            state["sharedEntityRevision"] += (
+                2 if "entity-sync-duplicate" in failures() else 1)
+        result = {"performed": True}
+    elif operation == "permission.snapshot":
+        return {"schemaVersion": 1, "permissionId": "microphone",
+                "state": state["permissionMicrophone"]}
+    elif operation == "permission.set":
+        requested = arguments["state"]
+        missing = ((requested == "denied" and "permission-deny-missing" in failures())
+                   or (requested == "granted" and "permission-grant-missing" in failures()))
+        if not missing:
+            state["permissionMicrophone"] = requested
         result = {"performed": True}
     elif operation == "input.look":
         before_orientation = copy.deepcopy(state["orientation"])

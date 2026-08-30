@@ -11,6 +11,8 @@ import sys
 
 from adapter_client import load_command
 from contracts import contains_private_identity, validate_discovered_targets
+from acceptance_policy import STATES, load_policy, state_for
+from run import load_modules
 
 
 def call(command: list[str], *arguments: str) -> object:
@@ -38,11 +40,19 @@ def main() -> int:
                         help="fail when discovery returns no eligible target")
     parser.add_argument("--check-cleanup", action="store_true",
                         help="call cleanup twice to verify its idempotent success contract")
+    parser.add_argument("--policy", type=Path,
+                        help="also verify promoted suite capability coverage")
+    parser.add_argument("--catalog", type=Path)
+    parser.add_argument("--minimum-state", choices=STATES, default="accepted")
     args = parser.parse_args()
     manifest = json.loads(args.adapter_manifest.read_text(encoding="utf-8"))
     if manifest.get("schemaVersion") != 1 or not isinstance(manifest.get("id"), str):
         raise ValueError("invalid adapter manifest")
     command = load_command(args.adapter_manifest.resolve())
+    if bool(args.policy) != bool(args.catalog):
+        raise ValueError("--policy and --catalog must be supplied together")
+    policy = (load_policy(args.policy.resolve(), args.catalog.resolve())
+              if args.policy else None)
     targets = validate_discovered_targets(call(command, "discover"))
     if args.target:
         targets = [target for target in targets if target["selector"] == args.target]
@@ -64,6 +74,19 @@ def main() -> int:
                 cleaned = call(command, "cleanup", "--target", selector)
                 if not isinstance(cleaned, dict) or cleaned.get("cleaned") is not True:
                     raise ValueError("cleanup must return cleaned: true")
+        if policy is not None:
+            threshold = STATES.index(args.minimum_state)
+            required_capabilities = set()
+            for suite in sorted({suite for module in json.loads(
+                    args.catalog.read_text(encoding="utf-8"))["modules"]
+                    for suite in module["suites"]}):
+                if STATES.index(state_for(policy, target["platform"], suite)) >= threshold:
+                    for module in load_modules(args.catalog.resolve(), suite):
+                        required_capabilities.update(module["requires"])
+            missing = sorted(required_capabilities - set(target["capabilities"]))
+            if missing:
+                raise ValueError(
+                    "adapter lacks promoted suite capabilities: " + ", ".join(missing))
     print(f"PASS: adapter {manifest['id']} satisfies the protocol for {len(targets)} target(s)")
     return 0
 

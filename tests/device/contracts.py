@@ -221,7 +221,8 @@ def contains_private_identity(value: object, identities: set[str]) -> bool:
 def validate_operation_arguments(operation: str, value: object) -> dict:
     if not isinstance(value, dict):
         raise ValueError("operation arguments must be an object")
-    if operation in {"render.snapshot", "tablet.snapshot", "text.snapshot"}:
+    if operation in {"app.version", "collaboration.snapshot", "render.snapshot",
+                     "tablet.snapshot", "text.snapshot"}:
         if value:
             raise ValueError(f"{operation} does not accept arguments")
     elif operation == "tablet.activate":
@@ -238,6 +239,34 @@ def validate_operation_arguments(operation: str, value: object) -> dict:
             "text.dismiss", "text.focus"}:
         if value:
             raise ValueError(f"{operation} does not accept arguments")
+    elif operation == "app.crash":
+        if value != {"mode": "abort"}:
+            raise ValueError("app.crash requires only mode: abort")
+    elif operation == "app.upgrade":
+        if set(value) != {"fromVersion", "toVersion"}:
+            raise ValueError("app.upgrade requires only fromVersion and toVersion")
+        for field in ("fromVersion", "toVersion"):
+            version = value.get(field)
+            if (not isinstance(version, str) or not version or len(version) > 64
+                    or any(character.isspace() for character in version)):
+                raise ValueError(f"app.upgrade {field} is invalid")
+        if value["fromVersion"] == value["toVersion"]:
+            raise ValueError("app.upgrade versions must differ")
+    elif operation == "collaboration.edit":
+        if set(value) != {"entityName", "value"}:
+            raise ValueError("collaboration.edit requires only entityName and value")
+        if (not isinstance(value.get("entityName"), str)
+                or not value["entityName"].startswith("OVERTE_E2E_SHARED_")):
+            raise ValueError("collaboration.edit requires a controlled entity name")
+        if (not isinstance(value.get("value"), str) or not value["value"]
+                or len(value["value"]) > 64):
+            raise ValueError("collaboration.edit value must be bounded and non-empty")
+    elif operation in {"permission.set", "permission.snapshot"}:
+        expected = {"permissionId", "state"} if operation == "permission.set" else {"permissionId"}
+        if set(value) != expected or value.get("permissionId") != "microphone":
+            raise ValueError(f"{operation} requires the controlled microphone permission")
+        if operation == "permission.set" and value.get("state") not in {"denied", "granted"}:
+            raise ValueError("permission.set state must be denied or granted")
     elif operation == "input.fly":
         if set(value) != {"durationSeconds"}:
             raise ValueError("input.fly requires only durationSeconds")
@@ -363,7 +392,8 @@ def validate_operation_result(operation: str, value: object) -> dict:
     """Validate portable evidence returned by an adapter operation."""
     if not isinstance(value, dict):
         raise ValueError(f"{operation} result must be an object")
-    if operation in {"audio.mute", "input.fly", "input.jump", "input.look", "input.move", "input.primary",
+    if operation in {"audio.mute", "collaboration.edit", "input.fly", "input.jump", "input.look", "input.move", "input.primary",
+                     "permission.set",
                      "tablet.activate", "tablet.close", "tablet.open", "text.dismiss",
                      "text.focus", "text.type", "setting.set"}:
         return validate_performed_result(operation, value)
@@ -373,6 +403,39 @@ def validate_operation_result(operation: str, value: object) -> dict:
         return validate_text_snapshot(value)
     if operation == "render.snapshot":
         return validate_render_snapshot(value)
+    if operation == "app.version":
+        if (set(value) != {"schemaVersion", "version"} or value.get("schemaVersion") != 1
+                or not isinstance(value.get("version"), str) or not value["version"]):
+            raise ValueError("app.version result is invalid")
+        return value
+    if operation == "collaboration.snapshot":
+        if set(value) != {"actorId", "entityName", "revision", "schemaVersion", "value"}:
+            raise ValueError("collaboration.snapshot result fields are invalid")
+        if (value.get("schemaVersion") != 1
+                or not isinstance(value.get("entityName"), str)
+                or not value["entityName"].startswith("OVERTE_E2E_SHARED_")
+                or not isinstance(value.get("value"), str)
+                or not isinstance(value.get("actorId"), str)
+                or not value["actorId"].startswith("OVERTE_E2E_ACTOR_")
+                or not isinstance(value.get("revision"), int)
+                or isinstance(value["revision"], bool) or value["revision"] < 0):
+            raise ValueError("collaboration.snapshot result is invalid")
+        return value
+    if operation == "permission.snapshot":
+        if (set(value) != {"permissionId", "schemaVersion", "state"}
+                or value.get("schemaVersion") != 1
+                or value.get("permissionId") != "microphone"
+                or value.get("state") not in {"denied", "granted", "unknown"}):
+            raise ValueError("permission.snapshot result is invalid")
+        return value
+    if operation == "app.crash":
+        if value != {"crashed": True}:
+            raise ValueError("app.crash result must be exactly crashed: true")
+        return value
+    if operation == "app.upgrade":
+        if value != {"applied": True}:
+            raise ValueError("app.upgrade result must be exactly applied: true")
+        return value
     confirmation = {
         "app.launch": "launched",
         "app.stop": "stopped",

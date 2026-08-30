@@ -4,12 +4,15 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
 import re
 import sys
 import xml.etree.ElementTree as ET
+
+from acceptance_policy import gates, load_policy
 
 
 GATE = re.compile(r"^[a-z][a-z0-9.-]*:[a-z][a-z0-9.-]*$")
@@ -33,7 +36,56 @@ def load_object(path: Path) -> dict:
     return value
 
 
+def validate_evidence(directory: Path) -> None:
+    """Verify new runner evidence while retaining v1 inputs made before manifests existed."""
+    path = directory / "artifact-manifest.json"
+    if not path.exists():
+        return
+    value = load_object(path)
+    entries = value.get("artifacts")
+    if value.get("schemaVersion") != 1 or set(value) != {"schemaVersion", "artifacts"}:
+        fail("unsupported artifact manifest contract")
+    if not isinstance(entries, list):
+        fail("artifact manifest entries must be a list")
+    for entry in entries:
+        if (not isinstance(entry, dict)
+                or set(entry) != {"bytes", "kind", "path", "sha256"}):
+            fail("artifact manifest entry fields are invalid")
+        if (not isinstance(entry["path"], str) or not entry["path"]
+                or not isinstance(entry["bytes"], int) or isinstance(entry["bytes"], bool)
+                or entry["bytes"] < 0
+                or not isinstance(entry["sha256"], str)
+                or not re.fullmatch(r"[0-9a-f]{64}", entry["sha256"])
+                or entry["kind"] not in {"module", "run", "timeline"}):
+            fail("artifact manifest entry values are invalid")
+    paths = [entry["path"] for entry in entries]
+    if paths != sorted(set(paths)):
+        fail("artifact manifest paths must be sorted and unique")
+    for entry in entries:
+        artifact = directory / entry["path"]
+        if not artifact.is_file() or directory not in artifact.resolve().parents:
+            fail("artifact manifest references a missing or escaping path")
+        digest = hashlib.sha256()
+        with artifact.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        if (entry["bytes"] != artifact.stat().st_size
+                or entry["sha256"] != digest.hexdigest()):
+            fail("artifact manifest integrity verification failed")
+    required = {"junit.xml", "run-manifest.json", "summary.json", "timeline.jsonl"}
+    if not required <= set(paths):
+        fail("artifact manifest omits required run evidence")
+    events = [json.loads(line) for line in
+              (directory / "timeline.jsonl").read_text(encoding="utf-8").splitlines()]
+    if (not events or [event.get("sequence") for event in events]
+            != list(range(1, len(events) + 1))
+            or events[0].get("event") != "run-started"
+            or events[-1].get("event") != "run-finished"):
+        fail("run timeline is incomplete or unordered")
+
+
 def validate_run(directory: Path, ordinal: int) -> dict:
+    validate_evidence(directory)
     manifest = load_object(directory / "run-manifest.json")
     summary = load_object(directory / "summary.json")
     if manifest.get("schemaVersion") != 1 or set(manifest) != RUN_FIELDS:
@@ -124,9 +176,21 @@ def main() -> int:
                         help="device run output directory; repeat for every matrix cell")
     parser.add_argument("--require", action="append", default=[], dest="required",
                         help="required complete physical platform:suite gate")
+    parser.add_argument("--policy", type=Path,
+                        help="derive required gates from a versioned acceptance policy")
+    parser.add_argument("--catalog", type=Path,
+                        help="module catalog used with --policy")
+    parser.add_argument("--allow-virtual-platform", action="append", default=[],
+                        help="explicit virtual-only platform exception (normally only mock)")
     parser.add_argument("--output-dir", required=True, type=Path)
     args = parser.parse_args()
-    required = sorted(set(args.required))
+    policy_required = []
+    if bool(args.policy) != bool(args.catalog):
+        fail("--policy and --catalog must be supplied together")
+    if args.policy:
+        policy = load_policy(args.policy.resolve(), args.catalog.resolve())
+        policy_required = gates(policy, args.catalog.resolve(), "required")
+    required = sorted(set(args.required) | set(policy_required))
     if any(not GATE.fullmatch(gate) for gate in required):
         fail("required gates must use platform:suite identifier syntax")
     output = args.output_dir.resolve()
@@ -135,9 +199,13 @@ def main() -> int:
     output.mkdir(parents=True, mode=0o700)
     runs = [validate_run(path.resolve(), index)
             for index, path in enumerate(args.result, start=1)]
+    virtual_platforms = set(args.allow_virtual_platform)
+    if any(not re.fullmatch(r"[a-z][a-z0-9.-]*", item)
+           for item in virtual_platforms):
+        fail("virtual platform exceptions must be platform identifiers")
     satisfied = {
         f"{run['platform']}:{run['suite']}" for run in runs
-        if run["physical"] and run["complete"]
+        if (run["physical"] or run["platform"] in virtual_platforms) and run["complete"]
     }
     missing = sorted(set(required) - satisfied)
     has_product_failure = any(run["counts"]["failed"] for run in runs)

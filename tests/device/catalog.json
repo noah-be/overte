@@ -5,7 +5,7 @@
       "id": "launch-smoke",
       "description": "Launch the application and verify a stable foreground process.",
       "command": ["modules/launch_smoke.py"],
-      "suites": ["asset-smoke", "audio-controls", "domain-recovery", "domain-smoke", "e2e-core", "e2e-recovery", "interaction-smoke", "lifecycle-under-load", "multi-user-smoke", "network-fault-recovery", "render-health", "scripted-entity-smoke", "settings-persistence", "smoke", "sound-smoke", "stability", "tablet-e2e", "text-input-smoke", "vertical-locomotion"],
+      "suites": ["asset-smoke", "audio-controls", "crash-recovery-under-load", "domain-recovery", "domain-smoke", "e2e-core", "e2e-recovery", "entity-sync-smoke", "interaction-smoke", "lifecycle-under-load", "multi-user-smoke", "network-fault-recovery", "permission-recovery", "render-health", "scripted-entity-smoke", "settings-persistence", "smoke", "sound-smoke", "stability", "tablet-e2e", "text-input-smoke", "update-upgrade", "vertical-locomotion"],
       "requires": ["app.foreground", "app.launch", "app.process"],
       "timeoutSeconds": 120
     },
@@ -13,7 +13,7 @@
       "id": "scene",
       "description": "Load the controlled E2E scene and observe every required fixture marker.",
       "command": ["modules/scene.py"],
-      "suites": ["e2e-core", "interaction-smoke", "lifecycle-under-load", "render-health", "scripted-entity-smoke"],
+      "suites": ["crash-recovery-under-load", "e2e-core", "interaction-smoke", "lifecycle-under-load", "render-health", "scripted-entity-smoke"],
       "requires": ["probe.snapshot", "scene.load"],
       "timeoutSeconds": 120
     },
@@ -29,7 +29,7 @@
       "id": "domain-enter",
       "description": "Enter a controlled domain and observe its connection and assignment-owned scene.",
       "command": ["modules/domain_enter.py"],
-      "suites": ["domain-recovery", "domain-smoke", "multi-user-smoke", "network-fault-recovery"],
+      "suites": ["domain-recovery", "domain-smoke", "entity-sync-smoke", "multi-user-smoke", "network-fault-recovery"],
       "requires": ["app.foreground", "app.process", "navigation.enter-domain", "probe.snapshot"],
       "timeoutSeconds": 180
     },
@@ -112,6 +112,38 @@
       "suites": ["render-health"],
       "requires": ["app.foreground", "app.process", "probe.snapshot", "render.snapshot", "scene.load"],
       "timeoutSeconds": 120
+    },
+    {
+      "id": "entity-sync",
+      "description": "Mutate one controlled domain entity through an independent fixture actor and observe its exact revision.",
+      "command": ["modules/entity_sync.py"],
+      "suites": ["entity-sync-smoke"],
+      "requires": ["app.foreground", "app.process", "collaboration.edit", "collaboration.snapshot", "navigation.enter-domain", "probe.snapshot"],
+      "timeoutSeconds": 180
+    },
+    {
+      "id": "permission-recovery",
+      "description": "Deny and grant microphone permission through the native OS path without losing the application process.",
+      "command": ["modules/permission_recovery.py"],
+      "suites": ["permission-recovery"],
+      "requires": ["app.foreground", "app.process", "permission.set", "permission.snapshot"],
+      "timeoutSeconds": 180
+    },
+    {
+      "id": "crash-recovery-under-load",
+      "description": "Crash a loaded scene and tablet, then require a new usable application session.",
+      "command": ["modules/crash_recovery_under_load.py"],
+      "suites": ["crash-recovery-under-load"],
+      "requires": ["app.crash", "app.foreground", "app.launch", "app.process", "probe.snapshot", "scene.load", "tablet.close", "tablet.open"],
+      "timeoutSeconds": 240
+    },
+    {
+      "id": "update-upgrade",
+      "description": "Install a supplied candidate over a source build and verify version plus safe-setting continuity.",
+      "command": ["modules/update_upgrade.py"],
+      "suites": ["update-upgrade"],
+      "requires": ["app.foreground", "app.launch", "app.process", "app.upgrade", "app.version", "probe.snapshot", "setting.set"],
+      "timeoutSeconds": 600
     },
     {
       "id": "asset-load",
