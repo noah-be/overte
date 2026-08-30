@@ -18,8 +18,16 @@ operations per target. The initial behavior contract is deliberately small:
    content without a process restart.
 11. leave that domain for the local fixture and re-enter it without a process
     restart;
-12. evaluate process identity, probe state, errors, and artifacts; and
-13. clean up the application session and target transport.
+12. exercise fixed Unicode editing through the native target input path;
+13. execute and activate a controlled client entity script;
+14. observe one controlled moving peer across a reconnect;
+15. recover automatically from a bounded outage of the owned domain stack;
+16. toggle and restore native microphone mute state;
+17. persist and restore one safe setting across restarts;
+18. retain a loaded scene and tablet across a lifecycle transition;
+19. require GPU-backed visible presentation and advancing render frames;
+20. evaluate process identity, probe state, errors, and artifacts; and
+21. clean up the application session and target transport.
 
 The baseline runs in one application session after the initial controlled
 launch. Shared modules own expectations. Product adapters own target discovery,
@@ -95,6 +103,23 @@ that parent can use the same implementation without importing a child backend.
 - Domain recovery: the same process first observes a disconnected serverless
   fixture and then reconnects to the exact domain identity and complete marker
   set for consecutive samples.
+- Text input: fixed Unicode text, one backspace, one submit, focus dismissal,
+  keyboard dismissal where observable, and bounded world drift are observed.
+- Scripted entity: preload precedes one primary action, after which the
+  entity's own script changes its exact activation count, state, and color.
+- Multi-user: one controlled peer session replicates minimum movement,
+  disappears on local departure, and returns with fresh movement on reconnect.
+- Network fault recovery: a real stop of the fixture-owned domain stack is
+  observed as disconnected, followed by automatic reconnection to the exact
+  UUID, host, and content in the same foreground process.
+- Audio controls: native mute input changes `Audio.muted` and the baseline is
+  restored even when an assertion fails.
+- Settings persistence: the allowlisted audio warning survives restart, then
+  its original value is restored and also survives restart.
+- Lifecycle under load: one process retains its scene and open tablet across
+  background/foreground while renderer frames resume.
+- Render health: native evidence reports a visible non-black GPU surface with
+  advancing presentation sequence, and probe render statistics also advance.
 
 Every module retains its last, before, and after probe snapshots. Target
 adapters may add redacted screenshots, accessibility trees, or private device

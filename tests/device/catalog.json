@@ -5,7 +5,7 @@
       "id": "launch-smoke",
       "description": "Launch the application and verify a stable foreground process.",
       "command": ["modules/launch_smoke.py"],
-      "suites": ["asset-smoke", "domain-recovery", "domain-smoke", "e2e-core", "e2e-recovery", "interaction-smoke", "smoke", "sound-smoke", "stability", "tablet-e2e", "vertical-locomotion"],
+      "suites": ["asset-smoke", "audio-controls", "domain-recovery", "domain-smoke", "e2e-core", "e2e-recovery", "interaction-smoke", "lifecycle-under-load", "multi-user-smoke", "network-fault-recovery", "render-health", "scripted-entity-smoke", "settings-persistence", "smoke", "sound-smoke", "stability", "tablet-e2e", "text-input-smoke", "vertical-locomotion"],
       "requires": ["app.foreground", "app.launch", "app.process"],
       "timeoutSeconds": 120
     },
@@ -13,7 +13,7 @@
       "id": "scene",
       "description": "Load the controlled E2E scene and observe every required fixture marker.",
       "command": ["modules/scene.py"],
-      "suites": ["e2e-core", "interaction-smoke"],
+      "suites": ["e2e-core", "interaction-smoke", "lifecycle-under-load", "render-health", "scripted-entity-smoke"],
       "requires": ["probe.snapshot", "scene.load"],
       "timeoutSeconds": 120
     },
@@ -29,7 +29,7 @@
       "id": "domain-enter",
       "description": "Enter a controlled domain and observe its connection and assignment-owned scene.",
       "command": ["modules/domain_enter.py"],
-      "suites": ["domain-recovery", "domain-smoke"],
+      "suites": ["domain-recovery", "domain-smoke", "multi-user-smoke", "network-fault-recovery"],
       "requires": ["app.foreground", "app.process", "navigation.enter-domain", "probe.snapshot"],
       "timeoutSeconds": 180
     },
@@ -47,6 +47,70 @@
       "command": ["modules/world_interaction.py"],
       "suites": ["interaction-smoke"],
       "requires": ["app.foreground", "app.process", "input.primary", "probe.snapshot", "scene.load"],
+      "timeoutSeconds": 120
+    },
+    {
+      "id": "scripted-entity",
+      "description": "Activate the controlled client entity script and observe its independent entity-state mutation.",
+      "command": ["modules/scripted_entity.py"],
+      "suites": ["scripted-entity-smoke"],
+      "requires": ["app.foreground", "app.process", "input.primary", "probe.snapshot", "scene.load"],
+      "timeoutSeconds": 120
+    },
+    {
+      "id": "multi-user",
+      "description": "Observe one controlled moving peer avatar across a local leave and reconnect cycle.",
+      "command": ["modules/multi_user.py"],
+      "suites": ["multi-user-smoke"],
+      "requires": ["app.foreground", "app.process", "navigation.enter-domain", "probe.snapshot", "scene.load"],
+      "timeoutSeconds": 300
+    },
+    {
+      "id": "network-fault-recovery",
+      "description": "Interrupt and restore the controlled domain stack and require automatic in-process reconnection.",
+      "command": ["modules/network_fault_recovery.py"],
+      "suites": ["network-fault-recovery"],
+      "requires": ["app.foreground", "app.process", "navigation.enter-domain", "probe.snapshot"],
+      "timeoutSeconds": 300
+    },
+    {
+      "id": "text-input",
+      "description": "Enter bounded Unicode text through the native target path and verify editing, submit, dismissal, and world isolation.",
+      "command": ["modules/text_input.py"],
+      "suites": ["text-input-smoke"],
+      "requires": ["app.foreground", "app.process", "probe.snapshot", "text.dismiss", "text.focus", "text.snapshot", "text.type"],
+      "timeoutSeconds": 150
+    },
+    {
+      "id": "audio-controls",
+      "description": "Toggle microphone mute through the native product control and observe both exact states in Interface.",
+      "command": ["modules/audio_controls.py"],
+      "suites": ["audio-controls"],
+      "requires": ["app.foreground", "app.process", "audio.mute", "probe.snapshot"],
+      "timeoutSeconds": 120
+    },
+    {
+      "id": "settings-persistence",
+      "description": "Change one safe semantic setting, restart, verify persistence, and restore its original value.",
+      "command": ["modules/settings_persistence.py"],
+      "suites": ["settings-persistence"],
+      "requires": ["app.foreground", "app.launch", "app.process", "app.stop", "probe.snapshot", "setting.set"],
+      "timeoutSeconds": 240
+    },
+    {
+      "id": "lifecycle-under-load",
+      "description": "Background and reactivate one loaded scene and open tablet without process, content, input, or render loss.",
+      "command": ["modules/lifecycle_under_load.py"],
+      "suites": ["lifecycle-under-load"],
+      "requires": ["app.foreground", "app.launch", "app.process", "lifecycle.background", "probe.snapshot", "scene.load", "tablet.close", "tablet.open"],
+      "timeoutSeconds": 180
+    },
+    {
+      "id": "render-health",
+      "description": "Require a visible hardware-accelerated presentation and independently advancing renderer frames.",
+      "command": ["modules/render_health.py"],
+      "suites": ["render-health"],
+      "requires": ["app.foreground", "app.process", "probe.snapshot", "render.snapshot", "scene.load"],
       "timeoutSeconds": 120
     },
     {

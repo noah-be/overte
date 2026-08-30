@@ -58,6 +58,25 @@ different selectors for one physical device. Neither value is persisted.
   mouse click, touch action, or controller trigger produces exactly one press
   event on its interaction target; see
   [`INTERACTION_E2E.md`](INTERACTION_E2E.md).
+- `text-input-smoke`: edit and submit fixed Unicode text through the native
+  target input path, dismiss focus/keyboard state, and reject world-input
+  leakage.
+- `scripted-entity-smoke`: prove controlled client entity script loading,
+  execution, event delivery, and independent entity mutation.
+- `multi-user-smoke`: observe deterministic peer movement, departure, and the
+  same peer session after reconnecting to the controlled domain.
+- `network-fault-recovery`: stop and restore only the ephemeral domain stack,
+  observe disconnect, and require automatic same-process reconnection. These
+  gates are specified in
+  [`PORTABLE_EXTENDED_E2E.md`](PORTABLE_EXTENDED_E2E.md).
+- `audio-controls`: toggle and restore native microphone mute with independent
+  in-client state.
+- `settings-persistence`: change one safe setting, restart, verify, restore,
+  and verify restoration after another restart.
+- `lifecycle-under-load`: background and reactivate a ready scene with an open
+  tablet while retaining process, content, UI state, and renderer progress.
+- `render-health`: combine native GPU/surface/frame evidence with independently
+  advancing render statistics and reject black or software frames.
 - `vertical-locomotion`: one jump with observed ascent and landing, followed by
   bounded flight with observed active ascent. Adapters lacking either input
   capability skip only the corresponding module unless `--require-complete`
@@ -119,6 +138,9 @@ The common input and lifecycle contract is deliberately small:
 - `input.primary` accepts `{}` and performs one platform-native primary press
   and release aimed at the controlled interaction target. The probe, not the
   adapter result, proves delivery to the entity.
+- `text.focus`, `text.type`, `text.snapshot`, and `text.dismiss` expose only a
+  repository-owned test field. `text.type` carries bounded fixed Unicode text,
+  editing, and submit intent; direct value assignment is not conforming.
 - `probe.snapshot` accepts an optional positive `afterSampleSequence` cursor;
   the returned v2 sample must advance beyond it.
 - `app.stop` accepts `{}` and confirms `{"stopped": true}`.
@@ -141,8 +163,8 @@ credentials.
 ## Controlled fixture and probe
 
 [`fixture/scene.json`](fixture/scene.json) contains six local primitive
-entities, including a deterministic collision wall and interaction target,
-and no external assets.
+entities, including a deterministic collision wall and scripted interaction
+target, and no external assets.
 Start an ephemeral localhost server with:
 
 ```bash
@@ -165,8 +187,8 @@ in-client [`probe/overte_e2e_probe.js`](probe/overte_e2e_probe.js) records
 application focus, scene readiness and markers, collision geometry, avatar
 position, velocity and body yaw, `inAir`, `flying`, `flyingEnabled`, camera
 orientation, tablet state, controlled asset resource/entity evidence, sound
-resource and injector state, world-interaction events, monotonic sample
-sequence, and build identity
+resource and injector state, world-interaction events, client entity-script
+state, controlled peer replication, monotonic sample sequence, and build identity
 through Interface's existing test-script result API. It records no audio
 samples. Product adapters own the exact launch and result transport used to
 load it. The fixture exposes a same-origin `/e2e-client-command.json` channel;
@@ -186,7 +208,8 @@ matching the focus boundary applied to physical desktop keyboard input; the
 ContextMenu route remains available so the same bounded command can close it.
 
 [`fixture/domain.py`](fixture/domain.py) owns the complementary ephemeral
-domain-server and assignment-client stack. The `domain-smoke` assertion waits
+domain-server and assignment-client stack, including a deterministic peer and
+a loopback-only stop/start endpoint. The `domain-smoke` assertion waits
 for the exact `/id` UUID, host, all repository-owned domain markers, stable
 entity samples, foreground state, and unchanged process identity. See
 [`fixture/DOMAIN.md`](fixture/DOMAIN.md) for the local run and environment

@@ -12,7 +12,7 @@ import sys
 import tempfile
 import time
 import unittest
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -98,9 +98,26 @@ class DomainFixtureTest(unittest.TestCase):
                                  metadata["domainId"])
                 self.assertTrue(metadata["domainUrl"].startswith("hifi://127.0.0.1:"))
                 self.assertEqual(4, metadata["expectedEntityCount"])
+                self.assertEqual("OVERTE_E2E_PEER", metadata["peerDisplayName"])
                 with urlopen(metadata["bootstrapScriptUrl"], timeout=2) as response:
                     script = response.read().decode("utf-8")
                 self.assertIn('Entities.addEntity(properties, "domain")', script)
+                with urlopen(metadata["peerScriptUrl"], timeout=2) as response:
+                    peer_script = response.read().decode("utf-8")
+                self.assertIn("Agent.isAvatar = true", peer_script)
+                for action in ("offline", "online"):
+                    request = Request(
+                        metadata["controlUrl"], method="POST",
+                        data=json.dumps({"schemaVersion": 1, "action": action}).encode(),
+                        headers={
+                            "Content-Type": "application/json",
+                            "X-Overte-E2E-Token": metadata["controlToken"],
+                        },
+                    )
+                    with urlopen(request, timeout=5) as response:
+                        transition = json.loads(response.read())
+                    self.assertEqual(action, transition["state"])
+                    self.assertGreaterEqual(transition["generation"], 2)
                 self.assertIsNone(process.poll())
             finally:
                 process.terminate()

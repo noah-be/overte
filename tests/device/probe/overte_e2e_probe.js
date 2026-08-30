@@ -71,6 +71,13 @@
     var interactionPressCount = 0;
     var interactionLastEntityName = "";
     var interactionLastPointerId = null;
+    var peerTrackingId = "";
+    var peerPreviousPosition = null;
+    var peerObservationCount = 0;
+    var peerMovementDistance = 0.0;
+    var renderFrameCount = 0;
+    var renderLastFrameEpochMs = 0;
+    var renderStats = Render.getConfig("Stats");
     var domainMarkers = ["OVERTE_E2E_DOMAIN_FLOOR", "OVERTE_E2E_DOMAIN_NORTH",
         "OVERTE_E2E_DOMAIN_EAST", "OVERTE_E2E_DOMAIN_ORIGIN"];
     var expectedSpawn = { x: 0.0, y: 2.0, z: 4.0 };
@@ -100,6 +107,62 @@
 
     function vector(value) {
         return { x: Number(value.x), y: Number(value.y), z: Number(value.z) };
+    }
+
+    function observeRenderedFrame() {
+        renderFrameCount += 1;
+        renderLastFrameEpochMs = Date.now();
+    }
+
+    if (renderStats && renderStats.newStats) {
+        renderStats.newStats.connect(observeRenderedFrame);
+    }
+
+    function controlledPeer() {
+        var identifiers = AvatarList.getAvatarIdentifiers();
+        var candidates = [];
+        var index;
+        for (index = 0; index < identifiers.length; index += 1) {
+            if (String(identifiers[index]) === String(MyAvatar.sessionUUID)) {
+                continue;
+            }
+            var avatar = AvatarList.getAvatar(identifiers[index]);
+            if (avatar && String(avatar.displayName) === "OVERTE_E2E_PEER") {
+                candidates.push(avatar);
+            }
+        }
+        if (candidates.length !== 1) {
+            return {
+                present: false, sessionId: "", displayName: "", position: null,
+                observationCount: peerObservationCount,
+                movementDistanceMeters: peerMovementDistance
+            };
+        }
+        var peer = candidates[0];
+        var sessionId = String(peer.sessionUUID);
+        var position = vector(peer.position);
+        if (peerTrackingId !== sessionId) {
+            peerTrackingId = sessionId;
+            peerPreviousPosition = null;
+            peerObservationCount = 0;
+            peerMovementDistance = 0.0;
+        }
+        if (peerPreviousPosition !== null) {
+            var dx = position.x - peerPreviousPosition.x;
+            var dy = position.y - peerPreviousPosition.y;
+            var dz = position.z - peerPreviousPosition.z;
+            peerMovementDistance += Math.sqrt(dx * dx + dy * dy + dz * dz);
+        }
+        peerPreviousPosition = position;
+        peerObservationCount += 1;
+        return {
+            present: true,
+            sessionId: sessionId,
+            displayName: "OVERTE_E2E_PEER",
+            position: position,
+            observationCount: peerObservationCount,
+            movementDistanceMeters: peerMovementDistance
+        };
     }
 
     function observePrimaryInteraction(entityID, event) {
@@ -671,11 +734,17 @@
         var foundMarkers = {};
         var foundDomainMarkers = {};
         var interactionTargetAvailable = false;
+        var scriptedEntity = {
+            targetAvailable: false, loaded: false, scriptUrl: "", activationCount: 0,
+            state: "unavailable", color: null
+        };
         var floorTopY = null;
         var collisionWall = null;
         var index;
         for (index = 0; index < ids.length; index += 1) {
-            var properties = Entities.getEntityProperties(ids[index], ["name", "position", "dimensions"]);
+            var properties = Entities.getEntityProperties(ids[index], [
+                "name", "position", "dimensions", "script", "userData", "color"
+            ]);
             if (fixtureMarkers.indexOf(properties.name) !== -1) {
                 foundMarkers[properties.name] = true;
             }
@@ -694,6 +763,27 @@
             }
             if (properties.name === interactionTargetName) {
                 interactionTargetAvailable = true;
+                var metadata = null;
+                try {
+                    metadata = JSON.parse(String(properties.userData));
+                } catch (error) {
+                    metadata = null;
+                }
+                scriptedEntity = {
+                    targetAvailable: true,
+                    loaded: Boolean(metadata && metadata.contract ===
+                        "overte-e2e-scripted-entity-v1" && metadata.loaded === true),
+                    scriptUrl: String(properties.script),
+                    activationCount: metadata && isFinite(Number(metadata.activationCount))
+                        ? Math.max(0, Math.floor(Number(metadata.activationCount))) : 0,
+                    state: metadata && (metadata.state === "active" || metadata.state === "idle")
+                        ? metadata.state : "idle",
+                    color: {
+                        red: Math.floor(Number(properties.color.red)),
+                        green: Math.floor(Number(properties.color.green)),
+                        blue: Math.floor(Number(properties.color.blue))
+                    }
+                };
             }
         }
         if (ids.length === previousEntityCount) {
@@ -767,6 +857,16 @@
                 serverless: String(location.protocol) === "file"
             },
             input: effectiveInputState(),
+            audio: {
+                muted: Boolean(Audio.muted)
+            },
+            settings: {
+                audioWarnWhenMuted: Boolean(Audio.warnWhenMuted)
+            },
+            render: {
+                frameCount: renderFrameCount,
+                lastFrameEpochMs: renderLastFrameEpochMs
+            },
             scene: {
                 url: currentAddress,
                 commandId: lastSceneCommandId,
@@ -809,6 +909,8 @@
                 lastEntityName: interactionLastEntityName,
                 lastPointerId: interactionLastPointerId
             },
+            scriptedEntity: scriptedEntity,
+            peer: controlledPeer(),
             controller: {
                 route: {
                     openxrAxes: openXrAxes(),
@@ -871,6 +973,9 @@
         releaseControlledKey(controlledKeyCommandId);
         Controller.disableMapping(controlledInputMappingName);
         Entities.mousePressOnEntity.disconnect(observePrimaryInteraction);
+        if (renderStats && renderStats.newStats) {
+            renderStats.newStats.disconnect(observeRenderedFrame);
+        }
         if (flightNormalizationActive) {
             MyAvatar.setFlyingEnabled(flyingEnabledBeforeNormalization);
             flightNormalizationActive = false;

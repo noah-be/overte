@@ -59,6 +59,7 @@ def validate_fixture() -> dict:
     if len(set(ids)) != len(ids) or not all(isinstance(item, str) and item for item in ids):
         raise ValueError("fixture entity IDs must be unique and non-empty")
     interaction_contract = manifest.get("interactionTarget")
+    scripted_contract = manifest.get("scriptedInteraction")
     interaction_target = next((entity for entity in entities
                                if entity.get("name") == "OVERTE_E2E_INTERACTABLE"), None)
     expected_names = list(manifest.get("requiredMarkers", []))
@@ -112,6 +113,22 @@ def validate_fixture() -> dict:
             or interaction_target.get("position") != interaction_contract.get("position")
             or interaction_target.get("dimensions") != interaction_contract.get("dimensions")):
         raise ValueError("fixture interaction target does not match its manifest")
+    expected_script = ROOT / "scripted_interactable.js"
+    if (not isinstance(scripted_contract, dict)
+            or set(scripted_contract) != {
+                "activeColor", "contract", "idleColor", "script"}
+            or scripted_contract.get("script") != expected_script.name
+            or interaction_target.get("script") != expected_script.name
+            or scripted_contract.get("contract") != "overte-e2e-scripted-entity-v1"
+            or interaction_target.get("color") != scripted_contract.get("idleColor")
+            or not expected_script.is_file()):
+        raise ValueError("fixture scripted interaction contract is invalid")
+    scripted_source = expected_script.read_text(encoding="utf-8")
+    if (scripted_contract["contract"] not in scripted_source
+            or "this.preload" not in scripted_source
+            or "this.clickDownOnEntity" not in scripted_source
+            or "Entities.editEntity" not in scripted_source):
+        raise ValueError("fixture client entity script is incomplete")
     if manifest.get("externalResources") is not False or URL.search(json.dumps(scene)):
         raise ValueError("controlled fixture must not depend on external resources")
     asset = manifest.get("asset")

@@ -8,14 +8,17 @@ import math
 import os
 import time
 from typing import Callable
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
+from urllib.request import Request, urlopen
 import uuid
 
 from contracts import (TABLET_CONTRACT_VERSION, load_tablet_ui_contract,
                        validate_operation_arguments, validate_operation_result,
                        validate_probe_snapshot)
 from module_support import (InfrastructureError, assert_foreground, assert_process,
-                            fail, operation, process_identity, write_json)
+                            fail, operation, process_identity, wait_for_process,
+                            wait_for_process_stopped, write_json)
 
 
 class OverteSession:
@@ -469,6 +472,322 @@ class OverteSession:
             "one primary pointer interaction on the controlled world target", observed)
         write_json("interaction-after.json", after)
         return before, after
+
+    def scripted_entity_interaction(self) -> tuple[dict, dict]:
+        """Require the entity's own downloaded script to mutate its properties."""
+        ready = self.wait_until(
+            "the controlled client entity script to load",
+            lambda value: value.get("scriptedEntity") is not None
+            and value["scriptedEntity"]["targetAvailable"] is True
+            and value["scriptedEntity"]["loaded"] is True
+            and value["scriptedEntity"]["state"] in {"active", "idle"},
+        )
+        before = dict(ready["scriptedEntity"])
+        write_json("scripted-entity-before.json", before)
+        self.primary_interaction()
+
+        def activated(value: dict) -> bool:
+            current = value.get("scriptedEntity")
+            if current is None or current["targetAvailable"] is not True:
+                fail("controlled scripted entity disappeared")
+            if current["loaded"] is not True:
+                fail("controlled client entity script became unloaded")
+            if current["activationCount"] > before["activationCount"] + 1:
+                fail("one primary input produced duplicate scripted activations")
+            return (current["activationCount"] == before["activationCount"] + 1
+                    and current["state"] != before["state"]
+                    and current["color"] != before["color"])
+
+        observed = self.wait_until(
+            "one independent entity-script state and color mutation", activated)
+        after = dict(observed["scriptedEntity"])
+        write_json("scripted-entity-after.json", after)
+        return before, after
+
+    def focus_text_input(self) -> dict:
+        return self._invoke("text.focus", {})
+
+    def type_text(self, text: str, backspace_count: int, submit: bool) -> dict:
+        return self._invoke("text.type", {
+            "text": text,
+            "backspaceCount": backspace_count,
+            "submit": submit,
+        })
+
+    def dismiss_text_input(self) -> dict:
+        return self._invoke("text.dismiss", {})
+
+    def text_snapshot(self) -> dict:
+        return self._invoke("text.snapshot", {})
+
+    def wait_for_text(self, predicate: Callable[[dict], bool], description: str) -> dict:
+        deadline = time.monotonic() + self.timeout_seconds
+        last = None
+        while time.monotonic() < deadline:
+            last = self.text_snapshot()
+            if predicate(last):
+                return last
+            time.sleep(self.poll_seconds)
+        if last is not None:
+            write_json("text-last.json", last)
+        fail(f"timed out waiting for {description}")
+
+    def assert_controlled_peer_roundtrip(self) -> tuple[dict, dict]:
+        minimum = self._float_environment(
+            "OVERTE_E2E_MIN_PEER_MOVE_METERS", 0.25, 0.01, 10.0)
+
+        def replicated(value: dict) -> bool:
+            peer = value.get("peer")
+            return (peer is not None and peer["present"] is True
+                    and peer["displayName"] == "OVERTE_E2E_PEER"
+                    and peer["observationCount"] >= 3
+                    and peer["movementDistanceMeters"] >= minimum)
+
+        first_sample = self.wait_until(
+            f"the controlled peer and at least {minimum} meters of replicated movement",
+            replicated,
+        )
+        first = dict(first_sample["peer"])
+        write_json("peer-before-roundtrip.json", first)
+        serverless = self.load_controlled_scene()
+        if serverless["domain"]["connected"] or not serverless["domain"]["serverless"]:
+            fail("multi-user roundtrip did not enter the controlled serverless scene")
+        self.wait_until(
+            "the controlled peer to leave the local avatar view",
+            lambda value: value.get("peer") is not None
+            and value["peer"]["present"] is False,
+        )
+        self.enter_controlled_domain()
+
+        def same_peer(value: dict) -> bool:
+            peer = value.get("peer")
+            return (peer is not None and peer["present"] is True
+                    and peer["sessionId"] == first["sessionId"]
+                    and peer["movementDistanceMeters"] > first["movementDistanceMeters"])
+
+        reconnect_sample = self.wait_until(
+            "the same controlled peer and fresh replicated movement after reconnect",
+            same_peer,
+        )
+        reconnected = dict(reconnect_sample["peer"])
+        write_json("peer-after-roundtrip.json", reconnected)
+        return first, reconnected
+
+    @staticmethod
+    def _domain_control(action: str) -> dict:
+        url = os.environ.get("OVERTE_E2E_DOMAIN_CONTROL_URL", "")
+        token = os.environ.get("OVERTE_E2E_DOMAIN_CONTROL_TOKEN", "")
+        parsed = urlsplit(url)
+        try:
+            port = parsed.port
+        except ValueError:
+            port = None
+        if (parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "::1", "localhost"}
+                or port is None or parsed.path != "/v1/domain-state"
+                or parsed.username is not None or parsed.password is not None
+                or parsed.query or parsed.fragment or not token or len(token) > 256):
+            fail("controlled domain recovery requires a private loopback control endpoint")
+        payload = json.dumps({"schemaVersion": 1, "action": action}).encode("utf-8")
+        request = Request(url, data=payload, method="POST", headers={
+            "Content-Type": "application/json",
+            "X-Overte-E2E-Token": token,
+        })
+        try:
+            with urlopen(request, timeout=30) as response:
+                result = json.loads(response.read(4096).decode("utf-8"))
+        except (HTTPError, URLError, UnicodeError, json.JSONDecodeError, TimeoutError) as error:
+            raise InfrastructureError(
+                f"controlled domain {action} request failed: {type(error).__name__}") from error
+        if (not isinstance(result, dict) or set(result) != {
+                "generation", "schemaVersion", "state"}
+                or result.get("schemaVersion") != 1
+                or result.get("state") != action
+                or not isinstance(result.get("generation"), int)
+                or isinstance(result["generation"], bool) or result["generation"] < 1):
+            raise InfrastructureError("controlled domain returned an invalid recovery response")
+        return result
+
+    def assert_network_fault_recovery(self) -> tuple[dict, dict]:
+        before = self.snapshot("network-before.json")
+        if before["domain"]["connected"] is not True:
+            fail("network recovery did not start in a connected domain")
+        expected_domain = before["domain"]["id"]
+        expected_host = before["domain"]["hostname"].lower()
+        expected_markers = before["scene"]["domainMarkers"]
+        if not expected_markers:
+            fail("network recovery started without controlled domain markers")
+        identity = process_identity()
+        offline = False
+        try:
+            self._domain_control("offline")
+            offline = True
+            disconnected = self.wait_until(
+                "the controlled domain outage to become visible in Interface",
+                lambda value: value["domain"]["connected"] is False,
+            )
+            write_json("network-disconnected.json", disconnected)
+            assert_process(identity, "controlled domain outage")
+            assert_foreground("controlled domain outage")
+            self._domain_control("online")
+            offline = False
+        finally:
+            if offline:
+                try:
+                    self._domain_control("online")
+                except InfrastructureError:
+                    pass
+
+        stable: list[dict] = []
+
+        def recovered(value: dict) -> bool:
+            domain = value["domain"]
+            scene = value["scene"]
+            matches = (domain["connected"] is True
+                       and self._parsed_domain_uuid(domain["id"]) ==
+                       self._parsed_domain_uuid(expected_domain)
+                       and domain["hostname"].lower() == expected_host
+                       and scene["domainMarkers"] == expected_markers
+                       and scene["domainMarkerCount"] == len(expected_markers))
+            stable.append(value) if matches else stable.clear()
+            return len(stable) >= 3
+
+        reconnected = self.wait_until(
+            "automatic reconnection to the exact controlled domain and content",
+            recovered,
+        )
+        assert_process(identity, "controlled domain reconnection")
+        write_json("network-reconnected.json", reconnected)
+        return disconnected, reconnected
+
+    def assert_audio_mute_roundtrip(self) -> tuple[bool, bool, bool]:
+        before = self.snapshot("audio-controls-before.json")
+        if before.get("audio") is None:
+            fail("probe does not provide audio control evidence")
+        baseline = before["audio"]["muted"]
+        toggled = not baseline
+        try:
+            self._invoke("audio.mute", {"muted": toggled})
+            changed = self.wait_until(
+                f"microphone muted state to become {toggled}",
+                lambda value: value.get("audio") is not None
+                and value["audio"]["muted"] is toggled,
+            )
+            write_json("audio-controls-toggled.json", changed)
+        finally:
+            self._invoke("audio.mute", {"muted": baseline})
+        restored_sample = self.wait_until(
+            f"microphone muted state to restore to {baseline}",
+            lambda value: value.get("audio") is not None
+            and value["audio"]["muted"] is baseline,
+        )
+        write_json("audio-controls-restored.json", restored_sample)
+        return baseline, toggled, restored_sample["audio"]["muted"]
+
+    def _restart_for_setting(self) -> str:
+        self._invoke("app.stop", {})
+        wait_for_process_stopped()
+        self._invoke("app.launch", {})
+        identity = wait_for_process()
+        self._last_sample_sequence = None
+        assert_foreground("after settings restart")
+        return identity
+
+    def assert_setting_persistence(self) -> tuple[bool, bool]:
+        before = self.snapshot("setting-before.json")
+        settings = before.get("settings")
+        if settings is None:
+            fail("probe does not provide safe setting evidence")
+        baseline = settings["audioWarnWhenMuted"]
+        changed = not baseline
+        restored = False
+        try:
+            self._invoke("setting.set", {
+                "settingId": "audio.warn-when-muted", "enabled": changed})
+            self.wait_until(
+                f"safe setting to change to {changed}",
+                lambda value: value.get("settings") is not None
+                and value["settings"]["audioWarnWhenMuted"] is changed,
+            )
+            identity = self._restart_for_setting()
+            persisted = self.wait_until(
+                f"safe setting {changed} after application restart",
+                lambda value: value.get("settings") is not None
+                and value["settings"]["audioWarnWhenMuted"] is changed,
+            )
+            assert_process(identity, "settings persistence")
+            write_json("setting-persisted.json", persisted)
+        finally:
+            process = self._invoke("app.process", {})
+            if process["running"] is not True:
+                self._invoke("app.launch", {})
+                wait_for_process()
+                self._last_sample_sequence = None
+            self._invoke("setting.set", {
+                "settingId": "audio.warn-when-muted", "enabled": baseline})
+            self._restart_for_setting()
+            restored_sample = self.wait_until(
+                f"safe setting to restore persistently to {baseline}",
+                lambda value: value.get("settings") is not None
+                and value["settings"]["audioWarnWhenMuted"] is baseline,
+            )
+            write_json("setting-restored.json", restored_sample)
+            restored = True
+        if not restored:
+            fail("safe setting restoration did not complete")
+        return baseline, changed
+
+    def assert_lifecycle_under_load(self) -> tuple[dict, dict]:
+        self.set_tablet(True)
+        identity = process_identity()
+        before = self.snapshot("lifecycle-load-before.json")
+        if before.get("render") is None:
+            fail("probe does not provide renderer progress evidence")
+        try:
+            self._invoke("lifecycle.background", {})
+            if self._invoke("app.foreground", {})["foreground"] is not False:
+                fail("loaded application did not enter background")
+            assert_process(identity, "loaded background transition")
+            self._invoke("app.launch", {})
+            assert_foreground("loaded foreground transition")
+            assert_process(identity, "loaded foreground transition")
+            after = self.wait_until(
+                "scene, tablet, and renderer progress after foreground activation",
+                lambda value: self._fixture_ready(value)
+                and value["tablet"]["open"] is True
+                and value.get("render") is not None
+                and value["render"]["frameCount"] > before["render"]["frameCount"],
+            )
+            write_json("lifecycle-load-after.json", after)
+            return before, after
+        finally:
+            self.set_tablet(False)
+
+    def assert_render_health(self) -> tuple[dict, dict]:
+        native_before = self._invoke("render.snapshot", {})
+        if native_before["hardwareAccelerated"] is not True:
+            fail("target presentation is not hardware accelerated")
+        if native_before["surfaceVisible"] is not True:
+            fail("target render surface is not visible")
+        if native_before["blackFrame"] is True:
+            fail("target presentation was classified as a black frame")
+        probe_before = self.snapshot("render-probe-before.json")
+        if probe_before.get("render") is None:
+            fail("probe does not provide renderer frame evidence")
+        probe_after = self.wait_until(
+            "in-client renderer frames to advance",
+            lambda value: value.get("render") is not None
+            and value["render"]["frameCount"] > probe_before["render"]["frameCount"],
+        )
+        native_after = self._invoke("render.snapshot", {})
+        if (native_after["backend"] != native_before["backend"]
+                or native_after["hardwareAccelerated"] is not True
+                or native_after["surfaceVisible"] is not True
+                or native_after["blackFrame"] is True
+                or native_after["frameSequence"] <= native_before["frameSequence"]):
+            fail("native presentation did not remain healthy and advance")
+        write_json("render-native.json", native_after)
+        write_json("render-probe-after.json", probe_after)
+        return native_after, probe_after
 
     @staticmethod
     def movement_vector(body_yaw_degrees: float, direction: str) -> tuple[float, float]:

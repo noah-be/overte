@@ -33,6 +33,10 @@
       "operation": "asset.load",
       "result": "{requested: true}; completion is verified independently by fixture telemetry and probe.snapshot"
     },
+    "audio.mute": {
+      "operation": "audio.mute",
+      "result": "{performed: true}; arguments: {muted: boolean}; use the target's real microphone-mute control path"
+    },
     "input.fly": {
       "operation": "input.fly",
       "result": "{performed: true}; arguments: {durationSeconds: number from 0.1 through 10.0}"
@@ -65,6 +69,10 @@
       "operation": "probe.snapshot",
       "result": "Overte probe snapshot schema version 2; arguments: {afterSampleSequence?: positive integer}; result sequence must be greater when supplied"
     },
+    "render.snapshot": {
+      "operation": "render.snapshot",
+      "result": "Render presentation snapshot v1: backend, hardware acceleration, visible surface, black-frame classification, and monotonic frame sequence"
+    },
     "scene.load": {
       "operation": "scene.load",
       "result": "{requested: true, verification?: fixture-markers}; arguments: {url: absolute URL}"
@@ -72,6 +80,10 @@
     "scene.reload": {
       "operation": "scene.reload",
       "result": "{requested: true, commandId: string, verification?: fixture-markers}; arguments: {url: absolute URL}; explicitly resets an already controlled scene"
+    },
+    "setting.set": {
+      "operation": "setting.set",
+      "result": "{performed: true}; arguments: {settingId: audio.warn-when-muted, enabled: boolean}; use the semantic product setting control"
     },
     "sound.play": {
       "operation": "sound.play",
@@ -100,6 +112,22 @@
     "telemetry.snapshot": {
       "operation": "telemetry.snapshot",
       "result": "Portable battery, memory and thermal sample"
+    },
+    "text.dismiss": {
+      "operation": "text.dismiss",
+      "result": "{performed: true}; arguments: {}; remove focus from the controlled E2E text field and dismiss any platform keyboard"
+    },
+    "text.focus": {
+      "operation": "text.focus",
+      "result": "{performed: true}; arguments: {}; focus and clear the repository-owned controlled E2E text field"
+    },
+    "text.snapshot": {
+      "operation": "text.snapshot",
+      "result": "Text input snapshot contract version 1: {schemaVersion, value, focused, keyboardVisible, submittedCount}"
+    },
+    "text.type": {
+      "operation": "text.type",
+      "result": "{performed: true}; arguments: {text: bounded Unicode string, backspaceCount: integer 0..32, submit: boolean}; use the target's real text-input path"
     }
   }
 }
