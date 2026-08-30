@@ -1,5 +1,5 @@
 import QtQuick 2.7
-import "../../../controlsUit" as HifiControls
+import "../../controlsUit" as HifiControls
 
 HifiControls.TouchUiMetrics {
     // Pico's concrete HMD preferences are registered in the real

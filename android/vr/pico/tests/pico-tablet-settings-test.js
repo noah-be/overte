@@ -50,6 +50,8 @@ assert.match(picoSettingNumber,
 assert.match(picoSettingNumber, /RegularExpressionValidator/);
 assert.match(picoGeneralPreferencesPolicy,
     /"VR Movement":\s*"settings\.hmd-preferences"/);
+assert.match(picoGeneralPreferencesPolicy,
+    /import "\.\.\/\.\.\/controlsUit" as HifiControls/);
 assert.doesNotMatch(picoGeneralPreferencesPolicy,
     /"HMD":\s*"settings\.hmd-preferences"/);
 assert.match(fileUtils, /extraSelectors << "android_" HIFI_ANDROID_APP/);
