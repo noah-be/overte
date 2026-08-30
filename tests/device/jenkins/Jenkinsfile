@@ -202,8 +202,8 @@ pipeline {
         )
         string(
             name: 'FIXTURE_PORT',
-            defaultValue: '18080',
-            description: 'Fixed LAN fixture TCP port reachable by the reserved device.'
+            defaultValue: '0',
+            description: 'Ephemeral fixture port; Jenkins updates the private per-build target copy after bind.'
         )
         choice(
             name: 'FIXTURE_MODE',
@@ -289,9 +289,9 @@ pipeline {
                     if (!params.FIXTURE_PUBLIC_HOST.trim()) {
                         error('FIXTURE_PUBLIC_HOST is required for the core scene test')
                     }
-                    if (!(params.FIXTURE_PORT.trim() ==~ /[1-9][0-9]*/) ||
+                    if (!(params.FIXTURE_PORT.trim() ==~ /[0-9]+/) ||
                             params.FIXTURE_PORT.trim().toInteger() > 65535) {
-                        error('FIXTURE_PORT must be a fixed TCP port from 1 through 65535')
+                        error('FIXTURE_PORT must be an integer from 0 through 65535')
                     }
                     adapterManifest(params.TARGET_PROFILE)
                     env.OVERTE_TARGET_NEEDS_CLEANUP = '0'
