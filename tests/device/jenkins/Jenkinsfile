@@ -96,7 +96,7 @@ def runDeviceSuite(String suite, int timeoutMinutes) {
 }
 
 pipeline {
-    agent { label 'overte-device-interactive' }
+    agent { label 'overte-device-ipad' }
 
     options {
         timeout(time: 8, unit: 'HOURS')
