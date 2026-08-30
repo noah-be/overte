@@ -6,16 +6,16 @@ runner. Jenkins does not contain test scenarios or target automation; those
 remain in `tests/device/catalog.json`, `tests/device/modules`, and
 `tests/device/adapters`.
 
-The intended first deployment has the Jenkins controller and one agent on the
-same computer. The agent owns the attached devices and their local transport
-services:
+The intended deployment has the Jenkins controller and three logical agents on
+the same trusted computer. Each agent owns one scheduling role while the host
+owns the attached devices and their local transport services:
 
 ```text
 Jenkins controller (no executors)
-  -> agent label: overte-device-interactive (one executor)
-       -> tests/device/jenkins/Jenkinsfile
-          -> tests/device/run.py
-             -> adapter -> attached physical target
+  -> overte-device-ipad  (one executor, private remote root)
+  -> overte-device-phone (one executor, private remote root)
+  -> overte-device-pico  (one executor, private remote root)
+       -> role-specific Pipeline -> device lock -> adapter -> physical target
 ```
 
 Do not run device transports inside the controller container. Keep the agent in
@@ -59,7 +59,8 @@ python3 tests/device/jenkins/prepare_private_targets.py \
 ```
 
 On Linux, the bootstrap can install and start a loopback-only controller,
-separate inbound agent, and Appium server as graphical user services:
+three separate inbound agents, and isolated Android/iOS Appium servers as
+graphical user services:
 
 ```bash
 python3 tests/device/jenkins/local_lab.py install-systemd-user-services \
@@ -76,10 +77,15 @@ only after completing the corresponding hardware gate. On Windows and macOS,
 run the `controller` and `agent` subcommands from the logged-in lab account or
 translate them into that OS's user-session service mechanism.
 
-Set the controller's built-in executor count to zero. Create an agent with the
-exact label `overte-device-interactive` and initially give it one executor.
-Keep the controller on localhost or a trusted LAN, enable authentication, and
-do not expose it directly to the Internet.
+The controller's built-in executor count remains zero. Each role agent has
+exactly one executor and its own remote root. The Android and iOS Appium
+services listen only on loopback at separate endpoints; their target
+capabilities also reserve explicit UiAutomator2 `systemPort` and XCUITest
+`wdaLocalPort` values. Keep the controller on localhost or a trusted LAN,
+enable authentication, and do not expose it directly to the Internet.
+The Phone node retains the legacy `overte-device-interactive` compatibility
+label so previously defined jobs remain schedulable; new device jobs must use
+only their exact role label.
 
 ## Register one physical target
 
@@ -90,7 +96,8 @@ do not expose it directly to the Internet.
 2. In **Manage Jenkins -> Lockable Resources**, create a resource such as
    `android-phone-01`. Do not use the serial number as the resource name.
 3. Create a Pipeline job from SCM and select
-   `tests/device/jenkins/Jenkinsfile` as its script path.
+   `tests/device/jenkins/Jenkinsfile` as its script path. The Pipeline maps the
+   selected profile to exactly one of the three role labels.
 4. Set `DEVICE_RESOURCE`, `TARGET_SELECTOR_CREDENTIAL_ID`, and the matching
    `TARGET_PROFILE` when starting the job.
 

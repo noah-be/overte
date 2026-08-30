@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import platform
 import secrets
+import shutil
 import stat
 import subprocess
 import sys
@@ -28,7 +29,23 @@ PLUGINS_FILE = HERE / "plugins.lock.txt"
 PLUGIN_ARTIFACTS_FILE = HERE / "plugins.artifacts.lock.json"
 JENKINS_TEMPLATE = HERE / "jenkins.yaml"
 MAX_DOWNLOAD_BYTES = 768 * 1024 * 1024
-NODE_NAME = "overte-device-local"
+AGENT_ROLES = {
+    "phone": {
+        "node": "overte-device-local",
+        "label": "overte-device-phone",
+        "rootToken": "__OVERTE_PHONE_AGENT_ROOT__",
+    },
+    "ipad": {
+        "node": "overte-device-ipad",
+        "label": "overte-device-ipad",
+        "rootToken": "__OVERTE_IPAD_AGENT_ROOT__",
+    },
+    "pico": {
+        "node": "overte-device-pico",
+        "label": "overte-device-pico",
+        "rootToken": "__OVERTE_PICO_AGENT_ROOT__",
+    },
+}
 ADMIN_ID = "overte-admin"
 
 
@@ -112,15 +129,23 @@ def java_major(java: Path) -> int:
         fail("could not determine the configured Java version")
 
 
-def paths(arguments: argparse.Namespace) -> dict[str, Path]:
+def paths(arguments: argparse.Namespace) -> dict[str, object]:
     install = secure_directory(Path(arguments.install_root).expanduser())
     config = secure_directory(Path(arguments.config_root).expanduser())
+    agent_roots = {
+        # Keep the original root for the Phone role so an existing installation
+        # can be migrated without moving or interrupting its inbound agent.
+        "phone": secure_directory(config / "agent"),
+        "ipad": secure_directory(config / "agents" / "ipad"),
+        "pico": secure_directory(config / "agents" / "pico"),
+    }
     return {
         "install": install,
         "config": config,
         "artifacts": secure_directory(install / "artifacts"),
         "jenkinsHome": secure_directory(config / "jenkins-home"),
-        "agentRoot": secure_directory(config / "agent"),
+        "agentRoot": agent_roots["phone"],
+        "agentRoots": agent_roots,
         "state": config / "local-lab.json",
         "password": config / "admin-password",
         "casc": config / "jenkins.yaml",
@@ -201,9 +226,12 @@ def render_casc(location: dict[str, Path]) -> None:
     source = JENKINS_TEMPLATE.read_text(encoding="utf-8")
     rendered = source.replace("__OVERTE_ADMIN_PASSWORD_FILE__",
                               location["password"].as_posix())
-    rendered = rendered.replace("__OVERTE_AGENT_ROOT__", location["agentRoot"].as_posix())
+    for role, spec in AGENT_ROLES.items():
+        rendered = rendered.replace(
+            spec["rootToken"], location["agentRoots"][role].as_posix())
     if any(token in rendered for token in (
-            "__OVERTE_ADMIN_PASSWORD_FILE__", "__OVERTE_AGENT_ROOT__")):
+            "__OVERTE_ADMIN_PASSWORD_FILE__",
+            *(spec["rootToken"] for spec in AGENT_ROLES.values()))):
         fail("Jenkins JCasC template contains an unresolved token")
     secure_write(location["casc"], rendered)
 
@@ -234,7 +262,10 @@ def install(arguments: argparse.Namespace) -> int:
         "java": str(java),
         "jenkinsWar": str(war),
         "jenkinsHome": str(location["jenkinsHome"]),
-        "agentRoot": str(location["agentRoot"]),
+        "agentRoot": str(location["agentRoots"]["phone"]),
+        "agentRoots": {
+            role: str(root) for role, root in location["agentRoots"].items()
+        },
         "casc": str(location["casc"]),
         "adminId": ADMIN_ID,
         "adminPasswordFile": str(location["password"]),
@@ -256,6 +287,25 @@ def read_state(arguments: argparse.Namespace) -> dict:
     if value.get("schemaVersion") != 1:
         fail("unsupported local device-lab state")
     return value
+
+
+def state_agent_roots(state: dict, config_root: Path) -> dict[str, Path]:
+    configured = state.get("agentRoots")
+    if isinstance(configured, dict) and all(
+            isinstance(configured.get(role), str) for role in AGENT_ROLES):
+        roots = {role: secure_directory(Path(configured[role]).expanduser())
+                 for role in AGENT_ROLES}
+    else:
+        legacy = Path(state["agentRoot"]).expanduser()
+        roots = {
+            "phone": secure_directory(legacy),
+            "ipad": secure_directory(config_root / "agents" / "ipad"),
+            "pico": secure_directory(config_root / "agents" / "pico"),
+        }
+        state["agentRoots"] = {role: str(root) for role, root in roots.items()}
+        secure_write(config_root / "local-lab.json",
+                     json.dumps(state, indent=2, sort_keys=True) + "\n")
+    return roots
 
 
 def controller(arguments: argparse.Namespace) -> int:
@@ -294,19 +344,23 @@ def wait_controller(state: dict, seconds: int = 120) -> None:
 def agent(arguments: argparse.Namespace) -> int:
     state = read_state(arguments)
     wait_controller(state)
-    jar = Path(state["agentRoot"]) / "agent.jar"
+    role = arguments.role
+    spec = AGENT_ROLES[role]
+    config_root = Path(arguments.config_root).expanduser().resolve()
+    agent_root = state_agent_roots(state, config_root)[role]
+    jar = agent_root / "agent.jar"
     jar.write_bytes(authenticated_request(state, "/jnlpJars/agent.jar"))
     jnlp = authenticated_request(
-        state, f"/computer/{NODE_NAME}/jenkins-agent.jnlp").decode("utf-8")
+        state, f"/computer/{spec['node']}/jenkins-agent.jnlp").decode("utf-8")
     root = ET.fromstring(jnlp)
     values = [item.text or "" for item in root.findall(".//argument")]
     if len(values) < 2 or not values[0]:
         fail("Jenkins did not return an inbound-agent secret")
-    secret_file = Path(state["agentRoot"]) / "secret"
+    secret_file = agent_root / "secret"
     secure_write(secret_file, values[0] + "\n")
     command = [state["java"], "-jar", str(jar), "-url", state["serverUrl"],
-               "-secret", "@" + str(secret_file), "-name", NODE_NAME, "-webSocket",
-               "-workDir", state["agentRoot"]]
+               "-secret", "@" + str(secret_file), "-name", spec["node"], "-webSocket",
+               "-workDir", str(agent_root)]
     return subprocess.run(command, check=False).returncode
 
 
@@ -314,14 +368,56 @@ def status(arguments: argparse.Namespace) -> int:
     state = read_state(arguments)
     try:
         wait_controller(state, seconds=5)
-        node = json.loads(authenticated_request(
-            state, f"/computer/{NODE_NAME}/api/json", timeout=5))
+        nodes = {
+            role: json.loads(authenticated_request(
+                state, f"/computer/{spec['node']}/api/json", timeout=5))
+            for role, spec in AGENT_ROLES.items()
+        }
     except (RuntimeError, HTTPError, URLError, OSError, json.JSONDecodeError):
         print("controller=offline agent=unknown")
         return 1
-    online = isinstance(node, dict) and node.get("offline") is False
-    print(f"controller=online agent={'online' if online else 'offline'}")
-    return 0 if online else 2
+    online = {role: isinstance(node, dict) and node.get("offline") is False
+              for role, node in nodes.items()}
+    print(f"controller=online agents_online={sum(online.values())}/{len(online)}")
+    return 0 if all(online.values()) else 2
+
+
+def prepare_command_agent_launchers(arguments: argparse.Namespace) -> int:
+    """Prepare secret-free same-host launchers for additive CLI-created nodes."""
+    if platform.system() != "Linux":
+        fail("command agent launchers are supported only on Linux")
+    state = read_state(arguments)
+    config = Path(arguments.config_root).expanduser().resolve()
+    roots = state_agent_roots(state, config)
+    java = Path(state["java"]).expanduser().resolve()
+    source_jar = roots["phone"] / "agent.jar"
+    if not java.is_file() or not source_jar.is_file():
+        fail("the existing local agent runtime is incomplete")
+    environment_file = config / "agent.env"
+    if not environment_file.is_file():
+        fail("the private agent environment is missing")
+    for role, root in roots.items():
+        jar = root / "agent.jar"
+        if role != "phone":
+            shutil.copyfile(source_jar, jar)
+            if os.name != "nt":
+                jar.chmod(stat.S_IRUSR | stat.S_IWUSR)
+        launcher = root / "launch-command-agent"
+        secure_write(launcher, "\n".join((
+            "#!/bin/sh",
+            "set -eu",
+            "umask 077",
+            "set -a",
+            f". {systemd_quote(environment_file)}",
+            "set +a",
+            "exec " + " ".join(map(systemd_quote, (
+                java, "-jar", jar, "-workDir", root))),
+            "",
+        )))
+        if os.name != "nt":
+            launcher.chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+    print(f"Prepared {len(roots)} private command-agent launchers.")
+    return 0
 
 
 def systemd_quote(value: object) -> str:
@@ -354,8 +450,11 @@ def install_systemd_user_services(arguments: argparse.Namespace) -> int:
     config = Path(arguments.config_root).expanduser().resolve()
     controller_command = " ".join(map(systemd_quote, (
         python, script, "controller", "--config-root", config)))
-    agent_command = " ".join(map(systemd_quote, (
-        python, script, "agent", "--config-root", config)))
+    agent_commands = {
+        role: " ".join(map(systemd_quote, (
+            python, script, "agent", "--config-root", config, "--role", role)))
+        for role in AGENT_ROLES
+    }
     controller_unit = f"""[Unit]
 Description=Overte local Jenkins device-lab controller
 After=network-online.target
@@ -371,15 +470,17 @@ PrivateTmp=true
 [Install]
 WantedBy=default.target
 """
-    agent_unit = f"""[Unit]
-Description=Overte interactive Jenkins physical-device agent
+    agent_units = {}
+    for role in AGENT_ROLES:
+        agent_units[role] = f"""[Unit]
+Description=Overte Jenkins physical-device agent ({role})
 After=overte-jenkins-controller.service graphical-session.target
 Wants=overte-jenkins-controller.service
 PartOf=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart={agent_command}
+ExecStart={agent_commands[role]}
 Restart=on-failure
 RestartSec=5
 PassEnvironment=DISPLAY WAYLAND_DISPLAY XAUTHORITY XDG_SESSION_TYPE DBUS_SESSION_BUS_ADDRESS
@@ -390,11 +491,15 @@ EnvironmentFile=-{str(config / 'agent.env')}
 WantedBy=graphical-session.target
 """
     secure_write(unit_root / "overte-jenkins-controller.service", controller_unit)
-    secure_write(unit_root / "overte-jenkins-agent.service", agent_unit)
-    appium_unit = None
+    agent_service_names = {
+        "phone": "overte-jenkins-agent.service",
+        "ipad": "overte-jenkins-agent-ipad.service",
+        "pico": "overte-jenkins-agent-pico.service",
+    }
+    for role, service_name in agent_service_names.items():
+        secure_write(unit_root / service_name, agent_units[role])
+    appium_units = {}
     if state.get("appiumExecutable"):
-        appium_command = " ".join(map(systemd_quote, (
-            state["appiumExecutable"], "--address", "127.0.0.1", "--port", "4723")))
         appium_environment = [
             f"Environment={systemd_quote('APPIUM_HOME=' + state['appiumHome'])}",
         ]
@@ -404,8 +509,12 @@ WantedBy=graphical-session.target
                 f"Environment={systemd_quote(f'ANDROID_SDK_ROOT={android_sdk}')}",
                 f"Environment={systemd_quote(f'ANDROID_HOME={android_sdk}')}",
             ]
-        appium_unit = f"""[Unit]
-Description=Overte pinned local Appium server
+        for role, port in (("android", 4723), ("ios", 4725)):
+            appium_command = " ".join(map(systemd_quote, (
+                state["appiumExecutable"], "--address", "127.0.0.1",
+                "--port", str(port))))
+            appium_units[role] = f"""[Unit]
+Description=Overte pinned local Appium server ({role})
 After=network.target
 
 [Service]
@@ -420,17 +529,20 @@ PrivateTmp=true
 [Install]
 WantedBy=default.target
 """
-        secure_write(unit_root / "overte-appium.service", appium_unit)
+        secure_write(unit_root / "overte-appium.service", appium_units["android"])
+        secure_write(unit_root / "overte-appium-ios.service", appium_units["ios"])
     subprocess.run(["systemctl", "--user", "daemon-reload"], timeout=30, check=True)
     subprocess.run(["systemctl", "--user", "enable", "--now",
                     "overte-jenkins-controller.service"], timeout=30, check=True)
     wait_controller(state)
-    subprocess.run(["systemctl", "--user", "enable", "--now",
-                    "overte-jenkins-agent.service"], timeout=30, check=True)
-    if appium_unit is not None:
-        subprocess.run(["systemctl", "--user", "enable", "--now",
-                        "overte-appium.service"], timeout=30, check=True)
-    print("Installed and started the local Jenkins controller and interactive agent.")
+    for service_name in agent_service_names.values():
+        subprocess.run(["systemctl", "--user", "enable", "--now", service_name],
+                       timeout=30, check=True)
+    if appium_units:
+        for service_name in ("overte-appium.service", "overte-appium-ios.service"):
+            subprocess.run(["systemctl", "--user", "enable", "--now", service_name],
+                           timeout=30, check=True)
+    print("Installed and started the local Jenkins controller and three device agents.")
     return 0
 
 
@@ -446,10 +558,15 @@ def parser() -> argparse.ArgumentParser:
     install_parser.add_argument("--port", type=int, default=8080)
     install_parser.add_argument("--skip-appium", action="store_true")
     install_parser.set_defaults(function=install)
-    for name, function in (("controller", controller), ("agent", agent), ("status", status),
+    for name, function in (("controller", controller), ("status", status),
+                           ("prepare-command-agent-launchers",
+                            prepare_command_agent_launchers),
                            ("install-systemd-user-services", install_systemd_user_services)):
         action = sub.add_parser(name, parents=[common])
         action.set_defaults(function=function)
+    agent_parser = sub.add_parser("agent", parents=[common])
+    agent_parser.add_argument("--role", choices=tuple(AGENT_ROLES), default="phone")
+    agent_parser.set_defaults(function=agent)
     return value
 
 

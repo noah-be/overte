@@ -23,10 +23,10 @@ jenkins:
   nodes:
     - permanent:
         name: "overte-device-local"
-        remoteFS: "__OVERTE_AGENT_ROOT__"
+        remoteFS: "__OVERTE_PHONE_AGENT_ROOT__"
         numExecutors: 1
         mode: EXCLUSIVE
-        labelString: "overte-device-interactive"
+        labelString: "overte-device-phone overte-device-interactive"
         launcher:
           inbound:
             webSocket: true
@@ -34,7 +34,35 @@ jenkins:
               disabled: false
               failIfWorkDirIsMissing: true
               internalDir: "remoting"
-              workDirPath: "__OVERTE_AGENT_ROOT__"
+              workDirPath: "__OVERTE_PHONE_AGENT_ROOT__"
+    - permanent:
+        name: "overte-device-ipad"
+        remoteFS: "__OVERTE_IPAD_AGENT_ROOT__"
+        numExecutors: 1
+        mode: EXCLUSIVE
+        labelString: "overte-device-ipad"
+        launcher:
+          inbound:
+            webSocket: true
+            workDirSettings:
+              disabled: false
+              failIfWorkDirIsMissing: true
+              internalDir: "remoting"
+              workDirPath: "__OVERTE_IPAD_AGENT_ROOT__"
+    - permanent:
+        name: "overte-device-pico"
+        remoteFS: "__OVERTE_PICO_AGENT_ROOT__"
+        numExecutors: 1
+        mode: EXCLUSIVE
+        labelString: "overte-device-pico"
+        launcher:
+          inbound:
+            webSocket: true
+            workDirSettings:
+              disabled: false
+              failIfWorkDirIsMissing: true
+              internalDir: "remoting"
+              workDirPath: "__OVERTE_PICO_AGENT_ROOT__"
 
 unclassified:
   location:

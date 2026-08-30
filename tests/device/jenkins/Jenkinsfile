@@ -16,6 +16,20 @@ String adapterManifest(String profile) {
     }
 }
 
+String deviceAgentLabel(String profile) {
+    switch (profile) {
+        case 'appium-ios':
+            return 'overte-device-ipad'
+        case 'android-pico-adb':
+            return 'overte-device-pico'
+        case 'android-phone-adb':
+        case 'appium-android':
+            return 'overte-device-phone'
+        default:
+            error("Unsupported target profile: ${profile}")
+    }
+}
+
 def ciPython(String action, boolean returnStatus = false) {
     if (isUnix()) {
         return sh(script: "#!/bin/sh\nset +x\nexec python3 tests/device/jenkins/run_ci.py ${action}\n",
@@ -23,6 +37,15 @@ def ciPython(String action, boolean returnStatus = false) {
     }
     return bat(script: "@echo off\r\npy -3 tests\\device\\jenkins\\run_ci.py ${action}\r\n",
                returnStatus: returnStatus)
+}
+
+def ciSelfCheck() {
+    if (isUnix()) {
+        // Permission-contract tests deliberately create an insecure mode and
+        // must not inherit the private agent launcher's restrictive umask.
+        return sh(script: "#!/bin/sh\nset +x\numask 022\nexec python3 tests/device/jenkins/run_ci.py self-check\n")
+    }
+    return ciPython('self-check')
 }
 
 def runDeviceSuite(String suite, int timeoutMinutes) {
@@ -94,14 +117,20 @@ def runDeviceSuite(String suite, int timeoutMinutes) {
 }
 
 pipeline {
-    agent { label 'overte-device-interactive' }
+    agent { label deviceAgentLabel(params.TARGET_PROFILE) }
 
     options {
         timeout(time: 8, unit: 'HOURS')
+        skipDefaultCheckout(true)
         buildDiscarder(logRotator(numToKeepStr: '30', artifactNumToKeepStr: '15'))
     }
 
     parameters {
+        string(
+            name: 'SOURCE_COMMIT',
+            defaultValue: '',
+            description: 'Exact trusted 40-character Git commit tested by this run.'
+        )
         choice(
             name: 'TARGET_PROFILE',
             choices: [
@@ -250,6 +279,38 @@ pipeline {
     }
 
     stages {
+        stage('Checkout exact source') {
+            steps {
+                script {
+                    if (!(params.SOURCE_COMMIT ==~ /[0-9a-f]{40}/)) {
+                        error('SOURCE_COMMIT must be an exact lowercase SHA-1')
+                    }
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: params.SOURCE_COMMIT]],
+                        doGenerateSubmoduleConfigurations: false,
+                        extensions: [[$class: 'CloneOption', noTags: true]],
+                        userRemoteConfigs: scm.userRemoteConfigs,
+                    ])
+                    if (isUnix()) {
+                        sh '''#!/bin/sh
+                            set -eu
+                            test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+                            git diff --quiet --ignore-submodules --
+                            git diff --cached --quiet --ignore-submodules --
+                        '''
+                    } else {
+                        bat '''@echo off
+                            for /f %%i in ('git rev-parse HEAD') do set ACTUAL_COMMIT=%%i
+                            if not "%ACTUAL_COMMIT%"=="%SOURCE_COMMIT%" exit /b 1
+                            git diff --quiet --ignore-submodules -- || exit /b 1
+                            git diff --cached --quiet --ignore-submodules -- || exit /b 1
+                        '''
+                    }
+                }
+            }
+        }
+
         stage('Validate configuration') {
             steps {
                 script {
@@ -312,7 +373,7 @@ pipeline {
         stage('Device-free contracts') {
             steps {
                 withEnv(["OVERTE_CI_WORKSPACE=${env.WORKSPACE}"]) {
-                    script { ciPython('self-check') }
+                    script { ciSelfCheck() }
                 }
             }
         }
