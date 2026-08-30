@@ -197,6 +197,10 @@ class AppiumAdapter:
     }
     IOS_SERVICE_RUNTIME_REVISION = 12
     IOS_LAUNCH_STABILITY_SECONDS = 1.0
+    IOS_DOCUMENTS_PROBE_PULL_ATTEMPTS = 20
+    IOS_DOCUMENTS_PROBE_PULL_RETRY_BASE_SECONDS = 0.05
+    IOS_DOCUMENTS_PROBE_PULL_RETRY_STEP_SECONDS = 0.017
+    IOS_DOCUMENTS_PROBE_PULL_RETRY_MAX_SECONDS = 0.15
 
     def __init__(self, platform: str) -> None:
         self.platform = platform
@@ -1646,7 +1650,7 @@ class AppiumAdapter:
             # an atomic rename. A file transfer can therefore observe the tiny
             # truncate/write window. Retry only malformed transport content;
             # valid-but-wrong snapshots still fail their contract immediately.
-            for attempt in range(5):
+            for attempt in range(self.IOS_DOCUMENTS_PROBE_PULL_ATTEMPTS):
                 value = client.execute(session, "mobile: pullFile", {"remotePath": remote})
                 if not isinstance(value, str):
                     fail("iOS Documents probe pull did not return base64 content")
@@ -1655,9 +1659,17 @@ class AppiumAdapter:
                         base64.b64decode(value, validate=True).decode("utf-8"))
                     break
                 except (ValueError, UnicodeError, json.JSONDecodeError):
-                    if attempt == 4:
+                    if attempt == self.IOS_DOCUMENTS_PROBE_PULL_ATTEMPTS - 1:
                         fail("iOS Documents probe pull returned invalid content")
-                    time.sleep(0.05)
+                    # The writer updates every 250 ms. A fixed retry period can
+                    # repeatedly align pullFile with the same truncate/write
+                    # phase, so step the bounded delay to deliberately dephase
+                    # subsequent reads while retaining a finite operation.
+                    time.sleep(min(
+                        self.IOS_DOCUMENTS_PROBE_PULL_RETRY_BASE_SECONDS
+                        + attempt * self.IOS_DOCUMENTS_PROBE_PULL_RETRY_STEP_SECONDS,
+                        self.IOS_DOCUMENTS_PROBE_PULL_RETRY_MAX_SECONDS,
+                    ))
             result = self.validate_probe(snapshot)
             self.assert_ios_process_identity(selector, client, session, state, target)
             return result

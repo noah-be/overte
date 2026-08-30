@@ -622,6 +622,25 @@ class AppiumAdapterTests(unittest.TestCase):
         self.assertEqual(2, observed["schemaVersion"])
         pause.assert_called_once_with(0.05)
 
+    def test_ios_documents_probe_dephases_sustained_partial_writes(self) -> None:
+        adapter, client, state, _target = self.adapter_and_session()
+        client.app_state = 4
+        state["processIdentity"] = "4123"
+        partial = base64.b64encode(b'{"schemaVersion":').decode("ascii")
+        client.pull_values = [partial] * 8 + [
+            base64.b64encode(json.dumps(snapshot()).encode("utf-8")).decode("ascii")
+        ]
+
+        with mock.patch.object(APPIUM.time, "sleep") as pause:
+            observed = adapter.invoke("private-ipad", "probe.snapshot", {})
+
+        self.assertEqual(2, observed["schemaVersion"])
+        self.assertEqual(8, pause.call_count)
+        delays = [call.args[0] for call in pause.call_args_list]
+        self.assertEqual(0.05, delays[0])
+        self.assertGreater(len(set(delays)), 1)
+        self.assertTrue(all(0.05 <= delay <= 0.15 for delay in delays))
+
     def test_ios_launch_rejects_an_app_that_immediately_leaves_foreground(self) -> None:
         for observed_state in (1, 3):
             with self.subTest(observed_state=observed_state):
