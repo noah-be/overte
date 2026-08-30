@@ -52,6 +52,10 @@ assert.match(picoGeneralPreferencesPolicy,
     /"VR Movement":\s*"settings\.hmd-preferences"/);
 assert.match(picoGeneralPreferencesPolicy,
     /import "\.\.\/\.\.\/controlsUit" as HifiControls/);
+assert.ok(
+    picoGeneralPreferencesPolicy.indexOf('categories.push("VR Movement")') <
+        picoGeneralPreferencesPolicy.indexOf('categories.push("User Interface")'),
+    "Pico's contract-bearing VR section must be in the initial tablet viewport");
 assert.doesNotMatch(picoGeneralPreferencesPolicy,
     /"HMD":\s*"settings\.hmd-preferences"/);
 assert.match(fileUtils, /extraSelectors << "android_" HIFI_ANDROID_APP/);
