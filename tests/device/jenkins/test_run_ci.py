@@ -767,7 +767,7 @@ class JenkinsGlueTest(unittest.TestCase):
         self.assertNotIn("runDeviceSuite('lifecycle-stability'", source)
         self.assertNotIn("runDeviceSuite('smoke'", source)
         self.assertIn("RUN_CORE is mandatory", source)
-        self.assertIn("FIXTURE_PORT must be a fixed TCP port", source)
+        self.assertIn("FIXTURE_PORT must be an integer from 0 through 65535", source)
 
 
 if __name__ == "__main__":
