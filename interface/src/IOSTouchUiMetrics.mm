@@ -288,15 +288,29 @@ CGRect tabletItemFrame(QQuickItem* item, CGRect safeBounds) {
     return CGRectIntersection(frame, safeBounds);
 }
 
+QList<QQuickItem*> tabletVisualItems(QQuickItem* tabletRoot) {
+    QList<QQuickItem*> items;
+    if (tabletRoot == nullptr) {
+        return items;
+    }
+    items.append(tabletRoot);
+    for (int index = 0; index < items.size(); ++index) {
+        for (QQuickItem* child : items.at(index)->childItems()) {
+            if (child != nullptr && !items.contains(child)) {
+                items.append(child);
+            }
+        }
+    }
+    return items;
+}
+
 QString observedTabletScreen(QQuickItem* tabletRoot) {
     if (tabletRoot == nullptr) {
         return {};
     }
 
-    QList<QQuickItem*> candidates = tabletRoot->findChildren<QQuickItem*>();
-    candidates.prepend(tabletRoot);
     QString observedScreen;
-    for (QQuickItem* item : candidates) {
+    for (QQuickItem* item : tabletVisualItems(tabletRoot)) {
         if (!visibleTabletItem(item)) {
             continue;
         }
@@ -533,7 +547,7 @@ void updateIOSTabletAccessibilityControls(
         ? tabletRoot->findChild<QQuickItem*>(QStringLiteral("loader")) : nullptr;
     // QmlSurface.load() exposes its item as a JavaScript-valued QML property,
     // which cannot be unwrapped reliably through QObject::property on the
-    // physical iOS build. Walk the stable root's visible QObject children and
+    // physical iOS build. Walk the stable root's visual QQuickItem tree and
     // consume only explicit, allow-listed semanticScreenId properties. Equal
     // duplicate projections are harmless; conflicting visible pages fail
     // closed in observedTabletScreen().
@@ -574,12 +588,8 @@ void updateIOSTabletAccessibilityControls(
             [activeIdentifiers addObject:readyIdentifier];
         }
 
-        QList<QQuickItem*> candidates = tabletRoot->findChildren<QQuickItem*>();
-        if (!candidates.contains(loadedItem)) {
-            candidates.append(loadedItem);
-        }
         QSet<QString> exposedControls;
-        for (QQuickItem* item : candidates) {
+        for (QQuickItem* item : tabletVisualItems(tabletRoot)) {
             QString controlId = item->property("semanticId").toString();
             if (controlId.isEmpty()) {
                 controlId = item->objectName();
