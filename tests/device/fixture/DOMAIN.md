@@ -24,8 +24,13 @@ The ready file supplies `domainUrl`, `domainHost`, `domainId`, and
 `OVERTE_E2E_DOMAIN_HOST`, `OVERTE_E2E_DOMAIN_ID`, and
 `OVERTE_E2E_DOMAIN_MARKERS_JSON` before running `domain-smoke`.
 
+`domain-recovery` uses the same values plus `OVERTE_E2E_SCENE_URL`. It enters
+the domain, returns to the controlled serverless scene, proves that the domain
+is disconnected, and re-enters the exact domain without changing the
+Interface process identity.
+
 The controller's ready metadata means only that the infrastructure is
 reachable and its assignment processes survived warmup. Only the client probe
 can prove that the domain handshake completed and the entity server delivered
-the assignment-owned markers. Real adapters do not advertise
-`navigation.enter-domain` yet.
+the assignment-owned markers. Each product adapter advertises
+`navigation.enter-domain` only after its own physical acceptance gate.

@@ -9,6 +9,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 import xml.etree.ElementTree as ET
 
@@ -26,11 +27,20 @@ p.add_argument("--arguments")
 a = p.parse_args()
 selector = os.environ.get("MOCK_SELECTOR", "private-device-123")
 if a.action == "discover":
-    print(json.dumps([{"selector": selector, "displayName": "Mock Phone",
-                       "platform": "mock", "physical": os.environ.get("MOCK_VIRTUAL") != "1",
-                       "capabilities": os.environ.get("MOCK_CAPABILITIES", "app.process").split(",")}]))
+    if os.environ.get("MOCK_EMPTY_DISCOVERY") == "1":
+        print("[]")
+    else:
+        target = {"selector": selector, "displayName": "Mock Phone",
+                  "platform": "mock", "physical": os.environ.get("MOCK_VIRTUAL") != "1",
+                  "capabilities": os.environ.get("MOCK_CAPABILITIES", "app.process").split(",")}
+        if os.environ.get("MOCK_RESERVATION_KEY"):
+            target["reservationKey"] = os.environ["MOCK_RESERVATION_KEY"]
+        print(json.dumps([target]))
 elif a.action == "describe":
-    print(json.dumps({"platform": "mock", "model": "Contract Device"}))
+    value = {"platform": "mock", "model": "Contract Device"}
+    if os.environ.get("MOCK_DESCRIBE_PRIVATE") == "1":
+        value["transport"] = {"identity": selector}
+    print(json.dumps(value))
 elif a.action == "invoke":
     if os.environ.get("MOCK_INVOKE_FAILURE") == "1":
         print("private adapter failure for " + selector, file=sys.stderr)
@@ -74,11 +84,16 @@ else:
 '''
 
 MODULE = r'''#!/usr/bin/env python3
-import json, os, pathlib
+import json, os, pathlib, time
 artifact = pathlib.Path(os.environ["OVERTE_DEVICE_ARTIFACT_DIR"])
 selector = os.environ["OVERTE_DEVICE_TARGET_SELECTOR"]
 (artifact / "metric.json").write_text(json.dumps({"stable": True}) + "\n")
+if os.environ.get("MOCK_MODULE_STARTED"):
+    pathlib.Path(os.environ["MOCK_MODULE_STARTED"]).write_text("started\n")
+time.sleep(float(os.environ.get("MOCK_MODULE_HOLD_SECONDS", "0")))
 print("module target=" + selector)
+if os.environ.get("MOCK_RESERVATION_KEY"):
+    print("module reservation=" + os.environ["MOCK_RESERVATION_KEY"])
 raise SystemExit(int(os.environ.get("MOCK_MODULE_EXIT", "0")))
 '''
 
@@ -130,9 +145,37 @@ class HarnessTest(unittest.TestCase):
         self.assertNotIn("private-device-123", (self.output / "modules/health/module.log").read_text())
         summary = json.loads((self.output / "summary.json").read_text())
         self.assertEqual("passed", summary["status"])
+        run_manifest = json.loads((self.output / "run-manifest.json").read_text())
+        self.assertEqual("mock", run_manifest["adapter"])
+        self.assertEqual("mock", run_manifest["platform"])
+        self.assertTrue(run_manifest["physical"])
+        self.assertEqual(["health"], run_manifest["modules"])
+        self.assertEqual("passed", run_manifest["status"])
+        self.assertGreaterEqual(run_manifest["finishedEpochMs"],
+                                run_manifest["startedEpochMs"])
+        self.assertNotIn("private-device-123", json.dumps(run_manifest))
         junit = ET.parse(self.output / "junit.xml").getroot()
         self.assertEqual("1", junit.attrib["tests"])
         self.assertEqual("0", junit.attrib["failures"])
+
+    def test_private_description_is_rejected_without_persisting_identity(self):
+        result = self.run_harness(environment={"MOCK_DESCRIBE_PRIVATE": "1"})
+        self.assertEqual(1, result.returncode, result.stdout)
+        self.assertNotIn("private-device-123", result.stdout)
+        self.assertFalse((self.output / "device.json").exists())
+        self.assertNotIn("private-device-123", (self.output / "summary.json").read_text())
+        summary = json.loads((self.output / "summary.json").read_text())
+        self.assertEqual("target-execution", summary["results"][0]["id"])
+        self.assertEqual("error", summary["results"][0]["status"])
+
+    def test_private_reservation_key_is_never_persisted(self):
+        private_key = "private-shared-resource-987654"
+        result = self.run_harness(environment={"MOCK_RESERVATION_KEY": private_key})
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertNotIn(private_key, result.stdout)
+        for artifact in self.output.rglob("*"):
+            if artifact.is_file():
+                self.assertNotIn(private_key.encode(), artifact.read_bytes(), str(artifact))
 
     def test_failure_keeps_invalid_marker_and_still_cleans_up(self):
         result = self.run_harness(environment={"MOCK_MODULE_EXIT": "9"})
@@ -218,6 +261,71 @@ class HarnessTest(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stdout)
         self.assertIn("satisfies the protocol", result.stdout)
         self.assertTrue(self.cleanup_marker.exists())
+
+    def test_adapter_protocol_verifier_can_require_a_discovered_target(self):
+        env = os.environ.copy()
+        env.update({
+            "MOCK_CLEANUP_MARKER": str(self.cleanup_marker),
+            "MOCK_EMPTY_DISCOVERY": "1",
+        })
+        result = subprocess.run([
+            sys.executable, str(VERIFIER), "--adapter-manifest", str(self.manifest),
+            "--require-target",
+        ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+           env=env, check=False)
+        self.assertEqual(2, result.returncode, result.stdout)
+        self.assertIn("returned no target", result.stdout)
+
+    def test_same_private_target_is_reserved_across_adapter_ids(self):
+        second_manifest = self.root / "adapter-other.json"
+        second_manifest.write_text(json.dumps({
+            "schemaVersion": 1, "id": "mock-other", "command": ["adapter.py"],
+        }), encoding="utf-8")
+        first_output = self.root / "results-first"
+        second_output = self.root / "results-second"
+        started = self.root / "first-started"
+        first_cleanup = self.root / "first-cleanup"
+        second_cleanup = self.root / "second-cleanup"
+        first_environment = os.environ.copy()
+        first_environment.update({
+            "MOCK_CLEANUP_MARKER": str(first_cleanup),
+            "MOCK_STATE": str(self.root / "first-state"),
+            "MOCK_MODULE_STARTED": str(started),
+            "MOCK_MODULE_HOLD_SECONDS": "2",
+            "OVERTE_DEVICE_LOCK_ROOT": str(self.root / "locks"),
+        })
+        first = subprocess.Popen([
+            sys.executable, str(HARNESS), "--adapter-manifest", str(self.manifest),
+            "--catalog", str(self.catalog), "--output-dir", str(first_output),
+        ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+           env=first_environment)
+        deadline = time.monotonic() + 5
+        while not started.exists() and first.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.assertTrue(started.exists(), first.stdout.read() if first.poll() is not None else "")
+
+        second_environment = os.environ.copy()
+        second_environment.update({
+            "MOCK_CLEANUP_MARKER": str(second_cleanup),
+            "MOCK_STATE": str(self.root / "second-state"),
+            "OVERTE_DEVICE_LOCK_ROOT": str(self.root / "locks"),
+            "OVERTE_DEVICE_LOCK_TIMEOUT_SECONDS": "0.2",
+        })
+        second = subprocess.run([
+            sys.executable, str(HARNESS), "--adapter-manifest", str(second_manifest),
+            "--catalog", str(self.catalog), "--output-dir", str(second_output),
+        ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+           env=second_environment, check=False)
+        first_stdout, _ = first.communicate(timeout=10)
+
+        self.assertEqual(0, first.returncode, first_stdout)
+        self.assertEqual(1, second.returncode, second.stdout)
+        reservation = json.loads((second_output / "summary.json").read_text(
+            encoding="utf-8"))["results"]
+        self.assertEqual(["target-reservation"], [item["id"] for item in reservation])
+        self.assertEqual("error", reservation[0]["status"])
+        self.assertTrue(first_cleanup.exists())
+        self.assertFalse(second_cleanup.exists())
 
     def test_portable_launch_module_runs_through_adapter_contract(self):
         env = os.environ.copy()

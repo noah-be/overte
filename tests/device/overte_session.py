@@ -37,6 +37,7 @@ class OverteSession:
         "right": (0.25, 0.0, "y", 1.0),
         "up": (0.0, 0.25, "x", 1.0),
     }
+    INTERACTION_TARGET = "OVERTE_E2E_INTERACTABLE"
 
     @staticmethod
     def _float_environment(name: str, default: float, minimum: float, maximum: float) -> float:
@@ -441,6 +442,33 @@ class OverteSession:
         return max(sign * self._signed_angle_delta(
             before["view"]["orientation"], orientation, axis)
                    for orientation in candidates)
+
+    def primary_interaction(self) -> tuple[dict, dict]:
+        """Perform one platform-native primary action and observe its world effect."""
+        before = self.snapshot("interaction-before.json")
+        interaction = before.get("interaction")
+        if interaction is None:
+            fail("probe does not provide world interaction evidence")
+        if interaction["targetAvailable"] is not True:
+            fail("controlled world interaction target is unavailable")
+        before_count = interaction["pressCount"]
+        self._invoke("input.primary", {})
+
+        def observed(value: dict) -> bool:
+            current = value.get("interaction")
+            if current is None:
+                fail("probe stopped providing world interaction evidence")
+            if current["targetAvailable"] is not True:
+                fail("controlled world interaction target disappeared")
+            if current["pressCount"] > before_count + 1:
+                fail("one primary input produced duplicate world interactions")
+            return (current["pressCount"] == before_count + 1
+                    and current["lastEntityName"] == self.INTERACTION_TARGET)
+
+        after = self.wait_until(
+            "one primary pointer interaction on the controlled world target", observed)
+        write_json("interaction-after.json", after)
+        return before, after
 
     @staticmethod
     def movement_vector(body_yaw_degrees: float, direction: str) -> tuple[float, float]:

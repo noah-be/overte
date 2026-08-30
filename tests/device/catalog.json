@@ -5,7 +5,7 @@
       "id": "launch-smoke",
       "description": "Launch the application and verify a stable foreground process.",
       "command": ["modules/launch_smoke.py"],
-      "suites": ["asset-smoke", "domain-smoke", "e2e-core", "e2e-recovery", "smoke", "sound-smoke", "stability", "tablet-e2e", "vertical-locomotion"],
+      "suites": ["asset-smoke", "domain-recovery", "domain-smoke", "e2e-core", "e2e-recovery", "interaction-smoke", "smoke", "sound-smoke", "stability", "tablet-e2e", "vertical-locomotion"],
       "requires": ["app.foreground", "app.launch", "app.process"],
       "timeoutSeconds": 120
     },
@@ -13,7 +13,7 @@
       "id": "scene",
       "description": "Load the controlled E2E scene and observe every required fixture marker.",
       "command": ["modules/scene.py"],
-      "suites": ["e2e-core"],
+      "suites": ["e2e-core", "interaction-smoke"],
       "requires": ["probe.snapshot", "scene.load"],
       "timeoutSeconds": 120
     },
@@ -29,9 +29,25 @@
       "id": "domain-enter",
       "description": "Enter a controlled domain and observe its connection and assignment-owned scene.",
       "command": ["modules/domain_enter.py"],
-      "suites": ["domain-smoke"],
+      "suites": ["domain-recovery", "domain-smoke"],
       "requires": ["app.foreground", "app.process", "navigation.enter-domain", "probe.snapshot"],
       "timeoutSeconds": 180
+    },
+    {
+      "id": "domain-roundtrip",
+      "description": "Leave and re-enter the controlled domain while preserving one foreground process.",
+      "command": ["modules/domain_roundtrip.py"],
+      "suites": ["domain-recovery"],
+      "requires": ["app.foreground", "app.process", "navigation.enter-domain", "probe.snapshot", "scene.load"],
+      "timeoutSeconds": 240
+    },
+    {
+      "id": "world-interaction",
+      "description": "Perform one platform-native primary action on the controlled world target and observe the entity event.",
+      "command": ["modules/world_interaction.py"],
+      "suites": ["interaction-smoke"],
+      "requires": ["app.foreground", "app.process", "input.primary", "probe.snapshot", "scene.load"],
+      "timeoutSeconds": 120
     },
     {
       "id": "asset-load",

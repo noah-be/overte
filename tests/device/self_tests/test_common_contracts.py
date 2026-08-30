@@ -67,6 +67,31 @@ class CommonContractTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     validate_operation_result(operation, result)
 
+    def test_primary_interaction_operation_and_probe_evidence_are_exact(self):
+        self.assertEqual({}, validate_operation_arguments("input.primary", {}))
+        self.assertEqual({"performed": True}, validate_operation_result(
+            "input.primary", {"performed": True}))
+        with self.assertRaises(ValueError):
+            validate_operation_arguments("input.primary", {"button": "trigger"})
+
+        valid = snapshot()
+        valid["interaction"] = {
+            "targetAvailable": True,
+            "pressCount": 1,
+            "lastEntityName": "OVERTE_E2E_INTERACTABLE",
+            "lastPointerId": 2,
+        }
+        self.assertIs(valid, validate_probe_snapshot(valid))
+        for mutation in (
+                {"pressCount": -1},
+                {"pressCount": 1, "lastEntityName": "UNCONTROLLED"},
+                {"pressCount": 0, "lastEntityName": "OVERTE_E2E_INTERACTABLE"},
+                {"lastPointerId": -1}):
+            invalid = copy.deepcopy(valid)
+            invalid["interaction"].update(mutation)
+            with self.assertRaises(ValueError):
+                validate_probe_snapshot(invalid)
+
     def test_probe_v2_requires_motion_scene_tablet_and_sequence_evidence(self):
         valid = snapshot()
         self.assertIs(valid, validate_probe_snapshot(valid))

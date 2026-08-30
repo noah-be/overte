@@ -49,6 +49,10 @@
       "operation": "input.move",
       "result": "{performed: true}; arguments: {direction: backward|forward|left|right, durationSeconds: number from 0.1 through 10.0}"
     },
+    "input.primary": {
+      "operation": "input.primary",
+      "result": "{performed: true}; arguments: {}; perform one primary pointer press and release on the controlled world interaction target"
+    },
     "lifecycle.background": {
       "operation": "lifecycle.background",
       "result": "{backgrounded: true}"

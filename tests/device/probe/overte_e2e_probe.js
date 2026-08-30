@@ -67,6 +67,10 @@
     };
     var fixtureMarkers = ["OVERTE_E2E_COLLISION_WALL", "OVERTE_E2E_EAST",
         "OVERTE_E2E_FLOOR", "OVERTE_E2E_NORTH", "OVERTE_E2E_ORIGIN"];
+    var interactionTargetName = "OVERTE_E2E_INTERACTABLE";
+    var interactionPressCount = 0;
+    var interactionLastEntityName = "";
+    var interactionLastPointerId = null;
     var domainMarkers = ["OVERTE_E2E_DOMAIN_FLOOR", "OVERTE_E2E_DOMAIN_NORTH",
         "OVERTE_E2E_DOMAIN_EAST", "OVERTE_E2E_DOMAIN_ORIGIN"];
     var expectedSpawn = { x: 0.0, y: 2.0, z: 4.0 };
@@ -97,6 +101,19 @@
     function vector(value) {
         return { x: Number(value.x), y: Number(value.y), z: Number(value.z) };
     }
+
+    function observePrimaryInteraction(entityID, event) {
+        var properties = Entities.getEntityProperties(entityID, ["name"]);
+        if (String(properties.name) !== interactionTargetName) {
+            return;
+        }
+        interactionPressCount += 1;
+        interactionLastEntityName = interactionTargetName;
+        interactionLastPointerId = event && isFinite(Number(event.id))
+            ? Math.max(0, Math.floor(Number(event.id))) : null;
+    }
+
+    Entities.mousePressOnEntity.connect(observePrimaryInteraction);
 
     function controllerPose(channel) {
         var pose = Controller.getPoseValue(channel);
@@ -653,6 +670,7 @@
         var ids = Entities.findEntities(MyAvatar.position, 1000.0);
         var foundMarkers = {};
         var foundDomainMarkers = {};
+        var interactionTargetAvailable = false;
         var floorTopY = null;
         var collisionWall = null;
         var index;
@@ -673,6 +691,9 @@
                     center: vector(properties.position),
                     dimensions: vector(properties.dimensions)
                 };
+            }
+            if (properties.name === interactionTargetName) {
+                interactionTargetAvailable = true;
             }
         }
         if (ids.length === previousEntityCount) {
@@ -782,6 +803,12 @@
                 home: Boolean(tablet.onHomeScreen()),
                 toolbarMode: Boolean(tablet.toolbarMode)
             },
+            interaction: {
+                targetAvailable: interactionTargetAvailable,
+                pressCount: interactionPressCount,
+                lastEntityName: interactionLastEntityName,
+                lastPointerId: interactionLastPointerId
+            },
             controller: {
                 route: {
                     openxrAxes: openXrAxes(),
@@ -843,6 +870,7 @@
         Script.clearInterval(timer);
         releaseControlledKey(controlledKeyCommandId);
         Controller.disableMapping(controlledInputMappingName);
+        Entities.mousePressOnEntity.disconnect(observePrimaryInteraction);
         if (flightNormalizationActive) {
             MyAvatar.setFlyingEnabled(flyingEnabledBeforeNormalization);
             flightNormalizationActive = false;

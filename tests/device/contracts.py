@@ -174,6 +174,47 @@ def validate_capabilities(values: object, registry: dict[str, dict] | None = Non
     return values
 
 
+def validate_discovered_targets(value: object) -> list[dict]:
+    """Validate discovery without exposing private selector or reservation values."""
+    if not isinstance(value, list):
+        raise ValueError("adapter discover result must be a list")
+    required = {"capabilities", "displayName", "physical", "platform", "selector"}
+    allowed = required | {"reservationKey"}
+    selectors: set[str] = set()
+    for target in value:
+        if not isinstance(target, dict) or not required <= set(target) or set(target) - allowed:
+            raise ValueError("adapter target contains unsupported or missing fields")
+        selector = target.get("selector")
+        if not isinstance(selector, str) or not selector or selector in selectors:
+            raise ValueError("target selectors must be unique non-empty strings")
+        selectors.add(selector)
+        if (not isinstance(target.get("displayName"), str) or not target["displayName"]
+                or not isinstance(target.get("platform"), str) or not target["platform"]
+                or not isinstance(target.get("physical"), bool)):
+            raise ValueError("target identity fields have invalid types")
+        reservation_key = target.get("reservationKey")
+        if reservation_key is not None and (not isinstance(reservation_key, str)
+                                            or not reservation_key
+                                            or len(reservation_key) > 512):
+            raise ValueError("target reservationKey must be a bounded non-empty string")
+        validate_capabilities(target.get("capabilities"))
+    return value
+
+
+def contains_private_identity(value: object, identities: set[str]) -> bool:
+    """Detect exact short identities and embedded opaque identities recursively."""
+    if isinstance(value, dict):
+        return any(contains_private_identity(key, identities)
+                   or contains_private_identity(item, identities)
+                   for key, item in value.items())
+    if isinstance(value, list):
+        return any(contains_private_identity(item, identities) for item in value)
+    if not isinstance(value, str):
+        return False
+    return any(value == identity or (len(identity) >= 8 and identity in value)
+               for identity in identities)
+
+
 def validate_operation_arguments(operation: str, value: object) -> dict:
     if not isinstance(value, dict):
         raise ValueError("operation arguments must be an object")
@@ -190,7 +231,7 @@ def validate_operation_arguments(operation: str, value: object) -> dict:
             raise ValueError("tablet.activate requires a known semantic control ID")
     elif operation in {
             "app.foreground", "app.launch", "app.process", "app.stop",
-            "input.jump", "tablet.close", "tablet.open"}:
+            "input.jump", "input.primary", "tablet.close", "tablet.open"}:
         if value:
             raise ValueError(f"{operation} does not accept arguments")
     elif operation == "input.fly":
@@ -296,7 +337,7 @@ def validate_operation_result(operation: str, value: object) -> dict:
     """Validate portable evidence returned by an adapter operation."""
     if not isinstance(value, dict):
         raise ValueError(f"{operation} result must be an object")
-    if operation in {"input.fly", "input.jump", "input.look", "input.move",
+    if operation in {"input.fly", "input.jump", "input.look", "input.move", "input.primary",
                      "tablet.activate", "tablet.close", "tablet.open"}:
         return validate_performed_result(operation, value)
     if operation == "tablet.snapshot":
@@ -336,6 +377,8 @@ def validate_probe_snapshot(value: object) -> dict:
     }
     if "controller" in value:
         root_fields.add("controller")
+    if "interaction" in value:
+        root_fields.add("interaction")
     if "verticalEvents" in value:
         root_fields.add("verticalEvents")
     _require_exact_fields(value, root_fields, "probe snapshot")
@@ -503,6 +546,27 @@ def validate_probe_snapshot(value: object) -> dict:
     for field in ("open", "home", "toolbarMode"):
         if not isinstance(value["tablet"].get(field), bool):
             raise ValueError(f"probe tablet.{field} must be boolean")
+
+    interaction = value.get("interaction")
+    if interaction is not None:
+        if not isinstance(interaction, dict):
+            raise ValueError("probe interaction must be an object")
+        _require_exact_fields(interaction, {
+            "lastEntityName", "lastPointerId", "pressCount", "targetAvailable",
+        }, "probe interaction")
+        count = interaction.get("pressCount")
+        pointer_id = interaction.get("lastPointerId")
+        if (not isinstance(interaction.get("targetAvailable"), bool)
+                or not isinstance(count, int) or isinstance(count, bool) or count < 0
+                or not isinstance(interaction.get("lastEntityName"), str)):
+            raise ValueError("probe interaction requires target state and a non-negative count")
+        if (pointer_id is not None and (not isinstance(pointer_id, int)
+                                       or isinstance(pointer_id, bool) or pointer_id < 0)):
+            raise ValueError("probe interaction lastPointerId must be null or non-negative")
+        if count == 0 and (interaction["lastEntityName"] or pointer_id is not None):
+            raise ValueError("probe interaction without presses cannot contain last-event state")
+        if count > 0 and interaction["lastEntityName"] != "OVERTE_E2E_INTERACTABLE":
+            raise ValueError("probe interaction press must identify the controlled target")
 
     controller = value.get("controller")
     if controller is not None:

@@ -55,6 +55,7 @@
       "required": ["url", "ready", "entityCount", "fixtureMarkerCount", "fixtureMarkers", "domainMarkerCount", "domainMarkers", "floorTopY", "avatarAboveFloor", "spawnLocationObserved", "spawnValidated", "collisionWall"],
       "properties": {
         "url": {"type": "string"},
+        "commandId": {"type": "string"},
         "ready": {"type": "boolean"},
         "entityCount": {"type": "integer", "minimum": 0},
         "fixtureMarkerCount": {"type": "integer", "minimum": 0},
@@ -107,11 +108,41 @@
         "then": {"properties": {"inAir": {"const": true}}}
       }]
     },
+    "verticalEvents": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["jumpCount", "jumpCompletedCount", "lastJumpStartY", "lastJumpPeakY", "lastJumpLandingY", "flightCount", "lastFlightStartY", "lastFlightPeakY"],
+      "properties": {
+        "jumpCount": {"type": "integer", "minimum": 0},
+        "jumpCompletedCount": {"type": "integer", "minimum": 0},
+        "lastJumpStartY": {"type": ["number", "null"]},
+        "lastJumpPeakY": {"type": ["number", "null"]},
+        "lastJumpLandingY": {"type": ["number", "null"]},
+        "flightCount": {"type": "integer", "minimum": 0},
+        "lastFlightStartY": {"type": ["number", "null"]},
+        "lastFlightPeakY": {"type": ["number", "null"]}
+      }
+    },
     "view": {
       "type": "object",
       "additionalProperties": false,
       "required": ["orientation"],
-      "properties": {"orientation": {"$ref": "#/$defs/vector3"}}
+      "properties": {
+        "orientation": {"$ref": "#/$defs/vector3"},
+        "orientationHistory": {
+          "type": "array",
+          "maxItems": 48,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["sampleSequence", "orientation"],
+            "properties": {
+              "sampleSequence": {"type": "integer", "minimum": 1},
+              "orientation": {"$ref": "#/$defs/vector3"}
+            }
+          }
+        }
+      }
     },
     "tablet": {
       "type": "object",
@@ -121,6 +152,17 @@
         "open": {"type": "boolean"},
         "home": {"type": "boolean"},
         "toolbarMode": {"type": "boolean"}
+      }
+    },
+    "interaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targetAvailable", "pressCount", "lastEntityName", "lastPointerId"],
+      "properties": {
+        "targetAvailable": {"type": "boolean"},
+        "pressCount": {"type": "integer", "minimum": 0},
+        "lastEntityName": {"type": "string"},
+        "lastPointerId": {"type": ["integer", "null"], "minimum": 0}
       }
     },
     "controller": {

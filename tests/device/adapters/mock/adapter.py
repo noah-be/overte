@@ -24,7 +24,7 @@ from contracts import TABLET_CONTRACT_VERSION, validate_operation_arguments
 
 CAPABILITIES = sorted([
     "accessibility.snapshot", "app.foreground", "app.launch", "app.process", "app.stop",
-    "asset.load", "input.fly", "input.jump", "input.look", "input.move",
+    "asset.load", "input.fly", "input.jump", "input.look", "input.move", "input.primary",
     "navigation.enter-domain", "probe.snapshot", "scene.load", "scene.reload", "sound.play",
     "tablet.activate", "tablet.close", "tablet.open", "tablet.snapshot",
 ])
@@ -40,6 +40,7 @@ COLLISION_WALL = {
     "center": {"x": 0.0, "y": 2.0, "z": 0.5},
     "dimensions": {"x": 8.0, "y": 4.0, "z": 0.5},
 }
+FIXTURE_ENTITY_COUNT = len(FIXTURE_MARKERS) + 1
 
 
 def cli() -> argparse.Namespace:
@@ -72,6 +73,8 @@ def initial_state() -> dict:
         "orientation": {"x": 0.0, "y": 0.0, "z": 0.0}, "tablet": False,
         "orientationHistory": [], "pendingOrientationSample": None,
         "tabletScreen": "tablet.home",
+        "interactionCount": 0, "interactionLastEntityName": "",
+        "interactionLastPointerId": None,
         "processRevision": 0, "asset": None,
         "sampleSequence": 0, "sampleEpochMs": 0,
         "verticalEvents": {
@@ -380,6 +383,9 @@ def invoke(operation: str, arguments: dict) -> dict:
         state["domainHost"] = parsed.hostname
         state["domainId"] = os.environ.get(
             "OVERTE_MOCK_E2E_DOMAIN_ID", "11111111-2222-4333-8444-555555555555")
+        if (state["domainEnterCount"] >= 1
+                and "domain-reentry-process-restart" in failures()):
+            state["processRevision"] = state.get("processRevision", 0) + 1
         state["domainEnterCount"] += 1
         result = {"requested": True}
     elif operation == "asset.load":
@@ -429,6 +435,15 @@ def invoke(operation: str, arguments: dict) -> dict:
         result = {"performed": True}
     elif operation == "input.move":
         apply_move(state, arguments["direction"], float(arguments["durationSeconds"]))
+        result = {"performed": True}
+    elif operation == "input.primary":
+        if not state["sceneReady"] or state["domainConnected"]:
+            raise RuntimeError("controlled interaction target is unavailable")
+        if "primary-interaction-missing" not in failures():
+            state["interactionCount"] += (
+                2 if "primary-interaction-duplicate" in failures() else 1)
+            state["interactionLastEntityName"] = "OVERTE_E2E_INTERACTABLE"
+            state["interactionLastPointerId"] = 0
         result = {"performed": True}
     elif operation == "input.jump":
         if "transient-vertical" in failures():
@@ -565,7 +580,7 @@ def invoke(operation: str, arguments: dict) -> dict:
             "scene": {"url": state["sceneUrl"], "ready": state["sceneReady"],
                       "commandId": state["sceneCommandId"],
                       "entityCount": (4 if state["domainConnected"] else
-                                      len(FIXTURE_MARKERS) if state["sceneReady"] else 0),
+                                      FIXTURE_ENTITY_COUNT if state["sceneReady"] else 0),
                       "fixtureMarkerCount": (0 if state["domainConnected"] else
                                              len(fixture_markers) if state["sceneReady"] else 0),
                       "fixtureMarkers": ([] if state["domainConnected"] or not state["sceneReady"]
@@ -592,6 +607,13 @@ def invoke(operation: str, arguments: dict) -> dict:
                        "home": (state["tablet"]
                                 and state.get("tabletScreen") == "tablet.home"),
                        "toolbarMode": False},
+            "interaction": {
+                "targetAvailable": (state["sceneReady"] and not state["domainConnected"]
+                                    and "interaction-target-missing" not in failures()),
+                "pressCount": state.get("interactionCount", 0),
+                "lastEntityName": state.get("interactionLastEntityName", ""),
+                "lastPointerId": state.get("interactionLastPointerId"),
+            },
             "asset": copy.deepcopy(state.get("asset")),
             "sound": observed_sound(state),
         }

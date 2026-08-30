@@ -6,17 +6,20 @@ Write observable Overte behavior once and implement only transport and input
 operations per target. The initial behavior contract is deliberately small:
 
 1. start Overte once;
-2. load a controlled local scene;
+2. load a controlled local scene with a deterministic interaction target;
 3. observe a valid spawn above the ground;
 4. perform signed look input in every direction;
 5. perform body-relative movement in every direction and reject stuck input;
 6. collide with the controlled wall, jump and fly;
-7. open and close the system tablet and reject world-input leakage;
-8. reload the scene and optionally stop/relaunch the application;
-9. enter a controlled domain and receive its assignment-owned
+7. deliver one platform-native primary action to a controlled world entity;
+8. open and close the system tablet and reject world-input leakage;
+9. reload the scene and optionally stop/relaunch the application;
+10. enter a controlled domain and receive its assignment-owned
    content without a process restart.
-10. evaluate process identity, probe state, errors, and artifacts; and
-11. clean up the application session and target transport.
+11. leave that domain for the local fixture and re-enter it without a process
+    restart;
+12. evaluate process identity, probe state, errors, and artifacts; and
+13. clean up the application session and target transport.
 
 The baseline runs in one application session after the initial controlled
 launch. Shared modules own expectations. Product adapters own target discovery,
@@ -29,7 +32,7 @@ logic.
 - The portable runner works on POSIX and Windows, launches adapter commands
   portably, validates the versioned registry, and distinguishes assertion,
   skip, and infrastructure outcomes.
-- The controlled five-entity serverless scene is dependency-free,
+- The controlled six-entity serverless scene is dependency-free,
   self-validating, and served by the Python standard library.
 - One schema-v2 Interface probe emits monotonic, strict observable state used
   by every platform while retaining domain, asset, and sound evidence.
@@ -69,6 +72,9 @@ that parent can use the same implementation without importing a child backend.
   and `flying=true`.
 - Tablet: both open and closed state transitions are observed in Interface,
   not inferred from a successful click, key, or gesture command.
+- World interaction: one `input.primary` operation produces exactly one fresh
+  `Entities.mousePressOnEntity` event for the repository-owned interaction
+  target. A successful click, tap, or trigger command alone is insufficient.
 - Tablet isolation: movement input while the tablet owns focus produces no
   observable world displacement or velocity.
 - Recovery: scene reload restores the controlled fixture; application restart
@@ -86,6 +92,9 @@ that parent can use the same implementation without importing a child backend.
 - Domain entry: the probe reports the fixture's exact UUID and host, leaves
   serverless mode, observes the complete assignment-owned marker set for
   consecutive stable samples, and retains foreground/process identity.
+- Domain recovery: the same process first observes a disconnected serverless
+  fixture and then reconnects to the exact domain identity and complete marker
+  set for consecutive samples.
 
 Every module retains its last, before, and after probe snapshots. Target
 adapters may add redacted screenshots, accessibility trees, or private device
@@ -123,5 +132,7 @@ schedule, record evidence for:
   timeout; and
 - required operating-system permissions in the same context as the CI agent.
 
-Long soaks begin only after the short baseline is reliable. They do not
-compensate for a failing or incomplete core sequence.
+Matrix promotion additionally requires a selector-free run manifest from every
+cell and a complete physical `platform:suite` result in the shared matrix
+evaluator. Long soaks begin only after the short baseline is reliable. They do
+not compensate for a failing or incomplete core sequence.

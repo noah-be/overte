@@ -14,7 +14,8 @@ catalog module -> OverteSession -> adapter operation -> target automation
 
 fixture server -> controlled serverless scene
 domain fixture -> ephemeral domain + assignment-owned marker scene
-runner         -> lock, timeout, cleanup, JSON, JUnit, private artifacts
+runner         -> shared target lock, timeout, cleanup, JSON, JUnit, private artifacts
+matrix         -> selector-free cross-platform acceptance result
 ```
 
 The runner reserves exactly one target for a complete run, applies module
@@ -23,6 +24,12 @@ selectors, and stores diagnostics outside the source tree. Exit code `0`
 passes, `77` skips a missing optional capability, `75` reports device-lab
 infrastructure failure, and other non-zero codes report an application
 assertion failure.
+
+Reservations are keyed by the private target selector rather than the adapter
+ID, so two different automation backends cannot use the same device at once.
+An adapter may return a private `reservationKey` when multiple backends use
+different selectors for one physical device. Neither value is persisted.
+`OVERTE_DEVICE_LOCK_TIMEOUT_SECONDS` bounds queueing (default 600 seconds).
 
 ## Portable suites
 
@@ -44,6 +51,13 @@ assertion failure.
   [`TABLET_E2E.md`](TABLET_E2E.md).
 - `domain-smoke`: launch, enter an ephemeral controlled domain, and verify its
   exact identity and assignment-owned content without restarting Interface.
+- `domain-recovery`: enter the controlled domain, leave it for the serverless
+  fixture, and re-enter the same domain with stable content and process
+  identity.
+- `interaction-smoke`: load the controlled scene and prove that one native
+  mouse click, touch action, or controller trigger produces exactly one press
+  event on its interaction target; see
+  [`INTERACTION_E2E.md`](INTERACTION_E2E.md).
 - `vertical-locomotion`: one jump with observed ascent and landing, followed by
   bounded flight with observed active ascent. Adapters lacking either input
   capability skip only the corresponding module unless `--require-complete`
@@ -59,9 +73,9 @@ All behavioral modules use `OverteSession` and verify effects through fresh
 schema-v2 `probe.snapshot` samples. A successful input command alone is never
 enough to pass a behavior.
 
-`domain-smoke` is fully specified and hardware-free tested, but intentionally
-not advertised by a real adapter yet. Adapter enablement remains a separate
-per-platform acceptance step.
+`domain-smoke` and `domain-recovery` are fully specified and hardware-free
+tested. Advertisement by a concrete adapter remains a separate per-platform
+acceptance step in its product branch.
 
 ## Adapter protocol
 
@@ -86,10 +100,11 @@ adapter cleanup --target TARGET
 ```
 
 `discover` returns `selector`, `displayName`, `platform`, `physical`, and a
-sorted `capabilities` list. Selectors are private transport identifiers and
-must never appear in descriptions or persisted output. Supported operation
+sorted `capabilities` list, plus an optional private `reservationKey`.
+Selectors are private transport identifiers and must never appear in
+descriptions or persisted output. Supported operation
 names and results are versioned in [`capabilities.json`](capabilities.json).
-Machine-readable catalog, manifest, and probe schemas are in
+Machine-readable catalog, adapter, probe, run, and matrix schemas are in
 [`schemas/`](schemas/).
 
 The common input and lifecycle contract is deliberately small:
@@ -101,6 +116,9 @@ The common input and lifecycle contract is deliberately small:
   positive values mean right and up.
 - `input.move` accepts one of `forward`, `backward`, `left`, or `right` and a
   duration from `0.1` through `10.0` seconds.
+- `input.primary` accepts `{}` and performs one platform-native primary press
+  and release aimed at the controlled interaction target. The probe, not the
+  adapter result, proves delivery to the entity.
 - `probe.snapshot` accepts an optional positive `afterSampleSequence` cursor;
   the returned v2 sample must advance beyond it.
 - `app.stop` accepts `{}` and confirms `{"stopped": true}`.
@@ -122,8 +140,9 @@ credentials.
 
 ## Controlled fixture and probe
 
-[`fixture/scene.json`](fixture/scene.json) contains five local primitive
-entities, including a deterministic collision wall, and no external assets.
+[`fixture/scene.json`](fixture/scene.json) contains six local primitive
+entities, including a deterministic collision wall and interaction target,
+and no external assets.
 Start an ephemeral localhost server with:
 
 ```bash
@@ -146,7 +165,8 @@ in-client [`probe/overte_e2e_probe.js`](probe/overte_e2e_probe.js) records
 application focus, scene readiness and markers, collision geometry, avatar
 position, velocity and body yaw, `inAir`, `flying`, `flyingEnabled`, camera
 orientation, tablet state, controlled asset resource/entity evidence, sound
-resource and injector state, monotonic sample sequence, and build identity
+resource and injector state, world-interaction events, monotonic sample
+sequence, and build identity
 through Interface's existing test-script result API. It records no audio
 samples. Product adapters own the exact launch and result transport used to
 load it. The fixture exposes a same-origin `/e2e-client-command.json` channel;
@@ -212,6 +232,24 @@ optional cleanup check calls cleanup twice and verifies idempotency directly:
 python3 tests/device/verify_adapter.py \
   --adapter-manifest path/to/adapter.json --require-target --check-cleanup
 ```
+
+Every run writes `summary.json`, `junit.xml`, and a selector-free
+`run-manifest.json`. Aggregate finished platform jobs into one enforceable
+matrix without exposing result paths or device identifiers:
+
+```bash
+python3 tests/device/evaluate_matrix.py \
+  --result /private/results/android-core \
+  --result /private/results/ios-interaction \
+  --require android:e2e-core \
+  --require ios:interaction-smoke \
+  --output-dir /tmp/overte-e2e-matrix
+```
+
+The evaluator returns `0` for a satisfied matrix, `1` for product assertion
+failures, and `2` for infrastructure errors, invalid results, or missing
+complete physical gates. Its JSON and JUnit outputs contain only ordinal run
+IDs plus public adapter, platform, suite, duration, and status fields.
 
 See [`E2E_STRATEGY.md`](E2E_STRATEGY.md) for the shared behavior contract,
 failure classification, and hardware acceptance gates. Platform-specific
