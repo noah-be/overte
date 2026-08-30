@@ -11,6 +11,7 @@
 #include <QCoreApplication>
 #include <QAccessible>
 #include <QJSEngine>
+#include <QJSValue>
 #include <QMetaObject>
 #include <QPointer>
 #include <QQuickItem>
@@ -510,8 +511,19 @@ void updateIOSTabletAccessibilityControls(
     QQuickItem* tabletRoot = tablet->getIOSTabletRoot();
     QQuickItem* loader = tabletRoot
         ? tabletRoot->findChild<QQuickItem*>(QStringLiteral("loader")) : nullptr;
-    QObject* loadedObject = loader
-        ? loader->property("item").value<QObject*>() : nullptr;
+    const QVariant loadedItemValue = loader
+        ? loader->property("item") : QVariant();
+    QObject* loadedObject = loadedItemValue.value<QObject*>();
+    if (loadedObject == nullptr) {
+        // WindowRoot.qml declares loader.item as `property var`. On Qt/iOS the
+        // QVariant therefore carries a QJSValue wrapper rather than a direct
+        // QObject pointer. Resolve both representations so the real loaded
+        // tablet page can publish its semantic screen and controls.
+        const QJSValue scriptObject = loadedItemValue.value<QJSValue>();
+        if (scriptObject.isQObject()) {
+            loadedObject = scriptObject.toQObject();
+        }
+    }
     QQuickItem* loadedItem = qobject_cast<QQuickItem*>(loadedObject);
     const QString screenId = observedTabletScreen(loadedItem);
     NSMutableSet<NSString*>* activeIdentifiers = [NSMutableSet setWithObject:identifier];
