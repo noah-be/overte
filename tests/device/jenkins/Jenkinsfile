@@ -19,6 +19,13 @@ def ciPython(String action, boolean returnStatus = false) {
                returnStatus: returnStatus)
 }
 
+def ciSelfCheck() {
+    if (isUnix()) {
+        return sh(script: "#!/bin/sh\nset +x\numask 022\nexec python3 tests/device/jenkins/run_ci.py self-check\n")
+    }
+    return ciPython('self-check')
+}
+
 def runDeviceSuite(String suite, int timeoutMinutes) {
     String manifest = adapterManifest(params.TARGET_PROFILE)
     String externalOutput = "${env.OVERTE_EXTERNAL_RESULT_ROOT}/${suite}"
@@ -308,7 +315,7 @@ pipeline {
         stage('Device-free contracts') {
             steps {
                 withEnv(["OVERTE_CI_WORKSPACE=${env.WORKSPACE}"]) {
-                    script { ciPython('self-check') }
+                    script { ciSelfCheck() }
                 }
             }
         }
