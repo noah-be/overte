@@ -53,6 +53,9 @@ connection_offline_reads=int(os.environ.get("MOCK_ANDROID_CONNECTION_OFFLINE_REA
 probe_available=os.environ.get("MOCK_ANDROID_PROBE_AVAILABLE", "1") == "1"
 probe_control_after=int(os.environ.get("MOCK_ANDROID_PROBE_CONTROL_AFTER_READS", "0"))
 control_payload_log=os.environ.get("MOCK_ANDROID_CONTROL_PAYLOAD_LOG", "")
+pico_tablet_observation=os.environ.get("MOCK_PICO_TABLET_OBSERVATION", "")
+pico_tablet_command=os.environ.get("MOCK_PICO_TABLET_COMMAND", "")
+pico_tablet_status=os.environ.get("MOCK_PICO_TABLET_STATUS", "")
 probe_sequence_path=os.environ.get("MOCK_PROBE_SEQUENCE_STATE", "")
 probe_sequence=int(open(probe_sequence_path).read()) if probe_sequence_path and os.path.exists(probe_sequence_path) else 0
 if cmd in (["devices", "-l"], ["devices"]):
@@ -171,7 +174,15 @@ elif (len(cmd) == 2 and cmd[0] == "shell"
     if remote_arguments[3] != "-c" or remote_arguments[5] != "overte-e2e-write":
         raise SystemExit(8)
     remote=remote_arguments[6]
-    if control_state_path: open(control_state_path,"w").write(payload)
+    if remote.endswith("tablet-ui-command.json"):
+        if pico_tablet_command: open(pico_tablet_command,"w").write(payload)
+        command=json.loads(payload)
+        if pico_tablet_status:
+            status={"schemaVersion":1,"commandId":command["commandId"],
+                    "performed":True,"error":"",
+                    "updatedEpochMs":int(time.time()*1000)}
+            open(pico_tablet_status,"w").write(json.dumps(status))
+    elif control_state_path: open(control_state_path,"w").write(payload)
     if control_payload_log:
         with open(control_payload_log,"a") as output:
             output.write(json.dumps({"path":remote,"payload":payload})+"\n")
@@ -189,6 +200,15 @@ elif cmd[:4] == ["shell", "run-as", "org.overte.phone", "cat"] or cmd[:4] == ["s
     elif remote.endswith("android-control-command.json"):
         if control_state_path and os.path.exists(control_state_path):
             print(open(control_state_path).read(),end="")
+    elif remote.endswith("tablet-ui-observation.json"):
+        if pico_tablet_observation and os.path.exists(pico_tablet_observation):
+            print(open(pico_tablet_observation).read(),end="")
+    elif remote.endswith("tablet-ui-command.json"):
+        if pico_tablet_command and os.path.exists(pico_tablet_command):
+            print(open(pico_tablet_command).read(),end="")
+    elif remote.endswith("tablet-ui-status.json"):
+        if pico_tablet_status and os.path.exists(pico_tablet_status):
+            print(open(pico_tablet_status).read(),end="")
     elif probe_available:
         probe_sequence += 1
         if probe_sequence_path: open(probe_sequence_path,"w").write(str(probe_sequence))
@@ -849,6 +869,89 @@ class AndroidAdapterTest(unittest.TestCase):
                                 for command in payloads))
         self.assertFalse(any(command[:2] == ["shell", "settings"]
                              for command in payloads))
+
+    def test_pico_semantic_tablet_bridge_snapshot_and_pointer_activation(self):
+        unqualified = self.invoke_phone("tablet.snapshot", {})
+        self.assertEqual(2, unqualified.returncode, unqualified.stdout)
+        self.assertIn("Pico OpenXR input requires", unqualified.stdout)
+        self.assertNotIn("phone-secret", unqualified.stdout)
+
+        observation_path = Path(self.temporary.name) / "tablet-observation.json"
+        command_path = Path(self.temporary.name) / "tablet-command.json"
+        status_path = Path(self.temporary.name) / "tablet-status.json"
+        process_path = Path(self.temporary.name) / "tablet-process.json"
+        process_path.write_text("stopped", encoding="utf-8")
+        observation = {
+            "bridgeVersion": 1,
+            "updatedEpochMs": int(time.time() * 1000),
+            "snapshot": {
+                "contractVersion": 1,
+                "schemaVersion": 1,
+                "screenId": "tablet.home",
+                "ready": True,
+                "visibleControlIds": ["app.settings"],
+            },
+        }
+        observation_path.write_text(json.dumps(observation), encoding="utf-8")
+        state = Path(self.temporary.name) / "tablet-openxr-state"
+        state.mkdir(mode=0o700)
+        self.environment.update({
+            "OVERTE_ANDROID_E2E_DEBUG": "1",
+            "OVERTE_PICO_OPENXR_INPUT": "1",
+            "ANDROID_ADB_SERVER_PORT": "5041",
+            "OVERTE_PICO_OPENXR_STATE_DIR": str(state),
+            "MOCK_ANDROID_PROCESS_STATE": str(process_path),
+            "MOCK_ANDROID_CONTROL_AVAILABLE": "1",
+            "MOCK_ANDROID_CONTROL_STATE": str(
+                Path(self.temporary.name) / "tablet-debug-control.json"),
+            "MOCK_PICO_TABLET_OBSERVATION": str(observation_path),
+            "MOCK_PICO_TABLET_COMMAND": str(command_path),
+            "MOCK_PICO_TABLET_STATUS": str(status_path),
+        })
+        common = self.prepare_pico_session("semantic-tablet")
+
+        discovered = subprocess.run(
+            [sys.executable, str(ADAPTER), "--kind", "pico", "discover"],
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=self.environment, check=False)
+        self.assertEqual(0, discovered.returncode, discovered.stdout)
+        capabilities = set(json.loads(discovered.stdout)[0]["capabilities"])
+        self.assertTrue({"tablet.snapshot", "tablet.activate"} <= capabilities)
+
+        snapshot = subprocess.run(
+            [*common, "--operation", "tablet.snapshot", "--arguments", "{}"],
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=self.environment, check=False)
+        self.assertEqual(0, snapshot.returncode, snapshot.stdout)
+        self.assertEqual(observation["snapshot"], json.loads(snapshot.stdout))
+
+        activated = subprocess.run(
+            [*common, "--operation", "tablet.activate", "--arguments",
+             json.dumps({"contractVersion": 1, "controlId": "app.settings"})],
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=self.environment, check=False)
+        self.assertEqual(0, activated.returncode, activated.stdout)
+        self.assertEqual({"performed": True}, json.loads(activated.stdout))
+        command = json.loads(command_path.read_text(encoding="utf-8"))
+        self.assertEqual("app.settings", command["controlId"])
+        self.assertEqual(1, command["contractVersion"])
+        self.assertNotIn("pico-secret", activated.stdout)
+
+        observation["snapshot"].pop("ready")
+        observation["updatedEpochMs"] = int(time.time() * 1000)
+        observation_path.write_text(json.dumps(observation), encoding="utf-8")
+        malformed = subprocess.run(
+            [*common, "--operation", "tablet.snapshot", "--arguments", "{}"],
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=self.environment, check=False)
+        self.assertEqual(2, malformed.returncode, malformed.stdout)
+        self.assertIn("snapshot is invalid", malformed.stdout)
+
+        cleaned = subprocess.run(
+            [sys.executable, str(ADAPTER), "--kind", "pico", "cleanup"],
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=self.environment, check=False)
+        self.assertEqual(0, cleaned.returncode, cleaned.stdout)
 
     def test_cleanup_auto_selection_is_pico_only_and_fails_closed(self):
         state = Path(self.temporary.name) / "cleanup-state"
