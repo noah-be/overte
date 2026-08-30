@@ -288,15 +288,36 @@ CGRect tabletItemFrame(QQuickItem* item, CGRect safeBounds) {
     return CGRectIntersection(frame, safeBounds);
 }
 
-QString observedTabletScreen(QQuickItem* loadedItem) {
-    if (loadedItem == nullptr) {
+QString observedTabletScreen(QQuickItem* tabletRoot) {
+    if (tabletRoot == nullptr) {
         return {};
     }
-    QString screen = loadedItem->property("semanticScreenId").toString();
-    if (screen.isEmpty()) {
-        screen = loadedItem->objectName();
+
+    QList<QQuickItem*> candidates = tabletRoot->findChildren<QQuickItem*>();
+    candidates.prepend(tabletRoot);
+    QString observedScreen;
+    for (QQuickItem* item : candidates) {
+        if (!visibleTabletItem(item)) {
+            continue;
+        }
+        const QVariant property = item->property("semanticScreenId");
+        if (!property.isValid()) {
+            continue;
+        }
+        const QString screen = property.toString();
+        if (!tabletSemanticScreenIds().contains(screen)) {
+            continue;
+        }
+        if (observedScreen.isEmpty()) {
+            observedScreen = screen;
+        } else if (observedScreen != screen) {
+            // Dynamic QML replacement may briefly leave two pages in the
+            // object tree. Never claim a semantic screen while two different
+            // visible page contracts disagree.
+            return {};
+        }
     }
-    return tabletSemanticScreenIds().contains(screen) ? screen : QString();
+    return observedScreen;
 }
 
 BOOL activateTabletItem(QPointer<QQuickItem> guardedItem) {
@@ -510,10 +531,12 @@ void updateIOSTabletAccessibilityControls(
     QQuickItem* tabletRoot = tablet->getIOSTabletRoot();
     QQuickItem* loader = tabletRoot
         ? tabletRoot->findChild<QQuickItem*>(QStringLiteral("loader")) : nullptr;
-    // WindowRoot.qml deliberately projects loader.item.semanticScreenId onto
-    // the stable tablet root. Read that public QML contract directly instead
-    // of trying to unwrap its `property var` item through QVariant/QJSValue.
-    // The root also remains stable while dynamic Settings pages are replaced.
+    // QmlSurface.load() exposes its item as a JavaScript-valued QML property,
+    // which cannot be unwrapped reliably through QObject::property on the
+    // physical iOS build. Walk the stable root's visible QObject children and
+    // consume only explicit, allow-listed semanticScreenId properties. Equal
+    // duplicate projections are harmless; conflicting visible pages fail
+    // closed in observedTabletScreen().
     QQuickItem* loadedItem = tabletRoot;
     const QString screenId = observedTabletScreen(loadedItem);
     NSMutableSet<NSString*>* activeIdentifiers = [NSMutableSet setWithObject:identifier];
