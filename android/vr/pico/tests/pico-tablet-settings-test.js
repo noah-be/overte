@@ -63,4 +63,10 @@ assert.match(settings, /requiresPicoInteractionSettings:\s*true/);
 assert.match(settings, /active:\s*touchConfiguration\.showPicoInteractionSettings/);
 assert.doesNotMatch(settings, /deferTabletCreationUntilOpen/);
 
+const graphicsSettings = production("scripts/system/settings/qml/pages/GraphicsSettings.qml");
+assert.ok(
+    graphicsSettings.indexOf('objectName: "settings.vr-render-resolution"') <
+        graphicsSettings.indexOf("// Graphics Presets"),
+    "Pico's VR resolution control must be in the initial graphics viewport");
+
 process.stdout.write("PASS Pico tablet settings and immutable capability selection\n");
