@@ -51,4 +51,3 @@ MoltenVK becomes the first client backend only if it:
 If any correctness gate fails, implementation switches to a native Metal
 backend behind the existing GPU abstraction. Performance alone does not permit
 shipping incorrect frames.
-

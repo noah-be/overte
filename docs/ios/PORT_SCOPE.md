@@ -85,4 +85,3 @@ Preparation is complete when:
 - the host and simulator tiers are green;
 - signing inputs are documented and never stored in the repository; and
 - every device-only assertion is listed in the device acceptance procedure.
-
