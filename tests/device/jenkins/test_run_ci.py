@@ -833,6 +833,9 @@ class JenkinsGlueTest(unittest.TestCase):
         self.assertNotIn("runDeviceSuite('lifecycle-stability'", source)
         self.assertNotIn("runDeviceSuite('smoke'", source)
         self.assertIn("RUN_CORE is mandatory", source)
+        self.assertIn("choices: ['network', 'embedded']", source)
+        self.assertIn("params.FIXTURE_MODE == 'network'", source)
+        self.assertIn("params.FIXTURE_MODE != 'embedded'", source)
         self.assertIn("FIXTURE_PORT must be a fixed TCP port", source)
         self.assertNotIn('OVERTE_CONAN_CACHE_ROOT": str(root / "conan-cache")',
                          (HERE / "prepare_private_targets.py").read_text(encoding="utf-8"))

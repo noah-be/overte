@@ -319,8 +319,8 @@ pipeline {
         )
         choice(
             name: 'FIXTURE_MODE',
-            choices: ['network'],
-            description: 'Targets load the controlled fixture from the fixed test-lab origin.'
+            choices: ['network', 'embedded'],
+            description: 'Use the fixed test-lab origin, or the Android/Pico embedded upgrade fixture.'
         )
         string(
             name: 'DOMAIN_SERVER_EXECUTABLE',
@@ -458,7 +458,8 @@ pipeline {
                     if (!params.RUN_CORE) {
                         error('RUN_CORE is mandatory for the cross-platform device-lab baseline')
                     }
-                    if (!params.FIXTURE_PUBLIC_HOST.trim()) {
+                    if (params.FIXTURE_MODE == 'network' &&
+                            !params.FIXTURE_PUBLIC_HOST.trim()) {
                         error('FIXTURE_PUBLIC_HOST is required for the core scene test')
                     }
                     if (!(fixturePort(profile) ==~ /[1-9][0-9]*/) ||
