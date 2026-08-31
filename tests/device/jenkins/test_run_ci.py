@@ -68,6 +68,29 @@ class JenkinsGlueTest(unittest.TestCase):
         path.chmod(0o600)
         return value
 
+    def test_upgrade_preflight_requires_distinct_external_artifacts_and_tool(self):
+        with tempfile.TemporaryDirectory(prefix="overte-upgrade-preflight-") as name:
+            temporary = Path(name)
+            source = temporary / "source.apk"
+            candidate = temporary / "candidate.apk"
+            aapt = temporary / "aapt"
+            source.write_bytes(b"source")
+            candidate.write_bytes(b"candidate")
+            aapt.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            aapt.chmod(0o700)
+            values = {
+                "OVERTE_E2E_UPGRADE_SOURCE_ARTIFACT": str(source),
+                "OVERTE_E2E_UPGRADE_CANDIDATE_ARTIFACT": str(candidate),
+                "OVERTE_E2E_UPGRADE_FROM_VERSION": "1.0.0",
+                "OVERTE_E2E_UPGRADE_TO_VERSION": "1.0.1",
+                "OVERTE_ANDROID_AAPT": str(aapt),
+            }
+            with patch.dict(os.environ, values, clear=False):
+                RUN_CI.checked_upgrade_inputs(ROOT)
+                os.environ["OVERTE_E2E_UPGRADE_CANDIDATE_ARTIFACT"] = str(source)
+                with self.assertRaises(ValueError):
+                    RUN_CI.checked_upgrade_inputs(ROOT)
+
     def test_mock_core_run_fixture_cleanup_and_staging(self):
         with tempfile.TemporaryDirectory(prefix="overte-jenkins-test-") as name:
             temporary = Path(name)
@@ -784,6 +807,14 @@ class JenkinsGlueTest(unittest.TestCase):
             "IOS_PRODUCER_RUN_ATTEMPT",
             "stage('Preinstalled Personal Team gate')",
             "runDeviceSuite('portable-smoke', 45)",
+            "RUN_STABILITY_CAMPAIGN",
+            "STABILITY_REPETITIONS",
+            "portable-stability-%02d",
+            "No Jenkins retry wrapper is allowed here",
+            "RUN_UPGRADE_TEST",
+            "UPGRADE_SOURCE_ARTIFACT",
+            "UPGRADE_CANDIDATE_ARTIFACT",
+            "runDeviceSuite('update-upgrade', 60)",
             "runDeviceSuite('domain-smoke', 30)",
             "OVERTE_BUILD_ISOLATION_ROOT",
             "OVERTE_CONAN_CACHE_ROOT=${env.OVERTE_BUILD_ISOLATION_ROOT}/conan",

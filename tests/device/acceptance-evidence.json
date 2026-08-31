@@ -25,6 +25,17 @@
       "recordedAt": "2026-08-31T08:13:16Z"
     },
     {
+      "id": "linux-portable-smoke-stability-r1",
+      "platform": "linux",
+      "suite": "portable-smoke",
+      "outcome": "passed",
+      "targetClass": "hardware-gpu",
+      "resultArtifact": "local-lab://stability/linux-portable-10-r1/campaign-summary.json",
+      "resultSha256": "18307a2ce6b211afb9ef0a9e5797cfb9bd87d387d7d2d14dd9dec6f54a9426d8",
+      "runnerRevision": "a70c21b1f04fb123635c12d6ecfe80eed73d99ab",
+      "recordedAt": "2026-08-31T10:52:33Z"
+    },
+    {
       "id": "pico-portable-smoke-r4",
       "platform": "pico",
       "suite": "portable-smoke",

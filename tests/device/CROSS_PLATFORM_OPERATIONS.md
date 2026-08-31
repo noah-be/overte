@@ -76,6 +76,31 @@ Domain recipes additionally require `--domain-server` and `--assignment-client`.
 Upgrade recipes require both version arguments and regular non-symlink source and
 candidate artifacts. All are checked before target discovery.
 
+Run a physical stability campaign with one explicit suite and one platform cell:
+
+```sh
+python3 tests/device/stability_campaign.py \
+  --repetitions 10 --retry-infrastructure 1 \
+  --output-dir /private/results/linux-portable-stability -- \
+  --adapter-manifest ADAPTER.json --catalog tests/device/catalog.json \
+  --policy tests/device/acceptance-policy.json \
+  --profiles tests/device/execution-profiles.json \
+  --platform linux --suite portable-smoke
+```
+
+The allowed range is 10–20 repetitions. Each repetition is a fresh common
+pipeline run. A product or security failure stops the campaign immediately and
+is never retried; only a classified infrastructure error may consume the bounded
+retry allowance. `campaign-summary.json` always records zero product retries.
+
+`update-upgrade` is ordered as source installation, source launch/version check,
+safe setting change, in-place candidate installation, candidate version and
+setting-retention checks, followed by the common scene/look/move/tablet smoke and
+unconditional cleanup. Android-family adapters additionally inspect the APK
+package and candidate version with the pinned `OVERTE_ANDROID_AAPT` executable
+before changing the installed package. Source and candidate must have increasing
+version codes and distinct version names and must be signed by the same key.
+
 ## Evidence and evaluation
 
 Each run contains a selector-free `timeline.jsonl`, JUnit, summary, run manifest,

@@ -190,6 +190,31 @@ def checked_fixture_mode() -> str:
     return value
 
 
+def checked_upgrade_inputs(root: Path) -> None:
+    source = environment("OVERTE_E2E_UPGRADE_SOURCE_ARTIFACT")
+    candidate = environment("OVERTE_E2E_UPGRADE_CANDIDATE_ARTIFACT")
+    for name, raw in (("source", source), ("candidate", candidate)):
+        path = Path(raw).expanduser()
+        if (not path.is_absolute() or has_symlink_component(path)
+                or path == root or is_within(path.resolve(), root)
+                or not path.is_file() or path.is_symlink()):
+            fail(f"Android upgrade {name} artifact is not a safe external file")
+    if Path(source).resolve() == Path(candidate).resolve():
+        fail("Android upgrade artifacts must be distinct")
+    for variable in ("OVERTE_E2E_UPGRADE_FROM_VERSION",
+                     "OVERTE_E2E_UPGRADE_TO_VERSION"):
+        value = environment(variable)
+        if len(value) > 64 or any(character.isspace() for character in value):
+            fail(f"{variable} is invalid")
+    if (environment("OVERTE_E2E_UPGRADE_FROM_VERSION")
+            == environment("OVERTE_E2E_UPGRADE_TO_VERSION")):
+        fail("Android upgrade versions must differ")
+    aapt = Path(environment("OVERTE_ANDROID_AAPT")).expanduser()
+    if (not aapt.is_absolute() or has_symlink_component(aapt)
+            or not aapt.is_file() or not os.access(aapt, os.X_OK)):
+        fail("OVERTE_ANDROID_AAPT is not a safe executable")
+
+
 def normalized_fixture_origin(value: object) -> str:
     if not isinstance(value, str) or not value:
         fail("fixture ready metadata has no base URL")
@@ -422,6 +447,8 @@ def run_suite() -> int:
     catalog = repository_file(root, "OVERTE_CI_CATALOG")
     output = external_directory(root, "OVERTE_CI_OUTPUT_DIR")
     suite = checked_suite(catalog)
+    if suite == "update-upgrade":
+        checked_upgrade_inputs(root)
     owned_fixture = fixture_kind(root, suite)
     promotion = acceptance_status(root, manifest, catalog, suite)
     selector = environment("OVERTE_DEVICE_TARGET_SELECTOR")

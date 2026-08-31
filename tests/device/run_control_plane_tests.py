@@ -41,7 +41,8 @@ def commands(profile: str) -> list[tuple[str, list[str], bool]]:
         for pattern in (
                 "test_common_contracts.py", "test_governance_and_frontier.py",
                 "test_execution_plan_pipeline.py", "test_harness.py",
-                "test_matrix_evaluator.py"):
+                "test_matrix_evaluator.py", "test_stability_campaign.py",
+                "test_verify_upgrade_pair.py"):
             checks.append((
                 "python-" + pattern.removeprefix("test_").removesuffix(".py").replace("_", "-"),
                 [sys.executable, "-m", "unittest", "discover", "-s",

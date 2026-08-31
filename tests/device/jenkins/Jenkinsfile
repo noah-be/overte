@@ -103,11 +103,15 @@ def ciPython(String action, boolean returnStatus = false) {
                returnStatus: returnStatus)
 }
 
-def runDeviceSuite(String suite, int timeoutMinutes) {
+def runDeviceSuite(String suite, int timeoutMinutes, String resultName = '') {
     String profile = resolvedProfile()
     String manifest = adapterManifest(profile)
-    String externalOutput = "${env.OVERTE_EXTERNAL_RESULT_ROOT}/${suite}"
-    String stagedOutput = "${env.WORKSPACE}/device-ci-artifacts/${env.BUILD_NUMBER}/${suite}"
+    String resultKey = resultName ?: suite
+    if (!(resultKey ==~ /[a-z][a-z0-9-]{0,63}/)) {
+        error('device suite result name is invalid')
+    }
+    String externalOutput = "${env.OVERTE_EXTERNAL_RESULT_ROOT}/${resultKey}"
+    String stagedOutput = "${env.WORKSPACE}/device-ci-artifacts/${env.BUILD_NUMBER}/${resultKey}"
     List configuration = [
         "OVERTE_CI_WORKSPACE=${env.WORKSPACE}",
         "OVERTE_CI_ADAPTER_MANIFEST=${manifest}",
@@ -129,6 +133,11 @@ def runDeviceSuite(String suite, int timeoutMinutes) {
         "OVERTE_CONAN_CACHE_ROOT=${env.OVERTE_BUILD_ISOLATION_ROOT}/conan",
         "OVERTE_ANDROID_BUILD_ROOT=${env.OVERTE_BUILD_ISOLATION_ROOT}/android",
         "OVERTE_DEVICE_STATE_ROOT=${env.OVERTE_BUILD_ISOLATION_ROOT}/state",
+        "OVERTE_E2E_UPGRADE_SOURCE_ARTIFACT=${params.UPGRADE_SOURCE_ARTIFACT.trim()}",
+        "OVERTE_E2E_UPGRADE_CANDIDATE_ARTIFACT=${params.UPGRADE_CANDIDATE_ARTIFACT.trim()}",
+        "OVERTE_E2E_UPGRADE_FROM_VERSION=${params.UPGRADE_FROM_VERSION.trim()}",
+        "OVERTE_E2E_UPGRADE_TO_VERSION=${params.UPGRADE_TO_VERSION.trim()}",
+        "OVERTE_ANDROID_AAPT=${params.ANDROID_AAPT_EXECUTABLE.trim()}",
     ]
     if (profile == 'appium-ios') {
         configuration.add("OVERTE_APPIUM_TARGETS=${env.OVERTE_IOS_JOB_TARGET_CONFIG}")
@@ -183,10 +192,10 @@ def runDeviceSuite(String suite, int timeoutMinutes) {
                                     variable: 'OVERTE_DEVICE_TARGET_SELECTOR')]) {
                 stagingStatus = ciPython('stage-results', true)
             }
-            junit(testResults: "device-ci-artifacts/${env.BUILD_NUMBER}/${suite}/junit.xml",
+            junit(testResults: "device-ci-artifacts/${env.BUILD_NUMBER}/${resultKey}/junit.xml",
                   allowEmptyResults: false, keepLongStdio: true)
             archiveArtifacts(
-                artifacts: "device-ci-artifacts/${env.BUILD_NUMBER}/${suite}/**",
+                artifacts: "device-ci-artifacts/${env.BUILD_NUMBER}/${resultKey}/**",
                 allowEmptyArchive: false,
                 fingerprint: true
             )
@@ -357,6 +366,40 @@ pipeline {
             name: 'RUN_SOAKS',
             defaultValue: false,
             description: 'Run long lifecycle and idle suites only after smoke/core pass.'
+        )
+        booleanParam(
+            name: 'RUN_STABILITY_CAMPAIGN',
+            defaultValue: false,
+            description: 'Run portable-smoke 10-20 times; any failure stops immediately.'
+        )
+        string(
+            name: 'STABILITY_REPETITIONS',
+            defaultValue: '10',
+            description: 'Number of consecutive physical portable-smoke runs (10-20).'
+        )
+        booleanParam(
+            name: 'RUN_UPGRADE_TEST',
+            defaultValue: false,
+            description: 'Install source Pico APK, upgrade in place, retain settings, then run common smoke.'
+        )
+        string(
+            name: 'UPGRADE_SOURCE_ARTIFACT',
+            defaultValue: '',
+            description: 'Absolute external path to the versioned source Pico APK.'
+        )
+        string(
+            name: 'UPGRADE_CANDIDATE_ARTIFACT',
+            defaultValue: '',
+            description: 'Absolute external path to the versioned candidate Pico APK.'
+        )
+        string(name: 'UPGRADE_FROM_VERSION', defaultValue: '',
+               description: 'Expected installed source versionName.')
+        string(name: 'UPGRADE_TO_VERSION', defaultValue: '',
+               description: 'Expected candidate versionName.')
+        string(
+            name: 'ANDROID_AAPT_EXECUTABLE',
+            defaultValue: '',
+            description: 'Absolute path to the pinned Android aapt executable.'
         )
     }
 
@@ -532,6 +575,41 @@ pipeline {
         stage('Cross-platform portable smoke') {
             steps {
                 script { runDeviceSuite('portable-smoke', 45) }
+            }
+        }
+
+        stage('Physical portable stability campaign') {
+            when { expression { params.RUN_STABILITY_CAMPAIGN } }
+            steps {
+                script {
+                    if (!(params.STABILITY_REPETITIONS ==~ /(?:1[0-9]|20)/)) {
+                        error('STABILITY_REPETITIONS must be from 10 through 20')
+                    }
+                    int repetitions = params.STABILITY_REPETITIONS.toInteger()
+                    for (int sequence = 1; sequence <= repetitions; sequence++) {
+                        String key = String.format('portable-stability-%02d', sequence)
+                        // No Jenkins retry wrapper is allowed here: it cannot
+                        // distinguish product failures from infrastructure.
+                        // The common stability_campaign.py entry point provides
+                        // classified infrastructure-only retries for local runs.
+                        runDeviceSuite('portable-smoke', 45, key)
+                    }
+                }
+            }
+        }
+
+        stage('Versioned in-place upgrade') {
+            when { expression { params.RUN_UPGRADE_TEST } }
+            steps {
+                script {
+                    if (resolvedProfile() != 'android-pico-adb') {
+                        error('the real upgrade gate is currently implemented for Pico')
+                    }
+                    if (params.FIXTURE_MODE != 'embedded') {
+                        error('the Pico upgrade smoke requires the embedded fixture')
+                    }
+                    runDeviceSuite('update-upgrade', 60)
+                }
             }
         }
 

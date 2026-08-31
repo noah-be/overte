@@ -6,7 +6,7 @@
     "ios": {"defaultEvidence": [], "defaultState": "implemented", "suites": {}},
     "linux": {"defaultEvidence": [], "defaultState": "implemented", "suites": {
       "domain-smoke": {"evidence": ["linux-domain-smoke-r1"], "state": "accepted"},
-      "portable-smoke": {"evidence": ["linux-portable-smoke-r8"], "state": "accepted"}
+      "portable-smoke": {"evidence": ["linux-portable-smoke-r8", "linux-portable-smoke-stability-r1"], "state": "accepted"}
     }},
     "macos": {"defaultEvidence": [], "defaultState": "implemented", "suites": {}},
     "mock": {"defaultEvidence": [], "defaultState": "implemented", "suites": {}},
