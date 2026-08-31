@@ -499,6 +499,30 @@ pipeline {
             }
         }
 
+        stage('Freeze Android Phone target') {
+            when { expression { resolvedProfile() == 'appium-android' } }
+            steps {
+                withEnv([
+                    "OVERTE_CI_WORKSPACE=${env.WORKSPACE}",
+                    "OVERTE_EXTERNAL_RESULT_ROOT=${env.OVERTE_EXTERNAL_RESULT_ROOT}",
+                    "OVERTE_ANDROID_JOB_TARGET_CONFIG=${env.OVERTE_ANDROID_JOB_TARGET_CONFIG}",
+                ]) {
+                    lock(resource: "overte-e2e-profile-${resolvedProfile()}",
+                         inversePrecedence: true) {
+                        lock(resource: deviceResource(resolvedProfile()),
+                             inversePrecedence: true) {
+                            withCredentials([string(
+                                credentialsId: targetCredential(resolvedProfile()),
+                                variable: 'OVERTE_DEVICE_TARGET_SELECTOR'
+                            )]) {
+                                script { ciPython('android-target-sync') }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         stage('Device-free contracts') {
             steps {
                 withEnv(["OVERTE_CI_WORKSPACE=${env.WORKSPACE}"]) {
@@ -548,30 +572,6 @@ pipeline {
                                 ]) {
                                     ciPython('ios-artifact-sync')
                                 }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Freeze Android Phone target') {
-            when { expression { resolvedProfile() == 'appium-android' } }
-            steps {
-                withEnv([
-                    "OVERTE_CI_WORKSPACE=${env.WORKSPACE}",
-                    "OVERTE_EXTERNAL_RESULT_ROOT=${env.OVERTE_EXTERNAL_RESULT_ROOT}",
-                    "OVERTE_ANDROID_JOB_TARGET_CONFIG=${env.OVERTE_ANDROID_JOB_TARGET_CONFIG}",
-                ]) {
-                    lock(resource: "overte-e2e-profile-${resolvedProfile()}",
-                         inversePrecedence: true) {
-                        lock(resource: deviceResource(resolvedProfile()),
-                             inversePrecedence: true) {
-                            withCredentials([string(
-                                credentialsId: targetCredential(resolvedProfile()),
-                                variable: 'OVERTE_DEVICE_TARGET_SELECTOR'
-                            )]) {
-                                script { ciPython('android-target-sync') }
                             }
                         }
                     }

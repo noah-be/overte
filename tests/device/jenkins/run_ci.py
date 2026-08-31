@@ -998,14 +998,14 @@ def prepare_android_target_copy() -> int:
     if len(encoded) > 1024 * 1024:
         fail("private Appium target configuration exceeds the safety limit")
     targets = value.get("targets") if isinstance(value, dict) else None
-    android = [entry for entry in targets or [] if isinstance(entry, dict)
-               and entry.get("platform") == "android"
-               and entry.get("enabled", True)]
-    selected = [entry for entry in android if entry.get("selector") == selector]
+    selected = [entry for entry in targets or [] if isinstance(entry, dict)
+                and entry.get("platform") == "android"
+                and entry.get("enabled", True)
+                and entry.get("selector") == selector]
     if (value.get("schemaVersion") != 1 or not isinstance(targets, list)
-            or len(android) != 1 or len(selected) != 1
-            or selected[0].get("physical") is not True):
-        fail("private Appium configuration must select exactly one enabled physical Android Phone")
+            or len(selected) != 1 or selected[0].get("physical") is not True):
+        fail("private Appium configuration must contain exactly one credential-selected "
+             "physical Android Phone")
     entry = selected[0]
     if (entry.get("process", {}).get("kind") != "adb"
             or entry.get("scene") != {"kind": "android-debug-e2e"}

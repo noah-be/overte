@@ -68,7 +68,8 @@ class JenkinsGlueTest(unittest.TestCase):
         path.chmod(0o600)
         return value
 
-    def android_target_config(self, path: Path, *, extra_android: bool = False) -> dict:
+    def android_target_config(self, path: Path, *, extra_android: bool = False,
+                              duplicate_selector: bool = False) -> dict:
         phone = {
             "selector": "private-android-phone",
             "platform": "android",
@@ -95,6 +96,8 @@ class JenkinsGlueTest(unittest.TestCase):
         }]
         if extra_android:
             targets.append(dict(phone, selector="private-second-phone"))
+        if duplicate_selector:
+            targets.append(dict(phone))
         value = {"schemaVersion": 1, "targets": targets}
         path.parent.mkdir(parents=True, mode=0o700)
         path.write_text(json.dumps(value), encoding="utf-8")
@@ -790,7 +793,7 @@ class JenkinsGlueTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="overte-android-target-sync-") as name:
             temporary = Path(name)
             source = temporary / "private/appium.json"
-            original = self.android_target_config(source)
+            original = self.android_target_config(source, extra_android=True)
             external = temporary / "job/build-21"
             config = external / "private-android-targets.json"
             values = {
@@ -819,7 +822,7 @@ class JenkinsGlueTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="overte-android-target-negative-") as name:
             temporary = Path(name)
             source = temporary / "private/appium.json"
-            self.android_target_config(source, extra_android=True)
+            self.android_target_config(source, duplicate_selector=True)
             external = temporary / "job/build-22"
             values = {
                 "OVERTE_CI_WORKSPACE": str(ROOT),
@@ -830,10 +833,10 @@ class JenkinsGlueTest(unittest.TestCase):
                     external / "private-android-targets.json"),
             }
             with patch.dict(os.environ, values, clear=False):
-                with self.assertRaisesRegex(ValueError, "exactly one enabled"):
+                with self.assertRaisesRegex(ValueError, "exactly one credential-selected"):
                     RUN_CI.prepare_android_target_copy()
                 os.environ["OVERTE_DEVICE_TARGET_SELECTOR"] = "private-ios"
-                with self.assertRaisesRegex(ValueError, "exactly one enabled"):
+                with self.assertRaisesRegex(ValueError, "exactly one credential-selected"):
                     RUN_CI.prepare_android_target_copy()
             self.assertFalse(external.exists())
 
@@ -915,6 +918,8 @@ class JenkinsGlueTest(unittest.TestCase):
                         source.index("runDeviceSuite('accessibility'"))
         self.assertLess(source.index("stage('Preinstalled Personal Team gate')"),
                         source.index("runDeviceSuite('portable-smoke'"))
+        self.assertLess(source.index("stage('Freeze Android Phone target')"),
+                        source.index("stage('Device-free contracts')"))
         self.assertLess(source.index("runDeviceSuite('accessibility'"),
                         source.index("runDeviceSuite('stability'"))
         self.assertNotIn("runDeviceSuite('lifecycle-stability'", source)
