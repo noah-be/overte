@@ -3,10 +3,6 @@ import controlsUit 1.0 as HifiControls
 
 Item {
     id: button
-    activeFocusOnTab: true
-    Accessible.role: Accessible.Button
-    Accessible.name: accessibleName
-    Accessible.onPressAction: activate()
 
     property string icon: "icons/edit-icon.svg"
     property string hoverIcon: button.icon
@@ -16,7 +12,6 @@ Item {
 
     property int iconSize: 165
     property string text: "."
-    property string accessibleName: text
     property string hoverText: button.text
     property string activeText: button.text
     property string activeHoverText: button.activeText
@@ -50,6 +45,7 @@ Item {
     property string accessibleDescription: ""
 
     activeFocusOnTab: true
+    Accessible.id: objectName
     Accessible.role: Accessible.Button
     Accessible.name: accessibleName
     Accessible.description: accessibleDescription

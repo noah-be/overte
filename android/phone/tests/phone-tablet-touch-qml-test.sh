@@ -111,7 +111,7 @@ require "$home" 'anchors\.bottom:[[:space:]]*closeTabletButton\.top' \
     'the app pages reserve bottom space and sit above the close control'
 require "$home" 'objectName:[[:space:]]*"androidTabletCloseButton"' \
     'the Android tablet exposes a stable close-control identity'
-require "$home" 'objectName:[[:space:]]*"nav[.]close"' \
+require "$home" 'semanticId:[[:space:]]*"nav[.]close"' \
     'the visible close action exposes the common semantic control identity'
 require "$home" 'onClicked:[[:space:]]*tabletProxy\.hideAndroidTablet\(\)' \
     'the close control routes through the native screen-space presenter'

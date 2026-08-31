@@ -8,7 +8,7 @@ cd android
 ```
 
 Use the phase-specific guidance in
-[`android/PICO4_BUILD.md`](../../../android/PICO4_BUILD.md#troubleshooting).
+[`android/vr/pico/docs/BUILD.md`](../../../android/vr/pico/docs/BUILD.md#troubleshooting).
 
 - For a missing dependency bundle, rerun the checksum-verified download and
   prepare phases before building.

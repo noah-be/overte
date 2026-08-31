@@ -14,6 +14,6 @@ The active product branch is `android-phone`; the retired
 
 Runner isolation, protected environments, artifact names, retention, and local
 contract commands are detailed in
-[`android/docs/ANDROID_PHONE_CI_CD.md`](../../../android/docs/ANDROID_PHONE_CI_CD.md)
+[`android/phone/docs/ANDROID_PHONE_CI_CD.md`](../../../android/phone/docs/ANDROID_PHONE_CI_CD.md)
 and
-[`android/docs/ANDROID_PHONE_RELEASE_OPERATIONS.md`](../../../android/docs/ANDROID_PHONE_RELEASE_OPERATIONS.md).
+[`android/phone/docs/ANDROID_PHONE_RELEASE_OPERATIONS.md`](../../../android/phone/docs/ANDROID_PHONE_RELEASE_OPERATIONS.md).

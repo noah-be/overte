@@ -2,7 +2,7 @@
 
 // A small, screen-space control surface for the phone client.  It deliberately
 // uses Interface's QML dialogs instead of the legacy Android Java activities.
-/* globals Audio, Camera, Controller, DialogsManager, MyAvatar, print, QmlFragment, Script, Tablet, Window */
+/* globals Audio, Camera, Controller, DialogsManager, MyAvatar, PlatformInfo, print, QmlFragment, Script, Tablet, Window */
 
 (function () {
     var navigationBar;
@@ -16,6 +16,12 @@
     var thirdPersonBoomLength = 1.5;
     var deferredLayoutTimer = null;
     var shuttingDown = false;
+    var touchStart = null;
+    var lastActionTime = 0;
+    var lastActionName = "";
+    var isIOS = typeof PlatformInfo !== "undefined" &&
+        typeof PlatformInfo.getOperatingSystemType === "function" &&
+        PlatformInfo.getOperatingSystemType() === "IOS";
 
     var BASE_BUTTON_STYLE = {
         bgOpacity: 0.22,
@@ -70,7 +76,12 @@
         var usableHeight = Math.max(1,
             height - metrics.safeInsetTop - metrics.safeInsetBottom);
         var shortEdge = Math.min(usableWidth, usableHeight);
-        var buttonSize = clamp(Math.round(shortEdge * 0.16), 72, 180);
+        // iPad logical surfaces are much larger than phone surfaces. Keep the
+        // established Android scaling while capping iOS near the proven native
+        // virtual-pad button size.
+        var buttonSize = isIOS
+            ? clamp(Math.round(shortEdge * 0.105), 72, 112)
+            : clamp(Math.round(shortEdge * 0.16), 72, 180);
         var edgeMargin = clamp(Math.round(shortEdge * 0.025), 12, 32);
         var flowPadding = 4;
         var flowSpacing = 10;
@@ -299,6 +310,103 @@
         }
     }
 
+    function pointInRect(point, position, size) {
+        return point.x >= position.x && point.x <= position.x + size.x &&
+            point.y >= position.y && point.y <= position.y + size.y;
+    }
+
+    function actionAtPoint(point) {
+        var layout = calculateLayout(Window.innerWidth, Window.innerHeight);
+        var buttonSize = layout.buttonStyle.width;
+        var padding = 4;
+        var spacing = 10;
+        var index;
+        var actions = [
+            { name: "goto", invoke: showAddressBar },
+            { name: "tablet", invoke: showTablet },
+            { name: "view", invoke: toggleCameraMode }
+        ];
+        for (index = 0; index < actions.length; index++) {
+            if (pointInRect(point, {
+                x: layout.navigationPosition.x + padding +
+                    (layout.navigationVertical ? 0 : index * (buttonSize + spacing)),
+                y: layout.navigationPosition.y + padding +
+                    (layout.navigationVertical ? index * (buttonSize + spacing) : 0)
+            }, { x: buttonSize, y: buttonSize })) {
+                return actions[index];
+            }
+        }
+        if (pointInRect(point, {
+            x: layout.audioPosition.x + padding,
+            y: layout.audioPosition.y + padding
+        }, { x: buttonSize, y: buttonSize })) {
+            return { name: "microphone", invoke: toggleMicrophone };
+        }
+        return null;
+    }
+
+    function invokeAction(action, source) {
+        var now = Date.now();
+        // A platform that also synthesizes a QML click must not toggle an
+        // action twice. This still permits deliberate repeated taps.
+        if (!action || (lastActionName === action.name && now - lastActionTime < 250)) {
+            return;
+        }
+        lastActionName = action.name;
+        lastActionTime = now;
+        print("OVERTE_MOBILE_ACTION_BAR action=" + action.name + " source=" + source);
+        hapticFeedback();
+        action.invoke();
+    }
+
+    function invokeButtonAction(action) {
+        // iOS receives both the QML click and the explicit native-touch
+        // fallback. Android keeps its established QML-only route.
+        if (isIOS) {
+            invokeAction(action, "qml");
+        } else {
+            action.invoke();
+        }
+    }
+
+    function onTouchBegin(event) {
+        var action = actionAtPoint(event);
+        touchStart = action ? {
+            action: action,
+            x: event.x,
+            y: event.y,
+            time: Date.now()
+        } : null;
+    }
+
+    function onTouchEnd(event) {
+        var start = touchStart;
+        var action = actionAtPoint(event);
+        touchStart = null;
+        if (!start || !action || start.action.name !== action.name ||
+                Date.now() - start.time > 600 ||
+                Math.abs(event.x - start.x) > 32 || Math.abs(event.y - start.y) > 32) {
+            return;
+        }
+        invokeAction(action, "touch");
+    }
+
+    function onGotoClicked() {
+        invokeButtonAction({ name: "goto", invoke: showAddressBar });
+    }
+
+    function onTabletClicked() {
+        invokeButtonAction({ name: "tablet", invoke: showTablet });
+    }
+
+    function onViewClicked() {
+        invokeButtonAction({ name: "view", invoke: toggleCameraMode });
+    }
+
+    function onMicrophoneClicked() {
+        invokeButtonAction({ name: "microphone", invoke: toggleMicrophone });
+    }
+
     currentButtonStyle = calculateLayout(Math.max(Window.innerWidth, 1), Math.max(Window.innerHeight, 1)).buttonStyle;
     systemTablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
 
@@ -317,7 +425,8 @@
         activeIcon: "icons/tablet-icons/menu-a.svg",
         text: "TABLET",
         accessibleName: "Open tablet",
-        accessibleDescription: "Open the Overte application tablet"
+        accessibleDescription: "Open the Overte application tablet",
+        objectName: "OverteTabletOpen"
     }));
     cameraButton = addButton(navigationBar, buttonProperties({
         icon: "icons/myview-i.svg",
@@ -336,18 +445,22 @@
         accessibleDescription: "Toggle microphone mute"
     }));
 
-    connectSignal(gotoButton, "clicked", showAddressBar);
+    connectSignal(gotoButton, "clicked", onGotoClicked);
     connectSignal(gotoButton, "entered", hapticFeedback);
-    connectSignal(tabletButton, "clicked", showTablet);
+    connectSignal(tabletButton, "clicked", onTabletClicked);
     connectSignal(tabletButton, "entered", hapticFeedback);
-    connectSignal(cameraButton, "clicked", toggleCameraMode);
+    connectSignal(cameraButton, "clicked", onViewClicked);
     connectSignal(cameraButton, "entered", hapticFeedback);
-    connectSignal(microphoneButton, "clicked", toggleMicrophone);
+    connectSignal(microphoneButton, "clicked", onMicrophoneClicked);
     connectSignal(microphoneButton, "entered", hapticFeedback);
     Window.geometryChanged.connect(updateLayout);
     Window.geometryChanged.connect(resizeTablet);
     connectSignal(Tablet, "touchUiRuntimeMetricsChanged", updateLayout);
     systemTablet.tabletShownChanged.connect(tabletVisibilityChanged);
+    if (isIOS) {
+        connectSignal(Controller, "touchBeginEvent", onTouchBegin);
+        connectSignal(Controller, "touchEndEvent", onTouchEnd);
+    }
     tabletVisibilityChanged();
     // QML fragments also perform their initial placement in Component.onCompleted;
     // defer once so the phone-specific adaptive placement wins deterministically.
@@ -366,15 +479,20 @@
         Window.geometryChanged.disconnect(resizeTablet);
         disconnectSignal(Tablet, "touchUiRuntimeMetricsChanged", updateLayout);
         systemTablet.tabletShownChanged.disconnect(tabletVisibilityChanged);
+        if (isIOS) {
+            disconnectSignal(Controller, "touchBeginEvent", onTouchBegin);
+            disconnectSignal(Controller, "touchEndEvent", onTouchEnd);
+        }
+        touchStart = null;
         Controller.setVPadHidden(false);
         Controller.releaseTouchEvents();
-        disconnectSignal(gotoButton, "clicked", showAddressBar);
+        disconnectSignal(gotoButton, "clicked", onGotoClicked);
         disconnectSignal(gotoButton, "entered", hapticFeedback);
-        disconnectSignal(tabletButton, "clicked", showTablet);
+        disconnectSignal(tabletButton, "clicked", onTabletClicked);
         disconnectSignal(tabletButton, "entered", hapticFeedback);
-        disconnectSignal(cameraButton, "clicked", toggleCameraMode);
+        disconnectSignal(cameraButton, "clicked", onViewClicked);
         disconnectSignal(cameraButton, "entered", hapticFeedback);
-        disconnectSignal(microphoneButton, "clicked", toggleMicrophone);
+        disconnectSignal(microphoneButton, "clicked", onMicrophoneClicked);
         disconnectSignal(microphoneButton, "entered", hapticFeedback);
         closeFragment(navigationBar);
         closeFragment(audioBar);

@@ -18,6 +18,27 @@ def function_body(signature: str, next_signature: str) -> str:
     return APPLICATION[start:end]
 
 
+def without_ios_only_blocks(source: str) -> str:
+    """Return the code visible to a non-iOS preprocessor target."""
+    visible = []
+    skipped_depth = 0
+    for line in source.splitlines(keepends=True):
+        directive = line.strip()
+        if skipped_depth:
+            if directive.startswith("#if"):
+                skipped_depth += 1
+            elif directive.startswith("#endif"):
+                skipped_depth -= 1
+            continue
+        if directive == "#if defined(Q_OS_IOS)":
+            skipped_depth = 1
+            continue
+        visible.append(line)
+    if skipped_depth:
+        raise AssertionError("unterminated iOS-only preprocessor block")
+    return "".join(visible)
+
+
 class PicoWorldStateTests(unittest.TestCase):
     def test_parser_reports_success_separately_from_named_paths(self):
         self.assertIn("bool prepareServerlessDomainContents", HEADER)
@@ -53,8 +74,9 @@ class PicoWorldStateTests(unittest.TestCase):
             "void Application::loadServerlessDomain",
             "void Application::loadErrorDomain",
         )
+        pico_visible_body = without_ios_only_blocks(body)
         self.assertNotIn("schedulePicoServerlessLocationQuery", body)
-        self.assertNotIn("goToViewpointForPath", body)
+        self.assertNotIn("goToViewpointForPath", pico_visible_body)
         self.assertNotIn("locationApplyFailed", body)
 
         self.assertIn('const QString LOCATION_QUERY_KEY = "location"', ADDRESS_MANAGER)

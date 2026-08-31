@@ -180,6 +180,10 @@ assert '"viewportResolutionScale", 0.8f' in RENDER_HEADER
 assert '"iosViewportResolutionScaleDefaultApplied", false' in RENDER_SOURCE
 assert "_viewportResolutionScale = 0.8f" in RENDER_SOURCE
 assert "OVERTE_IOS_RENDER_PROFILE stage=resolution-scale-applied" in RENDER_SOURCE
+load_settings = APPLICATION[
+    APPLICATION.index("void Application::loadSettings"):
+    APPLICATION.index("void Application::saveSettings")
+]
 for mobile_budget_contract in (
     "constexpr int IOS_TARGET_FPS { 30 }",
     "IOS_MAX_VIEWPORT_RESOLUTION_SCALE { 0.8f }",
@@ -193,7 +197,9 @@ for mobile_budget_contract in (
     "RefreshRateManager::RefreshRateRegime::STARTUP, IOS_TARGET_FPS",
     "OVERTE_IOS_RENDER_PROFILE stage=mobile-budget-applied",
 ):
-    assert mobile_budget_contract in APPLICATION
+    assert mobile_budget_contract in load_settings
+assert "const QString iosCameraMode = iosRuntimeDiagnosticConfig()" in load_settings
+assert "OVERTE_IOS_CAMERA_GATE stage=startup-policy" in load_settings
 assert "defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)" in APPLICATION_PLUGINS
 assert "OVERTE_IOS_FRAME_PACING" in APPLICATION_PLUGINS
 assert "onClicked: modelData.clicked()" in TABLET_HOME

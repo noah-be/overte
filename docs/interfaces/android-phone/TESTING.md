@@ -19,7 +19,7 @@ cd android
 
 This builds a separate x86_64 variant, boots the selected AVD, and runs AndroidX
 instrumentation. See
-[`android/ANDROID_PHONE_EMULATOR_TESTS.md`](../../../android/ANDROID_PHONE_EMULATOR_TESTS.md).
+[`android/phone/docs/EMULATOR_TESTS.md`](../../../android/phone/docs/EMULATOR_TESTS.md).
 
 ## Physical phone
 
@@ -35,7 +35,7 @@ physical 4-KiB/16-KiB, graphics, audio, thermal, battery, cutout, or vendor
 validation.
 
 The wider test policy is in
-[`android/docs/ANDROID_TESTING.md`](../../../android/docs/ANDROID_TESTING.md).
+[`android/common/docs/ANDROID_TESTING.md`](../../../android/common/docs/ANDROID_TESTING.md).
 
 ## Semantic tablet E2E
 

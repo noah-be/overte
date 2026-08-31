@@ -1,7 +1,7 @@
 # Build Overte for Pico 4
 
 The authoritative detailed command reference remains
-[`android/PICO4_BUILD.md`](../../../android/PICO4_BUILD.md). Run its build
+[`android/vr/pico/docs/BUILD.md`](../../../android/vr/pico/docs/BUILD.md). Run its build
 commands from `android/` on a 64-bit Linux host.
 
 Required tools include Conan 2, Git, CMake, Ninja, Python, Perl, the Android SDK
