@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Device-free packaging and platform contracts for the Pico 4 APK."""
 
+import json
 from pathlib import Path
 import re
 import unittest
@@ -69,6 +70,164 @@ class PicoPackageContractTests(unittest.TestCase):
         self.assertIn('../../common/runtime-overrides/arm64-v8a', build_script)
         self.assertIn('legacy_runtime_dir', build_script)
         self.assertIn('cp -a "$legacy_runtime_dir/." "$shared_runtime_dir/"', build_script)
+
+    def test_pico_conan_recipe_inherits_the_repository_recipe(self):
+        recipe_path = ANDROID / "common/conan/conanfile-pico.py"
+        recipe = recipe_path.read_text(encoding="utf-8")
+        expected_upstream = recipe_path.resolve().parents[3] / "conanfile.py"
+
+        self.assertEqual(expected_upstream, ROOT / "conanfile.py")
+        self.assertTrue(expected_upstream.is_file())
+        self.assertIn(
+            'Path(__file__).resolve().parents[3] / "conanfile.py"',
+            recipe,
+        )
+
+    def test_e2e_launcher_exists_only_in_the_debug_source_set(self):
+        debug_manifest = APP / "src/debug/AndroidManifest.xml"
+        activity_sources = list(
+            (APP / "src/debug/java").rglob("E2eLauncherActivity.java")
+        )
+        self.assertEqual(1, len(activity_sources))
+        self.assertFalse(list((APP / "src/main").rglob("E2eLauncherActivity.java")))
+
+        activity = ET.parse(debug_manifest).getroot().find("application/activity")
+        self.assertIsNotNone(activity)
+        self.assertEqual("true", activity.attrib[NS + "exported"])
+        self.assertEqual("android.permission.DUMP", activity.attrib[NS + "permission"])
+        self.assertEqual("true", activity.attrib[NS + "noHistory"])
+        launcher = activity_sources[0].read_text(encoding="utf-8")
+        self.assertIn("extends E2eLauncherActivityBase", launcher)
+
+    def test_e2e_assets_and_native_layer_are_debug_only(self):
+        self.assertIn("device_tests/e2e_android/src/main/java", GRADLE)
+        self.assertGreaterEqual(GRADLE.count("variant.buildType.name == 'debug'"), 2)
+        self.assertIn("e2eProbeAsset", GRADLE)
+        self.assertIn("e2eSceneAsset", GRADLE)
+        self.assertIn(
+            "variant.mergeAssets.inputs.files(e2eProbeAsset, e2eSceneAsset)",
+            GRADLE,
+        )
+        self.assertIn("arguments '-DOVERTE_PICO_E2E_OPENXR_INPUT=ON'", GRADLE)
+        self.assertIn("arguments '-DOVERTE_PICO_E2E_OPENXR_INPUT=OFF'", GRADLE)
+
+    def test_e2e_result_path_is_relative_atomic_and_app_private(self):
+        save_object = (
+            ROOT / "interface/src/scripting/TestScriptingInterface.cpp"
+        ).read_text(encoding="utf-8")
+        self.assertIn("QSaveFile", save_object)
+        self.assertIn("QFileInfo(filename).fileName()", save_object)
+        self.assertIn("file.commit()", save_object)
+        for relative in (
+            "interface/src/Application_Setup.cpp",
+            "android/vr/pico/apps/picoInterface/overrides/Application_Setup.cpp",
+        ):
+            source = (ROOT / relative).read_text(encoding="utf-8")
+            self.assertIn("FileUtils::computeDocumentPath(path)", source)
+            self.assertIn("QDir().mkpath(path)", source)
+
+    def test_movement_override_is_native_runtime_only_and_nonpersistent(self):
+        pico_setup = (
+            APP / "overrides/Application_Setup.cpp"
+        ).read_text(encoding="utf-8")
+        self.assertIn("picoE2eInputMappingOverrideActive", pico_setup)
+        self.assertIn(
+            "/data/user/0/org.overte.pico/files/overte-e2e/overte_e2e_probe.js",
+            pico_setup,
+        )
+        self.assertIn("#if defined(OVERTE_E2E_OPENXR_INPUT_V1)", pico_setup)
+        self.assertIn("setE2eAdvancedMovementControlsOverride", pico_setup)
+        self.assertIn("setE2eFlyingEnabledOverride", pico_setup)
+        self.assertIn("picoE2eInputMappingOverrideActive()", pico_setup.split(
+            "setInputVariant(STATE_STRAFE_ENABLED", 1)[1].split("});", 1)[0])
+
+        avatar_header = (ROOT / "interface/src/avatar/MyAvatar.h").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("_e2eAdvancedMovementControlsOverride.get() ||", avatar_header)
+        self.assertIn("_e2eAdvancedMovementControlsOverride.set(enabled)", avatar_header)
+        declaration = avatar_header.split(
+            "void setE2eAdvancedMovementControlsOverride", 1
+        )[1].split("}", 1)[0]
+        self.assertNotIn("Q_INVOKABLE", declaration)
+        self.assertNotIn("_useAdvancedMovementControls.set", declaration)
+        self.assertIn("_e2eFlyingEnabledOverride.set(enabled)", avatar_header)
+        flying_declaration = avatar_header.split(
+            "void setE2eFlyingEnabledOverride", 1
+        )[1].split("}", 1)[0]
+        self.assertNotIn("Q_INVOKABLE", flying_declaration)
+        self.assertNotIn("_flyingHMDSetting.set", flying_declaration)
+        self.assertIn("if(OVERTE_PICO_E2E_OPENXR_INPUT)", CMAKE)
+        self.assertIn(
+            "target_compile_definitions(interface PRIVATE OVERTE_E2E_OPENXR_INPUT_V1=1)",
+            CMAKE,
+        )
+        avatar_source = (ROOT / "interface/src/avatar/MyAvatar.cpp").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "if (!useAdvancedMovementControls() && qApp->isHMDMode())",
+            avatar_source,
+        )
+        self.assertIn("if (e2eFlyingEnabledOverride())", avatar_source)
+        self.assertIn("getFlyingEnabled())))", avatar_source)
+        self.assertNotIn(
+            "setFlyingHMDPref(true)",
+            pico_setup,
+        )
+
+        openxr_mapping = json.loads(
+            (ROOT / "interface/resources/controllers/openxr.json").read_text(
+                encoding="utf-8")
+        )["channels"]
+        self.assertIn(
+            {"from": "OpenXR.RightSecondary",
+             "to": "Standard.RightSecondaryThumb"},
+            openxr_mapping,
+        )
+        standard_mapping = json.loads(
+            (ROOT / "interface/resources/controllers/standard.json").read_text(
+                encoding="utf-8")
+        )["channels"]
+        self.assertTrue(any(
+            route.get("from") == "Standard.RightSecondaryThumb"
+            and route.get("to") == "Actions.Up"
+            and "Application.RightHandDominant" in route.get("when", [])
+            for route in standard_mapping
+        ))
+
+    def test_hmd_tablet_blocks_standard_world_locomotion_routes(self):
+        for relative in (
+            "interface/src/Application_Setup.cpp",
+            "android/vr/pico/apps/picoInterface/overrides/Application_Setup.cpp",
+        ):
+            source = (ROOT / relative).read_text(encoding="utf-8")
+            self.assertIn('STATE_TABLET_SHOWN = "TabletShown"', source)
+            self.assertIn("setInputVariant(STATE_TABLET_SHOWN", source)
+            self.assertIn("getShouldShowTablet()", source)
+
+        channels = json.loads(
+            (ROOT / "interface/resources/controllers/standard.json").read_text(
+                encoding="utf-8")
+        )["channels"]
+        world_actions = {
+            "Actions.TranslateX", "Actions.TranslateZ", "Actions.Pitch",
+            "Actions.Yaw", "Actions.StepYaw", "Actions.Up", "Actions.Down",
+        }
+        controller_inputs = {
+            "Standard.LX", "Standard.LY", "Standard.RX", "Standard.RY",
+            "Standard.LeftSecondaryThumb", "Standard.RightSecondaryThumb",
+            "Standard.A", "Standard.B",
+        }
+        routes = [route for route in channels
+                  if route.get("from") in controller_inputs
+                  and route.get("to") in world_actions]
+        self.assertTrue(routes)
+        for route in routes:
+            conditions = route.get("when", [])
+            if isinstance(conditions, str):
+                conditions = [conditions]
+            self.assertIn("!Application.TabletShown", conditions, route)
 
 
 if __name__ == "__main__":

@@ -69,6 +69,7 @@ jobs:
           android/vr/pico/ci/verify-pico-apk.py "$PICO_APK" \
             --aapt "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt" \
             --apksigner "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" \
+            --expect-e2e-input-layer \
             --source-revision "$GITHUB_SHA" \
             --output build/pico4/apk-manifest.json
           {

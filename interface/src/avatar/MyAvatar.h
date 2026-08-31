@@ -1013,9 +1013,23 @@ public:
      */
     Q_INVOKABLE void enableHandTouchForID(const QUuid& entityID);
 
-    bool useAdvancedMovementControls() const { return _useAdvancedMovementControls.get(); }
+    bool useAdvancedMovementControls() const {
+        return _e2eAdvancedMovementControlsOverride.get() ||
+            _useAdvancedMovementControls.get();
+    }
     void setUseAdvancedMovementControls(bool useAdvancedMovementControls)
         { _useAdvancedMovementControls.set(useAdvancedMovementControls); }
+    // Native-only, runtime-only E2E override. This is deliberately neither a
+    // Q_PROPERTY nor Q_INVOKABLE and never writes the Setting::Handle.
+    void setE2eAdvancedMovementControlsOverride(bool enabled) {
+        _e2eAdvancedMovementControlsOverride.set(enabled);
+    }
+    void setE2eFlyingEnabledOverride(bool enabled) {
+        _e2eFlyingEnabledOverride.set(enabled);
+    }
+    bool e2eFlyingEnabledOverride() const {
+        return _e2eFlyingEnabledOverride.get();
+    }
 
 #if defined(ANDROID_APP_PHONE_INTERFACE)
     // The shell-restricted Android Phone E2E launcher may temporarily force
@@ -2668,6 +2682,8 @@ private:
 #if defined(ANDROID_APP_PHONE_INTERFACE)
     ThreadSafeValueCache<int> _phoneE2eFlyingEnabledOverride { -1 };
 #endif
+    ThreadSafeValueCache<bool> _e2eAdvancedMovementControlsOverride { false };
+    ThreadSafeValueCache<bool> _e2eFlyingEnabledOverride { false };
     Setting::Handle<bool> _showPlayArea;
 
     // Smoothing.

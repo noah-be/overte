@@ -2,19 +2,19 @@
     "name": "Standard to Action",
     "channels": [
         { "from": "Standard.LY",
-		  "when": ["Application.RightHandDominant"],
+          "when": ["Application.RightHandDominant", "!Application.TabletShown"],
 		  "to": "Actions.TranslateZ"
         },
 
         { "from": "Standard.RY",
-		  "when": ["!Application.InHMD", "Application.RightHandDominant"],
+          "when": ["!Application.InHMD", "Application.RightHandDominant", "!Application.TabletShown"],
 		  "to": "Actions.Pitch"
         },
 
         { "from": "Standard.LX",
           "when": [
             "Application.InHMD", "!Application.AdvancedMovement", "Application.RightHandDominant",
-            "Application.SnapTurn"
+            "Application.SnapTurn", "!Application.TabletShown"
           ],
           "to": "Actions.StepYaw",
           "filters":
@@ -26,14 +26,14 @@
             ]
         },
         { "from": "Standard.LX", "to": "Actions.TranslateX",
-          "when": [ "Application.AdvancedMovement", "Application.StrafeEnabled", "Application.RightHandDominant" ]
+          "when": [ "Application.AdvancedMovement", "Application.StrafeEnabled", "Application.RightHandDominant", "!Application.TabletShown" ]
         },
         { "from": "Standard.LX", "to": "Actions.Yaw",
-          "when": [ "!Application.AdvancedMovement", "!Application.SnapTurn", "Application.RightHandDominant" ]
+          "when": [ "!Application.AdvancedMovement", "!Application.SnapTurn", "Application.RightHandDominant", "!Application.TabletShown" ]
         },
 
         { "from": "Standard.RX",
-          "when": [ "Application.SnapTurn", "Application.RightHandDominant" ],
+          "when": [ "Application.SnapTurn", "Application.RightHandDominant", "!Application.TabletShown" ],
           "to": "Actions.StepYaw",
           "filters":
             [
@@ -44,33 +44,33 @@
             ]
         },
         { "from": "Standard.RX", "to": "Actions.Yaw",
-          "when": [ "!Application.SnapTurn", "Application.RightHandDominant" ]
+          "when": [ "!Application.SnapTurn", "Application.RightHandDominant", "!Application.TabletShown" ]
         },
 
         { "from": "Standard.LeftSecondaryThumb",
-          "when": [ "Application.Grounded", "Application.LeftHandDominant" ],
+          "when": [ "Application.Grounded", "Application.LeftHandDominant", "!Application.TabletShown" ],
           "to": "Actions.Up"
         },
 
         { "from": "Standard.LeftSecondaryThumb",
-		  "when": "Application.LeftHandDominant",
+		  "when": ["Application.LeftHandDominant", "!Application.TabletShown"],
 		  "to": "Actions.Up"
         },
 		
         { "from": "Standard.RY",
-		  "when": ["Application.LeftHandDominant"],
+		  "when": ["Application.LeftHandDominant", "!Application.TabletShown"],
 		  "to": "Actions.TranslateZ"
         },
 
         { "from": "Standard.LY",
-		  "when": ["!Application.InHMD", "Application.LeftHandDominant"],
+		  "when": ["!Application.InHMD", "Application.LeftHandDominant", "!Application.TabletShown"],
 		  "to": "Actions.Pitch"
         },
 
         { "from": "Standard.RX",
           "when": [
             "Application.InHMD", "!Application.AdvancedMovement", "Application.LeftHandDominant",
-            "Application.SnapTurn"
+            "Application.SnapTurn", "!Application.TabletShown"
           ],
           "to": "Actions.StepYaw",
           "filters":
@@ -82,14 +82,14 @@
             ]
         },
         { "from": "Standard.RX", "to": "Actions.TranslateX",
-          "when": [ "Application.AdvancedMovement", "Application.StrafeEnabled", "Application.LeftHandDominant" ]
+          "when": [ "Application.AdvancedMovement", "Application.StrafeEnabled", "Application.LeftHandDominant", "!Application.TabletShown" ]
         },
         { "from": "Standard.RX", "to": "Actions.Yaw",
-          "when": [ "!Application.AdvancedMovement", "!Application.SnapTurn", "Application.LeftHandDominant" ]
+          "when": [ "!Application.AdvancedMovement", "!Application.SnapTurn", "Application.LeftHandDominant", "!Application.TabletShown" ]
         },
 
         { "from": "Standard.LX",
-          "when": [ "Application.SnapTurn", "Application.LeftHandDominant" ],
+          "when": [ "Application.SnapTurn", "Application.LeftHandDominant", "!Application.TabletShown" ],
           "to": "Actions.StepYaw",
           "filters":
             [
@@ -100,16 +100,16 @@
             ]
         },
         { "from": "Standard.LX", "to": "Actions.Yaw",
-          "when": [ "!Application.SnapTurn", "Application.LeftHandDominant" ]
+          "when": [ "!Application.SnapTurn", "Application.LeftHandDominant", "!Application.TabletShown" ]
         },
 
         { "from": "Standard.RightSecondaryThumb",
-          "when": [ "Application.Grounded", "Application.RightHandDominant" ],
+          "when": [ "Application.Grounded", "Application.RightHandDominant", "!Application.TabletShown" ],
           "to": "Actions.Up"
         },
 
         { "from": "Standard.RightSecondaryThumb",
-		  "when": "Application.RightHandDominant",
+		  "when": ["Application.RightHandDominant", "!Application.TabletShown"],
 		  "to": "Actions.Up"
         },
 
@@ -119,8 +119,8 @@
         { "from": "Standard.LT", "to": "Actions.LeftHandClick" },
         { "from": "Standard.RT", "to": "Actions.RightHandClick" },
 
-        { "from": "Standard.A", "to": "Actions.Up" },
-        { "from": "Standard.B", "to": "Actions.Down" },
+        { "from": "Standard.A", "when": "!Application.TabletShown", "to": "Actions.Up" },
+        { "from": "Standard.B", "when": "!Application.TabletShown", "to": "Actions.Down" },
 
         { "from": "Standard.LeftHand", "to": "Actions.LeftHand" },
         { "from": "Standard.LeftHandThumb1", "to": "Actions.LeftHandThumb1"},

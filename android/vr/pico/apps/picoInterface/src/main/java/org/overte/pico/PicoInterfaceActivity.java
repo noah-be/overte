@@ -33,12 +33,14 @@ public final class PicoInterfaceActivity extends QtActivity {
     private native boolean initializeOpenXRLoader();
     private native void releaseOpenXRActivity();
 
+    static PicoInterfaceActivity getInstance() {
+        return INSTANCE.current();
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         INSTANCE.register(this);
         APPLICATION_PARAMETERS = PicoInterfaceActivityPolicy.applicationParameters(
-            getIntent().hasExtra("applicationArguments"),
-            getIntent().getStringExtra("applicationArguments"),
             getCacheDir().getAbsolutePath());
 
         HifiUtils.upackAssets(getAssets(), getCacheDir().getAbsolutePath());

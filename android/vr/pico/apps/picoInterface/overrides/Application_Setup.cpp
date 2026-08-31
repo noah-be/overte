@@ -88,6 +88,7 @@
 #include <SceneScriptingInterface.h>
 #include <ScriptEngines.h>
 #include <ScriptEntityItem.h>
+#include <shared/FileUtils.h>
 #include <scripting/Audio.h>
 #include <scripting/AssetMappingsScriptingInterface.h>
 #include <scripting/ControllerScriptingInterface.h>
@@ -147,6 +148,9 @@
 #include "SpeechRecognizer.h"
 #endif
 #include "Util.h"
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+#include "../e2e/PicoE2eTabletBridge.h"
+#endif
 
 #if defined(Q_OS_WIN)
 #include <VersionHelpers.h>
@@ -184,6 +188,7 @@ using namespace std;
  *     <tr><td><code>CameraIndependent</code></td><td>number</td><td>number</td><td>The camera is in independent mode.</td></tr>
  *     <tr><td><code>CameraEntity</code></td><td>number</td><td>number</td><td>The camera is in entity mode.</td></tr>
  *     <tr><td><code>InHMD</code></td><td>number</td><td>number</td><td>The user is in HMD mode.</td></tr>
+ *     <tr><td><code>TabletShown</code></td><td>number</td><td>number</td><td>The HMD tablet is visible.</td></tr>
  *     <tr><td><code>CaptureMouse</code></td><td>number</td><td>number</td><td>The mouse is captured.  In this mode,
  *       the mouse is invisible and cannot leave the bounds of Interface, as long as Interface is the active window and
  *       no menu item is selected.</td></tr>
@@ -204,6 +209,7 @@ using namespace std;
  */
 
 static const QString STATE_IN_HMD = "InHMD";
+static const QString STATE_TABLET_SHOWN = "TabletShown";
 static const QString STATE_CAMERA_FULL_SCREEN_MIRROR = "CameraFSM";
 static const QString STATE_CAMERA_FIRST_PERSON = "CameraFirstPerson";
 static const QString STATE_CAMERA_FIRST_PERSON_LOOK_AT = "CameraFirstPersonLookat";
@@ -250,6 +256,24 @@ static const int WATCHDOG_TIMER_TIMEOUT = 100;
 
 #if defined(Q_OS_ANDROID)
 static const QString TESTER_FILE = "/sdcard/_hifi_test_device.txt";
+#endif
+
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+// The Debug-only Android launcher copies this exact repository probe into the
+// app-private directory. While it is the active --testScript, expose a
+// deterministic controller mapping state without changing MyAvatar/QSettings.
+static bool picoE2eInputMappingOverrideActive() {
+    const QUrl testScript = qApp->property(hifi::properties::TEST).toUrl();
+    if (!testScript.isLocalFile()) {
+        return false;
+    }
+    const QString activeProbe = QFileInfo(testScript.toLocalFile()).canonicalFilePath();
+    const QString expectedProbe = QFileInfo(QStringLiteral(
+        "/data/user/0/org.overte.pico/files/overte-e2e/overte_e2e_probe.js"))
+        .canonicalFilePath();
+    return !activeProbe.isEmpty() && !expectedProbe.isEmpty()
+        && activeProbe == expectedProbe;
+}
 #endif
 
 bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted) {
@@ -418,7 +442,7 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     DependencyManager::set<InterfaceDynamicFactory>();
     DependencyManager::set<AudioInjectorManager>();
     DependencyManager::set<MessagesClient>();
-    controller::StateController::setStateVariables({ { STATE_IN_HMD, STATE_CAMERA_FULL_SCREEN_MIRROR,
+    controller::StateController::setStateVariables({ { STATE_IN_HMD, STATE_TABLET_SHOWN, STATE_CAMERA_FULL_SCREEN_MIRROR,
                     STATE_CAMERA_FIRST_PERSON, STATE_CAMERA_FIRST_PERSON_LOOK_AT, STATE_CAMERA_THIRD_PERSON,
                     STATE_CAMERA_ENTITY, STATE_CAMERA_INDEPENDENT, STATE_CAMERA_LOOK_AT, STATE_CAMERA_SELFIE, STATE_CAPTURE_MOUSE,
                     STATE_SNAP_TURN, STATE_ADVANCED_MOVEMENT_CONTROLS, STATE_GROUNDED, STATE_NAV_FOCUSED,
@@ -551,6 +575,8 @@ void Application::initialize(const QCommandLineParser &parser) {
         if (parser.isSet("testResultsLocation")) {
             // Set test snapshot location only if it is a writeable directory
             QString path = parser.value("testResultsLocation");
+            path = FileUtils::computeDocumentPath(path);
+            QDir().mkpath(path);
 
             QFileInfo fileInfo(path);
             if (fileInfo.isDir() && fileInfo.isWritable()) {
@@ -973,8 +999,22 @@ void Application::initialize(const QCommandLineParser &parser) {
     auto userInputMapper = DependencyManager::get<UserInputMapper>();
     _applicationStateDevice = userInputMapper->getStateDevice();
 
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+    // Runtime-only: the getter used by the controller mappings and avatar
+    // motor observes this flag, while the persistent Setting::Handle is never
+    // mutated. A normal or Release session constructs the flag as false.
+    qApp->getMyAvatar()->setE2eAdvancedMovementControlsOverride(
+        picoE2eInputMappingOverrideActive());
+    qApp->getMyAvatar()->setE2eFlyingEnabledOverride(
+        picoE2eInputMappingOverrideActive());
+#endif
+
     _applicationStateDevice->setInputVariant(STATE_IN_HMD, []() -> float {
         return qApp->isHMDMode() ? 1 : 0;
+    });
+    _applicationStateDevice->setInputVariant(STATE_TABLET_SHOWN, []() -> float {
+        return qApp->isHMDMode() &&
+            DependencyManager::get<HMDScriptingInterface>()->getShouldShowTablet() ? 1 : 0;
     });
     _applicationStateDevice->setInputVariant(STATE_CAMERA_FULL_SCREEN_MIRROR, []() -> float {
         return qApp->getCamera().getMode() == CAMERA_MODE_MIRROR ? 1 : 0;
@@ -1010,12 +1050,27 @@ void Application::initialize(const QCommandLineParser &parser) {
         return qApp->getMyAvatar()->useAdvancedMovementControls() ? 1 : 0;
     });
     _applicationStateDevice->setInputVariant(STATE_LEFT_HAND_DOMINANT, []() -> float {
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+        return picoE2eInputMappingOverrideActive() ? 0 :
+            (qApp->getMyAvatar()->getDominantHand() == "left" ? 1 : 0);
+#else
         return qApp->getMyAvatar()->getDominantHand() == "left" ? 1 : 0;
+#endif
     });
     _applicationStateDevice->setInputVariant(STATE_RIGHT_HAND_DOMINANT, []() -> float {
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+        return picoE2eInputMappingOverrideActive() ? 1 :
+            (qApp->getMyAvatar()->getDominantHand() == "right" ? 1 : 0);
+#else
         return qApp->getMyAvatar()->getDominantHand() == "right" ? 1 : 0;
+#endif
     });
     _applicationStateDevice->setInputVariant(STATE_STRAFE_ENABLED, []() -> float {
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+        if (picoE2eInputMappingOverrideActive()) {
+            return 1;
+        }
+#endif
         return qApp->getMyAvatar()->getStrafeEnabled() ? 1 : 0;
     });
 
@@ -1426,6 +1481,10 @@ void Application::setupSignalsAndOperators() {
     auto dialogsManager = DependencyManager::get<DialogsManager>();
     auto nodeList = DependencyManager::get<NodeList>();
     const DomainHandler& domainHandler = nodeList->getDomainHandler();
+
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+    overte::pico::e2e::installTabletBridge(this);
+#endif
 
     // General
     {

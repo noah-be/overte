@@ -50,6 +50,7 @@ TESTS = (
     test("interaction-diagnostics", "interaction", "node", "pico-interaction-diagnostics-test.js", requires=("node",)),
     test("tablet-lifecycle", "interaction", "node", "pico-tablet-lifecycle-test.js", requires=("node",)),
     test("tablet-settings", "interaction", "node", "pico-tablet-settings-test.js", requires=("node",)),
+    test("tablet-e2e-adapter", "interaction", PYTHON, "pico-tablet-e2e-adapter-test.py"),
     test("create-qml", "interaction", PYTHON, "pico-create-qml-test.py"),
     test("create-properties", "interaction", "node", "pico-create-properties-validation-test.js", requires=("node",)),
     test("create-message", "interaction", "node", "pico-create-message-validation-test.js", requires=("node",)),

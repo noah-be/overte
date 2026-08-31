@@ -46,6 +46,43 @@ Item {
 		}
 	}
 
+	Rectangle {
+		id: tabletHomeButton
+		visible: currentPage == "Settings"
+		height: Math.max(40, touchMetrics.adaptiveMinimumControlHeight)
+		width: 96
+		x: 10
+		anchors.verticalCenter: parent.verticalCenter
+		radius: 6
+		color: tabletHomeMouseArea.pressed ? "#169c86" : "#1fc6a6"
+
+		Text {
+			anchors.centerIn: parent
+			text: qsTr("HOME")
+			color: "#10252d"
+			font.bold: true
+			font.pixelSize: Math.round(18 * touchMetrics.textScale)
+		}
+
+		MouseArea {
+			id: tabletHomeMouseArea
+			objectName: "nav.home"
+			anchors.fill: parent
+			activeFocusOnTab: visible
+			Accessible.role: Accessible.Button
+			Accessible.name: qsTr("Tablet home")
+			Accessible.description: qsTr("Return to the tablet application list")
+			function activate() {
+				Tablet.getTablet("com.highfidelity.interface.tablet.system").gotoHomeScreen()
+			}
+			Accessible.onPressAction: activate()
+			onClicked: activate()
+			Keys.onReturnPressed: activate()
+			Keys.onEnterPressed: activate()
+			Keys.onSpacePressed: activate()
+		}
+	}
+
 	Text {
 		text: currentPage;
 		color: "white";

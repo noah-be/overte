@@ -8,6 +8,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[4]
 APPLICATION = (ROOT / "interface/src/Application.cpp").read_text(encoding="utf-8")
 HEADER = (ROOT / "interface/src/Application.h").read_text(encoding="utf-8")
+ADDRESS_MANAGER = (ROOT / "libraries/networking/src/AddressManager.cpp").read_text(
+    encoding="utf-8")
 
 
 def function_body(signature: str, next_signature: str) -> str:
@@ -45,6 +47,44 @@ class PicoWorldStateTests(unittest.TestCase):
         commit = body.index("_picoServerlessSceneImportCommitted = true", failure)
         self.assertLess(failure_return, connect)
         self.assertLess(failure_return, commit)
+
+    def test_explicit_location_is_owned_by_the_single_address_lookup(self):
+        body = function_body(
+            "void Application::loadServerlessDomain",
+            "void Application::loadErrorDomain",
+        )
+        self.assertNotIn("schedulePicoServerlessLocationQuery", body)
+        self.assertNotIn("goToViewpointForPath", body)
+        self.assertNotIn("locationApplyFailed", body)
+
+        self.assertIn('const QString LOCATION_QUERY_KEY = "location"', ADDRESS_MANAGER)
+        self.assertIn("QUrl::FullyDecoded", ADDRESS_MANAGER)
+        self.assertIn(
+            "handlePath(path, LookupTrigger::Internal, false)", ADDRESS_MANAGER)
+
+    def test_api_retry_cannot_reapply_a_serverless_spawn(self):
+        start = ADDRESS_MANAGER.index("void AddressManager::refreshPreviousLookup()")
+        end = ADDRESS_MANAGER.index("void AddressManager::copyAddress()", start)
+        body = ADDRESS_MANAGER[start:end]
+        self.assertIn("const QUrl address = currentAddress();", body)
+        self.assertIn("if (address.scheme() == URL_SCHEME_OVERTE)", body)
+        self.assertIn("handleUrl(address, LookupTrigger::AttemptedRefresh);", body)
+        self.assertNotIn(
+            "handleUrl(currentAddress(), LookupTrigger::AttemptedRefresh);", body)
+
+    def test_startup_fallback_import_preserves_explicit_serverless_url(self):
+        fallback = APPLICATION.index("static bool picoStartupImportRequested")
+        load = APPLICATION.index("loadServerlessDomain(startupWorld);", fallback)
+        body = APPLICATION[fallback:load]
+        self.assertIn("const auto explicitStartupScheme = _urlParam.scheme();", body)
+        self.assertIn("!_urlParam.isEmpty() && _urlParam.isValid()", body)
+        self.assertIn("explicitStartupScheme == HIFI_URL_SCHEME_FILE", body)
+        self.assertIn("explicitStartupScheme == HIFI_URL_SCHEME_HTTP", body)
+        self.assertIn("explicitStartupScheme == HIFI_URL_SCHEME_HTTPS", body)
+        self.assertIn("const QUrl startupWorld = hasExplicitServerlessStartupUrl", body)
+        self.assertIn("? _urlParam", body)
+        self.assertIn("overte-hub-pico4-optimized-spawn.json", body)
+        self.assertLess(body.index("const QUrl startupWorld"), body.index("updateStartupImport"))
 
     def test_reentrant_serverless_url_does_not_restart_active_import(self):
         load_body = function_body(

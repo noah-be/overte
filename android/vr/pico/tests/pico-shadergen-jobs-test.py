@@ -51,6 +51,10 @@ class ShadergenJobTests(unittest.TestCase):
         self.assertIn('PICO_BUILD_JOBS="$jobs" CMAKE_BUILD_PARALLEL_LEVEL="$jobs"', BUILD_SCRIPT)
         self.assertIn('SHADERGEN_JOBS="${PICO_SHADER_JOBS:-$jobs}"', BUILD_SCRIPT)
 
+    def test_pico_build_sets_packaging_heap_explicitly(self):
+        self.assertIn('gradle_jvm_args="${PICO_GRADLE_JVM_ARGS:--Xms2g -Xmx4g}"', BUILD_SCRIPT)
+        self.assertIn('"-Dorg.gradle.jvmargs=$gradle_jvm_args"', BUILD_SCRIPT)
+
     def test_conan_source_builds_use_the_same_worker_limit(self):
         self.assertEqual(BUILD_SCRIPT.count('-c "tools.build:jobs=$jobs"'), 4)
 

@@ -195,7 +195,7 @@ class MutationClassificationTest(unittest.TestCase):
             "legacy-url-skip-hifi-prefix", "legacy-asset-skip-base-prefix",
             "pico-audio-accept-unknown-source", "pico-audio-disable-callback-overflow",
             "pico-audio-deliver-stale-read",
-            "pico-activity-null-extra-literal", "pico-activity-pre-s-exact-alarm",
+            "pico-activity-drop-base-arguments", "pico-activity-pre-s-exact-alarm",
             "pico-instance-ignore-registration", "pico-instance-retain-destroyed",
             "deep-link-length-boundary", "deep-link-allow-unsafe",
             "launch-skip-restored-validation", "permission-accept-unrelated",

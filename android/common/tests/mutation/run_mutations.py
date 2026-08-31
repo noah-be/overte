@@ -88,7 +88,7 @@ MUTANTS = [
     Mutant("pico-audio-accept-unknown-source", "java", JAVA_PRODUCTION["pico-audio"], "return Source.CAMCORDER;\n        }\n        return null;", "return Source.CAMCORDER;\n        }\n        return Source.MIC;"),
     Mutant("pico-audio-disable-callback-overflow", "java", JAVA_PRODUCTION["pico-audio"], "return callbackBytes > MAX_CALLBACK_BYTES ? null : (int) callbackBytes;", "return (int) callbackBytes;"),
     Mutant("pico-audio-deliver-stale-read", "java", JAVA_PRODUCTION["pico-audio"], "return bytesRead > 0 && running && ownsRecorder;", "return bytesRead > 0;"),
-    Mutant("pico-activity-null-extra-literal", "java", JAVA_PRODUCTION["pico-activity"], "hasApplicationArguments && applicationArguments != null", "hasApplicationArguments"),
+    Mutant("pico-activity-drop-base-arguments", "java", JAVA_PRODUCTION["pico-activity"], 'return DEFAULT_APPLICATION_ARGUMENTS + " --cache " + cacheDirectory;', 'return "--cache " + cacheDirectory;'),
     Mutant("pico-activity-pre-s-exact-alarm", "java", JAVA_PRODUCTION["pico-activity"], "sdkInt < 31 || canScheduleExactAlarms", "sdkInt < 31 && canScheduleExactAlarms"),
     Mutant("pico-instance-ignore-registration", "java", JAVA_PRODUCTION["pico-instance"], "current = instance;", "current = null;"),
     Mutant("pico-instance-retain-destroyed", "java", JAVA_PRODUCTION["pico-instance"], "if (current == instance)", "if (false)"),
