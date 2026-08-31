@@ -7,11 +7,13 @@ import importlib.util
 import io
 import hashlib
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import tempfile
 import unittest
 from unittest import mock
 import urllib.error
+import warnings
 import zipfile
 
 
@@ -55,11 +57,11 @@ class IosFedoraSyncTest(unittest.TestCase):
         self.run = {
             "id": 123,
             "event": "workflow_dispatch",
-            "path": ".github/workflows/ios-fedora-e2e-producer.yml@apple-ios",
+            "path": ".github/workflows/ios-bootstrap.yml@apple-ios",
             "head_branch": "apple-ios",
             "head_sha": self.revision,
-            "repository": {"full_name": "noah-be/overte"},
-            "head_repository": {"full_name": "noah-be/overte"},
+            "repository": {"full_name": "noah-be/overte", "id": 42},
+            "head_repository": {"full_name": "noah-be/overte", "id": 42},
             "run_attempt": 2,
             "status": "completed",
             "conclusion": "success",
@@ -74,9 +76,14 @@ class IosFedoraSyncTest(unittest.TestCase):
             "name": f"ios-fedora-e2e-{role}-123-2",
             "expired": False,
             "digest": "sha256:" + "b" * 64,
-            "archive_download_url": f"https://api.github.com/artifacts/{role}",
+            "archive_download_url": (
+                "https://api.github.com/repos/noah-be/overte/actions/artifacts/"
+                f"{50 if role == 'overte' else 51}/zip"
+            ),
             "workflow_run": {
                 "id": 123,
+                "repository_id": 42,
+                "head_repository_id": 42,
                 "head_branch": "apple-ios",
                 "head_sha": self.revision,
             },
@@ -110,6 +117,8 @@ class IosFedoraSyncTest(unittest.TestCase):
         self.assertEqual("Bearer private-token", request.get_header("Authorization"))
         body = json.loads(request.data)
         self.assertEqual("apple-ios", body["ref"])
+        self.assertIs(True, body["return_run_details"])
+        self.assertNotIn("latest", request.full_url)
 
     def test_dispatch_input_contract_rejects_shell_or_namespace_drift(self):
         arguments = mock.Mock(
@@ -120,7 +129,17 @@ class IosFedoraSyncTest(unittest.TestCase):
             overte_bundle_id="org.overte.interface.e2e",
             wda_bundle_id="org.overte.WebDriverAgentRunner",
         )
-        self.assertEqual(6, len(SYNC.dispatch_inputs(arguments)))
+        inputs = SYNC.dispatch_inputs(arguments)
+        self.assertEqual({
+            "fedora_e2e_producer",
+            "qt_host_cache_key",
+            "qt_ios_cache_key",
+            "qt_host_artifact_prefix",
+            "qt_ios_artifact_prefix",
+        }, set(inputs))
+        self.assertEqual("true", inputs["fedora_e2e_producer"])
+        self.assertNotIn("overte_bundle_id", inputs)
+        self.assertNotIn("wda_bundle_id", inputs)
         arguments.qt_host_cache_key = "safe; touch /tmp/injected"
         with self.assertRaises(SYNC.HandoffError):
             SYNC.dispatch_inputs(arguments)
@@ -130,19 +149,26 @@ class IosFedoraSyncTest(unittest.TestCase):
             "https://api.github.com/private-token", 403, "private-token", {}, io.BytesIO(b"private-token")
         )
         api = SYNC.GitHubApi("noah-be/overte", "private-token", opener=Opener([error]))
-        with self.assertRaises(SYNC.HandoffError) as raised:
-            api.run(1)
+        try:
+            with self.assertRaises(SYNC.HandoffError) as raised:
+                api.run(1)
+        finally:
+            error.close()
         self.assertNotIn("private-token", str(raised.exception))
 
     def test_run_and_artifacts_are_bound_to_protected_producer(self):
-        verified = SYNC.verify_run(self.run, 123, require_complete=True)
+        verified = SYNC.verify_run(
+            self.run, 123, expected_attempt=2, require_complete=True
+        )
         selected = SYNC.select_artifacts(
             [self.artifact("overte"), self.artifact("wda")], verified
         )
         self.assertEqual(50, selected["overte"]["id"])
         changed = dict(self.run, head_branch="feature")
         with self.assertRaises(SYNC.HandoffError):
-            SYNC.verify_run(changed, 123, require_complete=True)
+            SYNC.verify_run(changed, 123, expected_attempt=2, require_complete=True)
+        with self.assertRaises(SYNC.HandoffError):
+            SYNC.verify_run(self.run, 123, expected_attempt=1, require_complete=True)
         duplicate = [self.artifact("overte"), self.artifact("overte"), self.artifact("wda")]
         with self.assertRaises(SYNC.HandoffError):
             SYNC.select_artifacts(duplicate, verified)
@@ -169,6 +195,40 @@ class IosFedoraSyncTest(unittest.TestCase):
         with self.assertRaises(SYNC.HandoffError):
             SYNC.extract_encrypted_payload(wrong, self.root, expected, role)
 
+    def test_zip_duplicates_symlinks_compression_and_actual_overrun_are_rejected(self):
+        role = "overte"
+        expected = self.artifact(role)["name"] + ".zip.age"
+        duplicate = self.root / "duplicate.zip"
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            with zipfile.ZipFile(duplicate, "w") as output:
+                output.writestr(expected, b"one")
+                output.writestr(expected, b"two")
+        with self.assertRaises(SYNC.HandoffError):
+            SYNC.extract_encrypted_payload(duplicate, self.root, expected, role)
+
+        link = self.root / "link.zip"
+        info = zipfile.ZipInfo(expected)
+        info.create_system = 3
+        info.external_attr = 0o120777 << 16
+        with zipfile.ZipFile(link, "w") as output:
+            output.writestr(info, b"target")
+        with self.assertRaises(SYNC.HandoffError):
+            SYNC.extract_encrypted_payload(link, self.root, expected, role)
+
+        compressed = self.root / "compressed.zip"
+        with zipfile.ZipFile(compressed, "w", compression=zipfile.ZIP_DEFLATED) as output:
+            output.writestr(expected, b"0" * 100_000)
+        with self.assertRaisesRegex(SYNC.HandoffError, "unsafe"):
+            SYNC.extract_encrypted_payload(compressed, self.root, expected, role)
+
+        entry = mock.Mock(file_size=4, compress_size=4, compress_type=zipfile.ZIP_STORED)
+        archive = mock.Mock()
+        archive.open.return_value = io.BytesIO(b"12345")
+        with self.assertRaisesRegex(SYNC.HandoffError, "exceeded"):
+            SYNC.copy_zip_member(archive, entry, self.root / "overrun", 4, "fixture")
+        self.assertFalse((self.root / "overrun").exists())
+
     def test_activate_updates_only_artifact_identity_fields(self):
         config_path = self.root / "targets.json"
         config = {
@@ -179,40 +239,204 @@ class IosFedoraSyncTest(unittest.TestCase):
                 "enabled": True,
                 "appId": "old.app",
                 "artifactReceipt": "/old/receipt",
+                "iosSessionBootstrap": {"backgroundWdaRunner": True},
+                "testBuild": {"scenePath": SYNC.SCENE_PATH},
                 "capabilities": {
                     "appium:udid": "private-device-id",
                     "appium:platformVersion": "26.2.1",
+                    "appium:autoLaunch": False,
                 },
             }],
         }
         SYNC.secure_json(config_path, config)
         receipt_path = self.root / "receipt.json"
         SYNC.secure_json(receipt_path, {
+            "schemaVersion": 1,
+            "contract": "overte-ios-fedora-e2e-receipt-v1",
+            "sourceRevision": self.revision,
+            "createdAt": "2026-08-25T12:00:00Z",
+            "notAfter": "2026-08-26T12:00:00Z",
+            "provenance": {
+                "repository": "noah-be/overte", "repositoryId": 42,
+                "workflow": ".github/workflows/ios-bootstrap.yml",
+                "reusableWorkflow": ".github/workflows/ios-fedora-e2e-producer.yml",
+                "ref": "refs/heads/apple-ios", "runId": 123, "runAttempt": 2,
+            },
             "overte": {
                 "bundleId": "org.overte.interface.e2e",
                 "path": "/private/Overte.ipa",
+                "sha256": "1" * 64,
             },
             "wda": {
                 "bundleId": "org.overte.WebDriverAgentRunner.xctrunner",
-                "path": "/private/WDA.ipa",
+                "ipaPath": "/private/WDA.ipa",
+                "ipaSha256": "2" * 64,
+                "prebuiltPath": "/private/WebDriverAgentRunner-Runner.app",
+                "prebuiltTreeSha256": "3" * 64,
+            },
+            "toolchain": {
+                "xcuitestDriver": "12.8.0", "remoteXpc": "5.15.3",
+                "webdriverAgent": "16.8.0",
             },
         })
         SYNC.activate_target(config_path.resolve(), "private-selector", receipt_path)
         target = json.loads(config_path.read_text(encoding="utf-8"))["targets"][0]
         self.assertEqual("private-device-id", target["capabilities"]["appium:udid"])
         self.assertTrue(target["enabled"])
+        self.assertTrue(target["capabilities"]["appium:usePreinstalledWDA"])
+        self.assertFalse(target["capabilities"]["appium:enforceAppInstall"])
+        self.assertFalse(target["capabilities"]["appium:autoLaunch"])
+        self.assertEqual(0, target["capabilities"]["appium:waitForIdleTimeout"])
+        self.assertEqual("signed-ipa", target["artifactMode"])
+        self.assertNotIn("iosSessionBootstrap", target)
+        self.assertEqual(SYNC.SCENE_PATH, target["testBuild"]["scenePath"])
         self.assertEqual("org.overte.interface.e2e", target["appId"])
         self.assertEqual(
             "org.overte.WebDriverAgentRunner",
             target["capabilities"]["appium:updatedWDABundleId"],
         )
+        self.assertEqual(
+            "/private/WebDriverAgentRunner-Runner.app",
+            target["capabilities"]["appium:prebuiltWDAPath"],
+        )
         self.assertEqual(0o600, config_path.stat().st_mode & 0o777)
 
-    def test_receipt_revision_must_equal_protected_run_revision(self):
+    def test_receipt_must_equal_protected_run_attempt(self):
         receipt = self.root / "receipt.json"
-        SYNC.secure_json(receipt, {"sourceRevision": "b" * 40})
-        with self.assertRaisesRegex(SYNC.HandoffError, "protected workflow run"):
-            SYNC.require_receipt_revision(receipt, self.revision)
+        SYNC.secure_json(receipt, {
+            "sourceRevision": "b" * 40,
+            "provenance": {},
+        })
+        with self.assertRaisesRegex(SYNC.HandoffError, "workflow attempt"):
+            SYNC.require_receipt_binding(receipt, self.run)
+
+    def test_preinstalled_mode_observes_device_without_ipa_paths(self):
+        config_path = self.root / "preinstalled-targets.json"
+        SYNC.secure_json(config_path, {
+            "schemaVersion": 1,
+            "targets": [{
+                "selector": "private-selector", "platform": "ios", "enabled": False,
+                "iosSessionBootstrap": {"backgroundWdaRunner": True},
+                "testBuild": {"scenePath": SYNC.SCENE_PATH},
+                "capabilities": {
+                    "appium:udid": "private-device-id",
+                    "appium:platformVersion": "18.7",
+                    "appium:app": "/stale/Overte.ipa",
+                    "appium:prebuiltWDAPath": "/stale/WDA.ipa",
+                    "appium:autoLaunch": False,
+                },
+            }],
+        })
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        attestation = self.root / "personal-team-preinstalled-attestation.json"
+        SYNC.secure_json(attestation, {
+            "schemaVersion": 1,
+            "contract": "overte-ios-personal-team-preinstalled-attestation-v2",
+            "sourceRevision": self.revision,
+            "unsignedKitContract": "overte-ios-personal-team-e2e-kit-v3",
+            "unsignedKitManifestSha256": "3" * 64,
+            "createdAt": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "notAfter": (now + timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "expectedBundleIdentifiers": {
+                "overte": "org.overte.interface.e2e",
+                "wdaRunner": "org.overte.WebDriverAgentRunner.xctrunner",
+                "wdaXCTest": "org.overte.WebDriverAgentRunner",
+            },
+            "bundleIdentifierMode": "sideloadly-remapped",
+            "toolchain": {
+                "xcuitestDriver": "12.8.0", "remoteXpc": "5.15.3",
+                "webdriverAgent": "16.8.0",
+            },
+            "humanAttestation": {
+                "deviceObserved": True, "installedWithSideloadly": True,
+                "fixedBundleIdentifiersConfirmed": False,
+                "acceptedSideloadlyBundleIdentifierRemapping": True,
+                "acceptedNoCryptographicByteBinding": True,
+                "derivationBinding": "none-device-observed",
+            },
+            "signingObservation": None,
+        })
+        obsolete = self.root / "obsolete-preinstalled-attestation.json"
+        obsolete_value = json.loads(attestation.read_text(encoding="utf-8"))
+        obsolete_value["contract"] = (
+            "overte-ios-personal-team-preinstalled-attestation-v1"
+        )
+        obsolete_value.pop("unsignedKitContract")
+        SYNC.secure_json(obsolete, obsolete_value)
+        with self.assertRaisesRegex(SYNC.HandoffError, "contract is invalid"):
+            SYNC.validate_preinstalled_attestation(obsolete)
+        integrated = self.root / "integrated-preinstalled-attestation.json"
+        integrated_value = json.loads(attestation.read_text(encoding="utf-8"))
+        integrated_value["unsignedKitContract"] = (
+            "overte-ios-integrated-client-manifest-v1"
+        )
+        SYNC.secure_json(integrated, integrated_value)
+        self.assertEqual(
+            "overte-ios-integrated-client-manifest-v1",
+            SYNC.validate_preinstalled_attestation(integrated)[0]["unsignedKitContract"],
+        )
+        arguments = mock.Mock(
+            attestation=attestation.resolve(), destination=(self.root / "runs"),
+            target_config=config_path.resolve(), target_selector="private-selector",
+            service_runtime=Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r12"),
+        )
+        discovered = {
+            "overteBundleId": "com.sideloadly.slot.overte",
+            "wdaBundleId": "com.sideloadly.slot.wda",
+            "wdaUpdatedBundleId": "com.sideloadly.slot.wda",
+            "wdaBundleIdSuffix": "",
+        }
+        with mock.patch.object(
+                SYNC.subprocess, "run", return_value=mock.Mock(
+                    returncode=0, stdout=json.dumps(discovered).encode("utf-8"))) as execute:
+            self.assertEqual(0, SYNC.run_preinstalled(arguments))
+            command = execute.call_args.args[0]
+            self.assertNotIn("private-device-id", command)
+            request = json.loads(execute.call_args.kwargs["input"])
+            self.assertEqual("private-device-id", request["udid"])
+            self.assertTrue(request["discoverRemappedBundleIds"])
+
+            arguments.service_runtime = self.root / "mutable-runtime"
+            with self.assertRaisesRegex(SYNC.HandoffError, "exact pinned immutable"):
+                SYNC.run_preinstalled(arguments)
+            self.assertEqual(1, execute.call_count)
+            arguments.service_runtime = SYNC.PINNED_SERVICE_RUNTIME
+
+            linked_config = self.root / "linked-preinstalled-targets.json"
+            linked_config.symlink_to(config_path)
+            arguments.target_config = linked_config
+            with self.assertRaisesRegex(SYNC.HandoffError, "target configuration is unsafe"):
+                SYNC.run_preinstalled(arguments)
+            self.assertEqual(1, execute.call_count)
+        target = json.loads(config_path.read_text(encoding="utf-8"))["targets"][0]
+        self.assertEqual("personal-team-preinstalled", target["artifactMode"])
+        self.assertNotIn("iosSessionBootstrap", target)
+        self.assertNotIn("appium:app", target["capabilities"])
+        self.assertNotIn("appium:prebuiltWDAPath", target["capabilities"])
+        self.assertFalse(target["capabilities"]["appium:enforceAppInstall"])
+        self.assertEqual("com.sideloadly.slot.overte", target["appId"])
+        self.assertEqual(
+            "com.sideloadly.slot.wda",
+            target["capabilities"]["appium:updatedWDABundleId"],
+        )
+        self.assertEqual("", target["capabilities"]["appium:updatedWDABundleIdSuffix"])
+        receipt = json.loads(Path(target["artifactReceipt"]).read_text(encoding="utf-8"))
+        self.assertEqual(SYNC.PREINSTALLED_RECEIPT, receipt["contract"])
+        self.assertEqual("sideloadly-remapped",
+                         receipt["provenance"]["bundleIdentifierMode"])
+        self.assertNotIn("path", receipt["overte"])
+        self.assertFalse(receipt["provenance"]["cryptographicByteBinding"])
+
+    def test_sensitive_destinations_and_targets_inside_checkout_are_rejected(self):
+        arguments = mock.Mock(
+            destination=SYNC.REPOSITORY_ROOT / "private-ios-output",
+            target_config=None,
+        )
+        with self.assertRaisesRegex(SYNC.HandoffError, "safe non-root private"):
+            SYNC.run_local_import(arguments)
+        repository_config = SYNC.REPOSITORY_ROOT / "tests/device/capabilities.json"
+        with self.assertRaisesRegex(SYNC.HandoffError, "absolute private"):
+            SYNC.activate_target(repository_config, "private-selector", self.root / "receipt")
 
     @unittest.skipIf(__import__("os").name == "nt", "symlink semantics differ on Windows")
     def test_symlinked_private_target_file_is_rejected(self):
@@ -230,6 +454,7 @@ class IosFedoraSyncTest(unittest.TestCase):
             repository="noah-be/overte",
             destination=self.root / "handoff",
             run_id=123,
+            run_attempt=2,
             timeout_seconds=1,
             poll_seconds=1,
             target_config=None,
@@ -248,7 +473,7 @@ class IosFedoraSyncTest(unittest.TestCase):
         fake_api.artifacts.return_value = metadata
 
         def download(url: str, destination: Path):
-            role = "overte" if url.endswith("overte") else "wda"
+            role = "overte" if "/50/" in url else "wda"
             destination.write_bytes(archives[role])
 
         fake_api.download.side_effect = download

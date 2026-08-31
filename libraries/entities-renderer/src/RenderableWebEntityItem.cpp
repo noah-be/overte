@@ -9,11 +9,14 @@
 //
 
 #include "RenderableWebEntityItem.h"
+#include <algorithm>
+#include <array>
 #include <atomic>
+#include <mutex>
 
 #include <QtCore/QTimer>
+#include <QtGui/QImage>
 #include <QtGui/QOpenGLContext>
-#include <QtGui/QTouchDevice>
 #include <QtQuick/QQuickItem>
 #include <QtQuick/QQuickWindow>
 #include <QtQml/QQmlContext>
@@ -29,6 +32,13 @@
 #include <ui/TabletScriptingInterface.h>
 #include <EntityScriptingInterface.h>
 #include <shared/LocalFileAccessGate.h>
+#if defined(Q_OS_IOS)
+#include <QtCore/QDir>
+#include <QtCore/QStandardPaths>
+#include <QtGui/QColor>
+#include <QtGui/QPainter>
+#include <shared/IOSRuntimeLogging.h>
+#endif
 
 #include "EntitiesRendererLogging.h"
 #include <NetworkingConstants.h>
@@ -59,7 +69,98 @@ static uint8_t YOUTUBE_MAX_FPS = 30;
 static std::atomic<uint32_t> _currentWebCount(0);
 static const uint32_t MAX_CONCURRENT_WEB_VIEWS = 20;
 
-static QTouchDevice _touchDevice;
+namespace {
+#if defined(Q_OS_IOS)
+struct IOSWebFrameDiagnostics {
+    QString mode { QStringLiteral("normal") };
+    QString format { QStringLiteral("rgba") };
+    bool flipVertical { true };
+    bool forceOpaque { false };
+    bool captureFirstFrame { false };
+    QSet<int> captureFrameOrdinals;
+    int captureEveryNFrames { 0 };
+    int captureSequence { -1 };
+    QString captureSourceContains;
+    QString configPath;
+};
+
+IOSWebFrameDiagnostics iosWebFrameDiagnostics() {
+    IOSWebFrameDiagnostics result;
+    result.configPath = iosRuntimeDiagnosticConfigPath();
+    const auto object = iosRuntimeDiagnosticConfig();
+    result.mode = object.value(QStringLiteral("mode")).toString(result.mode).trimmed().toLower();
+    result.format = object.value(QStringLiteral("format")).toString(result.format).trimmed().toLower();
+    result.flipVertical = object.value(QStringLiteral("flipVertical")).toBool(true);
+    result.forceOpaque = object.value(QStringLiteral("forceOpaque")).toBool(false);
+    result.captureFirstFrame = object.value(QStringLiteral("captureFirstFrame")).toBool(false);
+    result.captureFrameOrdinals = iosRuntimeDiagnosticIntSet(
+        "captureFrameOrdinals", 1, 1000000);
+    result.captureEveryNFrames = iosRuntimeDiagnosticInt(
+        "captureEveryNFrames", 0, 0, 1000000);
+    result.captureSequence = iosRuntimeDiagnosticInt(
+        "captureLatestFrameSequence", -1, -1, 1000000);
+    result.captureSourceContains = object.value(QStringLiteral("captureSourceContains"))
+        .toString().trimmed();
+    if (result.mode != QStringLiteral("normal") && result.mode != QStringLiteral("test-pattern")) {
+        result.mode = QStringLiteral("normal");
+    }
+    if (result.format != QStringLiteral("rgba") &&
+            result.format != QStringLiteral("srgb") &&
+            result.format != QStringLiteral("bgra") &&
+            result.format != QStringLiteral("rgba-from-bgra")) {
+        result.format = QStringLiteral("rgba");
+    }
+
+    static std::mutex markerMutex;
+    static QByteArray lastMarkerConfig;
+    const QByteArray markerConfig = QJsonDocument(object).toJson(QJsonDocument::Compact);
+    {
+        std::lock_guard<std::mutex> lock(markerMutex);
+        if (markerConfig != lastMarkerConfig) {
+            lastMarkerConfig = markerConfig;
+            logIOSRuntimeMarker(
+                "OVERTE_IOS_QML_DIAGNOSTICS stage=config-loaded",
+                "loaded=", !object.isEmpty(),
+                "mode=", result.mode,
+                "format=", result.format,
+                "flip_vertical=", result.flipVertical,
+                "force_opaque=", result.forceOpaque,
+                "capture_first_frame=", result.captureFirstFrame,
+                "capture_ordinals=", result.captureFrameOrdinals.size(),
+                "capture_every_n=", result.captureEveryNFrames,
+                "capture_sequence=", result.captureSequence,
+                "capture_source_contains=", result.captureSourceContains,
+                "path=", result.configPath);
+        }
+    }
+    return result;
+}
+
+QString rgbaDescription(const QColor& color) {
+    return QStringLiteral("%1,%2,%3,%4")
+        .arg(color.red()).arg(color.green()).arg(color.blue()).arg(color.alpha());
+}
+#endif
+
+OffscreenTouchDevice& webEntityTouchDevice() {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    static OffscreenTouchDevice device(
+        QStringLiteral("WebEntityRendererTouchDevice"), 0x4f5654574542LL,
+        QInputDevice::DeviceType::TouchScreen, QPointingDevice::PointerType::Finger,
+        QInputDevice::Capability::Position, 4, 0);
+#else
+    static OffscreenTouchDevice device;
+    static std::once_flag once;
+    std::call_once(once, [&] {
+        device.setCapabilities(QTouchDevice::Position);
+        device.setType(QTouchDevice::TouchScreen);
+        device.setName("WebEntityRendererTouchDevice");
+        device.setMaximumTouchPoints(4);
+    });
+#endif
+    return device;
+}
+}
 
 static uint8_t CUSTOM_PIPELINE_NUMBER;
 // transparent, forward, shadow, fade
@@ -139,15 +240,20 @@ WebEntityRenderer::WebEntityRenderer(const EntityItemPointer& entity) : Parent(e
     static std::once_flag once;
     std::call_once(once, [&]{
         CUSTOM_PIPELINE_NUMBER = render::ShapePipeline::registerCustomShapePipelineFactory(webPipelineFactory);
-        _touchDevice.setCapabilities(QTouchDevice::Position);
-        _touchDevice.setType(QTouchDevice::TouchScreen);
-        _touchDevice.setName("WebEntityRendererTouchDevice");
-        _touchDevice.setMaximumTouchPoints(4);
+        (void)webEntityTouchDevice();
     });
     _geometryId = DependencyManager::get<GeometryCache>()->allocateID();
 
+#if defined(Q_OS_IOS)
+    const std::array<gpu::Byte, 4> transparentPixel { 0, 0, 0, 0 };
+    _texture = gpu::Texture::createStrict(gpu::Element::COLOR_RGBA_32, 1, 1, 1);
+    _texture->setStoredMipFormat(gpu::Element::COLOR_RGBA_32);
+    _texture->assignStoredMip(0, transparentPixel.size(), transparentPixel.data());
+    _texture->setSource("WebEntityRendererSoftware");
+#else
     _texture = gpu::Texture::createExternal(OffscreenQmlSurface::getDiscardLambda());
     _texture->setSource(__FUNCTION__);
+#endif
 
     _contentType = ContentType::HtmlContent;
     buildWebSurface(entity, "");
@@ -354,15 +460,23 @@ void WebEntityRenderer::doRender(RenderArgs* args) {
     });
 
     // Try to update the texture
-    OffscreenQmlSurface::TextureAndFence newTextureAndFence;
     QSize windowSize;
     bool newTextureAvailable = false;
+#if defined(Q_OS_IOS)
+    QImage newImage;
+#else
+    OffscreenQmlSurface::TextureAndFence newTextureAndFence;
+#endif
     if (!resultWithReadLock<bool>([&] {
         if (!_webSurface) {
             return false;
         }
 
+#if defined(Q_OS_IOS)
+        newTextureAvailable = _webSurface->fetchImage(newImage);
+#else
         newTextureAvailable = _webSurface->fetchTexture(newTextureAndFence);
+#endif
         windowSize = _webSurface->size();
         return true;
     })) {
@@ -370,11 +484,130 @@ void WebEntityRenderer::doRender(RenderArgs* args) {
     }
 
     if (newTextureAvailable) {
+#if defined(Q_OS_IOS)
+        const auto diagnostics = iosWebFrameDiagnostics();
+        auto texelFormat = gpu::Element::COLOR_RGBA_32;
+        auto storedFormat = gpu::Element::COLOR_RGBA_32;
+        auto imageFormat = QImage::Format_RGBA8888;
+        if (diagnostics.format == QStringLiteral("srgb")) {
+            texelFormat = gpu::Element::COLOR_SRGBA_32;
+            storedFormat = gpu::Element::COLOR_SRGBA_32;
+        } else if (diagnostics.format == QStringLiteral("bgra")) {
+            texelFormat = gpu::Element::COLOR_BGRA_32;
+            storedFormat = gpu::Element::COLOR_BGRA_32;
+            imageFormat = QImage::Format_ARGB32;
+        } else if (diagnostics.format == QStringLiteral("rgba-from-bgra")) {
+            storedFormat = gpu::Element::COLOR_BGRA_32;
+            imageFormat = QImage::Format_ARGB32;
+        }
+
+        QImage uploadImage = newImage.convertToFormat(imageFormat);
+        if (uploadImage.isNull() || uploadImage.width() <= 0 || uploadImage.height() <= 0) {
+            return;
+        }
+
+        if (diagnostics.mode == QStringLiteral("test-pattern")) {
+            QPainter painter(&uploadImage);
+            const int halfWidth = uploadImage.width() / 2;
+            const int halfHeight = uploadImage.height() / 2;
+            painter.fillRect(QRect(0, 0, halfWidth, halfHeight), QColor(255, 0, 255, 255));
+            painter.fillRect(QRect(halfWidth, 0, uploadImage.width() - halfWidth, halfHeight), QColor(0, 255, 0, 255));
+            painter.fillRect(QRect(0, halfHeight, halfWidth, uploadImage.height() - halfHeight), QColor(0, 128, 255, 255));
+            painter.fillRect(QRect(halfWidth, halfHeight,
+                                   uploadImage.width() - halfWidth,
+                                   uploadImage.height() - halfHeight), QColor(255, 255, 255, 255));
+        }
+        if (diagnostics.forceOpaque) {
+            QPainter painter(&uploadImage);
+            painter.setCompositionMode(QPainter::CompositionMode_DestinationOver);
+            painter.fillRect(uploadImage.rect(), Qt::black);
+        }
+        if (diagnostics.flipVertical) {
+            uploadImage = uploadImage.mirrored(false, true);
+        }
+
+        auto texture = gpu::Texture::createStrict(
+            texelFormat,
+            static_cast<uint16_t>(uploadImage.width()),
+            static_cast<uint16_t>(uploadImage.height()),
+            1);
+        texture->setStoredMipFormat(storedFormat);
+        texture->assignStoredMip(
+            0,
+            static_cast<gpu::Size>(uploadImage.sizeInBytes()),
+            reinterpret_cast<const gpu::Byte*>(uploadImage.constBits()));
+        texture->setSource("WebEntityRendererSoftware");
+        _texture = std::move(texture);
+        ++_softwareFrameOrdinal;
+        const bool sourceMatches = diagnostics.captureSourceContains.isEmpty() ||
+            _sourceURL.contains(diagnostics.captureSourceContains, Qt::CaseInsensitive);
+        const bool selectedOrdinal = diagnostics.captureFrameOrdinals.contains(
+            static_cast<int>(_softwareFrameOrdinal));
+        const bool selectedInterval = diagnostics.captureEveryNFrames > 0 &&
+            (_softwareFrameOrdinal % static_cast<uint64_t>(diagnostics.captureEveryNFrames)) == 0;
+        const bool selectedSequence = diagnostics.captureSequence >= 0 &&
+            diagnostics.captureSequence != _lastSoftwareCaptureSequence;
+        const bool shouldReport = !_softwareFrameReported || selectedOrdinal ||
+            selectedInterval || selectedSequence;
+        if (shouldReport) {
+            _softwareFrameReported = true;
+            quint64 alphaNonzeroPixels = 0;
+            quint64 opaquePixels = 0;
+            quint64 nonBlackPixels = 0;
+            quint64 sampledPixels = 0;
+            const quint64 totalPixels = static_cast<quint64>(uploadImage.width()) * uploadImage.height();
+            constexpr quint64 MAX_DIAGNOSTIC_SAMPLES = 65536;
+            const quint64 sampleStride = std::max<quint64>(1, totalPixels / MAX_DIAGNOSTIC_SAMPLES);
+            for (quint64 offset = 0; offset < totalPixels; offset += sampleStride) {
+                const int y = static_cast<int>(offset / uploadImage.width());
+                const int x = static_cast<int>(offset % uploadImage.width());
+                const QColor pixel = uploadImage.pixelColor(x, y);
+                ++sampledPixels;
+                alphaNonzeroPixels += pixel.alpha() != 0;
+                opaquePixels += pixel.alpha() == 255;
+                nonBlackPixels += pixel.alpha() != 0 &&
+                    (pixel.red() != 0 || pixel.green() != 0 || pixel.blue() != 0);
+            }
+            QString capturePath;
+            bool captureSaved = false;
+            const bool captureSelected = sourceMatches &&
+                ((diagnostics.captureFirstFrame && _softwareFrameOrdinal == 1) ||
+                 selectedOrdinal || selectedInterval || selectedSequence);
+            if (captureSelected) {
+                capturePath = QDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation))
+                    .filePath(_softwareFrameOrdinal == 1
+                        ? QStringLiteral("Overte-iOS-QML-FirstFrame-%1.png").arg(_geometryId)
+                        : QStringLiteral("Overte-iOS-QML-Frame-%1-%2.png")
+                            .arg(_geometryId).arg(_softwareFrameOrdinal));
+                captureSaved = uploadImage.save(capturePath, "PNG");
+            }
+            if (diagnostics.captureSequence >= 0) {
+                _lastSoftwareCaptureSequence = diagnostics.captureSequence;
+            }
+            logIOSRuntimeMarker(
+                "OVERTE_IOS_QML_FRAME_GATE stage=cpu-frame-uploaded",
+                "ordinal=", _softwareFrameOrdinal,
+                "size=", uploadImage.size(),
+                "source=", _sourceURL,
+                "mode=", diagnostics.mode,
+                "format=", diagnostics.format,
+                "sampled_pixels=", sampledPixels,
+                "alpha_nonzero_pixels=", alphaNonzeroPixels,
+                "opaque_pixels=", opaquePixels,
+                "non_black_pixels=", nonBlackPixels,
+                "corner_rgba=", rgbaDescription(uploadImage.pixelColor(0, 0)),
+                "center_rgba=", rgbaDescription(uploadImage.pixelColor(
+                    uploadImage.width() / 2, uploadImage.height() / 2)),
+                "capture_saved=", captureSaved,
+                "capture_path=", capturePath);
+        }
+#else
         _texture->setExternalTexture(newTextureAndFence.first, newTextureAndFence.second);
         _texture->setSize(windowSize.width(), windowSize.height());
         _texture->setOriginalSize(windowSize.width(), windowSize.height());
         // FIXME: external textures do not currently support modifying their samplers
         // _texture->setSampler(sampler);
+#endif
     }
 
     static const glm::vec2 texMin(0.0f), texMax(1.0f), topLeft(-0.5f), bottomRight(0.5f);
@@ -475,7 +708,7 @@ void WebEntityRenderer::hoverEnterEntity(const PointerEvent& event) {
         if (_webSurface) {
             PointerEvent webEvent = event;
             webEvent.setPos2D(event.getPos2D() * (METERS_TO_INCHES * _dpi));
-            _webSurface->hoverBeginEvent(webEvent, _touchDevice);
+            _webSurface->hoverBeginEvent(webEvent, webEntityTouchDevice());
         }
     });
 }
@@ -495,7 +728,7 @@ void WebEntityRenderer::hoverLeaveEntity(const PointerEvent& event) {
         if (_webSurface) {
             PointerEvent webEvent = event;
             webEvent.setPos2D(event.getPos2D() * (METERS_TO_INCHES * _dpi));
-            _webSurface->hoverEndEvent(webEvent, _touchDevice);
+            _webSurface->hoverEndEvent(webEvent, webEntityTouchDevice());
         }
     });
 }
@@ -517,7 +750,7 @@ void WebEntityRenderer::handlePointerEvent(const PointerEvent& event) {
 void WebEntityRenderer::handlePointerEventAsTouch(const PointerEvent& event) {
     PointerEvent webEvent = event;
     webEvent.setPos2D(event.getPos2D() * (METERS_TO_INCHES * _dpi));
-    _webSurface->handlePointerEvent(webEvent, _touchDevice);
+    _webSurface->handlePointerEvent(webEvent, webEntityTouchDevice());
 }
 
 void WebEntityRenderer::handlePointerEventAsMouse(const PointerEvent& event) {

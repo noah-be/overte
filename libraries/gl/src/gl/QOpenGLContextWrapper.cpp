@@ -24,12 +24,19 @@ QOpenGLContextWrapper::Pointer QOpenGLContextWrapper::currentContextWrapper() {
 
 QOpenGLContextWrapper::NativeContextPointer QOpenGLContextWrapper::getNativeContext() const {
     QOpenGLContextWrapper::NativeContextPointer result;
+#if defined(Q_OS_IOS)
+    // Native context extraction is only consumed by the Windows WGL context path.
+    // Qt 6 no longer exposes QOpenGLContext::nativeHandle(), and iOS must not
+    // manufacture a desktop GL handle for the Vulkan compatibility context.
+    return result;
+#else
     auto nativeHandle = _context->nativeHandle();
     if (nativeHandle.canConvert<QGLNativeContext>()) {
         result = std::make_shared<QGLNativeContext>();
         *result = nativeHandle.value<QGLNativeContext>();
     }
     return result;
+#endif
 }
 
 
@@ -92,4 +99,3 @@ bool isCurrentContext(QOpenGLContext* context) {
 void QOpenGLContextWrapper::moveToThread(QThread* thread) {
     _context->moveToThread(thread);
 }
-

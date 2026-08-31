@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "parentOwnedPrefixes": [
+    "tests/device/"
+  ],
+  "parentOwnedFiles": [
+    ".github/workflows/apple-branch-topology.yml",
+    "docs/BRANCH_WORKFLOW.md",
+    "tests/apple-branch-path-ownership.json",
+    "tests/apple-branch-topology-check.py",
+    "tests/apple-branch-topology-test.py"
+  ],
+  "targets": {
+    "apple-ios": {
+      "ownedPrefixes": [
+        "tests/device/adapters/appium/",
+        "tests/device/ios/",
+        "tests/device/jenkins/"
+      ],
+      "ownedFiles": [
+        "tests/device/TOOLCHAIN.md",
+        "tests/device/schemas/ios-fedora-artifact-manifest.schema.json",
+        "tests/device/schemas/jenkins-plugin-artifacts-lock.schema.json",
+        "tests/device/schemas/toolchain-lock.schema.json",
+        "tests/device/self_tests/test_appium_adapter.py",
+        "tests/device/self_tests/test_ios_artifact_schema.py",
+        "tests/device/self_tests/test_ios_fedora_artifacts.py",
+        "tests/device/self_tests/test_ios_fedora_sync.py",
+        "tests/device/self_tests/test_ios_personal_team_artifacts.py",
+        "tests/device/self_tests/test_ios_personal_team_fetch.py",
+        "tests/device/self_tests/test_ios_remotexpc_tunnel.py",
+        "tests/device/self_tests/test_ios_security_tools.py",
+        "tests/device/self_tests/test_ios_test_build.py",
+        "tests/device/self_tests/test_ios_toolchain_lock.py",
+        "tests/device/toolchain.lock.json",
+        "tests/device/validate_toolchain_lock.py"
+      ]
+    }
+  }
+}

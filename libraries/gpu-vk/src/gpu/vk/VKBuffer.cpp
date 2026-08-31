@@ -119,7 +119,7 @@ void VKBuffer::transferWithBarrier(VKBackend &backend, VkCommandBuffer commandBu
         .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
         .pNext = nullptr,
         .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+        .dstAccessMask = getReadAccessMask(),
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .buffer = buffer,
@@ -130,7 +130,7 @@ void VKBuffer::transferWithBarrier(VKBackend &backend, VkCommandBuffer commandBu
     vkCmdPipelineBarrier(
         commandBuffer,
         VK_PIPELINE_STAGE_TRANSFER_BIT,
-        VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+        READ_PIPELINE_STAGES,
         VK_FLAGS_NONE,
         0, nullptr,
         1, &bufferMemoryBarrier,
@@ -157,7 +157,7 @@ void VKBuffer::transferWithDelayedBarrier(VKBackend &backend, VkCommandBuffer co
         .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
         .pNext = nullptr,
         .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+        .dstAccessMask = getReadAccessMask(),
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .buffer = buffer,
@@ -170,6 +170,27 @@ void VKBuffer::transferWithDelayedBarrier(VKBackend &backend, VkCommandBuffer co
     backend._currentFrame->_bufferTransferCounterTransferPass++;
     incrementTransferCount(backend, copyRegion.size);
     // VKTODO: is a memory barrier needed here or just buffer barrier is ok?
+}
+
+VkAccessFlags VKBuffer::getReadAccessMask() const {
+    const auto usage = _gpuObject.getUsage();
+    VkAccessFlags accessMask = 0;
+    if (usage & gpu::Buffer::UniformBuffer) {
+        accessMask |= VK_ACCESS_UNIFORM_READ_BIT;
+    }
+    if (usage & gpu::Buffer::ResourceBuffer) {
+        accessMask |= VK_ACCESS_SHADER_READ_BIT;
+    }
+    if (usage & gpu::Buffer::IndexBuffer) {
+        accessMask |= VK_ACCESS_INDEX_READ_BIT;
+    }
+    if (usage & gpu::Buffer::VertexBuffer) {
+        accessMask |= VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+    }
+    if (usage & gpu::Buffer::IndirectBuffer) {
+        accessMask |= VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+    }
+    return accessMask != 0 ? accessMask : VK_ACCESS_MEMORY_READ_BIT;
 }
 
 void VKBuffer::incrementTransferCount(VKBackend& backend, size_t transferSize) {

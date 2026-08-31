@@ -25,16 +25,71 @@
 
 #include <cmath>
 
+#if defined(Q_OS_IOS)
+#include <shared/IOSRuntimeLogging.h>
+#endif
+
 const char* TouchscreenVirtualPadDevice::NAME = "TouchscreenVirtualPad";
 
+namespace {
+const QList<OverteTouchPoint>& touchPoints(const QTouchEvent* event) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return event->points();
+#else
+    return event->touchPoints();
+#endif
+}
+
+QPointF touchPosition(const OverteTouchPoint& point) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return point.position();
+#else
+    return point.pos();
+#endif
+}
+
+QSize touchViewportSize() {
+#if defined(Q_OS_IOS)
+    const int surfaceWidth = qApp->property("overteIosSurfaceWidth").toInt();
+    const int surfaceHeight = qApp->property("overteIosSurfaceHeight").toInt();
+    const int safeLeft = std::max(0, qApp->property("overteIosSafeInsetLeft").toInt());
+    const int safeTop = std::max(0, qApp->property("overteIosSafeInsetTop").toInt());
+    const int safeRight = std::max(0, qApp->property("overteIosSafeInsetRight").toInt());
+    const int safeBottom = std::max(0, qApp->property("overteIosSafeInsetBottom").toInt());
+    const QSize safeContentSize(
+        surfaceWidth - safeLeft - safeRight,
+        surfaceHeight - safeTop - safeBottom);
+    if (!safeContentSize.isEmpty()) {
+        return safeContentSize;
+    }
+#endif
+    if (auto* window = qApp->focusWindow()) {
+        const QSize size = window->size();
+        if (!size.isEmpty()) {
+            return size;
+        }
+    }
+    if (auto* screen = qApp->primaryScreen()) {
+        return screen->availableSize();
+    }
+    return {};
+}
+}
+
 bool TouchscreenVirtualPadDevice::isSupported() const {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    for (const auto* touchDevice : QInputDevice::devices()) {
+        if (touchDevice->type() == QInputDevice::DeviceType::TouchScreen) {
+#else
     for (auto touchDevice : QTouchDevice::devices()) {
         if (touchDevice->type() == QTouchDevice::TouchScreen) {
+#endif
             return true;
         }
     }
-#if defined(Q_OS_ANDROID)
-    // last chance, assume that if this is android, a touchscreen is indeed supported
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
+    // Mobile Qt can enumerate the physical touchscreen after plugin discovery.
+    // The platform itself is sufficient evidence that this device is supported.
     return true;
 #endif
     return false;
@@ -53,10 +108,22 @@ void TouchscreenVirtualPadDevice::init() {
     }
 
     KeyboardMouseDevice::enableTouch(false); // Touch for view controls is managed by this plugin
+#if defined(Q_OS_IOS)
+    logIOSRuntimeMarker(
+        "OVERTE_IOS_TOUCH_INPUT_GATE stage=virtual-pad-initialized",
+        "enabled=", virtualPadManager.isEnabled(),
+        "hidden=", virtualPadManager.isHidden(),
+        "fixed_position=", _fixedPosition,
+        "dpi=", _screenDPI,
+        "screen_center_x=", _screenWidthCenter);
+#endif
 }
 
 void TouchscreenVirtualPadDevice::resize() {
     QScreen* eventScreen = qApp->primaryScreen();
+    if (!eventScreen) {
+        return;
+    }
     if (_screenDPIProvided != eventScreen->physicalDotsPerInch()) {
         _screenWidthCenter = eventScreen->availableSize().width() / 2;
         _screenDPIScale.x = (float)eventScreen->physicalDotsPerInchX();
@@ -75,14 +142,27 @@ void TouchscreenVirtualPadDevice::resize() {
 }
 
 void TouchscreenVirtualPadDevice::setupControlsPositions(VirtualPad::Manager& virtualPadManager, bool force) {
-    if (_extraBottomMargin == virtualPadManager.extraBottomMargin() && !force) return; // Our only criteria to decide a center change is the bottom margin
-
-    QScreen* eventScreen = qApp->primaryScreen(); // do not call every time
+    const QSize viewportSize = touchViewportSize();
+    if (viewportSize.isEmpty()) {
+        return;
+    }
+    if (_extraBottomMargin == virtualPadManager.extraBottomMargin() &&
+            _controlViewportSize == viewportSize && !force) {
+        return;
+    }
     _extraBottomMargin = virtualPadManager.extraBottomMargin();
+    _controlViewportSize = viewportSize;
+
+    // On iOS viewportSize is already the safe-content surface. QTouchEvent,
+    // the software-QML texture and the Vulkan HUD all use that same local
+    // origin, so applying a native safe inset again shifts hit targets away
+    // from the controls that the user sees.
+    const int effectiveBottomMargin = _extraBottomMargin;
 
     // Movement stick
     float margin = _screenDPI * VirtualPad::Manager::BASE_MARGIN_PIXELS / VirtualPad::Manager::DPI;
-    _fixedCenterPosition = glm::vec2( _fixedRadius + margin, eventScreen->availableSize().height() - margin - _fixedRadius - _extraBottomMargin);
+    _screenWidthCenter = viewportSize.width() / 2;
+    _fixedCenterPosition = glm::vec2( _fixedRadius + margin, viewportSize.height() - margin - _fixedRadius - effectiveBottomMargin);
     _moveRefTouchPoint = _fixedCenterPosition;
     virtualPadManager.getLeftVirtualPad()->setFirstTouch(_moveRefTouchPoint);
 
@@ -90,16 +170,34 @@ void TouchscreenVirtualPadDevice::setupControlsPositions(VirtualPad::Manager& vi
     float btnPixelSize = _screenDPI * VirtualPad::Manager::BTN_FULL_PIXELS / VirtualPad::Manager::DPI;
     float rightMargin = _screenDPI * VirtualPad::Manager::BTN_RIGHT_MARGIN_PIXELS / VirtualPad::Manager::DPI;
     float bottomMargin = _screenDPI * VirtualPad::Manager::BTN_BOTTOM_MARGIN_PIXELS/ VirtualPad::Manager::DPI;
-    glm::vec2 jumpButtonPosition = glm::vec2( eventScreen->availableSize().width() - rightMargin - btnPixelSize, eventScreen->availableSize().height() - bottomMargin - _buttonRadius - _extraBottomMargin);
-    glm::vec2 rbButtonPosition = glm::vec2( eventScreen->availableSize().width() - rightMargin - btnPixelSize, eventScreen->availableSize().height() - 2 * bottomMargin - 3 * _buttonRadius - _extraBottomMargin);
+    glm::vec2 jumpButtonPosition = glm::vec2( viewportSize.width() - rightMargin - btnPixelSize, viewportSize.height() - bottomMargin - _buttonRadius - effectiveBottomMargin);
+    glm::vec2 rbButtonPosition = glm::vec2( viewportSize.width() - rightMargin - btnPixelSize, viewportSize.height() - 2 * bottomMargin - 3 * _buttonRadius - effectiveBottomMargin);
 
-    // Avoid generating buttons in portrait mode
-    if ( eventScreen->availableSize().width() > eventScreen->availableSize().height() && _buttonsManager.buttonsCount() == 0) {
-        _buttonsManager.addButton(TouchscreenButton(JUMP, JUMP_BUTTON, _buttonRadius, jumpButtonPosition, _inputDevice ));
-        _buttonsManager.addButton(TouchscreenButton(RB, RB_BUTTON, _buttonRadius, rbButtonPosition, _inputDevice ));
-
+    // Avoid generating buttons in portrait mode. Keep existing hit targets in
+    // sync with the render positions when iOS publishes its final safe-area
+    // viewport after plugin initialization.
+    if (viewportSize.width() > viewportSize.height()) {
+        if (_buttonsManager.buttonsCount() == 0) {
+            _buttonsManager.addButton(TouchscreenButton(JUMP, JUMP_BUTTON, _buttonRadius, jumpButtonPosition, _inputDevice ));
+            _buttonsManager.addButton(TouchscreenButton(RB, RB_BUTTON, _buttonRadius, rbButtonPosition, _inputDevice ));
+        } else if (_buttonsManager.buttonsCount() >= 2) {
+            _buttonsManager.buttons[0].buttonPosition = jumpButtonPosition;
+            _buttonsManager.buttons[0].buttonRadius = _buttonRadius;
+            _buttonsManager.buttons[1].buttonPosition = rbButtonPosition;
+            _buttonsManager.buttons[1].buttonRadius = _buttonRadius;
+        }
         virtualPadManager.setButtonPosition(VirtualPad::Manager::Button::JUMP, jumpButtonPosition);
         virtualPadManager.setButtonPosition(VirtualPad::Manager::Button::HANDSHAKE, rbButtonPosition);
+#if defined(Q_OS_IOS)
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_INPUT_GATE stage=controls-positioned",
+            "viewport=", viewportSize,
+            "move=", QStringLiteral("%1,%2").arg(_fixedCenterPosition.x).arg(_fixedCenterPosition.y),
+            "jump=", QStringLiteral("%1,%2").arg(jumpButtonPosition.x).arg(jumpButtonPosition.y),
+            "handshake=", QStringLiteral("%1,%2").arg(rbButtonPosition.x).arg(rbButtonPosition.y),
+            "coordinate_space=safe-content",
+            "button_radius=", _buttonRadius);
+#endif
     }
 
 }
@@ -159,10 +257,15 @@ void TouchscreenVirtualPadDevice::processInputDeviceForView() {
     // We use average across how many times we've got touchUpdate events.
     // Using the average instead of the full deltaX and deltaY, makes deltaTime in MyAvatar dont't accelerate rotation when there is a low touchUpdate rate (heavier domains).
     // (Because it multiplies this input value by deltaTime (with a coefficient)).
-    _inputDevice->_axisStateMap[controller::RX].value =
-        _viewTouchUpdateCount == 0 ? 0 : (_viewCurrentTouchPoint.x - _viewRefTouchPoint.x) / _viewTouchUpdateCount;
-    _inputDevice->_axisStateMap[controller::RY].value =
-        _viewTouchUpdateCount == 0 ? 0 : (_viewCurrentTouchPoint.y - _viewRefTouchPoint.y) / _viewTouchUpdateCount;
+    float sensitivityScale { 1.0f };
+#if defined(Q_OS_IOS)
+    sensitivityScale = static_cast<float>(iosRuntimeDiagnosticInt(
+        "touchLookSensitivityPercent", 400, 50, 1200)) / 100.0f;
+#endif
+    _inputDevice->_axisStateMap[controller::RX].value = _viewTouchUpdateCount == 0 ? 0 :
+        sensitivityScale * (_viewCurrentTouchPoint.x - _viewRefTouchPoint.x) / _viewTouchUpdateCount;
+    _inputDevice->_axisStateMap[controller::RY].value = _viewTouchUpdateCount == 0 ? 0 :
+        sensitivityScale * (_viewCurrentTouchPoint.y - _viewRefTouchPoint.y) / _viewTouchUpdateCount;
 
     // after use, save last touch point as ref
     _viewRefTouchPoint = _viewCurrentTouchPoint;
@@ -170,7 +273,7 @@ void TouchscreenVirtualPadDevice::processInputDeviceForView() {
 }
 
 void TouchscreenVirtualPadDevice::processInputDeviceForPinch() {
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
     if (_pinchOut > 0.0f) {
         _inputDevice->_axisStateMap[PINCH_OUT].value = _pinchOut;
     }
@@ -212,6 +315,28 @@ void TouchscreenVirtualPadDevice::pluginUpdate(float deltaTime, const controller
 }
 
 void TouchscreenVirtualPadDevice::InputDevice::update(float deltaTime, const controller::InputCalibrationData& inputCalibrationData) {
+#if defined(Q_OS_IOS)
+    if (_jumpReleaseDelayMs > 0.0f) {
+        if (_jumpReleaseAwaitingMapperSample) {
+            // Application updates input plugins immediately before the mapper.
+            // A slow iOS frame can exceed the complete minimum pulse, so
+            // decrementing here would erase Jump before the mapper has ever
+            // observed it. Preserve this first post-release sample and start
+            // the bounded countdown on the following plugin update.
+            _jumpReleaseAwaitingMapperSample = false;
+            logIOSRuntimeMarker(
+                "OVERTE_IOS_TOUCH_INPUT_GATE stage=jump-pulse-exposed");
+        } else {
+            _jumpReleaseDelayMs -= std::max(0.0f, deltaTime) * 1000.0f;
+            if (_jumpReleaseDelayMs <= 0.0f) {
+                _jumpReleaseDelayMs = 0.0f;
+                _buttonPressedMap.erase(TouchButtonChannel::JUMP);
+                logIOSRuntimeMarker(
+                    "OVERTE_IOS_TOUCH_INPUT_GATE stage=jump-pulse-finished");
+            }
+        }
+    }
+#endif
     _axisStateMap.clear();
 }
 
@@ -230,14 +355,24 @@ void TouchscreenVirtualPadDevice::InputDevice::focusOutEvent() {
 void TouchscreenVirtualPadDevice::touchBeginEvent(const QTouchEvent* event) {
     // touch begin here is a big begin -> begins both pads? maybe it does nothing
     auto& virtualPadManager = VirtualPad::Manager::instance();
-    if (!virtualPadManager.isEnabled() && !virtualPadManager.isHidden()) {
+    if (!virtualPadManager.isEnabled() || virtualPadManager.isHidden()) {
         return;
     }
+#if defined(Q_OS_IOS)
+    const int traceLimit = iosRuntimeDiagnosticInt("touchInputTraceLimit", 24, 0, 1000);
+    if (_touchDiagnosticEventCount < static_cast<uint32_t>(traceLimit)) {
+        ++_touchDiagnosticEventCount;
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_INPUT_GATE stage=touch-begin",
+            "points=", touchPoints(event).count(),
+            "event_ordinal=", _touchDiagnosticEventCount);
+    }
+#endif
 }
 
 void TouchscreenVirtualPadDevice::touchEndEvent(const QTouchEvent* event) {
     auto& virtualPadManager = VirtualPad::Manager::instance();
-    if (!virtualPadManager.isEnabled() && !virtualPadManager.isHidden()) {
+    if (!virtualPadManager.isEnabled() || virtualPadManager.isHidden()) {
         moveTouchEnd();
         viewTouchEnd();
         _buttonsManager.endTouchForAll();
@@ -250,11 +385,27 @@ void TouchscreenVirtualPadDevice::touchEndEvent(const QTouchEvent* event) {
     viewTouchEnd();
     _buttonsManager.endTouchForAll();
     _inputDevice->_axisStateMap.clear();
+#if defined(Q_OS_IOS)
+    // touchEnd() above may have armed the bounded Jump pulse. Clear only the
+    // hold-style button here so that pulse survives until InputDevice::update
+    // has exposed it to the mapper.
+    _inputDevice->_buttonPressedMap.erase(TouchButtonChannel::RB);
+#else
     _inputDevice->_buttonPressedMap.clear();
+#endif
     _lastPinchScale = 0.0f;
     _pinchScale = 0.0f;
     _pinchOut = 0.0f;
     _pinchIn = 0.0f;
+#if defined(Q_OS_IOS)
+    const int traceLimit = iosRuntimeDiagnosticInt("touchInputTraceLimit", 24, 0, 1000);
+    if (_touchDiagnosticEventCount < static_cast<uint32_t>(traceLimit)) {
+        ++_touchDiagnosticEventCount;
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_INPUT_GATE stage=touch-end",
+            "event_ordinal=", _touchDiagnosticEventCount);
+    }
+#endif
 }
 
 void TouchscreenVirtualPadDevice::processUnusedTouches(std::map<int, TouchType> unusedTouchesInEvent) {
@@ -278,14 +429,14 @@ void TouchscreenVirtualPadDevice::processUnusedTouches(std::map<int, TouchType> 
 
 void TouchscreenVirtualPadDevice::touchUpdateEvent(const QTouchEvent* event) {
     auto& virtualPadManager = VirtualPad::Manager::instance();
-    if (!virtualPadManager.isEnabled() && !virtualPadManager.isHidden()) {
+    if (!virtualPadManager.isEnabled() || virtualPadManager.isHidden()) {
         moveTouchEnd();
         viewTouchEnd();
         return;
     }
-    _touchPointCount = event->touchPoints().count();
+    const auto& tPoints = touchPoints(event);
+    _touchPointCount = tPoints.count();
 
-    const QList<QTouchEvent::TouchPoint>& tPoints = event->touchPoints();
     bool moveTouchFound = false;
     bool viewTouchFound = false;
 
@@ -299,8 +450,9 @@ void TouchscreenVirtualPadDevice::touchUpdateEvent(const QTouchEvent* event) {
     std::map<int, TouchType> unusedTouchesInEvent;
 
     for (int i = 0; i < _touchPointCount; ++i) {
-        thisPoint.x = tPoints[i].pos().x();
-        thisPoint.y = tPoints[i].pos().y();
+        const auto position = touchPosition(tPoints[i]);
+        thisPoint.x = position.x();
+        thisPoint.y = position.y();
         thisPointId = tPoints[i].id();
 
         if (!moveTouchFound && _moveHasValidTouch && _moveCurrentTouchId == thisPointId) {
@@ -327,13 +479,16 @@ void TouchscreenVirtualPadDevice::touchUpdateEvent(const QTouchEvent* event) {
             continue;
         }
 
-        if (!viewTouchFound && idxViewStartingPointCandidate == -1 && viewTouchBeginIsValid(thisPoint) &&
-                (!_unusedTouches.count(thisPointId) || _unusedTouches[thisPointId] == VIEW )) {
-            idxViewStartingPointCandidate = i;
+        // Buttons occupy the right-hand view region, so they must get first
+        // refusal for a new touch. Otherwise every initial button press is
+        // classified as VIEW before the button candidate is considered.
+        if (_buttonsManager.findStartingTouchPointCandidate(thisPoint, thisPointId, i, _unusedTouches)) {
             continue;
         }
 
-        if (_buttonsManager.findStartingTouchPointCandidate(thisPoint, thisPointId, i, _unusedTouches)) {
+        if (!viewTouchFound && idxViewStartingPointCandidate == -1 && viewTouchBeginIsValid(thisPoint) &&
+                (!_unusedTouches.count(thisPointId) || _unusedTouches[thisPointId] == VIEW )) {
+            idxViewStartingPointCandidate = i;
             continue;
         }
 
@@ -353,8 +508,9 @@ void TouchscreenVirtualPadDevice::touchUpdateEvent(const QTouchEvent* event) {
         if (idxMoveStartingPointCandidate != -1) {
             _moveCurrentTouchId = tPoints[idxMoveStartingPointCandidate].id();
             _unusedTouches.erase(_moveCurrentTouchId);
-            thisPoint.x = tPoints[idxMoveStartingPointCandidate].pos().x();
-            thisPoint.y = tPoints[idxMoveStartingPointCandidate].pos().y();
+            const auto position = touchPosition(tPoints[idxMoveStartingPointCandidate]);
+            thisPoint.x = position.x();
+            thisPoint.y = position.y();
             moveTouchBegin(thisPoint);
         } else {
             moveTouchEnd();
@@ -364,8 +520,9 @@ void TouchscreenVirtualPadDevice::touchUpdateEvent(const QTouchEvent* event) {
         if (idxViewStartingPointCandidate != -1) {
             _viewCurrentTouchId = tPoints[idxViewStartingPointCandidate].id();
             _unusedTouches.erase(_viewCurrentTouchId);
-            thisPoint.x = tPoints[idxViewStartingPointCandidate].pos().x();
-            thisPoint.y = tPoints[idxViewStartingPointCandidate].pos().y();
+            const auto position = touchPosition(tPoints[idxViewStartingPointCandidate]);
+            thisPoint.x = position.x();
+            thisPoint.y = position.y();
             viewTouchBegin(thisPoint);
         } else {
             viewTouchEnd();
@@ -373,6 +530,25 @@ void TouchscreenVirtualPadDevice::touchUpdateEvent(const QTouchEvent* event) {
     }
 
     _buttonsManager.processBeginOrEnd(thisPoint, tPoints, _unusedTouches);
+
+#if defined(Q_OS_IOS)
+    const int traceLimit = iosRuntimeDiagnosticInt("touchInputTraceLimit", 24, 0, 1000);
+    if (_touchDiagnosticEventCount < static_cast<uint32_t>(traceLimit)) {
+        int activeButtons { 0 };
+        for (const auto& button : _buttonsManager.buttons) {
+            activeButtons += button.hasValidTouch ? 1 : 0;
+        }
+        ++_touchDiagnosticEventCount;
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_INPUT_GATE stage=touch-update",
+            "points=", _touchPointCount,
+            "move=", _moveHasValidTouch,
+            "view=", _viewHasValidTouch,
+            "buttons=", activeButtons,
+            "unused=", _unusedTouches.size(),
+            "event_ordinal=", _touchDiagnosticEventCount);
+    }
+#endif
 
 }
 
@@ -440,12 +616,13 @@ void TouchscreenVirtualPadDevice::viewTouchEnd() {
 
 void TouchscreenVirtualPadDevice::touchGestureEvent(const QGestureEvent* event) {
     auto& virtualPadManager = VirtualPad::Manager::instance();
-    if (!virtualPadManager.isEnabled()  && !virtualPadManager.isHidden()) {
+    if (!virtualPadManager.isEnabled() || virtualPadManager.isHidden()) {
         return;
     }
     if (QGesture* gesture = event->gesture(Qt::PinchGesture)) {
         QPinchGesture* pinch = static_cast<QPinchGesture*>(gesture);
         _pinchScale = pinch->totalScaleFactor();
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
 #if defined(ANDROID_APP_PHONE_INTERFACE)
         // Preferences may update this key through a different Setting::Handle.
         // Read the manager-backed value so a saved change takes effect without
@@ -457,6 +634,7 @@ void TouchscreenVirtualPadDevice::touchGestureEvent(const QGestureEvent* event) 
             _pinchIn = 0.0f;
             return;
         }
+#endif
         if (pinch->state() == Qt::GestureStarted || _lastPinchScale <= 0.0f) {
             _lastPinchScale = _pinchScale;
             return;
@@ -502,7 +680,7 @@ controller::Input::NamedVector TouchscreenVirtualPadDevice::InputDevice::getAvai
 }
 
 QString TouchscreenVirtualPadDevice::InputDevice::getDefaultMappingConfig() const {
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
     static const QString MAPPING_JSON = PathUtils::resourcesPath() + "/controllers/touchscreenvirtualpad-phone.json";
 #else
     static const QString MAPPING_JSON = PathUtils::resourcesPath() + "/controllers/touchscreenvirtualpad.json";
@@ -527,7 +705,20 @@ void TouchscreenVirtualPadDevice::TouchscreenButton::touchBegin(glm::vec2 touchP
     if (virtualPadManager.isEnabled() && !virtualPadManager.isHidden()) {
         hasValidTouch = true;
 
+#if defined(Q_OS_IOS)
+        if (channel == TouchButtonChannel::JUMP) {
+            _inputDevice->_jumpReleaseDelayMs = 0.0f;
+            _inputDevice->_jumpReleaseAwaitingMapperSample = false;
+        }
+#endif
         _inputDevice->_buttonPressedMap.insert(channel);
+#if defined(Q_OS_IOS)
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_INPUT_GATE stage=button-pressed",
+            "channel=", static_cast<int>(channel),
+            "point=", QStringLiteral("%1,%2").arg(touchPoint.x).arg(touchPoint.y),
+            "center=", QStringLiteral("%1,%2").arg(buttonPosition.x).arg(buttonPosition.y));
+#endif
     }
 }
 
@@ -539,7 +730,31 @@ void TouchscreenVirtualPadDevice::TouchscreenButton::touchEnd() {
     if (hasValidTouch) {
         hasValidTouch = false;
 
+#if defined(Q_OS_IOS)
+        if (channel == TouchButtonChannel::JUMP) {
+            // A very short direct tap can begin and end between two mapper
+            // samples. Keep Jump asserted for a bounded, hot-configurable
+            // pulse so the avatar simulation observes every accepted tap.
+            _inputDevice->_jumpReleaseDelayMs = static_cast<float>(
+                iosRuntimeDiagnosticInt("touchJumpMinimumPulseMs", 120, 0, 500));
+            if (_inputDevice->_jumpReleaseDelayMs <= 0.0f) {
+                _inputDevice->_jumpReleaseAwaitingMapperSample = false;
+                _inputDevice->_buttonPressedMap.erase(channel);
+            } else {
+                _inputDevice->_jumpReleaseAwaitingMapperSample = true;
+            }
+        } else {
+            _inputDevice->_buttonPressedMap.erase(channel);
+        }
+#else
         _inputDevice->_buttonPressedMap.erase(channel);
+#endif
+#if defined(Q_OS_IOS)
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_INPUT_GATE stage=button-released",
+            "channel=", static_cast<int>(channel),
+            "jump_pulse_remaining_ms=", _inputDevice->_jumpReleaseDelayMs);
+#endif
     }
 }
 
@@ -616,15 +831,16 @@ void TouchscreenVirtualPadDevice::TouchscreenButtonsManager::saveUnusedTouches(
 }
 
 void TouchscreenVirtualPadDevice::TouchscreenButtonsManager::processBeginOrEnd(
-        glm::vec2 thisPoint, const QList<QTouchEvent::TouchPoint> &tPoints, std::map<int, TouchType> globalUnusedTouches) {
+        glm::vec2 thisPoint, const QList<OverteTouchPoint>& tPoints, std::map<int, TouchType> globalUnusedTouches) {
     for(int i = 0; i < buttons.size(); i++) {
         TouchscreenButton &button = buttons[i];
         if (!button._found) {
             if (button._candidatePointIdx != -1) {
                 button.currentTouchId = tPoints[button._candidatePointIdx].id();
                 globalUnusedTouches.erase(button.currentTouchId);
-                thisPoint.x = tPoints[button._candidatePointIdx].pos().x();
-                thisPoint.y = tPoints[button._candidatePointIdx].pos().y();
+                const auto position = touchPosition(tPoints[button._candidatePointIdx]);
+                thisPoint.x = position.x();
+                thisPoint.y = position.y();
                 button.touchBegin(thisPoint);
             } else {
                 if (button.hasValidTouch) {

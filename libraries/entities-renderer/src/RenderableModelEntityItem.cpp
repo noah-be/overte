@@ -30,6 +30,9 @@
 #include <DependencyManager.h>
 #include <AnimationCache.h>
 #include <shared/QtHelpers.h>
+#if defined(Q_OS_IOS)
+#include <shared/IOSRuntimeLogging.h>
+#endif
 
 #include "EntityTreeRenderer.h"
 #include "EntitiesRendererLogging.h"
@@ -385,9 +388,9 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
 
         // the way OBJ files get read, each section under a "g" line is its own meshPart.  We only expect
         // to find one actual "mesh" (with one or more meshParts in it), but we loop over the meshes, just in case.
-        foreach (const HFMMesh& mesh, collisionGeometry.meshes) {
+        for (const HFMMesh& mesh : collisionGeometry.meshes) {
             // each meshPart is a convex hull
-            foreach (const HFMMeshPart &meshPart, mesh.parts) {
+            for (const HFMMeshPart& meshPart : mesh.parts) {
                 pointCollection.push_back(QVector<glm::vec3>());
                 ShapeInfo::PointList& pointsInPart = pointCollection[i];
 
@@ -465,7 +468,8 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
                 pointCollection[i][j] = scaleToFit * (pointCollection[i][j] + offset) - registrationOffset;
             }
         }
-        shapeInfo.setParams(type, 0.5f * extents, getCompoundShapeURL() + model->getSnapModelToRegistrationPoint());
+        shapeInfo.setParams(type, 0.5f * extents,
+            getCompoundShapeURL() + QChar(static_cast<ushort>(model->getSnapModelToRegistrationPoint())));
         adjustShapeInfoByRegistration(shapeInfo, model->getSnapModelToRegistrationPoint());
     } else if (type >= SHAPE_TYPE_SIMPLE_HULL && type <= SHAPE_TYPE_STATIC_MESH) {
         updateModelBounds();
@@ -698,7 +702,8 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
             }
         }
 
-        shapeInfo.setParams(type, 0.5f * extents.size(), getModelURL() + model->getSnapModelToRegistrationPoint());
+        shapeInfo.setParams(type, 0.5f * extents.size(),
+            getModelURL() + QChar(static_cast<ushort>(model->getSnapModelToRegistrationPoint())));
         adjustShapeInfoByRegistration(shapeInfo, model->getSnapModelToRegistrationPoint());
     } else {
         EntityItem::computeShapeInfo(shapeInfo);
@@ -1305,6 +1310,25 @@ void ModelEntityRenderer::doRenderUpdateAsynchronousTyped(const TypedEntityPoint
         connect(model.get(), &Model::requestRenderUpdate, this, &ModelEntityRenderer::requestRenderUpdate);
         connect(model.get(), &Model::setURLFinished, this, [=, this](bool didVisualGeometryRequestSucceed) {
             _didLastVisualGeometryRequestSucceed = didVisualGeometryRequestSucceed;
+#if defined(Q_OS_IOS)
+            const auto modelURL = model->getURL();
+            const bool traceModel = modelURL.scheme() == QStringLiteral("qrc") &&
+                modelURL.path().contains(QStringLiteral("/serverless/"));
+            if (traceModel || iosRuntimeRenderDiagnosticsEnabled()) {
+                const auto geometry = model->getGeometry();
+                const bool hfmLoaded = geometry && geometry->isHFMModelLoaded();
+                logIOSRuntimeMarker(
+                    "OVERTE_IOS_MODEL_GATE stage=url-finished",
+                    "entity=", entity->getEntityItemID().toString(),
+                    "name=", entity->getName(),
+                    "url=", modelURL.toString(),
+                    "request_success=", didVisualGeometryRequestSucceed,
+                    "model_loaded=", model->isLoaded(),
+                    "hfm_loaded=", hfmLoaded,
+                    "hfm_meshes=", hfmLoaded ? static_cast<qint64>(geometry->getHFMModel().meshes.size()) : -1,
+                    "render_meshes=", geometry ? static_cast<qint64>(geometry->getMeshes().size()) : -1);
+            }
+#endif
             const render::ScenePointer& scene = AbstractViewStateInterface::instance()->getMain3DScene();
             render::Transaction transaction;
             transaction.updateItem<PayloadProxyInterface>(_renderItemID, [=, this](PayloadProxyInterface& self) {
@@ -1422,6 +1446,21 @@ void ModelEntityRenderer::doRenderUpdateAsynchronousTyped(const TypedEntityPoint
             makeStatusGetters(entity, statusGetters);
             using namespace std::placeholders;
             model->addToScene(scene, transaction, statusGetters, std::bind(&ModelEntityRenderer::metaBlendshapeOperator, _renderItemID, _1, _2, _3, _4));
+#if defined(Q_OS_IOS)
+            const auto modelURL = model->getURL();
+            if ((modelURL.scheme() == QStringLiteral("qrc") &&
+                    modelURL.path().contains(QStringLiteral("/serverless/"))) ||
+                    iosRuntimeRenderDiagnosticsEnabled()) {
+                logIOSRuntimeMarker(
+                    "OVERTE_IOS_MODEL_GATE stage=scene-added",
+                    "entity=", entity->getEntityItemID().toString(),
+                    "name=", entity->getName(),
+                    "url=", modelURL.toString(),
+                    "render_items=", static_cast<qint64>(model->fetchRenderItemIDs().size()),
+                    "renderable=", model->isRenderable(),
+                    "textures_loaded=", model->getGeometry() && model->getGeometry()->areTexturesLoaded());
+            }
+#endif
             auto renderer = DependencyManager::get<EntityTreeRenderer>();
             if (renderer) {
                 if (_fadeInMode == ComponentMode::COMPONENT_MODE_ENABLED ||

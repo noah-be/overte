@@ -314,6 +314,10 @@ protected:
     VkImageView _vkImageView { VK_NULL_HANDLE };
     VkImageLayout _vkImageLayout {};
     VkSampler _vkSampler { VK_NULL_HANDLE };
+    uint16_t _sourceMipOffset { 0 };
+    size_t _residentBytes { 0 };
+    bool _residencyAccounted { false };
+    bool _isManagedResource { false };
     // This need to be moved to VKFixedAllocationTexture and allocated in allocateStorage()
     //VkDeviceMemory _vkDeviceMemory{ VK_NULL_HANDLE };
 };
@@ -378,6 +382,7 @@ protected:
 };
 
 
+#if !defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)
 class VKExternalTexture: public VKTexture {
     friend class VKBackend;
 
@@ -425,6 +430,7 @@ protected:
     GLuint _openGLId = 0;
     GLuint _openGLSourceId = 0;
 };
+#endif
 
 } }
 

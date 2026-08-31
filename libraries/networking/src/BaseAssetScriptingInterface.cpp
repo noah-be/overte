@@ -262,7 +262,7 @@ Promise BaseAssetScriptingInterface::downloadBytes(QString hash) {
                 { "data", data },
             };
         } else {
-            error = request->getError();
+            error = request->getErrorString();
             result = { { "error", request->getError() } };
         }
         // forward thread-safe copies back to our thread

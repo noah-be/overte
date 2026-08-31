@@ -14,6 +14,11 @@
 #ifndef overte_SocketType_h
 #define overte_SocketType_h
 
+#include <cstdint>
+
+#include <QtCore/QDebug>
+#include <QtCore/QString>
+
 /// @addtogroup Networking
 /// @{
 

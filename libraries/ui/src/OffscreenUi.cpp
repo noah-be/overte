@@ -12,10 +12,16 @@
 
 #include <QtCore/QVariant>
 #include <QtGui/QGuiApplication>
+#include <QtGui/QInputMethod>
+#include <QtGui/QInputMethodQueryEvent>
+#include <QtGui/QMouseEvent>
 #include <QtQuick/QQuickWindow>
 #include <QtQml/QtQml>
 
 #include <shared/QtHelpers.h>
+#if defined(Q_OS_IOS)
+#include <shared/IOSRuntimeLogging.h>
+#endif
 #include <gl/GLHelpers.h>
 
 #include <AbstractUriHandler.h>
@@ -119,15 +125,64 @@ bool OffscreenUi::shouldSwallowShortcut(QEvent* event) {
     return false;
 }
 
-static QTouchDevice _touchDevice;
-OffscreenUi::OffscreenUi() {
+namespace {
+OffscreenTouchDevice& offscreenUiTouchDevice() {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    static OffscreenTouchDevice device(
+        QStringLiteral("OffscreenUiTouchDevice"), 0x4f56545549LL,
+        QInputDevice::DeviceType::TouchScreen, QPointingDevice::PointerType::Finger,
+        QInputDevice::Capability::Position, 4, 0);
+#else
+    static OffscreenTouchDevice device;
     static std::once_flag once;
     std::call_once(once, [&] {
-        _touchDevice.setCapabilities(QTouchDevice::Position);
-        _touchDevice.setType(QTouchDevice::TouchScreen);
-        _touchDevice.setName("OffscreenUiTouchDevice");
-        _touchDevice.setMaximumTouchPoints(4);
+        device.setCapabilities(QTouchDevice::Position);
+        device.setType(QTouchDevice::TouchScreen);
+        device.setName("OffscreenUiTouchDevice");
+        device.setMaximumTouchPoints(4);
     });
+#endif
+    return device;
+}
+
+#if defined(Q_OS_IOS)
+void finishIOSOffscreenTextFocus(QQuickWindow* window, const char* source,
+                                 bool delivered, bool accepted) {
+    if (!window) {
+        return;
+    }
+
+    QQuickItem* focusItem = window->activeFocusItem();
+    bool inputMethodEnabled { false };
+    if (focusItem) {
+        QInputMethodQueryEvent query(Qt::ImEnabled | Qt::ImHints | Qt::ImCursorRectangle);
+        QCoreApplication::sendEvent(focusItem, &query);
+        inputMethodEnabled = query.value(Qt::ImEnabled).toBool();
+    }
+
+    if (inputMethodEnabled) {
+        if (auto* inputMethod = QGuiApplication::inputMethod()) {
+            inputMethod->update(Qt::ImEnabled | Qt::ImHints | Qt::ImCursorRectangle);
+            inputMethod->show();
+        }
+    }
+
+    logIOSRuntimeMarker(
+        "OVERTE_IOS_TOUCH_UI_GATE stage=focus-after-touch",
+        "source=", source,
+        "focus=", focusItem && !focusItem->objectName().isEmpty()
+            ? focusItem->objectName() : QStringLiteral("<unnamed-or-none>"),
+        "focus_class=", focusItem ? focusItem->metaObject()->className() : "<none>",
+        "active_focus=", focusItem ? focusItem->hasActiveFocus() : false,
+        "ime_enabled=", inputMethodEnabled,
+        "delivered=", delivered,
+        "mouse_accepted=", accepted);
+}
+#endif
+}
+
+OffscreenUi::OffscreenUi() {
+    (void)offscreenUiTouchDevice();
 
     auto pointerManager = DependencyManager::get<PointerManager>();
     connect(pointerManager.data(), &PointerManager::hoverBeginHUD, this, &OffscreenUi::hoverBeginEvent);
@@ -140,15 +195,79 @@ OffscreenUi::OffscreenUi() {
 }
 
 void OffscreenUi::hoverBeginEvent(const PointerEvent& event) {
-    OffscreenQmlSurface::hoverBeginEvent(event, _touchDevice);
+    OffscreenQmlSurface::hoverBeginEvent(event, offscreenUiTouchDevice());
 }
 
 void OffscreenUi::hoverEndEvent(const PointerEvent& event) {
-    OffscreenQmlSurface::hoverEndEvent(event, _touchDevice);
+    OffscreenQmlSurface::hoverEndEvent(event, offscreenUiTouchDevice());
 }
 
 void OffscreenUi::handlePointerEvent(const PointerEvent& event) {
-    OffscreenQmlSurface::handlePointerEvent(event, _touchDevice);
+    OffscreenQmlSurface::handlePointerEvent(event, offscreenUiTouchDevice());
+}
+
+bool OffscreenUi::handleMobilePointerEvent(const PointerEvent& event) {
+    // Qt 6 accepts synthesized touch events at the window boundary even when
+    // the QML control under the point never receives a click or focus. The
+    // established desktop event filter uses mouse events for this same reason.
+    // Mobile screen-space UI needs that reliable path for MouseArea, Button,
+    // and TextField controls, including mouse drags used by swipe gestures.
+    if (!getWindow()) {
+        return false;
+    }
+
+    QEvent::Type mouseType { QEvent::None };
+    switch (event.getType()) {
+        case PointerEvent::Press:
+            mouseType = QEvent::MouseButtonPress;
+            break;
+        case PointerEvent::Release:
+            mouseType = QEvent::MouseButtonRelease;
+            break;
+        case PointerEvent::Move:
+            mouseType = QEvent::MouseMove;
+            break;
+        default:
+            return false;
+    }
+
+    const QPointF point(event.getPos2D().x, event.getPos2D().y);
+    // QMouseEvent::button() identifies the button whose state changed.  Qt
+    // requires it to be NoButton for MouseMove; the held state belongs only
+    // in buttons().  Passing LeftButton for every mobile move produces a
+    // malformed drag stream which buttons tolerate but Flickable rejects.
+    const bool changesPrimaryButton = event.getType() == PointerEvent::Press ||
+        event.getType() == PointerEvent::Release;
+    const Qt::MouseButton button = changesPrimaryButton &&
+            event.getButton() == PointerEvent::PrimaryButton
+        ? Qt::LeftButton : Qt::NoButton;
+    Qt::MouseButtons buttons { Qt::NoButton };
+    if (event.getButtons() & PointerEvent::PrimaryButton) {
+        buttons |= Qt::LeftButton;
+    }
+    QMouseEvent mouseEvent(mouseType, point, point, point, button, buttons,
+                           event.getKeyboardModifiers());
+    mouseEvent.ignore();
+    const bool delivered = QCoreApplication::sendEvent(getWindow(), &mouseEvent);
+#if defined(Q_OS_IOS)
+    static quint64 mobileMoveOrdinal { 0 };
+    if (event.getType() == PointerEvent::Move && ++mobileMoveOrdinal % 30 == 0) {
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_UI_GATE stage=mobile-drag-move",
+            "ordinal=", mobileMoveOrdinal,
+            "x=", point.x(),
+            "y=", point.y(),
+            "button=", static_cast<int>(button),
+            "buttons=", static_cast<int>(buttons),
+            "delivered=", delivered,
+            "accepted=", mouseEvent.isAccepted());
+    }
+    if (event.getType() == PointerEvent::Release) {
+        finishIOSOffscreenTextFocus(getWindow(), "mobile-pointer", delivered,
+                                    mouseEvent.isAccepted());
+    }
+#endif
+    return delivered && mouseEvent.isAccepted();
 }
 
 QObject* OffscreenUi::getFlags() {
@@ -1141,13 +1260,27 @@ bool OffscreenUi::eventFilter(QObject* originalDestination, QEvent* event) {
             // (using handlePointerEvent) later
             QMouseEvent mappedEvent(mouseEvent->type(), transformedPos, mouseEvent->screenPos(), mouseEvent->button(), mouseEvent->buttons(), mouseEvent->modifiers());
             mappedEvent.ignore();
-            if (QCoreApplication::sendEvent(getWindow(), &mappedEvent)) {
+            const bool delivered = QCoreApplication::sendEvent(getWindow(), &mappedEvent);
+#if defined(Q_OS_IOS)
+            if (event->type() == QEvent::MouseButtonRelease) {
+                finishIOSOffscreenTextFocus(getWindow(), "window-mouse-filter", delivered,
+                                            mappedEvent.isAccepted());
+            }
+#endif
+            if (delivered) {
                 return mappedEvent.isAccepted();
             }
             break;
         }
         case QEvent::InputMethod:
         case QEvent::InputMethodQuery:
+#if defined(Q_OS_IOS)
+            // OffscreenSurface already routes iOS IME events directly to the
+            // active QML text item. Do not deliver an accepted edit twice.
+            if (result) {
+                return true;
+            }
+#endif
             if (QCoreApplication::sendEvent(getWindow(), event)) {
                 return result;
             }

@@ -15,14 +15,14 @@
 ScriptHighlighting::ScriptHighlighting(QTextDocument* parent) :
     QSyntaxHighlighter(parent)
 {
-    _keywordRegex = QRegExp("\\b(break|case|catch|continue|debugger|default|delete|do|else|finally|for|function|if|in|instanceof|new|return|switch|this|throw|try|typeof|var|void|while|with)\\b");
-    _quotedTextRegex = QRegExp("(\"[^\"]*(\"){0,1}|\'[^\']*(\'){0,1})");
-    _multiLineCommentBegin = QRegExp("/\\*");
-    _multiLineCommentEnd = QRegExp("\\*/");
-    _numberRegex = QRegExp("[0-9]+(\\.[0-9]+){0,1}");
-    _singleLineComment = QRegExp("//[^\n]*");
-    _truefalseRegex = QRegExp("\\b(true|false)\\b");
-    _alphacharRegex = QRegExp("[A-Za-z]");
+    _keywordRegex = QRegularExpression("\\b(break|case|catch|continue|debugger|default|delete|do|else|finally|for|function|if|in|instanceof|new|return|switch|this|throw|try|typeof|var|void|while|with)\\b");
+    _quotedTextRegex = QRegularExpression("(\"[^\"]*(\"){0,1}|\'[^\']*(\'){0,1})");
+    _multiLineCommentBegin = QRegularExpression("/\\*");
+    _multiLineCommentEnd = QRegularExpression("\\*/");
+    _numberRegex = QRegularExpression("[0-9]+(\\.[0-9]+){0,1}");
+    _singleLineComment = QRegularExpression("//[^\n]*");
+    _truefalseRegex = QRegularExpression("\\b(true|false)\\b");
+    _alphacharRegex = QRegularExpression("[A-Za-z]");
 }
 
 void ScriptHighlighting::highlightBlock(const QString& text) {
@@ -34,11 +34,12 @@ void ScriptHighlighting::highlightBlock(const QString& text) {
 }
 
 void ScriptHighlighting::highlightKeywords(const QString& text) {
-    int index = _keywordRegex.indexIn(text);
-    while (index >= 0) {
-        int length = _keywordRegex.matchedLength();
+    auto match = _keywordRegex.match(text);
+    while (match.hasMatch()) {
+        const int index = match.capturedStart();
+        const int length = match.capturedLength();
         setFormat(index, length, Qt::blue);
-        index = _keywordRegex.indexIn(text, index + length);
+        match = _keywordRegex.match(text, index + length);
     }
 }
 
@@ -46,65 +47,74 @@ void ScriptHighlighting::formatComments(const QString& text) {
 
     setCurrentBlockState(BlockStateClean);
 
-    int start = (previousBlockState() != BlockStateInMultiComment) ? text.indexOf(_multiLineCommentBegin) : 0;
+    auto beginMatch = _multiLineCommentBegin.match(text);
+    int start = (previousBlockState() != BlockStateInMultiComment) ? beginMatch.capturedStart() : 0;
 
     while (start > -1) {
-        int end = text.indexOf(_multiLineCommentEnd, start);
-        int length = (end == -1 ? text.length() : (end + _multiLineCommentEnd.matchedLength())) - start;
+        const auto endMatch = _multiLineCommentEnd.match(text, start);
+        const int end = endMatch.capturedStart();
+        const int length = (end == -1 ? text.length() : (end + endMatch.capturedLength())) - start;
         setFormat(start, length, Qt::lightGray);
-        start = text.indexOf(_multiLineCommentBegin, start + length);
+        beginMatch = _multiLineCommentBegin.match(text, start + length);
+        start = beginMatch.capturedStart();
         if (end == -1) {
             setCurrentBlockState(BlockStateInMultiComment);
         }
     }
 
-    int index = _singleLineComment.indexIn(text);
-    while (index >= 0) {
-        int length = _singleLineComment.matchedLength();
-        int quoted_index = _quotedTextRegex.indexIn(text);
+    auto commentMatch = _singleLineComment.match(text);
+    while (commentMatch.hasMatch()) {
+        const int index = commentMatch.capturedStart();
+        const int length = commentMatch.capturedLength();
+        auto quotedMatch = _quotedTextRegex.match(text);
+        int quoted_index = quotedMatch.capturedStart();
         bool valid = true;
         while (quoted_index >= 0 && valid) {
-            int quoted_length = _quotedTextRegex.matchedLength();
+            const int quoted_length = quotedMatch.capturedLength();
             if (quoted_index <= index && index <= (quoted_index + quoted_length)) {
                 valid = false;
             }
-            quoted_index = _quotedTextRegex.indexIn(text, quoted_index + quoted_length);
+            quotedMatch = _quotedTextRegex.match(text, quoted_index + quoted_length);
+            quoted_index = quotedMatch.capturedStart();
         }
 
         if (valid) {
             setFormat(index, length, Qt::lightGray);
         }
-        index = _singleLineComment.indexIn(text, index + length);
+        commentMatch = _singleLineComment.match(text, index + length);
     }
 }
 
 void ScriptHighlighting::formatQuotedText(const QString& text){
-    int index = _quotedTextRegex.indexIn(text);
-    while (index >= 0) {
-        int length = _quotedTextRegex.matchedLength();
+    auto match = _quotedTextRegex.match(text);
+    while (match.hasMatch()) {
+        const int index = match.capturedStart();
+        const int length = match.capturedLength();
         setFormat(index, length, Qt::red);
-        index = _quotedTextRegex.indexIn(text, index + length);
+        match = _quotedTextRegex.match(text, index + length);
     }
 }
 
 void ScriptHighlighting::formatNumbers(const QString& text){
-    int index = _numberRegex.indexIn(text);
-    while (index >= 0) {
-        int length = _numberRegex.matchedLength();
-        if (index == 0 || _alphacharRegex.indexIn(text, index - 1) != (index - 1)) {
+    auto match = _numberRegex.match(text);
+    while (match.hasMatch()) {
+        const int index = match.capturedStart();
+        const int length = match.capturedLength();
+        if (index == 0 || _alphacharRegex.match(text, index - 1).capturedStart() != (index - 1)) {
             setFormat(index, length, Qt::green);
         }
-        index = _numberRegex.indexIn(text, index + length);
+        match = _numberRegex.match(text, index + length);
     }
 }
 
 void ScriptHighlighting::formatTrueFalse(const QString& text){
-    int index = _truefalseRegex.indexIn(text);
-    while (index >= 0) {
-        int length = _truefalseRegex.matchedLength();
+    auto match = _truefalseRegex.match(text);
+    while (match.hasMatch()) {
+        const int index = match.capturedStart();
+        const int length = match.capturedLength();
         QFont* font = new QFont(this->document()->defaultFont());
         font->setBold(true);
         setFormat(index, length, *font);
-        index = _truefalseRegex.indexIn(text, index + length);
+        match = _truefalseRegex.match(text, index + length);
     }
 }

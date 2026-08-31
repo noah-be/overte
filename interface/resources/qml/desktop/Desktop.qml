@@ -9,11 +9,11 @@
 //
 
 import QtQuick 2.7
-import QtQuick.Controls 1.4
-import QtQuick.Controls 2.3 as QQC2
+import QtQuick.Controls 2.3
 
 import "../dialogs"
 import "../js/Utils.js" as Utils
+import "../controls" as OverteControls
 
 // This is our primary 'desktop' object to which all VR dialogs and windows are childed.
 FocusScope {
@@ -51,14 +51,23 @@ FocusScope {
     property bool desktopRoot: true
 
     // The VR version of the primary menu
-    property var rootMenu: Menu { 
+    property var rootMenu: OverteControls.WrappedMenu {
         id: rootMenuId
         objectName: "rootMenu" 
 
         property var exclusionGroups: ({});
         property Component exclusiveGroupMaker: Component {
-            ExclusiveGroup {
+            ActionGroup {
+                exclusive: true
             }
+        }
+
+        function addMenuWrap(menu) {
+            return addMenu(menu)
+        }
+
+        function addItemWrap(item) {
+            addItem(item)
         }
 
         function addExclusionGroup(qmlAction, exclusionGroup) {
@@ -68,7 +77,7 @@ FocusScope {
                 exclusionGroups[exclusionGroupId] = exclusiveGroupMaker.createObject(rootMenuId);
             }
 
-            qmlAction.exclusiveGroup = exclusionGroups[exclusionGroupId]
+            exclusionGroups[exclusionGroupId].addAction(qmlAction)
         }
     }
 
@@ -532,12 +541,15 @@ FocusScope {
         return customInputDialogBuilder.createObject(desktop, properties);
     }
 
-    Component { id: fileDialogBuilder; FileDialog { } }
+    // The legacy Qt Quick Controls 1 file and asset dialogs do not load on
+    // Qt 6. Keep these optional factories inert until their shared Qt 6 ports
+    // are integrated; startup and the mobile Goto/Login flows remain usable.
+    Component { id: fileDialogBuilder; Item { } }
     function fileDialog(properties) {
         return fileDialogBuilder.createObject(desktop, properties);
     } 
 
-    Component { id: assetDialogBuilder; AssetDialog { } }
+    Component { id: assetDialogBuilder; Item { } }
     function assetDialog(properties) {
         return assetDialogBuilder.createObject(desktop, properties);
     }
@@ -585,7 +597,7 @@ FocusScope {
         }
     }
 
-    QQC2.Action {
+    Action {
         text: "Toggle Focus Debugger"
         shortcut: "Ctrl+Shift+F"
         enabled: DebugQML

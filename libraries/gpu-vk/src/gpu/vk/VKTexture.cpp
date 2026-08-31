@@ -13,15 +13,40 @@
 
 #include "VKTexture.h"
 
+#include <atomic>
+
 #include <QtCore/QThread>
 #include <NumericalConstants.h>
+#if defined(Q_OS_IOS)
+#include <mach/mach.h>
+#include <shared/IOSRuntimeLogging.h>
+#endif
+#if !defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)
 #include <gl/GLHelpers.h>
+#endif
 
 #include "VKBackend.h"
 #include "vk/Allocation.h"
 
 using namespace gpu;
 using namespace gpu::vk;
+
+#if defined(Q_OS_IOS)
+namespace {
+std::atomic<uint64_t> iosStrictTextureResidentBytes { 0 };
+std::atomic<uint64_t> iosStrictTextureCount { 0 };
+std::atomic<uint64_t> iosStrictTextureOrdinal { 0 };
+
+uint64_t iosPhysicalFootprintBytes() {
+    task_vm_info_data_t info {};
+    mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+    const kern_return_t result = task_info(
+        mach_task_self(), TASK_VM_INFO,
+        reinterpret_cast<task_info_t>(&info), &count);
+    return result == KERN_SUCCESS ? info.phys_footprint : 0;
+}
+}
+#endif
 
 
 /*const uint32_t VKTexture::CUBE_FACE_LAYOUT[VKTexture::TEXTURE_CUBE_NUM_FACES] = {
@@ -300,8 +325,6 @@ void VKStrictResourceTexture::createTexture(VKBackend &backend) {
     VkImageCreateInfo imageCI = vks::initializers::imageCreateInfo();
     imageCI.imageType = VK_IMAGE_TYPE_2D;
     imageCI.format = evalTexelFormatInternal(_gpuObject.getTexelFormat(), backend.getContext());
-    imageCI.extent.width = _gpuObject.getWidth();
-    imageCI.extent.height = _gpuObject.getHeight();
     imageCI.extent.depth = 1;
     imageCI.arrayLayers = _gpuObject.isArray() ? _gpuObject.getNumSlices() : 1;
     imageCI.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -314,15 +337,69 @@ void VKStrictResourceTexture::createTexture(VKBackend &backend) {
 
     // We need to lock mip data here so that it doesn't change or get deleted before transfer
 
-    _transferData.mipLevels = _gpuObject.getNumMips();
-    _transferData.width = _gpuObject.getWidth();
-    _transferData.height = _gpuObject.getHeight();
+    const uint16_t sourceMipCount = _gpuObject.getNumMips();
+    _isManagedResource = _gpuObject.getUsageType() == TextureUsageType::RESOURCE;
+
+    auto completeMipAvailable = [this](uint16_t mip) {
+        for (uint8_t face = 0; face < _gpuObject.getNumFaces(); ++face) {
+            if (!_gpuObject.isStoredMipFaceAvailable(mip, face)) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    uint16_t desiredSourceMip { 0 };
+#if defined(Q_OS_IOS)
+    if (_isManagedResource) {
+        // The Vulkan variable-allocation path is not complete yet. Avoid its
+        // uninitialized mip views while still bounding ordinary world assets.
+        // This value is read from the hot-reloadable Documents diagnostic file,
+        // so physical-device quality/memory trade-offs do not need a new IPA.
+        const uint32_t maxDimension = static_cast<uint32_t>(iosRuntimeDiagnosticInt(
+            "iosResourceTextureMaxDimension", 512, 64, 16384));
+        while (desiredSourceMip + 1 < sourceMipCount) {
+            const auto dimensions = _gpuObject.evalMipDimensions(desiredSourceMip);
+            if (std::max(dimensions.x, dimensions.y) <= maxDimension) {
+                break;
+            }
+            ++desiredSourceMip;
+        }
+    }
+#endif
+
+    bool foundSourceMip { false };
+    for (uint16_t mip = desiredSourceMip; mip < sourceMipCount; ++mip) {
+        if (completeMipAvailable(mip)) {
+            _sourceMipOffset = mip;
+            foundSourceMip = true;
+            break;
+        }
+    }
+    if (!foundSourceMip) {
+        for (int mip = static_cast<int>(desiredSourceMip) - 1; mip >= 0; --mip) {
+            if (completeMipAvailable(static_cast<uint16_t>(mip))) {
+                _sourceMipOffset = static_cast<uint16_t>(mip);
+                foundSourceMip = true;
+                break;
+            }
+        }
+    }
+    Q_ASSERT(foundSourceMip);
+
+    const auto baseDimensions = _gpuObject.evalMipDimensions(_sourceMipOffset);
+    _transferData.width = baseDimensions.x;
+    _transferData.height = baseDimensions.y;
+    imageCI.extent.width = _transferData.width;
+    imageCI.extent.height = _transferData.height;
 
     _transferData.buffer_size = 0;
 
-    for (uint16_t sourceMip = 0; sourceMip < _transferData.mipLevels; ++sourceMip) {
-        if (!_gpuObject.isStoredMipFaceAvailable(sourceMip)) {
-            continue;
+    for (uint16_t sourceMip = _sourceMipOffset; sourceMip < sourceMipCount; ++sourceMip) {
+        // Vulkan mip dimensions are implicit. Stop at the first gap instead of
+        // compressing non-consecutive source levels into incompatible targets.
+        if (!completeMipAvailable(sourceMip)) {
+            break;
         }
         _transferData.mips.emplace_back();
         //VKTODO: error out if needed
@@ -385,12 +462,43 @@ void VKStrictResourceTexture::createTexture(VKBackend &backend) {
         }
     }
 
+    _transferData.mipLevels = static_cast<uint16_t>(_transferData.mips.size());
     imageCI.mipLevels = _transferData.mips.size();
 
     VmaAllocationCreateInfo allocationCI = {};
     allocationCI.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-    qDebug() << "storedSize: " << _gpuObject.getStoredSize();
     VK_CHECK_RESULT(vmaCreateImage(vks::Allocation::getAllocator(), &imageCI, &allocationCI, &_vkImage, &_vmaAllocation, nullptr));
+
+    VmaAllocationInfo allocationInfo {};
+    vmaGetAllocationInfo(vks::Allocation::getAllocator(), _vmaAllocation, &allocationInfo);
+    _residentBytes = allocationInfo.size;
+    // Match the GL strict-resource accounting. Vulkan's strict uploader is
+    // the active iOS resource path, but it previously updated only private iOS
+    // diagnostics, leaving the public Stats texture count and memory at zero.
+    Backend::textureResidentCount.increment();
+    Backend::textureResidentGPUMemSize.update(0, _residentBytes);
+    _residencyAccounted = true;
+#if defined(Q_OS_IOS)
+    const uint64_t residentBytes = iosStrictTextureResidentBytes.fetch_add(_residentBytes) + _residentBytes;
+    const uint64_t residentCount = iosStrictTextureCount.fetch_add(1) + 1;
+    const uint64_t ordinal = iosStrictTextureOrdinal.fetch_add(1) + 1;
+    const int traceEvery = iosRuntimeDiagnosticInt("iosTextureTraceEvery", 64, 1, 4096);
+    if (ordinal <= 16 || ordinal % static_cast<uint64_t>(traceEvery) == 0) {
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TEXTURE_MEMORY stage=created",
+            "ordinal=", ordinal,
+            "live_count=", residentCount,
+            "live_bytes=", residentBytes,
+            "process_footprint_bytes=", iosPhysicalFootprintBytes(),
+            "allocation_bytes=", _residentBytes,
+            "resource=", _isManagedResource,
+            "source_mip=", _sourceMipOffset,
+            "uploaded_mips=", _transferData.mipLevels,
+            "dimensions=", QStringLiteral("%1x%2").arg(_transferData.width).arg(_transferData.height),
+            "original_dimensions=", QStringLiteral("%1x%2")
+                .arg(_gpuObject.getWidth()).arg(_gpuObject.getHeight()));
+    }
+#endif
 }
 
 void VKStrictResourceTexture::transfer(VKBackend &backend) {
@@ -435,11 +543,11 @@ void VKStrictResourceTexture::transfer(VKBackend &backend) {
                 Q_ASSERT(!face.needsBGRToRGB);
                 size_t pixels = face.size/3;
                 for (size_t i = 0; i < pixels; i++) {
-                    size_t sourcePos = face.offset + i * 3;
-                    size_t destPos = i * 4;
-                    data[destPos] = face.data->data()[face.offset + sourcePos];
-                    data[destPos + 1] = face.data->data()[face.offset + sourcePos + 1];
-                    data[destPos + 2] = face.data->data()[face.offset + sourcePos + 2];
+                    size_t sourcePos = i * 3;
+                    size_t destPos = face.offset + i * 4;
+                    data[destPos] = face.data->data()[sourcePos];
+                    data[destPos + 1] = face.data->data()[sourcePos + 1];
+                    data[destPos + 2] = face.data->data()[sourcePos + 2];
                     data[destPos + 3] = 255;
                 }
             } else if (face.needsBGRToRGB) {
@@ -590,7 +698,8 @@ void VKStrictResourceTexture::postTransfer(VKBackend &backend) {
     samplerCreateInfo.mipLodBias = 0.0f;
     samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
     samplerCreateInfo.minLod = 0.0f;
-    samplerCreateInfo.maxLod = static_cast<float>(_transferData.mips.size());//1.0f;
+    samplerCreateInfo.maxLod = static_cast<float>(
+        _transferData.mips.empty() ? 0 : _transferData.mips.size() - 1);
     samplerCreateInfo.maxAnisotropy = 1.0f;
     VK_CHECK_RESULT(vkCreateSampler(device->logicalDevice, &samplerCreateInfo, nullptr, &_vkSampler));
 
@@ -609,9 +718,24 @@ void VKStrictResourceTexture::postTransfer(VKBackend &backend) {
     }
     viewCreateInfo.image = _vkImage;
     VK_CHECK_RESULT(vkCreateImageView(device->logicalDevice, &viewCreateInfo, nullptr, &_vkImageView));
+
+    // Upload is synchronous. Do not keep KTX/file-backed mip references pinned
+    // for the entire lifetime of the Vulkan image.
+    _transferData.mips.clear();
+    _transferData.mips.shrink_to_fit();
 };
 
 VKStrictResourceTexture::~VKStrictResourceTexture() {
+    if (_residencyAccounted) {
+        Backend::textureResidentCount.decrement();
+        Backend::textureResidentGPUMemSize.update(_residentBytes, 0);
+    }
+#if defined(Q_OS_IOS)
+    if (_residentBytes > 0) {
+        iosStrictTextureResidentBytes.fetch_sub(_residentBytes);
+        iosStrictTextureCount.fetch_sub(1);
+    }
+#endif
     auto backend = _backend.lock();
     auto &recycler = backend->getContext().recycler;
     recycler.trashVkImageView(_vkImageView);
@@ -622,6 +746,7 @@ VKStrictResourceTexture::~VKStrictResourceTexture() {
     recycler.trashVmaAllocation(_vmaAllocation);
 }
 
+#if !defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)
 void VKExternalTexture::createTexture(VKBackend &backend) {
     auto device = backend.getContext().device;
 
@@ -931,6 +1056,7 @@ VkDescriptorImageInfo VKExternalTexture::getDescriptorImageInfo() {
     result.imageView = _vkImageView;
     return result;
 }
+#endif
 
 Size VKResourceTexture::copyMipFaceFromTexture(uint16_t sourceMip, uint16_t targetMip, uint8_t face, VkCommandBuffer &copyCmd) {
     if (!_gpuObject.isStoredMipFaceAvailable(sourceMip)) {

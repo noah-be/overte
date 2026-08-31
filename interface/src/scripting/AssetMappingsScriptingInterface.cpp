@@ -15,6 +15,7 @@
 
 #include <QtCore/QFile>
 #include <QtCore/QThread>
+#include <QtQml/QJSEngine>
 
 #include <AssetRequest.h>
 #include <AssetUpload.h>
@@ -167,20 +168,16 @@ void AssetMappingsScriptingInterface::getAllMappings(QJSValue callback) {
     auto assetClient = DependencyManager::get<AssetClient>();
     auto request = assetClient->createGetAllMappingsRequest();
 
-    connect(request, &GetAllMappingsRequest::finished, this, [callback](GetAllMappingsRequest* request) mutable {
+    connect(request, &GetAllMappingsRequest::finished, this, [this, callback](GetAllMappingsRequest* request) mutable {
         auto mappings = request->getMappings();
 
-        OVERTE_IGNORE_DEPRECATED_BEGIN
-        // Still using QScriptEngine
-        auto map = callback.engine()->newObject();
-        OVERTE_IGNORE_WARNING_END
-
-        for (auto& kv : mappings ) {
-            map.setProperty(kv.first, kv.second.hash);
-        }
-
         if (callback.isCallable()) {
-            QJSValueList args { request->getErrorString(), map };
+            auto engine = qjsEngine(this);
+            auto map = engine ? engine->newObject() : QJSValue(QJSValue::UndefinedValue);
+            for (const auto& kv : mappings) {
+                map.setProperty(kv.first, kv.second.hash);
+            }
+            QJSValueList args { engine ? request->getErrorString() : QStringLiteral("JavaScript engine unavailable"), map };
             callback.call(args);
         }
 

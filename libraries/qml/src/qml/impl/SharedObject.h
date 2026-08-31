@@ -12,6 +12,7 @@
 #include <QtCore/QWaitCondition>
 #include <QtCore/QMutex>
 #include <QtCore/QSize>
+#include <QtGui/QImage>
 
 #include "TextureCache.h"
 
@@ -40,6 +41,8 @@ class SharedObject : public QObject {
 public:
     static void setSharedContext(QOpenGLContext* context);
     static QOpenGLContext* getSharedContext();
+    static void setSoftwareRendering();
+    static bool isSoftwareRendering();
     static TextureCache& getTextureCache();
 
     SharedObject();
@@ -65,6 +68,7 @@ public:
     void resume();
     bool isPaused() const;
     bool fetchTexture(TextureAndFence& textureAndFence);
+    bool fetchImage(QImage& image);
     void addToDeletionList(QObject* object);
 
 private:
@@ -75,7 +79,7 @@ private:
     // Called by the render event handler, from the render thread
     void initializeRenderControl(QOpenGLContext* context);
     void releaseTextureAndFence();
-    void setRenderTarget(uint32_t fbo, const QSize& size);
+    void setRenderTarget(uint32_t fbo, uint32_t texture, const QSize& size);
 
     QQmlEngine* acquireEngine(OffscreenSurface* surface);
     void releaseEngine(QQmlEngine* engine);
@@ -89,11 +93,13 @@ private:
     void onTimer();
     void onAboutToQuit();
     void updateTextureAndFence(const TextureAndFence& newTextureAndFence);
+    void updateImage(const QImage& image);
 
     QList<QPointer<QObject>> _deletionList;
 
     // Texture management
     TextureAndFence _latestTextureAndFence { 0, 0 };
+    QImage _latestImage;
     QQuickItem* _rootItem { nullptr };
     QQuickWindow* _quickWindow { nullptr };
     QQmlContext* _qmlContext { nullptr };
@@ -116,6 +122,10 @@ private:
 
     bool _renderRequested { false };
     bool _syncRequested { false };
+    bool _renderEventPending { false };
+    uint8_t _softwareWarmupFramesRemaining { 0 };
+    uint8_t _softwareDiagnosticFps { 0 };
+    uint64_t _lastSoftwareDiagnosticPollTime { 0 };
     bool _quit { false };
     bool _paused { false };
 };

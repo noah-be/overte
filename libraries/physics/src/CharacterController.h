@@ -140,7 +140,12 @@ public:
     void setLocalBoundingBox(const glm::vec3& minCorner, const glm::vec3& scale);
 
     void setPhysicsEngine(const PhysicsEnginePointer& engine);
-    bool isEnabledAndReady() const { return (bool)_physicsEngine; }
+    // A PhysicsEngine back-pointer alone does not make the controller usable.
+    // Serverless startup can enable physics before the avatar skeleton has
+    // produced a non-zero collision capsule, leaving _rigidBody null until a
+    // later preSimulation() creates and adds it.  Callers that harvest the
+    // transform or ray-test the controller require all three states.
+    bool isEnabledAndReady() const { return (bool)_physicsEngine && _rigidBody && _inWorld; }
     bool isStuck() const { return _isStuck; }
     float getCollisionBrakeAttenuationFactor() const;
 

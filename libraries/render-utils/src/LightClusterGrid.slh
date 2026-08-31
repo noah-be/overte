@@ -92,10 +92,20 @@ int clusterGrid_getClusterLightId(int index, int offset) {
     // From frag world pos find the cluster
     vec4 clusterEyePos = frustumGrid_worldToEye(<$fragWorldPos$>);
     ivec3 clusterPos = frustumGrid_eyeToClusterPos(clusterEyePos.xyz);
-
-    ivec3 cluster = clusterGrid_getCluster(frustumGrid_clusterToIndex(clusterPos));
-    int numLights = cluster.x + cluster.y;
     ivec3 dims = frustumGrid.dims.xyz;
+    ivec3 cluster = ivec3(0);
+    int numLights = 0;
+    // eyeToClusterPos deliberately returns negative Z layers outside the
+    // clustered-lighting range and X/Y can also fall outside the frustum.
+    // Never form or dereference the grid index until all coordinates are
+    // valid. The previous post-read hasLocalLights() check allowed a physical
+    // GPU to read beyond the compact cluster-grid uniform buffer.
+    if (all(greaterThanEqual(clusterPos, ivec3(0))) &&
+            all(lessThan(clusterPos.xy, dims.xy)) &&
+            clusterPos.z <= dims.z) {
+        cluster = clusterGrid_getCluster(frustumGrid_clusterToIndex(clusterPos));
+        numLights = cluster.x + cluster.y;
+    }
 
 <@endfunc@>
 

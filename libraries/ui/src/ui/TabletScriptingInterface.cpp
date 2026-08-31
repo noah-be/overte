@@ -13,10 +13,14 @@
 #include <algorithm>
 
 #include <QtCore/QThread>
+#include <QtCore/QTimer>
 #include <QtQml/QQmlProperty>
 
 #include <shared/QtHelpers.h>
 #include <shared/LocalFileAccessGate.h>
+#if defined(Q_OS_IOS)
+#include <shared/IOSRuntimeLogging.h>
+#endif
 #include <PathUtils.h>
 #include <DependencyManager.h>
 #include <AccountManager.h>
@@ -105,6 +109,14 @@ TabletButtonProxy* TabletButtonListModel::addButton(const QVariant& properties) 
         _buttons.push_back(button);
     }
     endResetModel();
+#if defined(Q_OS_IOS)
+    logIOSRuntimeMarker(
+        "OVERTE_IOS_TOUCH_UI_GATE stage=button-registered",
+        "text=", newProperties.value(QStringLiteral("text")).toString(),
+        "icon=", newProperties.value(QStringLiteral("icon")).toString(),
+        "index=", index,
+        "total=", _buttons.size());
+#endif
     return button.data();
 }
 
@@ -356,15 +368,34 @@ void TabletScriptingInterface::setTouchUiRuntimeMetrics(const QVariantMap& metri
     _touchUiRuntimeMetrics = metrics;
     emit touchUiRuntimeMetricsChanged();
 
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
     if (!metrics.value("valid").toBool()) {
         return;
     }
     const int width = metrics.value("surfaceWidth").toInt();
     const int height = metrics.value("surfaceHeight").toInt();
     for (const auto& entry : _tabletProxies) {
+#if defined(Q_OS_IOS)
+        if (iosRuntimeDiagnosticBool("touchUiAutoOpenTablet", false)) {
+            entry.second->showAndroidTablet(width, height);
+        } else {
+            entry.second->resizeAndroidTablet(width, height);
+        }
+#else
         entry.second->resizeAndroidTablet(width, height);
+#endif
     }
+#if defined(Q_OS_IOS)
+    logIOSRuntimeMarker(
+        "OVERTE_IOS_TOUCH_UI_GATE stage=metrics-ready",
+        "width=", width,
+        "height=", height,
+        "safe_left=", metrics.value("safeInsetLeft").toInt(),
+        "safe_top=", metrics.value("safeInsetTop").toInt(),
+        "safe_right=", metrics.value("safeInsetRight").toInt(),
+        "safe_bottom=", metrics.value("safeInsetBottom").toInt(),
+        "auto_open=", iosRuntimeDiagnosticBool("touchUiAutoOpenTablet", false));
+#endif
 #endif
 }
 
@@ -610,22 +641,26 @@ void TabletProxy::gotoHomeScreen() {
     loadHomeScreen(false);
 }
 
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
 void TabletProxy::showAndroidTablet(int width, int height) {
     if (QThread::currentThread() != thread()) {
         QMetaObject::invokeMethod(this, "showAndroidTablet", Q_ARG(int, width), Q_ARG(int, height));
         return;
     }
 
-    _androidScreenSpaceMode = true;
+    _screenSpaceMode = true;
     if (!_toolbarMode) {
         setToolbarMode(true);
     }
-    resizeAndroidTablet(width, height);
 
     if (_desktopWindow && _desktopWindow->asQuickItem()) {
         auto root = _desktopWindow->asQuickItem();
         QMetaObject::invokeMethod(root, "setScreenSpaceMode", Q_ARG(const QVariant&, QVariant(true)));
+        // Configure the frameless/safe-local mode before applying geometry.
+        // WindowRoot can otherwise perform its historical framed-window
+        // alignment after resize and move the full-height tablet below the
+        // already-safe offscreen surface.
+        resizeAndroidTablet(width, height);
         QMetaObject::invokeMethod(root, "loadSource", Q_ARG(const QVariant&, QVariant(TABLET_HOME_SOURCE_URL)));
         QMetaObject::invokeMethod(root, "setShown", Q_ARG(const QVariant&, QVariant(true)));
         _state = State::Home;
@@ -634,6 +669,18 @@ void TabletProxy::showAndroidTablet(int width, int height) {
             _tabletShown = true;
             emit tabletShownChanged();
         }
+#if defined(Q_OS_IOS)
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_UI_GATE stage=tablet-visible",
+            "width=", width,
+            "height=", height,
+            "buttons=", _buttons.rowCount());
+#endif
+        QTimer::singleShot(0, this, [this, width, height] {
+            if (_screenSpaceMode && _tabletShown) {
+                resizeAndroidTablet(width, height);
+            }
+        });
     }
 }
 
@@ -642,7 +689,7 @@ void TabletProxy::resizeAndroidTablet(int width, int height) {
         QMetaObject::invokeMethod(this, "resizeAndroidTablet", Q_ARG(int, width), Q_ARG(int, height));
         return;
     }
-    if (!_androidScreenSpaceMode || !_desktopWindow || !_desktopWindow->asQuickItem()) {
+    if (!_screenSpaceMode || !_desktopWindow || !_desktopWindow->asQuickItem()) {
         return;
     }
     auto root = _desktopWindow->asQuickItem();
@@ -674,9 +721,29 @@ void TabletProxy::resizeAndroidTablet(int width, int height) {
             || surfaceHeight <= topInset + bottomInset) {
         return;
     }
+#if defined(Q_OS_IOS)
+    // OffscreenUi itself is already sized to UIKit's safe-content rect. Its
+    // children therefore use a local (0, 0) origin; applying the native inset
+    // here a second time clips the lower part of the tablet and offsets every
+    // hit target from the pixels sent to the Vulkan HUD.
+    _desktopWindow->setPosition(0, 0);
+#else
+    // Android's offscreen surface covers the complete display, so its tablet
+    // remains inset from the physical rounded-corner and status-bar edges.
     _desktopWindow->setPosition(leftInset, topInset);
+#endif
     _desktopWindow->setSize(surfaceWidth - leftInset - rightInset,
                             surfaceHeight - topInset - bottomInset);
+#if defined(Q_OS_IOS)
+    logIOSRuntimeMarker(
+        "OVERTE_IOS_TOUCH_UI_GATE stage=tablet-resized",
+        "x=", 0,
+        "y=", 0,
+        "width=", surfaceWidth - leftInset - rightInset,
+        "height=", surfaceHeight - topInset - bottomInset,
+        "ime_bottom=", imeBottomInset,
+        "coordinate_space=safe-content");
+#endif
 }
 
 void TabletProxy::hideAndroidTablet() {
@@ -699,7 +766,7 @@ bool TabletProxy::handleAndroidTabletBack() {
         BLOCKING_INVOKE_METHOD(this, "handleAndroidTabletBack", Q_RETURN_ARG(bool, result));
         return result;
     }
-    if (!_androidScreenSpaceMode || !_tabletShown) {
+    if (!_screenSpaceMode || !_tabletShown) {
         return false;
     }
     if (isMessageDialogOpen()) {
@@ -965,8 +1032,8 @@ void TabletProxy::loadHomeScreen(bool forceOntoHomeScreen) {
             QMetaObject::invokeMethod(_qmlTabletRoot, "loadSource", Q_ARG(const QVariant&, QVariant(TABLET_HOME_SOURCE_URL)));
             QMetaObject::invokeMethod(_qmlTabletRoot, "playButtonClickSound");
         } else if (_toolbarMode && _desktopWindow) {
-#if defined(ANDROID_APP_PHONE_INTERFACE)
-            if (_androidScreenSpaceMode) {
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
+            if (_screenSpaceMode) {
                 auto root = _desktopWindow->asQuickItem();
                 if (root) {
                     QMetaObject::invokeMethod(root, "loadSource", Q_ARG(const QVariant&, QVariant(TABLET_HOME_SOURCE_URL)));
@@ -1115,6 +1182,15 @@ OffscreenQmlSurface* TabletProxy::getTabletSurface() {
 
     return _qmlOffscreenSurface;
 }
+
+#if defined(Q_OS_IOS)
+QQuickItem* TabletProxy::getIOSTabletRoot() const {
+    if (_toolbarMode && _desktopWindow) {
+        return _desktopWindow->asQuickItem();
+    }
+    return _qmlTabletRoot;
+}
+#endif
 
 
 void TabletProxy::desktopWindowClosed() {

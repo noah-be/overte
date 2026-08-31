@@ -1,6 +1,6 @@
 import QtQuick 2.7
 import QtQuick.Controls 2.2
-import QtGraphicalEffects 1.0
+import Qt5Compat.GraphicalEffects
 import QtQuick.Layouts 1.3
 
 import TabletScriptingInterface 1.0
@@ -445,12 +445,15 @@ Item {
 
             MouseArea {
                 id: closeTabletMouseArea
-                objectName: "nav.close"
+                property string semanticId: "nav.close"
                 anchors.fill: parent
+                objectName: "OverteTabletClose"
                 activeFocusOnTab: visible
+                Accessible.id: objectName
                 Accessible.role: Accessible.Button
                 Accessible.name: qsTr("Close tablet")
                 Accessible.description: qsTr("Return to the world controls")
+                Accessible.onPressAction: tabletProxy.hideAndroidTablet()
                 onClicked: tabletProxy.hideAndroidTablet()
                 Keys.onReturnPressed: tabletProxy.hideAndroidTablet()
                 Keys.onEnterPressed: tabletProxy.hideAndroidTablet()

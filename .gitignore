@@ -72,6 +72,11 @@ local.properties
 !/android/common/tests/robolectric/gradle.lockfile
 *.class
 
+# iOS
+/build-ios/
+/ios/.build/
+/ios/.conan/
+
 # Visual Studio
 /.vs
 

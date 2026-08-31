@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "phases": [
+    { "id": "environment", "ownerArea": "tooling", "signatures": ["Xcode", "SDK", "required command"] },
+    { "id": "target-slice", "ownerArea": "dependencies", "signatures": ["building for iOS", "incompatible architecture", "arm64"] },
+    { "id": "recipe-cross-compile", "ownerArea": "dependencies", "signatures": ["conan", "try_compile", "cannot run test program"] },
+    { "id": "qt6-source", "ownerArea": "client", "signatures": ["Qt5", "QAudioDeviceInfo", "QtWebEngine"] },
+    { "id": "static-plugin", "ownerArea": "client", "signatures": ["Q_IMPORT_PLUGIN", "plugin metadata", "static plugin"] },
+    { "id": "objective-c", "ownerArea": "platform", "signatures": ["Objective-C", "UIKit", "availability"] },
+    { "id": "link", "ownerArea": "build-system", "signatures": ["Undefined symbols", "duplicate symbol", "framework not found"] },
+    { "id": "bundle", "ownerArea": "packaging", "signatures": ["Info.plist", "Assets.car", "PrivacyInfo.xcprivacy"] },
+    { "id": "simulator-runtime", "ownerArea": "automation", "signatures": ["simctl", "launch failed", "no available"] },
+    { "id": "runtime-crash", "ownerArea": "client", "signatures": ["EXC_BAD_ACCESS", "abort", "watchdog"] },
+    { "id": "privacy", "ownerArea": "compliance", "signatures": ["required reason", "privacy report", "tracking"] }
+  ]
+}

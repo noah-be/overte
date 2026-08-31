@@ -16,7 +16,7 @@
 
 #include "ContextAwareProfile.h"
 
-#if !defined(Q_OS_ANDROID)
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
 
 class HFWebEngineProfile : public ContextAwareProfile {
     using Parent = ContextAwareProfile;

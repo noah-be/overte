@@ -852,6 +852,21 @@ void ScriptManager::init() {
     scriptEngine->registerGlobalObject(sgp, "Mat4", _mat4Library.get());
     scriptEngine->registerGlobalObject(sgp, "Uuid", _uuidLibrary.get());
 
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+    {
+        const auto global = scriptEngine->globalObject();
+        const auto scriptApi = global.property("Script");
+        const auto quatApi = global.property("Quat");
+        qInfo().nospace()
+            << "OVERTE_IOS_SCRIPT_API_GATE context=" << getContext()
+            << " script_require=" << scriptApi.property("require").isFunction()
+            << " script_load=" << scriptApi.property("load").isFunction()
+            << " script_include=" << scriptApi.property("include").isFunction()
+            << " script_set_interval=" << scriptApi.property("setInterval").isFunction()
+            << " quat_from_vec3_degrees=" << quatApi.property("fromVec3Degrees").isFunction();
+    }
+#endif
+
     if (_context != NETWORKLESS_TEST_SCRIPT) {
         // This requires networking, we want to avoid the need for it in test scripts
         scriptEngine->registerGlobalObject(sgp, "Messages", DependencyManager::get<MessagesClient>().data());
@@ -1661,7 +1676,8 @@ ScriptValue ScriptManager::instantiateModule(const ScriptValue& module, const QS
         // scoped vars for consistency with Node.js
         closure.setProperty("require", module.property("require"));
         closure.setProperty("__filename", modulePath, READONLY_HIDDEN_PROP_FLAGS);
-        closure.setProperty("__dirname", QString(modulePath).replace(QRegExp("/[^/]*$"), ""), READONLY_HIDDEN_PROP_FLAGS);
+        closure.setProperty("__dirname", QString(modulePath).replace(
+            QRegularExpression(QStringLiteral("/[^/]*$")), QString()), READONLY_HIDDEN_PROP_FLAGS);
         //_engine->scriptValueDebugDetails(module);
         result = _engine->evaluateInClosure(closure, _engine->newProgram( sourceCode, modulePath ));
     }
@@ -2065,7 +2081,9 @@ QVariant ScriptManager::cloneEntityScriptDetails(const EntityItemID& entityID, c
 }
 
 QFuture<QVariant> ScriptManager::getLocalEntityScriptDetails(const EntityItemID& entityID, const QString& scriptURL) {
-    return QtConcurrent::run(this, &ScriptManager::cloneEntityScriptDetails, entityID, scriptURL);
+    return QtConcurrent::run([this, entityID, scriptURL] {
+        return cloneEntityScriptDetails(entityID, scriptURL);
+    });
 }
 
 bool ScriptManager::getEntityScriptDetails(const EntityItemID& entityID, const QString& scriptURL, EntityScriptDetails &details) const {
@@ -2275,7 +2293,8 @@ void ScriptManager::entityScriptContentAvailable(const EntityItemID& entityID, c
         bool passList = false;  // assume unsafe
         QString allowlistPrefix = "[ALLOWLIST ENTITY SCRIPTS]";
         QList<QString> safeURLPrefixes = { "file:///", "atp:", "cache:" };
-        safeURLPrefixes += qEnvironmentVariable("EXTRA_ALLOWLIST").trimmed().split(QRegExp("\\s*,\\s*"), Qt::SkipEmptyParts);
+        safeURLPrefixes += qEnvironmentVariable("EXTRA_ALLOWLIST").trimmed().split(
+            QRegularExpression(QStringLiteral("\\s*,\\s*")), Qt::SkipEmptyParts);
 
         // Entity Script Allowlist toggle check.
         Setting::Handle<bool> allowlistEnabled {"private/allowlistEnabled", false };
@@ -2286,7 +2305,8 @@ void ScriptManager::entityScriptContentAvailable(const EntityItemID& entityID, c
 
         // Pull SAFEURLS from the Interface.JSON settings.
         QVariant raw = Setting::Handle<QVariant>("private/settingsSafeURLS").get();
-        QStringList settingsSafeURLS = raw.toString().trimmed().split(QRegExp("\\s*[,\r\n]+\\s*"), Qt::SkipEmptyParts);
+        QStringList settingsSafeURLS = raw.toString().trimmed().split(
+            QRegularExpression(QStringLiteral("\\s*[,\r\n]+\\s*")), Qt::SkipEmptyParts);
         safeURLPrefixes += settingsSafeURLS;
         // END Pull SAFEURLS from the Interface.JSON settings.
 
@@ -2386,7 +2406,8 @@ void ScriptManager::entityScriptContentAvailable(const EntityItemID& entityID, c
     bool passList = false;  // assume unsafe
     QString allowlistPrefix = "[ALLOWLIST ENTITY SCRIPTS]";
     QList<QString> safeURLPrefixes = { "file:///", "atp:", "cache:" };
-    safeURLPrefixes += qEnvironmentVariable("EXTRA_ALLOWLIST").trimmed().split(QRegExp("\\s*,\\s*"), Qt::SkipEmptyParts);
+    safeURLPrefixes += qEnvironmentVariable("EXTRA_ALLOWLIST").trimmed().split(
+        QRegularExpression(QStringLiteral("\\s*,\\s*")), Qt::SkipEmptyParts);
 
     // Entity Script Allowlist toggle check.
     Setting::Handle<bool> allowlistEnabled {"private/allowlistEnabled", false };
@@ -2397,7 +2418,8 @@ void ScriptManager::entityScriptContentAvailable(const EntityItemID& entityID, c
 
     // Pull SAFEURLS from the Interface.JSON settings.
     QVariant raw = Setting::Handle<QVariant>("private/settingsSafeURLS").get();
-    QStringList settingsSafeURLS = raw.toString().trimmed().split(QRegExp("\\s*[,\r\n]+\\s*"), Qt::SkipEmptyParts);
+    QStringList settingsSafeURLS = raw.toString().trimmed().split(
+        QRegularExpression(QStringLiteral("\\s*[,\r\n]+\\s*")), Qt::SkipEmptyParts);
     safeURLPrefixes += settingsSafeURLS;
     // END Pull SAFEURLS from the Interface.JSON settings.
 

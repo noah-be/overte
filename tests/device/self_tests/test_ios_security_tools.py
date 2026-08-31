@@ -10,6 +10,7 @@ from pathlib import Path
 import tarfile
 import tempfile
 import unittest
+from unittest import mock
 
 
 DEVICE_ROOT = Path(__file__).resolve().parents[1]
@@ -67,6 +68,23 @@ class IosSecurityToolsTest(unittest.TestCase):
             )
         self.assertFalse(destination.exists())
 
+    def test_oversize_or_excessive_tar_metadata_is_rejected(self):
+        destination = self.root / "private/age"
+        destination.parent.mkdir(mode=0o700)
+        archive = self.archive("age/age", b"123456789")
+        with mock.patch.object(TOOLS, "MAX_EXECUTABLE_BYTES", 8):
+            with self.assertRaises(TOOLS.ToolError):
+                TOOLS.extract_executable(archive, "age/age", destination, "0" * 64)
+
+        many = self.root / "many.tar.gz"
+        with tarfile.open(many, "w:gz") as output:
+            for index in range(TOOLS.MAX_TAR_ENTRIES + 1):
+                member = tarfile.TarInfo(f"metadata/{index}")
+                member.type = tarfile.DIRTYPE
+                output.addfile(member)
+        with self.assertRaisesRegex(TOOLS.ToolError, "metadata"):
+            TOOLS.extract_executable(many, "age/age", destination, "0" * 64)
+
     @unittest.skipIf(__import__("os").name == "nt", "symlink semantics differ on Windows")
     def test_private_tool_root_rejects_symlink(self):
         real = self.root / "real"
@@ -75,6 +93,70 @@ class IosSecurityToolsTest(unittest.TestCase):
         link.symlink_to(real, target_is_directory=True)
         with self.assertRaises(TOOLS.ToolError):
             TOOLS.private_directory(link)
+
+    def test_selected_install_downloads_only_requested_pin(self):
+        lock = {
+            "appium": {"iosSecurity": {
+                "age": {"version": "1.2.1", "executableSha256": "1" * 64,
+                        "artifact": {"url": "https://github.com/age", "sha256": "2" * 64}},
+                "rcodesign": {"version": "0.29.0", "executableSha256": "3" * 64,
+                              "artifact": {"url": "https://github.com/rcodesign",
+                                           "sha256": "4" * 64}},
+                "resigner": {"version": "0.3.1", "executableSha256": "5" * 64,
+                             "artifact": {"url": "https://github.com/resigner",
+                                          "sha256": "6" * 64}},
+            }}
+        }
+        executable = self.root / "tools/rcodesign-0.29.0/rcodesign"
+
+        def fake_extract(_archive, member, destination, _digest):
+            self.assertIn("rcodesign", member)
+            destination.write_bytes(b"rcodesign")
+
+        with (mock.patch.object(TOOLS.platform, "system", return_value="Linux"),
+              mock.patch.object(TOOLS.platform, "machine", return_value="x86_64"),
+              mock.patch.object(TOOLS.json, "loads", return_value=lock),
+              mock.patch.object(TOOLS, "download") as download,
+              mock.patch.object(TOOLS, "extract_executable", side_effect=fake_extract)):
+            installed = TOOLS.install(self.root / "tools", ("rcodesign",))
+        self.assertEqual({"rcodesign": executable}, installed)
+        self.assertEqual(1, download.call_count)
+
+    def test_appium_resigner_uses_exact_release_member(self):
+        lock = {
+            "appium": {"iosSecurity": {
+                "resigner": {
+                    "version": "0.3.1",
+                    "executableSha256": "5" * 64,
+                    "artifact": {
+                        "url": "https://github.com/appium/resigner/releases/download/"
+                               "v0.3.1/linux-amd64.tar.gz",
+                        "sha256": "6" * 64,
+                    },
+                },
+            }}
+        }
+        executable = self.root / "tools/resigner-0.3.1/resigner"
+
+        def fake_extract(_archive, member, destination, digest):
+            self.assertEqual("linux-amd64/resigner", member)
+            self.assertEqual("5" * 64, digest)
+            destination.write_bytes(b"appium resigner")
+
+        with (mock.patch.object(TOOLS.platform, "system", return_value="Linux"),
+              mock.patch.object(TOOLS.platform, "machine", return_value="x86_64"),
+              mock.patch.object(TOOLS.json, "loads", return_value=lock),
+              mock.patch.object(TOOLS, "download") as download,
+              mock.patch.object(TOOLS, "extract_executable", side_effect=fake_extract)):
+            installed = TOOLS.install(self.root / "tools", ("resigner",))
+        self.assertEqual({"resigner": executable}, installed)
+        self.assertEqual(1, download.call_count)
+
+    def test_selected_install_rejects_duplicates_or_unknown_tools(self):
+        with self.assertRaisesRegex(TOOLS.ToolError, "selection"):
+            TOOLS.install(self.root / "duplicate", ("rcodesign", "rcodesign"))
+        with self.assertRaisesRegex(TOOLS.ToolError, "selection"):
+            TOOLS.install(self.root / "unknown", ("unknown",))
 
 
 if __name__ == "__main__":

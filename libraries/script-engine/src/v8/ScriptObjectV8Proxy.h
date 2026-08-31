@@ -20,6 +20,7 @@
 
 #include <QtCore/QHash>
 #include <QtCore/QList>
+#include <QtCore/QObject>
 #include <QtCore/QPointer>
 #include <QtCore/QString>
 
@@ -70,9 +71,11 @@ private:  // implementation
     using MethodDefMap = QHash<uint, MethodDef>;
     using SignalDefMap = QHash<uint, SignalDef>;
     using InstanceMap = QHash<uint, QPointer<ScriptSignalV8Proxy> >;
-    using PropertyNameMap = QHash<QString, PropertyDef*>;
-    using MethodNameMap = QHash<QString, MethodDef*>;
-    using SignalNameMap = QHash<QString, SignalDef*>;
+    // Keep stable values here rather than pointers into the definition hashes.
+    // QHash insertions can rehash and invalidate pointers to stored values.
+    using PropertyNameMap = QHash<QString, PropertyDef>;
+    using MethodNameMap = QHash<QString, MethodDef>;
+    using SignalNameMap = QHash<QString, SignalDef>;
 
     static constexpr uint PROPERTY_TYPE = 0x1000;
     static constexpr uint METHOD_TYPE = 0x2000;

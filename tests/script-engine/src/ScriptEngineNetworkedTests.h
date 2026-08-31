@@ -29,6 +29,8 @@ private slots:
     void testRequire();
     void testScriptRequire();
     void testRequireInfinite();
+    void testEntityApiMethodDiscovery();
+    void testEntityApiInvocation();
 
 
 private:

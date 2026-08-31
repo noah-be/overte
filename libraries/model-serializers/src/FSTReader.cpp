@@ -14,6 +14,7 @@
 
 #include <QBuffer>
 #include <QEventLoop>
+#include <QMetaType>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 
@@ -79,10 +80,10 @@ static void removeBlendshape(QVariantHash& bs, const QString& key) {
     }
 }
 
-static void splitBlendshapes(hifi::VariantMultiHash& bs, const QString& key, const QString& leftKey, const QString& rightKey) {
+static void splitBlendshapes(QVariantHash& bs, const QString& key, const QString& leftKey, const QString& rightKey) {
     if (bs.contains(key) && !(bs.contains(leftKey) || bs.contains(rightKey))) {
         // key has been split into leftKey and rightKey blendshapes
-        QVariantList origShapes = bs.values(key);
+        QVariantList origShapes = bs.value(key).toList();
         QVariantList halfShapes;
         for (int i = 0; i < origShapes.size(); i++) {
             QVariantList origShape = origShapes[i].toList();
@@ -97,7 +98,7 @@ static void splitBlendshapes(hifi::VariantMultiHash& bs, const QString& key, con
 
 // convert legacy blendshapes to arkit blendshapes
 static void fixUpLegacyBlendshapes(hifi::VariantMultiHash & properties) {
-    hifi::VariantMultiHash bs = properties.value("bs").toHash();
+    QVariantHash bs = properties.value("bs").toHash();
 
     // These blendshapes have no ARKit equivalent, so we remove them.
     removeBlendshape(bs, "JawChew");
@@ -123,7 +124,7 @@ hifi::VariantMultiHash FSTReader::readMapping(const QByteArray& data) {
     return mapping;
 }
 
-void FSTReader::writeVariant(QBuffer& buffer, QVariantHash::const_iterator& it) {
+void FSTReader::writeVariant(QBuffer& buffer, hifi::VariantMultiHash::const_iterator it) {
     QByteArray key = it.key().toUtf8() + " = ";
     QVariantHash hashValue = it.value().toHash();
     if (hashValue.isEmpty()) {
@@ -202,7 +203,13 @@ FSTReader::ModelType FSTReader::predictModelType(const hifi::VariantMultiHash& m
 
     QVariantHash joints;
 
-    if (mapping.contains("joint") && mapping.value("joint").type() == QVariant::Hash) {
+    const auto jointMapping = mapping.value("joint");
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    const bool hasJointHash = jointMapping.metaType().id() == QMetaType::QVariantHash;
+#else
+    const bool hasJointHash = jointMapping.type() == QVariant::Hash;
+#endif
+    if (mapping.contains("joint") && hasJointHash) {
         joints = mapping.value("joint").toHash();
     }
 

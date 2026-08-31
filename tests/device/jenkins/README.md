@@ -1,260 +1,146 @@
-# Local Jenkins device lab
+# Fedora iOS Jenkins device lab
 
-This directory adds scheduling, exclusive device reservations, credential
-binding, time limits, and result publication around the universal device
-runner. Jenkins does not contain test scenarios or target automation; those
-remain in `tests/device/catalog.json`, `tests/device/modules`, and
-`tests/device/adapters`.
+This local Jenkins pipeline reserves one physical iOS/iPadOS device and uses
+one of three explicit handoffs: observed Personal Team installations (the
+primary path), retained and verified Personal Team signed IPAs, or an optional
+protected-producer run. It
+serves the repository fixture on a fixed device-reachable LAN origin, and runs
+the shared `e2e-core` and iOS `tablet-e2e` suites with `--require-complete`.
+The tablet suite always uses the checked-in `ios.flat-touch` product policy.
+It never publishes a
+UDID, platform version, target selector, receipt, target configuration, IPA,
+provisioning profile, raw accessibility tree, or Appium server log.
 
-The intended first deployment has the Jenkins controller and one agent on the
-same computer. The agent owns the attached devices and their local transport
-services:
+## Pinned user-side bootstrap
 
-```text
-Jenkins controller (no executors)
-  -> agent label: overte-device-interactive (one executor)
-       -> tests/device/jenkins/Jenkinsfile
-          -> tests/device/run.py
-             -> adapter -> attached physical target
-```
+Use Java 21. The bootstrap rejects another Java major and installs Jenkins LTS
+2.568.2 plus the exact plugin lock. Its Appium staging tree comes only from
+`../ios/package-lock.json` via `npm ci --ignore-scripts`; it is not a runtime
+dependency after root provisioning.
 
-Do not run device transports inside the controller container. Keep the agent in
-the same trusted host context that owns ADB, Appium, USB access, and any
-RemoteXPC service used by the selected physical target.
-
-## Open-source Jenkins components
-
-Use the exact Jenkins LTS, Plugin Installation Manager, and plugin closure in
-[`../toolchain.lock.json`](../toolchain.lock.json) and
-[`plugins.lock.txt`](plugins.lock.txt). `plugins.txt` contains the smaller set
-of direct reasons for those dependencies:
-
-- Pipeline and Declarative Pipeline
-- Lockable Resources
-- Credentials Binding and Plain Credentials
-- JUnit
-- Configuration as Code
-- Git
-
-Jenkins and these plugins are open source. No cloud device service or
-proprietary Jenkins plugin is required. The complete lock was resolved for the
-pinned core, including transitives. Install it with Plugin Installation Manager
-and `--latest=false`; allowing the update center to select newer dependencies
-would defeat the reproducible lab setup. Validate the lock offline before use:
-
-```bash
+```sh
 python3 tests/device/validate_toolchain_lock.py
-```
-
-Install the locked stack into user-owned directories and create private,
-disabled target templates with:
-
-```bash
 python3 tests/device/jenkins/local_lab.py install \
-  --install-root "$HOME/.local/share/overte-device-lab" \
-  --config-root "$HOME/.config/overte-device-lab" \
-  --java /absolute/path/to/jdk-21/bin/java
-python3 tests/device/jenkins/prepare_private_targets.py \
-  --config-root "$HOME/.config/overte-device-lab"
+  --install-root /absolute/private/overte-ios-lab/software \
+  --config-root /absolute/private/overte-ios-lab/config \
+  --java /absolute/path/to/java-21/bin/java
 ```
 
-On Linux, the bootstrap can install and start a loopback-only controller,
-separate inbound agent, and Appium server as graphical user services:
+Review and run the one root provisioning command exactly once (substitute only
+the absolute staging path printed by the previous command):
 
-```bash
+```sh
+sudo python3 tests/device/ios/remotexpc_tunnel.py install-unit \
+  --appium-home /absolute/private/overte-ios-lab/software/appium
+```
+
+That command installs the versioned, root-owned, non-writable RemoteXPC and
+Appium runtime. The user service invokes only its attest-and-exec wrapper; it
+never executes `software/appium/node_modules/.bin/appium`. The bootstrap also
+creates `<config-root>/appium-state` outside the checkout with mode 0700. The
+generated unit passes it as the mandatory `--state-root`, grants write access
+only to that path, and the wrapper creates/removes a private temporary
+`APPIUM_HOME` for each server process.
+
+```sh
+python3 tests/device/ios/remotexpc_tunnel.py status
 python3 tests/device/jenkins/local_lab.py install-systemd-user-services \
-  --config-root "$HOME/.config/overte-device-lab"
+  --config-root /absolute/private/overte-ios-lab/config
 python3 tests/device/jenkins/local_lab.py status \
-  --config-root "$HOME/.config/overte-device-lab"
+  --config-root /absolute/private/overte-ios-lab/config
 ```
 
-The controller listens on `127.0.0.1:8080`, has zero executors and no anonymous
-access. Its generated administrator password, JCasC file, Appium state, and
-target configurations stay outside the checkout with private permissions.
-Every generated target starts disabled; add its private selector and enable it
-only after completing the corresponding hardware gate. On Windows and macOS,
-run the `controller` and `agent` subcommands from the logged-in lab account or
-translate them into that OS's user-session service mechanism.
+## Private Jenkins configuration
 
-Set the controller's built-in executor count to zero. Create an agent with the
-exact label `overte-device-interactive` and initially give it one executor.
-Keep the controller on localhost or a trusted LAN, enable authentication, and
-do not expose it directly to the Internet.
+Configure a Secret Text credential for the private target selector. Keep the
+private Appium target JSON outside every checkout at mode 0600. Its disabled
+template is `../adapters/appium/targets.example.json`; enable it only after the
+signed receipt updates `appId`, `bundleId`, IPA paths and WDA bundle ID.
 
-## Register one physical target
+Set `IOS_DDI_ROOT` to the absolute external mode-0700 directory containing the
+exact lock-pinned `Image.dmg`, `BuildManifest.plist`, and
+`Image.dmg.trustcache`, each mode 0600. This Apple payload is operator-supplied:
+the repository neither publishes nor automatically downloads it. While holding
+the same exclusive device lock used by the suite, Jenkins verifies every byte,
+mounts it when necessary, binds the mounted image signature directly to the
+pinned SHA-384, and requires both XCTest services before starting Appium.
 
-1. In **Manage Jenkins -> Credentials**, create a **Secret text** credential.
-   Its secret is the adapter's private target selector (ADB serial or Appium
-   target alias). A useful credential ID is
-   `overte-android-phone-01-selector`.
-2. In **Manage Jenkins -> Lockable Resources**, create a resource such as
-   `android-phone-01`. Do not use the serial number as the resource name.
-3. Create a Pipeline job from SCM and select
-   `tests/device/jenkins/Jenkinsfile` as its script path.
-4. Set `DEVICE_RESOURCE`, `TARGET_SELECTOR_CREDENTIAL_ID`, and the matching
-   `TARGET_PROFILE` when starting the job.
+`IOS_ARTIFACT_SOURCE=personal-team-preinstalled` is the default. See
+`docs/ios/PERSONAL_TEAM_E2E.md` on the `apple-ios` branch for instructions to
+install Overte and WDA manually with Sideloadly, then supply the private,
+short-lived `IOS_PREINSTALLED_ATTESTATION`. Jenkins performs no signing or
+installation. Under the exclusive device lock, Fedora's immutable helper
+observes either both fixed IDs or one explicitly accepted, uniquely
+marker-selected Sideloadly-remapped pair. It verifies the Overte test markers,
+WDA 16.8.0/XCUITest 12.8.0 markers, valid profiles, application identifiers and
+a common signer/team before it writes the weak
+`none-device-observed` receipt. That receipt deliberately has no IPA byte hash
+or derivation claim, and this mode rejects `appium:prebuiltWDAPath`.
 
-The Jenkins lock serializes jobs globally. The runner's hashed local lock stays
-enabled as a second guard against direct concurrent invocations.
+Choose `local-personal-team` only when the two exact signed IPA files were
+retained. Supply the unsigned kit, signed handoff, Overte IPA, and WDA IPA as
+absolute, current-user-owned mode-0600 files outside the checkout. The
+open-source Fedora verifier prepares a cryptographically bound per-build copy
+and receipt plus the extracted receipt-bound WDA Runner application before the
+device lock. When the baseline takes the lock, the immutable device helper
+replaces both installed applications from the receipt-bound IPAs before its
+pre-session attestation. Jenkins still receives no Apple account, certificate,
+profile, or Sideloadly credential.
 
-Android build jobs use two additional private agent roots generated in
-`agent.env`: `OVERTE_ANDROID_BUILD_ROOT` and `OVERTE_CONAN_CACHE_ROOT`. Never
-run Phone and Pico build entry points directly in the same SCM checkout. Wrap
-the complete `all` command with `android_build_workspace.py` as documented in
-[`CONAN_CACHE_ISOLATION.md`](CONAN_CACHE_ISOLATION.md). It clones the exact
-clean commit into one job-private checkout and also isolates Gradle, temporary,
-staging, and Conan state, so Phone and Pico may build concurrently without
-mutating each other's output or the Jenkins checkout.
+For `protected-github`, additionally configure the GitHub Actions Secret Text
+credential and age Secret File credential. An existing handoff requires both
+the exact run ID and exact run attempt. Otherwise all audited dispatch inputs
+are required; the pipeline never selects a merely "latest" run.
 
-The selected adapter still needs its normal private host configuration. For
-example, configure `OVERTE_ANDROID_ADB` or `OVERTE_APPIUM_TARGETS` in the agent
-environment as documented by the adapter. Do not store a populated target file
-in Git or in archived artifacts.
+The Lockable Resources entry is a non-secret alias such as `ios-device-01`,
+never a serial or UDID. `FIXTURE_PUBLIC_HOST` is a stable LAN DNS name or IPv4
+address reachable from that one device. The pipeline always runs core; soaks
+remain opt-in and start only after the baseline succeeds. The locked core stage
+has a 45-minute outer timeout so the complete shared behavior suite and Appium
+cleanup fit without weakening any module-level timeout.
 
-For `appium-ios` on Fedora, add a Secret Text credential named, for example,
-`overte-ios-github-actions-token`. It needs Actions read/write on the producer
-repository: write dispatches the protected workflow and read monitors the
-exact returned run and downloads its artifacts. Jenkins never receives an
-Apple signing secret or account credential; those remain in the protected
-GitHub Environment on the macOS producer.
+The traceable stages are:
 
-Also add the Fedora lab's age private identity as a Jenkins Secret File, for
-example `overte-ios-age-identity`. Its public recipient is the fixed protected
-producer Environment variable. The public repository stores only encrypted
-payloads; provisioning-profile device identifiers never occur in a publicly
-downloadable Actions artifact. Jenkins exposes the private identity only for
-the synchronization step and never puts its contents or path in a command line.
+1. device-free contracts and toolchain validation;
+2. root-runtime status plus the selected strong artifact handoff, if any;
+3. for the primary path, installed-app observation and weak receipt creation
+   under the device lock;
+4. two stable privacy-safe thermal-headroom samples, the pinned Personalized
+    DDI/XCTest gate, then the required `e2e-core` baseline under one
+    uninterrupted locked Appium session;
+5. required semantic `tablet-e2e` policy sequence in a fresh locked session;
+6. optional accessibility audit after the baseline;
+7. opt-in soaks;
+8. target/session cleanup while still locked, private IPA/config deletion, and
+   selector-scanned JUnit/diagnostic publication.
 
-Set the four audited Qt cache/artifact inputs when starting the job. The
-`Fedora iOS runtime` stage first checks the root-owned immutable RemoteXPC
-service copy (never the user-owned Appium install), then
-dispatches and waits for the producer, downloads and verifies both signed IPAs,
-and updates a mode-0600 per-build copy of the private Appium target file. That
-copy, the receipt, and IPAs remain below Jenkins' external temporary result
-root; result staging never archives them. The `post/always` cleanup removes the
-decrypted IPAs, receipt, security-tool staging and target copy after target
-cleanup, including aborted builds, and refuses paths outside the exact private
-build root or through symlinks. `IOS_PRODUCER_RUN_ID` can instead
-select an existing unexpired successful protected run. The adapter rehashes
-the receipt-bound IPA paths before creating a session.
+Per-build IPA copies/decoded IPAs, receipts, and the job-private target copy
+stay outside the workspace and are deleted in `post { always { ... } }`,
+including timeout/abort paths. Manually managed source files are never deleted.
+Screenshots are off by default. Even when an operator explicitly enables a
+failure screenshot, the raw image remains only in the private build tree and
+is deleted after allowlisted staging; it is never published. Raw accessibility
+XML and Appium logs are likewise never archived. Only the redacted allowlisted
+results use Jenkins' seven-day/five-build artifact retention.
 
-## Controlled fixture
+## Hardware gates
 
-Select `FIXTURE_MODE=embedded` for a debug Android Phone/Pico APK containing the
-fixed repository scene and probe. No listener or public host is needed; the
-shell-protected debug launcher copies those assets into application storage.
+Do not install or launch until all gates are green:
 
-Select `FIXTURE_MODE=network` for a signed iOS E2E test build. In this mode
-`e2e-core` starts `tests/device/fixture/serve.py` for
-the duration of the suite. Set `FIXTURE_PUBLIC_HOST` to a DNS name or LAN IPv4
-address of the agent that the physical device can reach. On a phone or tablet,
-`127.0.0.1` points to that device instead of the Jenkins agent. Port `0` is
-supported for iOS: after the
-fixture binds, the helper atomically updates only the selected target's
-`testBuild.fixtureOrigin` in the mode-0600 per-build target copy before the
-adapter starts. The repository template and long-lived private source file are
-never changed.
+- a trusted physical iOS/iPadOS 18+ device with Developer Mode enabled;
+- host trust/pairing and an active, privacy-safe RemoteXPC status;
+- the exact private lock-pinned Personalized DDI mounted with both XCTest
+  services reachable;
+- an unexpired receipt that either cryptographically binds both retained IPAs
+  to exact provenance or honestly records only the locked installed-app
+  observation without claiming byte provenance;
+- device inclusion in both provisioning profiles and a launchable prebuilt WDA;
+- exclusive Jenkins resource ownership for the target;
+- two consecutive battery-temperature samples at or below the fixed 30.5 C
+  preflight ceiling; raw diagnostics and the private device identity stay out
+  of Jenkins output;
+- a real accessibility audit proving `OverteTabletOpen` and
+  `OverteTabletClose` appear as actionable nodes. Coordinate fallbacks are
+  forbidden.
 
-Port `0` lets the operating system choose a free ephemeral port, which permits
-parallel devices. The firewall must allow the fixture server on the trusted
-test network. If firewall policy requires one fixed port, set `FIXTURE_PORT`
-and create a second Lockable Resource for that port before enabling concurrent
-jobs.
-
-The fixture has no external dependencies and sends `Cache-Control: no-store`.
-The helper waits for its ready file, injects the public scene URL through
-`OVERTE_E2E_SCENE_URL`, and stops the server in a `finally` block.
-
-## Pipeline order and failure behavior
-
-Every build follows this order:
-
-1. validate parameters;
-2. run all device-free contracts, including Conan isolation and iOS handoff;
-3. for iOS, require RemoteXPC and synchronize the protected signed producer;
-4. reserve the physical target and run `smoke`;
-5. optionally run the independently reported `domain-smoke`, `asset-smoke`,
-   `sound-smoke`, and Pico `vertical-locomotion` suites;
-6. run `e2e-core` only after smoke and the selected content suites pass;
-7. optionally run the accessibility audit;
-8. optionally run `stability` on every profile, followed by the separately
-   reported `lifecycle-stability` suite on Android/iOS only.
-
-Smoke is mandatory. For the Pico 4 lab, select `android-pico-adb`, set its
-lockable resource and selector credential, then enable `RUN_DOMAIN_ENTER`,
-`RUN_ASSET_LOAD`, and `RUN_SOUND_PLAYBACK`. All three require
-`FIXTURE_PUBLIC_HOST` to be the agent's LAN address reachable from the headset.
-Domain entry additionally requires absolute trusted build paths in
-`DOMAIN_SERVER_EXECUTABLE` and `ASSIGNMENT_CLIENT_EXECUTABLE`. Asset and sound
-start the repository HTTP fixture automatically and may be used with an
-otherwise embedded Android fixture configuration.
-
-Enable `RUN_VERTICAL_LOCOMOTION` only for `android-pico-adb` after provisioning
-the debug-only OpenXR input layer and isolated ADB environment described in
-[`../openxr_input/PICO4_CONTROLLER_AUTOMATION.md`](../openxr_input/PICO4_CONTROLLER_AUTOMATION.md).
-The separately reported suite verifies one bounded jump and landing followed
-by upward flight without replacing the running application process.
-
-`RUN_CORE` defaults off for the first setup run because the
-default ADB profile truthfully lacks touch/controller input. Enable core for a
-complete Appium Android or iOS profile. Long health/lifecycle jobs
-should start only after the same physical target has already passed repeatable
-short core runs through its input-capable adapter. Telemetry is optional on
-iOS and strict when advertised; PID-preserving lifecycle transitions
-run only on Android/iOS.
-Per-suite timeouts are 10 minutes for smoke, asset, and sound; 15 minutes for
-domain and accessibility; 30 minutes for core, four hours for stability, and
-one hour for lifecycle stability. They start after the device lock is acquired so
-cleanup can run outside an expired suite timeout while the lock is still held.
-The whole build, including time spent in the resource queue, has an eight-hour
-ceiling.
-
-The runner performs normal adapter cleanup. The Pipeline calls the adapter's
-idempotent cleanup operation again inside the device lock even after failures,
-interrupts, or per-suite timeouts. A Pipeline-level `post` fallback retries
-cleanup under the same lock if an outer timeout interrupted that step. An
-infrastructure failure is represented as a JUnit error; a failed Overte
-expectation is a JUnit failure.
-
-## Results and selector privacy
-
-The runner first writes into Jenkins' temporary workspace sibling returned by
-`pwd(tmp: true)`, never into the source checkout. After cleanup, `run_ci.py`
-checks the complete result tree for the private selector in both contents and
-file/directory names, rejects symbolic links and special files, then checks the
-copied tree again. Only a safe tree is copied to `device-ci-artifacts/BUILD_NUMBER/SUITE`
-and published with JUnit and `archiveArtifacts`.
-
-If the runner is killed before creating JUnit, or if a selector leak is found,
-the original files remain outside the published workspace and the helper
-creates a private-safe synthetic infrastructure error. Jenkins masks the bound
-credential in console output and the Pipeline fails after publishing that
-diagnostic. The selector still exists briefly in local
-process arguments because the current runner/adapter protocol uses `--target`;
-therefore the agent machine must not be shared with untrusted operating-system
-users.
-
-Failure screenshots and native Accessibility XML are privacy-sensitive and are
-disabled by default. Enable `CAPTURE_FAILURE_ARTIFACTS` only for a dedicated lab
-account with an empty test profile. The runner requests one best-effort window
-or device screenshot before cleanup when a module fails; a screenshot failure
-never replaces the original outcome.
-
-## Device-free verification
-
-Run the exact preflight used by Jenkins without connecting to hardware:
-
-```bash
-OVERTE_CI_WORKSPACE="$PWD" \
-  python3 tests/device/jenkins/run_ci.py self-check
-```
-
-This validates the fixture, all universal harness/adapter contracts, the
-Jenkins helper, the full core scenario through the deterministic mock adapter,
-cleanup behavior, secret quarantine, and the required Jenkinsfile safety
-layers. It does not start ADB, Appium, or Overte.
-
-After smoke and core are repeatable on demand, add a Jenkins cron trigger to the
-job (for example a nightly `H H * * *`). Keep `RUN_SOAKS` off until short runs
-are stable; then use a separate scheduled job with retention appropriate for
-larger logs and videos.
+No hardware result is implied by the device-free tests in this directory.

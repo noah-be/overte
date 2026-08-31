@@ -20,7 +20,7 @@
 #include <dxgi1_3.h>
 #pragma comment(lib, "dxgi.lib")
 
-#elif defined(Q_OS_MAC)
+#elif defined(Q_OS_MAC) && !defined(Q_OS_IOS)
 #include <OpenGL/OpenGL.h>
 #include <sstream>
 #include <QString>
@@ -30,6 +30,7 @@
 
 
 #include <QtCore/QtGlobal>
+#include <QtCore/QRegularExpression>
 #include "SharedLogging.h"
 
 GPUIdent GPUIdent::_instance {};
@@ -41,7 +42,7 @@ GPUIdent* GPUIdent::ensureQuery(const QString& vendor, const QString& renderer) 
         return this;
     }
     _isQueried = true;  // Don't try again, even if not _isValid;
-#if (defined Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
     GLuint cglDisplayMask = -1; // Iterate over all of them.
     CGLRendererInfoObj rendererInfo;
     GLint rendererInfoCount;
@@ -218,7 +219,7 @@ GPUIdent* GPUIdent::ensureQuery(const QString& vendor, const QString& renderer) 
     // Alas, no combination of vendor, renderer, and adapter name seems to be a substring of the others.
     // Here we get a list of words that we'll match adapter names against. Most matches wins.
     // Alas, this won't work when someone has multiple variants of the same card installed.
-    QRegExp wordMatcher{ "\\W" };
+    const QRegularExpression wordMatcher { QStringLiteral("\\W") };
     QStringList words;
     words << vendor.toUpper().split(wordMatcher) << renderer.toUpper().split(wordMatcher);
     words.removeAll("");

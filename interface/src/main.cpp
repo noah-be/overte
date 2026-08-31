@@ -10,7 +10,10 @@
 //
 
 #include <QCommandLineParser>
+#if !defined(Q_OS_IOS)
 #include <QtCore/QProcess>
+#endif
+#include <QtCore/QProcessEnvironment>
 #include <QDebug>
 #include <QDir>
 #include <QFileInfo>
@@ -24,13 +27,22 @@
 #include <SandboxUtils.h>
 #include <SharedUtil.h>
 #include <NetworkAccessManager.h>
+#if (defined(Q_OS_MAC) && !defined(Q_OS_IOS)) || defined(Q_OS_WIN)
 #include <gl/GLHelpers.h>
+#endif
 #include <iostream>
 #include <plugins/InputPlugin.h>
 #include <plugins/PluginManager.h>
 #include <plugins/DisplayPlugin.h>
 #include <plugins/CodecPlugin.h>
 #include <shared/GlobalAppProperties.h>
+#include <shared/IOSRuntimeLogging.h>
+
+#ifdef Q_OS_IOS
+#include <QtCore/QPluginLoader>
+#include <QtCore/QSet>
+#include <QtWebView/QtWebView>
+#endif
 
 #include "AddressManager.h"
 #include "Application.h"
@@ -42,6 +54,30 @@
 #include "LogHandler.h"
 #include "RunningMarker.h"
 
+#ifdef Q_OS_IOS
+static void logIOSStaticQmlPluginGate() {
+    QSet<QString> pluginClasses;
+    for (const auto& plugin : QPluginLoader::staticPlugins()) {
+        const auto className = plugin.metaData().value(QStringLiteral("className")).toString();
+        if (!className.isEmpty()) {
+            pluginClasses.insert(className);
+        }
+    }
+
+    qInfo().nospace()
+        << "OVERTE_IOS_QML_PLUGIN_GATE static_plugin_count=" << pluginClasses.size()
+        << " qtquick2=" << pluginClasses.contains(QStringLiteral("QtQuick2Plugin"))
+        << " qtquick_controls2=" << pluginClasses.contains(QStringLiteral("QtQuickControls2Plugin"))
+        << " qtquick_templates2=" << pluginClasses.contains(QStringLiteral("QtQuickTemplates2Plugin"))
+        << " qtquick_layouts=" << pluginClasses.contains(QStringLiteral("QtQuickLayoutsPlugin"))
+        << " qtqml_models=" << pluginClasses.contains(QStringLiteral("QtQmlModelsPlugin"))
+        << " qt5compat_graphical_effects="
+        << pluginClasses.contains(QStringLiteral("QtGraphicalEffectsPlugin"))
+        << " qt5compat_graphical_effects_private="
+        << pluginClasses.contains(QStringLiteral("QtGraphicalEffectsPrivatePlugin"));
+}
+#endif
+
 #ifdef Q_OS_WIN
 #include <Windows.h>
 extern "C" {
@@ -50,7 +86,23 @@ extern "C" {
 #endif
 
 int main(int argc, const char* argv[]) {
-#ifdef Q_OS_MAC
+#ifdef Q_OS_IOS
+    // Keep the physical-device renderer on the same MoltenVK resource-binding
+    // path exercised by the iOS simulator acceptance harness. MoltenVK 1.4.2
+    // enables Metal argument buffers by default, but the existing Vulkan
+    // descriptor path can leave an argument-buffer resource at GPU address
+    // zero on Apple GPU hardware. This must be set before the first Vulkan
+    // call; Context::createInstance() verifies the effective MoltenVK value.
+    if (!qputenv("MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS", "0")) {
+        qFatal("Unable to disable MoltenVK Metal argument buffers on iOS");
+    }
+    qInfo().noquote()
+        << "OVERTE_IOS_MOLTENVK_CONFIG requested metal_argument_buffers=0 source=application";
+
+    // Qt WebView must select WKWebView before the application object exists.
+    QtWebView::initialize();
+#endif
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
     auto format = getDefaultOpenGLSurfaceFormat();
     // Deal with some weirdness in the chromium context sharing on Mac.
     // The primary share context needs to be 3.2, so that the Chromium will
@@ -79,12 +131,16 @@ int main(int argc, const char* argv[]) {
             hifi::properties::setGraphicsAPI(hifi::properties::GraphicsAPI::GL41);
         } else if (apiString == "gles32") {
             hifi::properties::setGraphicsAPI(hifi::properties::GraphicsAPI::GLES32);
+        } else if (apiString == "vulkan") {
+            hifi::properties::setGraphicsAPI(hifi::properties::GraphicsAPI::Vulkan);
         } else {
             qWarning() << "Unknown graphics API specified, defaulting to GL4.5:" << QString::fromStdString(apiString);
             hifi::properties::setGraphicsAPI(hifi::properties::GraphicsAPI::GL45);
         }
     } else {
-#ifdef Q_OS_MAC
+#ifdef Q_OS_IOS
+        hifi::properties::setGraphicsAPI(hifi::properties::GraphicsAPI::Vulkan);
+#elif defined(Q_OS_MAC)
         hifi::properties::setGraphicsAPI(hifi::properties::GraphicsAPI::GL41);
 #elif defined(Q_OS_ANDROID) || (defined(Q_OS_LINUX) && defined(__aarch64__))
         // Use GLES on Android and aarch64 Linux
@@ -163,6 +219,12 @@ int main(int argc, const char* argv[]) {
         "Start at specified URL location.",
         "string"
     );
+#ifdef Q_OS_IOS
+    QCommandLineOption iosWorldEvidenceOption(
+        "ios-world-evidence",
+        "Emit privacy-bounded iOS world acceptance markers for the fixed CI destinations."
+    );
+#endif
     QCommandLineOption protocolVersionOption(
         "protocolVersion",
         "Writes the protocol version base64 signature to a file",
@@ -374,6 +436,9 @@ int main(int argc, const char* argv[]) {
     );
 
     parser.addOption(urlOption);
+#ifdef Q_OS_IOS
+    parser.addOption(iosWorldEvidenceOption);
+#endif
     parser.addOption(protocolVersionOption);
     parser.addOption(noUpdaterOption);
     parser.addOption(checkMinSpecOption);
@@ -430,6 +495,25 @@ int main(int argc, const char* argv[]) {
 
         parser.process(QCoreApplication::arguments());  // Must be run after QCoreApplication is initalised.
 
+#ifdef Q_OS_IOS
+        if (parser.isSet(iosWorldEvidenceOption)) {
+            QString kind { "unsupported" };
+            QString destination { "unsupported" };
+            QString requested = parser.value(urlOption).trimmed().toLower();
+            if (requested == QStringLiteral("file:///~/serverless/tutorial.json")) {
+                kind = QStringLiteral("serverless");
+                destination = QStringLiteral("serverless_tutorial");
+            } else if (requested == QStringLiteral("hifi://overte_hub") ||
+                       requested == QStringLiteral("hifi://overte_hub/")) {
+                kind = QStringLiteral("online");
+                destination = QStringLiteral("overte_hub");
+            }
+            logIOSRuntimeMarker("OVERTE_IOS_WORLD_GATE navigation_requested",
+                                "kind=", kind,
+                                "destination=", destination);
+        }
+#endif
+
 #ifdef Q_OS_OSX
         if (QFileInfo::exists(QCoreApplication::applicationDirPath() + "/../../../config.json")) {
             applicationPath = QCoreApplication::applicationDirPath() + "/../../../";
@@ -451,6 +535,10 @@ int main(int argc, const char* argv[]) {
                This is known to happen on Windows if QT_NO_DEBUG isn't set by us.");
 #endif
     Application app(argcExtended, const_cast<char**>(argvExtended.data()), startupTime);
+
+#ifdef Q_OS_IOS
+    logIOSStaticQmlPluginGate();
+#endif
 
     if (parser.isSet("abortAfterStartup")) {
         return 99;
@@ -605,6 +693,7 @@ int main(int argc, const char* argv[]) {
                 static const QString LAUNCHER_PATH_KEY = "launcherPath";
                 launcherPath = doc.object()[LAUNCHER_PATH_KEY].toString();
                 if (!launcherPath.isEmpty()) {
+#if !defined(Q_OS_IOS)
                     if (!parser.isSet(noLauncherOption)) {
                         qDebug() << "Found a launcherPath in application config. Starting launcher.";
                         QProcess launcher;
@@ -615,6 +704,7 @@ int main(int argc, const char* argv[]) {
                         qDebug() << "Found a launcherPath in application config, but the launcher"
                                     " has been suppressed. Continuing normal execution.";
                     }
+#endif
                     configFile.close();
                 }
             }

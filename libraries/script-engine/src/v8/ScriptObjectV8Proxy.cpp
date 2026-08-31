@@ -16,6 +16,7 @@
 #include <v8-template.h>
 
 #include <QElapsedTimer>
+#include <QtCore/QByteArray>
 #include <QtCore/QList>
 #include <QtCore/QSharedPointer>
 
@@ -29,6 +30,32 @@ Q_DECLARE_METATYPE(ScriptValue)
 
 Q_DECLARE_METATYPE(QSharedPointer<ScriptObjectV8Proxy>)
 Q_DECLARE_METATYPE(QSharedPointer<ScriptVariantV8Proxy>)
+
+static QVariant variantFromMetaTypeId(int typeId, const void* copy = nullptr) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return QVariant(QMetaType(typeId), copy);
+#else
+    return QVariant(typeId, copy);
+#endif
+}
+
+// Qt 6.11 has both the legacy QGenericArgument overloads and new variadic
+// QMetaMethod::invoke() overloads. Passing QGenericArgument lvalues can select
+// the variadic overload, which then treats QGenericArgument itself as the
+// source type and rejects calls such as require(QString). Pass explicit
+// old-style prvalues so overload resolution selects the generic API.
+static bool invokeWithGenericArguments(const QMetaMethod& method, QObject* object,
+                                       QGenericReturnArgument returnValue,
+                                       const QVector<QGenericArgument>& arguments) {
+    Q_ASSERT(arguments.size() >= 10);
+    return method.invoke(object, Qt::DirectConnection,
+                         QGenericReturnArgument(returnValue),
+                         QGenericArgument(arguments[0]), QGenericArgument(arguments[1]),
+                         QGenericArgument(arguments[2]), QGenericArgument(arguments[3]),
+                         QGenericArgument(arguments[4]), QGenericArgument(arguments[5]),
+                         QGenericArgument(arguments[6]), QGenericArgument(arguments[7]),
+                         QGenericArgument(arguments[8]), QGenericArgument(arguments[9]));
+}
 
 
 // These values are put into internal fields of V8 objects, to signalize what kind of data is the pointer in another
@@ -298,10 +325,10 @@ void ScriptObjectV8Proxy::investigate() {
         }
 
         PropertyDef& propDef = _props.insert(idx, PropertyDef(prop.name(), idx)).value();
-        _propNameMap.insert(prop.name(), &propDef);
         propDef.flags = ScriptValue::Undeletable | ScriptValue::PropertyGetter | ScriptValue::PropertySetter |
                         ScriptValue::QObjectMember;
         if (prop.isConstant()) propDef.flags |= ScriptValue::ReadOnly;
+        _propNameMap.insert(prop.name(), propDef);
     }
 
     // discover methods
@@ -349,7 +376,7 @@ void ScriptObjectV8Proxy::investigate() {
                 SignalDef& signalDef = _signals.insert(idx, SignalDef(szName, idx)).value();
                 signalDef.name = szName;
                 signalDef.signal = method;
-                _signalNameMap.insert(szName, &signalDef);
+                _signalNameMap.insert(szName, signalDef);
                 methodNames.insert(szName, idx);
             } else {
                 int originalMethodId = nameLookup.value();
@@ -376,7 +403,7 @@ void ScriptObjectV8Proxy::investigate() {
                 methodDef.name = szName;
                 methodDef.numMaxParams = parameterCount;
                 methodDef.methods.append(method);
-                _methodNameMap.insert(szName, &methodDef);
+                _methodNameMap.insert(szName, methodDef);
                 methodNames.insert(szName, idx);
             } else {
                 int originalMethodId = nameLookup.value();
@@ -442,16 +469,16 @@ ScriptObjectV8Proxy::QueryFlags ScriptObjectV8Proxy::queryProperty(const V8Scrip
     // check for methods
     MethodNameMap::const_iterator method = _methodNameMap.find(nameStr);
     if (method != _methodNameMap.cend()) {
-        const MethodDef* methodDef = method.value();
-        *id = methodDef->_id | METHOD_TYPE;
+        const MethodDef& methodDef = method.value();
+        *id = methodDef._id | METHOD_TYPE;
         return flags & (HandlesReadAccess | HandlesWriteAccess);
     }
 
     // check for properties
     PropertyNameMap::const_iterator prop = _propNameMap.find(nameStr);
     if (prop != _propNameMap.cend()) {
-        const PropertyDef* propDef = prop.value();
-        *id = propDef->_id | PROPERTY_TYPE;
+        const PropertyDef& propDef = prop.value();
+        *id = propDef._id | PROPERTY_TYPE;
         return flags & (HandlesReadAccess | HandlesWriteAccess);
     }
 
@@ -1019,9 +1046,11 @@ void ScriptMethodV8Proxy::call(const v8::FunctionCallbackInfo<v8::Value>& argume
     int num_metas = _metas.size();
     QVector< QList<ScriptValue> > qScriptArgLists;
     QVector< QVector <QGenericArgument> > qGenArgsVectors;
+    QVector< QVector<QByteArray> > qArgTypeNameVectors;
     QVector< QList<QVariant> > qVarArgLists;
     qScriptArgLists.resize(num_metas);
     qGenArgsVectors.resize(num_metas);
+    qArgTypeNameVectors.resize(num_metas);
     qVarArgLists.resize(num_metas);
     bool isValidMetaSelected = false;
     int bestMeta = 0;
@@ -1035,6 +1064,9 @@ void ScriptMethodV8Proxy::call(const v8::FunctionCallbackInfo<v8::Value>& argume
         }
 
         qGenArgsVectors[i].resize(10);
+        qArgTypeNameVectors[i].resize(numArgs);
+        qScriptArgLists[i].reserve(numArgs);
+        qVarArgLists[i].reserve(numArgs);
         int conversionPenaltyScore = 0;
         int conversionFailures = 0;
 
@@ -1048,28 +1080,46 @@ void ScriptMethodV8Proxy::call(const v8::FunctionCallbackInfo<v8::Value>& argume
             v8::Local<v8::Value> argVal = arguments[arg];
             if (methodArgTypeId == scriptValueTypeId) {
                 qScriptArgLists[i].append(ScriptValue(new ScriptValueV8Wrapper(_engine, V8ScriptValue(_engine, argVal))));
-                qGenArgsVectors[i][arg] = Q_ARG(ScriptValue, qScriptArgLists[i].back());
+                qGenArgsVectors[i][arg] = QGenericArgument("ScriptValue", &qScriptArgLists[i].back());
             } else if (methodArgTypeId == QMetaType::QVariant) {
-                QVariant varArgVal;
-                if (!_engine->castValueToVariant(V8ScriptValue(_engine, argVal), varArgVal, methodArgTypeId)) {
+                qVarArgLists[i].emplace_back();
+                if (!_engine->castValueToVariant(V8ScriptValue(_engine, argVal), qVarArgLists[i].back(), methodArgTypeId)) {
                     conversionFailures++;
+                    qVarArgLists[i].pop_back();
                 } else {
-                    qVarArgLists[i].append(varArgVal);
-                    qGenArgsVectors[i][arg] = Q_ARG(QVariant, qVarArgLists[i].back());
+                    qGenArgsVectors[i][arg] = QGenericArgument("QVariant", &qVarArgLists[i].back());
                 }
             } else {
-                QVariant varArgVal;
-                if (!_engine->castValueToVariant(V8ScriptValue(_engine, argVal), varArgVal, methodArgTypeId)) {
+                qVarArgLists[i].emplace_back();
+                if (!_engine->castValueToVariant(V8ScriptValue(_engine, argVal), qVarArgLists[i].back(), methodArgTypeId)) {
                     conversionFailures++;
+                    qVarArgLists[i].pop_back();
                 } else {
-                    qVarArgLists[i].append(varArgVal);
                     const QVariant& converted = qVarArgLists[i].back();
                     conversionPenaltyScore += _engine->computeCastPenalty(V8ScriptValue(_engine, argVal), methodArgTypeId);
 
                     // a lot of type conversion assistance thanks to https://stackoverflow.com/questions/28457819/qt-invoke-method-with-qvariant
                     // A const_cast is needed because calling data() would detach the QVariant.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+                    // Qt 6 canonicalizes a registered typedef's QVariant name while MOC keeps the spelling from the
+                    // invokable declaration. QMetaMethod::invoke rejects the canonical name even though both names
+                    // describe the same metatype. Pass the formal spelling because castValueToVariant() already used
+                    // the formal parameter's metatype ID to construct converted. parameterTypeName() returns a
+                    // QByteArray by value, so retain that value until invoke() completes instead of leaving
+                    // QGenericArgument with a pointer into a destroyed temporary.
+                    QByteArray& argumentTypeName = qArgTypeNameVectors[i][arg];
+                    argumentTypeName = meta.parameterTypeName(arg);
+#else
+                    const char* argumentTypeName = QMetaType::typeName(converted.userType());
+#endif
                     qGenArgsVectors[i][arg] =
-                        QGenericArgument(QMetaType::typeName(converted.userType()), const_cast<void*>(converted.constData()));
+                        QGenericArgument(
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+                            argumentTypeName.constData(),
+#else
+                            argumentTypeName,
+#endif
+                            const_cast<void*>(converted.constData()));
                 }
             }
         }
@@ -1113,17 +1163,15 @@ void ScriptMethodV8Proxy::call(const v8::FunctionCallbackInfo<v8::Value>& argume
             isolate->ThrowError(v8::String::NewFromUtf8(isolate, QString("Cannot call native function %1, its return value has not been registered with Qt").arg(fullName()).toStdString().c_str()).ToLocalChecked());
             return;
         } else if (returnTypeId == QMetaType::Void) {
-            bool success = meta.invoke(qobject, Qt::DirectConnection, qGenArgs[0], qGenArgs[1], qGenArgs[2], qGenArgs[3],
-                                        qGenArgs[4], qGenArgs[5], qGenArgs[6], qGenArgs[7], qGenArgs[8], qGenArgs[9]);
+            bool success = invokeWithGenericArguments(meta, qobject, QGenericReturnArgument(), qGenArgs);
             if (!success) {
                 isolate->ThrowError(v8::String::NewFromUtf8(isolate, QString("Unexpected: Native call of %1 failed").arg(fullName()).toStdString().c_str()).ToLocalChecked());
             }
             return;
         } else if (returnTypeId == scriptValueTypeId) {
             ScriptValue result;
-            bool success = meta.invoke(qobject, Qt::DirectConnection, Q_RETURN_ARG(ScriptValue, result), qGenArgs[0],
-                                       qGenArgs[1], qGenArgs[2], qGenArgs[3], qGenArgs[4], qGenArgs[5], qGenArgs[6],
-                                       qGenArgs[7], qGenArgs[8], qGenArgs[9]);
+            bool success = invokeWithGenericArguments(
+                meta, qobject, QGenericReturnArgument(meta.typeName(), &result), qGenArgs);
             if (!success) {
                 isolate->ThrowError(v8::String::NewFromUtf8(isolate, QString("Unexpected: Native call of %1 failed").arg(fullName()).toStdString().c_str()).ToLocalChecked());
                 return;
@@ -1134,12 +1182,10 @@ void ScriptMethodV8Proxy::call(const v8::FunctionCallbackInfo<v8::Value>& argume
         } else {
             // a lot of type conversion assistance thanks to https://stackoverflow.com/questions/28457819/qt-invoke-method-with-qvariant
             const char* typeName = meta.typeName();
-            QVariant qRetVal(returnTypeId, static_cast<void*>(NULL));
+            QVariant qRetVal = variantFromMetaTypeId(returnTypeId);
             QGenericReturnArgument sRetVal(typeName, const_cast<void*>(qRetVal.constData()));
 
-            bool success =
-                meta.invoke(qobject, Qt::DirectConnection, sRetVal, qGenArgs[0], qGenArgs[1], qGenArgs[2], qGenArgs[3],
-                            qGenArgs[4], qGenArgs[5], qGenArgs[6], qGenArgs[7], qGenArgs[8], qGenArgs[9]);
+            bool success = invokeWithGenericArguments(meta, qobject, sRetVal, qGenArgs);
             if (!success) {
                 isolate->ThrowError(v8::String::NewFromUtf8(isolate, QString("Unexpected: Native call of %1 failed").arg(fullName()).toStdString().c_str()).ToLocalChecked());
                 return;
@@ -1272,7 +1318,7 @@ int ScriptSignalV8Proxy::qt_metacall(QMetaObject::Call call, int id, void** argu
         for (int arg = 0; arg < numArgs; ++arg) {
             int methodArgTypeId = _meta.parameterType(arg);
             Q_ASSERT(methodArgTypeId != QMetaType::UnknownType);
-            QVariant argValue(methodArgTypeId, arguments[arg + 1]);
+            QVariant argValue = variantFromMetaTypeId(methodArgTypeId, arguments[arg + 1]);
             args[arg] = _engine->castVariantToValue(argValue).get();
         }
         for (ConnectionList::iterator iter = connections.begin(); iter != connections.end(); ++iter) {

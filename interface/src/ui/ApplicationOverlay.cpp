@@ -21,6 +21,7 @@
 #include <GLMHelpers.h>
 #include <OffscreenUi.h>
 #include <CursorManager.h>
+#include <PathUtils.h>
 #include <PerfStat.h>
 
 #include "AudioClient.h"
@@ -33,6 +34,17 @@
 #include "OffscreenUi.h"
 #include "InterfaceLogging.h"
 #include <QQmlContext>
+
+#if defined(Q_OS_IOS)
+#include <QtCore/QDir>
+#include <QtCore/QStandardPaths>
+#include <QtGui/QColor>
+#include <QtGui/QImage>
+#include <QtGui/QScreen>
+#include <shared/IOSRuntimeLogging.h>
+#include <ui/TabletScriptingInterface.h>
+#include <VirtualPadManager.h>
+#endif
 
 #if defined(ANDROID_APP_PHONE_INTERFACE)
 #include <android/log.h>
@@ -55,6 +67,12 @@ ApplicationOverlay::ApplicationOverlay()
     _domainStatusBorder = geometryCache->allocateID();
     _magnifierBorder = geometryCache->allocateID();
     _qmlGeometryId = geometryCache->allocateID();
+#if defined(Q_OS_IOS)
+    _iosVirtualPadBaseGeometryId = geometryCache->allocateID();
+    _iosVirtualPadStickGeometryId = geometryCache->allocateID();
+    _iosVirtualPadJumpGeometryId = geometryCache->allocateID();
+    _iosVirtualPadHandshakeGeometryId = geometryCache->allocateID();
+#endif
 }
 
 ApplicationOverlay::~ApplicationOverlay() {
@@ -63,6 +81,12 @@ ApplicationOverlay::~ApplicationOverlay() {
         geometryCache->releaseID(_domainStatusBorder);
         geometryCache->releaseID(_magnifierBorder);
         geometryCache->releaseID(_qmlGeometryId);
+#if defined(Q_OS_IOS)
+        geometryCache->releaseID(_iosVirtualPadBaseGeometryId);
+        geometryCache->releaseID(_iosVirtualPadStickGeometryId);
+        geometryCache->releaseID(_iosVirtualPadJumpGeometryId);
+        geometryCache->releaseID(_iosVirtualPadHandshakeGeometryId);
+#endif
     }
 }
 
@@ -136,12 +160,18 @@ void ApplicationOverlay::renderOverlay(RenderArgs* renderArgs) {
 #endif
 
         // Now render the overlay components together into a single texture
-#if !defined(ANDROID_APP_PHONE_INTERFACE)
+#if !defined(ANDROID_APP_PHONE_INTERFACE) && !defined(Q_OS_IOS)
         renderDomainConnectionStatusBorder(renderArgs); // renders the connected domain line
 #endif
         renderOverlays(renderArgs); // renders Scripts Overlay and AudioScope
 #if !defined(DISABLE_QML)
         renderQmlUi(renderArgs); // renders a unit quad with the QML UI texture, and the text overlays from scripts
+#endif
+#if defined(Q_OS_IOS)
+        // The legacy OpenGL display plugin draws this after composition on
+        // Android. iOS uses Vulkan, so put the same controls into the ordinary
+        // HUD framebuffer where VulkanDisplayPlugin can composite them.
+        renderIOSVirtualPad(renderArgs);
 #endif
     });
 
@@ -154,7 +184,12 @@ void ApplicationOverlay::renderOverlay(RenderArgs* renderArgs) {
 void ApplicationOverlay::renderQmlUi(RenderArgs* renderArgs) {
     PROFILE_RANGE(render, __FUNCTION__);
 
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(Q_OS_IOS)
+    updateIOSQmlTexture();
+    if (!_uiTexture) {
+        return;
+    }
+#elif defined(ANDROID_APP_PHONE_INTERFACE)
     // The phone path fetched and published any new texture before deciding
     // whether this composite batch can be skipped.
 #else
@@ -185,6 +220,266 @@ void ApplicationOverlay::renderQmlUi(RenderArgs* renderArgs) {
     geometryCache->renderUnitQuad(batch, glm::vec4(1), _qmlGeometryId);
     batch.setResourceTexture(0, nullptr);
 }
+
+#if defined(Q_OS_IOS)
+bool ApplicationOverlay::updateIOSQmlTexture() {
+    auto offscreenUI = DependencyManager::get<OffscreenUi>();
+    QImage sourceImage;
+    if (!offscreenUI || !offscreenUI->fetchImage(sourceImage)) {
+        return false;
+    }
+
+    QImage uploadImage = sourceImage.convertToFormat(QImage::Format_RGBA8888);
+    if (uploadImage.isNull() || uploadImage.width() <= 0 || uploadImage.height() <= 0) {
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_SCREEN_QML_FRAME_GATE stage=invalid-cpu-frame",
+            "source_size=", sourceImage.size());
+        return false;
+    }
+
+    // Qt Quick software frames use a top-left origin while the ordinary GPU
+    // texture sampled by ApplicationOverlay uses the opposite vertical axis.
+    // Keep an AFC-editable escape hatch so a physical-device run can test the
+    // alternate orientation without another build.
+    if (iosRuntimeDiagnosticBool("screenQmlFlipVertical", true)) {
+        uploadImage = uploadImage.mirrored(false, true);
+    }
+
+    auto texture = gpu::Texture::createStrict(
+        gpu::Element::COLOR_RGBA_32,
+        static_cast<uint16_t>(uploadImage.width()),
+        static_cast<uint16_t>(uploadImage.height()),
+        1,
+        Sampler(Sampler::FILTER_MIN_MAG_LINEAR, Sampler::WRAP_CLAMP));
+    texture->setStoredMipFormat(gpu::Element::COLOR_RGBA_32);
+    texture->assignStoredMip(
+        0,
+        static_cast<gpu::Size>(uploadImage.sizeInBytes()),
+        reinterpret_cast<const gpu::Byte*>(uploadImage.constBits()));
+    texture->setUsage(gpu::Texture::Usage::Builder().withColor().withAlpha().build());
+    texture->setSource("ApplicationOverlayIOSSoftware");
+    _uiTexture = std::move(texture);
+
+    ++_iosQmlFrameOrdinal;
+    const auto diagnosticFrames = iosRuntimeDiagnosticIntSet(
+        "screenQmlCaptureFrameOrdinals", 1, 1000000);
+    const int captureSequence = iosRuntimeDiagnosticInt(
+        "screenQmlCaptureLatestFrameSequence", -1, -1, 1000000);
+    const bool firstFrame = _iosQmlFrameOrdinal == 1;
+    const bool selectedFrame = diagnosticFrames.contains(static_cast<int>(_iosQmlFrameOrdinal));
+    const bool selectedSequence = captureSequence >= 0 &&
+        captureSequence != _lastIOSQmlCaptureSequence;
+    if (firstFrame || selectedFrame || selectedSequence) {
+        quint64 sampledPixels { 0 };
+        quint64 alphaNonzeroPixels { 0 };
+        quint64 nonBlackPixels { 0 };
+        const quint64 totalPixels = static_cast<quint64>(uploadImage.width()) * uploadImage.height();
+        constexpr quint64 MAX_DIAGNOSTIC_SAMPLES { 65536 };
+        const quint64 sampleStride = std::max<quint64>(1, totalPixels / MAX_DIAGNOSTIC_SAMPLES);
+        for (quint64 offset = 0; offset < totalPixels; offset += sampleStride) {
+            const int y = static_cast<int>(offset / uploadImage.width());
+            const int x = static_cast<int>(offset % uploadImage.width());
+            const QColor pixel = uploadImage.pixelColor(x, y);
+            ++sampledPixels;
+            alphaNonzeroPixels += pixel.alpha() != 0;
+            nonBlackPixels += pixel.alpha() != 0 &&
+                (pixel.red() != 0 || pixel.green() != 0 || pixel.blue() != 0);
+        }
+
+        QString capturePath;
+        bool captureSaved { false };
+        if (selectedFrame || selectedSequence ||
+                iosRuntimeDiagnosticBool("captureFirstScreenQmlFrame", false)) {
+            capturePath = QDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation))
+                .filePath(QStringLiteral("Overte-iOS-Screen-QML-%1.png").arg(_iosQmlFrameOrdinal));
+            captureSaved = uploadImage.save(capturePath, "PNG");
+        }
+        if (captureSequence >= 0) {
+            _lastIOSQmlCaptureSequence = captureSequence;
+        }
+        const auto corner = uploadImage.pixelColor(0, 0);
+        const auto center = uploadImage.pixelColor(uploadImage.width() / 2, uploadImage.height() / 2);
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_SCREEN_QML_FRAME_GATE stage=cpu-frame-uploaded",
+            "ordinal=", _iosQmlFrameOrdinal,
+            "size=", uploadImage.size(),
+            "sampled_pixels=", sampledPixels,
+            "alpha_nonzero_pixels=", alphaNonzeroPixels,
+            "non_black_pixels=", nonBlackPixels,
+            "corner_rgba=", QStringLiteral("%1,%2,%3,%4")
+                .arg(corner.red()).arg(corner.green()).arg(corner.blue()).arg(corner.alpha()),
+            "center_rgba=", QStringLiteral("%1,%2,%3,%4")
+                .arg(center.red()).arg(center.green()).arg(center.blue()).arg(center.alpha()),
+            "capture_saved=", captureSaved,
+            "capture_sequence=", captureSequence,
+            "capture_path=", capturePath);
+    }
+    return true;
+}
+
+namespace {
+gpu::TexturePointer makeIOSVirtualPadTexture(const QString& path, int pixelSize, const char* source) {
+    QImage image(path);
+    if (image.isNull() || pixelSize <= 0) {
+        return {};
+    }
+    image = image.convertToFormat(QImage::Format_RGBA8888)
+        .scaled(pixelSize, pixelSize, Qt::KeepAspectRatio, Qt::SmoothTransformation)
+        .mirrored(false, true);
+    if (image.isNull()) {
+        return {};
+    }
+    auto texture = gpu::Texture::createStrict(
+        gpu::Element::COLOR_RGBA_32,
+        static_cast<uint16_t>(image.width()),
+        static_cast<uint16_t>(image.height()),
+        1,
+        Sampler(Sampler::FILTER_MIN_MAG_LINEAR, Sampler::WRAP_CLAMP));
+    texture->setStoredMipFormat(gpu::Element::COLOR_RGBA_32);
+    texture->assignStoredMip(
+        0,
+        static_cast<gpu::Size>(image.sizeInBytes()),
+        reinterpret_cast<const gpu::Byte*>(image.constBits()));
+    texture->setUsage(gpu::Texture::Usage::Builder().withColor().withAlpha().build());
+    texture->setSource(source);
+    return texture;
+}
+}
+
+void ApplicationOverlay::initializeIOSVirtualPadTextures() {
+    if (_iosVirtualPadBaseTexture && _iosVirtualPadStickTexture &&
+            _iosVirtualPadJumpTexture && _iosVirtualPadHandshakeTexture) {
+        return;
+    }
+
+    const auto screen = qApp->primaryScreen();
+    const qreal reportedDpi = screen ? screen->physicalDotsPerInch() : 0.0;
+    const qreal dpi = std::isfinite(reportedDpi) && reportedDpi > 0.0 ? reportedDpi : 264.0;
+    const int configuredScalePercent = iosRuntimeDiagnosticInt(
+        "virtualPadScalePercent", 100, 50, 200);
+    const float scale = static_cast<float>(configuredScalePercent) / 100.0f;
+    _iosVirtualPadPixelSize = static_cast<float>(
+        dpi * VirtualPad::Manager::BASE_DIAMETER_PIXELS / VirtualPad::Manager::DPI) * scale;
+    _iosVirtualPadButtonPixelSize = static_cast<float>(
+        dpi * VirtualPad::Manager::BTN_FULL_PIXELS / VirtualPad::Manager::DPI) * scale;
+
+    _iosVirtualPadBaseTexture = makeIOSVirtualPadTexture(
+        PathUtils::resourcesPath() + "images/analog_stick_base.png",
+        std::lround(_iosVirtualPadPixelSize),
+        "iOS virtual pad base");
+    _iosVirtualPadStickTexture = makeIOSVirtualPadTexture(
+        PathUtils::resourcesPath() + "images/analog_stick.png",
+        std::lround(_iosVirtualPadPixelSize),
+        "iOS virtual pad stick");
+    _iosVirtualPadJumpTexture = makeIOSVirtualPadTexture(
+        PathUtils::resourcesPath() + "images/fly.png",
+        std::lround(_iosVirtualPadButtonPixelSize),
+        "iOS virtual pad jump");
+    _iosVirtualPadHandshakeTexture = makeIOSVirtualPadTexture(
+        PathUtils::resourcesPath() + "images/handshake.png",
+        std::lround(_iosVirtualPadButtonPixelSize),
+        "iOS virtual pad handshake");
+
+    logIOSRuntimeMarker(
+        "OVERTE_IOS_TOUCH_UI_GATE stage=virtual-pad-textures",
+        "ready=", static_cast<bool>(_iosVirtualPadBaseTexture && _iosVirtualPadStickTexture &&
+            _iosVirtualPadJumpTexture && _iosVirtualPadHandshakeTexture),
+        "dpi=", dpi,
+        "base_pixels=", _iosVirtualPadPixelSize,
+        "button_pixels=", _iosVirtualPadButtonPixelSize);
+}
+
+void ApplicationOverlay::renderIOSVirtualPad(RenderArgs* renderArgs) {
+    auto& manager = VirtualPad::Manager::instance();
+    const bool forceVisible = iosRuntimeDiagnosticBool("virtualPadForceVisible", false);
+    if ((!manager.isEnabled() || manager.isHidden() || !manager.getLeftVirtualPad()->isShown()) && !forceVisible) {
+        return;
+    }
+    initializeIOSVirtualPadTextures();
+    if (!_iosVirtualPadBaseTexture || !_iosVirtualPadStickTexture ||
+            !_iosVirtualPadJumpTexture || !_iosVirtualPadHandshakeTexture) {
+        return;
+    }
+
+    const glm::vec2 targetSize(
+        static_cast<float>(_overlayFramebuffer->getWidth()),
+        static_cast<float>(_overlayFramebuffer->getHeight()));
+    const auto tablet = DependencyManager::get<TabletScriptingInterface>();
+    const QVariantMap metrics = tablet ? tablet->getTouchUiRuntimeMetrics() : QVariantMap();
+    const bool metricsValid = metrics.value("valid").toBool();
+    const QSize logicalScreenSize = metricsValid
+        ? QSize(
+            std::max(1, metrics.value("surfaceWidth").toInt() -
+                metrics.value("safeInsetLeft").toInt() -
+                metrics.value("safeInsetRight").toInt()),
+            std::max(1, metrics.value("surfaceHeight").toInt() -
+                metrics.value("safeInsetTop").toInt() -
+                metrics.value("safeInsetBottom").toInt()))
+        : QSize(static_cast<int>(targetSize.x), static_cast<int>(targetSize.y));
+    const glm::vec2 logicalSize(
+        std::max(1, logicalScreenSize.width()),
+        std::max(1, logicalScreenSize.height()));
+    const glm::vec2 coordinateScale = targetSize / logicalSize;
+
+    auto mapPoint = [&](glm::vec2 point) {
+        // Touch input and control layout are already expressed relative to
+        // the safe-content origin, exactly like this Vulkan HUD target.
+        point *= coordinateScale;
+        return glm::vec2(
+            2.0f * point.x / targetSize.x - 1.0f,
+            1.0f - 2.0f * point.y / targetSize.y);
+    };
+    auto draw = [&](const gpu::TexturePointer& texture, const glm::vec2& logicalPoint,
+                    float logicalPixelSize, int geometryId) {
+        const glm::vec2 center = mapPoint(logicalPoint);
+        const glm::vec2 pixelScale = coordinateScale * logicalPixelSize;
+        const glm::mat4 transform = glm::scale(
+            glm::translate(glm::mat4(), glm::vec3(center, 0.0f)),
+            glm::vec3(pixelScale.x / targetSize.x, pixelScale.y / targetSize.y, 1.0f));
+        auto geometryCache = DependencyManager::get<GeometryCache>();
+        gpu::Batch& batch = *renderArgs->_batch;
+        batch.setResourceTexture(0, texture);
+        batch.setModelTransform(transform);
+        geometryCache->renderUnitQuad(batch, glm::vec4(1.0f), geometryId);
+    };
+
+    auto basePoint = manager.getLeftVirtualPad()->getFirstTouch();
+    auto stickPoint = manager.getLeftVirtualPad()->getCurrentTouch();
+    auto jumpPoint = manager.getButtonPosition(VirtualPad::Manager::Button::JUMP);
+    auto handshakePoint = manager.getButtonPosition(VirtualPad::Manager::Button::HANDSHAKE);
+    if (forceVisible && (basePoint.x <= 0.0f || basePoint.y <= 0.0f)) {
+        basePoint = glm::vec2(logicalSize.x * 0.13f, logicalSize.y * 0.78f);
+        stickPoint = basePoint;
+    }
+    if (forceVisible && (jumpPoint.x <= 0.0f || jumpPoint.y <= 0.0f)) {
+        jumpPoint = glm::vec2(logicalSize.x * 0.90f, logicalSize.y * 0.80f);
+        handshakePoint = glm::vec2(logicalSize.x * 0.90f, logicalSize.y * 0.60f);
+    }
+
+    auto geometryCache = DependencyManager::get<GeometryCache>();
+    gpu::Batch& batch = *renderArgs->_batch;
+    geometryCache->useSimpleDrawPipeline(batch);
+    batch.setProjectionTransform(glm::mat4());
+    batch.resetViewTransform();
+    draw(_iosVirtualPadBaseTexture, basePoint, _iosVirtualPadPixelSize, _iosVirtualPadBaseGeometryId);
+    draw(_iosVirtualPadStickTexture, stickPoint, _iosVirtualPadPixelSize, _iosVirtualPadStickGeometryId);
+    draw(_iosVirtualPadJumpTexture, jumpPoint, _iosVirtualPadButtonPixelSize, _iosVirtualPadJumpGeometryId);
+    draw(_iosVirtualPadHandshakeTexture, handshakePoint, _iosVirtualPadButtonPixelSize, _iosVirtualPadHandshakeGeometryId);
+    batch.setResourceTexture(0, nullptr);
+
+    static std::once_flag marker;
+    std::call_once(marker, [&] {
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_UI_GATE stage=virtual-pad-composited",
+            "target_size=", QSize(static_cast<int>(targetSize.x), static_cast<int>(targetSize.y)),
+            "logical_size=", logicalScreenSize,
+            "coordinate_space=safe-content",
+            "base=", QStringLiteral("%1,%2").arg(basePoint.x).arg(basePoint.y),
+            "jump=", QStringLiteral("%1,%2").arg(jumpPoint.x).arg(jumpPoint.y),
+            "forced=", forceVisible);
+    });
+}
+#endif
 
 #if defined(ANDROID_APP_PHONE_INTERFACE)
 bool ApplicationOverlay::updatePhoneQmlTexture() {

@@ -16,6 +16,7 @@
 
 #include <QtCore/QUuid>
 #include <QtCore/QUrl>
+#include <QtCore/QVariant>
 #include <QtGlobal>
 
 #include <glm/glm.hpp>

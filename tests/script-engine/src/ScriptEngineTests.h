@@ -64,6 +64,7 @@ private slots:
     void testRaiseExceptionAndCatch();
     void testSignal();
     void testSignalWithException();
+    void testScriptApiMethodDiscovery();
     void testQuat();
 
 

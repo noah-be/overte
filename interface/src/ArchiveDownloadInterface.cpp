@@ -17,7 +17,6 @@
 #include <QtCore/QFile>
 #include <QtCore/QDebug>
 #include <QtCore/QBuffer>
-#include <QtCore/QTextCodec>
 #include <QtCore/QIODevice>
 #include <QtCore/QUrl>
 #include <QtCore/QByteArray>
@@ -25,13 +24,17 @@
 #include <QtCore/QFileInfo>
 #include <QtCore/QSet>
 
+#if !defined(Q_OS_IOS)
 #include <quazip/quazip.h>
 #include <quazip/JlCompress.h>
+#endif
 
 #include "ResourceManager.h"
 #include "ScriptEngineLogging.h"
 
 namespace {
+
+#if !defined(Q_OS_IOS)
 
 constexpr int MAX_ARCHIVE_ENTRIES = 4096;
 constexpr qint64 MAX_ARCHIVE_FILE_BYTES = 256LL * 1024 * 1024;
@@ -96,6 +99,7 @@ QStringList extractArchiveSafely(const QString& archivePath, const QString& targ
     }
     return extracted;
 }
+#endif
 
 } // namespace
 
@@ -139,6 +143,12 @@ void ArchiveDownloadInterface::runUnzip(QString path, QUrl url, bool autoAdd, bo
 }
 
 QStringList ArchiveDownloadInterface::unzipFile(QString path, QString tempDir) {
+#if defined(Q_OS_IOS)
+    Q_UNUSED(path)
+    Q_UNUSED(tempDir)
+    qCWarning(scriptengine) << "Archive extraction is unavailable on iOS until a Qt 6 QuaZIP package is integrated";
+    return {};
+#else
     QDir dir(path);
     QString dirName = dir.path();
     qCDebug(scriptengine) << "Directory to unzip: " << dirName;
@@ -153,6 +163,7 @@ QStringList ArchiveDownloadInterface::unzipFile(QString path, QString tempDir) {
         qCDebug(scriptengine) << "Extraction failed";
         return list;
     }
+#endif
 }
 
 // fix to check that we are only referring to a temporary directory
@@ -209,7 +220,9 @@ void ArchiveDownloadInterface::recursiveFileScan(QFileInfo file, QString* dirNam
     }*/
     QFileInfoList files;
     if (file.fileName().contains(".zip")) {
+#if !defined(Q_OS_IOS)
         extractArchiveSafely(file.fileName(), file.dir().path());
+#endif
     }
     files = file.dir().entryInfoList();
 

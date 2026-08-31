@@ -17,7 +17,7 @@ if (ANDROID)
     target_link_libraries(${TARGET_NAME} android)
 endif()
 
-if (APPLE)
+if (APPLE AND NOT IOS)
     find_library(FRAMEWORK_IOKIT IOKit)
     find_library(CORE_FOUNDATION CoreFoundation)
     find_library(OpenGL OpenGL)

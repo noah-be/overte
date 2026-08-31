@@ -10,7 +10,6 @@
 #ifndef hifi_GraphicsEngine_h
 #define hifi_GraphicsEngine_h
 
-#include <gl/OffscreenGLCanvas.h>
 #ifdef USE_GL
 #include <gl/GLWidget.h>
 #else
@@ -246,13 +245,15 @@ protected:
      * Splash screen texture. Shown as a skybox before the shaders load and compile.
      */
     NetworkTexturePointer _texture;
-#ifndef Q_OS_ANDROID
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
     /**
      * Changes to true when the shaders are loaded and compiled.
      * Used to show the splash screen skybox.
      */
     std::atomic<bool> _programsCompiled { false };
 #else
+    // Mobile backends compile required pipelines on demand and skip the
+    // desktop startup set in initializeGPU().
     std::atomic<bool> _programsCompiled { true };
 #endif
 

@@ -4,7 +4,7 @@
   "title": "Overte physical-device E2E toolchain lock",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "resolvedAt", "sources", "appium", "jenkins"],
+  "required": ["schemaVersion", "resolvedAt", "sources", "appium", "jenkins", "oculix"],
   "properties": {
     "schemaVersion": {"const": 1},
     "resolvedAt": {"type": "string", "format": "date"},
@@ -88,6 +88,28 @@
           "type": "object",
           "minProperties": 1,
           "additionalProperties": {"$ref": "#/$defs/artifact"}
+        }
+      }
+    },
+    "oculix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["license", "version", "minimumJavaMajor", "labJavaMajor", "releaseUrl", "ideArtifacts"],
+      "properties": {
+        "license": {"type": "string", "minLength": 1},
+        "version": {"$ref": "#/$defs/semver"},
+        "minimumJavaMajor": {"type": "integer", "minimum": 8},
+        "labJavaMajor": {"type": "integer", "minimum": 8},
+        "releaseUrl": {"type": "string", "pattern": "^https://"},
+        "ideArtifacts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["linux", "macos", "windows"],
+          "properties": {
+            "linux": {"$ref": "#/$defs/artifact"},
+            "macos": {"$ref": "#/$defs/artifact"},
+            "windows": {"$ref": "#/$defs/artifact"}
+          }
         }
       }
     }

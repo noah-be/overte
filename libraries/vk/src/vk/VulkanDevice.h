@@ -26,7 +26,7 @@ struct VulkanDevice
     /** @brief Physical device representation */
     VkPhysicalDevice physicalDevice;
     /** @brief Logical device representation (application's view of the device) */
-    VkDevice logicalDevice;
+    VkDevice logicalDevice{ VK_NULL_HANDLE };
     /** @brief Properties of the physical device including limits that the application can check against */
     VkPhysicalDeviceProperties properties;
     /** @brief Features of the physical device that an application can use to check if a feature is supported */

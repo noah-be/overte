@@ -25,6 +25,7 @@
 #endif
 
 #include <shared/QtHelpers.h>
+#include <shared/IOSRuntimeLogging.h>
 #include <AbstractScriptingServicesInterface.h>
 #include <AbstractViewStateInterface.h>
 #include <AddressManager.h>
@@ -409,6 +410,7 @@ void EntityTreeRenderer::clearDomainAndNonOwnedEntities() {
     _renderablesToUpdate = savedRenderables;
     _entitiesInScene = savedEntities;
 
+    std::lock_guard<std::recursive_mutex> layeredZonesLock(_layeredZonesLock);
     if (_layeredZones.clearDomainAndNonOwnedZones()) {
         applyLayeredZones();
     }
@@ -472,6 +474,7 @@ void EntityTreeRenderer::clear() {
     _renderablesToUpdate.clear();
 
     // reset the zone to the default (while we load the next scene)
+    std::lock_guard<std::recursive_mutex> layeredZonesLock(_layeredZonesLock);
     _layeredZones.clear();
     if (!_shuttingDown) {
         applyLayeredZones();
@@ -569,6 +572,18 @@ void EntityTreeRenderer::addPendingEntities(const render::ScenePointer& scene, r
             if (renderable) {
                 _entitiesInScene.insert({ entityID, renderable });
                 processedIds.insert(entityID);
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+                static bool loggedFirstMacOSRenderHandoff { false };
+                if (!loggedFirstMacOSRenderHandoff) {
+                    loggedFirstMacOSRenderHandoff = true;
+                    qInfo().noquote() << "OVERTE_MACOS_ENTITY_GATE render_handoff"
+                                      << "entity=" << entityID.toString();
+                }
+#endif
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+                logIOSRuntimeEntityEvidence(
+                    recordIOSRuntimeRenderableEntity(entityID.toString()));
+#endif
             }
         }
 
@@ -779,6 +794,7 @@ void EntityTreeRenderer::handleSpaceUpdate(std::pair<int32_t, glm::vec4> proxyUp
 }
 
 void EntityTreeRenderer::findBestZoneAndMaybeContainingEntities(QSet<EntityItemID>& entitiesContainingAvatar) {
+    std::lock_guard<std::recursive_mutex> layeredZonesLock(_layeredZonesLock);
     float radius = 0.01f; // for now, assume 0.01 meter radius, because we actually check the point inside later
     QVector<QUuid> entityIDs;
 
@@ -938,6 +954,7 @@ void EntityTreeRenderer::forceRecheckEntities() {
 }
 
 bool EntityTreeRenderer::applyLayeredZones() {
+    std::lock_guard<std::recursive_mutex> layeredZonesLock(_layeredZonesLock);
     // from the list of zones we are going to build a selection list the Render Item corresponding to the zones
     // in the expected layered order and update the scene with it
     auto scene = _viewState->getMain3DScene();
@@ -1255,6 +1272,18 @@ void EntityTreeRenderer::deletingEntity(const EntityItemID& entityID) {
 void EntityTreeRenderer::addingEntity(const EntityItemID& entityID) {
     auto entity = std::static_pointer_cast<EntityTree>(_tree)->findEntityByID(entityID);
     if (entity) {
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+        static bool loggedFirstMacOSTreeEntity { false };
+        if (!loggedFirstMacOSTreeEntity) {
+            loggedFirstMacOSTreeEntity = true;
+            qInfo().noquote() << "OVERTE_MACOS_ENTITY_GATE entity_tree_nonempty"
+                              << "entity=" << entityID.toString();
+        }
+#endif
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+        logIOSRuntimeEntityEvidence(
+            recordIOSRuntimeTreeEntity(entityID.toString()));
+#endif
         _entitiesToAdd.insert({ entity->getEntityItemID(),  entity });
         checkAndCallPreload(entityID, "", entity->getScript());
     }
@@ -1343,6 +1372,7 @@ void EntityTreeRenderer::fadeOutRenderable(const EntityRendererPointer& renderab
     render::Transaction transaction;
     auto scene = _viewState->getMain3DScene();
 
+    std::lock_guard<std::recursive_mutex> layeredZonesLock(_layeredZonesLock);
     auto fadeOutMode = renderable->getFadeOutMode();
     if (fadeOutMode == ComponentMode::COMPONENT_MODE_ENABLED ||
         (fadeOutMode == ComponentMode::COMPONENT_MODE_INHERIT && _layeredZones.hasFade(TransitionType::ELEMENT_LEAVE_DOMAIN))) {
@@ -1487,6 +1517,7 @@ void EntityTreeRenderer::updateEntityRenderStatus(bool shouldRenderEntities) {
 
 void EntityTreeRenderer::updateZone(const EntityItemID& id) {
     if (auto zone = std::dynamic_pointer_cast<ZoneEntityItem>(getTree()->findEntityByEntityItemID(id))) {
+        std::lock_guard<std::recursive_mutex> layeredZonesLock(_layeredZonesLock);
         if (_layeredZones.update(zone, _avatarPosition, this)) {
             applyLayeredZones();
         }
@@ -1733,7 +1764,18 @@ CalculateEntityLoadingPriority EntityTreeRenderer::_calculateEntityLoadingPriori
 };
 
 std::pair<bool, bool> EntityTreeRenderer::getZoneInteractionProperties() {
+    std::lock_guard<std::recursive_mutex> layeredZonesLock(_layeredZonesLock);
     return _layeredZones.getZoneInteractionProperties();
+}
+
+FadeProperties EntityTreeRenderer::getLayeredZoneFadeProperties(const TransitionType type) const {
+    std::lock_guard<std::recursive_mutex> layeredZonesLock(_layeredZonesLock);
+    return _layeredZones.getFadeProperties(type);
+}
+
+bool EntityTreeRenderer::layeredZonesHaveFade(const TransitionType type) const {
+    std::lock_guard<std::recursive_mutex> layeredZonesLock(_layeredZonesLock);
+    return _layeredZones.hasFade(type);
 }
 
 bool EntityTreeRenderer::wantsKeyboardFocus(const EntityItemID& id) const {

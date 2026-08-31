@@ -119,7 +119,7 @@ QUrl PathUtils::expandToLocalDataAbsolutePath(const QUrl& fileUrl) {
         // this results in a qrc:// url...
         // return resourcesUrl(path.mid(3));
 
-#ifdef Q_OS_MAC
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
         static const QString staticResourcePath = QCoreApplication::applicationDirPath() + "/../Resources/";
 #elif defined(Q_OS_ANDROID) || defined(ANDROID)
         const QString appLocalDataPath =
@@ -128,6 +128,11 @@ QUrl PathUtils::expandToLocalDataAbsolutePath(const QUrl& fileUrl) {
             (appLocalDataPath.isEmpty()
                  ? QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
                  : appLocalDataPath) + "/resources/";
+#elif defined(Q_OS_IOS)
+        // Resources is a reserved, case-insensitive bundle directory name on
+        // iOS.  Keep Overte's file-backed content in its own shallow folder.
+        static const QString staticResourcePath =
+            QCoreApplication::applicationDirPath() + "/overte-resources/";
 #else
         static const QString staticResourcePath = QCoreApplication::applicationDirPath() + "/resources/";
 #endif
@@ -196,7 +201,7 @@ bool PathUtils::deleteMyTemporaryDir(QString dirName) {
     QRegularExpression re { "^" + QRegularExpression::escape(appName) + "\\-(?<pid>\\d+)\\-(?<timestamp>\\d+)$" };
 
     auto match = re.match(dirName);
-    auto pid = match.capturedRef("pid").toLongLong();
+    auto pid = match.captured("pid").toLongLong();
 
     if (match.hasMatch() && rootTempDir.exists(dirName) && pid == qApp->applicationPid()) {
         auto absoluteDirPath = QDir(rootTempDir.absoluteFilePath(dirName));
@@ -231,8 +236,8 @@ int PathUtils::removeTemporaryApplicationDirs(QString appName) {
 
         auto match = re.match(dirName);
         if (match.hasMatch()) {
-            auto pid = match.capturedRef("pid").toLongLong();
-            auto timestamp = match.capturedRef("timestamp");
+            auto pid = match.captured("pid").toLongLong();
+            auto timestamp = match.captured("timestamp");
             if (!processIsRunning(pid)) {
                 qDebug() << "  Removing old temporary directory: " << dir.absoluteFilePath();
                 absoluteDirPath.removeRecursively();

@@ -83,10 +83,14 @@ AccountManager::AccountManager(bool accountSettingsEnabled, UserAgentGetter user
     _accountSettingsEnabled(accountSettingsEnabled)
 {
     qRegisterMetaType<OAuthAccessToken>("OAuthAccessToken");
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     qRegisterMetaTypeStreamOperators<OAuthAccessToken>("OAuthAccessToken");
+#endif
 
     qRegisterMetaType<DataServerAccountInfo>("DataServerAccountInfo");
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     qRegisterMetaTypeStreamOperators<DataServerAccountInfo>("DataServerAccountInfo");
+#endif
 
     qRegisterMetaType<QNetworkAccessManager::Operation>("QNetworkAccessManager::Operation");
     qRegisterMetaType<JSONCallbackParameters>("JSONCallbackParameters");
@@ -347,7 +351,8 @@ void AccountManager::sendRequest(const QString& path,
             // double check if the finished network reply had a session ID in the header and make
             // sure that our session ID matches that value if so
             if (networkReply->hasRawHeader(METAVERSE_SESSION_ID_HEADER)) {
-                _sessionID = networkReply->rawHeader(METAVERSE_SESSION_ID_HEADER);
+                _sessionID = QUuid::fromString(QString::fromLatin1(
+                    networkReply->rawHeader(METAVERSE_SESSION_ID_HEADER)));
             }
         });
 
@@ -626,7 +631,11 @@ void AccountManager::requestAccessTokenWithSteam(QByteArray authSessionTicket) {
 
     QNetworkReply* requestReply = networkAccessManager.post(request, postData);
     connect(requestReply, &QNetworkReply::finished, this, &AccountManager::requestAccessTokenFinished);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+    connect(requestReply, &QNetworkReply::errorOccurred, this, &AccountManager::requestAccessTokenError);
+#else
     connect(requestReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(requestAccessTokenError(QNetworkReply::NetworkError)));
+#endif
 }
 
 void AccountManager::requestAccessTokenWithOculus(const QString& nonce, const QString &oculusID) {
@@ -649,7 +658,11 @@ void AccountManager::requestAccessTokenWithOculus(const QString& nonce, const QS
 
     QNetworkReply* requestReply = networkAccessManager.post(request, postData);
     connect(requestReply, &QNetworkReply::finished, this, &AccountManager::requestAccessTokenFinished);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+    connect(requestReply, &QNetworkReply::errorOccurred, this, &AccountManager::requestAccessTokenError);
+#else
     connect(requestReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(requestAccessTokenError(QNetworkReply::NetworkError)));
+#endif
 }
 
 void AccountManager::refreshAccessToken() {
@@ -679,7 +692,11 @@ void AccountManager::refreshAccessToken() {
 
         QNetworkReply* requestReply = networkAccessManager.post(request, postData);
         connect(requestReply, &QNetworkReply::finished, this, &AccountManager::refreshAccessTokenFinished);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+        connect(requestReply, &QNetworkReply::errorOccurred, this, &AccountManager::refreshAccessTokenError);
+#else
         connect(requestReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(refreshAccessTokenError(QNetworkReply::NetworkError)));
+#endif
     } else {
         qCWarning(networking) << "Cannot refresh access token without refresh token."
             << "Access token will need to be manually refreshed.";
@@ -757,6 +774,11 @@ void AccountManager::requestAccessTokenFinished() {
     }
 }
 
+void AccountManager::requestAccessTokenError(QNetworkReply::NetworkError error) {
+    qCWarning(networking) << "AccountManager: failed to request access token -" << error;
+    emit loginFailed();
+}
+
 void AccountManager::refreshAccessTokenFinished() {
     QNetworkReply* requestReply = reinterpret_cast<QNetworkReply*>(sender());
 
@@ -807,7 +829,11 @@ void AccountManager::requestProfile() {
 
     QNetworkReply* profileReply = networkAccessManager.get(profileRequest);
     connect(profileReply, &QNetworkReply::finished, this, &AccountManager::requestProfileFinished);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+    connect(profileReply, &QNetworkReply::errorOccurred, this, &AccountManager::requestProfileError);
+#else
     connect(profileReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(requestProfileError(QNetworkReply::NetworkError)));
+#endif
 }
 
 void AccountManager::requestProfileFinished() {
@@ -857,7 +883,11 @@ void AccountManager::requestAccountSettings() {
 
     QNetworkReply* lockerReply = networkAccessManager.get(lockerRequest);
     connect(lockerReply, &QNetworkReply::finished, this, &AccountManager::requestAccountSettingsFinished);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+    connect(lockerReply, &QNetworkReply::errorOccurred, this, &AccountManager::requestAccountSettingsError);
+#else
     connect(lockerReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(requestAccountSettingsError(QNetworkReply::NetworkError)));
+#endif
 
     _settings.startedLoading();
 }
@@ -935,7 +965,11 @@ void AccountManager::postAccountSettings() {
 
     QNetworkReply* lockerReply = networkAccessManager.put(lockerRequest, postData);
     connect(lockerReply, &QNetworkReply::finished, this, &AccountManager::postAccountSettingsFinished);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+    connect(lockerReply, &QNetworkReply::errorOccurred, this, &AccountManager::postAccountSettingsError);
+#else
     connect(lockerReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(postAccountSettingsError(QNetworkReply::NetworkError)));
+#endif
 }
 
 void AccountManager::postAccountSettingsFinished() {
@@ -1116,12 +1150,14 @@ void AccountManager::saveLoginStatus(bool isLoggedIn) {
         configFile.open(QFile::WriteOnly | QFile::Text | QFile::Truncate);
         configFile.write(jsonDocument.toJson());
         configFile.close();
+#if !defined(Q_OS_IOS)
         if (!isLoggedIn && !launcherPath.isEmpty()) {
             QProcess launcher;
             launcher.setProgram(launcherPath);
             launcher.startDetached();
             QMetaObject::invokeMethod(qApp, "quit", Qt::QueuedConnection);
         }
+#endif
     }
 }
 

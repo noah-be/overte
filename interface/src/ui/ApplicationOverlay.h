@@ -37,6 +37,11 @@ public:
 private:
     void renderDomainConnectionStatusBorder(RenderArgs* renderArgs);
     void renderQmlUi(RenderArgs* renderArgs);
+#if defined(Q_OS_IOS)
+    bool updateIOSQmlTexture();
+    void renderIOSVirtualPad(RenderArgs* renderArgs);
+    void initializeIOSVirtualPadTextures();
+#endif
 #if defined(ANDROID_APP_PHONE_INTERFACE)
     bool updatePhoneQmlTexture();
 #endif
@@ -51,6 +56,21 @@ private:
     gpu::TexturePointer _overlayColorTexture;
     gpu::FramebufferPointer _overlayFramebuffer;
     int _qmlGeometryId { 0 };
+
+#if defined(Q_OS_IOS)
+    uint64_t _iosQmlFrameOrdinal { 0 };
+    int _lastIOSQmlCaptureSequence { -1 };
+    float _iosVirtualPadPixelSize { 0.0f };
+    float _iosVirtualPadButtonPixelSize { 0.0f };
+    gpu::TexturePointer _iosVirtualPadBaseTexture;
+    gpu::TexturePointer _iosVirtualPadStickTexture;
+    gpu::TexturePointer _iosVirtualPadJumpTexture;
+    gpu::TexturePointer _iosVirtualPadHandshakeTexture;
+    int _iosVirtualPadBaseGeometryId { 0 };
+    int _iosVirtualPadStickGeometryId { 0 };
+    int _iosVirtualPadJumpGeometryId { 0 };
+    int _iosVirtualPadHandshakeGeometryId { 0 };
+#endif
 
 #if defined(ANDROID_APP_PHONE_INTERFACE)
     bool _phoneOverlayCompositeValid { false };

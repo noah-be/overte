@@ -25,6 +25,13 @@ branches own adapters, packaging, runtime integration and policy that apply
 only to that product. Linux distributions and Windows releases are CI and lab
 targets within their operating-system branch, not permanent child branches.
 
+The common device-test harness under `tests/device/` is parent-owned by
+default. `tests/apple-branch-path-ownership.json` lists the narrow paths that a
+specific Apple child may own inside that tree. The current iOS adapter,
+RemoteXPC transport, signing and artifact handoff, product toolchain, and local
+device-lab pipeline are `apple-ios`-owned; they do not propagate through
+`apple-main` into `apple-macos`.
+
 ## Propagation order
 
 After a reviewed change reaches `main`, synchronize it in this order:
@@ -81,6 +88,12 @@ selector-backed adapters remain in their product branch:
 VR branches do not inherit Phone touch adapters. A new adapter starts on its
 product branch and must not be promoted to a parent unless the implementation
 genuinely applies to every child of that parent.
+
+The `Apple path ownership` pull-request check loads both its checker and policy
+from `origin/apple-main`. A child pull request therefore cannot approve a
+change by weakening its own copy of the rule. Changes to parent-owned harness
+paths must go through `apple-main`; explicitly listed product-owned paths may
+differ only on their matching target branch.
 
 Desktop adapter implementations must not be owned by `main`, `android-main`,
 or an Android product branch. Only the portable adapter protocol, behavior

@@ -1,0 +1,214 @@
+<!--
+Copyright 2026 Overte e.V.
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# iOS E2E with a free Apple Personal Team
+
+This is the no-paid-membership alternative to the protected signing producer.
+GitHub builds only a credential-free unsigned kit. Apple account authentication,
+provisioning, signing, and installation stay on a trusted local macOS or Windows
+host and never enter Actions, Jenkins, the repository, or shared logs.
+
+Apple documents the Personal Team limits as ten App IDs, three devices, three
+installed apps per device, and seven-day App ID/device/profile lifetimes. Reusing
+the same identifiers with the same Apple account avoids intentionally creating
+new identifiers on every refresh, but it does not remove Apple's seven-day
+reprovisioning requirement. The fixed identifiers are:
+
+- Overte: `org.overte.interface.e2e`
+- WDA runner application: `org.overte.WebDriverAgentRunner.xctrunner`
+- nested WDA XCTest bundle: `org.overte.WebDriverAgentRunner`
+
+These are the preferred stable bundle identities and install two applications.
+Do not remove the WDA `PlugIns/WebDriverAgentRunner.xctest` bundle. If
+Sideloadly cannot preserve the preferred IDs because the Personal Team's
+short-lived App-ID quota is already occupied, the device-observed variant may
+instead attest one uniquely marker-selected remapped Overte/WDA pair. The
+exported-signed-IPA variant still requires the preferred fixed identities.
+
+The registered `ios-bootstrap.yml` entrypoint calls
+`ios-personal-team-e2e-kit.yml`. Its public seven-day artifact contains exactly:
+
+```text
+Overte-PersonalTeam-E2E-unsigned.ipa
+WebDriverAgentRunner-16.8.0-PersonalTeam-unsigned.ipa
+personal-team-e2e-kit.json
+```
+
+The manifest binds both credential-free files by SHA-256 and size to the real
+Overte source revision and the exact kit-assembly repository ID,
+bootstrap/reusable workflow, protected ref, run ID and attempt. It also binds
+XCUITest Driver 12.8.0, WDA 16.8.0, the
+three fixed identifiers, and the `overte-ios-personal-team-e2e-kit-v3` contract.
+Version 3 is intentionally incompatible with the earlier kit: neither the outer
+WDA runner nor its nested `WebDriverAgentRunner.xctest` and embedded framework
+carry an ad-hoc signature. The hardware gate proved that iPadOS rejects that
+nested ad-hoc signature after a direct Sideloadly install. The signing tool must
+instead recursively Personal-Team-sign all three Mach-O bundles. No Apple
+credential, certificate, private key, profile, team identity, or device identity
+is used by the public preparation step.
+It declares
+`derivationBinding: human-verified` and
+`signedBytesDerivableFromUnsignedKit: false`: a re-signing tool changes bundle
+metadata, entitlements, Mach-O signatures, profiles, and archive bytes, so the
+signed result cannot be cryptographically derived from the unsigned hash.
+
+An explicit packaging-only dispatch may reuse one earlier successful unsigned
+Overte E2E artifact instead of recompiling the unchanged Full Client. It never
+selects `latest`: the caller supplies the exact source run and the dispatch fixes
+the only accepted legacy attempt to attempt 1. The
+fetcher requires a completed `workflow_dispatch` run from `apple-ios` in the
+same repository, proves that its source commit is an ancestor of the current
+assembly commit, selects the unique run-number/run-ID artifact, verifies the
+GitHub archive digest, and safely extracts exactly one IPA/manifest pair. The
+manifest records this separate source provenance under `overteArtifactReuse`.
+Legacy integrated artifacts whose names lack an attempt number are accepted
+only from attempt 1. Supplying reuse run `0` retains the normal same-run Full
+Client build.
+
+## Variant A: Sideloadly installs directly
+
+This is the smallest manual process. Sideloadly's documented **Apple ID
+sideload** mode signs and installs an IPA on the selected device. Its separately
+documented **Export IPA** mode exports a modified IPA; it must not be treated as
+proof that the Personal-Team-signed installation bytes were exported.
+
+1. On a trusted local machine, verify the downloaded Actions archive and the two
+   file hashes and sizes in `personal-team-e2e-kit.json`.
+2. In Sideloadly, select Apple ID sideload and the intended trusted device.
+   Prefer the fixed identifiers. If Sideloadly remaps them, do not create extra
+   duplicate installations and use the explicit remapped-attestation flag
+   below. Never remove WDA's nested XCTest plug-in. The signing result must give
+   the nested XCTest and its framework valid Personal-Team signatures; signing
+   only the outer runner makes WDA close immediately. The first
+   controlled Appium/XCTest session is therefore still a mandatory hardware
+   gate even after InstallationProxy accepts the two outer applications.
+3. Install the Overte IPA and then the WDA IPA with the same Apple account.
+   Credentials and two-factor codes remain solely in Sideloadly on that host.
+4. Trust the resulting developer application and enable Developer Mode on the
+   device when iOS requests it.
+5. Fedora may proceed only after its `personal-team-preinstalled` hardware gate
+   observes either both exact identities or exactly one unambiguous remapped
+   Overte/WDA pair selected by the E2E and WDA version markers. It additionally
+   requires InstallationProxy's `ProfileValidated` flag, valid application
+   identifiers, and the same team and signer on an exclusively reserved
+   iOS/iPadOS 18+ target. The resulting receipt binds the observed IDs, including
+   a suffixless WDA through Appium's `updatedWDABundleIdSuffix` capability.
+   The receipt binds the reviewed unsigned-kit manifest hash and private human
+   attestation hash, but has no installed-IPA byte hash or derivation claim.
+   Profile expiration and successful WDA launch remain explicit session/hardware
+   gates. Appium uses the already installed WDA and therefore does not set
+   `appium:prebuiltWDAPath` in this mode.
+
+The file-backed Personal Team importer does not accept this variant. In
+particular, do not copy a temporary Sideloadly work file and label it a signed
+export. Device observation is a weaker but honest trust boundary and must remain
+visibly distinct in the receipt and Jenkins job.
+
+## Variant B: retain two signed IPA files
+
+Use this path when Xcode Personal Team or another trusted local signing process
+can retain the exact signed outputs. The files must be outside the checkout and
+named exactly:
+
+```text
+Overte-PersonalTeam-E2E-signed.ipa
+WebDriverAgentRunner-16.8.0-PersonalTeam-signed.ipa
+```
+
+The local signing process must preserve the three fixed bundle identifiers,
+sign both the WDA runner and nested XCTest, embed profiles authorized for the
+same Personal Team, and leave the Overte E2E plist contract enabled. Do not put
+Apple credentials, certificates, private keys, profiles, device identifiers, or
+signed IPAs in GitHub artifacts or the repository.
+
+### Recursively sign WDA on Fedora
+
+If Sideloadly has already created the Personal-Team identity and provisioning
+profile, the WDA half can be reproduced offline on Fedora. This does not create
+another App ID and does not need Xcode. It also does not automate Apple's
+account login, two-factor authentication, device registration, trust prompt, or
+seven-day profile renewal: those remain the unavoidable Sideloadly/Apple steps.
+
+Keep the exported PKCS#12 identity, its password file, provisioning profile,
+device-identity file, and output below in one private mode-0700 directory
+outside the checkout. Install the repository-pinned open-source tools, then run
+the recursive signer:
+
+```bash
+umask 077
+python3 tests/device/ios/security_tools.py \
+  --root /private/personal-team/tools \
+  --tool resigner \
+  --tool rcodesign
+
+python3 tests/device/ios/sign_personal_team_wda.py \
+  --unsigned-wda-ipa /private/personal-team/WebDriverAgentRunner-16.8.0-PersonalTeam-unsigned.ipa \
+  --unsigned-kit-manifest /private/personal-team/personal-team-e2e-kit.json \
+  --p12-file /private/personal-team/personal-team.p12 \
+  --p12-password-file /private/personal-team/p12-password.txt \
+  --profile-file /private/personal-team/wda.mobileprovision \
+  --device-udid-file /private/personal-team/device-udid.txt \
+  --apple-root-ca-pem /private/personal-team/AppleRootCA-G3.pem \
+  --resigner /private/personal-team/tools/resigner-0.3.1/resigner \
+  --rcodesign /private/personal-team/tools/rcodesign-0.29.0/rcodesign \
+  --output-ipa /private/personal-team/WebDriverAgentRunner-16.8.0-PersonalTeam-signed.ipa
+```
+
+The helper first verifies the unsigned-kit hash and both executable pins. It
+uses Appium resigner for recursive identifier/profile placement, then replaces
+all three generated code signatures with pinned `rcodesign`: the outer runner,
+nested XCTest, and embedded WDA framework. It finally verifies the Mach-O code
+signatures, CMS signer leaves, embedded profiles, team/application identifiers,
+expiry, and the exact archive structure. Password contents are supplied through
+a private file and never placed in the command line. OpenSSL PKCS#12 reads use
+legacy compatibility locally because Appium resigner 0.3.1 expects the legacy
+PKCS#12 encoding; this does not change the Apple certificate or IPA signature.
+The fetcher's exact run/attempt and GitHub archive-digest verification is the
+download provenance boundary; run it before this offline helper and retain its
+private receipt. The signer independently rechecks the kit manifest and IPA
+hash, but deliberately does not make a second GitHub API request.
+
+Successful offline verification is not an installation claim. InstallationProxy
+must still report `ProfileValidated`, and the first real RemoteXPC/XCTest WDA
+session remains the final Apple-policy gate.
+
+After visually reviewing that both outputs came from the downloaded kit, create
+the private human-boundary record:
+
+```bash
+umask 077
+chmod 0600 \
+  /private/personal-team/Overte-PersonalTeam-E2E-signed.ipa \
+  /private/personal-team/WebDriverAgentRunner-16.8.0-PersonalTeam-signed.ipa
+python3 ios/ci/create-personal-team-signed-attestation.py \
+  --unsigned-kit /private/personal-team/personal-team-e2e-kit.json \
+  --overte-ipa /private/personal-team/Overte-PersonalTeam-E2E-signed.ipa \
+  --wda-ipa /private/personal-team/WebDriverAgentRunner-16.8.0-PersonalTeam-signed.ipa \
+  --output /private/personal-team/personal-team-signed-handoff.json \
+  --i-accept-resigning-boundary \
+  --signed-from-reviewed-kit \
+  --same-personal-team
+```
+
+`/private/personal-team` must already be a symlink-free, current-user-owned
+directory outside the checkout with mode 0700. All three acknowledgement flags
+are mandatory. The resulting mode-0600 JSON is durably flushed before success,
+valid for at most seven days, hashes only the files that actually exist, and says
+`derivationBinding: human-verified`; it does not claim a cryptographic link from
+signed bytes to unsigned bytes. The Fedora `local-import` command then performs
+the strong checks: full IPA structure and hashes, Mach-O/CMS signatures,
+profiles, entitlements, exact team/application/bundle identities, expiry,
+Overte E2E contract, and WDA runner/nested-XCTest pairing. Its receipt and IPAs
+remain private and short-lived outside the checkout.
+
+Both variants need periodic Personal Team refresh. Sideloadly advertises an
+automatic refresh facility, but enabling saved credentials or background
+refresh is a personal local choice and is not part of Overte automation.
+
+References:
+
+- [Apple: Personal Team account limits](https://developer.apple.com/help/account/basics/about-your-developer-account)
+- [Sideloadly: signing/install modes and free-account lifetime](https://sideloadly.io/)
+- [Appium: running prebuilt WDA](https://appium.github.io/appium-xcuitest-driver/latest/guides/run-prebuilt-wda/)

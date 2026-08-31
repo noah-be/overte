@@ -1,0 +1,833 @@
+name: iOS Full Client simulator install diagnostic
+
+on:
+  workflow_dispatch:
+    inputs:
+      world_runtime_only:
+        description: Reuse the candidate for serverless/online screenshot evidence instead of the install matrix
+        required: false
+        default: false
+        type: boolean
+      lldb_runtime_only:
+        description: Reuse the candidate and matching dSYM to capture the first simulator SIGSEGV under LLDB
+        required: false
+        default: false
+        type: boolean
+      lldb_wait_for_debugger:
+        description: Hold the preserved candidate at launch until LLDB is attached
+        required: false
+        default: false
+        type: boolean
+      lldb_interrupt_after_seconds:
+        description: Interrupt the attached Full Client after this many seconds to capture a hang stack
+        required: false
+        default: "0"
+        type: string
+      symbolicate_existing_crash:
+        description: Symbolicate a preserved runtime crash instead of launching a simulator
+        required: false
+        default: false
+        type: boolean
+      crash_run_id:
+        description: Trusted failed runtime-only run containing the crash report
+        required: false
+        default: "31863725210"
+        type: string
+      crash_artifact_name:
+        description: Exact runtime-only artifact containing the crash report
+        required: false
+        default: "ios-world-runtime-only-31863725210"
+        type: string
+      source_run_id:
+        description: Trusted iOS world producer run ID
+        required: true
+        default: "31818380576"
+        type: string
+      source_artifact_name:
+        description: Exact artifact containing the simulator candidate
+        required: true
+        default: "215-overte-ios-world-candidate-31818380576"
+        type: string
+      source_candidate_name:
+        description: Exact simulator ZIP inside the artifact
+        required: true
+        default: "0215-OverteIOSClient-Release-simulator.zip"
+        type: string
+      expected_sha256:
+        description: Approved SHA-256 of the simulator ZIP
+        required: true
+        default: "bfe1aceaf08bac604db5d4ac43ebc917e5e2ff3d84e42aec8a1c1915174e4f96"
+        type: string
+      expected_source_revision:
+        description: Approved source revision embedded in the candidate
+        required: true
+        default: "fc1462617639c40c1c1e76d2044fa4ab741075f8"
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ios-simulator-install-${{ inputs.expected_sha256 || 'bfe1aceaf08bac604db5d4ac43ebc917e5e2ff3d84e42aec8a1c1915174e4f96' }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  diagnose-install:
+    name: Reuse candidate and isolate CoreSimulator install failure
+    if: ${{ !inputs.world_runtime_only && !inputs.lldb_runtime_only && !inputs.symbolicate_existing_crash }}
+    # macOS 26.5.2 currently reproduces IXErrorDomain 13 across all installed
+    # Xcode versions because CoreSimulatorService belongs to the host OS. Use
+    # the ARM64 macOS 15 image to isolate the already-built candidate from that
+    # host regression without changing its Mach-O architecture.
+    runs-on: macos-15
+    timeout-minutes: 40
+    env:
+      DIAGNOSTIC_ROOT: ${{ github.workspace }}/build-ios/simulator-install-diagnostic
+      SOURCE_RUN_ID: ${{ inputs.source_run_id || '31818380576' }}
+      SOURCE_ARTIFACT_NAME: ${{ inputs.source_artifact_name || '215-overte-ios-world-candidate-31818380576' }}
+      SOURCE_CANDIDATE_NAME: ${{ inputs.source_candidate_name || '0215-OverteIOSClient-Release-simulator.zip' }}
+      EXPECTED_SHA256: ${{ inputs.expected_sha256 || 'bfe1aceaf08bac604db5d4ac43ebc917e5e2ff3d84e42aec8a1c1915174e4f96' }}
+      EXPECTED_SOURCE_REVISION: ${{ inputs.expected_source_revision || 'fc1462617639c40c1c1e76d2044fa4ab741075f8' }}
+      BUNDLE_ID: org.overte.interface.dev
+    steps:
+      - name: Check out reviewed diagnostics without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Validate trusted failed producer and exact candidate identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$SOURCE_ARTIFACT_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
+          [[ "$SOURCE_CANDIDATE_NAME" =~ ^[0-9]+-OverteIOSClient-Release-simulator[.]zip$ ]]
+          [[ "$EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$EXPECTED_SOURCE_REVISION" =~ ^[0-9a-f]{40}$ ]]
+          test ! -e "$DIAGNOSTIC_ROOT"
+          install -d -m 0700 "$DIAGNOSTIC_ROOT/source" "$DIAGNOSTIC_ROOT/output"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" > "$DIAGNOSTIC_ROOT/producer.json"
+          python3 - "$DIAGNOSTIC_ROOT/producer.json" <<'PY'
+          import json
+          import os
+          import pathlib
+          import sys
+
+          run = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          repository = run.get("head_repository") or {}
+          path = str(run.get("path", "")).split("@", 1)[0]
+          if run.get("status") != "completed" or run.get("conclusion") != "failure":
+              raise SystemExit("diagnostic source must be the reviewed failed world run")
+          if repository.get("full_name") != os.environ["GITHUB_REPOSITORY"]:
+              raise SystemExit("producer repository mismatch")
+          if run.get("head_branch") != "apple-ios":
+              raise SystemExit("producer branch mismatch")
+          if run.get("head_sha") != os.environ["EXPECTED_SOURCE_REVISION"]:
+              raise SystemExit("producer revision mismatch")
+          if path != ".github/workflows/ios-bootstrap.yml":
+              raise SystemExit("producer workflow is outside the trusted world boundary")
+          PY
+
+      - name: Download exact preserved simulator candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ env.SOURCE_ARTIFACT_NAME }}
+          path: ${{ env.DIAGNOSTIC_ROOT }}/source
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
+
+      - name: Verify and expand candidate without rebuilding
+        run: |
+          set -euo pipefail
+          candidate="$DIAGNOSTIC_ROOT/source/artifacts/$SOURCE_CANDIDATE_NAME"
+          printf 'candidate=%s\n' "$SOURCE_CANDIDATE_NAME" \
+            > "$DIAGNOSTIC_ROOT/output/transfer.txt"
+          if [[ ! -f "$candidate" ]]; then
+            find "$DIAGNOSTIC_ROOT/source" -maxdepth 3 -type f \
+              > "$DIAGNOSTIC_ROOT/output/source-files.txt"
+            echo "downloaded artifact does not contain the requested simulator candidate" >&2
+            exit 1
+          fi
+          actual_sha="$(shasum -a 256 "$candidate" | awk '{print $1}')"
+          [[ "$actual_sha" == "$EXPECTED_SHA256" ]]
+          ditto -x -k "$candidate" "$DIAGNOSTIC_ROOT/original"
+          app="$DIAGNOSTIC_ROOT/original/Overte.app"
+          test -x "$app/Overte"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist" \
+            | grep -Fx "$BUNDLE_ID"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundlePackageType' "$app/Info.plist" \
+            | grep -Fx APPL
+          plutil -lint "$app/Info.plist" > "$DIAGNOSTIC_ROOT/output/plist-lint.txt"
+          file "$app/Info.plist" "$app/Overte" > "$DIAGNOSTIC_ROOT/output/file-types.txt"
+          cat > "$DIAGNOSTIC_ROOT/bundle-check.swift" <<'SWIFT'
+          import Foundation
+          let path = CommandLine.arguments[1]
+          guard let bundle = Bundle(url: URL(fileURLWithPath: path)) else {
+              fatalError("Foundation could not construct the application bundle")
+          }
+          print("foundation_bundle_identifier=\(bundle.bundleIdentifier ?? "nil")")
+          let rawIdentifier = bundle.object(forInfoDictionaryKey: "CFBundleIdentifier") as? String
+          print("foundation_raw_identifier=\(rawIdentifier ?? "nil")")
+          print("foundation_executable=\(bundle.executableURL?.lastPathComponent ?? "nil")")
+          SWIFT
+          swift "$DIAGNOSTIC_ROOT/bundle-check.swift" "$app" \
+            > "$DIAGNOSTIC_ROOT/output/foundation-bundle.txt"
+          if codesign --verify --deep --strict --verbose=4 "$app" \
+              > "$DIAGNOSTIC_ROOT/output/original-codesign-verify.txt" 2>&1; then
+            echo signed > "$DIAGNOSTIC_ROOT/output/original-signing-state.txt"
+          else
+            echo unsigned > "$DIAGNOSTIC_ROOT/output/original-signing-state.txt"
+          fi
+
+      - name: Isolate executable resource mode in the complete Overte bundle
+        id: install
+        run: |
+          set -euo pipefail
+          original="$DIAGNOSTIC_ROOT/original/Overte.app"
+          xcode_version=26.3
+          expected_build=17C529
+          runtime_suffix=26-2
+          developer_dir="/Applications/Xcode_${xcode_version}.app/Contents/Developer"
+          test -x "$developer_dir/usr/bin/xcodebuild"
+          actual_build="$(DEVELOPER_DIR="$developer_dir" xcodebuild -version \
+            | awk '/Build version/{print $3}')"
+          [[ "$actual_build" == "$expected_build" ]]
+          runtime_json="$DIAGNOSTIC_ROOT/runtime-$xcode_version.json"
+          DEVELOPER_DIR="$developer_dir" xcrun simctl list runtimes --json > "$runtime_json"
+          runtime_id="$(python3 - "$runtime_json" "$runtime_suffix" <<'PY'
+          import json
+          import sys
+          runtimes = json.load(open(sys.argv[1], encoding="utf-8")).get("runtimes", [])
+          suffix = ".iOS-" + sys.argv[2]
+          matches = [r.get("identifier", "") for r in runtimes
+                     if r.get("isAvailable") and str(r.get("identifier", "")).endswith(suffix)]
+          if len(matches) != 1:
+              raise SystemExit(f"expected one available runtime ending {suffix}, got {matches}")
+          print(matches[0])
+          PY
+          )"
+
+          control_root="$DIAGNOSTIC_ROOT/control"
+          control_app="$control_root/Control.app"
+          mkdir -p "$control_app"
+          cat > "$control_root/main.m" <<'OBJC'
+          #import <UIKit/UIKit.h>
+          int main(int argc, char *argv[]) {
+              @autoreleasepool { return UIApplicationMain(argc, argv, nil, nil); }
+          }
+          OBJC
+          sdk_path="$(DEVELOPER_DIR="$developer_dir" xcrun --sdk iphonesimulator --show-sdk-path)"
+          DEVELOPER_DIR="$developer_dir" xcrun clang -fobjc-arc \
+            -isysroot "$sdk_path" -mios-simulator-version-min=17.0 \
+            -framework UIKit "$control_root/main.m" -o "$control_app/Control"
+          cat > "$control_app/Info.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+          <key>CFBundleExecutable</key><string>Control</string>
+          <key>CFBundleIdentifier</key><string>org.overte.install-control</string>
+          <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+          <key>CFBundleName</key><string>Control</string>
+          <key>CFBundlePackageType</key><string>APPL</string>
+          <key>CFBundleShortVersionString</key><string>1.0</string>
+          <key>CFBundleVersion</key><string>1</string>
+          <key>CFBundleSupportedPlatforms</key><array><string>iPhoneSimulator</string></array>
+          <key>LSRequiresIPhoneOS</key><true/>
+          <key>MinimumOSVersion</key><string>17.0</string>
+          <key>UIDeviceFamily</key><array><integer>1</integer><integer>2</integer></array>
+          </dict></plist>
+          PLIST
+
+          metadata_root="$DIAGNOSTIC_ROOT/metadata-control"
+          metadata_app="$metadata_root/MetadataControl.app"
+          mkdir -p "$metadata_app"
+          ditto "$control_app/Control" "$metadata_app/Control"
+          ditto "$original/Info.plist" "$metadata_app/Info.plist"
+          ditto "$original/PkgInfo" "$metadata_app/PkgInfo"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleExecutable Control' "$metadata_app/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier org.overte.metadata-control' "$metadata_app/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleName MetadataControl' "$metadata_app/Info.plist"
+
+          minimal_root="$DIAGNOSTIC_ROOT/overte-minimal"
+          minimal_app="$minimal_root/Overte.app"
+          mkdir -p "$minimal_app"
+          ditto "$original/Overte" "$minimal_app/Overte"
+          ditto "$original/Info.plist" "$minimal_app/Info.plist"
+          ditto "$original/PkgInfo" "$minimal_app/PkgInfo"
+
+          full_original_root="$DIAGNOSTIC_ROOT/full-original"
+          full_original_app="$full_original_root/Overte.app"
+          mkdir -p "$full_original_root"
+          ditto "$original" "$full_original_app"
+
+          normalized_root="$DIAGNOSTIC_ROOT/full-normalized"
+          normalized_app="$normalized_root/Overte.app"
+          mkdir -p "$normalized_root"
+          ditto "$original" "$normalized_app"
+          python3 - "$normalized_app" "$DIAGNOSTIC_ROOT/output/resource-modes.txt" <<'PY'
+          import os
+          from pathlib import Path
+          import stat
+          import sys
+
+          app = Path(sys.argv[1])
+          report = Path(sys.argv[2])
+          executable = app / "Overte"
+          expected = "scripts/system/assets/images/tools/snap.svg"
+
+          def executable_resources():
+              result = []
+              for path in app.rglob("*"):
+                  mode = path.lstat().st_mode
+                  if path != executable and stat.S_ISREG(mode) and mode & 0o111:
+                      result.append(path.relative_to(app).as_posix())
+              return sorted(result)
+
+          before = executable_resources()
+          if before != [expected]:
+              raise SystemExit(f"unexpected executable resources: {before}")
+          snap = app / expected
+          os.chmod(snap, snap.stat().st_mode & ~0o111)
+          after = executable_resources()
+          if after:
+              raise SystemExit(f"executable resources remain after normalization: {after}")
+          report.write_text(
+              "before=" + ",".join(before) + "\n" +
+              "after=" + ",".join(after) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          test -d "$normalized_app/resources"
+          test ! -e "$normalized_app/overte-resources"
+          mv "$normalized_app/resources" "$normalized_app/overte-resources"
+          swift "$DIAGNOSTIC_ROOT/bundle-check.swift" "$normalized_app" \
+            > "$DIAGNOSTIC_ROOT/output/full-normalized-foundation-before-signing.txt"
+
+          sign_bundle() {
+            local label="$1" app="$2" identifier="$3"
+            xattr -cr "$app"
+            codesign --force --deep --sign - --identifier "$identifier" --timestamp=none \
+              --generate-entitlement-der "$app" \
+              > "$DIAGNOSTIC_ROOT/output/$label-codesign.txt" 2>&1
+            codesign --verify --deep --strict --verbose=4 "$app" \
+              >> "$DIAGNOSTIC_ROOT/output/$label-codesign.txt" 2>&1
+            codesign -d --verbose=4 "$app" \
+              >> "$DIAGNOSTIC_ROOT/output/$label-codesign.txt" 2>&1
+            grep -Fx "Identifier=$identifier" "$DIAGNOSTIC_ROOT/output/$label-codesign.txt"
+            swift "$DIAGNOSTIC_ROOT/bundle-check.swift" "$app" \
+              > "$DIAGNOSTIC_ROOT/output/$label-foundation.txt"
+          }
+          sign_bundle control "$control_app" org.overte.install-control
+          sign_bundle metadata-control "$metadata_app" org.overte.metadata-control
+          sign_bundle overte-minimal "$minimal_app" "$BUNDLE_ID"
+          sign_bundle full-original "$full_original_app" "$BUNDLE_ID"
+          sign_bundle full-normalized "$normalized_app" "$BUNDLE_ID"
+          grep -Fx "foundation_bundle_identifier=$BUNDLE_ID" \
+            "$DIAGNOSTIC_ROOT/output/full-normalized-foundation.txt"
+          grep -Fx "foundation_raw_identifier=$BUNDLE_ID" \
+            "$DIAGNOSTIC_ROOT/output/full-normalized-foundation.txt"
+
+          device_name="Overte install diagnostic $GITHUB_RUN_ID $xcode_version"
+          udid="$(DEVELOPER_DIR="$developer_dir" xcrun simctl create "$device_name" \
+            com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro "$runtime_id")"
+          [[ "$udid" =~ ^[0-9A-Fa-f-]{36}$ ]]
+          cleanup_device() {
+            DEVELOPER_DIR="$developer_dir" xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
+            DEVELOPER_DIR="$developer_dir" xcrun simctl delete "$udid" >/dev/null 2>&1 || true
+          }
+          trap cleanup_device EXIT
+          DEVELOPER_DIR="$developer_dir" xcrun simctl boot "$udid"
+          DEVELOPER_DIR="$developer_dir" xcrun simctl bootstatus "$udid" -b
+
+          run_install() {
+            local label="$1" app="$2" identifier="$3" status
+            set +e
+            DEVELOPER_DIR="$developer_dir" xcrun simctl install "$udid" "$app" \
+              > "$DIAGNOSTIC_ROOT/output/$label-install.txt" 2>&1
+            status=$?
+            set -e
+            printf 'case=%s identifier=%s status=%s\n' "$label" "$identifier" "$status" \
+              | tee -a "$DIAGNOSTIC_ROOT/output/results.txt"
+            if ((status == 0)); then
+              DEVELOPER_DIR="$developer_dir" xcrun simctl io "$udid" screenshot \
+                "$DIAGNOSTIC_ROOT/output/$label-installed.png"
+              DEVELOPER_DIR="$developer_dir" xcrun simctl uninstall "$udid" "$identifier"
+            fi
+            return "$status"
+          }
+
+          control_status=0
+          run_install control "$control_app" org.overte.install-control || control_status=$?
+          metadata_status=0
+          run_install metadata-control "$metadata_app" org.overte.metadata-control || metadata_status=$?
+          minimal_status=0
+          run_install overte-minimal "$minimal_app" "$BUNDLE_ID" || minimal_status=$?
+          full_original_status=0
+          run_install full-original "$full_original_app" "$BUNDLE_ID" || full_original_status=$?
+          normalized_status=0
+          run_install full-normalized "$normalized_app" "$BUNDLE_ID" || normalized_status=$?
+          printf 'control_status=%s\nmetadata_status=%s\nminimal_status=%s\nfull_original_status=%s\nnormalized_status=%s\n' \
+            "$control_status" "$metadata_status" "$minimal_status" \
+            "$full_original_status" "$normalized_status" >> "$GITHUB_OUTPUT"
+          ((control_status == 0)) || { echo "minimal simulator control failed" >&2; exit 1; }
+          ((metadata_status == 0)) || { echo "processed Overte metadata is not a valid install bundle" >&2; exit 1; }
+          ((minimal_status == 0)) || { echo "Overte Mach-O prevents minimal bundle installation" >&2; exit 1; }
+          ((full_original_status != 0)) || { echo "original full bundle unexpectedly installed" >&2; exit 1; }
+          ((normalized_status == 0)) || { echo "normalizing the executable resource did not repair installation" >&2; exit 1; }
+          echo "PASS full Overte bundle installs after executable resource normalization"
+
+      - name: Upload bounded installation diagnostics
+        if: ${{ always() && !cancelled() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ios-simulator-install-diagnostic-${{ github.run_id }}
+          path: ${{ env.DIAGNOSTIC_ROOT }}/output
+          if-no-files-found: error
+          retention-days: 14
+
+  world-runtime-only:
+    name: Reuse exact candidate for world evidence or LLDB diagnosis
+    if: ${{ (inputs.world_runtime_only || inputs.lldb_runtime_only) && !inputs.symbolicate_existing_crash }}
+    # Reuse the exact Xcode/CoreSimulator pair from the trusted producer. The
+    # Xcode 16.4 fallback proved inconclusive when LaunchServices never created
+    # an app PID, while Xcode 26.5 launched this exact candidate and reached the
+    # first Metal pipeline deterministically.
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      RUNTIME_ROOT: ${{ github.workspace }}/build-ios/world-runtime-only
+      SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+      SOURCE_ARTIFACT_NAME: ${{ inputs.source_artifact_name }}
+      SOURCE_CANDIDATE_NAME: ${{ inputs.source_candidate_name }}
+      EXPECTED_SHA256: ${{ inputs.expected_sha256 }}
+      EXPECTED_SOURCE_REVISION: ${{ inputs.expected_source_revision }}
+      OVERTE_IOS_WORLD_DIAGNOSTICS_DIR: ${{ github.workspace }}/build-ios/world-runtime-only/raw-diagnostics
+      OVERTE_IOS_WORLD_TIMEOUT_SECONDS: 1200
+      BUNDLE_ID: org.overte.interface.dev
+    steps:
+      - name: Check out reviewed runtime harness without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Validate trusted world producer and exact candidate identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$SOURCE_ARTIFACT_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
+          [[ "$SOURCE_CANDIDATE_NAME" =~ ^[0-9]+-OverteIOSClient-Release-simulator[.]zip$ ]]
+          [[ "$EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$EXPECTED_SOURCE_REVISION" =~ ^[0-9a-f]{40}$ ]]
+          test ! -e "$RUNTIME_ROOT"
+          install -d -m 0700 "$RUNTIME_ROOT/source" "$RUNTIME_ROOT/evidence" \
+            "$RUNTIME_ROOT/raw-diagnostics" "$RUNTIME_ROOT/upload-diagnostics"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" > "$RUNTIME_ROOT/producer.json"
+          python3 - "$RUNTIME_ROOT/producer.json" <<'PY'
+          import json
+          import os
+          import pathlib
+          import sys
+
+          run = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          repository = run.get("head_repository") or {}
+          path = str(run.get("path", "")).split("@", 1)[0]
+          if run.get("status") != "completed" or run.get("conclusion") != "failure":
+              raise SystemExit("runtime source must be a completed failed world-evidence run")
+          if repository.get("full_name") != os.environ["GITHUB_REPOSITORY"]:
+              raise SystemExit("producer repository mismatch")
+          if run.get("head_branch") != "apple-ios":
+              raise SystemExit("producer branch mismatch")
+          if run.get("head_sha") != os.environ["EXPECTED_SOURCE_REVISION"]:
+              raise SystemExit("producer revision mismatch")
+          if path != ".github/workflows/ios-bootstrap.yml":
+              raise SystemExit("producer workflow is outside the trusted world boundary")
+          PY
+
+      - name: Download exact preserved simulator candidate without rebuilding
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ env.SOURCE_ARTIFACT_NAME }}
+          path: ${{ env.RUNTIME_ROOT }}/source
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
+
+      - name: Verify and expand exact runtime candidate
+        id: candidate
+        run: |
+          set -euo pipefail
+          candidate="$RUNTIME_ROOT/source/artifacts/$SOURCE_CANDIDATE_NAME"
+          if [[ ! -f "$candidate" ]]; then
+            candidate="$RUNTIME_ROOT/source/$SOURCE_CANDIDATE_NAME"
+          fi
+          manifest="${candidate%.zip}.json"
+          test -f "$candidate"
+          test -f "$manifest"
+          candidate_directory="$(dirname "$candidate")"
+          actual_sha="$(shasum -a 256 "$candidate" | awk '{print $1}')"
+          [[ "$actual_sha" == "$EXPECTED_SHA256" ]]
+          # Failure-preservation artifacts intentionally contain only the
+          # numbered candidate and manifest. Reconstruct the two canonical
+          # handoff pointers inside this private staging directory, then let
+          # the existing verifier check their exact equality and all payload
+          # metadata before expansion.
+          cp "$manifest" "$candidate_directory/LATEST-OverteIOSClient.json"
+          printf '%s\n' "$SOURCE_CANDIDATE_NAME" \
+            > "$candidate_directory/LATEST-OverteIOSClient.txt"
+          python3 ios/tools/verify-runtime-candidate.py "$candidate_directory" \
+            --mode simulator \
+            --expected-source-revision "$EXPECTED_SOURCE_REVISION" \
+            --expected-sha256 "$EXPECTED_SHA256" \
+            --github-output "$GITHUB_OUTPUT"
+          ditto -x -k "$candidate" "$RUNTIME_ROOT/expanded"
+          app="$RUNTIME_ROOT/expanded/Overte.app"
+          test -x "$app/Overte"
+          [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")" == "$BUNDLE_ID" ]]
+          read -r symbols_name symbols_sha < <(python3 - "$manifest" <<'PY'
+          import json
+          import pathlib
+          import sys
+          symbols = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")).get("debugSymbols")
+          if not isinstance(symbols, dict):
+              print("- -")
+          else:
+              print(symbols.get("artifact", "-"), symbols.get("sha256", "-"))
+          PY
+          )
+          symbol_binary="$app/Overte"
+          symbol_bundle=-
+          if [[ "$symbols_name" != - ]]; then
+            [[ "$symbols_name" =~ ^[0-9]+-OverteIOSClient-Release-simulator-symbols[.]zip$ ]]
+            [[ "$symbols_sha" =~ ^[0-9a-f]{64}$ ]]
+            symbols="$candidate_directory/$symbols_name"
+            test -f "$symbols"
+            [[ "$(shasum -a 256 "$symbols" | awk '{print $1}')" == "$symbols_sha" ]]
+            ditto -x -k "$symbols" "$RUNTIME_ROOT/symbols"
+            symbol_bundle="$RUNTIME_ROOT/symbols/Overte.app.dSYM"
+            symbol_binary="$symbol_bundle/Contents/Resources/DWARF/Overte"
+            test -f "$symbol_binary"
+          fi
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+          echo "manifest=$manifest" >> "$GITHUB_OUTPUT"
+          echo "symbol_binary=$symbol_binary" >> "$GITHUB_OUTPUT"
+          echo "symbol_bundle=$symbol_bundle" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve current overte_hub domain identity
+        if: ${{ !inputs.lldb_runtime_only }}
+        id: online-place
+        run: |
+          set -euo pipefail
+          response="$RUNTIME_ROOT/overte-place.json"
+          curl --fail --silent --show-error --retry 3 --max-time 30 \
+            https://mv.overte.org/server/api/v1/places/overte_hub > "$response"
+          domain="$(python3 - "$response" <<'PY'
+          import json
+          import pathlib
+          import re
+          import sys
+          payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          place = payload.get("data", {}).get("place", {})
+          domain = place.get("domain", {})
+          identifier = str(domain.get("id", "")).lower()
+          if payload.get("status") != "success" or place.get("name") != "overte_hub":
+              raise SystemExit("overte_hub place lookup did not resolve the requested place")
+          if domain.get("active") is not True:
+              raise SystemExit("overte_hub is not currently active")
+          if re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", identifier) is None:
+              raise SystemExit("overte_hub returned an invalid domain UUID")
+          print(identifier)
+          PY
+          )"
+          echo "domain=$domain" >> "$GITHUB_OUTPUT"
+
+      - name: Select stable Xcode 26.5 CoreSimulator runtime
+        run: |
+          set -euo pipefail
+          developer_dir=/Applications/Xcode_26.5.app/Contents/Developer
+          test -x "$developer_dir/usr/bin/xcodebuild"
+          xcode_build="$(DEVELOPER_DIR="$developer_dir" xcodebuild -version | awk '/Build version/{print $3}')"
+          [[ "$xcode_build" == 17F42 ]]
+          runtime_json="$RUNTIME_ROOT/runtimes.json"
+          DEVELOPER_DIR="$developer_dir" xcrun simctl list runtimes --json > "$runtime_json"
+          python3 - "$runtime_json" <<'PY'
+          import json
+          import pathlib
+          import sys
+          runtimes = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")).get("runtimes", [])
+          matches = [runtime for runtime in runtimes
+                     if runtime.get("identifier") == "com.apple.CoreSimulator.SimRuntime.iOS-26-5"
+                     and runtime.get("isAvailable") is True]
+          if len(matches) != 1:
+              raise SystemExit("expected exactly one available iOS 26.5 runtime")
+          PY
+          echo "DEVELOPER_DIR=$developer_dir" >> "$GITHUB_ENV"
+
+      - name: Load serverless and online worlds from preserved candidate
+        if: ${{ !inputs.lldb_runtime_only }}
+        id: worlds
+        continue-on-error: true
+        env:
+          ONLINE_DOMAIN: ${{ steps.online-place.outputs.domain }}
+          # Capture the mature hang without attaching LLDB. With no symbol
+          # bundle supplied the harness uses macOS sample, which previously
+          # captured all threads without terminating the Simulator process.
+          OVERTE_IOS_WORLD_STACK_SAMPLE_SECONDS: "900"
+        run: |
+          set -euo pipefail
+          app="${{ steps.candidate.outputs.app }}"
+          evidence="$RUNTIME_ROOT/evidence"
+          for family in iphone ipad; do
+            ios/ci/interface-world-simulator-smoke.sh \
+              "$app" "$BUNDLE_ID" "$family" serverless - "$evidence"
+            ios/ci/interface-world-simulator-smoke.sh \
+              "$app" "$BUNDLE_ID" "$family" online "$ONLINE_DOMAIN" "$evidence"
+          done
+          python3 ios/tools/validate-world-evidence-set.py "$evidence" \
+            --candidate-manifest "${{ steps.candidate.outputs.manifest }}" \
+            --source-revision "$EXPECTED_SOURCE_REVISION" \
+            --candidate-sha256 "$EXPECTED_SHA256" \
+            --output "$RUNTIME_ROOT/world-evidence-set.json"
+
+      - name: Capture preserved candidate SIGSEGV with LLDB
+        if: ${{ inputs.lldb_runtime_only }}
+        id: lldb
+        continue-on-error: true
+        env:
+          # Default to the timing-preserving late attach, but permit an
+          # explicit stop-at-launch capture when the crash outruns it.
+          OVERTE_IOS_LLDB_ATTACH_AFTER_WORLD_GATE: ${{ inputs.lldb_wait_for_debugger && '0' || '1' }}
+          # A state probe needs the entity handoff to finish before reading the
+          # camera. Crash capture keeps the earlier queue-submit boundary.
+          OVERTE_IOS_LLDB_ATTACH_GATE: ${{ inputs.lldb_interrupt_after_seconds != '0' && 'render_handoff' || 'queue_submit_begin' }}
+          OVERTE_IOS_LLDB_ATTACH_DELAY_SECONDS: "0"
+          OVERTE_IOS_LLDB_WAIT_FOR_DEBUGGER: ${{ inputs.lldb_wait_for_debugger && '1' || '0' }}
+          OVERTE_IOS_LLDB_INTERRUPT_AFTER_SECONDS: ${{ inputs.lldb_interrupt_after_seconds }}
+          OVERTE_IOS_LLDB_STATE_PROBE: ${{ inputs.lldb_interrupt_after_seconds != '0' && '1' || '0' }}
+          OVERTE_IOS_LLDB_MVK_TRACE_VULKAN_CALLS: ${{ inputs.lldb_interrupt_after_seconds != '0' && '0' || '6' }}
+          OVERTE_IOS_LLDB_SIMULATOR_BOOT_TIMEOUT_SECONDS: "120"
+        run: |
+          set -euo pipefail
+          symbol_bundle="${{ steps.candidate.outputs.symbol_bundle }}"
+          [[ "$symbol_bundle" != - ]] || {
+            echo "the preserved candidate has no matching dSYM" >&2
+            exit 2
+          }
+          ios/ci/interface-world-simulator-lldb.sh \
+            "${{ steps.candidate.outputs.app }}" \
+            "$symbol_bundle" \
+            "$BUNDLE_ID" \
+            iphone \
+            "$EXPECTED_SOURCE_REVISION" \
+            "$EXPECTED_SHA256" \
+            "$RUNTIME_ROOT/raw-diagnostics"
+
+      - name: Sanitize runtime-only failure diagnostics
+        if: ${{ always() && (steps.worlds.outcome == 'failure' || steps.lldb.outcome == 'failure') }}
+        run: |
+          set -euo pipefail
+          app="${{ steps.candidate.outputs.app }}"
+          symbol_binary="${{ steps.candidate.outputs.symbol_binary }}"
+          for crash in "$RUNTIME_ROOT"/raw-diagnostics/*-overte-crash-report.log; do
+            [[ -s "$crash" ]] || continue
+            symbolicated="${crash%-overte-crash-report.log}-symbolicated-crash.json"
+            if ! python3 ios/tools/symbolicate-simulator-crash.py \
+              "$crash" "$symbol_binary" "$symbolicated"; then
+              # Driver/service crash reports (for example SimMetalHost) do not
+              # contain one Overte image. Preserve their sanitized raw report
+              # instead of letting optional symbolication suppress all logs.
+              rm -f "$symbolicated"
+              echo "::warning::Overte symbolication was not applicable; preserving sanitized raw crash diagnostics"
+            fi
+          done
+          for source in "$RUNTIME_ROOT"/raw-diagnostics/*.log; do
+            [[ -f "$source" ]] || continue
+            python3 ios/tools/sanitize-ci-log.py "$source" \
+              "$RUNTIME_ROOT/upload-diagnostics/$(basename "$source")"
+          done
+          for source in "$RUNTIME_ROOT"/raw-diagnostics/*-symbolicated-crash.json; do
+            [[ -f "$source" ]] || continue
+            python3 ios/tools/sanitize-ci-log.py "$source" \
+              "$RUNTIME_ROOT/upload-diagnostics/$(basename "$source")"
+          done
+          for source_dir in "$RUNTIME_ROOT"/raw-diagnostics/*-moltenvk-shaders; do
+            [[ -d "$source_dir" ]] || continue
+            destination="$RUNTIME_ROOT/upload-diagnostics/$(basename "$source_dir")"
+            if ! python3 ios/tools/prepare-moltenvk-diagnostics.py \
+              "$source_dir" "$destination"; then
+              rm -rf "$destination"
+              echo "::warning::MoltenVK diagnostics failed validation and will not be uploaded"
+            fi
+          done
+
+      - name: Upload runtime-only world evidence and diagnostics
+        if: ${{ always() && !cancelled() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ios-world-${{ inputs.lldb_runtime_only && 'lldb' || 'runtime-only' }}-${{ github.run_id }}
+          path: |
+            ${{ env.RUNTIME_ROOT }}/evidence/*.png
+            ${{ env.RUNTIME_ROOT }}/evidence/*-screenshot.json
+            ${{ env.RUNTIME_ROOT }}/evidence/*-runtime.json
+            ${{ env.RUNTIME_ROOT }}/world-evidence-set.json
+            ${{ env.RUNTIME_ROOT }}/upload-diagnostics
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Require successful preserved-candidate runtime evidence
+        if: ${{ always() && !cancelled() && !inputs.lldb_runtime_only }}
+        run: |
+          [[ "${{ steps.worlds.outcome }}" == success ]]
+
+      - name: Require captured LLDB crash and keep runtime acceptance red
+        if: ${{ always() && !cancelled() && inputs.lldb_runtime_only }}
+        run: |
+          set -euo pipefail
+          result="$RUNTIME_ROOT/upload-diagnostics/iphone-serverless-lldb-result.log"
+          test -s "$result"
+          grep -Eq '^capture_status=(captured_sigsegv|captured_interrupt|captured_state)$' "$result"
+          [[ "${{ steps.lldb.outcome }}" == failure ]]
+          echo "LLDB captured the simulator failure stack; runtime acceptance remains failed" >&2
+          exit 1
+
+  symbolicate-existing-crash:
+    name: Symbolicate preserved Simulator crash without rebuilding
+    if: ${{ inputs.symbolicate_existing_crash }}
+    runs-on: macos-15
+    timeout-minutes: 17
+    env:
+      SYMBOLICATE_ROOT: ${{ github.workspace }}/build-ios/symbolicate-existing-crash
+      SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+      SOURCE_ARTIFACT_NAME: ${{ inputs.source_artifact_name }}
+      SOURCE_CANDIDATE_NAME: ${{ inputs.source_candidate_name }}
+      EXPECTED_SHA256: ${{ inputs.expected_sha256 }}
+      EXPECTED_SOURCE_REVISION: ${{ inputs.expected_source_revision }}
+      CRASH_RUN_ID: ${{ inputs.crash_run_id }}
+      CRASH_ARTIFACT_NAME: ${{ inputs.crash_artifact_name }}
+    steps:
+      - name: Check out reviewed symbolication helper without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Validate trusted candidate and crash producers
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$CRASH_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$SOURCE_ARTIFACT_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
+          [[ "$CRASH_ARTIFACT_NAME" =~ ^ios-world-runtime-only-[1-9][0-9]*$ ]]
+          [[ "$SOURCE_CANDIDATE_NAME" =~ ^[0-9]+-OverteIOSClient-Release-simulator[.]zip$ ]]
+          [[ "$EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$EXPECTED_SOURCE_REVISION" =~ ^[0-9a-f]{40}$ ]]
+          test ! -e "$SYMBOLICATE_ROOT"
+          install -d -m 0700 "$SYMBOLICATE_ROOT/candidate" \
+            "$SYMBOLICATE_ROOT/crash" "$SYMBOLICATE_ROOT/output"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" \
+            > "$SYMBOLICATE_ROOT/candidate-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CRASH_RUN_ID" \
+            > "$SYMBOLICATE_ROOT/crash-run.json"
+          python3 - "$SYMBOLICATE_ROOT/candidate-run.json" \
+            "$SYMBOLICATE_ROOT/crash-run.json" <<'PY'
+          import json
+          import os
+          import pathlib
+          import sys
+
+          candidate = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          crash = json.loads(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8"))
+          repository = os.environ["GITHUB_REPOSITORY"]
+          candidate_path = str(candidate.get("path", "")).split("@", 1)[0]
+          crash_path = str(crash.get("path", "")).split("@", 1)[0]
+          if candidate.get("status") != "completed" or candidate.get("conclusion") != "failure":
+              raise SystemExit("candidate producer must be the reviewed failed world run")
+          if (candidate.get("head_repository") or {}).get("full_name") != repository:
+              raise SystemExit("candidate producer repository mismatch")
+          if candidate.get("head_branch") != "apple-ios":
+              raise SystemExit("candidate producer branch mismatch")
+          if candidate.get("head_sha") != os.environ["EXPECTED_SOURCE_REVISION"]:
+              raise SystemExit("candidate producer revision mismatch")
+          if candidate_path != ".github/workflows/ios-bootstrap.yml":
+              raise SystemExit("candidate producer workflow mismatch")
+          if crash.get("status") != "completed" or crash.get("conclusion") != "failure":
+              raise SystemExit("crash producer must be a completed failed runtime run")
+          if (crash.get("head_repository") or {}).get("full_name") != repository:
+              raise SystemExit("crash producer repository mismatch")
+          if crash.get("head_branch") != "apple-ios":
+              raise SystemExit("crash producer branch mismatch")
+          if crash_path != ".github/workflows/ios-simulator-install-diagnostic.yml":
+              raise SystemExit("crash producer workflow mismatch")
+          PY
+
+      - name: Download exact preserved candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ env.SOURCE_ARTIFACT_NAME }}
+          path: ${{ env.SYMBOLICATE_ROOT }}/candidate
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
+
+      - name: Download exact preserved crash report
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ env.CRASH_ARTIFACT_NAME }}
+          path: ${{ env.SYMBOLICATE_ROOT }}/crash
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.CRASH_RUN_ID }}
+
+      - name: Verify binary identity and symbolicate crash
+        run: |
+          set -euo pipefail
+          candidate="$SYMBOLICATE_ROOT/candidate/artifacts/$SOURCE_CANDIDATE_NAME"
+          manifest="${candidate%.zip}.json"
+          crash="$SYMBOLICATE_ROOT/crash/upload-diagnostics/iphone-serverless-crash-report.log"
+          test -f "$candidate"
+          test -f "$manifest"
+          test -f "$crash"
+          [[ "$(shasum -a 256 "$candidate" | awk '{print $1}')" == "$EXPECTED_SHA256" ]]
+          ditto -x -k "$candidate" "$SYMBOLICATE_ROOT/expanded"
+          binary="$SYMBOLICATE_ROOT/expanded/Overte.app/Overte"
+          test -x "$binary"
+          read -r symbols_name symbols_sha < <(python3 - "$manifest" <<'PY'
+          import json
+          import pathlib
+          import sys
+          symbols = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")).get("debugSymbols")
+          if not isinstance(symbols, dict):
+              print("- -")
+          else:
+              print(symbols.get("artifact", "-"), symbols.get("sha256", "-"))
+          PY
+          )
+          if [[ "$symbols_name" != - ]]; then
+            [[ "$symbols_name" =~ ^[0-9]+-OverteIOSClient-Release-simulator-symbols[.]zip$ ]]
+            [[ "$symbols_sha" =~ ^[0-9a-f]{64}$ ]]
+            symbols="$SYMBOLICATE_ROOT/candidate/artifacts/$symbols_name"
+            test -f "$symbols"
+            [[ "$(shasum -a 256 "$symbols" | awk '{print $1}')" == "$symbols_sha" ]]
+            ditto -x -k "$symbols" "$SYMBOLICATE_ROOT/symbols"
+            binary="$SYMBOLICATE_ROOT/symbols/Overte.app.dSYM/Contents/Resources/DWARF/Overte"
+            test -f "$binary"
+          fi
+          python3 ios/tools/symbolicate-simulator-crash.py \
+            "$crash" "$binary" "$SYMBOLICATE_ROOT/output/iphone-serverless-symbolicated-crash.json"
+
+      - name: Upload symbolicated Simulator crash
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ios-symbolicated-crash-${{ github.run_id }}
+          path: ${{ env.SYMBOLICATE_ROOT }}/output
+          if-no-files-found: error
+          retention-days: 14

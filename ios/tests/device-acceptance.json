@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "requiredFormFactors": ["iphone", "ipad"],
+  "cases": [
+    { "id": "install-launch", "category": "lifecycle", "deviceOnly": true },
+    { "id": "foreground-background-10x", "category": "lifecycle", "deviceOnly": true },
+    { "id": "memory-warning-recovery", "category": "lifecycle", "deviceOnly": true },
+    { "id": "domain-connect", "category": "network", "deviceOnly": true },
+    { "id": "network-loss-reconnect", "category": "network", "deviceOnly": true },
+    { "id": "reference-world-frame", "category": "graphics", "deviceOnly": true },
+    { "id": "camera-motion-30-minutes", "category": "graphics", "deviceOnly": true },
+    { "id": "touch-move-look", "category": "input", "deviceOnly": true },
+    { "id": "software-keyboard", "category": "input", "deviceOnly": true },
+    { "id": "audio-output-route-change", "category": "audio", "deviceOnly": true },
+    { "id": "microphone-consent-capture", "category": "audio", "deviceOnly": true },
+    { "id": "voice-interruption-recovery", "category": "audio", "deviceOnly": true },
+    { "id": "safe-area-all-orientations", "category": "layout", "deviceOnly": true },
+    { "id": "ipad-resize", "category": "layout", "deviceOnly": true },
+    { "id": "ipad-split-view-resize", "category": "layout", "deviceOnly": true },
+    { "id": "voiceover-navigation", "category": "accessibility", "deviceOnly": true },
+    { "id": "dynamic-type-xxxl", "category": "accessibility", "deviceOnly": true },
+    { "id": "reduce-motion", "category": "accessibility", "deviceOnly": true },
+    { "id": "ipad-pointer-hover", "category": "accessibility", "deviceOnly": true },
+    { "id": "thermal-memory-budget", "category": "performance", "deviceOnly": true },
+    { "id": "jitless-script-suite", "category": "scripting", "deviceOnly": true },
+    { "id": "privacy-permission-review", "category": "privacy", "deviceOnly": true }
+  ]
+}

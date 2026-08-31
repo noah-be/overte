@@ -16,7 +16,7 @@ Rectangle {
     property alias inputText: input;
     property alias dialogButtons: buttons
 
-    property string imageSource: null
+    property string imageSource: ""
 
     property string button1color: hifi.buttons.noneBorderlessGray;
     property string button1text: ''

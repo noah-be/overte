@@ -250,6 +250,7 @@ signals:
 
 public slots:
     void removeModalDialog(QObject* modal);
+    bool handleMobilePointerEvent(const PointerEvent& event);
 
 private slots:
     void hoverBeginEvent(const PointerEvent& event);

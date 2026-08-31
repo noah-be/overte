@@ -22,6 +22,7 @@
 #include <QtQml/QJSValue>
 
 class QWindow;
+class QImage;
 class QOpenGLContext;
 class QQmlContext;
 class QQmlEngine;
@@ -45,6 +46,17 @@ class OffscreenSurface : public QObject {
     Q_OBJECT
 
 public:
+    struct SharedGraphicsContext {
+        enum class Backend {
+            Unsupported,
+            OpenGL,
+            Software,
+        };
+
+        Backend backend { Backend::Unsupported };
+        void* handle { nullptr };
+    };
+
     static const QmlContextObjectCallback DEFAULT_CONTEXT_OBJECT_CALLBACK;
     static const QmlContextCallback DEFAULT_CONTEXT_CALLBACK;
     static QmlUrlValidator validator;
@@ -54,6 +66,9 @@ public:
 
     static const QmlUrlValidator& getUrlValidator() { return validator; }
     static void setUrlValidator(const QmlUrlValidator& newValidator) { validator = newValidator; }
+    // Backend-neutral boundary for Interface. Returns false without mutating
+    // state when the producer backend is not implemented by Offscreen QML.
+    static bool configureSharedGraphicsContext(const SharedGraphicsContext& context);
     static void setSharedContext(QOpenGLContext* context);
 
     OffscreenSurface();
@@ -84,6 +99,9 @@ public:
     // when the texture is safe to read.
     // Returns false if no new texture is available
     bool fetchTexture(TextureAndFence& textureAndFence);
+    // Software-rendered Qt Quick frames are used on iOS, where MoltenVK cannot
+    // import the legacy external OpenGL texture produced by this subsystem.
+    bool fetchImage(QImage& image);
 
     static std::function<void(uint32_t, void*)> getDiscardLambda();
     static size_t getUsedTextureMemory();
@@ -120,11 +138,13 @@ protected:
                               bool createNewContext,
                               QQuickItem* parent,
                               const QmlContextObjectCallback& callback,
-                              const QmlContextCallback& contextCallback = DEFAULT_CONTEXT_CALLBACK) final;
+                              const QmlContextCallback& contextCallback = DEFAULT_CONTEXT_CALLBACK,
+                              bool completeBeforeCallback = false) final;
     virtual void finishQmlLoad(QQmlComponent* qmlComponent,
                                QQmlContext* qmlContext,
                                QQuickItem* parent,
-                               const QmlContextObjectCallback& onQmlLoadedCallback) final;
+                               const QmlContextObjectCallback& onQmlLoadedCallback,
+                               bool completeBeforeCallback) final;
 
     virtual void onRootCreated() {}
     virtual void onItemCreated(QQmlContext* context, QQuickItem* newItem) {}

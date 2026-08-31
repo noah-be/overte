@@ -16,6 +16,7 @@
 #include <glm/gtx/transform.hpp>
 #include <ObjectMotionState.h>
 #include <render/TransitionStage.h>
+#include <shared/IOSRuntimeLogging.h>
 
 #include "RenderableShapeEntityItem.h"
 #include "RenderableModelEntityItem.h"
@@ -408,6 +409,22 @@ void EntityRenderer::render(RenderArgs* args) {
     }
 
     if (_visible && (!_cauterized || args->_renderMode != RenderArgs::RenderMode::DEFAULT_RENDER_MODE || args->_mirrorDepth > 0)) {
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+        if (recordIOSRuntimeDrawnEntity(_entity->getID().toString()) &&
+                iosRuntimeRenderDiagnosticsEnabled()) {
+            const auto evidence = iosRuntimeEntityEvidenceSnapshot();
+            if (evidence.drawn == 1) {
+                const auto position = _entity->getWorldPosition();
+                logIOSRuntimeMarker("OVERTE_IOS_ENTITY_TRACE stage=render_enter",
+                                    "mode=", iosRuntimeRenderDiagnosticMode(),
+                                    "entity=", _entity->getID().toString(),
+                                    "type=", EntityTypes::getEntityTypeName(_entity->getType()),
+                                    "position=", position.x, position.y, position.z,
+                                    "render_mode=", static_cast<int>(args->_renderMode),
+                                    "mirror_depth=", args->_mirrorDepth);
+            }
+        }
+#endif
         doRender(args);
     }
 }
@@ -545,6 +562,20 @@ void EntityRenderer::updateInScene(const ScenePointer& scene, Transaction& trans
         }
         // Happens on the render thread.  Classes should use
         doRenderUpdateAsynchronous(_entity);
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+        if (recordIOSRuntimeSceneEntity(_entity->getID().toString()) &&
+                iosRuntimeRenderDiagnosticsEnabled()) {
+            const auto evidence = iosRuntimeEntityEvidenceSnapshot();
+            if (evidence.scene == 1) {
+                const auto position = _entity->getWorldPosition();
+                logIOSRuntimeMarker("OVERTE_IOS_ENTITY_TRACE stage=scene_applied",
+                                    "mode=", iosRuntimeRenderDiagnosticMode(),
+                                    "entity=", _entity->getID().toString(),
+                                    "type=", EntityTypes::getEntityTypeName(_entity->getType()),
+                                    "position=", position.x, position.y, position.z);
+            }
+        }
+#endif
     });
 }
 

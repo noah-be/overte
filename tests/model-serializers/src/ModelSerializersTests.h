@@ -19,6 +19,7 @@ class ModelSerializersTests : public QObject {
 
 private slots:
     void initTestCase();
+    void loadFBX();
     void loadGLTF_data();
     void loadGLTF();
 

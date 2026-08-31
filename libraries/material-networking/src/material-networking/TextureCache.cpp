@@ -711,6 +711,35 @@ void NetworkTexture::startRequestForNextMipLevel() {
     }
 }
 
+void NetworkTexture::setOriginalDescriptor(ktx::KTXDescriptor* descriptor) {
+    _originalKtxDescriptor.reset(descriptor);
+#if defined(Q_OS_IOS)
+    if (!_originalKtxDescriptor || _originalKtxDescriptor->header.isCompressed()) {
+        return;
+    }
+
+    // Physical Apple GPUs do not expose BC texture compression through Metal.
+    // Texture meta files can therefore fall back to RGBA KTX. Do not stream its
+    // largest mips: a handful of 4K RGBA assets can otherwise push Interface
+    // beyond the iPadOS per-process limit before Vulkan residency management
+    // has an opportunity to demote them.
+    constexpr uint64_t IOS_UNCOMPRESSED_MAX_PIXELS { 1024ULL * 1024ULL };
+    uint64_t width = _originalKtxDescriptor->header.getPixelWidth();
+    uint64_t height = _originalKtxDescriptor->header.getPixelHeight();
+    uint16_t minimumMip = 0;
+    while (width * height > IOS_UNCOMPRESSED_MAX_PIXELS &&
+           minimumMip + 1 < _originalKtxDescriptor->header.numberOfMipmapLevels) {
+        width = std::max<uint64_t>(1, width / 2);
+        height = std::max<uint64_t>(1, height / 2);
+        ++minimumMip;
+    }
+    _lowestRequestedMipLevel = std::max(_lowestRequestedMipLevel, minimumMip);
+    qCInfo(materialnetworking) << "OVERTE_IOS_TEXTURE_FALLBACK"
+                               << "minimumMip" << minimumMip
+                               << "maxPixels" << IOS_UNCOMPRESSED_MAX_PIXELS;
+#endif
+}
+
 // Load mips in the range [low, high] (inclusive)
 void NetworkTexture::startMipRangeRequest(uint16_t low, uint16_t high) {
     if (_ktxMipRequest) {
@@ -1385,7 +1414,7 @@ NetworkTexturePointer TextureCache::getTextureByUUID(const QString& uuid) {
         // We mark this as a resource texture because it's just a reference to another texture.  The source
         // texture will be marked properly
         NetworkTexturePointer toReturn = NetworkTexturePointer::create(uuid, true);
-        toReturn->setImageOperator(Texture::getTextureForUUIDOperator(uuid));
+        toReturn->setImageOperator(Texture::getTextureForUUIDOperator(quuid));
         return toReturn;
     }
     return NetworkTexturePointer();

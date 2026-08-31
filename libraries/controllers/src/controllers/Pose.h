@@ -12,6 +12,8 @@
 #pragma once
 #ifndef hifi_controllers_Pose_h
 #define hifi_controllers_Pose_h
+#include <QtCore/QMetaType>
+
 #include <ScriptValue.h>
 
 class ScriptEngine;
@@ -51,6 +53,6 @@ namespace controller {
     };
 }
 
-//Q_DECLARE_METATYPE(controller::Pose);
+Q_DECLARE_METATYPE(controller::Pose)
 
 #endif

@@ -10,16 +10,21 @@
 //
 
 #include "AudioFileWav.h"
+#include "AudioDeviceCompat.h"
 
 bool AudioFileWav::create(const QAudioFormat& audioFormat, const QString& filepath) {
     if (_file.isOpen()) {
         _file.close();
     }
+    const int sampleSize = hifiAudioSampleSize(audioFormat);
+    if (sampleSize <= 0) {
+        return false;
+    }
     _file.setFileName(filepath);
     if (!_file.open(QIODevice::WriteOnly)) {
         return false;
     }
-    addHeader(audioFormat);
+    addHeader(audioFormat, sampleSize);
     return true;
 }
 
@@ -44,7 +49,7 @@ void AudioFileWav::close() {
     _file.close();
 }
 
-void AudioFileWav::addHeader(const QAudioFormat& audioFormat) {
+void AudioFileWav::addHeader(const QAudioFormat& audioFormat, int sampleSize) {
     QDataStream stream(&_file);
 
     stream.setByteOrder(QDataStream::LittleEndian);
@@ -60,9 +65,9 @@ void AudioFileWav::addHeader(const QAudioFormat& audioFormat) {
     stream << quint16(1);
     stream << quint16(audioFormat.channelCount());
     stream << quint32(audioFormat.sampleRate());
-    stream << quint32(audioFormat.sampleRate() * audioFormat.channelCount() * audioFormat.sampleSize() / 8); // bytes per second
-    stream << quint16(audioFormat.channelCount() * audioFormat.sampleSize() / 8); // block align
-    stream << quint16(audioFormat.sampleSize()); // bits Per Sample
+    stream << quint32(audioFormat.sampleRate() * audioFormat.channelCount() * sampleSize / 8); // bytes per second
+    stream << quint16(audioFormat.channelCount() * sampleSize / 8); // block align
+    stream << quint16(sampleSize); // bits Per Sample
     // Init data chunck
     stream.writeRawData("data", 4);
     stream << quint32(0);

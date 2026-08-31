@@ -96,6 +96,12 @@ int PluginManager::instantiate() {
     static std::once_flag once;
     static LoaderList loadedPlugins;
     std::call_once(once, [&] {
+#if defined(Q_OS_IOS)
+        // Native iOS code is statically linked and signed. Providers are
+        // enumerated through QPluginLoader::staticInstances() by their typed
+        // consumers; never scan the application bundle for loadable dylibs.
+        qInfo() << "Using" << QPluginLoader::staticInstances().size() << "statically linked iOS plugin providers";
+#else
 #if defined(Q_OS_ANDROID)
         QString pluginPath = QCoreApplication::applicationDirPath() + "/";
 #elif defined(Q_OS_MAC)
@@ -176,6 +182,7 @@ int PluginManager::instantiate() {
         } else {
             qWarning() << "pluginPath does not exit..." << pluginDir;
         }
+#endif
     });
     return loadedPlugins;
 }
@@ -191,6 +198,18 @@ const CodecPluginList& PluginManager::getCodecPlugins() {
     std::call_once(once, [&] {
         codecPlugins = _codecPluginProvider();
 
+#if defined(Q_OS_IOS)
+        for (QObject* instance : QPluginLoader::staticInstances()) {
+            CodecProvider* codecProvider = qobject_cast<CodecProvider*>(instance);
+            if (codecProvider) {
+                for (const auto& codecPlugin : codecProvider->getCodecPlugins()) {
+                    if (codecPlugin->isSupported()) {
+                        codecPlugins.push_back(codecPlugin);
+                    }
+                }
+            }
+        }
+#else
         // Now grab the dynamic plugins
         for (auto loader : getLoadedPlugins()) {
             CodecProvider* codecProvider = qobject_cast<CodecProvider*>(loader->instance());
@@ -202,6 +221,7 @@ const CodecPluginList& PluginManager::getCodecPlugins() {
                 }
             }
         }
+#endif
 
         for (auto plugin : codecPlugins) {
             plugin->setContainer(_container);

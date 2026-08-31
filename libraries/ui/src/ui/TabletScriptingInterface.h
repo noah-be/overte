@@ -281,10 +281,10 @@ public:
      */
     Q_INVOKABLE void gotoHomeScreen();
 
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
     // Presents the established tablet window as a full-screen, screen-space
-    // surface. This keeps the Tablet scripting API intact while avoiding the
-    // VR-only WebTablet entity/overlay path.
+    // mobile surface. The historical method names remain part of the script
+    // API while iOS reuses the same platform-neutral presentation path.
     Q_INVOKABLE void showAndroidTablet(int width, int height);
     Q_INVOKABLE void resizeAndroidTablet(int width, int height);
     Q_INVOKABLE void hideAndroidTablet();
@@ -497,6 +497,12 @@ public:
 
     QQuickItem* getTabletRoot() const { return _qmlTabletRoot; }
 
+#if defined(Q_OS_IOS)
+    // Native iOS accessibility observes the active screen-space tablet host.
+    // This is intentionally not exposed to scripts.
+    QQuickItem* getIOSTabletRoot() const;
+#endif
+
     OffscreenQmlSurface* getTabletSurface();
 
     QQuickItem* getQmlTablet() const;
@@ -591,8 +597,8 @@ protected:
     QPointer<QmlWindowClass> _desktopWindow;
     bool _toolbarMode { false };
     bool _tabletShown { false };
-#if defined(ANDROID_APP_PHONE_INTERFACE)
-    bool _androidScreenSpaceMode { false };
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
+    bool _screenSpaceMode { false };
 #endif
 
     enum class State { Uninitialized, Home, Web, Menu, QML };

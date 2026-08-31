@@ -1,0 +1,194 @@
+name: iOS normalize unsigned IPA for Sideloadly
+
+on:
+  push:
+    branches:
+      - apple-ios
+    paths:
+      - .github/workflows/ios-sideload-repackage.yml
+      - ios/ci/verify-apple-bundle.swift
+      - ios/tools/normalize-sideload-ipa.py
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: Successful iOS integrated producer run ID
+        required: true
+        default: "31796177166"
+        type: string
+      source_artifact_name:
+        description: Exact GitHub artifact containing the unsigned device IPA
+        required: true
+        default: "206-overte-ios-integrated-device-31796177166"
+        type: string
+      source_ipa_name:
+        description: Exact unsigned IPA filename inside the artifact
+        required: true
+        default: "0206-OverteIOSClient-Release-device-unsigned.ipa"
+        type: string
+      expected_sha256:
+        description: Approved SHA-256 of the source unsigned IPA
+        required: true
+        default: "60a051318089d56665b66707380f73ca9f90cbe99effe03e207b97420d7bff68"
+        type: string
+      bundle_id:
+        description: Unique bundle identifier embedded before Sideloadly signing
+        required: true
+        default: "org.overte.interface.sideload.b206"
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ios-sideload-repackage-${{ inputs.expected_sha256 || '60a051318089d56665b66707380f73ca9f90cbe99effe03e207b97420d7bff68' }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  normalize-and-verify:
+    name: Normalize and verify unsigned device IPA
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      SIDELOAD_ROOT: ${{ github.workspace }}/build-ios/sideload-${{ github.run_id }}-${{ github.run_attempt }}
+      SOURCE_RUN_ID: ${{ inputs.source_run_id || '31796177166' }}
+      SOURCE_ARTIFACT_NAME: ${{ inputs.source_artifact_name || '206-overte-ios-integrated-device-31796177166' }}
+      SOURCE_IPA_NAME: ${{ inputs.source_ipa_name || '0206-OverteIOSClient-Release-device-unsigned.ipa' }}
+      EXPECTED_SHA256: ${{ inputs.expected_sha256 || '60a051318089d56665b66707380f73ca9f90cbe99effe03e207b97420d7bff68' }}
+      SOURCE_BUNDLE_ID: org.overte.interface.dev
+      BUNDLE_ID: ${{ inputs.bundle_id || 'org.overte.interface.sideload.b206' }}
+    steps:
+      - name: Check out reviewed normalizer without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Validate exact trusted producer and requested identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$SOURCE_ARTIFACT_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]
+          [[ "$SOURCE_IPA_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*-device-unsigned[.]ipa$ ]]
+          [[ "$EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$BUNDLE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9-]*(\.[A-Za-z0-9][A-Za-z0-9-]*)+$ ]]
+          test ! -e "$SIDELOAD_ROOT"
+          install -d -m 0700 "$SIDELOAD_ROOT/source" "$SIDELOAD_ROOT/output" \
+            "$SIDELOAD_ROOT/source-expanded" "$SIDELOAD_ROOT/native-payload" \
+            "$SIDELOAD_ROOT/expanded"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" > "$SIDELOAD_ROOT/producer.json"
+          python3 - "$SIDELOAD_ROOT/producer.json" <<'PY'
+          import json
+          import os
+          import pathlib
+          import sys
+
+          payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          allowed_paths = {
+              ".github/workflows/ios-bootstrap.yml",
+              ".github/workflows/ios-integrated.yml",
+          }
+          path = str(payload.get("path", "")).split("@", 1)[0]
+          repository = payload.get("head_repository") or {}
+          if payload.get("status") != "completed" or payload.get("conclusion") != "success":
+              raise SystemExit("source producer run did not complete successfully")
+          if repository.get("full_name") != os.environ["GITHUB_REPOSITORY"]:
+              raise SystemExit("source producer repository mismatch")
+          if payload.get("head_branch") != "apple-ios" or path not in allowed_paths:
+              raise SystemExit("source producer is outside the trusted iOS workflow boundary")
+          PY
+
+      - name: Download exact source artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ env.SOURCE_ARTIFACT_NAME }}
+          path: ${{ env.SIDELOAD_ROOT }}/source
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ env.SOURCE_RUN_ID }}
+
+      - name: Normalize IPA with explicit unique bundle identifier
+        run: |
+          set -euo pipefail
+          intermediate="$SIDELOAD_ROOT/normalized-intermediate.ipa"
+          intermediate_manifest="$SIDELOAD_ROOT/normalized-intermediate.json"
+          output="$SIDELOAD_ROOT/output/Overte-iPad-Sideloadly-normalized.ipa"
+          manifest="$SIDELOAD_ROOT/output/Overte-iPad-Sideloadly-normalized.json"
+          python3 ios/tools/normalize-sideload-ipa.py \
+            "$SIDELOAD_ROOT/source/$SOURCE_IPA_NAME" "$intermediate" \
+            --bundle-id "$BUNDLE_ID" \
+            --expected-sha256 "$EXPECTED_SHA256" \
+            --manifest "$intermediate_manifest"
+          ditto -x -k "$intermediate" "$SIDELOAD_ROOT/native-payload"
+          ditto -c -k --norsrc --keepParent \
+            "$SIDELOAD_ROOT/native-payload/Payload" "$output"
+          python3 - "$intermediate_manifest" "$output" "$manifest" <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import sys
+
+          source = pathlib.Path(sys.argv[1])
+          artifact = pathlib.Path(sys.argv[2])
+          destination = pathlib.Path(sys.argv[3])
+          payload = json.loads(source.read_text(encoding="utf-8"))
+          digest = hashlib.sha256()
+          with artifact.open("rb") as stream:
+              for block in iter(lambda: stream.read(1024 * 1024), b""):
+                  digest.update(block)
+          payload.update({
+              "artifact": artifact.name,
+              "sha256": digest.hexdigest(),
+              "size": artifact.stat().st_size,
+              "packaging": "apple-ditto-zip-norsrc",
+          })
+          destination.write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          PY
+
+      - name: Verify normalized bundle with native Apple parsers
+        run: |
+          set -euo pipefail
+          source_ipa="$SIDELOAD_ROOT/source/$SOURCE_IPA_NAME"
+          ditto -x -k "$source_ipa" "$SIDELOAD_ROOT/source-expanded"
+          source_app="$SIDELOAD_ROOT/source-expanded/Payload/Overte.app"
+          /usr/bin/plutil -lint "$source_app/Info.plist"
+          xcrun swift ios/ci/verify-apple-bundle.swift "$source_app" "$SOURCE_BUNDLE_ID"
+
+          ipa="$SIDELOAD_ROOT/output/Overte-iPad-Sideloadly-normalized.ipa"
+          ditto -x -k "$ipa" "$SIDELOAD_ROOT/expanded"
+          app="$SIDELOAD_ROOT/expanded/Payload/Overte.app"
+          plist="$app/Info.plist"
+          test -d "$app" && test ! -L "$app"
+          /usr/bin/plutil -lint "$plist"
+          python3 - "$plist" <<'PY'
+          import pathlib
+          import sys
+
+          if not pathlib.Path(sys.argv[1]).read_bytes().startswith(b"bplist00"):
+              raise SystemExit("normalized application Info.plist is not binary1")
+          PY
+          actual_bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")"
+          [[ "$actual_bundle_id" == "$BUNDLE_ID" ]]
+          xcrun swift ios/ci/verify-apple-bundle.swift "$app" "$BUNDLE_ID"
+          test -z "$(find "$SIDELOAD_ROOT/expanded" \( -name '._*' -o -name '__MACOSX' \) -print -quit)"
+
+      - name: Upload native-verified normalized IPA
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: overte-ios-sideloadly-normalized-${{ github.run_id }}
+          path: |
+            ${{ env.SIDELOAD_ROOT }}/output/Overte-iPad-Sideloadly-normalized.ipa
+            ${{ env.SIDELOAD_ROOT }}/output/Overte-iPad-Sideloadly-normalized.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove private working copies
+        if: always()
+        run: python3 -c 'import os, pathlib, shutil; shutil.rmtree(pathlib.Path(os.environ["SIDELOAD_ROOT"]), ignore_errors=True)'

@@ -77,6 +77,17 @@ void staticEntityScriptInitializer(ScriptManager* manager) {
     scriptEngine->registerGlobalObject(sgp, "Entities", entityScriptingInterface.data());
     scriptEngine->registerFunction(sgp, "Entities", "getMultipleEntityProperties", EntityScriptingInterface::getMultipleEntityProperties);
 
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+    {
+        const auto entitiesApi = scriptEngine->globalObject().property("Entities");
+        qInfo().nospace()
+            << "OVERTE_IOS_ENTITY_SCRIPT_API_GATE"
+            << " get_entity_properties=" << entitiesApi.property("getEntityProperties").isFunction()
+            << " add_entity=" << entitiesApi.property("addEntity").isFunction()
+            << " get_multiple_entity_properties=" << entitiesApi.property("getMultipleEntityProperties").isFunction();
+    }
+#endif
+
     // "The return value of QObject::sender() is not valid when the slot is called via a Qt::DirectConnection from a thread
     // different from this object's thread. Do not use this function in this type of scenario."
     // so... yay lambdas everywhere to get the sender

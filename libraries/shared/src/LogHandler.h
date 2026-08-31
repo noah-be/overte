@@ -15,7 +15,6 @@
 
 #include <QObject>
 #include <QString>
-#include <QRegExp>
 #include <QRecursiveMutex>
 #include <vector>
 #include <memory>

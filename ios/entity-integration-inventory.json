@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "scope": "existing Overte domain handshake through populated EntityTree",
+  "policy": {
+    "reuse_existing_protocol": true,
+    "protocol_reimplementation_allowed": false,
+    "bootstrap_preview_is_acceptance_evidence": false
+  },
+  "targets": {
+    "networking": { "cmake": "libraries/networking/CMakeLists.txt", "depends_on": ["shared", "Qt::Network"] },
+    "octree": { "cmake": "libraries/octree/CMakeLists.txt", "depends_on": ["shared", "networking"] },
+    "entities": { "cmake": "libraries/entities/CMakeLists.txt", "depends_on": ["networking", "octree"] },
+    "entities-renderer": { "cmake": "libraries/entities-renderer/CMakeLists.txt", "depends_on": ["entities", "networking", "octree"] }
+  },
+  "stages": [
+    {
+      "id": "domain-resolution-and-session",
+      "target": "networking",
+      "sources": [
+        { "path": "libraries/networking/src/DomainHandler.cpp", "anchors": ["DomainHandler::completedHostnameLookup", "DomainHandler::setIsConnected"] },
+        { "path": "libraries/networking/src/NodeList.cpp", "anchors": ["NodeList::sendDomainServerCheckIn", "PacketType::DomainConnectRequest", "PacketType::DomainListRequest"] }
+      ],
+      "packets": ["DomainConnectRequest", "DomainListRequest", "DomainList", "DomainConnectionDenied", "DomainServerConnectionToken"],
+      "gate": "A real DomainList is accepted and the DomainHandler reports connected; DNS-only success does not pass."
+    },
+    {
+      "id": "entity-server-discovery",
+      "target": "networking",
+      "sources": [
+        { "path": "libraries/networking/src/NodeList.cpp", "anchors": ["PacketType::DomainServerAddedNode", "PacketType::DomainServerRemovedNode"] },
+        { "path": "libraries/networking/src/NodeType.h", "anchors": ["EntityServer = 'o'"] }
+      ],
+      "packets": ["DomainList", "DomainServerAddedNode", "DomainServerRemovedNode"],
+      "gate": "NodeList contains an active NodeType::EntityServer with a usable socket."
+    },
+    {
+      "id": "entity-query",
+      "target": "entities-renderer",
+      "sources": [
+        { "path": "libraries/entities-renderer/src/EntityTreeRenderer.h", "anchors": ["PacketType::EntityQuery"] },
+        { "path": "interface/src/Application.cpp", "anchors": ["queryOctree(NodeType::EntityServer, PacketType::EntityQuery)"] }
+      ],
+      "packets": ["EntityQuery"],
+      "gate": "A camera-derived EntityQuery is sent to the discovered entity server and refreshed when the view changes."
+    },
+    {
+      "id": "entity-packet-routing",
+      "target": "entities-renderer",
+      "sources": [
+        { "path": "interface/src/octree/OctreePacketProcessor.cpp", "anchors": ["registerDirectListenerForTypes", "PacketType::EntityData", "renderer->processDatagram"] }
+      ],
+      "packets": ["OctreeStats", "EntityData", "EntityErase", "EntityQueryInitialResultsComplete"],
+      "gate": "Version-matched EntityData and EntityErase packets reach the existing renderer/tree processor."
+    },
+    {
+      "id": "entity-tree-decode",
+      "target": "octree",
+      "sources": [
+        { "path": "libraries/octree/src/OctreeProcessor.cpp", "anchors": ["OctreeProcessor::processDatagram", "readBitstreamToTree"] },
+        { "path": "libraries/entities/src/EntityTree.h", "anchors": ["PacketType::EntityData"] },
+        { "path": "libraries/entities/src/EntityTree.cpp", "anchors": ["EntityTree::readEntityDataFromBuffer"] }
+      ],
+      "packets": ["EntityData", "EntityErase"],
+      "gate": "The stock decoder populates EntityTree and an addingEntity signal is observed; decoded entity count is greater than zero."
+    },
+    {
+      "id": "render-handoff",
+      "target": "entities-renderer",
+      "sources": [
+        { "path": "libraries/entities-renderer/src/EntityTreeRenderer.cpp", "anchors": ["EntityTreeRenderer::init", "EntityTree::addingEntity", "EntityTreeRenderer::addPendingEntities"] }
+      ],
+      "packets": [],
+      "gate": "At least one decoded visible entity has a render item submitted to the real scene; generated bootstrap geometry does not pass."
+    }
+  ],
+  "acceptance_gates": [
+    "ios-native-target-links-all-inventory-targets",
+    "domain-list-received",
+    "entity-server-active",
+    "entity-query-sent",
+    "entity-data-received",
+    "entity-tree-nonempty",
+    "real-entity-render-item-visible-on-ipad"
+  ]
+}

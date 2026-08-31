@@ -80,8 +80,17 @@ struct Cache {
         PipelineLayout() {};
         friend struct Cache::Pipeline;
     };
-    std::unordered_map<uint32_t, VkShaderModule> moduleMap;
+    // Static shader IDs are unique, but runtime-customized shaders deliberately
+    // retain shader::INVALID_SHADER.  The cache key therefore also carries the
+    // exact SPIR-V payload for dynamic sources.
+    std::unordered_map<std::string, VkShaderModule> moduleMap;
     std::unordered_map<std::string, PipelineLayout> pipelineMap;
+    struct ShaderIdentityEntry {
+        std::weak_ptr<gpu::Pipeline> owner;
+        uint64_t identity { 0 };
+    };
+    std::unordered_map<const gpu::Pipeline*, ShaderIdentityEntry> shaderIdentityMap;
+    uint64_t nextShaderIdentity { 1 };
 
     struct Pipeline {
         using RenderpassKey = std::vector<std::pair<VkFormat, VkImageLayout>>;
@@ -100,6 +109,9 @@ struct Cache {
         // These get set when stride gets set by setInputBuffer
         std::array<Offset, MAX_NUM_INPUT_BUFFERS> _bufferStrides{ 0 };
         std::bitset<MAX_NUM_INPUT_BUFFERS> _bufferStrideSet;
+        // Retain a weak owner even though the configured pointer-storage mode
+        // uses raw references. This lets the cache distinguish address reuse.
+        std::weak_ptr<gpu::Pipeline> _pipelineOwner;
 
         void clearStrides() { _bufferStrideSet.reset(); }
 
@@ -126,12 +138,16 @@ struct Cache {
         VkRenderPass getRenderPass(const vks::Context& context);
         static std::string getRenderpassKeyString(const RenderpassKey& renderpassKey);
         std::string getStridesKey() const;
-        std::string getKey(const vks::Context& context) const;
+        std::string getKey(const vks::Context& context, Cache& cache) const;
     } pipelineState;
+
+    uint64_t getShaderIdentity(const gpu::PipelinePointer& pipeline);
 
     static VkStencilOpState getStencilOp(const gpu::State::StencilTest& stencil);
 
-    VkShaderModule getShaderModule(const vks::Context& context, const shader::Source& source);
+    VkShaderModule getShaderModule(const vks::Context& context,
+                                   const shader::Source& source,
+                                   VkShaderStageFlagBits stage);
 
     const PipelineLayout& getPipeline(const vks::Context& context);
 };

@@ -475,7 +475,7 @@ QStringList ScriptEngines::getRunningScripts() {
 
 void ScriptEngines::stopAllScripts(bool restart) {
     QtConcurrent::run([this, restart] {
-        QHash<QUrl, ScriptManagerPointer> scriptManagersHashCopy;
+        QMultiHash<QUrl, ScriptManagerPointer> scriptManagersHashCopy;
 
         {
             QReadLocker lock(&_scriptManagersHashLock);
@@ -486,8 +486,7 @@ void ScriptEngines::stopAllScripts(bool restart) {
             return;
         }
 
-        for (QHash<QUrl, ScriptManagerPointer>::const_iterator it = scriptManagersHashCopy.constBegin();
-                it != scriptManagersHashCopy.constEnd(); it++) {
+        for (auto it = scriptManagersHashCopy.constBegin(); it != scriptManagersHashCopy.constEnd(); ++it) {
             ScriptManagerPointer scriptManager = it.value();
             // skip already stopped scripts
             if (scriptManager->isFinished() || scriptManager->isStopping()) {
@@ -565,13 +564,11 @@ ScriptManagerPointer ScriptEngines::loadScript(const QUrl& scriptFilename, bool 
                                               bool activateMainWindow, bool reload, bool quitWhenFinished) {
     if (thread() != QThread::currentThread()) {
         ScriptManagerPointer result { nullptr };
-        BLOCKING_INVOKE_METHOD(this, "loadScript", Q_RETURN_ARG(ScriptManagerPointer, result),
-            Q_ARG(QUrl, scriptFilename),
-            Q_ARG(bool, isUserLoaded),
-            Q_ARG(bool, loadScriptFromEditor),
-            Q_ARG(bool, activateMainWindow),
-            Q_ARG(bool, reload),
-            Q_ARG(bool, quitWhenFinished));
+        BLOCKING_INVOKE_METHOD(this, [this, scriptFilename, isUserLoaded, loadScriptFromEditor,
+                                     activateMainWindow, reload, quitWhenFinished] {
+            return loadScript(scriptFilename, isUserLoaded, loadScriptFromEditor,
+                              activateMainWindow, reload, quitWhenFinished);
+        }, &result);
         return result;
     }
     QUrl scriptUrl;

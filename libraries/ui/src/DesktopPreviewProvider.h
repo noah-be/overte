@@ -8,6 +8,7 @@
 
 #include <DependencyManager.h>
 #include <QImage>
+#include <QtCore/QObject>
 #include <QtCore/QSharedPointer>
 
 class DesktopPreviewProvider : public QObject, public Dependency {

@@ -11,18 +11,28 @@
 #include <unordered_map>
 
 #include <QtCore/QThread>
+#include <QtCore/QPointer>
+#include <QtCore/QTimer>
+#if defined(Q_OS_IOS)
+#include <QtCore/QDir>
+#include <QtCore/QFileInfo>
+#include <QtCore/QStandardPaths>
+#endif
 #include <QtQml/QtQml>
 #include <QtQml/QQmlEngine>
 #include <QtQml/QQmlComponent>
 #include <QtQml/QQmlFileSelector>
+#include <QtGui/QInputMethodQueryEvent>
 #include <QtQuick/QQuickItem>
 #include <QtQuick/QQuickWindow>
 #include <QtQuick/QQuickRenderControl>
 
 #include <GLMHelpers.h>
 
-#include <gl/OffscreenGLCanvas.h>
 #include <shared/ReadWriteLockable.h>
+#if defined(Q_OS_IOS)
+#include <shared/IOSRuntimeLogging.h>
+#endif
 #include <NetworkingConstants.h>
 #include <MetaverseAPI.h>
 
@@ -60,6 +70,109 @@ static QSize clampSize(const QSize& qsize, uint32_t maxDimension) {
     return fromGlm(clampSize(toGlm(qsize), maxDimension));
 }
 
+#if defined(Q_OS_IOS)
+static QUrl resolveIOSQmlOverride(const QUrl& source) {
+    if (source.scheme() != URL_SCHEME_QRC) {
+        return source;
+    }
+
+    QDir overrideRoot(QDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation))
+        .filePath(QStringLiteral("OverteQmlOverrides")));
+    const QFileInfo enableFile(overrideRoot.filePath(QStringLiteral(".enabled")));
+    if (!overrideRoot.exists() || !enableFile.isFile() || enableFile.isSymLink()) {
+        return source;
+    }
+
+    QString relativePath = source.path();
+    while (relativePath.startsWith(QLatin1Char('/'))) {
+        relativePath.remove(0, 1);
+    }
+    const QFileInfo candidate(overrideRoot.filePath(relativePath));
+    if (!candidate.isFile() || candidate.isSymLink()) {
+        return source;
+    }
+
+    const QString canonicalRoot = QFileInfo(overrideRoot.absolutePath()).canonicalFilePath();
+    const QString canonicalCandidate = candidate.canonicalFilePath();
+    if (canonicalRoot.isEmpty() || canonicalCandidate.isEmpty() ||
+            !canonicalCandidate.startsWith(canonicalRoot + QDir::separator())) {
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_QML_OVERRIDE_GATE stage=rejected",
+            "requested=", source,
+            "candidate=", candidate.absoluteFilePath());
+        return source;
+    }
+
+    const QUrl resolved = QUrl::fromLocalFile(canonicalCandidate);
+    logIOSRuntimeMarker(
+        "OVERTE_IOS_QML_OVERRIDE_GATE stage=active",
+        "requested=", source,
+        "resolved=", resolved);
+    return resolved;
+}
+
+static void logIOSQmlErrors(const char* stage, const QList<QQmlError>& errors) {
+    for (const auto& error : errors) {
+        logIOSRuntimeMarker(
+            QStringLiteral("OVERTE_IOS_DYNAMIC_QML_GATE stage=%1")
+                .arg(QString::fromUtf8(stage)),
+            "url=", error.url(),
+            "line=", error.line(),
+            "column=", error.column(),
+            "description=", error.description());
+    }
+}
+
+static void logIOSQmlItemState(const char* stage, const QUrl& url,
+                               QQuickItem* item, bool completeBeforeCallback) {
+    if (!item) {
+        logIOSRuntimeMarker(
+            QStringLiteral("OVERTE_IOS_DYNAMIC_QML_GATE stage=%1")
+                .arg(QString::fromUtf8(stage)),
+            "url=", url,
+            "item=<null>",
+            "complete_before_callback=", completeBeforeCallback);
+        return;
+    }
+
+    const auto descendants = item->findChildren<QQuickItem*>();
+    int visibleDescendants { 0 };
+    int positiveSizeDescendants { 0 };
+    int contentDescendants { 0 };
+    for (const auto* descendant : descendants) {
+        visibleDescendants += descendant->isVisible() ? 1 : 0;
+        positiveSizeDescendants += descendant->width() > 0.0 && descendant->height() > 0.0 ? 1 : 0;
+        contentDescendants += descendant->flags().testFlag(QQuickItem::ItemHasContents) ? 1 : 0;
+    }
+
+    const QRectF sceneBounds = item->mapRectToScene(item->boundingRect());
+    logIOSRuntimeMarker(
+        QStringLiteral("OVERTE_IOS_DYNAMIC_QML_GATE stage=%1")
+            .arg(QString::fromUtf8(stage)),
+        "url=", url,
+        "class=", item->metaObject()->className(),
+        "object=", item->objectName().isEmpty() ? QStringLiteral("<unnamed>") : item->objectName(),
+        "parent=", item->parentItem() && !item->parentItem()->objectName().isEmpty()
+            ? item->parentItem()->objectName() : QStringLiteral("<unnamed-or-none>"),
+        "size=", QStringLiteral("%1x%2").arg(item->width()).arg(item->height()),
+        "position=", QStringLiteral("%1,%2").arg(item->x()).arg(item->y()),
+        "scene_bounds=", QStringLiteral("%1,%2,%3x%4")
+            .arg(sceneBounds.x()).arg(sceneBounds.y())
+            .arg(sceneBounds.width()).arg(sceneBounds.height()),
+        "z=", item->z(),
+        "opacity=", item->opacity(),
+        "visible=", item->isVisible(),
+        "enabled=", item->isEnabled(),
+        "window=", item->window() != nullptr,
+        "direct_children=", item->childItems().size(),
+        "descendants=", descendants.size(),
+        "visible_descendants=", visibleDescendants,
+        "positive_size_descendants=", positiveSizeDescendants,
+        "content_descendants=", contentDescendants,
+        "complete_before_callback=", completeBeforeCallback);
+}
+#endif
+
 const QmlContextObjectCallback OffscreenSurface::DEFAULT_CONTEXT_OBJECT_CALLBACK = [](QQmlContext*, QQuickItem*) {};
 const QmlContextCallback OffscreenSurface::DEFAULT_CONTEXT_CALLBACK = [](QQmlContext*) {};
 
@@ -86,13 +199,26 @@ size_t OffscreenSurface::getUsedTextureMemory() {
     return SharedObject::getTextureCache().getUsedTextureMemory();
 }
 
+bool OffscreenSurface::configureSharedGraphicsContext(const SharedGraphicsContext& context) {
+    if (context.backend == SharedGraphicsContext::Backend::Software) {
+        SharedObject::setSoftwareRendering();
+        return true;
+    }
+    if (context.backend != SharedGraphicsContext::Backend::OpenGL || !context.handle) {
+        return false;
+    }
+
+    setSharedContext(static_cast<QOpenGLContext*>(context.handle));
+    return true;
+}
+
 void OffscreenSurface::setSharedContext(QOpenGLContext* sharedContext) {
     SharedObject::setSharedContext(sharedContext);
 }
 
 std::function<void(uint32_t, void*)> OffscreenSurface::getDiscardLambda() {
     return [](uint32_t texture, void* fence) {
-        SharedObject::getTextureCache().releaseTexture({ texture, static_cast<GLsync>(fence) });
+        SharedObject::getTextureCache().releaseTexture({ texture, fence });
     };
 }
 
@@ -109,6 +235,10 @@ bool OffscreenSurface::fetchTexture(TextureAndFence& textureAndFence) {
     bool result = _sharedObject->fetchTexture(typedTextureAndFence);
     textureAndFence = typedTextureAndFence;
     return result;
+}
+
+bool OffscreenSurface::fetchImage(QImage& image) {
+    return _sharedObject->fetchImage(image);
 }
 
 void OffscreenSurface::resize(const QSize& newSize_) {
@@ -165,7 +295,41 @@ bool OffscreenSurface::eventFilter(QObject* originalDestination, QEvent* event) 
         case QEvent::KeyPress:
         case QEvent::KeyRelease: {
             event->ignore();
-            if (QCoreApplication::sendEvent(_sharedObject->getWindow(), event)) {
+            QObject* target = _sharedObject->getWindow();
+#if defined(Q_OS_IOS)
+            // An offscreen QQuickWindow can own an active text item without
+            // becoming UIKit's native focus window. Deliver hardware-keyboard
+            // events directly to that item; QQuickWindow otherwise discards
+            // them while buttons continue to appear fully interactive.
+            if (auto* focusItem = _sharedObject->getWindow()->activeFocusItem()) {
+                target = focusItem;
+            }
+#endif
+            const bool delivered = QCoreApplication::sendEvent(target, event);
+#if defined(Q_OS_IOS)
+            static uint32_t keyTraceCount { 0 };
+            const int keyTraceLimit = iosRuntimeDiagnosticInt(
+                "offscreenKeyTraceLimit", 32, 0, 1000);
+            if (event->type() == QEvent::KeyPress &&
+                    keyTraceCount < static_cast<uint32_t>(keyTraceLimit)) {
+                ++keyTraceCount;
+                const auto* keyEvent = static_cast<QKeyEvent*>(event);
+                QInputMethodQueryEvent query(Qt::ImEnabled);
+                QCoreApplication::sendEvent(target, &query);
+                logIOSRuntimeMarker(
+                    "OVERTE_IOS_TOUCH_UI_GATE stage=hardware-key-forwarded",
+                    "key=", keyEvent->key(),
+                    "text_length=", keyEvent->text().size(),
+                    "focus=", target->objectName().isEmpty()
+                        ? QStringLiteral("<unnamed>") : target->objectName(),
+                    "focus_class=", target->metaObject()->className(),
+                    "ime_enabled=", query.value(Qt::ImEnabled).toBool(),
+                    "delivered=", delivered,
+                    "accepted=", event->isAccepted(),
+                    "event_ordinal=", keyTraceCount);
+            }
+#endif
+            if (delivered) {
                 return event->isAccepted();
             }
             break;
@@ -198,12 +362,18 @@ bool OffscreenSurface::eventFilter(QObject* originalDestination, QEvent* event) 
             break;
         }
 
-#if defined(Q_OS_ANDROID)
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
         case QEvent::TouchBegin:
         case QEvent::TouchUpdate:
         case QEvent::TouchEnd: {
             QTouchEvent *originalEvent = static_cast<QTouchEvent *>(event);
             QEvent::Type fakeMouseEventType = QEvent::None;
+            // This legacy window-wide compatibility filter intentionally keeps
+            // LeftButton on move.  With a Qt 6-conformant NoButton the full-screen
+            // desktop root accepts every world drag before Application can route
+            // it to camera look.  iOS tablet/address-bar gestures use the explicit
+            // OffscreenUi::handleMobilePointerEvent path instead, where MouseMove
+            // correctly has NoButton and buttons() carries LeftButton for Flickable.
             Qt::MouseButton fakeMouseButton = Qt::LeftButton;
             Qt::MouseButtons fakeMouseButtons = Qt::NoButton;
             switch (event->type()) {
@@ -226,6 +396,17 @@ bool OffscreenSurface::eventFilter(QObject* originalDestination, QEvent* event) 
             QMouseEvent fakeMouseEvent(fakeMouseEventType, originalEvent->touchPoints()[0].pos(), fakeMouseButton, fakeMouseButtons, Qt::NoModifier);
             fakeMouseEvent.ignore();
             if (QCoreApplication::sendEvent(_sharedObject->getWindow(), &fakeMouseEvent)) {
+#if defined(Q_OS_IOS)
+                static quint64 touchMoveOrdinal { 0 };
+                if (event->type() == QEvent::TouchUpdate && ++touchMoveOrdinal % 30 == 0) {
+                    logIOSRuntimeMarker(
+                        "OVERTE_IOS_TOUCH_UI_GATE stage=filtered-touch-drag-move",
+                        "ordinal=", touchMoveOrdinal,
+                        "button=", static_cast<int>(fakeMouseButton),
+                        "buttons=", static_cast<int>(fakeMouseButtons),
+                        "accepted=", fakeMouseEvent.isAccepted());
+                }
+#endif
                 /*qInfo() << __FUNCTION__ << "sent fake touch event:" << fakeMouseEvent.type()
                         << "_quickWindow handled it... accepted:" << fakeMouseEvent.isAccepted();*/
                 return fakeMouseEvent.isAccepted();
@@ -241,11 +422,13 @@ bool OffscreenSurface::eventFilter(QObject* originalDestination, QEvent* event) 
                     bool eventAccepted = event->isAccepted();
                     if (event->type() == QEvent::InputMethodQuery) {
                         QInputMethodQueryEvent *imqEvent = static_cast<QInputMethodQueryEvent *>(event);
-                        // this block disables the selection cursor in android which appears in
-                        // the top-left corner of the screen
+#if defined(Q_OS_ANDROID)
+                        // This block disables the selection cursor in Android
+                        // which appears in the top-left corner of the screen.
                         if (imqEvent->queries() & Qt::ImEnabled) {
                             imqEvent->setValue(Qt::ImEnabled, QVariant(false));
                         }
+#endif
                     }
                     return eventAccepted;
                 }
@@ -307,8 +490,23 @@ void OffscreenSurface::load(const QUrl& qmlSource, QQuickItem* parent, const QJS
 
 void OffscreenSurface::loadFromQml(const QUrl& qmlSource, QQuickItem* parent, const QJSValue& callback) {
     loadInternal(qmlSource, false, parent, [callback](QQmlContext* context, QQuickItem* newItem) {
-        QJSValue(callback).call(QJSValueList() << context->engine()->newQObject(newItem));
-    });
+        const QJSValue result = QJSValue(callback).call(
+            QJSValueList() << context->engine()->newQObject(newItem));
+#if defined(Q_OS_IOS)
+        if (result.isError()) {
+            logIOSRuntimeMarker(
+                "OVERTE_IOS_DYNAMIC_QML_GATE stage=callback-error",
+                "message=", result.toString(),
+                "stack=", result.property(QStringLiteral("stack")).toString());
+        }
+#endif
+    }, DEFAULT_CONTEXT_CALLBACK,
+#if defined(Q_OS_IOS)
+    parent && parent->objectName() == QStringLiteral("loader")
+#else
+    false
+#endif
+    );
 }
 
 void OffscreenSurface::load(const QUrl& qmlSource, bool createNewContext, const QmlContextObjectCallback& callback) {
@@ -331,7 +529,8 @@ void OffscreenSurface::loadInternal(const QUrl& qmlSource,
                                     bool createNewContext,
                                     QQuickItem* parent,
                                     const QmlContextObjectCallback& callback,
-                                    const QmlContextCallback& contextCallback) {
+                                    const QmlContextCallback& contextCallback,
+                                    bool completeBeforeCallback) {
     PROFILE_RANGE_EX(app, "OffscreenSurface::loadInternal", 0xffff00ff, 0, { std::make_pair("url", qmlSource.toDisplayString()) });
     if (QThread::currentThread() != thread()) {
         qFatal("Called load on a non-surface thread");
@@ -355,9 +554,22 @@ void OffscreenSurface::loadInternal(const QUrl& qmlSource,
     }
 
     QUrl finalQmlSource = qmlSource;
-    if ((qmlSource.isRelative() && !qmlSource.isEmpty()) || qmlSource.scheme() == QLatin1String("file")) {
-        finalQmlSource = getSurfaceContext()->resolvedUrl(qmlSource);
+    if ((finalQmlSource.isRelative() && !finalQmlSource.isEmpty()) || finalQmlSource.scheme() == QLatin1String("file")) {
+        finalQmlSource = getSurfaceContext()->resolvedUrl(finalQmlSource);
     }
+#if defined(Q_OS_IOS)
+    // Resolve relative application resources first so both qrc:/... callers
+    // and paths such as hifi/tablet/TabletHome.qml can use the same reviewed
+    // Documents override tree.
+    finalQmlSource = resolveIOSQmlOverride(finalQmlSource);
+    logIOSRuntimeMarker(
+        "OVERTE_IOS_DYNAMIC_QML_GATE stage=load-requested",
+        "requested=", qmlSource,
+        "resolved=", finalQmlSource,
+        "parent=", parent ? parent->objectName() : QStringLiteral("<root>"),
+        "new_context=", createNewContext,
+        "complete_before_callback=", completeBeforeCallback);
+#endif
 
     if (!getRootItem()) {
         _sharedObject->setObjectName(finalQmlSource.toString());
@@ -372,20 +584,32 @@ void OffscreenSurface::loadInternal(const QUrl& qmlSource,
     }
     if (qmlComponent->isLoading()) {
         connect(qmlComponent, &QQmlComponent::statusChanged, this,
-                [=, this](QQmlComponent::Status) { finishQmlLoad(qmlComponent, targetContext, parent, callback); });
+                [=, this](QQmlComponent::Status) {
+                    finishQmlLoad(qmlComponent, targetContext, parent, callback,
+                                  completeBeforeCallback);
+                });
         return;
     }
 
-    finishQmlLoad(qmlComponent, targetContext, parent, callback);
+    finishQmlLoad(qmlComponent, targetContext, parent, callback,
+                  completeBeforeCallback);
 }
 
 void OffscreenSurface::finishQmlLoad(QQmlComponent* qmlComponent,
                                      QQmlContext* qmlContext,
                                      QQuickItem* parent,
-                                     const QmlContextObjectCallback& callback) {
+                                     const QmlContextObjectCallback& callback,
+                                     bool completeBeforeCallback) {
     PROFILE_RANGE(app, "finishQmlLoad");
     disconnect(qmlComponent, &QQmlComponent::statusChanged, this, 0);
     if (qmlComponent->isError()) {
+#if defined(Q_OS_IOS)
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_DYNAMIC_QML_GATE stage=component-error",
+            "url=", qmlComponent->url(),
+            "errors=", qmlComponent->errors().size());
+        logIOSQmlErrors("component-error-detail", qmlComponent->errors());
+#endif
         for (const auto& error : qmlComponent->errors()) {
             qCWarning(qmlLogging) << error.url() << error.line() << error;
         }
@@ -395,6 +619,13 @@ void OffscreenSurface::finishQmlLoad(QQmlComponent* qmlComponent,
 
     QObject* newObject = qmlComponent->beginCreate(qmlContext);
     if (qmlComponent->isError()) {
+#if defined(Q_OS_IOS)
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_DYNAMIC_QML_GATE stage=begin-create-error",
+            "url=", qmlComponent->url(),
+            "errors=", qmlComponent->errors().size());
+        logIOSQmlErrors("begin-create-error-detail", qmlComponent->errors());
+#endif
         for (const auto& error : qmlComponent->errors()) {
             qCWarning(qmlLogging) << error.url() << error.line() << error;
         }
@@ -430,12 +661,26 @@ void OffscreenSurface::finishQmlLoad(QQmlComponent* qmlComponent,
     }
 
     bool rootCreated = getRootItem() != nullptr;
+#if defined(Q_OS_IOS)
+    const QUrl loadedUrl = qmlComponent->url();
+    logIOSRuntimeMarker(
+        "OVERTE_IOS_DYNAMIC_QML_GATE stage=object-created",
+        "url=", loadedUrl,
+        "root_created=", rootCreated,
+        "item=", newItem ? newItem->metaObject()->className() : "<non-quick-item>",
+        "requested_parent=", parent ? parent->objectName() : QStringLiteral("<root>"));
+#endif
 
-    // Make sure we will call callback for this codepath
-    // Call this before qmlComponent->completeCreate() otherwise ghost window appears
-    // If we already have a root, just set a couple of flags and the ancestry
+    // If we already have a root, set ownership and visual ancestry before
+    // bindings are evaluated. C++-created windows retain their historical
+    // pre-completion callback because it supplies initial properties. QML's
+    // dynamic load API completes first on iOS, matching Qt Loader semantics;
+    // calling back while the component is only half-created leaves complex
+    // Tablet applications with only their root background under Qt 6.
     if (rootCreated) {
-        callback(qmlContext, newItem);
+        if (!completeBeforeCallback) {
+            callback(qmlContext, newItem);
+        }
         if (!parent) {
             parent = getRootItem();
         }
@@ -462,6 +707,32 @@ void OffscreenSurface::finishQmlLoad(QQmlComponent* qmlComponent,
         callback(qmlContext, newItem);
     }
     qmlComponent->completeCreate();
+#if defined(Q_OS_IOS)
+    if (qmlComponent->isError()) {
+        logIOSQmlErrors("complete-create-error-detail", qmlComponent->errors());
+        for (const auto& error : qmlComponent->errors()) {
+            qCWarning(qmlLogging) << error.url() << error.line() << error;
+        }
+    }
+#endif
+    if (rootCreated && completeBeforeCallback) {
+        callback(qmlContext, newItem);
+    }
+
+#if defined(Q_OS_IOS)
+    logIOSQmlItemState("component-complete", loadedUrl, newItem,
+                       completeBeforeCallback);
+    const QPointer<QQuickItem> guardedItem(newItem);
+    for (const int delayMs : { 0, 250, 1000 }) {
+        QTimer::singleShot(delayMs, this,
+            [guardedItem, loadedUrl, completeBeforeCallback, delayMs] {
+                const QByteArray stage = QByteArray("settled-")
+                    + QByteArray::number(delayMs) + QByteArray("ms");
+                logIOSQmlItemState(stage.constData(), loadedUrl,
+                                   guardedItem.data(), completeBeforeCallback);
+            });
+    }
+#endif
     qmlComponent->deleteLater();
 }
 

@@ -20,8 +20,11 @@
 #include <cstdlib>
 
 #include <input-plugins/InputPlugin.h>
+#include <display-plugins/CompositorHelper.h>
 #include <display-plugins/DisplayPlugin.h>
+#if !defined(Q_OS_IOS)
 #include <display-plugins/hmd/HmdDisplayPlugin.h>
+#endif
 #include <OffscreenUi.h>
 #include <plugins/PluginManager.h>
 #include <plugins/PluginUtils.h>
@@ -65,7 +68,14 @@ void Application::initializePluginManager(const QCommandLineParser& parser) {
 
     QStringList disabledLaunchPlugins;
 
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(Q_OS_IOS)
+    // The iOS client ships one window-backed display plugin and no XR display
+    // plugins. Presenting the desktop display-mode chooser would block first
+    // launch before the renderer or a requested world can start.
+    disabledLaunchPlugins.push_back(OPENVR_PLUGIN_NAME);
+    disabledLaunchPlugins.push_back(OPENXR_PLUGIN_NAME);
+    _previousPreferredDisplayMode.set(0);
+#elif defined(ANDROID_APP_PHONE_INTERFACE)
     // The phone client always renders through the 2D OpenGL window. It neither
     // ships an XR runtime nor has a useful display-mode choice to present.
     pluginManager->setPreferredDisplayPlugins({ DESKTOP_DISPLAY_PLUGIN_NAME });
@@ -166,7 +176,11 @@ void Application::shutdownPlugins() {}
 void Application::initializeDisplayPlugins() {
     const auto& displayPlugins = PluginManager::getInstance()->getDisplayPlugins();
     Setting::Handle<QString> activeDisplayPluginSetting { ACTIVE_DISPLAY_PLUGIN_SETTING_NAME, displayPlugins.at(0)->getName() };
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(Q_OS_IOS)
+    // Ignore a stale desktop setting and select the sole supported iOS window
+    // plugin deterministically.
+    activeDisplayPluginSetting.set(displayPlugins.at(0)->getName());
+#elif defined(ANDROID_APP_PHONE_INTERFACE)
     activeDisplayPluginSetting.set(DESKTOP_DISPLAY_PLUGIN_NAME);
 #else
     auto lastActiveDisplayPluginName = activeDisplayPluginSetting.get();
@@ -175,9 +189,14 @@ void Application::initializeDisplayPlugins() {
     auto defaultDisplayPlugin = displayPlugins.at(0);
     // One time initialization code
     DisplayPluginPointer targetDisplayPlugin;
+#if defined(Q_OS_IOS)
+    targetDisplayPlugin = defaultDisplayPlugin;
+#endif
     for(const auto& displayPlugin : displayPlugins) {
         displayPlugin->setContext(_graphicsEngine->getGPUContext());
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(Q_OS_IOS)
+        // targetDisplayPlugin is the default plugin selected above.
+#elif defined(ANDROID_APP_PHONE_INTERFACE)
         if (displayPlugin->getName() == DESKTOP_DISPLAY_PLUGIN_NAME) {
             targetDisplayPlugin = displayPlugin;
         }
@@ -199,12 +218,14 @@ void Application::initializeDisplayPlugins() {
             [this](const QSize& size) { resizeGL(); });
         QObject::connect(displayPlugin.get(), &DisplayPlugin::resetSensorsRequested, this, &Application::requestReset);
 
+#if !defined(Q_OS_IOS)
         if (displayPlugin->isHmd()) {
             auto hmdDisplayPlugin = dynamic_cast<HmdDisplayPlugin*>(displayPlugin.get());
             QObject::connect(hmdDisplayPlugin, &HmdDisplayPlugin::hmdMountedChanged,
                 DependencyManager::get<HMDScriptingInterface>().data(), &HMDScriptingInterface::mountedChanged);
             QObject::connect(hmdDisplayPlugin, &HmdDisplayPlugin::hmdVisibleChanged, this, &Application::hmdVisibleChanged);
         }
+#endif
     }
 
     // The default display plugin needs to be activated first, otherwise the display plugin thread
@@ -473,14 +494,19 @@ void Application::setDisplayPlugin(DisplayPluginPointer newDisplayPlugin) {
             RefreshRateManager::UXMode::DESKTOP;
 
         refreshRateManager.setUXMode(uxMode);
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
         // The present-thread operator is installed only when the display
         // plugin activates. Re-apply the previously selected custom profile
-        // now so the 30 Hz phone target becomes an active frame-pacing limit,
+        // now so the 30 Hz mobile target becomes an active frame-pacing limit,
         // including when UX mode was already DESKTOP and did not change.
         refreshRateManager.updateRefreshRateController();
+#if defined(Q_OS_IOS)
+        qCInfo(interfaceapp) << "OVERTE_IOS_FRAME_PACING"
+                             << "targetFps" << refreshRateManager.getActiveRefreshRate();
+#else
         qCInfo(interfaceapp) << "PHONE_FRAME_PACING"
                              << "targetFps" << refreshRateManager.getActiveRefreshRate();
+#endif
 #endif
     }
 

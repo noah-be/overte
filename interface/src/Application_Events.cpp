@@ -30,11 +30,15 @@
 #include <scripting/Audio.h>
 #include <scripting/ControllerScriptingInterface.h>
 #include <shared/FileUtils.h>
+#include <shared/IOSRuntimeLogging.h>
 #include <ui/DialogsManager.h>
 
 #include "AudioClient.h"
+#ifdef USE_GL
 #include "GLCanvas.h"
+#endif
 #include "Menu.h"
+#include <ui/TabletScriptingInterface.h>
 
 #if defined(Q_OS_ANDROID)
 #include "AndroidHelper.h"
@@ -44,6 +48,47 @@ Q_LOGGING_CATEGORY(trace_app_input_mouse, "trace.app.input.mouse")
 
 static const unsigned int THROTTLED_SIM_FRAMERATE = 15;
 static const int THROTTLED_SIM_FRAME_PERIOD_MS = MSECS_PER_SECOND / THROTTLED_SIM_FRAMERATE;
+
+#if defined(Q_OS_IOS)
+static bool forwardMobileTouchToOffscreenUi(QTouchEvent* event, PointerEvent::EventType type,
+                                            const QSharedPointer<OffscreenUi>& offscreenUi) {
+    auto dialogs = DependencyManager::get<DialogsManager>();
+    auto tabletInterface = DependencyManager::get<TabletScriptingInterface>();
+    auto tablet = tabletInterface
+        ? tabletInterface->getTablet(QStringLiteral("com.highfidelity.interface.tablet.system"))
+        : nullptr;
+    const bool addressBarVisible = dialogs && dialogs->isAddressBarVisible();
+    const bool tabletVisible = tablet && tablet->property("tabletShown").toBool();
+    if ((!addressBarVisible && !tabletVisible) || !offscreenUi) {
+        return false;
+    }
+
+    bool accepted = false;
+    for (const auto& point : event->points()) {
+        const QPointF uiPoint = offscreenUi->mapToVirtualScreen(point.position());
+        const auto buttons = type == PointerEvent::Release
+            ? PointerEvent::NoButtons : PointerEvent::PrimaryButton;
+        PointerEvent pointerEvent(type, static_cast<uint32_t>(point.id()),
+            glm::vec2(uiPoint.x(), uiPoint.y()), PointerEvent::PrimaryButton,
+            buttons, event->modifiers());
+        accepted |= offscreenUi->handleMobilePointerEvent(pointerEvent);
+    }
+    // Address and tablet are full-screen/modal mobile surfaces. Once either
+    // is visible the touch belongs to QML even when the leaf item declines a
+    // particular phase; letting it fall through would allow system scripts or
+    // world controls to capture the same gesture and steal its later release.
+    event->accept();
+    if (type != PointerEvent::Move) {
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_UI_GATE stage=offscreen-touch-forwarded",
+            "surface=", tabletVisible ? "tablet" : "address",
+            "type=", type == PointerEvent::Press ? "press" : "release",
+            "points=", event->points().size(),
+            "qml_accepted=", accepted);
+    }
+    return true;
+}
+#endif
 
 class LambdaEvent : public QEvent {
     std::function<void()> _fun;
@@ -197,7 +242,7 @@ bool Application::eventFilter(QObject* object, QEvent* event) {
         return true;
     }
 
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
     // On Mac OS, Cmd+LeftClick is treated as a RightClick (more specifically, it seems to
     // be Cmd+RightClick without the modifier being dropped). Starting in Qt 5.12, only
     // on Mac, the MouseButtonRelease event for these mouse presses is sent to the top
@@ -303,6 +348,11 @@ void Application::onPresent(quint32 frameCount) {
 void Application::activeChanged(Qt::ApplicationState state) {
     switch (state) {
         case Qt::ApplicationActive:
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+            if (!_isForeground && !_aboutToQuit && _startUpFinished) {
+                enterForeground();
+            }
+#endif
             _isForeground = true;
             if (!_aboutToQuit && _startUpFinished) {
                 getRefreshRateManager().setRefreshRateRegime(RefreshRateManager::RefreshRateRegime::FOCUS_ACTIVE);
@@ -314,6 +364,12 @@ void Application::activeChanged(Qt::ApplicationState state) {
             // Mobile platforms reach these explicit background states after
             // leaving the app. Do not keep reporting the client as foreground
             // merely because neither state enters the switch default.
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+            if (_isForeground && !_aboutToQuit && _startUpFinished) {
+                beforeEnterBackground();
+                enterBackground();
+            }
+#endif
             _isForeground = false;
             break;
         case Qt::ApplicationInactive:
@@ -349,7 +405,7 @@ void Application::windowMinimizedChanged(bool minimized) {
 
 void Application::keyPressEvent(QKeyEvent* event) {
     if (!event->isAutoRepeat()) {
-        _keysPressed.insert(event->key(), *event);
+        _keysPressed.insert(event->key(), event->text());
     }
 
 #if defined(ANDROID_APP_PHONE_INTERFACE)
@@ -646,10 +702,10 @@ void Application::synthesizeKeyReleasEvents() {
     // synthesize events for keys currently pressed, since we may not get their release events
     // Because our key event handlers may manipulate _keysPressed, lets swap the keys pressed into a local copy,
     // clearing the existing list.
-    QHash<int, QKeyEvent> keysPressed;
+    QHash<int, QString> keysPressed;
     std::swap(keysPressed, _keysPressed);
-    for (auto& ev : keysPressed) {
-        QKeyEvent synthesizedEvent { QKeyEvent::KeyRelease, ev.key(), Qt::NoModifier, ev.text() };
+    for (auto it = keysPressed.cbegin(); it != keysPressed.cend(); ++it) {
+        QKeyEvent synthesizedEvent { QKeyEvent::KeyRelease, it.key(), Qt::NoModifier, it.value() };
         keyReleaseEvent(&synthesizedEvent);
     }
 }
@@ -737,7 +793,7 @@ void Application::mousePressEvent(QMouseEvent* event) {
         return;
     }
 
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
     // Fix for OSX right click dragging on window when coming from a native window
     bool isFocussed = hasFocus();
     if (!isFocussed && event->button() == Qt::MouseButton::RightButton) {
@@ -807,6 +863,15 @@ void Application::mouseReleaseEvent(QMouseEvent* event) {
 }
 
 void Application::touchBeginEvent(QTouchEvent* event) {
+#if defined(Q_OS_IOS)
+    // Mobile QML must get first refusal. Tablet scripts capture touches while
+    // the tablet is open, so forwarding after isTouchCaptured() makes every
+    // internal control unreachable.
+    if (forwardMobileTouchToOffscreenUi(event, PointerEvent::Press, getOffscreenUI())) {
+        return;
+    }
+#endif
+
     TouchEvent thisEvent(*event); // on touch begin, we don't compare to last event
     _controllerScriptingInterface->emitTouchBeginEvent(thisEvent); // send events to any registered scripts
 
@@ -831,6 +896,12 @@ void Application::touchBeginEvent(QTouchEvent* event) {
 }
 
 void Application::touchEndEvent(QTouchEvent* event) {
+#if defined(Q_OS_IOS)
+    if (forwardMobileTouchToOffscreenUi(event, PointerEvent::Release, getOffscreenUI())) {
+        return;
+    }
+#endif
+
     TouchEvent thisEvent(*event, _lastTouchEvent);
     _controllerScriptingInterface->emitTouchEndEvent(thisEvent); // send events to any registered scripts
     _lastTouchEvent = thisEvent;
@@ -853,6 +924,13 @@ void Application::touchEndEvent(QTouchEvent* event) {
 }
 
 void Application::touchUpdateEvent(QTouchEvent* event) {
+#if defined(Q_OS_IOS)
+    if (event->type() == QEvent::TouchUpdate &&
+            forwardMobileTouchToOffscreenUi(event, PointerEvent::Move, getOffscreenUI())) {
+        return;
+    }
+#endif
+
     if (event->type() == QEvent::TouchUpdate) {
         TouchEvent thisEvent(*event, _lastTouchEvent);
         _controllerScriptingInterface->emitTouchUpdateEvent(thisEvent); // send events to any registered scripts

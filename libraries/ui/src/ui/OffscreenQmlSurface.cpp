@@ -11,10 +11,6 @@
 #include <unordered_set>
 #include <unordered_map>
 
-#include <gl/Config.h>
-
-#include <QtGui/QOpenGLContext>
-#include <QtGui/QOpenGLFunctions_4_1_Core>
 #include <QtWidgets/QWidget>
 #include <QtQml/QtQml>
 #include <QtQml/QQmlEngine>
@@ -24,12 +20,15 @@
 #include <QtQuick/QQuickWindow>
 #include <QtQuick/QQuickRenderControl>
 #include <QtCore/QThread>
+#include <QtCore/QMetaType>
 #include <QtCore/QMutex>
 #include <QtCore/QSharedPointer>
 #include <QtCore/QWaitCondition>
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 #include <QtMultimedia/QMediaService>
 #include <QtMultimedia/QAudioOutputSelectorControl>
 #include <QtMultimedia/QMediaPlayer>
+#endif
 #include <QtGui/QInputMethodEvent>
 #include <shared/NsightHelpers.h>
 #include <shared/GlobalAppProperties.h>
@@ -47,7 +46,6 @@
 #include <AudioClient.h>
 #include <shared/LocalFileAccessGate.h>
 
-#include <gl/OffscreenGLCanvas.h>
 #include <gl/GLHelpers.h>
 #include <gl/Context.h>
 #include <shared/ReadWriteLockable.h>
@@ -60,6 +58,46 @@
 #include "TabletScriptingInterface.h"
 #include "ToolbarScriptingInterface.h"
 #include "Logging.h"
+
+namespace {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+using OffscreenTouchPointState = QEventPoint::State;
+constexpr auto OFFSCREEN_TOUCH_STATIONARY = QEventPoint::State::Stationary;
+constexpr auto OFFSCREEN_TOUCH_PRESSED = QEventPoint::State::Pressed;
+constexpr auto OFFSCREEN_TOUCH_RELEASED = QEventPoint::State::Released;
+constexpr auto OFFSCREEN_TOUCH_MOVED = QEventPoint::State::Updated;
+#else
+using OffscreenTouchPointState = Qt::TouchPointState;
+constexpr auto OFFSCREEN_TOUCH_STATIONARY = Qt::TouchPointStationary;
+constexpr auto OFFSCREEN_TOUCH_PRESSED = Qt::TouchPointPressed;
+constexpr auto OFFSCREEN_TOUCH_RELEASED = Qt::TouchPointReleased;
+constexpr auto OFFSCREEN_TOUCH_MOVED = Qt::TouchPointMoved;
+#endif
+
+QPointF offscreenTouchPosition(const OffscreenTouchPoint& point) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    // The public QEventPoint constructor initializes scene/global positions;
+    // local position is assigned later by Qt during delivery.
+    return point.scenePosition();
+#else
+    return point.pos();
+#endif
+}
+
+OffscreenTouchPoint makeOffscreenTouchPoint(
+        int id, OffscreenTouchPointState state, const QPointF& position) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    return QEventPoint(id, state, position, position);
+#else
+    QTouchEvent::TouchPoint point;
+    point.setId(id);
+    point.setState(state);
+    point.setPos(position);
+    point.setScreenPos(position);
+    return point;
+#endif
+}
+}
 
 namespace hifi { namespace qml { namespace offscreen {
 
@@ -101,6 +139,7 @@ QSharedPointer<OffscreenQmlAllowlist> getQmlAllowlist() {
 }
 
 // Class to handle changing QML audio output device using another thread
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 class AudioHandler : public QObject, QRunnable {
     Q_OBJECT
 public:
@@ -115,6 +154,7 @@ private:
     QSharedPointer<OffscreenQmlSurface> _surface;
     std::vector<QMediaPlayer*> _players;
 };
+#endif
 
 class UrlHandler : public QObject {
     Q_OBJECT
@@ -175,6 +215,7 @@ private:
 
 using namespace hifi::qml::offscreen;
 
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 AudioHandler::AudioHandler(OffscreenQmlSurface* surface, const QString& deviceName, QObject* parent)
     : QObject(parent) {
     setAutoDelete(true);
@@ -227,6 +268,7 @@ void AudioHandler::run() {
     }
     qDebug() << "QML Audio changed to " << _newTargetDevice;
 }
+#endif
 
 OffscreenQmlSurface::~OffscreenQmlSurface() {
     clearFocusItem();
@@ -306,7 +348,7 @@ void OffscreenQmlSurface::onRootContextCreated(QQmlContext* qmlContext) {
     // FIXME Compatibility mechanism for existing HTML and JS that uses eventBridgeWrapper
     // Find a way to flag older scripts using this mechanism and wanr that this is deprecated
     qmlContext->setContextProperty("eventBridgeWrapper", new EventBridgeWrapper(this, qmlContext));
-#if !defined(Q_OS_ANDROID)
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0) && !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
     {
         PROFILE_RANGE(startup, "FileTypeProfile");
         FileTypeProfile::registerWithContext(qmlContext);
@@ -355,13 +397,13 @@ void OffscreenQmlSurface::onRootCreated() {
     getSurfaceContext()->setContextProperty("offscreenWindow", QVariant::fromValue(getWindow()));
 
     // Connect with the audio client and listen for audio device changes
-    connect(DependencyManager::get<AudioClient>().data(), &AudioClient::deviceChanged, this, [this](QAudio::Mode mode, const HifiAudioDeviceInfo& device) {
-        if (mode == QAudio::Mode::AudioOutput) {
+    connect(DependencyManager::get<AudioClient>().data(), &AudioClient::deviceChanged, this, [this](HifiAudioDeviceMode mode, const HifiAudioDeviceInfo& device) {
+        if (mode == HifiAudioDeviceMode::Output) {
             QMetaObject::invokeMethod(this, "changeAudioOutputDevice", Qt::QueuedConnection, Q_ARG(QString, device.deviceName()));
         }
     });
 
-#if !defined(Q_OS_ANDROID)
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
     // Setup the update of the QML media components with the current audio output device
     QObject::connect(&_audioOutputUpdateTimer, &QTimer::timeout, this, [this]() {
         if (_currentAudioOutputDevice.size() > 0) {
@@ -424,7 +466,8 @@ unsigned int OffscreenQmlSurface::deviceIdByTouchPoint(qreal x, qreal y) {
 
     auto mapped = getRootItem()->mapFromGlobal(QPoint(x, y));
     for (auto pair : _activeTouchPoints) {
-        if (mapped.x() == (int)pair.second.touchPoint.pos().x() && mapped.y() == (int)pair.second.touchPoint.pos().y()) {
+        const auto position = offscreenTouchPosition(pair.second.touchPoint);
+        if (mapped.x() == (int)position.x() && mapped.y() == (int)position.y()) {
             return pair.first;
         }
     }
@@ -449,7 +492,7 @@ PointerEvent::EventType OffscreenQmlSurface::choosePointerEventType(QEvent::Type
     }
 }
 
-void OffscreenQmlSurface::hoverBeginEvent(const PointerEvent& event, class QTouchDevice& device) {
+void OffscreenQmlSurface::hoverBeginEvent(const PointerEvent& event, OffscreenTouchDevice& device) {
 #if defined(DISABLE_QML)
     return;
 #endif
@@ -457,7 +500,7 @@ void OffscreenQmlSurface::hoverBeginEvent(const PointerEvent& event, class QTouc
     _activeTouchPoints[event.getID()].hovering = true;
 }
 
-void OffscreenQmlSurface::hoverEndEvent(const PointerEvent& event, class QTouchDevice& device) {
+void OffscreenQmlSurface::hoverEndEvent(const PointerEvent& event, OffscreenTouchDevice& device) {
 #if defined(DISABLE_QML)
     return;
 #endif
@@ -473,7 +516,7 @@ void OffscreenQmlSurface::hoverEndEvent(const PointerEvent& event, class QTouchD
     }
 }
 
-bool OffscreenQmlSurface::handlePointerEvent(const PointerEvent& event, class QTouchDevice& device, bool release) {
+bool OffscreenQmlSurface::handlePointerEvent(const PointerEvent& event, OffscreenTouchDevice& device, bool release) {
 #if defined(DISABLE_QML)
     return false;
 #endif
@@ -485,13 +528,14 @@ bool OffscreenQmlSurface::handlePointerEvent(const PointerEvent& event, class QT
 
     QPointF windowPoint(event.getPos2D().x, event.getPos2D().y);
 
-    Qt::TouchPointState state = Qt::TouchPointStationary;
+    OffscreenTouchPointState state = OFFSCREEN_TOUCH_STATIONARY;
     if (event.getType() == PointerEvent::Press && event.getButton() == PointerEvent::PrimaryButton) {
-        state = Qt::TouchPointPressed;
+        state = OFFSCREEN_TOUCH_PRESSED;
     } else if (event.getType() == PointerEvent::Release && event.getButton() == PointerEvent::PrimaryButton) {
-        state = Qt::TouchPointReleased;
-    } else if (_activeTouchPoints.count(event.getID()) && windowPoint != _activeTouchPoints[event.getID()].touchPoint.pos()) {
-        state = Qt::TouchPointMoved;
+        state = OFFSCREEN_TOUCH_RELEASED;
+    } else if (_activeTouchPoints.count(event.getID()) &&
+               windowPoint != offscreenTouchPosition(_activeTouchPoints[event.getID()].touchPoint)) {
+        state = OFFSCREEN_TOUCH_MOVED;
     }
 
     // Remove the touch point if:
@@ -499,7 +543,7 @@ bool OffscreenQmlSurface::handlePointerEvent(const PointerEvent& event, class QT
     // - this was a release event and we aren't still hovering
     auto touchPoint = _activeTouchPoints.find(event.getID());
     bool removeTouchPoint =
-        release || (touchPoint != _activeTouchPoints.end() && !touchPoint->second.hovering && state == Qt::TouchPointReleased);
+        release || (touchPoint != _activeTouchPoints.end() && !touchPoint->second.hovering && state == OFFSCREEN_TOUCH_RELEASED);
     QEvent::Type touchType = QEvent::TouchUpdate;
     if (_activeTouchPoints.empty()) {
         // If the first active touch point is being created, send a begin
@@ -510,19 +554,21 @@ bool OffscreenQmlSurface::handlePointerEvent(const PointerEvent& event, class QT
     }
 
     {
-        QTouchEvent::TouchPoint point;
-        point.setId(event.getID());
-        point.setState(state);
-        point.setPos(windowPoint);
-        point.setScreenPos(windowPoint);
-        _activeTouchPoints[event.getID()].touchPoint = point;
-        if (state == Qt::TouchPointPressed) {
+        _activeTouchPoints[event.getID()].touchPoint = makeOffscreenTouchPoint(event.getID(), state, windowPoint);
+        if (state == OFFSCREEN_TOUCH_PRESSED) {
             _activeTouchPoints[event.getID()].pressed = true;
-        } else if (state == Qt::TouchPointReleased) {
+        } else if (state == OFFSCREEN_TOUCH_RELEASED) {
             _activeTouchPoints[event.getID()].pressed = false;
         }
     }
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    QList<QEventPoint> touchPoints;
+    for (const auto& entry : _activeTouchPoints) {
+        touchPoints.push_back(entry.second.touchPoint);
+    }
+    QTouchEvent touchEvent(touchType, &device, event.getKeyboardModifiers(), touchPoints);
+#else
     QTouchEvent touchEvent(touchType, &device, event.getKeyboardModifiers());
     {
         QList<QTouchEvent::TouchPoint> touchPoints;
@@ -537,9 +583,10 @@ bool OffscreenQmlSurface::handlePointerEvent(const PointerEvent& event, class QT
         touchEvent.setTarget(getRootItem());
         touchEvent.setTouchPoints(touchPoints);
         touchEvent.setTouchPointStates(touchPointStates);
-        touchEvent.setTimestamp((ulong)QDateTime::currentMSecsSinceEpoch());
-        touchEvent.ignore();
     }
+#endif
+    touchEvent.setTimestamp((ulong)QDateTime::currentMSecsSinceEpoch());
+    touchEvent.ignore();
 
     // Send mouse events to the surface so that HTML dialog elements work with mouse press and hover.
     //
@@ -772,7 +819,12 @@ void OffscreenQmlSurface::emitWebEvent(const QVariant& message) {
         const QString LOWER_KEYBOARD = "_LOWER_KEYBOARD";
         const QString RAISE_KEYBOARD_NUMERIC_PASSWORD = "_RAISE_KEYBOARD_NUMERIC_PASSWORD";
         const QString RAISE_KEYBOARD_PASSWORD = "_RAISE_KEYBOARD_PASSWORD";
-        QString messageString = message.type() == QVariant::String ? message.toString() : "";
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        const bool isStringMessage = message.metaType().id() == QMetaType::QString;
+#else
+        const bool isStringMessage = message.type() == QVariant::String;
+#endif
+        QString messageString = isStringMessage ? message.toString() : "";
         if (messageString.left(RAISE_KEYBOARD.length()) == RAISE_KEYBOARD) {
             bool numeric = (messageString == RAISE_KEYBOARD_NUMERIC || messageString == RAISE_KEYBOARD_NUMERIC_PASSWORD);
             bool passwordField = (messageString == RAISE_KEYBOARD_PASSWORD || messageString == RAISE_KEYBOARD_NUMERIC_PASSWORD);
@@ -835,7 +887,7 @@ void OffscreenQmlSurface::loadFromQml(const QUrl& qmlSource, QQuickItem* parent,
         // If this is a
         auto contextCallback = [callback](QQmlContext* context) {
             ContextAwareProfile::restrictContext(context, false);
-#if !defined(Q_OS_ANDROID)
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
             FileTypeProfile::registerWithContext(context);
             HFWebEngineProfile::registerWithContext(context);
 #endif

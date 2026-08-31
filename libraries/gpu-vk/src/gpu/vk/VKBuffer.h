@@ -18,6 +18,13 @@ namespace gpu { namespace vk {
 
 class VKBuffer : public VKObject<gpu::Buffer> {
 public:
+    static constexpr VkPipelineStageFlags READ_PIPELINE_STAGES =
+        VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT |
+        VK_PIPELINE_STAGE_VERTEX_INPUT_BIT |
+        VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+
     static VKBuffer* sync(VKBackend& backend, const gpu::Buffer& buffer, bool transfer = true);
     static VkBuffer getBuffer(VKBackend& backend, const gpu::Buffer& buffer);
 
@@ -53,6 +60,8 @@ protected:
     void incrementCount(VKBackend& backend);
 
     void incrementTransferCount(VKBackend& backend, size_t transferSize);
+
+    VkAccessFlags getReadAccessMask() const;
 
     // Local copy of buffer data. Updates are copied into it before transfer.
     std::vector<uint8_t> _localData;

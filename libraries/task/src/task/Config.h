@@ -50,7 +50,7 @@ public:
 
         _default = toJsonValue(*this).toObject().toVariantMap();
 
-        _presets.unite(list.toVariantMap());
+        _presets.insert(list.toVariantMap());
         if (C::isEnabled()) {
             _presets.insert(DEFAULT, _default);
         }
@@ -79,8 +79,8 @@ public:
     }
 
 protected:
-    QMultiMap<QString, QVariant> _default;
-    QMultiMap<QString, QVariant> _presets;
+    QVariantMap _default;
+    QVariantMap _presets;
     Setting::Handle<QString> _preset;
 };
 

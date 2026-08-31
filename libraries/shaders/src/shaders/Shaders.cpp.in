@@ -35,15 +35,23 @@ const std::vector<Dialect> & allDialects() {
     static const std::vector<Dialect> ALL_DIALECTS_45{ { Dialect::glsl450, Dialect::glsl410 } };
     static const std::vector<Dialect> ALL_DIALECTS_41{ { Dialect::glsl410 } };
     static const std::vector<Dialect> ALL_DIALECTS_32ES{ { Dialect::glsl310es } };
+    static const std::vector<Dialect> ALL_DIALECTS_VULKAN{ { Dialect::glsl450 } };
 
     auto backendApi = hifi::properties::getGraphicsAPI();
-    if (backendApi == hifi::properties::GraphicsAPI::GL45) {
-        return ALL_DIALECTS_45;
-    } else if (backendApi == hifi::properties::GraphicsAPI::GL41) {
-        return ALL_DIALECTS_41;
-    } else {
-        return ALL_DIALECTS_32ES;
+    switch (backendApi) {
+        case hifi::properties::GraphicsAPI::GL45:
+            return ALL_DIALECTS_45;
+        case hifi::properties::GraphicsAPI::GL41:
+            return ALL_DIALECTS_41;
+        case hifi::properties::GraphicsAPI::GLES32:
+            return ALL_DIALECTS_32ES;
+        case hifi::properties::GraphicsAPI::Vulkan:
+            // The Vulkan backend consumes the 450 SPIR-V payload and its
+            // matching reflection. Falling through to the GLES dialect leaves
+            // every source without the data requested by VKPipelineCache.
+            return ALL_DIALECTS_VULKAN;
     }
+    throw std::runtime_error("Invalid graphics API");
 }
 
 const std::vector<Variant>& allVariants() {

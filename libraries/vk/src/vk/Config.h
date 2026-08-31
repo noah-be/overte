@@ -26,6 +26,10 @@
 #define VK_USE_PLATFORM_WIN32_KHR
 #elif defined(Q_OS_ANDROID)
 #define VK_USE_PLATFORM_ANDROID_KHR
+#elif defined(Q_OS_IOS)
+#ifndef VK_USE_PLATFORM_METAL_EXT
+#define VK_USE_PLATFORM_METAL_EXT
+#endif
 #elif defined(Q_OS_DARWIN)
 #else
 #define VK_USE_PLATFORM_XCB_KHR

@@ -48,6 +48,7 @@
 
     this.preload = function (entityID) {
         loaderEntityID = entityID;
+        console.info("OVERTE_IOS_WIZARD_GATE stage=preload-start");
 
         configWizardEntityID = Entities.addEntity({
             "type": "Web",
@@ -67,6 +68,18 @@
             "localRotation": Quat.fromVec3Degrees({"x": -58, "y": 0, "z": 0}),
             "dimensions": { x: 2.6, y: 1.3, z: 0 }
         }, "local");
+
+        var createdProperties = Entities.getEntityProperties(
+            configWizardEntityID,
+            ["type", "sourceUrl", "visible"]
+        );
+        console.info(
+            "OVERTE_IOS_WIZARD_GATE stage=entity-created" +
+            " id_valid=" + !Uuid.isNull(configWizardEntityID) +
+            " type=" + createdProperties.type +
+            " source_match=" + (createdProperties.sourceUrl === CONFIG_WIZARD_URL) +
+            " visible=" + createdProperties.visible
+        );
 
         Entities.webEventReceived.connect(onWebAppEventReceived);
     }

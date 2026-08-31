@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import os
@@ -23,22 +23,38 @@ import zipfile
 
 
 DEVICE_ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY_ROOT = DEVICE_ROOT.parents[1]
 VERIFIER = Path(__file__).with_name("verify_fedora_artifacts.py")
+PERSONAL_TEAM_VERIFIER = Path(__file__).with_name("verify_personal_team_artifacts.py")
 IOS_ROOT = Path(__file__).resolve().parent
 if str(IOS_ROOT) not in sys.path:
     sys.path.insert(0, str(IOS_ROOT))
 from security_tools import install as install_security_tools  # noqa: E402
 API_VERSION = "2026-03-10"
 DEFAULT_REPOSITORY = "noah-be/overte"
-WORKFLOW = "ios-fedora-e2e-producer.yml"
+WORKFLOW = "ios-bootstrap.yml"
 WORKFLOW_PATH = f".github/workflows/{WORKFLOW}"
 PROTECTED_REF = "apple-ios"
 REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+BUNDLE_ID_RE = re.compile(
+    r"[A-Za-z0-9][A-Za-z0-9-]*(?:[.][A-Za-z0-9][A-Za-z0-9-]*)+"
+)
 OVERTE_IPA_RE = re.compile(r"^[0-9]{4,}-OverteIOSClient-Release-device-signed[.]ipa$")
 WDA_IPA = "WebDriverAgentRunner-Runner-16.8.0-signed.ipa"
-MAX_DOWNLOAD_BYTES = 12 * 1024 * 1024 * 1024
+PERSONAL_OVERTE_IPA = "Overte-PersonalTeam-E2E-signed.ipa"
+PERSONAL_WDA_IPA = "WebDriverAgentRunner-16.8.0-PersonalTeam-signed.ipa"
+PROTECTED_RECEIPT = "overte-ios-fedora-e2e-receipt-v1"
+PERSONAL_RECEIPT = "overte-ios-personal-team-artifact-receipt-v1"
+PREINSTALLED_RECEIPT = "overte-ios-personal-team-preinstalled-receipt-v1"
+PINNED_SERVICE_RUNTIME = Path("/usr/local/lib/overte-ios-remotexpc/5.15.3-r12")
+MAX_ACTIONS_ARCHIVE_BYTES = 4 * 1024 * 1024 * 1024
+MAX_ENCRYPTED_BYTES = 4 * 1024 * 1024 * 1024
+MAX_INNER_ZIP_BYTES = 4 * 1024 * 1024 * 1024
+MAX_IPA_BYTES = 4 * 1024 * 1024 * 1024
+MAX_MANIFEST_BYTES = 1024 * 1024
 MAX_ARCHIVE_ENTRIES = 8
+SCENE_PATH = "/scene.json?location=%2F0%2C2%2C4%2F0%2C0%2C0%2C1"
 
 
 class HandoffError(ValueError):
@@ -50,7 +66,7 @@ def fail(message: str) -> "NoReturn":
 
 
 def private_directory(path: Path) -> Path:
-    if path.is_symlink() or (path.exists() and not path.is_dir()):
+    if has_symlink_component(path) or (path.exists() and not path.is_dir()):
         fail("private handoff path must be a real directory")
     path.mkdir(parents=True, exist_ok=True, mode=0o700)
     if os.name != "nt":
@@ -59,12 +75,30 @@ def private_directory(path: Path) -> Path:
 
 
 def secure_json(path: Path, value: dict) -> None:
+    if not path.is_absolute() or has_symlink_component(path):
+        fail("private JSON path must be absolute and non-symlinked")
     private_directory(path.parent)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    if os.name != "nt":
-        temporary.chmod(stat.S_IRUSR | stat.S_IWUSR)
-    temporary.replace(path)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(temporary, flags, 0o600)
+    try:
+        payload = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
+        with os.fdopen(descriptor, "wb", closefd=False) as output:
+            output.write(payload)
+            output.flush()
+            os.fsync(output.fileno())
+        os.close(descriptor)
+        descriptor = -1
+        temporary.replace(path)
+        directory = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        temporary.unlink(missing_ok=True)
 
 
 def sha256_file(path: Path) -> str:
@@ -85,6 +119,14 @@ def has_symlink_component(path: Path) -> bool:
         if not current.exists():
             break
     return False
+
+
+def inside_repository(path: Path) -> bool:
+    try:
+        path.resolve().relative_to(REPOSITORY_ROOT.resolve())
+        return True
+    except ValueError:
+        return False
 
 
 class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -152,7 +194,7 @@ class GitHubApi:
         workflow = urllib.parse.quote(WORKFLOW, safe="")
         response = self.request(
             "POST", f"{self.base}/actions/workflows/{workflow}/dispatches",
-            {"ref": PROTECTED_REF, "inputs": inputs},
+            {"ref": PROTECTED_REF, "inputs": inputs, "return_run_details": True},
         )
         run_id = response.get("workflow_run_id")
         if not isinstance(run_id, int) or run_id <= 0:
@@ -186,7 +228,7 @@ class GitHubApi:
                 total = 0
                 while block := response.read(1024 * 1024):
                     total += len(block)
-                    if total > MAX_DOWNLOAD_BYTES:
+                    if total > MAX_ACTIONS_ARCHIVE_BYTES:
                         fail("GitHub artifact exceeded the download safety limit")
                     output.write(block)
         except urllib.error.HTTPError as error:
@@ -195,24 +237,30 @@ class GitHubApi:
             fail(f"GitHub artifact download failed: {type(error.reason).__name__}")
 
 
-def verify_run(run: dict, run_id: int, *, require_complete: bool) -> dict:
+def verify_run(run: dict, run_id: int, *, expected_attempt: int,
+               require_complete: bool) -> dict:
     path = run.get("path")
     repository = run.get("repository")
     head_repository = run.get("head_repository")
     if (
         run.get("id") != run_id
         or run.get("event") != "workflow_dispatch"
-        or not isinstance(path, str)
-        or not path.startswith(WORKFLOW_PATH + "@")
+        or path not in {
+            WORKFLOW_PATH,
+            f"{WORKFLOW_PATH}@{PROTECTED_REF}",
+            f"{WORKFLOW_PATH}@refs/heads/{PROTECTED_REF}",
+        }
         or run.get("head_branch") != PROTECTED_REF
         or not isinstance(run.get("head_sha"), str)
         or not REVISION_RE.fullmatch(run["head_sha"])
         or not isinstance(repository, dict)
         or repository.get("full_name") != DEFAULT_REPOSITORY
+        or not isinstance(repository.get("id"), int)
+        or repository["id"] <= 0
         or not isinstance(head_repository, dict)
         or head_repository.get("full_name") != DEFAULT_REPOSITORY
-        or not isinstance(run.get("run_attempt"), int)
-        or run["run_attempt"] <= 0
+        or head_repository.get("id") != repository["id"]
+        or run.get("run_attempt") != expected_attempt
     ):
         fail("workflow run is outside the protected iOS producer boundary")
     if require_complete and (run.get("status") != "completed" or run.get("conclusion") != "success"):
@@ -220,12 +268,17 @@ def verify_run(run: dict, run_id: int, *, require_complete: bool) -> dict:
     return run
 
 
-def wait_for_run(api: GitHubApi, run_id: int, timeout_seconds: int, poll_seconds: int) -> dict:
+def wait_for_run(api: GitHubApi, run_id: int, expected_attempt: int,
+                 timeout_seconds: int, poll_seconds: int) -> dict:
     deadline = time.monotonic() + timeout_seconds
     while True:
-        run = verify_run(api.run(run_id), run_id, require_complete=False)
+        run = verify_run(
+            api.run(run_id), run_id, expected_attempt=expected_attempt, require_complete=False
+        )
         if run.get("status") == "completed":
-            return verify_run(run, run_id, require_complete=True)
+            return verify_run(
+                run, run_id, expected_attempt=expected_attempt, require_complete=True
+            )
         if time.monotonic() >= deadline:
             fail("timed out waiting for the protected iOS producer")
         time.sleep(poll_seconds)
@@ -252,15 +305,46 @@ def select_artifacts(items: list[dict], run: dict) -> dict[str, dict]:
             or not re.fullmatch(r"sha256:[0-9a-f]{64}", digest)
             or not isinstance(workflow_run, dict)
             or workflow_run.get("id") != run["id"]
+            or workflow_run.get("repository_id") != run["repository"]["id"]
+            or workflow_run.get("head_repository_id") != run["repository"]["id"]
             or workflow_run.get("head_branch") != PROTECTED_REF
             or workflow_run.get("head_sha") != run["head_sha"]
+            or item["archive_download_url"]
+            != f"https://api.github.com/repos/{DEFAULT_REPOSITORY}/actions/artifacts/{item['id']}/zip"
         ):
             fail(f"{role} artifact provenance is invalid")
         selected[role] = item
     return selected
 
 
+def copy_zip_member(archive: zipfile.ZipFile, entry: zipfile.ZipInfo,
+                    target: Path, limit: int, label: str) -> None:
+    if entry.file_size <= 0 or entry.file_size > limit:
+        fail(f"{label} declared size is invalid")
+    if entry.compress_type != zipfile.ZIP_STORED or entry.compress_size != entry.file_size:
+        fail(f"{label} must use the producer's non-compressing ZIP contract")
+    total = 0
+    try:
+        with archive.open(entry) as source, target.open("xb") as output:
+            while block := source.read(min(1024 * 1024, limit - total + 1)):
+                total += len(block)
+                if total > limit:
+                    fail(f"{label} exceeded its extraction limit")
+                output.write(block)
+            output.flush()
+            os.fsync(output.fileno())
+        if total != entry.file_size:
+            fail(f"{label} extracted size differs from ZIP metadata")
+        target.chmod(0o600)
+    except BaseException:
+        target.unlink(missing_ok=True)
+        raise
+
+
 def safe_extract(archive_path: Path, destination: Path, role: str) -> tuple[Path, Path]:
+    if (archive_path.is_symlink() or not archive_path.is_file()
+            or archive_path.stat().st_size > MAX_INNER_ZIP_BYTES):
+        fail(f"{role} decrypted inner ZIP size is invalid")
     try:
         archive = zipfile.ZipFile(archive_path)
     except (OSError, zipfile.BadZipFile):
@@ -270,6 +354,7 @@ def safe_extract(archive_path: Path, destination: Path, role: str) -> tuple[Path
         if len(entries) != 2 or len(entries) > MAX_ARCHIVE_ENTRIES:
             fail(f"{role} workflow artifact must contain exactly two files")
         names: set[str] = set()
+        total = 0
         for entry in entries:
             name = entry.filename
             path = PurePosixPath(name)
@@ -285,9 +370,15 @@ def safe_extract(archive_path: Path, destination: Path, role: str) -> tuple[Path
                 or mode not in {0, stat.S_IFREG}
             ):
                 fail(f"{role} workflow artifact contains an unsafe entry")
-            if entry.file_size <= 0 or entry.file_size > MAX_DOWNLOAD_BYTES:
+            limit = MAX_IPA_BYTES if name.endswith(".ipa") else MAX_MANIFEST_BYTES
+            if entry.file_size <= 0 or entry.file_size > limit:
                 fail(f"{role} workflow artifact entry size is invalid")
+            if entry.compress_type != zipfile.ZIP_STORED or entry.compress_size != entry.file_size:
+                fail(f"{role} workflow artifact violates the stored inner-ZIP contract")
+            total += entry.file_size
             names.add(name)
+        if total > MAX_IPA_BYTES + MAX_MANIFEST_BYTES:
+            fail(f"{role} workflow artifact expands beyond the cumulative limit")
         ipa_names = [name for name in names if name.endswith(".ipa")]
         manifest_names = [name for name in names if name.endswith(".manifest.json")]
         if len(ipa_names) != 1 or len(manifest_names) != 1:
@@ -302,15 +393,18 @@ def safe_extract(archive_path: Path, destination: Path, role: str) -> tuple[Path
         private_directory(destination)
         for entry in entries:
             target = destination / entry.filename
-            with archive.open(entry) as source, target.open("xb") as output:
-                shutil.copyfileobj(source, output, length=1024 * 1024)
-            if os.name != "nt":
-                target.chmod(stat.S_IRUSR | stat.S_IWUSR)
+            limit = MAX_IPA_BYTES if entry.filename.endswith(".ipa") else MAX_MANIFEST_BYTES
+            copy_zip_member(
+                archive, entry, target, limit, f"{role} inner {entry.filename}"
+            )
         return destination / ipa_name, destination / manifest_names[0]
 
 
 def extract_encrypted_payload(archive_path: Path, destination: Path,
                               expected_name: str, role: str) -> Path:
+    if (archive_path.is_symlink() or not archive_path.is_file()
+            or archive_path.stat().st_size > MAX_ACTIONS_ARCHIVE_BYTES):
+        fail(f"{role} Actions archive size is invalid")
     try:
         archive = zipfile.ZipFile(archive_path)
     except (OSError, zipfile.BadZipFile):
@@ -323,14 +417,15 @@ def extract_encrypted_payload(archive_path: Path, destination: Path,
         mode = (entry.external_attr >> 16) & 0o170000
         if (
             entry.is_dir() or entry.flag_bits & 0x1 or mode not in {0, stat.S_IFREG}
-            or not 0 < entry.file_size <= MAX_DOWNLOAD_BYTES
+            or not 0 < entry.file_size <= MAX_ENCRYPTED_BYTES
+            or entry.compress_type != zipfile.ZIP_STORED
+            or entry.compress_size != entry.file_size
         ):
             fail(f"{role} encrypted workflow payload is unsafe")
         target = destination / expected_name
-        with archive.open(entry) as source, target.open("xb") as output:
-            shutil.copyfileobj(source, output, length=1024 * 1024)
-        if os.name != "nt":
-            target.chmod(0o600)
+        copy_zip_member(
+            archive, entry, target, MAX_ENCRYPTED_BYTES, f"{role} encrypted payload"
+        )
         return target
 
 
@@ -340,31 +435,43 @@ def private_age_identity() -> Path:
     if (not value or has_symlink_component(path) or not path.is_absolute()
             or not path.is_file()):
         fail("OVERTE_IOS_AGE_IDENTITY_FILE must name an absolute private age identity file")
-    if os.name != "nt" and path.stat().st_mode & 0o077:
+    metadata = path.lstat()
+    if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.geteuid()
+            or metadata.st_nlink != 1):
+        fail("age identity file must be an owned, unlinked regular file")
+    if os.name != "nt" and metadata.st_mode & 0o077:
         fail("age identity file must not be accessible to group or other users")
     return path
 
 
 def decrypt_payload(age: Path, identity: Path, encrypted: Path, destination: Path) -> None:
-    result = subprocess.run(
-        [str(age), "--decrypt", "--identity", str(identity),
-         "--output", str(destination), str(encrypted)],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        timeout=15 * 60, check=False,
-    )
-    if result.returncode or not destination.is_file():
-        fail("signed iOS workflow payload failed authenticated age decryption")
-    if destination.stat().st_size > MAX_DOWNLOAD_BYTES:
-        destination.unlink()
-        fail("decrypted iOS workflow payload exceeds the safety limit")
-    if os.name != "nt":
+    if destination.exists() or destination.is_symlink():
+        fail("age output must be a new private file")
+    try:
+        result = subprocess.run(
+            [str(age), "--decrypt", "--identity", str(identity),
+             "--output", str(destination), str(encrypted)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=15 * 60, check=False,
+        )
+        if (result.returncode or destination.is_symlink() or not destination.is_file()
+                or not 0 < destination.stat().st_size <= MAX_INNER_ZIP_BYTES):
+            fail("signed iOS workflow payload failed bounded authenticated age decryption")
         destination.chmod(0o600)
+    except BaseException:
+        destination.unlink(missing_ok=True)
+        raise
 
 
 def activate_target(config_path: Path, selector: str, receipt_path: Path) -> None:
     if (has_symlink_component(config_path) or not config_path.is_absolute()
-            or not config_path.is_file()):
+            or not config_path.is_file() or inside_repository(config_path)
+            or inside_repository(receipt_path)):
         fail("iOS target configuration must be an existing absolute private file")
+    metadata = config_path.lstat()
+    if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.geteuid()
+            or metadata.st_nlink != 1 or metadata.st_mode & 0o077):
+        fail("iOS target configuration must be an owned mode-0600 private file")
     try:
         config = json.loads(config_path.read_text(encoding="utf-8"))
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
@@ -378,75 +485,506 @@ def activate_target(config_path: Path, selector: str, receipt_path: Path) -> Non
         fail("private selector does not identify exactly one iOS target")
     target = matches[0]
     capabilities = target.get("capabilities")
-    if not isinstance(capabilities, dict):
-        fail("private iOS target has no capabilities object")
+    test_build = target.get("testBuild")
+    if (not isinstance(capabilities, dict) or not isinstance(test_build, dict)
+            or test_build.get("scenePath") != SCENE_PATH):
+        fail("private iOS target lacks its fixed capability/test-build contract")
+    udid = capabilities.get("appium:udid")
+    platform_version = capabilities.get("appium:platformVersion")
+    if (not isinstance(udid, str) or not udid or not isinstance(platform_version, str)
+            or not re.fullmatch(r"[0-9]+(?:[.][0-9]+){0,2}", platform_version)
+            or int(platform_version.partition(".")[0]) < 18):
+        fail("private iOS target must retain an explicit physical iOS 18+ identity")
+    if capabilities.get("appium:autoLaunch") not in {None, False}:
+        fail("private iOS target must not auto-launch before controlled arguments are ready")
+    forbidden = {
+        "appium:xcodeConfigFile", "appium:xcodeOrgId", "appium:xcodeSigningId",
+        "appium:keychainPath", "appium:keychainPassword",
+    }
+    if forbidden.intersection(capabilities):
+        fail("private Fedora target contains Xcode-only signing capabilities")
+    if not isinstance(receipt, dict) or set(receipt) != {
+        "schemaVersion", "contract", "sourceRevision", "createdAt", "notAfter",
+        "provenance", "overte", "wda", "toolchain",
+    } or receipt.get("schemaVersion") != 1 or receipt.get("contract") not in {
+        PROTECTED_RECEIPT, PERSONAL_RECEIPT, PREINSTALLED_RECEIPT,
+    }:
+        fail("private artifact receipt contract is invalid")
     overte = receipt["overte"]
     wda = receipt["wda"]
-    suffix = ".xctrunner"
-    if not wda["bundleId"].endswith(suffix):
-        fail("verified WDA bundle does not have the XCTest runner suffix")
+    if (not isinstance(overte, dict) or not isinstance(wda, dict)
+            or not isinstance(overte.get("bundleId"), str)
+            or not isinstance(wda.get("bundleId"), str)
+            or not BUNDLE_ID_RE.fullmatch(overte["bundleId"])
+            or not BUNDLE_ID_RE.fullmatch(wda["bundleId"])):
+        fail("verified app receipt contains an invalid bundle identifier")
+    preserved = (udid, platform_version, test_build["scenePath"])
+    target["enabled"] = True
     target["appId"] = overte["bundleId"]
     target["artifactReceipt"] = str(receipt_path.resolve())
+    # Revision 12 starts WDA with a complete XCTest/testmanagerd handshake and
+    # closes the transport gracefully so the next runner can connect.
+    # Remove the revision-9 Home-event workaround from existing private
+    # targets so it cannot race that launch.
+    target.pop("iosSessionBootstrap", None)
+    preinstalled = receipt["contract"] == PREINSTALLED_RECEIPT
+    target["artifactMode"] = "personal-team-preinstalled" if preinstalled else "signed-ipa"
     capabilities["appium:bundleId"] = overte["bundleId"]
-    capabilities["appium:app"] = overte["path"]
-    capabilities["appium:prebuiltWDAPath"] = wda["path"]
-    capabilities["appium:updatedWDABundleId"] = wda["bundleId"].removesuffix(suffix)
+    capabilities["appium:usePreinstalledWDA"] = True
+    capabilities["appium:autoLaunch"] = False
+    # Overte renders continuously, so XCTest never reaches application idle.
+    # A nonzero WDA quiescence timeout can report a failed action after the
+    # touch itself was already delivered to the application.
+    capabilities["appium:waitForIdleTimeout"] = 0
+    if preinstalled:
+        suffix = wda.get("bundleIdSuffix")
+        updated_wda = wda.get("updatedBundleId")
+        if (set(overte) != {"bundleId", "installed"}
+                or set(wda) != {
+                    "bundleId", "updatedBundleId", "bundleIdSuffix", "installed"}
+                or overte["installed"] is not True or wda["installed"] is not True
+                or not isinstance(updated_wda, str)
+                or not BUNDLE_ID_RE.fullmatch(updated_wda)
+                or suffix not in {"", ".xctrunner"}
+                or updated_wda + suffix != wda["bundleId"]):
+            fail("preinstalled Personal-Team receipt app inventory is invalid")
+        capabilities["appium:updatedWDABundleId"] = updated_wda
+        capabilities["appium:updatedWDABundleIdSuffix"] = suffix
+        capabilities.pop("appium:app", None)
+        capabilities.pop("appium:prebuiltWDAPath", None)
+        capabilities["appium:enforceAppInstall"] = False
+    else:
+        if (set(overte) != {"path", "sha256", "bundleId"}
+                or set(wda) != {
+                    "ipaPath", "ipaSha256", "prebuiltPath", "prebuiltTreeSha256",
+                    "bundleId"} or not wda["bundleId"].endswith(".xctrunner")):
+            fail("signed IPA receipt inventory is invalid")
+        capabilities["appium:updatedWDABundleId"] = wda["bundleId"].removesuffix(
+            ".xctrunner")
+        capabilities.pop("appium:updatedWDABundleIdSuffix", None)
+        capabilities["appium:app"] = overte["path"]
+        capabilities["appium:prebuiltWDAPath"] = wda["prebuiltPath"]
+        capabilities["appium:enforceAppInstall"] = False
+    if preserved != (
+        capabilities["appium:udid"], capabilities["appium:platformVersion"],
+        test_build["scenePath"],
+    ):
+        fail("private target identity or fixed scene path changed during activation")
     secure_json(config_path, config)
 
 
-def require_receipt_revision(receipt_path: Path, expected_revision: str) -> dict:
+def require_receipt_binding(receipt_path: Path, run: dict) -> dict:
     try:
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         fail("final iOS artifact receipt is unreadable")
-    if receipt.get("sourceRevision") != expected_revision:
-        fail("iOS artifact source revision does not match the protected workflow run")
+    expected_provenance = {
+        "repository": DEFAULT_REPOSITORY,
+        "repositoryId": run["repository"]["id"],
+        "workflow": WORKFLOW_PATH,
+        "reusableWorkflow": ".github/workflows/ios-fedora-e2e-producer.yml",
+        "ref": f"refs/heads/{PROTECTED_REF}",
+        "runId": run["id"],
+        "runAttempt": run["run_attempt"],
+    }
+    if (receipt.get("sourceRevision") != run["head_sha"]
+            or receipt.get("provenance") != expected_provenance):
+        fail("iOS artifact receipt does not match the protected workflow attempt")
     return receipt
 
 
 def dispatch_inputs(arguments: argparse.Namespace) -> dict[str, str]:
     names = {
+        "fedora_e2e_producer": "true",
         "qt_host_cache_key": arguments.qt_host_cache_key,
         "qt_ios_cache_key": arguments.qt_ios_cache_key,
         "qt_host_artifact_prefix": arguments.qt_host_artifact_prefix,
         "qt_ios_artifact_prefix": arguments.qt_ios_artifact_prefix,
-        "overte_bundle_id": arguments.overte_bundle_id,
-        "wda_bundle_id": arguments.wda_bundle_id,
     }
     expected = {
+        "fedora_e2e_producer": r"true",
         "qt_host_cache_key": r"overte-qt-host-v2-[A-Za-z0-9._-]{1,190}-contract-[0-9a-f]{64}",
         "qt_ios_cache_key": r"overte-qt-ios-v2-[A-Za-z0-9._-]{1,190}-contract-[0-9a-f]{64}",
         "qt_host_artifact_prefix": r"overte-qt-host-checkpoint-v1-[0-9a-f]{32}",
         "qt_ios_artifact_prefix": r"overte-qt-ios-checkpoint-v1-[0-9a-f]{32}",
-        "overte_bundle_id": r"[A-Za-z0-9][A-Za-z0-9.-]*[.]e2e",
-        "wda_bundle_id": r"[A-Za-z0-9][A-Za-z0-9-]*(?:[.][A-Za-z0-9][A-Za-z0-9-]*)+",
     }
     if any(not re.fullmatch(expected[name], value) for name, value in names.items()):
         fail("protected producer input does not satisfy its fixed provenance namespace")
-    if names["wda_bundle_id"].endswith(".xctrunner"):
-        fail("WDA workflow input must be the Appium base bundle identifier")
     return names
+
+
+def copy_private_input(source: Path, destination: Path, limit: int, label: str) -> None:
+    if (not source.is_absolute() or has_symlink_component(source) or source.is_symlink()
+            or not source.is_file() or inside_repository(source)):
+        fail(f"{label} must be an absolute private regular file")
+    metadata = source.lstat()
+    if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.geteuid()
+            or metadata.st_nlink != 1 or metadata.st_mode & 0o077):
+        fail(f"{label} must be owned mode-0600 private data")
+    initial_size = metadata.st_size
+    if not 0 < initial_size <= limit:
+        fail(f"{label} size is invalid")
+    initial_digest = sha256_file(source)
+    total = 0
+    try:
+        with source.open("rb") as input_file, destination.open("xb") as output:
+            while block := input_file.read(min(1024 * 1024, limit - total + 1)):
+                total += len(block)
+                if total > limit:
+                    fail(f"{label} exceeded its copy limit")
+                output.write(block)
+            output.flush()
+            os.fsync(output.fileno())
+        destination.chmod(0o600)
+        if (total != initial_size or sha256_file(destination) != initial_digest
+                or source.stat().st_size != initial_size
+                or sha256_file(source) != initial_digest):
+            fail(f"{label} changed during its private copy")
+    except BaseException:
+        destination.unlink(missing_ok=True)
+        raise
+
+
+def run_personal_team_verifier(arguments: argparse.Namespace, root: Path,
+                               receipt: Path, rcodesign: Path) -> None:
+    result = subprocess.run([
+        sys.executable, str(PERSONAL_TEAM_VERIFIER),
+        "--unsigned-kit", str(root / "personal-team-e2e-kit.json"),
+        "--attestation", str(root / "personal-team-signed-handoff.json"),
+        "--overte-ipa", str(root / PERSONAL_OVERTE_IPA),
+        "--wda-ipa", str(root / PERSONAL_WDA_IPA),
+        "--receipt", str(receipt), "--rcodesign", str(rcodesign),
+    ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+       timeout=15 * 60, check=False)
+    if result.returncode:
+        fail("private Personal-Team IPA pair failed the Fedora verifier")
+
+
+def run_local_import(arguments: argparse.Namespace) -> int:
+    if (not arguments.destination.is_absolute()
+            or arguments.target_config and not arguments.target_config.is_absolute()):
+        fail("Personal-Team destination and target config must be absolute private paths")
+    destination_root = arguments.destination.resolve()
+    if has_symlink_component(arguments.destination) or destination_root == Path(
+            destination_root.anchor) or inside_repository(destination_root):
+        fail("destination must be a safe non-root private directory")
+    private_directory(destination_root)
+    security_tools = install_security_tools(destination_root / ".security-tools")
+    temporary = Path(tempfile.mkdtemp(prefix=".personal-team-", dir=destination_root))
+    final: Path | None = None
+    moved = False
+    try:
+        for source, name, limit, label in (
+            (arguments.unsigned_kit, "personal-team-e2e-kit.json", MAX_MANIFEST_BYTES,
+             "unsigned kit manifest"),
+            (arguments.attestation, "personal-team-signed-handoff.json", MAX_MANIFEST_BYTES,
+             "Personal-Team attestation"),
+            (arguments.overte_ipa, PERSONAL_OVERTE_IPA, MAX_IPA_BYTES,
+             "signed Personal-Team Overte IPA"),
+            (arguments.wda_ipa, PERSONAL_WDA_IPA, MAX_IPA_BYTES,
+             "signed Personal-Team WDA IPA"),
+        ):
+            copy_private_input(source, temporary / name, limit, label)
+        attestation_digest = sha256_file(
+            temporary / "personal-team-signed-handoff.json"
+        )
+        final = destination_root / f"personal-team-{attestation_digest[:16]}"
+        if final.exists() or final.is_symlink():
+            fail("private destination for this Personal-Team handoff already exists")
+        receipt = temporary / "personal-team-artifacts-receipt.json"
+        run_personal_team_verifier(
+            arguments, temporary, receipt, security_tools["rcodesign"]
+        )
+        temporary.replace(final)
+        moved = True
+        final_receipt = final / receipt.name
+        final_receipt.unlink()
+        shutil.rmtree(final / "WebDriverAgentRunner-Runner.app")
+        run_personal_team_verifier(
+            arguments, final, final_receipt, security_tools["rcodesign"]
+        )
+        if arguments.target_config:
+            activate_target(
+                arguments.target_config.resolve(), arguments.target_selector, final_receipt
+            )
+        print("PASS: private Personal-Team signed IPA handoff is verified and ready.")
+        return 0
+    except BaseException:
+        if temporary.exists():
+            shutil.rmtree(temporary)
+        if moved and final is not None and final.exists():
+            shutil.rmtree(final)
+        raise
+
+
+def validate_preinstalled_attestation(path: Path) -> tuple[dict, datetime]:
+    if (not path.is_absolute() or has_symlink_component(path) or path.is_symlink()
+            or not path.is_file() or not 0 < path.stat().st_size <= MAX_MANIFEST_BYTES):
+        fail("preinstalled Personal-Team attestation must be a safe private file")
+    metadata = path.lstat()
+    if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.geteuid()
+            or metadata.st_nlink != 1 or metadata.st_mode & 0o077):
+        fail("preinstalled Personal-Team attestation must have mode 0600")
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        fail("preinstalled Personal-Team attestation is unreadable")
+    expected_keys = {
+        "schemaVersion", "contract", "sourceRevision", "createdAt", "notAfter",
+        "expectedBundleIdentifiers", "toolchain", "humanAttestation",
+        "signingObservation", "unsignedKitManifestSha256", "bundleIdentifierMode",
+        "unsignedKitContract",
+    }
+    bundles = {
+        "overte": "org.overte.interface.e2e",
+        "wdaRunner": "org.overte.WebDriverAgentRunner.xctrunner",
+        "wdaXCTest": "org.overte.WebDriverAgentRunner",
+    }
+    toolchain = {
+        "xcuitestDriver": "12.8.0", "remoteXpc": "5.15.3",
+        "webdriverAgent": "16.8.0",
+    }
+    fixed_human = {
+        "deviceObserved": True, "installedWithSideloadly": True,
+        "fixedBundleIdentifiersConfirmed": True,
+        "acceptedNoCryptographicByteBinding": True,
+        "derivationBinding": "none-device-observed",
+    }
+    remapped_human = {
+        "deviceObserved": True, "installedWithSideloadly": True,
+        "fixedBundleIdentifiersConfirmed": False,
+        "acceptedSideloadlyBundleIdentifierRemapping": True,
+        "acceptedNoCryptographicByteBinding": True,
+        "derivationBinding": "none-device-observed",
+    }
+    identifier_mode = value.get("bundleIdentifierMode") if isinstance(value, dict) else None
+    expected_human = (fixed_human if identifier_mode == "fixed" else remapped_human
+                      if identifier_mode == "sideloadly-remapped" else None)
+    if (not isinstance(value, dict) or set(value) != expected_keys
+            or value.get("schemaVersion") != 1
+            or value.get("contract")
+            != "overte-ios-personal-team-preinstalled-attestation-v2"
+            or value.get("unsignedKitContract") not in {
+                "overte-ios-personal-team-e2e-kit-v3",
+                "overte-ios-integrated-client-manifest-v1",
+            }
+            or not isinstance(value.get("sourceRevision"), str)
+            or not REVISION_RE.fullmatch(value["sourceRevision"])
+            or not isinstance(value.get("unsignedKitManifestSha256"), str)
+            or not re.fullmatch(r"[0-9a-f]{64}", value["unsignedKitManifestSha256"])
+            or value.get("expectedBundleIdentifiers") != bundles
+            or value.get("toolchain") != toolchain
+            or expected_human is None
+            or value.get("humanAttestation") != expected_human):
+        fail("preinstalled Personal-Team attestation contract is invalid")
+    try:
+        created = datetime.strptime(value["createdAt"], "%Y-%m-%dT%H:%M:%SZ").replace(
+            tzinfo=timezone.utc
+        )
+        not_after = datetime.strptime(value["notAfter"], "%Y-%m-%dT%H:%M:%SZ").replace(
+            tzinfo=timezone.utc
+        )
+    except (KeyError, TypeError, ValueError):
+        fail("preinstalled Personal-Team attestation timestamps are invalid")
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    if created > now + timedelta(minutes=5) or not_after <= now \
+            or not_after > created + timedelta(hours=1):
+        fail("preinstalled Personal-Team attestation validity window is unsafe")
+    observation = value.get("signingObservation")
+    if identifier_mode == "sideloadly-remapped" and observation is not None:
+        fail("remapped preinstalled attestation must defer signing observation to the device")
+    if observation is not None:
+        expected_observation = {
+            "teamIdentifier", "profileExpiration", "applicationIdentifiers",
+        }
+        applications = {
+            "overte": lambda team: f"{team}.{bundles['overte']}",
+            "wdaRunner": lambda team: f"{team}.{bundles['wdaRunner']}",
+            "wdaXCTest": lambda team: f"{team}.{bundles['wdaXCTest']}",
+        }
+        if (not isinstance(observation, dict) or set(observation) != expected_observation
+                or not isinstance(observation.get("teamIdentifier"), str)
+                or not re.fullmatch(r"[A-Z0-9]{10}", observation["teamIdentifier"])
+                or not isinstance(observation.get("applicationIdentifiers"), dict)):
+            fail("preinstalled signing observation is invalid")
+        team = observation["teamIdentifier"]
+        if observation["applicationIdentifiers"] != {
+                role: derive(team) for role, derive in applications.items()}:
+            fail("preinstalled application identifiers do not match one Personal Team")
+        try:
+            profile_expiry = datetime.strptime(
+                observation["profileExpiration"], "%Y-%m-%dT%H:%M:%SZ"
+            ).replace(tzinfo=timezone.utc)
+        except (TypeError, ValueError):
+            fail("preinstalled profile expiration is invalid")
+        if profile_expiry < not_after or profile_expiry > created + timedelta(days=7):
+            fail("preinstalled profile expiration is outside Personal-Team limits")
+    return value, not_after
+
+
+def target_udid(config_path: Path, selector: str) -> str:
+    if (not config_path.is_absolute() or has_symlink_component(config_path)
+            or not config_path.is_file() or inside_repository(config_path)
+            or config_path.lstat().st_mode & 0o077):
+        fail("private target configuration is unsafe")
+    try:
+        value = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        fail("private target configuration is unreadable")
+    targets = value.get("targets") if isinstance(value, dict) else None
+    matches = [item for item in targets or [] if isinstance(item, dict)
+               and item.get("selector") == selector and item.get("platform") == "ios"]
+    if len(matches) != 1 or not isinstance(matches[0].get("capabilities"), dict):
+        fail("private selector does not identify exactly one iOS target")
+    udid = matches[0]["capabilities"].get("appium:udid")
+    if not isinstance(udid, str) or not 8 <= len(udid) <= 128 or any(
+            character in udid for character in "\0\r\n"):
+        fail("private iOS target UDID is invalid")
+    return udid
+
+
+def run_preinstalled(arguments: argparse.Namespace) -> int:
+    if (not arguments.destination.is_absolute() or not arguments.target_config.is_absolute()
+            or not arguments.service_runtime.is_absolute()):
+        fail("preinstalled paths must be absolute")
+    if arguments.service_runtime != PINNED_SERVICE_RUNTIME:
+        fail("preinstalled mode requires the exact pinned immutable service runtime")
+    attestation, not_after = validate_preinstalled_attestation(arguments.attestation)
+    udid = target_udid(arguments.target_config, arguments.target_selector)
+    identifier_mode = attestation["bundleIdentifierMode"]
+    desired = attestation["expectedBundleIdentifiers"]
+    if identifier_mode == "fixed":
+        request = {
+            "udid": udid, "overteBundleId": desired["overte"],
+            "wdaBundleId": desired["wdaRunner"],
+        }
+        inventory = {
+            "overteBundleId": desired["overte"],
+            "wdaBundleId": desired["wdaRunner"],
+            "wdaUpdatedBundleId": desired["wdaXCTest"],
+            "wdaBundleIdSuffix": ".xctrunner",
+        }
+    else:
+        request = {"udid": udid, "discoverRemappedBundleIds": True}
+        inventory = None
+    wrapper = arguments.service_runtime / "remotexpc_tunnel.py"
+    result = subprocess.run(
+        [str(wrapper), "device-preflight", "--service-runtime",
+         str(arguments.service_runtime)],
+        input=json.dumps(request, separators=(",", ":")).encode("utf-8"),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL, timeout=65, check=False,
+    )
+    if result.returncode:
+        fail("preinstalled iOS app device observation failed")
+    if identifier_mode == "sideloadly-remapped":
+        if len(result.stdout) > 4096:
+            fail("preinstalled iOS app observation response exceeded its safety limit")
+        try:
+            inventory = json.loads(result.stdout)
+        except (UnicodeError, json.JSONDecodeError):
+            fail("preinstalled iOS app observation response is invalid")
+        if not isinstance(inventory, dict) or set(inventory) != {
+                "overteBundleId", "wdaBundleId", "wdaUpdatedBundleId",
+                "wdaBundleIdSuffix"}:
+            fail("preinstalled iOS app observation response is invalid")
+        values = (
+            inventory.get("overteBundleId"), inventory.get("wdaBundleId"),
+            inventory.get("wdaUpdatedBundleId"),
+        )
+        suffix = inventory.get("wdaBundleIdSuffix")
+        if (values[0] == values[1]
+                or any(not isinstance(value, str) or len(value) > 255
+                       or not BUNDLE_ID_RE.fullmatch(value) for value in values)
+                or suffix not in {"", ".xctrunner"}
+                or values[2] + suffix != values[1]
+                or values[0] == desired["overte"]
+                and values[1] == desired["wdaRunner"]):
+            fail("preinstalled iOS app observation response is invalid")
+    assert inventory is not None
+    destination_path = arguments.destination.resolve()
+    if inside_repository(destination_path) or destination_path == Path(destination_path.anchor):
+        fail("preinstalled receipt destination must be outside the repository")
+    destination = private_directory(destination_path)
+    digest = sha256_file(arguments.attestation)
+    final = destination / f"personal-team-preinstalled-{digest[:16]}"
+    if final.exists() or final.is_symlink():
+        fail("private destination for this preinstalled observation already exists")
+    temporary = Path(tempfile.mkdtemp(prefix=".preinstalled-", dir=destination))
+    moved = False
+    try:
+        copy_private_input(
+            arguments.attestation, temporary / "personal-team-preinstalled-attestation.json",
+            MAX_MANIFEST_BYTES, "preinstalled Personal-Team attestation",
+        )
+        provenance = {
+            "mode": "personal-team-preinstalled",
+            "derivationBinding": "none-device-observed",
+            "cryptographicByteBinding": False,
+            "installationProxyValidated": True,
+            "bundleIdentifierMode": identifier_mode,
+            "attestationSha256": digest,
+            "unsignedKitContract": attestation["unsignedKitContract"],
+            "unsignedKitManifestSha256": attestation["unsignedKitManifestSha256"],
+            "attestationContract":
+                "overte-ios-personal-team-preinstalled-attestation-v2",
+            "signingObservation": attestation["signingObservation"],
+        }
+        receipt = temporary / "personal-team-preinstalled-receipt.json"
+        secure_json(receipt, {
+            "schemaVersion": 1, "contract": PREINSTALLED_RECEIPT,
+            "sourceRevision": attestation["sourceRevision"],
+            "createdAt": attestation["createdAt"],
+            "notAfter": not_after.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "provenance": provenance,
+            "overte": {"bundleId": inventory["overteBundleId"], "installed": True},
+            "wda": {
+                "bundleId": inventory["wdaBundleId"],
+                "updatedBundleId": inventory["wdaUpdatedBundleId"],
+                "bundleIdSuffix": inventory["wdaBundleIdSuffix"],
+                "installed": True,
+            },
+            "toolchain": attestation["toolchain"],
+        })
+        temporary.replace(final)
+        moved = True
+        final_receipt = final / receipt.name
+        activate_target(
+            arguments.target_config.resolve(), arguments.target_selector, final_receipt
+        )
+        print("PASS: preinstalled Personal-Team device observation is ready.")
+        return 0
+    except BaseException:
+        if temporary.exists():
+            shutil.rmtree(temporary)
+        if moved and final.exists():
+            shutil.rmtree(final)
+        raise
 
 
 def run(arguments: argparse.Namespace) -> int:
     if arguments.repository != DEFAULT_REPOSITORY:
         fail(f"repository must be the protected producer {DEFAULT_REPOSITORY}")
-    if has_symlink_component(arguments.destination):
+    if (not arguments.destination.is_absolute() or has_symlink_component(arguments.destination)
+            or arguments.target_config and not arguments.target_config.is_absolute()):
         fail("destination must not be a symbolic link")
     destination_root = arguments.destination.resolve()
-    if destination_root == Path(destination_root.anchor):
-        fail("destination must not be a filesystem root")
+    if destination_root == Path(destination_root.anchor) or inside_repository(destination_root):
+        fail("destination must be outside the repository and not a filesystem root")
     identity = private_age_identity()
     security_tools = install_security_tools(destination_root / ".security-tools")
     api = GitHubApi(arguments.repository, os.environ.get("OVERTE_GITHUB_TOKEN", ""))
     run_id = arguments.run_id or api.dispatch(dispatch_inputs(arguments))
-    print(f"Protected iOS producer run {run_id} selected; waiting for completion.")
-    completed = wait_for_run(api, run_id, arguments.timeout_seconds, arguments.poll_seconds)
+    expected_attempt = arguments.run_attempt if arguments.run_id else 1
+    print(f"Protected iOS producer run {run_id} attempt {expected_attempt} selected; waiting.")
+    completed = wait_for_run(
+        api, run_id, expected_attempt, arguments.timeout_seconds, arguments.poll_seconds
+    )
     selected = select_artifacts(api.artifacts(run_id), completed)
 
     private_directory(destination_root)
     final = destination_root / f"run-{run_id}-attempt-{completed['run_attempt']}"
-    if final.exists():
+    if final.exists() or final.is_symlink():
         fail("private destination for this producer attempt already exists")
     temporary = Path(tempfile.mkdtemp(prefix=".ios-handoff-", dir=destination_root))
     moved = False
@@ -485,6 +1023,10 @@ def run(arguments: argparse.Namespace) -> int:
             "--wda-ipa", str(extracted["wda"][0]),
             "--receipt", str(receipt),
             "--rcodesign", str(security_tools["rcodesign"]),
+            "--expected-repository", arguments.repository,
+            "--expected-repository-id", str(completed["repository"]["id"]),
+            "--expected-run-id", str(run_id),
+            "--expected-run-attempt", str(completed["run_attempt"]),
         ]
         verification = subprocess.run(command, text=True, stdout=subprocess.PIPE,
                                       stderr=subprocess.STDOUT, check=False)
@@ -494,7 +1036,9 @@ def run(arguments: argparse.Namespace) -> int:
             "schemaVersion": 1,
             "contract": "overte-ios-fedora-github-handoff-v1",
             "repository": arguments.repository,
+            "repositoryId": completed["repository"]["id"],
             "workflow": WORKFLOW_PATH,
+            "reusableWorkflow": ".github/workflows/ios-fedora-e2e-producer.yml",
             "protectedRef": PROTECTED_REF,
             "runId": run_id,
             "runAttempt": completed["run_attempt"],
@@ -509,6 +1053,7 @@ def run(arguments: argparse.Namespace) -> int:
         # The verifier ran before the atomic rename, so bind receipt paths to the
         # immutable final location and re-run it there.
         final_receipt.unlink()
+        shutil.rmtree(final / "WebDriverAgentRunner-Runner.app")
         verification = subprocess.run([
             sys.executable, str(VERIFIER),
             "--overte-manifest", str(final / "overte" / extracted["overte"][1].name),
@@ -517,17 +1062,21 @@ def run(arguments: argparse.Namespace) -> int:
             "--wda-ipa", str(final / "wda" / extracted["wda"][0].name),
             "--receipt", str(final_receipt),
             "--rcodesign", str(security_tools["rcodesign"]),
+            "--expected-repository", arguments.repository,
+            "--expected-repository-id", str(completed["repository"]["id"]),
+            "--expected-run-id", str(run_id),
+            "--expected-run-attempt", str(completed["run_attempt"]),
         ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
         if verification.returncode:
             fail("final private iOS artifact pair failed receipt binding")
-        require_receipt_revision(final_receipt, completed["head_sha"])
+        require_receipt_binding(final_receipt, completed)
         if arguments.target_config:
             if has_symlink_component(arguments.target_config):
                 fail("target configuration must not be a symbolic link")
             activate_target(arguments.target_config.resolve(), arguments.target_selector, final_receipt)
         print(f"PASS: protected iOS producer run {run_id} is verified and ready on Fedora.")
         return 0
-    except Exception:
+    except BaseException:
         if temporary.exists():
             shutil.rmtree(temporary)
         if moved and final.exists():
@@ -539,6 +1088,7 @@ def parser() -> argparse.ArgumentParser:
     value = argparse.ArgumentParser(description=__doc__)
     value.add_argument("--repository", default=DEFAULT_REPOSITORY)
     value.add_argument("--run-id", type=int)
+    value.add_argument("--run-attempt", type=int)
     value.add_argument("--destination", type=Path, required=True)
     value.add_argument("--target-config", type=Path)
     value.add_argument("--target-selector", default="",
@@ -554,19 +1104,70 @@ def parser() -> argparse.ArgumentParser:
     return value
 
 
+def local_import_parser() -> argparse.ArgumentParser:
+    value = argparse.ArgumentParser(
+        description="Verify and activate private Personal-Team signed IPA exports."
+    )
+    value.add_argument("--unsigned-kit", type=Path, required=True)
+    value.add_argument("--attestation", type=Path, required=True)
+    value.add_argument("--overte-ipa", type=Path, required=True)
+    value.add_argument("--wda-ipa", type=Path, required=True)
+    value.add_argument("--destination", type=Path, required=True)
+    value.add_argument("--target-config", type=Path)
+    value.add_argument("--target-selector", default="")
+    return value
+
+
+def preinstalled_parser() -> argparse.ArgumentParser:
+    value = argparse.ArgumentParser(
+        description="Observe and activate already installed Personal-Team apps."
+    )
+    value.add_argument("--attestation", type=Path, required=True)
+    value.add_argument("--destination", type=Path, required=True)
+    value.add_argument("--target-config", type=Path, required=True)
+    value.add_argument("--target-selector", default="")
+    value.add_argument(
+        "--service-runtime", type=Path,
+        default=PINNED_SERVICE_RUNTIME,
+    )
+    return value
+
+
 def main() -> int:
     try:
-        arguments = parser().parse_args()
+        raw_arguments = sys.argv[1:]
+        action = "github"
+        if raw_arguments and raw_arguments[0] in {"local-import", "personal-team-preinstalled"}:
+            action = raw_arguments.pop(0)
+        if action == "local-import":
+            arguments = local_import_parser().parse_args(raw_arguments)
+        elif action == "personal-team-preinstalled":
+            arguments = preinstalled_parser().parse_args(raw_arguments)
+        else:
+            arguments = parser().parse_args(raw_arguments)
         if not arguments.target_selector:
             arguments.target_selector = os.environ.get("OVERTE_DEVICE_TARGET_SELECTOR", "")
+        if action == "local-import":
+            if bool(arguments.target_config) != bool(arguments.target_selector):
+                fail("target config and private target selector must be supplied together")
+            return run_local_import(arguments)
+        if action == "personal-team-preinstalled":
+            if not arguments.target_selector:
+                fail("preinstalled mode requires the private target selector")
+            return run_preinstalled(arguments)
         if arguments.run_id is not None and arguments.run_id <= 0:
             fail("run ID must be positive")
+        if bool(arguments.run_id) != bool(arguments.run_attempt):
+            fail("explicit run ID and positive run attempt must be supplied together")
+        if arguments.run_attempt is not None and arguments.run_attempt <= 0:
+            fail("run attempt must be positive")
         if arguments.timeout_seconds <= 0 or not 1 <= arguments.poll_seconds <= 300:
             fail("timeout and polling interval must be positive and bounded")
         if bool(arguments.target_config) != bool(arguments.target_selector):
             fail("target config and private target selector must be supplied together")
         return run(arguments)
-    except (HandoffError, OSError, json.JSONDecodeError, KeyError) as error:
+    except (HandoffError, OSError, json.JSONDecodeError, KeyError,
+            subprocess.SubprocessError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
 

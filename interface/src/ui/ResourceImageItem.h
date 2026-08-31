@@ -14,14 +14,21 @@
 
 #include "Application.h"
 
+#include <QtGlobal>
+#if defined(Q_OS_IOS)
+#include <QQuickItem>
+using ResourceImageItemBase = QQuickItem;
+#else
 #include <gl/Config.h>
-
 #include <QQuickFramebufferObject>
 #include <QQuickWindow>
 #include <QTimer>
+using ResourceImageItemBase = QQuickFramebufferObject;
+#endif
 
 #include <TextureCache.h>
 
+#if !defined(Q_OS_IOS)
 class QOpenGLFramebufferObject;
 class QOpenGLShaderProgram;
 
@@ -48,8 +55,9 @@ private:
 public slots:
     void onUpdateTimer();
 };
+#endif
 
-class ResourceImageItem : public QQuickFramebufferObject {
+class ResourceImageItem : public ResourceImageItemBase {
     Q_OBJECT
     Q_PROPERTY(QString url READ getUrl WRITE setUrl)
     Q_PROPERTY(bool ready READ getReady WRITE setReady)
@@ -59,7 +67,9 @@ public:
     void setUrl(const QString& url);
     bool getReady() const { return m_ready; }
     void setReady(bool ready);
+#if !defined(Q_OS_IOS)
     QQuickFramebufferObject::Renderer* createRenderer() const override { return new ResourceImageItemRenderer; }
+#endif
 
 private:
     QString m_url;

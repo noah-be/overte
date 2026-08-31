@@ -1,0 +1,30 @@
+# iOS continuous integration
+
+The current workflows are:
+
+- `iOS bootstrap` (`.github/workflows/ios-bootstrap.yml`): Linux contracts,
+  unsigned iPhone/iPad simulator launch, and unsigned device-SDK packaging;
+- `Provision Qt iOS source cache` (`.github/workflows/ios-qt-source.yml`): manual,
+  license-neutral preparation of matching Qt host and target trees; and
+- `iOS experimental integrated client gate`
+  (`.github/workflows/ios-integrated.yml`): opt-in dependency, build, package,
+  readiness, and sanitized-failure path.
+
+The bootstrap workflow runs on `apple-ios`. Uploaded simulator archives,
+unsigned device IPAs, and diagnostics are retained for seven days. An unsigned
+IPA is an inspectable developer artifact, not an installable or accepted device
+release until an authorized local signing step has completed.
+
+## Simulator scope
+
+An ordinary pull request runs the bootstrap smoke test on one iPhone simulator.
+If a pull request changes `ios/`, shared QML under
+`interface/resources/qml/`, `libraries/ui/`, or
+`scripts/system/settings/`, the workflow expands the smoke test to one iPhone
+and one iPad simulator. Pushes to `apple-ios` and manual bootstrap runs also use
+both device families.
+
+Markdown-only changes are excluded from `iOS bootstrap`. They run the lightweight
+`Documentation checks` workflow and do not build, package, or launch a simulator.
+The experimental integrated-client and world-evidence workflows remain explicit
+opt-ins; the bootstrap matrix does not imply full-client runtime acceptance.

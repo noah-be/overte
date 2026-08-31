@@ -11,7 +11,7 @@
 
 import QtQuick 2.5
 import QtQuick.Controls 2.2
-import QtGraphicalEffects 1.0
+import Qt5Compat.GraphicalEffects
 
 import "." as Windows
 import stylesUit 1.0
@@ -37,6 +37,9 @@ Windows.Window {
     property bool keyboardEnabled: false
     property bool keyboardRaised: false
     property bool punctuationMode: false
+    // Full-screen tablet applications commonly provide their own Flickable.
+    // A non-scrolling outer Flickable otherwise steals direct-touch drags.
+    property bool contentFlickableInteractive: true
 
     readonly property real verticalScrollWidth: 10
     readonly property real verticalScrollShaft: 8
@@ -76,6 +79,7 @@ Windows.Window {
 
         Flickable {
             id: scrollView
+            interactive: window.contentFlickableInteractive
             contentItem.children: [ content ]
             contentHeight: content.height
             boundsBehavior: Flickable.StopAtBounds

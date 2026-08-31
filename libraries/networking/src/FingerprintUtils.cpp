@@ -26,11 +26,11 @@
 #include <winreg.h>
 #endif //Q_OS_WIN
 
-#ifdef Q_OS_MAC
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
 #include <IOKit/IOBSD.h>
 #include <IOKit/IOKitLib.h>
 #include <IOKit/storage/IOMedia.h>
-#endif //Q_OS_MAC
+#endif // defined(Q_OS_MAC) && !defined(Q_OS_IOS)
 
 // Number of iterations to apply to the hash, for stretching.
 // The number is arbitrary and has the only purpose of slowing down brute-force
@@ -49,6 +49,13 @@ static const QString FALLBACK_FINGERPRINT_KEY = "fallbackFingerprint";
 QUuid FingerprintUtils::_machineFingerprint { QUuid() };
 
 QString FingerprintUtils::getMachineFingerprintString() {
+#if defined(Q_OS_IOS)
+    // iOS does not expose a suitable hardware identifier for this purpose.
+    // Returning null selects the existing random, app-local fallback below;
+    // it is persisted when Settings is available and never impersonates a
+    // hardware-derived identifier.
+    return QUuid().toString();
+#else
     QCryptographicHash hash(QCryptographicHash::Keccak_256);
 
 #ifdef Q_OS_LINUX
@@ -97,13 +104,13 @@ QString FingerprintUtils::getMachineFingerprintString() {
 
 #endif //Q_OS_LINUX
 
-#ifdef Q_OS_MAC
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
     io_registry_entry_t ioRegistryRoot = IORegistryEntryFromPath(kIOMasterPortDefault, "IOService:/");
     CFStringRef uuidCf = (CFStringRef) IORegistryEntryCreateCFProperty(ioRegistryRoot, CFSTR(kIOPlatformUUIDKey), kCFAllocatorDefault, 0);
     IOObjectRelease(ioRegistryRoot);
     hash.addData(QString::fromCFString(uuidCf).toUtf8());
     CFRelease(uuidCf); 
-#endif //Q_OS_MAC
+#endif // defined(Q_OS_MAC) && !defined(Q_OS_IOS)
 
 #ifdef Q_OS_WIN
     HKEY cryptoKey;
@@ -171,6 +178,7 @@ QString FingerprintUtils::getMachineFingerprintString() {
     qCDebug(networking) << "Final machine fingerprint:" << uuidString;
 
     return uuidString;
+#endif // Q_OS_IOS
 }
 
 QUuid FingerprintUtils::getMachineFingerprint() {
@@ -207,4 +215,3 @@ QUuid FingerprintUtils::getMachineFingerprint() {
 
     return _machineFingerprint;
 }
-

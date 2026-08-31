@@ -14,13 +14,18 @@
 
 #include <controllers/InputDevice.h>
 #include "InputPlugin.h"
-#include <QtGui/qtouchdevice.h>
-#if (QT_VERSION < QT_VERSION_CHECK(5, 14, 0))
-#include <QtGui/QList>
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QtGui/QEventPoint>
+#include <QtGui/QInputDevice>
+#include <QtGui/QTouchEvent>
+using OverteTouchPoint = QEventPoint;
 #else
-#include <QTouchEvent>
-#include <QtCore/QList>
+#include <QtGui/qtouchdevice.h>
+#include <QtGui/QTouchEvent>
+using OverteTouchPoint = QTouchEvent::TouchPoint;
 #endif
+#include <QtCore/QList>
+#include <QtCore/QSize>
 #include "VirtualPadManager.h"
 
 class QTouchEvent;
@@ -76,6 +81,11 @@ protected:
         virtual bool triggerHapticPulse(float strength, float duration, uint16_t index) override;
         virtual void update(float deltaTime, const controller::InputCalibrationData& inputCalibrationData) override;
         virtual void focusOutEvent() override;
+
+#if defined(Q_OS_IOS)
+        float _jumpReleaseDelayMs { 0.0f };
+        bool _jumpReleaseAwaitingMapperSample { false };
+#endif
 
         friend class TouchscreenVirtualPadDevice;
 
@@ -141,7 +151,7 @@ protected:
         bool processOngoingTouch(glm::vec2 thisPoint, int thisPointId);
         bool findStartingTouchPointCandidate(glm::vec2 thisPoint, int thisPointId, int thisPointIdx, std::map<int, TouchType> &globalUnusedTouches);
         void saveUnusedTouches(std::map<int, TouchType> &unusedTouchesInEvent, glm::vec2 thisPoint, int thisPointId);
-        void processBeginOrEnd(glm::vec2 thisPoint, const QList<QTouchEvent::TouchPoint>& tPoints, std::map<int, TouchType> globalUnusedTouches);
+        void processBeginOrEnd(glm::vec2 thisPoint, const QList<OverteTouchPoint>& tPoints, std::map<int, TouchType> globalUnusedTouches);
 
         void endTouchForAll();
         bool touchBeginInvalidForAllButtons(glm::vec2 touchPoint);
@@ -168,6 +178,9 @@ protected:
     std::map<int, TouchType> _unusedTouches;
 
     int _touchPointCount { 0 };
+#if defined(Q_OS_IOS)
+    uint32_t _touchDiagnosticEventCount { 0 };
+#endif
     int _screenWidthCenter { 0 };
     std::shared_ptr<InputDevice> _inputDevice { std::make_shared<InputDevice>() };
 
@@ -176,6 +189,7 @@ protected:
     float _fixedRadius { 0.0f };
     float _fixedRadiusForCalc { 0.0f };
     int _extraBottomMargin {0};
+    QSize _controlViewportSize;
 
     float _buttonRadius { 0.0f };
 

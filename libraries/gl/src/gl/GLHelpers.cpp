@@ -11,7 +11,11 @@
 
 #include <QtGui/QSurfaceFormat>
 #include <QtGui/QOpenGLContext>
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QtOpenGL/QOpenGLDebugLogger>
+#else
 #include <QtGui/QOpenGLDebugLogger>
+#endif
 
 #include <shared/GlobalAppProperties.h>
 
@@ -28,7 +32,7 @@ size_t evalGLFormatSwapchainPixelSize(const QSurfaceFormat& format) {
     return pixelSize;
 }
 
-#ifdef Q_OS_MAC
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
 #define SERIALIZE_GL_RENDERING
 #endif
 
@@ -372,26 +376,34 @@ namespace gl {
 
     // Enables annotation of captures made by tools like renderdoc
     bool khrDebugEnabled() {
+#if defined(Q_OS_IOS)
+        return false;
+#else
         static std::once_flag once;
         static bool khrDebug = false;
         std::call_once(once, [&] {
             khrDebug = nullptr != glPushDebugGroupKHR;
         });
         return khrDebug;
+#endif
     }
 
     // Enables annotation of captures made by tools like renderdoc
     bool extDebugMarkerEnabled() {
+#if defined(Q_OS_IOS)
+        return false;
+#else
         static std::once_flag once;
         static bool extMarker = false;
         std::call_once(once, [&] {
             extMarker = nullptr != glPushGroupMarkerEXT;
         });
         return extMarker;
+#endif
     }
 
     bool debugContextEnabled() {
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
         // OSX does not support GL_KHR_debug or GL_ARB_debug_output
         static bool enableDebugLogger = false;
 #elif defined(DEBUG)

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "renderDiagnosticMode": "trace",
+  "traceAllDraws": false,
+  "traceBatchLimit": 2048,
+  "tracePipelineLimit": 8192,
+  "traceDrawLimit": 1024,
+  "persistSubmitCandidates": true,
+  "ignorePersistedQuarantine": false,
+  "clearPersistedQuarantine": false
+}

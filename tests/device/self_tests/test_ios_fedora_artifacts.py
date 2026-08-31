@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from contextlib import redirect_stdout
+from datetime import datetime, timedelta, timezone
 import hashlib
 import importlib.util
 import io
@@ -56,12 +57,27 @@ class IosFedoraArtifactsTest(unittest.TestCase):
                 "OverteE2ETestBuildContractVersion": 1,
                 "UIFileSharingEnabled": True,
             })
+        else:
+            plist.update({
+                "OverteE2EWebDriverAgentVersion": "16.8.0",
+                "OverteE2EXCUITestDriverVersion": "12.8.0",
+            })
         prefix = f"Payload/{name}.app/"
         with zipfile.ZipFile(destination, "w") as archive:
             archive.writestr(prefix + "Info.plist", plistlib.dumps(plist))
             archive.writestr(prefix + name, b"mach-o fixture")
             archive.writestr(prefix + "_CodeSignature/CodeResources", b"signed fixture")
             archive.writestr(prefix + "embedded.mobileprovision", b"profile fixture")
+            if not e2e:
+                nested = prefix + "PlugIns/WebDriverAgentRunner.xctest/"
+                archive.writestr(nested + "Info.plist", plistlib.dumps({
+                    "CFBundleIdentifier": "org.overte.WebDriverAgentRunner",
+                    "CFBundlePackageType": "BNDL",
+                    "CFBundleExecutable": "WebDriverAgentRunner",
+                }))
+                archive.writestr(nested + "WebDriverAgentRunner", b"nested mach-o fixture")
+                archive.writestr(nested + "_CodeSignature/CodeResources", b"signed fixture")
+                archive.writestr(nested + "embedded.mobileprovision", b"profile fixture")
         return destination
 
     def write_manifest(self, artifact: Path, kind: str, bundle_id: str) -> Path:
@@ -71,6 +87,19 @@ class IosFedoraArtifactsTest(unittest.TestCase):
             "contract": "overte-ios-fedora-e2e-artifact-v1",
             "kind": kind,
             "sourceRevision": self.revision,
+            "createdAt": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace(
+                "+00:00", "Z"
+            ),
+            "notAfter": "placeholder",
+            "provenance": {
+                "repository": "noah-be/overte",
+                "repositoryId": 42,
+                "workflow": ".github/workflows/ios-bootstrap.yml",
+                "reusableWorkflow": ".github/workflows/ios-fedora-e2e-producer.yml",
+                "ref": "refs/heads/apple-ios",
+                "runId": 123,
+                "runAttempt": 2,
+            },
             "artifact": {
                 "name": artifact.name,
                 "sha256": digest,
@@ -84,12 +113,25 @@ class IosFedoraArtifactsTest(unittest.TestCase):
                 "profileExpiration": "2099-01-01T00:00:00Z",
             },
         }
+        created = datetime.strptime(value["createdAt"], "%Y-%m-%dT%H:%M:%SZ").replace(
+            tzinfo=timezone.utc
+        )
+        value["notAfter"] = (created + timedelta(hours=24)).isoformat().replace("+00:00", "Z")
         if kind == "overte-app":
             value["testBuildContractVersion"] = 1
         else:
             value["toolchain"] = {
                 "xcuitestDriver": "12.8.0",
                 "webdriverAgent": "16.8.0",
+            }
+            value["xctest"] = {
+                "bundle": {"id": "org.overte.WebDriverAgentRunner"},
+                "signing": {
+                    "signed": True,
+                    "teamIdentifier": self.team,
+                    "applicationIdentifier": f"{self.team}.org.overte.WebDriverAgentRunner",
+                    "profileExpiration": "2099-01-01T00:00:00Z",
+                },
             }
         destination = self.root / f"{kind}.json"
         destination.write_text(json.dumps(value), encoding="utf-8")
@@ -103,6 +145,10 @@ class IosFedoraArtifactsTest(unittest.TestCase):
             wda_ipa=self.wda,
             receipt=self.receipt,
             rcodesign=self.root / "pinned-rcodesign",
+            expected_repository="noah-be/overte",
+            expected_repository_id=42,
+            expected_run_id=123,
+            expected_run_attempt=2,
         )
         output = io.StringIO()
         status = 0
@@ -122,9 +168,29 @@ class IosFedoraArtifactsTest(unittest.TestCase):
         receipt = json.loads(self.receipt.read_text(encoding="utf-8"))
         self.assertEqual("overte-ios-fedora-e2e-receipt-v1", receipt["contract"])
         self.assertEqual(str(self.overte.resolve()), receipt["overte"]["path"])
-        self.assertEqual(str(self.wda.resolve()), receipt["wda"]["path"])
+        self.assertEqual(str(self.wda.resolve()), receipt["wda"]["ipaPath"])
+        prebuilt = self.receipt.parent / "WebDriverAgentRunner-Runner.app"
+        self.assertEqual(str(prebuilt.resolve()), receipt["wda"]["prebuiltPath"])
+        self.assertTrue((prebuilt / "Info.plist").is_file())
+        self.assertEqual(
+            VERIFY.private_tree_sha256(prebuilt), receipt["wda"]["prebuiltTreeSha256"],
+        )
         self.assertEqual("5.15.3", receipt["toolchain"]["remoteXpc"])
         self.assertEqual(0o600, self.receipt.stat().st_mode & 0o777)
+
+    def test_prebuilt_wda_tree_digest_detects_content_and_mode_tampering(self):
+        result = self.call()
+        self.assertEqual(0, result.returncode, result.stdout)
+        receipt = json.loads(self.receipt.read_text(encoding="utf-8"))
+        prebuilt = Path(receipt["wda"]["prebuiltPath"])
+        executable = prebuilt / "WebDriverAgentRunner-Runner"
+        original = receipt["wda"]["prebuiltTreeSha256"]
+        executable.write_bytes(executable.read_bytes() + b"tamper")
+        self.assertNotEqual(original, VERIFY.private_tree_sha256(prebuilt))
+        executable.write_bytes(b"mach-o fixture")
+        restored = VERIFY.private_tree_sha256(prebuilt)
+        executable.chmod(0o700 if not executable.stat().st_mode & 0o111 else 0o600)
+        self.assertNotEqual(restored, VERIFY.private_tree_sha256(prebuilt))
 
     def test_tampered_ipa_is_rejected(self):
         self.overte.write_bytes(self.overte.read_bytes() + b"tampered")
@@ -167,6 +233,24 @@ class IosFedoraArtifactsTest(unittest.TestCase):
         self.assertEqual(2, result.returncode, result.stdout)
         self.assertIn("pinned XCUITest/WDA pair", result.stdout)
 
+    def test_wda_final_ipa_pairing_marker_drift_is_rejected(self):
+        replacement = self.root / "wda-without-pairing-marker.ipa"
+        with zipfile.ZipFile(self.wda) as source, zipfile.ZipFile(replacement, "w") as target:
+            for entry in source.infolist():
+                contents = source.read(entry)
+                if entry.filename == "Payload/WebDriverAgentRunner-Runner.app/Info.plist":
+                    info = plistlib.loads(contents)
+                    info.pop("OverteE2EXCUITestDriverVersion")
+                    contents = plistlib.dumps(info)
+                target.writestr(entry, contents)
+        self.wda = replacement
+        self.wda_manifest = self.write_manifest(
+            self.wda, "webdriveragent", self.wda_id
+        )
+        result = self.call()
+        self.assertEqual(2, result.returncode, result.stdout)
+        self.assertIn("pairing markers", result.stdout)
+
     def test_unsigned_fixture_fails_cryptographic_macho_verification(self):
         manifest = VERIFY.load_manifest(self.overte_manifest, "overte-app")
         plist, app_root, _names = VERIFY.archive_plist(self.overte, "overte-app")
@@ -181,6 +265,76 @@ class IosFedoraArtifactsTest(unittest.TestCase):
         self.assertTrue(VERIFY.profile_authorizes("TEAM123456.org.overte.*", application))
         self.assertFalse(VERIFY.profile_authorizes("TEAM123456.*", application))
         self.assertFalse(VERIFY.profile_authorizes("TEAM123456.org.*.xctrunner", application))
+
+    def test_manifest_provenance_window_and_nested_xctest_are_mandatory(self):
+        value = json.loads(self.wda_manifest.read_text(encoding="utf-8"))
+        value["provenance"]["runAttempt"] = 3
+        self.wda_manifest.write_text(json.dumps(value), encoding="utf-8")
+        result = self.call()
+        self.assertEqual(2, result.returncode, result.stdout)
+        self.assertIn("selected producer attempt", result.stdout)
+
+        value = json.loads(self.wda_manifest.read_text(encoding="utf-8"))
+        value["provenance"]["runAttempt"] = 2
+        value.pop("xctest")
+        self.wda_manifest.write_text(json.dumps(value), encoding="utf-8")
+        result = self.call()
+        self.assertEqual(2, result.returncode, result.stdout)
+        self.assertIn("unexpected or missing", result.stdout)
+
+    def test_future_dated_manifest_is_rejected(self):
+        value = json.loads(self.overte_manifest.read_text(encoding="utf-8"))
+        future = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(hours=1)
+        value["createdAt"] = future.isoformat().replace("+00:00", "Z")
+        value["notAfter"] = (future + timedelta(hours=24)).isoformat().replace("+00:00", "Z")
+        self.overte_manifest.write_text(json.dumps(value), encoding="utf-8")
+        result = self.call()
+        self.assertEqual(2, result.returncode, result.stdout)
+        self.assertIn("future", result.stdout)
+
+    def test_rcodesign_identity_binds_signer_team_identifier_and_entitlements(self):
+        application = f"{self.team}.{self.overte_id}"
+        entitlements = {
+            "application-identifier": application,
+            "com.apple.developer.team-identifier": self.team,
+        }
+        lines = plistlib.dumps(entitlements).decode("utf-8").splitlines()
+        value = [{
+            "entity": {"mach_o": {"signature": {
+                "code_directory": {"identifier": self.overte_id},
+                "cms": {
+                    "certificates": [{
+                        "apple_team_id": self.team,
+                        "apple_certificate_profile": "apple-development",
+                    }],
+                    "signers": [{"signature_verifies": True}],
+                },
+                "entitlements_plist": lines,
+                "entitlements_der_plist": lines,
+            }}},
+        }]
+        signing = {
+            "teamIdentifier": self.team,
+            "applicationIdentifier": application,
+        }
+        self.assertEqual(
+            entitlements,
+            VERIFY.validate_signature_info(value, "overte-app", signing, self.overte_id),
+        )
+        foreign = json.loads(json.dumps(value))
+        foreign[0]["entity"]["mach_o"]["signature"]["cms"]["certificates"][0][
+            "apple_team_id"
+        ] = "OTHER12345"
+        with self.assertRaisesRegex(VERIFY.VerificationError, "signer team"):
+            VERIFY.validate_signature_info(foreign, "overte-app", signing, self.overte_id)
+        altered = json.loads(json.dumps(value))
+        altered_lines = plistlib.dumps({
+            **entitlements, "application-identifier": f"{self.team}.foreign.app",
+        }).decode("utf-8").splitlines()
+        altered[0]["entity"]["mach_o"]["signature"]["entitlements_plist"] = altered_lines
+        altered[0]["entity"]["mach_o"]["signature"]["entitlements_der_plist"] = altered_lines
+        with self.assertRaisesRegex(VERIFY.VerificationError, "entitlements differ"):
+            VERIFY.validate_signature_info(altered, "overte-app", signing, self.overte_id)
 
 
 if __name__ == "__main__":

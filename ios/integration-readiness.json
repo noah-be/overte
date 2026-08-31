@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "supportedDefaultGraph": "bootstrap",
+  "gates": [
+    {
+      "id": "root-bootstrap-boundary",
+      "area": "build-system",
+      "status": "complete",
+      "requiresMac": false,
+      "requiresDevice": false,
+      "evidence": ["CMakeLists.txt", "ios/CMakeLists.txt", "ios/tests/build-cli-test.py"],
+      "remainingAction": "none"
+    },
+    {
+      "id": "full-client-compatibility-inventory",
+      "area": "build-system",
+      "status": "complete",
+      "requiresMac": false,
+      "requiresDevice": false,
+      "evidence": ["ios/compatibility-debt.json", "ios/tools/audit-compatibility-debt.py"],
+      "remainingAction": "none"
+    },
+    {
+      "id": "dependency-sbom",
+      "area": "dependencies",
+      "status": "complete",
+      "requiresMac": false,
+      "requiresDevice": false,
+      "evidence": ["ios/tools/generate-sbom.py", "docs/ios/COMPLIANCE.md"],
+      "remainingAction": "none"
+    },
+    {
+      "id": "qt6-client-migration",
+      "area": "shared-client",
+      "status": "external-validation",
+      "requiresMac": true,
+      "requiresDevice": false,
+      "evidence": ["cmake/QtCompat.cmake", "docs/ios/QT6_MIGRATION.md"],
+      "remainingAction": "Compile the experimental full-client graph with the Qt 6 iOS toolchain and retire each failing compatibility use."
+    },
+    {
+      "id": "host-target-tool-separation",
+      "area": "dependencies",
+      "status": "prepared",
+      "requiresMac": true,
+      "requiresDevice": false,
+      "evidence": ["ios/conanfile.py", "ios/dependencies.json"],
+      "remainingAction": "Resolve the staged graph and prove that shader generators execute from the macOS build context."
+    },
+    {
+      "id": "static-plugin-closure",
+      "area": "plugins",
+      "status": "prepared",
+      "requiresMac": true,
+      "requiresDevice": false,
+      "evidence": ["docs/ios/ARCHITECTURE.md", "ios/ci/verify-app.sh"],
+      "remainingAction": "Convert the selected client plug-ins to static registration after the first integrated target links."
+    },
+    {
+      "id": "webview-platform-surface",
+      "area": "web",
+      "status": "prepared",
+      "requiresMac": true,
+      "requiresDevice": false,
+      "evidence": ["interface/resources/qml/controls/+ios/FlickableWebViewCore.qml", "libraries/ui/src/ui/types/RequestFilters.h"],
+      "remainingAction": "Compile and exercise Qt WebView/WKWebView navigation, authentication and permission behavior."
+    },
+    {
+      "id": "non-jit-script-runtime",
+      "area": "scripting",
+      "status": "prepared",
+      "requiresMac": true,
+      "requiresDevice": true,
+      "evidence": ["cmake/macros/TargetV8.cmake", "docs/ios/SCRIPTING.md"],
+      "remainingAction": "Supply the audited static arm64 archive and run the jitless compatibility and endurance cases."
+    },
+    {
+      "id": "graphics-backend-decision",
+      "area": "rendering",
+      "status": "external-validation",
+      "requiresMac": true,
+      "requiresDevice": true,
+      "evidence": ["ios/src/BootstrapShaders.metal", "cmake/modules/FindMoltenVK.cmake", "docs/ios/RENDERING_SPIKE.md"],
+      "remainingAction": "Run the defined Metal-versus-MoltenVK correctness, performance and 30-minute stability measurements."
+    },
+    {
+      "id": "audio-session-and-qt-multimedia",
+      "area": "audio",
+      "status": "prepared",
+      "requiresMac": true,
+      "requiresDevice": true,
+      "evidence": ["ios/src/AppDelegate.mm", "docs/ios/QT6_MIGRATION.md"],
+      "remainingAction": "Finish the Qt 6 audio-device API migration and verify capture, interruption and route recovery."
+    },
+    {
+      "id": "iphone-ipad-adaptive-shell",
+      "area": "user-interface",
+      "status": "prepared",
+      "requiresMac": true,
+      "requiresDevice": true,
+      "evidence": ["ios/src/BootstrapViewController.mm", "ios/tests/device-acceptance.json"],
+      "remainingAction": "Execute rotation, safe-area, Dynamic Type, multitasking resize and touch tests on both form factors."
+    },
+    {
+      "id": "bundle-and-privacy-contract",
+      "area": "distribution",
+      "status": "prepared",
+      "requiresMac": true,
+      "requiresDevice": false,
+      "evidence": ["ios/resources/PrivacyInfo.xcprivacy", "ios/tools/verify-bundle-metadata.py", "docs/ios/PRIVACY.md"],
+      "remainingAction": "Compare the built bundle and Xcode aggregated privacy report with the audited manifest."
+    },
+    {
+      "id": "unsigned-simulator-ci",
+      "area": "automation",
+      "status": "prepared",
+      "requiresMac": true,
+      "requiresDevice": false,
+      "evidence": [".github/workflows/ios-bootstrap.yml", "ios/ci/simulator-smoke.sh"],
+      "remainingAction": "Push the branch or otherwise run the macOS 26 workflow in an approved GitHub context."
+    },
+    {
+      "id": "full-client-simulator-runtime-automation",
+      "area": "automation",
+      "status": "prepared",
+      "requiresMac": true,
+      "requiresDevice": false,
+      "evidence": [".github/workflows/ios-interface-simulator-acceptance.yml", "ios/ci/interface-simulator-smoke.sh", "ios/tools/verify-runtime-candidate.py"],
+      "remainingAction": "Merge the dispatch harness to the default branch and extend a trusted producer to publish a validated arm64 iphonesimulator Full Client artifact with simulator-native Qt, JITless V8, Conan and MoltenVK checkpoints, then run both form-factor jobs."
+    },
+    {
+      "id": "full-client-ipad-runtime-automation",
+      "area": "automation",
+      "status": "prepared",
+      "requiresMac": true,
+      "requiresDevice": true,
+      "evidence": [".github/workflows/ios-ipad-runtime-acceptance.yml", "ios/ci/ipad-device-acceptance.py", "ios/tools/prepare-entity-evidence.py"],
+      "remainingAction": "Merge the dispatch harness to the default branch, add a protected pre-signed candidate producer, provide an unlocked paired iPad in Developer Mode, approve the environment, and run the six-gate acceptance."
+    },
+    {
+      "id": "signed-device-acceptance",
+      "area": "distribution",
+      "status": "external-validation",
+      "requiresMac": true,
+      "requiresDevice": true,
+      "evidence": ["ios/tests/device-result.schema.json", "ios/tools/validate-device-results.py", "docs/ios/SIGNING_AND_DEVICE_TESTS.md"],
+      "remainingAction": "Use approved Apple credentials and record exactly one complete evidence set for iPhone and iPad."
+    }
+  ]
+}

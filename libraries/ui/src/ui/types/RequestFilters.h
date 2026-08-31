@@ -16,7 +16,7 @@
 
 #include <QtCore/QtGlobal>
 
-#if !defined(Q_OS_ANDROID)
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
 #include <QObject>
 #include <QWebEngineUrlRequestInfo>
 

@@ -40,6 +40,7 @@
 #include <QByteArray>
 #include <QDebug>
 #include <QDirIterator>
+#include <QFile>
 
 QTEST_MAIN(ModelSerializersTests)
 
@@ -62,6 +63,34 @@ void ModelSerializersTests::initTestCase() {
     modelFormatRegistry->addFormat(FBXSerializer());
     modelFormatRegistry->addFormat(OBJSerializer());
     modelFormatRegistry->addFormat(GLTFSerializer());
+}
+
+void ModelSerializersTests::loadFBX() {
+    const QString filename = QFINDTESTDATA(
+        "../../../interface/resources/serverless/Models/standAngle.fbx");
+    QVERIFY2(!filename.isEmpty(), "The bundled serverless FBX fixture was not found");
+
+    QFile file(filename);
+    QVERIFY(file.open(QIODevice::ReadOnly));
+    const QByteArray data = file.readAll();
+    const QUrl url = QUrl::fromLocalFile(filename);
+
+    ModelLoader loader;
+    QMultiHash<QString, QVariant> serializerMapping;
+    serializerMapping.insert("combineParts", true);
+    serializerMapping.insert("deduplicateIndices", true);
+
+    std::string webMediaType;
+    auto serializer = DependencyManager::get<ModelFormatRegistry>()->getSerializerForMediaType(
+        data, url, webMediaType);
+    QVERIFY(serializer);
+
+    const hfm::Model::Pointer model = loader.load(data, serializerMapping, url, webMediaType);
+    QVERIFY(model);
+    QVERIFY2(!model->meshes.empty(),
+        "Qt 6 QVariant comparisons discarded every FBX Geometry/Mesh node");
+    QVERIFY2(!model->joints.empty(),
+        "The serverless FBX model hierarchy was not reconstructed");
 }
 
 void ModelSerializersTests::loadGLTF_data() {

@@ -14,6 +14,7 @@ import secrets
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 import xml.etree.ElementTree as ET
 from urllib.error import HTTPError, URLError
@@ -24,6 +25,7 @@ HERE = Path(__file__).resolve().parent
 DEVICE_ROOT = HERE.parent
 REPOSITORY = DEVICE_ROOT.parents[1]
 LOCK_FILE = DEVICE_ROOT / "toolchain.lock.json"
+IOS_LOCK_FILE = DEVICE_ROOT / "ios" / "toolchain.lock.json"
 PLUGINS_FILE = HERE / "plugins.lock.txt"
 PLUGIN_ARTIFACTS_FILE = HERE / "plugins.artifacts.lock.json"
 JENKINS_TEMPLATE = HERE / "jenkins.yaml"
@@ -44,20 +46,109 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def has_symlink_component(path: Path) -> bool:
+    absolute = Path(os.path.abspath(path.expanduser()))
+    current = Path(absolute.anchor)
+    for component in absolute.parts[1:]:
+        current /= component
+        try:
+            if current.is_symlink():
+                return True
+            current.lstat()
+        except FileNotFoundError:
+            break
+    return False
+
+
 def secure_directory(path: Path) -> Path:
-    path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    absolute = Path(os.path.abspath(path.expanduser()))
+    if has_symlink_component(absolute):
+        fail("private lab directory must not contain symbolic links")
+    existed = absolute.exists()
+    absolute.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if has_symlink_component(absolute):
+        fail("private lab directory became a symbolic link")
+    value = absolute.lstat()
+    if not stat.S_ISDIR(value.st_mode):
+        fail("private lab path is not a directory")
     if os.name != "nt":
-        path.chmod(0o700)
-    return path.resolve()
+        if value.st_uid != os.geteuid():
+            fail("private lab directory is not owned by the current account")
+        if existed and value.st_mode & 0o077:
+            fail("existing private lab directory is accessible to group or other users")
+        absolute.chmod(0o700)
+    return absolute
+
+
+def require_outside_repository(path: Path, label: str) -> Path:
+    absolute = Path(os.path.abspath(path.expanduser()))
+    try:
+        absolute.relative_to(REPOSITORY)
+    except ValueError:
+        return absolute
+    fail(f"{label} must be outside the source checkout")
+
+
+def existing_private_directory(path: Path, label: str) -> Path:
+    absolute = require_outside_repository(path, label)
+    if has_symlink_component(absolute) or not absolute.is_dir():
+        fail(f"{label} must be an existing symlink-free private directory")
+    value = absolute.lstat()
+    if (not stat.S_ISDIR(value.st_mode)
+            or os.name != "nt" and (value.st_uid != os.geteuid() or value.st_mode & 0o077)):
+        fail(f"{label} must be account-owned with mode 0700")
+    return absolute
+
+
+def existing_protected_directory(path: Path, label: str) -> Path:
+    """Accept an account-owned, non-writable dependency tree outside the repo."""
+    absolute = require_outside_repository(path, label)
+    if has_symlink_component(absolute) or not absolute.is_dir():
+        fail(f"{label} must be an existing symlink-free directory")
+    value = absolute.lstat()
+    if (not stat.S_ISDIR(value.st_mode)
+            or os.name != "nt" and (value.st_uid != os.geteuid()
+                                     or value.st_mode & 0o022)):
+        fail(f"{label} must be account-owned and protected from shared writes")
+    return absolute
 
 
 def secure_write(path: Path, value: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(value, encoding="utf-8")
-    if os.name != "nt":
-        temporary.chmod(stat.S_IRUSR | stat.S_IWUSR)
-    temporary.replace(path)
+    parent = secure_directory(path.parent)
+    destination = parent / path.name
+    if destination.is_symlink():
+        fail("private lab file must not be a symbolic link")
+    if destination.exists():
+        current = destination.lstat()
+        if not stat.S_ISREG(current.st_mode):
+            fail("private lab file is not a regular file")
+        if os.name != "nt" and current.st_uid != os.geteuid():
+            fail("private lab file is not owned by the current account")
+    descriptor = -1
+    temporary: Path | None = None
+    try:
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{destination.name}-", suffix=".tmp", dir=parent)
+        temporary = Path(temporary_name)
+        if os.name != "nt":
+            os.fchmod(descriptor, stat.S_IRUSR | stat.S_IWUSR)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+            descriptor = -1
+            output.write(value)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, destination)
+        temporary = None
+        directory = os.open(parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def download(artifact: dict, destination: Path) -> Path:
@@ -97,6 +188,35 @@ def load_lock() -> dict:
     value = json.loads(LOCK_FILE.read_text(encoding="utf-8"))
     if value.get("schemaVersion") != 1:
         fail("unsupported toolchain lock schema")
+    if value.get("jenkins", {}).get("recommendedJavaMajor") != 21:
+        fail("Jenkins device lab must be pinned to Java 21")
+    if value["jenkins"].get("lts", {}).get("version") != "2.568.2":
+        fail("Jenkins device lab must use the approved LTS release")
+    return value
+
+
+def appium_dependencies(appium: dict) -> dict[str, str]:
+    dependencies = {appium["core"]["package"]: appium["core"]["version"]}
+    dependencies.update({entry["package"]: entry["version"]
+                         for entry in appium["drivers"].values()})
+    dependencies.update({
+        entry["package"]: entry["version"]
+        for name, entry in appium.get("iosRuntime", {}).items()
+        if name in {"remoteXpc", "webdriverAgent"}
+    })
+    return dependencies
+
+
+def load_ios_lock(common_lock: dict) -> dict:
+    value = json.loads(IOS_LOCK_FILE.read_text(encoding="utf-8"))
+    if value.get("schemaVersion") != 1 or not isinstance(value.get("appium"), dict):
+        fail("unsupported iOS toolchain lock schema")
+    common_dependencies = appium_dependencies(common_lock["appium"])
+    ios_dependencies = appium_dependencies(value["appium"])
+    if (not ios_dependencies
+            or any(common_dependencies.get(package) != version
+                   for package, version in ios_dependencies.items())):
+        fail("iOS Appium lock differs from the shared toolchain pins")
     return value
 
 
@@ -112,15 +232,23 @@ def java_major(java: Path) -> int:
         fail("could not determine the configured Java version")
 
 
+def host_key() -> str:
+    value = platform.system().lower()
+    return "macos" if value == "darwin" else "windows" if value == "windows" else "linux"
+
+
 def paths(arguments: argparse.Namespace) -> dict[str, Path]:
-    install = secure_directory(Path(arguments.install_root).expanduser())
-    config = secure_directory(Path(arguments.config_root).expanduser())
+    install = secure_directory(require_outside_repository(
+        Path(arguments.install_root), "--install-root"))
+    config = secure_directory(require_outside_repository(
+        Path(arguments.config_root), "--config-root"))
     return {
         "install": install,
         "config": config,
         "artifacts": secure_directory(install / "artifacts"),
         "jenkinsHome": secure_directory(config / "jenkins-home"),
         "agentRoot": secure_directory(config / "agent"),
+        "appiumStateRoot": secure_directory(config / "appium-state"),
         "state": config / "local-lab.json",
         "password": config / "admin-password",
         "casc": config / "jenkins.yaml",
@@ -141,60 +269,55 @@ def install_plugins(java: Path, manager: Path, war: Path, home: Path) -> None:
             fail(f"installed Jenkins plugin failed its pin: {plugin['id']}")
 
 
-def install_appium(lock: dict, install_root: Path, appium_home: Path, npm: str) -> Path:
+def install_appium(lock: dict, install_root: Path, npm: str) -> Path:
     appium = lock["appium"]
     root = secure_directory(install_root / "appium")
-    package = {
-        "private": True,
-        "name": "overte-device-lab-appium",
-        "version": "1.0.0",
-        "dependencies": {
-            appium["core"]["package"]: appium["core"]["version"],
+    package_source = DEVICE_ROOT / "ios" / "package.json"
+    package_lock_source = DEVICE_ROOT / "ios" / "package-lock.json"
+    package = json.loads(package_source.read_text(encoding="utf-8"))
+    expected = appium_dependencies(appium)
+    if package.get("dependencies") != expected:
+        fail("repository Appium package does not match the iOS toolchain lock")
+    secure_write(root / "package.json", package_source.read_text(encoding="utf-8"))
+    secure_write(root / "package-lock.json", package_lock_source.read_text(encoding="utf-8"))
+    subprocess.run([npm, "ci", "--ignore-scripts", "--no-audit", "--no-fund"],
+                   cwd=root, timeout=900, check=True)
+    pinned_packages = {
+        "core": appium["core"],
+        **appium["drivers"],
+        **{
+            name: entry
+            for name, entry in appium.get("iosRuntime", {}).items()
+            if name in {"remoteXpc", "webdriverAgent"}
         },
     }
-    (root / "package.json").write_text(json.dumps(package, indent=2) + "\n", encoding="utf-8")
-    subprocess.run([npm, "install", "--ignore-scripts=false", "--no-audit", "--no-fund",
-                    "--save-exact"], cwd=root, timeout=900, check=True)
-    executable = root / "node_modules" / ".bin" / ("appium.cmd" if os.name == "nt" else "appium")
-    if not executable.is_file():
-        fail("pinned Appium installation did not create its executable")
-    environment = os.environ.copy()
-    environment["APPIUM_HOME"] = str(secure_directory(appium_home))
-    listed = subprocess.run([str(executable), "driver", "list", "--installed", "--json"],
-                            env=environment, text=True, stdout=subprocess.PIPE,
-                            timeout=60, check=True)
-    installed = json.loads(listed.stdout)
-    for name, driver in appium["drivers"].items():
-        current = installed.get(name, {}) if isinstance(installed, dict) else {}
-        if current.get("version") == driver["version"]:
-            continue
-        if current:
-            subprocess.run([str(executable), "driver", "uninstall", name],
-                           env=environment, timeout=180, check=True)
-        subprocess.run([str(executable), "driver", "install",
-                        f"{name}@{driver['version']}", "--json"],
-                       env=environment, timeout=900, check=True)
-    ios_runtime = appium.get("iosRuntime", {})
-    runtime_specs = [
-        f"{entry['package']}@{entry['version']}"
-        for entry in ios_runtime.values()
-    ]
-    if runtime_specs:
-        subprocess.run(
-            [npm, "install", "--ignore-scripts=false", "--no-audit", "--no-fund",
-             "--save-exact", *runtime_specs],
-            cwd=appium_home,
-            timeout=900,
-            check=True,
-        )
-        for name, entry in ios_runtime.items():
-            package_file = appium_home / "node_modules" / entry["package"] / "package.json"
-            if not package_file.is_file():
-                fail(f"pinned Appium iOS runtime was not installed: {name}")
-            installed_package = json.loads(package_file.read_text(encoding="utf-8"))
-            if installed_package.get("version") != entry["version"]:
-                fail(f"installed Appium iOS runtime failed its exact pin: {name}")
-    return executable
+    for name, entry in pinned_packages.items():
+        package_file = root / "node_modules" / entry["package"] / "package.json"
+        if not package_file.is_file():
+            fail(f"pinned Appium package was not installed: {name}")
+        installed_package = json.loads(package_file.read_text(encoding="utf-8"))
+        if installed_package.get("version") != entry["version"]:
+            fail(f"installed Appium package failed its exact pin: {name}")
+    return root
+
+
+def immutable_appium_command(lock: dict, state_root: Path) -> list[str]:
+    version = lock["appium"]["iosRuntime"]["remoteXpc"]["version"]
+    revision = lock.get("serviceRuntimeRevision")
+    if revision != 12:
+        fail("unsupported immutable iOS Appium runtime revision")
+    runtime = Path("/usr/local/lib/overte-ios-remotexpc") / f"{version}-r{revision}"
+    wrapper = runtime / "remotexpc_tunnel.py"
+    if not wrapper.is_file() or wrapper.is_symlink():
+        fail("root-owned immutable iOS Appium runtime is not installed")
+    for path in (runtime, wrapper):
+        value = path.lstat()
+        if value.st_uid != 0 or value.st_mode & 0o222:
+            fail("root-owned immutable iOS Appium runtime failed local attestation")
+    state_root = secure_directory(require_outside_repository(
+        state_root, "Appium state root"))
+    return [str(wrapper), "appium-server", "--service-runtime", str(runtime),
+            "--state-root", str(state_root)]
 
 
 def render_casc(location: dict[str, Path]) -> None:
@@ -212,8 +335,9 @@ def install(arguments: argparse.Namespace) -> int:
     lock = load_lock()
     location = paths(arguments)
     java = Path(arguments.java).expanduser().resolve()
-    if not java.is_file() or java_major(java) not in lock["jenkins"]["javaMajors"]:
-        fail("Jenkins Java is missing or not one of the pinned supported majors")
+    if (not java.is_file()
+            or java_major(java) != lock["jenkins"]["recommendedJavaMajor"]):
+        fail("Jenkins Java is missing or is not the pinned Java 21 runtime")
 
     war = download(lock["jenkins"]["lts"]["artifact"],
                    location["artifacts"] / "jenkins.war")
@@ -221,9 +345,16 @@ def install(arguments: argparse.Namespace) -> int:
     manager = download(lock["jenkins"]["pluginInstallationManager"]["artifact"],
                        location["artifacts"] / f"jenkins-plugin-manager-{manager_version}.jar")
     install_plugins(java, manager, war, location["jenkinsHome"])
-    appium_home = secure_directory(location["config"] / "appium-home")
     appium = None if arguments.skip_appium else install_appium(
-        lock, location["install"], appium_home, arguments.npm)
+        load_ios_lock(lock), location["install"], arguments.npm)
+    appium_bootstrap_root = location["install"] / "appium"
+    pymobiledevice3_home = None
+    if appium:
+        if not arguments.pymobiledevice3_home:
+            fail("--pymobiledevice3-home is required when installing iOS Appium")
+        pymobiledevice3_home = existing_protected_directory(
+            Path(arguments.pymobiledevice3_home), "--pymobiledevice3-home"
+        )
 
     if not location["password"].exists():
         secure_write(location["password"], secrets.token_urlsafe(32) + "\n")
@@ -239,19 +370,32 @@ def install(arguments: argparse.Namespace) -> int:
         "adminId": ADMIN_ID,
         "adminPasswordFile": str(location["password"]),
         "serverUrl": f"http://127.0.0.1:{arguments.port}",
-        "appiumExecutable": str(appium) if appium else None,
-        "appiumHome": str(appium_home),
+        "appiumBootstrapRoot": str(appium_bootstrap_root) if appium else None,
+        "pymobiledevice3BootstrapRoot": (
+            str(pymobiledevice3_home) if pymobiledevice3_home else None
+        ),
+        "appiumStateRoot": str(location["appiumStateRoot"]),
     }
     secure_write(location["state"], json.dumps(state, indent=2, sort_keys=True) + "\n")
     print(f"Installed pinned device-lab software in {location['install']}")
     print(f"Wrote private local configuration to {location['config']}")
+    if appium:
+        print("Root provisioning gate (run once after review):")
+        print(f"sudo {sys.executable} {DEVICE_ROOT / 'ios' / 'remotexpc_tunnel.py'} "
+              f"install-unit --appium-home {appium_bootstrap_root} "
+              f"--pymobiledevice3-home {pymobiledevice3_home}")
     return 0
 
 
 def read_state(arguments: argparse.Namespace) -> dict:
-    state = Path(arguments.config_root).expanduser().resolve() / "local-lab.json"
-    if not state.is_file():
+    config = existing_private_directory(Path(arguments.config_root), "--config-root")
+    state = config / "local-lab.json"
+    if state.is_symlink() or not state.is_file():
         fail("local device lab is not installed")
+    metadata = state.lstat()
+    if (os.name != "nt" and (metadata.st_uid != os.geteuid()
+                              or metadata.st_mode & 0o077)):
+        fail("local device-lab state is not private")
     value = json.loads(state.read_text(encoding="utf-8"))
     if value.get("schemaVersion") != 1:
         fail("unsupported local device-lab state")
@@ -351,7 +495,7 @@ def install_systemd_user_services(arguments: argparse.Namespace) -> int:
     unit_root = secure_directory(Path.home() / ".config/systemd/user")
     script = Path(__file__).resolve()
     python = Path(sys.executable).resolve()
-    config = Path(arguments.config_root).expanduser().resolve()
+    config = existing_private_directory(Path(arguments.config_root), "--config-root")
     controller_command = " ".join(map(systemd_quote, (
         python, script, "controller", "--config-root", config)))
     agent_command = " ".join(map(systemd_quote, (
@@ -383,7 +527,6 @@ ExecStart={agent_command}
 Restart=on-failure
 RestartSec=5
 PassEnvironment=DISPLAY WAYLAND_DISPLAY XAUTHORITY XDG_SESSION_TYPE DBUS_SESSION_BUS_ADDRESS
-Environment=APPIUM_HOME={systemd_quote(state['appiumHome'])}
 EnvironmentFile=-{str(config / 'agent.env')}
 
 [Install]
@@ -392,20 +535,13 @@ WantedBy=graphical-session.target
     secure_write(unit_root / "overte-jenkins-controller.service", controller_unit)
     secure_write(unit_root / "overte-jenkins-agent.service", agent_unit)
     appium_unit = None
-    if state.get("appiumExecutable"):
+    if state.get("appiumBootstrapRoot"):
+        appium_state = Path(state.get("appiumStateRoot", ""))
         appium_command = " ".join(map(systemd_quote, (
-            state["appiumExecutable"], "--address", "127.0.0.1", "--port", "4723")))
-        appium_environment = [
-            f"Environment={systemd_quote('APPIUM_HOME=' + state['appiumHome'])}",
-        ]
-        android_sdk = android_sdk_root()
-        if android_sdk is not None:
-            appium_environment += [
-                f"Environment={systemd_quote(f'ANDROID_SDK_ROOT={android_sdk}')}",
-                f"Environment={systemd_quote(f'ANDROID_HOME={android_sdk}')}",
-            ]
+            *immutable_appium_command(load_ios_lock(load_lock()), appium_state),
+            "--address", "127.0.0.1", "--port", "4723")))
         appium_unit = f"""[Unit]
-Description=Overte pinned local Appium server
+Description=Overte immutable iOS Appium server
 After=network.target
 
 [Service]
@@ -413,22 +549,30 @@ Type=simple
 ExecStart={appium_command}
 Restart=on-failure
 RestartSec=5
-{chr(10).join(appium_environment)}
 NoNewPrivileges=true
 PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths={systemd_quote(appium_state)}
 
 [Install]
 WantedBy=default.target
 """
         secure_write(unit_root / "overte-appium.service", appium_unit)
     subprocess.run(["systemctl", "--user", "daemon-reload"], timeout=30, check=True)
-    subprocess.run(["systemctl", "--user", "enable", "--now",
+    subprocess.run(["systemctl", "--user", "enable",
+                    "overte-jenkins-controller.service"], timeout=30, check=True)
+    subprocess.run(["systemctl", "--user", "restart",
                     "overte-jenkins-controller.service"], timeout=30, check=True)
     wait_controller(state)
-    subprocess.run(["systemctl", "--user", "enable", "--now",
+    subprocess.run(["systemctl", "--user", "enable",
+                    "overte-jenkins-agent.service"], timeout=30, check=True)
+    subprocess.run(["systemctl", "--user", "restart",
                     "overte-jenkins-agent.service"], timeout=30, check=True)
     if appium_unit is not None:
-        subprocess.run(["systemctl", "--user", "enable", "--now",
+        subprocess.run(["systemctl", "--user", "enable",
+                        "overte-appium.service"], timeout=30, check=True)
+        subprocess.run(["systemctl", "--user", "restart",
                         "overte-appium.service"], timeout=30, check=True)
     print("Installed and started the local Jenkins controller and interactive agent.")
     return 0
@@ -443,6 +587,7 @@ def parser() -> argparse.ArgumentParser:
     install_parser.add_argument("--install-root", required=True)
     install_parser.add_argument("--java", required=True)
     install_parser.add_argument("--npm", default="npm")
+    install_parser.add_argument("--pymobiledevice3-home")
     install_parser.add_argument("--port", type=int, default=8080)
     install_parser.add_argument("--skip-appium", action="store_true")
     install_parser.set_defaults(function=install)

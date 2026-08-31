@@ -14,5 +14,21 @@ macro(TARGET_WEBRTC)
     else()
         find_package(webrtc-audio-processing QUIET REQUIRED)
         target_link_libraries(${TARGET_NAME} webrtc-audio-processing::webrtc-audio-processing)
+        if (IOS)
+            # Conan Center's current Abseil component metadata contains the
+            # correct static link graph but omits the package include root.
+            # WebRTC's public API includes absl/*, so expose the exact resolved
+            # package headers and fail during configure if the graph ever
+            # stops providing that audited boundary.
+            if (NOT DEFINED abseil_PACKAGE_FOLDER_RELEASE)
+                message(FATAL_ERROR "The iOS WebRTC graph did not expose its Abseil package root")
+            endif()
+            set(_OVERTE_WEBRTC_ABSEIL_INCLUDE "${abseil_PACKAGE_FOLDER_RELEASE}/include")
+            if (NOT EXISTS "${_OVERTE_WEBRTC_ABSEIL_INCLUDE}/absl/base/nullability.h")
+                message(FATAL_ERROR "The iOS WebRTC graph lacks absl/base/nullability.h")
+            endif()
+            target_include_directories(${TARGET_NAME} SYSTEM PUBLIC "${_OVERTE_WEBRTC_ABSEIL_INCLUDE}")
+            unset(_OVERTE_WEBRTC_ABSEIL_INCLUDE)
+        endif()
     endif()
 endmacro()

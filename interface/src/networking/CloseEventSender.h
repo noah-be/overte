@@ -14,6 +14,7 @@
 
 #include <atomic>
 
+#include <QtCore/QObject>
 #include <QtCore/QString>
 #include <QtCore/QUuid>
 

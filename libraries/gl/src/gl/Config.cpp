@@ -16,6 +16,8 @@
 #if defined(Q_OS_WIN)
 #include <Windows.h>
 #elif defined(Q_OS_ANDROID)
+#elif defined(Q_OS_IOS)
+#include <QtGui/QOpenGLContext>
 #elif defined(Q_OS_MAC)
 #include <OpenGL/OpenGL.h>
 #include <OpenGL/CGLTypes.h>
@@ -62,6 +64,16 @@ PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB;
 static void* getGlProcessAddress(const char *namez) {
     auto result = eglGetProcAddress(namez);
     return (void*)result;
+}
+
+#elif defined(Q_OS_IOS)
+
+static void* getGlProcessAddress(const char* namez) {
+    auto* context = QOpenGLContext::currentContext();
+    if (!context) {
+        return nullptr;
+    }
+    return reinterpret_cast<void*>(context->getProcAddress(namez));
 }
 
 #elif defined(Q_OS_MAC)
@@ -134,18 +146,24 @@ void gl::initModuleGl() {
         }
 #endif
 
+#if defined(Q_OS_IOS)
+        gladLoadGLES2Loader(getGlProcessAddress);
+#else
         auto backendApi = hifi::properties::getGraphicsAPI();
         if (backendApi == hifi::properties::GraphicsAPI::GLES32) {
             gladLoadGLES2Loader(getGlProcessAddress);
         } else {
             gladLoadGLLoader(getGlProcessAddress);
         }
+#endif
     });
 }
 
 int gl::getSwapInterval() {
 #if defined(Q_OS_WIN)
     return wglGetSwapIntervalEXT();
+#elif defined(Q_OS_IOS)
+    return 1;
 #elif defined(Q_OS_MAC)
     GLint interval;
     CGLGetParameter(CGLGetCurrentContext(), kCGLCPSwapInterval, &interval);
@@ -168,6 +186,8 @@ int gl::getSwapInterval() {
 void gl::setSwapInterval(int interval) {
 #if defined(Q_OS_WIN)
     wglSwapIntervalEXT(interval);
+#elif defined(Q_OS_IOS)
+    Q_UNUSED(interval);
 #elif defined(Q_OS_MAC)
     CGLSetParameter(CGLGetCurrentContext(), kCGLCPSwapInterval, &interval);
 #elif defined(Q_OS_ANDROID)

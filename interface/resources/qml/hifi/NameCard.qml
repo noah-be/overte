@@ -12,7 +12,7 @@
 import QtQuick 2.5
 import QtQuick.Controls 1.4
 import QtQuick.Controls.Styles 1.4
-import QtGraphicalEffects 1.0
+import Qt5Compat.GraphicalEffects
 import stylesUit 1.0
 import controlsUit 1.0 as HifiControls
 import "toolbars"

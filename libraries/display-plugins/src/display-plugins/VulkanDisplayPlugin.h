@@ -14,6 +14,7 @@
 
 #include "DisplayPlugin.h"
 
+#include <atomic>
 #include <condition_variable>
 #include <memory>
 #include <queue>
@@ -85,9 +86,8 @@ public:
     int getRequiredThreadCount() const override { return 1; }
 
     virtual std::function<void(gpu::Batch&, const gpu::TexturePointer&)> getHUDOperator() override;
-    void copyTextureToQuickFramebuffer(NetworkTexturePointer source,
-                                       QOpenGLFramebufferObject* target,
-                                       GLsync* fenceSync) override;
+    bool copyTextureToQuickFramebuffer(NetworkTexturePointer source,
+                                       const QuickTextureCopyTarget& target) override;
 
     virtual const QString getName() const override { return "Vulkan window"; }
     virtual void pluginUpdate() override {};
@@ -142,6 +142,9 @@ protected:
     void withOtherThreadContext(std::function<void()> f) const;
 
     void present(const std::shared_ptr<RefreshRateController>& refreshRateController);
+#if defined(Q_OS_IOS)
+    void queueIOSFramebufferResize();
+#endif
     virtual void swapBuffers();
 
     void render(std::function<void(gpu::Batch& batch)> f);
@@ -211,6 +214,17 @@ protected:
     //VKWidget *_vkWidget{ 0 };
     VKWindow *_vkWindow{ 0 };
     int _renderedFrameCount{ 0 };
+#if defined(Q_OS_IOS)
+    std::atomic<bool> _iosFramebufferResizeEnabled{ false };
+    std::atomic<bool> _iosFramebufferResizeQueued{ false };
+    bool _iosOutputPendingReported{ false };
+    bool _iosPresentAcquireReported{ false };
+    bool _iosPresentOutputReported{ false };
+    bool _iosPresentOutputReady{ false };
+    bool _iosPresentSubmitReported{ false };
+    bool _iosPresentCompleteReported{ false };
+    bool _iosPresentFenceReported{ false };
+#endif
 };
 
 #endif

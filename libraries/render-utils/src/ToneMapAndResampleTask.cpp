@@ -45,14 +45,14 @@ void ToneMapAndResample::init() {
 void ToneMapAndResample::setExposure(float exposure) {
     if (_exposure != exposure) {
         _exposure = exposure;
-        _parametersBuffer.edit<Parameters>()._twoPowExposure = pow(2.0, exposure);
+        _parametersBuffer.edit<Parameters>()._toneMapping.x = pow(2.0, exposure);
     }
 }
 
 void ToneMapAndResample::setCurve(TonemappingCurve curve) {
     auto& params = _parametersBuffer.get<Parameters>();
-    if (params._toneCurve != (int)curve) {
-        _parametersBuffer.edit<Parameters>()._toneCurve = (int)curve;
+    if ((int)params._toneMapping.y != (int)curve) {
+        _parametersBuffer.edit<Parameters>()._toneMapping.y = (float)curve;
     }
 }
 
@@ -111,13 +111,40 @@ void ToneMapAndResample::run(const RenderContextPointer& renderContext, const In
         batch.enableStereo(false);
         batch.setFramebuffer(destinationFramebuffer);
 
+#if defined(Q_OS_IOS)
+        const auto probe = qEnvironmentVariable("OVERTE_IOS_PRESENT_PROBE");
+        // Bypass shaders, descriptors, and uniforms entirely. If this clear is
+        // not visible, the fault is after the Resample render target.
+        if (probe == "tone-solid") {
+            batch.clearColorFramebuffer(gpu::Framebuffer::BUFFER_COLOR0, glm::vec4(1.0f, 0.0f, 1.0f, 1.0f));
+            return;
+        }
+#endif
+
+        // This fullscreen pass synthesizes its quad from gl_VertexID. Vulkan
+        // backends retain input state between batches, so explicitly discard a
+        // preceding scene mesh format before creating the tone-mapping PSO.
+        batch.setInputFormat({});
+
         batch.setViewportTransform(destViewport);
         batch.setProjectionTransform(glm::mat4());
         batch.resetViewTransform();
         bool shouldMirror = args->_numMirrorFlips >= (args->_renderMode != RenderArgs::MIRROR_RENDER_MODE ? 1 : 0);
         batch.setPipeline(shouldMirror ? _mirrorPipeline : _pipeline);
 
-        batch.setModelTransform(gpu::Framebuffer::evalSubregionTexcoordTransform(srcBufferSize, args->_viewport));
+        _parametersBuffer.edit<Parameters>()._texcoordTransform =
+            gpu::Framebuffer::evalSubregionTexcoordTransformCoefficients(srcBufferSize, args->_viewport);
+#if defined(Q_OS_IOS)
+        // Runtime-selectable stages let one simulator binary distinguish
+        // rasterization, interpolation, sampling, and tone-curve failures.
+        float probeStage { 0.0f };
+        if (probe == "tone-uv") {
+            probeStage = 2.0f;
+        } else if (probe == "tone-sample") {
+            probeStage = 3.0f;
+        }
+        _parametersBuffer.edit<Parameters>()._toneMapping.z = probeStage;
+#endif
         batch.setUniformBuffer(render_utils::slot::buffer::ToneMappingParams, _parametersBuffer);
         batch.setResourceTexture(render_utils::slot::texture::ToneMappingColor, lightingBuffer);
         batch.draw(gpu::TRIANGLE_STRIP, 4);

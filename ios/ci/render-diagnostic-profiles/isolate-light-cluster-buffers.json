@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "renderDiagnosticMode": "trace",
+  "traceDrawLimit": 512,
+  "traceFragmentShaders": [
+    "model_translucent_forward.frag"
+  ],
+  "forceZeroUniformBindings": [
+    10,
+    11,
+    12
+  ],
+  "persistSubmitCandidates": false,
+  "ignorePersistedQuarantine": true
+}

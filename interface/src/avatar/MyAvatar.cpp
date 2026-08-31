@@ -761,16 +761,29 @@ void MyAvatar::update(float deltaTime) {
         setWorldPosition(_goToPosition);
         setWorldOrientation(_goToOrientation);
         _headControllerFacingMovingAverage = _headControllerFacing; // reset moving average
-        _goToPending = false;
         // updateFromHMDSensorMatrix (called from paintGL) expects that the sensorToWorldMatrix is updated for any position changes
         // that happen between render and Application::update (which calls updateSensorToWorldMatrix to do so).
         // However, render/MyAvatar::update/Application::update don't always match (e.g., when using the separate avatar update thread),
         // so we update now. It's ok if it updates again in the normal way.
         updateSensorToWorldMatrix();
-        emit positionGoneTo();
-        // Run safety tests as soon as we can after goToLocation, or clear if we're not colliding.
-        _physicsSafetyPending = getCollisionsEnabled();
-        _characterController.recomputeFlying(); // In case we've gone to into the sky.
+#if defined(Q_OS_IOS)
+        // iOS can resolve the startup URL before tryToEnablePhysics() attaches
+        // the CharacterController to Bullet. Clearing _goToPending in that gap
+        // lets the controller's old origin overwrite the authored viewpoint on
+        // its first physics harvest. Retain the target until one pre-physics
+        // pass can synchronize the controller; harvest already treats a pending
+        // go-to as authoritative.
+        const bool canFinalizeGoTo = qApp->isPhysicsEnabled() && _characterController.isEnabledAndReady();
+#else
+        const bool canFinalizeGoTo = true;
+#endif
+        if (canFinalizeGoTo) {
+            _goToPending = false;
+            emit positionGoneTo();
+            // Run safety tests as soon as we can after goToLocation, or clear if we're not colliding.
+            _physicsSafetyPending = getCollisionsEnabled();
+            _characterController.recomputeFlying(); // In case we've gone to into the sky.
+        }
     }
     if (_goToFeetAjustment && _skeletonModel->isLoaded()) {
         auto feetAjustment = getWorldPosition() - getWorldFeetPosition();
@@ -2371,7 +2384,10 @@ const float SCRIPT_PRIORITY = 1.0f + 1.0f;
 const float RECORDER_PRIORITY = 1.0f + 1.0f;
 
 void MyAvatar::setJointRotations(const QVector<glm::quat>& jointRotations) {
-    int numStates = glm::min(_skeletonModel->getJointStateCount(), jointRotations.size());
+    const auto boundedStateCount = std::min(
+        static_cast<decltype(jointRotations.size())>(_skeletonModel->getJointStateCount()),
+        jointRotations.size());
+    const int numStates = static_cast<int>(boundedStateCount);
     for (int i = 0; i < numStates; ++i) {
         // HACK: ATM only Recorder calls setJointRotations() so we hardcode its priority here
         _skeletonModel->setJointRotation(i, true, jointRotations[i], RECORDER_PRIORITY);

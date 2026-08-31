@@ -999,7 +999,7 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const hifi::VariantHash& 
 
                     // Build list of blendshapes from FST and model.
                     typedef QPair<int, float> WeightedIndex;
-                    hifi::VariantMultiHash blendshapeMappings = mapping.value("bs").toHash();
+                    hifi::VariantMultiHash blendshapeMappings(mapping.value("bs").toHash());
                     QMultiHash<QString, WeightedIndex> blendshapeIndices;
                     for (int i = 0;; ++i) {
                         auto blendshapeName = QString(BLENDSHAPE_NAMES[i]);

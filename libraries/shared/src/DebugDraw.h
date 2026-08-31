@@ -21,6 +21,10 @@
 #include <QObject>
 #include <QString>
 
+// Qt 6's generated meta-object code instantiates argument metatypes while
+// compiling this header. Keep the GLM declarations visible before moc does so.
+#include "RegisteredMetaTypes.h"
+
 /*@jsdoc
  * The <code>DebugDraw</code> API renders debug markers and lines. These markers are only visible locally; they are not visible 
  * to other users.

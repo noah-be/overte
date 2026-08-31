@@ -9,7 +9,7 @@
 //
 
 import QtQuick 2.5
-import QtGraphicalEffects 1.0
+import Qt5Compat.GraphicalEffects
 
 import "."
 import stylesUit 1.0
@@ -113,4 +113,3 @@ Decoration {
         cached: true
     }
 }
-

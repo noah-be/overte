@@ -17,7 +17,7 @@
 #include <QNetworkReply>
 #include <QProcess>
 
-#if !defined(Q_OS_WIN)
+#if !defined(Q_OS_WIN) && !defined(Q_OS_IOS)
 #include <QMessageBox>
 #include <csignal>
 #endif
@@ -60,8 +60,14 @@ bool readStatus(QByteArray statusData) {
 }
 
 void runLocalSandbox(QString contentPath, bool autoShutdown, bool noUpdater) {
+#if defined(Q_OS_IOS)
+    Q_UNUSED(contentPath)
+    Q_UNUSED(autoShutdown)
+    Q_UNUSED(noUpdater)
+    qCWarning(networking) << "Local sandbox processes are unavailable on iOS";
+    return;
     // use the current behavior on windows to not break anyone's setup
-#if defined (Q_OS_WIN)
+#elif defined(Q_OS_WIN)
     QString serverPath = "./server-console/server-console.exe";
     qCDebug(networking) << "Server path is: " << serverPath;
     qCDebug(networking) << "autoShutdown: " << autoShutdown;

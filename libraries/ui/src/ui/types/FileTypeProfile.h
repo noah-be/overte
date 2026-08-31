@@ -16,7 +16,7 @@
 
 #include <QtCore/QtGlobal>
 
-#if !defined(Q_OS_ANDROID)
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
 #include "ContextAwareProfile.h"
 
 class FileTypeProfile : public ContextAwareProfile {

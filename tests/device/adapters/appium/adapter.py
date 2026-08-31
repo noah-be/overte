@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -12,6 +13,10 @@ from pathlib import Path, PurePosixPath
 import sys
 import math
 import re
+import stat
+import subprocess
+import tempfile
+import time
 import uuid
 import xml.etree.ElementTree as ET
 from urllib.error import HTTPError, URLError
@@ -29,13 +34,12 @@ from adapters.common import (EMBEDDED_FIXTURE_URL, emit, fail,  # noqa: E402
                              parse_operation_arguments,
                              read_fresh_json, require_fresh_snapshot,
                              state_directory)
-from contracts import (TABLET_CONTRACT_VERSION, load_tablet_ui_contract,  # noqa: E402
-                       validate_operation_arguments)
-
-
-TABLET_UI_REGISTRY = load_tablet_ui_contract()
-TABLET_SCREEN_IDS = frozenset(TABLET_UI_REGISTRY["screenIds"])
-TABLET_CONTROL_IDS = frozenset(TABLET_UI_REGISTRY["controlIds"])
+from contracts import (load_tablet_ui_contract, validate_operation_arguments,
+                       validate_probe_snapshot, validate_tablet_ui_snapshot)  # noqa: E402
+from ios.private_artifact_tree import (  # noqa: E402
+    ArtifactTreeError,
+    tree_sha256 as private_artifact_tree_sha256,
+)
 
 
 def cli() -> argparse.Namespace:
@@ -48,20 +52,89 @@ def cli() -> argparse.Namespace:
     return parser.parse_args()
 
 
+class WebDriverRequestError(RuntimeError):
+    """Privacy-safe WebDriver transport failure with its HTTP status."""
+
+    def __init__(self, status: int, diagnosis: str | None = None) -> None:
+        self.status = status
+        detail = f" ({diagnosis})" if diagnosis else ""
+        super().__init__(f"Appium request failed with HTTP {status}{detail}")
+
+
 class WebDriver:
     MAX_RESPONSE_BYTES = 32 * 1024 * 1024
+    MAX_ERROR_RESPONSE_BYTES = 64 * 1024
+    COMMAND_TIMEOUT_SECONDS = 30
+    SESSION_START_TIMEOUT_SECONDS = 180
 
     def __init__(self, server_url: str) -> None:
         if not server_url.startswith(("http://127.0.0.1:", "http://localhost:", "https://")):
             fail("Appium server URL must use local HTTP or HTTPS")
         self.server_url = server_url.rstrip("/")
 
+    @classmethod
+    def classify_http_error(cls, error: HTTPError) -> str | None:
+        """Return an allowlisted diagnosis without echoing Appium's response.
+
+        XCUITest errors can contain private device identifiers, bundle IDs,
+        paths, and capability values.  Public harness diagnostics therefore
+        classify a bounded response locally and never interpolate its text.
+        """
+        try:
+            raw = error.read(cls.MAX_ERROR_RESPONSE_BYTES + 1)
+        except (OSError, ValueError):
+            return None
+        finally:
+            error.close()
+        if len(raw) > cls.MAX_ERROR_RESPONSE_BYTES:
+            return None
+        try:
+            document = json.loads(raw)
+        except (UnicodeError, json.JSONDecodeError):
+            return None
+        value = document.get("value") if isinstance(document, dict) else None
+        message = value.get("message") if isinstance(value, dict) else None
+        if not isinstance(message, str):
+            return None
+        normalized = message.casefold()
+        if ("failed to background test runner" in normalized
+                and ("10300" in normalized or "within 30.0s" in normalized)):
+            return "the preinstalled WebDriverAgent runner could not enter the background"
+        if "remotexpc" in normalized:
+            return "RemoteXPC could not establish the XCUITest transport"
+        if ("unable to launch webdriveragent" in normalized
+                or "preinstalled webdriveragent" in normalized
+                and ("launch" in normalized or "not installed" in normalized)):
+            return "the preinstalled WebDriverAgent could not be launched"
+        if ("unable to start webdriveragent session" in normalized
+                or "wda session" in normalized and "fail" in normalized):
+            return "WebDriverAgent could not create the XCUITest session"
+        if ("webdriveragent" in normalized
+                and any(token in normalized for token in (
+                    "connection refused", "econnrefused", "socket hang up",
+                    "timed out", "timeout", "could not proxy", "cannot proxy",
+                ))):
+            return "WebDriverAgent did not become reachable"
+        if (("could not proxy command to the remote server" in normalized
+                or "cannot proxy command to the remote server" in normalized)
+                and any(token in normalized for token in (
+                    "connection refused", "econnrefused", "socket hang up",
+                    "timed out", "timeout",
+                ))):
+            return "the WebDriverAgent connection was lost"
+        return None
+
     def call(self, method: str, path: str, payload: dict | None = None) -> object:
         data = None if payload is None else json.dumps(payload).encode("utf-8")
         request = Request(self.server_url + path, data=data, method=method,
                           headers={"Content-Type": "application/json"})
+        timeout = (
+            self.SESSION_START_TIMEOUT_SECONDS
+            if method == "POST" and path == "/session"
+            else self.COMMAND_TIMEOUT_SECONDS
+        )
         try:
-            with urlopen(request, timeout=30) as response:
+            with urlopen(request, timeout=timeout) as response:
                 declared = response.headers.get("Content-Length")
                 if declared:
                     try:
@@ -75,7 +148,8 @@ class WebDriver:
                     fail("Appium response exceeds the safety limit")
                 document = json.loads(raw)
         except HTTPError as error:
-            fail(f"Appium request failed with HTTP {error.code}")
+            diagnosis = self.classify_http_error(error)
+            raise WebDriverRequestError(error.code, diagnosis) from None
         except (URLError, OSError, json.JSONDecodeError):
             fail("Appium server is unavailable or returned an invalid response")
         if not isinstance(document, dict) or "value" not in document:
@@ -92,19 +166,47 @@ class WebDriver:
 
 class AppiumAdapter:
     ANDROID_DEBUG_PROBE = "files/overte-e2e/overte-probe.json"
-    ANDROID_CLIENT_COMMAND = "files/overte-e2e/e2e-client-command.json"
     IOS_TEST_BUILD_CONTRACT = "overte-ios-e2e-v1"
     IOS_TEST_BUILD_PLIST_KEY = "OverteE2ETestBuildContractVersion"
+    IOS_WDA_VERSION_PLIST_KEY = "OverteE2EWebDriverAgentVersion"
+    IOS_XCUITEST_VERSION_PLIST_KEY = "OverteE2EXCUITestDriverVersion"
     IOS_PROBE_SCRIPT_PATH = "/overte_e2e_probe.js"
+    IOS_SCENE_PATH = "/scene.json?location=%2F0%2C2%2C4%2F0%2C0%2C0%2C1"
     IOS_RESERVED_LAUNCH_OPTIONS = {
         "--url", "--testScript", "--testResultsLocation", "--quitWhenFinished",
     }
-    IOS_RECEIPT_CONTRACT = "overte-ios-fedora-e2e-receipt-v1"
+    IOS_PROTECTED_RECEIPT_CONTRACT = "overte-ios-fedora-e2e-receipt-v1"
+    IOS_PERSONAL_TEAM_RECEIPT_CONTRACT = "overte-ios-personal-team-artifact-receipt-v1"
+    IOS_PREINSTALLED_RECEIPT_CONTRACT = "overte-ios-personal-team-preinstalled-receipt-v1"
+    IOS_BUNDLE_ID_RE = re.compile(
+        r"[A-Za-z0-9][A-Za-z0-9-]*(?:[.][A-Za-z0-9][A-Za-z0-9-]*)+"
+    )
+    IOS_TABLET_IDENTIFIERS = {
+        "openAccessibilityId": "OverteTabletOpen",
+        "closeAccessibilityId": "OverteTabletClose",
+    }
+    IOS_TABLET_CONTROL_PREFIX = "OverteTabletControl."
+    IOS_TABLET_READY_PREFIX = "OverteTabletReady."
+    IOS_TABLET_SCREEN_PREFIX = "OverteTabletScreen."
+    IOS_TABLET_SOURCE_LIMIT_BYTES = 8 * 1024 * 1024
     IOS_XCODE_ONLY_CAPABILITIES = {
         "appium:usePrebuiltWDA", "appium:useXctestrunFile", "appium:prebuildWDA",
         "appium:xcodeOrgId", "appium:xcodeSigningId", "appium:xcodeConfigFile",
         "appium:keychainPath", "appium:keychainPassword",
         "appium:allowProvisioningDeviceRegistration", "appium:resultBundlePath",
+    }
+    IOS_SERVICE_RUNTIME_REVISION = 12
+    IOS_LAUNCH_STABILITY_SECONDS = 1.0
+    IOS_DOCUMENTS_PROBE_PULL_ATTEMPTS = 20
+    IOS_DOCUMENTS_PROBE_PULL_RETRY_BASE_SECONDS = 0.05
+    IOS_DOCUMENTS_PROBE_PULL_RETRY_STEP_SECONDS = 0.017
+    IOS_DOCUMENTS_PROBE_PULL_RETRY_MAX_SECONDS = 0.15
+    IOS_TABLET_SOURCE_TRANSITION_ATTEMPTS = 20
+    IOS_TABLET_SOURCE_TRANSITION_RETRY_SECONDS = 0.1
+    IOS_TABLET_SOURCE_TRANSITION_ERRORS = {
+        "iOS semantic tablet source must expose exactly one visible screen marker",
+        "iOS semantic tablet source contains duplicate visible control markers",
+        "iOS semantic tablet ready marker does not match the visible screen",
     }
 
     def __init__(self, platform: str) -> None:
@@ -116,8 +218,14 @@ class AppiumAdapter:
         path_value = os.environ.get("OVERTE_APPIUM_TARGETS")
         if not path_value:
             fail("OVERTE_APPIUM_TARGETS must name a private target configuration")
-        path = Path(path_value).resolve()
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        path = self._private_external_file(
+            Path(path_value).expanduser(), "Appium target configuration")
+        if os.name != "nt" and stat.S_IMODE(path.lstat().st_mode) != 0o600:
+            fail("Appium target configuration must have mode 0600")
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            fail("Appium target configuration is unreadable")
         entries = payload.get("targets")
         if payload.get("schemaVersion") != 1 or not isinstance(entries, list):
             fail("unsupported Appium target configuration schema")
@@ -140,21 +248,22 @@ class AppiumAdapter:
             for section in ("process", "scene", "controls", "probe", "background"):
                 if not isinstance(entry.get(section, {}), dict):
                     fail(f"Appium target {section} must be an object")
-            if not isinstance(entry.get("clientControl", {}), dict):
-                fail("Appium target clientControl must be an object")
+            if "iosSessionBootstrap" in entry:
+                fail("iosSessionBootstrap is obsolete with the immutable r12 XCTest keeper")
+            if not isinstance(entry.get("soundControl", {}), dict):
+                fail("Appium target soundControl must be an object")
             tablet = entry.get("controls", {}).get("tablet", {})
             if not isinstance(tablet, dict):
                 fail("Appium target controls.tablet must be an object")
-            semantic_ui = tablet.get("semanticUi")
-            if semantic_ui is not None:
-                if semantic_ui != {"contractVersion": TABLET_CONTRACT_VERSION}:
-                    fail("controls.tablet.semanticUi must select tablet contract version 1")
-                if entry["platform"] != "android":
-                    fail("semantic tablet UI automation is currently Android-only")
             for point_name in ("togglePoint", "openPoint", "closePoint"):
                 if point_name in tablet:
                     self.validate_fractional_point(
                         tablet[point_name], f"controls.tablet.{point_name}")
+            vertical_locomotion = entry.get("controls", {}).get("verticalLocomotion")
+            if vertical_locomotion is not None:
+                if entry["platform"] != "ios":
+                    fail("controls.verticalLocomotion is supported only by iOS")
+                self.validate_ios_vertical_locomotion(vertical_locomotion)
             capabilities = entry["capabilities"]
             expected_platform = "Android" if entry["platform"] == "android" else "iOS"
             if capabilities.get("platformName") != expected_platform:
@@ -192,19 +301,20 @@ class AppiumAdapter:
                     and probe != {"kind": "android-run-as",
                                   "relativePath": self.ANDROID_DEBUG_PROBE}):
                 fail("physical Android debug E2E targets require the app-private run-as probe")
-            client_control = entry.get("clientControl", {})
-            if client_control and (entry["platform"] != "android"
-                    or client_control != {"kind": "android-run-as-command",
-                                          "relativePath": self.ANDROID_CLIENT_COMMAND}
-                    or scene != {"kind": "android-debug-e2e"}
-                    or probe != {"kind": "android-run-as",
-                                 "relativePath": self.ANDROID_DEBUG_PROBE}
-                    or process.get("kind") != "adb"):
-                fail("Android clientControl requires the fixed controlled debug-build channel")
             if entry["platform"] == "ios":
+                if entry.get("physical") is not True:
+                    fail("iOS Appium targets must select a physical device")
+                self.validate_ios_artifact_receipt(entry)
                 self.validate_ios_host_strategy(entry)
                 self.validate_ios_test_build(entry)
-                self.validate_ios_artifact_receipt(entry)
+                sound_control = entry.get("soundControl", {})
+                if sound_control and (sound_control != {"kind": "fixture-http",
+                                                         "commandPath": "/sound-command.json"}
+                        or not entry.get("testBuild")
+                        or entry.get("probe") != {"kind": "ios-documents"}):
+                    fail("iOS soundControl requires the exact controlled test-build channel")
+            elif entry.get("soundControl"):
+                fail("soundControl is supported only by iOS Appium targets")
             targets[selector] = entry
         return {key: value for key, value in targets.items() if value["platform"] == self.platform}
 
@@ -227,28 +337,53 @@ class AppiumAdapter:
         udid = capabilities.get("appium:udid")
         if not isinstance(udid, str) or not udid or udid.lower() == "auto":
             fail("physical iOS targets require an explicit private appium:udid")
+        idle_timeout = capabilities.get("appium:waitForIdleTimeout")
+        if (isinstance(idle_timeout, bool)
+                or not isinstance(idle_timeout, (int, float))
+                or idle_timeout != 0):
+            fail("physical iOS E2E targets require appium:waitForIdleTimeout=0")
         if sys.platform == "darwin":
             return
+        try:
+            parsed_server = urlsplit(target.get("serverUrl", ""))
+            server_port = parsed_server.port
+        except ValueError:
+            fail("Fedora iOS Appium server must use a bounded loopback URL")
+        if (parsed_server.scheme != "http" or parsed_server.hostname != "127.0.0.1"
+                or server_port is None or not 1 <= server_port <= 65535
+                or parsed_server.username is not None or parsed_server.password is not None
+                or parsed_server.path or parsed_server.query or parsed_server.fragment
+                or parsed_server.netloc != f"127.0.0.1:{server_port}"):
+            fail("Fedora iOS Appium server must use a bounded loopback URL")
         platform_version = capabilities.get("appium:platformVersion")
         match = re.fullmatch(r"([0-9]+)(?:[.][0-9]+){0,2}", platform_version or "")
         if not match or int(match.group(1)) < 18:
             fail("non-macOS physical iOS targets require appium:platformVersion 18 or newer")
-        external_wda = capabilities.get("appium:webDriverAgentUrl")
         preinstalled = capabilities.get("appium:usePreinstalledWDA") is True
-        if not preinstalled and not external_wda:
-            fail("non-macOS physical iOS targets require preinstalled or external WDA")
-        if external_wda is not None:
-            if (not isinstance(external_wda, str)
-                    or not external_wda.startswith(("http://127.0.0.1:",
-                                                    "http://localhost:", "https://"))):
-                fail("appium:webDriverAgentUrl must use local HTTP or HTTPS")
-        if preinstalled:
-            wda_id = capabilities.get("appium:updatedWDABundleId")
-            if not isinstance(wda_id, str) or not wda_id:
-                fail("preinstalled WDA requires appium:updatedWDABundleId")
-            forbidden = sorted(cls.IOS_XCODE_ONLY_CAPABILITIES & set(capabilities))
-            if forbidden:
-                fail("non-macOS preinstalled WDA configuration contains Xcode-only capabilities")
+        if "appium:webDriverAgentUrl" in capabilities:
+            fail("Fedora iOS targets must not bypass the receipt-bound prebuilt WDA")
+        if not preinstalled:
+            fail("non-macOS physical iOS targets require preinstalled WDA")
+        wda_id = capabilities.get("appium:updatedWDABundleId")
+        if not isinstance(wda_id, str) or not wda_id:
+            fail("preinstalled WDA requires appium:updatedWDABundleId")
+        artifact_mode = target.get("artifactMode")
+        if artifact_mode not in {"signed-ipa", "personal-team-preinstalled"}:
+            fail("enabled Fedora iOS targets require an explicit artifactMode")
+        if artifact_mode == "personal-team-preinstalled":
+            if any(name in capabilities for name in (
+                    "appium:app", "appium:prebuiltWDAPath")):
+                fail("preinstalled Personal-Team mode must not claim signed IPA paths")
+        else:
+            for name in ("appium:app", "appium:prebuiltWDAPath"):
+                value = capabilities.get(name)
+                if not isinstance(value, str) or not Path(value).is_absolute():
+                    fail(f"Fedora iOS targets require an absolute private {name}")
+        if not target.get("artifactReceipt"):
+            fail("Fedora iOS targets require a receipt-bound Overte/WDA artifact pair")
+        forbidden = sorted(cls.IOS_XCODE_ONLY_CAPABILITIES & set(capabilities))
+        if forbidden:
+            fail("non-macOS preinstalled WDA configuration contains Xcode-only capabilities")
 
     @staticmethod
     def _sha256_file(path: Path) -> str:
@@ -259,11 +394,65 @@ class AppiumAdapter:
         return digest.hexdigest()
 
     @classmethod
+    def _private_tree_sha256(cls, root: Path, label: str) -> str:
+        """Attest and canonically hash a private extracted application tree."""
+        resolved = root.resolve(strict=False)
+        try:
+            resolved.relative_to(REPOSITORY)
+        except ValueError:
+            pass
+        else:
+            fail(f"{label} must be outside the source checkout")
+        try:
+            return private_artifact_tree_sha256(
+                root, owner_uid=os.geteuid(), require_private=os.name != "nt")
+        except ArtifactTreeError:
+            fail(f"{label} is not a safe current-user-owned private tree")
+
+    @staticmethod
+    def _private_external_file(path: Path, label: str) -> Path:
+        if not path.is_absolute():
+            fail(f"{label} must be an absolute private path")
+        current = Path(path.anchor)
+        for component in path.parts[1:]:
+            current /= component
+            if current.is_symlink():
+                fail(f"{label} must not contain symbolic links")
+        resolved = path.resolve()
+        try:
+            resolved.relative_to(REPOSITORY)
+        except ValueError:
+            pass
+        else:
+            fail(f"{label} must be outside the source checkout")
+        if not resolved.is_file():
+            fail(f"{label} does not exist")
+        metadata = resolved.lstat()
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+            fail(f"{label} must be an ordinary private file")
+        if (os.name != "nt" and (metadata.st_uid != os.geteuid()
+                                  or metadata.st_mode & 0o077)):
+            fail(f"{label} must be current-user-owned with mode 0600")
+        return resolved
+
+    @staticmethod
+    def _receipt_time(value: object, label: str) -> datetime:
+        if not isinstance(value, str) or not value.endswith("Z"):
+            fail(f"iOS artifactReceipt {label} is invalid")
+        try:
+            parsed = datetime.fromisoformat(value[:-1] + "+00:00")
+        except ValueError:
+            fail(f"iOS artifactReceipt {label} is invalid")
+        if parsed.tzinfo is None:
+            fail(f"iOS artifactReceipt {label} is invalid")
+        return parsed.astimezone(timezone.utc)
+
+    @classmethod
     def validate_ios_artifact_receipt(cls, target: dict, *, hash_files: bool = False) -> None:
         capabilities = target["capabilities"]
         artifact_paths = {
             "overte": capabilities.get("appium:app"),
-            "wda": capabilities.get("appium:prebuiltWDAPath"),
+            "wdaPrebuilt": capabilities.get("appium:prebuiltWDAPath"),
         }
         receipt_value = target.get("artifactReceipt")
         enabled = target.get("enabled", True)
@@ -278,20 +467,109 @@ class AppiumAdapter:
             if enabled:
                 fail("enabled iOS artifactReceipt does not exist")
             return
+        receipt_path = cls._private_external_file(receipt_path, "iOS artifactReceipt")
         try:
             receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             fail("iOS artifactReceipt is unreadable")
         if not isinstance(receipt, dict) or set(receipt) != {
-            "schemaVersion", "contract", "sourceRevision", "overte", "wda", "toolchain"
+            "schemaVersion", "contract", "sourceRevision", "createdAt", "notAfter",
+            "provenance", "overte", "wda", "toolchain"
         }:
             fail("iOS artifactReceipt has unexpected or missing fields")
+        contract = receipt.get("contract")
         if (receipt.get("schemaVersion") != 1
-                or receipt.get("contract") != cls.IOS_RECEIPT_CONTRACT
+                or contract not in {
+                    cls.IOS_PROTECTED_RECEIPT_CONTRACT,
+                    cls.IOS_PERSONAL_TEAM_RECEIPT_CONTRACT,
+                    cls.IOS_PREINSTALLED_RECEIPT_CONTRACT,
+                }
                 or not isinstance(receipt.get("sourceRevision"), str)
                 or not re.fullmatch(r"[0-9a-f]{40}", receipt["sourceRevision"])):
             fail("iOS artifactReceipt contract is invalid")
-        lock = json.loads((DEVICE_ROOT / "toolchain.lock.json").read_text(encoding="utf-8"))
+        created = cls._receipt_time(receipt.get("createdAt"), "createdAt")
+        not_after = cls._receipt_time(receipt.get("notAfter"), "notAfter")
+        now = datetime.now(timezone.utc)
+        if not created < not_after or created > now or now >= not_after:
+            fail("iOS artifactReceipt validity window is invalid or expired")
+        provenance = receipt.get("provenance")
+        if contract == cls.IOS_PROTECTED_RECEIPT_CONTRACT:
+            valid_provenance = (
+                isinstance(provenance, dict) and set(provenance) == {
+                    "repository", "repositoryId", "workflow", "reusableWorkflow", "ref",
+                    "runId", "runAttempt"}
+                and isinstance(provenance.get("repository"), str)
+                and re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+",
+                                 provenance["repository"]) is not None
+                and isinstance(provenance.get("repositoryId"), int)
+                and not isinstance(provenance.get("repositoryId"), bool)
+                and provenance["repositoryId"] > 0
+                and provenance.get("workflow") == ".github/workflows/ios-bootstrap.yml"
+                and provenance.get("reusableWorkflow")
+                == ".github/workflows/ios-fedora-e2e-producer.yml"
+                and provenance.get("ref") == "refs/heads/apple-ios"
+                and all(isinstance(provenance.get(field), int)
+                        and not isinstance(provenance[field], bool)
+                        and provenance[field] > 0 for field in ("runId", "runAttempt"))
+            )
+        elif contract == cls.IOS_PERSONAL_TEAM_RECEIPT_CONTRACT:
+            valid_provenance = (
+                isinstance(provenance, dict) and set(provenance) == {
+                    "mode", "unsignedKitContract", "unsignedKitManifestSha256",
+                    "attestationContract", "derivationBinding"}
+                and provenance.get("mode") == "personal-team-manual-signing"
+                and provenance.get("unsignedKitContract")
+                == "overte-ios-personal-team-e2e-kit-v3"
+                and isinstance(provenance.get("unsignedKitManifestSha256"), str)
+                and re.fullmatch(r"[0-9a-f]{64}",
+                                 provenance["unsignedKitManifestSha256"]) is not None
+                and provenance.get("attestationContract")
+                == "overte-ios-personal-team-signed-handoff-v1"
+                and provenance.get("derivationBinding") == "human-verified"
+            )
+        else:
+            observation = provenance.get("signingObservation") \
+                if isinstance(provenance, dict) else None
+            valid_observation = observation is None or (
+                isinstance(observation, dict) and set(observation) == {
+                    "teamIdentifier", "profileExpiration", "applicationIdentifiers"}
+                and isinstance(observation.get("teamIdentifier"), str)
+                and re.fullmatch(r"[A-Z0-9]{10}", observation["teamIdentifier"])
+                is not None
+                and isinstance(observation.get("profileExpiration"), str)
+                and isinstance(observation.get("applicationIdentifiers"), dict)
+            )
+            valid_provenance = (
+                isinstance(provenance, dict) and set(provenance) == {
+                    "mode", "derivationBinding", "cryptographicByteBinding",
+                    "installationProxyValidated", "attestationSha256",
+                    "unsignedKitContract", "unsignedKitManifestSha256",
+                    "attestationContract", "signingObservation",
+                    "bundleIdentifierMode"}
+                and provenance.get("mode") == "personal-team-preinstalled"
+                and provenance.get("bundleIdentifierMode") in {
+                    "fixed", "sideloadly-remapped"}
+                and provenance.get("derivationBinding") == "none-device-observed"
+                and provenance.get("cryptographicByteBinding") is False
+                and provenance.get("installationProxyValidated") is True
+                and isinstance(provenance.get("attestationSha256"), str)
+                and re.fullmatch(r"[0-9a-f]{64}", provenance["attestationSha256"])
+                is not None
+                and provenance.get("unsignedKitContract") in {
+                    "overte-ios-personal-team-e2e-kit-v3",
+                    "overte-ios-integrated-client-manifest-v1",
+                }
+                and isinstance(provenance.get("unsignedKitManifestSha256"), str)
+                and re.fullmatch(r"[0-9a-f]{64}",
+                                 provenance["unsignedKitManifestSha256"]) is not None
+                and provenance.get("attestationContract")
+                == "overte-ios-personal-team-preinstalled-attestation-v2"
+                and valid_observation
+            )
+        if not valid_provenance:
+            fail("iOS artifactReceipt provenance is invalid")
+        lock = json.loads((DEVICE_ROOT / "ios" / "toolchain.lock.json").read_text(
+            encoding="utf-8"))
         expected_toolchain = {
             "xcuitestDriver": lock["appium"]["drivers"]["xcuitest"]["version"],
             "remoteXpc": lock["appium"]["iosRuntime"]["remoteXpc"]["version"],
@@ -299,30 +577,108 @@ class AppiumAdapter:
         }
         if receipt.get("toolchain") != expected_toolchain:
             fail("iOS artifactReceipt does not match the pinned Fedora toolchain")
-        for role in ("overte", "wda"):
-            item = receipt.get(role)
-            if (not isinstance(item, dict) or set(item) != {"path", "sha256", "bundleId"}
-                    or not isinstance(item.get("path"), str)
-                    or not Path(item["path"]).is_absolute()
-                    or not isinstance(item.get("sha256"), str)
-                    or not re.fullmatch(r"[0-9a-f]{64}", item["sha256"])
-                    or not isinstance(item.get("bundleId"), str)):
-                fail(f"iOS artifactReceipt {role} entry is invalid")
-            if artifact_paths[role] != item["path"]:
-                fail(f"iOS {role} capability path does not match artifactReceipt")
-            artifact = Path(item["path"])
-            if not artifact.is_file():
-                fail(f"iOS {role} artifact from receipt does not exist")
-            if hash_files and cls._sha256_file(artifact) != item["sha256"]:
-                fail(f"iOS {role} artifact failed its receipt SHA-256")
+        preinstalled_receipt = contract == cls.IOS_PREINSTALLED_RECEIPT_CONTRACT
+        if preinstalled_receipt:
+            overte = receipt.get("overte")
+            wda = receipt.get("wda")
+            identifier_mode = provenance["bundleIdentifierMode"]
+            if (not isinstance(overte, dict)
+                    or set(overte) != {"bundleId", "installed"}
+                    or not isinstance(overte.get("bundleId"), str)
+                    or not cls.IOS_BUNDLE_ID_RE.fullmatch(overte["bundleId"])
+                    or overte.get("installed") is not True
+                    or not isinstance(wda, dict)
+                    or set(wda) != {
+                        "bundleId", "updatedBundleId", "bundleIdSuffix", "installed"}
+                    or not isinstance(wda.get("bundleId"), str)
+                    or not isinstance(wda.get("updatedBundleId"), str)
+                    or not cls.IOS_BUNDLE_ID_RE.fullmatch(wda["bundleId"])
+                    or not cls.IOS_BUNDLE_ID_RE.fullmatch(wda["updatedBundleId"])
+                    or wda.get("bundleIdSuffix") not in {"", ".xctrunner"}
+                    or wda["updatedBundleId"] + wda["bundleIdSuffix"]
+                    != wda["bundleId"]
+                    or wda.get("installed") is not True
+                    or overte["bundleId"] == wda["bundleId"]
+                    or any(artifact_paths.values())):
+                fail("preinstalled iOS artifactReceipt inventory is invalid")
+            fixed_inventory = (
+                overte["bundleId"] == "org.overte.interface.e2e"
+                and wda["bundleId"] == "org.overte.WebDriverAgentRunner.xctrunner"
+                and wda["updatedBundleId"] == "org.overte.WebDriverAgentRunner"
+                and wda["bundleIdSuffix"] == ".xctrunner"
+            )
+            if ((identifier_mode == "fixed") != fixed_inventory
+                    or identifier_mode == "sideloadly-remapped"
+                    and provenance["signingObservation"] is not None):
+                fail("preinstalled iOS bundle-identifier mode is inconsistent")
+            observation = provenance["signingObservation"]
+            if observation is not None:
+                team = observation["teamIdentifier"]
+                expected_identifiers = {
+                    "overte": f"{team}.{overte['bundleId']}",
+                    "wdaRunner": f"{team}.{wda['bundleId']}",
+                    "wdaXCTest": f"{team}.{wda['updatedBundleId']}",
+                }
+                if observation["applicationIdentifiers"] != expected_identifiers:
+                    fail("preinstalled iOS signing observation is inconsistent")
+                profile_expiry = cls._receipt_time(
+                    observation["profileExpiration"], "profileExpiration")
+                if profile_expiry < not_after:
+                    fail("preinstalled iOS signing observation expires before its receipt")
+        else:
+            overte = receipt.get("overte")
+            wda = receipt.get("wda")
+            if (not isinstance(overte, dict)
+                    or set(overte) != {"path", "sha256", "bundleId"}
+                    or not isinstance(overte.get("path"), str)
+                    or not Path(overte["path"]).is_absolute()
+                    or not isinstance(overte.get("sha256"), str)
+                    or not re.fullmatch(r"[0-9a-f]{64}", overte["sha256"])
+                    or not isinstance(overte.get("bundleId"), str)):
+                fail("iOS artifactReceipt overte entry is invalid")
+            if (not isinstance(wda, dict)
+                    or set(wda) != {"ipaPath", "ipaSha256", "prebuiltPath",
+                                    "prebuiltTreeSha256", "bundleId"}
+                    or not all(isinstance(wda.get(field), str) for field in wda)
+                    or not Path(wda["ipaPath"]).is_absolute()
+                    or not Path(wda["prebuiltPath"]).is_absolute()
+                    or Path(wda["prebuiltPath"]).suffix != ".app"
+                    or not re.fullmatch(r"[0-9a-f]{64}", wda["ipaSha256"])
+                    or not re.fullmatch(r"[0-9a-f]{64}", wda["prebuiltTreeSha256"])):
+                fail("iOS artifactReceipt wda entry is invalid")
+            if artifact_paths["overte"] != overte["path"]:
+                fail("iOS overte capability path does not match artifactReceipt")
+            if artifact_paths["wdaPrebuilt"] != wda["prebuiltPath"]:
+                fail("iOS WDA prebuilt capability path does not match artifactReceipt")
+            overte_ipa = cls._private_external_file(
+                Path(overte["path"]), "iOS overte artifact from receipt")
+            wda_ipa = cls._private_external_file(
+                Path(wda["ipaPath"]), "iOS WDA IPA from receipt")
+            prebuilt_digest = cls._private_tree_sha256(
+                Path(wda["prebuiltPath"]), "iOS prebuilt WDA application")
+            if not (Path(wda["prebuiltPath"]) / "Info.plist").is_file():
+                fail("iOS prebuilt WDA application lacks Info.plist")
+            if hash_files and cls._sha256_file(overte_ipa) != overte["sha256"]:
+                fail("iOS overte artifact failed its receipt SHA-256")
+            if hash_files and cls._sha256_file(wda_ipa) != wda["ipaSha256"]:
+                fail("iOS WDA IPA failed its receipt SHA-256")
+            if prebuilt_digest != wda["prebuiltTreeSha256"]:
+                fail("iOS prebuilt WDA application failed its receipt tree SHA-256")
         if receipt["overte"]["bundleId"] != target["appId"]:
             fail("iOS artifactReceipt Overte bundle does not match appId")
         suffix = capabilities.get("appium:updatedWDABundleIdSuffix", ".xctrunner")
-        if not isinstance(suffix, str):
+        if not isinstance(suffix, str) or suffix not in {"", ".xctrunner"}:
             fail("appium:updatedWDABundleIdSuffix must be a string")
         if receipt["wda"]["bundleId"] != capabilities.get("appium:updatedWDABundleId", "") + suffix:
             fail("iOS artifactReceipt WDA bundle does not match Appium capabilities")
+        expected_mode = "personal-team-preinstalled" if preinstalled_receipt else "signed-ipa"
+        configured_mode = target.get("artifactMode")
+        if target.get("enabled", True) and configured_mode != expected_mode:
+            fail("iOS artifactMode does not match artifactReceipt")
+        target["_artifactMode"] = expected_mode
+        target["_receiptWdaBundleId"] = receipt["wda"]["bundleId"]
         target["_artifactReceiptSha256"] = cls._sha256_file(receipt_path)
+        target["_artifactReceiptPath"] = str(receipt_path)
 
     @classmethod
     def validate_ios_test_build(cls, target: dict) -> None:
@@ -337,7 +693,7 @@ class AppiumAdapter:
             fail("iOS testBuild must be an object")
         allowed_contract_fields = {
             "contract", "contractVersion", "fixtureOrigin", "probeScriptPath",
-            "resultsDirectory", "launchArguments", "launchEnvironment",
+            "scenePath", "resultsDirectory", "launchArguments", "launchEnvironment",
         }
         if set(contract) - allowed_contract_fields:
             fail("iOS testBuild contains unsupported fields")
@@ -349,6 +705,8 @@ class AppiumAdapter:
                                             "iOS testBuild fixtureOrigin")
         if contract.get("probeScriptPath") != cls.IOS_PROBE_SCRIPT_PATH:
             fail(f"iOS testBuild probeScriptPath must be {cls.IOS_PROBE_SCRIPT_PATH}")
+        if contract.get("scenePath") != cls.IOS_SCENE_PATH:
+            fail("iOS testBuild scenePath must select the repository-owned fixture")
 
         results = contract.get("resultsDirectory")
         if (not isinstance(results, str) or not results or "\\" in results
@@ -376,59 +734,63 @@ class AppiumAdapter:
         capabilities = target["capabilities"]
         if capabilities.get("appium:autoLaunch") is not False:
             fail("iOS testBuild targets require appium:autoLaunch=false")
+        if capabilities.get("appium:enforceAppInstall") is not False:
+            fail("iOS testBuild targets require appium:enforceAppInstall=false")
         if target.get("scene") != {"kind": "ios-test-build"}:
             fail("iOS testBuild targets require scene.kind=ios-test-build")
         if target.get("probe") != {"kind": "ios-documents"}:
             fail("iOS testBuild targets require probe.kind=ios-documents")
         if contract.get("fixtureOrigin") != origin:
             fail("iOS testBuild fixtureOrigin must use normalized lowercase spelling")
+        tablet = target.get("controls", {}).get("tablet", {})
+        if any(key in tablet for key in ("togglePoint", "openPoint", "closePoint")):
+            fail("iOS tablet automation requires audited accessibility identifiers")
+        if target.get("enabled", True) and tablet != cls.IOS_TABLET_IDENTIFIERS:
+            fail("enabled iOS tablet automation requires the stable Overte identifiers")
 
-    @classmethod
-    def controlled_android_client(cls, target: dict) -> bool:
-        return (target.get("platform") == "android"
-                and target.get("physical") is True
-                and target.get("scene") == {"kind": "android-debug-e2e"}
-                and target.get("probe") == {"kind": "android-run-as",
-                                             "relativePath": cls.ANDROID_DEBUG_PROBE}
-                and target.get("process", {}).get("kind") == "adb"
-                and target.get("clientControl") == {
-                    "kind": "android-run-as-command",
-                    "relativePath": cls.ANDROID_CLIENT_COMMAND,
-                })
-
-    @classmethod
-    def advertised_capabilities(cls, target: dict) -> list[str]:
+    @staticmethod
+    def advertised_capabilities(target: dict) -> list[str]:
         values = ["accessibility.snapshot", "app.foreground", "app.launch",
-                  "artifact.screenshot", "lifecycle.background"]
+                  "artifact.screenshot"]
+        if target["platform"] == "android":
+            values.append("lifecycle.background")
         process = target.get("process", {})
         if target["platform"] == "ios" or process.get("kind") == "adb":
             values.append("app.process")
         if target["platform"] == "android" and process.get("kind") == "adb":
             values.append("telemetry.snapshot")
-        if cls.controlled_android_client(target):
-            values += ["asset.load", "navigation.enter-domain", "sound.play"]
+        if (target["platform"] == "ios"
+                and target.get("soundControl") == {"kind": "fixture-http",
+                                                    "commandPath": "/sound-command.json"}
+                and target.get("testBuild")
+                and target.get("probe") == {"kind": "ios-documents"}):
+            values.append("sound.play")
         controls = target.get("controls", {})
         if target.get("scene"):
             values.append("scene.load")
+        if (target["platform"] == "ios"
+                and target.get("scene", {}).get("kind") == "ios-test-build"):
+            values.append("scene.reload")
         if target.get("probe"):
             values.append("probe.snapshot")
         if isinstance(controls.get("look"), dict):
             values.append("input.look")
         if isinstance(controls.get("move"), dict):
             values.append("input.move")
+        if (target["platform"] == "ios"
+                and isinstance(controls.get("verticalLocomotion"), dict)):
+            values += ["input.fly", "input.jump"]
         tablet = controls.get("tablet")
         if isinstance(tablet, dict) and (tablet.get("toggleAccessibilityId") or
-                                         tablet.get("togglePoint") or
                                          (tablet.get("openAccessibilityId") and
                                           tablet.get("closeAccessibilityId")) or
-                                         (tablet.get("openPoint") and
-                                          tablet.get("closePoint"))):
+                                         (target["platform"] == "android" and
+                                          (tablet.get("togglePoint") or
+                                           (tablet.get("openPoint") and
+                                            tablet.get("closePoint"))))):
             values += ["tablet.close", "tablet.open"]
-        if (isinstance(tablet, dict)
-                and tablet.get("semanticUi") == {
-                    "contractVersion": TABLET_CONTRACT_VERSION,
-                }):
-            values += ["tablet.activate", "tablet.snapshot"]
+            if target["platform"] == "ios" and target.get("testBuild"):
+                values += ["tablet.activate", "tablet.snapshot"]
         return sorted(values)
 
     @staticmethod
@@ -439,6 +801,30 @@ class AppiumAdapter:
                            for item in value)):
             fail(f"{label} must contain two finite fractions from 0 inclusive through 1 exclusive")
         return [float(value[0]), float(value[1])]
+
+    @staticmethod
+    def bounded_seconds(value: object, label: str,
+                        minimum: float, maximum: float) -> float:
+        if (not isinstance(value, (int, float)) or isinstance(value, bool)
+                or not math.isfinite(float(value))
+                or not minimum <= float(value) <= maximum):
+            fail(f"{label} must be from {minimum} through {maximum} seconds")
+        return float(value)
+
+    @classmethod
+    def validate_ios_vertical_locomotion(cls, value: object) -> dict:
+        if not isinstance(value, dict) or set(value) != {
+                "jumpPoint", "jumpPressSeconds", "flightSecondPressDelaySeconds"}:
+            fail("iOS vertical locomotion requires the exact audited control fields")
+        cls.validate_fractional_point(
+            value["jumpPoint"], "controls.verticalLocomotion.jumpPoint")
+        cls.bounded_seconds(
+            value["jumpPressSeconds"],
+            "controls.verticalLocomotion.jumpPressSeconds", 0.05, 0.1)
+        cls.bounded_seconds(
+            value["flightSecondPressDelaySeconds"],
+            "controls.verticalLocomotion.flightSecondPressDelaySeconds", 0.15, 1.0)
+        return value
 
     def discover(self) -> list[dict]:
         return [{
@@ -457,13 +843,15 @@ class AppiumAdapter:
 
     def describe(self, selector: str) -> dict:
         target = self.target(selector)
-        return {
+        value = {
             "adapter": self.adapter_id,
-            "model": target.get("model"),
             "os": "Android" if self.platform == "android" else "iOS/iPadOS",
-            "osVersion": target.get("osVersion"),
             "role": target.get("role", "physical-mobile-e2e"),
         }
+        if self.platform == "android":
+            value.update({"model": target.get("model"),
+                          "osVersion": target.get("osVersion")})
+        return value
 
     def state_path(self, selector: str) -> Path:
         return state_directory(self.adapter_id, selector) / "session.json"
@@ -472,17 +860,55 @@ class AppiumAdapter:
         path = self.state_path(selector)
         if not path.exists():
             return None
+        if path.is_symlink():
+            fail("Appium session state must not be a symbolic link")
+        metadata = path.lstat()
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1
+                or os.name != "nt" and (metadata.st_uid != os.geteuid()
+                                         or metadata.st_mode & 0o077)):
+            fail("Appium session state is not a private ordinary file")
         try:
             value = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
-            return None
-        return value if isinstance(value, dict) and isinstance(value.get("sessionId"), str) else None
+            fail("Appium session state is unreadable")
+        if not isinstance(value, dict) or not isinstance(value.get("sessionId"), str):
+            fail("Appium session state has an invalid contract")
+        return value
 
     def save_session(self, selector: str, value: dict) -> None:
         path = self.state_path(selector)
-        temporary = path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(value, sort_keys=True) + "\n", encoding="utf-8")
-        temporary.replace(path)
+        descriptor = -1
+        temporary: Path | None = None
+        try:
+            descriptor, temporary_name = tempfile.mkstemp(
+                prefix=".session-", suffix=".tmp", dir=path.parent)
+            temporary = Path(temporary_name)
+            os.fchmod(descriptor, 0o600)
+            with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+                descriptor = -1
+                output.write(json.dumps(value, sort_keys=True) + "\n")
+                output.flush()
+                os.fsync(output.fileno())
+            os.replace(temporary, path)
+            temporary = None
+            directory = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+
+    @staticmethod
+    def validate_probe(value: object) -> dict:
+        value = require_fresh_snapshot(value)
+        try:
+            return validate_probe_snapshot(value)
+        except ValueError as error:
+            fail(str(error))
 
     def attest_physical_target(self, client: WebDriver, session: str, target: dict) -> None:
         if not target.get("physical"):
@@ -491,18 +917,53 @@ class AppiumAdapter:
             value = client.execute(session, "mobile: deviceInfo")
             if not isinstance(value, dict) or value.get("isSimulator") not in (False, 0):
                 fail("configured physical iOS target is a simulator or cannot be attested")
+            lockdown = value.get("lockdownInfo", {})
+            if not isinstance(lockdown, dict):
+                fail("XCUITest device identity evidence is invalid")
+            expected_udid = target["capabilities"].get("appium:udid")
+            observed_udids = [item for item in (
+                value.get("udid"), value.get("uniqueDeviceIdentifier"),
+                lockdown.get("UniqueDeviceID"),
+            ) if item is not None]
+            if (not observed_udids
+                    or any(not isinstance(item, str) or not item
+                           or item != expected_udid for item in observed_udids)):
+                fail("XCUITest device identity does not match the private target")
+            observed_versions = [item for item in (
+                *(value.get(key) for key in (
+                    "platformVersion", "productVersion", "ProductVersion", "osVersion")),
+                lockdown.get("ProductVersion"),
+            ) if item is not None]
+            expected_version = target["capabilities"].get("appium:platformVersion")
+            normalized_expected = self.normalized_ios_version(expected_version)
+            if (not observed_versions or normalized_expected is None
+                    or any(self.normalized_ios_version(item) != normalized_expected
+                           for item in observed_versions)):
+                fail("XCUITest platform version does not match the private target")
             if target.get("testBuild"):
                 apps = client.execute(session, "mobile: listApps", {
                     "applicationType": "User",
                     "returnAttributes": ["CFBundleIdentifier", "UIFileSharingEnabled",
-                                         self.IOS_TEST_BUILD_PLIST_KEY],
+                                         self.IOS_TEST_BUILD_PLIST_KEY,
+                                         self.IOS_WDA_VERSION_PLIST_KEY,
+                                         self.IOS_XCUITEST_VERSION_PLIST_KEY],
                 })
                 installed = apps.get(target["appId"]) if isinstance(apps, dict) else None
+                suffix = target["capabilities"].get(
+                    "appium:updatedWDABundleIdSuffix", ".xctrunner")
+                wda_bundle = target.get("_receiptWdaBundleId") or (
+                    target["capabilities"].get("appium:updatedWDABundleId", "") + suffix)
+                installed_wda = apps.get(wda_bundle) if isinstance(apps, dict) else None
                 if (not isinstance(installed, dict)
                         or installed.get("CFBundleIdentifier") != target["appId"]
                         or installed.get("UIFileSharingEnabled") not in (True, 1)
                         or installed.get(self.IOS_TEST_BUILD_PLIST_KEY) != 1):
                     fail("installed iOS application does not attest the E2E test-build contract")
+                if (not isinstance(installed_wda, dict)
+                        or installed_wda.get("CFBundleIdentifier") != wda_bundle
+                        or installed_wda.get(self.IOS_WDA_VERSION_PLIST_KEY) != "16.8.0"
+                        or installed_wda.get(self.IOS_XCUITEST_VERSION_PLIST_KEY) != "12.8.0"):
+                    fail("installed iOS WebDriverAgent does not match the private receipt")
         else:
             from android.common.device_tests.adb_transport import AdbTransport
             device = target["capabilities"]["appium:udid"]
@@ -510,6 +971,120 @@ class AppiumAdapter:
             adb.require_connected(device)
             if adb.prop(device, "ro.kernel.qemu") == "1":
                 fail("configured physical Android target is an emulator")
+
+    @staticmethod
+    def normalized_ios_version(value: object) -> tuple[int, ...] | None:
+        if not isinstance(value, str) or not re.fullmatch(r"[0-9]+(?:[.][0-9]+){0,2}", value):
+            return None
+        parts = [int(item) for item in value.split(".")]
+        while len(parts) > 2 and parts[-1] == 0:
+            parts.pop()
+        return tuple(parts)
+
+    @staticmethod
+    def immutable_ios_runtime_wrapper() -> Path:
+        lock = json.loads((DEVICE_ROOT / "ios" / "toolchain.lock.json").read_text(
+            encoding="utf-8"))
+        version = lock["appium"]["iosRuntime"]["remoteXpc"]["version"]
+        revision = lock.get("serviceRuntimeRevision")
+        if revision != AppiumAdapter.IOS_SERVICE_RUNTIME_REVISION:
+            fail("unsupported immutable iOS device runtime revision")
+        runtime = Path("/usr/local/lib/overte-ios-remotexpc") / f"{version}-r{revision}"
+        wrapper = runtime / "remotexpc_tunnel.py"
+        current = Path(wrapper.anchor)
+        for component in wrapper.parts[1:]:
+            current /= component
+            if current.is_symlink():
+                fail("immutable iOS device preflight runtime contains a symbolic link")
+        for path, directory in ((runtime, True), (wrapper, False)):
+            if path.is_symlink() or not (path.is_dir() if directory else path.is_file()):
+                fail("immutable iOS device preflight runtime is not installed")
+            value = path.lstat()
+            if (os.name != "nt" and (value.st_uid != 0 or value.st_mode & 0o222)
+                    or directory and not stat.S_ISDIR(value.st_mode)
+                    or not directory and not stat.S_ISREG(value.st_mode)):
+                fail("immutable iOS device preflight runtime failed attestation")
+        return wrapper
+
+    def create_appium_session(self, client: WebDriver, target: dict) -> object:
+        return client.call("POST", "/session", {
+            "capabilities": {"alwaysMatch": target["capabilities"], "firstMatch": [{}]},
+        })
+
+    def pre_session_device_attestation(self, target: dict) -> None:
+        if self.platform != "ios":
+            return
+        udid = target["capabilities"].get("appium:udid")
+        overte_bundle = target.get("appId")
+        wda_bundle = target.get("_receiptWdaBundleId")
+        if (not isinstance(udid, str) or not udid
+                or not isinstance(overte_bundle, str)
+                or not isinstance(wda_bundle, str)):
+            fail("physical iOS target identity is unavailable for device preflight")
+        wrapper = self.immutable_ios_runtime_wrapper()
+        try:
+            result = subprocess.run(
+                [str(wrapper), "device-preflight"],
+                input=json.dumps({
+                    "udid": udid, "overteBundleId": overte_bundle,
+                    "wdaBundleId": wda_bundle,
+                }, separators=(",", ":")),
+                text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                timeout=65, check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            fail("immutable iOS device preflight could not run")
+        if result.returncode != 0:
+            fail("installed iOS applications failed the private device preflight")
+
+    def terminate_ios_app_without_wda(self, target: dict) -> None:
+        """Terminate and verify the exact receipt-bound app over DVT."""
+        udid = target["capabilities"].get("appium:udid")
+        bundle = target.get("appId")
+        if (not isinstance(udid, str) or not udid
+                or not isinstance(bundle, str) or not bundle):
+            fail("physical iOS target identity is unavailable for cleanup")
+        wrapper = self.immutable_ios_runtime_wrapper()
+        try:
+            result = subprocess.run(
+                [str(wrapper), "device-app-terminate"],
+                input=json.dumps({"udid": udid, "bundleId": bundle},
+                                 separators=(",", ":")),
+                text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                timeout=65, check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            fail("immutable iOS application cleanup could not run")
+        if result.returncode != 0:
+            fail("immutable iOS application cleanup did not complete")
+
+    def install_receipt_bound_ios_apps(self, target: dict) -> None:
+        """Replace both strong-mode apps through the immutable device helper.
+
+        The helper receives the private identity and receipt only on stdin.  It
+        rechecks the receipt and IPA hashes immediately before removing stale
+        installations and installing WDA followed by Overte.
+        """
+        if self.platform != "ios" or target.get("_artifactMode") != "signed-ipa":
+            return
+        udid = target["capabilities"].get("appium:udid")
+        receipt = target.get("_artifactReceiptPath")
+        if (not isinstance(udid, str) or not udid or not isinstance(receipt, str)
+                or not Path(receipt).is_absolute()):
+            fail("signed iOS installation inputs are unavailable")
+        wrapper = self.immutable_ios_runtime_wrapper()
+        try:
+            result = subprocess.run(
+                [str(wrapper), "device-install"],
+                input=json.dumps({"udid": udid, "receipt": receipt},
+                                 separators=(",", ":")),
+                text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                timeout=15 * 60, check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            fail("immutable signed iOS application installation could not run")
+        if result.returncode != 0:
+            fail("receipt-bound signed iOS application installation failed")
 
     def ensure_session(self, selector: str) -> tuple[WebDriver, str, dict]:
         target = self.target(selector)
@@ -519,27 +1094,48 @@ class AppiumAdapter:
                                                  separators=(",", ":")).encode()).hexdigest()
         previous_generation = int((state or {}).get("generation", 0))
         if state and state.get("targetFingerprint") != fingerprint:
+            try:
+                client.call("DELETE", f"/session/{state['sessionId']}")
+            except (OSError, RuntimeError, ValueError):
+                pass
             self.state_path(selector).unlink(missing_ok=True)
             state = None
         if state:
             try:
                 client.call("GET", f"/session/{state['sessionId']}")
-                self.attest_physical_target(client, state["sessionId"], target)
+                if state.get("physicalTargetAttested") is not True:
+                    self.attest_physical_target(client, state["sessionId"], target)
+                    state["physicalTargetAttested"] = True
+                    self.save_session(selector, state)
                 return client, state["sessionId"], state
             except RuntimeError:
+                try:
+                    client.call("DELETE", f"/session/{state['sessionId']}")
+                except (OSError, RuntimeError, ValueError):
+                    pass
                 self.state_path(selector).unlink(missing_ok=True)
         if self.platform == "ios":
             self.validate_ios_artifact_receipt(target, hash_files=True)
-        value = client.call("POST", "/session", {
-            "capabilities": {"alwaysMatch": target["capabilities"], "firstMatch": [{}]},
-        })
+            self.install_receipt_bound_ios_apps(target)
+            self.pre_session_device_attestation(target)
+        value = self.create_appium_session(client, target)
         if not isinstance(value, dict) or not isinstance(value.get("sessionId"), str):
             fail("Appium did not create a WebDriver session")
         generation = previous_generation + 1
         state = {"sessionId": value["sessionId"], "generation": generation,
-                 "targetFingerprint": fingerprint}
+                 "targetFingerprint": fingerprint, "physicalTargetAttested": False}
         self.save_session(selector, state)
-        self.attest_physical_target(client, value["sessionId"], target)
+        try:
+            self.attest_physical_target(client, value["sessionId"], target)
+            state["physicalTargetAttested"] = True
+            self.save_session(selector, state)
+        except Exception:
+            try:
+                client.call("DELETE", f"/session/{value['sessionId']}")
+            except (OSError, RuntimeError, ValueError):
+                pass
+            self.state_path(selector).unlink(missing_ok=True)
+            raise
         return client, value["sessionId"], state
 
     def query_app_state(self, client: WebDriver, session: str, target: dict) -> int:
@@ -548,6 +1144,158 @@ class AppiumAdapter:
         if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 4:
             fail("Appium queryAppState returned an invalid state")
         return value
+
+    def assert_ios_process_identity(self, selector: str, client: WebDriver,
+                                    session: str, state: dict, target: dict) -> str:
+        if self.platform != "ios":
+            fail("iOS process identity guard used for another platform")
+        if self.query_app_state(client, session, target) != 4:
+            raise RuntimeError("ASSERTION: iOS application is not foregrounded")
+        info = client.execute(session, "mobile: activeAppInfo")
+        pid = info.get("pid") if isinstance(info, dict) else None
+        bundle = info.get("bundleId") if isinstance(info, dict) else None
+        if (not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0
+                or bundle != target["appId"]):
+            fail("XCUITest activeAppInfo did not identify the configured application")
+        observed = str(pid)
+        expected = state.get("processIdentity")
+        if expected is not None and expected != observed:
+            raise RuntimeError(
+                "ASSERTION: iOS application process restarted during the E2E sequence")
+        if expected is None:
+            state["processIdentity"] = observed
+            self.save_session(selector, state)
+        return observed
+
+    @staticmethod
+    def controlled_http_url(value: str, label: str) -> tuple[str, str, int | None]:
+        parsed = urlsplit(value)
+        try:
+            port = parsed.port
+        except ValueError:
+            fail(f"{label} has an invalid port")
+        if (parsed.scheme not in {"http", "https"} or not parsed.hostname
+                or parsed.username is not None or parsed.password is not None
+                or parsed.fragment):
+            fail(f"{label} must be an absolute credential-free HTTP(S) URL")
+        return parsed.scheme, parsed.hostname.lower(), port
+
+    def request_ios_sound(self, selector: str, client: WebDriver, session: str,
+                          state: dict, target: dict, values: dict) -> dict:
+        if target.get("soundControl") != {"kind": "fixture-http",
+                                          "commandPath": "/sound-command.json"}:
+            fail("iOS sound.play requires the controlled fixture sound channel")
+        contract = target.get("testBuild", {})
+        configured_url = contract.get("fixtureOrigin", "") + "/sound-command.json"
+        sound_origin = self.controlled_http_url(values["url"], "sound.play url")
+        command_origin = self.controlled_http_url(values["commandUrl"], "sound.play commandUrl")
+        if (values["commandUrl"] != configured_url or sound_origin != command_origin
+                or urlsplit(values["commandUrl"]).query):
+            fail("iOS sound.play URLs must use the configured fixture origin and command path")
+        payload = {"schemaVersion": 1, "commandId": values["commandId"],
+                   "action": "play", "soundUrl": values["url"]}
+        self.assert_ios_process_identity(selector, client, session, state, target)
+        request = Request(configured_url,
+                          data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
+                          headers={"Content-Type": "application/json"}, method="POST")
+        try:
+            with urlopen(request, timeout=5) as response:
+                if response.status != 200:
+                    fail("controlled fixture rejected the sound command")
+                encoded = response.read(4097)
+        except HTTPError as error:
+            fail(f"controlled fixture rejected the sound command with HTTP {error.code}")
+        except (URLError, OSError):
+            fail("controlled fixture sound command endpoint is unavailable")
+        if len(encoded) > 4096:
+            fail("controlled fixture returned an oversized sound response")
+        try:
+            accepted = json.loads(encoded)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            fail("controlled fixture returned an invalid sound response")
+        if accepted != payload:
+            fail("controlled fixture did not acknowledge the exact sound command")
+        self.assert_ios_process_identity(selector, client, session, state, target)
+        return {"requested": True, "commandId": values["commandId"]}
+
+    def request_ios_scene_reload(self, selector: str, client: WebDriver, session: str,
+                                 state: dict, target: dict, scene_url: str) -> str:
+        """Reload the exact fixture through its runtime-only command channel."""
+        contract = target.get("testBuild", {})
+        configured_scene = contract.get("fixtureOrigin", "") + contract.get("scenePath", "")
+        command_url = contract.get("fixtureOrigin", "") + "/e2e-client-command.json"
+        if scene_url != configured_scene:
+            fail("iOS scene reload requires the exact controlled fixture URL")
+        scene_origin = self.controlled_http_url(scene_url, "scene reload url")
+        command_origin = self.controlled_http_url(command_url, "scene reload command URL")
+        if scene_origin != command_origin or urlsplit(command_url).query:
+            fail("iOS scene reload must use the configured fixture command channel")
+        payload = {
+            "schemaVersion": 1,
+            "commandId": f"scene-{uuid.uuid4().hex}",
+            "action": "scene-load",
+            "url": scene_url,
+        }
+        self.assert_ios_process_identity(selector, client, session, state, target)
+        request = Request(
+            command_url,
+            data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
+            headers={"Content-Type": "application/json"}, method="POST",
+        )
+        try:
+            with urlopen(request, timeout=5) as response:
+                if response.status != 200:
+                    fail("controlled fixture rejected the scene reload command")
+                encoded = response.read(4097)
+        except HTTPError as error:
+            fail(f"controlled fixture rejected the scene reload command with HTTP {error.code}")
+        except (URLError, OSError):
+            fail("controlled fixture scene reload endpoint is unavailable")
+        if len(encoded) > 4096:
+            fail("controlled fixture returned an oversized scene reload response")
+        try:
+            accepted = json.loads(encoded)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            fail("controlled fixture returned an invalid scene reload response")
+        if accepted != payload:
+            fail("controlled fixture did not acknowledge the exact scene reload command")
+        self.assert_ios_process_identity(selector, client, session, state, target)
+        return payload["commandId"]
+
+    def reset_ios_client_command(self, target: dict) -> None:
+        """Clear a retained fixture command before a fresh probe starts polling."""
+        contract = target.get("testBuild", {})
+        fixture_origin = contract.get("fixtureOrigin", "")
+        command_url = fixture_origin + "/e2e-client-command.json"
+        command_origin = self.controlled_http_url(
+            command_url, "scene command reset URL")
+        fixture = self.controlled_http_url(
+            fixture_origin + contract.get("scenePath", ""), "controlled fixture URL")
+        if command_origin != fixture or urlsplit(command_url).query:
+            fail("iOS scene command reset must use the configured fixture channel")
+        payload = {"schemaVersion": 1, "commandId": "", "action": "idle"}
+        request = Request(
+            command_url,
+            data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
+            headers={"Content-Type": "application/json"}, method="POST",
+        )
+        try:
+            with urlopen(request, timeout=5) as response:
+                if response.status != 200:
+                    fail("controlled fixture rejected the scene command reset")
+                encoded = response.read(4097)
+        except HTTPError as error:
+            fail(f"controlled fixture rejected the scene command reset with HTTP {error.code}")
+        except (URLError, OSError):
+            fail("controlled fixture scene command reset endpoint is unavailable")
+        if len(encoded) > 4096:
+            fail("controlled fixture returned an oversized scene command reset")
+        try:
+            accepted = json.loads(encoded)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            fail("controlled fixture returned an invalid scene command reset")
+        if accepted != payload:
+            fail("controlled fixture did not acknowledge the exact scene command reset")
 
     @staticmethod
     def expand(value: object, variables: dict[str, object]) -> object:
@@ -612,8 +1360,8 @@ class AppiumAdapter:
         }]}
         client.call("POST", f"/session/{session}/actions", body)
 
-    def tap_fractional_point(self, client: WebDriver, session: str,
-                             value: object, label: str) -> None:
+    def fractional_viewport_point(self, client: WebDriver, session: str,
+                                  value: object, label: str) -> tuple[int, int]:
         point = self.validate_fractional_point(value, label)
         rect = client.call("GET", f"/session/{session}/window/rect")
         if not isinstance(rect, dict) or not all(isinstance(rect.get(key), (int, float))
@@ -621,6 +1369,11 @@ class AppiumAdapter:
             fail("Appium window rectangle is invalid")
         x = int(rect.get("x", 0)) + int((rect["width"] - 1) * point[0])
         y = int(rect.get("y", 0)) + int((rect["height"] - 1) * point[1])
+        return x, y
+
+    def tap_fractional_point(self, client: WebDriver, session: str,
+                             value: object, label: str) -> None:
+        x, y = self.fractional_viewport_point(client, session, value, label)
         if self.platform == "android":
             client.execute(session, "mobile: clickGesture", {"x": x, "y": y})
             return
@@ -636,13 +1389,102 @@ class AppiumAdapter:
         client.call("POST", f"/session/{session}/actions", body)
         client.call("DELETE", f"/session/{session}/actions")
 
-    def click_accessibility(self, client: WebDriver, session: str, identifier: str) -> None:
-        self.click_element(client, session, "accessibility id", identifier)
-
     @staticmethod
-    def click_element(client: WebDriver, session: str, strategy: str, selector: str) -> None:
+    def vertical_webdriver_call(client: WebDriver, method: str, path: str,
+                                payload: dict | None, phase: str) -> object:
+        try:
+            return client.call(method, path, payload)
+        except WebDriverRequestError as error:
+            raise RuntimeError(f"{error} during {phase}") from None
+
+    def ios_vertical_locomotion_gesture(self, client: WebDriver, session: str,
+                                        control: dict,
+                                        flight_duration: float | None = None) -> None:
+        """Press the real iOS virtual-pad Jump button.
+
+        A single bounded press is a jump. Flight uses Overte's documented
+        double-jump path: release the first press, wait beyond the iOS minimum
+        Jump pulse, then hold the second press for the requested duration.
+        The point is required private configuration; there is no hidden
+        coordinate fallback in the adapter.
+        """
+        control = self.validate_ios_vertical_locomotion(control)
+        try:
+            x, y = self.fractional_viewport_point(
+                client, session, control["jumpPoint"],
+                "controls.verticalLocomotion.jumpPoint")
+        except WebDriverRequestError as error:
+            raise RuntimeError(f"{error} during iOS vertical viewport lookup") from None
+        # XCTest can stretch a W3C pointer-down/pause/up sequence beyond its
+        # requested pause while it snapshots the application. Overte treats a
+        # Jump held for 500 ms as Fly, so this configured pulse must remain
+        # bounded below that threshold. Keep the proven landscape viewport
+        # coordinates; XCUITest's mobile: tap can silently miss this native
+        # virtual control in landscape.
+        press_ms = round(self.bounded_seconds(
+            control["jumpPressSeconds"],
+            "controls.verticalLocomotion.jumpPressSeconds", 0.05, 0.1) * 1000)
+        tap_actions = [
+            {"type": "pointerMove", "duration": 0, "origin": "viewport",
+             "x": x, "y": y},
+            {"type": "pointerDown", "button": 0},
+            {"type": "pause", "duration": press_ms},
+            {"type": "pointerUp", "button": 0},
+        ]
+        tap_body = {"actions": [{
+            "type": "pointer", "id": "overte-ios-jump-press",
+            "parameters": {"pointerType": "touch"}, "actions": tap_actions,
+        }]}
+        try:
+            self.vertical_webdriver_call(
+                client, "POST", f"/session/{session}/actions", tap_body,
+                "iOS vertical first press")
+        except Exception:
+            try:
+                client.call("DELETE", f"/session/{session}/actions")
+            except (OSError, RuntimeError, ValueError):
+                pass
+            raise
+        self.vertical_webdriver_call(
+            client, "DELETE", f"/session/{session}/actions", None,
+            "iOS vertical first release")
+        if flight_duration is None:
+            return
+
+        delay = self.bounded_seconds(
+            control["flightSecondPressDelaySeconds"],
+            "controls.verticalLocomotion.flightSecondPressDelaySeconds", 0.15, 1.0)
+        hold_ms = round(self.bounded_seconds(
+            flight_duration, "input.fly durationSeconds", 0.1, 10.0) * 1000)
+        time.sleep(delay)
+        actions = [
+            {"type": "pointerMove", "duration": 0, "origin": "viewport",
+             "x": x, "y": y},
+            {"type": "pointerDown", "button": 0},
+            {"type": "pause", "duration": hold_ms},
+            {"type": "pointerUp", "button": 0},
+        ]
+        body = {"actions": [{
+            "type": "pointer", "id": "overte-ios-flight-hold",
+            "parameters": {"pointerType": "touch"}, "actions": actions,
+        }]}
+        try:
+            self.vertical_webdriver_call(
+                client, "POST", f"/session/{session}/actions", body,
+                "iOS flight hold")
+        except Exception:
+            try:
+                client.call("DELETE", f"/session/{session}/actions")
+            except (OSError, RuntimeError, ValueError):
+                pass
+            raise
+        self.vertical_webdriver_call(
+            client, "DELETE", f"/session/{session}/actions", None,
+            "iOS flight release")
+
+    def click_accessibility(self, client: WebDriver, session: str, identifier: str) -> None:
         value = client.call("POST", f"/session/{session}/element",
-                            {"using": strategy, "value": selector})
+                            {"using": "accessibility id", "value": identifier})
         if not isinstance(value, dict):
             fail("Appium did not return an element reference")
         element = value.get("element-6066-11e4-a52e-4f735466cecf") or value.get("ELEMENT")
@@ -651,127 +1493,145 @@ class AppiumAdapter:
         client.call("POST", f"/session/{session}/element/{element}/click", {})
 
     @staticmethod
-    def semantic_id(attribute: str, value: str, allowed: frozenset[str]) -> str | None:
-        if attribute == "content-desc":
-            return value if value in allowed else None
-        if attribute == "resource-id":
-            for semantic_id in allowed:
-                if value == semantic_id or value.endswith("/" + semantic_id):
-                    return semantic_id
-        return None
+    def _xml_boolean(value: object) -> bool:
+        return isinstance(value, str) and value.casefold() in {"1", "true"}
 
-    @staticmethod
-    def element_visible(element: ET.Element) -> bool:
-        return (element.attrib.get("displayed", "true").lower() not in {"0", "false"}
-                and element.attrib.get("visible", "true").lower() not in {"0", "false"})
-
-    @staticmethod
-    def element_actionable(element: ET.Element) -> bool:
-        class_name = element.attrib.get("class", "").lower()
-        return (element.attrib.get("clickable", "false").lower() in {"1", "true"}
-                or class_name.endswith(("button", "checkbox", "switch")))
-
-    def semantic_tablet_snapshot(self, client: WebDriver, session: str,
-                                 target: dict) -> tuple[dict, dict[str, tuple[str, str]]]:
-        tablet = target.get("controls", {}).get("tablet", {})
-        if (self.platform != "android" or tablet.get("semanticUi") != {
-                "contractVersion": TABLET_CONTRACT_VERSION}):
-            fail("Appium target has no audited semantic tablet UI")
-        source = client.call("GET", f"/session/{session}/source")
-        if not isinstance(source, str) or not source.strip():
-            fail("semantic tablet accessibility snapshot is empty")
-        if "<!DOCTYPE" in source.upper():
-            fail("semantic tablet accessibility snapshot contains unsupported markup")
+    @classmethod
+    def parse_ios_tablet_source(cls, source: object) -> tuple[dict, set[str]]:
+        """Reduce a transient XCUITest tree to the closed public tablet contract."""
+        if not isinstance(source, str) or not source:
+            fail("iOS semantic tablet source is not text")
+        if len(source.encode("utf-8")) > cls.IOS_TABLET_SOURCE_LIMIT_BYTES:
+            fail("iOS semantic tablet source exceeds the safety limit")
+        if "<!DOCTYPE" in source.upper() or "<!ENTITY" in source.upper():
+            fail("iOS semantic tablet source contains unsupported declarations")
         try:
             root = ET.fromstring(source)
         except ET.ParseError:
-            fail("semantic tablet accessibility snapshot is invalid XML")
+            fail("iOS semantic tablet source is malformed")
 
-        screens: dict[str, list[ET.Element]] = {}
-        controls: dict[str, list[tuple[ET.Element, str, str]]] = {}
+        vocabulary = load_tablet_ui_contract()
+        known_screens = set(vocabulary["screenIds"])
+        known_controls = set(vocabulary["controlIds"])
+        screens: list[str] = []
+        ready_screens: set[str] = set()
+        controls: list[str] = []
+        actionable: set[str] = set()
+
         for element in root.iter():
-            for attribute in ("resource-id", "content-desc"):
-                raw_value = element.attrib.get(attribute)
-                if not raw_value:
-                    continue
-                screen_id = self.semantic_id(attribute, raw_value, TABLET_SCREEN_IDS)
-                if (screen_id is not None
-                        and (screen_id not in TABLET_CONTROL_IDS
-                             or not self.element_actionable(element))):
-                    screens.setdefault(screen_id, []).append(element)
-                control_id = self.semantic_id(attribute, raw_value, TABLET_CONTROL_IDS)
-                if (control_id is not None
-                        and (control_id not in TABLET_SCREEN_IDS
-                             or self.element_actionable(element))):
-                    controls.setdefault(control_id, []).append(
-                        (element, "id" if attribute == "resource-id" else "accessibility id",
-                         raw_value))
+            name = element.attrib.get("name")
+            if not isinstance(name, str):
+                continue
+            visible = cls._xml_boolean(element.attrib.get("visible"))
+            if name.startswith(cls.IOS_TABLET_SCREEN_PREFIX):
+                screen_id = name.removeprefix(cls.IOS_TABLET_SCREEN_PREFIX)
+                if screen_id not in known_screens:
+                    fail("iOS semantic tablet source contains an unknown screen marker")
+                if visible:
+                    screens.append(screen_id)
+            elif name.startswith(cls.IOS_TABLET_READY_PREFIX):
+                screen_id = name.removeprefix(cls.IOS_TABLET_READY_PREFIX)
+                if screen_id not in known_screens:
+                    fail("iOS semantic tablet source contains an unknown ready marker")
+                if visible:
+                    ready_screens.add(screen_id)
+            elif name.startswith(cls.IOS_TABLET_CONTROL_PREFIX):
+                control_id = name.removeprefix(cls.IOS_TABLET_CONTROL_PREFIX)
+                if control_id not in known_controls:
+                    fail("iOS semantic tablet source contains an unknown control marker")
+                if visible:
+                    controls.append(control_id)
+                    if cls._xml_boolean(element.attrib.get("enabled")):
+                        actionable.add(control_id)
 
-        visible_screens = sorted(screen_id for screen_id, elements in screens.items()
-                                 if any(self.element_visible(element) for element in elements))
-        if len(visible_screens) != 1:
-            fail("semantic tablet accessibility snapshot does not expose exactly one screen")
-        screen_id = visible_screens[0]
-        screen_ready = any(
-            self.element_visible(element)
-            and element.attrib.get("enabled", "true").lower() not in {"0", "false"}
-            for element in screens[screen_id])
-        visible_controls = sorted(
-            control_id for control_id, entries in controls.items()
-            if any(self.element_visible(element) for element, _, _ in entries))
-        selected_controls = sorted(
-            control_id for control_id, entries in controls.items()
-            if any(self.element_visible(element)
-                   and (element.attrib.get("selected", "false").lower() in {"1", "true"}
-                        or element.attrib.get("checked", "false").lower() in {"1", "true"})
-                   for element, _, _ in entries))
-        locators: dict[str, tuple[str, str]] = {}
-        for control_id in visible_controls:
-            entries = controls[control_id]
-            preferred = sorted(
-                ((strategy != "id", strategy, selector)
-                 for element, strategy, selector in entries if self.element_visible(element)))
-            if preferred:
-                _, strategy, selector = preferred[0]
-                locators[control_id] = (strategy, selector)
-        return ({
-            "contractVersion": TABLET_CONTRACT_VERSION,
+        if len(screens) != 1:
+            fail("iOS semantic tablet source must expose exactly one visible screen marker")
+        if len(controls) != len(set(controls)):
+            fail("iOS semantic tablet source contains duplicate visible control markers")
+        screen_id = screens[0]
+        if ready_screens - {screen_id}:
+            fail("iOS semantic tablet ready marker does not match the visible screen")
+        snapshot = {
+            "contractVersion": vocabulary["contractVersion"],
             "schemaVersion": 1,
             "screenId": screen_id,
-            "ready": screen_ready,
-            "visibleControlIds": visible_controls,
-            "selectedControlIds": selected_controls,
-        }, locators)
+            "ready": screen_id in ready_screens,
+            "visibleControlIds": sorted(controls),
+        }
+        try:
+            return validate_tablet_ui_snapshot(snapshot, vocabulary), actionable
+        except ValueError as error:
+            fail(str(error))
 
-    def activate_semantic_tablet_control(self, selector: str, client: WebDriver,
-                                         session: str, state: dict, target: dict,
-                                         values: dict) -> dict:
-        arguments = validate_operation_arguments("tablet.activate", values)
-        snapshot, locators = self.semantic_tablet_snapshot(client, session, target)
+    def ios_tablet_observation(self, selector: str, client: WebDriver, session: str,
+                               state: dict, target: dict) -> tuple[dict, set[str]]:
+        self.assert_ios_process_identity(selector, client, session, state, target)
+        observation = None
+        for attempt in range(self.IOS_TABLET_SOURCE_TRANSITION_ATTEMPTS):
+            source = client.call("GET", f"/session/{session}/source")
+            try:
+                observation = self.parse_ios_tablet_source(source)
+                break
+            except RuntimeError as error:
+                # Native/QML screen transitions can briefly expose the old and
+                # new accessibility elements together, or neither marker. Only
+                # retry these closed, known transient shapes. Unknown IDs,
+                # malformed XML, and every other contract error still fail on
+                # the first sample.
+                if (str(error) not in self.IOS_TABLET_SOURCE_TRANSITION_ERRORS
+                        or attempt == self.IOS_TABLET_SOURCE_TRANSITION_ATTEMPTS - 1):
+                    raise
+                time.sleep(self.IOS_TABLET_SOURCE_TRANSITION_RETRY_SECONDS)
+        assert observation is not None
+        self.assert_ios_process_identity(selector, client, session, state, target)
+        return observation
+
+    def tablet_snapshot(self, selector: str, client: WebDriver, session: str,
+                        state: dict, target: dict, values: dict) -> dict:
+        if self.platform != "ios" or not target.get("testBuild"):
+            fail("semantic tablet observation is unavailable on this Appium target")
+        try:
+            validate_operation_arguments("tablet.snapshot", values)
+        except ValueError as error:
+            fail(str(error))
+        snapshot, _actionable = self.ios_tablet_observation(
+            selector, client, session, state, target)
+        return snapshot
+
+    def activate_tablet_control(self, selector: str, client: WebDriver, session: str,
+                                state: dict, target: dict, values: dict) -> dict:
+        if self.platform != "ios" or not target.get("testBuild"):
+            fail("semantic tablet activation is unavailable on this Appium target")
+        try:
+            arguments = validate_operation_arguments("tablet.activate", values)
+        except ValueError as error:
+            fail(str(error))
+        snapshot, actionable = self.ios_tablet_observation(
+            selector, client, session, state, target)
         control_id = arguments["controlId"]
-        locator = locators.get(control_id)
-        if control_id not in snapshot["visibleControlIds"] or locator is None:
-            fail("requested semantic tablet control is not visible")
-        before = None
-        if target.get("process", {}).get("kind") == "adb":
-            before = self.process_state(selector, client, session, state, target)
-            if before.get("running") is not True:
-                fail("application is not running before semantic tablet activation")
-        self.click_element(client, session, locator[0], locator[1])
-        if before is not None:
-            after = self.process_state(selector, client, session, state, target)
-            if after != before:
-                fail("application process changed during semantic tablet activation")
+        if not snapshot["ready"]:
+            fail("semantic tablet activation requires a ready screen")
+        if control_id not in snapshot["visibleControlIds"]:
+            fail("semantic tablet activation requires a visible control")
+        if control_id not in actionable:
+            fail("semantic tablet activation requires an actionable control")
+        self.click_accessibility(
+            client, session, self.IOS_TABLET_CONTROL_PREFIX + control_id)
+        self.assert_ios_process_identity(selector, client, session, state, target)
         return {"performed": True}
 
-    def probe_snapshot(self, client: WebDriver, session: str, target: dict) -> dict:
+    def probe_snapshot(self, selector: str, client: WebDriver, session: str,
+                       state: dict, target: dict) -> dict:
+        if self.platform == "ios":
+            self.assert_ios_process_identity(selector, client, session, state, target)
         probe = target.get("probe", {})
         kind = probe.get("kind")
         if kind == "host-file":
             path = probe.get("path")
             if not isinstance(path, str):
                 fail("host-file probe requires a path")
-            return read_fresh_json(Path(os.path.expandvars(path)).resolve())
+            return self.validate_probe(read_fresh_json(
+                Path(os.path.expandvars(path)).resolve()))
         if kind == "appium-pull-file":
             remote = probe.get("remotePath")
             if not isinstance(remote, str) or ".." in remote:
@@ -784,7 +1644,7 @@ class AppiumAdapter:
                 snapshot = json.loads(base64.b64decode(value, validate=True).decode("utf-8"))
             except (ValueError, UnicodeError, json.JSONDecodeError):
                 fail("Appium probe pull returned invalid content")
-            return require_fresh_snapshot(snapshot)
+            return self.validate_probe(snapshot)
         if kind == "android-run-as" and self.platform == "android":
             if probe.get("relativePath") != self.ANDROID_DEBUG_PROBE:
                 fail("android-run-as probe requires the fixed app-private debug path")
@@ -802,19 +1662,39 @@ class AppiumAdapter:
                 snapshot = json.loads(raw)
             except json.JSONDecodeError:
                 fail("Android run-as probe snapshot is unavailable or incomplete")
-            return require_fresh_snapshot(snapshot)
+            return self.validate_probe(snapshot)
         if kind == "ios-documents" and self.platform == "ios":
             contract = target.get("testBuild", {})
             remote = (f"@{target['appId']}:documents/"
                       f"{contract['resultsDirectory']}/overte-probe.json")
-            value = client.execute(session, "mobile: pullFile", {"remotePath": remote})
-            if not isinstance(value, str):
-                fail("iOS Documents probe pull did not return base64 content")
-            try:
-                snapshot = json.loads(base64.b64decode(value, validate=True).decode("utf-8"))
-            except (ValueError, UnicodeError, json.JSONDecodeError):
-                fail("iOS Documents probe pull returned invalid content")
-            return require_fresh_snapshot(snapshot)
+            snapshot = None
+            # Test.saveObject rewrites the live snapshot every 250 ms without
+            # an atomic rename. A file transfer can therefore observe the tiny
+            # truncate/write window. Retry only malformed transport content;
+            # valid-but-wrong snapshots still fail their contract immediately.
+            for attempt in range(self.IOS_DOCUMENTS_PROBE_PULL_ATTEMPTS):
+                value = client.execute(session, "mobile: pullFile", {"remotePath": remote})
+                if not isinstance(value, str):
+                    fail("iOS Documents probe pull did not return base64 content")
+                try:
+                    snapshot = json.loads(
+                        base64.b64decode(value, validate=True).decode("utf-8"))
+                    break
+                except (ValueError, UnicodeError, json.JSONDecodeError):
+                    if attempt == self.IOS_DOCUMENTS_PROBE_PULL_ATTEMPTS - 1:
+                        fail("iOS Documents probe pull returned invalid content")
+                    # The writer updates every 250 ms. A fixed retry period can
+                    # repeatedly align pullFile with the same truncate/write
+                    # phase, so step the bounded delay to deliberately dephase
+                    # subsequent reads while retaining a finite operation.
+                    time.sleep(min(
+                        self.IOS_DOCUMENTS_PROBE_PULL_RETRY_BASE_SECONDS
+                        + attempt * self.IOS_DOCUMENTS_PROBE_PULL_RETRY_STEP_SECONDS,
+                        self.IOS_DOCUMENTS_PROBE_PULL_RETRY_MAX_SECONDS,
+                    ))
+            result = self.validate_probe(snapshot)
+            self.assert_ios_process_identity(selector, client, session, state, target)
+            return result
         fail("unsupported Appium probe transport")
 
     def process_state(self, selector: str, client: WebDriver, session: str,
@@ -834,108 +1714,14 @@ class AppiumAdapter:
             adb.require_connected(device)
             return adb.process_state(device, target["appId"])
 
-        identity = state.get("processIdentity")
-        if app_state == 4:
-            info = client.execute(session, "mobile: activeAppInfo")
-            pid = info.get("pid") if isinstance(info, dict) else None
-            bundle = info.get("bundleId") if isinstance(info, dict) else None
-            if (not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0
-                    or bundle != target["appId"]):
-                fail("XCUITest activeAppInfo did not identify the configured application")
-            identity = str(pid)
-            state["processIdentity"] = identity
-            self.save_session(selector, state)
+        if app_state != 4:
+            raise RuntimeError(
+                "ASSERTION: iOS process identity cannot be attested outside the foreground")
+        identity = self.assert_ios_process_identity(
+            selector, client, session, state, target)
         if not isinstance(identity, str) or not identity:
             fail("iOS process identity is unavailable until the app is foregrounded")
         return {"running": True, "identity": identity}
-
-    @staticmethod
-    def controlled_http_url(value: str, label: str) -> tuple[str, str, int | None]:
-        parsed = urlsplit(value)
-        try:
-            port = parsed.port
-        except ValueError:
-            fail(f"{label} has an invalid port")
-        if (parsed.scheme not in {"http", "https"} or not parsed.hostname
-                or parsed.username is not None or parsed.password is not None
-                or parsed.fragment):
-            fail(f"{label} must be an absolute credential-free HTTP(S) URL")
-        return parsed.scheme, parsed.hostname.lower(), port
-
-    def android_client_identity(self, client: WebDriver, session: str,
-                                target: dict) -> dict:
-        if not self.controlled_android_client(target):
-            fail("Android operation requires the controlled app-private client channel")
-        if self.query_app_state(client, session, target) != 4:
-            fail("Android client must remain foregrounded for the in-client command")
-        process = target["process"]
-        device = process.get("selector") or target["capabilities"].get("appium:udid")
-        if not isinstance(device, str) or not device or device.startswith("REPLACE_"):
-            fail("Android client command requires a private ADB device selector")
-        from android.common.device_tests.adb_transport import AdbTransport
-        adb = AdbTransport()
-        adb.require_connected(device)
-        before = adb.process_state(device, target["appId"])
-        if before.get("running") is not True or not isinstance(before.get("identity"), str):
-            fail("Android client process is not running before the in-client command")
-        return before
-
-    def write_android_client_command(self, client: WebDriver, session: str,
-                                     target: dict, command: dict,
-                                     expected_process: dict | None = None) -> None:
-        before = self.android_client_identity(client, session, target)
-        if expected_process is not None and before != expected_process:
-            fail("Android client process changed before the in-client command")
-        process = target["process"]
-        device = process.get("selector") or target["capabilities"].get("appium:udid")
-        from android.common.device_tests.adb_transport import AdbTransport
-        adb = AdbTransport()
-        adb.require_connected(device)
-        adb.write_debug_app_file(
-            device, target["appId"], self.ANDROID_CLIENT_COMMAND,
-            json.dumps(command, sort_keys=True, separators=(",", ":")) + "\n")
-        if self.query_app_state(client, session, target) != 4:
-            fail("Android client left the foreground while delivering the in-client command")
-        after = adb.process_state(device, target["appId"])
-        if after != before:
-            fail("Android client process changed while delivering the in-client command")
-
-    def request_android_sound(self, client: WebDriver, session: str,
-                              target: dict, values: dict) -> dict:
-        sound_origin = self.controlled_http_url(values["url"], "sound.play url")
-        command_origin = self.controlled_http_url(values["commandUrl"], "sound.play commandUrl")
-        command_url = urlsplit(values["commandUrl"])
-        if (sound_origin != command_origin or command_url.path != "/sound-command.json"
-                or command_url.query):
-            fail("sound.play URLs must use the same controlled fixture origin and command path")
-        payload = {"schemaVersion": 1, "commandId": values["commandId"],
-                   "action": "play", "soundUrl": values["url"]}
-        expected_process = self.android_client_identity(client, session, target)
-        request = Request(values["commandUrl"],
-                          data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
-                          headers={"Content-Type": "application/json"}, method="POST")
-        try:
-            with urlopen(request, timeout=5) as response:
-                if response.status != 200:
-                    fail("controlled fixture rejected the sound command")
-                encoded = response.read(4097)
-        except HTTPError as error:
-            fail(f"controlled fixture rejected the sound command with HTTP {error.code}")
-        except (URLError, OSError):
-            fail("controlled fixture sound command endpoint is unavailable")
-        if len(encoded) > 4096:
-            fail("controlled fixture returned an oversized sound response")
-        try:
-            accepted = json.loads(encoded)
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            fail("controlled fixture returned an invalid sound response")
-        if accepted != payload:
-            fail("controlled fixture did not acknowledge the exact sound command")
-        self.write_android_client_command(client, session, target, {
-            "schemaVersion": 1, "commandId": "sound-channel-" + values["commandId"],
-            "action": "sound-channel", "url": values["commandUrl"],
-        }, expected_process)
-        return {"requested": True, "commandId": values["commandId"]}
 
     @staticmethod
     def start_android_e2e(client: WebDriver, session: str, target: dict) -> None:
@@ -948,58 +1734,72 @@ class AppiumAdapter:
 
     def launch_ios_test_build(self, selector: str, client: WebDriver, session: str,
                               state: dict, target: dict, scene_url: str | None = None,
-                              *, force_relaunch: bool = False) -> None:
+                              *, reactivate: bool = False) -> None:
         contract = target["testBuild"]
+        controlled_scene_url = contract["fixtureOrigin"] + contract["scenePath"]
+        scene_url = scene_url or controlled_scene_url
+        if scene_url != controlled_scene_url:
+            fail("iOS test-build scene URL must be the controlled fixture scene")
         arguments = list(contract.get("launchArguments", []))
-        if scene_url is not None:
-            parsed = urlsplit(scene_url)
-            origin = f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
-            if origin != contract["fixtureOrigin"]:
-                fail("iOS test-build scene URL must use the configured fixtureOrigin")
-            if parsed.scheme not in {"http", "https"} or not parsed.path:
-                fail("iOS test-build scene URL must be an absolute HTTP(S) resource")
-            probe_url = origin + self.IOS_PROBE_SCRIPT_PATH
-            arguments += [
-                "--url", scene_url,
-                "--testScript", probe_url,
-                "--testResultsLocation", contract["resultsDirectory"],
-            ]
-        if not force_relaunch and self.query_app_state(client, session, target) >= 2:
-            client.execute(session, "mobile: activateApp", {"bundleId": target["appId"]})
+        parsed = urlsplit(scene_url)
+        origin = f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
+        if origin != contract["fixtureOrigin"]:
+            fail("iOS test-build scene URL must use the configured fixtureOrigin")
+        arguments += [
+            "--url", scene_url,
+            "--testScript", origin + self.IOS_PROBE_SCRIPT_PATH,
+            "--testResultsLocation", contract["resultsDirectory"],
+        ]
+        if state.get("iosE2ELaunchCompleted") is True:
+            if state.get("iosE2ESceneUrl") != scene_url:
+                fail("iOS E2E session cannot change its controlled scene")
+            app_state = self.query_app_state(client, session, target)
+            if app_state < 2:
+                raise RuntimeError(
+                    "ASSERTION: iOS E2E application exited after its single controlled launch")
+            if app_state != 4:
+                if not reactivate:
+                    raise RuntimeError(
+                        "ASSERTION: iOS E2E application left the foreground before scene validation")
+                client.execute(session, "mobile: activateApp", {"bundleId": target["appId"]})
+            self.assert_ios_process_identity(selector, client, session, state, target)
             return
-        state.pop("processIdentity", None)
-        self.save_session(selector, state)
-        if force_relaunch:
+        # autoLaunch=false makes this the only application launch in the baseline
+        # sequence. Terminating a stale process first prevents inherited argv.
+        if self.query_app_state(client, session, target) >= 2:
             client.execute(session, "mobile: terminateApp", {"bundleId": target["appId"]})
+        # The fixture intentionally retains the latest bounded command. A new
+        # probe has no prior command ID, so clear that retained value before it
+        # can replay a scene reload from an earlier application run.
+        self.reset_ios_client_command(target)
+        state.pop("processIdentity", None)
         client.execute(session, "mobile: launchApp", {
             "bundleId": target["appId"],
             "arguments": arguments,
             "environment": contract["launchEnvironment"],
         })
+        # A successful launchApp response does not prove that the application
+        # remained alive. Bind its foreground PID before persisting any launch
+        # success marker so an immediate iOS process exit fails this operation.
+        self.assert_ios_process_identity(selector, client, session, state, target)
+        time.sleep(self.IOS_LAUNCH_STABILITY_SECONDS)
+        self.assert_ios_process_identity(selector, client, session, state, target)
+        state["iosE2ELaunchCompleted"] = True
+        state["iosE2ESceneUrl"] = scene_url
+        self.save_session(selector, state)
 
     def invoke(self, selector: str, operation: str, values: dict) -> dict:
         target = self.target(selector)
         client, session, state = self.ensure_session(selector)
-        if operation in {"navigation.enter-domain", "asset.load", "sound.play"}:
-            arguments = validate_operation_arguments(operation, values)
-            if self.platform != "android" or not self.controlled_android_client(target):
-                fail("Appium target has no controlled client channel for this operation")
-            if operation == "navigation.enter-domain":
-                self.write_android_client_command(client, session, target, {
-                    "schemaVersion": 1, "commandId": "navigation-" + uuid.uuid4().hex,
-                    "action": "navigation-enter-domain", "url": arguments["url"],
-                })
-                return {"requested": True}
-            if operation == "asset.load":
-                command_id = "asset-" + hashlib.sha256(json.dumps(
-                    arguments, sort_keys=True, separators=(",", ":")).encode()).hexdigest()[:24]
-                self.write_android_client_command(client, session, target, {
-                    "schemaVersion": 1, "commandId": command_id, "action": "asset-load",
-                    "assetId": arguments["assetId"], "url": arguments["url"],
-                    "entityName": arguments["entityName"],
-                })
-                return {"requested": True, "assetId": arguments["assetId"]}
-            return self.request_android_sound(client, session, target, arguments)
+        if operation == "sound.play":
+            try:
+                arguments = validate_operation_arguments(operation, values)
+            except ValueError as error:
+                fail(str(error))
+            if self.platform != "ios":
+                fail("sound.play is unavailable on this Appium platform")
+            return self.request_ios_sound(
+                selector, client, session, state, target, arguments)
         if operation == "app.launch":
             if self.platform == "android" and target.get("scene", {}).get("kind") == "android-debug-e2e":
                 if self.query_app_state(client, session, target) >= 2:
@@ -1007,7 +1807,8 @@ class AppiumAdapter:
                 else:
                     self.start_android_e2e(client, session, target)
             elif self.platform == "ios" and target.get("testBuild"):
-                self.launch_ios_test_build(selector, client, session, state, target)
+                self.launch_ios_test_build(
+                    selector, client, session, state, target, reactivate=True)
             else:
                 key = "appId" if self.platform == "android" else "bundleId"
                 script = "mobile: activateApp" if self.platform == "android" else "mobile: launchApp"
@@ -1018,6 +1819,8 @@ class AppiumAdapter:
         if operation == "app.foreground":
             return {"foreground": self.query_app_state(client, session, target) == 4}
         if operation == "lifecycle.background":
+            if self.platform == "ios":
+                fail("iOS background lifecycle is unavailable without PID evidence")
             default = ("mobile: pressKey", {"keycode": 3}) if self.platform == "android" else (
                 "mobile: backgroundApp", {"seconds": -1})
             config = target.get("background", {})
@@ -1034,20 +1837,26 @@ class AppiumAdapter:
             adb = AdbTransport()
             adb.require_connected(device)
             return adb.telemetry_snapshot(device, target["appId"])
-        if operation == "scene.load":
+        if operation in {"scene.load", "scene.reload"}:
             scene = target.get("scene", {})
             url = values.get("url")
             if not isinstance(url, str) or "://" not in url:
-                fail("scene.load requires an absolute URL")
+                fail(f"{operation} requires an absolute URL")
+            if operation == "scene.reload":
+                if scene.get("kind") != "ios-test-build" or self.platform != "ios":
+                    fail("scene.reload requires the controlled iOS test build")
+                self.launch_ios_test_build(selector, client, session, state, target, url)
+                command_id = self.request_ios_scene_reload(
+                    selector, client, session, state, target, url)
+                return {"requested": True, "verification": "fixture-markers",
+                        "commandId": command_id}
             if scene.get("kind") == "android-debug-e2e" and self.platform == "android":
                 if url != EMBEDDED_FIXTURE_URL:
                     fail("Android debug scene.load accepts only the embedded fixture URL")
                 self.start_android_e2e(client, session, target)
                 return {"requested": True, "verification": "fixture-markers"}
             if scene.get("kind") == "ios-test-build" and self.platform == "ios":
-                self.launch_ios_test_build(
-                    selector, client, session, state, target, url, force_relaunch=True,
-                )
+                self.launch_ios_test_build(selector, client, session, state, target, url)
                 return {"requested": True, "verification": "fixture-markers"}
             if not isinstance(scene.get("script"), str):
                 fail("Appium target has no scene deep-link strategy")
@@ -1055,25 +1864,20 @@ class AppiumAdapter:
             client.execute(session, scene["script"], self.expand(scene.get("arguments", {}), variables))
             return {"requested": True}
         if operation == "probe.snapshot":
-            return self.probe_snapshot(client, session, target)
+            return self.probe_snapshot(selector, client, session, state, target)
         if operation == "accessibility.snapshot":
             source = client.call("GET", f"/session/{session}/source")
             if not isinstance(source, str):
                 fail("Appium page source is not text")
-            artifact_dir = os.environ.get("OVERTE_DEVICE_ARTIFACT_DIR")
-            artifact = None
-            if artifact_dir and os.environ.get("OVERTE_E2E_CAPTURE_ARTIFACTS") == "1":
-                destination = Path(artifact_dir) / "accessibility.xml"
-                destination.write_text(source, encoding="utf-8")
-                destination.chmod(0o600)
-                artifact = destination.name
-            return {"source": source, "artifact": artifact}
+            # The common accessibility audit reduces this transient source to
+            # counts and explicitly requested identifiers. Raw account/user text
+            # from the tree is never persisted as a Jenkins artifact.
+            return {"source": source, "artifact": None}
         if operation == "tablet.snapshot":
-            validate_operation_arguments(operation, values)
-            snapshot, _ = self.semantic_tablet_snapshot(client, session, target)
-            return snapshot
+            return self.tablet_snapshot(
+                selector, client, session, state, target, values)
         if operation == "tablet.activate":
-            return self.activate_semantic_tablet_control(
+            return self.activate_tablet_control(
                 selector, client, session, state, target, values)
         if operation == "artifact.screenshot":
             encoded = client.call("GET", f"/session/{session}/screenshot")
@@ -1093,6 +1897,8 @@ class AppiumAdapter:
             return {"artifact": destination.name}
         controls = target.get("controls", {})
         if operation == "input.look":
+            if self.platform == "ios":
+                self.assert_ios_process_identity(selector, client, session, state, target)
             look = controls.get("look", {})
             horizontal = values.get("horizontal", 0.25)
             vertical = values.get("vertical", 0.0)
@@ -1104,8 +1910,12 @@ class AppiumAdapter:
             end = ([float(start[0]) - float(horizontal), float(start[1]) - float(vertical)]
                    if isinstance(start, list) and len(start) == 2 else None)
             self.gesture(client, session, look, end_override=end)
+            if self.platform == "ios":
+                self.assert_ios_process_identity(selector, client, session, state, target)
             return {"performed": True}
         if operation == "input.move":
+            if self.platform == "ios":
+                self.assert_ios_process_identity(selector, client, session, state, target)
             direction = values.get("direction", "forward")
             movement = controls.get("move", {}).get(direction)
             if not isinstance(movement, dict):
@@ -1113,38 +1923,101 @@ class AppiumAdapter:
             duration = values.get("durationSeconds")
             self.gesture(client, session, movement,
                          float(duration) if isinstance(duration, (int, float)) else None)
+            if self.platform == "ios":
+                self.assert_ios_process_identity(selector, client, session, state, target)
+            return {"performed": True}
+        if operation in {"input.jump", "input.fly"}:
+            if self.platform != "ios":
+                fail("iOS vertical locomotion is unavailable on this Appium target")
+            self.assert_ios_process_identity(selector, client, session, state, target)
+            control = controls.get("verticalLocomotion")
+            if not isinstance(control, dict):
+                fail("iOS target does not define an audited vertical locomotion control")
+            try:
+                arguments = validate_operation_arguments(operation, values)
+            except ValueError as error:
+                fail(str(error))
+            flight_duration = (None if operation == "input.jump"
+                               else float(arguments["durationSeconds"]))
+            self.ios_vertical_locomotion_gesture(
+                client, session, control, flight_duration)
+            self.assert_ios_process_identity(selector, client, session, state, target)
             return {"performed": True}
         if operation in {"tablet.open", "tablet.close"}:
+            if self.platform == "ios":
+                self.assert_ios_process_identity(selector, client, session, state, target)
             tablet = controls.get("tablet", {})
             key = "openAccessibilityId" if operation.endswith("open") else "closeAccessibilityId"
             identifier = tablet.get(key) or tablet.get("toggleAccessibilityId")
             if isinstance(identifier, str) and identifier:
                 self.click_accessibility(client, session, identifier)
             else:
+                if self.platform == "ios":
+                    fail("iOS tablet automation requires an audited accessibility identifier")
                 point_key = "openPoint" if operation.endswith("open") else "closePoint"
                 point = tablet.get(point_key) or tablet.get("togglePoint")
                 if point is None:
                     fail("Appium target does not define a tablet control")
                 self.tap_fractional_point(client, session, point,
                                           f"tablet.{point_key}")
+            if self.platform == "ios":
+                self.assert_ios_process_identity(selector, client, session, state, target)
             return {"performed": True}
         fail(f"unsupported operation: {operation}")
 
     def cleanup(self, selector: str) -> dict:
         target = self.target(selector)
         state = self.read_session(selector)
+        if self.platform == "ios":
+            session_failure = False
+            session_absent = state is None
+            if state:
+                client = WebDriver(target["serverUrl"])
+                try:
+                    client.execute(state["sessionId"], "mobile: terminateApp",
+                                   {"bundleId": target["appId"]})
+                except RuntimeError:
+                    # The DVT path below is the authoritative fallback and
+                    # independently verifies that the process is gone.
+                    pass
+                try:
+                    client.call("DELETE", f"/session/{state['sessionId']}")
+                except WebDriverRequestError as error:
+                    session_absent = error.status == 404
+                    session_failure = not session_absent
+                except RuntimeError:
+                    session_failure = True
+                else:
+                    session_absent = True
+            dvt_failure = False
+            try:
+                self.terminate_ios_app_without_wda(target)
+            except RuntimeError:
+                dvt_failure = True
+            if session_absent and not dvt_failure:
+                self.state_path(selector).unlink(missing_ok=True)
+            if session_failure or dvt_failure or not session_absent:
+                fail("Appium target cleanup did not complete")
+            return {"cleaned": True}
         if state:
             client = WebDriver(target["serverUrl"])
+            failed = False
             try:
-                key = "appId" if self.platform == "android" else "bundleId"
-                client.execute(state["sessionId"], "mobile: terminateApp", {key: target["appId"]})
+                client.execute(state["sessionId"], "mobile: terminateApp",
+                               {"appId": target["appId"]})
             except RuntimeError:
-                pass
+                failed = True
+            deleted = False
             try:
                 client.call("DELETE", f"/session/{state['sessionId']}")
             except RuntimeError:
-                pass
-            self.state_path(selector).unlink(missing_ok=True)
+                failed = True
+            else:
+                deleted = True
+            if deleted:
+                self.state_path(selector).unlink(missing_ok=True)
+            if failed:
+                fail("Appium target cleanup did not complete")
         return {"cleaned": True}
 
 

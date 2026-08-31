@@ -17,13 +17,22 @@
 
 #include <memory>
 
+#include <QtCore/QRegularExpression>
+#include <QtCore/QTimer>
 #include <QtQml/QQmlContext>
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QtGui/QActionGroup>
+#else
+#include <QtWidgets/QActionGroup>
+#endif
 
 #include <AudioScriptingInterface.h>
 #include <display-plugins/CompositorHelper.h>
 #include <ErrorDialog.h>
 #include <FramebufferCache.h>
+#if !defined(Q_OS_IOS)
 #include <gl/GLHelpers.h>
+#endif
 #include <input-plugins/KeyboardMouseDevice.h>
 #include <input-plugins/TouchscreenDevice.h>
 #include <input-plugins/TouchscreenVirtualPadDevice.h>
@@ -45,13 +54,17 @@
 #include <ui/ResourceImageItem.h>
 #include <ui/TabletScriptingInterface.h>
 #include <ui/types/ContextAwareProfile.h>
+#if !defined(Q_OS_IOS)
 #include <ui/UpdateDialog.h>
+#endif
 #ifndef USE_GL
 #include <vk/VKWindow.h>
 #endif
 
 #include "DeadlockWatchdog.h"
+#ifdef USE_GL
 #include "GLCanvas.h"
+#endif
 #include "InterfaceLogging.h"
 #include "LODManager.h"
 #include "Menu.h"
@@ -60,9 +73,15 @@
 #if defined(Q_OS_ANDROID)
 #include "AndroidHelper.h"
 #endif
+#if defined(Q_OS_IOS)
+#include "IOSTouchUiMetrics.h"
+#include <shared/IOSRuntimeLogging.h>
+#endif
 
+#if !defined(Q_OS_IOS)
 Q_GUI_EXPORT void qt_gl_set_global_share_context(QOpenGLContext *context);
 Q_GUI_EXPORT QOpenGLContext *qt_gl_global_share_context();
+#endif
 
 static const QString SYSTEM_TABLET = "com.highfidelity.interface.tablet.system";
 
@@ -89,10 +108,14 @@ void Application::initializeGL() {
     // When loading QtWebEngineWidgets, it creates a global share context on startup.
     // We have to account for this possibility by checking here for an existing
     // global share context
-    auto globalShareContext = qt_gl_global_share_context();
+    QOpenGLContext* globalShareContext { nullptr };
+#if !defined(Q_OS_IOS)
+    globalShareContext = qt_gl_global_share_context();
+#endif
 
-#if !defined(DISABLE_QML)
+#if !defined(DISABLE_QML) && !defined(Q_OS_IOS)
     // Build a shared canvas / context for the Chromium processes
+    // iOS does not link Qt WebEngine, so it has no Chromium helper process.
     if (!globalShareContext) {
         // Chromium rendering uses some GL functions that prevent nSight from capturing
         // frames, so we only create the shared context if nsight is NOT active.
@@ -131,8 +154,11 @@ void Application::initializeGL() {
         qCWarning(interfaceapp, "Unable to make window context current");
     }
 
-    // Populate the global OpenGL context based on the information for the primary window GL context
+    // Populate desktop/Android OpenGL diagnostics from the primary context.
+    // MoltenVK has no GL context to describe on iOS.
+#if !defined(Q_OS_IOS)
     gl::ContextInfo::get(true);
+#endif
 
 #if !defined(DISABLE_QML)
     QStringList chromiumFlags;
@@ -140,12 +166,14 @@ void Application::initializeGL() {
     // Bug 21993: disable microphone and camera input
     //chromiumFlags << "--use-fake-device-for-media-stream";
 
-    // Disable signed distance field font rendering on ATI/AMD GPUs, due to
+    // Disable signed distance field font rendering on ATI/AMD desktop GPUs, due to
     // https://highfidelity.manuscript.com/f/cases/13677/Text-showing-up-white-on-Marketplace-app
+#if !defined(Q_OS_IOS)
     std::string vendor{ (const char*)glGetString(GL_VENDOR) };
     if ((vendor.find("AMD") != std::string::npos) || (vendor.find("ATI") != std::string::npos)) {
         chromiumFlags << "--disable-distance-field-text";
     }
+#endif
 
     // Ensure all Qt webengine processes launched from us have the appropriate command line flags
     if (!chromiumFlags.empty()) {
@@ -153,13 +181,26 @@ void Application::initializeGL() {
     }
 #endif
 
+#if !defined(Q_OS_IOS)
     if (!globalShareContext) {
         globalShareContext = _primaryWidget->qglContext();
         qt_gl_set_global_share_context(globalShareContext);
     }
+#endif
 
     // Build a shared canvas / context for the QML rendering
 #if !defined(DISABLE_QML)
+#if defined(Q_OS_IOS)
+    const hifi::qml::OffscreenSurface::SharedGraphicsContext qmlContext {
+        hifi::qml::OffscreenSurface::SharedGraphicsContext::Backend::Software,
+        nullptr,
+    };
+    if (!OffscreenQmlSurface::configureSharedGraphicsContext(qmlContext)) {
+        qCritical() << "Unable to configure the iOS software offscreen QML renderer";
+    } else {
+        logIOSRuntimeMarker("OVERTE_IOS_QML_BACKEND backend=software transfer=cpu-vulkan");
+    }
+#else
     {
         OffscreenGLCanvas* qmlShareContext = new OffscreenGLCanvas();
         qmlShareContext->setObjectName("QmlShareContext");
@@ -174,12 +215,15 @@ void Application::initializeGL() {
         }
     }
 #endif
+#endif
 
     // Build an offscreen GL context for the main thread.
     _primaryWidget->makeCurrent();
+#if !defined(Q_OS_IOS)
     glClearColor(0.2f, 0.2f, 0.2f, 1);
     glClear(GL_COLOR_BUFFER_BIT);
     _primaryWidget->swapBuffers(); //VKTODO
+#endif
 
     _graphicsEngine->initializeGPU(_primaryWidget);
 }
@@ -221,8 +265,13 @@ static void addDisplayPluginToMenu(const DisplayPluginPointer& displayPlugin, in
         displayPluginGroup->setExclusive(true);
     }
     auto parent = menu->getMenu(MenuOption::OutputMenu);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    const QKeySequence shortcut(Qt::CTRL | static_cast<Qt::Key>(Qt::Key_0 + index));
+#else
+    const QKeySequence shortcut(Qt::CTRL + (Qt::Key_0 + index));
+#endif
     auto action = menu->addActionToQMenuAndActionHash(parent,
-        name, QKeySequence(Qt::CTRL + (Qt::Key_0 + index)), qApp,
+        name, shortcut, qApp,
         SLOT(updateDisplayMode()),
         QAction::NoRole, Menu::UNSPECIFIED_POSITION, groupingMenu);
 
@@ -243,12 +292,14 @@ void Application::initializeUi() {
         auto newValidator = [=](const QUrl& url) -> bool {
             QString allowlistPrefix = "[ALLOWLIST ENTITY SCRIPTS]";
             QList<QString> safeURLS = { "" };
-            safeURLS += qEnvironmentVariable("EXTRA_ALLOWLIST").trimmed().split(QRegExp("\\s*,\\s*"), Qt::SkipEmptyParts);
+            safeURLS += qEnvironmentVariable("EXTRA_ALLOWLIST").trimmed().split(
+                QRegularExpression(QStringLiteral("\\s*,\\s*")), Qt::SkipEmptyParts);
 
             // PULL SAFEURLS FROM INTERFACE.JSON Settings
 
             QVariant raw = Setting::Handle<QVariant>("private/settingsSafeURLS").get();
-            QStringList settingsSafeURLS = raw.toString().trimmed().split(QRegExp("\\s*[,\r\n]+\\s*"), Qt::SkipEmptyParts);
+            QStringList settingsSafeURLS = raw.toString().trimmed().split(
+                QRegularExpression(QStringLiteral("\\s*[,\r\n]+\\s*")), Qt::SkipEmptyParts);
             safeURLS += settingsSafeURLS;
 
             // END PULL SAFEURLS FROM INTERFACE.JSON Settings
@@ -275,7 +326,9 @@ void Application::initializeUi() {
     ErrorDialog::registerType();
     LoginDialog::registerType();
     Tooltip::registerType();
+#if !defined(Q_OS_IOS)
     UpdateDialog::registerType();
+#endif
 
     QmlContextCallback platformInfoCallback = [](QQmlContext* context) {
         context->setContextProperty("PlatformInfo", new PlatformInfoScriptingInterface());
@@ -293,16 +346,115 @@ void Application::initializeUi() {
     OffscreenQmlSurface::addAllowlistContextHandler({
         QUrl{ "hifi/tts/TTS.qml" }
     }, ttsCallback);
+#if defined(Q_OS_IOS)
+    registerIOSTouchUiMetricsQmlType();
+#endif
     qmlRegisterType<ResourceImageItem>("Hifi", 1, 0, "ResourceImageItem");
     qmlRegisterType<Preference>("Hifi", 1, 0, "Preference");
     qmlRegisterType<WebBrowserSuggestionsEngine>("HifiWeb", 1, 0, "WebBrowserSuggestionsEngine");
 
     {
         auto tabletScriptingInterface = DependencyManager::get<TabletScriptingInterface>();
-        tabletScriptingInterface->getTablet(SYSTEM_TABLET);
+        auto* systemTablet = qobject_cast<TabletProxy*>(
+            tabletScriptingInterface->getTablet(SYSTEM_TABLET));
+#if defined(Q_OS_IOS)
+        // The QML singleton is instantiated only when the tablet tree imports
+        // OverteIOS. Publishing from the native application breaks that cycle:
+        // screen metrics can now size/auto-open the tablet before its QML exists.
+        auto* touchUiMetrics = new IOSTouchUiMetrics(this);
+        auto publishTouchUiMetrics = [touchUiMetrics, tabletScriptingInterface,
+                                      systemTablet] {
+            const bool valid = touchUiMetrics->surfaceWidth() > 0.0 &&
+                touchUiMetrics->surfaceHeight() > 0.0;
+            QVariantMap metrics {
+                { QStringLiteral("valid"), valid },
+                { QStringLiteral("safeInsetLeft"), touchUiMetrics->safeInsetLeft() },
+                { QStringLiteral("safeInsetTop"), touchUiMetrics->safeInsetTop() },
+                { QStringLiteral("safeInsetRight"), touchUiMetrics->safeInsetRight() },
+                { QStringLiteral("safeInsetBottom"), touchUiMetrics->safeInsetBottom() },
+                { QStringLiteral("imeInsetBottom"), touchUiMetrics->imeInsetBottom() },
+                { QStringLiteral("keyboardVisible"), touchUiMetrics->keyboardVisible() },
+                { QStringLiteral("surfaceWidth"), touchUiMetrics->surfaceWidth() },
+                { QStringLiteral("surfaceHeight"), touchUiMetrics->surfaceHeight() },
+                { QStringLiteral("density"), touchUiMetrics->density() },
+                { QStringLiteral("fontScale"), touchUiMetrics->fontScale() },
+            };
+            // Qt delivers iOS touch points in the safe-content coordinate
+            // system while UIKit reports the complete window here. Publish
+            // both dimensions so input plugins can use the same safe-local
+            // coordinate space as the Vulkan HUD and software-QML surface.
+            qApp->setProperty("overteIosSurfaceWidth", touchUiMetrics->surfaceWidth());
+            qApp->setProperty("overteIosSurfaceHeight", touchUiMetrics->surfaceHeight());
+            qApp->setProperty("overteIosSafeInsetLeft", touchUiMetrics->safeInsetLeft());
+            qApp->setProperty("overteIosSafeInsetTop", touchUiMetrics->safeInsetTop());
+            qApp->setProperty("overteIosSafeInsetRight", touchUiMetrics->safeInsetRight());
+            qApp->setProperty("overteIosSafeInsetBottom", touchUiMetrics->safeInsetBottom());
+            tabletScriptingInterface->setTouchUiRuntimeMetrics(metrics);
+            updateIOSTabletAccessibilityControls(systemTablet, touchUiMetrics);
+            logIOSRuntimeMarker(
+                "OVERTE_IOS_TOUCH_UI_GATE stage=native-metrics-published",
+                "valid=", valid,
+                "width=", touchUiMetrics->surfaceWidth(),
+                "height=", touchUiMetrics->surfaceHeight(),
+                "safe=", QStringLiteral("%1,%2,%3,%4")
+                    .arg(touchUiMetrics->safeInsetLeft())
+                    .arg(touchUiMetrics->safeInsetTop())
+                    .arg(touchUiMetrics->safeInsetRight())
+                    .arg(touchUiMetrics->safeInsetBottom()),
+                "ime_bottom=", touchUiMetrics->imeInsetBottom(),
+                "keyboard_visible=", touchUiMetrics->keyboardVisible());
+        };
+        connect(touchUiMetrics, &IOSTouchUiMetrics::metricsChanged,
+            this, publishTouchUiMetrics);
+        if (systemTablet != nullptr) {
+            connect(systemTablet, &TabletProxy::tabletShownChanged,
+                this, [touchUiMetrics, systemTablet] {
+                    updateIOSTabletAccessibilityControls(
+                        systemTablet, touchUiMetrics);
+                });
+#if defined(OVERTE_IOS_E2E_TEST_BUILD)
+            // Dynamic Settings pages can change their semantic screen without
+            // replacing the tablet QML source. Refresh only in the isolated
+            // E2E build so XCUITest observes the current rendered tree.
+            auto* tabletAccessibilityRefresh = new QTimer(this);
+            tabletAccessibilityRefresh->setInterval(100);
+            connect(tabletAccessibilityRefresh, &QTimer::timeout,
+                this, [touchUiMetrics, systemTablet] {
+                    updateIOSTabletAccessibilityControls(
+                        systemTablet, touchUiMetrics);
+                });
+            tabletAccessibilityRefresh->start();
+#endif
+        }
+        publishTouchUiMetrics();
+#endif
     }
 
     auto offscreenUi = getOffscreenUI();
+#if defined(Q_OS_IOS)
+    // VKWidget historically advertised itself as an editor for the whole app
+    // lifetime. On iPad that creates a QuickType/shortcut strip before a real
+    // QML field is focused. Enable the native input method only while the
+    // offscreen QML window owns an editable focus item.
+    _primaryWidget->setAttribute(Qt::WA_InputMethodEnabled, false);
+    connect(offscreenUi.data(), &OffscreenUi::focusTextChanged, this, [this](bool focusText) {
+        _primaryWidget->setAttribute(Qt::WA_InputMethodEnabled, focusText);
+        if (focusText) {
+            // External iPad keyboards can show their shortcut/suggestion bar
+            // without changing the software-keyboard frame. Suppress it on
+            // every real QML text-focus transition as well as UIKit's keyboard
+            // notifications, while preserving the active editor.
+            suppressIOSKeyboardAssistant();
+            QTimer::singleShot(100, [] { suppressIOSKeyboardAssistant(); });
+        } else {
+            dismissIOSKeyboard();
+        }
+        logIOSRuntimeMarker(
+            "OVERTE_IOS_TOUCH_UI_GATE stage=native-ime-focus",
+            "enabled=", focusText,
+            "widget_focus=", _primaryWidget->hasFocus());
+    });
+#endif
     connect(offscreenUi.data(), &hifi::qml::OffscreenSurface::rootContextCreated,
         this, &Application::onDesktopRootContextCreated);
     connect(offscreenUi.data(), &hifi::qml::OffscreenSurface::rootItemCreated,
@@ -310,10 +462,16 @@ void Application::initializeUi() {
 
 #if !defined(DISABLE_QML)
     offscreenUi->setProxyWindow(_window->windowHandle());
-#if defined(ANDROID_APP_PHONE_INTERFACE)
-    // The phone desktop is composited full-screen at its native logical size;
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
+    // The mobile desktop is composited full-screen at its native logical size;
     // its mip chain is never sampled and only adds memory and update work.
     offscreenUi->setGenerateMips(false);
+#if defined(Q_OS_IOS)
+    // Expanded stats change continuously. Fifteen software-QML frames per
+    // second remain readable while avoiding a full-screen CPU upload at the
+    // scene's 60 Hz presentation rate.
+    offscreenUi->setMaxFps(15);
+#endif
 #endif
     // OffscreenUi is a subclass of OffscreenQmlSurface specifically designed to
     // support the window management and scripting proxies for VR use
@@ -334,6 +492,13 @@ void Application::initializeUi() {
     _primaryWidget->installEventFilter(offscreenUi.data());
 #else
     _vkWindow->installEventFilter(offscreenUi.data()); //VKTODO
+#if defined(Q_OS_IOS)
+    // Touches are forwarded explicitly by Application, but iPad hardware-key
+    // and input-method events are delivered to the focused VKWidget. Filtering
+    // only the containing QWindow meant those events never reached the active
+    // offscreen TextField.
+    _primaryWidget->installEventFilter(offscreenUi.data());
+#endif
 #endif
     offscreenUi->setMouseTranslator([=, this](const QPointF& pt) {
         QPointF result = pt;

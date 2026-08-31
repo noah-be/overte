@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "renderDiagnosticMode": "off",
+  "traceBatchLimit": 0,
+  "tracePipelineLimit": 0,
+  "traceDrawLimit": 0,
+  "persistSubmitCandidates": true,
+  "ignorePersistedQuarantine": false
+}

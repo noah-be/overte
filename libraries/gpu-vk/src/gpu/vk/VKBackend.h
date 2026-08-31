@@ -20,6 +20,8 @@
 #include <utility>
 #include <list>
 #include <array>
+#include <set>
+#include <string>
 
 #include <gpu/Forward.h>
 #include <gpu/Context.h>
@@ -147,6 +149,9 @@ protected:
         std::array<SaveTransform, gpu::Batch::MAX_TRANSFORM_SAVE_SLOT_COUNT> _savedTransforms;
 
         mutable std::map<std::string, VkDeviceSize> _drawCallInfoOffsets;
+        std::vector<VkDeviceSize> _unnamedDrawCallInfoOffsets;
+        std::vector<uint32_t> _unnamedDrawCallInfoElementCounts;
+        std::vector<int> _unnamedDrawCallInfoSourceIndices;
 
         //uint32_t _objectBufferTexture{ 0 };
         size_t _cameraUboSize{ 0 };
@@ -190,6 +195,7 @@ protected:
 
     void preUpdateTransform();
     void transferTransformState(const Batch& batch);
+    uint32_t getDrawCallInfoBinding() const;
 
 protected:
     struct InputStageState {
@@ -392,6 +398,8 @@ public:
     const std::string& getVersion() const override;
     void downloadFramebuffer(const FramebufferPointer& srcFramebuffer, const Vec4i& region, QImage& destImage) final;
     void setDrawCommandBuffer(VkCommandBuffer commandBuffer);
+    // Finish the final renderer pass before the platform swapchain transfer.
+    void finishPresentRendering();
     size_t getNumInputBuffers() const { return _input._invalidBuffers.size(); }
     VkDescriptorImageInfo getDefaultTextureDescriptorInfo();
     // Used by GPU frame player to move camera around
@@ -511,6 +519,7 @@ protected:
 
     void initTransform();
     void initDefaultTexture();
+    void initDefaultBuffer();
 
     // Gets a frame data object from the pool and sets _currentFrame to point to it.
     // Needs to be called before frame command buffers creation starts
@@ -522,11 +531,56 @@ public:
     // Called after frame finishes rendering. Cleans up and puts frame data object back to the pool.
     void recyclePreviousFrame();
     void waitForGPU();
+#if defined(Q_OS_IOS)
+    void persistIOSDiagnosticSubmit(uint64_t submitId);
+    void retireIOSDiagnosticSubmit();
+#endif
 
+#if !defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)
     void releaseExternalTexture(GLuint id, const Texture::ExternalRecycler& recycler);
+#endif
 
     // VKTODO: quick hack
     VKFramebuffer *_outputTexture{ nullptr };
+#if defined(Q_OS_IOS)
+    // Runtime-selectable presentation boundaries let one simulator binary
+    // distinguish renderer output failures without another full client build.
+    VKFramebuffer* _resampleOutputTexture{ nullptr };
+    VKFramebuffer* _compositeHUDOutputTexture{ nullptr };
+    VKTexture* _toneMappingInputTexture{ nullptr };
+    VKFramebuffer* resolvePresentFramebuffer(const FramebufferPointer& framebuffer);
+    std::set<std::string> _iosCurrentUntrustedPipelines;
+    std::set<std::string> _iosSubmittedUntrustedPipelines;
+    std::set<std::string> _iosHealthyPipelines;
+    std::set<std::string> _iosQuarantinedPipelines;
+    std::set<std::string> _iosQuarantinedBatchNames;
+    std::set<std::string> _iosQuarantinedVertexShaders;
+    std::set<std::string> _iosQuarantinedFragmentShaders;
+    std::set<std::string> _iosQuarantinedShaderPairs;
+    std::set<std::string> _iosQuarantinedDrawCommands;
+    std::set<std::string> _iosQuarantinedNamedCalls;
+    std::set<std::string> _iosQuarantinedBatchCommands;
+    std::set<std::string> _iosTracedBatchNames;
+    std::set<std::string> _iosTracedVertexShaders;
+    std::set<std::string> _iosTracedFragmentShaders;
+    std::set<std::string> _iosTracedShaderPairs;
+    std::set<std::string> _iosTracedNamedCalls;
+    std::set<std::string> _iosFallbackTextureSources;
+    std::set<int> _iosFallbackUniformBindings;
+    std::set<int> _iosFallbackStorageBindings;
+    std::set<int> _iosFallbackTextureBindings;
+    bool _iosTraceAllDraws { false };
+    bool _iosTraceCurrentDraw { false };
+    bool _iosPersistSubmitCandidates { true };
+    size_t _iosBatchTraceLimit { 2048 };
+    size_t _iosPipelineTraceLimit { 8192 };
+    size_t _iosDrawTraceLimit { 512 };
+    uint64_t _iosDrawOrdinal { 0 };
+    uint64_t _iosExecuteDrawOrdinalLimit { 0 };
+    uint64_t _iosScissorEnabledDraws { 0 };
+    uint64_t _iosScissorDisabledDraws { 0 };
+    uint64_t _iosScissorInvalidDraws { 0 };
+#endif
 protected:
     struct TextureManagementStageState {
         bool _sparseCapable{ false };
@@ -559,8 +613,10 @@ protected:
     std::vector<VkWriteDescriptorSet> storageVkWriteDescriptorSets;
     std::vector<VkDescriptorBufferInfo> storageVkDescriptorBufferInfo;
 
+#if !defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)
     std::mutex _externalTexturesMutex;
     std::list<std::pair<GLuint, Texture::ExternalRecycler>> _externalTexturesTrash;
+#endif
 
     // Logical device, application's view of the physical device (GPU)
     // VkPipeline cache object
@@ -570,6 +626,9 @@ protected:
     std::shared_ptr<gpu::Texture> _defaultTexture;
     VKTexture* _defaultTextureVk{ nullptr };
     VkDescriptorImageInfo _defaultTextureImageInfo{};
+    std::shared_ptr<gpu::Buffer> _defaultBuffer;
+    VKBuffer* _defaultBufferVk{ nullptr };
+    VkDescriptorBufferInfo _defaultBufferInfo{};
     std::shared_ptr<gpu::Texture> _defaultSkyboxTexture;
     VKTexture* _defaultSkyboxTextureVk{ nullptr };
     VkDescriptorImageInfo _defaultSkyboxTextureImageInfo{};

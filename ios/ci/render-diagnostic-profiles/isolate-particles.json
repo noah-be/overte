@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "renderDiagnosticMode": "trace",
+  "traceDrawLimit": 512,
+  "skipShaderPairs": [
+    "textured_particle.vert|textured_particle_translucent_forward.frag"
+  ],
+  "persistSubmitCandidates": false,
+  "ignorePersistedQuarantine": true
+}

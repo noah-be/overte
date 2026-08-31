@@ -25,13 +25,23 @@
 
 #include "AddressBarDialog.h"
 #include "ConnectionFailureDialog.h"
+#if !defined(Q_OS_IOS)
 #include "DomainConnectionDialog.h"
+#endif
+#if !defined(Q_OS_IOS)
 #include "HMDToolsDialog.h"
+#endif
+#if !defined(Q_OS_IOS)
 #include "LodToolsDialog.h"
+#endif
 #include "LoginDialog.h"
+#if !defined(Q_OS_IOS)
 #include "OctreeStatsDialog.h"
+#endif
 #include "PreferencesDialog.h"
+#if !defined(Q_OS_IOS)
 #include "UpdateDialog.h"
+#endif
 
 #include "scripting/HMDScriptingInterface.h"
 
@@ -44,14 +54,16 @@ void DialogsManager::maybeCreateDialog(QPointer<T>& member) {
         member = new T(parent);
         Q_CHECK_PTR(member);
 
+#if !defined(Q_OS_IOS)
         if (_hmdToolsDialog && member->windowHandle()) {
             _hmdToolsDialog->watchWindow(member->windowHandle());
         }
+#endif
     }
 }
 
 void DialogsManager::showAddressBar() {
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
     AddressBarDialog::show();
     setAddressBarVisible(true);
     return;
@@ -72,7 +84,7 @@ void DialogsManager::showAddressBar() {
 }
 
 void DialogsManager::hideAddressBar() {
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
     AddressBarDialog::hide();
     qApp->setKeyboardFocusEntity(UNKNOWN_ENTITY_ID);
     setAddressBarVisible(false);
@@ -158,7 +170,7 @@ void DialogsManager::showLoginDialog() {
 }
 
 void DialogsManager::hideLoginDialog() {
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
     LoginDialog::hidePhoneDialog();
 #else
     LoginDialog::hide();
@@ -172,7 +184,7 @@ void DialogsManager::showDomainLoginDialog(const QString& domain) {
 }
 
 bool DialogsManager::closePhoneDialog() {
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
     auto offscreenUi = DependencyManager::get<OffscreenUi>();
     if (offscreenUi && offscreenUi->isVisible("LoginDialog")) {
         QGuiApplication::inputMethod()->hide();
@@ -194,7 +206,7 @@ bool DialogsManager::closePhoneDialog() {
 }
 
 bool phone::closeTopmostDialog() {
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
     auto dialogs = DependencyManager::get<DialogsManager>();
     return dialogs && dialogs->closePhoneDialog();
 #else
@@ -221,11 +233,14 @@ bool phone::updateTouchUiRuntimeMetrics(const QVariantMap& metrics) {
 
 
 void DialogsManager::showUpdateDialog() {
+#if !defined(Q_OS_IOS)
     UpdateDialog::show();
+#endif
 }
 
 
 void DialogsManager::octreeStatsDetails() {
+#if !defined(Q_OS_IOS)
     if (!_octreeStatsDialog) {
         _octreeStatsDialog = new OctreeStatsDialog(qApp->getWindow(), qApp->getOcteeSceneStats());
 
@@ -236,9 +251,11 @@ void DialogsManager::octreeStatsDetails() {
         _octreeStatsDialog->show();
     }
     _octreeStatsDialog->raise();
+#endif
 }
 
 void DialogsManager::lodTools() {
+#if !defined(Q_OS_IOS)
     if (!_lodToolsDialog) {
         maybeCreateDialog(_lodToolsDialog);
 
@@ -246,9 +263,11 @@ void DialogsManager::lodTools() {
         _lodToolsDialog->show();
     }
     _lodToolsDialog->raise();
+#endif
 }
 
 void DialogsManager::hmdTools(bool showTools) {
+#if !defined(Q_OS_IOS)
     if (showTools) {
         if (!_hmdToolsDialog) {
             maybeCreateDialog(_hmdToolsDialog);
@@ -262,12 +281,17 @@ void DialogsManager::hmdTools(bool showTools) {
     } else {
         hmdToolsClosed();
     }
+#else
+    Q_UNUSED(showTools)
+#endif
 }
 
 void DialogsManager::hmdToolsClosed() {
+#if !defined(Q_OS_IOS)
     if (_hmdToolsDialog) {
         _hmdToolsDialog->hide();
     }
+#endif
 }
 
 void DialogsManager::toggleAddressBar() {
@@ -289,6 +313,7 @@ void DialogsManager::setAddressBarVisible(bool addressBarVisible) {
 }
 
 void DialogsManager::showDomainConnectionDialog() {
+#if !defined(Q_OS_IOS)
     // if the dialog already exists we delete it so the connection data is refreshed
     if (_domainConnectionDialog) {
         _domainConnectionDialog->close();
@@ -300,4 +325,5 @@ void DialogsManager::showDomainConnectionDialog() {
 
     _domainConnectionDialog->show();
     _domainConnectionDialog->raise();
+#endif
 }

@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "serviceRuntimeRevision": 12,
+  "resolvedAt": "2026-08-28",
+  "sources": {
+    "npmRegistry": "https://registry.npmjs.org/",
+    "ageRelease": "https://github.com/FiloSottile/age/releases/tag/v1.2.1",
+    "rcodesignRelease": "https://github.com/indygreg/apple-platform-rs/releases/tag/apple-codesign%2F0.29.0",
+    "resignerRelease": "https://github.com/appium/resigner/releases/tag/v0.3.1",
+    "pymobiledevice3Release": "https://github.com/doronz88/pymobiledevice3/releases/tag/v11.1.5"
+  },
+  "developerDiskImage": {
+    "provenance": {
+      "repository": "https://github.com/doronz88/DeveloperDiskImage",
+      "commit": "5423e4e955fbb3a9eef3e1212acfbfc6e7a26236",
+      "productBuildVersion": "27A5228h",
+      "handling": "operator-supplied-private-apple-payload"
+    },
+    "files": {
+      "BuildManifest.plist": {
+        "size": 801505,
+        "sha256": "8edd4a2f4f4ef1fbd7bfe49785d8badc673d1395d1d94d85b132ca8ab5ecaf54"
+      },
+      "Image.dmg": {
+        "size": 15733248,
+        "sha256": "05fd807da5e19f030fa4941f24800c965c6c77982ab572dd5d1ef778fb69f9ca",
+        "sha1": "b361bfb12c12576a924823d49bc9f891532de551",
+        "sha384": "8d8e548cd9ce4f77d33dd1937c9d8890bc246d6c3c9bddbdea1a9e29c458672143e2fdd4924832801aa0858c3e44bb8b"
+      },
+      "Image.dmg.trustcache": {
+        "size": 1895,
+        "sha256": "36af60889ff5a737874a26daeb8e1a0139ebfebec6ec2e4d8f6a3c1bf1dce35c",
+        "sha1": "56bfbaf97f852cb79d7907c6eed60f56fabd15d5",
+        "sha384": "9ca53c2c24c7fcd840300c2b58a2531f87431bb49a32c579431acd28d0473a3cb3ebc8ae45cffc5f3c516ee9eddc296a"
+      }
+    }
+  },
+  "appium": {
+    "license": "Apache-2.0",
+    "runtime": {
+      "node": "24.19.0",
+      "npm": "11.17.0"
+    },
+    "nodeRange": "^20.19.0 || ^22.12.0 || >=24.0.0",
+    "npmRange": ">=10",
+    "core": {
+      "package": "appium",
+      "version": "3.7.0",
+      "artifact": {
+        "url": "https://registry.npmjs.org/appium/-/appium-3.7.0.tgz",
+        "sha256": "a6f99adf70a8815039c8c20d07d359b11e60f062dd04b5171cfc84e429017599",
+        "sha1": "b8de25f0d8ce5327f186bfd8d58aec34d97ac249",
+        "integrity": "sha512-2AWajtPbjYGTJmVqpavGctO7zK9M7Q74L3vK9lFKPs6qr3N3/xy3STHnkXJk/wgaZ+BDgeKD68zQQ5sAP6A/cA=="
+      }
+    },
+    "drivers": {
+      "xcuitest": {
+        "package": "appium-xcuitest-driver",
+        "version": "12.8.0",
+        "appiumPeerRange": "^3.0.0-rc.2",
+        "remoteXpcRange": "^5.13.2",
+        "webdriverAgentRange": "^16.8.0",
+        "artifact": {
+          "url": "https://registry.npmjs.org/appium-xcuitest-driver/-/appium-xcuitest-driver-12.8.0.tgz",
+          "sha256": "2cccc74b0cc3f56afd029accc3a4553c56d7269c6c403cbf161aaf095bc5c0b8",
+          "sha1": "929cdfe911236a47163d75494f1fdddf23552200",
+          "integrity": "sha512-T3F3aNjCXPhqbElrei+aPilVIzOs6DZPGi93NS+5oox1DJtORDWVQZthzUbFwt2Z28KZzAnnZG0cwGmsoX3t2g=="
+        }
+      }
+    },
+    "iosRuntime": {
+      "pymobiledevice3": {
+        "package": "pymobiledevice3",
+        "version": "11.1.5",
+        "license": "GPL-3.0-or-later",
+        "pythonAbi": "cp314",
+        "pythonVersion": "3.14.7",
+        "pythonExecutable": "/usr/bin/python3.14",
+        "pythonExecutableSha256": "0d64bd6d66d68dac91cdadafc46e22d4f09f22bdc997aaae870f42865b024a3e",
+        "distributionCount": 99,
+        "freezeSha256": "c923e1fab35b08c006a3a9a155b4bb1e070e5af96bfe1a94da3e016f54902dbd",
+        "sitePackagesTreeSha256": "fb5f409445fa43bbab84a3d059a29dc080b8b48786679c21c6cb1e233b37219c",
+        "upstreamWdaHostOpsSha256": "04e4ec6b9e4f7c1d48812fc8ca71503a31d842cc2f3a02e761b0ef172ce39aa7"
+      },
+      "remoteXpc": {
+        "package": "appium-ios-remotexpc",
+        "version": "5.15.3",
+        "artifact": {
+          "url": "https://registry.npmjs.org/appium-ios-remotexpc/-/appium-ios-remotexpc-5.15.3.tgz",
+          "sha256": "2eaa0ecc4efd346f744f96b6f84a03bea49e233e47180f2b573d18ef001a3aea",
+          "sha1": "b09bd613bafb57f3f78b8bf8bb704082a8a64e7d",
+          "integrity": "sha512-rmp3+Xexyy9Sc2LtUql1wQa93rKCbFCOUoIsCbZfUiapmf1eu4OiXs8iS0TgBMHoPqRhP6vGGQfwGgHMmjR0iA=="
+        }
+      },
+      "webdriverAgent": {
+        "package": "appium-webdriveragent",
+        "version": "16.8.0",
+        "artifact": {
+          "url": "https://registry.npmjs.org/appium-webdriveragent/-/appium-webdriveragent-16.8.0.tgz",
+          "sha256": "3d06a9ae08a8b61af2661bb8ffc4293844b34e804e8b7698ab104d4e972400e4",
+          "sha1": "da19add9efb349dd9e5664d62b601cb62dcf21c4",
+          "integrity": "sha512-S4mGHQYe5OpJWSqW/jvJMCD66BLYn3tmnNfz6V6/hPkdYNVsCiGKAZoAxoLuegCFDsGvviO8aRGhwfP043YzXA=="
+        }
+      }
+    },
+    "iosSecurity": {
+      "age": {
+        "version": "1.2.1",
+        "license": "BSD-3-Clause",
+        "executableSha256": "aaec874ed903da4b02a9d503778ae05ee5005b2acc0f4a4cf10e5d0f17fd4384",
+        "artifact": {
+          "url": "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-amd64.tar.gz",
+          "sha256": "7df45a6cc87d4da11cc03a539a7470c15b1041ab2b396af088fe9990f7c79d50"
+        }
+      },
+      "rcodesign": {
+        "version": "0.29.0",
+        "license": "MPL-2.0",
+        "executableSha256": "dab9a7465f96aba3c81e793775510f745b91a46b6418e89f7317b5d8fc7bcea2",
+        "artifact": {
+          "url": "https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.29.0/apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "dbe85cedd8ee4217b64e9a0e4c2aef92ab8bcaaa41f20bde99781ff02e600002"
+        }
+      },
+      "resigner": {
+        "version": "0.3.1",
+        "license": "Apache-2.0",
+        "executableSha256": "57a837d4674a5bb4eea9ff0d006b84fd5273fdd0c9d3c05143a46135ae4b988e",
+        "artifact": {
+          "url": "https://github.com/appium/resigner/releases/download/v0.3.1/linux-amd64.tar.gz",
+          "sha256": "e8672bfcced781bee017f84d17a84f645668bb664fe709d7dda011c9f1d8d0cd"
+        }
+      }
+    }
+  }
+}

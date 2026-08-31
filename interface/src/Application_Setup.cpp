@@ -22,7 +22,9 @@
 #include <QDesktopServices>
 #include <QFontDatabase>
 #include <QtCore/QCommandLineParser>
+#include <QtCore/QCoreApplication>
 #include <QtCore/QResource>
+#include <QtCore/QStandardPaths>
 #include <QtQml/QQmlContext>
 #include <QtQuick/QQuickWindow>
 
@@ -40,7 +42,9 @@
 #include <avatar/GrabManager.h>
 #include <audio/AudioScope.h>
 #include <AudioScriptingInterface.h>
+#if !defined(Q_OS_IOS)
 #include <AutoUpdater.h>
+#endif
 #include <avatar/AvatarManager.h>
 #include <BuildInfo.h>
 #include <CameraRootTransformNode.h>
@@ -55,7 +59,9 @@
 #include <EntityScriptServerLogClient.h>
 #include <FingerprintUtils.h>
 #include <FramebufferCache.h>
+#if !defined(Q_OS_IOS)
 #include <gl/GLHelpers.h>
+#endif
 #include <GPUIdent.h>
 #include <graphics-scripting/GraphicsScriptingInterface.h>
 #include <gpu/Texture.h>
@@ -63,6 +69,7 @@
 #include <input-plugins/KeyboardMouseDevice.h>
 #include <input-plugins/TouchscreenDevice.h>
 #include <input-plugins/TouchscreenVirtualPadDevice.h>
+#include <shared/IOSRuntimeLogging.h>
 #include <networking/CloseEventSender.h>
 #include <MainWindow.h>
 #include <material-networking/TextureCacheScriptingInterface.h>
@@ -112,6 +119,9 @@
 #ifndef Q_OS_ANDROID
 #include <shared/FileLogger.h>
 #endif
+#if defined(Q_OS_IOS) && defined(OVERTE_IOS_E2E_TEST_BUILD)
+#include <shared/FileUtils.h>
+#endif
 #include <shared/GlobalAppProperties.h>
 #include <shared/PlatformHelper.h>
 #include <SoundCacheScriptingInterface.h>
@@ -125,7 +135,9 @@
 #include <ui/OctreeStatsProvider.h>
 #include <ui/OffscreenQmlSurfaceCache.h>
 #include <ui/Snapshot.h>
+#if !defined(Q_OS_IOS)
 #include <ui/StandAloneJSConsole.h>
+#endif
 #include <ui/TabletScriptingInterface.h>
 #include <ui/ToolbarScriptingInterface.h>
 #include <UserActivityLogger.h>
@@ -138,10 +150,14 @@
 #include "AudioClient.h"
 #include "CrashRecoveryHandler.h"
 #include "DeadlockWatchdog.h"
+#if !defined(Q_OS_IOS)
 #include "DiscordRichPresence.h"
+#endif
 #include "DiscoverabilityManager.h"
 #include "FileDialogHelper.h"
+#ifdef USE_GL
 #include "GLCanvas.h"
+#endif
 #include "InterfaceDynamicFactory.h"
 #include "InterfaceLogging.h"
 #include "InterfaceParentFinder.h"
@@ -152,7 +168,7 @@
 #ifndef USE_GL
 #include "vk/VKWindow.h"
 #endif
-#if defined(Q_OS_MAC) || defined(Q_OS_WIN)
+#if (defined(Q_OS_MAC) && !defined(Q_OS_IOS)) || defined(Q_OS_WIN)
 #include "SpeechRecognizer.h"
 #endif
 #include "Util.h"
@@ -392,7 +408,9 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     DependencyManager::set<UsersScriptingInterface>();
     DependencyManager::set<AvatarManager>();
     DependencyManager::set<LODManager>();
+#if !defined(Q_OS_IOS)
     DependencyManager::set<StandAloneJSConsole>();
+#endif
     DependencyManager::set<DialogsManager>();
     DependencyManager::set<ResourceCacheSharedItems>();
     DependencyManager::set<DesktopScriptingInterface>();
@@ -412,7 +430,7 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     DependencyManager::set<AssetMappingsScriptingInterface>();
     DependencyManager::set<DomainConnectionModel>();
 
-#if defined(Q_OS_MAC) || defined(Q_OS_WIN)
+#if (defined(Q_OS_MAC) && !defined(Q_OS_IOS)) || defined(Q_OS_WIN)
     DependencyManager::set<SpeechRecognizer>();
 #endif
     DependencyManager::set<DiscoverabilityManager>();
@@ -574,11 +592,22 @@ void Application::initialize(const QCommandLineParser &parser) {
         if (parser.isSet("testResultsLocation")) {
             // Set test snapshot location only if it is a writeable directory
             QString path = parser.value("testResultsLocation");
-            path = FileUtils::computeDocumentPath(path);
-            QDir().mkpath(path);
+            path = QDir::cleanPath(FileUtils::computeDocumentPath(path));
+            bool pathAllowed = true;
+#if defined(Q_OS_IOS) && defined(OVERTE_IOS_E2E_TEST_BUILD)
+            const QString documentsRoot = QDir::cleanPath(
+                QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
+            pathAllowed = path == documentsRoot || path.startsWith(documentsRoot + "/");
+            if (!pathAllowed) {
+                qCWarning(interfaceapp) << "Rejected iOS E2E results path outside Documents";
+            }
+#endif
+            if (pathAllowed) {
+                pathAllowed = QDir().mkpath(path);
+            }
 
             QFileInfo fileInfo(path);
-            if (fileInfo.isDir() && fileInfo.isWritable()) {
+            if (pathAllowed && fileInfo.isDir() && fileInfo.isWritable()) {
                 TestScriptingInterface::getInstance()->setTestResultsLocation(path);
             }
         }
@@ -638,10 +667,10 @@ void Application::initialize(const QCommandLineParser &parser) {
             _overrideDefaultScriptsLocation = false;
         }
 
-        // If launched from Steam, let it handle updates. Android packages are
-        // updated by their installer/store and must not launch the desktop
-        // updater UI during startup.
-#if !defined(ANDROID_APP_PHONE_INTERFACE)
+        // If launched from Steam, let it handle updates. Android and iOS
+        // packages are updated by their installer/store and must not launch
+        // the desktop updater UI during startup.
+#if !defined(ANDROID_APP_PHONE_INTERFACE) && !defined(Q_OS_IOS)
         bool buildCanUpdate = BuildInfo::BUILD_TYPE == BuildInfo::BuildType::Stable
             || BuildInfo::BUILD_TYPE == BuildInfo::BuildType::Nightly;
         if (!parser.isSet("no-updater") && buildCanUpdate) {
@@ -816,7 +845,9 @@ void Application::initialize(const QCommandLineParser &parser) {
         << NodeType::EntityServer << NodeType::AssetServer << NodeType::MessagesMixer << NodeType::EntityScriptServer);
 
     // setDefaultFormat has no effect after the platform window has been created, so call it here.
+#if !defined(Q_OS_IOS)
     QSurfaceFormat::setDefaultFormat(getDefaultOpenGLSurfaceFormat());
+#endif
 
 #ifdef USE_GL
     _primaryWidget = new GLCanvas();
@@ -833,9 +864,17 @@ void Application::initialize(const QCommandLineParser &parser) {
     _window->setCentralWidget(_vkWindowWrapper);
 #endif
 
-#if defined(ANDROID_APP_PHONE_INTERFACE)
-    // Do not restore desktop window geometry on Android. The Activity owns
-    // the fullscreen landscape bounds.
+#if defined(Q_OS_IOS)
+    // VKWidget enables input methods in its cross-platform constructor. Turn
+    // them off before the first iOS window is shown; initializeUi enables the
+    // attribute again only while a real offscreen text editor owns focus.
+    _primaryWidget->setAttribute(Qt::WA_InputMethodEnabled, false);
+#endif
+
+#if defined(Q_OS_IOS) || defined(ANDROID_APP_PHONE_INTERFACE)
+    // Mobile window managers own the screen bounds. Restoring desktop window
+    // geometry can leave the client as a small, offset widget on iOS/Android
+    // and expose the otherwise hidden desktop chrome around the render view.
     _window->showFullScreen();
 #else
     _window->restoreGeometry();
@@ -860,7 +899,19 @@ void Application::initialize(const QCommandLineParser &parser) {
     initializeGL();
     qCDebug(interfaceapp, "Initialized GL");
 
-#if defined(ANDROID_APP_PHONE_INTERFACE)
+#if defined(Q_OS_IOS)
+    // iPadOS applies a per-process memory limit that also includes unified GPU
+    // memory. MoltenVK cannot report a useful dedicated-memory budget on Apple
+    // silicon, so automatic Vulkan texture residency can grow until Jetsam
+    // terminates Interface. Keep enough headroom for meshes, pipelines, Qt,
+    // decoded network data and the Metal driver.
+    constexpr uint32_t IOS_TEXTURE_BUDGET_MB { 256 };
+    const gpu::Texture::Size iosTextureBudget =
+        static_cast<gpu::Texture::Size>(IOS_TEXTURE_BUDGET_MB) * 1024 * 1024;
+    gpu::Texture::setAllowedGPUMemoryUsage(iosTextureBudget);
+    qCInfo(interfaceapp) << "OVERTE_IOS_RESOURCE_LIMIT textureBudgetMB"
+                         << IOS_TEXTURE_BUDGET_MB;
+#elif defined(ANDROID_APP_PHONE_INTERFACE)
     // Android GPUs use shared memory and do not expose a reliable dedicated
     // texture budget. Bound residency to reduce low-memory kills in complex
     // desktop-authored domains while retaining useful texture detail.
@@ -935,7 +986,9 @@ void Application::initialize(const QCommandLineParser &parser) {
         // The value will be 0 if the user blew away settings this session, which is both a feature and a bug.
         static const QString TESTER = "HIFI_TESTER";
         auto gpuIdent = GPUIdent::getInstance();
+#if !defined(Q_OS_IOS)
         auto glContextData = gl::ContextInfo::get();
+#endif
         QJsonObject properties = {
             { "version", applicationVersion() },
             { "tester", QProcessEnvironment::systemEnvironment().contains(TESTER) || isTester },
@@ -952,21 +1005,36 @@ void Application::initialize(const QCommandLineParser &parser) {
             { "gpu_name", gpuIdent->getName() },
             { "gpu_driver", gpuIdent->getDriver() },
             { "gpu_memory", static_cast<qint64>(gpuIdent->getMemory()) },
+#if defined(Q_OS_IOS)
+            { "graphics_backend", _graphicsEngine->getGPUContext()->getBackendVersion().c_str() },
+            { "gl_version_int", 0 },
+            { "gl_version", "" },
+            { "gl_vender", "" },
+            { "gl_sl_version", "" },
+            { "gl_renderer", "" },
+#else
             { "gl_version_int", glVersionToInteger(glContextData.version.c_str()) },
             { "gl_version", glContextData.version.c_str() },
             { "gl_vender", glContextData.vendor.c_str() },
             { "gl_sl_version", glContextData.shadingLanguageVersion.c_str() },
             { "gl_renderer", glContextData.renderer.c_str() },
+#endif
             { "ideal_thread_count", QThread::idealThreadCount() }
         };
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
         auto macVersion = QSysInfo::macVersion();
         if (macVersion != QSysInfo::MV_None) {
-            properties["os_osx_version"] = QSysInfo::macVersion();
+            properties["os_osx_version"] = macVersion;
         }
         auto windowsVersion = QSysInfo::windowsVersion();
         if (windowsVersion != QSysInfo::WV_None) {
-            properties["os_win_version"] = QSysInfo::windowsVersion();
+            properties["os_win_version"] = windowsVersion;
         }
+#elif defined(Q_OS_MACOS)
+        properties["os_osx_version"] = QSysInfo::productVersion();
+#elif defined(Q_OS_WIN)
+        properties["os_win_version"] = QSysInfo::productVersion();
+#endif
 
         ProcessorInfo procInfo;
         if (getProcessorInfo(procInfo)) {
@@ -1068,7 +1136,7 @@ void Application::initialize(const QCommandLineParser &parser) {
 #endif
     });
     _applicationStateDevice->setInputVariant(STATE_PLATFORM_MAC, []() -> float {
-#if defined(Q_OS_MAC)
+#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
         return 1;
 #else
         return 0;
@@ -1293,6 +1361,15 @@ void Application::initialize(const QCommandLineParser &parser) {
         properties["active_display_plugin"] = getActiveDisplayPlugin()->getName();
         properties["using_hmd"] = isHMDMode();
 
+#if defined(Q_OS_IOS)
+        properties["gl_info"] = QJsonObject{
+            { "version", "" },
+            { "sl_version", "" },
+            { "vendor", "" },
+            { "renderer", "" },
+            { "graphics_backend", qApp->getGPUContext()->getBackendVersion().c_str() },
+        };
+#else
         auto contextInfo = gl::ContextInfo::get();
         properties["gl_info"] = QJsonObject{
             { "version", contextInfo.version.c_str() },
@@ -1300,6 +1377,7 @@ void Application::initialize(const QCommandLineParser &parser) {
             { "vendor", contextInfo.vendor.c_str() },
             { "renderer", contextInfo.renderer.c_str() },
         };
+#endif
         properties["gpu_used_memory"] = (int)BYTES_TO_MB(gpu::Context::getUsedGPUMemSize());
         properties["gpu_free_memory"] = (int)BYTES_TO_MB(gpu::Context::getFreeGPUMemSize());
         const float gpuFrameTime = (float)(qApp->getGPUContext()->getFrameTimerGPUAverage());
@@ -1397,8 +1475,10 @@ void Application::initialize(const QCommandLineParser &parser) {
     DependencyManager::get<Keyboard>()->createKeyboard();
 
     // Needs to happen later in the constructor as it depends on some other things being set up
+#if !defined(Q_OS_IOS)
     _discordPresence = new DiscordPresence();
     _discordPresence->setEnabled(_useDiscordPresence.get());
+#endif
 
     _pendingIdleEvent = false;
     _graphicsEngine->startup();
@@ -2260,7 +2340,22 @@ void Application::setupSignalsAndOperators() {
                 recorder->recordFrame(AUDIO_FRAME_TYPE, audio);
             }
         });
+#if defined(Q_OS_IOS)
+        // CoreSimulator's RemoteIO unit can enter a tight kAudio_ParamError
+        // loop that starves simctl screenshot and hides the bounded world-gate
+        // diagnostics. Audio is outside this explicitly requested rendering
+        // acceptance mode; physical-device and normal iOS launches keep the
+        // production audio path unchanged.
+        const bool suppressAudioForWorldEvidence =
+            QCoreApplication::arguments().contains(QStringLiteral("--ios-world-evidence"));
+        if (!suppressAudioForWorldEvidence) {
+            audioIO->startThread();
+        } else {
+            logIOSRuntimeMarker("OVERTE_IOS_WORLD_DIAGNOSTIC audio_suppressed=evidence_mode");
+        }
+#else
         audioIO->startThread();
+#endif
 
         auto audioScriptingInterface = DependencyManager::get<AudioScriptingInterface>().data();
         connect(audioIO, &AudioClient::mutedByMixer, audioScriptingInterface, &AudioScriptingInterface::mutedByMixer);
@@ -2292,7 +2387,9 @@ void Application::setupSignalsAndOperators() {
 void Application::setUseDiscordPresence(bool enable) {
     _useDiscordPresence.set(enable);
 
+#if !defined(Q_OS_IOS)
     if (_discordPresence) {
         _discordPresence->setEnabled(enable);
     }
+#endif
 }

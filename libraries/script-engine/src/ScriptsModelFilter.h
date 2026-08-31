@@ -17,6 +17,9 @@
 
 #include "ScriptsModel.h"
 #include <QSortFilterProxyModel>
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QRegularExpression>
+#endif
 
 /*@jsdoc
  * Sorted and filtered information on the scripts that are in the default scripts directory of the Interface installation. This 
@@ -77,6 +80,9 @@
 /// Provides script file information available from the <code><a href="https://apidocs.overte.org/ScriptDiscoveryService.html">ScriptDiscoveryService</a></code> scripting interface
 class ScriptsModelFilter : public QSortFilterProxyModel {
     Q_OBJECT
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    Q_PROPERTY(QRegularExpression filterRegExp READ filterRegularExpression WRITE setFilterRegularExpression)
+#endif
 public:
     ScriptsModelFilter(QObject *parent = NULL);
 protected:

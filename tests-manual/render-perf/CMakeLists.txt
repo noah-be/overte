@@ -11,7 +11,7 @@ setup_memory_debugger()
 setup_thread_debugger()
 
 # This is not a testcase -- just set it up as a regular hifi project
-setup_hifi_project(Quick Gui)
+setup_hifi_project(Quick Gui Core5Compat)
 set_target_properties(${TARGET_NAME} PROPERTIES FOLDER "Tests/manual-tests/")
 
 # link in the shared libraries

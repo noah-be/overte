@@ -20,7 +20,13 @@
 #include <QtPlatformHeaders/QWGLNativeContext>
 #endif
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QtOpenGL/QOpenGLDebugLogger>
+#include <QtOpenGL/QOpenGLDebugMessage>
+#else
+#include <QtGui/QOpenGLDebugLogger>
 #include <QtGui/QOpenGLDebugMessage>
+#endif
 
 #include "GLHelpers.h"
 
