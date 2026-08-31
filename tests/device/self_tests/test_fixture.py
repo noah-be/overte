@@ -38,7 +38,7 @@ class FixtureTest(unittest.TestCase):
                 with urlopen(metadata["baseUrl"] + "/healthz", timeout=2) as response:
                     self.assertTrue(json.load(response)["ready"])
                 with urlopen(metadata["sceneUrl"], timeout=2) as response:
-                    self.assertEqual(5, len(json.load(response)["Entities"]))
+                    self.assertEqual(6, len(json.load(response)["Entities"]))
                 with urlopen(metadata["probeScriptUrl"], timeout=2) as response:
                     self.assertIn(b"Test.saveObject", response.read())
             finally:

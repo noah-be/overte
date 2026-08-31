@@ -18,6 +18,38 @@ from test_vertical_locomotion import snapshot
 
 
 class CommonContractTest(unittest.TestCase):
+    def test_install_and_visual_artifact_contracts_are_closed(self):
+        self.assertEqual(
+            {"path": "/private/candidate.bin"},
+            validate_operation_arguments(
+                "app.install", {"path": "/private/candidate.bin"}))
+        self.assertEqual(
+            {"durationSeconds": 3.0},
+            validate_operation_arguments(
+                "artifact.video", {"durationSeconds": 3.0}))
+        self.assertEqual(
+            {"installed": True},
+            validate_operation_result("app.install", {"installed": True}))
+        for operation, result in (
+                ("artifact.screenshot", {"artifact": "screenshot.png"}),
+                ("artifact.video", {"artifact": "screen-recording.mp4"})):
+            self.assertEqual(result, validate_operation_result(operation, result))
+        for operation, arguments in (
+                ("app.install", {"path": "relative.apk"}),
+                ("app.install", {}),
+                ("artifact.video", {"durationSeconds": 0.5}),
+                ("artifact.video", {"durationSeconds": 31})):
+            with self.subTest(operation=operation):
+                with self.assertRaises(ValueError):
+                    validate_operation_arguments(operation, arguments)
+        for operation, result in (
+                ("app.install", {"installed": False}),
+                ("artifact.screenshot", {"artifact": "../private.png"}),
+                ("artifact.video", {"artifact": ""})):
+            with self.subTest(operation=operation):
+                with self.assertRaises(ValueError):
+                    validate_operation_result(operation, result)
+
     def test_signed_look_and_directional_move_arguments_are_exact(self):
         self.assertEqual(
             {"horizontal": -0.25, "vertical": 0.0},

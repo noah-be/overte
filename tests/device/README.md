@@ -37,6 +37,11 @@ different selectors for one physical device. Neither value is persisted.
 
 ## Portable suites
 
+- `portable-smoke`: the canonical one-session route used unchanged on
+  Android, iOS, Pico, Linux, macOS, and Windows: launch, controlled scene,
+  signed look, body-relative movement, tablet open/close, then unconditional
+  cleanup. Platform routing and the install/evidence baseline are declared in
+  [`platform-adapters.json`](platform-adapters.json).
 - `smoke`: stable process launch and foreground state.
 - `asset-smoke`: one launch followed by controlled local texture delivery,
   ready resource state, uniquely tagged Image-entity use, and stable
@@ -129,6 +134,15 @@ descriptions or persisted output. Supported operation
 names and results are versioned in [`capabilities.json`](capabilities.json).
 Machine-readable catalog, adapter, probe, run, and matrix schemas are in
 [`schemas/`](schemas/).
+
+Every target promoted to the portable baseline must advertise installation,
+launch, process monitoring, controlled scene, look, movement, tablet
+open/close, screenshot, and video. Cleanup is the mandatory idempotent adapter
+action rather than a scenario operation. Validate a provisioned target with
+`verify_adapter.py --portable-baseline --require-target`; this also invokes
+cleanup twice. A preinstalled-only iOS target may run behavioral development
+smokes, but cannot be promoted because it deliberately cannot prove
+`app.install`.
 
 The common input and lifecycle contract is deliberately small:
 

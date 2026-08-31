@@ -131,7 +131,7 @@
     "avatar": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["position", "feetPosition", "velocity", "bodyYawDegrees", "inAir", "flying", "flyingEnabled"],
+      "required": ["position", "velocity", "bodyYawDegrees", "inAir", "flying", "flyingEnabled"],
       "properties": {
         "position": {"$ref": "#/$defs/vector3"},
         "feetPosition": {"$ref": "#/$defs/vector3"},

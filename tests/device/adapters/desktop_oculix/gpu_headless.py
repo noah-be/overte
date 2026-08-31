@@ -26,6 +26,7 @@ except ImportError:  # pragma: no cover - constructor rejects non-Linux hosts
 
 
 RUNTIME_KEY = "gpuHeadlessRuntime"
+SUN_PATH_BYTES = 108
 STATE_SCHEMA_VERSION = 1
 HANDOFF_SCHEMA_VERSION = 1
 HEX_SHA256 = re.compile(r"[0-9a-fA-F]{64}")
@@ -149,10 +150,12 @@ class GpuHeadlessLifecycle:
         self.log_path = self.state_directory / "mutter.log"
         self.glxinfo_path = self.state_directory / "glxinfo.txt"
         self.xrandr_path = self.state_directory / "xrandr.txt"
-        socket_suffix = hashlib.sha256(
-            str(self.state_directory).encode("utf-8")).hexdigest()[:16]
-        self.socket_name = f"overte-e2e-{socket_suffix}"
+        # The enclosing state directory is already unique per target. Keep the
+        # basename short enough for Linux sockaddr_un.sun_path.
+        self.socket_name = "overte-e2e"
         self.wayland_socket_path = self.runtime_directory / self.socket_name
+        if len(os.fsencode(str(self.wayland_socket_path))) >= SUN_PATH_BYTES:
+            raise RuntimeError("GPU headless Wayland socket path exceeds Linux limit")
 
     @staticmethod
     def _validated_executable(value: dict, path_key: str, digest_key: str) -> dict:

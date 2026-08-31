@@ -16,6 +16,9 @@ import signal
 import subprocess
 import sys
 import time
+import uuid
+from urllib.parse import urlsplit, urlunsplit
+from urllib.request import Request, urlopen
 
 
 DEVICE_ROOT = Path(__file__).resolve().parents[2]
@@ -24,6 +27,7 @@ if str(DEVICE_ROOT) not in sys.path:
 
 from adapters.common import (emit, fail, parse_operation_arguments,  # noqa: E402
                              read_fresh_json, state_directory)
+from contracts import validate_operation_arguments  # noqa: E402
 from adapters.desktop_oculix.gpu_headless import GpuHeadlessLifecycle  # noqa: E402
 from adapters.desktop_oculix.wayland_libei_client import (  # noqa: E402
     WaylandInputClient,
@@ -139,6 +143,20 @@ class DesktopAdapter:
             if not isinstance(entry.get("javaArguments", []), list) or not all(
                     isinstance(item, str) for item in entry.get("javaArguments", [])):
                 fail("desktop target javaArguments must be a string list")
+            video_fields = {
+                "videoExecutable", "videoSha256", "videoArguments",
+            }
+            configured_video_fields = video_fields & set(entry)
+            if configured_video_fields:
+                if configured_video_fields != video_fields:
+                    fail("desktop video capture requires executable, SHA-256 and arguments")
+                if (not isinstance(entry["videoExecutable"], str)
+                        or not re.fullmatch(r"[0-9a-fA-F]{64}", entry["videoSha256"])
+                        or not isinstance(entry["videoArguments"], list)
+                        or not all(isinstance(item, str) and "\x00" not in item
+                                   for item in entry["videoArguments"])
+                        or not any("{output}" in item for item in entry["videoArguments"])):
+                    fail("desktop video capture configuration is invalid")
             environment = entry.get("environment", {})
             if (not isinstance(environment, dict) or not all(
                     isinstance(key, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key)
@@ -214,13 +232,20 @@ class DesktopAdapter:
 
     @staticmethod
     def capabilities(target: dict) -> list[str]:
-        values = ["app.foreground", "app.launch", "app.process",
+        values = ["app.foreground", "app.install", "app.launch", "app.process",
                   "input.look", "input.move", "scene.load"]
         if target.get("platform") != "linux" or target.get("isolatedX11"):
             values.append("artifact.screenshot")
         if target.get("probe"):
             values += ["probe.snapshot", "tablet.close", "tablet.open"]
+        if target.get("videoExecutable"):
+            values.append("artifact.video")
         return sorted(values)
+
+    @staticmethod
+    def controlled_client(target: dict) -> bool:
+        probe = target.get("probe")
+        return isinstance(probe, dict) and probe.get("kind") == "injected-test-script"
 
     def discover(self) -> list[dict]:
         self.require_interactive_host()
@@ -568,6 +593,70 @@ class DesktopAdapter:
             return state_directory(self.adapter_id, selector) / "probe" / "overte-probe.json"
         fail("unsupported desktop probe transport")
 
+    @staticmethod
+    def client_command_endpoint(scene_url: str) -> str:
+        parsed = urlsplit(scene_url)
+        try:
+            port = parsed.port
+        except ValueError:
+            fail("controlled desktop scene URL has an invalid port")
+        if (parsed.scheme not in {"http", "https"} or not parsed.hostname
+                or parsed.username is not None or parsed.password is not None
+                or parsed.fragment or port is not None and not 1 <= port <= 65535):
+            fail("controlled desktop scene must use a credential-free HTTP(S) URL")
+        return urlunsplit((parsed.scheme, parsed.netloc,
+                           "/e2e-client-command.json", "", ""))
+
+    def post_client_command(self, scene_url: str, command: dict) -> None:
+        payload = json.dumps(command, separators=(",", ":")).encode("utf-8")
+        if len(payload) > 4096:
+            fail("desktop client command exceeds the fixture limit")
+        request = Request(
+            self.client_command_endpoint(scene_url), data=payload,
+            headers={"Content-Type": "application/json"}, method="POST")
+        with urlopen(request, timeout=5) as response:
+            if response.status != 200:
+                fail("controlled fixture rejected the desktop client command")
+            encoded = response.read(4097)
+        if len(encoded) > 4096:
+            fail("controlled fixture returned an oversized client command response")
+        try:
+            accepted = json.loads(encoded)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise RuntimeError(
+                "controlled fixture returned an invalid client command response") from error
+        if accepted != command:
+            fail("controlled fixture did not acknowledge the exact desktop client command")
+
+    def write_client_command(
+            self, selector: str, target: dict, state: dict, command: dict) -> None:
+        if not self.controlled_client(target):
+            fail("desktop operation requires the controlled in-client probe channel")
+        if not self.state_alive(state):
+            fail("Overte desktop process changed before the in-client command")
+        scene_url = state.get("initialSceneUrl")
+        if not isinstance(scene_url, str):
+            fail("desktop in-client command channel requires the controlled scene origin")
+        self.post_client_command(scene_url, command)
+        if not self.state_alive(state):
+            fail("Overte desktop process changed while delivering the in-client command")
+
+    def controlled_key_hold(
+            self, selector: str, target: dict, state: dict,
+            key: str, duration_seconds: float) -> None:
+        if not target.get("isolatedX11"):
+            fail("controlled key holds are restricted to private headless X11")
+        duration_ms = round(float(duration_seconds) * 1000.0)
+        if not 50 <= duration_ms <= 10000:
+            fail("controlled key hold duration must be from 50 through 10000 ms")
+        self.write_client_command(selector, target, state, {
+            "schemaVersion": 1,
+            "commandId": "key-" + uuid.uuid4().hex,
+            "action": "key-hold",
+            "key": key,
+            "durationMs": duration_ms,
+        })
+
     def save_state(self, selector: str, state: dict) -> None:
         path = self.state_path(selector)
         temporary = path.with_suffix(".tmp")
@@ -603,6 +692,14 @@ class DesktopAdapter:
             # can race its local socket, display a second mode selector, and
             # makes process lifecycle assertions ambiguous.
             arguments += ["--url", initial_scene_url]
+        if self.controlled_client(target):
+            if not initial_scene_url:
+                fail("controlled desktop target requires OVERTE_E2E_SCENE_URL")
+            # The fixture retains its last command. Clear it before launching
+            # so a previous session can never be replayed by the new probe.
+            self.post_client_command(initial_scene_url, {
+                "schemaVersion": 1, "commandId": "", "action": "idle",
+            })
         probe = target.get("probe", {})
         if probe.get("kind") == "injected-test-script":
             result_dir = self.probe_path(selector, target).parent
@@ -824,34 +921,17 @@ class DesktopAdapter:
             finally:
                 self.xdotool(target, "mouseup", "3")
             return
-        if action == "move":
-            keys = {"forward": "w", "backward": "s",
-                    "left": "a", "right": "d"}
-            direction = values.get("direction", "forward")
-            if direction not in keys:
-                fail("unsupported movement direction")
-            key = keys[direction]
-            # xdotool --window sends keyboard events through XSendEvent, which
-            # Qt/Overte does not handle like real keyboard input. The exact
-            # PID-bound window was focused above; use global XTEST key events.
-            self.xdotool_key_hold(
-                target, key, float(values.get("durationSeconds", 1.5)))
-            return
-        if action == "tablet-open":
-            if values.get("normalizeKeyUp") is True:
-                # A Qt focus transition while the tablet is being created can
-                # swallow the previous release.  Before a probe-gated retry,
-                # normalize the global XTEST state while the exact PID window
-                # is active, then leave one bounded event-loop interval.
-                self.xdotool(target, "keyup", "Tab", check=False)
-                time.sleep(0.05)
-            self.xdotool_key_hold(target, "Tab", 0.05)
-            return
-        if action == "tablet-close":
-            if values.get("normalizeKeyUp") is True:
-                self.xdotool(target, "keyup", "Tab", check=False)
-                time.sleep(0.05)
-            self.xdotool_key_hold(target, "Tab", 0.05)
+        if action in {"move", "tablet-open", "tablet-close"}:
+            key = values.get("direction") if action == "move" else "tablet"
+            if key not in {"backward", "forward", "left", "right", "tablet"}:
+                fail("unsupported controlled keyboard action")
+            duration = float(values.get(
+                "durationSeconds", 0.1 if action.startswith("tablet-") else 1.5))
+            selector = self.selector_for_target(target)
+            state = self.read_state(selector)
+            if not state or state.get("pid") != pid or not self.state_alive(state):
+                fail("controlled keyboard action requires the launched process")
+            self.controlled_key_hold(selector, target, state, key, duration)
             return
         if action == "close":
             self.xdotool(target, "windowclose", window)
@@ -942,8 +1022,48 @@ class DesktopAdapter:
             detail = (result.stderr or result.stdout).strip()
             fail("Linux screenshot failed" + (f": {detail}" if detail else ""))
 
+    def capture_video(self, target: dict, duration_seconds: float,
+                      destination: Path) -> None:
+        executable = self.linux_tool(
+            target, "videoExecutable", "videoSha256", "video capture")
+        environment = self.runtime_environment(target, visual_driver=True)
+        replacements = {
+            "{display}": environment.get("DISPLAY", ""),
+            "{durationSeconds}": f"{duration_seconds:.3f}",
+            "{output}": str(destination),
+        }
+        arguments = []
+        for configured in target["videoArguments"]:
+            value = configured
+            for marker, replacement in replacements.items():
+                value = value.replace(marker, replacement)
+            if re.search(r"\{[A-Za-z][A-Za-z0-9]*\}", value):
+                fail("desktop video arguments contain an unsupported placeholder")
+            arguments.append(value)
+        result = subprocess.run(
+            [str(executable), *arguments], text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            timeout=duration_seconds + 30, check=False, env=environment,
+        )
+        if result.returncode != 0:
+            fail("desktop video capture failed")
+        content = destination.read_bytes() if destination.is_file() else b""
+        if len(content) < 16 or b"ftyp" not in content[:64]:
+            fail("desktop video capture did not create a valid MP4")
+
     def invoke(self, selector: str, operation: str, values: dict) -> dict:
         target = self.target(selector)
+        if operation == "app.install":
+            try:
+                arguments = validate_operation_arguments(operation, values)
+            except ValueError as error:
+                fail(str(error))
+            candidate = Path(arguments["path"])
+            executable = expanded_path(target["executable"])
+            if (not candidate.is_file() or candidate.is_symlink()
+                    or candidate.resolve() != executable):
+                fail("desktop app.install requires the configured in-place executable")
+            return {"installed": True}
         if operation == "app.launch":
             return self.launch(selector, target)
         state = self.read_state(selector)
@@ -963,13 +1083,38 @@ class DesktopAdapter:
             self.visual_action(target, "focus", {"processId": state["pid"]})
             return {"foreground": True}
         if operation == "probe.snapshot":
-            return read_fresh_json(self.probe_path(selector, target))
+            try:
+                arguments = validate_operation_arguments(operation, values)
+            except ValueError as error:
+                fail(str(error))
+            after_sequence = arguments.get("afterSampleSequence")
+            deadline = time.monotonic() + 15.0
+            while True:
+                snapshot = read_fresh_json(self.probe_path(selector, target))
+                sequence = snapshot.get("sampleSequence")
+                if (after_sequence is None
+                        or isinstance(sequence, int) and not isinstance(sequence, bool)
+                        and sequence > after_sequence):
+                    return snapshot
+                if time.monotonic() >= deadline:
+                    fail("desktop probe did not advance after the requested sample")
+                time.sleep(0.05)
         if operation == "scene.load":
             url = values.get("url")
             if not isinstance(url, str) or "://" not in url:
                 fail("scene.load requires an absolute URL")
             if state.get("initialSceneUrl") != url:
                 fail("desktop scene must be supplied at app.launch; live relaunch is forbidden")
+            if self.controlled_client(target):
+                command_id = "scene-" + uuid.uuid4().hex
+                self.write_client_command(selector, target, state, {
+                    "schemaVersion": 1,
+                    "commandId": command_id,
+                    "action": "scene-load",
+                    "url": url,
+                })
+                return {"requested": True, "commandId": command_id,
+                        "lifecycle": "same-process"}
             return {"requested": True, "lifecycle": "initial-process"}
         if operation == "input.look":
             horizontal = values.get("horizontal", 0.25)
@@ -1039,6 +1184,25 @@ class DesktopAdapter:
                 fail("OculiX did not create a non-empty requested screenshot")
             screenshot.chmod(0o600)
             return {"artifact": "screenshot.png"}
+        if operation == "artifact.video":
+            try:
+                arguments = validate_operation_arguments(operation, values)
+            except ValueError as error:
+                fail(str(error))
+            if not target.get("videoExecutable"):
+                fail("desktop target does not define an open-source video capture tool")
+            artifact_dir = os.environ.get("OVERTE_DEVICE_ARTIFACT_DIR")
+            if not artifact_dir:
+                fail("video operation requires an artifact directory")
+            directory = Path(artifact_dir).resolve()
+            directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+            video = directory / "screen-recording.mp4"
+            if video.is_symlink():
+                fail("video artifact destination is unsafe")
+            video.unlink(missing_ok=True)
+            self.capture_video(target, float(arguments["durationSeconds"]), video)
+            video.chmod(0o600)
+            return {"artifact": video.name}
         fail(f"unsupported operation: {operation}")
 
     def cleanup(self, selector: str) -> dict:

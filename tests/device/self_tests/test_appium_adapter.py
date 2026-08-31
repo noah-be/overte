@@ -326,6 +326,35 @@ class FakeXCUITest:
 
 
 class AppiumAdapterTests(unittest.TestCase):
+    def test_platform_adapter_ignores_stale_peer_platform_details(self) -> None:
+        android = {
+            "selector": "private-android", "displayName": "Android",
+            "platform": "android", "physical": False, "enabled": False,
+            "serverUrl": "http://127.0.0.1:4723", "appId": "org.overte.phone",
+            "capabilities": {
+                "platformName": "Android",
+                "appium:automationName": "UiAutomator2",
+            },
+        }
+        stale_android = {"selector": "stale-android", "platform": "android"}
+        stale_ios = {"selector": "stale-ios", "platform": "ios"}
+        with tempfile.TemporaryDirectory(prefix="overte-appium-platform-scope-") as name:
+            path = Path(name) / "targets.json"
+            path.write_text(json.dumps({
+                "schemaVersion": 1,
+                "targets": [ios_target(enabled=False), stale_android],
+            }), encoding="utf-8")
+            path.chmod(0o600)
+            with mock.patch.dict(os.environ, {"OVERTE_APPIUM_TARGETS": str(path)}):
+                self.assertEqual(["private-ipad"], list(APPIUM.AppiumAdapter("ios").targets))
+
+            path.write_text(json.dumps({
+                "schemaVersion": 1, "targets": [android, stale_ios],
+            }), encoding="utf-8")
+            with mock.patch.dict(os.environ, {"OVERTE_APPIUM_TARGETS": str(path)}):
+                self.assertEqual(
+                    ["private-android"], list(APPIUM.AppiumAdapter("android").targets))
+
     def test_ios_flat_touch_policy_is_complete_and_forbids_vr_controls(self) -> None:
         policy = APPIUM.json.loads((
             DEVICE_ROOT / "adapters/appium/ios-flat-touch-policy.json"
@@ -914,6 +943,8 @@ class AppiumAdapterTests(unittest.TestCase):
         support.operation = operation
         support.write_json = lambda _name, _value: None
         support.process_identity = lambda: identity
+        support.wait_for_process = lambda: identity
+        support.wait_for_process_stopped = lambda _identity: None
         support.assert_process = lambda expected, _label: self.assertEqual(identity, expected)
         support.assert_foreground = lambda _label: None
         common_spec = importlib.util.spec_from_file_location(

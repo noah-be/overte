@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "contractVersion": 1,
+  "cleanupAction": "cleanup",
+  "requiredCapabilities": [
+    "app.install",
+    "app.launch",
+    "app.process",
+    "artifact.screenshot",
+    "artifact.video",
+    "input.look",
+    "input.move",
+    "probe.snapshot",
+    "scene.load",
+    "tablet.close",
+    "tablet.open"
+  ],
+  "platforms": {
+    "android": "adapters/appium/android.json",
+    "ios": "adapters/appium/ios.json",
+    "linux": "adapters/desktop_oculix/linux.json",
+    "macos": "adapters/desktop_oculix/macos.json",
+    "pico": "adapters/android/pico.json",
+    "windows": "adapters/desktop_oculix/windows.json"
+  }
+}

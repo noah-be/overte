@@ -57,7 +57,7 @@ class ToolchainLockTest(unittest.TestCase):
 
     def test_repository_lock_is_valid_and_complete(self):
         artifacts = validate_lock()
-        self.assertEqual(78, len(artifacts))
+        self.assertEqual(81, len(artifacts))
         self.assertIn("jenkins.plugins.configuration-as-code", artifacts)
         self.assertIn("jenkins.plugins.git", artifacts)
         self.assertIn("appium.iosRuntime.remoteXpc", artifacts)

@@ -166,6 +166,7 @@ class WebDriver:
 
 class AppiumAdapter:
     ANDROID_DEBUG_PROBE = "files/overte-e2e/overte-probe.json"
+    ANDROID_CLIENT_COMMAND = "files/overte-e2e/android-control-command.json"
     IOS_TEST_BUILD_CONTRACT = "overte-ios-e2e-v1"
     IOS_TEST_BUILD_PLIST_KEY = "OverteE2ETestBuildContractVersion"
     IOS_WDA_VERSION_PLIST_KEY = "OverteE2EWebDriverAgentVersion"
@@ -230,12 +231,19 @@ class AppiumAdapter:
         if payload.get("schemaVersion") != 1 or not isinstance(entries, list):
             fail("unsupported Appium target configuration schema")
         targets: dict[str, dict] = {}
+        selectors: set[str] = set()
         for entry in entries:
             if not isinstance(entry, dict) or entry.get("platform") not in {"android", "ios"}:
                 fail("Appium target configuration contains an invalid target")
             selector = entry.get("selector")
-            if not isinstance(selector, str) or not selector or selector in targets:
+            if not isinstance(selector, str) or not selector or selector in selectors:
                 fail("Appium target selectors must be unique non-empty strings")
+            selectors.add(selector)
+            # Android and iOS have deliberately separate adapter processes.
+            # A stale or temporarily unprovisioned peer-platform entry must
+            # not prevent the selected platform from discovering its target.
+            if entry["platform"] != self.platform:
+                continue
             if not isinstance(entry.get("capabilities"), dict) or not entry["capabilities"]:
                 fail("Appium target requires W3C capabilities")
             if (not isinstance(entry.get("serverUrl"), str) or not entry["serverUrl"]
@@ -248,6 +256,8 @@ class AppiumAdapter:
             for section in ("process", "scene", "controls", "probe", "background"):
                 if not isinstance(entry.get(section, {}), dict):
                     fail(f"Appium target {section} must be an object")
+            if not isinstance(entry.get("clientControl", {}), dict):
+                fail("Appium target clientControl must be an object")
             if "iosSessionBootstrap" in entry:
                 fail("iosSessionBootstrap is obsolete with the immutable r12 XCTest keeper")
             if not isinstance(entry.get("soundControl", {}), dict):
@@ -301,6 +311,15 @@ class AppiumAdapter:
                     and probe != {"kind": "android-run-as",
                                   "relativePath": self.ANDROID_DEBUG_PROBE}):
                 fail("physical Android debug E2E targets require the app-private run-as probe")
+            client_control = entry.get("clientControl", {})
+            if client_control and (entry["platform"] != "android"
+                    or client_control != {"kind": "android-run-as-command",
+                                          "relativePath": self.ANDROID_CLIENT_COMMAND}
+                    or scene != {"kind": "android-debug-e2e"}
+                    or probe != {"kind": "android-run-as",
+                                 "relativePath": self.ANDROID_DEBUG_PROBE}
+                    or process.get("kind") != "adb"):
+                fail("Android clientControl requires the fixed controlled debug-build channel")
             if entry["platform"] == "ios":
                 if entry.get("physical") is not True:
                     fail("iOS Appium targets must select a physical device")
@@ -316,7 +335,7 @@ class AppiumAdapter:
             elif entry.get("soundControl"):
                 fail("soundControl is supported only by iOS Appium targets")
             targets[selector] = entry
-        return {key: value for key, value in targets.items() if value["platform"] == self.platform}
+        return targets
 
     @staticmethod
     def normalized_http_origin(value: object, label: str) -> str:
@@ -748,10 +767,25 @@ class AppiumAdapter:
         if target.get("enabled", True) and tablet != cls.IOS_TABLET_IDENTIFIERS:
             fail("enabled iOS tablet automation requires the stable Overte identifiers")
 
-    @staticmethod
-    def advertised_capabilities(target: dict) -> list[str]:
+    @classmethod
+    def controlled_android_client(cls, target: dict) -> bool:
+        return (target.get("platform") == "android"
+                and target.get("physical") is True
+                and target.get("scene") == {"kind": "android-debug-e2e"}
+                and target.get("probe") == {"kind": "android-run-as",
+                                             "relativePath": cls.ANDROID_DEBUG_PROBE}
+                and target.get("process", {}).get("kind") == "adb"
+                and target.get("clientControl") == {
+                    "kind": "android-run-as-command",
+                    "relativePath": cls.ANDROID_CLIENT_COMMAND,
+                })
+
+    @classmethod
+    def advertised_capabilities(cls, target: dict) -> list[str]:
         values = ["accessibility.snapshot", "app.foreground", "app.launch",
-                  "artifact.screenshot"]
+                  "artifact.screenshot", "artifact.video"]
+        if target["platform"] == "android" or target.get("_artifactMode") == "signed-ipa":
+            values.append("app.install")
         if target["platform"] == "android":
             values.append("lifecycle.background")
         process = target.get("process", {})
@@ -759,6 +793,8 @@ class AppiumAdapter:
             values.append("app.process")
         if target["platform"] == "android" and process.get("kind") == "adb":
             values.append("telemetry.snapshot")
+        if cls.controlled_android_client(target):
+            values += ["asset.load", "navigation.enter-domain", "sound.play"]
         if (target["platform"] == "ios"
                 and target.get("soundControl") == {"kind": "fixture-http",
                                                     "commandPath": "/sound-command.json"}
@@ -792,6 +828,70 @@ class AppiumAdapter:
             if target["platform"] == "ios" and target.get("testBuild"):
                 values += ["tablet.activate", "tablet.snapshot"]
         return sorted(values)
+
+    @staticmethod
+    def artifact_path(filename: str) -> Path:
+        root = os.environ.get("OVERTE_DEVICE_ARTIFACT_DIR")
+        if not root:
+            fail("artifact capture requires OVERTE_DEVICE_ARTIFACT_DIR")
+        directory = Path(root).resolve()
+        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        destination = directory / filename
+        if destination.parent != directory or destination.is_symlink():
+            fail("artifact destination is unsafe")
+        destination.unlink(missing_ok=True)
+        return destination
+
+    def install_artifact(self, target: dict, values: dict) -> dict:
+        try:
+            arguments = validate_operation_arguments("app.install", values)
+        except ValueError as error:
+            fail(str(error))
+        artifact = Path(arguments["path"])
+        if not artifact.is_file() or artifact.is_symlink():
+            fail("app.install requires an existing regular artifact")
+        artifact = artifact.resolve()
+        if self.platform == "android":
+            device = target["capabilities"].get("appium:udid")
+            if not isinstance(device, str) or not device or device.startswith("REPLACE_"):
+                fail("Android installation requires a private device selector")
+            from android.common.device_tests.adb_transport import AdbTransport
+            adb = AdbTransport()
+            adb.require_connected(device)
+            adb.execute(
+                ["install", "-r", "-g", str(artifact)], target=device, timeout=180)
+            return {"installed": True}
+        if target.get("_artifactMode") != "signed-ipa":
+            fail("iOS automatic installation requires a receipt-bound signed IPA")
+        configured = target["capabilities"].get("appium:app")
+        if not isinstance(configured, str) or artifact != Path(configured).resolve():
+            fail("iOS app.install artifact does not match the receipt-bound candidate")
+        self.validate_ios_artifact_receipt(target, hash_files=True)
+        self.install_receipt_bound_ios_apps(target)
+        return {"installed": True}
+
+    def capture_video(self, client: WebDriver, session: str,
+                      duration_seconds: float) -> dict:
+        client.call(
+            "POST", f"/session/{session}/appium/start_recording_screen",
+            {"options": {"timeLimit": str(int(math.ceil(duration_seconds)))}})
+        try:
+            time.sleep(duration_seconds)
+        finally:
+            encoded = client.call(
+                "POST", f"/session/{session}/appium/stop_recording_screen", {})
+        if not isinstance(encoded, str):
+            fail("Appium screen recording did not return base64 content")
+        try:
+            content = base64.b64decode(encoded, validate=True)
+        except ValueError:
+            fail("Appium screen recording is not valid base64")
+        if len(content) < 16 or b"ftyp" not in content[:64]:
+            fail("Appium screen recording is not a valid MP4")
+        destination = self.artifact_path("screen-recording.mp4")
+        destination.write_bytes(content)
+        destination.chmod(0o600)
+        return {"artifact": destination.name}
 
     @staticmethod
     def validate_fractional_point(value: object, label: str) -> list[float]:
@@ -1724,6 +1824,95 @@ class AppiumAdapter:
         return {"running": True, "identity": identity}
 
     @staticmethod
+    def controlled_http_url(value: str, label: str) -> tuple[str, str, int | None]:
+        parsed = urlsplit(value)
+        try:
+            port = parsed.port
+        except ValueError:
+            fail(f"{label} has an invalid port")
+        if (parsed.scheme not in {"http", "https"} or not parsed.hostname
+                or parsed.username is not None or parsed.password is not None
+                or parsed.fragment):
+            fail(f"{label} must be an absolute credential-free HTTP(S) URL")
+        return parsed.scheme, parsed.hostname.lower(), port
+
+    def android_client_identity(self, client: WebDriver, session: str,
+                                target: dict) -> dict:
+        if not self.controlled_android_client(target):
+            fail("Android operation requires the controlled app-private client channel")
+        if self.query_app_state(client, session, target) != 4:
+            fail("Android client must remain foregrounded for the in-client command")
+        process = target["process"]
+        device = process.get("selector") or target["capabilities"].get("appium:udid")
+        if not isinstance(device, str) or not device or device.startswith("REPLACE_"):
+            fail("Android client command requires a private ADB device selector")
+        from android.common.device_tests.adb_transport import AdbTransport
+        adb = AdbTransport()
+        adb.require_connected(device)
+        before = adb.process_state(device, target["appId"])
+        if before.get("running") is not True or not isinstance(before.get("identity"), str):
+            fail("Android client process is not running before the in-client command")
+        return before
+
+    def write_android_client_command(self, client: WebDriver, session: str,
+                                     target: dict, command: dict,
+                                     expected_process: dict | None = None) -> None:
+        before = self.android_client_identity(client, session, target)
+        if expected_process is not None and before != expected_process:
+            fail("Android client process changed before the in-client command")
+        process = target["process"]
+        device = process.get("selector") or target["capabilities"].get("appium:udid")
+        from android.common.device_tests.adb_transport import AdbTransport
+        adb = AdbTransport()
+        adb.write_debug_app_file(
+            device, target["appId"], self.ANDROID_CLIENT_COMMAND,
+            json.dumps(command, sort_keys=True, separators=(",", ":")) + "\n")
+        if self.query_app_state(client, session, target) != 4:
+            fail("Android client left the foreground while delivering the in-client command")
+        if adb.process_state(device, target["appId"]) != before:
+            fail("Android client process changed while delivering the in-client command")
+
+    def request_android_sound(self, client: WebDriver, session: str,
+                              target: dict, values: dict) -> dict:
+        sound_origin = self.controlled_http_url(values["url"], "sound.play url")
+        command_origin = self.controlled_http_url(
+            values["commandUrl"], "sound.play commandUrl")
+        command_url = urlsplit(values["commandUrl"])
+        if (sound_origin != command_origin or command_url.path != "/sound-command.json"
+                or command_url.query):
+            fail("sound.play URLs must use the same controlled fixture origin and command path")
+        payload = {"schemaVersion": 1, "commandId": values["commandId"],
+                   "action": "play", "soundUrl": values["url"]}
+        expected_process = self.android_client_identity(client, session, target)
+        request = Request(values["commandUrl"],
+                          data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
+                          headers={"Content-Type": "application/json"}, method="POST")
+        try:
+            with urlopen(request, timeout=5) as response:
+                encoded = response.read(4097)
+                if response.status != 200:
+                    fail("controlled fixture rejected the sound command")
+        except HTTPError as error:
+            fail(f"controlled fixture rejected the sound command with HTTP {error.code}")
+        except (URLError, OSError):
+            fail("controlled fixture sound command endpoint is unavailable")
+        if len(encoded) > 4096:
+            fail("controlled fixture returned an oversized sound response")
+        try:
+            accepted = json.loads(encoded)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            fail("controlled fixture returned an invalid sound response")
+        if accepted != payload:
+            fail("controlled fixture did not acknowledge the exact sound command")
+        self.write_android_client_command(client, session, target, {
+            "schemaVersion": 1,
+            "commandId": "sound-channel-" + values["commandId"],
+            "action": "sound-channel",
+            "commandUrl": values["commandUrl"],
+        }, expected_process)
+        return {"requested": True, "commandId": values["commandId"]}
+
+    @staticmethod
     def start_android_e2e(client: WebDriver, session: str, target: dict) -> None:
         component = f"{target['appId']}/.E2eLauncherActivity"
         client.execute(session, "mobile: startActivity", {
@@ -1790,16 +1979,41 @@ class AppiumAdapter:
 
     def invoke(self, selector: str, operation: str, values: dict) -> dict:
         target = self.target(selector)
+        if operation == "app.install":
+            return self.install_artifact(target, values)
         client, session, state = self.ensure_session(selector)
-        if operation == "sound.play":
+        if operation in {"navigation.enter-domain", "asset.load", "sound.play"}:
             try:
                 arguments = validate_operation_arguments(operation, values)
             except ValueError as error:
                 fail(str(error))
-            if self.platform != "ios":
-                fail("sound.play is unavailable on this Appium platform")
-            return self.request_ios_sound(
-                selector, client, session, state, target, arguments)
+            if self.platform == "ios" and operation == "sound.play":
+                return self.request_ios_sound(
+                    selector, client, session, state, target, arguments)
+            if self.platform != "android" or not self.controlled_android_client(target):
+                fail("Appium target has no controlled client channel for this operation")
+            if operation == "navigation.enter-domain":
+                self.write_android_client_command(client, session, target, {
+                    "schemaVersion": 1,
+                    "commandId": "navigation-" + uuid.uuid4().hex,
+                    "action": "enter-domain",
+                    "url": arguments["url"],
+                })
+                return {"requested": True}
+            if operation == "asset.load":
+                command_id = "asset-" + hashlib.sha256(json.dumps(
+                    arguments, sort_keys=True,
+                    separators=(",", ":")).encode()).hexdigest()[:24]
+                self.write_android_client_command(client, session, target, {
+                    "schemaVersion": 1,
+                    "commandId": command_id,
+                    "action": "load-asset",
+                    "assetId": arguments["assetId"],
+                    "url": arguments["url"],
+                    "entityName": arguments["entityName"],
+                })
+                return {"requested": True, "assetId": arguments["assetId"]}
+            return self.request_android_sound(client, session, target, arguments)
         if operation == "app.launch":
             if self.platform == "android" and target.get("scene", {}).get("kind") == "android-debug-e2e":
                 if self.query_app_state(client, session, target) >= 2:
@@ -1881,8 +2095,7 @@ class AppiumAdapter:
                 selector, client, session, state, target, values)
         if operation == "artifact.screenshot":
             encoded = client.call("GET", f"/session/{session}/screenshot")
-            artifact_dir = os.environ.get("OVERTE_DEVICE_ARTIFACT_DIR")
-            if not isinstance(encoded, str) or not artifact_dir:
+            if not isinstance(encoded, str):
                 fail("screenshot operation requires an artifact directory")
             try:
                 content = base64.b64decode(encoded, validate=True)
@@ -1890,11 +2103,17 @@ class AppiumAdapter:
                 fail("Appium screenshot is not valid base64")
             if not content:
                 fail("Appium screenshot is empty")
-            destination = Path(artifact_dir) / "screenshot.png"
-            destination.unlink(missing_ok=True)
+            destination = self.artifact_path("screenshot.png")
             destination.write_bytes(content)
             destination.chmod(0o600)
             return {"artifact": destination.name}
+        if operation == "artifact.video":
+            try:
+                arguments = validate_operation_arguments(operation, values)
+            except ValueError as error:
+                fail(str(error))
+            return self.capture_video(
+                client, session, float(arguments["durationSeconds"]))
         controls = target.get("controls", {})
         if operation == "input.look":
             if self.platform == "ios":

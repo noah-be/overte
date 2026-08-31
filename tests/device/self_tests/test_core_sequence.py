@@ -58,12 +58,13 @@ class CoreSequenceTest(unittest.TestCase):
         self.assertNotIn("MyAvatar.goToLocation", probe)
         self.assertNotIn("MyAvatar.position =", probe)
         self.assertNotIn("MyAvatar.velocity =", probe)
-        self.assertNotIn("applySceneLocation", probe)
-        self.assertNotIn("controlledSceneLocation", probe)
-        self.assertNotIn("Window.location = scenePath", probe)
+        self.assertIn("applySceneLocation", probe)
+        self.assertIn("controlledSceneLocation", probe)
+        self.assertIn("Window.location = scenePath", probe)
         scene_load = probe.split('command.action === "scene-load"', 1)[1].split(
             'command.action === "navigate"', 1)[0]
-        self.assertEqual(1, scene_load.count("Window.location = command.url"))
+        self.assertEqual(0, scene_load.count("Window.location = command.url"))
+        self.assertEqual(1, scene_load.count("Window.location = scenePath"))
         self.assertIn("spawnLocationObserved: avatarAtSpawn", probe)
         self.assertIn("return Boolean(tablet.tabletShown || HMD.showTablet)", probe)
         self.assertIn('(name === "tablet" || !controlledTabletOpen())', probe)
@@ -80,6 +81,9 @@ class CoreSequenceTest(unittest.TestCase):
         reset = probe.split("function resetSceneObservation()", 1)[1].split("}", 1)[0]
         self.assertIn("flightNormalizationAllowed = true;", reset)
         self.assertIn("flightNormalizationStableSamples = 0;", reset)
+        reload_scene = probe.split("function reloadControlledScene", 1)[1].split("}", 1)[0]
+        self.assertIn("resetSceneObservation();", reload_scene)
+        self.assertIn("Window.location = baseAddress", reload_scene)
         reapply = probe.split("function applySceneLocation", 1)[1].split("}", 1)[0]
         self.assertIn("resetSceneObservation();", reapply)
         self.assertIn("!avatarAtExpectedSpawn()", reapply)

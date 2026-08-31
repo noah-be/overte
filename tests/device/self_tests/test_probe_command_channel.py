@@ -71,9 +71,9 @@ class ProbeCommandChannelTest(unittest.TestCase):
         self.assertIn("connected: !serverless && Boolean(location.isConnected)",
                       self.source)
         self.assertIn("Window.location = command.url", self.source)
-        self.assertNotIn("controlledSceneLocation(command.url)", self.source)
-        self.assertNotIn("Window.location = scenePath", self.source)
-        self.assertNotIn("applySceneLocation", self.source)
+        self.assertIn("controlledSceneLocation(command.url)", self.source)
+        self.assertIn("Window.location = scenePath", self.source)
+        self.assertIn("applySceneLocation", self.source)
         self.assertIn("resetSceneObservation()", self.source)
         self.assertIn("controlledAssetEntity = Entities.addEntity({", self.source)
         self.assertIn("soundCommandUrl = String(command.url)", self.source)

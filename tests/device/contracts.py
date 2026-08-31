@@ -242,6 +242,17 @@ def validate_operation_arguments(operation: str, value: object) -> dict:
     elif operation == "app.crash":
         if value != {"mode": "abort"}:
             raise ValueError("app.crash requires only mode: abort")
+    elif operation == "app.install":
+        if set(value) != {"path"}:
+            raise ValueError("app.install requires only path")
+        path = value.get("path")
+        if (not isinstance(path, str) or not path or "\x00" in path
+                or not Path(path).is_absolute()):
+            raise ValueError("app.install path must be an absolute NUL-free path")
+    elif operation == "artifact.video":
+        if set(value) != {"durationSeconds"}:
+            raise ValueError("artifact.video requires only durationSeconds")
+        _bounded_number(value["durationSeconds"], "artifact.video durationSeconds", 1.0, 30.0)
     elif operation == "app.upgrade":
         if set(value) != {"fromVersion", "toVersion"}:
             raise ValueError("app.upgrade requires only fromVersion and toVersion")
@@ -436,6 +447,16 @@ def validate_operation_result(operation: str, value: object) -> dict:
         if value != {"applied": True}:
             raise ValueError("app.upgrade result must be exactly applied: true")
         return value
+    if operation == "app.install":
+        if value != {"installed": True}:
+            raise ValueError("app.install result must be exactly installed: true")
+        return value
+    if operation in {"artifact.screenshot", "artifact.video"}:
+        if (set(value) != {"artifact"} or not isinstance(value.get("artifact"), str)
+                or not value["artifact"] or "/" in value["artifact"]
+                or "\\" in value["artifact"] or "\x00" in value["artifact"]):
+            raise ValueError(f"{operation} result must identify one safe artifact filename")
+        return value
     confirmation = {
         "app.launch": "launched",
         "app.stop": "stopped",
@@ -511,6 +532,8 @@ def validate_probe_snapshot(value: object) -> dict:
     }
     if "controller" in value:
         root_fields.add("controller")
+    if "control" in value:
+        root_fields.add("control")
     if "interaction" in value:
         root_fields.add("interaction")
     if "peer" in value:
@@ -548,6 +571,19 @@ def validate_probe_snapshot(value: object) -> dict:
     if (not isinstance(application.get("running"), bool)
             or not isinstance(application.get("foreground"), bool)):
         raise ValueError("probe application requires running and foreground booleans")
+
+    control = value.get("control")
+    if control is not None:
+        if not isinstance(control, dict):
+            raise ValueError("probe control must be an object or null")
+        _require_exact_fields(
+            control, {"channel", "lastCommandId", "probe", "schemaVersion"},
+            "probe control")
+        if (control.get("schemaVersion") != 1
+                or control.get("channel") != "android-debug-file-v1"
+                or control.get("probe") != "overte_e2e_probe.js"
+                or not isinstance(control.get("lastCommandId"), str)):
+            raise ValueError("probe control has an invalid Android debug contract")
 
     domain = value["domain"]
     _require_exact_fields(
@@ -607,10 +643,15 @@ def validate_probe_snapshot(value: object) -> dict:
             raise ValueError("probe collision wall dimensions must be positive")
 
     avatar = value["avatar"]
-    _require_exact_fields(avatar, {
+    avatar_fields = {
         "bodyYawDegrees", "flying", "flyingEnabled", "inAir", "position", "velocity",
-    }, "probe avatar")
+    }
+    if "feetPosition" in avatar:
+        avatar_fields.add("feetPosition")
+    _require_exact_fields(avatar, avatar_fields, "probe avatar")
     _validate_vector(avatar.get("position"), "probe avatar.position")
+    if "feetPosition" in avatar:
+        _validate_vector(avatar.get("feetPosition"), "probe avatar.feetPosition")
     _validate_vector(avatar.get("velocity"), "probe avatar.velocity")
     _finite_number(avatar.get("bodyYawDegrees"), "probe avatar.bodyYawDegrees")
     for field in ("inAir", "flying", "flyingEnabled"):

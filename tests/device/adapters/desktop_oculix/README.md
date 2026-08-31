@@ -74,23 +74,14 @@ address are not inherited.
 
 Only this owned X11 session may use the configured, SHA-256-pinned `xdotool`.
 ImageMagick captures the resolved Overte window into a mode-0600 artifact.
-Headless look uses a bounded right-button drag, movement uses one bounded
-atomic key hold, and tablet open/close use probe-gated 50 ms Tab presses matching
-`Actions.ContextMenu`; every held button or key is released in `finally`.
-Keyboard events are global XTEST events after PID-scoped
-`windowactivate --sync`; raw `windowfocus`/XSetInputFocus is forbidden because
-it bypasses the window manager activation contract.
-`xdotool --window` is intentionally forbidden for keyboard events because its
-XSendEvent path is not equivalent to real keyboard input for Qt/Overte. A
-bounded 350 ms settle after the activation acknowledgement lets Qt receive the
-activation event before the first global input event. Each press is one atomic xdotool command
-chain (`keydown`, bounded `sleep`, `keyup`) so one X connection retains the
-synthetic keyboard state for the whole press; the adapter timeout is two
-seconds longer than the already validated press duration.
-Tablet toggles stop as soon as the probe observes the requested state.  At
-most three pulses are allowed within five seconds; a retry reactivates the
-exact PID window and normalizes a possibly lost release with global `keyup`
-before the next bounded press.
+Headless look uses a bounded right-button drag on the exact PID-owned X11
+window. Movement and tablet open/close use the fixture's strict, same-origin
+`key-hold` command and the probe's allowlisted `Controller.Actions` mapping.
+This avoids layout-dependent XTEST key translation while still requiring the
+real Overte movement/tablet effects; commands cannot set avatar or UI state
+directly and every hold is timer-released. PID-scoped `windowactivate --sync`
+remains mandatory before pointer input. Raw `windowfocus`/XSetInputFocus and
+`xdotool --window` keyboard injection remain forbidden.
 Mutter, Xwayland, `dbus-run-session`, `dbus-daemon`, Python, `glxinfo`, `xrandr`,
 `xdotool`, and ImageMagick must have absolute paths and verified digests in the private
 target file. Headless execution is GPU-only; a software renderer is an
@@ -109,6 +100,13 @@ open-source OpenJDK 17 or newer, and configure the executable inside a macOS
 application bundle, for example
 `/Applications/Overte.app/Contents/MacOS/Overte`, rather than the `.app`
 directory.
+
+Portable-baseline targets additionally pin an open-source FFmpeg executable
+and arguments containing `{durationSeconds}` and `{output}`. Use `x11grab` on
+the private Linux display, `gdigrab` on Windows, and the audited AVFoundation
+screen input on macOS. The adapter rejects unknown placeholders and accepts
+only a non-empty MP4 containing an `ftyp` header. OculiX supplies the scoped
+window screenshot on Windows/macOS; private Linux uses ImageMagick.
 
 On macOS, run Jenkins as a LaunchAgent of the logged-in lab user, grant
 Accessibility and Screen Recording to the stable Java/agent paths, and define

@@ -17,6 +17,7 @@
     "multi-user-smoke": {"artifacts": [], "fixture": "domain", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "extended"},
     "network-fault-recovery": {"artifacts": [], "fixture": "domain", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "extended"},
     "permission-recovery": {"artifacts": [], "fixture": "none", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "extended"},
+    "portable-smoke": {"artifacts": [], "fixture": "scene", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "smoke"},
     "render-health": {"artifacts": [], "fixture": "scene", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "smoke"},
     "scripted-entity-smoke": {"artifacts": [], "fixture": "scene", "requiredEnvironment": [], "session": "reusable", "tabletPolicy": false, "tier": "extended"},
     "settings-persistence": {"artifacts": [], "fixture": "none", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "extended"},

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 from pathlib import Path
 import sys
@@ -109,7 +110,8 @@ class AndroidAdapter:
                 and "feature:android.hardware.touchscreen" in features)
 
     def capabilities(self, target: str | None = None) -> list[str]:
-        values = ["app.foreground", "app.launch", "app.process",
+        values = ["app.foreground", "app.install", "app.launch", "app.process",
+                  "artifact.screenshot", "artifact.video",
                   "lifecycle.background", "telemetry.snapshot"]
         if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") == "1":
             # Discovery happens once, before the suite's launch-smoke module
@@ -513,6 +515,47 @@ class AndroidAdapter:
             "sdk": self.adb.prop(target, "ro.build.version.sdk") or None,
         }
 
+    @staticmethod
+    def artifact_path(filename: str) -> Path:
+        root = os.environ.get("OVERTE_DEVICE_ARTIFACT_DIR")
+        if not root:
+            fail("artifact capture requires OVERTE_DEVICE_ARTIFACT_DIR")
+        directory = Path(root).resolve()
+        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        destination = directory / filename
+        if destination.parent != directory or destination.is_symlink():
+            fail("artifact destination is unsafe")
+        destination.unlink(missing_ok=True)
+        return destination
+
+    def capture_screenshot(self, target: str) -> dict:
+        content = self.adb.execute_bytes(
+            ["exec-out", "screencap", "-p"], target=target, timeout=30)
+        if not content.startswith(b"\x89PNG\r\n\x1a\n"):
+            fail("Android screenshot is not a PNG")
+        destination = self.artifact_path("screenshot.png")
+        destination.write_bytes(content)
+        destination.chmod(0o600)
+        return {"artifact": destination.name}
+
+    def capture_video(self, target: str, duration_seconds: float) -> dict:
+        seconds = int(math.ceil(duration_seconds))
+        remote = "/data/local/tmp/overte-e2e-screen.mp4"
+        self.adb.shell(target, "rm", "-f", remote, check=False)
+        try:
+            self.adb.shell(
+                target, "screenrecord", "--time-limit", str(seconds), remote)
+            content = self.adb.execute_bytes(
+                ["exec-out", "cat", remote], target=target, timeout=30)
+        finally:
+            self.adb.shell(target, "rm", "-f", remote, check=False)
+        if len(content) < 16 or b"ftyp" not in content[:64]:
+            fail("Android screen recording is not a valid MP4")
+        destination = self.artifact_path("screen-recording.mp4")
+        destination.write_bytes(content)
+        destination.chmod(0o600)
+        return {"artifact": destination.name}
+
     def invoke(self, target: str, operation: str, values: dict) -> dict:
         pico_probe_identity = None
         if (self.kind == "pico" and pico_openxr_opted_in()
@@ -568,12 +611,27 @@ class AndroidAdapter:
             self.require_same_process(target, identity, operation)
             return {"requested": True, "commandId": values["commandId"]}
         if operation == "app.install":
+            try:
+                values = validate_operation_arguments(operation, values)
+            except ValueError as error:
+                fail(str(error))
             apk = values.get("path")
-            if not isinstance(apk, str) or not Path(apk).is_file():
-                fail("app.install requires an existing APK path")
+            if (not isinstance(apk, str) or not Path(apk).is_file()
+                    or Path(apk).is_symlink()):
+                fail("app.install requires an existing regular APK path")
             arguments = ["install", "-r", "-g"]
             self.adb.execute([*arguments, str(Path(apk).resolve())], target=target, timeout=180)
             return {"installed": True}
+        if operation == "artifact.screenshot":
+            if values:
+                fail("artifact.screenshot does not accept arguments")
+            return self.capture_screenshot(target)
+        if operation == "artifact.video":
+            try:
+                values = validate_operation_arguments(operation, values)
+            except ValueError as error:
+                fail(str(error))
+            return self.capture_video(target, float(values["durationSeconds"]))
         if operation == "app.launch":
             if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") == "1":
                 # The controlled-suite bootstrap has already started and

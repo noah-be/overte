@@ -8,11 +8,8 @@ from overte_session import OverteSession
 
 
 def main() -> None:
-    session = OverteSession()
-    snapshot = session.ensure_controlled_scene()
-    samples = session.verify_pico_fixture(snapshot)
-    print(f"Controlled scene became ready with {snapshot['scene']['entityCount']} entities "
-          f"and {len(samples)} stable sample(s).")
+    snapshot = OverteSession().ensure_controlled_scene()
+    print(f"Controlled scene became ready with {snapshot['scene']['entityCount']} entities.")
 
 
 module_main(main)

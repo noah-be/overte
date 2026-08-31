@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "scene": "scene.json",
-  "spawnPath": "/0,0,4/0,0,0,1",
-  "spawnPosition": {"x": 0, "y": 0, "z": 4},
+  "spawnPath": "/0,2,4/0,0,0,1",
+  "spawnPosition": {"x": 0, "y": 2, "z": 4},
   "minimumFloorThickness": 4.0,
   "expectedEntityCount": 6,
   "requiredMarkers": [

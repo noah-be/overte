@@ -12,7 +12,8 @@ REQUIRED = {
     "acceptance-policy": 1, "adapter-manifest": 1, "artifact-manifest": 1,
     "capability-registry": 1, "execution-plan": 1, "execution-profiles": 1,
     "fixture-environment": 1, "matrix-summary": 1,
-    "probe-snapshot": 2, "run-manifest": 1, "run-summary": 1, "timeline": 1,
+    "platform-adapters": 1, "probe-snapshot": 2, "run-manifest": 1,
+    "run-summary": 1, "timeline": 1,
 }
 
 
@@ -57,6 +58,9 @@ def main() -> int:
         "matrix-summary": json.loads(
             (root / "schemas/matrix-summary.schema.json").read_text(encoding="utf-8"))[
                 "properties"]["schemaVersion"]["const"],
+        "platform-adapters": json.loads(
+            (root / "platform-adapters.json").read_text(encoding="utf-8"))[
+                "contractVersion"],
         "probe-snapshot": json.loads(
             (root / "schemas/probe-snapshot.schema.json").read_text(encoding="utf-8"))[
                 "properties"]["schemaVersion"]["const"],
@@ -64,6 +68,24 @@ def main() -> int:
     for name, version in observed.items():
         if value["contracts"][name]["current"] != version:
             raise ValueError(f"contract {name} registry and producer version disagree")
+    routing = json.loads(
+        (root / "platform-adapters.json").read_text(encoding="utf-8"))
+    platforms = routing.get("platforms")
+    if (not isinstance(platforms, dict)
+            or set(platforms) != {"android", "ios", "linux", "macos", "pico", "windows"}
+            or routing.get("cleanupAction") != "cleanup"):
+        raise ValueError("platform adapter routing is incomplete")
+    for platform, relative in platforms.items():
+        if not isinstance(relative, str):
+            raise ValueError(f"platform adapter route {platform} is invalid")
+        manifest_path = (root / relative).resolve()
+        if root.resolve() not in manifest_path.parents or not manifest_path.is_file():
+            raise ValueError(f"platform adapter route {platform} escapes or is missing")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if (manifest.get("schemaVersion") != 1
+                or not isinstance(manifest.get("id"), str)
+                or not isinstance(manifest.get("command"), list)):
+            raise ValueError(f"platform adapter route {platform} has an invalid manifest")
     print("PASS: contract versions and migration rules are coherent")
     return 0
 

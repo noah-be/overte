@@ -2,6 +2,47 @@
   "schemaVersion": 1,
   "targets": [
     {
+      "selector": "android-phone-01",
+      "displayName": "Android Phone 01",
+      "platform": "android",
+      "physical": true,
+      "enabled": false,
+      "serverUrl": "http://127.0.0.1:4723",
+      "appId": "org.overte.phone",
+      "capabilities": {
+        "platformName": "Android",
+        "appium:automationName": "UiAutomator2",
+        "appium:udid": "REPLACE_WITH_PRIVATE_UDID",
+        "appium:appPackage": "org.overte.phone",
+        "appium:autoGrantPermissions": true,
+        "appium:autoLaunch": false,
+        "appium:noReset": true
+      },
+      "process": {"kind": "adb"},
+      "scene": {"kind": "android-debug-e2e"},
+      "controls": {
+        "look": {"start": [0.75, 0.45], "end": [0.35, 0.45], "durationSeconds": 0.7},
+        "move": {
+          "backward": {"mode": "hold", "start": [0.086, 0.78], "end": [0.086, 0.96], "durationSeconds": 1.5},
+          "forward": {"mode": "hold", "start": [0.086, 0.78], "end": [0.086, 0.60], "durationSeconds": 1.5},
+          "left": {"mode": "hold", "start": [0.086, 0.78], "end": [0.01, 0.78], "durationSeconds": 1.5},
+          "right": {"mode": "hold", "start": [0.086, 0.78], "end": [0.20, 0.78], "durationSeconds": 1.5}
+        },
+        "tablet": {
+          "openPoint": [0.045, 0.25],
+          "closePoint": [0.5, 0.965]
+        }
+      },
+      "probe": {
+        "kind": "android-run-as",
+        "relativePath": "files/overte-e2e/overte-probe.json"
+      },
+      "clientControl": {
+        "kind": "android-run-as-command",
+        "relativePath": "files/overte-e2e/android-control-command.json"
+      }
+    },
+    {
       "selector": "ipad-01",
       "displayName": "iPad 01",
       "platform": "ios",
@@ -42,7 +83,10 @@
       "controls": {
         "look": {"start": [0.75, 0.45], "end": [0.35, 0.45], "durationSeconds": 0.7},
         "move": {
-          "forward": {"mode": "hold", "start": [0.2, 0.78], "end": [0.2, 0.55], "durationSeconds": 1.5}
+          "backward": {"mode": "hold", "start": [0.2, 0.78], "end": [0.2, 0.95], "durationSeconds": 1.5},
+          "forward": {"mode": "hold", "start": [0.2, 0.78], "end": [0.2, 0.55], "durationSeconds": 1.5},
+          "left": {"mode": "hold", "start": [0.2, 0.78], "end": [0.05, 0.78], "durationSeconds": 1.5},
+          "right": {"mode": "hold", "start": [0.2, 0.78], "end": [0.35, 0.78], "durationSeconds": 1.5}
         },
         "verticalLocomotion": {
           "jumpPoint": [0.9, 0.8],

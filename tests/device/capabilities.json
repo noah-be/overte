@@ -41,6 +41,10 @@
       "operation": "artifact.screenshot",
       "result": "{artifact: string}"
     },
+    "artifact.video": {
+      "operation": "artifact.video",
+      "result": "{artifact: string}; arguments: {durationSeconds: number from 1 through 30}"
+    },
     "asset.load": {
       "operation": "asset.load",
       "result": "{requested: true}; completion is verified independently by fixture telemetry and probe.snapshot"

@@ -4,13 +4,55 @@
 (function () {
     "use strict";
 
+    function reloadCommandIdFromAddress(address) {
+        var match = String(address).match(
+            /[?&]overteE2EReloadCommandId=([^&#]*)/);
+        if (!match) {
+            return "";
+        }
+        try {
+            return decodeURIComponent(match[1]);
+        } catch (error) {
+            return "";
+        }
+    }
+
+    function addressWithoutReloadCommand(address) {
+        var withoutFragment = String(address).split("#", 1)[0];
+        var queryStart = withoutFragment.indexOf("?");
+        if (queryStart === -1) {
+            return withoutFragment;
+        }
+        var path = withoutFragment.slice(0, queryStart);
+        var components = withoutFragment.slice(queryStart + 1).split("&");
+        var retained = [];
+        var index;
+        for (index = 0; index < components.length; index += 1) {
+            if (components[index]
+                    && components[index].indexOf("overteE2EReloadCommandId=") !== 0) {
+                retained.push(components[index]);
+            }
+        }
+        return path + (retained.length ? "?" + retained.join("&") : "");
+    }
+
     var tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
     var stableEntitySamples = 0;
     var previousEntityCount = -1;
     var stableAvatarSamples = 0;
     var previousAvatarPosition = null;
     var sceneReady = false;
+    var probeErrorCount = 0;
+    var lastProbeError = "";
+    var lastSampleEpochMs = 0;
+    var lastHeartbeatEpochMs = 0;
+    var sampleIntervalMs = 250;
+    var heartbeatIntervalMs = 5000;
     var previousLocationKey = "";
+    var androidControlEligible = String(About.platform).toLowerCase() === "android";
+    var androidControlAvailable = false;
+    var lastAndroidControlCommandId = reloadCommandIdFromAddress(location.href);
+    var androidAssetEntityId = null;
     var flightNormalizationAllowed = true;
     var flightNormalizationActive = false;
     var flightNormalizationStableSamples = 0;
@@ -25,7 +67,7 @@
     // Resolve while the script file is the active execution context. Timer
     // callbacks do not retain that source context on every script engine.
     var clientCommandFallbackUrl = String(Script.resolvePath("e2e-client-command.json"));
-    var clientCommandRequestPending = false;
+    var clientCommandRequest = null;
     var clientCommandUnavailable = false;
     var lastClientCommandId = "";
     var lastSceneCommandId = "";
@@ -43,7 +85,7 @@
         lastFlightStartY: null,
         lastFlightPeakY: null
     };
-    var soundCommandRequestPending = false;
+    var soundCommandRequest = null;
     // Network-loaded probes retain the fixture-relative fallback. A target
     // adapter's private probe copy can replace it through the narrow command
     // channel only after the fixture has accepted an exact sound command.
@@ -107,6 +149,14 @@
 
     function vector(value) {
         return { x: Number(value.x), y: Number(value.y), z: Number(value.z) };
+    }
+
+    function pendingVector(value) {
+        if (!value || !isFinite(Number(value.x)) || !isFinite(Number(value.y))
+                || !isFinite(Number(value.z))) {
+            return { x: 0.0, y: 0.0, z: 0.0 };
+        }
+        return vector(value);
     }
 
     function observeRenderedFrame() {
@@ -243,14 +293,29 @@
         return "failed";
     }
 
+    function appendAssetCandidate(candidates, id) {
+        if (id === null || id === undefined) {
+            return;
+        }
+        var index;
+        for (index = 0; index < candidates.length; index += 1) {
+            if (String(candidates[index]) === String(id)) {
+                return;
+            }
+        }
+        var identity = Entities.getEntityProperties(id, ["name"]);
+        if (String(identity.name).indexOf("OVERTE_E2E_ASSET_LOAD") === 0) {
+            candidates.push(id);
+        }
+    }
+
     function observeAsset(ids) {
         var candidates = [];
+        appendAssetCandidate(candidates, androidAssetEntityId);
+        appendAssetCandidate(candidates, controlledAssetEntity);
         var index;
         for (index = 0; index < ids.length; index += 1) {
-            var identity = Entities.getEntityProperties(ids[index], ["name"]);
-            if (String(identity.name).indexOf("OVERTE_E2E_ASSET_LOAD") === 0) {
-                candidates.push(ids[index]);
-            }
+            appendAssetCandidate(candidates, ids[index]);
         }
         if (candidates.length !== 1) {
             releaseAssetResource();
@@ -258,7 +323,7 @@
         }
         var id = candidates[0];
         var properties = Entities.getEntityProperties(id, [
-            "name", "type", "imageURL", "userData", "naturalDimensions"
+            "name", "type", "imageURL", "userData", "dimensions", "naturalDimensions"
         ]);
         var metadata;
         try {
@@ -271,6 +336,9 @@
         var imageURL = String(properties.imageURL);
         if (typeof assetId !== "string" || assetId.length === 0 || imageURL.length === 0) {
             releaseAssetResource();
+            return null;
+        }
+        if (!properties.naturalDimensions) {
             return null;
         }
         if (assetResource === null || assetResourceUrl !== imageURL) {
@@ -289,7 +357,7 @@
                 name: String(properties.name),
                 type: String(properties.type),
                 imageURL: imageURL,
-                naturalDimensions: vector(properties.naturalDimensions)
+                naturalDimensions: pendingVector(properties.naturalDimensions)
             }
         };
     }
@@ -432,7 +500,8 @@
             for (component = 0; component < components.length; component += 1) {
                 if (!/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/.test(components[component])
                         || !isFinite(Number(components[component]))
-                        || Math.abs(Number(components[component])) > (component < 3 ? 100000 : 1.01)) {
+                        || Math.abs(Number(components[component]))
+                        > (component < 3 ? 100000 : 1.01)) {
                     return "";
                 }
             }
@@ -456,6 +525,14 @@
         orientationHistory = [];
     }
 
+    function reloadControlledScene(commandId) {
+        var baseAddress = addressWithoutReloadCommand(location.href);
+        var separator = baseAddress.indexOf("?") === -1 ? "?" : "&";
+        resetSceneObservation();
+        Window.location = baseAddress + separator + "overteE2EReloadCommandId="
+            + encodeURIComponent(String(commandId));
+    }
+
     function avatarAtExpectedSpawn() {
         var position = MyAvatar.position;
         var deltaX = Number(position.x) - expectedSpawn.x;
@@ -466,13 +543,6 @@
     function applySceneLocation(commandId, scenePath) {
         if (scenePath !== "" && lastClientCommandId === commandId && !sceneReady
                 && !avatarAtExpectedSpawn()) {
-            // The serverless scene may reset the avatar after the initial URL
-            // lookup. Reapply its bounded viewpoint only if the first load did
-            // not actually restore the expected horizontal spawn. Reapplying
-            // an already-correct location would repeatedly lift and drop the
-            // avatar while the physics state is still settling.
-            // Each reapply can transiently enter flight again, so it must also
-            // restart the readiness and flight-normalization observation.
             resetSceneObservation();
             Window.location = scenePath;
         }
@@ -535,7 +605,13 @@
             lastClientCommandId = sceneCommandId;
             lastSceneCommandId = sceneCommandId;
             resetSceneObservation();
-            Window.location = command.url;
+            // app.launch already loaded this exact controlled serverless
+            // scene. Applying the bounded location path keeps the single
+            // Interface process and, unlike assigning the full URL again,
+            // does not restart this probe before its readiness observation.
+            if (scenePath !== "") {
+                Window.location = scenePath;
+            }
             Script.setTimeout(function () {
                 applySceneLocation(sceneCommandId, scenePath);
             }, 1500);
@@ -584,20 +660,20 @@
     }
 
     function pollClientCommand() {
-        if (clientCommandUnavailable || clientCommandRequestPending) {
+        if (clientCommandUnavailable || clientCommandRequest !== null) {
             return;
         }
         var commandUrl = clientCommandEndpoint();
         if (commandUrl === "") {
             return;
         }
-        clientCommandRequestPending = true;
         var request = new XMLHttpRequest();
+        clientCommandRequest = request;
         request.onreadystatechange = function () {
             if (request.readyState !== request.DONE) {
                 return;
             }
-            clientCommandRequestPending = false;
+            clientCommandRequest = null;
             if ((request.status === 0 || request.status === 200)
                     && request.responseText) {
                 try {
@@ -616,17 +692,115 @@
         request.send();
     }
 
-    function pollSoundCommand() {
-        if (!soundCommandUrl || soundCommandRequestPending) {
+    function removeAndroidControlledAssetEntities() {
+        var ids = Entities.findEntities(MyAvatar.position, 1000.0);
+        var index;
+        for (index = 0; index < ids.length; index += 1) {
+            var properties = Entities.getEntityProperties(ids[index], ["name"]);
+            if (String(properties.name).indexOf("OVERTE_E2E_ASSET_LOAD") === 0) {
+                Entities.deleteEntity(ids[index]);
+            }
+        }
+        androidAssetEntityId = null;
+        releaseAssetResource();
+    }
+
+    function applyAndroidControlCommand(command) {
+        if (!command || command.schemaVersion !== 1 || !command.commandId
+                || command.commandId === lastAndroidControlCommandId) {
             return;
         }
-        soundCommandRequestPending = true;
+        if (command.action === "reload-scene"
+                && objectKeysMatch(command,
+                    ["schemaVersion", "commandId", "action"])) {
+            lastAndroidControlCommandId = String(command.commandId);
+            reloadControlledScene(lastAndroidControlCommandId);
+            return;
+        }
+        if (command.action === "enter-domain"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "url"])
+                && typeof command.url === "string"
+                && /^hifi:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:]+\]):[0-9]+(?:\/|$)/.test(command.url)) {
+            lastAndroidControlCommandId = String(command.commandId);
+            location.handleLookupString(command.url);
+            return;
+        }
+        if (command.action === "load-asset"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action",
+                    "assetId", "entityName", "url"])
+                && typeof command.assetId === "string" && command.assetId.length > 0
+                && typeof command.entityName === "string"
+                && command.entityName.indexOf("OVERTE_E2E_ASSET_LOAD") === 0
+                && httpUrl(command.url)) {
+            removeAndroidControlledAssetEntities();
+            androidAssetEntityId = Entities.addEntity({
+                type: "Image",
+                name: command.entityName,
+                imageURL: command.url,
+                userData: JSON.stringify({ overteE2EAssetId: command.assetId }),
+                position: {
+                    x: Number(MyAvatar.position.x),
+                    y: Number(MyAvatar.position.y),
+                    z: Number(MyAvatar.position.z) - 2.0
+                },
+                dimensions: { x: 1.0, y: 1.0, z: 0.01 },
+                lifetime: 300
+            }, "local");
+            lastAndroidControlCommandId = String(command.commandId);
+            return;
+        }
+        if (command.action === "sound-channel"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action",
+                    "commandUrl"])
+                && httpUrl(command.commandUrl)) {
+            soundCommandUrl = String(command.commandUrl);
+            lastAndroidControlCommandId = String(command.commandId);
+        }
+    }
+
+    function pollAndroidControlCommand() {
+        if (!androidControlAvailable) {
+            return;
+        }
+        try {
+            var command = Script.require("./android-control-command.json?sample="
+                + sampleSequence);
+            applyAndroidControlCommand(command);
+        } catch (error) {
+            // The launcher starts without a command and creates it on demand.
+        }
+    }
+
+    function pollAndroidControlMarker() {
+        if (!androidControlEligible) {
+            return;
+        }
+        if (androidControlAvailable) {
+            pollAndroidControlCommand();
+            return;
+        }
+        try {
+            var marker = Script.require("./android-control.json");
+            androidControlAvailable = marker.schemaVersion === 1
+                && marker.channel === "android-debug-file-v1"
+                && marker.probe === "overte_e2e_probe.js";
+        } catch (error) {
+            androidControlAvailable = false;
+        }
+        pollAndroidControlCommand();
+    }
+
+    function pollSoundCommand() {
+        if (!soundCommandUrl || soundCommandRequest !== null) {
+            return;
+        }
         var request = new XMLHttpRequest();
+        soundCommandRequest = request;
         request.onreadystatechange = function () {
             if (request.readyState !== request.DONE) {
                 return;
             }
-            soundCommandRequestPending = false;
+            soundCommandRequest = null;
             if (request.status === 200) {
                 try {
                     applySoundCommand(JSON.parse(request.responseText));
@@ -713,7 +887,8 @@
         verticalObservationPrevious = observation;
     }
 
-    function sample() {
+    function sample(now) {
+        pollAndroidControlMarker();
         pollClientCommand();
         pollSoundCommand();
         var currentAddress = String(location.href);
@@ -796,6 +971,7 @@
         var foundFixtureMarkers = Object.keys(foundMarkers).sort();
         var domainMarkerCount = Object.keys(foundDomainMarkers).length;
         var avatarPosition = vector(MyAvatar.position);
+        var avatarFeetPosition = vector(MyAvatar.feetPosition);
         var spawnDeltaX = avatarPosition.x - expectedSpawn.x;
         var spawnDeltaZ = avatarPosition.z - expectedSpawn.z;
         var avatarAtSpawn = spawnDeltaX * spawnDeltaX + spawnDeltaZ * spawnDeltaZ <= 1.0;
@@ -809,7 +985,8 @@
         previousAvatarPosition = avatarPosition;
         spawnDeltaX = avatarPosition.x - expectedSpawn.x;
         spawnDeltaZ = avatarPosition.z - expectedSpawn.z;
-        var avatarAboveFloor = floorTopY !== null && avatarPosition.y >= floorTopY - 0.05;
+        var avatarAboveFloor = floorTopY !== null
+            && avatarFeetPosition.y >= floorTopY - 0.05;
         avatarAtSpawn = spawnDeltaX * spawnDeltaX + spawnDeltaZ * spawnDeltaZ <= 1.0;
         if (!sceneReady && markerCount === fixtureMarkers.length && stableEntitySamples >= 3
                 && stableAvatarSamples >= 4 && avatarAboveFloor && avatarAtSpawn
@@ -823,6 +1000,9 @@
             soundState.playing = Boolean(soundInjector.playing);
             if (soundState.playing) {
                 soundState.started = true;
+            } else if (soundState.started) {
+                soundState.finished = true;
+                soundState.finishReason = soundStopRequested ? "stopped" : "natural";
             }
         }
         sampleSequence += 1;
@@ -833,9 +1013,11 @@
         if (orientationHistory.length > 48) {
             orientationHistory.shift();
         }
+        var locationProtocol = String(location.protocol);
+        var serverless = locationProtocol === "file";
         Test.saveObject({
             schemaVersion: 2,
-            sampleEpochMs: Date.now(),
+            sampleEpochMs: now,
             sampleSequence: sampleSequence,
             build: {
                 platform: String(About.platform),
@@ -846,15 +1028,18 @@
                 running: true,
                 foreground: Boolean(Window.hasFocus())
             },
+            control: androidControlAvailable ? {
+                schemaVersion: 1,
+                channel: "android-debug-file-v1",
+                probe: "overte_e2e_probe.js",
+                lastCommandId: lastAndroidControlCommandId
+            } : null,
             domain: {
-                // A file-backed serverless scene can report location.isConnected
-                // even though no domain server or domain UUID exists.
-                connected: Boolean(location.isConnected)
-                    && String(location.protocol) !== "file",
+                connected: !serverless && Boolean(location.isConnected),
                 hostname: String(location.hostname),
                 id: String(location.domainID),
-                protocol: String(location.protocol),
-                serverless: String(location.protocol) === "file"
+                protocol: locationProtocol,
+                serverless: serverless
             },
             input: effectiveInputState(),
             audio: {
@@ -884,6 +1069,7 @@
             },
             avatar: {
                 position: avatarPosition,
+                feetPosition: avatarFeetPosition,
                 velocity: vector(MyAvatar.velocity),
                 bodyYawDegrees: Number(MyAvatar.bodyYaw),
                 inAir: Boolean(MyAvatar.isInAir()),
@@ -965,11 +1151,42 @@
         }, "overte-probe.json");
     }
 
-    var verticalTimer = Script.setInterval(observeVerticalMotion, 50);
-    var timer = Script.setInterval(sample, 250);
+    function updateProbe() {
+        observeVerticalMotion();
+        var now = Date.now();
+        if (lastSampleEpochMs !== 0 && now - lastSampleEpochMs < sampleIntervalMs) {
+            return;
+        }
+        lastSampleEpochMs = now;
+        try {
+            sample(now);
+            lastProbeError = "";
+        } catch (error) {
+            probeErrorCount += 1;
+            var detail = safeErrorText(error);
+            Test.saveObject({
+                schemaVersion: 1,
+                sampleEpochMs: Date.now(),
+                sampleSequence: sampleSequence,
+                errorCount: probeErrorCount,
+                detail: detail
+            }, "overte-probe-error.json");
+            if (detail !== lastProbeError) {
+                print("OVERTE_E2E_PROBE_ERROR " + detail);
+                lastProbeError = detail;
+            }
+        }
+        if (lastHeartbeatEpochMs === 0
+                || now - lastHeartbeatEpochMs >= heartbeatIntervalMs) {
+            print("OVERTE_E2E_PROBE_HEARTBEAT sequence=" + sampleSequence
+                + " errors=" + probeErrorCount);
+            lastHeartbeatEpochMs = now;
+        }
+    }
+
+    Script.update.connect(updateProbe);
     Script.scriptEnding.connect(function () {
-        Script.clearInterval(verticalTimer);
-        Script.clearInterval(timer);
+        Script.update.disconnect(updateProbe);
         releaseControlledKey(controlledKeyCommandId);
         Controller.disableMapping(controlledInputMappingName);
         Entities.mousePressOnEntity.disconnect(observePrimaryInteraction);
@@ -980,11 +1197,18 @@
             MyAvatar.setFlyingEnabled(flyingEnabledBeforeNormalization);
             flightNormalizationActive = false;
         }
+        if (controlledTabletOpen()) {
+            HMD.closeTablet();
+        }
         releaseAssetResource();
+        if (androidAssetEntityId !== null) {
+            Entities.deleteEntity(androidAssetEntityId);
+            androidAssetEntityId = null;
+        }
         if (controlledAssetEntity !== null) {
             Entities.deleteEntity(controlledAssetEntity);
             controlledAssetEntity = null;
         }
     });
-    sample();
+    updateProbe();
 }());

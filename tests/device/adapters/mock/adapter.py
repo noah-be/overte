@@ -678,6 +678,11 @@ def invoke(operation: str, arguments: dict) -> dict:
                     state["peerObservationCount"] % 10) * 0.12
         failure = os.environ.get("OVERTE_MOCK_SOUND_FAILURE", "")
         sound_active = bool(state.get("sound", {}).get("commandObserved"))
+        if sound_active:
+            state["soundObservationCount"] = state.get("soundObservationCount", 0) + 1
+            if (failure == "end-after-two-active-samples"
+                    and state["soundObservationCount"] > 2):
+                state["sound"]["playbackEndEpochMs"] = 0
         fixture_markers = (FIXTURE_MARKERS[:-1] if "missing-markers" in failures()
                            else FIXTURE_MARKERS)
         stale_common = "stale-sequence" in failures() and state["sampleSequence"] > 0

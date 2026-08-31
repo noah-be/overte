@@ -14,6 +14,19 @@ from contracts import contains_private_identity, validate_discovered_targets
 from acceptance_policy import STATES, load_policy, state_for
 from run import load_modules
 
+ROOT = Path(__file__).resolve().parent
+
+
+def portable_baseline() -> set[str]:
+    payload = json.loads((ROOT / "platform-adapters.json").read_text(encoding="utf-8"))
+    required = payload.get("requiredCapabilities")
+    if (payload.get("schemaVersion") != 1 or payload.get("contractVersion") != 1
+            or payload.get("cleanupAction") != "cleanup"
+            or not isinstance(required, list) or not required
+            or required != sorted(set(required))):
+        raise ValueError("portable platform adapter baseline is invalid")
+    return set(required)
+
 
 def call(command: list[str], *arguments: str) -> object:
     result = subprocess.run([*command, *arguments], text=True,
@@ -44,6 +57,10 @@ def main() -> int:
                         help="also verify promoted suite capability coverage")
     parser.add_argument("--catalog", type=Path)
     parser.add_argument("--minimum-state", choices=STATES, default="accepted")
+    parser.add_argument("--portable-baseline", action="store_true",
+                        help="require the common install, smoke, evidence and cleanup contract")
+    parser.add_argument("--require-capability", action="append", default=[],
+                        help="require one advertised capability on every selected target")
     args = parser.parse_args()
     manifest = json.loads(args.adapter_manifest.read_text(encoding="utf-8"))
     if manifest.get("schemaVersion") != 1 or not isinstance(manifest.get("id"), str):
@@ -53,6 +70,15 @@ def main() -> int:
         raise ValueError("--policy and --catalog must be supplied together")
     policy = (load_policy(args.policy.resolve(), args.catalog.resolve())
               if args.policy else None)
+    required_explicit = set(args.require_capability)
+    registry = json.loads((ROOT / "capabilities.json").read_text(encoding="utf-8"))[
+        "capabilities"]
+    unknown = sorted(required_explicit - set(registry))
+    if unknown:
+        raise ValueError("unknown required capabilities: " + ", ".join(unknown))
+    if args.portable_baseline:
+        required_explicit.update(portable_baseline())
+        args.check_cleanup = True
     targets = validate_discovered_targets(call(command, "discover"))
     if args.target:
         targets = [target for target in targets if target["selector"] == args.target]
@@ -69,6 +95,11 @@ def main() -> int:
         if ("selector" in description
                 or contains_private_identity(description, private_values)):
             raise ValueError("describe must not expose the private target selector")
+        missing_explicit = sorted(required_explicit - set(target["capabilities"]))
+        if missing_explicit:
+            raise ValueError(
+                "adapter lacks portable baseline capabilities: "
+                + ", ".join(missing_explicit))
         if args.check_cleanup:
             for _ in range(2):
                 cleaned = call(command, "cleanup", "--target", selector)

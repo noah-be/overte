@@ -9,6 +9,7 @@
     "execution-profiles": {"current": 1, "reads": [1]},
     "fixture-environment": {"current": 1, "reads": [1]},
     "matrix-summary": {"current": 1, "reads": [1]},
+    "platform-adapters": {"current": 1, "reads": [1]},
     "probe-snapshot": {"current": 2, "reads": [2]},
     "run-manifest": {"current": 1, "reads": [1]},
     "run-summary": {"current": 1, "reads": [1]},

@@ -141,12 +141,23 @@ class HeadlessDesktopContractTest(unittest.TestCase):
             "pid": 4242, "identity": "4242:token", "processToken": "token",
             "initialSceneUrl": "http://fixture/scene.json",
         }
+        command_id = type("Uuid", (), {"hex": "1" * 32})()
         with patch.object(self.adapter, "read_state", return_value=state), patch.object(
                 self.adapter, "state_alive", return_value=True), patch.object(
+                self.adapter, "controlled_client", return_value=True), patch.object(
+                self.adapter, "write_client_command") as command, patch.object(
+                ADAPTER_MODULE.uuid, "uuid4", return_value=command_id), patch.object(
                 self.adapter, "visual_action") as visual:
             result = self.adapter.invoke(
                 "headless", "scene.load", {"url": "http://fixture/scene.json"})
-            self.assertEqual({"requested": True, "lifecycle": "initial-process"}, result)
+            self.assertEqual({
+                "requested": True, "commandId": "scene-" + "1" * 32,
+                "lifecycle": "same-process",
+            }, result)
+            command.assert_called_once_with("headless", self.target, state, {
+                "schemaVersion": 1, "commandId": "scene-" + "1" * 32,
+                "action": "scene-load", "url": "http://fixture/scene.json",
+            })
             visual.assert_not_called()
             with self.assertRaisesRegex(RuntimeError, "initial-process|live relaunch"):
                 self.adapter.invoke(
@@ -161,10 +172,14 @@ class HeadlessDesktopContractTest(unittest.TestCase):
                 self.adapter.launch("headless", self.target)
         lifecycle.cleanup.assert_called_once_with()
 
-    def test_look_move_and_tab_toggle_use_only_private_xdotool(self) -> None:
+    def test_look_uses_private_xdotool_and_keys_use_controlled_actions(self) -> None:
         environment = self.safe_environment()
+        state = {"pid": 4242, "identity": "4242:token", "processToken": "token"}
         with patch.object(self.adapter, "runtime_environment",
                           return_value=environment), patch.object(
+                              self.adapter, "read_state", return_value=state), patch.object(
+                              self.adapter, "state_alive", return_value=True), patch.object(
+                              self.adapter, "write_client_command") as command, patch.object(
                               ADAPTER_MODULE.time, "sleep", return_value=None) as sleep:
             self.adapter.linux_visual_action(
                 self.target, "look", {"processId": 4242,
@@ -192,19 +207,13 @@ class HeadlessDesktopContractTest(unittest.TestCase):
                          "raw XSetInputFocus must not bypass WM activation")
         self.assertIn(["mousedown", "3"], arguments)
         self.assertIn(["mouseup", "3"], arguments)
-        self.assertEqual(1, arguments.count(
-            ["keydown", "w", "sleep", "0.1", "keyup", "w"]))
-        self.assertEqual(2, arguments.count(
-            ["keydown", "Tab", "sleep", "0.05", "keyup", "Tab"]))
-        for argument in arguments:
-            if argument and argument[0] in {"keydown", "keyup", "key"}:
-                self.assertNotIn(
-                    "--window", argument,
-                    "focused headless keyboard input must use global XTEST events")
-        keyboard_calls = [argument for argument in arguments
-                          if argument and argument[0] == "keydown"]
-        self.assertEqual(3, len(keyboard_calls),
-                         "each key hold must use exactly one xdotool process")
+        self.assertFalse(any(argument and argument[0] in {"keydown", "keyup", "key"}
+                             for argument in arguments))
+        delivered = [item.args[3] for item in command.call_args_list]
+        self.assertEqual(["forward", "tablet", "tablet"],
+                         [item["key"] for item in delivered])
+        self.assertEqual([100, 100, 100], [item["durationMs"] for item in delivered])
+        self.assertTrue(all(item["action"] == "key-hold" for item in delivered))
         flattened = " ".join(" ".join(argument) for argument in arguments)
         self.assertNotIn("ctrl", flattened.lower())
         self.assertNotIn("click", flattened.lower())
@@ -228,10 +237,14 @@ class HeadlessDesktopContractTest(unittest.TestCase):
             self.assertEqual("0", child["GTK_USE_PORTAL"])
             self.assertEqual("1", child["QT_NO_XDG_DESKTOP_PORTAL"])
 
-    def test_move_hold_is_one_bounded_process_after_exact_pid_activation(self) -> None:
+    def test_move_hold_is_one_bounded_command_after_exact_pid_activation(self) -> None:
         environment = self.safe_environment()
+        state = {"pid": 4242, "identity": "4242:token", "processToken": "token"}
         with patch.object(self.adapter, "runtime_environment",
                           return_value=environment), patch.object(
+                              self.adapter, "read_state", return_value=state), patch.object(
+                              self.adapter, "state_alive", return_value=True), patch.object(
+                              self.adapter, "write_client_command") as command, patch.object(
                               ADAPTER_MODULE.time, "sleep", return_value=None):
             self.adapter.linux_visual_action(
                 self.target, "move", {"processId": 4242,
@@ -245,14 +258,12 @@ class HeadlessDesktopContractTest(unittest.TestCase):
             ["getactivewindow"]))
         self.assertEqual(1, arguments.count(
             ["windowactivate", "--sync", "1001"]))
-        self.assertEqual(1, arguments.count(
-            ["keydown", "w", "sleep", "2", "keyup", "w"]))
-        self.assertEqual(1, len([
-            argument for argument in arguments
-            if argument and argument[0] == "keydown"
-        ]), "the entire hold must use one xdotool process")
-        self.assertFalse(any("--window" in argument for argument in arguments
-                             if argument and argument[0] in {"keydown", "keyup", "key"}))
+        self.assertFalse(any(argument and argument[0] in {"keydown", "keyup", "key"}
+                             for argument in arguments))
+        payload = command.call_args.args[3]
+        self.assertEqual("key-hold", payload["action"])
+        self.assertEqual("forward", payload["key"])
+        self.assertEqual(2000, payload["durationMs"])
         self.assertFalse(any("1002" in argument for argument in arguments
                              if argument and argument[0] == "windowactivate"))
 

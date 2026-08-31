@@ -60,6 +60,13 @@
       "screenshotExecutable": "${IMAGEMAGICK_EXECUTABLE}",
       "screenshotSha256": "0000000000000000000000000000000000000000000000000000000000000000",
       "screenshotArguments": ["import"],
+      "videoExecutable": "${FFMPEG_EXECUTABLE}",
+      "videoSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "videoArguments": [
+        "-y", "-f", "x11grab", "-video_size", "1920x1080",
+        "-i", "{display}", "-t", "{durationSeconds}", "-an",
+        "-c:v", "libx264", "-preset", "ultrafast", "{output}"
+      ],
       "probe": {"kind": "injected-test-script"}
     },
     {
@@ -75,6 +82,12 @@
       "oculixSha256": "0000000000000000000000000000000000000000000000000000000000000000",
       "javaExecutable": "java.exe",
       "javaArguments": [],
+      "videoExecutable": "${FFMPEG_EXECUTABLE}",
+      "videoSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "videoArguments": [
+        "-y", "-f", "gdigrab", "-i", "title=Overte",
+        "-t", "{durationSeconds}", "-an", "-c:v", "libx264", "{output}"
+      ],
       "probe": {"kind": "injected-test-script"}
     },
     {
@@ -90,6 +103,12 @@
       "oculixSha256": "0000000000000000000000000000000000000000000000000000000000000000",
       "javaExecutable": "java",
       "javaArguments": [],
+      "videoExecutable": "${FFMPEG_EXECUTABLE}",
+      "videoSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "videoArguments": [
+        "-y", "-f", "avfoundation", "-i", "1:none",
+        "-t", "{durationSeconds}", "-an", "-c:v", "libx264", "{output}"
+      ],
       "probe": {"kind": "injected-test-script"}
     }
   ]

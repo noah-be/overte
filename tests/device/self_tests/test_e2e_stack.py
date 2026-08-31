@@ -87,7 +87,7 @@ class E2EStackTest(unittest.TestCase):
         spawn = manifest["spawnPosition"]
         self.assertEqual(0.0, floor["position"]["y"] + floor["dimensions"]["y"] / 2.0)
         self.assertGreaterEqual(floor["dimensions"]["y"], manifest["minimumFloorThickness"])
-        self.assertEqual(0.0, spawn["y"])
+        self.assertEqual(2.0, spawn["y"])
         self.assertEqual(
             f"/{spawn['x']},{spawn['y']},{spawn['z']}/0,0,0,1",
             manifest["spawnPath"])
@@ -95,7 +95,7 @@ class E2EStackTest(unittest.TestCase):
         self.assertEqual([manifest["spawnPath"]], parse_qs(served.query)["location"])
         probe = (ROOT / "probe/overte_e2e_probe.js").read_text(encoding="utf-8")
         self.assertIn("avatarAboveFloor", probe)
-        self.assertIn("spawnDeltaY * spawnDeltaY", probe)
+        self.assertIn("vector(MyAvatar.feetPosition)", probe)
         self.assertIn("avatarAtSpawn", probe)
         self.assertIn("stableAvatarSamples >= 4", probe)
         self.assertIn("avatarAboveFloor && avatarAtSpawn", probe)
