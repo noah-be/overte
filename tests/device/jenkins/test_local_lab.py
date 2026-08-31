@@ -30,7 +30,8 @@ class LocalLabBootstrapTest(unittest.TestCase):
             self.assertFalse((real / "private").exists())
 
             weak = temporary / "weak"
-            weak.mkdir(mode=0o755)
+            weak.mkdir()
+            weak.chmod(0o755)
             with self.assertRaisesRegex(RuntimeError, "group or other"):
                 LAB.secure_directory(weak)
 
