@@ -14,6 +14,7 @@ readonly activity="$repo_root/android/phone/apps/phoneInterface/src/main/java/or
 readonly native_handler="$repo_root/android/phone/apps/phoneInterface/src/PhoneUrlHandler.cpp"
 readonly phone_router="$repo_root/interface/src/ui/PhoneDialogRouter.h"
 readonly window_root="$repo_root/interface/resources/qml/hifi/tablet/WindowRoot.qml"
+readonly phone_ui_profile="$repo_root/interface/resources/qml/controlsUit/+android_phoneInterface/TouchUiProfile.qml"
 
 require() {
     local file="$1"
@@ -32,6 +33,24 @@ for method in showAndroidTablet resizeAndroidTablet hideAndroidTablet handleAndr
 done
 require "$tablet_header" '#if defined\(ANDROID_APP_PHONE_INTERFACE\)' \
     'the screen-space presenter API is restricted to the phone client'
+require "$phone_ui_profile" 'safeInsetLeft:[[:space:]]*runtimeMetricsAvailable[[:space:]]*\?[[:space:]]*runtimeMetrics[.]safeInsetLeft[[:space:]]*:[[:space:]]*25' \
+    'the phone profile prefers live left safety geometry with a startup fallback'
+require "$phone_ui_profile" '^import controlsUit 1[.]0 as SharedControls$' \
+    'the selected Android profile resolves its base type through the logical controls module'
+require "$activity" 'WindowInsets[.]Type[.]displayCutout\(\)' \
+    'Android display cutouts feed the shared safe-area profile'
+require "$activity" 'WindowInsets[.]Type[.]ime\(\)' \
+    'Android software-keyboard geometry feeds the shared profile'
+require "$native_handler" 'PhoneInterfaceActivity_nativeUpdateTouchUiMetrics' \
+    'JNI accepts live touch-surface metrics from Android'
+require "$native_handler" 'phone::updateTouchUiRuntimeMetrics' \
+    'JNI routes touch metrics through the minimal phone UI boundary'
+require "$phone_router" 'bool updateTouchUiRuntimeMetrics\(const QVariantMap& metrics\);' \
+    'the Android entry point avoids the tablet implementation header graph'
+require "$dialogs" 'bool phone::updateTouchUiRuntimeMetrics\(const QVariantMap& metrics\)' \
+    'the minimal phone UI boundary delegates inside the Interface target'
+require "$tablet_source" 'root->property\("screenSpaceSafeInsetLeft"\)' \
+    'the native presenter reads safe-area geometry from the selected UI profile'
 require "$tablet_source" '_desktopWindow->setPosition\(leftInset,[[:space:]]*topInset\)' \
     'the tablet surface starts inside the profile-provided safe area'
 require "$tablet_source" 'surfaceWidth[[:space:]]*-[[:space:]]*leftInset[[:space:]]*-[[:space:]]*rightInset' \
@@ -67,6 +86,10 @@ require "$window_root" 'x[[:space:]]*=[[:space:]]*screenSpaceSafeInsetLeft' \
     'the screen-space tablet preserves its left display margin'
 require "$window_root" 'y[[:space:]]*=[[:space:]]*screenSpaceSafeInsetTop' \
     'the screen-space tablet preserves its top display margin'
+require "$phone_ui_profile" 'screenSpaceContentScale:[[:space:]]*runtimeMetricsAvailable' \
+    'Android tablet applications consume the density- and surface-bounded runtime scale'
+require "$phone_ui_profile" 'runtimeMetrics[.]contentScale[[:space:]]*:[[:space:]]*2[.]5' \
+    'Android tablet applications retain a conservative startup scale before native delivery'
 require "$window_root" 'screenSpaceContentScale:[[:space:]]*touchUiProfile[.]screenSpaceContentScale' \
     'the screen-space host obtains content scale from the device profile'
 require "$window_root" 'readonly property real contentScale:[[:space:]]*tabletRoot\.screenSpaceMode' \

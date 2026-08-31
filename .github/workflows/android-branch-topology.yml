@@ -1,0 +1,63 @@
+name: Android branch topology
+
+on:
+  pull_request:
+    branches:
+      - android-phone
+      - android-vr
+      - android-vr-pico
+
+permissions:
+  contents: read
+
+jobs:
+  enforce-android-sync-path:
+    name: Enforce Android parent sync path
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare topology repository
+        env:
+          PULL_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}.git
+          TARGET_BRANCH: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          case "$TARGET_BRANCH" in
+            android-phone|android-vr|android-vr-pico) ;;
+            *) echo "Unsupported Android target: $TARGET_BRANCH" >&2; exit 2 ;;
+          esac
+
+          # Materialize only the policy, its tests, and the protected shared
+          # paths. The remaining tree and historical blobs stay remote.
+          git init -q .
+          git remote add origin "$REPOSITORY_URL"
+          git sparse-checkout init --cone
+          git sparse-checkout set \
+            .github/workflows \
+            tests \
+            android/common/device_tests
+
+          # GitHub's synthetic PR merge supplies HEAD and both PR parents.
+          git fetch --no-tags --depth=2 --filter=blob:none origin \
+            "+refs/pull/$PULL_NUMBER/merge:refs/remotes/origin/pull-request-merge"
+
+          declare -A seen=()
+          refspecs=()
+          for branch in android-main android-vr "$TARGET_BRANCH"; do
+            [[ -n "${seen[$branch]:-}" ]] && continue
+            seen[$branch]=1
+            refspecs+=("+refs/heads/$branch:refs/remotes/origin/$branch")
+          done
+
+          git fetch --no-tags --filter=blob:none --unshallow \
+            origin "${refspecs[@]}"
+          git checkout --detach refs/remotes/origin/pull-request-merge
+      - name: Test Android topology policy
+        run: python3 tests/android-branch-topology-test.py
+      - name: Validate branch topology
+        run: >-
+          python3 tests/android-branch-topology-check.py
+          --target "${{ github.base_ref }}"
+          --android-main origin/android-main
+          --android-vr origin/android-vr
+          --head HEAD

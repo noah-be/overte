@@ -9,6 +9,8 @@ Rectangle {
 	readonly property string semanticScreenId: currentPage === "Settings"
 		? "settings.home" : currentPage === "Graphics" ? "settings.graphics" : ""
 	objectName: semanticScreenId
+	Accessible.role: Accessible.Client
+	Accessible.name: currentPage === "Settings" ? qsTr("Settings") : qsTr("Graphics settings")
 	color: Qt.rgba(0.1,0.1,0.1,1);
 	width: parent.width;
 	height: parent.height;
@@ -21,8 +23,8 @@ Rectangle {
 		{name: "Audio", semanticId: "settings.audio", icon: "../img/volume.svg", targetPage: "hifi/audio/Audio.qml" },
 		{name: "Controls", icon: "../img/dpad.svg", targetPage: "hifi/tablet/ControllerSettings.qml",
 			semanticId: "settings.controllers", requiresControllerSettings: true },
-		{name: "Pico Interaction", icon: "../img/dpad.svg", targetPage: "", picoOnly: true,
-			requiresControllerSettings: true },
+		{name: "Pico Interaction", icon: "../img/dpad.svg", targetPage: "",
+			requiresControllerSettings: true, requiresPicoInteractionSettings: true },
 		{name: "Security", semanticId: "settings.security", icon: "../img/badge.svg", targetPage: "hifi/dialogs/security/Security.qml" },
 		{name: "QML Allowlist", icon: "../img/lock.svg", targetPage: "hifi/dialogs/security/EntityScriptQMLAllowlist.qml" }, 
 		{name: "Script Security", icon: "../img/shield.svg", targetPage: "hifi/dialogs/security/ScriptSecurity.qml" }, 
@@ -37,7 +39,9 @@ Rectangle {
 	property var pages: allPages.filter(function (page) {
 		return (!page.semanticId || touchConfiguration.admitsSemanticControl(page.semanticId))
 			&& (!page.requiresControllerSettings || touchConfiguration.showControllerSettings)
-			&& (!page.requiresGraphicsSettings || touchConfiguration.showGraphicsSettings);
+			&& (!page.requiresGraphicsSettings || touchConfiguration.showGraphicsSettings)
+			&& (!page.requiresPicoInteractionSettings
+				|| touchConfiguration.showPicoInteractionSettings);
 	})
 
 	ColumnLayout {
@@ -63,8 +67,6 @@ Rectangle {
 			Repeater {
 				model: pages.length;
 				delegate: SettingSubviewListElement {
-					visible: !pages[index].picoOnly || Settings.getValue("deferTabletCreationUntilOpen", false)
-					height: visible ? 60 : 0
 					property string pageName: pages[index].name;
 					semanticId: pages[index].semanticId || "";
 					property string pageIcon: pages[index].icon;
@@ -80,7 +82,12 @@ Rectangle {
 			Layout.fillHeight: true
 			sourceComponent: Component { GraphicsSettings {} }
 		}
-		PicoInteractionSettings {}
+		Loader {
+			active: touchConfiguration.showPicoInteractionSettings
+			Layout.fillWidth: true
+			Layout.fillHeight: true
+			sourceComponent: Component { PicoInteractionSettings {} }
+		}
 
 		// Templates
 	}

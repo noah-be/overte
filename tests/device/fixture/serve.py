@@ -75,9 +75,11 @@ def validate_fixture() -> dict:
     collision_wall = next((entity for entity in entities
                            if entity.get("name") == "OVERTE_E2E_COLLISION_WALL"), None)
     if (not isinstance(spawn, dict) or set(spawn) != {"x", "y", "z"}
-            or not all(isinstance(spawn[axis], (int, float)) for axis in ("x", "y", "z"))
-            or spawn["y"] < 2.0):
-        raise ValueError("fixture spawn must be explicit and safely above the floor")
+            or not all(isinstance(spawn[axis], (int, float))
+                       and not isinstance(spawn[axis], bool)
+                       for axis in ("x", "y", "z"))
+            or abs(float(spawn["y"])) > 1e-6):
+        raise ValueError("fixture spawn must put the avatar's feet on the y=0 floor")
     expected_spawn_path = (f"/{spawn['x']},{spawn['y']},{spawn['z']}"
                            "/0,0,0,1")
     if manifest["spawnPath"] != expected_spawn_path:
@@ -164,9 +166,9 @@ def validate_fixture() -> dict:
     sound_bytes = sound_path.read_bytes()
     if (sound["mimeType"] != "audio/wav" or sound["sampleRate"] != 8000
             or sound["channels"] != 1 or sound["bitsPerSample"] != 16
-            or sound["durationSeconds"] != 2.0 or sound["frequencyHz"] != 440.0
+            or sound["durationSeconds"] != 8.0 or sound["frequencyHz"] != 440.0
             or hashlib.sha256(sound_bytes).hexdigest() != sound["sha256"]
-            or len(sound_bytes) != 32044):
+            or len(sound_bytes) != 128044):
         raise ValueError("fixture sound does not match its deterministic PCM WAV contract")
     probe = PROBE.read_text(encoding="utf-8")
     if "Test.saveObject" not in probe or '"overte-probe.json"' not in probe:

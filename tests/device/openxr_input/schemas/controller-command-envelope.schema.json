@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://overte.org/schemas/e2e/openxr-controller-command-envelope-v1.json",
+  "$defs": {
+    "base": {
+      "properties": {
+        "id": { "pattern": "^[a-z][a-z0-9-]{0,63}$", "type": "string" },
+        "operation": { "type": "string" },
+        "arguments": { "type": "object" }
+      },
+      "required": ["id", "operation", "arguments"],
+      "type": "object"
+    },
+    "button": {
+      "additionalProperties": false,
+      "properties": {
+        "id": { "pattern": "^[a-z][a-z0-9-]{0,63}$", "type": "string" },
+        "operation": { "const": "controller.button" },
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "control": { "enum": ["menu", "primary", "secondary", "thumbstick", "trigger"] },
+            "hand": { "enum": ["left", "right"] },
+            "holdMilliseconds": { "maximum": 500, "minimum": 40, "type": "integer" }
+          },
+          "required": ["hand", "control"],
+          "type": "object"
+        }
+      },
+      "required": ["id", "operation", "arguments"],
+      "type": "object"
+    },
+    "scalar": {
+      "additionalProperties": false,
+      "properties": {
+        "id": { "pattern": "^[a-z][a-z0-9-]{0,63}$", "type": "string" },
+        "operation": { "enum": ["controller.grip", "controller.trigger"] },
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "hand": { "enum": ["left", "right"] },
+            "holdMilliseconds": { "maximum": 3000, "minimum": 100, "type": "integer" },
+            "value": { "maximum": 1.0, "minimum": 0.05, "type": "number" }
+          },
+          "required": ["hand", "value"],
+          "type": "object"
+        }
+      },
+      "required": ["id", "operation", "arguments"],
+      "type": "object"
+    },
+    "thumbstick": {
+      "additionalProperties": false,
+      "properties": {
+        "id": { "pattern": "^[a-z][a-z0-9-]{0,63}$", "type": "string" },
+        "operation": { "const": "controller.thumbstick" },
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "hand": { "enum": ["left", "right"] },
+            "holdMilliseconds": { "maximum": 3000, "minimum": 100, "type": "integer" },
+            "x": { "maximum": 1.0, "minimum": -1.0, "type": "number" },
+            "y": { "maximum": 1.0, "minimum": -1.0, "type": "number" }
+          },
+          "required": ["hand", "x", "y"],
+          "type": "object"
+        }
+      },
+      "required": ["id", "operation", "arguments"],
+      "type": "object"
+    },
+    "pose": {
+      "additionalProperties": false,
+      "properties": {
+        "id": { "pattern": "^[a-z][a-z0-9-]{0,63}$", "type": "string" },
+        "operation": { "const": "controller.pose" },
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "hand": { "enum": ["left", "right"] },
+            "holdMilliseconds": { "maximum": 3000, "minimum": 100, "type": "integer" },
+            "orientation": {
+              "items": { "type": "number" },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            "positionMeters": {
+              "items": { "maximum": 3.0, "minimum": -3.0, "type": "number" },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            }
+          },
+          "required": ["hand", "positionMeters", "orientation"],
+          "type": "object"
+        }
+      },
+      "required": ["id", "operation", "arguments"],
+      "type": "object"
+    },
+    "look": {
+      "additionalProperties": false,
+      "properties": {
+        "id": { "pattern": "^[a-z][a-z0-9-]{0,63}$", "type": "string" },
+        "operation": { "const": "input.look" },
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "durationSeconds": { "maximum": 30.0, "minimum": 0.1, "type": "number" },
+            "horizontal": { "maximum": 0.45, "minimum": -0.45, "type": "number" },
+            "vertical": { "maximum": 0.45, "minimum": -0.45, "type": "number" }
+          },
+          "required": ["horizontal"],
+          "type": "object"
+        }
+      },
+      "required": ["id", "operation", "arguments"],
+      "type": "object"
+    },
+    "move": {
+      "additionalProperties": false,
+      "properties": {
+        "id": { "pattern": "^[a-z][a-z0-9-]{0,63}$", "type": "string" },
+        "operation": { "const": "input.move" },
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "direction": { "enum": ["backward", "forward", "left", "right"] },
+            "durationSeconds": { "maximum": 8.0, "minimum": 0.1, "type": "number" },
+            "strength": { "maximum": 1.0, "minimum": 0.2, "type": "number" }
+          },
+          "required": ["direction", "durationSeconds"],
+          "type": "object"
+        }
+      },
+      "required": ["id", "operation", "arguments"],
+      "type": "object"
+    },
+    "jump": {
+      "additionalProperties": false,
+      "properties": {
+        "id": { "pattern": "^[a-z][a-z0-9-]{0,63}$", "type": "string" },
+        "operation": { "const": "input.jump" },
+        "arguments": {
+          "additionalProperties": false,
+          "type": "object"
+        }
+      },
+      "required": ["id", "operation", "arguments"],
+      "type": "object"
+    },
+    "fly": {
+      "additionalProperties": false,
+      "properties": {
+        "id": { "pattern": "^[a-z][a-z0-9-]{0,63}$", "type": "string" },
+        "operation": { "const": "input.fly" },
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "durationSeconds": { "maximum": 8.0, "minimum": 0.5, "type": "number" }
+          },
+          "required": ["durationSeconds"],
+          "type": "object"
+        }
+      },
+      "required": ["id", "operation", "arguments"],
+      "type": "object"
+    },
+    "tablet": {
+      "additionalProperties": false,
+      "properties": {
+        "id": { "pattern": "^[a-z][a-z0-9-]{0,63}$", "type": "string" },
+        "operation": { "enum": ["tablet.close", "tablet.open"] },
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "holdMilliseconds": { "maximum": 8000, "minimum": 100, "type": "integer" }
+          },
+          "type": "object"
+        }
+      },
+      "required": ["id", "operation", "arguments"],
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "commands": {
+      "items": {
+        "oneOf": [
+          { "$ref": "#/$defs/button" },
+          { "$ref": "#/$defs/scalar" },
+          { "$ref": "#/$defs/thumbstick" },
+          { "$ref": "#/$defs/pose" },
+          { "$ref": "#/$defs/look" },
+          { "$ref": "#/$defs/move" },
+          { "$ref": "#/$defs/jump" },
+          { "$ref": "#/$defs/fly" },
+          { "$ref": "#/$defs/tablet" }
+        ]
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "type": "array"
+    },
+    "schemaVersion": { "const": 1 },
+    "sequence": { "minimum": 1, "type": "integer" },
+    "sessionNonce": { "pattern": "^[0-9a-f]{32,128}$", "type": "string" }
+  },
+  "required": ["schemaVersion", "sessionNonce", "sequence", "commands"],
+  "title": "Overte test-only OpenXR controller command envelope",
+  "type": "object"
+}

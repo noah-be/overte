@@ -4,9 +4,10 @@
 
 The shared `asset-smoke` suite and its `asset-load` module are implemented.
 The deterministic mock adapter executes the complete contract without hardware.
-No product adapter advertises or implements `asset.load`, and no
-product-specific CI runner schedules this suite. Real-adapter activation and
-physical acceptance remain separate future work.
+Android ADB and controlled Appium targets advertise and implement `asset.load`;
+targets without an accepted command channel remain gated.
+No product-specific CI runner schedules this suite, and physical acceptance
+remains separate future work.
 
 `asset.load` is a separate capability because a target-specific operation must
 tell the running test client to create the controlled Image entity. It accepts

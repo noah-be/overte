@@ -61,9 +61,19 @@ class ProbeCommandChannelTest(unittest.TestCase):
         for action in ('"scene-load"', '"navigate"', '"asset-load"', '"sound-channel"',
                        '"key-hold"'):
             self.assertIn(f"command.action === {action}", self.source)
+        self.assertIn('command.action === "reload-scene"', self.source)
+        self.assertIn("Window.location = baseAddress", self.source)
+        self.assertIn('"overteE2EReloadCommandId="', self.source)
+        self.assertIn(
+            "lastAndroidControlCommandId = reloadCommandIdFromAddress(location.href)",
+            self.source,
+        )
+        self.assertIn("connected: !serverless && Boolean(location.isConnected)",
+                      self.source)
         self.assertIn("Window.location = command.url", self.source)
-        self.assertIn("controlledSceneLocation(command.url)", self.source)
-        self.assertIn("Window.location = scenePath", self.source)
+        self.assertNotIn("controlledSceneLocation(command.url)", self.source)
+        self.assertNotIn("Window.location = scenePath", self.source)
+        self.assertNotIn("applySceneLocation", self.source)
         self.assertIn("resetSceneObservation()", self.source)
         self.assertIn("controlledAssetEntity = Entities.addEntity({", self.source)
         self.assertIn("soundCommandUrl = String(command.url)", self.source)
@@ -72,6 +82,7 @@ class ProbeCommandChannelTest(unittest.TestCase):
                        "StrafeRight", "ContextMenu"):
             self.assertIn(f"Controller.Actions.{action}", self.source)
         self.assertIn("Controller.disableMapping(controlledInputMappingName)", self.source)
+        self.assertIn("HMD.closeTablet()", self.source)
         self.assertIn('(name === "tablet" || !controlledTabletOpen())', self.source)
         self.assertNotIn("Keyboard.emitKeyEvent", self.source)
         self.assertNotIn("Clipboard", self.source)

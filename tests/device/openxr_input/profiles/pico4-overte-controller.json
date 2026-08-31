@@ -1,0 +1,39 @@
+{
+  "controls": {
+    "buttons": {
+      "left.menu": "menu_click",
+      "left.primary": "left_primary_click",
+      "left.secondary": "left_secondary_click",
+      "left.thumbstick": "left_thumbstick_click",
+      "left.trigger": "left_trigger_click",
+      "right.primary": "right_primary_click",
+      "right.secondary": "right_secondary_click",
+      "right.thumbstick": "right_thumbstick_click",
+      "right.trigger": "right_trigger_click"
+    },
+    "poses": {
+      "left.grip": "left_grip_pose",
+      "right.grip": "right_grip_pose"
+    },
+    "scalars": {
+      "left.grip": "left_squeeze_value",
+      "left.trigger": "left_trigger_value",
+      "right.grip": "right_squeeze_value",
+      "right.trigger": "right_trigger_value"
+    },
+    "thumbsticks": {
+      "left": "left_thumbstick",
+      "right": "right_thumbstick"
+    }
+  },
+  "interactionProfile": "/interaction_profiles/bytedance/pico4_controller",
+  "poseBaseReferenceSpace": "stage",
+  "profileId": "overte-pico4-controller-v1",
+  "prototypeOnly": true,
+  "schemaVersion": 1,
+  "viewInjection": {
+    "maxPitchDegrees": 45,
+    "maxYawDegrees": 45,
+    "mode": "view-reference-space-offset"
+  }
+}

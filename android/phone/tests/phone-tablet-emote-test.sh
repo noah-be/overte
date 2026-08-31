@@ -39,10 +39,14 @@ require "$script" 'tablet[.]fromQml[.]disconnect\(fromQml\)' \
     'Emote releases its QML message bridge at shutdown'
 require "$qml" 'signal sendToScript\(var message\)' \
     'Emote uses the native Tablet QML bridge'
-require "$qml" 'cellWidth:[[:space:]]*width / 2' \
-    'Emote presents a compact two-column touch grid'
-require "$qml" 'cellHeight:[[:space:]]*54' \
-    'Emote buttons exceed the phone logical touch minimum'
+require "$qml" 'columnsFor\(' \
+    'Emote derives a bounded responsive touch grid from shared metrics'
+require "$qml" 'cellWidth:[[:space:]]*width / adaptiveColumns' \
+    'Emote distributes each row across its responsive column count'
+require "$qml" 'cellHeight:[[:space:]]*Math[.]max\(54,[[:space:]]*touchMetrics[.]adaptiveMinimumControlHeight\)' \
+    'Emote buttons preserve both their established and adaptive touch minimums'
+require "$qml" 'pressDelay:[[:space:]]*touchMetrics[.]pressDelay' \
+    'Emote distinguishes scrolling gestures from button activation'
 require "$qml" 'method:[[:space:]]*"phoneEmote[.]play"' \
     'Emote QML emits only its namespaced play request'
 

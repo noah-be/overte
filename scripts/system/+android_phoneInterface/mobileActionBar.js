@@ -35,12 +35,60 @@
     // Window dimensions use Qt logical pixels on Android. Scaling from the short
     // edge keeps controls usable on both compact landscape screens and large,
     // high-density phones without relying on a device-specific DPI value.
+    function normalizedRuntimeMetrics(width, height) {
+        var source = Tablet.touchUiRuntimeMetrics;
+        var result = {
+            safeInsetLeft: 0,
+            safeInsetTop: 0,
+            safeInsetRight: 0,
+            safeInsetBottom: 0,
+            hapticsSupported: true
+        };
+        var scaleX;
+        var scaleY;
+        if (!source || source.valid !== true || source.surfaceWidth <= 0
+                || source.surfaceHeight <= 0) {
+            return result;
+        }
+        // Android reports physical view coordinates while Window exposes Qt
+        // surface coordinates. Usually they match; scaling keeps multi-window
+        // and high-DPI hosts correct when they do not.
+        scaleX = width / source.surfaceWidth;
+        scaleY = height / source.surfaceHeight;
+        result.safeInsetLeft = Math.max(0, source.safeInsetLeft * scaleX);
+        result.safeInsetTop = Math.max(0, source.safeInsetTop * scaleY);
+        result.safeInsetRight = Math.max(0, source.safeInsetRight * scaleX);
+        result.safeInsetBottom = Math.max(0, source.safeInsetBottom * scaleY);
+        result.hapticsSupported = source.hapticsSupported === true;
+        return result;
+    }
+
     function calculateLayout(width, height) {
-        var shortEdge = Math.min(width, height);
+        var metrics = normalizedRuntimeMetrics(width, height);
+        var usableWidth = Math.max(1,
+            width - metrics.safeInsetLeft - metrics.safeInsetRight);
+        var usableHeight = Math.max(1,
+            height - metrics.safeInsetTop - metrics.safeInsetBottom);
+        var shortEdge = Math.min(usableWidth, usableHeight);
         var buttonSize = clamp(Math.round(shortEdge * 0.16), 72, 180);
         var edgeMargin = clamp(Math.round(shortEdge * 0.025), 12, 32);
         var flowPadding = 4;
         var flowSpacing = 10;
+        var portrait = usableHeight > usableWidth;
+        var navigationWidth = portrait
+            ? 3 * buttonSize + 2 * flowSpacing + 2 * flowPadding
+            : buttonSize + 2 * flowPadding;
+        var navigationHeight = portrait
+            ? buttonSize + 2 * flowPadding
+            : 3 * buttonSize + 2 * flowSpacing + 2 * flowPadding;
+        var navigationX = metrics.safeInsetLeft + edgeMargin;
+        var navigationY = metrics.safeInsetTop + edgeMargin;
+        if (portrait) {
+            navigationX = metrics.safeInsetLeft
+                + Math.max(edgeMargin, (usableWidth - navigationWidth) / 2);
+            navigationY = height - metrics.safeInsetBottom
+                - edgeMargin - navigationHeight;
+        }
 
         return {
             buttonStyle: {
@@ -50,16 +98,20 @@
                 textSize: clamp(Math.round(buttonSize * 0.18), 16, 30),
                 bottomMargin: clamp(Math.round(buttonSize * 0.06), 5, 11)
             },
-            navigationPosition: { x: edgeMargin, y: edgeMargin },
+            navigationVertical: !portrait,
+            navigationPosition: { x: navigationX, y: navigationY },
             navigationSize: {
-                x: buttonSize + 2 * flowPadding,
-                y: 3 * buttonSize + 2 * flowSpacing + 2 * flowPadding
+                x: navigationWidth,
+                y: navigationHeight
             },
             audioPosition: {
-                x: Math.max(edgeMargin, width - edgeMargin - buttonSize - 2 * flowPadding),
-                y: edgeMargin
+                x: Math.max(metrics.safeInsetLeft + edgeMargin,
+                    width - metrics.safeInsetRight - edgeMargin
+                        - buttonSize - 2 * flowPadding),
+                y: metrics.safeInsetTop + edgeMargin
             },
-            audioSize: { x: buttonSize + 2 * flowPadding, y: buttonSize + 2 * flowPadding }
+            audioSize: { x: buttonSize + 2 * flowPadding, y: buttonSize + 2 * flowPadding },
+            hapticsSupported: metrics.hapticsSupported
         };
     }
 
@@ -142,19 +194,21 @@
 
         layout = calculateLayout(width, height);
         currentButtonStyle = layout.buttonStyle;
-        applyBarGeometry(navigationBar, layout.navigationPosition, layout.navigationSize);
-        applyBarGeometry(audioBar, layout.audioPosition, layout.audioSize);
+        applyBarGeometry(navigationBar, layout.navigationPosition,
+            layout.navigationSize, layout.navigationVertical);
+        applyBarGeometry(audioBar, layout.audioPosition, layout.audioSize, true);
         applyButtonStyle(gotoButton, currentButtonStyle);
         applyButtonStyle(tabletButton, currentButtonStyle);
         applyButtonStyle(cameraButton, currentButtonStyle);
         applyButtonStyle(microphoneButton, currentButtonStyle);
     }
 
-    function applyBarGeometry(bar, position, size) {
+    function applyBarGeometry(bar, position, size, vertical) {
         if (!bar) {
             return;
         }
         try {
+            bar.vertical = vertical;
             bar.setPosition(position.x, position.y);
             bar.setSize(size.x, size.y);
         } catch (error) {
@@ -185,6 +239,10 @@
     }
 
     function hapticFeedback() {
+        var metrics = normalizedRuntimeMetrics(Window.innerWidth, Window.innerHeight);
+        if (!metrics.hapticsSupported) {
+            return;
+        }
         var device = Controller.findDevice("TouchscreenVirtualPad");
         if (device !== 65535) {
             Controller.triggerHapticPulseOnDevice(device, 0.1, 40.0, 0);
@@ -250,24 +308,32 @@
     gotoButton = addButton(navigationBar, buttonProperties({
         icon: "icons/tablet-icons/goto-i.svg",
         activeIcon: "icons/tablet-icons/goto-a.svg",
-        text: "GO TO"
+        text: "GO TO",
+        accessibleName: "Go to destination",
+        accessibleDescription: "Open address and place navigation"
     }));
     tabletButton = addButton(navigationBar, buttonProperties({
         icon: "icons/tablet-icons/menu-i.svg",
         activeIcon: "icons/tablet-icons/menu-a.svg",
-        text: "TABLET"
+        text: "TABLET",
+        accessibleName: "Open tablet",
+        accessibleDescription: "Open the Overte application tablet"
     }));
     cameraButton = addButton(navigationBar, buttonProperties({
         icon: "icons/myview-i.svg",
         activeIcon: "icons/myview-i.svg",
-        text: "VIEW"
+        text: "VIEW",
+        accessibleName: "Change camera view",
+        accessibleDescription: "Toggle first-person and third-person camera"
     }));
     microphoneButton = addButton(audioBar, buttonProperties({
         icon: "icons/tablet-icons/mic-unmute-i.svg",
         activeIcon: "icons/tablet-icons/mic-mute-a.svg",
         text: Audio.muted ? "UNMUTE" : "MUTE",
         isActive: Audio.muted,
-        bindToAudioMute: true
+        bindToAudioMute: true,
+        accessibleName: Audio.muted ? "Unmute microphone" : "Mute microphone",
+        accessibleDescription: "Toggle microphone mute"
     }));
 
     connectSignal(gotoButton, "clicked", showAddressBar);
@@ -280,6 +346,7 @@
     connectSignal(microphoneButton, "entered", hapticFeedback);
     Window.geometryChanged.connect(updateLayout);
     Window.geometryChanged.connect(resizeTablet);
+    connectSignal(Tablet, "touchUiRuntimeMetricsChanged", updateLayout);
     systemTablet.tabletShownChanged.connect(tabletVisibilityChanged);
     tabletVisibilityChanged();
     // QML fragments also perform their initial placement in Component.onCompleted;
@@ -297,6 +364,7 @@
         }
         Window.geometryChanged.disconnect(updateLayout);
         Window.geometryChanged.disconnect(resizeTablet);
+        disconnectSignal(Tablet, "touchUiRuntimeMetricsChanged", updateLayout);
         systemTablet.tabletShownChanged.disconnect(tabletVisibilityChanged);
         Controller.setVPadHidden(false);
         Controller.releaseTouchEvents();

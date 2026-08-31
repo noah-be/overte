@@ -12,6 +12,7 @@ Item {
     signal windowClosed();
     
     property bool shown: true
+    property bool vertical: true
 
     onShownChanged: {
         actionBar.visible = shown;
@@ -20,8 +21,8 @@ Item {
     Flow {
         id: flowMain
         spacing: 10
-        flow: Flow.TopToBottom
-        layoutDirection: Flow.TopToBottom
+        flow: actionBar.vertical ? Flow.TopToBottom : Flow.LeftToRight
+        layoutDirection: Qt.LeftToRight
         anchors.fill: parent
         anchors.margins: 4
     }

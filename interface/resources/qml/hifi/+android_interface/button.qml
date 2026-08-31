@@ -1,4 +1,5 @@
-import QtQuick 2.5
+import QtQuick 2.7
+import controlsUit 1.0 as HifiControls
 
 Item {
     id: button
@@ -39,6 +40,16 @@ Item {
 
     property bool isActive: false
     property bool bindToAudioMute: false
+    property string accessibleName: text
+    property string accessibleDescription: ""
+
+    activeFocusOnTab: true
+    Accessible.role: Accessible.Button
+    Accessible.name: accessibleName
+    Accessible.description: accessibleDescription
+    Accessible.onPressAction: button.clicked()
+
+    HifiControls.TouchUiMetrics { id: touchMetrics }
 
     Binding {
         target: button
@@ -51,6 +62,14 @@ Item {
         target: button
         property: "text"
         value: AudioScriptingInterface.muted ? "UNMUTE" : "MUTE"
+        when: button.bindToAudioMute
+    }
+
+    Binding {
+        target: button
+        property: "accessibleName"
+        value: AudioScriptingInterface.muted
+            ? qsTr("Unmute microphone") : qsTr("Mute microphone")
         when: button.bindToAudioMute
     }
 
@@ -70,6 +89,12 @@ Item {
         for (var prop in props) {
             button[prop] = props[prop];
         }
+    }
+
+    function finishInteraction() {
+        button.isEntered = false
+        button.exited()
+        button.state = button.isActive ? "active state" : "base state"
     }
 
 
@@ -113,7 +138,7 @@ Item {
     }
     MouseArea {
         anchors.fill: parent
-        hoverEnabled: true
+        hoverEnabled: touchMetrics.hoverSupported
         enabled: true
         onClicked: {
             console.log("Bottom bar button clicked!!");
@@ -139,15 +164,13 @@ Item {
             }
         }
         onReleased: {
-            button.isEntered = false;
-            button.exited()
-            if (button.isActive) {
-                button.state = "active state";
-            } else {
-                button.state = "base state";
-            }
+            button.finishInteraction()
         }
+        onCanceled: button.finishInteraction()
     }
+    Keys.onReturnPressed: button.clicked()
+    Keys.onEnterPressed: button.clicked()
+    Keys.onSpacePressed: button.clicked()
     states: [
         State {
             name: "hover state"

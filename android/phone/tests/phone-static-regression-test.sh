@@ -14,6 +14,7 @@ readonly tests=(
     phone-apk-metadata-test.sh
     phone-apk-padding-test.sh
     phone-archive-extraction-test.sh
+    phone-audio-mute-privacy-test.sh
     phone-audio-output-race-test.sh
     phone-build-resource-guard-test.sh
     phone-build-download-parity-test.sh

@@ -18,6 +18,7 @@ switch_control="$repo_root/interface/resources/qml/controlsUit/Switch.qml"
 checkbox_control="$repo_root/interface/resources/qml/controlsUit/CheckBox.qml"
 text_field_control="$repo_root/interface/resources/qml/controlsUit/TextField.qml"
 base_profile="$repo_root/interface/resources/qml/controlsUit/TouchUiProfileBase.qml"
+phone_profile="$repo_root/interface/resources/qml/controlsUit/+android_phoneInterface/TouchUiProfile.qml"
 preferences_dialog="$repo_root/interface/resources/qml/hifi/tablet/tabletWindows/TabletPreferencesDialog.qml"
 shared_preferences_layout="$repo_root/interface/resources/qml/hifi/tablet/tabletWindows/TabletPreferencesLayout.qml"
 
@@ -38,6 +39,8 @@ require "$touch_metrics" 'property bool directTouch:[[:space:]]*profile[.]direct
     'shared metrics consume the selected device profile'
 require "$shared_config_base" 'readonly property bool touchOptimized:[[:space:]]*directTouch' \
     'feature presentation derives touch behavior from shared capabilities'
+require "$phone_profile" 'directTouch:[[:space:]]*true' \
+    'the phone selector enables touchscreen presentation'
 require "$touch_metrics" 'readonly property string widthClass:' \
     'shared touch metrics derive a reusable responsive width class'
 require "$shared_config_base" 'compact[[:space:]]*\?[[:space:]]*3[[:space:]]*:[[:space:]]*expanded[[:space:]]*\?[[:space:]]*6[[:space:]]*:[[:space:]]*5' \
@@ -50,6 +53,8 @@ require "$shared_preferences_layout" 'compactFooter:[[:space:]]*profile[.]screen
     'General Settings derives footer layout from the shared profile'
 require "$base_profile" 'property bool screenSpacePresentation:[[:space:]]*false' \
     'desktop and VR retain their established General Settings footer'
+require "$phone_profile" 'screenSpacePresentation:[[:space:]]*true' \
+    'phone General Settings select compact footer controls'
 require "$shared_preferences_layout" 'property int buttonWidth:[[:space:]]*120' \
     'phone preference buttons use unscaled logical width before host scaling'
 require "$shared_preferences_layout" 'property int buttonHeight:[[:space:]]*28' \
@@ -76,8 +81,19 @@ for hover_control in "$button_control" "$slider_control" "$switch_control" "$che
     require "$hover_control" 'hoverEnabled:[[:space:]]*touchMetrics[.]hoverSupported' \
         "$(basename "$hover_control") follows the selected hover capability"
 done
+if grep -Eq 'property int (columns|topBarHeight|horizontalMargin|minimumTouchTarget|maximumButtonExtent|buttonSpacing)' "$phone_profile"; then
+    printf 'FAIL: the phone profile must remain a capability-only adapter\n' >&2
+    exit 1
+fi
+printf 'PASS: the phone profile remains a capability-only adapter\n'
 require "$home" 'TabletTouchConfiguration[[:space:]]*\{' \
     'TabletHome consumes the selector-backed presentation settings'
+require "$home" 'semanticScreenId:[[:space:]]*"tablet[.]home"' \
+    'TabletHome declares the versioned semantic screen identity'
+require "$home" 'objectName:[[:space:]]*"tablet"' \
+    'TabletHome preserves the native C++ routing identity'
+require "$home" 'objectName:[[:space:]]*tablet[.]semanticScreenId' \
+    'TabletHome publishes its semantic identity through a native Accessibility marker'
 require "$home" 'cellWidth:[[:space:]]*width[[:space:]]*/[[:space:]]*presentation\.columns' \
     'the app grid uses the responsive column count'
 require "$home" 'presentation\.columns[[:space:]]*\*[[:space:]]*\(presentation\.maximumButtonExtent[[:space:]]*\+[[:space:]]*presentation\.buttonSpacing\)' \
@@ -95,6 +111,8 @@ require "$home" 'anchors\.bottom:[[:space:]]*closeTabletButton\.top' \
     'the app pages reserve bottom space and sit above the close control'
 require "$home" 'objectName:[[:space:]]*"androidTabletCloseButton"' \
     'the Android tablet exposes a stable close-control identity'
+require "$home" 'objectName:[[:space:]]*"nav[.]close"' \
+    'the visible close action exposes the common semantic control identity'
 require "$home" 'onClicked:[[:space:]]*tabletProxy\.hideAndroidTablet\(\)' \
     'the close control routes through the native screen-space presenter'
 require "$home" 'hoverEnabled:[[:space:]]*!presentation\.touchOptimized' \

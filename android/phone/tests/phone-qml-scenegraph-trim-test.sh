@@ -20,8 +20,8 @@ for name in ActionBar AudioBar; do
     for property in \
         'id:[[:space:]]*flowMain' \
         'spacing:[[:space:]]*10' \
-        'flow:[[:space:]]*Flow\.TopToBottom' \
-        'layoutDirection:[[:space:]]*Flow\.TopToBottom' \
+        'flow:[[:space:]]*(actionBar|bar)[.]vertical[[:space:]]*\?[[:space:]]*Flow\.TopToBottom[[:space:]]*:[[:space:]]*Flow\.LeftToRight' \
+        'layoutDirection:[[:space:]]*Qt\.LeftToRight' \
         'anchors\.fill:[[:space:]]*parent' \
         'anchors\.margins:[[:space:]]*4'; do
         grep -Eq "$property" "$file" || {
@@ -47,8 +47,16 @@ grep -Eq 'Window\.geometryChanged\.connect' "$qml_dir/AudioBar.qml"
 grep -Eq 'Window\.geometryChanged\.disconnect' "$qml_dir/AudioBar.qml"
 
 button_file="$qml_dir/button.qml"
-[[ $(grep -Ec '^import ' "$button_file") -eq 1 ]] || {
+[[ $(grep -Ec '^import ' "$button_file") -eq 2 ]] || {
     echo 'FAIL: Android touch button retains unused QML imports' >&2
+    exit 1
+}
+grep -Eq '^import QtQuick 2[.]7$' "$button_file" || {
+    echo 'FAIL: Android touch button lost the accessibility-capable QtQuick import' >&2
+    exit 1
+}
+grep -Eq '^import controlsUit 1[.]0 as HifiControls$' "$button_file" || {
+    echo 'FAIL: Android touch button lost shared touch capability metrics' >&2
     exit 1
 }
 if grep -Eq 'FontLoader|FiraSans-Regular\.ttf' "$button_file"; then
@@ -59,5 +67,18 @@ grep -Eq 'font\.family:[[:space:]]*button\.fontFamily' "$button_file" || {
     echo 'FAIL: Android touch button no longer uses its configured font family' >&2
     exit 1
 }
+grep -Eq 'Accessible\.onPressAction:[[:space:]]*button\.clicked\(\)' "$button_file" || {
+    echo 'FAIL: Android touch button lost its assistive activation path' >&2
+    exit 1
+}
+grep -Eq 'onCanceled:[[:space:]]*button\.finishInteraction\(\)' "$button_file" || {
+    echo 'FAIL: Android touch button can retain pressed state after cancellation' >&2
+    exit 1
+}
+if ! grep -Eq 'value:[[:space:]]*AudioScriptingInterface\.muted' "$button_file" \
+        || ! grep -Fq 'qsTr("Unmute microphone")' "$button_file"; then
+    echo 'FAIL: microphone accessibility label no longer follows mute state' >&2
+    exit 1
+fi
 
 echo 'Phone QML scenegraph trim checks passed.'

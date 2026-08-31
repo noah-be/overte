@@ -47,7 +47,13 @@ FakeFragment.instances = [];
 FakeFragment.failCreation = false;
 FakeFragment.failButtons = false;
 
-function start({ width = 1000, height = 500, muted = false, cameraMode = "first person" } = {}) {
+function start({
+    width = 1000,
+    height = 500,
+    muted = false,
+    cameraMode = "first person",
+    touchUiRuntimeMetrics = { valid: false }
+} = {}) {
     FakeFragment.instances = [];
     FakeFragment.failCreation = false;
     FakeFragment.failButtons = false;
@@ -61,7 +67,11 @@ function start({ width = 1000, height = 500, muted = false, cameraMode = "first 
         showAndroidTablet(w, h) { this.shown.push([w, h]); },
         resizeAndroidTablet(w, h) { this.resized.push([w, h]); }
     };
-    const Tablet = { getTablet() { return tablet; } };
+    const Tablet = {
+        touchUiRuntimeMetrics,
+        touchUiRuntimeMetricsChanged: new FakeSignal(),
+        getTablet() { return tablet; }
+    };
     const controllerCalls = [];
     const Controller = {
         device: 9,
@@ -81,7 +91,7 @@ function start({ width = 1000, height = 500, muted = false, cameraMode = "first 
         Script, Tablet, Window, print: (message) => prints.push(message)
     });
     const [navigation, audio] = FakeFragment.instances;
-    return { Script, Window, tablet, Controller, controllerCalls, Audio, Camera, MyAvatar,
+    return { Script, Window, Tablet, tablet, Controller, controllerCalls, Audio, Camera, MyAvatar,
         DialogsManager, prints, navigation, audio };
 }
 
@@ -98,6 +108,51 @@ test("production action bar creates adaptive controls and applies deferred geome
     assert.deepEqual(state.navigation.positions.at(-1), { x: 13, y: 13 });
     assert.deepEqual(state.navigation.sizes.at(-1), { x: 88, y: 268 });
     assert.deepEqual(state.audio.positions.at(-1), { x: 899, y: 13 });
+    assert.equal(state.navigation.vertical, true);
+    assert.equal(state.navigation.buttons[0].accessibleName, "Go to destination");
+    assert.equal(state.navigation.buttons[0].accessibleDescription,
+        "Open address and place navigation");
+});
+
+test("runtime safe areas and portrait geometry reposition every action", () => {
+    const state = start({
+        width: 360,
+        height: 640,
+        touchUiRuntimeMetrics: {
+            valid: true,
+            surfaceWidth: 360,
+            surfaceHeight: 640,
+            safeInsetLeft: 10,
+            safeInsetTop: 24,
+            safeInsetRight: 20,
+            safeInsetBottom: 30,
+            hapticsSupported: true
+        }
+    });
+    state.Script.runTimer([...state.Script.timers.keys()][0]);
+    assert.equal(state.navigation.vertical, false);
+    assert.deepEqual(state.navigation.sizes.at(-1), { x: 244, y: 80 });
+    assert.deepEqual(state.navigation.positions.at(-1), { x: 53, y: 518 });
+    assert.deepEqual(state.audio.positions.at(-1), { x: 248, y: 36 });
+});
+
+test("runtime metric changes relayout controls without a window resize", () => {
+    const state = start({ width: 1000, height: 500 });
+    state.Tablet.touchUiRuntimeMetrics = {
+        valid: true,
+        surfaceWidth: 1000,
+        surfaceHeight: 500,
+        safeInsetLeft: 100,
+        safeInsetTop: 20,
+        safeInsetRight: 40,
+        safeInsetBottom: 10,
+        hapticsSupported: true
+    };
+
+    state.Tablet.touchUiRuntimeMetricsChanged.emit();
+
+    assert.deepEqual(state.navigation.positions.at(-1), { x: 112, y: 32 });
+    assert.equal(state.Window.geometryChanged.listenerCount, 2);
 });
 
 test("buttons perform navigation, tablet, microphone and haptic actions", () => {
@@ -120,6 +175,24 @@ test("buttons perform navigation, tablet, microphone and haptic actions", () => 
     tabletButton.entered.emit();
     assert.equal(state.controllerCalls.length, before + 1);
     assert.deepEqual(state.controllerCalls.at(-1), ["find", "TouchscreenVirtualPad"]);
+});
+
+test("device capability suppresses unavailable haptics", () => {
+    const state = start({
+        touchUiRuntimeMetrics: {
+            valid: true,
+            surfaceWidth: 1000,
+            surfaceHeight: 500,
+            safeInsetLeft: 0,
+            safeInsetTop: 0,
+            safeInsetRight: 0,
+            safeInsetBottom: 0,
+            hapticsSupported: false
+        }
+    });
+    const before = state.controllerCalls.length;
+    state.navigation.buttons[0].entered.emit();
+    assert.equal(state.controllerCalls.length, before);
 });
 
 test("camera toggle preserves the third-person boom across both directions", () => {
@@ -177,6 +250,7 @@ test("shutdown cancels deferred work, disconnects every signal and closes fragme
     assert.equal(state.Script.timers.size, 0);
     assert.deepEqual(state.Script.clearedTimers, [timerId]);
     assert.equal(state.Window.geometryChanged.listenerCount, 0);
+    assert.equal(state.Tablet.touchUiRuntimeMetricsChanged.listenerCount, 0);
     assert.equal(state.tablet.tabletShownChanged.listenerCount, 0);
     assert.equal(state.navigation.closed, true);
     assert.equal(state.audio.closed, true);

@@ -6,7 +6,11 @@ readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly repo_root="$(cd -- "$script_dir/../../.." && pwd)"
 readonly settings="$repo_root/scripts/system/settings/Settings.qml"
 readonly shared_config="$repo_root/scripts/system/settings/qml/SettingsTouchConfiguration.qml"
+readonly pico_config="$repo_root/scripts/system/settings/qml/+android_picoInterface/SettingsTouchConfiguration.qml"
+readonly quest_config="$repo_root/scripts/system/settings/qml/+android_questInterface/SettingsTouchConfiguration.qml"
+readonly file_utils="$repo_root/libraries/shared/src/shared/FileUtils.cpp"
 readonly base_profile="$repo_root/interface/resources/qml/controlsUit/TouchUiProfileBase.qml"
+readonly phone_profile="$repo_root/interface/resources/qml/controlsUit/+android_phoneInterface/TouchUiProfile.qml"
 
 require() {
     local file="$1" pattern="$2" description="$3"
@@ -27,8 +31,24 @@ require "$base_profile" 'graphicsSettingsAvailable:[[:space:]]*true' \
     'the default profile preserves graphics settings'
 require "$base_profile" 'picoResolutionSettingsAvailable:[[:space:]]*true' \
     'the default profile preserves existing render-scale settings'
+require "$phone_profile" 'controllerSettingsAvailable:[[:space:]]*false' \
+    'phone Settings hide the unavailable desktop and VR controller page'
+require "$phone_profile" 'graphicsSettingsAvailable:[[:space:]]*false' \
+    'phone Settings hide the unbounded desktop graphics page'
+require "$phone_profile" 'picoResolutionSettingsAvailable:[[:space:]]*false' \
+    'phone Settings hide the Pico-only render scale restart control'
 require "$shared_config" 'showGraphicsSettings:[[:space:]]*profile[.]graphicsSettingsAvailable' \
     'Settings resolve policy through the shared device profile'
+require "$shared_config" 'showPicoInteractionSettings:[[:space:]]*false' \
+    'unselected Settings profiles fail closed for Pico interaction controls'
+require "$pico_config" 'showPicoInteractionSettings:[[:space:]]*true' \
+    'the compiled Pico selector enables Pico interaction controls'
+require "$quest_config" 'showPicoInteractionSettings:[[:space:]]*false' \
+    'Quest Settings reject Pico-specific interaction controls'
+require "$file_utils" 'extraSelectors << "android_" HIFI_ANDROID_APP' \
+    'Settings capabilities derive from the immutable compiled Android target'
+require "$settings" 'SettingsTouchConfiguration[[:space:]]*\{' \
+    'Settings resolve metrics through QFileSelector'
 require "$settings" 'width:[[:space:]]*parent[.]width / touchConfiguration[.]contentScale' \
     'logical width compensates for visual scaling without clipping'
 require "$settings" 'height:[[:space:]]*parent[.]height / touchConfiguration[.]contentScale' \
@@ -47,6 +67,17 @@ require "$settings" 'touchConfiguration[.]showGraphicsSettings' \
     'Settings filter graphics navigation through the selector'
 require "$settings" 'active:[[:space:]]*touchConfiguration[.]showGraphicsSettings' \
     'Phone does not construct hidden desktop graphics controls'
+require "$settings" 'requiresPicoInteractionSettings:[[:space:]]*true' \
+    'Settings mark Pico-only navigation with an explicit capability'
+require "$settings" 'touchConfiguration[.]showPicoInteractionSettings' \
+    'Settings filter Pico-only navigation through QFileSelector'
+require "$settings" 'active:[[:space:]]*touchConfiguration[.]showPicoInteractionSettings' \
+    'non-Pico products do not construct Pico interaction controls'
+if grep -Fq 'deferTabletCreationUntilOpen' "$settings"; then
+    printf 'FAIL: Settings must not infer immutable product identity from persisted state\n' >&2
+    exit 1
+fi
+printf 'PASS: Settings do not infer product identity from persisted state\n'
 
 readonly graphics="$repo_root/scripts/system/settings/qml/pages/GraphicsSettings.qml"
 require "$graphics" 'SettingsTouchConfiguration[[:space:]]*\{' \

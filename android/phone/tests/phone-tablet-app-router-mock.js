@@ -22,8 +22,8 @@ const buttons = [];
 const tablet = {
     fromQml,
     screenChanged,
-    addButton() {
-        const button = { clicked: signal() };
+    addButton(properties) {
+        const button = { clicked: signal(), properties };
         buttons.push(button);
         return button;
     },
@@ -66,6 +66,23 @@ acceptedRoutes.forEach(([request, expected]) => {
     assert.strictEqual(loadedSources.at(-1), expected);
 });
 assert.strictEqual(loadedSources.length, acceptedRoutes.length);
+assert.strictEqual(buttons[1].properties.semanticId, "app.settings",
+    "the real Phone Settings button carries the semantic contract ID");
+
+[
+    "hifi/tablet/TabletGeneralPreferences.qml",
+    "hifi/audio/Audio.qml",
+    "hifi/dialogs/security/Security.qml"
+].forEach((source) => {
+    screenChanged.emit("QML", source);
+    fromQml.emit({ type: "settings.back" });
+    assert.strictEqual(loadedSources.at(-1), settingsSource);
+});
+const afterSemanticBack = loadedSources.length;
+screenChanged.emit("QML", "unrelated.qml");
+fromQml.emit({ type: "settings.back" });
+assert.strictEqual(loadedSources.length, afterSemanticBack,
+    "semantic Back is accepted only from allowlisted Settings children");
 
 [
     null,
@@ -79,11 +96,11 @@ assert.strictEqual(loadedSources.length, acceptedRoutes.length);
     { type: "switchApp", appUrl: "__proto__" },
     { type: "switchApp", appUrl: "constructor" }
 ].forEach((message) => fromQml.emit(message));
-assert.strictEqual(loadedSources.length, acceptedRoutes.length);
+assert.strictEqual(loadedSources.length, afterSemanticBack);
 
 screenChanged.emit("Home", "");
 fromQml.emit({ type: "switchApp", appUrl: "hifi/audio/Audio.qml" });
-assert.strictEqual(loadedSources.length, acceptedRoutes.length);
+assert.strictEqual(loadedSources.length, afterSemanticBack);
 
 scriptEnding.emit();
 assert.strictEqual(removedButtons.length, 3);

@@ -12,6 +12,14 @@
 - Android IME support is enabled only while an actual offscreen QML text field
   has focus. This removes the phantom Android text-selection UI from the normal
   phone viewport while preserving text-entry support.
+- The Activity follows all sensor orientations and publishes validated live
+  surface, cutout, gesture, IME, density, font-scale, hover, keyboard and
+  haptics measurements through the native Tablet boundary.
+- The action bars adapt between a bottom horizontal portrait layout and a
+  vertical landscape layout without entering protected display regions.
+- Tablet, address, login, Settings, Avatar, Audio, Security, Emote and menu
+  surfaces share touch targets, font scale, scroll physics and accessibility
+  activation semantics.
 
 The disabled pinch state and removal of the phantom text-selection UI were
 confirmed manually on a phone build. Enabling pinch zoom, saving the preference,
@@ -21,10 +29,30 @@ the lower-right with usable button dimensions. Host regression tests and
 Android APK content, padding, and 16 KiB packaging gates passed; the final app
 process remained running with no fatal entries in the PID-filtered diagnostic.
 
-## Next steps
+## Runtime validation
 
-- Recheck text entry in address, login, and settings fields after the dynamic
-  IME gating change.
+Host policy/component, coverage and mutation gates protect the deterministic
+parts of the universal touch stack. Physical IME, cutout, fold, TalkBack and
+GPU behavior must be recorded with `TOUCH_DEVICE_VALIDATION.md`; a host pass is
+not presented as a device result.
+
+## Adapter boundary
+
+Android Phone supplies platform behavior to the shared touch UI through three
+explicit adapter layers:
+
+- `interface/resources/qml/controlsUit/+android_phoneInterface/TouchUiProfile.qml`
+  maps Android Phone capabilities and runtime values into the shared profile;
+- `android/phone/apps/phoneInterface/src/PhoneTouchUiMetrics.h` exposes the
+  normalized values read-only as `Tablet.touchUiRuntimeMetrics`; and
+- `android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneTouchUiMetricsPolicy.java`
+  normalizes Activity measurements before they cross the native Tablet boundary.
+
+Feature policy and layouts remain in the shared touch QML. New Android-specific
+copies should be limited to genuine platform integration; they must not fork a
+layout merely for a phone or tablet model. The common architecture and ownership
+rules are described in
+[`docs/interface/universal-touch-ui.md`](../../../docs/interface/universal-touch-ui.md).
 
 ## Phone/tablet integration
 
@@ -45,8 +73,8 @@ filesystem, HMD, VR laser/keyboard, Oculus-only, disabled crash-reporting, or
 no-op Discord controls. Desktop, Pico, and other VR clients retain their
 established categories.
 
-The combined tablet and touch-navigation host regression suites pass. The
-incremental phone build, APK gates, and focused manual integration checks are
-complete, so this branch is ready to merge into the phone branch. The items
-under **Next steps** remain follow-up validation and cleanup rather than merge
-blockers.
+The combined tablet and touch-navigation host regression suites cover the
+shared architecture. Merge readiness additionally requires the repository's
+normal review process and whichever physical rows are required for the target
+release; this status document does not claim that an unrecorded device run
+passed.

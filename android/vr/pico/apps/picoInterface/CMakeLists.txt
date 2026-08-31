@@ -50,7 +50,7 @@ get_target_property(PICO_INTERFACE_SOURCES picoInterface SOURCES)
 list(FILTER PICO_INTERFACE_SOURCES EXCLUDE REGEX "PicoWebViewItem\\.(cpp|h)$")
 set_property(TARGET picoInterface PROPERTY SOURCES "${PICO_INTERFACE_SOURCES}")
 target_sources(picoInterface PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/QtInputConnectionCompat.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../../common/src/QtInputConnectionCompat.cpp"
 )
 # setup_hifi_library() keeps the directory's native library target while this
 # standalone Android CMake file switches TARGET_NAME.  The Pico-specific QML
@@ -84,7 +84,7 @@ get_target_property(PICO_GL_SOURCES gl SOURCES)
 list(FILTER PICO_GL_SOURCES EXCLUDE REGEX "OffscreenGLCanvas\\.cpp$")
 set_property(TARGET gl PROPERTY SOURCES "${PICO_GL_SOURCES}")
 target_sources(gl PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/overrides/OffscreenGLCanvas.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../../common/src/OffscreenGLCanvas.cpp"
 )
 target_include_directories(gl PRIVATE
     "${CMAKE_SOURCE_DIR}/libraries/gl/src/gl"

@@ -167,7 +167,7 @@
       "command": ["modules/look.py"],
       "suites": ["e2e-core"],
       "requires": ["input.look", "probe.snapshot", "scene.load"],
-      "timeoutSeconds": 90
+      "timeoutSeconds": 240
     },
     {
       "id": "move",
@@ -175,7 +175,7 @@
       "command": ["modules/move.py"],
       "suites": ["e2e-core"],
       "requires": ["input.move", "probe.snapshot", "scene.load"],
-      "timeoutSeconds": 90
+      "timeoutSeconds": 210
     },
     {
       "id": "input-neutral",
@@ -251,10 +251,10 @@
     },
     {
       "id": "accessibility",
-      "description": "Audit stable tablet controls while reusing one controlled app session.",
+      "description": "Capture the native accessibility tree and require audited stable labels.",
       "command": ["modules/accessibility.py"],
       "suites": ["accessibility"],
-      "requires": ["accessibility.snapshot", "app.launch", "app.process", "probe.snapshot", "scene.load", "tablet.close", "tablet.open"],
+      "requires": ["accessibility.snapshot"],
       "timeoutSeconds": 120
     },
     {

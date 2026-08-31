@@ -30,6 +30,7 @@ JAVA_PRODUCTION = {
     "launch": ROOT / "phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneLaunchState.java",
     "permission": ROOT / "phone/apps/phoneInterface/src/main/java/org/overte/phone/PhonePermissionFlow.java",
     "pending": ROOT / "phone/apps/phoneInterface/src/main/java/org/overte/phone/PhonePendingUrlPolicy.java",
+    "touch-metrics": ROOT / "phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneTouchUiMetricsPolicy.java",
     "asset": ROOT / "common/libraries/qt/src/main/java/io/highfidelity/utils/SafeAssetPath.java",
     "extractor": ROOT / "common/libraries/qt/src/main/java/io/highfidelity/utils/AssetCacheExtractor.java",
 }
@@ -48,16 +49,19 @@ JAVA_MAINS = [
     "org.overte.phone.PhoneLaunchStateStandaloneTest",
     "org.overte.phone.PhonePermissionFlowStandaloneTest",
     "org.overte.phone.PhonePendingUrlPolicyStandaloneTest",
+    "org.overte.phone.PhoneTouchUiMetricsPolicyStandaloneTest",
     "io.highfidelity.utils.SafeAssetPathStandaloneTest",
     "io.highfidelity.utils.AssetCacheExtractorStandaloneTest",
 ]
 GRAPHICS = ROOT.parent / "interface/src/ui/PhoneGraphicsPolicy.h"
 HANDOFF = ROOT / "phone/apps/phoneInterface/src/PhonePendingHandoff.h"
 LOGIN_STATE = ROOT.parent / "interface/src/ui/PhoneLoginState.h"
+TOUCH_METRICS = ROOT / "phone/apps/phoneInterface/src/PhoneTouchUiMetrics.h"
 NATIVE_TESTS = {
     "graphics": sorted((ROOT / "common/tests/native").glob("phone_graphics_*_test.cpp")),
     "handoff": sorted((ROOT / "common/tests/native").glob("phone_pending_handoff_*_test.cpp")),
     "login": sorted((ROOT / "common/tests/native").glob("phone_login_state_*_test.cpp")),
+    "touch": [ROOT / "common/tests/native/phone_touch_ui_metrics_test.cpp"],
 }
 JAVASCRIPT_TESTS = {
     SCRIPTS / "+android_phoneInterface/mobileTabletApps.js": ROOT / "common/tests/javascript/test/mobile-tablet-apps.production.test.js",
@@ -96,6 +100,10 @@ MUTANTS = [
     Mutant("permission-accept-unrelated", "java", JAVA_PRODUCTION["permission"], "requestCode == RECORD_AUDIO_REQUEST", "requestCode != RECORD_AUDIO_REQUEST"),
     Mutant("pending-attempt-while-paused", "java", JAVA_PRODUCTION["pending"], "pendingUrl != null && resumed", "pendingUrl != null || resumed"),
     Mutant("pending-retry-at-limit", "java", JAVA_PRODUCTION["pending"], "failedAttempts < maximumAttempts", "failedAttempts <= maximumAttempts", True),
+    Mutant("touch-metrics-ime-threshold", "java", JAVA_PRODUCTION["touch-metrics"], "boolean keyboardVisible = ime > bottom;", "boolean keyboardVisible = ime >= bottom;"),
+    Mutant("touch-metrics-ignore-density", "java", JAVA_PRODUCTION["touch-metrics"], "float scale = Math.min(normalizedDensity, Math.min(widthLimit, heightLimit));", "float scale = Math.min(MAX_DENSITY, Math.min(widthLimit, heightLimit));"),
+    Mutant("touch-metrics-drop-legacy-cutout-bottom", "java", JAVA_PRODUCTION["touch-metrics"], "mandatoryBottom,\n                        cutoutBottom),", "mandatoryBottom,\n                        mandatoryBottom),"),
+    Mutant("touch-metrics-allow-collapsed-width", "java", JAVA_PRODUCTION["touch-metrics"], "if (left + right >= surfaceWidth) {\n            right = Math.max(0, surfaceWidth - left - 1);", "if (left + right > surfaceWidth) {\n            right = Math.max(0, surfaceWidth - left - 1);", True),
     Mutant("asset-disable-containment", "java", JAVA_PRODUCTION["asset"], "!destination.getPath().startsWith(rootPrefix)", "false"),
     Mutant("asset-allow-root", "java", JAVA_PRODUCTION["asset"], "destination.equals(canonicalRoot)", "false", True),
     Mutant("asset-allow-absolute", "java", JAVA_PRODUCTION["asset"], "new File(relativePath).isAbsolute()", "false", True),
@@ -112,6 +120,9 @@ MUTANTS = [
     Mutant("login-terminal-keeps-pending", "login", LOGIN_STATE, "_requestPending = false;\n    }", "_requestPending = true;\n    }", True),
     Mutant("login-invert-observer", "login", LOGIN_STATE, "return _requestPending;", "return !_requestPending;", True),
     Mutant("login-share-state-between-instances", "login", LOGIN_STATE, "bool _requestPending { false };", "inline static bool _requestPending { false };", True),
+    Mutant("native-touch-invent-keyboard", "touch", TOUCH_METRICS, "rawKeyboardVisible\n                && result.imeInsetBottom > result.safeInsetBottom", "rawKeyboardVisible\n                || result.imeInsetBottom > result.safeInsetBottom"),
+    Mutant("native-touch-disable-content-upper-bound", "touch", TOUCH_METRICS, "boundedFinite(rawContentScale, 1.0f, 1.0f, 3.0f)", "boundedFinite(rawContentScale, 1.0f, 1.0f, 30.0f)"),
+    Mutant("native-touch-accept-zero-surface", "touch", TOUCH_METRICS, "if (width <= 0 || height <= 0", "if (width < 0 || height <= 0", True),
     Mutant("graphics-bool-never-true", "graphics", GRAPHICS, 'normalized == "1" || normalized == "on" || normalized == "true" || normalized == "enabled"', "false"),
     Mutant("graphics-float-disable-lower-clamp", "graphics", GRAPHICS, "parsed < minimum ? minimum", "false ? minimum"),
     Mutant("graphics-unsigned-accept-suffix", "graphics", GRAPHICS, "*parseEnd != '\\0'", "false"),
@@ -181,7 +192,8 @@ def java_run(work: Path, mutant: Mutant | None) -> tuple[str, str]:
 def native_run(work: Path, family: str, mutant: Mutant | None) -> tuple[str, str]:
     include = work / "include"
     include.mkdir(parents=True)
-    source = {"graphics": GRAPHICS, "handoff": HANDOFF, "login": LOGIN_STATE}[family]
+    source = {"graphics": GRAPHICS, "handoff": HANDOFF, "login": LOGIN_STATE,
+              "touch": TOUCH_METRICS}[family]
     destination = include / source.name
     if mutant:
         replace_once(source, destination, mutant.old, mutant.new)

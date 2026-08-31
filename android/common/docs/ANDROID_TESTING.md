@@ -21,6 +21,7 @@ general-purpose linters.
 | `contracts` | Source, architecture, privacy, packaging and security invariants | Every pull request |
 | `host` | All focused host behavior suites | Local investigation and future CI expansion |
 | `prepared-host` | Pico-relevant Qt/C++ suites from an existing CMake/Conan build | Explicit prepared developer host |
+| `android-vr` | Shared OpenXR, Pico runtime, Quest launcher, syntax, and inventory contracts | Android-VR integration changes |
 | `regression` | The complete established device-free phone gate | Protected branches, nightly and manual CI |
 | `device` | Physical ARM64 phone smoke and lifecycle coverage | Explicit device lab invocation only |
 | `instrumentation` | AndroidX tests on a connected emulator or device | Explicit prepared Android environment |
@@ -46,6 +47,16 @@ The categories are complementary:
   runtime tests, including permissions, privacy and packaged resources.
 - Device tests cover the Android lifecycle, system integration, graphics and
   hardware-dependent behavior that a host test cannot prove.
+
+The standalone Android-VR integration gate is hardware-free:
+
+```bash
+common/tests/run-tests.sh android-vr
+```
+
+Its six-suite boundary, stable JUnit output, runtime expectations, and deliberate
+vendor exclusions are documented in the
+[Android VR Hardware-Free Test Gate](../../vr/pico/docs/ANDROID_VR_TESTING.md).
 
 The hardware-free Pico harness self-tests run in `fast`, `host`, and
 `contracts`; they exercise lock, unattended-runner, and microphone-script
@@ -424,6 +435,12 @@ memory/performance baselines. Device jobs must be serialized per device, use a
 bounded timeout, always clean up the installed test state, and publish only
 privacy-scrubbed summaries.
 
+The touch-specific device/posture, IME, hybrid-input, accessibility and
+performance acceptance criteria are maintained in
+[`TOUCH_DEVICE_VALIDATION.md`](../../phone/docs/TOUCH_DEVICE_VALIDATION.md).
+Unexecuted physical rows remain explicitly `not run`; device-free evidence
+must not be promoted to a hardware pass.
+
 Coverage should be reported separately for JVM, native and JavaScript code.
 Raise thresholds gradually around critical parsers and state machines; a single
 aggregate percentage is not a useful release gate for this hybrid application.
@@ -437,7 +454,9 @@ android/common/tests/run-tests.sh mutation
 ```
 
 It validates a clean baseline before applying mutations, then covers the pure
-Java boundary policies (including asset cache marker/extraction behavior), the native graphics parsers and pending handoff,
+Java boundary policies (including runtime touch metrics and asset cache
+marker/extraction behavior), the native graphics parsers, pending handoff and
+touch-metrics boundary,
 and curated lifecycle/routing decisions in five production JavaScript files.
 The JavaScript mutations are injected only by exact canonical source-path
 substitution in the existing Node VM harness; normal test runs are unchanged.

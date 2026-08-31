@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit the stable tablet controls through one platform-neutral app session."""
+"""Record the native accessibility tree and require configured stable labels."""
 
 from __future__ import annotations
 

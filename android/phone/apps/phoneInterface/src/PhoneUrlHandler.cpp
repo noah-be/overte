@@ -12,9 +12,12 @@
 #include <QPointer>
 #include <QString>
 #include <QThread>
+#include <QVariantMap>
 
 #include "AndroidHelper.h"
+#include "PhoneLifecycleHandoff.h"
 #include "PhonePendingHandoff.h"
+#include "PhoneTouchUiMetrics.h"
 #include "ui/PhoneDialogRouter.h"
 
 namespace {
@@ -79,6 +82,145 @@ PendingUrlDelivery* urlDelivery(QCoreApplication* application) {
     return delivery;
 }
 
+QVariantMap touchUiMetricsMap(const phone::TouchUiMetrics& metrics) {
+    QVariantMap result;
+    result.insert("valid", metrics.valid);
+    result.insert("surfaceWidth", metrics.surfaceWidth);
+    result.insert("surfaceHeight", metrics.surfaceHeight);
+    result.insert("safeInsetLeft", metrics.safeInsetLeft);
+    result.insert("safeInsetTop", metrics.safeInsetTop);
+    result.insert("safeInsetRight", metrics.safeInsetRight);
+    result.insert("safeInsetBottom", metrics.safeInsetBottom);
+    result.insert("imeInsetBottom", metrics.imeInsetBottom);
+    result.insert("density", metrics.density);
+    result.insert("fontScale", metrics.fontScale);
+    result.insert("contentScale", metrics.contentScale);
+    result.insert("keyboardVisible", metrics.keyboardVisible);
+    result.insert("hoverSupported", metrics.hoverSupported);
+    result.insert("hardwareKeyboardSupported", metrics.hardwareKeyboardSupported);
+    result.insert("hapticsSupported", metrics.hapticsSupported);
+    result.insert("landscape", metrics.surfaceWidth >= metrics.surfaceHeight);
+    return result;
+}
+
+class PendingTouchUiMetricsDelivery final : public QObject {
+public:
+    explicit PendingTouchUiMetricsDelivery(QCoreApplication* application)
+        : QObject(application) {
+        auto& helper = AndroidHelper::instance();
+        connect(&helper, &AndroidHelper::qtAppLoadComplete,
+                this, [this]() { deliverIfReady(); });
+    }
+
+    void submit(const phone::TouchUiMetrics& metrics) {
+        _pending = metrics;
+        _hasPending = metrics.valid;
+        deliverIfReady();
+    }
+
+private:
+    void deliverIfReady() {
+        if (!_hasPending || !AndroidHelper::instance().isLoadComplete()) {
+            return;
+        }
+        if (!phone::updateTouchUiRuntimeMetrics(touchUiMetricsMap(_pending))) {
+            return;
+        }
+        _hasPending = false;
+    }
+
+    phone::TouchUiMetrics _pending;
+    bool _hasPending { false };
+};
+
+PendingTouchUiMetricsDelivery* touchUiMetricsDelivery(QCoreApplication* application) {
+    static QPointer<PendingTouchUiMetricsDelivery> delivery;
+    if (!delivery) {
+        delivery = new PendingTouchUiMetricsDelivery(application);
+    }
+    return delivery;
+}
+
+class PendingFlyingOverrideDelivery final : public QObject {
+public:
+    explicit PendingFlyingOverrideDelivery(QCoreApplication* application)
+        : QObject(application) {
+        auto& helper = AndroidHelper::instance();
+        connect(&helper, &AndroidHelper::qtAppLoadComplete,
+                this, [this]() { deliverIfReady(); });
+    }
+
+    void submit(int mode) {
+        _pendingMode = mode;
+        deliverIfReady();
+    }
+
+private:
+    void deliverIfReady() {
+        if (_pendingMode < -1 || !AndroidHelper::instance().isLoadComplete()) {
+            return;
+        }
+        if (AndroidHelper::instance().setPhoneE2eFlyingEnabledOverride(
+                _pendingMode)) {
+            _pendingMode = NO_PENDING_MODE;
+        }
+    }
+
+    static constexpr int NO_PENDING_MODE = -2;
+    int _pendingMode { NO_PENDING_MODE };
+};
+
+PendingFlyingOverrideDelivery* flyingOverrideDelivery(
+        QCoreApplication* application) {
+    static QPointer<PendingFlyingOverrideDelivery> delivery;
+    if (!delivery) {
+        delivery = new PendingFlyingOverrideDelivery(application);
+    }
+    return delivery;
+}
+
+class PendingLifecycleDelivery final : public QObject {
+public:
+    explicit PendingLifecycleDelivery(QCoreApplication* application)
+        : QObject(application) {
+        auto& helper = AndroidHelper::instance();
+        connect(&helper, &AndroidHelper::qtAppLoadComplete,
+                this, [this]() { apply(_handoff.markReady()); });
+        if (helper.isLoadComplete()) {
+            apply(_handoff.markReady());
+        }
+    }
+
+    void submit(bool foreground) {
+        apply(_handoff.setForeground(foreground));
+    }
+
+private:
+    static void apply(phone::LifecycleHandoff::Action action) {
+        auto& helper = AndroidHelper::instance();
+        switch (action) {
+            case phone::LifecycleHandoff::Action::EnterBackground:
+                helper.notifyEnterBackground();
+                break;
+            case phone::LifecycleHandoff::Action::EnterForeground:
+                helper.notifyEnterForeground();
+                break;
+            case phone::LifecycleHandoff::Action::None:
+                break;
+        }
+    }
+
+    phone::LifecycleHandoff _handoff;
+};
+
+PendingLifecycleDelivery* lifecycleDelivery(QCoreApplication* application) {
+    static QPointer<PendingLifecycleDelivery> delivery;
+    if (!delivery) {
+        delivery = new PendingLifecycleDelivery(application);
+    }
+    return delivery;
+}
+
 } // namespace
 
 extern "C" JNIEXPORT jboolean JNICALL
@@ -123,4 +265,93 @@ Java_org_overte_phone_PhoneInterfaceActivity_nativeHandleBack(
             application, closePhoneUi, Qt::BlockingQueuedConnection);
     }
     return invoked && consumed ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_org_overte_phone_PhoneInterfaceActivity_nativeUpdateTouchUiMetrics(
+        JNIEnv* /* env */,
+        jclass /* activityClass */,
+        jint surfaceWidth,
+        jint surfaceHeight,
+        jint safeInsetLeft,
+        jint safeInsetTop,
+        jint safeInsetRight,
+        jint safeInsetBottom,
+        jint imeInsetBottom,
+        jfloat density,
+        jfloat fontScale,
+        jfloat contentScale,
+        jboolean keyboardVisible,
+        jboolean hoverSupported,
+        jboolean hardwareKeyboardSupported,
+        jboolean hapticsSupported) {
+    const auto metrics = phone::TouchUiMetrics::fromUntrusted(
+        surfaceWidth,
+        surfaceHeight,
+        safeInsetLeft,
+        safeInsetTop,
+        safeInsetRight,
+        safeInsetBottom,
+        imeInsetBottom,
+        density,
+        fontScale,
+        contentScale,
+        keyboardVisible == JNI_TRUE,
+        hoverSupported == JNI_TRUE,
+        hardwareKeyboardSupported == JNI_TRUE,
+        hapticsSupported == JNI_TRUE);
+    auto* application = QCoreApplication::instance();
+    if (!metrics.valid || !application) {
+        return JNI_FALSE;
+    }
+
+    const bool ownedByNative = QMetaObject::invokeMethod(
+        application,
+        [application, metrics]() {
+            touchUiMetricsDelivery(application)->submit(metrics);
+        },
+        Qt::QueuedConnection);
+    return ownedByNative ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_org_overte_phone_PhoneInterfaceActivity_nativeSetForegroundState(
+        JNIEnv* /* env */, jclass /* activityClass */, jboolean foreground) {
+    auto* application = QCoreApplication::instance();
+    if (!application) {
+        return JNI_FALSE;
+    }
+
+    // Activity callbacks run on Android's UI thread. Preserve their order but
+    // hand ownership to Qt asynchronously, where AndroidHelper drives the
+    // established Application background/foreground (including audio) paths.
+    const bool ownedByNative = QMetaObject::invokeMethod(
+        application,
+        [application, foreground]() {
+            lifecycleDelivery(application)->submit(foreground == JNI_TRUE);
+        },
+        Qt::QueuedConnection);
+    return ownedByNative ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_org_overte_phone_PhoneInterfaceActivity_nativeSetE2eFlyingOverride(
+        JNIEnv* /* env */, jclass /* activityClass */, jint mode) {
+    auto* application = QCoreApplication::instance();
+    if (!application || mode < -1 || mode > 1) {
+        return JNI_FALSE;
+    }
+
+    // Android invokes this from Activity.onResume while Qt can still be
+    // constructing its display surface. Taking ownership asynchronously keeps
+    // the Android UI thread available to that startup path. The delivery waits
+    // for Application's established load-complete boundary before touching the
+    // avatar runtime.
+    const bool ownedByNative = QMetaObject::invokeMethod(
+        application,
+        [application, mode]() {
+            flyingOverrideDelivery(application)->submit(mode);
+        },
+        Qt::QueuedConnection);
+    return ownedByNative ? JNI_TRUE : JNI_FALSE;
 }

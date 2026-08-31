@@ -1,0 +1,460 @@
+// Local physical-device orchestration for the platform-neutral Overte runner.
+// Test scenarios and target-specific automation deliberately stay outside this file.
+
+String adapterManifest(String profile) {
+    switch (profile) {
+        case 'android-phone-adb':
+            return 'tests/device/adapters/android/phone.json'
+        case 'android-pico-adb':
+            return 'tests/device/adapters/android/pico.json'
+        case 'appium-android':
+            return 'tests/device/adapters/appium/android.json'
+        case 'appium-ios':
+            return 'tests/device/adapters/appium/ios.json'
+        default:
+            error("Unsupported target profile: ${profile}")
+    }
+}
+
+def ciPython(String action, boolean returnStatus = false) {
+    if (isUnix()) {
+        return sh(script: "#!/bin/sh\nset +x\nexec python3 tests/device/jenkins/run_ci.py ${action}\n",
+                  returnStatus: returnStatus)
+    }
+    return bat(script: "@echo off\r\npy -3 tests\\device\\jenkins\\run_ci.py ${action}\r\n",
+               returnStatus: returnStatus)
+}
+
+def runDeviceSuite(String suite, int timeoutMinutes) {
+    String manifest = adapterManifest(params.TARGET_PROFILE)
+    String externalOutput = "${env.OVERTE_EXTERNAL_RESULT_ROOT}/${suite}"
+    String stagedOutput = "${env.WORKSPACE}/device-ci-artifacts/${env.BUILD_NUMBER}/${suite}"
+    List configuration = [
+        "OVERTE_CI_WORKSPACE=${env.WORKSPACE}",
+        "OVERTE_CI_ADAPTER_MANIFEST=${manifest}",
+        'OVERTE_CI_CATALOG=tests/device/catalog.json',
+        "OVERTE_CI_SUITE=${suite}",
+        "OVERTE_CI_OUTPUT_DIR=${externalOutput}",
+        "OVERTE_CI_STAGED_OUTPUT_DIR=${stagedOutput}",
+        "OVERTE_CI_FIXTURE_PUBLIC_HOST=${params.FIXTURE_PUBLIC_HOST.trim()}",
+        'OVERTE_CI_FIXTURE_BIND=0.0.0.0',
+        "OVERTE_CI_FIXTURE_PORT=${params.FIXTURE_PORT.trim()}",
+        "OVERTE_CI_FIXTURE_MODE=${params.FIXTURE_MODE}",
+        "OVERTE_CI_DOMAIN_SERVER_EXECUTABLE=${params.DOMAIN_SERVER_EXECUTABLE.trim()}",
+        "OVERTE_CI_ASSIGNMENT_CLIENT_EXECUTABLE=${params.ASSIGNMENT_CLIENT_EXECUTABLE.trim()}",
+        'OVERTE_CI_ALLOW_VIRTUAL=0',
+        "OVERTE_E2E_CAPTURE_ARTIFACTS=${params.CAPTURE_FAILURE_ARTIFACTS ? '1' : '0'}",
+    ]
+    if (params.TARGET_PROFILE == 'appium-ios') {
+        configuration.add("OVERTE_APPIUM_TARGETS=${env.OVERTE_IOS_JOB_TARGET_CONFIG}")
+        configuration.add("OVERTE_IOS_JOB_TARGET_CONFIG=${env.OVERTE_IOS_JOB_TARGET_CONFIG}")
+    }
+
+    withEnv(configuration) {
+        try {
+            lock(resource: params.DEVICE_RESOURCE.trim(), inversePrecedence: true) {
+                withCredentials([string(credentialsId: params.TARGET_SELECTOR_CREDENTIAL_ID.trim(),
+                                        variable: 'OVERTE_DEVICE_TARGET_SELECTOR')]) {
+                    env.OVERTE_TARGET_NEEDS_CLEANUP = '1'
+                    try {
+                        timeout(time: timeoutMinutes, unit: 'MINUTES') {
+                            ciPython('run-suite')
+                        }
+                    } finally {
+                        // Deliberately outside the expired per-suite timeout while
+                        // still holding the resource lock.
+                        int cleanupStatus = ciPython('cleanup-target', true)
+                        if (cleanupStatus != 0) {
+                            error("Target cleanup failed with exit code ${cleanupStatus}")
+                        }
+                        env.OVERTE_TARGET_NEEDS_CLEANUP = '0'
+                    }
+                }
+            }
+        } finally {
+            // Results originate outside the checkout. Scan them for the private
+            // selector before copying only publishable data into the workspace.
+            int stagingStatus = 0
+            withCredentials([string(credentialsId: params.TARGET_SELECTOR_CREDENTIAL_ID.trim(),
+                                    variable: 'OVERTE_DEVICE_TARGET_SELECTOR')]) {
+                stagingStatus = ciPython('stage-results', true)
+            }
+            junit(testResults: "device-ci-artifacts/${env.BUILD_NUMBER}/${suite}/junit.xml",
+                  allowEmptyResults: false, keepLongStdio: true)
+            archiveArtifacts(
+                artifacts: "device-ci-artifacts/${env.BUILD_NUMBER}/${suite}/**",
+                allowEmptyArchive: false,
+                fingerprint: true
+            )
+            if (stagingStatus != 0) {
+                error("Result staging reported an infrastructure failure")
+            }
+        }
+    }
+}
+
+pipeline {
+    agent { label 'overte-device-interactive' }
+
+    options {
+        timeout(time: 8, unit: 'HOURS')
+        buildDiscarder(logRotator(numToKeepStr: '30', artifactNumToKeepStr: '15'))
+    }
+
+    parameters {
+        choice(
+            name: 'TARGET_PROFILE',
+            choices: [
+                'android-phone-adb',
+                'android-pico-adb',
+                'appium-android',
+                'appium-ios'
+            ],
+            description: 'Adapter implementation used for this physical target.'
+        )
+        string(
+            name: 'DEVICE_RESOURCE',
+            defaultValue: 'android-phone-01',
+            description: 'Exact Lockable Resources name; never use a serial number here.'
+        )
+        string(
+            name: 'TARGET_SELECTOR_CREDENTIAL_ID',
+            defaultValue: 'overte-device-target-selector',
+            description: 'ID of a Jenkins Secret Text credential containing the private selector.'
+        )
+        string(
+            name: 'IOS_GITHUB_TOKEN_CREDENTIAL_ID',
+            defaultValue: 'overte-ios-github-actions-token',
+            description: 'Fine-grained GitHub token credential with Actions read/write for the protected producer.'
+        )
+        string(
+            name: 'IOS_AGE_IDENTITY_CREDENTIAL_ID',
+            defaultValue: 'overte-ios-age-identity',
+            description: 'Secret File credential containing the Fedora lab age identity.'
+        )
+        string(
+            name: 'IOS_PRODUCER_RUN_ID',
+            defaultValue: '',
+            description: 'Optional existing protected producer run; blank dispatches a new signed build.'
+        )
+        string(
+            name: 'IOS_QT_HOST_CACHE_KEY',
+            defaultValue: '',
+            description: 'Audited Qt host-tools cache key required when dispatching the iOS producer.'
+        )
+        string(
+            name: 'IOS_QT_IOS_CACHE_KEY',
+            defaultValue: '',
+            description: 'Audited Qt iOS cache key required when dispatching the iOS producer.'
+        )
+        string(
+            name: 'IOS_QT_HOST_ARTIFACT_PREFIX',
+            defaultValue: '',
+            description: 'Durable audited Qt host-tools artifact prefix for the producer.'
+        )
+        string(
+            name: 'IOS_QT_IOS_ARTIFACT_PREFIX',
+            defaultValue: '',
+            description: 'Durable audited Qt iOS artifact prefix for the producer.'
+        )
+        string(
+            name: 'FIXTURE_PUBLIC_HOST',
+            defaultValue: '',
+            description: 'DNS name or LAN IPv4 address of this agent, reachable by the device.'
+        )
+        string(
+            name: 'FIXTURE_PORT',
+            defaultValue: '0',
+            description: 'Fixture TCP port; 0 selects an ephemeral port.'
+        )
+        choice(
+            name: 'FIXTURE_MODE',
+            choices: ['network', 'embedded'],
+            description: 'Use network for iOS, embedded for Android debug E2E APKs.'
+        )
+        booleanParam(
+            name: 'CAPTURE_FAILURE_ARTIFACTS',
+            defaultValue: false,
+            description: 'Capture potentially sensitive window/device screenshots on failures.'
+        )
+        booleanParam(
+            name: 'RUN_CORE',
+            defaultValue: false,
+            description: 'Run scene, look, movement and tablet after smoke; requires a complete Appium profile.'
+        )
+        booleanParam(
+            name: 'RUN_DOMAIN_ENTER',
+            defaultValue: false,
+            description: 'Run the controlled domain-entry E2E suite.'
+        )
+        booleanParam(
+            name: 'RUN_ASSET_LOAD',
+            defaultValue: false,
+            description: 'Run the controlled texture loading E2E suite.'
+        )
+        booleanParam(
+            name: 'RUN_SOUND_PLAYBACK',
+            defaultValue: false,
+            description: 'Run the controlled WAV loading and injector lifecycle E2E suite.'
+        )
+        booleanParam(
+            name: 'RUN_VERTICAL_LOCOMOTION',
+            defaultValue: false,
+            description: 'Run physical jump, landing and upward-flight verification.'
+        )
+        string(
+            name: 'DOMAIN_SERVER_EXECUTABLE',
+            defaultValue: '',
+            description: 'Absolute path to the trusted local domain-server executable.'
+        )
+        string(
+            name: 'ASSIGNMENT_CLIENT_EXECUTABLE',
+            defaultValue: '',
+            description: 'Absolute path to the trusted local assignment-client executable.'
+        )
+        string(
+            name: 'OVERTE_ANDROID_ADB',
+            defaultValue: '/usr/bin/adb',
+            description: 'ADB executable used by Android profiles.'
+        )
+        string(
+            name: 'ANDROID_ADB_SERVER_PORT',
+            defaultValue: '',
+            description: 'Non-default isolated ADB server port required by Pico OpenXR input.'
+        )
+        string(
+            name: 'OVERTE_ANDROID_E2E_DEBUG',
+            defaultValue: '0',
+            description: 'Set to 1 only for an audited debug E2E APK.'
+        )
+        string(
+            name: 'OVERTE_PICO_OPENXR_INPUT',
+            defaultValue: '0',
+            description: 'Set to 1 to enable the debug-only Pico OpenXR input layer.'
+        )
+        string(
+            name: 'OVERTE_PICO_OPENXR_STATE_DIR',
+            defaultValue: '',
+            description: 'Absolute private runtime-state directory for Pico OpenXR input.'
+        )
+        booleanParam(
+            name: 'RUN_ACCESSIBILITY',
+            defaultValue: false,
+            description: 'Run the audited native accessibility contract after core; unsupported on android-pico-adb.'
+        )
+        booleanParam(
+            name: 'RUN_SOAKS',
+            defaultValue: false,
+            description: 'Run long lifecycle and idle suites only after smoke/core pass.'
+        )
+    }
+
+    stages {
+        stage('Validate configuration') {
+            steps {
+                script {
+                    if (!(params.DEVICE_RESOURCE ==~ /[A-Za-z0-9][A-Za-z0-9_.:-]*/)) {
+                        error('DEVICE_RESOURCE contains unsupported characters')
+                    }
+                    if (!params.TARGET_SELECTOR_CREDENTIAL_ID.trim()) {
+                        error('TARGET_SELECTOR_CREDENTIAL_ID is required')
+                    }
+                    if (params.TARGET_PROFILE == 'appium-ios') {
+                        if (!params.IOS_GITHUB_TOKEN_CREDENTIAL_ID.trim()) {
+                            error('IOS_GITHUB_TOKEN_CREDENTIAL_ID is required for appium-ios')
+                        }
+                        if (!params.IOS_AGE_IDENTITY_CREDENTIAL_ID.trim()) {
+                            error('IOS_AGE_IDENTITY_CREDENTIAL_ID is required for appium-ios')
+                        }
+                        if (params.IOS_PRODUCER_RUN_ID.trim() &&
+                                !(params.IOS_PRODUCER_RUN_ID.trim() ==~ /[1-9][0-9]*/)) {
+                            error('IOS_PRODUCER_RUN_ID must be a positive integer')
+                        }
+                        if (!params.IOS_PRODUCER_RUN_ID.trim() && [
+                                params.IOS_QT_HOST_CACHE_KEY,
+                                params.IOS_QT_IOS_CACHE_KEY,
+                                params.IOS_QT_HOST_ARTIFACT_PREFIX,
+                                params.IOS_QT_IOS_ARTIFACT_PREFIX,
+                            ].any { !it.trim() }) {
+                            error('all four audited Qt inputs are required to dispatch the iOS producer')
+                        }
+                    }
+                    if ((params.RUN_DOMAIN_ENTER || params.RUN_ASSET_LOAD ||
+                            params.RUN_SOUND_PLAYBACK ||
+                            (params.RUN_CORE && params.FIXTURE_MODE == 'network')) &&
+                            !params.FIXTURE_PUBLIC_HOST.trim()) {
+                        error('FIXTURE_PUBLIC_HOST is required for network-backed E2E tests')
+                    }
+                    if (params.RUN_DOMAIN_ENTER && (!params.DOMAIN_SERVER_EXECUTABLE.trim() ||
+                            !params.ASSIGNMENT_CLIENT_EXECUTABLE.trim())) {
+                        error('Both domain fixture executable paths are required for domain entry')
+                    }
+                    if (params.RUN_VERTICAL_LOCOMOTION &&
+                            params.TARGET_PROFILE != 'android-pico-adb') {
+                        error('RUN_VERTICAL_LOCOMOTION is currently accepted only for android-pico-adb')
+                    }
+                    if (params.RUN_ACCESSIBILITY &&
+                            params.TARGET_PROFILE == 'android-pico-adb') {
+                        error('RUN_ACCESSIBILITY is unsupported for android-pico-adb because the OpenXR surface does not expose an audited native accessibility tree')
+                    }
+                    adapterManifest(params.TARGET_PROFILE)
+                    env.OVERTE_TARGET_NEEDS_CLEANUP = '0'
+                    env.OVERTE_EXTERNAL_RESULT_ROOT =
+                        "${pwd(tmp: true)}/overte-device-results/${env.BUILD_NUMBER}"
+                    env.OVERTE_IOS_ARTIFACT_ROOT =
+                        "${env.OVERTE_EXTERNAL_RESULT_ROOT}/private-ios-artifacts"
+                    env.OVERTE_IOS_JOB_TARGET_CONFIG =
+                        "${env.OVERTE_EXTERNAL_RESULT_ROOT}/private-ios-targets.json"
+                }
+            }
+        }
+
+        stage('Device-free contracts') {
+            steps {
+                withEnv(["OVERTE_CI_WORKSPACE=${env.WORKSPACE}"]) {
+                    script { ciPython('self-check') }
+                }
+            }
+        }
+
+        stage('Fedora iOS runtime') {
+            when { expression { params.TARGET_PROFILE == 'appium-ios' } }
+            steps {
+                withEnv([
+                    "OVERTE_CI_WORKSPACE=${env.WORKSPACE}",
+                    "OVERTE_IOS_ARTIFACT_ROOT=${env.OVERTE_IOS_ARTIFACT_ROOT}",
+                    "OVERTE_IOS_JOB_TARGET_CONFIG=${env.OVERTE_IOS_JOB_TARGET_CONFIG}",
+                    "OVERTE_IOS_PRODUCER_RUN_ID=${params.IOS_PRODUCER_RUN_ID.trim()}",
+                    "OVERTE_IOS_QT_HOST_CACHE_KEY=${params.IOS_QT_HOST_CACHE_KEY.trim()}",
+                    "OVERTE_IOS_QT_IOS_CACHE_KEY=${params.IOS_QT_IOS_CACHE_KEY.trim()}",
+                    "OVERTE_IOS_QT_HOST_ARTIFACT_PREFIX=${params.IOS_QT_HOST_ARTIFACT_PREFIX.trim()}",
+                    "OVERTE_IOS_QT_IOS_ARTIFACT_PREFIX=${params.IOS_QT_IOS_ARTIFACT_PREFIX.trim()}",
+                ]) {
+                    withCredentials([
+                        string(credentialsId: params.TARGET_SELECTOR_CREDENTIAL_ID.trim(),
+                               variable: 'OVERTE_DEVICE_TARGET_SELECTOR'),
+                        string(credentialsId: params.IOS_GITHUB_TOKEN_CREDENTIAL_ID.trim(),
+                               variable: 'OVERTE_GITHUB_TOKEN'),
+                        file(credentialsId: params.IOS_AGE_IDENTITY_CREDENTIAL_ID.trim(),
+                             variable: 'OVERTE_IOS_AGE_IDENTITY_FILE'),
+                    ]) {
+                        script {
+                            ciPython('ios-runtime-preflight')
+                            ciPython('ios-artifact-sync')
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Physical smoke') {
+            steps {
+                script { runDeviceSuite('smoke', 10) }
+            }
+        }
+
+        stage('Pico domain entry') {
+            when { expression { params.RUN_DOMAIN_ENTER } }
+            steps {
+                script { runDeviceSuite('domain-smoke', 15) }
+            }
+        }
+
+        stage('Pico asset load') {
+            when { expression { params.RUN_ASSET_LOAD } }
+            steps {
+                script { runDeviceSuite('asset-smoke', 10) }
+            }
+        }
+
+        stage('Pico sound playback') {
+            when { expression { params.RUN_SOUND_PLAYBACK } }
+            steps {
+                script { runDeviceSuite('sound-smoke', 10) }
+            }
+        }
+
+        stage('Pico vertical locomotion') {
+            when { expression { params.RUN_VERTICAL_LOCOMOTION } }
+            steps {
+                script { runDeviceSuite('vertical-locomotion', 15) }
+            }
+        }
+
+        stage('Physical core') {
+            when { expression { params.RUN_CORE } }
+            steps {
+                script { runDeviceSuite('e2e-core', 30) }
+            }
+        }
+
+        stage('Accessibility') {
+            when { expression { params.RUN_ACCESSIBILITY } }
+            steps {
+                script { runDeviceSuite('accessibility', 15) }
+            }
+        }
+
+        stage('Physical soaks') {
+            when { expression { params.RUN_SOAKS } }
+            steps {
+                script {
+                    runDeviceSuite('stability', 240)
+                    runDeviceSuite('lifecycle-stability', 60)
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                try {
+                    // Normally each suite cleared this flag while still holding its
+                    // lock. This final fallback covers an outer Pipeline timeout or
+                    // an interrupted cleanup step.
+                    if (env.OVERTE_TARGET_NEEDS_CLEANUP == '1') {
+                        String manifest = adapterManifest(params.TARGET_PROFILE)
+                        List cleanupEnvironment = [
+                            "OVERTE_CI_WORKSPACE=${env.WORKSPACE}",
+                            "OVERTE_CI_ADAPTER_MANIFEST=${manifest}",
+                        ]
+                        if (params.TARGET_PROFILE == 'appium-ios') {
+                            cleanupEnvironment.add(
+                                "OVERTE_APPIUM_TARGETS=${env.OVERTE_IOS_JOB_TARGET_CONFIG}"
+                            )
+                        }
+                        withEnv(cleanupEnvironment) {
+                            lock(resource: params.DEVICE_RESOURCE.trim(), inversePrecedence: true) {
+                                withCredentials([string(
+                                    credentialsId: params.TARGET_SELECTOR_CREDENTIAL_ID.trim(),
+                                    variable: 'OVERTE_DEVICE_TARGET_SELECTOR'
+                                )]) {
+                                    int cleanupStatus = ciPython('cleanup-target', true)
+                                    if (cleanupStatus != 0) {
+                                        echo "Final target cleanup failed with exit code ${cleanupStatus}"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } finally {
+                    if (params.TARGET_PROFILE == 'appium-ios' &&
+                            env.OVERTE_EXTERNAL_RESULT_ROOT?.trim()) {
+                        withEnv([
+                            "OVERTE_CI_WORKSPACE=${env.WORKSPACE}",
+                            "OVERTE_EXTERNAL_RESULT_ROOT=${env.OVERTE_EXTERNAL_RESULT_ROOT}",
+                            "OVERTE_IOS_ARTIFACT_ROOT=${env.OVERTE_IOS_ARTIFACT_ROOT}",
+                            "OVERTE_IOS_JOB_TARGET_CONFIG=${env.OVERTE_IOS_JOB_TARGET_CONFIG}",
+                        ]) {
+                            int privateCleanupStatus = ciPython('cleanup-ios-private', true)
+                            if (privateCleanupStatus != 0) {
+                                error("Private iOS artifact cleanup failed with exit code ${privateCleanupStatus}")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

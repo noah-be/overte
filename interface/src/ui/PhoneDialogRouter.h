@@ -5,8 +5,11 @@
 
 #pragma once
 
+#include <QVariantMap>
+
 namespace phone {
 
 bool closeTopmostDialog();
+bool updateTouchUiRuntimeMetrics(const QVariantMap& metrics);
 
 } // namespace phone

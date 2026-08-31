@@ -44,8 +44,9 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 rm -f -- "$report_dir"/interface.xml "$report_dir"/login-state.xml \
-    "$report_dir"/pending-handoff.xml "$report_dir"/interface*.html \
-    "$report_dir"/login-state*.html "$report_dir"/pending-handoff*.html
+    "$report_dir"/pending-handoff.xml "$report_dir"/touch-ui-metrics.xml \
+    "$report_dir"/interface*.html "$report_dir"/login-state*.html \
+    "$report_dir"/pending-handoff*.html "$report_dir"/touch-ui-metrics*.html
 
 staging_dir="$("$mktemp_command" -d "$report_dir/.native-coverage.XXXXXXXX")"
 
@@ -95,10 +96,20 @@ run_gcovr --root "$repository_root" \
     --fail-under-line 95 \
     --fail-under-branch 90
 
+run_gcovr --root "$repository_root" \
+    --filter '.*PhoneTouchUiMetrics\.h$' \
+    --exclude-throw-branches \
+    --xml-pretty --xml "$staging_dir/touch-ui-metrics.xml" \
+    --html-details "$staging_dir/touch-ui-metrics.html" \
+    --print-summary \
+    --fail-under-line 100 \
+    --fail-under-branch 100
+
 readonly required_artifacts=(
     interface.xml interface.html
     login-state.xml login-state.html
     pending-handoff.xml pending-handoff.html
+    touch-ui-metrics.xml touch-ui-metrics.html
 )
 for artifact in "${required_artifacts[@]}"; do
     if [[ ! -s "$staging_dir/$artifact" ]]; then
@@ -108,7 +119,7 @@ for artifact in "${required_artifacts[@]}"; do
 done
 
 python3 - "$staging_dir/interface.xml" "$staging_dir/login-state.xml" \
-    "$staging_dir/pending-handoff.xml" <<'PY'
+    "$staging_dir/pending-handoff.xml" "$staging_dir/touch-ui-metrics.xml" <<'PY'
 import math
 from pathlib import Path
 import sys

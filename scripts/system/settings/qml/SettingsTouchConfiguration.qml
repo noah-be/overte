@@ -8,6 +8,9 @@ HifiControls.TouchUiMetrics {
     readonly property bool showVrRenderResolutionSettings: profile.vrRenderResolutionAvailable
     // Compatibility projection for existing selector-backed Settings QML.
     readonly property bool showPicoResolutionSettings: profile.picoResolutionSettingsAvailable
+    // Product-specific pages fail closed unless an immutable QFileSelector
+    // profile for the compiled Android target explicitly enables them.
+    readonly property bool showPicoInteractionSettings: false
 
     function admitsSemanticControl(controlId) {
         if (controlId === "settings.general" || controlId === "settings.audio"

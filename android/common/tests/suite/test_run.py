@@ -19,6 +19,26 @@ class SuiteRunnerTest(unittest.TestCase):
         self.assertGreater(len(fast), 0)
         self.assertEqual(len(fast), len({suite["id"] for suite in fast}))
 
+    def test_android_vr_tier_has_one_bounded_integration_gate(self):
+        suites = run.load_suites(run.DEFAULT_CATALOG, "android-vr")
+        identifiers = {suite["id"] for suite in suites}
+        self.assertEqual(identifiers, {
+            "shell-syntax-contract",
+            "python-syntax-contract",
+            "android-project-module-inventory",
+            "android-vr-native-policies",
+            "android-vr-pico-runtime",
+            "phone-robolectric-launcher",
+        })
+        pico = next(suite for suite in suites
+                    if suite["id"] == "android-vr-pico-runtime")
+        self.assertEqual(["common/tests/android-vr-pico-runtime-test.sh"], pico["command"])
+        self.assertLessEqual(pico["timeoutSeconds"], 300)
+        native = next(suite for suite in suites
+                      if suite["id"] == "android-vr-native-policies")
+        self.assertEqual(["common/tests/native/run-native-tests.sh", "android-vr"],
+                         native["command"])
+
     def test_catalog_rejects_unknown_tier(self):
         with tempfile.TemporaryDirectory() as directory:
             catalog = Path(directory) / "catalog.json"

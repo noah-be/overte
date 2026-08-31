@@ -86,9 +86,33 @@ deep_link='phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneDeepLin
 deep_link_normalizer='phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneDeepLinkNormalizer.java'
 url_handler='phone/apps/phoneInterface/src/PhoneUrlHandler.cpp'
 phone_defaults='../scripts/+android_phoneInterface/defaultScripts.js'
+e2e_manifest='phone/apps/phoneInterface/src/debug/AndroidManifest.xml'
+e2e_launcher='phone/apps/phoneInterface/src/debug/java/org/overte/phone/E2eLauncherActivity.java'
 
 require_text "$gradle" 'Declare the module identity before dependency preflight failures' \
     'phone Gradle diagnostics initialize AGP identity before dependency preflight'
+require_text "$gradle" 'common/device_tests/e2e_android/src/main/java' \
+    'phone debug source set compiles the shared E2E launcher base'
+require_text "$gradle" 'tests/device/probe/overte_e2e_probe[.]js' \
+    'phone debug APK packages the shared E2E probe without a private copy'
+require_text "$gradle" 'tests/device/fixture/scene[.]json' \
+    'phone debug APK packages the shared fixture without a private copy'
+require_text "$e2e_manifest" 'android:permission="android[.]permission[.]DUMP"' \
+    'phone E2E launcher remains restricted to the Android shell permission'
+require_text "$e2e_launcher" 'extends E2eLauncherActivityBase' \
+    'phone E2E launcher delegates fixture preparation to the shared base'
+require_text "$cmake" '../../../common/src/OffscreenGLCanvas[.]cpp' \
+    'phone native build uses the shared Android OffscreenGLCanvas override'
+require_text "$gradle" '../../../common/runtime-overrides/arm64-v8a' \
+    'phone packaging uses shared Android runtime overrides'
+require_text "$gradle" 'HIFI_ANDROID_HOST_TOOLS=.*../../../vr/pico/pico-host-tools' \
+    'phone native build selects the prepared shared host tools'
+require_text 'common/cmake/pico-bootstrap.cmake' 'HIFI_ANDROID_HOST_TOOLS must name' \
+    'Android native bootstrap requires an explicit prepared host-tool directory'
+reject_text "$cmake" '(\.\./|apps/)picoInterface/' \
+    'phone native build does not compile Pico-owned sources'
+reject_text "$gradle" '(\.\./|apps/)picoInterface/' \
+    'phone packaging does not consume Pico-owned paths'
 
 for source_file in \
         build-phone.sh \
@@ -105,6 +129,7 @@ for source_file in \
         tests/phone-apk-padding-test.sh \
         tests/phone-archive-extraction-test.sh \
         tests/phone-actionbar-qml-lifetime-test.sh \
+        tests/phone-audio-mute-privacy-test.sh \
         tests/phone-audio-output-race-test.sh \
         tests/phone-device-lock-test.sh \
         tests/phone-device-smoke-mock-test.sh \
@@ -120,6 +145,8 @@ for source_file in \
         "$gradle" \
         "$cmake" \
         "$manifest" \
+        "$e2e_manifest" \
+        "$e2e_launcher" \
         "$permissions_activity" \
         "$interface_activity" \
         "$deep_link" \
@@ -340,6 +367,8 @@ require_text "$cmake" 'add_subdirectory\("\$\{CMAKE_SOURCE_DIR\}/interface"' \
     'phone native target includes the main Interface client'
 require_text "$cmake" 'src/PhoneUrlHandler\.cpp' \
     'CMake includes the runtime deep-link bridge'
+reject_text phone/apps/phoneInterface/src/PhoneUrlHandler.cpp 'TabletScriptingInterface\.h' \
+    'phone JNI bridge avoids the tablet implementation header dependency graph'
 
 require_text "$manifest" 'android\.hardware\.touchscreen' \
     'manifest requires a touchscreen'
@@ -367,11 +396,13 @@ require_text "$manifest" 'android:scheme="hifi"' \
     'manifest accepts legacy hifi deep links'
 require_text "$manifest" 'android:name="\.PhoneInterfaceActivity"' \
     'manifest declares the Qt client activity'
-require_text "$manifest" 'android:screenOrientation="landscape"' \
-    'manifest fixes the phone UI to landscape'
+require_text "$manifest" 'android:screenOrientation="fullSensor"' \
+    'manifest lets the adaptive phone UI follow every sensor orientation'
+require_text "$manifest" 'android:windowSoftInputMode="adjustResize"' \
+    'manifest keeps focused controls reachable while the system IME is visible'
 require_text phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java \
-    'SCREEN_ORIENTATION_SENSOR_LANDSCAPE' \
-    'phone establishes landscape before Qt creates its rendering surface'
+    'SCREEN_ORIENTATION_FULL_SENSOR' \
+    'phone establishes its adaptive sensor orientation before Qt creates its rendering surface'
 require_text phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java \
     'WindowManager\.LayoutParams\.MATCH_PARENT' \
     'phone window always fills the Android activity bounds'
@@ -733,8 +764,8 @@ require_text tests/phone-graphics-benchmark.sh '10#\$interval <= 300' \
     'graphics benchmark bounds the thermal sampling interval'
 require_text phone-build-resource-guard.sh 'OVERTE_PHONE_MIN_SWAP_BYTES=32000000000' \
     'dependency builds require at least 32 GB decimal swap'
-require_text phone-build-resource-guard.sh "OVERTE_PHONE_MEMORY_MAX_PROPERTY='20000000000'" \
-    'dependency builds request an exact 20 GB decimal systemd memory ceiling'
+require_text phone-build-resource-guard.sh "OVERTE_PHONE_MEMORY_MAX_PROPERTY='16000000000'" \
+    'dependency builds request an exact 16 GB decimal systemd memory ceiling'
 require_text phone-build-resource-guard.sh 'systemd-run --user --collect --wait --pipe' \
     'dependency resource limit uses a waited systemd user service'
 reject_text phone-build-resource-guard.sh 'ulimit' \
@@ -810,6 +841,9 @@ require_text prepare-phone-16k-conan-deps.sh \
     "--build='~qt/\\*'" \
     'non-Qt dependency rebuild explicitly excludes Qt source builds'
 require_text conan/conanfile-pico.py \
+    'parents\[3\] / "conanfile[.]py"' \
+    'Android Conan graph loads the repository-root recipe after source reorganization'
+require_text conan/conanfile-pico.py \
     'from conan\.tools\.cmake import CMakeDeps' \
     'Phone Conan graph uses the supported CMakeDeps generator API'
 require_text conan/conanfile-pico.py \
@@ -831,8 +865,8 @@ require_text docs/ANDROID_PHONE_RELEASE_OPERATIONS.md \
     'container-engine socket nor host' \
     'release runner container excludes control sockets and devices'
 require_text conan/profiles/phone-nonqt-arm64-16k \
-    '^tools\.build:jobs=16$' \
-    'non-Qt dependency rebuild uses 16 parallel build jobs'
+    '^tools\.build:jobs=4$' \
+    'non-Qt dependency rebuild uses four parallel build jobs'
 require_text tests/verify-phone-16k-dependencies.sh \
     'mv -f -- "\$sentinel_tmp" "\$sentinel"' \
     'dependency ready sentinel is published atomically'

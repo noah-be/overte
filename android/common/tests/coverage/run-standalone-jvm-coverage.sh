@@ -83,6 +83,7 @@ download_verified \
     "$android_root/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneLaunchState.java" \
     "$android_root/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhonePermissionFlow.java" \
     "$android_root/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhonePendingUrlPolicy.java" \
+    "$android_root/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneTouchUiMetricsPolicy.java" \
     "$android_root/phone/apps/interface/src/main/java/io/highfidelity/hifiinterface/HifiUtils.java" \
     "$android_root/vr/pico/apps/picoInterface/src/main/java/org/overte/pico/AndroidAudioInputPolicy.java" \
     "$android_root/vr/pico/apps/picoInterface/src/main/java/org/overte/pico/PicoInterfaceActivityPolicy.java" \
@@ -95,6 +96,7 @@ download_verified \
     "$android_root/common/tests/java/org/overte/phone/PhoneLaunchStateStandaloneTest.java" \
     "$android_root/common/tests/java/org/overte/phone/PhonePermissionFlowStandaloneTest.java" \
     "$android_root/common/tests/java/org/overte/phone/PhonePendingUrlPolicyStandaloneTest.java" \
+    "$android_root/common/tests/java/org/overte/phone/PhoneTouchUiMetricsPolicyStandaloneTest.java" \
     "$android_root/common/tests/java/io/highfidelity/hifiinterface/HifiUtilsStandaloneTest.java" \
     "$android_root/common/tests/java/org/overte/pico/AndroidAudioInputPolicyStandaloneTest.java" \
     "$android_root/common/tests/java/org/overte/pico/PicoInterfaceActivityPolicyStandaloneTest.java" \
@@ -106,6 +108,7 @@ for test_class in \
     org.overte.phone.PhoneLaunchStateStandaloneTest \
     org.overte.phone.PhonePermissionFlowStandaloneTest \
     org.overte.phone.PhonePendingUrlPolicyStandaloneTest \
+    org.overte.phone.PhoneTouchUiMetricsPolicyStandaloneTest \
     io.highfidelity.hifiinterface.HifiUtilsStandaloneTest \
     org.overte.pico.AndroidAudioInputPolicyStandaloneTest \
     org.overte.pico.PicoInterfaceActivityPolicyStandaloneTest \

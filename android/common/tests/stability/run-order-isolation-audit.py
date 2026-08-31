@@ -22,14 +22,17 @@ from process_control import (  # noqa: E402 -- controlled tests path
 )
 
 BASE_CASES = [
-    ("deep-links", ["tests/phone-deep-link-test.sh"]),
-    ("asset-cache", ["tests/safe-asset-path-test.sh"]),
-    ("javascript", ["tests/javascript/run-tests.sh"]),
-    ("native", ["tests/native/run-native-tests.sh"]),
-    ("js-endurance", ["tests/javascript/run-lifecycle-endurance.sh"]),
-    ("native-endurance", ["tests/native/run-endurance-tests.sh"]),
-    ("mutations", ["tests/mutation/run-critical-policy-mutations.sh"]),
+    ("deep-links", [str(ROOT / "phone/tests/phone-deep-link-test.sh")]),
+    ("asset-cache", [str(TESTS_ROOT / "safe-asset-path-test.sh")]),
+    ("javascript", [str(TESTS_ROOT / "javascript/run-tests.sh")]),
+    ("native", [str(TESTS_ROOT / "native/run-native-tests.sh")]),
+    ("js-endurance", [str(TESTS_ROOT / "javascript/run-lifecycle-endurance.sh")]),
+    ("native-endurance", [str(TESTS_ROOT / "native/run-endurance-tests.sh")]),
+    ("mutations", [str(TESTS_ROOT / "mutation/run-critical-policy-mutations.sh")]),
 ]
+
+ROBOLECTRIC_CASE = (
+    "robolectric", [str(TESTS_ROOT / "robolectric/run-tests.sh")])
 
 
 def serial_order(round_index: int) -> list[tuple[str, list[str]]]:
@@ -100,7 +103,7 @@ def main() -> int:
         # together: the bounded repository flock must serialize them cleanly.
         with ThreadPoolExecutor(max_workers=2) as executor:
             contenders = [executor.submit(
-                run_case, ("robolectric", ["tests/robolectric/run-tests.sh"]),
+                run_case, ROBOLECTRIC_CASE,
                 workspace, f"locked-{index}") for index in range(2)]
             for contender in contenders:
                 contender.result()

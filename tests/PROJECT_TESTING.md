@@ -16,6 +16,8 @@ SDK, Qt build, emulator, headset, display, or audio device. It runs:
 - repository-wide Python, Shell, JavaScript, JSON, XML, symlink, Gradle-wrapper,
   and CMake-test integrity checks;
 - dependency-free Node.js behavior tests for shared JavaScript libraries;
+- the complete device-free E2E stack, adapter contracts, controlled fixture,
+  mock Appium server, and mock ADB transports;
 - the project coverage model validation;
 - all Pico 4 host-side behavior, source-contract, fixture, and mock-ADB tests.
 

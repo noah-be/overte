@@ -14,6 +14,7 @@ EXPECTED_MODULES = {
     "questFramePlayer", "qt", "oculus",
 }
 COMPONENT_TAGS = ("activity", "activity-alias", "service", "receiver", "provider")
+PRODUCT_BUILD_FILES = ("CMakeLists.txt", "build.gradle")
 
 
 def fail(message):
@@ -88,9 +89,34 @@ def validate_sensitive_argument_logging(name, policy, root):
             fail(f"{name} logs sensitive launch argument {identifier}")
 
 
+def validate_product_path_boundaries(product, sources):
+    """Reject build-time source ownership that crosses sibling products."""
+    forbidden_products = {
+        "phoneInterface": ("picoInterface", "questInterface"),
+    }
+    for sibling in forbidden_products.get(product, ()):
+        pattern = re.compile(
+            rf"(?:\.\.[/\\]|apps[/\\]){re.escape(sibling)}[/\\]"
+        )
+        for source_name, source in sources.items():
+            if pattern.search(source):
+                fail(
+                    f"{product} build file {source_name} directly references "
+                    f"sibling product {sibling}"
+                )
+
+
 def main(repository):
     root = Path(repository).resolve()
     inventory = json.loads((root / "android/common/tests/project-module-inventory.json").read_text())
+    phone_root = root / "android/phone/apps/phoneInterface"
+    validate_product_path_boundaries(
+        "phoneInterface",
+        {
+            name: (phone_root / name).read_text(encoding="utf-8")
+            for name in PRODUCT_BUILD_FILES
+        },
+    )
     modules = inventory.get("modules")
     if not isinstance(modules, list):
         fail("module inventory requires a modules list")
@@ -98,7 +124,10 @@ def main(repository):
     if len(names) != len(set(names)) or set(names) != EXPECTED_MODULES:
         fail(f"module inventory mismatch: {names}")
 
-    settings = (root / "android/common/legacy/settings.gradle").read_text(encoding="utf-8")
+    platform_settings = {
+        "phoneInterface": (root / "android/phone/settings.gradle").read_text(encoding="utf-8"),
+        "picoInterface": (root / "android/vr/pico/settings.gradle").read_text(encoding="utf-8"),
+    }
     for module in modules:
         name = module["name"]
         module_root = root / module["path"]
@@ -106,8 +135,9 @@ def main(repository):
         manifest_file = module_root / "src/main/AndroidManifest.xml"
         if not build_file.is_file() or not manifest_file.is_file():
             fail(f"{name} lacks build.gradle or AndroidManifest.xml")
-        if f"include ':{name}'" not in settings:
-            fail(f"{name} is absent from settings.gradle")
+        settings = platform_settings.get(name)
+        if settings is not None and f"include ':{name}'" not in settings:
+            fail(f"{name} is absent from the platform settings.gradle files")
 
         build = build_file.read_text(encoding="utf-8")
         expected_plugin = f"com.android.{module['plugin']}"

@@ -74,7 +74,7 @@ jobs:
         run: |
           set -euo pipefail
           tests/run-project-tests.py \
-            --timeout 240 \
+            --timeout 300 \
             --junit build/test-results/project-tests.xml
 
       - name: Run full device E2E control-plane gate

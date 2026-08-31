@@ -12,6 +12,10 @@ set(OVERTE_INTERFACE_UI_DIR
     "${CMAKE_CURRENT_LIST_DIR}/../../../../interface/src/ui"
     CACHE PATH
     "Path to the Overte interface UI headers")
+set(OVERTE_INTERFACE_SRC_DIR
+    "${CMAKE_CURRENT_LIST_DIR}/../../../../interface/src"
+    CACHE PATH
+    "Path to the Overte interface sources")
 
 if(NOT EXISTS "${OVERTE_INTERFACE_UI_DIR}/PhoneLoginState.h")
     message(FATAL_ERROR
@@ -22,11 +26,14 @@ endif()
 add_library(overte_native_test_options INTERFACE)
 target_compile_features(overte_native_test_options INTERFACE cxx_std_11)
 target_include_directories(overte_native_test_options INTERFACE
+    "${OVERTE_INTERFACE_SRC_DIR}"
     "${OVERTE_INTERFACE_UI_DIR}"
     "${CMAKE_CURRENT_LIST_DIR}/../../../phone/apps/phoneInterface/src"
     "${CMAKE_CURRENT_LIST_DIR}/support")
 target_include_directories(overte_native_test_options INTERFACE
     "${CMAKE_CURRENT_LIST_DIR}/../../../vr/pico/apps/picoInterface/openxr/src")
+target_include_directories(overte_native_test_options INTERFACE
+    "${CMAKE_CURRENT_LIST_DIR}/../../../vr/common/openxr")
 
 if(MSVC)
     target_compile_options(overte_native_test_options INTERFACE /W4 /WX)
@@ -99,6 +106,18 @@ add_overte_native_test(
     phone_pending_handoff_move
     "${CMAKE_CURRENT_LIST_DIR}/phone_pending_handoff_move_test.cpp")
 
+add_overte_native_test(
+    phone_lifecycle_handoff
+    "${CMAKE_CURRENT_LIST_DIR}/phone_lifecycle_handoff_test.cpp")
+
+add_overte_native_test(
+    phone_touch_ui_metrics
+    "${CMAKE_CURRENT_LIST_DIR}/phone_touch_ui_metrics_test.cpp")
+
+add_overte_native_test(
+    android_startup_url_policy
+    "${CMAKE_CURRENT_LIST_DIR}/android_startup_url_policy_test.cpp")
+
 set(OVERTE_BUNDLED_JDK_ROOT
     "${CMAKE_CURRENT_LIST_DIR}/../../../vr/pico/pico-host-tools/jdk-21"
     CACHE PATH "Optional repository-local JDK used for JNI test headers")
@@ -139,7 +158,7 @@ add_overte_native_test(
     qt_input_connection_compat
     "${CMAKE_CURRENT_LIST_DIR}/qt_input_connection_compat_test.cpp")
 target_sources(qt_input_connection_compat PRIVATE
-    "${CMAKE_CURRENT_LIST_DIR}/../../../phone/apps/phoneInterface/src/QtInputConnectionCompat.cpp")
+    "${CMAKE_CURRENT_LIST_DIR}/../../src/QtInputConnectionCompat.cpp")
 target_include_directories(qt_input_connection_compat PRIVATE
     "${OVERTE_JNI_INCLUDE_DIR}"
     "${OVERTE_JNI_INCLUDE_DIR}/${OVERTE_JNI_PLATFORM_SUBDIR}")
@@ -149,8 +168,8 @@ add_overte_native_test(
     "${CMAKE_CURRENT_LIST_DIR}/phone_pending_handoff_property_test.cpp")
 
 add_overte_native_test(
-    pico_openxr_debug_policy
-    "${CMAKE_CURRENT_LIST_DIR}/pico_openxr_debug_policy_test.cpp")
+    android_vr_openxr_debug_policy
+    "${CMAKE_CURRENT_LIST_DIR}/android_vr_openxr_debug_policy_test.cpp")
 
 add_overte_native_test(
     pico_openxr_input_policy
@@ -175,3 +194,13 @@ add_overte_native_test(
 add_overte_native_test(
     pico_openxr_event_policy
     "${CMAKE_CURRENT_LIST_DIR}/pico_openxr_event_policy_test.cpp")
+
+set_tests_properties(
+    android_vr_openxr_debug_policy
+    pico_openxr_input_policy
+    pico_openxr_space_policy
+    pico_openxr_display_policy
+    pico_openxr_graphics_policy
+    pico_openxr_extension_policy
+    pico_openxr_event_policy
+    PROPERTIES LABELS "native;host;android-vr")
