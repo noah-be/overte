@@ -93,6 +93,21 @@ class ExecutionPlanPipelineTest(unittest.TestCase):
                 DEVICE_ROOT / "acceptance-policy.json", catalog),
                 profiles, "mock", None, "required")
 
+    def test_required_promotion_needs_three_registered_successful_runs(self):
+        catalog = DEVICE_ROOT / "catalog.json"
+        with tempfile.TemporaryDirectory(prefix="overte-promotion-policy-") as temporary:
+            root = Path(temporary)
+            policy = json.loads(
+                (DEVICE_ROOT / "acceptance-policy.json").read_text(encoding="utf-8"))
+            policy["platforms"]["linux"]["suites"]["domain-smoke"]["state"] = "required"
+            policy_path = root / "acceptance-policy.json"
+            policy_path.write_text(json.dumps(policy), encoding="utf-8")
+            (root / "acceptance-evidence.json").write_text(
+                (DEVICE_ROOT / "acceptance-evidence.json").read_text(encoding="utf-8"),
+                encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "needs 3 successful real runs"):
+                load_policy(policy_path, catalog)
+
     def test_invalid_recipe_fails_before_adapter_discovery(self):
         with tempfile.TemporaryDirectory(prefix="overte-plan-preflight-") as temporary:
             root = Path(temporary)

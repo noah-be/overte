@@ -4,10 +4,15 @@
   "platforms": {
     "android": {"defaultEvidence": [], "defaultState": "implemented", "suites": {}},
     "ios": {"defaultEvidence": [], "defaultState": "implemented", "suites": {}},
-    "linux": {"defaultEvidence": [], "defaultState": "implemented", "suites": {}},
+    "linux": {"defaultEvidence": [], "defaultState": "implemented", "suites": {
+      "domain-smoke": {"evidence": ["linux-domain-smoke-r1"], "state": "accepted"},
+      "portable-smoke": {"evidence": ["linux-portable-smoke-r8"], "state": "accepted"}
+    }},
     "macos": {"defaultEvidence": [], "defaultState": "implemented", "suites": {}},
     "mock": {"defaultEvidence": [], "defaultState": "implemented", "suites": {}},
-    "pico": {"defaultEvidence": [], "defaultState": "implemented", "suites": {}},
+    "pico": {"defaultEvidence": [], "defaultState": "implemented", "suites": {
+      "portable-smoke": {"evidence": ["pico-portable-smoke-r4"], "state": "accepted"}
+    }},
     "windows": {"defaultEvidence": [], "defaultState": "implemented", "suites": {}}
   }
 }

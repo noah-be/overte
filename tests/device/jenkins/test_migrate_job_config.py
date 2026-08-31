@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -19,6 +20,18 @@ SPEC.loader.exec_module(MODULE)
 
 
 class JobMigrationTest(unittest.TestCase):
+    def test_versioned_job_matrix_is_sorted_and_mapped_by_the_shared_pipeline(self):
+        value = json.loads((HERE / "jobs.json").read_text(encoding="utf-8"))
+        jobs = value["jobs"]
+        self.assertEqual(1, value["schemaVersion"])
+        self.assertEqual(1, value["contractVersion"])
+        self.assertEqual(sorted(item["name"] for item in jobs),
+                         [item["name"] for item in jobs])
+        self.assertEqual(len(jobs), len({item["name"] for item in jobs}))
+        source = (HERE / "Jenkinsfile").read_text(encoding="utf-8")
+        for item in jobs:
+            self.assertIn(f"'{item['name']}': '{item['profile']}'", source)
+
     def test_preserves_job_governance_and_replaces_only_pipeline_definition(self):
         with tempfile.TemporaryDirectory(prefix="overte-job-migration-") as name:
             root = Path(name)

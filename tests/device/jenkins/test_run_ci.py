@@ -79,6 +79,10 @@ class JenkinsGlueTest(unittest.TestCase):
                 summary = json.loads(
                     (Path(values["OVERTE_CI_OUTPUT_DIR"]) / "summary.json").read_text())
                 self.assertEqual("passed", summary["status"])
+                acceptance = json.loads(
+                    (Path(values["OVERTE_CI_OUTPUT_DIR"]) / "acceptance.json").read_text())
+                self.assertEqual("implemented", acceptance["state"])
+                self.assertFalse(acceptance["blocking"])
                 self.assertTrue(
                     (Path(values["OVERTE_CI_OUTPUT_DIR"]) / "fixture-ready.json").is_file())
                 private_module = (Path(values["OVERTE_CI_OUTPUT_DIR"])
@@ -96,6 +100,7 @@ class JenkinsGlueTest(unittest.TestCase):
                 os.environ["OVERTE_CI_STAGED_OUTPUT_DIR"] = str(staged)
                 self.assertEqual(0, RUN_CI.stage_results())
                 self.assertTrue((staged / "junit.xml").is_file())
+                self.assertTrue((staged / "acceptance.json").is_file())
                 self.assertFalse((staged / "pipeline-error.txt").exists())
                 self.assertFalse((staged / "fixture-ready.json").exists())
                 self.assertFalse((staged / "modules/scene/screenshot.png").exists())
@@ -405,7 +410,10 @@ class JenkinsGlueTest(unittest.TestCase):
                     fixture.pid = 10001
                     fixture.wait.return_value = 0
                     runner = MagicMock()
-                    runner.wait.return_value = 0
+                    def complete_runner():
+                        Path(values["OVERTE_CI_OUTPUT_DIR"]).mkdir(parents=True)
+                        return 0
+                    runner.wait.side_effect = complete_runner
                     runner.pid = 10002
                     runner.poll.return_value = 0
                     popen.side_effect = [fixture, runner]

@@ -21,11 +21,9 @@ String adapterManifest(String profile) {
 }
 
 String resolvedProfile() {
-    if (params.TARGET_PROFILE?.trim() && params.TARGET_PROFILE.trim() != 'auto') {
-        return params.TARGET_PROFILE.trim()
-    }
     String profile = [
         'android-device-e2e': 'appium-android',
+        'android-phone-tablet-e2e-candidate-46cfa407': 'appium-android',
         'overte-device-phone-smoke': 'appium-android',
         'overte-e2e-android': 'appium-android',
         'ios-device-e2e': 'appium-ios',
@@ -39,10 +37,15 @@ String resolvedProfile() {
         'overte-e2e-macos': 'desktop-oculix-macos',
         'overte-e2e-windows': 'desktop-oculix-windows',
     ][env.JOB_BASE_NAME]
+    if (profile) {
+        return profile
+    }
+    if (params.TARGET_PROFILE?.trim() && params.TARGET_PROFILE.trim() != 'auto') {
+        return params.TARGET_PROFILE.trim()
+    }
     if (!profile) {
         error('TARGET_PROFILE must be explicit for an unmapped Jenkins job')
     }
-    return profile
 }
 
 String agentLabel(String profile) {
@@ -56,9 +59,6 @@ String agentLabel(String profile) {
 }
 
 String deviceResource(String profile) {
-    if (params.DEVICE_RESOURCE?.trim()) {
-        return params.DEVICE_RESOURCE.trim()
-    }
     return [
         'appium-android': 'android-device-01',
         'appium-ios': 'ios-device-01',
@@ -69,10 +69,18 @@ String deviceResource(String profile) {
     ][profile]
 }
 
+String targetCredential(String profile) {
+    return [
+        'appium-android': 'overte-android-device-selector',
+        'appium-ios': 'overte-device-target-selector',
+        'android-pico-adb': 'overte-pico-device-selector',
+        'desktop-oculix-linux': 'overte-linux-device-selector',
+        'desktop-oculix-macos': 'overte-macos-device-selector',
+        'desktop-oculix-windows': 'overte-windows-device-selector',
+    ][profile]
+}
+
 String fixturePort(String profile) {
-    if (params.FIXTURE_PORT?.trim()) {
-        return params.FIXTURE_PORT.trim()
-    }
     return [
         'appium-android': '18080', 'appium-ios': '18081',
         'android-pico-adb': '18082', 'desktop-oculix-linux': '18083',
@@ -139,26 +147,31 @@ def runDeviceSuite(String suite, int timeoutMinutes) {
 
     withEnv(configuration) {
         try {
-            lock(resource: deviceResource(profile), inversePrecedence: true) {
-                withCredentials([string(credentialsId: params.TARGET_SELECTOR_CREDENTIAL_ID.trim(),
-                                        variable: 'OVERTE_DEVICE_TARGET_SELECTOR')]) {
-                    env.OVERTE_TARGET_NEEDS_CLEANUP = '1'
-                    try {
-                        timeout(time: timeoutMinutes, unit: 'MINUTES') {
-                            if (profile == 'appium-ios') {
-                                ciPython('ios-thermal-preflight')
-                                ciPython('ios-ddi-preflight')
+            // Old and canonical job names may target the same profile.  This
+            // profile lock keeps their fixture/domain ports disjoint even when
+            // their device-resource overrides differ.
+            lock(resource: "overte-e2e-profile-${profile}", inversePrecedence: true) {
+                lock(resource: deviceResource(profile), inversePrecedence: true) {
+                    withCredentials([string(credentialsId: targetCredential(profile),
+                                            variable: 'OVERTE_DEVICE_TARGET_SELECTOR')]) {
+                        env.OVERTE_TARGET_NEEDS_CLEANUP = '1'
+                        try {
+                            timeout(time: timeoutMinutes, unit: 'MINUTES') {
+                                if (profile == 'appium-ios') {
+                                    ciPython('ios-thermal-preflight')
+                                    ciPython('ios-ddi-preflight')
+                                }
+                                ciPython('run-suite')
                             }
-                            ciPython('run-suite')
+                        } finally {
+                            // Deliberately outside the expired per-suite timeout while
+                            // still holding both ownership locks.
+                            int cleanupStatus = ciPython('cleanup-target', true)
+                            if (cleanupStatus != 0) {
+                                error("Target cleanup failed with exit code ${cleanupStatus}")
+                            }
+                            env.OVERTE_TARGET_NEEDS_CLEANUP = '0'
                         }
-                    } finally {
-                        // Deliberately outside the expired per-suite timeout while
-                        // still holding the resource lock.
-                        int cleanupStatus = ciPython('cleanup-target', true)
-                        if (cleanupStatus != 0) {
-                            error("Target cleanup failed with exit code ${cleanupStatus}")
-                        }
-                        env.OVERTE_TARGET_NEEDS_CLEANUP = '0'
                     }
                 }
             }
@@ -166,7 +179,7 @@ def runDeviceSuite(String suite, int timeoutMinutes) {
             // Results originate outside the checkout. Scan them for the private
             // selector before copying only publishable data into the workspace.
             int stagingStatus = 0
-            withCredentials([string(credentialsId: params.TARGET_SELECTOR_CREDENTIAL_ID.trim(),
+            withCredentials([string(credentialsId: targetCredential(profile),
                                     variable: 'OVERTE_DEVICE_TARGET_SELECTOR')]) {
                 stagingStatus = ciPython('stage-results', true)
             }
@@ -203,12 +216,12 @@ pipeline {
         string(
             name: 'DEVICE_RESOURCE',
             defaultValue: '',
-            description: 'Optional Lockable Resources override; never use a serial number here.'
+            description: 'Legacy display-only field; the profile owns its fixed lock resource.'
         )
         string(
             name: 'TARGET_SELECTOR_CREDENTIAL_ID',
-            defaultValue: 'overte-device-target-selector',
-            description: 'ID of a Jenkins Secret Text credential containing the private selector.'
+            defaultValue: '',
+            description: 'Legacy display-only field; the profile owns its fixed credential ID.'
         )
         choice(
             name: 'IOS_ARTIFACT_SOURCE',
@@ -293,7 +306,7 @@ pipeline {
         string(
             name: 'FIXTURE_PORT',
             defaultValue: '',
-            description: 'Optional fixed LAN fixture port override; profiles have isolated defaults.'
+            description: 'Legacy display-only field; profiles own isolated fixed ports.'
         )
         choice(
             name: 'FIXTURE_MODE',
@@ -355,8 +368,8 @@ pipeline {
                     if (!(deviceResource(profile) ==~ /[A-Za-z0-9][A-Za-z0-9_.:-]*/)) {
                         error('DEVICE_RESOURCE contains unsupported characters')
                     }
-                    if (!params.TARGET_SELECTOR_CREDENTIAL_ID.trim()) {
-                        error('TARGET_SELECTOR_CREDENTIAL_ID is required')
+                    if (!targetCredential(profile)) {
+                        error('target profile has no fixed selector credential mapping')
                     }
                     if (profile == 'appium-ios') {
                         if (!params.IOS_DDI_ROOT.trim()) {
@@ -464,7 +477,7 @@ pipeline {
                     "OVERTE_IOS_QT_IOS_ARTIFACT_PREFIX=${params.IOS_QT_IOS_ARTIFACT_PREFIX.trim()}",
                 ]) {
                     withCredentials([string(
-                        credentialsId: params.TARGET_SELECTOR_CREDENTIAL_ID.trim(),
+                        credentialsId: targetCredential(resolvedProfile()),
                         variable: 'OVERTE_DEVICE_TARGET_SELECTOR'
                     )]) {
                         script {
@@ -506,7 +519,7 @@ pipeline {
                 ]) {
                     lock(resource: params.DEVICE_RESOURCE.trim(), inversePrecedence: true) {
                         withCredentials([string(
-                            credentialsId: params.TARGET_SELECTOR_CREDENTIAL_ID.trim(),
+                            credentialsId: targetCredential(resolvedProfile()),
                             variable: 'OVERTE_DEVICE_TARGET_SELECTOR'
                         )]) {
                             script { ciPython('ios-artifact-sync') }
@@ -577,7 +590,7 @@ pipeline {
                         withEnv(cleanupEnvironment) {
                             lock(resource: deviceResource(profile), inversePrecedence: true) {
                                 withCredentials([string(
-                                    credentialsId: params.TARGET_SELECTOR_CREDENTIAL_ID.trim(),
+                                    credentialsId: targetCredential(profile),
                                     variable: 'OVERTE_DEVICE_TARGET_SELECTOR'
                                 )]) {
                                     int cleanupStatus = ciPython('cleanup-target', true)

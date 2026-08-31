@@ -33,7 +33,7 @@ STAGED_MARKER = ".overte-device-ci-staged"
 PRIVATE_BUILD_MARKER = ".overte-ios-ci-private-build"
 EMBEDDED_FIXTURE_URL = "overte-e2e://fixture/scene"
 PUBLIC_RESULT_NAMES = {
-    "accessibility-audit.json", "cycles.jsonl", "device.json", "junit.xml",
+    "acceptance.json", "accessibility-audit.json", "cycles.jsonl", "device.json", "junit.xml",
     "metrics.json", "module.log", "pipeline-error.txt", "summary.json",
     "telemetry.jsonl",
 }
@@ -133,6 +133,40 @@ def fixture_kind(root: Path, suite: str) -> str:
     if kind not in {"none", "scene", "domain"}:
         fail("suite has no valid checked-in fixture profile")
     return kind
+
+
+def acceptance_status(root: Path, manifest: Path, catalog: Path, suite: str) -> dict:
+    value = json.loads(manifest.read_text(encoding="utf-8"))
+    adapter_id = value.get("id") if isinstance(value, dict) else None
+    platform = {
+        "appium-android": "android",
+        "appium-ios": "ios",
+        "android-pico-adb": "pico",
+        "desktop-oculix-linux": "linux",
+        "desktop-oculix-macos": "macos",
+        "desktop-oculix-windows": "windows",
+        "mock-e2e": "mock",
+    }.get(adapter_id)
+    if platform is None:
+        fail("adapter is absent from the acceptance platform mapping")
+    sys.path.insert(0, str(root / "tests/device"))
+    try:
+        from acceptance_policy import load_policy, state_for
+        policy_path = root / "tests/device/acceptance-policy.json"
+        policy = load_policy(policy_path, catalog)
+        state = state_for(policy, platform, suite)
+    finally:
+        sys.path.pop(0)
+    promotion = policy["platforms"][platform]["suites"].get(suite, {
+        "evidence": policy["platforms"][platform]["defaultEvidence"]})
+    return {
+        "schemaVersion": 1,
+        "platform": platform,
+        "suite": suite,
+        "state": state,
+        "blocking": state == "required",
+        "evidence": promotion["evidence"],
+    }
 
 
 def checked_public_host() -> str:
@@ -389,6 +423,7 @@ def run_suite() -> int:
     output = external_directory(root, "OVERTE_CI_OUTPUT_DIR")
     suite = checked_suite(catalog)
     owned_fixture = fixture_kind(root, suite)
+    promotion = acceptance_status(root, manifest, catalog, suite)
     selector = environment("OVERTE_DEVICE_TARGET_SELECTOR")
     if output.exists():
         fail("OVERTE_CI_OUTPUT_DIR must not already exist")
@@ -495,6 +530,10 @@ def run_suite() -> int:
                                   **subprocess_group_options())
 
         returncode = runner.wait()
+        if not output.is_dir():
+            fail("device runner did not create its result directory")
+        (output / "acceptance.json").write_text(
+            json.dumps(promotion, sort_keys=True) + "\n", encoding="utf-8")
         return returncode if returncode >= 0 else 128 + abs(returncode)
     finally:
         for signum, handler in previous_handlers.items():

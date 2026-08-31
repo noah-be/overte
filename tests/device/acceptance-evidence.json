@@ -1,5 +1,39 @@
 {
   "schemaVersion": 1,
   "contractVersion": 1,
-  "evidence": []
+  "evidence": [
+    {
+      "id": "linux-domain-smoke-r1",
+      "platform": "linux",
+      "suite": "domain-smoke",
+      "outcome": "passed",
+      "targetClass": "hardware-gpu",
+      "resultArtifact": "local-lab://cross-platform-integration/linux-domain-r1/summary.json",
+      "resultSha256": "71533c2d085b280365aa504dff6dd89e6950fcdb62637735e4862071c74db49b",
+      "runnerRevision": "05d6eb074ac0559e1153e20aad40b2130c345860",
+      "recordedAt": "2026-08-31T09:31:39Z"
+    },
+    {
+      "id": "linux-portable-smoke-r8",
+      "platform": "linux",
+      "suite": "portable-smoke",
+      "outcome": "passed",
+      "targetClass": "hardware-gpu",
+      "resultArtifact": "local-lab://cross-platform-integration/fedora-gpu-r8/summary.json",
+      "resultSha256": "090405f1eecfecbb9570bb58e7202b4343d2adb354a65b2b33858803e8027258",
+      "runnerRevision": "1769b2dc4e0bc6e803e31a5387dce85795fc16bf",
+      "recordedAt": "2026-08-31T08:13:16Z"
+    },
+    {
+      "id": "pico-portable-smoke-r4",
+      "platform": "pico",
+      "suite": "portable-smoke",
+      "outcome": "passed",
+      "targetClass": "physical-device",
+      "resultArtifact": "local-lab://cross-platform-integration/pico-r4/summary.json",
+      "resultSha256": "dd361b3e0a9933cd4e306e04a8222d1e06c9e0310d19bcb7703fd7d6660a4709",
+      "runnerRevision": "1769b2dc4e0bc6e803e31a5387dce85795fc16bf",
+      "recordedAt": "2026-08-31T07:39:53Z"
+    }
+  ]
 }

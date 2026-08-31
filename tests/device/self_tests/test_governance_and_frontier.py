@@ -171,10 +171,9 @@ class GovernanceAndFrontierTest(unittest.TestCase):
             policy_path = root / "promoted-policy.json"
             policy_path.write_text(json.dumps(promoted_policy, sort_keys=True) + "\n",
                                    encoding="utf-8")
-            (root / "acceptance-evidence.json").write_text(json.dumps({
-                "schemaVersion": 1,
-                "contractVersion": 1,
-                "evidence": [{
+            acceptance_evidence = json.loads(
+                (DEVICE_ROOT / "acceptance-evidence.json").read_text(encoding="utf-8"))
+            acceptance_evidence["evidence"].extend([{
                     "id": identifier,
                     "platform": "mock",
                     "suite": "smoke",
@@ -184,8 +183,10 @@ class GovernanceAndFrontierTest(unittest.TestCase):
                     "resultSha256": "0" * 64,
                     "runnerRevision": "0" * 40,
                     "recordedAt": f"2026-01-0{index}T00:00:00Z",
-                } for index, identifier in enumerate(evidence_ids, 1)],
-            }, sort_keys=True) + "\n", encoding="utf-8")
+                } for index, identifier in enumerate(evidence_ids, 1)])
+            acceptance_evidence["evidence"].sort(key=lambda item: item["id"])
+            (root / "acceptance-evidence.json").write_text(
+                json.dumps(acceptance_evidence, sort_keys=True) + "\n", encoding="utf-8")
             evaluated = subprocess.run([
                 sys.executable, str(DEVICE_ROOT / "evaluate_matrix.py"),
                 "--result", str(run), "--output-dir", str(matrix),

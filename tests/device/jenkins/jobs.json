@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "contractVersion": 1,
+  "jobs": [
+    {"name": "android-device-e2e", "profile": "appium-android", "enabledAfterMigration": true},
+    {"name": "android-phone-tablet-e2e-candidate-46cfa407", "profile": "appium-android", "enabledAfterMigration": true},
+    {"name": "ios-device-e2e", "profile": "appium-ios", "enabledAfterMigration": true},
+    {"name": "ios-tablet-e2e-candidate", "profile": "appium-ios", "enabledAfterMigration": true},
+    {"name": "overte-device-ipad-smoke", "profile": "appium-ios", "enabledAfterMigration": true},
+    {"name": "overte-device-phone-smoke", "profile": "appium-android", "enabledAfterMigration": true},
+    {"name": "overte-device-pico-smoke", "profile": "android-pico-adb", "enabledAfterMigration": true},
+    {"name": "overte-e2e-linux", "profile": "desktop-oculix-linux", "enabledAfterMigration": false},
+    {"name": "overte-e2e-macos", "profile": "desktop-oculix-macos", "enabledAfterMigration": false},
+    {"name": "overte-e2e-windows", "profile": "desktop-oculix-windows", "enabledAfterMigration": false},
+    {"name": "pico-device-e2e", "profile": "android-pico-adb", "enabledAfterMigration": true}
+  ]
+}
