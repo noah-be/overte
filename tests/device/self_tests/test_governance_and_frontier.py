@@ -67,13 +67,21 @@ class GovernanceAndFrontierTest(unittest.TestCase):
 
     def run_suite(self, root: Path, suite: str, failures: str = "") -> tuple[Path, subprocess.CompletedProcess]:
         output = root / "result"
+        source = root / "source.bin"
+        candidate = root / "candidate.bin"
+        source.write_bytes(b"source-build")
+        candidate.write_bytes(b"candidate-build")
+        environment = self.environment(root, failures) | {
+            "OVERTE_E2E_UPGRADE_SOURCE_ARTIFACT": str(source),
+            "OVERTE_E2E_UPGRADE_CANDIDATE_ARTIFACT": str(candidate),
+        }
         result = subprocess.run([
             sys.executable, str(DEVICE_ROOT / "run.py"),
             "--adapter-manifest", str(DEVICE_ROOT / "adapters/mock/adapter.json"),
             "--catalog", str(DEVICE_ROOT / "catalog.json"),
             "--suite", suite, "--allow-virtual", "--require-complete",
             "--output-dir", str(output),
-        ], env=self.environment(root, failures), text=True,
+        ], env=environment, text=True,
            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
         return output, result
 

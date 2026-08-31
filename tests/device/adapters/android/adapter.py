@@ -8,6 +8,8 @@ import json
 import math
 import os
 from pathlib import Path
+import re
+import subprocess
 import sys
 import time
 from urllib.error import HTTPError, URLError
@@ -111,6 +113,7 @@ class AndroidAdapter:
 
     def capabilities(self, target: str | None = None) -> list[str]:
         values = ["app.foreground", "app.install", "app.launch", "app.process",
+                  "app.stop", "app.version",
                   "artifact.screenshot", "artifact.video",
                   "lifecycle.background", "telemetry.snapshot"]
         if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") == "1":
@@ -121,8 +124,10 @@ class AndroidAdapter:
             # identity through require_controlled_debug_identity().
             values += [
                 "asset.load", "navigation.enter-domain", "probe.snapshot",
-                "scene.load", "sound.play",
+                "scene.load", "setting.set", "sound.play",
             ]
+        if self.upgrade_configuration_available():
+            values.append("app.upgrade")
         if self.kind == "pico" and os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
             # An explicit opt-in with incomplete isolation is a configuration
             # error, not a silent capability downgrade.
@@ -133,6 +138,46 @@ class AndroidAdapter:
                 "tablet.snapshot",
             ]
         return sorted(values)
+
+    @staticmethod
+    def upgrade_configuration_available() -> bool:
+        values = [os.environ.get(name, "") for name in (
+            "OVERTE_E2E_UPGRADE_SOURCE_ARTIFACT",
+            "OVERTE_E2E_UPGRADE_CANDIDATE_ARTIFACT",
+            "OVERTE_E2E_UPGRADE_FROM_VERSION",
+            "OVERTE_E2E_UPGRADE_TO_VERSION",
+            "OVERTE_ANDROID_AAPT",
+        )]
+        if not all(values):
+            return False
+        source, candidate, _from_version, _to_version, aapt = values
+        return (Path(source).is_file() and not Path(source).is_symlink()
+                and Path(candidate).is_file() and not Path(candidate).is_symlink()
+                and Path(aapt).is_file() and os.access(aapt, os.X_OK))
+
+    def apk_identity(self, apk: Path) -> tuple[str, str]:
+        tool = os.environ.get("OVERTE_ANDROID_AAPT", "")
+        if not tool or not Path(tool).is_file() or not os.access(tool, os.X_OK):
+            fail("Android upgrade requires the pinned executable OVERTE_ANDROID_AAPT")
+        completed = subprocess.run(
+            [tool, "dump", "badging", str(apk)], text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30, check=False)
+        if completed.returncode:
+            fail("Android upgrade artifact metadata could not be inspected")
+        match = re.search(
+            r"^package: name='([^']+)' versionCode='[^']+' versionName='([^']+)'",
+            completed.stdout, re.MULTILINE)
+        if match is None:
+            fail("Android upgrade artifact has no valid package metadata")
+        return match.group(1), match.group(2)
+
+    def installed_version(self, target: str) -> str:
+        output = self.adb.shell(
+            target, "dumpsys", "package", self.profile["package"], check=False)
+        versions = re.findall(r"^\s*versionName=([^\s]+)\s*$", output, re.MULTILINE)
+        if len(set(versions)) != 1:
+            fail("Android package has no unambiguous installed version")
+        return versions[0]
 
     @staticmethod
     def decode_json(raw: str) -> dict | None:
@@ -619,8 +664,20 @@ class AndroidAdapter:
             if (not isinstance(apk, str) or not Path(apk).is_file()
                     or Path(apk).is_symlink()):
                 fail("app.install requires an existing regular APK path")
-            arguments = ["install", "-r", "-g"]
-            self.adb.execute([*arguments, str(Path(apk).resolve())], target=target, timeout=180)
+            resolved_apk = Path(apk).resolve()
+            configured_source = os.environ.get(
+                "OVERTE_E2E_UPGRADE_SOURCE_ARTIFACT", "")
+            if (self.upgrade_configuration_available()
+                    and resolved_apk == Path(configured_source).resolve()):
+                artifact_package, artifact_version = self.apk_identity(resolved_apk)
+                if (artifact_package != package or artifact_version != os.environ[
+                        "OVERTE_E2E_UPGRADE_FROM_VERSION"]):
+                    fail("Android source package or version does not match the upgrade fixture")
+            # A campaign may start after a newer debuggable candidate was left
+            # installed. -d makes reinstalling the explicit source APK
+            # deterministic without clearing its application data.
+            arguments = ["install", "-r", "-d", "-g"]
+            self.adb.execute([*arguments, str(resolved_apk)], target=target, timeout=180)
             return {"installed": True}
         if operation == "artifact.screenshot":
             if values:
@@ -652,6 +709,44 @@ class AndroidAdapter:
             else:
                 self.adb.shell(target, "am", "start", "-W", "-n", self.profile["activity"])
             return {"launched": True}
+        if operation == "app.stop":
+            if values:
+                fail("app.stop does not accept arguments")
+            self.adb.shell(target, "am", "force-stop", package)
+            self.wait_for_process_stopped(target)
+            if self.kind == "pico" and pico_openxr_opted_in():
+                self.pico_input_session(target).discard_local_state()
+            return {"stopped": True}
+        if operation == "app.version":
+            if values:
+                fail("app.version does not accept arguments")
+            return {"schemaVersion": 1, "version": self.installed_version(target)}
+        if operation == "app.upgrade":
+            try:
+                values = validate_operation_arguments(operation, values)
+            except ValueError as error:
+                fail(str(error))
+            if not self.upgrade_configuration_available():
+                fail("Android upgrade artifacts and metadata tool are not ready")
+            if self.installed_version(target) != values["fromVersion"]:
+                fail("installed Android source version does not match the upgrade request")
+            candidate = Path(os.environ[
+                "OVERTE_E2E_UPGRADE_CANDIDATE_ARTIFACT"]).resolve()
+            artifact_package, artifact_version = self.apk_identity(candidate)
+            if artifact_package != package or artifact_version != values["toVersion"]:
+                fail("Android candidate package or version does not match the upgrade request")
+            self.adb.shell(target, "am", "force-stop", package)
+            self.wait_for_process_stopped(target)
+            self.adb.execute(
+                ["install", "-r", "-g", str(candidate)], target=target, timeout=180)
+            if self.installed_version(target) != values["toVersion"]:
+                fail("Android package manager did not expose the candidate version")
+            if os.environ.get("OVERTE_ANDROID_E2E_DEBUG") == "1":
+                self.launch_debug_app(target)
+            else:
+                self.adb.shell(
+                    target, "am", "start", "-W", "-n", self.profile["activity"])
+            return {"applied": True}
         if operation == "app.process":
             state = self.adb.process_state(target, package)
             if self.kind == "pico" and pico_openxr_opted_in():
@@ -701,6 +796,22 @@ class AndroidAdapter:
                     or after_sequence < 0)):
                 fail("afterSampleSequence must be a non-negative integer")
             return self.read_probe_snapshot(target, package, after_sequence)
+        if operation == "setting.set":
+            try:
+                values = validate_operation_arguments(operation, values)
+            except ValueError as error:
+                fail(str(error))
+            identity = self.require_controlled_debug_identity(target)
+            command_id = f"android-setting-set-{uuid.uuid4().hex}"
+            self.write_control_command(target, identity, operation, {
+                "schemaVersion": 1,
+                "commandId": command_id,
+                "action": "set-safe-setting",
+                "settingId": values["settingId"],
+                "enabled": values["enabled"],
+            })
+            self.wait_for_control_command(target, identity, operation, command_id)
+            return {"performed": True}
         if operation == "tablet.snapshot":
             identity = self.require_pico_session_identity(target)
             return self.read_pico_tablet_snapshot(target, identity)

@@ -23,7 +23,7 @@ from contracts import TABLET_CONTRACT_VERSION, validate_operation_arguments
 
 
 CAPABILITIES = sorted([
-    "accessibility.snapshot", "app.crash", "app.foreground", "app.launch", "app.process",
+    "accessibility.snapshot", "app.crash", "app.foreground", "app.install", "app.launch", "app.process",
     "app.stop", "app.upgrade", "app.version", "asset.load", "audio.mute",
     "collaboration.edit", "collaboration.snapshot", "input.fly", "input.jump", "input.look", "input.move",
     "input.primary", "lifecycle.background", "navigation.enter-domain", "probe.snapshot",
@@ -359,7 +359,12 @@ def activate_tablet_control(state: dict, control_id: str) -> None:
 def invoke(operation: str, arguments: dict) -> dict:
     validate_operation_arguments(operation, arguments)
     state = load()
-    if operation == "app.launch":
+    if operation == "app.install":
+        state["running"] = state["foreground"] = False
+        state["productVersion"] = os.environ.get(
+            "OVERTE_E2E_UPGRADE_FROM_VERSION", state["productVersion"])
+        result = {"installed": True}
+    elif operation == "app.launch":
         if state.get("crashed") and "crash-relaunch-fails" in failures():
             raise RuntimeError("mock crash recovery launch failed")
         was_running = state["running"]
