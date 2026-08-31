@@ -49,6 +49,9 @@ String resolvedProfile() {
 }
 
 String agentLabel(String profile) {
+    if (profile == 'android-pico-adb') {
+        return 'overte-device-pico'
+    }
     if (profile == 'desktop-oculix-macos') {
         return 'overte-e2e-macos'
     }

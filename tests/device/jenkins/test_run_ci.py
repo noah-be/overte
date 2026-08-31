@@ -780,6 +780,7 @@ class JenkinsGlueTest(unittest.TestCase):
         source = (HERE / "Jenkinsfile").read_text(encoding="utf-8")
         for expected in (
             "agent { label agentLabel(resolvedProfile()) }",
+            "return 'overte-device-pico'",
             "case 'appium-android':",
             "case 'android-pico-adb':",
             "case 'desktop-oculix-linux':",
