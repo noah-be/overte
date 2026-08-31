@@ -38,12 +38,17 @@ python3 -m unittest tests.device.self_tests.test_appium_adapter -v
 python3 ios/tests/e2e-accessibility-identifiers-test.py
 python3 ios/tests/e2e-test-build-contract-test.py
 tests/device/qml/run-qml-tests.sh
+target_config="$(mktemp)"
+trap 'rm -f -- "$target_config"' EXIT
+printf '%s\n' '{"schemaVersion":1,"targets":[]}' > "$target_config"
+chmod 0600 "$target_config"
+OVERTE_APPIUM_TARGETS="$target_config" \
 python3 tests/device/verify_adapter.py \
   --adapter-manifest tests/device/adapters/appium/ios.json
 ```
 
-The verifier without a private target proves only the manifest/protocol
-surface. It is not physical acceptance.
+The verifier with this ephemeral empty private configuration proves only the
+manifest/protocol surface. It is not physical acceptance.
 
 ## Physical acceptance
 
