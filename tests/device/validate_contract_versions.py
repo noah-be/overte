@@ -10,7 +10,8 @@ from pathlib import Path
 
 REQUIRED = {
     "acceptance-policy": 1, "adapter-manifest": 1, "artifact-manifest": 1,
-    "capability-registry": 1, "fixture-environment": 1, "matrix-summary": 1,
+    "capability-registry": 1, "execution-plan": 1, "execution-profiles": 1,
+    "fixture-environment": 1, "matrix-summary": 1,
     "probe-snapshot": 2, "run-manifest": 1, "run-summary": 1, "timeline": 1,
 }
 
@@ -45,6 +46,11 @@ def main() -> int:
             (root / "capabilities.json").read_text(encoding="utf-8"))["schemaVersion"],
         "acceptance-policy": json.loads(
             (root / "acceptance-policy.json").read_text(encoding="utf-8"))["contractVersion"],
+        "execution-profiles": json.loads(
+            (root / "execution-profiles.json").read_text(encoding="utf-8"))["contractVersion"],
+        "execution-plan": json.loads(
+            (root / "schemas/execution-plan.schema.json").read_text(encoding="utf-8"))[
+                "properties"]["contractVersion"]["const"],
         "run-manifest": json.loads(
             (root / "schemas/run-manifest.schema.json").read_text(encoding="utf-8"))[
                 "properties"]["schemaVersion"]["const"],

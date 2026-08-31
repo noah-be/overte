@@ -20,6 +20,7 @@ class ProjectSuiteCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("repository-health", result.stdout)
         self.assertIn("pico4-device-free", result.stdout)
+        self.assertIn("device-e2e-contracts", result.stdout)
         self.assertNotIn("native-ctest", result.stdout)
 
     def test_full_profile_includes_native_build(self):

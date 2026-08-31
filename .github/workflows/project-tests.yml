@@ -63,6 +63,13 @@ jobs:
           node --version
           java -version
 
+      - name: Install QML contract runtime
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            qml-module-qttest qtdeclarative5-dev-tools
+
       - name: Run project suite
         run: |
           set -euo pipefail
@@ -70,11 +77,21 @@ jobs:
             --timeout 240 \
             --junit build/test-results/project-tests.xml
 
+      - name: Run full device E2E control-plane gate
+        run: |
+          set -euo pipefail
+          python3 tests/device/run_control_plane_tests.py \
+            --profile full --require-qml --timeout-seconds 900 \
+            --junit build/test-results/device-e2e-control-plane.xml
+
       - name: Upload test report
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: project-test-results
-          path: build/test-results/project-tests.xml
+          path: |
+            build/test-results/project-tests.xml
+            build/test-results/device-e2e-contracts.xml
+            build/test-results/device-e2e-control-plane.xml
           if-no-files-found: warn
           retention-days: 7

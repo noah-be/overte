@@ -27,16 +27,54 @@ python3 tests/device/verify_adapter.py --adapter-manifest ADAPTER.json \
 
 ## Fixture and CI ownership
 
+`execution-profiles.json` is the closed recipe inventory for every catalog suite.
+It declares the fixture class (`none`, `scene`, or `domain`), whether a fresh
+session is required, the runtime tier, tablet-policy input, additional environment
+and upgrade artifacts. `execution_plan.py` joins these recipes with the catalog
+and acceptance policy before adapter discovery. Unknown suites, incomplete recipe
+coverage and missing external inputs fail without contacting a target.
+
+For example, compile a scene-backed plan without starting it:
+
+```sh
+python3 tests/device/execution_plan.py \
+  --policy tests/device/acceptance-policy.json \
+  --catalog tests/device/catalog.json \
+  --profiles tests/device/execution-profiles.json \
+  --platform linux --suite e2e-core \
+  --fixture-provider auto --require-ready
+```
+
 `fixture/orchestrate.py` owns the serverless HTTP fixture and, when executables
 are supplied, the controlled domain stack. It publishes one mode-0600 environment
 JSON in a mode-0700 directory outside the checkout and terminates the complete
 child process groups on signals. The control token is only present in that file,
 never in stdout.
 
-`pipeline.py` applies the same phases everywhere: prepare, validate fixture
-environment, reserve/run/cleanup through `run.py`, collect, evaluate and audit.
+`pipeline.py` applies the same phases everywhere: compile, prepare, own or validate
+the fixture environment, reserve/run/cleanup through `run.py`, collect, evaluate
+and audit. With the default `--fixture-provider auto`, it starts one unified
+orchestrator for all selected suites and retains its private environment only in a
+temporary mode-0700 directory. `--fixture-provider external` plus
+`--fixture-environment` is available when the lab owns the fixture lifecycle.
 Only module `error` outcomes are retried; product assertion failures and security
 findings are never retried. Every attempt remains an immutable artifact.
+Suites can be named explicitly or selected directly from the acceptance policy
+with `--minimum-state accepted|required`; an empty lifecycle selection fails.
+
+```sh
+python3 tests/device/pipeline.py \
+  --adapter-manifest ADAPTER.json \
+  --catalog tests/device/catalog.json \
+  --policy tests/device/acceptance-policy.json \
+  --profiles tests/device/execution-profiles.json \
+  --platform linux --suite e2e-core \
+  --output-dir /private/results/linux-core
+```
+
+Domain recipes additionally require `--domain-server` and `--assignment-client`.
+Upgrade recipes require both version arguments and regular non-symlink source and
+candidate artifacts. All are checked before target discovery.
 
 ## Evidence and evaluation
 
@@ -51,6 +89,11 @@ platform is explicitly exempted; that exception is intended for `mock` self-test
 p95 and mixed pass/product-failure flakiness per platform/suite. Contract reader
 compatibility and migration rules live in `contract-versions.json` and are checked
 by `validate_contract_versions.py`.
+
+`run_control_plane_tests.py` is the hardware-free CI entry point. Its quick
+profile is part of `tests/run-project-tests.py`; the project GitHub workflow also
+runs the full Python regression and requires the QML contract runtime. Both layers
+write JUnit reports without device selectors or fixture control tokens.
 
 ## Portable suite frontier
 

@@ -36,6 +36,10 @@ class TargetLockTimeout(RuntimeError):
     """The target is owned by another run and was not acquired in time."""
 
 
+class RunInterrupted(RuntimeError):
+    """The runner received a termination signal and must clean up."""
+
+
 def fail(message: str) -> "NoReturn":
     raise ValueError(message)
 
@@ -252,8 +256,9 @@ def append_timeline(path: Path, sequence: int, event: str, **fields: object) -> 
 
 def write_artifact_manifest(output: Path) -> None:
     entries = []
-    for path in sorted(item for item in output.rglob("*") if item.is_file()
-                       and item.name != "artifact-manifest.json"):
+    paths = [item for item in output.rglob("*") if item.is_file()
+             and item.name != "artifact-manifest.json"]
+    for path in sorted(paths, key=lambda item: item.relative_to(output).as_posix()):
         digest = hashlib.sha256()
         with path.open("rb") as stream:
             for chunk in iter(lambda: stream.read(1024 * 1024), b""):
@@ -294,6 +299,10 @@ def run_module(module: dict, catalog: Path, environment: dict[str, str],
         timed_out = True
         stop_process(process)
         output, _ = process.communicate()
+    except BaseException:
+        stop_process(process)
+        process.communicate()
+        raise
     output = bounded(redact(output, private_values))
     (artifact_dir / "module.log").write_text(output, encoding="utf-8")
     status = ("skipped" if process.returncode == 77 else
@@ -425,6 +434,19 @@ def main() -> int:
         fail("OVERTE_DEVICE_LOCK_TIMEOUT_SECONDS must be from 0.1 through 86400")
     reservation_key = target.get("reservationKey", selector)
     private_values = {selector, reservation_key}
+
+    previous_handlers: dict[int, object] = {}
+
+    def interrupt(signum, _frame) -> None:
+        previous = previous_handlers.get(signum, signal.SIG_DFL)
+        signal.signal(signum, previous)
+        raise RunInterrupted(f"received signal {signum}")
+
+    handled_signals = [signal.SIGTERM, signal.SIGINT]
+    if hasattr(signal, "SIGBREAK"):
+        handled_signals.append(signal.SIGBREAK)
+    for handled_signal in handled_signals:
+        previous_handlers[handled_signal] = signal.signal(handled_signal, interrupt)
     try:
         with target_lock(reservation_key, lock_root, lock_timeout):
             timeline_sequence = append_timeline(
@@ -497,6 +519,8 @@ def main() -> int:
         results.append({"id": "target-reservation", "description": "Target reservation",
                         "status": "error", "returncode": 75,
                         "durationSeconds": 0.0, "output": str(error) + "\n"})
+    for handled_signal, previous in previous_handlers.items():
+        signal.signal(handled_signal, previous)
     summary = {"schemaVersion": 1, "adapter": manifest["id"], "suite": args.suite,
                "status": "failed" if any(r["status"] in {"failed", "error"} for r in results) else "passed",
                "results": [{key: value for key, value in result.items() if key != "output"}

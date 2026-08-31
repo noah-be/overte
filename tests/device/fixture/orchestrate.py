@@ -46,7 +46,10 @@ def stop(process: subprocess.Popen | None) -> None:
     if process is None or process.poll() is not None:
         return
     if os.name == "nt":
-        process.send_signal(signal.CTRL_BREAK_EVENT)
+        try:
+            process.send_signal(signal.CTRL_BREAK_EVENT)
+        except OSError:
+            process.terminate()
     else:
         try:
             os.killpg(process.pid, signal.SIGTERM)
@@ -149,17 +152,24 @@ def main() -> int:
         nonlocal stopping
         stopping = True
 
-    signal.signal(signal.SIGTERM, request_stop)
-    signal.signal(signal.SIGINT, request_stop)
+    handled_signals = [signal.SIGTERM, signal.SIGINT]
+    if hasattr(signal, "SIGBREAK"):
+        handled_signals.append(signal.SIGBREAK)
+    for handled_signal in handled_signals:
+        signal.signal(handled_signal, request_stop)
     try:
         scene_ready_path = output / "scene-ready.json"
         command = [sys.executable, str(ROOT / "serve.py"), "--bind", args.bind,
                    "--port", str(args.fixture_port), "--ready-file", str(scene_ready_path)]
         if args.public_host:
             command += ["--public-host", args.public_host]
-        scene_process = subprocess.Popen(
-            command, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
-            start_new_session=os.name != "nt")
+        popen_options = {"stdin": subprocess.DEVNULL, "stdout": log,
+                         "stderr": subprocess.STDOUT}
+        if os.name == "nt":
+            popen_options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            popen_options["start_new_session"] = True
+        scene_process = subprocess.Popen(command, **popen_options)
         scene = wait_json(scene_ready_path, scene_process,
                           args.startup_timeout_seconds, "serverless fixture")
         domain = None
@@ -179,9 +189,13 @@ def main() -> int:
             if args.public_host:
                 command += ["--public-host", args.public_host,
                             "--domain-host", args.public_host]
-            domain_process = subprocess.Popen(
-                command, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
-                start_new_session=os.name != "nt")
+            popen_options = {"stdin": subprocess.DEVNULL, "stdout": log,
+                             "stderr": subprocess.STDOUT}
+            if os.name == "nt":
+                popen_options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+            else:
+                popen_options["start_new_session"] = True
+            domain_process = subprocess.Popen(command, **popen_options)
             domain = wait_json(domain_ready_path, domain_process,
                                args.startup_timeout_seconds, "domain fixture")
         env_path = output / "environment.json"

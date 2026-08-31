@@ -250,6 +250,29 @@ python3 -m unittest discover -s tests/device/self_tests -v
 tests/device/qml/run-qml-tests.sh
 python3 tests/device/fixture/serve.py --check
 python3 tests/device/fixture/domain.py --check
+python3 tests/device/run_control_plane_tests.py --profile quick \
+  --junit /tmp/overte-device-control-plane.xml
+```
+
+Compile and execute a target-neutral plan. Scene-backed suites start and stop the
+controlled HTTP fixture automatically; domain-backed suites additionally require
+the two server executable paths:
+
+```bash
+python3 tests/device/execution_plan.py \
+  --policy tests/device/acceptance-policy.json \
+  --catalog tests/device/catalog.json \
+  --profiles tests/device/execution-profiles.json \
+  --platform mock --suite e2e-core \
+  --fixture-provider auto --require-ready
+
+python3 tests/device/pipeline.py \
+  --adapter-manifest tests/device/adapters/mock/adapter.json \
+  --catalog tests/device/catalog.json \
+  --policy tests/device/acceptance-policy.json \
+  --profiles tests/device/execution-profiles.json \
+  --platform mock --suite e2e-core --allow-virtual \
+  --output-dir /tmp/overte-device-pipeline
 ```
 
 Every target adapter should also pass the reusable protocol verifier. The
