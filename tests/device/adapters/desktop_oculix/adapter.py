@@ -237,7 +237,8 @@ class DesktopAdapter:
         if target.get("platform") != "linux" or target.get("isolatedX11"):
             values.append("artifact.screenshot")
         if target.get("probe"):
-            values += ["probe.snapshot", "tablet.close", "tablet.open"]
+            values += ["navigation.enter-domain", "probe.snapshot", "tablet.close",
+                       "tablet.open"]
         if target.get("videoExecutable"):
             values.append("artifact.video")
         return sorted(values)
@@ -1116,6 +1117,20 @@ class DesktopAdapter:
                 return {"requested": True, "commandId": command_id,
                         "lifecycle": "same-process"}
             return {"requested": True, "lifecycle": "initial-process"}
+        if operation == "navigation.enter-domain":
+            try:
+                arguments = validate_operation_arguments(operation, values)
+            except ValueError as error:
+                fail(str(error))
+            command_id = "navigate-" + uuid.uuid4().hex
+            self.write_client_command(selector, target, state, {
+                "schemaVersion": 1,
+                "commandId": command_id,
+                "action": "navigate",
+                "url": arguments["url"],
+            })
+            return {"requested": True, "commandId": command_id,
+                    "lifecycle": "same-process"}
         if operation == "input.look":
             horizontal = values.get("horizontal", 0.25)
             vertical = values.get("vertical", 0.0)

@@ -24,10 +24,7 @@ import xml.etree.ElementTree as ET
 from urllib.parse import urlsplit
 
 
-SUITES = {
-    "smoke", "e2e-core", "accessibility", "stability", "lifecycle-stability",
-    "tablet-e2e",
-}
+SUITE_IDENTIFIER = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
 IOS_ARTIFACT_SOURCES = {
     "personal-team-preinstalled", "local-personal-team", "protected-github",
 }
@@ -113,11 +110,29 @@ def external_directory(root: Path, variable: str) -> Path:
     return path
 
 
-def checked_suite() -> str:
+def checked_suite(catalog: Path | None = None) -> str:
     suite = environment("OVERTE_CI_SUITE")
-    if suite not in SUITES:
-        fail(f"OVERTE_CI_SUITE must be one of: {', '.join(sorted(SUITES))}")
+    if not SUITE_IDENTIFIER.fullmatch(suite):
+        fail("OVERTE_CI_SUITE has an invalid identifier")
+    if catalog is not None:
+        value = json.loads(catalog.read_text(encoding="utf-8"))
+        modules = value.get("modules") if isinstance(value, dict) else None
+        available = ({item for module in modules for item in module.get("suites", [])}
+                     if isinstance(modules, list) else set())
+        if suite not in available:
+            fail("OVERTE_CI_SUITE is absent from the checked-in module catalog")
     return suite
+
+
+def fixture_kind(root: Path, suite: str) -> str:
+    profiles = json.loads(
+        (root / "tests/device/execution-profiles.json").read_text(encoding="utf-8"))
+    suites = profiles.get("suites") if isinstance(profiles, dict) else None
+    profile = suites.get(suite) if isinstance(suites, dict) else None
+    kind = profile.get("fixture") if isinstance(profile, dict) else None
+    if kind not in {"none", "scene", "domain"}:
+        fail("suite has no valid checked-in fixture profile")
+    return kind
 
 
 def checked_public_host() -> str:
@@ -264,18 +279,36 @@ def stop_process(process: subprocess.Popen | None, grace_seconds: int = 5) -> No
         process.wait(timeout=grace_seconds)
 
 
-def wait_for_ready(process: subprocess.Popen, ready_file: Path, timeout_seconds: int = 10) -> dict:
+def wait_for_ready(process: subprocess.Popen, ready_file: Path,
+                   timeout_seconds: int = 90) -> dict:
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
         if ready_file.exists():
             value = json.loads(ready_file.read_text(encoding="utf-8"))
-            if isinstance(value, dict) and isinstance(value.get("sceneUrl"), str):
+            if isinstance(value, dict) and value.get("schemaVersion") == 1:
                 return value
             fail("fixture ready file has an invalid shape")
         if process.poll() is not None:
             fail("fixture server exited before becoming ready")
         time.sleep(0.05)
-    fail("fixture server did not become ready within 10 seconds")
+    fail("fixture server did not become ready within its bounded timeout")
+
+
+def load_owned_fixture_environment(metadata_root: Path, ready: dict) -> dict[str, str]:
+    raw = ready.get("environmentFile")
+    if not isinstance(raw, str):
+        fail("fixture orchestrator did not publish its environment file")
+    path = Path(raw).resolve()
+    if not is_within(path, metadata_root.resolve()) or not path.is_file():
+        fail("fixture environment file escaped its private metadata root")
+    value = json.loads(path.read_text(encoding="utf-8"))
+    variables = value.get("environment") if isinstance(value, dict) else None
+    if (value.get("schemaVersion") != 1 or not isinstance(variables, dict)
+            or not variables or not all(
+                isinstance(name, str) and name and isinstance(item, str) and item
+                for name, item in variables.items())):
+        fail("fixture environment file has an invalid shape")
+    return variables
 
 
 def subprocess_group_options() -> dict[str, object]:
@@ -354,7 +387,8 @@ def run_suite() -> int:
     manifest = repository_file(root, "OVERTE_CI_ADAPTER_MANIFEST")
     catalog = repository_file(root, "OVERTE_CI_CATALOG")
     output = external_directory(root, "OVERTE_CI_OUTPUT_DIR")
-    suite = checked_suite()
+    suite = checked_suite(catalog)
+    owned_fixture = fixture_kind(root, suite)
     selector = environment("OVERTE_DEVICE_TARGET_SELECTOR")
     if output.exists():
         fail("OVERTE_CI_OUTPUT_DIR must not already exist")
@@ -383,10 +417,9 @@ def run_suite() -> int:
         signal.signal(signum, forward_signal)
 
     try:
-        if suite in {"e2e-core", "accessibility", "tablet-e2e"} \
-                and checked_fixture_mode() == "embedded":
+        if owned_fixture == "scene" and checked_fixture_mode() == "embedded":
             runner_environment["OVERTE_E2E_SCENE_URL"] = EMBEDDED_FIXTURE_URL
-        elif suite in {"e2e-core", "accessibility", "tablet-e2e"}:
+        elif owned_fixture in {"scene", "domain"}:
             host = checked_public_host()
             bind = environment("OVERTE_CI_FIXTURE_BIND", required=False, default="0.0.0.0")
             port = checked_fixture_port()
@@ -394,19 +427,51 @@ def run_suite() -> int:
                 fail("fixture metadata directory already exists")
             fixture_metadata.mkdir(mode=0o700)
             fixture_log_handle = fixture_log.open("w", encoding="utf-8")
-            fixture = subprocess.Popen([
-                sys.executable, str(root / "tests/device/fixture/serve.py"),
-                "--bind", bind, "--port", str(port), "--public-host", host,
-                "--ready-file", str(fixture_ready),
-            ], cwd=root, stdout=fixture_log_handle, stderr=subprocess.STDOUT,
-               text=True, **subprocess_group_options())
+            if owned_fixture == "domain":
+                command = [
+                    sys.executable, str(root / "tests/device/fixture/orchestrate.py"),
+                    "--output-dir", str(fixture_metadata / "owned"),
+                    "--ready-file", str(fixture_ready),
+                    "--bind", bind, "--public-host", host,
+                    "--fixture-port", str(port),
+                    "--domain-server", environment("OVERTE_CI_DOMAIN_SERVER"),
+                    "--assignment-client", environment("OVERTE_CI_ASSIGNMENT_CLIENT"),
+                ]
+                domain_port = environment(
+                    "OVERTE_CI_DOMAIN_PORT", required=False, default="40102")
+                domain_http_port = environment(
+                    "OVERTE_CI_DOMAIN_HTTP_PORT", required=False, default="40100")
+                if not all(item.isdigit() and 1 <= int(item) <= 65535
+                           for item in (domain_port, domain_http_port)):
+                    fail("domain fixture ports must be integers from 1 through 65535")
+                command += ["--domain-port", domain_port,
+                            "--domain-http-port", domain_http_port]
+            else:
+                command = [
+                    sys.executable, str(root / "tests/device/fixture/serve.py"),
+                    "--bind", bind, "--port", str(port), "--public-host", host,
+                    "--ready-file", str(fixture_ready),
+                ]
+            fixture = subprocess.Popen(
+                command, cwd=root, stdout=fixture_log_handle,
+                stderr=subprocess.STDOUT, text=True, **subprocess_group_options())
             ready = wait_for_ready(fixture, fixture_ready)
+            if owned_fixture == "domain":
+                runner_environment.update(load_owned_fixture_environment(
+                    fixture_metadata, ready))
+                scene_url = runner_environment["OVERTE_E2E_SCENE_URL"]
+            else:
+                scene_url = ready.get("sceneUrl")
+                if not isinstance(scene_url, str):
+                    fail("scene fixture did not publish its scene URL")
             if is_ios_appium_manifest(manifest):
-                update_ios_fixture_origin(root, selector, ready.get("baseUrl"))
-            runner_environment["OVERTE_E2E_SCENE_URL"] = ready["sceneUrl"]
+                base_url = (runner_environment.get("OVERTE_E2E_SCENE_URL", "")
+                            .split("/scene.json", 1)[0]
+                            if owned_fixture == "domain" else ready.get("baseUrl"))
+                update_ios_fixture_origin(root, selector, base_url)
+            runner_environment["OVERTE_E2E_SCENE_URL"] = scene_url
 
-        if is_ios_appium_manifest(manifest) and suite in {
-                "e2e-core", "accessibility", "tablet-e2e"}:
+        if is_ios_appium_manifest(manifest) and owned_fixture in {"scene", "domain"}:
             if fixture is None:
                 fail("physical iOS fixture-backed suites require the network fixture")
             prewarm_ios_appium_session(

@@ -748,7 +748,12 @@ class JenkinsGlueTest(unittest.TestCase):
     def test_jenkinsfile_has_required_safety_layers(self):
         source = (HERE / "Jenkinsfile").read_text(encoding="utf-8")
         for expected in (
-            "agent { label 'overte-device-interactive' }",
+            "agent { label agentLabel(resolvedProfile()) }",
+            "case 'appium-android':",
+            "case 'android-pico-adb':",
+            "case 'desktop-oculix-linux':",
+            "case 'desktop-oculix-macos':",
+            "case 'desktop-oculix-windows':",
             "lock(resource:",
             "withCredentials([string(",
             "timeout(time:",
@@ -770,22 +775,28 @@ class JenkinsGlueTest(unittest.TestCase):
             "IOS_DDI_ROOT",
             "IOS_PRODUCER_RUN_ATTEMPT",
             "stage('Preinstalled Personal Team gate')",
-            "runDeviceSuite('e2e-core', 45)",
+            "runDeviceSuite('portable-smoke', 45)",
+            "runDeviceSuite('domain-smoke', 30)",
+            "OVERTE_BUILD_ISOLATION_ROOT",
+            "OVERTE_CONAN_CACHE_ROOT=${env.OVERTE_BUILD_ISOLATION_ROOT}/conan",
+            "disableConcurrentBuilds",
             "--require-complete",
         ):
             haystack = source if expected != "--require-complete" else (
                 HERE / "run_ci.py").read_text(encoding="utf-8")
             self.assertIn(expected, haystack)
-        self.assertLess(source.index("runDeviceSuite('e2e-core'"),
+        self.assertLess(source.index("runDeviceSuite('portable-smoke'"),
                         source.index("runDeviceSuite('accessibility'"))
         self.assertLess(source.index("stage('Preinstalled Personal Team gate')"),
-                        source.index("runDeviceSuite('e2e-core'"))
+                        source.index("runDeviceSuite('portable-smoke'"))
         self.assertLess(source.index("runDeviceSuite('accessibility'"),
                         source.index("runDeviceSuite('stability'"))
         self.assertNotIn("runDeviceSuite('lifecycle-stability'", source)
         self.assertNotIn("runDeviceSuite('smoke'", source)
         self.assertIn("RUN_CORE is mandatory", source)
         self.assertIn("FIXTURE_PORT must be a fixed TCP port", source)
+        self.assertNotIn('OVERTE_CONAN_CACHE_ROOT": str(root / "conan-cache")',
+                         (HERE / "prepare_private_targets.py").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

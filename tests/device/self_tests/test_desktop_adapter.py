@@ -417,6 +417,28 @@ class DesktopAdapterTest(unittest.TestCase):
         self.assertEqual(1, (self.root / "libei-calls.log").read_text(
             encoding="utf-8").splitlines().count("shutdown"))
 
+    def test_controlled_desktop_navigation_uses_same_process_probe_channel(self):
+        payload = json.loads(self.config.read_text(encoding="utf-8"))
+        linux = next(target for target in payload["targets"]
+                     if target["platform"] == "linux")
+        linux["probe"] = {"kind": "injected-test-script"}
+        self.config.write_text(json.dumps(payload), encoding="utf-8")
+        state = {"pid": 42, "identity": "stable",
+                 "initialSceneUrl": "http://fixture/scene.json"}
+        with patch.dict(os.environ, self.environment, clear=True):
+            adapter = DESKTOP_MODULE.DesktopAdapter("linux")
+            with patch.object(adapter, "read_state", return_value=state), patch.object(
+                    adapter, "state_alive", return_value=True), patch.object(
+                    adapter, "write_client_command") as write_command:
+                result = adapter.invoke(
+                    "linux-alias", "navigation.enter-domain",
+                    {"url": "hifi://127.0.0.1:40102"})
+        self.assertTrue(result["requested"])
+        self.assertEqual("same-process", result["lifecycle"])
+        command = write_command.call_args.args[3]
+        self.assertEqual("navigate", command["action"])
+        self.assertEqual("hifi://127.0.0.1:40102", command["url"])
+
     def test_wayland_authorization_is_a_separate_explicit_action(self):
         target = ("--target", "linux-alias")
         result = self.call("linux", "authorize-input", *target)

@@ -142,7 +142,7 @@ def main() -> int:
         raise ValueError("fixture orchestration output must be outside the worktree")
     if output.exists() and (not output.is_dir() or any(output.iterdir())):
         raise ValueError("fixture orchestration output must be absent or empty")
-    output.mkdir(parents=True, mode=0o700)
+    output.mkdir(parents=True, mode=0o700, exist_ok=True)
     os.chmod(output, 0o700)
     log = (output / "orchestrator.log").open("w", encoding="utf-8")
     scene_process = domain_process = None

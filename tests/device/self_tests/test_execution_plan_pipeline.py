@@ -85,7 +85,7 @@ class ExecutionPlanPipelineTest(unittest.TestCase):
         profiles = load_profiles(DEVICE_ROOT / "execution-profiles.json", catalog)
         policy = load_policy(DEVICE_ROOT / "acceptance-policy.json", catalog)
         policy["platforms"]["mock"]["suites"]["smoke"] = {
-            "state": "required", "evidence": "self-test"}
+            "state": "required", "evidence": ["self-test-1", "self-test-2", "self-test-3"]}
         self.assertEqual(["smoke"], select_suites(
             policy, profiles, "mock", None, "required"))
         with self.assertRaisesRegex(ValueError, "no suites"):

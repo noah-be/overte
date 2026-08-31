@@ -165,11 +165,27 @@ class GovernanceAndFrontierTest(unittest.TestCase):
             matrix = root / "matrix"
             promoted_policy = json.loads(
                 (DEVICE_ROOT / "acceptance-policy.json").read_text(encoding="utf-8"))
+            evidence_ids = ["self-test-run-1", "self-test-run-2", "self-test-run-3"]
             promoted_policy["platforms"]["mock"]["suites"]["smoke"] = {
-                "state": "required", "evidence": "self-test run"}
+                "state": "required", "evidence": evidence_ids}
             policy_path = root / "promoted-policy.json"
             policy_path.write_text(json.dumps(promoted_policy, sort_keys=True) + "\n",
                                    encoding="utf-8")
+            (root / "acceptance-evidence.json").write_text(json.dumps({
+                "schemaVersion": 1,
+                "contractVersion": 1,
+                "evidence": [{
+                    "id": identifier,
+                    "platform": "mock",
+                    "suite": "smoke",
+                    "outcome": "passed",
+                    "targetClass": "hardware-gpu",
+                    "resultArtifact": f"local-lab://self-test/{identifier}",
+                    "resultSha256": "0" * 64,
+                    "runnerRevision": "0" * 40,
+                    "recordedAt": f"2026-01-0{index}T00:00:00Z",
+                } for index, identifier in enumerate(evidence_ids, 1)],
+            }, sort_keys=True) + "\n", encoding="utf-8")
             evaluated = subprocess.run([
                 sys.executable, str(DEVICE_ROOT / "evaluate_matrix.py"),
                 "--result", str(run), "--output-dir", str(matrix),

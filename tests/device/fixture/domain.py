@@ -120,6 +120,8 @@ class DomainControlHandler(BaseHTTPRequestHandler):
 
 class DomainResourceHandler(SimpleHTTPRequestHandler):
     script_paths: set[str] = set()
+    content_ready = threading.Event()
+    expected_marker_count = 0
 
     def end_headers(self) -> None:
         self.send_header("Cache-Control", "no-store")
@@ -140,6 +142,28 @@ class DomainResourceHandler(SimpleHTTPRequestHandler):
             self.send_error(404)
             return
         super().do_GET()
+
+    def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+        if self.path != "/domain-ready":
+            self.send_error(404)
+            return
+        try:
+            length = int(self.headers.get("Content-Length", ""))
+            if not 1 <= length <= 256:
+                raise ValueError("invalid readiness payload length")
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+            self.send_error(400)
+            return
+        if payload != {
+                "schemaVersion": 1,
+                "markerCount": self.expected_marker_count,
+        }:
+            self.send_error(400)
+            return
+        self.content_ready.set()
+        self.send_response(204)
+        self.end_headers()
 
     def log_message(self, format_string: str, *arguments: object) -> None:
         print("domain-fixture-http: " + format_string % arguments, file=sys.stderr)
@@ -216,6 +240,21 @@ def wait_for_domain(process: subprocess.Popen, url: str, timeout_seconds: int) -
     raise RuntimeError(f"domain-server readiness timed out: {last_error}")
 
 
+def wait_for_assignment_content(processes: tuple[subprocess.Popen, ...],
+                                timeout_seconds: int,
+                                stopping: threading.Event) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if DomainResourceHandler.content_ready.is_set():
+            return
+        if stopping.is_set():
+            raise RuntimeError("domain fixture stopped before content became ready")
+        if any(process.poll() is not None for process in processes):
+            raise RuntimeError("domain fixture process exited before content became ready")
+        time.sleep(0.1)
+    raise RuntimeError("assignment-owned domain content did not become ready")
+
+
 def atomic_json(path: Path, value: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
@@ -280,6 +319,8 @@ def main() -> int:
 
     DomainResourceHandler.script_paths = {
         f"/{manifest['bootstrapScript']}", f"/{manifest['peerScript']}"}
+    DomainResourceHandler.expected_marker_count = manifest["expectedEntityCount"]
+    DomainResourceHandler.content_ready = threading.Event()
     handler = partial(DomainResourceHandler, directory=str(ROOT))
     resources = ThreadingHTTPServer((args.bind, args.script_port), handler)
     resource_thread = threading.Thread(target=resources.serve_forever, daemon=True)
@@ -317,8 +358,11 @@ def main() -> int:
 
     domain_log = (output / "domain-server.log").open("w", encoding="utf-8")
     assignment_log = (output / "assignment-client.log").open("w", encoding="utf-8")
+    assignment_agent_log = (output / "assignment-agent.log").open("w", encoding="utf-8")
     (output / "assignment-logs").mkdir(mode=0o700)
-    domain_process = assignment_process = None
+    domain_process = None
+    assignment_processes: list[subprocess.Popen] = []
+    assignment_agent_processes: list[subprocess.Popen] = []
     domain_id = None
     generation = 0
     stack_state = "offline"
@@ -326,9 +370,11 @@ def main() -> int:
     stopping = threading.Event()
 
     def start_stack() -> None:
-        nonlocal domain_process, assignment_process, domain_id, generation, stack_state
+        nonlocal domain_process, assignment_processes, assignment_agent_processes
+        nonlocal domain_id, generation, stack_state
         if stack_state == "online":
             return
+        DomainResourceHandler.content_ready.clear()
         domain_process = subprocess.Popen(
             [str(domain_server), "--user-config", str(config_path),
              "--logOptions", "nocolor,process_id,milliseconds"],
@@ -341,31 +387,56 @@ def main() -> int:
             domain_process = None
             raise RuntimeError("controlled domain identity changed during restart")
         domain_id = observed_id
-        assignment_process = subprocess.Popen(
-            [str(assignment_client), "-n", "7", "-a", "127.0.0.1",
-             "--server-port", str(args.domain_port),
-             "--disable-domain-port-auto-discovery",
-             "--log-directory", str(output / "assignment-logs"),
-             "--logOptions", "nocolor,process_id,milliseconds"],
-            **process_options(environment, assignment_log))
+        for assignment_type in ("0", "1", "3", "4", "5", "6"):
+            assignment_processes.append(subprocess.Popen(
+                [str(assignment_client), "-t", assignment_type, "-a", "127.0.0.1",
+                 "--server-port", str(args.domain_port),
+                 "--disable-domain-port-auto-discovery",
+                 "--log-directory", str(output / "assignment-logs"),
+                 "--logOptions", "nocolor,process_id,milliseconds"],
+                **process_options(environment, assignment_log)))
+        for pool in ("overte-e2e-domain", "overte-e2e-peer"):
+            assignment_agent_processes.append(subprocess.Popen(
+                [str(assignment_client), "-t", "2", "--pool", pool,
+                 "-a", "127.0.0.1", "--server-port", str(args.domain_port),
+                 "--disable-domain-port-auto-discovery",
+                 "--log-directory", str(output / "assignment-logs"),
+                 "--logOptions", "nocolor,process_id,milliseconds"],
+                **process_options(environment, assignment_agent_log)))
         deadline = time.monotonic() + args.assignment_warmup_seconds
         while time.monotonic() < deadline:
-            if domain_process.poll() is not None or assignment_process.poll() is not None:
-                stop_process(assignment_process)
+            if (domain_process.poll() is not None
+                    or any(process.poll() is not None for process in assignment_processes)
+                    or any(process.poll() is not None
+                           for process in assignment_agent_processes)):
+                for process in reversed((*assignment_processes,
+                                         *assignment_agent_processes)):
+                    stop_process(process)
                 stop_process(domain_process)
-                domain_process = assignment_process = None
+                domain_process = None
+                assignment_processes = []
+                assignment_agent_processes = []
                 raise RuntimeError("domain fixture process exited during assignment warmup")
             time.sleep(min(0.1, max(0.0, deadline - time.monotonic())))
+        wait_for_assignment_content(
+            (domain_process, *assignment_processes, *assignment_agent_processes),
+            args.startup_timeout_seconds, stopping)
         stack_state = "online"
         generation += 1
 
     def stop_stack() -> None:
-        nonlocal domain_process, assignment_process, generation, stack_state
+        nonlocal domain_process, assignment_processes, assignment_agent_processes
+        nonlocal generation, stack_state
         was_online = stack_state == "online"
         stack_state = "offline"
-        stop_process(assignment_process)
+        for process in reversed(assignment_agent_processes):
+            stop_process(process)
+        for process in reversed(assignment_processes):
+            stop_process(process)
         stop_process(domain_process)
-        assignment_process = domain_process = None
+        assignment_agent_processes = []
+        assignment_processes = []
+        domain_process = None
         if was_online:
             generation += 1
 
@@ -417,7 +488,9 @@ def main() -> int:
         while not stopping.wait(0.25):
             if stack_state == "online" and domain_process.poll() is not None:
                 raise RuntimeError("domain-server exited while fixture was active")
-            if stack_state == "online" and assignment_process.poll() is not None:
+            if stack_state == "online" and any(
+                    process.poll() is not None
+                    for process in (*assignment_processes, *assignment_agent_processes)):
                 raise RuntimeError("assignment-client exited while fixture was active")
     finally:
         with transition_lock:
@@ -431,6 +504,7 @@ def main() -> int:
         resources.server_close()
         resource_thread.join(timeout=2)
         assignment_log.close()
+        assignment_agent_log.close()
         domain_log.close()
     return 0
 

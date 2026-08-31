@@ -37,12 +37,25 @@ server.serve_forever()
 '''
 
 FAKE_ASSIGNMENT = r'''#!/usr/bin/env python3
-import signal, time
+import json, os, pathlib, signal, sys, time, urllib.request
 stopping = False
 def stop(*_):
     global stopping
     stopping = True
 signal.signal(signal.SIGTERM, stop)
+if "--pool" in sys.argv and sys.argv[sys.argv.index("--pool") + 1] == "overte-e2e-domain":
+    config = pathlib.Path(os.environ["XDG_CONFIG_HOME"]).parents[1] / "domain-config.json"
+    value = json.loads(config.read_text())
+    script = value["scripts"]["persistent_scripts"][0]["url"]
+    request = urllib.request.Request(
+        script.rsplit("/", 1)[0] + "/domain-ready", method="POST",
+        data=b'{"schemaVersion":1,"markerCount":4}',
+        headers={"Content-Type": "application/json"})
+    for _ in range(50):
+        try:
+            urllib.request.urlopen(request, timeout=1).close(); break
+        except OSError:
+            time.sleep(0.02)
 while not stopping:
     time.sleep(0.05)
 '''
