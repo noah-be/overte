@@ -31,6 +31,7 @@ IOS_ARTIFACT_SOURCES = {
 PUBLIC_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 STAGED_MARKER = ".overte-device-ci-staged"
 PRIVATE_BUILD_MARKER = ".overte-ios-ci-private-build"
+ANDROID_PRIVATE_BUILD_MARKER = ".overte-android-ci-private-build"
 EMBEDDED_FIXTURE_URL = "overte-e2e://fixture/scene"
 PUBLIC_RESULT_NAMES = {
     "acceptance.json", "accessibility-audit.json", "cycles.jsonl", "device.json", "junit.xml",
@@ -970,6 +971,118 @@ def private_existing_file(variable: str, root: Path) -> Path:
     return path
 
 
+def prepare_android_target_copy() -> int:
+    """Freeze the selected Phone target for the complete Jenkins build.
+
+    The long-lived Appium file is shared by independently locked platform jobs.
+    A build-local immutable copy prevents a concurrent provisioning update from
+    changing Android's closed debug-channel contract between suite processes.
+    """
+    root = workspace()
+    source = private_existing_file("OVERTE_APPIUM_TARGETS", root)
+    selector = environment("OVERTE_DEVICE_TARGET_SELECTOR")
+    raw_destination = Path(
+        environment("OVERTE_ANDROID_JOB_TARGET_CONFIG")).expanduser()
+    destination = raw_destination.resolve()
+    external = Path(environment("OVERTE_EXTERNAL_RESULT_ROOT")).expanduser().resolve()
+    if (not raw_destination.is_absolute() or has_symlink_component(raw_destination)
+            or destination != external / "private-android-targets.json"
+            or external == root or is_within(external, root)
+            or destination.exists() or raw_destination.is_symlink()):
+        fail("per-build Android target configuration path is unsafe or already exists")
+    try:
+        encoded = source.read_bytes()
+        value = json.loads(encoded)
+    except (OSError, json.JSONDecodeError):
+        fail("private Appium target configuration is unreadable")
+    if len(encoded) > 1024 * 1024:
+        fail("private Appium target configuration exceeds the safety limit")
+    targets = value.get("targets") if isinstance(value, dict) else None
+    android = [entry for entry in targets or [] if isinstance(entry, dict)
+               and entry.get("platform") == "android"
+               and entry.get("enabled", True)]
+    selected = [entry for entry in android if entry.get("selector") == selector]
+    if (value.get("schemaVersion") != 1 or not isinstance(targets, list)
+            or len(android) != 1 or len(selected) != 1
+            or selected[0].get("physical") is not True):
+        fail("private Appium configuration must select exactly one enabled physical Android Phone")
+    entry = selected[0]
+    if (entry.get("process", {}).get("kind") != "adb"
+            or entry.get("scene") != {"kind": "android-debug-e2e"}
+            or entry.get("probe") != {
+                "kind": "android-run-as",
+                "relativePath": "files/overte-e2e/overte-probe.json",
+            }
+            or entry.get("clientControl") != {
+                "kind": "android-run-as-command",
+                "relativePath": "files/overte-e2e/android-control-command.json",
+            }):
+        fail("selected Android Phone does not satisfy the fixed debug-build channel")
+    external.mkdir(parents=True, exist_ok=True, mode=0o700)
+    metadata = external.lstat()
+    if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.geteuid()
+            or metadata.st_mode & 0o077):
+        fail("private Android build root must be account-owned with mode 0700")
+    marker = external / ANDROID_PRIVATE_BUILD_MARKER
+    if marker.exists() or marker.is_symlink():
+        fail("private Android build root marker already exists")
+    marker.write_text("overte-android-ci-private-build-v1\n", encoding="utf-8")
+    marker.chmod(0o600)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    frozen = (json.dumps({"schemaVersion": 1, "targets": [entry]},
+                         indent=2, sort_keys=True) + "\n").encode("utf-8")
+    descriptor = os.open(destination, flags, 0o600)
+    try:
+        os.write(descriptor, frozen)
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    print("Private Android Phone target configuration prepared.")
+    return 0
+
+
+def cleanup_android_private() -> int:
+    root = workspace()
+    raw_external = Path(environment("OVERTE_EXTERNAL_RESULT_ROOT")).expanduser()
+    raw_config = Path(environment("OVERTE_ANDROID_JOB_TARGET_CONFIG")).expanduser()
+    if (not raw_external.is_absolute() or not raw_config.is_absolute()
+            or has_symlink_component(raw_external)
+            or has_symlink_component(raw_config)):
+        fail("private Android cleanup paths must be absolute and symlink-free")
+    external = raw_external.resolve()
+    config = raw_config.resolve()
+    if (external == root or is_within(external, root)
+            or config != external / "private-android-targets.json"):
+        fail("private Android cleanup paths are outside the exact build-result scope")
+    if not external.exists():
+        if raw_config.exists() or raw_config.is_symlink():
+            fail("private Android cleanup root is unavailable")
+        return 0
+    metadata = external.lstat()
+    marker = external / ANDROID_PRIVATE_BUILD_MARKER
+    if not marker.exists() and not marker.is_symlink() \
+            and not config.exists() and not raw_config.is_symlink():
+        return 0
+    if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.geteuid()
+            or metadata.st_mode & 0o077 or marker.is_symlink()
+            or not marker.is_file() or marker.lstat().st_uid != os.geteuid()
+            or marker.lstat().st_mode & 0o077
+            or marker.read_text(encoding="utf-8")
+            != "overte-android-ci-private-build-v1\n"):
+        fail("private Android cleanup root has no valid build marker")
+    if config.exists():
+        value = config.lstat()
+        if (config.is_symlink() or not stat.S_ISREG(value.st_mode)
+                or value.st_uid != os.geteuid() or value.st_mode & 0o077):
+            fail("private Android target copy is unsafe")
+        config.unlink()
+    elif raw_config.is_symlink():
+        fail("private Android target copy is unsafe")
+    marker.unlink()
+    print("Private Android Phone target configuration removed.")
+    return 0
+
+
 def prepare_private_build_root(root: Path, path: Path) -> None:
     if (not path.is_absolute() or has_symlink_component(path)
             or path == Path(path.anchor) or path == root or is_within(path, root)):
@@ -1112,7 +1225,9 @@ def arguments() -> argparse.Namespace:
                                            "self-check", "ios-runtime-preflight",
                                            "ios-thermal-preflight",
                                            "ios-ddi-preflight", "ios-artifact-sync",
-                                           "cleanup-ios-private"))
+                                           "cleanup-ios-private",
+                                           "android-target-sync",
+                                           "cleanup-android-private"))
     return parser.parse_args()
 
 
@@ -1134,6 +1249,10 @@ def main() -> int:
         return ios_artifact_sync()
     if action == "cleanup-ios-private":
         return cleanup_ios_private()
+    if action == "android-target-sync":
+        return prepare_android_target_copy()
+    if action == "cleanup-android-private":
+        return cleanup_android_private()
     return self_check()
 
 

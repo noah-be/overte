@@ -326,6 +326,101 @@ class FakeXCUITest:
 
 
 class AppiumAdapterTests(unittest.TestCase):
+    @staticmethod
+    def physical_android_target() -> dict:
+        return {
+            "platform": "android", "physical": True,
+            "capabilities": {"appium:udid": "private-device-id"},
+        }
+
+    @staticmethod
+    def phone_adb_properties(**overrides):
+        values = {
+            "ro.product.manufacturer": "Example",
+            "ro.product.model": "Phone",
+            "ro.product.device": "phone",
+            "ro.product.name": "phone",
+            "ro.build.characteristics": "default",
+            "ro.product.cpu.abilist": "arm64-v8a,armeabi-v7a",
+            "ro.build.version.sdk": "35",
+            "ro.opengles.version": "196610",
+            "ro.kernel.qemu": "0",
+        }
+        values.update(overrides)
+        return values
+
+    def attest_android(self, properties: dict, *, connected: bool = True,
+                       features: str = "feature:android.hardware.touchscreen\n") -> mock.Mock:
+        adb = mock.Mock()
+        if not connected:
+            adb.require_connected.side_effect = RuntimeError(
+                "target is not connected and authorized")
+        adb.prop.side_effect = lambda _target, name: properties.get(name, "")
+        adb.shell.return_value = features
+        with mock.patch(
+                "android.common.device_tests.adb_transport.AdbTransport",
+                return_value=adb):
+            APPIUM.AppiumAdapter.attest_android_phone_profile(
+                self.physical_android_target())
+        return adb
+
+    def test_android_phone_attestation_requires_authorized_supported_touch_phone(self) -> None:
+        adb = self.attest_android(self.phone_adb_properties())
+        adb.require_connected.assert_called_once_with("private-device-id")
+
+        rejected = [
+            {"ro.kernel.qemu": "1"},
+            {"ro.product.manufacturer": "Pico"},
+            {"ro.product.manufacturer": "ByteDance"},
+            {"ro.build.characteristics": "default,vr"},
+            {"ro.build.characteristics": "watch"},
+            {"ro.product.cpu.abilist": "x86_64"},
+            {"ro.build.version.sdk": "25"},
+            {"ro.opengles.version": "196609"},
+        ]
+        for overrides in rejected:
+            with self.subTest(overrides=overrides):
+                with self.assertRaisesRegex(RuntimeError, "not a supported Phone"):
+                    self.attest_android(self.phone_adb_properties(**overrides))
+        with self.assertRaisesRegex(RuntimeError, "not a supported Phone"):
+            self.attest_android(self.phone_adb_properties(), features="")
+        with self.assertRaisesRegex(RuntimeError, "connected and authorized"):
+            self.attest_android(self.phone_adb_properties(), connected=False)
+
+    def test_android_phone_attestation_runs_before_appium_session_creation(self) -> None:
+        adapter = object.__new__(APPIUM.AppiumAdapter)
+        adapter.platform = "android"
+        adapter.adapter_id = "appium-android"
+        target = self.physical_android_target()
+        target["serverUrl"] = "http://127.0.0.1:4723"
+        adapter.targets = {"private-phone": target}
+        adapter.read_session = lambda _selector: None
+        created = mock.Mock()
+        adapter.create_appium_session = created
+        with mock.patch.object(
+                adapter, "attest_android_phone_profile",
+                side_effect=RuntimeError("phone profile rejected")):
+            with self.assertRaisesRegex(RuntimeError, "phone profile rejected"):
+                adapter.ensure_session("private-phone")
+        created.assert_not_called()
+
+    def test_android_install_attests_phone_before_adb_install(self) -> None:
+        target = self.physical_android_target()
+        with tempfile.TemporaryDirectory(prefix="overte-android-install-") as name:
+            artifact = Path(name) / "phone.apk"
+            artifact.write_bytes(b"debug apk")
+            adapter = object.__new__(APPIUM.AppiumAdapter)
+            adapter.platform = "android"
+            with mock.patch.object(
+                    adapter, "attest_android_phone_profile",
+                    side_effect=RuntimeError("phone attestation failed")) as attest, \
+                    mock.patch(
+                        "android.common.device_tests.adb_transport.AdbTransport") as transport:
+                with self.assertRaisesRegex(RuntimeError, "phone attestation failed"):
+                    adapter.install_artifact(target, {"path": str(artifact)})
+            attest.assert_called_once_with(target)
+            transport.assert_not_called()
+
     def test_platform_adapter_ignores_stale_peer_platform_details(self) -> None:
         android = {
             "selector": "private-android", "displayName": "Android",

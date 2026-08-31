@@ -9,6 +9,15 @@ verified control identifiers, protect the file, and export
 `OVERTE_APPIUM_TARGETS=/absolute/private/targets.json`. Capabilities are
 advertised only when their corresponding control or probe transport exists.
 
+An enabled physical Android target is attested as an authorized ARM64 touch
+phone before Appium creates a session. The gate rejects emulators and Android
+watch, TV, automotive, VR, Pico, or ByteDance identities, and requires the
+minimum API and OpenGL ES levels used by the phone client. Jenkins freezes only
+the credential-selected Phone entry into a mode-0600 per-build target file so
+another lab job cannot change its ADB, probe, or controlled-command contract
+between fresh sessions. `app.install` repeats the same phone attestation before
+installing a debug APK.
+
 The adapter uses XCUITest's active-app PID and attests that the configured
 target is physical rather than a simulator.
 The configured iOS `appId` must equal `appium:bundleId`.

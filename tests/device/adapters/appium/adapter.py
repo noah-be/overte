@@ -852,6 +852,8 @@ class AppiumAdapter:
             fail("app.install requires an existing regular artifact")
         artifact = artifact.resolve()
         if self.platform == "android":
+            if target.get("physical") is True:
+                self.attest_android_phone_profile(target)
             device = target["capabilities"].get("appium:udid")
             if not isinstance(device, str) or not device or device.startswith("REPLACE_"):
                 fail("Android installation requires a private device selector")
@@ -927,13 +929,20 @@ class AppiumAdapter:
         return value
 
     def discover(self) -> list[dict]:
-        return [{
-            "selector": selector,
-            "displayName": target.get("displayName", f"Appium {self.platform}"),
-            "platform": self.platform,
-            "physical": target.get("physical") is True,
-            "capabilities": self.advertised_capabilities(target),
-        } for selector, target in sorted(self.targets.items()) if target.get("enabled", True)]
+        discovered = []
+        for selector, target in sorted(self.targets.items()):
+            if not target.get("enabled", True):
+                continue
+            if self.platform == "android" and target.get("physical") is True:
+                self.attest_android_phone_profile(target)
+            discovered.append({
+                "selector": selector,
+                "displayName": target.get("displayName", f"Appium {self.platform}"),
+                "platform": self.platform,
+                "physical": target.get("physical") is True,
+                "capabilities": self.advertised_capabilities(target),
+            })
+        return discovered
 
     def target(self, selector: str) -> dict:
         target = self.targets.get(selector)
@@ -1010,6 +1019,51 @@ class AppiumAdapter:
         except ValueError as error:
             fail(str(error))
 
+    @staticmethod
+    def attest_android_phone_profile(target: dict) -> None:
+        """Require the selected ADB target to be an authorized physical Phone.
+
+        An Appium UDID by itself distinguishes neither a handset from Android
+        VR hardware nor a supported Phone from another embedded Android form
+        factor.  Apply the same closed profile used by the dedicated Phone ADB
+        adapter before Appium can create a UiAutomator2 session.
+        """
+        device = target.get("capabilities", {}).get("appium:udid")
+        if not isinstance(device, str) or not device or device.startswith("REPLACE_"):
+            fail("physical Android Phone attestation requires a private ADB selector")
+        from android.common.device_tests.adb_transport import AdbTransport
+        adb = AdbTransport()
+        adb.require_connected(device)
+        identity = " ".join(adb.prop(device, name) for name in (
+            "ro.product.manufacturer", "ro.product.model",
+            "ro.product.device", "ro.product.name",
+        )).casefold()
+        characteristics = {
+            value.strip().casefold()
+            for value in adb.prop(device, "ro.build.characteristics").split(",")
+            if value.strip()
+        }
+        abis = {
+            value.strip()
+            for value in adb.prop(device, "ro.product.cpu.abilist").split(",")
+            if value.strip()
+        }
+        sdk = adb.prop(device, "ro.build.version.sdk")
+        gles = adb.prop(device, "ro.opengles.version")
+        features = set(adb.shell(
+            device, "pm", "list", "features", check=False).splitlines())
+        supported = (
+            adb.prop(device, "ro.kernel.qemu") != "1"
+            and not ({"watch", "tv", "automotive", "vr"} & characteristics)
+            and "pico" not in identity and "bytedance" not in identity
+            and "arm64-v8a" in abis
+            and sdk.isdigit() and int(sdk) >= 26
+            and gles.isdigit() and int(gles) >= 196610
+            and "feature:android.hardware.touchscreen" in features
+        )
+        if not supported:
+            fail("configured physical Android target is not a supported Phone")
+
     def attest_physical_target(self, client: WebDriver, session: str, target: dict) -> None:
         if not target.get("physical"):
             return
@@ -1065,12 +1119,7 @@ class AppiumAdapter:
                         or installed_wda.get(self.IOS_XCUITEST_VERSION_PLIST_KEY) != "12.8.0"):
                     fail("installed iOS WebDriverAgent does not match the private receipt")
         else:
-            from android.common.device_tests.adb_transport import AdbTransport
-            device = target["capabilities"]["appium:udid"]
-            adb = AdbTransport()
-            adb.require_connected(device)
-            if adb.prop(device, "ro.kernel.qemu") == "1":
-                fail("configured physical Android target is an emulator")
+            self.attest_android_phone_profile(target)
 
     @staticmethod
     def normalized_ios_version(value: object) -> tuple[int, ...] | None:
@@ -1112,6 +1161,10 @@ class AppiumAdapter:
         })
 
     def pre_session_device_attestation(self, target: dict) -> None:
+        if self.platform == "android":
+            if target.get("physical") is True:
+                self.attest_android_phone_profile(target)
+            return
         if self.platform != "ios":
             return
         udid = target["capabilities"].get("appium:udid")
@@ -1217,7 +1270,7 @@ class AppiumAdapter:
         if self.platform == "ios":
             self.validate_ios_artifact_receipt(target, hash_files=True)
             self.install_receipt_bound_ios_apps(target)
-            self.pre_session_device_attestation(target)
+        self.pre_session_device_attestation(target)
         value = self.create_appium_session(client, target)
         if not isinstance(value, dict) or not isinstance(value.get("sessionId"), str):
             fail("Appium did not create a WebDriver session")

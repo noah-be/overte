@@ -144,3 +144,14 @@ Do not install or launch until all gates are green:
   forbidden.
 
 No hardware result is implied by the device-free tests in this directory.
+
+## Android Phone target isolation
+
+The canonical `android-device-e2e` job uses the same fixed profile and device
+locks as each suite. Before its first session it copies only the selected,
+enabled physical Android Phone entry from the long-lived private Appium file
+into the build's private result root. Every Android suite and final cleanup use
+that immutable copy; the copy and its marker are removed in `post` while the
+selector-free staged evidence remains available. This prevents concurrent lab
+provisioning from producing a mixed target contract and also prevents a Phone
+job from selecting the Pico target.

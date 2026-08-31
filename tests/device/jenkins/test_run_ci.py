@@ -68,6 +68,39 @@ class JenkinsGlueTest(unittest.TestCase):
         path.chmod(0o600)
         return value
 
+    def android_target_config(self, path: Path, *, extra_android: bool = False) -> dict:
+        phone = {
+            "selector": "private-android-phone",
+            "platform": "android",
+            "physical": True,
+            "appId": "org.overte.phone",
+            "capabilities": {
+                "appium:udid": "private-phone-identity",
+                "appium:automationName": "UiAutomator2",
+            },
+            "process": {"kind": "adb"},
+            "scene": {"kind": "android-debug-e2e"},
+            "probe": {
+                "kind": "android-run-as",
+                "relativePath": "files/overte-e2e/overte-probe.json",
+            },
+            "clientControl": {
+                "kind": "android-run-as-command",
+                "relativePath": "files/overte-e2e/android-control-command.json",
+            },
+        }
+        targets = [phone, {
+            "selector": "private-ios", "platform": "ios", "enabled": True,
+            "capabilities": {"appium:udid": "private-ios-identity"},
+        }]
+        if extra_android:
+            targets.append(dict(phone, selector="private-second-phone"))
+        value = {"schemaVersion": 1, "targets": targets}
+        path.parent.mkdir(parents=True, mode=0o700)
+        path.write_text(json.dumps(value), encoding="utf-8")
+        path.chmod(0o600)
+        return value
+
     def test_upgrade_preflight_requires_distinct_external_artifacts_and_tool(self):
         with tempfile.TemporaryDirectory(prefix="overte-upgrade-preflight-") as name:
             temporary = Path(name)
@@ -753,6 +786,57 @@ class JenkinsGlueTest(unittest.TestCase):
             self.assertTrue(secret.is_file())
             self.assertTrue(artifact_link.is_symlink())
 
+    def test_android_target_sync_freezes_only_the_selected_phone_and_cleans_it(self):
+        with tempfile.TemporaryDirectory(prefix="overte-android-target-sync-") as name:
+            temporary = Path(name)
+            source = temporary / "private/appium.json"
+            original = self.android_target_config(source)
+            external = temporary / "job/build-21"
+            config = external / "private-android-targets.json"
+            values = {
+                "OVERTE_CI_WORKSPACE": str(ROOT),
+                "OVERTE_APPIUM_TARGETS": str(source),
+                "OVERTE_DEVICE_TARGET_SELECTOR": "private-android-phone",
+                "OVERTE_EXTERNAL_RESULT_ROOT": str(external),
+                "OVERTE_ANDROID_JOB_TARGET_CONFIG": str(config),
+            }
+            with patch.dict(os.environ, values, clear=False):
+                self.assertEqual(0, RUN_CI.prepare_android_target_copy())
+                frozen = json.loads(config.read_text(encoding="utf-8"))
+                self.assertEqual([original["targets"][0]], frozen["targets"])
+                self.assertEqual(0o600, config.stat().st_mode & 0o777)
+                self.assertEqual(0o700, external.stat().st_mode & 0o777)
+                sibling = external / "portable-smoke/summary.json"
+                sibling.parent.mkdir(parents=True)
+                sibling.write_text("{}", encoding="utf-8")
+                self.assertEqual(0, RUN_CI.cleanup_android_private())
+                self.assertEqual(0, RUN_CI.cleanup_android_private())
+            self.assertFalse(config.exists())
+            self.assertFalse((external / RUN_CI.ANDROID_PRIVATE_BUILD_MARKER).exists())
+            self.assertTrue(sibling.is_file())
+
+    def test_android_target_sync_rejects_ambiguous_or_wrong_selection(self):
+        with tempfile.TemporaryDirectory(prefix="overte-android-target-negative-") as name:
+            temporary = Path(name)
+            source = temporary / "private/appium.json"
+            self.android_target_config(source, extra_android=True)
+            external = temporary / "job/build-22"
+            values = {
+                "OVERTE_CI_WORKSPACE": str(ROOT),
+                "OVERTE_APPIUM_TARGETS": str(source),
+                "OVERTE_DEVICE_TARGET_SELECTOR": "private-android-phone",
+                "OVERTE_EXTERNAL_RESULT_ROOT": str(external),
+                "OVERTE_ANDROID_JOB_TARGET_CONFIG": str(
+                    external / "private-android-targets.json"),
+            }
+            with patch.dict(os.environ, values, clear=False):
+                with self.assertRaisesRegex(ValueError, "exactly one enabled"):
+                    RUN_CI.prepare_android_target_copy()
+                os.environ["OVERTE_DEVICE_TARGET_SELECTOR"] = "private-ios"
+                with self.assertRaisesRegex(ValueError, "exactly one enabled"):
+                    RUN_CI.prepare_android_target_copy()
+            self.assertFalse(external.exists())
+
     @unittest.skipIf(os.name == "nt", "POSIX process-group behavior")
     def test_stop_process_terminates_the_complete_child_group(self):
         with tempfile.TemporaryDirectory(prefix="overte-process-group-") as name:
@@ -798,6 +882,9 @@ class JenkinsGlueTest(unittest.TestCase):
             "ciPython('ios-ddi-preflight')",
             "ciPython('ios-artifact-sync')",
             "ciPython('cleanup-ios-private'",
+            "ciPython('android-target-sync')",
+            "'cleanup-android-private', true",
+            "OVERTE_ANDROID_JOB_TARGET_CONFIG",
             "OVERTE_IOS_JOB_TARGET_CONFIG",
             "IOS_GITHUB_TOKEN_CREDENTIAL_ID",
             "IOS_AGE_IDENTITY_CREDENTIAL_ID",
