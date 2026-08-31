@@ -137,7 +137,11 @@ class PicoOpenXrAdapterSessionTests(unittest.TestCase):
             with self.assertRaisesRegex(AdapterSessionError, "non-default"):
                 isolated_server_port()
         insecure = self.root / "insecure"
-        insecure.mkdir(mode=0o755)
+        # Jenkins device agents use umask 077, so mkdir(mode=0o755) alone can
+        # accidentally create a private directory and invalidate this negative
+        # fixture. Force the insecure permissions we intend to reject.
+        insecure.mkdir()
+        insecure.chmod(0o755)
         with mock.patch.dict(os.environ, {
                 "OVERTE_PICO_OPENXR_STATE_DIR": str(insecure)}, clear=True):
             with self.assertRaisesRegex(AdapterSessionError, "not private"):
