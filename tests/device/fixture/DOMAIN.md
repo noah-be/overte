@@ -1,9 +1,10 @@
 # Controlled E2E domain fixture
 
 `domain.py` owns a private, ephemeral domain-server, one assignment-client
-monitor, and the repository-owned persistent assignment
-`domain_content_agent.js`. The assignment creates four uniquely named domain
-entities. The common `domain-smoke` module requires a real domain connection,
+monitor, and repository-owned content and controlled-peer assignments. The
+content assignment creates four uniquely named domain entities; the peer
+assignment publishes one deterministic moving avatar. The common
+`domain-smoke` module requires a real domain connection,
 the exact domain UUID returned by `/id`, all four markers for consecutive probe
 samples, stable process identity, and foreground state.
 
@@ -24,8 +25,20 @@ The ready file supplies `domainUrl`, `domainHost`, `domainId`, and
 `OVERTE_E2E_DOMAIN_HOST`, `OVERTE_E2E_DOMAIN_ID`, and
 `OVERTE_E2E_DOMAIN_MARKERS_JSON` before running `domain-smoke`.
 
+It also supplies `peerScriptUrl`, `peerDisplayName`, and a loopback-only
+`controlUrl` plus random `controlToken`. The token exists only in the mode-0600
+ready file and is omitted from stdout. `network-fault-recovery` exports those
+last two values as `OVERTE_E2E_DOMAIN_CONTROL_URL` and
+`OVERTE_E2E_DOMAIN_CONTROL_TOKEN`. Its `offline` and `online` commands affect
+only child process groups owned by this fixture instance.
+
+`domain-recovery` uses the same values plus `OVERTE_E2E_SCENE_URL`. It enters
+the domain, returns to the controlled serverless scene, proves that the domain
+is disconnected, and re-enters the exact domain without changing the
+Interface process identity.
+
 The controller's ready metadata means only that the infrastructure is
 reachable and its assignment processes survived warmup. Only the client probe
 can prove that the domain handshake completed and the entity server delivered
-the assignment-owned markers. Real adapters do not advertise
-`navigation.enter-domain` yet.
+the assignment-owned markers. Each product adapter advertises
+`navigation.enter-domain` only after its own physical acceptance gate.
