@@ -74,6 +74,7 @@ maintained on its corresponding development branch.
 - [Security policy and current reporting route](SECURITY.md)
 - [One-way upstream intake policy](docs/UPSTREAM_INTAKE.md)
 - [Repository settings recommendations](docs/REPOSITORY_SETTINGS.md)
+- [License and REUSE inventory](docs/LICENSING.md)
 - [Repository roadmap](docs/ROADMAP.md)
 
 > [!NOTE]
