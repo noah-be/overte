@@ -386,6 +386,13 @@ class PicoWorkflowContracts(unittest.TestCase):
         self.assertIn("tests/run-project-tests.py", self.source)
         self.assertIn("--junit build/test-results/project-tests.xml", self.source)
 
+    def test_ci_runs_complete_device_control_plane_with_qml(self):
+        self.assertIn("qml-module-qttest", self.source)
+        self.assertIn("qtdeclarative5-dev-tools", self.source)
+        self.assertIn("tests/device/run_control_plane_tests.py", self.source)
+        self.assertIn("--profile full --require-qml", self.source)
+        self.assertIn("device-e2e-control-plane.xml", self.source)
+
 
 class PicoBuildWorkflowContracts(unittest.TestCase):
     @classmethod
