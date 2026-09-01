@@ -255,6 +255,7 @@ jobs:
       with:
         archive: false
         path: pkg-scripts/${{ env.ARTIFACT_PATTERN }}
+        retention-days: 7
 
     - name: Output debug information
       if: always()
