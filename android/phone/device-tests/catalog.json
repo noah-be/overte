@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "modules": [
+    {
+      "id": "launch-smoke",
+      "description": "Launch the installed Phone client and verify that its Qt activity remains resumed.",
+      "command": ["modules/launch-smoke.sh"],
+      "suites": ["smoke", "stability"],
+      "timeoutSeconds": 90
+    },
+    {
+      "id": "lifecycle-soak",
+      "description": "Exercise repeated background and foreground transitions without a process restart.",
+      "command": ["modules/lifecycle-soak.sh"],
+      "suites": ["stability"],
+      "timeoutSeconds": 900
+    },
+    {
+      "id": "idle-soak",
+      "description": "Keep the client foregrounded and sample process health for a configurable duration.",
+      "command": ["modules/idle-soak.sh"],
+      "suites": ["stability"],
+      "timeoutSeconds": 7800
+    }
+  ]
+}
