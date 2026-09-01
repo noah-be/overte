@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -426,7 +427,8 @@ def main() -> int:
             classification = classify_pull_request(branches, args.base, args.head)
             reconciliation_attestation = None
             if classification == "reconciliation":
-                if not args.repository:
+                repository = args.repository or os.environ.get("GITHUB_REPOSITORY")
+                if not repository:
                     raise PolicyError(
                         "reconciliation requires the event repository for live attestation"
                     )
@@ -434,7 +436,7 @@ def main() -> int:
                     branches,
                     base=args.base,
                     head=args.head,
-                    repository=args.repository,
+                    repository=repository,
                     repository_id=args.repository_id,
                     base_repository_id=args.base_repository_id,
                     head_repository_id=args.head_repository_id,
