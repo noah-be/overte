@@ -11,9 +11,12 @@ This repository is an unofficial, AI-assisted personal fork of Overte. It is
 maintained as a hobby project and does not promise production support, review
 capacity, release schedules, or acceptance of external contributions.
 
-Before investing substantial work, open an issue in this fork describing the
+The issue tracker is intentionally disabled while this personal fork has no
+public triage commitment. Before investing substantial work, review the current
+milestone in [`docs/ROADMAP.md`](docs/ROADMAP.md). A contributor who is ready
+to propose a focused change may open a draft pull request describing the
 intended outcome and target branch. The maintainer may decline or defer work
-that does not advance the current milestone in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+that does not advance the current milestone.
 
 ## AI-assisted work
 
@@ -28,9 +31,14 @@ this fork when they follow these requirements:
 - preserve copyright, license, and attribution requirements.
 
 The official Overte project has a different contribution policy. Do not submit
-AI-assisted work from this fork, including code, issues, or pull requests, to
-the upstream Overte repository. Do not merge, rebase, cherry-pick, or otherwise
-import new upstream changes into this fork.
+or transplant AI-assisted work from this fork, including code, issues, pull
+requests, or review material, to the upstream Overte repository.
+
+This boundary is deliberately one-way. Reviewed changes from upstream Overte
+may be brought from its `master` branch into this fork's `main` branch through
+the auditable process in [`docs/UPSTREAM_INTAKE.md`](docs/UPSTREAM_INTAKE.md).
+An upstream intake is not permission to send fork commits in the other
+direction.
 
 ## Branch ownership
 
@@ -79,10 +87,15 @@ physical-device evidence.
 
 ## Bugs and feature requests
 
-Search this fork's existing issues before opening a report. Include a minimal
-reproduction, source revision, environment, observed result, and expected
-result. Remove credentials, private selectors, account data, and sensitive logs.
+This fork does not currently provide a general issue-report intake. A
+contributor who is ready to provide a fix may open a draft pull request with a
+minimal reproduction, source revision, environment, observed result, and
+expected result. Remove credentials, private selectors, account data, and
+sensitive logs. Follow [`SECURITY.md`](SECURITY.md) instead for a suspected
+vulnerability.
 
-Feature requests should explain which current or proposed roadmap milestone
-they support. Store publication, broad hardware coverage, and optional parity
-work may be deferred until the corresponding personal alpha is repeatable.
+Proposed features belong in a draft pull request only when accompanied by a
+focused implementation and an explanation of which current or proposed roadmap
+milestone they support. Store publication, broad hardware coverage, and
+optional parity work may be deferred until the corresponding personal alpha is
+repeatable.
