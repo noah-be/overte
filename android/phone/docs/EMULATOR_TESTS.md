@@ -55,8 +55,114 @@ or are skipped when unavailable; ARM64 Phone builds keep the GLES 3.2 path.
 - enough space for the first Qt, libnode, dependency, and application builds.
 
 Select another AVD with `PHONE_EMULATOR_AVD=<name>`. The runner uses a private
-Gradle temporary directory below `android/build/phone-emulator`, so it does not
-depend on writable capacity in a host `/tmp` quota.
+Gradle temporary directory below `android/phone/build/phone-emulator`, so it
+does not depend on writable capacity in a host `/tmp` quota.
+
+## Choose the test path
+
+There are two useful emulator workflows. They answer different questions:
+
+| Workflow | Native rebuild | What it proves |
+| --- | --- | --- |
+| Prebuilt APK smoke test | No | The AVD boots, accepts the APK, starts the Java/Qt/native loader, and produces usable lifecycle and crash diagnostics |
+| x86_64 instrumentation | Yes, on the first run | The emulator-specific application and test APKs build and the AndroidX device suite passes |
+
+The prebuilt smoke test is the quickest way to check a workstation when no
+physical phone is available. It cannot run the repository's AndroidX tests:
+release downloads contain the application APK, but not the separately built
+instrumentation APK. Use the x86_64 workflow for a passing functional emulator
+gate.
+
+### Prebuilt Alpha 4 smoke test without rebuilding
+
+[Android Phone Alpha 4](https://github.com/noah-be/overte/releases/tag/android-phone-v0.1.0-alpha.4)
+is a signed, ARM64-only debug APK. Download and verify the exact release asset:
+
+```bash
+apk_dir="${XDG_CACHE_HOME:-$HOME/.cache}/overte/android-phone-alpha4"
+apk="$apk_dir/Overte-Android-Phone-0.1.0-alpha.4-arm64-debug.apk"
+mkdir -p "$apk_dir"
+gh release download android-phone-v0.1.0-alpha.4 \
+    --repo noah-be/overte \
+    --pattern 'Overte-Android-Phone-0.1.0-alpha.4-arm64-debug.apk' \
+    --dir "$apk_dir" --clobber
+printf '%s  %s\n' \
+    1ecf19b0cc65dea3cf9a02906412660dfe48b41dfb76720996d766ce4e9069fb \
+    "$apk" | sha256sum --check
+```
+
+Set the SDK path and run the repository helper from `android/`. `start` only
+boots the existing AVD; it does not compile Overte or its dependencies:
+
+```bash
+export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}"
+adb="$ANDROID_SDK_ROOT/platform-tools/adb"
+
+cd android
+./phone/phone-emulator-test.sh doctor
+./phone/phone-emulator-test.sh start
+serial="$(<phone/build/phone-emulator/serial)"
+```
+
+Alpha 4 can run on an x86_64 AVD only when its system image includes ARM64
+binary translation. Check the APK and guest before installation:
+
+```bash
+"$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt2" dump badging "$apk" \
+    | grep "native-code"
+"$adb" -s "$serial" shell getprop ro.product.cpu.abilist
+"$adb" -s "$serial" shell getprop ro.dalvik.vm.native.bridge
+```
+
+The APK reports `arm64-v8a`. Continue only if the guest ABI list also includes
+`arm64-v8a`; the tested Google APIs image reports `libndk_translation.so` as its
+native bridge. Images without translation reject the install with
+`INSTALL_FAILED_NO_MATCHING_ABIS`.
+
+Install, bypass the optional microphone prompt, clear old logs, and cold-start
+the real launcher:
+
+```bash
+"$adb" -s "$serial" install -r "$apk"
+"$adb" -s "$serial" shell pm grant \
+    org.overte.phone android.permission.RECORD_AUDIO
+"$adb" -s "$serial" logcat -c
+"$adb" -s "$serial" shell am force-stop org.overte.phone
+"$adb" -s "$serial" shell am start -W -S \
+    -n org.overte.phone/org.overte.phone.PermissionsActivity
+
+sleep 20
+"$adb" -s "$serial" shell pidof org.overte.phone
+"$adb" -s "$serial" shell dumpsys activity activities \
+    | grep -m1 'topResumedActivity\|mResumedActivity'
+"$adb" -s "$serial" logcat -b crash -d -v brief
+```
+
+An empty `pidof` result or a different resumed Activity means the application
+did not survive the smoke window. Always inspect the crash buffer; a successful
+`adb install` and `Status: ok` from Activity Manager do not prove that Qt or the
+renderer remained alive. Clean up explicitly when finished:
+
+```bash
+"$adb" -s "$serial" uninstall org.overte.phone
+./phone/phone-emulator-test.sh stop
+```
+
+#### Result on the tested workstation
+
+On 2026-08-13, Emulator 37.1.11 booted the `overte_api35` Google APIs x86_64
+AVD with KVM and the NVIDIA host renderer. The image advertised
+`x86_64,arm64-v8a`, so Alpha 4 installed successfully. Android loaded
+`libphoneInterface.so` through `libndk_translation.so`, Qt started, and
+`PhoneInterfaceActivity` reached `RESUMED` after approximately 2.8 seconds.
+
+This is not a passing application smoke test. After approximately 14 seconds,
+the process aborted with `Failed to create OffscreenGLCanvas context`. The AVD
+exposed OpenGL ES 3.1, while the ARM64 production APK requests OpenGL ES 3.2.
+The result proves that the installed emulator, KVM, ADB, ARM translation, APK
+installation, and early native loader path work; it also proves that this
+production APK cannot replace the dedicated emulator build for graphics or
+functional testing on this AVD.
 
 ### Fedora and SwiftShader troubleshooting
 
@@ -83,23 +189,29 @@ This workaround depends on a functioning host GPU driver. Do not generalize it
 to headless CI machines without first validating their renderer and emulator
 combination.
 
+The host renderer also needs access to the desktop graphics session. If the
+emulator log contains `Failed to get EGL display`, run it from a terminal opened
+inside the desktop session and confirm that `DISPLAY` and `XAUTHORITY` are set.
+This was required on the validated GNOME/Xwayland workstation; it is separate
+from the KVM acceleration check.
+
 ## Commands
 
 Run from `android/`:
 
 ```bash
-./phone-emulator-test.sh doctor
-./phone-emulator-test.sh deps
-./phone-emulator-test.sh build
-./phone-emulator-test.sh start
-./phone-emulator-test.sh test
-./phone-emulator-test.sh stop
+./phone/phone-emulator-test.sh doctor
+./phone/phone-emulator-test.sh deps
+./phone/phone-emulator-test.sh build
+./phone/phone-emulator-test.sh start
+./phone/phone-emulator-test.sh test
+./phone/phone-emulator-test.sh stop
 ```
 
 The complete workflow is:
 
 ```bash
-./phone-emulator-test.sh all
+./phone/phone-emulator-test.sh all
 ```
 
 `all` builds and tests. The emulator is stopped only by the explicit `stop`
@@ -113,7 +225,7 @@ the complete device suite, select one fully-qualified test class (or one
 ```bash
 PHONE_EMULATOR_TEST_CLASS=org.overte.phone.PhoneColdLaunchInstrumentedTest \
 PHONE_EMULATOR_TEST_REPETITIONS=10 \
-    ./phone-emulator-test.sh test
+    ./phone/phone-emulator-test.sh test
 ```
 
 The repetition count must be between 1 and 25. Counts above one require a class

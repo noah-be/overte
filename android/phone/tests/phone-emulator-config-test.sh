@@ -20,6 +20,9 @@ require_text() {
 
 bash -n "$android_dir/phone/phone-emulator-test.sh"
 bash -n "$android_dir/phone/prepare-phone-emulator-deps.sh"
+require_text "$android_dir/phone/phone-emulator-test.sh" \
+    'exec \{emulator_lock_fd\}>&-' \
+    'the long-lived emulator must not inherit the lifecycle lock'
 require_text "$profile" '^arch=x86_64$' 'Conan emulator profile must target x86_64'
 require_text "$gradle" "emulator \{" 'dedicated emulator build type is missing'
 require_text "$gradle" 'enableAndroidTestCoverage false' \

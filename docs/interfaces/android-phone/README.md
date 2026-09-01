@@ -42,12 +42,13 @@ and is documented separately in [BUILD.md](BUILD.md).
 
 ```bash
 cd android
-./phone-emulator-test.sh doctor
-./phone-emulator-test.sh all
+./phone/phone-emulator-test.sh doctor
+./phone/phone-emulator-test.sh all
 ```
 
 The emulator build is x86_64 and cannot be confused with the ARM64 production
-APK.
+APK. To test the installed emulator with a prebuilt APK and no native rebuild,
+follow the [complete emulator guide](../../../android/phone/docs/EMULATOR_TESTS.md).
 
 ## Output, installation, and launch
 

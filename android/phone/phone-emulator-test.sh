@@ -75,8 +75,13 @@ start() {
         echo "Phone emulator is already running: $serial"
         return
     fi
-    "$emulator" "@$avd" -no-window -no-audio -no-boot-anim \
-        -gpu host -no-snapshot-save >"$log_file" 2>&1 &
+    (
+        # The long-lived emulator must not retain the lifecycle lock. Otherwise
+        # a later stop command waits for the process that it needs to stop.
+        exec {emulator_lock_fd}>&-
+        exec "$emulator" "@$avd" -no-window -no-audio -no-boot-anim \
+            -gpu host -no-snapshot-save
+    ) >"$log_file" 2>&1 &
     printf '%s\n' "$!" > "$pid_file"
     for _ in $(seq 1 120); do
         if serial="$(running_serial)"; then

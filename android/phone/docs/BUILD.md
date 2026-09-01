@@ -30,14 +30,14 @@ The local default is the `overte_api35` AVD. Select another existing x86_64
 AVD with `PHONE_EMULATOR_AVD=<name>`. Check the host without starting it:
 
 ```bash
-./phone-emulator-test.sh doctor
+./phone/phone-emulator-test.sh doctor
 ```
 
 Build the x86_64 dependencies and app, boot the headless emulator, disable
 system animations, and run the AndroidX instrumentation suite:
 
 ```bash
-./phone-emulator-test.sh all
+./phone/phone-emulator-test.sh all
 ```
 
 The included smoke test runs inside Android and verifies that the installed
