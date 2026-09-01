@@ -27,7 +27,7 @@ jobs:
       PICO_APK: android/vr/pico/apps/picoInterface/build/outputs/apk/release/picoInterface-release.apk
     steps:
       - name: Check out selected tag without credentials
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -88,6 +88,8 @@ jobs:
 
       - name: Verify APK identity, version, signature and provenance
         env:
+          EXPECTED_VERSION_CODE: ${{ steps.release.outputs.version_code }}
+          EXPECTED_VERSION_NAME: ${{ steps.release.outputs.version_name }}
           PICO_RELEASE_CERT_SHA256: ${{ secrets.PICO_RELEASE_CERT_SHA256 }}
         run: |
           set -euo pipefail
@@ -95,8 +97,8 @@ jobs:
             --aapt "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt" \
             --apksigner "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" \
             --source-revision "$GITHUB_SHA" \
-            --expected-version-code "${{ steps.release.outputs.version_code }}" \
-            --expected-version-name "${{ steps.release.outputs.version_name }}" \
+            --expected-version-code "$EXPECTED_VERSION_CODE" \
+            --expected-version-name "$EXPECTED_VERSION_NAME" \
             --expected-signer-sha256 "$PICO_RELEASE_CERT_SHA256" \
             --output build/pico4/apk-manifest.json
           android/vr/pico/ci/pico4-release.py \
@@ -121,6 +123,7 @@ jobs:
       - name: Create draft release and attach verified files
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION_NAME: ${{ steps.release.outputs.version_name }}
         run: |
           set -euo pipefail
           ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || {
@@ -128,7 +131,7 @@ jobs:
             exit 2
           }
           gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
-            --title "Overte Pico 4 ${{ steps.release.outputs.version_name }}" \
+            --title "Overte Pico 4 $RELEASE_VERSION_NAME" \
             --notes-file android/vr/pico/docs/PICO4_RELEASE_CHECKLIST.md \
             "$PICO_APK" \
             build/pico4/apk-manifest.json \

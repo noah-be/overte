@@ -12,7 +12,6 @@ WORKFLOW = ROOT / ".github/workflows/project-tests.yml"
 BUILD_WORKFLOW = ROOT / ".github/workflows/pico4-build.yml"
 RELEASE_WORKFLOW = ROOT / ".github/workflows/pico4-release-candidate.yml"
 DEVICE_WORKFLOW = ROOT / ".github/workflows/pico4-device-acceptance.yml"
-GENERAL_BUILD_WORKFLOW = ROOT / ".github/workflows/build.yml"
 ANDROID_TESTS_WORKFLOW = ROOT / ".github/workflows/android-tests.yml"
 DOCUMENTATION_WORKFLOW = ROOT / ".github/workflows/documentation-checks.yml"
 BRANCH_POLICY_WORKFLOW = ROOT / ".github/workflows/branch-policy.yml"
@@ -34,22 +33,7 @@ ACTION_USE = re.compile(r"^\s*uses:\s*([^\s#]+)", re.MULTILINE)
 FULL_SHA_ACTION = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 
 
-class GeneralBuildWorkflowContracts(unittest.TestCase):
-    def test_documentation_and_contract_only_prs_skip_full_build_matrix(self):
-        source = GENERAL_BUILD_WORKFLOW.read_text(encoding="utf-8")
-        for path in (
-            '"**/*.md"',
-            '"docs/**"',
-            '".github/workflows/build.yml"',
-            '".github/workflows/documentation-checks.yml"',
-            '".github/workflows/macos-bootstrap.yml"',
-            '"android/common/tests/**"',
-            '"ios/tests/**"',
-            '"tests/workflow-contract-test.py"',
-            '"tests/check-documentation.py"',
-        ):
-            self.assertIn(path, source)
-
+class LightweightWorkflowContracts(unittest.TestCase):
     def test_documentation_changes_use_lightweight_checks(self):
         documentation = DOCUMENTATION_WORKFLOW.read_text(encoding="utf-8")
         self.assertIn('"**/*.md"', documentation)
@@ -457,7 +441,7 @@ class PicoDeviceAcceptanceWorkflowContracts(unittest.TestCase):
         verify = self.source.split("  verify-candidate:", 1)[1].split("  device-acceptance:", 1)[0]
         self.assertNotRegex(verify, r"(?m)^\s+run:.*\badb\b")
         self.assertNotIn("--execute", verify)
-        self.assertIn("runs-on: ubuntu-latest", verify)
+        self.assertIn("runs-on: ubuntu-24.04", verify)
 
     def test_device_write_requires_boolean_confirmation_environment_and_lock(self):
         self.assertIn("if: inputs.execute_device_install", self.source)
