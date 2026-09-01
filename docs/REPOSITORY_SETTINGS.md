@@ -40,6 +40,10 @@ Do not enable a feature merely because GitHub offers it. Before retaining or
 enabling one, name its owner, intended content, relationship to versioned
 documentation, and archival or triage expectation here.
 
+GitHub Actions storage follows the explicit cache and artifact limits in
+[`CI_STORAGE_POLICY.md`](CI_STORAGE_POLICY.md). That policy does not authorize
+deleting existing objects or changing repository settings.
+
 ## Verification after an administrator change
 
 Record the exact setting changes outside the repository and verify them through

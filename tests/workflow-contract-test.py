@@ -17,6 +17,7 @@ DOCUMENTATION_WORKFLOW = ROOT / ".github/workflows/documentation-checks.yml"
 BRANCH_POLICY_WORKFLOW = ROOT / ".github/workflows/branch-policy.yml"
 BRANCH_SYNC_WORKFLOW = ROOT / ".github/workflows/branch-sync.yml"
 DESKTOP_TOPOLOGY_WORKFLOW = ROOT / ".github/workflows/desktop-branch-topology.yml"
+WORKFLOW_DIRECTORY = ROOT / ".github/workflows"
 IOS_WORKFLOW = ROOT / ".github/workflows/ios-bootstrap.yml"
 MACOS_WORKFLOW = ROOT / ".github/workflows/macos-bootstrap.yml"
 RULESETS = ROOT / ".github/rulesets"
@@ -47,6 +48,45 @@ class LightweightWorkflowContracts(unittest.TestCase):
         for workflow in (IOS_WORKFLOW, MACOS_WORKFLOW):
             if workflow.exists():
                 self.assertIn("'!**/*.md'", workflow.read_text(encoding="utf-8"))
+
+
+class WorkflowStorageContracts(unittest.TestCase):
+    def test_artifact_uploads_have_explicit_bounded_retention(self):
+        upload_count = 0
+        for workflow in sorted(WORKFLOW_DIRECTORY.glob("*.yml")):
+            lines = workflow.read_text(encoding="utf-8").splitlines()
+            for index, line in enumerate(lines):
+                if not re.match(r"^\s*uses:\s*actions/upload-artifact@", line):
+                    continue
+                upload_count += 1
+                uses_indent = len(line) - len(line.lstrip())
+                block = []
+                for candidate in lines[index + 1 :]:
+                    if candidate.strip():
+                        indent = len(candidate) - len(candidate.lstrip())
+                        if indent < uses_indent:
+                            break
+                    block.append(candidate)
+                retentions = [
+                    int(match.group(1))
+                    for candidate in block
+                    if (match := re.match(r"^\s*retention-days:\s*(\d+)\s*$", candidate))
+                ]
+                self.assertEqual(
+                    len(retentions),
+                    1,
+                    f"{workflow.name}: each artifact upload needs one retention-days value",
+                )
+                self.assertLessEqual(retentions[0], 30, workflow.name)
+                self.assertGreaterEqual(retentions[0], 1, workflow.name)
+        self.assertGreater(upload_count, 0)
+
+    def test_native_sccache_github_backend_stays_disabled(self):
+        sources = "\n".join(
+            workflow.read_text(encoding="utf-8")
+            for workflow in sorted(WORKFLOW_DIRECTORY.glob("*.yml"))
+        )
+        self.assertNotIn("SCCACHE_GHA_ENABLED", sources)
 
 
 class BranchGovernanceWorkflowContracts(unittest.TestCase):
