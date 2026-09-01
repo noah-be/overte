@@ -1,20 +1,14 @@
 {
-  "name": "Permanent branch governance",
+  "name": "Android target branch topology",
   "target": "branch",
   "enforcement": "active",
   "bypass_actors": [],
   "conditions": {
     "ref_name": {
       "include": [
-        "refs/heads/main",
-        "refs/heads/android-main",
         "refs/heads/android-phone",
         "refs/heads/android-vr",
-        "refs/heads/android-vr-pico",
-        "refs/heads/apple-main",
-        "refs/heads/apple-ios",
-        "refs/heads/linux-main",
-        "refs/heads/windows-main"
+        "refs/heads/android-vr-pico"
       ],
       "exclude": []
     }
@@ -34,11 +28,11 @@
         ],
         "dismiss_stale_reviews_on_push": false,
         "require_code_owner_review": false,
-        "require_last_push_approval": false,
         "require_extra_approval_for_unattributed_changes": true,
+        "require_last_push_approval": false,
         "required_approving_review_count": 0,
-        "required_reviewers": [],
-        "required_review_thread_resolution": true
+        "required_review_thread_resolution": true,
+        "required_reviewers": []
       }
     },
     {
@@ -47,7 +41,7 @@
         "do_not_enforce_on_create": false,
         "required_status_checks": [
           {
-            "context": "branch-policy",
+            "context": "Enforce Android parent sync path",
             "integration_id": 15368
           }
         ],
