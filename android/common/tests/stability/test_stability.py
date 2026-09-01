@@ -20,6 +20,19 @@ SPEC.loader.exec_module(audit)
 
 
 class StabilityRunnerTest(unittest.TestCase):
+    def test_commands_come_from_the_canonical_suite_catalog(self):
+        catalog_commands = {
+            suite["id"]: suite["command"]
+            for suite in audit.load_suites(audit.DEFAULT_CATALOG, "all")
+        }
+        self.assertEqual(
+            [(name, catalog_commands[suite_id])
+             for name, suite_id in audit.CASE_SUITES],
+            audit.BASE_CASES,
+        )
+        native = dict(audit.BASE_CASES)["native"]
+        self.assertEqual(["common/tests/native/run-native-tests.sh"], native)
+
     def test_exit_vs_kill_race_is_already_terminated(self):
         with mock.patch.object(audit.os, "killpg", side_effect=ProcessLookupError):
             self.assertFalse(audit.kill_process_group(12345, signal.SIGTERM))
