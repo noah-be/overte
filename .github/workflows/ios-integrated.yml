@@ -67,8 +67,10 @@ jobs:
           fail-on-cache-miss: true
 
       - name: Toolchain preflight
+        env:
+          QT_CACHE_HIT: ${{ steps.qt-cache.outputs.cache-hit }}
         run: |
-          test "${{ steps.qt-cache.outputs.cache-hit }}" = true
+          test "$QT_CACHE_HIT" = true
           ios/tools/prepare-qt-ios.sh validate
           ios/build-ios.sh doctor --platform device --require-qt
 
