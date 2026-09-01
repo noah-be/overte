@@ -1,7 +1,7 @@
 name: Branch policy
 
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, reopened, synchronize, edited]
     branches:
       - main
@@ -16,19 +16,20 @@ on:
 
 permissions:
   contents: read
-  checks: write
+  pull-requests: read
 
 concurrency:
   group: branch-policy-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  evaluate-policy:
+  branch-policy:
+    name: branch-policy
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      # Check out trusted policy code from the default branch. Never execute PR code
-      # in this pull_request_target workflow.
+      # Run the policy implementation from the default branch. The pull request's
+      # files are inspected through the API and are never executed.
       - name: Check out trusted policy
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
         with:
@@ -36,35 +37,37 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Validate pull request direction and publish required check
+      - name: Validate pull request direction and identity
         env:
           BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+          BASE_REPOSITORY_ID: ${{ github.event.pull_request.base.repo.id }}
           HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPOSITORY_ID: ${{ github.event.pull_request.head.repo.id }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           GH_TOKEN: ${{ github.token }}
+          PULL_REQUEST: ${{ github.event.pull_request.number }}
           REPOSITORY: ${{ github.repository }}
+          REPOSITORY_ID: ${{ github.event.repository.id }}
         run: |
-          set -uo pipefail
-          output=$(python3 tools/branch-policy/check.py check-pr \
-            --base "$BASE_BRANCH" \
-            --head "$HEAD_BRANCH" 2>&1)
-          result=$?
-
-          if [[ "$result" -eq 0 ]]; then
-            conclusion=success
-            title="Branch direction allowed"
-          else
-            conclusion=failure
-            title="Branch direction blocked"
+          set -euo pipefail
+          expected_head_args=()
+          if python3 tools/branch-policy/check.py is-permanent --branch "$HEAD_BRANCH" >/dev/null 2>&1; then
+            expected_head_sha=$(gh api \
+              "repos/$REPOSITORY/git/ref/heads/$HEAD_BRANCH" \
+              --jq '.object.sha')
+            expected_head_args=(--expected-head-sha "$expected_head_sha")
           fi
 
-          gh api --method POST "repos/$REPOSITORY/check-runs" \
-            -f name=branch-policy \
-            -f head_sha="$HEAD_SHA" \
-            -f status=completed \
-            -f conclusion="$conclusion" \
-            -f "output[title]=$title" \
-            -f "output[summary]=$output"
+          changed_files=$(gh api --paginate --slurp \
+            "repos/$REPOSITORY/pulls/$PULL_REQUEST/files" \
+            --jq 'add | .[].filename')
 
-          printf '%s\n' "$output"
-          exit "$result"
+          printf '%s\n' "$changed_files" | python3 tools/branch-policy/check.py check-pr \
+            --base "$BASE_BRANCH" \
+            --head "$HEAD_BRANCH" \
+            --repository-id "$REPOSITORY_ID" \
+            --base-repository-id "$BASE_REPOSITORY_ID" \
+            --head-repository-id "$HEAD_REPOSITORY_ID" \
+            --head-sha "$HEAD_SHA" \
+            "${expected_head_args[@]}" \
+            --changed-files-stdin
