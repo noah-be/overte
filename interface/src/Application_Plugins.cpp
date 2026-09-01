@@ -106,6 +106,11 @@ void Application::initializePluginManager(const QCommandLineParser& parser) {
         disabledLaunchPlugins.push_back(OPENXR_PLUGIN_NAME);
         _previousPreferredDisplayMode.set(0);
     } else if (!displayPluginSpecified) {
+    #if defined(Q_OS_IOS)
+        disabledLaunchPlugins.push_back(OPENVR_PLUGIN_NAME);
+        disabledLaunchPlugins.push_back(OPENXR_PLUGIN_NAME);
+        _previousPreferredDisplayMode.set(0);
+    #else
         const QStringList choices = {
             tr("Desktop"),
             tr("OpenXR"),
@@ -141,6 +146,7 @@ void Application::initializePluginManager(const QCommandLineParser& parser) {
             disabledLaunchPlugins.push_back(OPENXR_PLUGIN_NAME);
             _previousPreferredDisplayMode.set(2);
         }
+    #endif
     } else {
         // Default behavior fallback. If we've launched without the
         // mode selector, and OpenXR wasn't specified, then turn off

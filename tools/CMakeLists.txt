@@ -29,6 +29,7 @@ if (OVERTE_BUILD_TOOLS)
         ice-client
         ktx-tool
         ac-client
+        ov-map-connector
         skeleton-dump
         atp-client
     )
