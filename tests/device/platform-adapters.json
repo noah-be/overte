@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "contractVersion": 1,
+  "cleanupAction": "cleanup",
+  "platforms": {
+    "android": "adapters/appium/android.json",
+    "ios": "adapters/appium/ios.json",
+    "linux": "adapters/desktop_oculix/linux.json",
+    "macos": "adapters/desktop_oculix/macos.json",
+    "windows": "adapters/desktop_oculix/windows.json"
+  }
+}
