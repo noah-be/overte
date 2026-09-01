@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -95,7 +96,7 @@ class JenkinsGlueTest(unittest.TestCase):
             "capabilities": {"appium:udid": "private-ios-identity"},
         }]
         if extra_android:
-            targets.append(dict(phone, selector="private-second-phone"))
+            targets.append(dict(phone, selector="private-second-android", physical=False))
         if duplicate_selector:
             targets.append(dict(phone))
         value = {"schemaVersion": 1, "targets": targets}
@@ -799,23 +800,34 @@ class JenkinsGlueTest(unittest.TestCase):
             values = {
                 "OVERTE_CI_WORKSPACE": str(ROOT),
                 "OVERTE_APPIUM_TARGETS": str(source),
-                "OVERTE_DEVICE_TARGET_SELECTOR": "private-android-phone",
+                "OVERTE_DEVICE_TARGET_SELECTOR": "rotated-private-phone-selector",
                 "OVERTE_EXTERNAL_RESULT_ROOT": str(external),
                 "OVERTE_ANDROID_JOB_TARGET_CONFIG": str(config),
             }
             with patch.dict(os.environ, values, clear=False):
                 self.assertEqual(0, RUN_CI.prepare_android_target_copy())
                 frozen = json.loads(config.read_text(encoding="utf-8"))
-                self.assertEqual([original["targets"][0]], frozen["targets"])
+                expected = dict(original["targets"][0])
+                expected["selector"] = "rotated-private-phone-selector"
+                self.assertEqual([expected], frozen["targets"])
                 self.assertEqual(0o600, config.stat().st_mode & 0o777)
                 self.assertEqual(0o700, external.stat().st_mode & 0o777)
                 sibling = external / "portable-smoke/summary.json"
                 sibling.parent.mkdir(parents=True)
                 sibling.write_text("{}", encoding="utf-8")
+                artifact_root = external / "private-android-artifacts"
+                artifact_root.mkdir(mode=0o700)
+                apk = artifact_root / RUN_CI.ANDROID_PHONE_APK
+                apk.write_bytes(b"private apk")
+                apk.chmod(0o600)
+                artifact_manifest = artifact_root / "build-workspace-manifest.json"
+                artifact_manifest.write_text("{}", encoding="utf-8")
+                artifact_manifest.chmod(0o600)
                 self.assertEqual(0, RUN_CI.cleanup_android_private())
                 self.assertEqual(0, RUN_CI.cleanup_android_private())
             self.assertFalse(config.exists())
             self.assertFalse((external / RUN_CI.ANDROID_PRIVATE_BUILD_MARKER).exists())
+            self.assertFalse(artifact_root.exists())
             self.assertTrue(sibling.is_file())
 
     def test_android_target_sync_rejects_ambiguous_or_wrong_selection(self):
@@ -833,12 +845,87 @@ class JenkinsGlueTest(unittest.TestCase):
                     external / "private-android-targets.json"),
             }
             with patch.dict(os.environ, values, clear=False):
-                with self.assertRaisesRegex(ValueError, "exactly one credential-selected"):
+                with self.assertRaisesRegex(ValueError, "exactly one enabled physical"):
                     RUN_CI.prepare_android_target_copy()
                 os.environ["OVERTE_DEVICE_TARGET_SELECTOR"] = "private-ios"
-                with self.assertRaisesRegex(ValueError, "exactly one credential-selected"):
+                with self.assertRaisesRegex(ValueError, "exactly one enabled physical"):
                     RUN_CI.prepare_android_target_copy()
             self.assertFalse(external.exists())
+
+    def test_android_install_requires_exact_revision_and_hash_then_uses_adapter(self):
+        with tempfile.TemporaryDirectory(prefix="overte-android-install-glue-") as name:
+            temporary = Path(name)
+            external = temporary / "job/build-23"
+            artifact_root = external / "private-android-artifacts"
+            artifact_root.mkdir(parents=True, mode=0o700)
+            artifact = artifact_root / RUN_CI.ANDROID_PHONE_APK
+            artifact.write_bytes(b"exact phone debug apk")
+            artifact.chmod(0o600)
+            revision = __import__("subprocess").run(
+                ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True,
+                stdout=__import__("subprocess").PIPE, check=True,
+            ).stdout.strip()
+            manifest = artifact_root / "build-workspace-manifest.json"
+            manifest.write_text(json.dumps({
+                "schemaVersion": 1, "role": "android-phone",
+                "sourceRevision": revision, "artifact": artifact.name,
+                "artifactSha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
+            }), encoding="utf-8")
+            manifest.chmod(0o600)
+            config = temporary / "private/appium.json"
+            self.android_target_config(config)
+            values = {
+                "OVERTE_CI_WORKSPACE": str(ROOT),
+                "OVERTE_EXTERNAL_RESULT_ROOT": str(external),
+                "OVERTE_ANDROID_ARTIFACT_ROOT": str(artifact_root),
+                "OVERTE_ANDROID_JOB_TARGET_CONFIG": str(config),
+                "OVERTE_DEVICE_TARGET_SELECTOR": "private-android-phone",
+            }
+            with patch.dict(os.environ, values, clear=False), patch.object(
+                    RUN_CI, "invoke_private_android", return_value=0) as invoke:
+                self.assertEqual(0, RUN_CI.android_install_artifact())
+            invoke.assert_called_once_with("app.install", {"path": str(artifact)})
+
+            artifact.write_bytes(b"changed")
+            artifact.chmod(0o600)
+            with patch.dict(os.environ, values, clear=False), self.assertRaisesRegex(
+                    ValueError, "exact runner revision"):
+                RUN_CI.android_install_artifact()
+
+    def test_android_visual_preflight_validates_private_png_video_and_cleans(self):
+        with tempfile.TemporaryDirectory(prefix="overte-android-visual-glue-") as name:
+            temporary = Path(name)
+            external = temporary / "job/build-24"
+            external.mkdir(parents=True, mode=0o700)
+            config = temporary / "private/appium.json"
+            self.android_target_config(config)
+            values = {
+                "OVERTE_CI_WORKSPACE": str(ROOT),
+                "OVERTE_CI_ADAPTER_MANIFEST":
+                    "tests/device/adapters/appium/android.json",
+                "OVERTE_EXTERNAL_RESULT_ROOT": str(external),
+                "OVERTE_ANDROID_JOB_TARGET_CONFIG": str(config),
+                "OVERTE_DEVICE_TARGET_SELECTOR": "private-android-phone",
+            }
+
+            def invoke(operation, _arguments, *, artifact_directory=None):
+                if operation == "artifact.screenshot":
+                    (artifact_directory / "screenshot.png").write_bytes(
+                        b"\x89PNG\r\n\x1a\nprivate")
+                elif operation == "artifact.video":
+                    (artifact_directory / "screen-recording.mp4").write_bytes(b"mp4")
+                return 0
+
+            with patch.dict(os.environ, values, clear=False), patch.object(
+                    RUN_CI, "invoke_private_android", side_effect=invoke) as calls, \
+                    patch.object(RUN_CI, "cleanup_target", return_value=0) as cleanup:
+                self.assertEqual(0, RUN_CI.android_visual_preflight())
+            self.assertEqual(
+                ["app.launch", "artifact.screenshot", "artifact.video"],
+                [call.args[0] for call in calls.call_args_list],
+            )
+            cleanup.assert_called_once_with()
+            self.assertFalse((external / "private-android-visual").exists())
 
     @unittest.skipIf(os.name == "nt", "POSIX process-group behavior")
     def test_stop_process_terminates_the_complete_child_group(self):
@@ -886,6 +973,9 @@ class JenkinsGlueTest(unittest.TestCase):
             "ciPython('ios-artifact-sync')",
             "ciPython('cleanup-ios-private'",
             "ciPython('android-target-sync')",
+            "ciPython('android-build-artifact')",
+            "ciPython('android-install-artifact')",
+            "ciPython('android-visual-preflight')",
             "'cleanup-android-private', true",
             "OVERTE_ANDROID_JOB_TARGET_CONFIG",
             "OVERTE_IOS_JOB_TARGET_CONFIG",

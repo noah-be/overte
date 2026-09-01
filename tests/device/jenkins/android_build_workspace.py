@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -244,6 +245,7 @@ def export_artifact(checkout: Path, role: str, destination: Path, commit: str) -
         "role": role,
         "sourceRevision": commit,
         "artifact": artifact.name,
+        "artifactSha256": hashlib.sha256(copied.read_bytes()).hexdigest(),
     }
     conan.secure_file(
         destination / "build-workspace-manifest.json",

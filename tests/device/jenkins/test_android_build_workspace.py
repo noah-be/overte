@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 from pathlib import Path
 import stat
@@ -160,6 +161,10 @@ done
                 (pico_artifact / "build-workspace-manifest.json").read_text())
             self.assertEqual("android-phone", phone_manifest["role"])
             self.assertEqual("android-pico", pico_manifest["role"])
+            self.assertEqual(
+                hashlib.sha256((phone_artifact / "phoneInterface-debug.apk").read_bytes()).hexdigest(),
+                phone_manifest["artifactSha256"],
+            )
             self.assertEqual(phone_manifest["sourceRevision"], pico_manifest["sourceRevision"])
             self.assertNotEqual(
                 conan_root / "homes/android-phone", conan_root / "homes/android-pico")

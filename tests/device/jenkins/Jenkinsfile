@@ -353,6 +353,16 @@ pipeline {
             description: 'Required iOS baseline: launch, scene, look, movement and tablet.'
         )
         booleanParam(
+            name: 'BUILD_INSTALL_ANDROID_E2E',
+            defaultValue: false,
+            description: 'Build the exact clean revision in isolation and install its Phone debug APK through the adapter.'
+        )
+        booleanParam(
+            name: 'RUN_ANDROID_VISUAL_PREFLIGHT',
+            defaultValue: false,
+            description: 'Prove Appium screenshot and video capture in a private fresh Phone session.'
+        )
+        booleanParam(
             name: 'RUN_ACCESSIBILITY',
             defaultValue: false,
             description: 'Run the audited native accessibility contract after core.'
@@ -463,6 +473,11 @@ pipeline {
                     if (!params.RUN_CORE) {
                         error('RUN_CORE is mandatory for the cross-platform device-lab baseline')
                     }
+                    if ((params.BUILD_INSTALL_ANDROID_E2E ||
+                            params.RUN_ANDROID_VISUAL_PREFLIGHT) &&
+                            profile != 'appium-android') {
+                        error('Android build/install and visual preflight require appium-android')
+                    }
                     if (params.FIXTURE_MODE == 'network' &&
                             !params.FIXTURE_PUBLIC_HOST.trim()) {
                         error('FIXTURE_PUBLIC_HOST is required for the core scene test')
@@ -493,6 +508,8 @@ pipeline {
                         "${env.OVERTE_EXTERNAL_RESULT_ROOT}/private-ios-targets.json"
                     env.OVERTE_ANDROID_JOB_TARGET_CONFIG =
                         "${env.OVERTE_EXTERNAL_RESULT_ROOT}/private-android-targets.json"
+                    env.OVERTE_ANDROID_ARTIFACT_ROOT =
+                        "${env.OVERTE_EXTERNAL_RESULT_ROOT}/private-android-artifacts"
                     env.OVERTE_BUILD_ISOLATION_ROOT =
                         "${pwd(tmp: true)}/overte-e2e-isolation/${env.BUILD_TAG}"
                 }
@@ -527,6 +544,77 @@ pipeline {
             steps {
                 withEnv(["OVERTE_CI_WORKSPACE=${env.WORKSPACE}"]) {
                     script { ciPython('self-check') }
+                }
+            }
+        }
+
+        stage('Build exact Android Phone debug APK') {
+            when { expression {
+                resolvedProfile() == 'appium-android' &&
+                    params.BUILD_INSTALL_ANDROID_E2E
+            } }
+            steps {
+                withEnv([
+                    "OVERTE_CI_WORKSPACE=${env.WORKSPACE}",
+                    "OVERTE_EXTERNAL_RESULT_ROOT=${env.OVERTE_EXTERNAL_RESULT_ROOT}",
+                    "OVERTE_ANDROID_ARTIFACT_ROOT=${env.OVERTE_ANDROID_ARTIFACT_ROOT}",
+                    "OVERTE_BUILD_ISOLATION_ROOT=${env.OVERTE_BUILD_ISOLATION_ROOT}",
+                ]) {
+                    script { ciPython('android-build-artifact') }
+                }
+            }
+        }
+
+        stage('Install exact Android Phone debug APK') {
+            when { expression {
+                resolvedProfile() == 'appium-android' &&
+                    params.BUILD_INSTALL_ANDROID_E2E
+            } }
+            steps {
+                withEnv([
+                    "OVERTE_CI_WORKSPACE=${env.WORKSPACE}",
+                    "OVERTE_EXTERNAL_RESULT_ROOT=${env.OVERTE_EXTERNAL_RESULT_ROOT}",
+                    "OVERTE_ANDROID_ARTIFACT_ROOT=${env.OVERTE_ANDROID_ARTIFACT_ROOT}",
+                    "OVERTE_ANDROID_JOB_TARGET_CONFIG=${env.OVERTE_ANDROID_JOB_TARGET_CONFIG}",
+                ]) {
+                    lock(resource: "overte-e2e-profile-${resolvedProfile()}",
+                         inversePrecedence: true) {
+                        lock(resource: deviceResource(resolvedProfile()), inversePrecedence: true) {
+                            withCredentials([string(
+                                credentialsId: targetCredential(resolvedProfile()),
+                                variable: 'OVERTE_DEVICE_TARGET_SELECTOR'
+                            )]) {
+                                script { ciPython('android-install-artifact') }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Android Appium visual capability preflight') {
+            when { expression {
+                resolvedProfile() == 'appium-android' &&
+                    params.RUN_ANDROID_VISUAL_PREFLIGHT
+            } }
+            steps {
+                withEnv([
+                    "OVERTE_CI_WORKSPACE=${env.WORKSPACE}",
+                    'OVERTE_CI_ADAPTER_MANIFEST=tests/device/adapters/appium/android.json',
+                    "OVERTE_EXTERNAL_RESULT_ROOT=${env.OVERTE_EXTERNAL_RESULT_ROOT}",
+                    "OVERTE_ANDROID_JOB_TARGET_CONFIG=${env.OVERTE_ANDROID_JOB_TARGET_CONFIG}",
+                ]) {
+                    lock(resource: "overte-e2e-profile-${resolvedProfile()}",
+                         inversePrecedence: true) {
+                        lock(resource: deviceResource(resolvedProfile()), inversePrecedence: true) {
+                            withCredentials([string(
+                                credentialsId: targetCredential(resolvedProfile()),
+                                variable: 'OVERTE_DEVICE_TARGET_SELECTOR'
+                            )]) {
+                                script { ciPython('android-visual-preflight') }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -610,6 +698,13 @@ pipeline {
             }
         }
 
+        stage('Accessibility audit') {
+            when { expression { params.RUN_ACCESSIBILITY } }
+            steps {
+                script { runDeviceSuite('accessibility', 15) }
+            }
+        }
+
         stage('Physical portable stability campaign') {
             when { expression { params.RUN_STABILITY_CAMPAIGN } }
             steps {
@@ -658,13 +753,6 @@ pipeline {
             when { expression { params.RUN_DOMAIN_SMOKE } }
             steps {
                 script { runDeviceSuite('domain-smoke', 30) }
-            }
-        }
-
-        stage('Accessibility audit') {
-            when { expression { params.RUN_ACCESSIBILITY } }
-            steps {
-                script { runDeviceSuite('accessibility', 15) }
             }
         }
 

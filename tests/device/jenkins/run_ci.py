@@ -9,6 +9,7 @@ idempotent last-chance cleanup, and stages private-safe results for Jenkins.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -32,6 +33,7 @@ PUBLIC_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 STAGED_MARKER = ".overte-device-ci-staged"
 PRIVATE_BUILD_MARKER = ".overte-ios-ci-private-build"
 ANDROID_PRIVATE_BUILD_MARKER = ".overte-android-ci-private-build"
+ANDROID_PHONE_APK = "phoneInterface-debug.apk"
 EMBEDDED_FIXTURE_URL = "overte-e2e://fixture/scene"
 PUBLIC_RESULT_NAMES = {
     "acceptance.json", "accessibility-audit.json", "cycles.jsonl", "device.json", "junit.xml",
@@ -998,26 +1000,29 @@ def prepare_android_target_copy() -> int:
     if len(encoded) > 1024 * 1024:
         fail("private Appium target configuration exceeds the safety limit")
     targets = value.get("targets") if isinstance(value, dict) else None
-    selected = [entry for entry in targets or [] if isinstance(entry, dict)
-                and entry.get("platform") == "android"
-                and entry.get("enabled", True)
-                and entry.get("selector") == selector]
-    if (value.get("schemaVersion") != 1 or not isinstance(targets, list)
-            or len(selected) != 1 or selected[0].get("physical") is not True):
-        fail("private Appium configuration must contain exactly one credential-selected "
-             "physical Android Phone")
-    entry = selected[0]
-    if (entry.get("process", {}).get("kind") != "adb"
-            or entry.get("scene") != {"kind": "android-debug-e2e"}
-            or entry.get("probe") != {
+    candidates = [entry for entry in targets or [] if isinstance(entry, dict)
+                  and entry.get("platform") == "android"
+                  and entry.get("enabled", True)
+                  and entry.get("physical") is True
+                  and entry.get("process", {}).get("kind") == "adb"
+                  and entry.get("scene") == {"kind": "android-debug-e2e"}
+                  and entry.get("probe") == {
                 "kind": "android-run-as",
                 "relativePath": "files/overte-e2e/overte-probe.json",
             }
-            or entry.get("clientControl") != {
+                  and entry.get("clientControl") == {
                 "kind": "android-run-as-command",
                 "relativePath": "files/overte-e2e/android-control-command.json",
-            }):
-        fail("selected Android Phone does not satisfy the fixed debug-build channel")
+            }]
+    if (value.get("schemaVersion") != 1 or not isinstance(targets, list)
+            or len(candidates) != 1):
+        fail("private Appium configuration must contain exactly one enabled physical "
+             "Android Phone with the fixed debug-build channel")
+    # The Jenkins credential is the sole build-local selector. This makes
+    # selector rotation atomic with the immutable copy while hardware identity
+    # remains bound to the candidate's private Appium/ADB capabilities.
+    entry = dict(candidates[0])
+    entry["selector"] = selector
     external.mkdir(parents=True, exist_ok=True, mode=0o700)
     metadata = external.lstat()
     if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.geteuid()
@@ -1038,6 +1043,123 @@ def prepare_android_target_copy() -> int:
     finally:
         os.close(descriptor)
     print("Private Android Phone target configuration prepared.")
+    return 0
+
+
+def android_build_artifact() -> int:
+    root = workspace()
+    external = Path(environment("OVERTE_EXTERNAL_RESULT_ROOT")).expanduser().resolve()
+    artifact = Path(environment("OVERTE_ANDROID_ARTIFACT_ROOT")).expanduser().resolve()
+    isolation = Path(environment("OVERTE_BUILD_ISOLATION_ROOT")).expanduser().resolve()
+    if (artifact != external / "private-android-artifacts"
+            or external == root or is_within(external, root)
+            or isolation == root or is_within(isolation, root)
+            or has_symlink_component(artifact) or has_symlink_component(isolation)):
+        fail("Android build paths are outside their exact private scopes")
+    command = [
+        sys.executable, str(root / "tests/device/jenkins/android_build_workspace.py"),
+        "--source", str(root), "--build-root", str(isolation / "android"),
+        "--conan-root", str(isolation / "conan"), "--role", "android-phone",
+        "--artifact-dir", str(artifact),
+    ]
+    return subprocess.run(command, cwd=root, check=False).returncode
+
+
+def checked_android_artifact(root: Path) -> Path:
+    external = Path(environment("OVERTE_EXTERNAL_RESULT_ROOT")).expanduser().resolve()
+    directory = Path(environment("OVERTE_ANDROID_ARTIFACT_ROOT")).expanduser().resolve()
+    if (directory != external / "private-android-artifacts"
+            or has_symlink_component(directory) or not directory.is_dir()
+            or directory.is_symlink()):
+        fail("private Android build artifact directory is unavailable")
+    metadata = directory.lstat()
+    if metadata.st_uid != os.geteuid() or metadata.st_mode & 0o077:
+        fail("private Android build artifact directory is not private")
+    manifest_path = directory / "build-workspace-manifest.json"
+    artifact = directory / ANDROID_PHONE_APK
+    for path in (manifest_path, artifact):
+        value = path.lstat()
+        if (path.is_symlink() or not stat.S_ISREG(value.st_mode)
+                or value.st_uid != os.geteuid() or value.st_mode & 0o077):
+            fail("private Android build artifact is unsafe")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    revision = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "HEAD"], text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False,
+    )
+    digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    if (revision.returncode or manifest != {
+            "schemaVersion": 1, "role": "android-phone",
+            "sourceRevision": revision.stdout.strip(), "artifact": artifact.name,
+            "artifactSha256": digest,
+    }):
+        fail("private Android APK does not match the exact runner revision")
+    return artifact
+
+
+def invoke_private_android(operation: str, arguments: dict,
+                           *, artifact_directory: Path | None = None) -> int:
+    root = workspace()
+    manifest = root / "tests/device/adapters/appium/android.json"
+    selector = environment("OVERTE_DEVICE_TARGET_SELECTOR")
+    child_environment = os.environ.copy()
+    child_environment["OVERTE_APPIUM_TARGETS"] = environment(
+        "OVERTE_ANDROID_JOB_TARGET_CONFIG")
+    if artifact_directory is not None:
+        child_environment["OVERTE_DEVICE_ARTIFACT_DIR"] = str(artifact_directory)
+    completed = subprocess.run(
+        [*load_adapter_command(manifest), "invoke", "--target", selector,
+         "--operation", operation, "--arguments", json.dumps(arguments)],
+        cwd=root, env=child_environment, stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL, timeout=300, check=False,
+    )
+    return completed.returncode
+
+
+def android_install_artifact() -> int:
+    root = workspace()
+    private_existing_file("OVERTE_ANDROID_JOB_TARGET_CONFIG", root)
+    artifact = checked_android_artifact(root)
+    if invoke_private_android("app.install", {"path": str(artifact)}) != 0:
+        print("error: exact Android Phone APK installation failed", file=sys.stderr)
+        return 2
+    print("Exact runner-revision Android Phone APK installed through the adapter.")
+    return 0
+
+
+def android_visual_preflight() -> int:
+    root = workspace()
+    private_existing_file("OVERTE_ANDROID_JOB_TARGET_CONFIG", root)
+    external = Path(environment("OVERTE_EXTERNAL_RESULT_ROOT")).expanduser().resolve()
+    directory = external / "private-android-visual"
+    if directory.exists() or directory.is_symlink() or has_symlink_component(directory):
+        fail("private Android visual preflight directory is unsafe")
+    directory.mkdir(mode=0o700)
+    status = 0
+    try:
+        for operation, arguments in (
+                ("app.launch", {}), ("artifact.screenshot", {}),
+                ("artifact.video", {"durationSeconds": 1})):
+            if invoke_private_android(
+                    operation, arguments, artifact_directory=directory) != 0:
+                status = 2
+                break
+        screenshot = directory / "screenshot.png"
+        video = directory / "screen-recording.mp4"
+        if (status == 0 and (not screenshot.is_file()
+                            or not screenshot.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+                            or not video.is_file() or video.stat().st_size == 0)):
+            status = 2
+    finally:
+        cleanup_status = cleanup_target()
+        if cleanup_status != 0:
+            status = 2
+        if directory.exists() and not directory.is_symlink():
+            shutil.rmtree(directory)
+    if status:
+        print("error: Android Appium visual capability preflight failed", file=sys.stderr)
+        return status
+    print("Android Appium screenshot and video preflight passed.")
     return 0
 
 
@@ -1078,6 +1200,17 @@ def cleanup_android_private() -> int:
         config.unlink()
     elif raw_config.is_symlink():
         fail("private Android target copy is unsafe")
+    artifact = external / "private-android-artifacts"
+    if artifact.exists() or artifact.is_symlink():
+        if artifact.is_symlink() or not artifact.is_dir():
+            fail("private Android artifact cleanup path is unsafe")
+        expected = {ANDROID_PHONE_APK, "build-workspace-manifest.json"}
+        if {path.name for path in artifact.iterdir()} != expected \
+                or any(path.is_symlink() or not path.is_file() for path in artifact.iterdir()):
+            fail("private Android artifact cleanup inventory is unsafe")
+        for path in artifact.iterdir():
+            path.unlink()
+        artifact.rmdir()
     marker.unlink()
     print("Private Android Phone target configuration removed.")
     return 0
@@ -1227,6 +1360,9 @@ def arguments() -> argparse.Namespace:
                                            "ios-ddi-preflight", "ios-artifact-sync",
                                            "cleanup-ios-private",
                                            "android-target-sync",
+                                           "android-build-artifact",
+                                           "android-install-artifact",
+                                           "android-visual-preflight",
                                            "cleanup-android-private"))
     return parser.parse_args()
 
@@ -1251,6 +1387,12 @@ def main() -> int:
         return cleanup_ios_private()
     if action == "android-target-sync":
         return prepare_android_target_copy()
+    if action == "android-build-artifact":
+        return android_build_artifact()
+    if action == "android-install-artifact":
+        return android_install_artifact()
+    if action == "android-visual-preflight":
+        return android_visual_preflight()
     if action == "cleanup-android-private":
         return cleanup_android_private()
     return self_check()

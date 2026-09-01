@@ -155,3 +155,13 @@ that immutable copy; the copy and its marker are removed in `post` while the
 selector-free staged evidence remains available. This prevents concurrent lab
 provisioning from producing a mixed target contract and also prevents a Phone
 job from selecting the Pico target.
+
+For a hardware-acceptance run, enable `BUILD_INSTALL_ANDROID_E2E`. The job
+builds the clean checked-out revision through `android_build_workspace.py` in
+the Phone-specific isolated checkout and Conan home, records the APK SHA-256
+and source revision in a private manifest, and calls the Appium adapter's
+`app.install` only after both values are revalidated. Enable
+`RUN_ANDROID_VISUAL_PREFLIGHT` to launch one fresh private session, validate a
+real PNG screenshot and non-empty Appium screen recording, then delete both raw
+captures and clean up the app/session. Neither the APK nor the captures enter
+the workspace or archived Jenkins artifacts.
