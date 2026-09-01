@@ -20,11 +20,6 @@ permissions:
 
 env:
   BUILD_TYPE: Release
-
-  UPLOAD_BUCKET: overte-public
-  UPLOAD_REGION: fra1
-  UPLOAD_ENDPOINT: "https://fra1.digitaloceanspaces.com"
-
   CMAKE_BUILD_EXTRA: --preset conan-release
 
 jobs:
@@ -221,13 +216,6 @@ jobs:
         cppstd: ${{env.CONAN_CPPSTD}}
         conan_profile: ${{env.CONAN_PROFILE}}
 
-    - name: Upload dependency source backups
-      shell: bash
-      env:
-        # Token for uploading dependency source backups.
-        CONAN_BUILD_DEPENDENCIES_BACKUP_UPLOAD_TOKEN: ${{ secrets.CONAN_BUILD_DEPENDENCIES_BACKUP_UPLOAD_TOKEN }}
-      run: conan cache backup-upload || echo "Credentials cannot be accessed on remote Pull Request builds. Continuing…"
-
     - name: Configure CMake
       shell: bash
            # This syntax requires CMake 3.23
@@ -262,15 +250,6 @@ jobs:
       with:
         archive: false
         path: pkg-scripts/${{ env.ARTIFACT_PATTERN }}
-
-    - name: Upload artifact to S3
-      if: github.event_name != 'pull_request'  # PR builds cannot be uploaded to S3
-      shell: bash
-      working-directory: pkg-scripts
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.s3_access_key_id }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.s3_secret_access_key }}
-      run: python3 $GITHUB_WORKSPACE/tools/ci-scripts/upload.py
 
     - name: Output debug information
       if: always()
