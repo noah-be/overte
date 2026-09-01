@@ -32,6 +32,10 @@ class StabilityRunnerTest(unittest.TestCase):
         )
         native = dict(audit.BASE_CASES)["native"]
         self.assertEqual(["common/tests/native/run-native-tests.sh"], native)
+        self.assertEqual(
+            ("robolectric", catalog_commands[audit.ROBOLECTRIC_SUITE]),
+            audit.ROBOLECTRIC_CASE,
+        )
 
     def test_exit_vs_kill_race_is_already_terminated(self):
         with mock.patch.object(audit.os, "killpg", side_effect=ProcessLookupError):

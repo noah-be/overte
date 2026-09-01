@@ -31,6 +31,7 @@ CASE_SUITES = [
     ("native-endurance", "native-policy-endurance"),
     ("mutations", "critical-policy-mutations"),
 ]
+ROBOLECTRIC_SUITE = "phone-robolectric-launcher"
 
 
 def catalog_cases(catalog: Path = DEFAULT_CATALOG) -> list[tuple[str, list[str]]]:
@@ -43,6 +44,11 @@ def catalog_cases(catalog: Path = DEFAULT_CATALOG) -> list[tuple[str, list[str]]
 
 
 BASE_CASES = catalog_cases()
+ROBOLECTRIC_CASE = (
+    "robolectric",
+    next(suite["command"] for suite in load_suites(DEFAULT_CATALOG, "all")
+         if suite["id"] == ROBOLECTRIC_SUITE),
+)
 
 
 def serial_order(round_index: int) -> list[tuple[str, list[str]]]:
@@ -113,7 +119,7 @@ def main() -> int:
         # together: the bounded repository flock must serialize them cleanly.
         with ThreadPoolExecutor(max_workers=2) as executor:
             contenders = [executor.submit(
-                run_case, ("robolectric", ["tests/robolectric/run-tests.sh"]),
+                run_case, ROBOLECTRIC_CASE,
                 workspace, f"locked-{index}") for index in range(2)]
             for contender in contenders:
                 contender.result()
