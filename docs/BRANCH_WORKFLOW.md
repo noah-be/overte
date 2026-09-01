@@ -69,6 +69,11 @@ When resolving a conflict:
 - run both the parent's relevant contracts and the child's complete required
   gate before merging.
 
+Privileged branch-policy and synchronization paths are not conflict-resolution
+surface for a temporary reconciliation branch. They may flow to a child only
+from the current direct permanent parent under the repository's exact-head
+check; other governance changes remain owned by `main`.
+
 ## Adapter ownership
 
 Universal touch layout and capability defaults belong on `main`. Native and

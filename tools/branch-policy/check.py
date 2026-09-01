@@ -143,9 +143,16 @@ def evaluate_pull_request(
             )
 
     if changes_privileged_policy(changed_files):
-        if base != "main" or head_repository_id != base_repository_id:
+        same_repository_main_pr = (
+            base == "main" and head_repository_id == base_repository_id
+        )
+        # Downstream syncs reach this point only after the same-repository and
+        # exact current-parent SHA checks above have passed.
+        verified_downstream_sync = classification == "downstream-sync"
+        if not (same_repository_main_pr or verified_downstream_sync):
             raise PolicyError(
-                "privileged policy and workflow changes require a same-repository pull request to main"
+                "privileged policy and workflow changes require a same-repository "
+                "pull request to main or a verified direct-parent downstream sync"
             )
 
     return classification
