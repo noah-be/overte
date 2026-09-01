@@ -55,15 +55,32 @@ class GeneralBuildWorkflowContracts(unittest.TestCase):
 
 
 class BranchGovernanceWorkflowContracts(unittest.TestCase):
-    def test_policy_uses_only_trusted_default_branch_code(self):
+    def test_policy_is_a_native_read_only_pull_request_check(self):
         source = BRANCH_POLICY_WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn("pull_request_target:", source)
+        self.assertIn("pull_request:", source)
+        self.assertNotIn("pull_request_target:", source)
         self.assertIn("ref: ${{ github.event.repository.default_branch }}", source)
         self.assertIn("persist-credentials: false", source)
-        self.assertRegex(source, r"(?m)^permissions:\n  contents: read\n  checks: write$")
+        self.assertRegex(
+            source,
+            r"(?m)^permissions:\n  contents: read\n  pull-requests: read$",
+        )
+        self.assertIn("name: branch-policy", source)
         self.assertIn("github.event.pull_request.head.sha", source)
-        self.assertIn("-f name=branch-policy", source)
-        self.assertNotRegex(source, r"(?m)^\s*(pull-requests|contents): write$")
+        self.assertIn("github.event.pull_request.head.repo.id", source)
+        self.assertIn("github.event.pull_request.base.repo.id", source)
+        self.assertIn("github.event.repository.id", source)
+        self.assertNotIn("check-runs", source)
+        self.assertNotRegex(source, r"(?m)^\s*(checks|pull-requests|contents): write$")
+
+    def test_policy_never_executes_pull_request_policy_or_workflow_changes(self):
+        source = BRANCH_POLICY_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("Check out trusted policy", source)
+        self.assertIn("github.event.repository.default_branch", source)
+        checkout = source.split("with:", 1)[1].split("- name: Validate", 1)[0]
+        self.assertNotIn("github.event.pull_request.head.sha", checkout)
+        self.assertIn("pulls/$PULL_REQUEST/files", source)
+        self.assertIn("--changed-files-stdin", source)
 
     def test_governance_actions_are_pinned(self):
         for workflow in (BRANCH_POLICY_WORKFLOW, BRANCH_SYNC_WORKFLOW):
@@ -71,26 +88,33 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
             self.assertGreaterEqual(len(actions), 1)
             self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
 
-    def test_sync_has_narrow_permissions_and_only_enables_guarded_auto_merge(self):
+    def test_sync_is_read_only_drift_detection(self):
         source = BRANCH_SYNC_WORKFLOW.read_text(encoding="utf-8")
         self.assertRegex(source, r"(?m)^permissions:\n  contents: read$")
-        self.assertIn("actions/create-github-app-token@", source)
-        self.assertIn("client-id: ${{ vars.BRANCH_SYNC_APP_CLIENT_ID }}", source)
-        self.assertNotIn("app-id:", source)
-        self.assertIn("secrets.BRANCH_SYNC_APP_PRIVATE_KEY", source)
-        self.assertIn("steps.branch-sync-token.outputs.token", source)
-        self.assertNotRegex(source, r"(?m)^\s+pull-requests: write$")
-        self.assertIn("gh pr create", source)
-        self.assertIn("gh pr merge", source)
-        self.assertIn("--auto", source)
-        self.assertIn("--merge", source)
-        self.assertNotIn("--admin", source)
+        self.assertIn("tools/branch-policy/drift.py", source)
+        self.assertIn("--expected-parent-sha \"$PUSH_SHA\"", source)
+        self.assertIn("github.event.repository.default_branch", source)
+        self.assertIn("GITHUB_TOKEN: ${{ github.token }}", source)
+        self.assertNotIn("actions/create-github-app-token@", source)
+        self.assertNotIn("BRANCH_SYNC_APP", source)
+        self.assertNotIn("secrets.", source)
+        self.assertNotIn("gh pr", source)
+        self.assertNotIn("--auto", source)
+        self.assertNotIn("check-runs", source)
         self.assertIn("group: branch-synchronization-${{ github.ref_name }}", source)
         self.assertIn("cancel-in-progress: false", source)
-        self.assertIn("Skipping $parent -> $child", source)
-        self.assertIn("continue", source)
-        self.assertIn("tools/branch-policy/check.py parents", source)
-        self.assertNotIn("parents=(main android-main android-vr apple-main)", source)
+        self.assertNotIn("Skipping $parent -> $child", source)
+        self.assertNotIn("continue", source)
+
+    def test_multiple_prs_cannot_be_selected_or_merged(self):
+        source = BRANCH_SYNC_WORKFLOW.read_text(encoding="utf-8")
+        for forbidden in ("gh pr list", "gh pr create", "gh pr merge", "pulls?", ".[0]"):
+            self.assertNotIn(forbidden, source)
+
+    def test_wrong_app_or_author_cannot_authorize_sync(self):
+        source = BRANCH_SYNC_WORKFLOW.read_text(encoding="utf-8")
+        for forbidden in ("create-github-app-token", "client-id", "private-key", "author", "login"):
+            self.assertNotIn(forbidden, source)
 
     def test_main_sync_policy_includes_linux_and_windows(self):
         policy = (ROOT / ".github/branch-policy.json").read_text(encoding="utf-8")
