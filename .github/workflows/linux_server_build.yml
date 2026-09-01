@@ -15,6 +15,9 @@ on:
       # https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#filter-pattern-cheat-sheet
       - "[0-9][0-9][0-9][0-9].[0-9][0-9].**"
 
+permissions:
+  contents: read
+
 env:
   BUILD_TYPE: Release
 
@@ -26,7 +29,7 @@ env:
 
 jobs:
   build:
-    # Only run master or tagged builds, or PRs when labeled as "server"
+    # Only run tagged builds, or PRs when labeled as "server".
     if: github.event.label.name == 'server'|| github.event_name != 'pull_request'
     name: "${{matrix.os}}, ${{matrix.arch}}"
     strategy:
@@ -36,7 +39,7 @@ jobs:
             image: docker.io/overte/overte-server-build:2026-02-09-debian-12-amd64  # Container image used for building. Built from /tools/ci-script/deb_package/Dockerfile_x
             arch: amd64
             qt_source: system  # Which Qt Conan package to use. `system`, `source`, or `aqt`.
-            runner: ubuntu-latest  # Which GitHub Actions Runner to use. When using `image` this just needs to run the build container.
+            runner: ubuntu-24.04  # Which GitHub Actions Runner to use. When using `image` this just needs to run the build container.
 
           - os: debian-12
             image: docker.io/overte/overte-server-build:2026-02-09-debian-12-aarch64
@@ -48,7 +51,7 @@ jobs:
             image: docker.io/overte/overte-server-build:2026-02-09-debian-13-amd64
             arch: amd64
             qt_source: system
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
 
           - os: debian-13
             image: docker.io/overte/overte-server-build:2026-02-09-debian-13-aarch64
@@ -73,7 +76,7 @@ jobs:
             image: docker.io/overte/overte-server-build:2026-02-09-ubuntu-22.04-amd64
             arch: amd64
             qt_source: system
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
 
           - os: ubuntu-22.04
             image: docker.io/overte/overte-server-build:2026-02-09-ubuntu-22.04-aarch64
@@ -85,7 +88,7 @@ jobs:
             image: docker.io/overte/overte-server-build:2026-02-09-ubuntu-24.04-amd64
             arch: amd64
             qt_source: system
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
 
           - os: ubuntu-24.04
             image: docker.io/overte/overte-server-build:2026-02-09-ubuntu-24.04-aarch64
@@ -97,7 +100,7 @@ jobs:
             image: docker.io/overte/overte-server-build:2026-02-09-fedora-42-amd64
             arch: amd64
             qt_source: system
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
 
           - os: fedora-42
             image: docker.io/overte/overte-server-build:2026-02-09-fedora-42-aarch64
@@ -109,12 +112,14 @@ jobs:
 
     runs-on: ${{matrix.runner}}
     container: ${{matrix.image}}
+    timeout-minutes: 240
 
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         submodules: false
         fetch-depth: 1
+        persist-credentials: false
 
     - name: Read image environment variables
       # Bring some environment variables out of the Runner (Docker) image's environment into the Job environment.
@@ -126,81 +131,86 @@ jobs:
 
     - name: Configure Build Environment 1
       shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        MATRIX_ARCH: ${{ matrix.arch }}
+        MATRIX_OS: ${{ matrix.os }}
+        PULL_REQUEST_SHA: ${{ github.event.pull_request.head.sha }}
+        REF_NAME: ${{ github.ref_name }}
+        REF_TYPE: ${{ github.ref_type }}
       run: |
 
         # Get git commit
-        if [ "${{github.event_name}}" = "pull_request" ]; then
-          echo "GIT_COMMIT_SHORT=`echo ${{ github.event.pull_request.head.sha }} | cut -c1-7`" >> $GITHUB_ENV
-        else # master or tagged
-          echo "GIT_COMMIT_SHORT=`echo ${{ github.sha }} | cut -c1-7`" >> $GITHUB_ENV
+        if [ "$EVENT_NAME" = "pull_request" ]; then
+          echo "GIT_COMMIT_SHORT=${PULL_REQUEST_SHA:0:7}" >> "$GITHUB_ENV"
+        else # tagged
+          echo "GIT_COMMIT_SHORT=${GITHUB_SHA:0:7}" >> "$GITHUB_ENV"
         fi
 
-        echo "REFNAME=${{ github.ref_name }}" >> $GITHUB_ENV
+        echo "REFNAME=$REF_NAME" >> "$GITHUB_ENV"
 
-        echo "JOB_NAME=${{matrix.os}}, ${{matrix.arch}}" >> $GITHUB_ENV
-        echo "CONAN_CPPSTD=gnu20" >> $GITHUB_ENV
+        echo "JOB_NAME=$MATRIX_OS, $MATRIX_ARCH" >> "$GITHUB_ENV"
+        echo "CONAN_CPPSTD=gnu20" >> "$GITHUB_ENV"
 
-        if [[ "${{ matrix.os }}" =~ "ubuntu" || "${{ matrix.os }}" =~ "debian" ]]; then
-          echo "INSTALLER_EXT=deb" >> $GITHUB_ENV
+        if [[ "$MATRIX_OS" =~ ubuntu|debian ]]; then
+          echo "INSTALLER_EXT=deb" >> "$GITHUB_ENV"
         else  # RPM
-          if [ "${{ matrix.arch }}" == "amd64" ]; then
-            echo "INSTALLER_EXT=x86_64.rpm" >> $GITHUB_ENV
+          if [ "$MATRIX_ARCH" == "amd64" ]; then
+            echo "INSTALLER_EXT=x86_64.rpm" >> "$GITHUB_ENV"
           else
-            echo "INSTALLER_EXT=aarch64.rpm" >> $GITHUB_ENV
+            echo "INSTALLER_EXT=aarch64.rpm" >> "$GITHUB_ENV"
           fi
         fi
 
         # Tagged builds. E.g. release or release candidate builds.
-        if [ "${{github.ref_type}}" == "tag" ]; then
-          echo "OVERTE_RELEASE_TYPE=PRODUCTION" >> $GITHUB_ENV
+        if [ "$REF_TYPE" == "tag" ]; then
+          echo "OVERTE_RELEASE_TYPE=PRODUCTION" >> "$GITHUB_ENV"
         else
-          echo "OVERTE_RELEASE_TYPE=PR" >> $GITHUB_ENV
+          echo "OVERTE_RELEASE_TYPE=PR" >> "$GITHUB_ENV"
         fi
 
-        echo "CMAKE_EXTRA=-DOVERTE_BUILD_SERVER=true -DOVERTE_BUILD_TOOLS=true -DOVERTE_BUILD_CLIENT=false" >> $GITHUB_ENV
+        echo "CMAKE_EXTRA=-DOVERTE_BUILD_SERVER=true -DOVERTE_BUILD_TOOLS=true -DOVERTE_BUILD_CLIENT=false" >> "$GITHUB_ENV"
 
     # Configuration is broken into multiple steps because you can't set an env var and also reference it in the same step
     - name: Configure Build Environment 2
       shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        MATRIX_OS: ${{ matrix.os }}
+        PULL_REQUEST_NUMBER: ${{ github.event.number }}
+        REF_NAME: ${{ github.ref_name }}
+        REF_TYPE: ${{ github.ref_type }}
       run: |
 
         # Versioning
-        if [ "${{ github.event_name }}" = "pull_request" ]; then
-          echo "DEBVERSION=${{ github.event.number }}PR-$GIT_COMMIT_SHORT-${{ matrix.os }}" >> $GITHUB_ENV
-          echo "RPMVERSION=PR${{ github.event.number }}.$GIT_COMMIT_SHORT" >> $GITHUB_ENV
-        elif [ "${{ github.ref_name }}" = "master" ]; then
-          echo "DEBVERSION=${{ github.run_number }}master-$GIT_COMMIT_SHORT-${{ matrix.os }}" >> $GITHUB_ENV
-          echo "RPMVERSION=master${{ github.run_number }}.$GIT_COMMIT_SHORT" >> $GITHUB_ENV
-          echo "UPLOAD_PREFIX=build/overte/master" >> $GITHUB_ENV
-          echo "RELEASE_NUMBER=${{ github.run_number }}" >> $GITHUB_ENV
+        if [ "$EVENT_NAME" = "pull_request" ]; then
+          echo "DEBVERSION=${PULL_REQUEST_NUMBER}PR-$GIT_COMMIT_SHORT-$MATRIX_OS" >> "$GITHUB_ENV"
+          echo "RPMVERSION=PR${PULL_REQUEST_NUMBER}.$GIT_COMMIT_SHORT" >> "$GITHUB_ENV"
         else # tagged
-          echo "DEBVERSION=${{ github.ref_name }}-$GIT_COMMIT_SHORT-${{ matrix.os }}" >> $GITHUB_ENV
+          echo "DEBVERSION=$REF_NAME-$GIT_COMMIT_SHORT-$MATRIX_OS" >> "$GITHUB_ENV"
           # We remove all dash characters from RPM versions, because rpmbuild doesn't allow dashes in version numbers.
-          echo "RPMVERSION=${REFNAME//-}.$GIT_COMMIT_SHORT" >> $GITHUB_ENV
+          echo "RPMVERSION=${REFNAME//-}.$GIT_COMMIT_SHORT" >> "$GITHUB_ENV"
         fi
 
-        if [ "${{ github.ref_type }}" == "tag" ]; then  # tagged
-          echo "RELEASE_NUMBER=${{ github.ref_name }}" >> $GITHUB_ENV
-          if [[ "${{ github.ref_name }}" == *"rc"* ]]; then  # release candidate
-            # The uploader already creates a subfolder for each RELEASE_NUMBER.
-            echo "UPLOAD_PREFIX=build/overte/release-candidate/" >> $GITHUB_ENV
-          else  # release
-            echo "UPLOAD_PREFIX=build/overte/release/" >> $GITHUB_ENV
-          fi
+        if [ "$REF_TYPE" == "tag" ]; then
+          echo "RELEASE_NUMBER=$REF_NAME" >> "$GITHUB_ENV"
         fi
 
     - name: Configure Build Environment 3
       shell: bash
+      env:
+        MATRIX_ARCH: ${{ matrix.arch }}
+        MATRIX_OS: ${{ matrix.os }}
       run: |
 
-        if [[ "${{ matrix.os }}" =~ "ubuntu" || "${{ matrix.os }}" =~ "debian" ]]; then
-          if [ "${{ matrix.arch }}" == "aarch64" ]; then
-            echo "ARTIFACT_PATTERN=overte-server_${DEBVERSION}-1_arm64.$INSTALLER_EXT" >> $GITHUB_ENV
+        if [[ "$MATRIX_OS" =~ ubuntu|debian ]]; then
+          if [ "$MATRIX_ARCH" == "aarch64" ]; then
+            echo "ARTIFACT_PATTERN=overte-server_${DEBVERSION}-1_arm64.$INSTALLER_EXT" >> "$GITHUB_ENV"
           else # amd64
-            echo "ARTIFACT_PATTERN=overte-server_${DEBVERSION}-1_amd64.$INSTALLER_EXT" >> $GITHUB_ENV
+            echo "ARTIFACT_PATTERN=overte-server_${DEBVERSION}-1_amd64.$INSTALLER_EXT" >> "$GITHUB_ENV"
           fi
         else  # RPM
-          echo "ARTIFACT_PATTERN=overte-server-$RPMVERSION-1.$RPM_SHORTHAND.$INSTALLER_EXT" >> $GITHUB_ENV
+          echo "ARTIFACT_PATTERN=overte-server-$RPMVERSION-1.$RPM_SHORTHAND.$INSTALLER_EXT" >> "$GITHUB_ENV"
         fi
 
     - name: Install Conan dependencies
@@ -238,15 +248,17 @@ jobs:
     - name: Package
       working-directory: pkg-scripts
       shell: bash
+      env:
+        MATRIX_OS: ${{ matrix.os }}
       run: |
-        if [[ "${{ matrix.os }}" = "ubuntu"* || "${{ matrix.os }}" = "debian"* ]]; then # Debian
+        if [[ "$MATRIX_OS" = ubuntu* || "$MATRIX_OS" = debian* ]]; then # Debian
           ./make-deb-server
         else # RPM
           ./make-rpm-server
         fi
 
     - name: Upload artifact to GitHub
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         archive: false
         path: pkg-scripts/${{ env.ARTIFACT_PATTERN }}

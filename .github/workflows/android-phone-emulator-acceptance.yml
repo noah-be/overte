@@ -41,7 +41,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Check out exact candidate without credentials
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: refs/tags/${{ inputs.release_tag }}
           persist-credentials: false
