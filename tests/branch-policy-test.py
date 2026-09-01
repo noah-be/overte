@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,6 +33,14 @@ sys.path.pop(0)
 
 CURRENT_SHA = "1" * 40
 STALE_SHA = "2" * 40
+BASE_SHA = "3" * 40
+PARENT_SHA = "4" * 40
+RECONCILIATION_SHA = "5" * 40
+PRIVILEGED_BLOB_SHA = "6" * 40
+PRIVILEGED_ENTRIES = (
+    (".github/branch-policy.json", "100644", "blob", PRIVILEGED_BLOB_SHA),
+    ("tools/branch-policy/check.py", "100755", "blob", "7" * 40),
+)
 
 
 class FakeBranchApi:
@@ -49,6 +58,67 @@ class FakeBranchApi:
         if self.failure == "compare":
             raise BRANCH_DRIFT.ApiError("simulated compare API failure")
         return self.comparisons.get(child, {"ahead_by": 0, "status": "identical"})
+
+
+class FakeReconciliationApi:
+    def __init__(
+        self,
+        *,
+        base,
+        parent,
+        base_branch,
+        parent_branch,
+        parents=None,
+        comparisons=None,
+        parent_entries=PRIVILEGED_ENTRIES,
+        head_entries=PRIVILEGED_ENTRIES,
+        failure=None,
+        branch_sequences=None,
+    ):
+        self.shas = {base_branch: base, parent_branch: parent}
+        self.parents = parents or (base, parent)
+        self.comparisons = comparisons or {}
+        self.parent = parent
+        self.head_entries = head_entries
+        self.parent_entries = parent_entries
+        self.failure = failure
+        self.branch_sequences = branch_sequences or {}
+        self.calls = []
+
+    def branch_sha(self, repository, branch):
+        self.calls.append(("branch", branch))
+        if self.failure == "branch":
+            raise BRANCH_POLICY.PolicyError("simulated GitHub API failure")
+        sequence = self.branch_sequences.get(branch)
+        if sequence:
+            return sequence.pop(0)
+        return self.shas[branch]
+
+    def commit_parents(self, repository, commit):
+        self.calls.append(("parents", commit))
+        if self.failure == "commit":
+            raise BRANCH_POLICY.PolicyError("simulated commit API failure")
+        return self.parents
+
+    def compare(self, repository, ancestor, head):
+        self.calls.append(("compare", ancestor))
+        if self.failure == "compare":
+            raise BRANCH_POLICY.PolicyError("simulated compare API failure")
+        return self.comparisons.get(
+            ancestor,
+            {
+                "status": "ahead",
+                "behind_by": 0,
+                "base_commit": {"sha": ancestor},
+                "merge_base_commit": {"sha": ancestor},
+            },
+        )
+
+    def tree_entries(self, repository, commit):
+        self.calls.append(("tree", commit))
+        if self.failure == "tree":
+            raise BRANCH_POLICY.PolicyError("simulated incomplete tree API response")
+        return self.parent_entries if commit == self.parent else self.head_entries
 
 
 class BranchPolicyTests(unittest.TestCase):
@@ -133,18 +203,40 @@ class BranchPolicyTests(unittest.TestCase):
             "promotion",
         )
 
-    def test_scoped_sync_and_reconciliation_are_accepted(self):
-        for head in (
-            "sync/android-pico/android-vr-refresh",
-            "reconcile/android-pico/android-vr-refresh",
-        ):
-            with self.subTest(head=head):
+    def test_scoped_sync_is_an_ordinary_scoped_change(self):
+        self.assertEqual(
+            BRANCH_POLICY.classify_pull_request(
+                self.branches,
+                "android-vr-pico",
+                "sync/android-pico/android-vr-refresh",
+            ),
+            "scoped-change",
+        )
+
+    def test_exact_reconciliation_names_are_classified_separately(self):
+        cases = (
+            ("android-main", "reconcile/android/main-refresh"),
+            ("apple-main", "reconcile/apple/main-refresh"),
+            ("apple-ios", "reconcile/ios/apple-refresh"),
+        )
+        for base, head in cases:
+            with self.subTest(base=base, head=head):
                 self.assertEqual(
-                    BRANCH_POLICY.classify_pull_request(
-                        self.branches, "android-vr-pico", head
-                    ),
-                    "scoped-change",
+                    BRANCH_POLICY.classify_pull_request(self.branches, base, head),
+                    "reconciliation",
                 )
+
+    def test_reconciliation_wrong_scope_root_empty_or_nested_name_is_rejected(self):
+        cases = (
+            ("apple-main", "reconcile/ios/main-refresh"),
+            ("main", "reconcile/main/child-refresh"),
+            ("apple-main", "reconcile/apple/"),
+            ("apple-main", "reconcile/apple/nested/name"),
+        )
+        for base, head in cases:
+            with self.subTest(base=base, head=head):
+                with self.assertRaises(BRANCH_POLICY.PolicyError):
+                    BRANCH_POLICY.classify_pull_request(self.branches, base, head)
 
     def test_archived_quest_scope_is_rejected(self):
         with self.assertRaises(BRANCH_POLICY.PolicyError):
@@ -234,7 +326,6 @@ class BranchPolicyTests(unittest.TestCase):
             dict(base="main", head="ci/main/replace-policy", head_repository_id=200),
             dict(base="android-main", head="ci/android/replace-policy", head_repository_id=100),
             dict(base="apple-main", head="sync/apple/main-refresh", head_repository_id=100),
-            dict(base="apple-ios", head="reconcile/ios/apple-refresh", head_repository_id=100),
         )
         for case in cases:
             with self.subTest(case=case):
@@ -280,6 +371,293 @@ class BranchPolicyTests(unittest.TestCase):
                     changed_files=("tools/branch-policy/check.py",),
                 )
                 self.assertEqual(result, "downstream-sync")
+
+    def reconciliation_api(self, base, parent, base_branch, parent_branch, **kwargs):
+        return FakeReconciliationApi(
+            base=base,
+            parent=parent,
+            base_branch=base_branch,
+            parent_branch=parent_branch,
+            **kwargs,
+        )
+
+    def attest(
+        self,
+        *,
+        base,
+        head,
+        api,
+        repository_id=100,
+        base_repository_id=100,
+        head_repository_id=100,
+    ):
+        return BRANCH_POLICY.attest_reconciliation(
+            self.branches,
+            base=base,
+            head=head,
+            repository="noah-be/overte",
+            repository_id=repository_id,
+            base_repository_id=base_repository_id,
+            head_repository_id=head_repository_id,
+            head_sha=RECONCILIATION_SHA,
+            api=api,
+        )
+
+    def test_valid_android_and_apple_reconciliations_are_attested(self):
+        cases = (
+            ("android-main", "main", "reconcile/android/main-refresh"),
+            ("apple-ios", "apple-main", "reconcile/ios/apple-refresh"),
+        )
+        for base, parent, head in cases:
+            with self.subTest(base=base, head=head):
+                api = self.reconciliation_api(
+                    BASE_SHA, PARENT_SHA, base, parent
+                )
+                attestation = self.attest(base=base, head=head, api=api)
+                result = BRANCH_POLICY.evaluate_pull_request(
+                    self.branches,
+                    base=base,
+                    head=head,
+                    repository_id=100,
+                    base_repository_id=100,
+                    head_repository_id=100,
+                    head_sha=RECONCILIATION_SHA,
+                    changed_files=("tools/branch-policy/check.py",),
+                    reconciliation_attestation=attestation,
+                )
+                self.assertEqual(result, "reconciliation")
+
+    def test_reconciliation_without_internal_attestation_is_rejected(self):
+        with self.assertRaisesRegex(BRANCH_POLICY.PolicyError, "trusted API"):
+            BRANCH_POLICY.evaluate_pull_request(
+                self.branches,
+                base="apple-main",
+                head="reconcile/apple/main-refresh",
+                repository_id=100,
+                base_repository_id=100,
+                head_repository_id=100,
+                head_sha=RECONCILIATION_SHA,
+            )
+
+    def test_reconciliation_from_a_fork_or_foreign_base_is_rejected_before_api(self):
+        cases = (
+            {"head_repository_id": 200},
+            {"base_repository_id": 200, "head_repository_id": 200},
+        )
+        for identifiers in cases:
+            with self.subTest(identifiers=identifiers):
+                api = self.reconciliation_api(
+                    BASE_SHA, PARENT_SHA, "apple-main", "main"
+                )
+                with self.assertRaisesRegex(BRANCH_POLICY.PolicyError, "event repository"):
+                    self.attest(
+                        base="apple-main",
+                        head="reconcile/apple/main-refresh",
+                        api=api,
+                        **identifiers,
+                    )
+                self.assertEqual(api.calls, [])
+
+    def test_stale_base_or_parent_merge_parent_is_rejected(self):
+        cases = (
+            (STALE_SHA, PARENT_SHA),
+            (BASE_SHA, STALE_SHA),
+        )
+        for first_parent, second_parent in cases:
+            with self.subTest(parents=(first_parent, second_parent)):
+                api = self.reconciliation_api(
+                    BASE_SHA,
+                    PARENT_SHA,
+                    "apple-main",
+                    "main",
+                    parents=(first_parent, second_parent),
+                )
+                with self.assertRaisesRegex(BRANCH_POLICY.PolicyError, "direct merge"):
+                    self.attest(
+                        base="apple-main",
+                        head="reconcile/apple/main-refresh",
+                        api=api,
+                    )
+
+    def test_missing_base_or_parent_ancestry_is_rejected(self):
+        invalid = {
+            "status": "diverged",
+            "behind_by": 1,
+            "base_commit": {"sha": BASE_SHA},
+            "merge_base_commit": {"sha": STALE_SHA},
+        }
+        for missing in (BASE_SHA, PARENT_SHA):
+            with self.subTest(missing=missing):
+                api = self.reconciliation_api(
+                    BASE_SHA,
+                    PARENT_SHA,
+                    "apple-main",
+                    "main",
+                    comparisons={missing: invalid},
+                )
+                with self.assertRaisesRegex(BRANCH_POLICY.PolicyError, "not an ancestor"):
+                    self.attest(
+                        base="apple-main",
+                        head="reconcile/apple/main-refresh",
+                        api=api,
+                    )
+
+    def test_skipped_hierarchy_level_is_rejected(self):
+        api = self.reconciliation_api(
+            BASE_SHA,
+            PARENT_SHA,
+            "apple-ios",
+            "apple-main",
+            parents=(BASE_SHA, CURRENT_SHA),
+        )
+        with self.assertRaisesRegex(BRANCH_POLICY.PolicyError, "direct merge"):
+            self.attest(
+                base="apple-ios",
+                head="reconcile/ios/main-refresh",
+                api=api,
+            )
+
+    def test_changed_deleted_added_mode_or_blob_privileged_entry_is_rejected(self):
+        changed_cases = {
+            "changed": (
+                (".github/branch-policy.json", "100644", "blob", "8" * 40),
+                PRIVILEGED_ENTRIES[1],
+            ),
+            "deleted": PRIVILEGED_ENTRIES[:-1],
+            "added": PRIVILEGED_ENTRIES
+            + (("tools/branch-policy/extra.py", "100644", "blob", "8" * 40),),
+            "mode": (
+                PRIVILEGED_ENTRIES[0],
+                ("tools/branch-policy/check.py", "100644", "blob", "7" * 40),
+            ),
+            "blob": (
+                PRIVILEGED_ENTRIES[0],
+                ("tools/branch-policy/check.py", "100755", "blob", "8" * 40),
+            ),
+        }
+        for kind, head_entries in changed_cases.items():
+            with self.subTest(kind=kind):
+                api = self.reconciliation_api(
+                    BASE_SHA,
+                    PARENT_SHA,
+                    "apple-main",
+                    "main",
+                    head_entries=head_entries,
+                )
+                with self.assertRaisesRegex(BRANCH_POLICY.PolicyError, "privileged tree"):
+                    self.attest(
+                        base="apple-main",
+                        head="reconcile/apple/main-refresh",
+                        api=api,
+                    )
+
+    def test_api_compare_and_incomplete_tree_errors_fail_closed(self):
+        for failure in ("branch", "commit", "compare", "tree"):
+            with self.subTest(failure=failure):
+                api = self.reconciliation_api(
+                    BASE_SHA,
+                    PARENT_SHA,
+                    "apple-main",
+                    "main",
+                    failure=failure,
+                )
+                with self.assertRaises(BRANCH_POLICY.PolicyError):
+                    self.attest(
+                        base="apple-main",
+                        head="reconcile/apple/main-refresh",
+                        api=api,
+                    )
+
+    def test_base_or_parent_ref_drift_during_attestation_is_rejected(self):
+        cases = (
+            {
+                "apple-main": [BASE_SHA, STALE_SHA],
+                "main": [PARENT_SHA, PARENT_SHA],
+            },
+            {
+                "apple-main": [BASE_SHA, BASE_SHA],
+                "main": [PARENT_SHA, STALE_SHA],
+            },
+        )
+        for branch_sequences in cases:
+            with self.subTest(branch_sequences=branch_sequences):
+                api = self.reconciliation_api(
+                    BASE_SHA,
+                    PARENT_SHA,
+                    "apple-main",
+                    "main",
+                    branch_sequences=branch_sequences,
+                )
+                with self.assertRaisesRegex(BRANCH_POLICY.PolicyError, "moved"):
+                    self.attest(
+                        base="apple-main",
+                        head="reconcile/apple/main-refresh",
+                        api=api,
+                    )
+
+    def test_production_api_rejects_invalid_json_and_incomplete_trees(self):
+        api = BRANCH_POLICY.GitHubBranchApi()
+        completed = subprocess.CompletedProcess(
+            args=["gh", "api"], returncode=0, stdout="not-json", stderr=""
+        )
+        with mock.patch.object(BRANCH_POLICY.subprocess, "run", return_value=completed):
+            with self.assertRaisesRegex(BRANCH_POLICY.PolicyError, "invalid JSON"):
+                api._request("repos/example/project", "test response")
+
+        for document in (
+            {"truncated": True, "tree": []},
+            {"truncated": False},
+        ):
+            with self.subTest(document=document):
+                with mock.patch.object(api, "_request", return_value=document):
+                    with self.assertRaisesRegex(BRANCH_POLICY.PolicyError, "incomplete"):
+                        api.tree_entries("example/project", CURRENT_SHA)
+
+    def test_production_tree_parser_rejects_duplicates_mode_and_blob_errors(self):
+        api = BRANCH_POLICY.GitHubBranchApi()
+        entry = {
+            "path": ".github/branch-policy.json",
+            "mode": "100644",
+            "type": "blob",
+            "sha": PRIVILEGED_BLOB_SHA,
+        }
+        documents = (
+            {"truncated": False, "tree": [entry, entry]},
+            {
+                "truncated": False,
+                "tree": [{**entry, "mode": "invalid"}],
+            },
+            {
+                "truncated": False,
+                "tree": [{**entry, "sha": "not-a-sha"}],
+            },
+        )
+        for document in documents:
+            with self.subTest(document=document):
+                with mock.patch.object(api, "_request", return_value=document):
+                    with self.assertRaises(BRANCH_POLICY.PolicyError):
+                        api.tree_entries("example/project", CURRENT_SHA)
+
+    def test_production_compare_parser_rejects_malformed_or_diverged_results(self):
+        invalid_documents = (
+            {},
+            {
+                "status": "diverged",
+                "behind_by": 1,
+                "base_commit": {"sha": BASE_SHA},
+                "merge_base_commit": {"sha": STALE_SHA},
+            },
+            {
+                "status": "ahead",
+                "behind_by": 0,
+                "base_commit": {"sha": STALE_SHA},
+                "merge_base_commit": {"sha": BASE_SHA},
+            },
+        )
+        for document in invalid_documents:
+            with self.subTest(document=document):
+                with self.assertRaises(BRANCH_POLICY.PolicyError):
+                    BRANCH_POLICY.require_ancestor_comparison(document, BASE_SHA)
 
     def test_policy_rejects_inconsistent_relationships(self):
         document = json.loads(POLICY.read_text(encoding="utf-8"))

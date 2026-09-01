@@ -69,5 +69,6 @@ jobs:
             --base-repository-id "$BASE_REPOSITORY_ID" \
             --head-repository-id "$HEAD_REPOSITORY_ID" \
             --head-sha "$HEAD_SHA" \
+            --repository "$REPOSITORY" \
             "${expected_head_args[@]}" \
             --changed-files-stdin

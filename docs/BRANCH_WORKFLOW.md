@@ -69,10 +69,22 @@ When resolving a conflict:
 - run both the parent's relevant contracts and the child's complete required
   gate before merging.
 
-Privileged branch-policy and synchronization paths are not conflict-resolution
-surface for a temporary reconciliation branch. They may flow to a child only
-from the current direct permanent parent under the repository's exact-head
-check; other governance changes remain owned by `main`.
+The reconciliation branch name must exactly match
+`reconcile/<child-scope>/<name>`. It starts at the current child and its head is
+the normal merge commit whose first parent is that exact child SHA and whose
+second parent is the exact current direct-parent SHA. Both tips are obtained
+from the GitHub API by the trusted default-branch policy checker and must remain
+unchanged throughout its attestation.
+
+Privileged branch-policy and synchronization paths are not manually resolved
+on a temporary reconciliation branch. Their complete head tree must exactly
+match the current direct parent's tree for every privileged path: existence,
+mode, object type, and object SHA are all compared. Missing, additional,
+changed, or deleted privileged entries fail closed. The checker also requires
+both current commits to be ancestors of the head and rejects API, comparison,
+or incomplete-tree errors. It runs with read-only permissions and never
+executes code from the pull request. Other governance changes remain owned by
+`main`, and an ordinary `sync/*` topic receives no reconciliation privilege.
 
 ## Adapter ownership
 
