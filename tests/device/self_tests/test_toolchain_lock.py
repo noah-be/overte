@@ -69,7 +69,18 @@ class ToolchainLockTest(unittest.TestCase):
 
     def test_repository_lock_is_valid_and_complete(self):
         artifacts = validate_lock()
-        self.assertEqual(17, len(artifacts))
+        resolved_plugins = {
+            line.split(":", 1)[0]
+            for line in (DEVICE_ROOT / "jenkins/plugins.lock.txt").read_text(
+                encoding="utf-8"
+            ).splitlines()
+            if line and not line.startswith("#")
+        }
+        self.assertEqual(
+            {f"jenkins.plugins.{plugin}" for plugin in resolved_plugins},
+            {key for key in artifacts if key.startswith("jenkins.plugins.")},
+        )
+        self.assertEqual(78, len(artifacts))
         self.assertIn("jenkins.plugins.configuration-as-code", artifacts)
         self.assertIn("jenkins.plugins.git", artifacts)
         self.assertIn("appium.iosRuntime.remoteXpc", artifacts)
