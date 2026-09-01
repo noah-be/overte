@@ -108,7 +108,7 @@ def runPhoneSuite(String suite) {
 }
 
 pipeline {
-    agent { label 'overte-device-interactive' }
+    agent { label 'overte-device-phone' }
 
     options {
         timeout(time: 4, unit: 'HOURS')

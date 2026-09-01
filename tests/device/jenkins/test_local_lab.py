@@ -31,15 +31,22 @@ class LocalLabBootstrapTest(unittest.TestCase):
             values = {
                 "password": root / "private/admin-password",
                 "agentRoot": root / "private/agent",
+                "agentRoots": {
+                    "phone": root / "private/agent",
+                    "ipad": root / "private/agents/ipad",
+                    "pico": root / "private/agents/pico",
+                },
                 "casc": root / "private/jenkins.yaml",
             }
-            values["agentRoot"].mkdir(parents=True)
+            for agent_root in values["agentRoots"].values():
+                agent_root.mkdir(parents=True)
             LAB.secure_write(values["password"], "not-embedded-in-yaml\n")
             LAB.render_casc(values)
             rendered = values["casc"].read_text(encoding="utf-8")
             self.assertNotIn("not-embedded-in-yaml", rendered)
             self.assertIn(values["password"].as_posix(), rendered)
-            self.assertIn(values["agentRoot"].as_posix(), rendered)
+            for agent_root in values["agentRoots"].values():
+                self.assertIn(agent_root.as_posix(), rendered)
             self.assertNotIn("__OVERTE_", rendered)
 
     def test_install_writes_private_state_from_pinned_artifacts(self):
@@ -70,6 +77,8 @@ class LocalLabBootstrapTest(unittest.TestCase):
             state = json.loads(state_path.read_text(encoding="utf-8"))
             self.assertEqual("http://127.0.0.1:18080", state["serverUrl"])
             self.assertEqual(str(appium), state["appiumExecutable"])
+            self.assertEqual({"phone", "ipad", "pico"}, set(state["agentRoots"]))
+            self.assertEqual(3, len(set(state["agentRoots"].values())))
             self.assertNotIn(
                 (root / "private/admin-password").read_text().strip(),
                 (root / "private/jenkins.yaml").read_text(encoding="utf-8"),
@@ -87,6 +96,32 @@ class LocalLabBootstrapTest(unittest.TestCase):
             LAB.secure_write(root / "password", "unused\n")
             arguments = argparse.Namespace(config_root=str(root))
             self.assertEqual(1, LAB.status(arguments))
+
+    def test_command_agent_launchers_are_private_and_role_isolated(self):
+        with tempfile.TemporaryDirectory(prefix="overte-command-agents-") as name:
+            root = Path(name)
+            java = root / "java"
+            java.write_text("runtime", encoding="utf-8")
+            java.chmod(0o700)
+            phone_root = root / "agent"
+            phone_root.mkdir()
+            (phone_root / "agent.jar").write_bytes(b"agent")
+            LAB.secure_write(root / "agent.env", 'OVERTE_ANDROID_ADB="/usr/bin/adb"\n')
+            LAB.secure_write(root / "local-lab.json", json.dumps({
+                "schemaVersion": 1,
+                "java": str(java),
+                "agentRoot": str(phone_root),
+            }))
+            arguments = argparse.Namespace(config_root=str(root))
+            with patch.object(LAB.platform, "system", return_value="Linux"):
+                self.assertEqual(0, LAB.prepare_command_agent_launchers(arguments))
+            state = json.loads((root / "local-lab.json").read_text())
+            self.assertEqual(3, len(set(state["agentRoots"].values())))
+            for agent_root in map(Path, state["agentRoots"].values()):
+                launcher = agent_root / "launch-command-agent"
+                self.assertTrue(launcher.is_file())
+                self.assertEqual(0o700, launcher.stat().st_mode & 0o777)
+                self.assertIn(str(agent_root), launcher.read_text())
 
     def test_systemd_appium_service_receives_android_sdk(self):
         with tempfile.TemporaryDirectory(prefix="overte-local-lab-systemd-") as name:
@@ -117,6 +152,13 @@ class LocalLabBootstrapTest(unittest.TestCase):
             unit = (fake_home / ".config/systemd/user/overte-appium.service").read_text()
             self.assertIn(f'Environment="ANDROID_SDK_ROOT={sdk.resolve()}"', unit)
             self.assertIn(f'Environment="ANDROID_HOME={sdk.resolve()}"', unit)
+            ios_unit = (fake_home / ".config/systemd/user/overte-appium-ios.service").read_text()
+            self.assertIn('"--port" "4725"', ios_unit)
+            self.assertIn('"--port" "4723"', unit)
+            for service in ("overte-jenkins-agent.service",
+                            "overte-jenkins-agent-ipad.service",
+                            "overte-jenkins-agent-pico.service"):
+                self.assertTrue((fake_home / ".config/systemd/user" / service).is_file())
 
     def test_private_target_templates_start_disabled(self):
         with tempfile.TemporaryDirectory(prefix="overte-private-targets-") as name:
@@ -134,6 +176,14 @@ class LocalLabBootstrapTest(unittest.TestCase):
             self.assertTrue(payload["targets"])
             self.assertTrue(all(target["enabled"] is False
                                 for target in payload["targets"]))
+            endpoints = {target["serverUrl"] for target in payload["targets"]}
+            self.assertEqual(2, len(endpoints))
+            android = next(target for target in payload["targets"]
+                           if target["platform"] == "android")
+            ios = next(target for target in payload["targets"]
+                       if target["platform"] == "ios")
+            self.assertIsInstance(android["capabilities"]["appium:systemPort"], int)
+            self.assertIsInstance(ios["capabilities"]["appium:wdaLocalPort"], int)
             agent_environment = (root / "agent.env").read_text(encoding="utf-8")
             self.assertIn("OVERTE_APPIUM_TARGETS=", agent_environment)
             self.assertIn("OVERTE_CONAN_CACHE_ROOT=", agent_environment)

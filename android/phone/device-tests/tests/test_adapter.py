@@ -623,7 +623,7 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
     def test_phone_jenkins_pipeline_is_locked_private_and_general_e2e(self):
         source = JENKINSFILE.read_text(encoding="utf-8")
         for required in (
-                "agent { label 'overte-device-interactive' }",
+                "agent { label 'overte-device-phone' }",
                 "lock(resource: params.DEVICE_RESOURCE.trim()",
                 "withCredentials([string(",
                 "return 'android/phone/device-tests/adapter.json'",
