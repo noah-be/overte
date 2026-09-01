@@ -58,9 +58,9 @@ jobs:
             expected_head_args=(--expected-head-sha "$expected_head_sha")
           fi
 
-          changed_files=$(gh api --paginate --slurp \
+          changed_files=$(gh api --paginate \
             "repos/$REPOSITORY/pulls/$PULL_REQUEST/files" \
-            --jq 'add | .[].filename')
+            --jq '.[].filename')
 
           printf '%s\n' "$changed_files" | python3 tools/branch-policy/check.py check-pr \
             --base "$BASE_BRANCH" \

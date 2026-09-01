@@ -80,6 +80,9 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         checkout = source.split("with:", 1)[1].split("- name: Validate", 1)[0]
         self.assertNotIn("github.event.pull_request.head.sha", checkout)
         self.assertIn("pulls/$PULL_REQUEST/files", source)
+        self.assertIn("gh api --paginate", source)
+        self.assertIn("--jq '.[].filename'", source)
+        self.assertNotIn("--paginate --slurp", source)
         self.assertIn("--changed-files-stdin", source)
 
     def test_governance_actions_are_pinned(self):
