@@ -35,6 +35,8 @@ SUITES = (
     Suite("device-e2e-contracts", "quick", (
         sys.executable, "tests/device/run_control_plane_tests.py", "--profile", "quick",
         "--junit", "build/test-results/device-e2e-contracts.xml")),
+    Suite("documentation", "documentation", (
+        sys.executable, "tests/check-documentation.py", "--base", "HEAD^1")),
     Suite("pico4-device-free", "quick", ("bash", "android/vr/pico/tests/pico-device-free-test.sh")),
     Suite("native-ctest", "native", ("bash", "tests/project-native-test.sh")),
 )
