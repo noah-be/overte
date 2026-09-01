@@ -144,9 +144,7 @@ interface/compiledResources
 # GPUCache
 /interface/resources/GPUCache/*
 
-# package lock files
-/tools/jsdoc/package-lock.json
-/server-console/package-lock.json
+# npm lockfiles are reproducibility inputs and must remain versioned.
 
 # ignore local unity project files for avatar exporter
 /tools/unity-avatar-exporter
