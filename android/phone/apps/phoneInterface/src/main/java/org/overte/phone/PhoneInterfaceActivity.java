@@ -21,6 +21,8 @@ import android.view.WindowManager;
 import android.window.OnBackInvokedCallback;
 import android.window.OnBackInvokedDispatcher;
 
+import org.qtproject.qt5.android.QtActivityDelegate;
+import org.qtproject.qt5.android.QtNative;
 import org.qtproject.qt5.android.bindings.QtActivity;
 
 import io.highfidelity.utils.HifiUtils;
@@ -43,6 +45,13 @@ public final class PhoneInterfaceActivity extends QtActivity
             | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
             | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
             | View.SYSTEM_UI_FLAG_LAYOUT_STABLE;
+    private static final int QT_IMH_NO_AUTO_UPPERCASE = 0x4;
+    private static final int QT_IMH_NO_PREDICTIVE_TEXT = 0x40;
+    private static final int QT_IMH_URL_CHARACTERS_ONLY = 0x400000;
+    private static final int PHONE_ADDRESS_INPUT_HINTS =
+            QT_IMH_NO_AUTO_UPPERCASE
+            | QT_IMH_NO_PREDICTIVE_TEXT
+            | QT_IMH_URL_CHARACTERS_ONLY;
 
     private static native boolean nativeProcessUrl(String url);
     private static native boolean nativeHandleBack();
@@ -83,6 +92,26 @@ public final class PhoneInterfaceActivity extends QtActivity
     private int touchUiMetricsRetryAttempts;
     private InputManager inputManager;
     private boolean inputListenerRegistered;
+
+    /** Raises Qt's existing editor after an offscreen QML field gains focus. */
+    public static void requestSoftwareKeyboard() {
+        final android.app.Activity activity = QtNative.activity();
+        if (activity == null) {
+            return;
+        }
+        activity.runOnUiThread(() -> {
+            QtActivityDelegate delegate = QtNative.activityDelegate();
+            if (delegate != null) {
+                View content = activity.getWindow().getDecorView();
+                int width = Math.max(1, content.getWidth());
+                int height = Math.max(1, content.getHeight());
+                // Qt 5 selects adjustResize only when the reported editor lies
+                // in the portion of the window covered by a landscape IME.
+                delegate.showSoftwareKeyboard(
+                        0, height - 1, width, 1, PHONE_ADDRESS_INPUT_HINTS, 0);
+            }
+        });
+    }
 
     // Keep API-33-only types out of the Activity's field signatures so this
     // class remains verifiable on the supported Android 8-12 releases.
@@ -148,10 +177,10 @@ public final class PhoneInterfaceActivity extends QtActivity
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        // Establish adaptive sensor rotation before Qt creates its surface.
-        // Otherwise Qt 5 can retain the previous orientation's launch geometry
-        // after Android rotates the Activity.
-        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR);
+        // Lock the phone client to its supported landscape presentation before
+        // Qt creates its surface. This must not depend on the device's
+        // auto-rotate setting or on how the phone is held during launch.
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
 
         // QtActivityLoader appends its trusted applicationArguments extra. Do
         // not copy it into APPLICATION_PARAMETERS as that duplicates argv.
@@ -499,7 +528,7 @@ public final class PhoneInterfaceActivity extends QtActivity
         View decorView = window.getDecorView();
 
         // Drawing into display cutouts is supported from Android 9 onward.
-        // SHORT_EDGES preserves the sensor-rotated viewport without relying on
+        // SHORT_EDGES preserves the landscape viewport without relying on
         // newer cutout modes that do not exist on all supported devices.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             WindowManager.LayoutParams attributes = window.getAttributes();

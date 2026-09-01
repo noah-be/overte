@@ -28,12 +28,25 @@ FocusScope {
         if (candidate.length === 0 || candidate.length > maximumAddressLength ||
                 /[\u0000-\u001f\u007f]/.test(candidate)) {
             addressError.text = qsTr("Enter a valid address.")
-            addressField.forceActiveFocus()
+            requestAddressInput()
             return
         }
         addressError.text = ""
         addressDialog.loadAddress(candidate)
         closeDialog()
+    }
+
+    function requestAddressInput() {
+        if (!addressField.activeFocus) {
+            addressField.forceActiveFocus()
+            return
+        }
+        Qt.callLater(function () {
+            if (root.shown && addressField.activeFocus) {
+                DialogsManager.requestPhoneSoftwareKeyboard()
+                touchMetrics.ensureVisible(viewport, addressField)
+            }
+        })
     }
 
     Rectangle {
@@ -51,7 +64,8 @@ FocusScope {
         id: viewport
         anchors.fill: parent
         contentWidth: width
-        contentHeight: Math.max(height, panel.height + 2 * touchMetrics.spacingLarge)
+        contentHeight: Math.max(height,
+            panel.y + panel.height + touchMetrics.spacingLarge)
         clip: true
         boundsBehavior: touchMetrics.directTouch
             ? Flickable.DragOverBounds : Flickable.StopAtBounds
@@ -61,11 +75,15 @@ FocusScope {
 
     Rectangle {
         id: panel
+        objectName: "PhoneAddressPanel"
         width: Math.max(1,
             Math.min(viewport.width - 2 * touchMetrics.spacingLarge, 720))
         height: content.implicitHeight + 48
         x: Math.max(touchMetrics.spacingLarge, (viewport.width - width) / 2)
-        y: Math.max(touchMetrics.spacingLarge, (viewport.height - height) / 2)
+        y: touchMetrics.keyboardVisible
+            ? Math.max(touchMetrics.safeInsetTop + touchMetrics.spacingLarge,
+                touchMetrics.spacingLarge)
+            : Math.max(touchMetrics.spacingLarge, (viewport.height - height) / 2)
         radius: 18
         color: "#e6282d33"
         border.color: "#6679858e"
@@ -100,6 +118,7 @@ FocusScope {
                 placeholderText: qsTr("Address")
                 maximumLength: root.maximumAddressLength
                 inputMethodHints: Qt.ImhNoAutoUppercase
+                    | Qt.ImhNoPredictiveText | Qt.ImhUrlCharactersOnly
                 activeFocusOnPress: true
                 activeFocusOnTab: true
                 Accessible.role: Accessible.EditableText
@@ -109,6 +128,7 @@ FocusScope {
                 Keys.onReturnPressed: root.goToAddress()
                 onActiveFocusChanged: if (activeFocus) {
                     Qt.callLater(function () {
+                        DialogsManager.requestPhoneSoftwareKeyboard()
                         touchMetrics.ensureVisible(viewport, addressField)
                     })
                 }
@@ -199,9 +219,10 @@ FocusScope {
         addressDialog.observeShownChanged(shown)
         if (shown) {
             addressError.text = ""
-            addressField.text = AddressManager.href
-            addressField.selectAll()
-            addressField.forceActiveFocus()
+            addressField.text = ""
+            addressField.deselect()
+            addressField.cursorPosition = 0
+            requestAddressInput()
         } else {
             Qt.inputMethod.hide()
         }
@@ -221,9 +242,10 @@ FocusScope {
     Component.onCompleted: {
         addressDialog.observeShownChanged(shown)
         addressError.text = ""
-        addressField.text = AddressManager.href
-        addressField.selectAll()
-        addressField.forceActiveFocus()
+        addressField.text = ""
+        addressField.deselect()
+        addressField.cursorPosition = 0
+        requestAddressInput()
     }
 
     Component.onDestruction: {

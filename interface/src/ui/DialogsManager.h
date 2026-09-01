@@ -52,6 +52,7 @@ public slots:
     void hideLoginDialog();
     void showDomainLoginDialog(const QString& domain = "");
     bool closePhoneDialog();
+    void requestPhoneSoftwareKeyboard();
     void octreeStatsDetails();
     void lodTools();
     void hmdTools(bool showTools);

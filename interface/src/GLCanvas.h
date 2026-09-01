@@ -18,6 +18,7 @@
 class GLCanvas : public GLWidget {
     Q_OBJECT
 protected:
+    QVariant inputMethodQuery(Qt::InputMethodQuery query) const override;
     virtual bool event(QEvent* event) override;
 };
 

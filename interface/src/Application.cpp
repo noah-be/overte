@@ -23,6 +23,8 @@
 #include <QDateTime>
 #include <QSaveFile>
 #include <QStandardPaths>
+#include <QTimer>
+#include <QUrlQuery>
 #include <QtGui/QClipboard>
 #include <QtNetwork/QLocalSocket>
 #include <QtNetwork/QLocalServer>
@@ -1084,6 +1086,29 @@ void Application::loadServerlessDomain(QUrl domainURL) {
     if (domainURL.isEmpty()) {
         return;
     }
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    const auto schedulePhoneServerlessRootViewpoint = [this, domainURL](
+            const std::map<QString, QString>& namedPaths) {
+        // On a fresh installation the local scene can finish importing before
+        // Android startup has restored the avatar. Re-apply the authored root
+        // after the current event turn so that startup cannot leave the camera
+        // at the default origin. Explicit location queries remain authoritative.
+        if (QUrlQuery(domainURL).hasQueryItem(QStringLiteral("location"))) {
+            return;
+        }
+        const auto root = namedPaths.find(QStringLiteral("/"));
+        if (root == namedPaths.end() || root->second.isEmpty()) {
+            return;
+        }
+        const QString viewpoint = root->second;
+        QTimer::singleShot(0, this, [viewpoint] {
+            const bool applied = DependencyManager::get<AddressManager>()->goToViewpointForPath(
+                viewpoint, QStringLiteral("/"));
+            qCInfo(interfaceapp) << "PHONE_SERVERLESS_TRACE rootViewpointApplied"
+                << "success" << applied;
+        });
+    };
+#endif
 #if defined(ANDROID_APP_PICO_INTERFACE)
     const auto finishPicoServerlessImport = [this] {
         _picoServerlessSceneImportInProgress = false;
@@ -1199,6 +1224,9 @@ void Application::loadServerlessDomain(QUrl domainURL) {
             // before the signal leaves Pico's physics handoff blocked at
             // RECEIVING_WORLD indefinitely.
             setIsServerlessMode(true);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+            schedulePhoneServerlessRootViewpoint(namedPaths);
+#endif
             _octreeProcessor->getFullSceneReceivedCounter()++;
 #if defined(ANDROID_APP_PICO_INTERFACE)
             _picoServerlessSceneURL = domainURL;

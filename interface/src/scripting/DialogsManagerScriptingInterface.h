@@ -55,6 +55,9 @@ public slots:
      */
     void showLoginDialog();
 
+    // Phone-only at runtime; a no-op on other targets.
+    void requestPhoneSoftwareKeyboard();
+
 signals:
     /*@jsdoc
      * Triggered when the "Goto" dialog is opened or closed.

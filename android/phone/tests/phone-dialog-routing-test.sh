@@ -35,6 +35,41 @@ require "$address_body" 'addressDialog\.loadAddress\(' \
     'phone Go To delegates lookup to the existing AddressBarDialog model'
 require "$address_body" 'maximumAddressLength:[[:space:]]*4096' \
     'phone Go To bounds text before the QML/C++ boundary'
+require "$address_body" 'addressField[.]text[[:space:]]*=[[:space:]]*""' \
+    'phone Go To starts with an empty destination instead of desktop preselection'
+require "$address_body" 'addressField[.]deselect\(\)' \
+    'phone Go To suppresses the Android selection action menu on open'
+require "$address_body" 'DialogsManager[.]requestPhoneSoftwareKeyboard\(\)' \
+    'focused phone Go To input requests Qt Android native keyboard delivery'
+require "$address_body" 'y:[[:space:]]*touchMetrics[.]keyboardVisible' \
+    'phone Go To moves to the upper safe area while the system IME is visible'
+require "$repo_root/interface/src/ui/DialogsManager.cpp" \
+    'PhoneInterfaceActivity' \
+    'Phone dialog routing targets the Android activity'
+require "$repo_root/interface/src/ui/DialogsManager.cpp" \
+    'requestSoftwareKeyboard' \
+    'Phone dialog routing bridges native keyboard requests'
+require "$repo_root/interface/src/scripting/DialogsManagerScriptingInterface.cpp" \
+    'requestPhoneSoftwareKeyboard' \
+    'Phone keyboard requests are exposed through the QML scripting facade'
+require "$repo_root/android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java" \
+    'PHONE_ADDRESS_INPUT_HINTS' \
+    'Phone keyboard requests preserve URL and no-composition input hints'
+require "$repo_root/android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java" \
+    '0, height - 1, width, 1, PHONE_ADDRESS_INPUT_HINTS, 0' \
+    'Phone reports covered editor geometry so Qt preserves adjustResize behavior'
+require "$repo_root/interface/src/GLCanvas.cpp" \
+    'QCoreApplication::sendEvent\(focusItem, &queryEvent\)' \
+    'Phone forwards Android IME state queries to the focused offscreen QML field'
+require "$repo_root/interface/src/GLCanvas.cpp" \
+    'Qt::ImCursorRectangle.*Qt::ImAnchorRectangle' \
+    'Phone maps Android cursor and selection handles to the QML field geometry'
+require "$repo_root/libraries/ui/src/OffscreenUi.cpp" \
+    'abc -> abccba' \
+    'Offscreen UI documents and prevents duplicate Android composition delivery'
+require "$repo_root/libraries/ui/src/OffscreenUi.cpp" \
+    'window && window->activeFocusItem\(\) [?] true : result' \
+    'Offscreen UI consumes the original event after Android QML IME delivery'
 require "$address_body" 'candidate[[:space:]]*=[[:space:]]*addressField[.]text[.]trim\(\)' \
     'phone Go To normalizes surrounding address whitespace'
 require "$address_body" '\\u0000-\\u001f\\u007f' \

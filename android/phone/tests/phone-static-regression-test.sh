@@ -48,6 +48,7 @@ readonly tests=(
     phone-render-timing-telemetry-test.sh
     phone-script-debug-assets-trim-test.sh
     phone-serverless-packaging-test.sh
+    phone-serverless-viewpoint-test.sh
     phone-shader-payload-test.sh
     phone-tablet-static-test.sh
     phone-touch-navigation-test.sh

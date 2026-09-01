@@ -140,7 +140,9 @@ public:
     void setLocalBoundingBox(const glm::vec3& minCorner, const glm::vec3& scale);
 
     void setPhysicsEngine(const PhysicsEnginePointer& engine);
-    bool isEnabledAndReady() const { return (bool)_physicsEngine; }
+    // A PhysicsEngine back-pointer alone is insufficient during serverless
+    // startup: transform harvest also requires an attached body in the world.
+    bool isEnabledAndReady() const { return (bool)_physicsEngine && _rigidBody && _inWorld; }
     bool isStuck() const { return _isStuck; }
     float getCollisionBrakeAttenuationFactor() const;
 

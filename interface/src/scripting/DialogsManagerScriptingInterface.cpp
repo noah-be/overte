@@ -41,6 +41,11 @@ void DialogsManagerScriptingInterface::showLoginDialog() {
         "showLoginDialog", Qt::QueuedConnection);
 }
 
+void DialogsManagerScriptingInterface::requestPhoneSoftwareKeyboard() {
+    QMetaObject::invokeMethod(DependencyManager::get<DialogsManager>().data(),
+        "requestPhoneSoftwareKeyboard", Qt::QueuedConnection);
+}
+
 void DialogsManagerScriptingInterface::showFeed() {
     QMetaObject::invokeMethod(DependencyManager::get<DialogsManager>().data(),
         "showFeed", Qt::QueuedConnection);

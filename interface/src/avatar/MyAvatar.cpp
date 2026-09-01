@@ -761,16 +761,27 @@ void MyAvatar::update(float deltaTime) {
         setWorldPosition(_goToPosition);
         setWorldOrientation(_goToOrientation);
         _headControllerFacingMovingAverage = _headControllerFacing; // reset moving average
-        _goToPending = false;
         // updateFromHMDSensorMatrix (called from paintGL) expects that the sensorToWorldMatrix is updated for any position changes
         // that happen between render and Application::update (which calls updateSensorToWorldMatrix to do so).
         // However, render/MyAvatar::update/Application::update don't always match (e.g., when using the separate avatar update thread),
         // so we update now. It's ok if it updates again in the normal way.
         updateSensorToWorldMatrix();
-        emit positionGoneTo();
-        // Run safety tests as soon as we can after goToLocation, or clear if we're not colliding.
-        _physicsSafetyPending = getCollisionsEnabled();
-        _characterController.recomputeFlying(); // In case we've gone to into the sky.
+#if defined(Q_OS_IOS) || defined(ANDROID_APP_PHONE_INTERFACE)
+        // Mobile serverless startup can resolve the authored viewpoint before
+        // physics has attached the avatar body. Keep the go-to authoritative
+        // until the controller can consume it; otherwise the first physics
+        // harvest writes the old origin back over the scene viewpoint.
+        const bool canFinalizeGoTo = qApp->isPhysicsEnabled() && _characterController.isEnabledAndReady();
+#else
+        const bool canFinalizeGoTo = true;
+#endif
+        if (canFinalizeGoTo) {
+            _goToPending = false;
+            emit positionGoneTo();
+            // Run safety tests as soon as we can after goToLocation, or clear if we're not colliding.
+            _physicsSafetyPending = getCollisionsEnabled();
+            _characterController.recomputeFlying(); // In case we've gone to into the sky.
+        }
     }
     if (_goToFeetAjustment && _skeletonModel->isLoaded()) {
         auto feetAjustment = getWorldPosition() - getWorldFeetPosition();

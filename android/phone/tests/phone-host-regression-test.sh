@@ -378,13 +378,18 @@ require_text "$manifest" 'android:scheme="hifi"' \
     'manifest accepts legacy hifi deep links'
 require_text "$manifest" 'android:name="\.PhoneInterfaceActivity"' \
     'manifest declares the Qt client activity'
-require_text "$manifest" 'android:screenOrientation="fullSensor"' \
-    'manifest lets the adaptive phone UI follow every sensor orientation'
+require_text "$manifest" 'android:screenOrientation="landscape"' \
+    'manifest locks the phone UI to its supported landscape presentation'
+reject_text "$manifest" 'android:screenOrientation="fullSensor"' \
+    'manifest does not let device rotation or auto-rotate enable portrait mode'
 require_text "$manifest" 'android:windowSoftInputMode="adjustResize"' \
     'manifest keeps focused controls reachable while the system IME is visible'
 require_text phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java \
-    'SCREEN_ORIENTATION_FULL_SENSOR' \
-    'phone establishes its adaptive sensor orientation before Qt creates its rendering surface'
+    'SCREEN_ORIENTATION_LANDSCAPE' \
+    'phone establishes landscape before Qt creates its rendering surface'
+reject_text phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java \
+    'SCREEN_ORIENTATION_FULL_SENSOR|SCREEN_ORIENTATION_SENSOR_LANDSCAPE' \
+    'phone launch orientation does not depend on the device sensor or auto-rotate setting'
 require_text phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java \
     'WindowManager\.LayoutParams\.MATCH_PARENT' \
     'phone window always fills the Android activity bounds'

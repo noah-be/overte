@@ -1147,11 +1147,22 @@ bool OffscreenUi::eventFilter(QObject* originalDestination, QEvent* event) {
             break;
         }
         case QEvent::InputMethod:
-        case QEvent::InputMethodQuery:
+        case QEvent::InputMethodQuery: {
+#if defined(Q_OS_ANDROID)
+            // OffscreenSurface::eventFilter(), called above through the parent
+            // implementation, already forwards Android IME events directly to
+            // the active QML focus item. Sending the same event to the window
+            // here commits every composition twice (for example abc -> abccba).
+            // Consume it when that first path had a QML destination.
+            auto window = getWindow();
+            return window && window->activeFocusItem() ? true : result;
+#else
             if (QCoreApplication::sendEvent(getWindow(), event)) {
                 return result;
             }
             break;
+#endif
+        }
         default:
             break;
     }

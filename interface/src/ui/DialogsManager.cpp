@@ -16,6 +16,9 @@
 #include <QGuiApplication>
 #include <QInputMethod>
 #include <QMessageBox>
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include <QtAndroidExtras/QAndroidJniObject>
+#endif
 
 #include <AccountManager.h>
 #include <Application.h>
@@ -199,6 +202,15 @@ bool phone::closeTopmostDialog() {
     return dialogs && dialogs->closePhoneDialog();
 #else
     return false;
+#endif
+}
+
+void DialogsManager::requestPhoneSoftwareKeyboard() {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    QAndroidJniObject::callStaticMethod<void>(
+        "org/overte/phone/PhoneInterfaceActivity",
+        "requestSoftwareKeyboard",
+        "()V");
 #endif
 }
 
