@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "targets": [
+    {
+      "selector": "disabled-android-example",
+      "displayName": "Disabled Android example",
+      "platform": "android",
+      "physical": false,
+      "enabled": false,
+      "serverUrl": "http://127.0.0.1:4723",
+      "appId": "org.overte.example",
+      "capabilities": {
+        "platformName": "Android",
+        "appium:automationName": "UiAutomator2",
+        "appium:autoLaunch": false
+      },
+      "controls": {
+        "look": {
+          "start": [0.7, 0.4],
+          "end": [0.3, 0.4],
+          "mode": "swipe",
+          "durationSeconds": 0.5
+        },
+        "move": {
+          "forward": {"start": [0.2, 0.8], "end": [0.2, 0.6], "mode": "hold", "durationSeconds": 0.5}
+        },
+        "tablet": {
+          "openAccessibilityId": "TabletOpen",
+          "closeAccessibilityId": "TabletClose",
+          "semanticUi": {"contractVersion": 1}
+        }
+      }
+    },
+    {
+      "selector": "disabled-ios-example",
+      "displayName": "Disabled iOS example",
+      "platform": "ios",
+      "physical": false,
+      "enabled": false,
+      "serverUrl": "http://127.0.0.1:4723",
+      "appId": "org.overte.example",
+      "capabilities": {
+        "platformName": "iOS",
+        "appium:automationName": "XCUITest",
+        "appium:autoLaunch": false
+      },
+      "controls": {
+        "look": {
+          "start": [0.7, 0.4],
+          "end": [0.3, 0.4],
+          "mode": "swipe",
+          "durationSeconds": 0.5
+        },
+        "move": {
+          "forward": {"start": [0.2, 0.8], "end": [0.2, 0.6], "mode": "hold", "durationSeconds": 0.5}
+        },
+        "tablet": {
+          "openAccessibilityId": "TabletOpen",
+          "closeAccessibilityId": "TabletClose",
+          "semanticUi": {"contractVersion": 1}
+        }
+      }
+    }
+  ]
+}
