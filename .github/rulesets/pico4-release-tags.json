@@ -1,0 +1,24 @@
+{
+  "name": "Immutable Pico 4 release and dependency tags",
+  "target": "tag",
+  "enforcement": "active",
+  "bypass_actors": [],
+  "conditions": {
+    "ref_name": {
+      "include": [
+        "refs/tags/pico4-v*-rc.*",
+        "refs/tags/pico4-preview-*",
+        "refs/tags/pico4-deps-v*"
+      ],
+      "exclude": []
+    }
+  },
+  "rules": [
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "non_fast_forward"
+    }
+  ]
+}
