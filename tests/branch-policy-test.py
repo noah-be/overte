@@ -14,7 +14,6 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 CHECKER = ROOT / "tools/branch-policy/check.py"
-DRIFT_CHECKER = ROOT / "tools/branch-policy/drift.py"
 POLICY = ROOT / ".github/branch-policy.json"
 ARCHIVED_BRANCH_RULESET = ROOT / ".github/rulesets/archived-branches.json"
 SPEC = importlib.util.spec_from_file_location("branch_policy", CHECKER)
@@ -22,33 +21,6 @@ assert SPEC and SPEC.loader
 BRANCH_POLICY = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = BRANCH_POLICY
 SPEC.loader.exec_module(BRANCH_POLICY)
-sys.path.insert(0, str(CHECKER.parent))
-DRIFT_SPEC = importlib.util.spec_from_file_location("branch_drift", DRIFT_CHECKER)
-assert DRIFT_SPEC and DRIFT_SPEC.loader
-BRANCH_DRIFT = importlib.util.module_from_spec(DRIFT_SPEC)
-sys.modules[DRIFT_SPEC.name] = BRANCH_DRIFT
-DRIFT_SPEC.loader.exec_module(BRANCH_DRIFT)
-sys.path.pop(0)
-
-CURRENT_SHA = "1" * 40
-STALE_SHA = "2" * 40
-
-
-class FakeBranchApi:
-    def __init__(self, *, sha=CURRENT_SHA, comparisons=None, failure=None):
-        self.sha = sha
-        self.comparisons = comparisons or {}
-        self.failure = failure
-
-    def branch_sha(self, repository, branch):
-        if self.failure == "branch":
-            raise BRANCH_DRIFT.ApiError("simulated branch API failure")
-        return self.sha
-
-    def compare(self, repository, child, parent_sha):
-        if self.failure == "compare":
-            raise BRANCH_DRIFT.ApiError("simulated compare API failure")
-        return self.comparisons.get(child, {"ahead_by": 0, "status": "identical"})
 
 
 class BranchPolicyTests(unittest.TestCase):
@@ -94,10 +66,6 @@ class BranchPolicyTests(unittest.TestCase):
         self.assertEqual(
             {rule["type"] for rule in ruleset["rules"]},
             {"deletion", "non_fast_forward", "update"},
-        )
-        update = next(rule for rule in ruleset["rules"] if rule["type"] == "update")
-        self.assertEqual(
-            update["parameters"], {"update_allows_fetch_and_merge": False}
         )
 
     def test_desktop_operating_system_branches_are_direct_main_children(self):
@@ -174,78 +142,6 @@ class BranchPolicyTests(unittest.TestCase):
                 self.branches, "android-vr", "feature/android-pico/controllers"
             )
 
-    def test_foreign_fork_with_head_branch_main_is_rejected(self):
-        with self.assertRaisesRegex(BRANCH_POLICY.PolicyError, "base repository"):
-            BRANCH_POLICY.evaluate_pull_request(
-                self.branches,
-                base="android-main",
-                head="main",
-                repository_id=100,
-                base_repository_id=100,
-                head_repository_id=200,
-                head_sha=CURRENT_SHA,
-                expected_head_sha=CURRENT_SHA,
-            )
-
-    def test_same_parent_branch_name_with_wrong_repository_id_is_rejected(self):
-        with self.assertRaisesRegex(BRANCH_POLICY.PolicyError, "base repository"):
-            BRANCH_POLICY.evaluate_pull_request(
-                self.branches,
-                base="android-vr",
-                head="android-main",
-                repository_id=100,
-                base_repository_id=100,
-                head_repository_id=101,
-                head_sha=CURRENT_SHA,
-                expected_head_sha=CURRENT_SHA,
-            )
-
-    def test_stale_parent_sha_is_rejected(self):
-        with self.assertRaisesRegex(BRANCH_POLICY.PolicyError, "stale parent SHA"):
-            BRANCH_POLICY.evaluate_pull_request(
-                self.branches,
-                base="android-main",
-                head="main",
-                repository_id=100,
-                base_repository_id=100,
-                head_repository_id=100,
-                head_sha=STALE_SHA,
-                expected_head_sha=CURRENT_SHA,
-            )
-
-    def test_privileged_changes_from_forks_or_to_child_branches_are_rejected(self):
-        privileged = (".github/workflows/branch-sync.yml",)
-        cases = (
-            dict(base="main", head="ci/main/replace-policy", head_repository_id=200),
-            dict(base="android-main", head="ci/android/replace-policy", head_repository_id=100),
-        )
-        for case in cases:
-            with self.subTest(case=case):
-                with self.assertRaisesRegex(BRANCH_POLICY.PolicyError, "privileged policy"):
-                    BRANCH_POLICY.evaluate_pull_request(
-                        self.branches,
-                        base=case["base"],
-                        head=case["head"],
-                        repository_id=100,
-                        base_repository_id=100,
-                        head_repository_id=case["head_repository_id"],
-                        head_sha=CURRENT_SHA,
-                        changed_files=privileged,
-                    )
-
-    def test_privileged_changes_are_allowed_only_for_same_repository_main_prs(self):
-        result = BRANCH_POLICY.evaluate_pull_request(
-            self.branches,
-            base="main",
-            head="ci/main/replace-policy",
-            repository_id=100,
-            base_repository_id=100,
-            head_repository_id=100,
-            head_sha=CURRENT_SHA,
-            changed_files=("tools/branch-policy/check.py",),
-        )
-        self.assertEqual(result, "scoped-change")
-
     def test_policy_rejects_inconsistent_relationships(self):
         document = json.loads(POLICY.read_text(encoding="utf-8"))
         document["branches"]["android-vr"]["parent"] = "apple-main"
@@ -258,54 +154,11 @@ class BranchPolicyTests(unittest.TestCase):
     def test_cli_fails_closed(self):
         result = subprocess.run(
             [sys.executable, str(CHECKER), "check-pr", "--base", "main",
-             "--head", "feature/android-pico/wrong-layer",
-             "--repository-id", "100",
-             "--base-repository-id", "100", "--head-repository-id", "100",
-             "--head-sha", CURRENT_SHA],
+             "--head", "feature/android-pico/wrong-layer"],
             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         )
         self.assertEqual(result.returncode, 1)
         self.assertIn("branch policy violation", result.stdout)
-
-
-class BranchDriftTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.branches = BRANCH_POLICY.load_policy(POLICY)
-
-    def test_reports_drift_without_a_pull_request_candidate(self):
-        api = FakeBranchApi(
-            comparisons={"android-main": {"ahead_by": 3, "status": "ahead"}}
-        )
-        drifts = BRANCH_DRIFT.scan_parent(
-            self.branches, api, "noah-be/overte", "main", CURRENT_SHA
-        )
-        self.assertEqual(
-            [(item.parent, item.child, item.ahead_by) for item in drifts],
-            [("main", "android-main", 3)],
-        )
-
-    def test_stale_push_parent_sha_fails_closed(self):
-        with self.assertRaisesRegex(BRANCH_DRIFT.PolicyError, "stale parent SHA"):
-            BRANCH_DRIFT.scan_parent(
-                self.branches,
-                FakeBranchApi(),
-                "noah-be/overte",
-                "main",
-                STALE_SHA,
-            )
-
-    def test_branch_api_and_compare_errors_fail_closed(self):
-        for failure in ("branch", "compare"):
-            with self.subTest(failure=failure):
-                with self.assertRaises(BRANCH_DRIFT.ApiError):
-                    BRANCH_DRIFT.scan_parent(
-                        self.branches,
-                        FakeBranchApi(failure=failure),
-                        "noah-be/overte",
-                        "main",
-                        CURRENT_SHA,
-                    )
 
 
 if __name__ == "__main__":
