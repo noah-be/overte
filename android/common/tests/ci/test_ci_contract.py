@@ -37,14 +37,29 @@ VALID_WORKFLOW = VALID_ACTION + """
 """
 
 PERIODIC_WORKFLOW = """
+  mutation-extended:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+      contains(github.event.pull_request.labels.*.name, 'android-long-diagnostics'))
+    steps:
+      - run: common/tests/run-tests.sh mutation-extended
+      - if: always()
+        continue-on-error: true
   stability:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+      contains(github.event.pull_request.labels.*.name, 'android-long-diagnostics'))
     steps:
       - run: common/tests/run-tests.sh stability
       - if: always()
         continue-on-error: true
   endurance:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+      contains(github.event.pull_request.labels.*.name, 'android-long-diagnostics'))
     steps:
       - env:
           OVERTE_JS_ENDURANCE_CYCLES: 100
@@ -91,14 +106,19 @@ class CiContractTest(unittest.TestCase):
             build.replace("STRICT", "LENIENT"), lock))
         self.assertTrue(contract.validate_robolectric(build, "# empty\n"))
 
-    def test_periodic_jobs_are_schedule_or_dispatch_only_and_scaled(self):
+    def test_long_diagnostics_are_manual_or_label_only_and_scaled(self):
         self.assertEqual([], contract.validate_periodic_jobs(PERIODIC_WORKFLOW))
-        broken = PERIODIC_WORKFLOW.replace(contract.PERIODIC_CONDITION,
-                                           "github.event_name == 'pull_request'", 1)
-        self.assertTrue(any("stability must run only" in error
+        broken = PERIODIC_WORKFLOW.replace("github.event_name == 'workflow_dispatch'",
+                                           "github.event_name == 'push'", 1)
+        self.assertTrue(any("manual or labeled" in error
                             for error in contract.validate_periodic_jobs(broken)))
         broken = PERIODIC_WORKFLOW.replace("OVERTE_NATIVE_ENDURANCE_CYCLES: 1000", "")
         self.assertTrue(any("NATIVE_ENDURANCE" in error
+                            for error in contract.validate_periodic_jobs(broken)))
+        broken = PERIODIC_WORKFLOW.replace(
+            "github.event_name == 'workflow_dispatch'",
+            "github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'", 1)
+        self.assertTrue(any("contract-only schedule" in error
                             for error in contract.validate_periodic_jobs(broken)))
 
     def test_actual_workflow_event_matrix_and_parallel_needs(self):
@@ -109,17 +129,29 @@ class CiContractTest(unittest.TestCase):
         self.assertEqual(required, contract.workflow_event_matrix(workflow, "pull_request"))
         self.assertEqual(required | {"regression"},
                          contract.workflow_event_matrix(workflow, "push"))
-        self.assertEqual(required | periodic | {"regression"},
+        self.assertEqual({"contracts"},
                          contract.workflow_event_matrix(workflow, "schedule"))
         self.assertEqual(required | periodic | {"regression"},
                          contract.workflow_event_matrix(workflow, "workflow_dispatch", True))
         self.assertEqual(required | periodic,
                          contract.workflow_event_matrix(workflow, "workflow_dispatch", False))
+        self.assertEqual(required | periodic,
+                         contract.workflow_event_matrix(
+                             workflow, "pull_request", run_diagnostics=True))
         self.assertTrue(contract.quick_mutation_runs("pull_request"))
         self.assertTrue(contract.quick_mutation_runs("push"))
-        self.assertFalse(contract.quick_mutation_runs("schedule"))
         self.assertFalse(contract.quick_mutation_runs("workflow_dispatch"))
         self.assertEqual([], contract.validate_workflow_topology(workflow))
+
+    def test_workflow_script_references_must_exist(self):
+        with self.subTest("actual workflow"):
+            root = Path(__file__).resolve().parents[3]
+            workflow = (root.parent / ".github/workflows/android-tests.yml").read_text(
+                encoding="utf-8")
+            self.assertEqual([], contract.validate_script_references(workflow, root))
+        with self.subTest("missing script"):
+            self.assertTrue(contract.validate_script_references(
+                "run: common/tests/missing.sh", Path(__file__).parent))
 
     def test_topology_rejects_optional_gate_dependency_and_timeout_regression(self):
         workflow = (Path(__file__).resolve().parents[4] /
