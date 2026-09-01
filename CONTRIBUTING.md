@@ -28,9 +28,14 @@ this fork when they follow these requirements:
 - preserve copyright, license, and attribution requirements.
 
 The official Overte project has a different contribution policy. Do not submit
-AI-assisted work from this fork, including code, issues, or pull requests, to
-the upstream Overte repository. Do not merge, rebase, cherry-pick, or otherwise
-import new upstream changes into this fork.
+or transplant AI-assisted work from this fork, including code, issues, pull
+requests, or review material, to the upstream Overte repository.
+
+This boundary is deliberately one-way. Reviewed changes from upstream Overte
+may be brought from its `master` branch into this fork's `main` branch through
+the auditable process in [`docs/UPSTREAM_INTAKE.md`](docs/UPSTREAM_INTAKE.md).
+An upstream intake is not permission to send fork commits in the other
+direction.
 
 ## Branch ownership
 
