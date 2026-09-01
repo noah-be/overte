@@ -41,10 +41,8 @@ The RemoteDesktop grant requests keyboard and pointer devices only, not a
 ScreenCast/PipeWire source. This keeps screen sharing outside the test's
 authority while the shared Overte probe still supplies behavioral evidence.
 
-Build, authorization, runtime, and command details are in
-[`README.wayland-libei.md`](README.wayland-libei.md). The daemon binary is built
-from the repository source and its SHA-256 is pinned in the private lab
-configuration before it is started.
+Build, authorization, runtime, and command details for visible Wayland are
+intentionally deferred to the R08 transport package.
 
 ## Headless Linux
 
