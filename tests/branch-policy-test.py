@@ -85,11 +85,19 @@ class BranchPolicyTests(unittest.TestCase):
         self.assertEqual(ruleset["enforcement"], "active")
         self.assertEqual(
             ruleset["conditions"]["ref_name"]["include"],
-            ["refs/heads/android-vr-quest", "refs/heads/apple-macos"],
+            [
+                "refs/heads/android-vr-quest",
+                "refs/heads/apple-macos",
+                "refs/heads/backup/**",
+            ],
         )
         self.assertEqual(
             {rule["type"] for rule in ruleset["rules"]},
             {"deletion", "non_fast_forward", "update"},
+        )
+        update = next(rule for rule in ruleset["rules"] if rule["type"] == "update")
+        self.assertEqual(
+            update["parameters"], {"update_allows_fetch_and_merge": False}
         )
 
     def test_desktop_operating_system_branches_are_direct_main_children(self):

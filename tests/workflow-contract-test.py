@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Security and reproducibility contracts for the Pico 4 CI workflow."""
 
+import json
 from pathlib import Path
 import re
 import unittest
@@ -19,6 +20,16 @@ BRANCH_SYNC_WORKFLOW = ROOT / ".github/workflows/branch-sync.yml"
 DESKTOP_TOPOLOGY_WORKFLOW = ROOT / ".github/workflows/desktop-branch-topology.yml"
 IOS_WORKFLOW = ROOT / ".github/workflows/ios-bootstrap.yml"
 MACOS_WORKFLOW = ROOT / ".github/workflows/macos-bootstrap.yml"
+RULESETS = ROOT / ".github/rulesets"
+RULESET_FILES = {
+    "Android target branch topology": "android-target-branches.json",
+    "Apple target branch topology": "apple-target-branches.json",
+    "Archived branches": "archived-branches.json",
+    "Desktop branch topology": "desktop-branches.json",
+    "Immutable Android, canonical, and archive tags": "android-release-tags.json",
+    "Immutable Pico 4 release and dependency tags": "pico4-release-tags.json",
+    "Permanent branch governance": "permanent-branches.json",
+}
 ACTION_USE = re.compile(r"^\s*uses:\s*([^\s#]+)", re.MULTILINE)
 FULL_SHA_ACTION = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 
@@ -141,12 +152,175 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         )
 
     def test_desktop_ruleset_requires_topology_check(self):
-        source = (ROOT / ".github/rulesets/desktop-branches.json").read_text(
-            encoding="utf-8"
-        )
+        source = (RULESETS / "desktop-branches.json").read_text(encoding="utf-8")
         for branch in ("refs/heads/linux-main", "refs/heads/windows-main"):
             self.assertIn(branch, source)
-        self.assertIn('"context": "desktop-branch-topology"', source)
+        self.assertIn('"context": "Enforce main desktop sync path"', source)
+
+
+class RulesetManifestContracts(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.manifests = {
+            name: json.loads((RULESETS / filename).read_text(encoding="utf-8"))
+            for name, filename in RULESET_FILES.items()
+        }
+
+    @staticmethod
+    def rule(manifest, rule_type):
+        return next(rule for rule in manifest["rules"] if rule["type"] == rule_type)
+
+    def test_all_seven_live_rulesets_are_complete_and_versioned(self):
+        versioned = []
+        for path in RULESETS.glob("*.json"):
+            candidate = json.loads(path.read_text(encoding="utf-8"))
+            if "target" in candidate:
+                versioned.append(path.name)
+
+        self.assertEqual(sorted(versioned), sorted(RULESET_FILES.values()))
+        self.assertEqual(set(self.manifests), set(RULESET_FILES))
+        for name, manifest in self.manifests.items():
+            self.assertEqual(manifest["name"], name)
+            self.assertIn(manifest["target"], ("branch", "tag"))
+            self.assertEqual(manifest["enforcement"], "active")
+            self.assertEqual(manifest["bypass_actors"], [])
+            self.assertEqual(manifest["conditions"]["ref_name"]["exclude"], [])
+            self.assertTrue(manifest["conditions"]["ref_name"]["include"])
+            self.assertTrue(manifest["rules"])
+
+    def test_required_checks_are_strict_and_bound_to_github_actions(self):
+        expected = {
+            "Android target branch topology": "Enforce Android parent sync path",
+            "Apple target branch topology": "Enforce apple-main sync path",
+            "Desktop branch topology": "Enforce main desktop sync path",
+            "Permanent branch governance": "branch-policy",
+        }
+        for name, context in expected.items():
+            parameters = self.rule(
+                self.manifests[name], "required_status_checks"
+            )["parameters"]
+            self.assertTrue(parameters["strict_required_status_checks_policy"])
+            self.assertFalse(parameters["do_not_enforce_on_create"])
+            self.assertEqual(
+                parameters["required_status_checks"],
+                [{"context": context, "integration_id": 15368}],
+            )
+
+    def test_desktop_workflow_and_manifest_use_identical_check_context(self):
+        workflow = DESKTOP_TOPOLOGY_WORKFLOW.read_text(encoding="utf-8")
+        actual = re.search(
+            r"(?m)^\s{4}name:\s*(Enforce main desktop sync path)\s*$", workflow
+        )
+        self.assertIsNotNone(actual)
+        parameters = self.rule(
+            self.manifests["Desktop branch topology"], "required_status_checks"
+        )["parameters"]
+        self.assertEqual(
+            parameters["required_status_checks"][0]["context"], actual.group(1)
+        )
+
+    def test_solo_profile_is_active_without_locking_out_the_maintainer(self):
+        solo = json.loads(
+            (RULESETS / "review-profiles/solo-maintainer.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(solo["required_approving_review_count"], 0)
+        self.assertFalse(solo["require_last_push_approval"])
+        self.assertEqual(solo["allowed_merge_methods"], ["merge"])
+        for name in (
+            "Android target branch topology",
+            "Apple target branch topology",
+            "Permanent branch governance",
+        ):
+            self.assertEqual(
+                self.rule(self.manifests[name], "pull_request")["parameters"], solo
+            )
+
+    def test_independent_reviewer_profile_is_ready_but_not_active(self):
+        independent = json.loads(
+            (RULESETS / "review-profiles/independent-reviewer.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(independent["required_approving_review_count"], 1)
+        self.assertTrue(independent["dismiss_stale_reviews_on_push"])
+        self.assertTrue(independent["require_last_push_approval"])
+        self.assertTrue(independent["required_review_thread_resolution"])
+        for manifest in self.manifests.values():
+            for rule in manifest["rules"]:
+                if rule["type"] == "pull_request":
+                    self.assertNotEqual(rule["parameters"], independent)
+
+    def test_governed_refs_retain_deletion_and_non_fast_forward_protection(self):
+        for name in (
+            "Android target branch topology",
+            "Apple target branch topology",
+            "Archived branches",
+            "Immutable Android, canonical, and archive tags",
+            "Immutable Pico 4 release and dependency tags",
+            "Permanent branch governance",
+        ):
+            rule_types = {rule["type"] for rule in self.manifests[name]["rules"]}
+            self.assertIn("deletion", rule_types)
+            self.assertIn("non_fast_forward", rule_types)
+
+    def test_archives_are_immutable(self):
+        archived = self.manifests["Archived branches"]
+        self.assertEqual(
+            archived["conditions"]["ref_name"]["include"],
+            [
+                "refs/heads/android-vr-quest",
+                "refs/heads/apple-macos",
+                "refs/heads/backup/**",
+            ],
+        )
+        self.assertEqual(
+            self.rule(archived, "update")["parameters"],
+            {"update_allows_fetch_and_merge": False},
+        )
+
+    def test_used_release_dependency_and_archive_tag_namespaces_are_protected(self):
+        protected = set()
+        for name, manifest in self.manifests.items():
+            if manifest["target"] == "tag":
+                protected.update(manifest["conditions"]["ref_name"]["include"])
+        self.assertEqual(
+            protected,
+            {
+                "refs/tags/[0-9]*",
+                "refs/tags/v[0-9]*",
+                "refs/tags/android-phone-v*",
+                "refs/tags/android-phone-16k-deps-v*",
+                "refs/tags/archive/**",
+                "refs/tags/pico4-v*-rc.*",
+                "refs/tags/pico4-preview-*",
+                "refs/tags/pico4-deps-v*",
+            },
+        )
+
+    def test_signed_commits_are_not_required(self):
+        for manifest in self.manifests.values():
+            self.assertNotIn(
+                "required_signatures", {rule["type"] for rule in manifest["rules"]}
+            )
+
+    def test_repository_merge_settings_match_transition_policy(self):
+        settings = json.loads(
+            (RULESETS / "repository-merge-settings.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(settings["repository"], "noah-be/overte")
+        self.assertEqual(
+            settings["settings"],
+            {
+                "allow_auto_merge": False,
+                "allow_merge_commit": True,
+                "allow_rebase_merge": False,
+                "allow_squash_merge": False,
+                "allow_update_branch": False,
+                "delete_branch_on_merge": False,
+            },
+        )
 
 
 class PicoWorkflowContracts(unittest.TestCase):
