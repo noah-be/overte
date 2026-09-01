@@ -20,7 +20,6 @@ permissions:
 
 env:
   BUILD_TYPE: Release
-  CMAKE_BUILD_EXTRA: --preset conan-release
 
 jobs:
   build:
@@ -31,74 +30,74 @@ jobs:
       matrix:
         include:
           - os: debian-12
-            image: docker.io/overte/overte-server-build:2026-02-09-debian-12-amd64  # Container image used for building. Built from /tools/ci-script/deb_package/Dockerfile_x
+            image: docker.io/overte/overte-server-build:2026-02-09-debian-12-amd64@sha256:deb5e9eeef5ad5df3b44c7bfd456fe73aa5c513aa16456c3983966578d8b0531  # Built from /tools/ci-script/deb_package/Dockerfile_x
             arch: amd64
             qt_source: system  # Which Qt Conan package to use. `system`, `source`, or `aqt`.
             runner: ubuntu-24.04  # Which GitHub Actions Runner to use. When using `image` this just needs to run the build container.
 
           - os: debian-12
-            image: docker.io/overte/overte-server-build:2026-02-09-debian-12-aarch64
+            image: docker.io/overte/overte-server-build:2026-02-09-debian-12-aarch64@sha256:0f07adfb81fbd3c49f5f214641d82af49727fbc5201466ce3d2d6ec53beece34
             arch: aarch64
             qt_source: system
             runner: ubuntu-24.04-arm
 
           - os: debian-13
-            image: docker.io/overte/overte-server-build:2026-02-09-debian-13-amd64
+            image: docker.io/overte/overte-server-build:2026-02-09-debian-13-amd64@sha256:32e3cc2110915af6f3f20a5d9679a77300101a9c1d2f163b5a31d806125b1240
             arch: amd64
             qt_source: system
             runner: ubuntu-24.04
 
           - os: debian-13
-            image: docker.io/overte/overte-server-build:2026-02-09-debian-13-aarch64
+            image: docker.io/overte/overte-server-build:2026-02-09-debian-13-aarch64@sha256:9efd666a3d4444cab8dac91b2eb991179c75ffc2a48dfac1153756d601085a06
             arch: aarch64
             qt_source: system
             runner: ubuntu-24.04-arm
 
           - os: debian-14
-            image: docker.io/overte/overte-server-build:2026-07-17-debian-14-amd64
+            image: docker.io/overte/overte-server-build:2026-07-17-debian-14-amd64@sha256:e8c0a1ad1c9cb98d5923d8376dddf5bed0fafec112bbf4e383c37fd5f154d612
             arch: amd64
             qt_source: system
             # GitHub's hosted Runner runs out of disk space.
             runner: depot-ubuntu-24.04
 
           - os: debian-14
-            image: docker.io/overte/overte-server-build:2026-07-17-debian-14-aarch64
+            image: docker.io/overte/overte-server-build:2026-07-17-debian-14-aarch64@sha256:e3ad62338131925b8082c5a9f7290a457fcd9b41dca62af048886c1299c2b692
             arch: aarch64
             qt_source: system
             runner: ubuntu-24.04-arm
 
           - os: ubuntu-22.04
-            image: docker.io/overte/overte-server-build:2026-02-09-ubuntu-22.04-amd64
+            image: docker.io/overte/overte-server-build:2026-02-09-ubuntu-22.04-amd64@sha256:74b3bd9c66e955f0fa354686554c9d427bd2761d4f37954388840325525860f5
             arch: amd64
             qt_source: system
             runner: ubuntu-24.04
 
           - os: ubuntu-22.04
-            image: docker.io/overte/overte-server-build:2026-02-09-ubuntu-22.04-aarch64
+            image: docker.io/overte/overte-server-build:2026-02-09-ubuntu-22.04-aarch64@sha256:7e06f30fbebb548f9dff73a50037863eacb3824987b894e801bb267be93629b1
             arch: aarch64
             qt_source: system
             runner: ubuntu-24.04-arm
 
           - os: ubuntu-24.04
-            image: docker.io/overte/overte-server-build:2026-02-09-ubuntu-24.04-amd64
+            image: docker.io/overte/overte-server-build:2026-02-09-ubuntu-24.04-amd64@sha256:babe51f7c369e303aac67f0a9e7620707319b1d017a3ac13c4376b0d9fed056e
             arch: amd64
             qt_source: system
             runner: ubuntu-24.04
 
           - os: ubuntu-24.04
-            image: docker.io/overte/overte-server-build:2026-02-09-ubuntu-24.04-aarch64
+            image: docker.io/overte/overte-server-build:2026-02-09-ubuntu-24.04-aarch64@sha256:9e6db0532d80e6ccc826cdb340bad7422544bcc28df0f1e001b29cf168a8c1ce
             arch: aarch64
             qt_source: system
             runner: ubuntu-24.04-arm
 
           - os: fedora-42
-            image: docker.io/overte/overte-server-build:2026-02-09-fedora-42-amd64
+            image: docker.io/overte/overte-server-build:2026-02-09-fedora-42-amd64@sha256:efb308f17ab5550178f65ef6e9eed52acfaf01b5a34e1271818a1512565768fb
             arch: amd64
             qt_source: system
             runner: ubuntu-24.04
 
           - os: fedora-42
-            image: docker.io/overte/overte-server-build:2026-02-09-fedora-42-aarch64
+            image: docker.io/overte/overte-server-build:2026-02-09-fedora-42-aarch64@sha256:c5492e8ca41d6b49059a05777499d11801473bc868f2d85aece0cab683e7954a
             arch: aarch64
             qt_source: system
             runner: ubuntu-24.04-arm
@@ -121,8 +120,8 @@ jobs:
       if: ${{matrix.image}}
       shell: bash
       run: |
-        echo "RPM_SHORTHAND=$RPM_SHORTHAND" >> $GITHUB_ENV
-        echo "CONAN_PROFILE=$CONAN_PROFILE" >> $GITHUB_ENV
+        echo "RPM_SHORTHAND=$RPM_SHORTHAND" >> "$GITHUB_ENV"
+        echo "CONAN_PROFILE=$CONAN_PROFILE" >> "$GITHUB_ENV"
 
     - name: Configure Build Environment 1
       shell: bash
@@ -142,10 +141,11 @@ jobs:
           echo "GIT_COMMIT_SHORT=${GITHUB_SHA:0:7}" >> "$GITHUB_ENV"
         fi
 
-        echo "REFNAME=$REF_NAME" >> "$GITHUB_ENV"
-
-        echo "JOB_NAME=$MATRIX_OS, $MATRIX_ARCH" >> "$GITHUB_ENV"
-        echo "CONAN_CPPSTD=gnu20" >> "$GITHUB_ENV"
+        {
+          echo "REFNAME=$REF_NAME"
+          echo "JOB_NAME=$MATRIX_OS, $MATRIX_ARCH"
+          echo "CONAN_CPPSTD=gnu20"
+        } >> "$GITHUB_ENV"
 
         if [[ "$MATRIX_OS" =~ ubuntu|debian ]]; then
           echo "INSTALLER_EXT=deb" >> "$GITHUB_ENV"
@@ -163,8 +163,6 @@ jobs:
         else
           echo "OVERTE_RELEASE_TYPE=PR" >> "$GITHUB_ENV"
         fi
-
-        echo "CMAKE_EXTRA=-DOVERTE_BUILD_SERVER=true -DOVERTE_BUILD_TOOLS=true -DOVERTE_BUILD_CLIENT=false" >> "$GITHUB_ENV"
 
     # Configuration is broken into multiple steps because you can't set an env var and also reference it in the same step
     - name: Configure Build Environment 2
@@ -218,20 +216,27 @@ jobs:
 
     - name: Configure CMake
       shell: bash
-           # This syntax requires CMake 3.23
-      run: cmake --preset conan-${BUILD_TYPE,,} -DOVERTE_RELEASE_TYPE=$OVERTE_RELEASE_TYPE -DOVERTE_RELEASE_NUMBER=$RELEASE_NUMBER -DOVERTE_GIT_COMMIT_SHORT=$GIT_COMMIT_SHORT $CMAKE_EXTRA
+      # This syntax requires CMake 3.23.
+      run: >-
+        cmake --preset "conan-${BUILD_TYPE,,}"
+        "-DOVERTE_RELEASE_TYPE=$OVERTE_RELEASE_TYPE"
+        "-DOVERTE_RELEASE_NUMBER=$RELEASE_NUMBER"
+        "-DOVERTE_GIT_COMMIT_SHORT=$GIT_COMMIT_SHORT"
+        -DOVERTE_BUILD_SERVER=true
+        -DOVERTE_BUILD_TOOLS=true
+        -DOVERTE_BUILD_CLIENT=false
 
     - name: Build Domain Server
       shell: bash
-      run: cmake --build --target domain-server $CMAKE_BUILD_EXTRA
+      run: cmake --build --target domain-server --preset conan-release
 
     - name: Build Assignment Client
       shell: bash
-      run: cmake --build --target assignment-client $CMAKE_BUILD_EXTRA
+      run: cmake --build --target assignment-client --preset conan-release
 
     - name: Build Oven
       shell: bash
-      run: cmake --build --target oven $CMAKE_BUILD_EXTRA
+      run: cmake --build --target oven --preset conan-release
 
     - name: Package
       working-directory: pkg-scripts
