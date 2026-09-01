@@ -19,18 +19,18 @@ known provenance instead of inferred in bulk.
   `Apache-2.0.txt` and `MIT.txt`.
 - No `REUSE.toml`, `.reuse/dep5`, or other repository-wide REUSE annotation
   file is currently tracked.
-- 529 tracked files contain an `SPDX-License-Identifier` line. This count only
+- 536 tracked files contain an `SPDX-License-Identifier` line. This count only
   describes explicit headers; it is not a compliance score.
 
 The explicit SPDX identifiers found in those headers are:
 
 | Identifier | Header count | Observed scope |
 | --- | ---: | --- |
-| `Apache-2.0` | 523 | Project source, tests, configuration, and documentation |
+| `Apache-2.0` | 529 | Project source, tests, configuration, and documentation |
 | `BSL-1.0` | 2 | Two copies of an OpenXR vendored header |
 | `GPL-2.0-only` | 1 | Doxygen configuration |
 | `LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only` | 1 | Vendored Qt Android source |
-| `MIT` | 2 | Repository policy files |
+| `MIT` | 3 | Repository policy files |
 
 The identifiers other than Apache-2.0 and MIT do not currently have
 identifier-named text files under `LICENSES/`. That observation is a metadata
