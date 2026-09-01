@@ -185,6 +185,7 @@ class BranchPolicyTests(unittest.TestCase):
                 head_repository_id=200,
                 head_sha=CURRENT_SHA,
                 expected_head_sha=CURRENT_SHA,
+                changed_files=("tools/branch-policy/check.py",),
             )
 
     def test_same_parent_branch_name_with_wrong_repository_id_is_rejected(self):
@@ -211,6 +212,20 @@ class BranchPolicyTests(unittest.TestCase):
                 head_repository_id=100,
                 head_sha=STALE_SHA,
                 expected_head_sha=CURRENT_SHA,
+                changed_files=(".github/workflows/branch-sync.yml",),
+            )
+
+    def test_direct_parent_sync_requires_the_current_parent_sha(self):
+        with self.assertRaisesRegex(BRANCH_POLICY.PolicyError, "current parent SHA"):
+            BRANCH_POLICY.evaluate_pull_request(
+                self.branches,
+                base="apple-main",
+                head="main",
+                repository_id=100,
+                base_repository_id=100,
+                head_repository_id=100,
+                head_sha=CURRENT_SHA,
+                changed_files=("tools/branch-policy/check.py",),
             )
 
     def test_privileged_changes_from_forks_or_to_child_branches_are_rejected(self):
@@ -218,6 +233,8 @@ class BranchPolicyTests(unittest.TestCase):
         cases = (
             dict(base="main", head="ci/main/replace-policy", head_repository_id=200),
             dict(base="android-main", head="ci/android/replace-policy", head_repository_id=100),
+            dict(base="apple-main", head="sync/apple/main-refresh", head_repository_id=100),
+            dict(base="apple-ios", head="reconcile/ios/apple-refresh", head_repository_id=100),
         )
         for case in cases:
             with self.subTest(case=case):
@@ -233,7 +250,7 @@ class BranchPolicyTests(unittest.TestCase):
                         changed_files=privileged,
                     )
 
-    def test_privileged_changes_are_allowed_only_for_same_repository_main_prs(self):
+    def test_privileged_changes_are_allowed_for_same_repository_main_prs(self):
         result = BRANCH_POLICY.evaluate_pull_request(
             self.branches,
             base="main",
@@ -245,6 +262,24 @@ class BranchPolicyTests(unittest.TestCase):
             changed_files=("tools/branch-policy/check.py",),
         )
         self.assertEqual(result, "scoped-change")
+
+    def test_direct_parent_sync_may_carry_privileged_policy(self):
+        for branch in self.branches.values():
+            if branch.parent is None:
+                continue
+            with self.subTest(base=branch.name, head=branch.parent):
+                result = BRANCH_POLICY.evaluate_pull_request(
+                    self.branches,
+                    base=branch.name,
+                    head=branch.parent,
+                    repository_id=100,
+                    base_repository_id=100,
+                    head_repository_id=100,
+                    head_sha=CURRENT_SHA,
+                    expected_head_sha=CURRENT_SHA,
+                    changed_files=("tools/branch-policy/check.py",),
+                )
+                self.assertEqual(result, "downstream-sync")
 
     def test_policy_rejects_inconsistent_relationships(self):
         document = json.loads(POLICY.read_text(encoding="utf-8"))

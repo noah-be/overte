@@ -56,6 +56,13 @@ or enable auto-merge. A maintainer creates the required synchronization pull
 request, and conflicts or failed target tests remain visible for manual
 resolution without an administrator bypass.
 
+Privileged policy and synchronization files normally change only through a
+same-repository pull request to `main`. A direct downstream synchronization may
+carry those parent-owned files into its immediate child only when the permanent
+parent branch itself is the pull-request head. The workflow requires that head
+to be the current remote parent SHA, so forks, stale parent snapshots, and
+scoped topic branches still cannot alter privileged policy on a child.
+
 Required status checks intentionally do not require a synchronization PR's head
 branch to contain the latest target-branch commits. Requiring that would force a
 forbidden child-to-parent merge before a parent-to-child synchronization could
