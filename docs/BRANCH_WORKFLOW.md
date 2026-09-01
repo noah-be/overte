@@ -49,8 +49,9 @@ The Android, Apple, Linux, and Windows lines are independent after their
 respective `main` merge, but each parent must be merged before its children.
 Use normal pull requests so branch protection and target-specific CI run at
 every boundary. The synchronization bot reads these direct relationships from
-`.github/branch-policy.json`; every `main` update therefore opens or refreshes
-the guarded sync pull requests for both desktop operating-system branches.
+`.github/branch-policy.json`. The current synchronization workflow reports
+parent-to-child drift without writing to the repository; a maintainer opens or
+refreshes each required synchronization pull request manually.
 
 `android-vr-quest` and `apple-macos` are frozen archival branches, not children
 in this hierarchy. They must not receive synchronization PRs or new product

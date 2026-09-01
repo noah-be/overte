@@ -23,10 +23,13 @@ from contracts import TABLET_CONTRACT_VERSION, validate_operation_arguments
 
 
 CAPABILITIES = sorted([
-    "accessibility.snapshot", "app.foreground", "app.launch", "app.process", "app.stop",
-    "asset.load", "input.fly", "input.jump", "input.look", "input.move",
-    "navigation.enter-domain", "probe.snapshot", "scene.load", "scene.reload", "sound.play",
-    "tablet.activate", "tablet.close", "tablet.open", "tablet.snapshot",
+    "accessibility.snapshot", "app.crash", "app.foreground", "app.launch", "app.process",
+    "app.stop", "app.upgrade", "app.version", "asset.load", "audio.mute",
+    "collaboration.edit", "collaboration.snapshot", "input.fly", "input.jump", "input.look", "input.move",
+    "input.primary", "lifecycle.background", "navigation.enter-domain", "probe.snapshot",
+    "permission.set", "permission.snapshot", "render.snapshot", "scene.load", "scene.reload", "setting.set", "sound.play",
+    "tablet.activate", "tablet.close", "tablet.open", "tablet.snapshot", "text.dismiss",
+    "text.focus", "text.snapshot", "text.type",
 ])
 FIXTURE_MARKERS = [
     "OVERTE_E2E_COLLISION_WALL",
@@ -40,6 +43,7 @@ COLLISION_WALL = {
     "center": {"x": 0.0, "y": 2.0, "z": 0.5},
     "dimensions": {"x": 8.0, "y": 4.0, "z": 0.5},
 }
+FIXTURE_ENTITY_COUNT = len(FIXTURE_MARKERS) + 1
 
 
 def cli() -> argparse.Namespace:
@@ -72,6 +76,21 @@ def initial_state() -> dict:
         "orientation": {"x": 0.0, "y": 0.0, "z": 0.0}, "tablet": False,
         "orientationHistory": [], "pendingOrientationSample": None,
         "tabletScreen": "tablet.home",
+        "interactionCount": 0, "interactionLastEntityName": "",
+        "interactionLastPointerId": None,
+        "scriptActivationCount": 0, "scriptState": "idle",
+        "peerObservationCount": 0, "peerMovementDistance": 0.0,
+        "peerPosition": {"x": 2.0, "y": 0.0, "z": 2.0},
+        "textValue": "", "textFocused": False, "textKeyboardVisible": False,
+        "textSubmittedCount": 0,
+        "audioMuted": False, "audioWarnWhenMuted": True,
+        "permissionMicrophone": "granted",
+        "sharedEntityName": "OVERTE_E2E_SHARED_COLOR",
+        "sharedEntityValue": "orange", "sharedEntityRevision": 0,
+        "productVersion": os.environ.get("OVERTE_E2E_UPGRADE_FROM_VERSION", "1.0.0"),
+        "crashed": False,
+        "renderFrameCount": 0, "renderLastFrameEpochMs": 0,
+        "nativeFrameSequence": 0,
         "processRevision": 0, "asset": None,
         "sampleSequence": 0, "sampleEpochMs": 0,
         "verticalEvents": {
@@ -341,12 +360,45 @@ def invoke(operation: str, arguments: dict) -> dict:
     validate_operation_arguments(operation, arguments)
     state = load()
     if operation == "app.launch":
+        if state.get("crashed") and "crash-relaunch-fails" in failures():
+            raise RuntimeError("mock crash recovery launch failed")
+        was_running = state["running"]
         state["running"] = state["foreground"] = True
-        state["launchCount"] += 1
+        state["crashed"] = False
+        if not was_running:
+            state["launchCount"] += 1
+            if (state["launchCount"] > 1
+                    and "setting-not-persisted" in failures()):
+                state["audioWarnWhenMuted"] = True
+        elif "lifecycle-process-restart" in failures():
+            state["processRevision"] += 1
+        if "lifecycle-scene-loss" in failures() and was_running:
+            state["sceneReady"] = False
+        if "lifecycle-tablet-loss" in failures() and was_running:
+            state["tablet"] = False
         result = {"launched": True}
     elif operation == "app.stop":
         state["running"] = state["foreground"] = False
         result = {"stopped": True}
+    elif operation == "app.crash":
+        if "crash-process-survives" not in failures():
+            state["running"] = state["foreground"] = False
+        state["crashed"] = True
+        state["processRevision"] += 1
+        result = {"crashed": True}
+    elif operation == "app.version":
+        return {"schemaVersion": 1, "version": state["productVersion"]}
+    elif operation == "app.upgrade":
+        if state["productVersion"] != arguments["fromVersion"]:
+            raise RuntimeError("installed mock version does not match upgrade source")
+        state["running"] = state["foreground"] = True
+        state["launchCount"] += 1
+        state["processRevision"] += 1
+        if "upgrade-version-unchanged" not in failures():
+            state["productVersion"] = arguments["toVersion"]
+        if "upgrade-settings-lost" in failures():
+            state["audioWarnWhenMuted"] = True
+        result = {"applied": True}
     elif operation == "app.process":
         identity = "mock-e2e-process"
         if state["launchCount"] > 1:
@@ -380,6 +432,9 @@ def invoke(operation: str, arguments: dict) -> dict:
         state["domainHost"] = parsed.hostname
         state["domainId"] = os.environ.get(
             "OVERTE_MOCK_E2E_DOMAIN_ID", "11111111-2222-4333-8444-555555555555")
+        if (state["domainEnterCount"] >= 1
+                and "domain-reentry-process-restart" in failures()):
+            state["processRevision"] = state.get("processRevision", 0) + 1
         state["domainEnterCount"] += 1
         result = {"requested": True}
     elif operation == "asset.load":
@@ -418,6 +473,37 @@ def invoke(operation: str, arguments: dict) -> dict:
         result = {"requested": True}
     elif operation == "sound.play":
         result = begin_sound(state, arguments)
+    elif operation == "audio.mute":
+        if "audio-mute-missing" not in failures():
+            state["audioMuted"] = arguments["muted"]
+        result = {"performed": True}
+    elif operation == "collaboration.snapshot":
+        return {
+            "schemaVersion": 1,
+            "entityName": state["sharedEntityName"],
+            "value": state["sharedEntityValue"],
+            "revision": state["sharedEntityRevision"],
+            "actorId": ("OVERTE_E2E_ACTOR_WRONG" if "entity-sync-wrong-actor" in failures()
+                        else "OVERTE_E2E_ACTOR_FIXTURE"),
+        }
+    elif operation == "collaboration.edit":
+        if arguments["entityName"] != state["sharedEntityName"]:
+            raise RuntimeError("controlled shared entity was not found")
+        if "entity-sync-missing" not in failures():
+            state["sharedEntityValue"] = arguments["value"]
+            state["sharedEntityRevision"] += (
+                2 if "entity-sync-duplicate" in failures() else 1)
+        result = {"performed": True}
+    elif operation == "permission.snapshot":
+        return {"schemaVersion": 1, "permissionId": "microphone",
+                "state": state["permissionMicrophone"]}
+    elif operation == "permission.set":
+        requested = arguments["state"]
+        missing = ((requested == "denied" and "permission-deny-missing" in failures())
+                   or (requested == "granted" and "permission-grant-missing" in failures()))
+        if not missing:
+            state["permissionMicrophone"] = requested
+        result = {"performed": True}
     elif operation == "input.look":
         before_orientation = copy.deepcopy(state["orientation"])
         scale = 2.0 if "small-look" in failures() else 120.0
@@ -429,6 +515,21 @@ def invoke(operation: str, arguments: dict) -> dict:
         result = {"performed": True}
     elif operation == "input.move":
         apply_move(state, arguments["direction"], float(arguments["durationSeconds"]))
+        result = {"performed": True}
+    elif operation == "input.primary":
+        if not state["sceneReady"] or state["domainConnected"]:
+            raise RuntimeError("controlled interaction target is unavailable")
+        if "primary-interaction-missing" not in failures():
+            state["interactionCount"] += (
+                2 if "primary-interaction-duplicate" in failures() else 1)
+            state["interactionLastEntityName"] = "OVERTE_E2E_INTERACTABLE"
+            state["interactionLastPointerId"] = 0
+            if "script-activation-missing" not in failures():
+                activations = 2 if "script-activation-duplicate" in failures() else 1
+                state["scriptActivationCount"] += activations
+                if activations % 2:
+                    state["scriptState"] = (
+                        "active" if state["scriptState"] == "idle" else "idle")
         result = {"performed": True}
     elif operation == "input.jump":
         if "transient-vertical" in failures():
@@ -467,6 +568,52 @@ def invoke(operation: str, arguments: dict) -> dict:
     elif operation == "tablet.activate":
         activate_tablet_control(state, arguments["controlId"])
         result = {"performed": True}
+    elif operation == "text.focus":
+        state["textValue"] = ""
+        state["textFocused"] = True
+        state["textKeyboardVisible"] = True
+        result = {"performed": True}
+    elif operation == "text.type":
+        if not state["textFocused"]:
+            raise RuntimeError("controlled text field is not focused")
+        state["textValue"] += arguments["text"]
+        backspaces = arguments["backspaceCount"]
+        if "text-backspace-missing" not in failures() and backspaces:
+            state["textValue"] = state["textValue"][:-backspaces]
+        if arguments["submit"] and "text-submit-missing" not in failures():
+            state["textSubmittedCount"] += 1
+        result = {"performed": True}
+    elif operation == "text.dismiss":
+        if "text-dismiss-missing" not in failures():
+            state["textFocused"] = False
+            state["textKeyboardVisible"] = False
+        result = {"performed": True}
+    elif operation == "text.snapshot":
+        return {
+            "schemaVersion": 1,
+            "value": state["textValue"],
+            "focused": state["textFocused"],
+            "keyboardVisible": state["textKeyboardVisible"],
+            "submittedCount": state["textSubmittedCount"],
+        }
+    elif operation == "setting.set":
+        if "setting-set-missing" not in failures():
+            state["audioWarnWhenMuted"] = arguments["enabled"]
+        result = {"performed": True}
+    elif operation == "lifecycle.background":
+        state["foreground"] = False
+        result = {"backgrounded": True}
+    elif operation == "render.snapshot":
+        if "native-frame-stalled" not in failures():
+            state["nativeFrameSequence"] += 1
+        result = {
+            "schemaVersion": 1,
+            "backend": "llvmpipe" if "software-render" in failures() else "MockGPU",
+            "hardwareAccelerated": "software-render" not in failures(),
+            "surfaceVisible": "hidden-surface" not in failures(),
+            "blackFrame": "black-frame" in failures(),
+            "frameSequence": state["nativeFrameSequence"],
+        }
     elif operation == "probe.snapshot":
         if state["locomotion"] == "jump":
             state["locomotionSamples"] += 1
@@ -523,6 +670,12 @@ def invoke(operation: str, arguments: dict) -> dict:
             domain_markers = json.loads(os.environ["OVERTE_MOCK_E2E_DOMAIN_MARKERS_JSON"])
         if not state["domainConnected"]:
             domain_markers = []
+        if state["domainConnected"] and "peer-missing" not in failures():
+            state["peerObservationCount"] += 1
+            if "peer-static" not in failures():
+                state["peerMovementDistance"] += 0.12
+                state["peerPosition"]["x"] = 2.0 + (
+                    state["peerObservationCount"] % 10) * 0.12
         failure = os.environ.get("OVERTE_MOCK_SOUND_FAILURE", "")
         sound_active = bool(state.get("sound", {}).get("commandObserved"))
         fixture_markers = (FIXTURE_MARKERS[:-1] if "missing-markers" in failures()
@@ -547,6 +700,9 @@ def invoke(operation: str, arguments: dict) -> dict:
             state["sampleEpochMs"] = max(1, state["sampleEpochMs"] - 1)
         elif not (failure == "stale-probe" and sound_active) and not stale_common:
             state["sampleEpochMs"] = max(now, state["sampleEpochMs"] + 1)
+        if state["foreground"] and "render-stalled" not in failures():
+            state["renderFrameCount"] += 1
+            state["renderLastFrameEpochMs"] = state["sampleEpochMs"]
         snapshot = {
             "schemaVersion": 2,
             "sampleEpochMs": state["sampleEpochMs"],
@@ -562,10 +718,14 @@ def invoke(operation: str, arguments: dict) -> dict:
                 "serverless": not state["domainConnected"],
             },
             "input": {"dominantHand": "right", "advancedMovementControls": True},
+            "audio": {"muted": state["audioMuted"]},
+            "settings": {"audioWarnWhenMuted": state["audioWarnWhenMuted"]},
+            "render": {"frameCount": state["renderFrameCount"],
+                       "lastFrameEpochMs": state["renderLastFrameEpochMs"]},
             "scene": {"url": state["sceneUrl"], "ready": state["sceneReady"],
                       "commandId": state["sceneCommandId"],
                       "entityCount": (4 if state["domainConnected"] else
-                                      len(FIXTURE_MARKERS) if state["sceneReady"] else 0),
+                                      FIXTURE_ENTITY_COUNT if state["sceneReady"] else 0),
                       "fixtureMarkerCount": (0 if state["domainConnected"] else
                                              len(fixture_markers) if state["sceneReady"] else 0),
                       "fixtureMarkers": ([] if state["domainConnected"] or not state["sceneReady"]
@@ -592,6 +752,44 @@ def invoke(operation: str, arguments: dict) -> dict:
                        "home": (state["tablet"]
                                 and state.get("tabletScreen") == "tablet.home"),
                        "toolbarMode": False},
+            "interaction": {
+                "targetAvailable": (state["sceneReady"] and not state["domainConnected"]
+                                    and "interaction-target-missing" not in failures()),
+                "pressCount": state.get("interactionCount", 0),
+                "lastEntityName": state.get("interactionLastEntityName", ""),
+                "lastPointerId": state.get("interactionLastPointerId"),
+            },
+            "scriptedEntity": {
+                "targetAvailable": state["sceneReady"] and not state["domainConnected"],
+                "loaded": (state["sceneReady"] and not state["domainConnected"]
+                           and "script-load-missing" not in failures()),
+                "scriptUrl": ("scripted_interactable.js"
+                              if state["sceneReady"] and not state["domainConnected"] else ""),
+                "activationCount": (state["scriptActivationCount"]
+                                    if state["sceneReady"] and not state["domainConnected"] else 0),
+                "state": (state["scriptState"]
+                          if state["sceneReady"] and not state["domainConnected"]
+                          else "unavailable"),
+                "color": ({"red": 40, "green": 220, "blue": 100}
+                          if state["scriptState"] == "active" else
+                          {"red": 255, "green": 150, "blue": 40})
+                         if state["sceneReady"] and not state["domainConnected"] else None,
+            },
+            "peer": ({
+                "present": True,
+                "sessionId": ("22222222-3333-4444-8555-666666666667"
+                              if "peer-session-changed" in failures()
+                              and state["domainEnterCount"] >= 2 else
+                              "22222222-3333-4444-8555-666666666666"),
+                "displayName": "OVERTE_E2E_PEER",
+                "position": copy.deepcopy(state["peerPosition"]),
+                "observationCount": state["peerObservationCount"],
+                "movementDistanceMeters": state["peerMovementDistance"],
+            } if state["domainConnected"] and "peer-missing" not in failures() else {
+                "present": False, "sessionId": "", "displayName": "", "position": None,
+                "observationCount": state["peerObservationCount"],
+                "movementDistanceMeters": state["peerMovementDistance"],
+            }),
             "asset": copy.deepcopy(state.get("asset")),
             "sound": observed_sound(state),
         }

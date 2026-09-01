@@ -5,11 +5,12 @@ from __future__ import annotations
 
 import argparse
 from functools import partial
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
 import re
+import secrets
 import signal
 import subprocess
 import sys
@@ -33,6 +34,7 @@ def validate_domain_fixture() -> dict:
     expected = {
         "schemaVersion", "bootstrapScript", "expectedEntityCount", "requiredMarkers",
         "spawnPath", "spawnPosition", "minimumFloorThickness", "externalResources",
+        "peerDisplayName", "peerScript",
     }
     if set(manifest) != expected:
         raise ValueError("domain fixture manifest contains unsupported fields")
@@ -68,11 +70,58 @@ def validate_domain_fixture() -> dict:
         raise ValueError("domain bootstrap must create domain entities")
     if "Entities.serversExist() || !Entities.canRez()" not in script:
         raise ValueError("domain bootstrap must wait for entity server permissions")
+    peer_name = manifest.get("peerScript")
+    peer_path = ROOT / peer_name if isinstance(peer_name, str) else ROOT
+    peer_script = peer_path.read_text(encoding="utf-8") if peer_path.is_file() else ""
+    if (not isinstance(peer_name, str) or Path(peer_name).name != peer_name
+            or not peer_name.endswith(".js")
+            or manifest.get("peerDisplayName") != "OVERTE_E2E_PEER"
+            or "Agent.isAvatar = true" not in peer_script
+            or 'Avatar.displayName = "OVERTE_E2E_PEER"' not in peer_script
+            or "Script.update.connect" not in peer_script):
+        raise ValueError("domain controlled peer script is invalid")
     return manifest
 
 
+class DomainControlHandler(BaseHTTPRequestHandler):
+    token = ""
+    transition = None
+
+    def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+        if self.path != "/v1/domain-state" or self.headers.get(
+                "X-Overte-E2E-Token") != self.token:
+            self.send_error(404)
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if not 0 < length <= 256:
+                raise ValueError("invalid request length")
+            command = json.loads(self.rfile.read(length))
+            if (not isinstance(command, dict)
+                    or set(command) != {"action", "schemaVersion"}
+                    or command.get("schemaVersion") != 1
+                    or command.get("action") not in {"offline", "online"}):
+                raise ValueError("invalid domain control command")
+            result = self.transition(command["action"])
+            payload = (json.dumps(result, sort_keys=True) + "\n").encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+        except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as error:
+            self.send_error(400, str(error))
+        except (OSError, RuntimeError):
+            self.send_error(503, "controlled stack transition failed")
+
+    def log_message(self, format_string: str, *arguments: object) -> None:
+        print("domain-fixture-control: " + format_string % arguments, file=sys.stderr)
+
+
 class DomainResourceHandler(SimpleHTTPRequestHandler):
-    bootstrap_path = ""
+    script_paths: set[str] = set()
+    content_ready = threading.Event()
+    expected_marker_count = 0
 
     def end_headers(self) -> None:
         self.send_header("Cache-Control", "no-store")
@@ -89,10 +138,32 @@ class DomainResourceHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(payload)
             return
-        if path != self.bootstrap_path:
+        if path not in self.script_paths:
             self.send_error(404)
             return
         super().do_GET()
+
+    def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+        if self.path != "/domain-ready":
+            self.send_error(404)
+            return
+        try:
+            length = int(self.headers.get("Content-Length", ""))
+            if not 1 <= length <= 256:
+                raise ValueError("invalid readiness payload length")
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+            self.send_error(400)
+            return
+        if payload != {
+                "schemaVersion": 1,
+                "markerCount": self.expected_marker_count,
+        }:
+            self.send_error(400)
+            return
+        self.content_ready.set()
+        self.send_response(204)
+        self.end_headers()
 
     def log_message(self, format_string: str, *arguments: object) -> None:
         print("domain-fixture-http: " + format_string % arguments, file=sys.stderr)
@@ -169,11 +240,27 @@ def wait_for_domain(process: subprocess.Popen, url: str, timeout_seconds: int) -
     raise RuntimeError(f"domain-server readiness timed out: {last_error}")
 
 
+def wait_for_assignment_content(processes: tuple[subprocess.Popen, ...],
+                                timeout_seconds: int,
+                                stopping: threading.Event) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if DomainResourceHandler.content_ready.is_set():
+            return
+        if stopping.is_set():
+            raise RuntimeError("domain fixture stopped before content became ready")
+        if any(process.poll() is not None for process in processes):
+            raise RuntimeError("domain fixture process exited before content became ready")
+        time.sleep(0.1)
+    raise RuntimeError("assignment-owned domain content did not become ready")
+
+
 def atomic_json(path: Path, value: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     os.replace(temporary, path)
+    os.chmod(path, 0o600)
 
 
 def parse_args() -> argparse.Namespace:
@@ -186,6 +273,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--domain-port", type=int, default=40102)
     parser.add_argument("--http-port", type=int, default=40100)
     parser.add_argument("--script-port", type=int, default=0)
+    parser.add_argument("--control-port", type=int, default=0)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--ready-file", type=Path)
     parser.add_argument("--startup-timeout-seconds", type=int, default=30)
@@ -195,10 +283,14 @@ def parse_args() -> argparse.Namespace:
     for name in ("domain_port", "http_port"):
         if not 1 <= getattr(args, name) <= 65535:
             parser.error(f"--{name.replace('_', '-')} must be from 1 through 65535")
-    if not 0 <= args.script_port <= 65535:
-        parser.error("--script-port must be from 0 through 65535")
+    for name in ("script_port", "control_port"):
+        if not 0 <= getattr(args, name) <= 65535:
+            parser.error(f"--{name.replace('_', '-')} must be from 0 through 65535")
     if args.script_port != 0 and args.script_port == args.http_port:
         parser.error("--script-port and --http-port must differ")
+    if args.control_port != 0 and args.control_port in {
+            args.domain_port, args.http_port, args.script_port}:
+        parser.error("--control-port must differ from all fixture service ports")
     if not 1 <= args.startup_timeout_seconds <= 300:
         parser.error("--startup-timeout-seconds must be from 1 through 300")
     if not 0.0 <= args.assignment_warmup_seconds <= 30.0:
@@ -225,13 +317,17 @@ def main() -> int:
         if not HOST.fullmatch(value) or ".." in value:
             raise ValueError(f"{label} must be a DNS name or IPv4 address")
 
-    DomainResourceHandler.bootstrap_path = f"/{manifest['bootstrapScript']}"
+    DomainResourceHandler.script_paths = {
+        f"/{manifest['bootstrapScript']}", f"/{manifest['peerScript']}"}
+    DomainResourceHandler.expected_marker_count = manifest["expectedEntityCount"]
+    DomainResourceHandler.content_ready = threading.Event()
     handler = partial(DomainResourceHandler, directory=str(ROOT))
     resources = ThreadingHTTPServer((args.bind, args.script_port), handler)
     resource_thread = threading.Thread(target=resources.serve_forever, daemon=True)
     resource_thread.start()
     resource_base = f"http://{public_host}:{resources.server_address[1]}"
     script_url = f"{resource_base}/{manifest['bootstrapScript']}"
+    peer_script_url = f"{resource_base}/{manifest['peerScript']}"
 
     config = {
         "version": 2.2,
@@ -240,9 +336,10 @@ def main() -> int:
             "enable_packet_verification": False,
             "local_port": args.domain_port,
         },
-        "scripts": {"persistent_scripts": [{
-            "url": script_url, "num_instances": 1, "pool": "overte-e2e-domain",
-        }]},
+        "scripts": {"persistent_scripts": [
+            {"url": script_url, "num_instances": 1, "pool": "overte-e2e-domain"},
+            {"url": peer_script_url, "num_instances": 1, "pool": "overte-e2e-peer"},
+        ]},
     }
     config_path = output / "domain-config.json"
     atomic_json(config_path, config)
@@ -261,9 +358,100 @@ def main() -> int:
 
     domain_log = (output / "domain-server.log").open("w", encoding="utf-8")
     assignment_log = (output / "assignment-client.log").open("w", encoding="utf-8")
+    assignment_agent_log = (output / "assignment-agent.log").open("w", encoding="utf-8")
     (output / "assignment-logs").mkdir(mode=0o700)
-    domain_process = assignment_process = None
+    domain_process = None
+    assignment_processes: list[subprocess.Popen] = []
+    assignment_agent_processes: list[subprocess.Popen] = []
+    domain_id = None
+    generation = 0
+    stack_state = "offline"
+    transition_lock = threading.Lock()
     stopping = threading.Event()
+
+    def start_stack() -> None:
+        nonlocal domain_process, assignment_processes, assignment_agent_processes
+        nonlocal domain_id, generation, stack_state
+        if stack_state == "online":
+            return
+        DomainResourceHandler.content_ready.clear()
+        domain_process = subprocess.Popen(
+            [str(domain_server), "--user-config", str(config_path),
+             "--logOptions", "nocolor,process_id,milliseconds"],
+            **process_options(environment, domain_log))
+        observed_id = wait_for_domain(
+            domain_process, f"http://127.0.0.1:{args.http_port}/id",
+            args.startup_timeout_seconds)
+        if domain_id is not None and observed_id != domain_id:
+            stop_process(domain_process)
+            domain_process = None
+            raise RuntimeError("controlled domain identity changed during restart")
+        domain_id = observed_id
+        for assignment_type in ("0", "1", "3", "4", "5", "6"):
+            assignment_processes.append(subprocess.Popen(
+                [str(assignment_client), "-t", assignment_type, "-a", "127.0.0.1",
+                 "--server-port", str(args.domain_port),
+                 "--disable-domain-port-auto-discovery",
+                 "--log-directory", str(output / "assignment-logs"),
+                 "--logOptions", "nocolor,process_id,milliseconds"],
+                **process_options(environment, assignment_log)))
+        for pool in ("overte-e2e-domain", "overte-e2e-peer"):
+            assignment_agent_processes.append(subprocess.Popen(
+                [str(assignment_client), "-t", "2", "--pool", pool,
+                 "-a", "127.0.0.1", "--server-port", str(args.domain_port),
+                 "--disable-domain-port-auto-discovery",
+                 "--log-directory", str(output / "assignment-logs"),
+                 "--logOptions", "nocolor,process_id,milliseconds"],
+                **process_options(environment, assignment_agent_log)))
+        deadline = time.monotonic() + args.assignment_warmup_seconds
+        while time.monotonic() < deadline:
+            if (domain_process.poll() is not None
+                    or any(process.poll() is not None for process in assignment_processes)
+                    or any(process.poll() is not None
+                           for process in assignment_agent_processes)):
+                for process in reversed((*assignment_processes,
+                                         *assignment_agent_processes)):
+                    stop_process(process)
+                stop_process(domain_process)
+                domain_process = None
+                assignment_processes = []
+                assignment_agent_processes = []
+                raise RuntimeError("domain fixture process exited during assignment warmup")
+            time.sleep(min(0.1, max(0.0, deadline - time.monotonic())))
+        wait_for_assignment_content(
+            (domain_process, *assignment_processes, *assignment_agent_processes),
+            args.startup_timeout_seconds, stopping)
+        stack_state = "online"
+        generation += 1
+
+    def stop_stack() -> None:
+        nonlocal domain_process, assignment_processes, assignment_agent_processes
+        nonlocal generation, stack_state
+        was_online = stack_state == "online"
+        stack_state = "offline"
+        for process in reversed(assignment_agent_processes):
+            stop_process(process)
+        for process in reversed(assignment_processes):
+            stop_process(process)
+        stop_process(domain_process)
+        assignment_agent_processes = []
+        assignment_processes = []
+        domain_process = None
+        if was_online:
+            generation += 1
+
+    def transition(action: str) -> dict:
+        with transition_lock:
+            if action == "online":
+                try:
+                    start_stack()
+                except Exception:
+                    stop_stack()
+                    raise
+            else:
+                stop_stack()
+            return {"schemaVersion": 1, "state": stack_state,
+                    "generation": generation}
 
     def request_stop(_signal=None, _frame=None) -> None:
         stopping.set()
@@ -271,26 +459,15 @@ def main() -> int:
     if threading.current_thread() is threading.main_thread():
         signal.signal(signal.SIGTERM, request_stop)
         signal.signal(signal.SIGINT, request_stop)
+    control = control_thread = None
     try:
-        domain_process = subprocess.Popen(
-            [str(domain_server), "--user-config", str(config_path),
-             "--logOptions", "nocolor,process_id,milliseconds"],
-            **process_options(environment, domain_log))
-        domain_id = wait_for_domain(
-            domain_process, f"http://127.0.0.1:{args.http_port}/id",
-            args.startup_timeout_seconds)
-        assignment_process = subprocess.Popen(
-            [str(assignment_client), "-n", "7", "-a", "127.0.0.1",
-             "--server-port", str(args.domain_port),
-             "--disable-domain-port-auto-discovery",
-             "--log-directory", str(output / "assignment-logs"),
-             "--logOptions", "nocolor,process_id,milliseconds"],
-            **process_options(environment, assignment_log))
-        deadline = time.monotonic() + args.assignment_warmup_seconds
-        while time.monotonic() < deadline:
-            if domain_process.poll() is not None or assignment_process.poll() is not None:
-                raise RuntimeError("domain fixture process exited during assignment warmup")
-            time.sleep(min(0.1, max(0.0, deadline - time.monotonic())))
+        start_stack()
+        control_token = secrets.token_urlsafe(32)
+        DomainControlHandler.token = control_token
+        DomainControlHandler.transition = staticmethod(transition)
+        control = ThreadingHTTPServer(("127.0.0.1", args.control_port), DomainControlHandler)
+        control_thread = threading.Thread(target=control.serve_forever, daemon=True)
+        control_thread.start()
         ready = {
             "schemaVersion": 1,
             "domainUrl": f"hifi://{domain_host}:{args.domain_port}{manifest['spawnPath']}",
@@ -299,22 +476,35 @@ def main() -> int:
             "requiredMarkers": manifest["requiredMarkers"],
             "expectedEntityCount": manifest["expectedEntityCount"],
             "bootstrapScriptUrl": script_url,
+            "peerScriptUrl": peer_script_url,
+            "peerDisplayName": manifest["peerDisplayName"],
+            "controlUrl": f"http://127.0.0.1:{control.server_address[1]}/v1/domain-state",
+            "controlToken": control_token,
         }
         if args.ready_file:
             atomic_json(args.ready_file.resolve(), ready)
-        print(json.dumps(ready, sort_keys=True), flush=True)
+        print(json.dumps({key: value for key, value in ready.items()
+                          if key != "controlToken"}, sort_keys=True), flush=True)
         while not stopping.wait(0.25):
-            if domain_process.poll() is not None:
+            if stack_state == "online" and domain_process.poll() is not None:
                 raise RuntimeError("domain-server exited while fixture was active")
-            if assignment_process.poll() is not None:
+            if stack_state == "online" and any(
+                    process.poll() is not None
+                    for process in (*assignment_processes, *assignment_agent_processes)):
                 raise RuntimeError("assignment-client exited while fixture was active")
     finally:
-        stop_process(assignment_process)
-        stop_process(domain_process)
+        with transition_lock:
+            stop_stack()
+        if control is not None:
+            control.shutdown()
+            control.server_close()
+        if control_thread is not None:
+            control_thread.join(timeout=2)
         resources.shutdown()
         resources.server_close()
         resource_thread.join(timeout=2)
         assignment_log.close()
+        assignment_agent_log.close()
         domain_log.close()
     return 0
 

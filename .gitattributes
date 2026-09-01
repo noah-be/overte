@@ -4,32 +4,47 @@
 # Copyright 2022 Overte e.V.
 # SPDX-License-Identifier: Apache-2.0
 
-*.cfg text
-*.cpp text
-*.css text
-*.c text
-*.frag text
-*.fst text
-*.h text
-*.html text
-*.ini text
-*.json text
-*.js text
-*.qml text
-*.qrc text
-*.slf text
-*.slh text
-*.slv text
-*.ts text
-*.txt text
-*.vert text
+# Normalize detected text to LF in the repository and in cross-platform
+# working trees. Windows command scripts are the deliberate exception below.
+* text=auto eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# SVG is XML source: keep it normalized and reviewable as text.
+*.svg text eol=lf diff
 
 # Denote all files that are truly binary and should not be modified.
+*.7z binary
+*.arfont binary
+*.bin binary
+*.bmp binary
+*.db binary
 *.dds binary
+*.eot binary
 *.fbx binary
+*.flac binary
+*.gif binary
+*.glb binary
+*.gpg binary
+*.gz binary
+*.icns binary
+*.ico binary
+*.jar binary
+*.jks binary
+*.jpeg binary
 *.jpg binary
+*.ktx binary
+*.mp3 binary
+*.ogg binary
+*.otf binary
+*.pdf binary
 *.png binary
-*.svg binary
-*.ttf binary
-*.wav binary
+*.psd binary
 *.rsrc binary
+*.ttf binary
+*.unitypackage binary
+*.wav binary
+*.woff binary
+*.woff2 binary
+*.zip binary

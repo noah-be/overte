@@ -1,0 +1,26 @@
+{
+  "name": "Immutable Android, canonical, and archive tags",
+  "target": "tag",
+  "enforcement": "active",
+  "bypass_actors": [],
+  "conditions": {
+    "ref_name": {
+      "include": [
+        "refs/tags/[0-9]*",
+        "refs/tags/v[0-9]*",
+        "refs/tags/android-phone-v*",
+        "refs/tags/android-phone-16k-deps-v*",
+        "refs/tags/archive/**"
+      ],
+      "exclude": []
+    }
+  },
+  "rules": [
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "non_fast_forward"
+    }
+  ]
+}
