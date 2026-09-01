@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://overte.org/schemas/ios-fedora-e2e-artifact-v1.json",
+  "title": "Signed iOS artifact handed from the protected macOS producer to Fedora",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "contract",
+    "kind",
+    "sourceRevision",
+    "createdAt",
+    "notAfter",
+    "provenance",
+    "artifact",
+    "bundle",
+    "signing"
+  ],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "contract": {"const": "overte-ios-fedora-e2e-artifact-v1"},
+    "kind": {"enum": ["overte-app", "webdriveragent"]},
+    "sourceRevision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "createdAt": {"$ref": "#/$defs/utcTimestamp"},
+    "notAfter": {"$ref": "#/$defs/utcTimestamp"},
+    "provenance": {"$ref": "#/$defs/provenance"},
+    "artifact": {"$ref": "#/$defs/artifact"},
+    "bundle": {"$ref": "#/$defs/bundle"},
+    "signing": {"$ref": "#/$defs/signing"},
+    "testBuildContractVersion": {"const": 1},
+    "toolchain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["xcuitestDriver", "webdriverAgent"],
+      "properties": {
+        "xcuitestDriver": {"const": "12.8.0"},
+        "webdriverAgent": {"const": "16.8.0"}
+      }
+    },
+    "xctest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bundle", "signing"],
+      "properties": {
+        "bundle": {"$ref": "#/$defs/bundle"},
+        "signing": {"$ref": "#/$defs/signing"}
+      }
+    }
+  },
+  "$defs": {
+    "utcTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "positiveIdentifier": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9223372036854775807
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "repositoryId",
+        "workflow",
+        "reusableWorkflow",
+        "ref",
+        "runId",
+        "runAttempt"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+        },
+        "repositoryId": {"$ref": "#/$defs/positiveIdentifier"},
+        "workflow": {"const": ".github/workflows/ios-bootstrap.yml"},
+        "reusableWorkflow": {"const": ".github/workflows/ios-fedora-e2e-producer.yml"},
+        "ref": {"const": "refs/heads/apple-ios"},
+        "runId": {"$ref": "#/$defs/positiveIdentifier"},
+        "runAttempt": {"$ref": "#/$defs/positiveIdentifier"}
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "sha256", "size"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 196,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,191}[.]ipa$"
+        },
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "size": {"type": "integer", "minimum": 1, "maximum": 4294967296}
+      }
+    },
+    "bundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*(?:[.][A-Za-z0-9][A-Za-z0-9-]*)+$"
+        }
+      }
+    },
+    "signing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["signed", "teamIdentifier", "applicationIdentifier", "profileExpiration"],
+      "properties": {
+        "signed": {"const": true},
+        "teamIdentifier": {"type": "string", "pattern": "^[A-Z0-9]{10}$"},
+        "applicationIdentifier": {
+          "type": "string",
+          "pattern": "^[A-Z0-9]{10}[.][A-Za-z0-9][A-Za-z0-9.-]+$"
+        },
+        "profileExpiration": {"$ref": "#/$defs/utcTimestamp"}
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {"kind": {"const": "overte-app"}},
+      "required": ["testBuildContractVersion"],
+      "not": {
+        "anyOf": [
+          {"required": ["toolchain"]},
+          {"required": ["xctest"]}
+        ]
+      }
+    },
+    {
+      "properties": {"kind": {"const": "webdriveragent"}},
+      "required": ["toolchain", "xctest"],
+      "not": {"required": ["testBuildContractVersion"]}
+    }
+  ]
+}

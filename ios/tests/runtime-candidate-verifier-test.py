@@ -170,6 +170,40 @@ def write_candidate(
     return payload, digest
 
 
+def write_fedora_candidate(root: Path, *, marker: bool = True) -> tuple[dict, str]:
+    info_updates = {"CFBundleIdentifier": "org.overte.interface.e2e"}
+    if marker:
+        info_updates.update(
+            {
+                "OverteE2ETestBuildContractVersion": 1,
+                "UIFileSharingEnabled": True,
+            }
+        )
+    legacy, digest = write_candidate(root, "ipad", info_updates=info_updates)
+    artifact = root / legacy["artifact"]
+    payload = {
+        "schemaVersion": 1,
+        "contract": "overte-ios-fedora-e2e-artifact-v1",
+        "kind": "overte-app",
+        "sourceRevision": REVISION,
+        "artifact": {
+            "name": artifact.name,
+            "sha256": digest,
+            "size": artifact.stat().st_size,
+        },
+        "bundle": {"id": "org.overte.interface.e2e"},
+        "signing": {
+            "signed": True,
+            "teamIdentifier": "ABCDE12345",
+            "applicationIdentifier": "ABCDE12345.org.overte.interface.e2e",
+            "profileExpiration": "2099-01-02T00:00:00Z",
+        },
+        "testBuildContractVersion": 1,
+    }
+    (root / "overte-fedora.manifest.json").write_text(json.dumps(payload), encoding="utf-8")
+    return payload, digest
+
+
 def expect_failure(callable_object, expected: str) -> None:
     try:
         callable_object()
@@ -213,6 +247,28 @@ def main() -> None:
         assert ipad_plan["artifact"] == ipad_payload["artifact"]
         assert ipad_plan["appRoot"] == "Payload/Overte.app"
         assert ipad_plan["platform"] == "iphoneos"
+
+        fedora = isolated_case(root, "fedora-e2e-success")
+        fedora_payload, fedora_digest = write_fedora_candidate(fedora)
+        fedora_plan = verifier.verify_candidate(fedora, "ipad", REVISION, fedora_digest)
+        assert fedora_plan["artifact"] == fedora_payload["artifact"]["name"]
+        assert fedora_plan["bundleIdentifier"] == "org.overte.interface.e2e"
+        assert fedora_plan["applicationIdentifier"] == "ABCDE12345.org.overte.interface.e2e"
+        expect_failure(
+            lambda: verifier.verify_candidate(fedora, "simulator", REVISION, fedora_digest),
+            "physical-device candidates",
+        )
+
+        fedora_without_marker = isolated_case(root, "fedora-e2e-missing-marker")
+        _, fedora_without_marker_digest = write_fedora_candidate(
+            fedora_without_marker, marker=False
+        )
+        expect_failure(
+            lambda: verifier.verify_candidate(
+                fedora_without_marker, "ipad", REVISION, fedora_without_marker_digest
+            ),
+            "contract version mismatch",
+        )
 
         legacy_selector = isolated_case(root, "legacy-display-selector")
         _, legacy_digest = write_candidate(

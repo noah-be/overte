@@ -24,6 +24,7 @@
 #include <QtCore/QCommandLineParser>
 #include <QtCore/QCoreApplication>
 #include <QtCore/QResource>
+#include <QtCore/QStandardPaths>
 #include <QtQml/QQmlContext>
 #include <QtQuick/QQuickWindow>
 
@@ -585,9 +586,21 @@ void Application::initialize(const QCommandLineParser &parser) {
         if (parser.isSet("testResultsLocation")) {
             // Set test snapshot location only if it is a writeable directory
             QString path = parser.value("testResultsLocation");
+            bool pathAllowed = true;
+#if defined(Q_OS_IOS) && defined(OVERTE_IOS_E2E_TEST_BUILD)
+            const QString documentsRoot = QDir::cleanPath(
+                QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
+            path = QDir::cleanPath(FileUtils::computeDocumentPath(path));
+            pathAllowed = path == documentsRoot || path.startsWith(documentsRoot + "/");
+            if (pathAllowed) {
+                pathAllowed = QDir().mkpath(path);
+            } else {
+                qCWarning(interfaceapp) << "Rejected iOS E2E results path outside Documents";
+            }
+#endif
 
             QFileInfo fileInfo(path);
-            if (fileInfo.isDir() && fileInfo.isWritable()) {
+            if (pathAllowed && fileInfo.isDir() && fileInfo.isWritable()) {
                 TestScriptingInterface::getInstance()->setTestResultsLocation(path);
             }
         }

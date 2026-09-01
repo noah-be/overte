@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "targets": [
+    {
+      "selector": "ipad-01",
+      "displayName": "iPad 01",
+      "platform": "ios",
+      "physical": true,
+      "enabled": false,
+      "artifactMode": "personal-team-preinstalled",
+      "serverUrl": "http://127.0.0.1:4723",
+      "appId": "org.overte.interface.e2e",
+      "capabilities": {
+        "platformName": "iOS",
+        "appium:automationName": "XCUITest",
+        "appium:udid": "REPLACE_WITH_PRIVATE_UDID",
+        "appium:platformVersion": "REPLACE_WITH_IOS_VERSION_18_OR_NEWER",
+        "appium:bundleId": "org.overte.interface.e2e",
+        "appium:usePreinstalledWDA": true,
+        "appium:updatedWDABundleId": "org.overte.WebDriverAgentRunner",
+        "appium:autoLaunch": false,
+        "appium:enforceAppInstall": false,
+        "appium:noReset": true
+      },
+      "artifactReceipt": "/private/overte-device-lab/ios/personal-team-preinstalled-receipt.json",
+      "testBuild": {
+        "contract": "overte-ios-e2e-v1",
+        "contractVersion": 1,
+        "fixtureOrigin": "http://192.0.2.10:18080",
+        "scenePath": "/scene.json?location=%2F0%2C2%2C4%2F0%2C0%2C0%2C1",
+        "probeScriptPath": "/overte_e2e_probe.js",
+        "resultsDirectory": "overte-e2e",
+        "launchArguments": ["--no-updater", "--no-login-suggestion"],
+        "launchEnvironment": {
+          "OVERTE_E2E_TEST_BUILD": "1"
+        }
+      },
+      "scene": {
+        "kind": "ios-test-build"
+      },
+      "controls": {
+        "look": {"start": [0.75, 0.45], "end": [0.35, 0.45], "durationSeconds": 0.7},
+        "move": {
+          "forward": {"mode": "hold", "start": [0.2, 0.78], "end": [0.2, 0.55], "durationSeconds": 1.5}
+        },
+        "tablet": {
+          "openAccessibilityId": "OverteTabletOpen",
+          "closeAccessibilityId": "OverteTabletClose"
+        }
+      },
+      "probe": {
+        "kind": "ios-documents"
+      }
+    }
+  ]
+}

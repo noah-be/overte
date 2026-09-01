@@ -24,6 +24,16 @@ on:
         required: false
         default: macos-26
         type: string
+      e2e_test_build:
+        description: Build the opt-in physical-device E2E Full Client (unsigned in this workflow)
+        required: false
+        default: false
+        type: boolean
+      e2e_bundle_id:
+        description: Dedicated E2E bundle identifier ending in .e2e
+        required: false
+        default: org.overte.interface.e2e
+        type: string
   workflow_call:
     inputs:
       qt_host_cache_key:
@@ -46,6 +56,16 @@ on:
         description: macOS runner label; use overte-ios-getmac for persistent recovery builds
         required: false
         default: macos-26
+        type: string
+      e2e_test_build:
+        description: Build the opt-in physical-device E2E Full Client (unsigned in this workflow)
+        required: false
+        default: false
+        type: boolean
+      e2e_bundle_id:
+        description: Dedicated E2E bundle identifier ending in .e2e
+        required: false
+        default: org.overte.interface.e2e
         type: string
 
 permissions:
@@ -427,9 +447,11 @@ jobs:
         env:
           QT_HOST_CACHE_KEY: ${{ inputs.qt_host_cache_key }}
           QT_IOS_CACHE_KEY: ${{ inputs.qt_ios_cache_key }}
+          QT_HOST_ARTIFACT_PREFIX: ${{ inputs.qt_host_artifact_prefix }}
+          QT_IOS_ARTIFACT_PREFIX: ${{ inputs.qt_ios_artifact_prefix }}
         run: |
           if [[ -z "$QT_HOST_CACHE_KEY" || -z "$QT_IOS_CACHE_KEY" ||
-                -z "${{ inputs.qt_host_artifact_prefix }}" || -z "${{ inputs.qt_ios_artifact_prefix }}" ]]; then
+                -z "$QT_HOST_ARTIFACT_PREFIX" || -z "$QT_IOS_ARTIFACT_PREFIX" ]]; then
             echo "Qt cache keys and durable artifact namespaces must be explicit." >&2
             exit 1
           fi
@@ -448,11 +470,13 @@ jobs:
         if: steps.qt-host-cache.outputs.cache-hit != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          QT_HOST_ARTIFACT_PREFIX: ${{ inputs.qt_host_artifact_prefix }}
+          QT_HOST_CACHE_KEY: ${{ inputs.qt_host_cache_key }}
         run: |
           python3 ios/ci/qt-checkpoint-artifact.py restore \
-            --artifact-prefix "${{ inputs.qt_host_artifact_prefix }}" \
+            --artifact-prefix "$QT_HOST_ARTIFACT_PREFIX" \
             --kind host \
-            --cache-key "${{ inputs.qt_host_cache_key }}" \
+            --cache-key "$QT_HOST_CACHE_KEY" \
             --expected-repository-id "${{ github.repository_id }}" \
             --expected-branch "${{ github.ref_name }}" \
             --install-root "${{ github.workspace }}/build-ios/qt-install/qt" \
@@ -476,11 +500,13 @@ jobs:
         if: steps.qt-ios-cache.outputs.cache-hit != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          QT_IOS_ARTIFACT_PREFIX: ${{ inputs.qt_ios_artifact_prefix }}
+          QT_IOS_CACHE_KEY: ${{ inputs.qt_ios_cache_key }}
         run: |
           python3 ios/ci/qt-checkpoint-artifact.py restore \
-            --artifact-prefix "${{ inputs.qt_ios_artifact_prefix }}" \
+            --artifact-prefix "$QT_IOS_ARTIFACT_PREFIX" \
             --kind ios \
-            --cache-key "${{ inputs.qt_ios_cache_key }}" \
+            --cache-key "$QT_IOS_CACHE_KEY" \
             --expected-repository-id "${{ github.repository_id }}" \
             --expected-branch "${{ github.ref_name }}" \
             --install-root "${{ github.workspace }}/build-ios/qt-install/qt" \
@@ -733,10 +759,18 @@ jobs:
 
       - name: Configure experimental full client graph
         id: full-client-configure
+        env:
+          E2E_TEST_BUILD: ${{ inputs.e2e_test_build }}
+          E2E_BUNDLE_ID: ${{ inputs.e2e_bundle_id }}
         run: |
           mkdir -p build-ios/ci-raw-diagnostics
           source build-ios/tooling-venv/bin/activate
           compiler_launcher="$GITHUB_WORKSPACE/ios/ci/xcode-compiler-launcher.sh"
+          configure_args=(configure --platform device --client-graph)
+          if [[ "$E2E_TEST_BUILD" == "true" ]]; then
+            [[ "$E2E_BUNDLE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*[.]e2e$ ]]
+            configure_args+=(--e2e-test-build --bundle-id "$E2E_BUNDLE_ID")
+          fi
           python3 ios/ci/runner-telemetry.py \
             --phase client-configure \
             --log "$IOS_RUNNER_TELEMETRY_DIR/configure.jsonl" \
@@ -747,7 +781,7 @@ jobs:
             --watch build=build-ios/device \
             --watch conan="$CONAN_HOME" -- \
             env OVERTE_IOS_COMPILER_LAUNCHER="$compiler_launcher" \
-              ios/build-ios.sh configure --platform device --client-graph
+              ios/build-ios.sh "${configure_args[@]}"
           grep -Fq 'C_COMPILER_LAUNCHER' build-ios/device/Overte.xcodeproj/project.pbxproj
           build_settings="$(xcodebuild -project build-ios/device/Overte.xcodeproj \
             -target Overte -configuration Release -sdk iphoneos -showBuildSettings)"
@@ -927,7 +961,13 @@ jobs:
       - name: Package numbered unsigned client IPA
         env:
           OVERTE_IOS_ARTIFACT_SEQUENCE: ${{ github.run_number }}
+          E2E_TEST_BUILD: ${{ inputs.e2e_test_build }}
+          E2E_BUNDLE_ID: ${{ inputs.e2e_bundle_id }}
         run: |
+          package_args=(package-client --platform device --configuration Release)
+          if [[ "$E2E_TEST_BUILD" == "true" ]]; then
+            package_args+=(--e2e-test-build --bundle-id "$E2E_BUNDLE_ID")
+          fi
           python3 ios/ci/runner-telemetry.py \
             --phase client-package \
             --log "$IOS_RUNNER_TELEMETRY_DIR/package.jsonl" \
@@ -937,7 +977,23 @@ jobs:
             --inactivity-timeout 900 --max-runtime 1800 \
             --watch build=build-ios/device \
             --watch artifacts=build-ios/artifacts -- \
-            ios/build-ios.sh package-client --platform device --configuration Release
+            ios/build-ios.sh "${package_args[@]}"
+
+      - name: Verify packaged E2E release boundary
+        env:
+          E2E_TEST_BUILD: ${{ inputs.e2e_test_build }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          ipas=(build-ios/artifacts/*-OverteIOSClient-Release-device-unsigned.ipa)
+          if (( ${#ipas[@]} != 1 )); then
+            echo "expected exactly one packaged integrated-client IPA" >&2
+            exit 1
+          fi
+          expected=disabled
+          [[ "$E2E_TEST_BUILD" == "true" ]] && expected=enabled
+          python3 ios/tools/verify-e2e-test-build.py "${ipas[0]}" \
+            --archive-root Payload/Overte.app --expected "$expected"
 
       - name: Verify build-ready release boundary
         shell: bash
@@ -963,6 +1019,7 @@ jobs:
           PY
 
       - name: Upload numbered client IPA, readiness report and VM metadata
+        if: ${{ !inputs.e2e_test_build }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: ${{ github.run_number }}-overte-ios-integrated-device-${{ github.run_id }}
@@ -975,13 +1032,34 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Upload short-lived unsigned E2E client handoff
+        if: ${{ inputs.e2e_test_build }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ github.run_number }}-overte-ios-integrated-e2e-unsigned-${{ github.run_id }}
+          path: |
+            build-ios/artifacts/*-OverteIOSClient-Release-device-unsigned.ipa
+            build-ios/artifacts/*-OverteIOSClient-Release-device-unsigned.json
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Upload matching device crash symbols
+        if: ${{ !inputs.e2e_test_build }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: ${{ github.run_number }}-overte-ios-integrated-device-symbols-${{ github.run_id }}
           path: build-ios/artifacts/*-OverteIOSClient-Release-device-unsigned-symbols.zip
           if-no-files-found: error
           retention-days: 14
+
+      - name: Upload short-lived matching E2E crash symbols
+        if: ${{ inputs.e2e_test_build }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ github.run_number }}-overte-ios-integrated-e2e-symbols-${{ github.run_id }}
+          path: build-ios/artifacts/*-OverteIOSClient-Release-device-unsigned-symbols.zip
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Sanitize failure diagnostics
         if: failure()
