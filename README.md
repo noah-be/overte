@@ -71,8 +71,9 @@ maintained on its corresponding development branch.
 ### Fork policies
 
 - [Contribution and AI-assistance policy](CONTRIBUTING.md)
-- [Security policy and private reporting](SECURITY.md)
+- [Security policy and current reporting route](SECURITY.md)
 - [One-way upstream intake policy](docs/UPSTREAM_INTAKE.md)
+- [Repository settings recommendations](docs/REPOSITORY_SETTINGS.md)
 - [Repository roadmap](docs/ROADMAP.md)
 
 > [!NOTE]

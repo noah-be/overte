@@ -49,26 +49,22 @@ sync/android-pico/android-vr-refresh    -> android-vr-pico
 ```
 
 The `branch-policy` workflow rejects wrong scopes, sibling merges, skipped
-hierarchy levels, and child-to-parent merges. The `branch-sync` workflow opens a
-pull request whenever a direct child is missing commits from its parent. It
-enables auto-merge with a merge commit, but GitHub completes it only after every
-required check and branch rule passes. Conflicts and failed target tests leave
-the PR open for manual intervention; the workflow never uses an administrator
-bypass.
+hierarchy levels, and child-to-parent merges. The `branch-sync` workflow is a
+read-only drift detector: it reports whenever a direct child is missing commits
+from its parent, but it does not create pull requests, write repository content,
+or enable auto-merge. A maintainer creates the required synchronization pull
+request, and conflicts or failed target tests remain visible for manual
+resolution without an administrator bypass.
 
 Required status checks intentionally do not require a synchronization PR's head
 branch to contain the latest target-branch commits. Requiring that would force a
 forbidden child-to-parent merge before a parent-to-child synchronization could
 complete. Pull-request workflows still test GitHub's merge result, and merge
 conflicts, required checks, and every direction rule continue to fail closed.
-Synchronization runs are serialized per parent branch, so simultaneous
-Android, Apple, Linux, and Windows propagation cannot cancel or replace one
-another.
+Drift-detection runs are serialized per parent branch, so simultaneous Android,
+Apple, Linux, and Windows checks cannot cancel or replace one another.
 If GitHub cannot compare a configured pair, it reports a warning and continues
 checking the remaining children instead of aborting the complete sync run.
-Synchronization PRs are created with the dedicated repository-installed GitHub
-App, not with `GITHUB_TOKEN`. This lets the normal pull-request workflows run on
-automatically opened PRs without granting write access to the workflow token.
 
 The Android, Apple, and desktop target rulesets remain complementary and
 mandatory. Their topology checks validate real Git ancestry and protected path
@@ -105,18 +101,6 @@ gh api --method POST "repos/{owner}/{repo}/rulesets" \
 
 Do not add a routine administrator bypass. Emergency changes should still use a
 pull request so the policy decision and CI result remain auditable.
-
-## Branch synchronization GitHub App
-
-Install the dedicated app only on this repository and grant it the minimum
-repository permissions `Contents: read` and `Pull requests: read and write`.
-Webhooks and organization or account permissions are not required. Configure:
-
-- repository variable `BRANCH_SYNC_APP_CLIENT_ID` with the app client ID;
-- Actions secret `BRANCH_SYNC_APP_PRIVATE_KEY` with one active app private key.
-
-Rotate the private key in the GitHub App settings, update the Actions secret,
-then revoke the old key. Never commit a private key or installation token.
 
 ## Local validation
 
