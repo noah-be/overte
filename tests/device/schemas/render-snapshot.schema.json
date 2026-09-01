@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://overte.org/schemas/device-render-snapshot-v1.json",
+  "title": "Native render presentation snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "backend", "hardwareAccelerated", "surfaceVisible", "blackFrame", "frameSequence"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "backend": {"type": "string", "minLength": 1, "maxLength": 64},
+    "hardwareAccelerated": {"type": "boolean"},
+    "surfaceVisible": {"type": "boolean"},
+    "blackFrame": {"type": "boolean"},
+    "frameSequence": {"type": "integer", "minimum": 0}
+  }
+}

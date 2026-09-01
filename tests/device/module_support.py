@@ -29,7 +29,13 @@ class AssertionFailure(RuntimeError):
 def operation(name: str, arguments: dict[str, object] | None = None) -> dict:
     try:
         value = invoke(MANIFEST, TARGET, name, arguments)
-    except (OSError, RuntimeError) as error:
+    except RuntimeError as error:
+        detail = str(error)
+        for prefix in ("ASSERTION: ", "error: ASSERTION: "):
+            if detail.startswith(prefix):
+                raise AssertionFailure(detail.removeprefix(prefix)) from error
+        raise InfrastructureError(detail) from error
+    except OSError as error:
         raise InfrastructureError(str(error)) from error
     if not isinstance(value, dict):
         raise InfrastructureError(f"adapter operation {name} did not return an object")
@@ -50,7 +56,7 @@ def fail(message: str) -> NoReturn:
 
 
 def module_main(function: Callable[[], None]) -> None:
-    """Give Jenkins a stable distinction between product and lab failures."""
+    """Give CI a stable distinction between product and lab failures."""
     try:
         function()
     except InfrastructureError as error:
@@ -59,12 +65,18 @@ def module_main(function: Callable[[], None]) -> None:
     except AssertionFailure as error:
         print(f"ASSERTION: {error}")
         raise SystemExit(1) from error
+    except Exception as error:
+        # A module bug or malformed lab configuration is an infrastructure
+        # error, never evidence that the product failed its behavioral check.
+        detail = str(error).replace(TARGET, "<target>")
+        print(f"INFRASTRUCTURE: unexpected {type(error).__name__}: {detail}")
+        raise SystemExit(75) from error
 
 
 def positive_integer_environment(name: str, default: int, maximum: int) -> int:
     value = os.environ.get(name, str(default))
     if not value.isdigit() or int(value) <= 0 or int(value) > maximum:
-        fail(f"{name} must be an integer from 1 through {maximum}")
+        raise InfrastructureError(f"{name} must be an integer from 1 through {maximum}")
     return int(value)
 
 

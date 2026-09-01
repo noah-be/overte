@@ -65,12 +65,34 @@
         "advancedMovementControls": {"type": "boolean"}
       }
     },
+    "audio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["muted"],
+      "properties": {"muted": {"type": "boolean"}}
+    },
+    "settings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["audioWarnWhenMuted"],
+      "properties": {"audioWarnWhenMuted": {"type": "boolean"}}
+    },
+    "render": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["frameCount", "lastFrameEpochMs"],
+      "properties": {
+        "frameCount": {"type": "integer", "minimum": 0},
+        "lastFrameEpochMs": {"type": "integer", "minimum": 0}
+      }
+    },
     "scene": {
       "type": "object",
       "additionalProperties": false,
       "required": ["url", "ready", "entityCount", "fixtureMarkerCount", "fixtureMarkers", "domainMarkerCount", "domainMarkers", "floorTopY", "avatarAboveFloor", "spawnLocationObserved", "spawnValidated", "collisionWall"],
       "properties": {
         "url": {"type": "string"},
+        "commandId": {"type": "string"},
         "ready": {"type": "boolean"},
         "entityCount": {"type": "integer", "minimum": 0},
         "fixtureMarkerCount": {"type": "integer", "minimum": 0},
@@ -124,11 +146,41 @@
         "then": {"properties": {"inAir": {"const": true}}}
       }]
     },
+    "verticalEvents": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["jumpCount", "jumpCompletedCount", "lastJumpStartY", "lastJumpPeakY", "lastJumpLandingY", "flightCount", "lastFlightStartY", "lastFlightPeakY"],
+      "properties": {
+        "jumpCount": {"type": "integer", "minimum": 0},
+        "jumpCompletedCount": {"type": "integer", "minimum": 0},
+        "lastJumpStartY": {"type": ["number", "null"]},
+        "lastJumpPeakY": {"type": ["number", "null"]},
+        "lastJumpLandingY": {"type": ["number", "null"]},
+        "flightCount": {"type": "integer", "minimum": 0},
+        "lastFlightStartY": {"type": ["number", "null"]},
+        "lastFlightPeakY": {"type": ["number", "null"]}
+      }
+    },
     "view": {
       "type": "object",
       "additionalProperties": false,
       "required": ["orientation"],
-      "properties": {"orientation": {"$ref": "#/$defs/vector3"}}
+      "properties": {
+        "orientation": {"$ref": "#/$defs/vector3"},
+        "orientationHistory": {
+          "type": "array",
+          "maxItems": 48,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["sampleSequence", "orientation"],
+            "properties": {
+              "sampleSequence": {"type": "integer", "minimum": 1},
+              "orientation": {"$ref": "#/$defs/vector3"}
+            }
+          }
+        }
+      }
     },
     "tablet": {
       "type": "object",
@@ -138,6 +190,57 @@
         "open": {"type": "boolean"},
         "home": {"type": "boolean"},
         "toolbarMode": {"type": "boolean"}
+      }
+    },
+    "interaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targetAvailable", "pressCount", "lastEntityName", "lastPointerId"],
+      "properties": {
+        "targetAvailable": {"type": "boolean"},
+        "pressCount": {"type": "integer", "minimum": 0},
+        "lastEntityName": {"type": "string"},
+        "lastPointerId": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "scriptedEntity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["targetAvailable", "loaded", "scriptUrl", "activationCount", "state", "color"],
+      "properties": {
+        "targetAvailable": {"type": "boolean"},
+        "loaded": {"type": "boolean"},
+        "scriptUrl": {"type": "string"},
+        "activationCount": {"type": "integer", "minimum": 0},
+        "state": {"enum": ["active", "idle", "unavailable"]},
+        "color": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["red", "green", "blue"],
+              "properties": {
+                "red": {"type": "integer", "minimum": 0, "maximum": 255},
+                "green": {"type": "integer", "minimum": 0, "maximum": 255},
+                "blue": {"type": "integer", "minimum": 0, "maximum": 255}
+              }
+            }
+          ]
+        }
+      }
+    },
+    "peer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["present", "sessionId", "displayName", "position", "observationCount", "movementDistanceMeters"],
+      "properties": {
+        "present": {"type": "boolean"},
+        "sessionId": {"type": "string"},
+        "displayName": {"type": "string"},
+        "position": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/vector3"}]},
+        "observationCount": {"type": "integer", "minimum": 0},
+        "movementDistanceMeters": {"type": "number", "minimum": 0}
       }
     },
     "controller": {

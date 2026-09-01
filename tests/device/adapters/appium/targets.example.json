@@ -2,95 +2,63 @@
   "schemaVersion": 1,
   "targets": [
     {
-      "selector": "android-phone-01",
-      "displayName": "Android Phone 01",
+      "selector": "disabled-android-example",
+      "displayName": "Disabled Android example",
       "platform": "android",
-      "physical": true,
-      "enabled": true,
+      "physical": false,
+      "enabled": false,
       "serverUrl": "http://127.0.0.1:4723",
-      "appId": "org.overte.phone",
+      "appId": "org.overte.example",
       "capabilities": {
         "platformName": "Android",
         "appium:automationName": "UiAutomator2",
-        "appium:udid": "REPLACE_WITH_PRIVATE_UDID",
-        "appium:appPackage": "org.overte.phone",
-        "appium:autoGrantPermissions": true,
-        "appium:autoLaunch": false,
-        "appium:noReset": true
-      },
-      "process": {
-        "kind": "adb"
-      },
-      "scene": {
-        "kind": "android-debug-e2e"
+        "appium:autoLaunch": false
       },
       "controls": {
-        "look": {"start": [0.75, 0.45], "end": [0.35, 0.45], "durationSeconds": 0.7},
+        "look": {
+          "start": [0.7, 0.4],
+          "end": [0.3, 0.4],
+          "mode": "swipe",
+          "durationSeconds": 0.5
+        },
         "move": {
-          "forward": {"mode": "hold", "start": [0.086, 0.78], "end": [0.086, 0.6], "durationSeconds": 1.5}
+          "forward": {"start": [0.2, 0.8], "end": [0.2, 0.6], "mode": "hold", "durationSeconds": 0.5}
         },
         "tablet": {
-          "openPoint": [0.045, 0.25],
-          "closePoint": [0.5, 0.965]
+          "openAccessibilityId": "TabletOpen",
+          "closeAccessibilityId": "TabletClose",
+          "semanticUi": {"contractVersion": 1}
         }
-      },
-      "probe": {
-        "kind": "android-run-as",
-        "relativePath": "files/overte-e2e/overte-probe.json"
-      },
-      "clientControl": {
-        "kind": "android-run-as-command",
-        "relativePath": "files/overte-e2e/e2e-client-command.json"
       }
     },
     {
-      "selector": "ipad-01",
-      "displayName": "iPad 01",
+      "selector": "disabled-ios-example",
+      "displayName": "Disabled iOS example",
       "platform": "ios",
-      "physical": true,
+      "physical": false,
       "enabled": false,
       "serverUrl": "http://127.0.0.1:4723",
-      "appId": "REPLACE_WITH_SIGNED_APP_BUNDLE_ID",
+      "appId": "org.overte.example",
       "capabilities": {
         "platformName": "iOS",
         "appium:automationName": "XCUITest",
-        "appium:udid": "REPLACE_WITH_PRIVATE_UDID",
-        "appium:platformVersion": "REPLACE_WITH_IOS_VERSION_18_OR_NEWER",
-        "appium:bundleId": "REPLACE_WITH_SIGNED_APP_BUNDLE_ID",
-        "appium:app": "/private/overte-device-lab/ios/Overte-E2E-signed.ipa",
-        "appium:usePreinstalledWDA": true,
-        "appium:prebuiltWDAPath": "/private/overte-device-lab/ios/WebDriverAgentRunner-signed.ipa",
-        "appium:updatedWDABundleId": "REPLACE_WITH_SIGNED_WDA_BUNDLE_ID_WITHOUT_XCTRUNNER_SUFFIX",
-        "appium:autoLaunch": false,
-        "appium:noReset": true
-      },
-      "artifactReceipt": "/private/overte-device-lab/ios/fedora-artifacts-receipt.json",
-      "testBuild": {
-        "contract": "overte-ios-e2e-v1",
-        "contractVersion": 1,
-        "fixtureOrigin": "http://192.0.2.10:18080",
-        "probeScriptPath": "/overte_e2e_probe.js",
-        "resultsDirectory": "overte-e2e",
-        "launchArguments": ["--no-updater", "--no-login-suggestion"],
-        "launchEnvironment": {
-          "OVERTE_E2E_TEST_BUILD": "1"
-        }
-      },
-      "scene": {
-        "kind": "ios-test-build"
+        "appium:autoLaunch": false
       },
       "controls": {
-        "look": {"start": [0.75, 0.45], "end": [0.35, 0.45], "durationSeconds": 0.7},
+        "look": {
+          "start": [0.7, 0.4],
+          "end": [0.3, 0.4],
+          "mode": "swipe",
+          "durationSeconds": 0.5
+        },
         "move": {
-          "forward": {"mode": "hold", "start": [0.2, 0.78], "end": [0.2, 0.55], "durationSeconds": 1.5}
+          "forward": {"start": [0.2, 0.8], "end": [0.2, 0.6], "mode": "hold", "durationSeconds": 0.5}
         },
         "tablet": {
-          "openAccessibilityId": "REPLACE_AFTER_ACCESSIBILITY_AUDIT",
-          "closeAccessibilityId": "REPLACE_AFTER_ACCESSIBILITY_AUDIT"
+          "openAccessibilityId": "TabletOpen",
+          "closeAccessibilityId": "TabletClose",
+          "semanticUi": {"contractVersion": 1}
         }
-      },
-      "probe": {
-        "kind": "ios-documents"
       }
     }
   ]

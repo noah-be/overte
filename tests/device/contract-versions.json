@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "contracts": {
+    "acceptance-policy": {"current": 1, "reads": [1]},
+    "adapter-manifest": {"current": 1, "reads": [1]},
+    "artifact-manifest": {"current": 1, "reads": [1]},
+    "capability-registry": {"current": 1, "reads": [1]},
+    "fixture-environment": {"current": 1, "reads": [1]},
+    "matrix-summary": {"current": 1, "reads": [1]},
+    "probe-snapshot": {"current": 2, "reads": [2]},
+    "run-manifest": {"current": 1, "reads": [1]},
+    "run-summary": {"current": 1, "reads": [1]},
+    "timeline": {"current": 1, "reads": [1]}
+  },
+  "migrationRules": {
+    "breakingChange": "increment current and retain an explicit reader or migration for every still-supported producer",
+    "additiveChange": "only optional fields may be added without a major contract increment",
+    "removal": "remove a reader only after all required platform producers have promoted to the replacement"
+  }
+}

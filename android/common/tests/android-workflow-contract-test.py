@@ -26,6 +26,39 @@ class AndroidTestWorkflowContracts(unittest.TestCase):
         self.assertRegex(self.source, r"(?m)^permissions:\n  contents: read$")
         self.assertNotRegex(self.source, r"(?m)^\s+(?:contents|id-token|packages|actions): write$")
 
+    def test_schedule_runs_only_the_stable_contract_smoke(self):
+        self.assertRegex(self.source, r"(?m)^  schedule:\n    - cron: \"17 2 \* \* \*\"$")
+        self.assertRegex(self.source, r"(?m)^  workflow_dispatch:$")
+        for job in ("fast", "coverage"):
+            body = re.search(
+                rf"(?ms)^  {job}:\n(.*?)(?=^  [A-Za-z0-9_-]+:|\Z)", self.source)
+            self.assertIsNotNone(body)
+            self.assertIn("if: github.event_name != 'schedule'", body.group(1))
+        contracts = re.search(
+            r"(?ms)^  contracts:\n(.*?)(?=^  [A-Za-z0-9_-]+:|\Z)", self.source)
+        self.assertIsNotNone(contracts)
+        self.assertNotRegex(contracts.group(1), r"(?m)^    if:")
+
+    def test_long_diagnostics_are_manual_or_label_gated(self):
+        self.assertIn("types: [opened, synchronize, reopened, labeled, unlabeled]", self.source)
+        diagnostic_condition = (
+            "github.event_name == 'workflow_dispatch' ||\n"
+            "      (github.event_name == 'pull_request' &&\n"
+            "      contains(github.event.pull_request.labels.*.name, "
+            "'android-long-diagnostics'))"
+        )
+        for job in ("mutation-extended", "stability", "endurance"):
+            body = re.search(
+                rf"(?ms)^  {re.escape(job)}:\n(.*?)(?=^  [A-Za-z0-9_-]+:|\Z)",
+                self.source,
+            )
+            self.assertIsNotNone(body)
+            self.assertIn(diagnostic_condition, body.group(1))
+
+    def test_pr_smoke_never_starts_hardware_tiers(self):
+        self.assertNotIn("common/tests/run-tests.sh device", self.source)
+        self.assertNotIn("common/tests/run-tests.sh instrumentation", self.source)
+
     def test_all_actions_are_pinned_to_immutable_commits(self):
         actions = ACTION_USE.findall(self.source)
         self.assertGreaterEqual(len(actions), 10)
@@ -75,9 +108,15 @@ class AndroidTestWorkflowContracts(unittest.TestCase):
         )
 
     def test_phone_branch_and_ci_work_are_checked(self):
-        self.assertIn("android-phone", self.source)
-        self.assertIn('"ci/android-phone-**"', self.source)
-        self.assertIn('"test/android-**"', self.source)
+        self.assertIn(
+            "branches: [main, android-main, android-phone, android-vr, android-vr-pico]",
+            self.source,
+        )
+        for pattern in (
+            '"ci/android/**"', '"test/android/**"',
+            '"test/android-phone/**"', '"test/android-pico/**"',
+        ):
+            self.assertIn(pattern, self.source)
 
 
 class AndroidPhoneBuildWorkflowContracts(unittest.TestCase):

@@ -15,7 +15,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  open-sync-pull-requests:
+  detect-drift:
+    name: branch-sync-drift
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -26,59 +27,21 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Create branch synchronization app token
-        id: branch-sync-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
-        with:
-          client-id: ${{ vars.BRANCH_SYNC_APP_CLIENT_ID }}
-          private-key: ${{ secrets.BRANCH_SYNC_APP_PRIVATE_KEY }}
-
-      - name: Open missing parent-to-child synchronization PRs
+      - name: Detect parent-to-child drift without repository writes
         env:
-          GH_TOKEN: ${{ steps.branch-sync-token.outputs.token }}
+          GITHUB_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           PUSH_PARENT: ${{ github.ref_name }}
+          PUSH_SHA: ${{ github.sha }}
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           if [[ "$EVENT_NAME" == "push" ]]; then
-            parents=("$PUSH_PARENT")
+            python3 tools/branch-policy/drift.py \
+              --repository "$REPOSITORY" \
+              --parent "$PUSH_PARENT" \
+              --expected-parent-sha "$PUSH_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
           else
-            mapfile -t parents < <(python3 tools/branch-policy/check.py parents)
+            python3 tools/branch-policy/drift.py \
+              --repository "$REPOSITORY" | tee -a "$GITHUB_STEP_SUMMARY"
           fi
-
-          for parent in "${parents[@]}"; do
-            while IFS= read -r child; do
-              [[ -n "$child" ]] || continue
-
-              if ! comparison=$(gh api \
-                "repos/$REPOSITORY/compare/$child...$parent" 2>&1); then
-                echo "::warning::Skipping $parent -> $child: $comparison"
-                continue
-              fi
-              ahead=$(jq -r '.ahead_by' <<<"$comparison")
-              [[ "$ahead" -gt 0 ]] || continue
-
-              pull_request=$(gh pr list \
-                --repo "$REPOSITORY" \
-                --state open \
-                --base "$child" \
-                --head "$parent" \
-                --json number \
-                --jq '.[0].number // empty')
-
-              if [[ -z "$pull_request" ]]; then
-                pull_request=$(gh pr create \
-                  --repo "$REPOSITORY" \
-                  --base "$child" \
-                  --head "$parent" \
-                  --title "sync: merge $parent into $child" \
-                  --body "Automated direct parent-to-child synchronization required by the repository branch policy.")
-              fi
-
-              gh pr merge "$pull_request" \
-                --repo "$REPOSITORY" \
-                --auto \
-                --merge
-            done < <(python3 tools/branch-policy/check.py children --parent "$parent")
-          done
