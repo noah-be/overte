@@ -18,9 +18,12 @@
       "parameters": {
         "do_not_enforce_on_create": false,
         "required_status_checks": [
-          {"context": "desktop-branch-topology"}
+          {
+            "context": "Enforce main desktop sync path",
+            "integration_id": 15368
+          }
         ],
-        "strict_required_status_checks_policy": false
+        "strict_required_status_checks_policy": true
       }
     }
   ]

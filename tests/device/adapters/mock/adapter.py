@@ -23,10 +23,13 @@ from contracts import TABLET_CONTRACT_VERSION, validate_operation_arguments
 
 
 CAPABILITIES = sorted([
-    "accessibility.snapshot", "app.foreground", "app.launch", "app.process", "app.stop",
-    "asset.load", "input.fly", "input.jump", "input.look", "input.move",
-    "navigation.enter-domain", "probe.snapshot", "scene.load", "sound.play",
-    "tablet.activate", "tablet.close", "tablet.open", "tablet.snapshot",
+    "accessibility.snapshot", "app.crash", "app.foreground", "app.launch", "app.process",
+    "app.stop", "app.upgrade", "app.version", "asset.load", "audio.mute",
+    "collaboration.edit", "collaboration.snapshot", "input.fly", "input.jump", "input.look", "input.move",
+    "input.primary", "lifecycle.background", "navigation.enter-domain", "probe.snapshot",
+    "permission.set", "permission.snapshot", "render.snapshot", "scene.load", "scene.reload", "setting.set", "sound.play",
+    "tablet.activate", "tablet.close", "tablet.open", "tablet.snapshot", "text.dismiss",
+    "text.focus", "text.snapshot", "text.type",
 ])
 FIXTURE_MARKERS = [
     "OVERTE_E2E_COLLISION_WALL",
@@ -40,6 +43,7 @@ COLLISION_WALL = {
     "center": {"x": 0.0, "y": 2.0, "z": 0.5},
     "dimensions": {"x": 8.0, "y": 4.0, "z": 0.5},
 }
+FIXTURE_ENTITY_COUNT = len(FIXTURE_MARKERS) + 1
 
 
 def cli() -> argparse.Namespace:
@@ -62,6 +66,7 @@ def initial_state() -> dict:
     pico = os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1"
     return {
         "running": False, "foreground": False, "sceneUrl": "", "sceneReady": False,
+        "sceneCommandId": "",
         "launchCount": 0, "sceneLoadCount": 0, "domainEnterCount": 0,
         "domainConnected": False, "domainHost": "", "domainId": "",
         "position": {"x": 0.0, "y": 2.0 if pico else 1.0, "z": 4.0},
@@ -71,11 +76,33 @@ def initial_state() -> dict:
         "inAir": False, "flying": False, "flyingEnabled": True,
         "locomotion": None, "locomotionSamples": 0,
         "orientation": {"x": 0.0, "y": 0.0, "z": 0.0}, "tablet": False,
+        "orientationHistory": [], "pendingOrientationSample": None,
         "picoRouteActive": False, "inputSequence": 0,
         "tabletScreen": "tablet.home",
+        "interactionCount": 0, "interactionLastEntityName": "",
+        "interactionLastPointerId": None,
+        "scriptActivationCount": 0, "scriptState": "idle",
+        "peerObservationCount": 0, "peerMovementDistance": 0.0,
+        "peerPosition": {"x": 2.0, "y": 0.0, "z": 2.0},
+        "textValue": "", "textFocused": False, "textKeyboardVisible": False,
+        "textSubmittedCount": 0,
+        "audioMuted": False, "audioWarnWhenMuted": True,
+        "permissionMicrophone": "granted",
+        "sharedEntityName": "OVERTE_E2E_SHARED_COLOR",
+        "sharedEntityValue": "orange", "sharedEntityRevision": 0,
+        "productVersion": os.environ.get("OVERTE_E2E_UPGRADE_FROM_VERSION", "1.0.0"),
+        "crashed": False,
+        "renderFrameCount": 0, "renderLastFrameEpochMs": 0,
+        "nativeFrameSequence": 0,
         "processRevision": 0, "asset": None,
         "sampleSequence": 0, "sampleEpochMs": 0,
         "soundObservationCount": 0,
+        "verticalEvents": {
+            "jumpCount": 0, "jumpCompletedCount": 0,
+            "lastJumpStartY": None, "lastJumpPeakY": None,
+            "lastJumpLandingY": None, "flightCount": 0,
+            "lastFlightStartY": None, "lastFlightPeakY": None,
+        },
         "sound": {
             "commandId": "", "url": "", "commandObserved": False,
             "resourceReady": False, "durationSeconds": 0.0, "format": "unknown",
@@ -338,12 +365,45 @@ def invoke(operation: str, arguments: dict) -> dict:
     validate_operation_arguments(operation, arguments)
     state = load()
     if operation == "app.launch":
+        if state.get("crashed") and "crash-relaunch-fails" in failures():
+            raise RuntimeError("mock crash recovery launch failed")
+        was_running = state["running"]
         state["running"] = state["foreground"] = True
-        state["launchCount"] += 1
+        state["crashed"] = False
+        if not was_running:
+            state["launchCount"] += 1
+            if (state["launchCount"] > 1
+                    and "setting-not-persisted" in failures()):
+                state["audioWarnWhenMuted"] = True
+        elif "lifecycle-process-restart" in failures():
+            state["processRevision"] += 1
+        if "lifecycle-scene-loss" in failures() and was_running:
+            state["sceneReady"] = False
+        if "lifecycle-tablet-loss" in failures() and was_running:
+            state["tablet"] = False
         result = {"launched": True}
     elif operation == "app.stop":
         state["running"] = state["foreground"] = False
         result = {"stopped": True}
+    elif operation == "app.crash":
+        if "crash-process-survives" not in failures():
+            state["running"] = state["foreground"] = False
+        state["crashed"] = True
+        state["processRevision"] += 1
+        result = {"crashed": True}
+    elif operation == "app.version":
+        return {"schemaVersion": 1, "version": state["productVersion"]}
+    elif operation == "app.upgrade":
+        if state["productVersion"] != arguments["fromVersion"]:
+            raise RuntimeError("installed mock version does not match upgrade source")
+        state["running"] = state["foreground"] = True
+        state["launchCount"] += 1
+        state["processRevision"] += 1
+        if "upgrade-version-unchanged" not in failures():
+            state["productVersion"] = arguments["toVersion"]
+        if "upgrade-settings-lost" in failures():
+            state["audioWarnWhenMuted"] = True
+        result = {"applied": True}
     elif operation == "app.process":
         identity = "mock-e2e-process"
         if state["launchCount"] > 1:
@@ -357,10 +417,11 @@ def invoke(operation: str, arguments: dict) -> dict:
                 "identity": identity if state["running"] else None}
     elif operation == "app.foreground":
         return {"foreground": state["foreground"]}
-    elif operation == "scene.load":
+    elif operation in {"scene.load", "scene.reload"}:
         reset_scene(state, arguments["url"])
         state["sceneLoadCount"] += 1
-        result = {"requested": True}
+        state["sceneCommandId"] = f"scene-{state['sceneLoadCount']}"
+        result = {"requested": True, "commandId": state["sceneCommandId"]}
     elif operation == "navigation.enter-domain":
         requested = arguments.get("url", "")
         parsed = urlsplit(requested)
@@ -376,6 +437,9 @@ def invoke(operation: str, arguments: dict) -> dict:
         state["domainHost"] = parsed.hostname
         state["domainId"] = os.environ.get(
             "OVERTE_MOCK_E2E_DOMAIN_ID", "11111111-2222-4333-8444-555555555555")
+        if (state["domainEnterCount"] >= 1
+                and "domain-reentry-process-restart" in failures()):
+            state["processRevision"] = state.get("processRevision", 0) + 1
         state["domainEnterCount"] += 1
         result = {"requested": True}
     elif operation == "asset.load":
@@ -414,37 +478,87 @@ def invoke(operation: str, arguments: dict) -> dict:
         result = {"requested": True}
     elif operation == "sound.play":
         result = begin_sound(state, arguments)
+    elif operation == "audio.mute":
+        if "audio-mute-missing" not in failures():
+            state["audioMuted"] = arguments["muted"]
+        result = {"performed": True}
+    elif operation == "collaboration.snapshot":
+        return {
+            "schemaVersion": 1,
+            "entityName": state["sharedEntityName"],
+            "value": state["sharedEntityValue"],
+            "revision": state["sharedEntityRevision"],
+            "actorId": ("OVERTE_E2E_ACTOR_WRONG" if "entity-sync-wrong-actor" in failures()
+                        else "OVERTE_E2E_ACTOR_FIXTURE"),
+        }
+    elif operation == "collaboration.edit":
+        if arguments["entityName"] != state["sharedEntityName"]:
+            raise RuntimeError("controlled shared entity was not found")
+        if "entity-sync-missing" not in failures():
+            state["sharedEntityValue"] = arguments["value"]
+            state["sharedEntityRevision"] += (
+                2 if "entity-sync-duplicate" in failures() else 1)
+        result = {"performed": True}
+    elif operation == "permission.snapshot":
+        return {"schemaVersion": 1, "permissionId": "microphone",
+                "state": state["permissionMicrophone"]}
+    elif operation == "permission.set":
+        requested = arguments["state"]
+        missing = ((requested == "denied" and "permission-deny-missing" in failures())
+                   or (requested == "granted" and "permission-grant-missing" in failures()))
+        if not missing:
+            state["permissionMicrophone"] = requested
+        result = {"performed": True}
     elif operation == "input.look":
-        state["inputSequence"] += 1
-        state["picoRouteActive"] = False
+        before_orientation = copy.deepcopy(state["orientation"])
         scale = 2.0 if "small-look" in failures() else 120.0
         state["orientation"]["y"] += float(arguments["horizontal"]) * scale
         state["orientation"]["x"] += float(arguments["vertical"]) * scale
-        result = {"performed": True, "sequence": state["inputSequence"]}
-        if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
-            result.update({"viewApplied": True,
-                           "viewYawDegrees": float(arguments["horizontal"]) * scale,
-                           "viewPitchDegrees": float(arguments["vertical"]) * scale})
+        if "transient-look" in failures():
+            state["pendingOrientationSample"] = copy.deepcopy(state["orientation"])
+            state["orientation"] = before_orientation
+        result = {"performed": True}
     elif operation == "input.move":
         state["inputSequence"] += 1
         state["picoRouteActive"] = True
         apply_move(state, arguments["direction"], float(arguments["durationSeconds"]))
-        result = {"performed": True, "sequence": state["inputSequence"]}
-        if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
-            strength = arguments.get("strength", 0.8)
-            direction = arguments["direction"]
-            result.update({"openXrVectorApplied": True,
-                           "openXrLeftThumbstickX": (strength if direction == "right" else
-                                                     -strength if direction == "left" else 0.0),
-                           "openXrLeftThumbstickY": (strength if direction == "forward" else
-                                                     -strength if direction == "backward" else 0.0)})
+        result = {"performed": True}
+    elif operation == "input.primary":
+        if not state["sceneReady"] or state["domainConnected"]:
+            raise RuntimeError("controlled interaction target is unavailable")
+        if "primary-interaction-missing" not in failures():
+            state["interactionCount"] += (
+                2 if "primary-interaction-duplicate" in failures() else 1)
+            state["interactionLastEntityName"] = "OVERTE_E2E_INTERACTABLE"
+            state["interactionLastPointerId"] = 0
+            if "script-activation-missing" not in failures():
+                activations = 2 if "script-activation-duplicate" in failures() else 1
+                state["scriptActivationCount"] += activations
+                if activations % 2:
+                    state["scriptState"] = (
+                        "active" if state["scriptState"] == "idle" else "idle")
+        result = {"performed": True}
     elif operation == "input.jump":
-        state["locomotion"] = "jump"
-        state["locomotionSamples"] = 0
+        if "transient-vertical" in failures():
+            events = state["verticalEvents"]
+            events["jumpCount"] += 1
+            events["jumpCompletedCount"] = events["jumpCount"]
+            events["lastJumpStartY"] = state["groundY"]
+            events["lastJumpPeakY"] = state["groundY"] + 0.8
+            events["lastJumpLandingY"] = state["groundY"]
+        else:
+            state["locomotion"] = "jump"
+            state["locomotionSamples"] = 0
         result = {"performed": True}
     elif operation == "input.fly":
-        state["locomotion"] = "fly"
-        state["locomotionSamples"] = 0
+        if "transient-vertical" in failures():
+            events = state["verticalEvents"]
+            events["flightCount"] += 1
+            events["lastFlightStartY"] = state["groundY"]
+            events["lastFlightPeakY"] = state["groundY"] + 1.5
+        else:
+            state["locomotion"] = "fly"
+            state["locomotionSamples"] = 0
         result = {"performed": True}
     elif operation == "tablet.open":
         state["inputSequence"] += 1
@@ -469,6 +583,52 @@ def invoke(operation: str, arguments: dict) -> dict:
     elif operation == "tablet.activate":
         activate_tablet_control(state, arguments["controlId"])
         result = {"performed": True}
+    elif operation == "text.focus":
+        state["textValue"] = ""
+        state["textFocused"] = True
+        state["textKeyboardVisible"] = True
+        result = {"performed": True}
+    elif operation == "text.type":
+        if not state["textFocused"]:
+            raise RuntimeError("controlled text field is not focused")
+        state["textValue"] += arguments["text"]
+        backspaces = arguments["backspaceCount"]
+        if "text-backspace-missing" not in failures() and backspaces:
+            state["textValue"] = state["textValue"][:-backspaces]
+        if arguments["submit"] and "text-submit-missing" not in failures():
+            state["textSubmittedCount"] += 1
+        result = {"performed": True}
+    elif operation == "text.dismiss":
+        if "text-dismiss-missing" not in failures():
+            state["textFocused"] = False
+            state["textKeyboardVisible"] = False
+        result = {"performed": True}
+    elif operation == "text.snapshot":
+        return {
+            "schemaVersion": 1,
+            "value": state["textValue"],
+            "focused": state["textFocused"],
+            "keyboardVisible": state["textKeyboardVisible"],
+            "submittedCount": state["textSubmittedCount"],
+        }
+    elif operation == "setting.set":
+        if "setting-set-missing" not in failures():
+            state["audioWarnWhenMuted"] = arguments["enabled"]
+        result = {"performed": True}
+    elif operation == "lifecycle.background":
+        state["foreground"] = False
+        result = {"backgrounded": True}
+    elif operation == "render.snapshot":
+        if "native-frame-stalled" not in failures():
+            state["nativeFrameSequence"] += 1
+        result = {
+            "schemaVersion": 1,
+            "backend": "llvmpipe" if "software-render" in failures() else "MockGPU",
+            "hardwareAccelerated": "software-render" not in failures(),
+            "surfaceVisible": "hidden-surface" not in failures(),
+            "blackFrame": "black-frame" in failures(),
+            "frameSequence": state["nativeFrameSequence"],
+        }
     elif operation == "probe.snapshot":
         after = arguments.get("afterSampleSequence")
         if (after is not None and (not isinstance(after, int) or isinstance(after, bool)
@@ -476,22 +636,51 @@ def invoke(operation: str, arguments: dict) -> dict:
             raise RuntimeError("afterSampleSequence must be a non-negative integer")
         if state["locomotion"] == "jump":
             state["locomotionSamples"] += 1
+            jump_is_flight = "jump-as-flight" in failures()
+            if state["locomotionSamples"] == 1 and not jump_is_flight:
+                events = state["verticalEvents"]
+                events["jumpCount"] += 1
+                events["lastJumpStartY"] = state["groundY"]
+                events["lastJumpPeakY"] = state["groundY"]
+                events["lastJumpLandingY"] = None
+            elif state["locomotionSamples"] == 1:
+                events = state["verticalEvents"]
+                events["flightCount"] += 1
+                events["lastFlightStartY"] = state["groundY"]
+                events["lastFlightPeakY"] = state["groundY"]
             airborne = (state["locomotionSamples"] <= 2
                         or "jump-no-landing" in failures())
             gain = 0.0 if "jump-no-height" in failures() else 0.8
             state["position"]["y"] = state["groundY"] + (gain if airborne else 0.0)
             state["inAir"] = airborne
-            state["flying"] = airborne and "jump-as-flight" in failures()
+            state["flying"] = airborne and jump_is_flight
             state["velocity"] = ({"x": 0.0, "y": 1.0, "z": 0.0} if airborne else
                                  {"x": 0.0, "y": 0.0, "z": 0.0})
+            if jump_is_flight:
+                state["verticalEvents"]["lastFlightPeakY"] = max(
+                    state["verticalEvents"]["lastFlightPeakY"], state["position"]["y"])
+            else:
+                state["verticalEvents"]["lastJumpPeakY"] = max(
+                    state["verticalEvents"]["lastJumpPeakY"], state["position"]["y"])
+            if not airborne and not jump_is_flight:
+                state["verticalEvents"]["jumpCompletedCount"] = state[
+                    "verticalEvents"]["jumpCount"]
+                state["verticalEvents"]["lastJumpLandingY"] = state["position"]["y"]
             if not airborne:
                 state["locomotion"] = None
         elif state["locomotion"] == "fly":
             state["locomotionSamples"] += 1
+            if state["locomotionSamples"] == 1:
+                events = state["verticalEvents"]
+                events["flightCount"] += 1
+                events["lastFlightStartY"] = state["groundY"]
+                events["lastFlightPeakY"] = state["groundY"]
             gain = 0.0 if "fly-no-height" in failures() else 1.5
             state["position"]["y"] = state["groundY"] + gain
             state["inAir"] = state["flying"] = True
             state["velocity"] = {"x": 0.0, "y": 0.0, "z": 0.0}
+            state["verticalEvents"]["lastFlightPeakY"] = max(
+                state["verticalEvents"]["lastFlightPeakY"], state["position"]["y"])
         domain_markers = [
             "OVERTE_E2E_DOMAIN_EAST", "OVERTE_E2E_DOMAIN_FLOOR",
             "OVERTE_E2E_DOMAIN_NORTH", "OVERTE_E2E_DOMAIN_ORIGIN",
@@ -500,6 +689,12 @@ def invoke(operation: str, arguments: dict) -> dict:
             domain_markers = json.loads(os.environ["OVERTE_MOCK_E2E_DOMAIN_MARKERS_JSON"])
         if not state["domainConnected"]:
             domain_markers = []
+        if state["domainConnected"] and "peer-missing" not in failures():
+            state["peerObservationCount"] += 1
+            if "peer-static" not in failures():
+                state["peerMovementDistance"] += 0.12
+                state["peerPosition"]["x"] = 2.0 + (
+                    state["peerObservationCount"] % 10) * 0.12
         failure = os.environ.get("OVERTE_MOCK_SOUND_FAILURE", "")
         sound_active = bool(state.get("sound", {}).get("commandObserved"))
         if sound_active:
@@ -512,11 +707,26 @@ def invoke(operation: str, arguments: dict) -> dict:
         stale_common = "stale-sequence" in failures() and state["sampleSequence"] > 0
         if not (failure == "stale-probe" and sound_active) and not stale_common:
             state["sampleSequence"] += 1
+        orientation_sample = (state["pendingOrientationSample"]
+                              if state["pendingOrientationSample"] is not None
+                              else state["orientation"])
+        if (not state["orientationHistory"]
+                or state["orientationHistory"][-1]["sampleSequence"]
+                < state["sampleSequence"]):
+            state["orientationHistory"].append({
+                "sampleSequence": state["sampleSequence"],
+                "orientation": copy.deepcopy(orientation_sample),
+            })
+            state["orientationHistory"] = state["orientationHistory"][-48:]
+        state["pendingOrientationSample"] = None
         now = int(time.time() * 1000)
         if failure == "inconsistent-probe" and sound_active:
             state["sampleEpochMs"] = max(1, state["sampleEpochMs"] - 1)
         elif not (failure == "stale-probe" and sound_active) and not stale_common:
             state["sampleEpochMs"] = max(now, state["sampleEpochMs"] + 1)
+        if state["foreground"] and "render-stalled" not in failures():
+            state["renderFrameCount"] += 1
+            state["renderLastFrameEpochMs"] = state["sampleEpochMs"]
         snapshot = {
             "schemaVersion": 2,
             "sampleEpochMs": state["sampleEpochMs"],
@@ -532,9 +742,14 @@ def invoke(operation: str, arguments: dict) -> dict:
                 "serverless": not state["domainConnected"],
             },
             "input": {"dominantHand": "right", "advancedMovementControls": True},
+            "audio": {"muted": state["audioMuted"]},
+            "settings": {"audioWarnWhenMuted": state["audioWarnWhenMuted"]},
+            "render": {"frameCount": state["renderFrameCount"],
+                       "lastFrameEpochMs": state["renderLastFrameEpochMs"]},
             "scene": {"url": state["sceneUrl"], "ready": state["sceneReady"],
+                      "commandId": state["sceneCommandId"],
                       "entityCount": (4 if state["domainConnected"] else
-                                      len(FIXTURE_MARKERS) if state["sceneReady"] else 0),
+                                      FIXTURE_ENTITY_COUNT if state["sceneReady"] else 0),
                       "fixtureMarkerCount": (0 if state["domainConnected"] else
                                              len(fixture_markers) if state["sceneReady"] else 0),
                       "fixtureMarkers": ([] if state["domainConnected"] or not state["sceneReady"]
@@ -560,11 +775,51 @@ def invoke(operation: str, arguments: dict) -> dict:
                        "velocity": state["velocity"],
                        "bodyYawDegrees": state["bodyYawDegrees"], "inAir": state["inAir"],
                        "flying": state["flying"], "flyingEnabled": state["flyingEnabled"]},
-            "view": {"orientation": state["orientation"]},
+            "verticalEvents": copy.deepcopy(state["verticalEvents"]),
+            "view": {"orientation": state["orientation"],
+                     "orientationHistory": copy.deepcopy(state["orientationHistory"])},
             "tablet": {"open": state["tablet"],
                        "home": (state["tablet"]
                                 and state.get("tabletScreen") == "tablet.home"),
                        "toolbarMode": False},
+            "interaction": {
+                "targetAvailable": (state["sceneReady"] and not state["domainConnected"]
+                                    and "interaction-target-missing" not in failures()),
+                "pressCount": state.get("interactionCount", 0),
+                "lastEntityName": state.get("interactionLastEntityName", ""),
+                "lastPointerId": state.get("interactionLastPointerId"),
+            },
+            "scriptedEntity": {
+                "targetAvailable": state["sceneReady"] and not state["domainConnected"],
+                "loaded": (state["sceneReady"] and not state["domainConnected"]
+                           and "script-load-missing" not in failures()),
+                "scriptUrl": ("scripted_interactable.js"
+                              if state["sceneReady"] and not state["domainConnected"] else ""),
+                "activationCount": (state["scriptActivationCount"]
+                                    if state["sceneReady"] and not state["domainConnected"] else 0),
+                "state": (state["scriptState"]
+                          if state["sceneReady"] and not state["domainConnected"]
+                          else "unavailable"),
+                "color": ({"red": 40, "green": 220, "blue": 100}
+                          if state["scriptState"] == "active" else
+                          {"red": 255, "green": 150, "blue": 40})
+                         if state["sceneReady"] and not state["domainConnected"] else None,
+            },
+            "peer": ({
+                "present": True,
+                "sessionId": ("22222222-3333-4444-8555-666666666667"
+                              if "peer-session-changed" in failures()
+                              and state["domainEnterCount"] >= 2 else
+                              "22222222-3333-4444-8555-666666666666"),
+                "displayName": "OVERTE_E2E_PEER",
+                "position": copy.deepcopy(state["peerPosition"]),
+                "observationCount": state["peerObservationCount"],
+                "movementDistanceMeters": state["peerMovementDistance"],
+            } if state["domainConnected"] and "peer-missing" not in failures() else {
+                "present": False, "sessionId": "", "displayName": "", "position": None,
+                "observationCount": state["peerObservationCount"],
+                "movementDistanceMeters": state["peerMovementDistance"],
+            }),
             "asset": copy.deepcopy(state.get("asset")),
             "sound": observed_sound(state),
         }

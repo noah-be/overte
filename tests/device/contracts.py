@@ -19,6 +19,9 @@ MOVEMENT_DIRECTIONS = {"backward", "forward", "left", "right"}
 TABLET_CONTRACT_VERSION = 1
 TABLET_SNAPSHOT_SCHEMA_VERSION = 1
 TABLET_POLICY_SCHEMA_VERSION = 1
+TEXT_SNAPSHOT_SCHEMA_VERSION = 1
+MAX_TEXT_CODEPOINTS = 128
+MAX_TEXT_BACKSPACES = 32
 
 
 def load_capability_registry(path: Path | None = None) -> dict[str, dict]:
@@ -174,12 +177,54 @@ def validate_capabilities(values: object, registry: dict[str, dict] | None = Non
     return values
 
 
+def validate_discovered_targets(value: object) -> list[dict]:
+    """Validate discovery without exposing private selector or reservation values."""
+    if not isinstance(value, list):
+        raise ValueError("adapter discover result must be a list")
+    required = {"capabilities", "displayName", "physical", "platform", "selector"}
+    allowed = required | {"reservationKey"}
+    selectors: set[str] = set()
+    for target in value:
+        if not isinstance(target, dict) or not required <= set(target) or set(target) - allowed:
+            raise ValueError("adapter target contains unsupported or missing fields")
+        selector = target.get("selector")
+        if not isinstance(selector, str) or not selector or selector in selectors:
+            raise ValueError("target selectors must be unique non-empty strings")
+        selectors.add(selector)
+        if (not isinstance(target.get("displayName"), str) or not target["displayName"]
+                or not isinstance(target.get("platform"), str) or not target["platform"]
+                or not isinstance(target.get("physical"), bool)):
+            raise ValueError("target identity fields have invalid types")
+        reservation_key = target.get("reservationKey")
+        if reservation_key is not None and (not isinstance(reservation_key, str)
+                                            or not reservation_key
+                                            or len(reservation_key) > 512):
+            raise ValueError("target reservationKey must be a bounded non-empty string")
+        validate_capabilities(target.get("capabilities"))
+    return value
+
+
+def contains_private_identity(value: object, identities: set[str]) -> bool:
+    """Detect exact short identities and embedded opaque identities recursively."""
+    if isinstance(value, dict):
+        return any(contains_private_identity(key, identities)
+                   or contains_private_identity(item, identities)
+                   for key, item in value.items())
+    if isinstance(value, list):
+        return any(contains_private_identity(item, identities) for item in value)
+    if not isinstance(value, str):
+        return False
+    return any(value == identity or (len(identity) >= 8 and identity in value)
+               for identity in identities)
+
+
 def validate_operation_arguments(operation: str, value: object) -> dict:
     if not isinstance(value, dict):
         raise ValueError("operation arguments must be an object")
-    if operation == "tablet.snapshot":
+    if operation in {"app.version", "collaboration.snapshot", "render.snapshot",
+                     "tablet.snapshot", "text.snapshot"}:
         if value:
-            raise ValueError("tablet.snapshot does not accept arguments")
+            raise ValueError(f"{operation} does not accept arguments")
     elif operation == "tablet.activate":
         if set(value) != {"contractVersion", "controlId"}:
             raise ValueError("tablet.activate requires only contractVersion and controlId")
@@ -190,14 +235,57 @@ def validate_operation_arguments(operation: str, value: object) -> dict:
             raise ValueError("tablet.activate requires a known semantic control ID")
     elif operation in {
             "app.foreground", "app.launch", "app.process", "app.stop",
-            "input.jump", "tablet.close", "tablet.open"}:
+            "input.jump", "input.primary", "lifecycle.background", "tablet.close", "tablet.open",
+            "text.dismiss", "text.focus"}:
         if value:
             raise ValueError(f"{operation} does not accept arguments")
+    elif operation == "app.crash":
+        if value != {"mode": "abort"}:
+            raise ValueError("app.crash requires only mode: abort")
+    elif operation == "app.install":
+        if set(value) != {"path"}:
+            raise ValueError("app.install requires only path")
+        path = value.get("path")
+        if (not isinstance(path, str) or not path or "\x00" in path
+                or not Path(path).is_absolute()):
+            raise ValueError("app.install path must be an absolute NUL-free path")
+    elif operation == "artifact.video":
+        if set(value) != {"durationSeconds"}:
+            raise ValueError("artifact.video requires only durationSeconds")
+        _bounded_number(value["durationSeconds"], "artifact.video durationSeconds", 1.0, 30.0)
+    elif operation == "app.upgrade":
+        if set(value) != {"fromVersion", "toVersion"}:
+            raise ValueError("app.upgrade requires only fromVersion and toVersion")
+        for field in ("fromVersion", "toVersion"):
+            version = value.get(field)
+            if (not isinstance(version, str) or not version or len(version) > 64
+                    or any(character.isspace() for character in version)):
+                raise ValueError(f"app.upgrade {field} is invalid")
+        if value["fromVersion"] == value["toVersion"]:
+            raise ValueError("app.upgrade versions must differ")
+    elif operation == "collaboration.edit":
+        if set(value) != {"entityName", "value"}:
+            raise ValueError("collaboration.edit requires only entityName and value")
+        if (not isinstance(value.get("entityName"), str)
+                or not value["entityName"].startswith("OVERTE_E2E_SHARED_")):
+            raise ValueError("collaboration.edit requires a controlled entity name")
+        if (not isinstance(value.get("value"), str) or not value["value"]
+                or len(value["value"]) > 64):
+            raise ValueError("collaboration.edit value must be bounded and non-empty")
+    elif operation in {"permission.set", "permission.snapshot"}:
+        expected = {"permissionId", "state"} if operation == "permission.set" else {"permissionId"}
+        if set(value) != expected or value.get("permissionId") != "microphone":
+            raise ValueError(f"{operation} requires the controlled microphone permission")
+        if operation == "permission.set" and value.get("state") not in {"denied", "granted"}:
+            raise ValueError("permission.set state must be denied or granted")
     elif operation == "input.fly":
         if set(value) != {"durationSeconds"}:
             raise ValueError("input.fly requires only durationSeconds")
         _bounded_number(value["durationSeconds"], "input.fly durationSeconds",
                         0.1, MAX_FLY_DURATION_SECONDS)
+    elif operation == "audio.mute":
+        if set(value) != {"muted"} or not isinstance(value.get("muted"), bool):
+            raise ValueError("audio.mute requires only muted: boolean")
     elif operation == "input.look":
         if set(value) != {"horizontal", "vertical"}:
             raise ValueError("input.look requires only horizontal and vertical")
@@ -216,6 +304,25 @@ def validate_operation_arguments(operation: str, value: object) -> dict:
             raise ValueError("input.move direction is unsupported")
         _bounded_number(value["durationSeconds"], "input.move durationSeconds",
                         0.1, MAX_INPUT_DURATION_SECONDS)
+    elif operation == "text.type":
+        if set(value) != {"backspaceCount", "submit", "text"}:
+            raise ValueError("text.type requires only text, backspaceCount and submit")
+        text = value.get("text")
+        backspaces = value.get("backspaceCount")
+        if (not isinstance(text, str) or not text
+                or len(text) > MAX_TEXT_CODEPOINTS
+                or any(ord(character) < 32 or ord(character) == 127 for character in text)):
+            raise ValueError("text.type text must be bounded non-control Unicode")
+        if (not isinstance(backspaces, int) or isinstance(backspaces, bool)
+                or not 0 <= backspaces <= min(MAX_TEXT_BACKSPACES, len(text))):
+            raise ValueError("text.type backspaceCount is invalid")
+        if not isinstance(value.get("submit"), bool):
+            raise ValueError("text.type submit must be boolean")
+    elif operation == "setting.set":
+        if (set(value) != {"enabled", "settingId"}
+                or value.get("settingId") != "audio.warn-when-muted"
+                or not isinstance(value.get("enabled"), bool)):
+            raise ValueError("setting.set requires the safe audio.warn-when-muted boolean")
     elif operation == "probe.snapshot":
         if not set(value) <= {"afterSampleSequence"}:
             raise ValueError("probe.snapshot accepts only afterSampleSequence")
@@ -224,11 +331,11 @@ def validate_operation_arguments(operation: str, value: object) -> dict:
             if (not isinstance(sequence, int) or isinstance(sequence, bool)
                     or sequence <= 0):
                 raise ValueError("probe.snapshot afterSampleSequence must be a positive integer")
-    elif operation == "scene.load":
+    elif operation in {"scene.load", "scene.reload"}:
         if set(value) != {"url"}:
-            raise ValueError("scene.load requires only url")
+            raise ValueError(f"{operation} requires only url")
         if not isinstance(value["url"], str) or "://" not in value["url"]:
-            raise ValueError("scene.load url must be an absolute URL")
+            raise ValueError(f"{operation} url must be an absolute URL")
     elif operation == "navigation.enter-domain":
         if set(value) != {"url"} or not isinstance(value.get("url"), str):
             raise ValueError("navigation.enter-domain requires only a URL string")
@@ -296,17 +403,68 @@ def validate_operation_result(operation: str, value: object) -> dict:
     """Validate portable evidence returned by an adapter operation."""
     if not isinstance(value, dict):
         raise ValueError(f"{operation} result must be an object")
-    if operation in {"input.fly", "input.jump", "input.look", "input.move",
-                     "tablet.activate", "tablet.close", "tablet.open"}:
+    if operation in {"audio.mute", "collaboration.edit", "input.fly", "input.jump", "input.look", "input.move", "input.primary",
+                     "permission.set",
+                     "tablet.activate", "tablet.close", "tablet.open", "text.dismiss",
+                     "text.focus", "text.type", "setting.set"}:
         return validate_performed_result(operation, value)
     if operation == "tablet.snapshot":
         return validate_tablet_ui_snapshot(value)
+    if operation == "text.snapshot":
+        return validate_text_snapshot(value)
+    if operation == "render.snapshot":
+        return validate_render_snapshot(value)
+    if operation == "app.version":
+        if (set(value) != {"schemaVersion", "version"} or value.get("schemaVersion") != 1
+                or not isinstance(value.get("version"), str) or not value["version"]):
+            raise ValueError("app.version result is invalid")
+        return value
+    if operation == "collaboration.snapshot":
+        if set(value) != {"actorId", "entityName", "revision", "schemaVersion", "value"}:
+            raise ValueError("collaboration.snapshot result fields are invalid")
+        if (value.get("schemaVersion") != 1
+                or not isinstance(value.get("entityName"), str)
+                or not value["entityName"].startswith("OVERTE_E2E_SHARED_")
+                or not isinstance(value.get("value"), str)
+                or not isinstance(value.get("actorId"), str)
+                or not value["actorId"].startswith("OVERTE_E2E_ACTOR_")
+                or not isinstance(value.get("revision"), int)
+                or isinstance(value["revision"], bool) or value["revision"] < 0):
+            raise ValueError("collaboration.snapshot result is invalid")
+        return value
+    if operation == "permission.snapshot":
+        if (set(value) != {"permissionId", "schemaVersion", "state"}
+                or value.get("schemaVersion") != 1
+                or value.get("permissionId") != "microphone"
+                or value.get("state") not in {"denied", "granted", "unknown"}):
+            raise ValueError("permission.snapshot result is invalid")
+        return value
+    if operation == "app.crash":
+        if value != {"crashed": True}:
+            raise ValueError("app.crash result must be exactly crashed: true")
+        return value
+    if operation == "app.upgrade":
+        if value != {"applied": True}:
+            raise ValueError("app.upgrade result must be exactly applied: true")
+        return value
+    if operation == "app.install":
+        if value != {"installed": True}:
+            raise ValueError("app.install result must be exactly installed: true")
+        return value
+    if operation in {"artifact.screenshot", "artifact.video"}:
+        if (set(value) != {"artifact"} or not isinstance(value.get("artifact"), str)
+                or not value["artifact"] or "/" in value["artifact"]
+                or "\\" in value["artifact"] or "\x00" in value["artifact"]):
+            raise ValueError(f"{operation} result must identify one safe artifact filename")
+        return value
     confirmation = {
         "app.launch": "launched",
         "app.stop": "stopped",
         "asset.load": "requested",
+        "lifecycle.background": "backgrounded",
         "navigation.enter-domain": "requested",
         "scene.load": "requested",
+        "scene.reload": "requested",
         "sound.play": "requested",
     }.get(operation)
     if confirmation is not None and value.get(confirmation) is not True:
@@ -325,6 +483,45 @@ def validate_operation_result(operation: str, value: object) -> dict:
     return value
 
 
+def validate_text_snapshot(value: object) -> dict:
+    """Validate a privacy-bounded observation of the repository-owned test field."""
+    if not isinstance(value, dict) or set(value) != {
+            "focused", "keyboardVisible", "schemaVersion", "submittedCount", "value"}:
+        raise ValueError("text.snapshot contains unsupported or missing fields")
+    if value.get("schemaVersion") != TEXT_SNAPSHOT_SCHEMA_VERSION:
+        raise ValueError("unsupported text snapshot schema version")
+    text = value.get("value")
+    if (not isinstance(text, str) or len(text) > MAX_TEXT_CODEPOINTS
+            or any(ord(character) < 32 or ord(character) == 127 for character in text)):
+        raise ValueError("text.snapshot value must be bounded non-control Unicode")
+    if not isinstance(value.get("focused"), bool):
+        raise ValueError("text.snapshot focused must be boolean")
+    if value.get("keyboardVisible") is not None and not isinstance(
+            value["keyboardVisible"], bool):
+        raise ValueError("text.snapshot keyboardVisible must be boolean or null")
+    count = value.get("submittedCount")
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        raise ValueError("text.snapshot submittedCount must be non-negative")
+    return value
+
+
+def validate_render_snapshot(value: object) -> dict:
+    if not isinstance(value, dict) or set(value) != {
+            "backend", "blackFrame", "frameSequence", "hardwareAccelerated",
+            "schemaVersion", "surfaceVisible"}:
+        raise ValueError("render.snapshot contains unsupported or missing fields")
+    if (value.get("schemaVersion") != 1
+            or not isinstance(value.get("backend"), str) or not value["backend"]
+            or len(value["backend"]) > 64
+            or not all(isinstance(value.get(field), bool) for field in (
+                "blackFrame", "hardwareAccelerated", "surfaceVisible"))):
+        raise ValueError("render.snapshot identity or state is invalid")
+    sequence = value.get("frameSequence")
+    if not isinstance(sequence, int) or isinstance(sequence, bool) or sequence < 0:
+        raise ValueError("render.snapshot frameSequence must be non-negative")
+    return value
+
+
 def validate_probe_snapshot(value: object) -> dict:
     if not isinstance(value, dict) or value.get("schemaVersion") != 2:
         raise ValueError("probe snapshot must use schema version 2")
@@ -333,9 +530,22 @@ def validate_probe_snapshot(value: object) -> dict:
         "sampleEpochMs", "sampleSequence", "scene", "schemaVersion", "sound",
         "tablet", "view",
     }
-    for optional_field in ("control", "controller"):
-        if optional_field in value:
-            root_fields.add(optional_field)
+    if "controller" in value:
+        root_fields.add("controller")
+    if "interaction" in value:
+        root_fields.add("interaction")
+    if "peer" in value:
+        root_fields.add("peer")
+    if "audio" in value:
+        root_fields.add("audio")
+    if "render" in value:
+        root_fields.add("render")
+    if "settings" in value:
+        root_fields.add("settings")
+    if "scriptedEntity" in value:
+        root_fields.add("scriptedEntity")
+    if "verticalEvents" in value:
+        root_fields.add("verticalEvents")
     _require_exact_fields(value, root_fields, "probe snapshot")
     if (not isinstance(value.get("sampleEpochMs"), int)
             or isinstance(value["sampleEpochMs"], bool) or value["sampleEpochMs"] <= 0):
@@ -394,16 +604,21 @@ def validate_probe_snapshot(value: object) -> dict:
             or not isinstance(input_state.get("advancedMovementControls"), bool)):
         raise ValueError("probe input requires dominantHand and advancedMovementControls")
     scene = value["scene"]
-    _require_exact_fields(scene, {
+    scene_fields = {
         "avatarAboveFloor", "collisionWall", "domainMarkerCount", "domainMarkers",
         "entityCount", "fixtureMarkerCount", "fixtureMarkers", "floorTopY", "ready",
         "spawnLocationObserved", "spawnValidated", "url",
-    }, "probe scene")
+    }
+    if "commandId" in scene:
+        scene_fields.add("commandId")
+    _require_exact_fields(scene, scene_fields, "probe scene")
     entity_count = scene.get("entityCount")
     if (not isinstance(scene.get("ready"), bool) or not isinstance(entity_count, int)
             or isinstance(entity_count, bool) or entity_count < 0
             or not isinstance(scene.get("url"), str)):
         raise ValueError("probe scene requires url, ready and entityCount")
+    if "commandId" in scene and not isinstance(scene["commandId"], str):
+        raise ValueError("probe scene.commandId must be a string")
     _validate_marker_list(scene, "fixtureMarkerCount", "fixtureMarkers",
                           r"OVERTE_E2E_[A-Z_]+", "fixture")
     _validate_marker_list(scene, "domainMarkerCount", "domainMarkers",
@@ -440,12 +655,185 @@ def validate_probe_snapshot(value: object) -> dict:
             raise ValueError(f"probe avatar.{field} must be boolean")
     if avatar["flying"] and not avatar["inAir"]:
         raise ValueError("probe avatar cannot be flying while not inAir")
-    _require_exact_fields(value["view"], {"orientation"}, "probe view")
-    _validate_vector(value["view"].get("orientation"), "probe view.orientation")
+
+    vertical_events = value.get("verticalEvents")
+    if vertical_events is not None:
+        if not isinstance(vertical_events, dict):
+            raise ValueError("probe verticalEvents must be an object")
+        _require_exact_fields(vertical_events, {
+            "flightCount", "jumpCompletedCount", "jumpCount",
+            "lastFlightPeakY", "lastFlightStartY", "lastJumpLandingY",
+            "lastJumpPeakY", "lastJumpStartY",
+        }, "probe verticalEvents")
+        for field in ("jumpCount", "jumpCompletedCount", "flightCount"):
+            count = vertical_events.get(field)
+            if (not isinstance(count, int) or isinstance(count, bool) or count < 0):
+                raise ValueError(f"probe verticalEvents.{field} must be non-negative")
+        if vertical_events["jumpCompletedCount"] > vertical_events["jumpCount"]:
+            raise ValueError("probe completed jump count cannot exceed jump count")
+        for field in ("lastJumpStartY", "lastJumpPeakY", "lastJumpLandingY",
+                      "lastFlightStartY", "lastFlightPeakY"):
+            if vertical_events.get(field) is not None:
+                _finite_number(vertical_events[field], f"probe verticalEvents.{field}")
+        if vertical_events["jumpCount"] == 0:
+            if any(vertical_events[field] is not None for field in (
+                    "lastJumpStartY", "lastJumpPeakY", "lastJumpLandingY")):
+                raise ValueError("probe without jumps cannot contain jump heights")
+        elif (vertical_events["lastJumpStartY"] is None
+              or vertical_events["lastJumpPeakY"] is None
+              or vertical_events["lastJumpPeakY"]
+              < vertical_events["lastJumpStartY"]):
+            raise ValueError("probe jump event requires ordered start and peak heights")
+        if (vertical_events["jumpCount"] > 0
+                and vertical_events["jumpCompletedCount"]
+                == vertical_events["jumpCount"]
+                and vertical_events["lastJumpLandingY"] is None):
+            raise ValueError("probe completed jump requires a landing height")
+        if vertical_events["flightCount"] == 0:
+            if any(vertical_events[field] is not None for field in (
+                    "lastFlightStartY", "lastFlightPeakY")):
+                raise ValueError("probe without flights cannot contain flight heights")
+        elif (vertical_events["lastFlightStartY"] is None
+              or vertical_events["lastFlightPeakY"] is None
+              or vertical_events["lastFlightPeakY"]
+              < vertical_events["lastFlightStartY"]):
+            raise ValueError("probe flight event requires ordered start and peak heights")
+    view = value["view"]
+    view_fields = {"orientation"}
+    if "orientationHistory" in view:
+        view_fields.add("orientationHistory")
+    _require_exact_fields(view, view_fields, "probe view")
+    _validate_vector(view.get("orientation"), "probe view.orientation")
+    orientation_history = view.get("orientationHistory")
+    if orientation_history is not None:
+        if not isinstance(orientation_history, list) or len(orientation_history) > 48:
+            raise ValueError("probe view.orientationHistory must be a bounded list")
+        previous_sequence = 0
+        for index, observation in enumerate(orientation_history):
+            if not isinstance(observation, dict):
+                raise ValueError("probe view orientation history entry must be an object")
+            _require_exact_fields(
+                observation, {"orientation", "sampleSequence"},
+                f"probe view orientation history entry {index}")
+            sequence = observation.get("sampleSequence")
+            if (not isinstance(sequence, int) or isinstance(sequence, bool)
+                    or sequence <= previous_sequence or sequence > value["sampleSequence"]):
+                raise ValueError("probe view orientation history sequence is invalid")
+            _validate_vector(
+                observation.get("orientation"),
+                f"probe view orientation history entry {index}.orientation")
+            previous_sequence = sequence
     _require_exact_fields(value["tablet"], {"home", "open", "toolbarMode"}, "probe tablet")
     for field in ("open", "home", "toolbarMode"):
         if not isinstance(value["tablet"].get(field), bool):
             raise ValueError(f"probe tablet.{field} must be boolean")
+
+    interaction = value.get("interaction")
+    if interaction is not None:
+        if not isinstance(interaction, dict):
+            raise ValueError("probe interaction must be an object")
+        _require_exact_fields(interaction, {
+            "lastEntityName", "lastPointerId", "pressCount", "targetAvailable",
+        }, "probe interaction")
+        count = interaction.get("pressCount")
+        pointer_id = interaction.get("lastPointerId")
+        if (not isinstance(interaction.get("targetAvailable"), bool)
+                or not isinstance(count, int) or isinstance(count, bool) or count < 0
+                or not isinstance(interaction.get("lastEntityName"), str)):
+            raise ValueError("probe interaction requires target state and a non-negative count")
+        if (pointer_id is not None and (not isinstance(pointer_id, int)
+                                       or isinstance(pointer_id, bool) or pointer_id < 0)):
+            raise ValueError("probe interaction lastPointerId must be null or non-negative")
+        if count == 0 and (interaction["lastEntityName"] or pointer_id is not None):
+            raise ValueError("probe interaction without presses cannot contain last-event state")
+        if count > 0 and interaction["lastEntityName"] != "OVERTE_E2E_INTERACTABLE":
+            raise ValueError("probe interaction press must identify the controlled target")
+
+    scripted = value.get("scriptedEntity")
+    if scripted is not None:
+        if not isinstance(scripted, dict):
+            raise ValueError("probe scriptedEntity must be an object")
+        _require_exact_fields(scripted, {
+            "activationCount", "color", "loaded", "scriptUrl", "state",
+            "targetAvailable",
+        }, "probe scriptedEntity")
+        count = scripted.get("activationCount")
+        if (not isinstance(scripted.get("targetAvailable"), bool)
+                or not isinstance(scripted.get("loaded"), bool)
+                or not isinstance(scripted.get("scriptUrl"), str)
+                or scripted.get("state") not in {"active", "idle", "unavailable"}
+                or not isinstance(count, int) or isinstance(count, bool) or count < 0):
+            raise ValueError("probe scriptedEntity state is invalid")
+        color = scripted.get("color")
+        if color is not None:
+            if (not isinstance(color, dict) or set(color) != {"blue", "green", "red"}
+                    or not all(isinstance(color[channel], int)
+                               and not isinstance(color[channel], bool)
+                               and 0 <= color[channel] <= 255
+                               for channel in ("red", "green", "blue"))):
+                raise ValueError("probe scriptedEntity color is invalid")
+        if not scripted["targetAvailable"]:
+            if scripted["loaded"] or scripted["scriptUrl"] or count != 0 \
+                    or scripted["state"] != "unavailable" or color is not None:
+                raise ValueError("unavailable scriptedEntity cannot contain observed state")
+        elif scripted["loaded"] and not scripted["scriptUrl"]:
+            raise ValueError("loaded scriptedEntity requires a script URL")
+        if scripted["loaded"]:
+            expected_state = "active" if count % 2 else "idle"
+            expected_color = ({"red": 40, "green": 220, "blue": 100}
+                              if expected_state == "active" else
+                              {"red": 255, "green": 150, "blue": 40})
+            if scripted["state"] != expected_state or color != expected_color:
+                raise ValueError("probe scriptedEntity state does not match its activation count")
+
+    peer = value.get("peer")
+    if peer is not None:
+        if not isinstance(peer, dict):
+            raise ValueError("probe peer must be an object")
+        _require_exact_fields(peer, {
+            "displayName", "movementDistanceMeters", "observationCount", "position",
+            "present", "sessionId",
+        }, "probe peer")
+        observations = peer.get("observationCount")
+        distance = peer.get("movementDistanceMeters")
+        if (not isinstance(peer.get("present"), bool)
+                or not isinstance(peer.get("sessionId"), str)
+                or not isinstance(peer.get("displayName"), str)
+                or not isinstance(observations, int) or isinstance(observations, bool)
+                or observations < 0):
+            raise ValueError("probe peer identity or observation count is invalid")
+        _finite_number(distance, "probe peer.movementDistanceMeters")
+        if distance < 0.0:
+            raise ValueError("probe peer movement distance must be non-negative")
+        if peer["present"]:
+            if (not peer["sessionId"] or peer["displayName"] != "OVERTE_E2E_PEER"
+                    or peer["position"] is None or observations <= 0):
+                raise ValueError("present probe peer requires controlled identity and position")
+            _validate_vector(peer["position"], "probe peer.position")
+        elif peer["sessionId"] or peer["displayName"] or peer["position"] is not None:
+            raise ValueError("absent probe peer cannot contain current identity or position")
+
+    audio = value.get("audio")
+    if audio is not None:
+        if not isinstance(audio, dict) or set(audio) != {"muted"} \
+                or not isinstance(audio.get("muted"), bool):
+            raise ValueError("probe audio requires exactly muted: boolean")
+    settings = value.get("settings")
+    if settings is not None:
+        if (not isinstance(settings, dict)
+                or set(settings) != {"audioWarnWhenMuted"}
+                or not isinstance(settings.get("audioWarnWhenMuted"), bool)):
+            raise ValueError("probe settings requires the safe audio warning boolean")
+    render = value.get("render")
+    if render is not None:
+        if not isinstance(render, dict) or set(render) != {"frameCount", "lastFrameEpochMs"}:
+            raise ValueError("probe render contains unsupported or missing fields")
+        for field in ("frameCount", "lastFrameEpochMs"):
+            number = render.get(field)
+            if (not isinstance(number, int) or isinstance(number, bool) or number < 0):
+                raise ValueError(f"probe render.{field} must be non-negative")
+        if render["frameCount"] > 0 and render["lastFrameEpochMs"] <= 0:
+            raise ValueError("probe rendered frames require a positive lastFrameEpochMs")
 
     controller = value.get("controller")
     if controller is not None:
