@@ -1,13 +1,6 @@
 name: iOS normalize unsigned IPA for Sideloadly
 
 on:
-  push:
-    branches:
-      - apple-ios
-    paths:
-      - .github/workflows/ios-sideload-repackage.yml
-      - ios/ci/verify-apple-bundle.swift
-      - ios/tools/normalize-sideload-ipa.py
   workflow_dispatch:
     inputs:
       source_run_id:

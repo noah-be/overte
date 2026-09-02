@@ -5,19 +5,6 @@ name: macOS bootstrap
 
 on:
   workflow_dispatch:
-  push:
-    branches: [apple-macos]
-    paths:
-      - '.github/workflows/macos-bootstrap.yml'
-      - 'CMakeLists.txt'
-      - 'cmake/**'
-      - 'conanfile.py'
-      - 'docs/macos/**'
-      - 'interface/**'
-      - 'libraries/**'
-      - 'macos/**'
-      - 'plugins/**'
-      - '!**/*.md'
 
 permissions:
   contents: read
@@ -38,7 +25,7 @@ jobs:
       MACOSX_DEPLOYMENT_TARGET: '11.0'
     steps:
       - name: Check out requested revision
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -55,7 +42,7 @@ jobs:
 
       - name: Cache Conan packages
         id: conan-cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: |
             ${{ env.CONAN_HOME }}/p
@@ -69,7 +56,7 @@ jobs:
 
       - name: Save partial or complete Conan cache
         if: always() && steps.conan-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: |
             ${{ env.CONAN_HOME }}/p

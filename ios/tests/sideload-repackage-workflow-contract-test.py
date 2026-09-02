@@ -22,13 +22,11 @@ def require(pattern: str, message: str) -> None:
         raise AssertionError(message)
 
 
-if re.search(r"(?m)^\s*(pull_request|pull_request_target|schedule):", WORKFLOW):
-    raise AssertionError("untrusted or scheduled events must not repackage an IPA")
-require(r"push:[\s\S]*branches:[\s\S]*apple-ios", "push execution must be branch-bound")
-require(
-    r"push:[\s\S]*paths:[\s\S]*ios-sideload-repackage[.]yml",
-    "automatic execution must be limited to the repackaging implementation",
-)
+trigger = re.search(r"(?ms)^on:\n(?P<body>.*?)(?=^[A-Za-z0-9_-]+:\s*$)", WORKFLOW)
+assert trigger is not None
+assert set(re.findall(r"(?m)^  ([a-z_]+):", trigger.group("body"))) == {
+    "workflow_dispatch"
+}, "IPA repackaging must require one explicit manual dispatch and no other event"
 require(r"(?m)^\s*actions:\s*read\s*$", "cross-run artifact access must be read-only")
 require(r"(?m)^\s*contents:\s*read\s*$", "source checkout must be read-only")
 require(r"persist-credentials:\s*false", "checkout credentials must not persist")

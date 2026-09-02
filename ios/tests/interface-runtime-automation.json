@@ -21,7 +21,7 @@
       "workflow": ".github/workflows/ios-world-runtime.yml",
       "candidatePlatform": "iphonesimulator",
       "proves": ["install-launch", "serverless-import", "named-domain-connect", "entity-render-handoff", "retained-world-screenshots"],
-      "activationRequirement": "Use the explicit apple-ios [ios-worlds] commit marker or the world_evidence bootstrap dispatch input.",
+      "activationRequirement": "Use the explicit world_evidence bootstrap workflow-dispatch input; pull requests and normal pushes remain device-free.",
       "remainingExternalInput": "Complete one successful trusted workflow run and review its four provenance-bound screenshots."
     },
     {

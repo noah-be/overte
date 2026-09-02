@@ -1,14 +1,6 @@
 name: iOS world candidate runtime
 
 on:
-  push:
-    branches:
-      - apple-ios
-    paths:
-      - '.github/ios-world-runtime-candidate.json'
-      - '.github/workflows/ios-world-candidate-runtime.yml'
-      - 'ios/ci/interface-world-simulator-smoke.sh'
-      - 'ios/tools/validate-world-*.py'
   workflow_dispatch:
     inputs:
       candidate_run_id:
@@ -99,6 +91,9 @@ jobs:
       - name: Resolve and validate requested candidate identity
         id: request
         env:
+          REQUESTED_CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          REQUESTED_CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+          REQUESTED_CANDIDATE_ARTIFACT: ${{ inputs.candidate_artifact }}
           REQUESTED_PRESENT_PROBE: ${{ inputs.present_probe || '' }}
           REQUESTED_RUNTIME_CASE: ${{ inputs.runtime_case || 'all' }}
           REQUESTED_STACK_SAMPLE_SECONDS: ${{ inputs.stack_sample_seconds || '0' }}
@@ -109,10 +104,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ '${{ github.event_name }}' == workflow_dispatch ]]; then
-            run_id='${{ inputs.candidate_run_id }}'
-            revision='${{ inputs.candidate_revision }}'
-            artifact='${{ inputs.candidate_artifact }}'
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            run_id="$REQUESTED_CANDIDATE_RUN_ID"
+            revision="$REQUESTED_CANDIDATE_REVISION"
+            artifact="$REQUESTED_CANDIDATE_ARTIFACT"
           else
             candidate="$(python3 - <<'PY'
           import json, pathlib

@@ -49,8 +49,9 @@ The Android, Apple, Linux, and Windows lines are independent after their
 respective `main` merge, but each parent must be merged before its children.
 Use normal pull requests so branch protection and target-specific CI run at
 every boundary. The synchronization bot reads these direct relationships from
-`.github/branch-policy.json`; every `main` update therefore opens or refreshes
-the guarded sync pull requests for both desktop operating-system branches.
+`.github/branch-policy.json`. The current synchronization workflow reports
+parent-to-child drift without writing to the repository; a maintainer opens or
+refreshes each required synchronization pull request manually.
 
 `android-vr-quest` and `apple-macos` are frozen archival branches, not children
 in this hierarchy. They must not receive synchronization PRs or new product
@@ -74,6 +75,23 @@ When resolving a conflict:
   present; and
 - run both the parent's relevant contracts and the child's complete required
   gate before merging.
+
+The reconciliation branch name must exactly match
+`reconcile/<child-scope>/<name>`. It starts at the current child and its head is
+the normal merge commit whose first parent is that exact child SHA and whose
+second parent is the exact current direct-parent SHA. Both tips are obtained
+from the GitHub API by the trusted default-branch policy checker and must remain
+unchanged throughout its attestation.
+
+Privileged branch-policy and synchronization paths are not manually resolved
+on a temporary reconciliation branch. Their complete head tree must exactly
+match the current direct parent's tree for every privileged path: existence,
+mode, object type, and object SHA are all compared. Missing, additional,
+changed, or deleted privileged entries fail closed. The checker also requires
+both current commits to be ancestors of the head and rejects API, comparison,
+or incomplete-tree errors. It runs with read-only permissions and never
+executes code from the pull request. Other governance changes remain owned by
+`main`, and an ordinary `sync/*` topic receives no reconciliation privilege.
 
 ## Adapter ownership
 

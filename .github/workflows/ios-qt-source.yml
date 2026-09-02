@@ -53,6 +53,9 @@ jobs:
       qt_host_artifact_prefix: ${{ steps.cache-key.outputs.host_artifact_prefix }}
       qt_ios_artifact_prefix: ${{ steps.cache-key.outputs.ios_artifact_prefix }}
     env:
+      OVERTE_CHECKPOINT_REPOSITORY_ID: ${{ github.repository_id }}
+      OVERTE_CHECKPOINT_BRANCH: ${{ github.ref_name }}
+      OVERTE_TARGET_SDK: ${{ inputs.target_sdk }}
       QT_WORK_ROOT: ${{ github.workspace }}/build-ios/qt-work
       QT_INSTALL_ROOT: ${{ github.workspace }}/build-ios/qt-install/qt
       SCCACHE_DIR: ${{ github.workspace }}/build-ios/sccache
@@ -60,36 +63,18 @@ jobs:
       SCCACHE_CACHE_SIZE: 256M
       SCCACHE_BASEDIRS: ${{ github.workspace }}
       SCCACHE_CLIENT_SIDE: "1"
-      SCCACHE_MULTILEVEL_CHAIN: disk,gha
-      SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: all
-      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_MULTILEVEL_CHAIN: disk
+      SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: l0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
         with:
           persist-credentials: false
 
-      - name: Install pinned per-object remote compiler checkpoint
+      - name: Install pinned compiler cache
         uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
         with:
           version: v0.17.0
           disable_annotations: true
-
-      # Shell steps do not receive GitHub's ephemeral cache-service credentials.
-      # Export them from a JavaScript action, whose process does, so sccache's GHA
-      # backend can persist each successful object before the job finishes.
-      - name: Export remote compiler checkpoint credentials
-        uses: actions/github-script@d746ffe35508b1917358783b479e04febd2b8f71 # v9.0.0
-        with:
-          script: |
-            const cacheUrl = process.env.ACTIONS_RESULTS_URL || process.env.ACTIONS_CACHE_URL;
-            const runtimeToken = process.env.ACTIONS_RUNTIME_TOKEN;
-            if (!cacheUrl || !runtimeToken) {
-              core.setFailed("GitHub Actions cache-service credentials are unavailable");
-              return;
-            }
-            core.setSecret(runtimeToken);
-            core.exportVariable("SCCACHE_GHA_CACHE_URL", cacheUrl);
-            core.exportVariable("SCCACHE_GHA_RUNTIME_TOKEN", runtimeToken);
 
       - name: Verify source-build host tests
         run: |
@@ -102,7 +87,7 @@ jobs:
         run: |
           set -euo pipefail
           xcode_build="$(xcodebuild -version | awk '/Build version/{print $3}')"
-          target_sdk="${{ inputs.target_sdk }}"
+          target_sdk="$OVERTE_TARGET_SDK"
           [[ "$target_sdk" == iphoneos || "$target_sdk" == iphonesimulator ]]
           device_sdk_version="$(xcrun --sdk iphoneos --show-sdk-version)"
           sdk_version="$(xcrun --sdk "$target_sdk" --show-sdk-version)"
@@ -133,22 +118,16 @@ jobs:
           echo "ios_artifact_prefix=overte-qt-ios-checkpoint-v1-${ios_artifact_hash}" >> "$GITHUB_OUTPUT"
           echo "sccache_prefix=overte-qt-sccache-v2-${ios_base}-" >> "$GITHUB_OUTPUT"
           echo "sccache_prune_prefix=overte-qt-sccache-v2-${RUNNER_ARCH}-" >> "$GITHUB_OUTPUT"
-          remote_namespace="overte-qt-objects-v1-${ios_base}"
-          echo "SCCACHE_GHA_VERSION=$remote_namespace" >> "$GITHUB_ENV"
 
-      - name: Verify remote compiler checkpoint before the long build
+      - name: Verify local compiler cache before the long build
         shell: bash
         run: |
           set -euo pipefail
-          [[ -n "${SCCACHE_GHA_CACHE_URL:-}" ]] || { echo "remote cache URL missing" >&2; exit 1; }
-          [[ -n "${SCCACHE_GHA_RUNTIME_TOKEN:-}" ]] || { echo "remote cache token missing" >&2; exit 1; }
-          [[ "${SCCACHE_GHA_ENABLED:-}" == "true" ]] || { echo "remote cache backend disabled" >&2; exit 1; }
-          [[ -n "${SCCACHE_GHA_VERSION:-}" ]] || { echo "remote cache namespace missing" >&2; exit 1; }
-          probe_dir="$GITHUB_WORKSPACE/build-ios/sccache-remote-probe"
+          probe_dir="$GITHUB_WORKSPACE/build-ios/sccache-local-probe"
           mkdir -p "$probe_dir"
           trap 'rm -rf "$probe_dir"' EXIT
           printf '%s\n' \
-            "const char overte_sccache_remote_probe[] = \"${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}\";" \
+            "const char overte_sccache_local_probe[] = \"${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}\";" \
             > "$probe_dir/probe.c"
           sccache --stop-server >/dev/null 2>&1 || true
           sccache --zero-stats
@@ -164,18 +143,12 @@ jobs:
           requests = int(stats.get("requests_executed", stats.get("compile_requests", 0)))
           write_errors = int(stats.get("cache_write_errors", 0))
           writes = int(stats.get("cache_writes", 0))
-          remote_levels = [level for level in stats.get("multi_level", [])
-                           if "gha" in str(level.get("name", "")).lower()]
           if requests < 1:
-              raise SystemExit("remote checkpoint probe did not reach sccache")
+              raise SystemExit("local cache probe did not reach sccache")
           if write_errors:
-              raise SystemExit(f"remote checkpoint probe reported {write_errors} write errors")
+              raise SystemExit(f"local cache probe reported {write_errors} write errors")
           if writes < 1:
-              raise SystemExit("remote checkpoint probe produced no cache writes")
-          if len(remote_levels) != 1 or int(remote_levels[0].get("writes", 0)) < 1:
-              raise SystemExit("remote checkpoint probe did not write to the GHA cache level")
-          if int(remote_levels[0].get("write_failures", 0)):
-              raise SystemExit("remote checkpoint probe reported a GHA cache write failure")
+              raise SystemExit("local cache probe produced no cache writes")
           PY
           sccache --stop-server
 
@@ -201,8 +174,8 @@ jobs:
         run: |
           python3 ios/ci/qt-checkpoint-artifact.py probe \
             --artifact-prefix "${{ steps.cache-key.outputs.host_artifact_prefix }}" \
-            --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --expected-branch "$OVERTE_CHECKPOINT_BRANCH" \
             --max-age-days 21 \
             --github-output "$GITHUB_OUTPUT"
 
@@ -214,8 +187,8 @@ jobs:
         run: |
           python3 ios/ci/qt-checkpoint-artifact.py probe \
             --artifact-prefix "${{ steps.cache-key.outputs.ios_artifact_prefix }}" \
-            --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --expected-branch "$OVERTE_CHECKPOINT_BRANCH" \
             --max-age-days 21 \
             --github-output "$GITHUB_OUTPUT"
 
@@ -230,8 +203,8 @@ jobs:
             --artifact-prefix "${{ steps.cache-key.outputs.host_artifact_prefix }}" \
             --kind host \
             --cache-key "${{ steps.cache-key.outputs.host }}" \
-            --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --expected-branch "$OVERTE_CHECKPOINT_BRANCH" \
             --install-root "$QT_INSTALL_ROOT" \
             --github-output "$GITHUB_OUTPUT"
 
@@ -246,8 +219,8 @@ jobs:
             --artifact-prefix "${{ steps.cache-key.outputs.ios_artifact_prefix }}" \
             --kind ios \
             --cache-key "${{ steps.cache-key.outputs.ios }}" \
-            --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --expected-branch "$OVERTE_CHECKPOINT_BRANCH" \
             --install-root "$QT_INSTALL_ROOT" \
             --github-output "$GITHUB_OUTPUT"
 
@@ -273,7 +246,7 @@ jobs:
           ios/tools/build-qt-ios-from-source.sh \
             --work-root "$QT_WORK_ROOT" \
             --install-root "$QT_INSTALL_ROOT" \
-            --target-sdk "${{ inputs.target_sdk }}" \
+            --target-sdk "$OVERTE_TARGET_SDK" \
             --stage source
 
       - name: Restore compiler recovery cache
@@ -294,7 +267,7 @@ jobs:
           ios/tools/build-qt-ios-from-source.sh \
             --work-root "$QT_WORK_ROOT" \
             --install-root "$QT_INSTALL_ROOT" \
-            --target-sdk "${{ inputs.target_sdk }}" \
+            --target-sdk "$OVERTE_TARGET_SDK" \
             --stage host
 
       - name: Validate Qt host tools
@@ -307,8 +280,8 @@ jobs:
             --prefix "$QT_INSTALL_ROOT/macos" \
             --kind host \
             --cache-key "${{ steps.cache-key.outputs.host }}" \
-            --producer-repository-id "${{ github.repository_id }}" \
-            --producer-branch "${{ github.ref_name }}" \
+            --producer-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --producer-branch "$OVERTE_CHECKPOINT_BRANCH" \
             --output-dir build-ios/qt-host-checkpoint
 
       - name: Upload validated Qt host artifact checkpoint
@@ -337,7 +310,7 @@ jobs:
           ios/tools/build-qt-ios-from-source.sh \
             --work-root "$QT_WORK_ROOT" \
             --install-root "$QT_INSTALL_ROOT" \
-            --target-sdk "${{ inputs.target_sdk }}" \
+            --target-sdk "$OVERTE_TARGET_SDK" \
             --stage ios
 
       - name: Validate restored or built Qt
@@ -352,8 +325,8 @@ jobs:
             --prefix "$QT_INSTALL_ROOT/ios" \
             --kind ios \
             --cache-key "${{ steps.cache-key.outputs.ios }}" \
-            --producer-repository-id "${{ github.repository_id }}" \
-            --producer-branch "${{ github.ref_name }}" \
+            --producer-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --producer-branch "$OVERTE_CHECKPOINT_BRANCH" \
             --output-dir build-ios/qt-ios-checkpoint
 
       - name: Upload validated Qt iOS artifact checkpoint
@@ -386,7 +359,7 @@ jobs:
             > build-ios/compiler-watchdog-diagnostics/sccache-stats.json || true
           sccache --show-stats || true
 
-      - name: Verify successful Qt build was remotely checkpointed
+      - name: Verify successful Qt build used the local compiler cache
         if: >-
           success() && steps.qt-ios-build.outcome == 'success' &&
           steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true'
@@ -395,9 +368,7 @@ jobs:
             build-ios/compiler-watchdog-diagnostics/sccache-stats.json \
             --cache-dir "$SCCACHE_DIR" \
             --phase after \
-            --require-activity \
-            --max-remote-write-failure-rate 0.01 \
-            --max-remote-write-failures 32
+            --require-activity
 
       - name: Upload compiler stall diagnostics
         if: failure() && !cancelled()

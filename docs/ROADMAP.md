@@ -79,7 +79,7 @@ the product surface.
 - [x] fork-specific contribution, security, ownership, and funding policies do
   not contradict the repository README;
 - [x] the roadmap and fork-policy baseline is propagated through every
-  permanent child branch without importing new upstream changes;
+  permanent child branch without reverse-merging child work;
 - [x] the quick project suite and branch-topology checks pass; and
 - [ ] topic branches and worktrees are classified and safely reduced using the
   [`R0 cleanup checklist`](BRANCH_CLEANUP.md).
@@ -131,8 +131,9 @@ order and the next acceptance boundary.
 - Exactly one repository milestone may be in `NOW`.
 - Use one primary product track and at most one maintenance track at a time.
 - Keep at most three active topic branches; classify or archive the rest.
-- Do not merge, rebase, cherry-pick, or otherwise import new changes from the
-  upstream Overte repository into this AI-assisted fork.
+- Import upstream Overte changes only through the reviewed, one-way
+  [`upstream intake policy`](UPSTREAM_INTAKE.md), from upstream `master` to
+  fork `main`.
 - Do not submit AI-assisted fork changes, issues, or pull requests to the
   upstream Overte project.
 - Every change must advance a named exit criterion or repair a verified

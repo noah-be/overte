@@ -6,17 +6,21 @@ Write observable Overte behavior once and implement only transport and input
 operations per target. The initial behavior contract is deliberately small:
 
 1. start Overte once;
-2. load a controlled local scene;
+2. load a controlled local scene with a deterministic interaction target;
 3. observe a valid spawn above the ground;
 4. perform signed look input in every direction;
 5. perform body-relative movement in every direction and reject stuck input;
 6. collide with the controlled wall, jump and fly;
-7. open and close the system tablet and reject world-input leakage;
-8. reload the scene and optionally stop/relaunch the application;
-9. enter a controlled domain and receive its assignment-owned
+7. deliver one semantic primary action to a controlled world entity;
+8. open and close the system tablet and reject world-input leakage;
+9. reload the scene and optionally stop/relaunch the application;
+10. enter a controlled domain and receive its assignment-owned
    content without a process restart.
-10. evaluate process identity, probe state, errors, and artifacts; and
-11. clean up the application session and target transport.
+11. leave and re-enter that domain without a process restart;
+12. exercise the extended text, script, peer, recovery, audio, setting,
+    lifecycle, and rendering contracts;
+13. evaluate process identity, probe state, errors, and artifacts; and
+14. clean up the application session and target transport.
 
 The baseline runs in one application session after the initial controlled
 launch. Shared modules own expectations. Product adapters own target discovery,
@@ -29,18 +33,20 @@ logic.
 - The portable runner works on POSIX and Windows, launches adapter commands
   portably, validates the versioned registry, and distinguishes assertion,
   skip, and infrastructure outcomes.
-- The controlled five-entity serverless scene is dependency-free,
+- The controlled six-entity serverless scene is dependency-free,
   self-validating, and served by the Python standard library.
-- One schema-v2 Interface probe emits monotonic, strict observable state used
-  by every platform while retaining domain, asset, and sound evidence.
+- One schema-v2 Interface probe emits monotonic, strict observable state
+  consumed by common behavioral modules and conforming adapters while
+  retaining domain, asset, and sound evidence.
 - The common scene, look, movement, tablet, accessibility, launch, and soak
   modules consume only versioned adapter capabilities.
 - A deterministic state-machine adapter executes the full baseline in
   hardware-free CI.
 - The controlled domain-entry contract includes an ephemeral local
   domain/assignment fixture, exact identity/content checks, and hardware-free
-  positive and negative tests. Product adapters intentionally omit
-  `navigation.enter-domain` until separately activated and accepted.
+  positive and negative tests. Concrete adapters advertise
+  `navigation.enter-domain` only when their configured transport implements
+  it; acceptance remains separate.
 
 Concrete transports, package formats, signing rules, system services, device
 selectors, accessibility mappings, and toolchain locks belong to product
@@ -69,6 +75,10 @@ that parent can use the same implementation without importing a child backend.
   and `flying=true`.
 - Tablet: both open and closed state transitions are observed in Interface,
   not inferred from a successful click, key, or gesture command.
+- World interaction: one `input.primary` operation produces exactly one fresh
+  press event for the repository-owned interaction target. A successful
+  transport command alone is insufficient. See
+  [`INTERACTION_E2E.md`](INTERACTION_E2E.md).
 - Tablet isolation: movement input while the tablet owns focus produces no
   observable world displacement or velocity.
 - Recovery: scene reload restores the controlled fixture; application restart
@@ -86,6 +96,13 @@ that parent can use the same implementation without importing a child backend.
 - Domain entry: the probe reports the fixture's exact UUID and host, leaves
   serverless mode, observes the complete assignment-owned marker set for
   consecutive stable samples, and retains foreground/process identity.
+- Domain recovery: the same process leaves for the local fixture and reconnects
+  to the exact domain identity and marker set.
+- Extended portable gates cover fixed text editing, controlled entity-script
+  mutation, a controlled peer, owned network-fault recovery, mute restoration,
+  one safe persisted setting, lifecycle under load, and render health. Their
+  exact boundaries are in
+  [`PORTABLE_EXTENDED_E2E.md`](PORTABLE_EXTENDED_E2E.md).
 
 Every module retains its last, before, and after probe snapshots. Target
 adapters may add redacted screenshots, accessibility trees, or private device
@@ -123,5 +140,8 @@ schedule, record evidence for:
   timeout; and
 - required operating-system permissions in the same context as the CI agent.
 
-Long soaks begin only after the short baseline is reliable. They do not
-compensate for a failing or incomplete core sequence.
+Matrix promotion additionally requires selector-free manifests and complete
+physical `platform:suite` evidence. The current checked-in evidence registry is
+empty, so no production cell is documented as physically accepted. Long soaks
+begin only after the short baseline is reliable; they do not compensate for a
+failing or incomplete core sequence.
