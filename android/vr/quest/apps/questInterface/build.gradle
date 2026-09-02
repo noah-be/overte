@@ -1,6 +1,29 @@
 import org.apache.tools.ant.taskdefs.condition.Os
 apply plugin: 'com.android.application'
 
+def releaseSigningPropertyNames = [
+    'HIFI_ANDROID_KEYSTORE',
+    'HIFI_ANDROID_KEYSTORE_PASSWORD',
+    'HIFI_ANDROID_KEY_ALIAS',
+    'HIFI_ANDROID_KEY_PASSWORD'
+]
+def releaseSigningProperties = releaseSigningPropertyNames.collectEntries { name ->
+    [(name): project.findProperty(name)]
+}
+def suppliedReleaseSigningProperties = releaseSigningProperties.findAll { name, value ->
+    value != null && value.toString().trim()
+}
+if (!suppliedReleaseSigningProperties.isEmpty() &&
+        suppliedReleaseSigningProperties.size() != releaseSigningProperties.size()) {
+    throw new GradleException(
+        'Quest release signing requires all HIFI_ANDROID_KEYSTORE* / ' +
+        'HIFI_ANDROID_KEY_ALIAS properties; no repository fallback exists.')
+}
+def hasReleaseSigning = suppliedReleaseSigningProperties.size() == releaseSigningProperties.size()
+if (hasReleaseSigning && !file(releaseSigningProperties.HIFI_ANDROID_KEYSTORE).isFile()) {
+    throw new GradleException('The configured Quest release keystore does not exist.')
+}
+
 android {
     compileSdkVersion 28
     ndkVersion '27.3.13750724'
@@ -31,12 +54,14 @@ android {
             }
         }
         signingConfigs {
-            release {
-                storeFile project.hasProperty("HIFI_ANDROID_KEYSTORE") ? file(HIFI_ANDROID_KEYSTORE) : file('../../../../common/keystore.jks')
-                storePassword project.hasProperty("HIFI_ANDROID_KEYSTORE_PASSWORD") ? HIFI_ANDROID_KEYSTORE_PASSWORD : 'password'
-                keyAlias project.hasProperty("HIFI_ANDROID_KEY_ALIAS") ? HIFI_ANDROID_KEY_ALIAS : 'key0'
-                keyPassword project.hasProperty("HIFI_ANDROID_KEY_PASSWORD") ? HIFI_ANDROID_KEY_PASSWORD : 'password'
-                v2SigningEnabled false
+            if (hasReleaseSigning) {
+                release {
+                    storeFile file(releaseSigningProperties.HIFI_ANDROID_KEYSTORE)
+                    storePassword releaseSigningProperties.HIFI_ANDROID_KEYSTORE_PASSWORD
+                    keyAlias releaseSigningProperties.HIFI_ANDROID_KEY_ALIAS
+                    keyPassword releaseSigningProperties.HIFI_ANDROID_KEY_PASSWORD
+                    v2SigningEnabled false
+                }
             }
         }
     }
@@ -58,7 +83,9 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
             buildConfigField "String", "BACKTRACE_URL", rootProject.ext.legacyBuildConfigString(System.getenv("CMAKE_BACKTRACE_URL"))
             buildConfigField "String", "BACKTRACE_TOKEN", rootProject.ext.legacyBuildConfigString(System.getenv("CMAKE_BACKTRACE_TOKEN"))
             buildConfigField "String", "OAUTH_CLIENT_ID", rootProject.ext.legacyBuildConfigString(System.getenv("OAUTH_CLIENT_ID"))

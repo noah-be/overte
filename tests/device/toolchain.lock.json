@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "resolvedAt": "2026-08-25",
+  "sources": {
+    "appiumRegistry": "https://registry.npmjs.org/",
+    "appiumDocumentation": "https://appium.io/docs/en/3.0/",
+    "jenkinsLts": "https://updates.jenkins.io/stable/latestCore.txt",
+    "jenkinsJavaPolicy": "https://www.jenkins.io/doc/book/platform-information/support-policy-java/",
+    "jenkinsPluginMetadata": "https://updates.jenkins.io/plugin-versions.json",
+    "jenkinsPluginManagerRelease": "https://github.com/jenkinsci/plugin-installation-manager-tool/releases/tag/2.15.0"
+  },
+  "appium": {
+    "license": "Apache-2.0",
+    "runtime": {
+      "node": "24.19.0",
+      "npm": "11.17.0"
+    },
+    "nodeRange": "^20.19.0 || ^22.12.0 || >=24.0.0",
+    "npmRange": ">=10",
+    "core": {
+      "package": "appium",
+      "version": "3.7.0",
+      "artifact": {
+        "url": "https://registry.npmjs.org/appium/-/appium-3.7.0.tgz",
+        "sha256": "a6f99adf70a8815039c8c20d07d359b11e60f062dd04b5171cfc84e429017599",
+        "integrity": "sha512-2AWajtPbjYGTJmVqpavGctO7zK9M7Q74L3vK9lFKPs6qr3N3/xy3STHnkXJk/wgaZ+BDgeKD68zQQ5sAP6A/cA=="
+      }
+    },
+    "drivers": {
+      "uiautomator2": {
+        "package": "appium-uiautomator2-driver",
+        "version": "8.5.0",
+        "appiumPeerRange": "^3.0.0-rc.2",
+        "artifact": {
+          "url": "https://registry.npmjs.org/appium-uiautomator2-driver/-/appium-uiautomator2-driver-8.5.0.tgz",
+          "sha256": "62a9e872d64d73d263085bd7d94bb61dfb496f4958dc9c045d65d5f28ef5be53",
+          "integrity": "sha512-c+rOp/JMmtyJ84vjtAB0Vz9b9EKKZ63E1N6bUHw9OAQp4erNOZ2UDHO9/JHCwqUViPDxMRp8rTJpfLBGTePB9Q=="
+        }
+      },
+      "xcuitest": {
+        "package": "appium-xcuitest-driver",
+        "version": "12.8.0",
+        "appiumPeerRange": "^3.0.0-rc.2",
+        "remoteXpcRange": "^5.13.2",
+        "webdriverAgentRange": "^16.8.0",
+        "artifact": {
+          "url": "https://registry.npmjs.org/appium-xcuitest-driver/-/appium-xcuitest-driver-12.8.0.tgz",
+          "sha256": "2cccc74b0cc3f56afd029accc3a4553c56d7269c6c403cbf161aaf095bc5c0b8",
+          "integrity": "sha512-T3F3aNjCXPhqbElrei+aPilVIzOs6DZPGi93NS+5oox1DJtORDWVQZthzUbFwt2Z28KZzAnnZG0cwGmsoX3t2g=="
+        }
+      }
+    },
+    "iosRuntime": {
+      "remoteXpc": {
+        "package": "appium-ios-remotexpc",
+        "version": "5.15.3",
+        "artifact": {
+          "url": "https://registry.npmjs.org/appium-ios-remotexpc/-/appium-ios-remotexpc-5.15.3.tgz",
+          "sha256": "2eaa0ecc4efd346f744f96b6f84a03bea49e233e47180f2b573d18ef001a3aea",
+          "integrity": "sha512-rmp3+Xexyy9Sc2LtUql1wQa93rKCbFCOUoIsCbZfUiapmf1eu4OiXs8iS0TgBMHoPqRhP6vGGQfwGgHMmjR0iA=="
+        }
+      },
+      "webdriverAgent": {
+        "package": "appium-webdriveragent",
+        "version": "16.8.0",
+        "artifact": {
+          "url": "https://registry.npmjs.org/appium-webdriveragent/-/appium-webdriveragent-16.8.0.tgz",
+          "sha256": "3d06a9ae08a8b61af2661bb8ffc4293844b34e804e8b7698ab104d4e972400e4",
+          "integrity": "sha512-S4mGHQYe5OpJWSqW/jvJMCD66BLYn3tmnNfz6V6/hPkdYNVsCiGKAZoAxoLuegCFDsGvviO8aRGhwfP043YzXA=="
+        }
+      }
+    },
+    "iosSecurity": {
+      "age": {
+        "version": "1.2.1",
+        "license": "BSD-3-Clause",
+        "executableSha256": "aaec874ed903da4b02a9d503778ae05ee5005b2acc0f4a4cf10e5d0f17fd4384",
+        "artifact": {
+          "url": "https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-amd64.tar.gz",
+          "sha256": "7df45a6cc87d4da11cc03a539a7470c15b1041ab2b396af088fe9990f7c79d50"
+        }
+      },
+      "rcodesign": {
+        "version": "0.29.0",
+        "license": "MPL-2.0",
+        "executableSha256": "dab9a7465f96aba3c81e793775510f745b91a46b6418e89f7317b5d8fc7bcea2",
+        "artifact": {
+          "url": "https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.29.0/apple-codesign-0.29.0-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "dbe85cedd8ee4217b64e9a0e4c2aef92ab8bcaaa41f20bde99781ff02e600002"
+        }
+      }
+    }
+  },
+  "jenkins": {
+    "license": "MIT",
+    "javaMajors": [21, 25],
+    "recommendedJavaMajor": 21,
+    "lts": {
+      "version": "2.568.2",
+      "artifact": {
+        "url": "https://get.jenkins.io/war-stable/2.568.2/jenkins.war",
+        "sha256": "9bbb2b329e52730ba7decd1a7a1095987f6250ec761fb21157dbb2cbcd1ef590"
+      }
+    },
+    "pluginInstallationManager": {
+      "version": "2.15.0",
+      "artifact": {
+        "url": "https://github.com/jenkinsci/plugin-installation-manager-tool/releases/download/2.15.0/jenkins-plugin-manager-2.15.0.jar",
+        "sha256": "a86853ec2e2933f37a4b471ba65099b61e03c87a80c2ef8fe2315eb135672d43"
+      }
+    },
+    "resolvedForCore": "2.568.2",
+    "resolvedWithPluginManager": "2.15.0",
+    "resolvedPluginsFile": "jenkins/plugins.lock.txt",
+    "resolvedPluginArtifactsFile": "jenkins/plugins.artifacts.lock.json",
+    "installPolicy": {
+      "latest": false,
+      "includeOptionalDependencies": false
+    },
+    "directPlugins": {
+      "configuration-as-code": "2117.vc05a_0b_e6b_f4e",
+      "credentials-binding": "728.v902a_273b_8947",
+      "git": "5.10.1",
+      "junit": "1424.vc64a_edde7777",
+      "lockable-resources": "1539.v4db_b_fc1cc115",
+      "pipeline-model-definition": "2.2293.v6e7193cec599",
+      "plain-credentials": "199.v9f8e1f741799",
+      "workflow-aggregator": "608.v67378e9d3db_1"
+    },
+    "directPluginArtifacts": {
+      "configuration-as-code": {
+        "url": "https://updates.jenkins.io/download/plugins/configuration-as-code/2117.vc05a_0b_e6b_f4e/configuration-as-code.hpi",
+        "sha256": "4acc06b40ab85db772b004860c4d729ea0bd132ac5b9bf883e254e426fb2b34f"
+      },
+      "credentials-binding": {
+        "url": "https://updates.jenkins.io/download/plugins/credentials-binding/728.v902a_273b_8947/credentials-binding.hpi",
+        "sha256": "bd7d1a187e35c8e2b6619cd50f2f8c5d28aafc4ef8fd9de572fb2cfa464f466d"
+      },
+      "git": {
+        "url": "https://updates.jenkins.io/download/plugins/git/5.10.1/git.hpi",
+        "sha256": "eb562836855eb8e4155a03154002467051d287ab068b2853cfc1c3b86b669a69"
+      },
+      "junit": {
+        "url": "https://updates.jenkins.io/download/plugins/junit/1424.vc64a_edde7777/junit.hpi",
+        "sha256": "31d7126e563e4ae6853ac9e81da58dcaf46d2db089a8d0a6d10a0078f88b4448"
+      },
+      "lockable-resources": {
+        "url": "https://updates.jenkins.io/download/plugins/lockable-resources/1539.v4db_b_fc1cc115/lockable-resources.hpi",
+        "sha256": "b5e77b91ac45a9a0ad7856cba1e7732cf8626d54f953b8041732a17d3278756e"
+      },
+      "pipeline-model-definition": {
+        "url": "https://updates.jenkins.io/download/plugins/pipeline-model-definition/2.2293.v6e7193cec599/pipeline-model-definition.hpi",
+        "sha256": "9f4f62e0a13fefc9c5736a20ad5124af2a324357294fd8ea8d8f848b7c497f92"
+      },
+      "plain-credentials": {
+        "url": "https://updates.jenkins.io/download/plugins/plain-credentials/199.v9f8e1f741799/plain-credentials.hpi",
+        "sha256": "b5e5e35cf93ad3b818a983916cbcdf3f7866699410a4df923e6a2968ecc3a448"
+      },
+      "workflow-aggregator": {
+        "url": "https://updates.jenkins.io/download/plugins/workflow-aggregator/608.v67378e9d3db_1/workflow-aggregator.hpi",
+        "sha256": "7b94227c1afa01bb262c14919ad4a333412f1b51d947c0f21909ec2daff357dc"
+      }
+    }
+  }
+}

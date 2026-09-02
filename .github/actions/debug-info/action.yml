@@ -27,4 +27,4 @@ runs:
       if: matrix.id == 'codechecker'
       shell: bash
       continue-on-error: true
-      run: cat ${{ env.GITHUB_WORKSPACE }}/codechecker_codechecker_compilation_database.json || echo "No CodeChecker compilation database found. Continuing…"
+      run: cat "$GITHUB_WORKSPACE/codechecker_codechecker_compilation_database.json" || echo "No CodeChecker compilation database found. Continuing…"

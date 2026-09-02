@@ -1,0 +1,89 @@
+name: Workflow security
+
+on:
+  pull_request:
+    paths:
+      - ".github/actions/**"
+      - ".github/workflows/**"
+      - ".github/actionlint.yaml"
+  push:
+    branches: [main]
+    paths:
+      - ".github/actions/**"
+      - ".github/workflows/**"
+      - ".github/actionlint.yaml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workflow-security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-analysis:
+    name: Actionlint, Zizmor, and Gitleaks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install checksum-verified static analyzers
+        env:
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          ZIZMOR_SHA256: ec8c95cd800845abb9bbc5f377ec7c57d2eb8e2386a00a201d3a74ee4092e5ed
+        run: |
+          set -euo pipefail
+          tools_dir="$RUNNER_TEMP/workflow-security-tools"
+          mkdir -p "$tools_dir/bin"
+          curl --fail --location --silent --show-error \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
+            --output "$tools_dir/actionlint.tar.gz"
+          curl --fail --location --silent --show-error \
+            https://github.com/woodruffw/zizmor/releases/download/v1.30.0/zizmor-x86_64-unknown-linux-gnu.tar.gz \
+            --output "$tools_dir/zizmor.tar.gz"
+          curl --fail --location --silent --show-error \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
+            --output "$tools_dir/gitleaks.tar.gz"
+          printf '%s  %s\n' "$ACTIONLINT_SHA256" "$tools_dir/actionlint.tar.gz" \
+            "$ZIZMOR_SHA256" "$tools_dir/zizmor.tar.gz" \
+            "$GITLEAKS_SHA256" "$tools_dir/gitleaks.tar.gz" | sha256sum --check --strict
+          tar -xzf "$tools_dir/actionlint.tar.gz" -C "$tools_dir/bin" actionlint
+          tar -xzf "$tools_dir/zizmor.tar.gz" -C "$tools_dir/bin" zizmor
+          tar -xzf "$tools_dir/gitleaks.tar.gz" -C "$tools_dir/bin" gitleaks
+          echo "$tools_dir/bin" >> "$GITHUB_PATH"
+
+      - name: Lint workflow syntax and runner labels
+        env:
+          # Fork-only labels used by the isolated device and trusted build pools.
+          ACTIONLINT_SELF_HOSTED_LABELS: |
+            overte-android-build
+            overte-android-phone-build
+            overte-android-phone-emulator
+            overte-android-phone-release
+            overte-android-release
+            overte-pico4-device
+            depot-ubuntu-24.04
+        run: |
+          set -euo pipefail
+          config_file="$RUNNER_TEMP/actionlint-session-21.yaml"
+          {
+            echo "self-hosted-runner:"
+            echo "  labels:"
+            while IFS= read -r label; do
+              [[ -z "$label" ]] || printf '    - %s\n' "$label"
+            done <<< "$ACTIONLINT_SELF_HOSTED_LABELS"
+          } > "$config_file"
+          actionlint -config-file "$config_file" -no-color
+
+      - name: Audit workflow security
+        if: always()
+        run: zizmor --min-severity medium .github/workflows
+
+      - name: Scan workflow files for secrets with redacted output
+        if: always()
+        run: gitleaks dir --redact=100 --no-banner --no-color .github

@@ -1,0 +1,62 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /tools/jsdoc
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 4
+    groups:
+      jsdoc-major:
+        patterns:
+          - jsdoc
+        update-types:
+          - major
+      jsdoc-maintenance:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - jsdoc
+        update-types:
+          - patch
+          - minor
+
+  - package-ecosystem: npm
+    directory: /server-console
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 6
+    groups:
+      electron-runtime:
+        patterns:
+          - electron
+      electron-packaging:
+        patterns:
+          - electron-packager
+      request-stack:
+        patterns:
+          - request
+          - request-progress
+      console-maintenance:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - electron
+          - electron-packager
+          - request
+          - request-progress
+        update-types:
+          - patch
+          - minor
+
+  - package-ecosystem: gradle
+    directory: /android/common/tests/robolectric
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      android-test-maintenance:
+        patterns:
+          - "*"
+        update-types:
+          - patch
+          - minor

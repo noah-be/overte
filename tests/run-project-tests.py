@@ -32,9 +32,16 @@ SUITES = (
     Suite("repository-health", "quick", (sys.executable, "tests/project-health-test.py")),
     Suite("project-coverage", "quick", (sys.executable, "tests/project-coverage-test.py")),
     Suite("javascript-behavior", "quick", ("node", "tests/mocha/test/testVirtualBaton.js")),
+    Suite("device-e2e-contracts", "quick", (
+        sys.executable, "tests/device/run_control_plane_tests.py", "--profile", "quick",
+        "--junit", "build/test-results/device-e2e-contracts.xml")),
+    Suite("documentation", "documentation", (
+        sys.executable, "tests/check-documentation.py", "--base", "HEAD^1")),
     Suite("pico4-device-free", "quick", ("bash", "android/vr/pico/tests/pico-device-free-test.sh")),
     Suite("native-ctest", "native", ("bash", "tests/project-native-test.sh")),
 )
+
+SUITE_ALIASES = {"device-control-plane": "device-e2e-contracts"}
 
 
 def arguments() -> argparse.Namespace:
@@ -54,11 +61,12 @@ def arguments() -> argparse.Namespace:
 
 
 def select(args: argparse.Namespace) -> list[Suite]:
-    names = set(args.suite)
+    requested = set(args.suite)
     known = {suite.name for suite in SUITES}
-    unknown = sorted(names - known)
+    unknown = sorted(requested - known - set(SUITE_ALIASES))
     if unknown:
         raise ValueError("unknown suites: " + ", ".join(unknown))
+    names = {SUITE_ALIASES.get(name, name) for name in requested}
     if names:
         return [suite for suite in SUITES if suite.name in names]
     layers = {"quick"} if args.profile == "quick" else {"quick", "native"}
