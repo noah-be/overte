@@ -1,9 +1,10 @@
 # R0 branch and worktree cleanup
 
 > [!IMPORTANT]
-> This is a temporary R0 maintenance checklist for this fork. It does not
-> authorize importing changes from upstream and it must not be used to delete a
-> branch, worktree, commit, or untracked file without the checks below.
+> This is a temporary R0 maintenance checklist for this fork. It does not by
+> itself authorize an upstream intake, and it must not be used to delete a
+> branch, worktree, commit, or untracked file without the checks below. Planned
+> upstream updates use the separate [upstream intake policy](UPSTREAM_INTAKE.md).
 
 **Snapshot:** 2026-08-24
 
@@ -26,7 +27,9 @@ Before removing a ref or worktree:
    or external bundle; and
 6. remove the worktree before deleting its checked-out local branch.
 
-Do not use an upstream ref as a cleanup target or source.
+Do not use an upstream ref as a cleanup target or source when classifying or
+deleting cleanup refs. This restriction does not prohibit a separately
+reviewed upstream intake.
 
 ## Active permanent branches — keep
 

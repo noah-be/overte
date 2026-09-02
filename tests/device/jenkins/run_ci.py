@@ -24,19 +24,26 @@ import xml.etree.ElementTree as ET
 from urllib.parse import urlsplit
 
 
-SUITES = {
-    "smoke", "domain-smoke", "asset-smoke", "sound-smoke", "e2e-core",
-    "accessibility", "vertical-locomotion", "stability", "lifecycle-stability",
+SUITE_IDENTIFIER = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
+IOS_ARTIFACT_SOURCES = {
+    "personal-team-preinstalled", "local-personal-team", "protected-github",
 }
 PUBLIC_HOST = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
 STAGED_MARKER = ".overte-device-ci-staged"
+PRIVATE_BUILD_MARKER = ".overte-ios-ci-private-build"
 EMBEDDED_FIXTURE_URL = "overte-e2e://fixture/scene"
-ANDROID_CONTROLLED_SUITES = {
-    "asset-smoke": "asset.load",
-    "domain-smoke": "navigation.enter-domain",
-    "sound-smoke": "sound.play",
+PUBLIC_RESULT_NAMES = {
+    "acceptance.json", "accessibility-audit.json", "cycles.jsonl", "device.json", "junit.xml",
+    "metrics.json", "module.log", "pipeline-error.txt", "summary.json",
+    "telemetry.jsonl",
 }
-ANDROID_ADAPTER_IDS = {"android-phone-adb", "android-pico-adb"}
+IOS_SESSION_PREWARM_TIMEOUT_SECONDS = 210
+IOS_SIGNED_INSTALL_PREWARM_TIMEOUT_SECONDS = 20 * 60
+IOS_PROBE_REQUEST_TIMEOUT_SECONDS = 10
+IOS_THERMAL_MAX_TEMPERATURE_CENTI_C = 3050
+IOS_THERMAL_STABLE_SAMPLES = 2
+IOS_THERMAL_SAMPLE_INTERVAL_SECONDS = 15
+IOS_THERMAL_COOLDOWN_TIMEOUT_SECONDS = 10 * 60
 
 
 def fail(message: str) -> "NoReturn":
@@ -93,16 +100,6 @@ def repository_file(root: Path, variable: str) -> Path:
     return path
 
 
-def checked_executable(variable: str) -> Path:
-    path = Path(environment(variable)).expanduser()
-    if not path.is_absolute() or has_symlink_component(path):
-        fail(f"{variable} must be an absolute path without symbolic-link components")
-    path = path.resolve()
-    if not path.is_file() or not os.access(path, os.X_OK):
-        fail(f"{variable} must name an executable file")
-    return path
-
-
 def external_directory(root: Path, variable: str) -> Path:
     raw_path = Path(environment(variable)).expanduser()
     if has_symlink_component(raw_path):
@@ -113,11 +110,63 @@ def external_directory(root: Path, variable: str) -> Path:
     return path
 
 
-def checked_suite() -> str:
+def checked_suite(catalog: Path | None = None) -> str:
     suite = environment("OVERTE_CI_SUITE")
-    if suite not in SUITES:
-        fail(f"OVERTE_CI_SUITE must be one of: {', '.join(sorted(SUITES))}")
+    if not SUITE_IDENTIFIER.fullmatch(suite):
+        fail("OVERTE_CI_SUITE has an invalid identifier")
+    if catalog is not None:
+        value = json.loads(catalog.read_text(encoding="utf-8"))
+        modules = value.get("modules") if isinstance(value, dict) else None
+        available = ({item for module in modules for item in module.get("suites", [])}
+                     if isinstance(modules, list) else set())
+        if suite not in available:
+            fail("OVERTE_CI_SUITE is absent from the checked-in module catalog")
     return suite
+
+
+def fixture_kind(root: Path, suite: str) -> str:
+    profiles = json.loads(
+        (root / "tests/device/execution-profiles.json").read_text(encoding="utf-8"))
+    suites = profiles.get("suites") if isinstance(profiles, dict) else None
+    profile = suites.get(suite) if isinstance(suites, dict) else None
+    kind = profile.get("fixture") if isinstance(profile, dict) else None
+    if kind not in {"none", "scene", "domain"}:
+        fail("suite has no valid checked-in fixture profile")
+    return kind
+
+
+def acceptance_status(root: Path, manifest: Path, catalog: Path, suite: str) -> dict:
+    value = json.loads(manifest.read_text(encoding="utf-8"))
+    adapter_id = value.get("id") if isinstance(value, dict) else None
+    platform = {
+        "appium-android": "android",
+        "appium-ios": "ios",
+        "android-pico-adb": "pico",
+        "desktop-oculix-linux": "linux",
+        "desktop-oculix-macos": "macos",
+        "desktop-oculix-windows": "windows",
+        "mock-e2e": "mock",
+    }.get(adapter_id)
+    if platform is None:
+        fail("adapter is absent from the acceptance platform mapping")
+    sys.path.insert(0, str(root / "tests/device"))
+    try:
+        from acceptance_policy import load_policy, state_for
+        policy_path = root / "tests/device/acceptance-policy.json"
+        policy = load_policy(policy_path, catalog)
+        state = state_for(policy, platform, suite)
+    finally:
+        sys.path.pop(0)
+    promotion = policy["platforms"][platform]["suites"].get(suite, {
+        "evidence": policy["platforms"][platform]["defaultEvidence"]})
+    return {
+        "schemaVersion": 1,
+        "platform": platform,
+        "suite": suite,
+        "state": state,
+        "blocking": state == "required",
+        "evidence": promotion["evidence"],
+    }
 
 
 def checked_public_host() -> str:
@@ -141,6 +190,31 @@ def checked_fixture_mode() -> str:
     return value
 
 
+def checked_upgrade_inputs(root: Path) -> None:
+    source = environment("OVERTE_E2E_UPGRADE_SOURCE_ARTIFACT")
+    candidate = environment("OVERTE_E2E_UPGRADE_CANDIDATE_ARTIFACT")
+    for name, raw in (("source", source), ("candidate", candidate)):
+        path = Path(raw).expanduser()
+        if (not path.is_absolute() or has_symlink_component(path)
+                or path == root or is_within(path.resolve(), root)
+                or not path.is_file() or path.is_symlink()):
+            fail(f"Android upgrade {name} artifact is not a safe external file")
+    if Path(source).resolve() == Path(candidate).resolve():
+        fail("Android upgrade artifacts must be distinct")
+    for variable in ("OVERTE_E2E_UPGRADE_FROM_VERSION",
+                     "OVERTE_E2E_UPGRADE_TO_VERSION"):
+        value = environment(variable)
+        if len(value) > 64 or any(character.isspace() for character in value):
+            fail(f"{variable} is invalid")
+    if (environment("OVERTE_E2E_UPGRADE_FROM_VERSION")
+            == environment("OVERTE_E2E_UPGRADE_TO_VERSION")):
+        fail("Android upgrade versions must differ")
+    aapt = Path(environment("OVERTE_ANDROID_AAPT")).expanduser()
+    if (not aapt.is_absolute() or has_symlink_component(aapt)
+            or not aapt.is_file() or not os.access(aapt, os.X_OK)):
+        fail("OVERTE_ANDROID_AAPT is not a safe executable")
+
+
 def normalized_fixture_origin(value: object) -> str:
     if not isinstance(value, str) or not value:
         fail("fixture ready metadata has no base URL")
@@ -156,31 +230,12 @@ def normalized_fixture_origin(value: object) -> str:
     return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
 
 
-def adapter_manifest_id(manifest: Path) -> str:
+def is_ios_appium_manifest(manifest: Path) -> bool:
     try:
         value = json.loads(manifest.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         fail("adapter manifest is unreadable")
-    identifier = value.get("id") if isinstance(value, dict) else None
-    if not isinstance(identifier, str) or not identifier:
-        fail("adapter manifest has no valid id")
-    return identifier
-
-
-def is_ios_appium_manifest(manifest: Path) -> bool:
-    return adapter_manifest_id(manifest) == "appium-ios"
-
-
-def is_isolated_pico_manifest(manifest: Path) -> bool:
-    return adapter_manifest_id(manifest) == "android-pico-adb"
-
-
-def runner_target_arguments(manifest: Path, child_environment: dict[str, str]) -> list[str]:
-    """Keep the private Pico selector out of the runner process entirely."""
-    if is_isolated_pico_manifest(manifest):
-        child_environment.pop("OVERTE_DEVICE_TARGET_SELECTOR", None)
-        return []
-    return ["--target", environment("OVERTE_DEVICE_TARGET_SELECTOR")]
+    return isinstance(value, dict) and value.get("id") == "appium-ios"
 
 
 def update_ios_fixture_origin(root: Path, selector: str, base_url: object) -> None:
@@ -283,93 +338,36 @@ def stop_process(process: subprocess.Popen | None, grace_seconds: int = 5) -> No
         process.wait(timeout=grace_seconds)
 
 
-def wait_for_ready(process: subprocess.Popen, ready_file: Path, timeout_seconds: int = 10,
-                   required_key: str = "sceneUrl") -> dict:
+def wait_for_ready(process: subprocess.Popen, ready_file: Path,
+                   timeout_seconds: int = 90) -> dict:
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
         if ready_file.exists():
             value = json.loads(ready_file.read_text(encoding="utf-8"))
-            if isinstance(value, dict) and isinstance(value.get(required_key), str):
+            if isinstance(value, dict) and value.get("schemaVersion") == 1:
                 return value
             fail("fixture ready file has an invalid shape")
         if process.poll() is not None:
             fail("fixture server exited before becoming ready")
         time.sleep(0.05)
-    fail(f"fixture server did not become ready within {timeout_seconds} seconds")
+    fail("fixture server did not become ready within its bounded timeout")
 
 
-def apply_http_fixture_environment(environment_values: dict[str, str], ready: dict) -> None:
-    asset = ready.get("asset")
-    sound = ready.get("sound")
-    required_asset = {
-        "id", "url", "telemetryUrl", "contentType", "sha256", "bytes",
-        "width", "height", "entityName",
-    }
-    if (not isinstance(asset, dict) or not required_asset.issubset(asset)
-            or not isinstance(sound, dict)
-            or not isinstance(ready.get("soundUrl"), str)
-            or not isinstance(ready.get("soundCommandUrl"), str)
-            or not isinstance(ready.get("soundRequestsUrl"), str)):
-        fail("fixture ready file has incomplete asset or sound metadata")
-    environment_values.update({
-        "OVERTE_E2E_ASSET_ID": str(asset["id"]),
-        "OVERTE_E2E_ASSET_URL": str(asset["url"]),
-        "OVERTE_E2E_ASSET_TELEMETRY_URL": str(asset["telemetryUrl"]),
-        "OVERTE_E2E_ASSET_ENTITY_NAME": str(asset["entityName"]),
-        "OVERTE_E2E_ASSET_CONTENT_TYPE": str(asset["contentType"]),
-        "OVERTE_E2E_ASSET_SHA256": str(asset["sha256"]),
-        "OVERTE_E2E_ASSET_BYTES": str(asset["bytes"]),
-        "OVERTE_E2E_ASSET_WIDTH": str(asset["width"]),
-        "OVERTE_E2E_ASSET_HEIGHT": str(asset["height"]),
-        "OVERTE_E2E_SOUND_URL": str(ready["soundUrl"]),
-        "OVERTE_E2E_SOUND_COMMAND_URL": str(ready["soundCommandUrl"]),
-        "OVERTE_E2E_SOUND_REQUESTS_URL": str(ready["soundRequestsUrl"]),
-        "OVERTE_E2E_SOUND_DURATION_SECONDS": str(sound["durationSeconds"]),
-    })
-
-
-def apply_domain_fixture_environment(environment_values: dict[str, str], ready: dict) -> None:
-    markers = ready.get("requiredMarkers") if isinstance(ready, dict) else None
-    if (not isinstance(ready, dict)
-            or not isinstance(ready.get("domainUrl"), str)
-            or not ready["domainUrl"].startswith("hifi://")
-            or not isinstance(ready.get("domainHost"), str)
-            or not isinstance(ready.get("domainId"), str)
-            or not isinstance(markers, list) or not markers
-            or not all(isinstance(marker, str) and marker for marker in markers)):
-        fail("domain fixture ready file has incomplete metadata")
-    environment_values.update({
-        "OVERTE_E2E_DOMAIN_URL": ready["domainUrl"],
-        "OVERTE_E2E_DOMAIN_HOST": ready["domainHost"],
-        "OVERTE_E2E_DOMAIN_ID": ready["domainId"],
-        "OVERTE_E2E_DOMAIN_MARKERS_JSON": json.dumps(markers, separators=(",", ":")),
-    })
-
-
-def copy_domain_fixture_artifacts(source: Path, output: Path) -> None:
-    if not source.is_dir():
-        return
-    destination = output / "domain-fixture"
-    copied = False
-    for name in ("domain-config.json", "domain-server.log", "assignment-client.log",
-                 "assignment-agent.log"):
-        candidate = source / name
-        if candidate.is_file() and not candidate.is_symlink():
-            destination.mkdir(parents=True, exist_ok=True, mode=0o700)
-            shutil.copy2(candidate, destination / name)
-            copied = True
-    assignment_logs = source / "assignment-logs"
-    if assignment_logs.is_dir() and not assignment_logs.is_symlink():
-        regular_logs = [path for path in assignment_logs.iterdir()
-                        if path.is_file() and not path.is_symlink()]
-        if regular_logs:
-            target = destination / "assignment-logs"
-            target.mkdir(parents=True, exist_ok=True, mode=0o700)
-            for path in regular_logs:
-                shutil.copy2(path, target / path.name)
-            copied = True
-    if not copied and destination.exists():
-        destination.rmdir()
+def load_owned_fixture_environment(metadata_root: Path, ready: dict) -> dict[str, str]:
+    raw = ready.get("environmentFile")
+    if not isinstance(raw, str):
+        fail("fixture orchestrator did not publish its environment file")
+    path = Path(raw).resolve()
+    if not is_within(path, metadata_root.resolve()) or not path.is_file():
+        fail("fixture environment file escaped its private metadata root")
+    value = json.loads(path.read_text(encoding="utf-8"))
+    variables = value.get("environment") if isinstance(value, dict) else None
+    if (value.get("schemaVersion") != 1 or not isinstance(variables, dict)
+            or not variables or not all(
+                isinstance(name, str) and name and isinstance(item, str) and item
+                for name, item in variables.items())):
+        fail("fixture environment file has an invalid shape")
+    return variables
 
 
 def subprocess_group_options() -> dict[str, object]:
@@ -378,66 +376,69 @@ def subprocess_group_options() -> dict[str, object]:
     return {"start_new_session": True}
 
 
-def adapter_manifest_id(manifest: Path) -> str:
-    try:
-        value = json.loads(manifest.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        fail("adapter manifest is unreadable")
-    identifier = value.get("id") if isinstance(value, dict) else None
-    if not isinstance(identifier, str) or not identifier:
-        fail("adapter manifest has no identifier")
-    return identifier
+def prewarm_ios_appium_session(root: Path, manifest: Path, selector: str,
+                               child_environment: dict[str, str],
+                               active_processes: list[subprocess.Popen] | None = None) -> None:
+    """Create the slow physical iOS session before the common module timeout.
 
-
-def prepare_controlled_android_target(root: Path, manifest: Path, selector: str,
-                                      suite: str, runner_environment: dict[str, str]) -> None:
-    """Start and confirm the runtime-gated Android channel before discovery."""
-    required_capability = ANDROID_CONTROLLED_SUITES.get(suite)
-    if (required_capability is None
-            or adapter_manifest_id(manifest) not in ANDROID_ADAPTER_IDS):
-        return
+    Appium may spend up to three minutes connecting a preinstalled WDA over
+    RemoteXPC.  The common adapter client intentionally bounds ordinary module
+    operations to 60 seconds.  This Jenkins-only prewarm gives session creation
+    its own bounded window; launch-smoke then reuses the persisted session and
+    verifies that the single controlled app launch is still alive.
+    """
     command = load_adapter_command(manifest)
-    isolated_pico = is_isolated_pico_manifest(manifest)
-    if isolated_pico:
-        # Resolve the one live Pico from its isolated ADB server. The Jenkins
-        # credential can be stale after switching from USB to WLAN and must not
-        # override the same auto-selection used by the suite runner and cleanup.
-        runner_environment.pop("OVERTE_DEVICE_TARGET_SELECTOR", None)
-        target_arguments = []
-    else:
-        target_arguments = ["--target", selector]
-    launch = subprocess.run([
-        *command, "invoke", *target_arguments, "--operation", "app.launch",
-        "--arguments", "{}",
-    ], cwd=root, env=runner_environment, text=True, stdout=subprocess.PIPE,
-       stderr=subprocess.PIPE, timeout=60, check=False)
-    if launch.returncode != 0:
-        detail = (launch.stderr.strip() or "adapter launch failed").replace(
-            selector, "<target>")
-        fail(f"controlled Android channel launch failed: {detail}")
-
-    deadline = time.monotonic() + 45
-    while time.monotonic() < deadline:
-        discovered = subprocess.run(
-            [*command, "discover"], cwd=root, env=runner_environment, text=True,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30, check=False,
+    timeout = IOS_SESSION_PREWARM_TIMEOUT_SECONDS
+    if child_environment.get("OVERTE_IOS_ARTIFACT_SOURCE") in {
+            "local-personal-team", "protected-github"}:
+        timeout = IOS_SIGNED_INSTALL_PREWARM_TIMEOUT_SECONDS
+    process = subprocess.Popen(
+        [*command, "invoke", "--target", selector,
+         "--operation", "app.launch", "--arguments", "{}"],
+        cwd=root, env=child_environment, stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL, **subprocess_group_options(),
+    )
+    if active_processes is not None:
+        active_processes.append(process)
+    try:
+        returncode = process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired as error:
+        stop_process(process, grace_seconds=2)
+        raise RuntimeError(
+            "iOS Appium session did not become ready within the bounded prewarm window"
+        ) from error
+    finally:
+        if active_processes is not None and process in active_processes:
+            active_processes.remove(process)
+    if returncode:
+        raise RuntimeError(
+            "iOS Appium session prewarm failed; inspect the private Appium service log"
         )
-        if discovered.returncode == 0:
-            try:
-                targets = json.loads(discovered.stdout)
-            except json.JSONDecodeError:
-                targets = None
-            if isinstance(targets, list):
-                matches = [target for target in targets if isinstance(target, dict)
-                           and (isolated_pico or target.get("selector") == selector)]
-                if len(matches) == 1:
-                    capabilities = matches[0].get("capabilities")
-                    if (isinstance(capabilities, list)
-                            and required_capability in capabilities):
-                        print("Android controlled E2E channel is ready.")
-                        return
-        time.sleep(0.25)
-    fail("controlled Android channel was not confirmed within 45 seconds")
+
+
+def require_ios_probe_request(fixture_log: Path,
+                              timeout_seconds: int = IOS_PROBE_REQUEST_TIMEOUT_SECONDS) -> None:
+    """Prove the launched iOS client fetched the repository-owned test script."""
+    if fixture_log.is_symlink() or not fixture_log.is_file():
+        fail("private fixture access log is unavailable")
+    metadata = fixture_log.lstat()
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != os.geteuid():
+        fail("private fixture access log is unsafe")
+    expected = re.compile(
+        rb'^fixture: "GET /overte_e2e_probe[.]js HTTP/1[.][01]" 200 -$', re.MULTILINE)
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        try:
+            with fixture_log.open("rb") as source:
+                payload = source.read(1024 * 1024 + 1)
+            if len(payload) > 1024 * 1024:
+                fail("private fixture access log exceeded its safety limit")
+            if expected.search(payload):
+                return
+        except OSError:
+            pass
+        time.sleep(0.1)
+    fail("iOS application did not request the controlled probe script")
 
 
 def run_suite() -> int:
@@ -445,7 +446,12 @@ def run_suite() -> int:
     manifest = repository_file(root, "OVERTE_CI_ADAPTER_MANIFEST")
     catalog = repository_file(root, "OVERTE_CI_CATALOG")
     output = external_directory(root, "OVERTE_CI_OUTPUT_DIR")
-    suite = checked_suite()
+    suite = checked_suite(catalog)
+    if suite == "update-upgrade":
+        checked_upgrade_inputs(root)
+    owned_fixture = fixture_kind(root, suite)
+    promotion = acceptance_status(root, manifest, catalog, suite)
+    selector = environment("OVERTE_DEVICE_TARGET_SELECTOR")
     if output.exists():
         fail("OVERTE_CI_OUTPUT_DIR must not already exist")
     output.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -456,39 +462,26 @@ def run_suite() -> int:
     fixture_metadata = output.parent / f".{output.name}-fixture"
     fixture_log = fixture_metadata / "fixture.log"
     fixture_ready = fixture_metadata / "ready.json"
-    domain_output = fixture_metadata / "domain"
     runner_environment = os.environ.copy()
-    selector = environment("OVERTE_DEVICE_TARGET_SELECTOR")
     previous_handlers: dict[int, object] = {}
+    active_adapter_processes: list[subprocess.Popen] = []
+
+    def forward_signal(signum: int, _frame: object) -> None:
+        # Jenkins sends TERM on a Pipeline timeout. Forward it promptly to all
+        # active process groups, including a session prewarm still in flight.
+        for process in tuple(active_adapter_processes):
+            stop_process(process, grace_seconds=1)
+        stop_process(runner, grace_seconds=1)
+        stop_process(fixture, grace_seconds=1)
+
+    for signum in (signal.SIGINT, signal.SIGTERM):
+        previous_handlers[signum] = signal.getsignal(signum)
+        signal.signal(signum, forward_signal)
 
     try:
-        if suite == "domain-smoke":
-            host = checked_public_host()
-            bind = environment(
-                "OVERTE_CI_FIXTURE_BIND", required=False, default="0.0.0.0")
-            domain_server = checked_executable("OVERTE_CI_DOMAIN_SERVER_EXECUTABLE")
-            assignment_client = checked_executable(
-                "OVERTE_CI_ASSIGNMENT_CLIENT_EXECUTABLE")
-            if fixture_metadata.exists():
-                fail("fixture metadata directory already exists")
-            fixture_metadata.mkdir(mode=0o700)
-            fixture_log_handle = fixture_log.open("w", encoding="utf-8")
-            fixture = subprocess.Popen([
-                sys.executable, str(root / "tests/device/fixture/domain.py"),
-                "--domain-server", str(domain_server),
-                "--assignment-client", str(assignment_client),
-                "--bind", bind, "--public-host", host,
-                "--domain-host", host, "--output-dir", str(domain_output),
-                "--ready-file", str(fixture_ready),
-            ], cwd=root, stdout=fixture_log_handle, stderr=subprocess.STDOUT,
-               text=True, **subprocess_group_options())
-            ready = wait_for_ready(fixture, fixture_ready, timeout_seconds=75,
-                                   required_key="domainUrl")
-            apply_domain_fixture_environment(runner_environment, ready)
-        elif suite in {"e2e-core", "vertical-locomotion"} \
-                and checked_fixture_mode() == "embedded":
+        if owned_fixture == "scene" and checked_fixture_mode() == "embedded":
             runner_environment["OVERTE_E2E_SCENE_URL"] = EMBEDDED_FIXTURE_URL
-        elif suite in {"e2e-core", "vertical-locomotion", "asset-smoke", "sound-smoke"}:
+        elif owned_fixture in {"scene", "domain"}:
             host = checked_public_host()
             bind = environment("OVERTE_CI_FIXTURE_BIND", required=False, default="0.0.0.0")
             port = checked_fixture_port()
@@ -496,46 +489,78 @@ def run_suite() -> int:
                 fail("fixture metadata directory already exists")
             fixture_metadata.mkdir(mode=0o700)
             fixture_log_handle = fixture_log.open("w", encoding="utf-8")
-            fixture = subprocess.Popen([
-                sys.executable, str(root / "tests/device/fixture/serve.py"),
-                "--bind", bind, "--port", str(port), "--public-host", host,
-                "--ready-file", str(fixture_ready),
-            ], cwd=root, stdout=fixture_log_handle, stderr=subprocess.STDOUT,
-               text=True, **subprocess_group_options())
+            if owned_fixture == "domain":
+                command = [
+                    sys.executable, str(root / "tests/device/fixture/orchestrate.py"),
+                    "--output-dir", str(fixture_metadata / "owned"),
+                    "--ready-file", str(fixture_ready),
+                    "--bind", bind, "--public-host", host,
+                    "--fixture-port", str(port),
+                    "--domain-server", environment("OVERTE_CI_DOMAIN_SERVER"),
+                    "--assignment-client", environment("OVERTE_CI_ASSIGNMENT_CLIENT"),
+                ]
+                domain_port = environment(
+                    "OVERTE_CI_DOMAIN_PORT", required=False, default="40102")
+                domain_http_port = environment(
+                    "OVERTE_CI_DOMAIN_HTTP_PORT", required=False, default="40100")
+                if not all(item.isdigit() and 1 <= int(item) <= 65535
+                           for item in (domain_port, domain_http_port)):
+                    fail("domain fixture ports must be integers from 1 through 65535")
+                command += ["--domain-port", domain_port,
+                            "--domain-http-port", domain_http_port]
+            else:
+                command = [
+                    sys.executable, str(root / "tests/device/fixture/serve.py"),
+                    "--bind", bind, "--port", str(port), "--public-host", host,
+                    "--ready-file", str(fixture_ready),
+                ]
+            fixture = subprocess.Popen(
+                command, cwd=root, stdout=fixture_log_handle,
+                stderr=subprocess.STDOUT, text=True, **subprocess_group_options())
             ready = wait_for_ready(fixture, fixture_ready)
+            if owned_fixture == "domain":
+                runner_environment.update(load_owned_fixture_environment(
+                    fixture_metadata, ready))
+                scene_url = runner_environment["OVERTE_E2E_SCENE_URL"]
+            else:
+                scene_url = ready.get("sceneUrl")
+                if not isinstance(scene_url, str):
+                    fail("scene fixture did not publish its scene URL")
             if is_ios_appium_manifest(manifest):
-                update_ios_fixture_origin(root, selector, ready.get("baseUrl"))
-            if suite in {"e2e-core", "vertical-locomotion"}:
-                runner_environment["OVERTE_E2E_SCENE_URL"] = ready["sceneUrl"]
-            apply_http_fixture_environment(runner_environment, ready)
+                base_url = (runner_environment.get("OVERTE_E2E_SCENE_URL", "")
+                            .split("/scene.json", 1)[0]
+                            if owned_fixture == "domain" else ready.get("baseUrl"))
+                update_ios_fixture_origin(root, selector, base_url)
+            runner_environment["OVERTE_E2E_SCENE_URL"] = scene_url
 
-        prepare_controlled_android_target(
-            root, manifest, selector, suite, runner_environment,
-        )
-        target_arguments = runner_target_arguments(manifest, runner_environment)
+        if is_ios_appium_manifest(manifest) and owned_fixture in {"scene", "domain"}:
+            if fixture is None:
+                fail("physical iOS fixture-backed suites require the network fixture")
+            prewarm_ios_appium_session(
+                root, manifest, selector, runner_environment, active_adapter_processes,
+            )
+            require_ios_probe_request(fixture_log)
 
         command = [
             sys.executable, str(root / "tests/device/run.py"),
             "--adapter-manifest", str(manifest), "--catalog", str(catalog),
-            "--suite", suite, *target_arguments, "--output-dir", str(output),
+            "--suite", suite, "--target", selector, "--output-dir", str(output),
             "--require-complete",
         ]
+        if suite == "tablet-e2e":
+            policy = repository_file(root, "OVERTE_CI_TABLET_POLICY")
+            command += ["--tablet-policy", str(policy)]
         if environment("OVERTE_CI_ALLOW_VIRTUAL", required=False, default="0") == "1":
             command.append("--allow-virtual")
 
         runner = subprocess.Popen(command, cwd=root, env=runner_environment,
                                   **subprocess_group_options())
 
-        def forward_signal(signum: int, _frame: object) -> None:
-            # Jenkins sends TERM on a Pipeline timeout. Forward it promptly; the
-            # Pipeline's locked finally block then performs adapter cleanup.
-            stop_process(runner, grace_seconds=1)
-            stop_process(fixture, grace_seconds=1)
-
-        for signum in (signal.SIGINT, signal.SIGTERM):
-            previous_handlers[signum] = signal.getsignal(signum)
-            signal.signal(signum, forward_signal)
         returncode = runner.wait()
+        if not output.is_dir():
+            fail("device runner did not create its result directory")
+        (output / "acceptance.json").write_text(
+            json.dumps(promotion, sort_keys=True) + "\n", encoding="utf-8")
         return returncode if returncode >= 0 else 128 + abs(returncode)
     finally:
         for signum, handler in previous_handlers.items():
@@ -550,7 +575,6 @@ def run_suite() -> int:
                 shutil.copy2(fixture_log, output / "fixture.log")
             if fixture_ready.exists():
                 shutil.copy2(fixture_ready, output / "fixture-ready.json")
-            copy_domain_fixture_artifacts(domain_output, output)
 
 
 def load_adapter_command(manifest: Path) -> list[str]:
@@ -568,23 +592,18 @@ def load_adapter_command(manifest: Path) -> list[str]:
 def cleanup_target() -> int:
     root = workspace()
     manifest = repository_file(root, "OVERTE_CI_ADAPTER_MANIFEST")
-    child_environment = os.environ.copy()
-    target_arguments = runner_target_arguments(manifest, child_environment)
-    selector = os.environ.get("OVERTE_DEVICE_TARGET_SELECTOR", "")
+    selector = environment("OVERTE_DEVICE_TARGET_SELECTOR")
     command = load_adapter_command(manifest)
     try:
         result = subprocess.run(
-            [*command, "cleanup", *target_arguments], cwd=root, text=True,
+            [*command, "cleanup", "--target", selector], cwd=root, text=True,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60, check=False,
-            env=child_environment,
         )
     except subprocess.TimeoutExpired:
         print("error: adapter cleanup timed out", file=sys.stderr)
         return 2
     if result.returncode != 0:
-        detail = result.stderr.strip() or "adapter cleanup failed"
-        if selector:
-            detail = detail.replace(selector, "<target>")
+        detail = (result.stderr.strip() or "adapter cleanup failed").replace(selector, "<target>")
         print(f"error: {detail}", file=sys.stderr)
         return result.returncode
     print("Target cleanup completed.")
@@ -647,6 +666,31 @@ def prepare_destination(destination: Path) -> None:
     (destination / STAGED_MARKER).write_text("Owned by Overte device CI.\n", encoding="utf-8")
 
 
+def copy_publishable_results(source: Path, destination: Path) -> tuple[int, int]:
+    """Copy only privacy-minimal evidence; never publish raw UI/probe captures."""
+    copied = 0
+    private = 0
+    for path in source.rglob("*"):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(source)
+        if path.name not in PUBLIC_RESULT_NAMES:
+            private += 1
+            continue
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        shutil.copy2(path, target)
+        copied += 1
+    policy = {"schemaVersion": 1, "copiedFiles": copied,
+              "privateFilesWithheld": private,
+              "rawScreenshotsPublished": False,
+              "rawAccessibilityPublished": False,
+              "rawProbePublished": False}
+    (destination / "diagnostics-policy.json").write_text(
+        json.dumps(policy, sort_keys=True) + "\n", encoding="utf-8")
+    return copied, private
+
+
 def stage_results() -> int:
     root = workspace()
     raw_source = Path(environment("OVERTE_CI_OUTPUT_DIR")).expanduser()
@@ -681,14 +725,7 @@ def stage_results() -> int:
         return 2
 
     try:
-        for child in source.iterdir():
-            target = destination / child.name
-            if child.is_dir():
-                # Preserve rather than follow a symlink introduced after the
-                # first inspection; the second inspection below quarantines it.
-                shutil.copytree(child, target, symlinks=True)
-            else:
-                shutil.copy2(child, target)
+        copy_publishable_results(source, destination)
     except OSError:
         diagnostic = "The inspected result tree could not be copied completely."
         (destination / "pipeline-error.txt").write_text(diagnostic + "\n", encoding="utf-8")
@@ -719,9 +756,8 @@ def stage_results() -> int:
 def self_check() -> int:
     root = workspace()
     child_environment = os.environ.copy()
-    # Device-free contracts must not inherit the selected physical target's
-    # opt-ins. Several negative tests intentionally prove that these controls
-    # fail closed when absent.
+    # Device-free checks must not inherit a selected physical target or an
+    # opt-in that would turn a contract check into a laboratory operation.
     for name in (
             "OVERTE_DEVICE_TARGET_SELECTOR", "OVERTE_ANDROID_E2E_DEBUG",
             "OVERTE_PICO_OPENXR_INPUT", "OVERTE_PICO_OPENXR_STATE_DIR",
@@ -732,9 +768,9 @@ def self_check() -> int:
         [sys.executable, str(root / "tests/device/fixture/domain.py"), "--check"],
         [sys.executable, "-m", "unittest", "discover", "-s",
          str(root / "tests/device/self_tests"), "-v"],
-        [sys.executable, str(root / "tests/device/jenkins/test_run_ci.py"), "-v"],
-        [sys.executable, str(root / "tests/device/jenkins/test_conan_cache_manager.py"), "-v"],
-        [sys.executable, str(root / "tests/device/jenkins/test_android_build_workspace.py"), "-v"],
+        [sys.executable, "-m", "unittest", "discover", "-s",
+         str(root / "tests/device/jenkins"), "-p", "test_*.py", "-v"],
+        [sys.executable, str(root / "tests/device/validate_toolchain_lock.py")],
     ]
     for command in commands:
         result = subprocess.run(command, cwd=root, env=child_environment, check=False)
@@ -753,19 +789,239 @@ def ios_runtime_preflight() -> int:
     return subprocess.run(command, cwd=root, timeout=15, check=False).returncode
 
 
-def private_existing_file(variable: str) -> Path:
+def ios_thermal_preflight() -> int:
+    """Require stable battery-temperature headroom before starting XCUITest.
+
+    PyMobileDevice3 receives the physical identity only through its environment;
+    captured diagnostics are parsed locally and never copied into Jenkins logs.
+    The native client still owns the sustained-load budget. This gate prevents
+    a recently heated device from beginning a new WDA session without headroom.
+    """
+    root = workspace()
+    selector = environment("OVERTE_DEVICE_TARGET_SELECTOR")
+    target = selected_private_ios_target(root, selector)
+    capabilities = target.get("capabilities")
+    udid = capabilities.get("appium:udid") if isinstance(capabilities, dict) else None
+    if (not isinstance(udid, str) or not 8 <= len(udid) <= 128
+            or any(character in udid for character in "\0\r\n")):
+        fail("private iOS target has no physical device identity")
+
+    lock_path = root / "tests/device/ios/toolchain.lock.json"
+    lock = json.loads(lock_path.read_text(encoding="utf-8"))
+    revision = lock.get("serviceRuntimeRevision") if isinstance(lock, dict) else None
+    appium = lock.get("appium") if isinstance(lock, dict) else None
+    ios_runtime = appium.get("iosRuntime") if isinstance(appium, dict) else None
+    pymobiledevice3 = (ios_runtime.get("pymobiledevice3")
+                       if isinstance(ios_runtime, dict) else None)
+    python_executable = (pymobiledevice3.get("pythonExecutable")
+                         if isinstance(pymobiledevice3, dict) else None)
+    remote_xpc = ios_runtime.get("remoteXpc") if isinstance(ios_runtime, dict) else None
+    remote_xpc_version = remote_xpc.get("version") if isinstance(remote_xpc, dict) else None
+    if (not isinstance(revision, int) or revision < 1
+            or python_executable != "/usr/bin/python3.14"
+            or remote_xpc_version != "5.15.3"):
+        fail("locked iOS thermal probe runtime is invalid")
+    runtime = Path(
+        f"/usr/local/lib/overte-ios-remotexpc/{remote_xpc_version}-r{revision}")
+    site_packages = runtime / "pymobiledevice3/site-packages"
+    python_path = Path(python_executable)
+    if (has_symlink_component(runtime) or runtime.resolve() != runtime
+            or not runtime.is_dir() or not site_packages.is_dir()
+            or has_symlink_component(python_path) or not python_path.is_file()):
+        fail("locked iOS thermal probe runtime is unavailable")
+
+    probe_environment = {
+        "PATH": "/usr/bin:/bin",
+        "PYMOBILEDEVICE3_UDID": udid,
+        "PYTHONPATH": str(site_packages),
+        "PYTHONNOUSERSITE": "1",
+    }
+    for name in ("LANG", "LC_ALL", "USBMUXD_SOCKET_ADDRESS"):
+        if os.environ.get(name):
+            probe_environment[name] = os.environ[name]
+    command = [
+        python_executable, "-S", "-P", "-B", "-m", "pymobiledevice3",
+        "diagnostics", "battery", "single",
+    ]
+    deadline = time.monotonic() + IOS_THERMAL_COOLDOWN_TIMEOUT_SECONDS
+    stable_samples = 0
+    while True:
+        try:
+            completed = subprocess.run(
+                command, cwd=root, env=probe_environment, text=True,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                timeout=20, check=False,
+            )
+            document = json.loads(completed.stdout) if completed.returncode == 0 else None
+        except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
+            document = None
+        temperature = document.get("Temperature") if isinstance(document, dict) else None
+        if (not isinstance(temperature, int) or isinstance(temperature, bool)
+                or not 1500 <= temperature <= 6000):
+            print("error: private iOS thermal gate could not obtain a safe sample",
+                  file=sys.stderr)
+            return 2
+        if temperature <= IOS_THERMAL_MAX_TEMPERATURE_CENTI_C:
+            stable_samples += 1
+            print(
+                f"iOS thermal gate sample {stable_samples}/{IOS_THERMAL_STABLE_SAMPLES}: "
+                "within limit."
+            )
+            if stable_samples >= IOS_THERMAL_STABLE_SAMPLES:
+                print("iOS thermal headroom is stable.")
+                return 0
+        else:
+            stable_samples = 0
+            print("iOS thermal gate: cooldown required; waiting.")
+        if time.monotonic() >= deadline:
+            print("error: iOS thermal cooldown exceeded its safety limit", file=sys.stderr)
+            return 2
+        time.sleep(IOS_THERMAL_SAMPLE_INTERVAL_SECONDS)
+
+
+def selected_private_ios_target(root: Path, selector: str) -> dict:
+    raw = Path(environment("OVERTE_IOS_JOB_TARGET_CONFIG")).expanduser()
+    if not raw.is_absolute() or has_symlink_component(raw):
+        fail("job-private iOS target configuration must be absolute and symlink-free")
+    path = raw.resolve()
+    if path == root or is_within(path, root) or not path.is_file():
+        fail("job-private iOS target configuration is outside its allowed scope")
+    value = path.lstat()
+    parent = path.parent.lstat()
+    if (not stat.S_ISREG(value.st_mode) or not stat.S_ISDIR(parent.st_mode)
+            or value.st_uid != os.geteuid() or parent.st_uid != os.geteuid()
+            or stat.S_IMODE(value.st_mode) != 0o600 or parent.st_mode & 0o077):
+        fail("job-private iOS target configuration is not private")
+    config = json.loads(path.read_text(encoding="utf-8"))
+    targets = config.get("targets") if isinstance(config, dict) else None
+    matches = [item for item in targets or [] if isinstance(item, dict)
+               and item.get("selector") == selector]
+    if (config.get("schemaVersion") != 1 or not isinstance(targets, list)
+            or len(matches) != 1
+            or matches[0].get("platform") != "ios"):
+        fail("private selector does not identify exactly one iOS target")
+    return matches[0]
+
+
+def ios_ddi_preflight() -> int:
+    """Mount and bind the private pinned DDI immediately under the device lock."""
+    root = workspace()
+    selector = environment("OVERTE_DEVICE_TARGET_SELECTOR")
+    target = selected_private_ios_target(root, selector)
+    capabilities = target.get("capabilities")
+    udid = capabilities.get("appium:udid") if isinstance(capabilities, dict) else None
+    if (not isinstance(udid, str) or not 8 <= len(udid) <= 128
+            or any(character in udid for character in "\0\r\n")):
+        fail("private iOS target has no physical device identity")
+    raw_ddi = Path(environment("OVERTE_IOS_DDI_ROOT")).expanduser()
+    if (not raw_ddi.is_absolute() or has_symlink_component(raw_ddi)
+            or raw_ddi == root or is_within(raw_ddi.resolve(), root)):
+        fail("private Developer Disk Image root is outside its allowed scope")
+    ddi_root = raw_ddi.resolve()
+    value = ddi_root.lstat()
+    if (not stat.S_ISDIR(value.st_mode) or value.st_uid != os.geteuid()
+            or stat.S_IMODE(value.st_mode) != 0o700):
+        fail("private Developer Disk Image root must be account-owned with mode 0700")
+    command = [
+        sys.executable, str(root / "tests/device/ios/remotexpc_tunnel.py"),
+        "device-ddi-mount",
+    ]
+    request = json.dumps({
+        "udid": udid,
+        "image": str(ddi_root / "Image.dmg"),
+        "manifest": str(ddi_root / "BuildManifest.plist"),
+        "trustcache": str(ddi_root / "Image.dmg.trustcache"),
+    }, separators=(",", ":"))
+    process = subprocess.Popen(
+        command, stdin=subprocess.PIPE, text=True, cwd=root,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        **subprocess_group_options(),
+    )
+    previous_handlers = {}
+
+    def forward_signal(_signum: int, _frame: object) -> None:
+        stop_process(process, grace_seconds=1)
+        raise InterruptedError("private iOS Developer Disk Image gate was interrupted")
+
+    for signum in (signal.SIGINT, signal.SIGTERM):
+        previous_handlers[signum] = signal.getsignal(signum)
+        signal.signal(signum, forward_signal)
+    try:
+        process.communicate(input=request, timeout=6 * 60)
+    except subprocess.TimeoutExpired:
+        stop_process(process, grace_seconds=2)
+        print("error: private iOS Developer Disk Image gate timed out", file=sys.stderr)
+        return 2
+    finally:
+        for signum, handler in previous_handlers.items():
+            signal.signal(signum, handler)
+    if process.returncode:
+        print("error: private iOS Developer Disk Image gate failed", file=sys.stderr)
+        return process.returncode
+    print("iOS Personalized DDI and XCTest services are ready.")
+    return 0
+
+
+def private_existing_file(variable: str, root: Path) -> Path:
     raw_path = Path(environment(variable)).expanduser()
+    if not raw_path.is_absolute() or has_symlink_component(raw_path):
+        fail(f"{variable} must be an absolute symlink-free private file")
     path = raw_path.resolve()
-    if raw_path.is_symlink() or not path.is_file():
+    if path == root or is_within(path, root) or not path.is_file():
         fail(f"{variable} must name an existing private file")
-    if os.name != "nt" and path.stat().st_mode & 0o077:
-        fail(f"{variable} must not be accessible to group or other users")
+    value = path.lstat()
+    if not stat.S_ISREG(value.st_mode):
+        fail(f"{variable} must name an ordinary private file")
+    if os.name != "nt" and (value.st_uid != os.geteuid() or value.st_mode & 0o077):
+        fail(f"{variable} must be account-owned and inaccessible to group or other users")
     return path
+
+
+def prepare_private_build_root(root: Path, path: Path) -> None:
+    if (not path.is_absolute() or has_symlink_component(path)
+            or path == Path(path.anchor) or path == root or is_within(path, root)):
+        fail("private iOS build root is unsafe")
+    path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    metadata = path.lstat()
+    if (not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.geteuid()
+            or metadata.st_mode & 0o077):
+        fail("private iOS build root must be account-owned with mode 0700")
+    marker = path / PRIVATE_BUILD_MARKER
+    if marker.exists() or marker.is_symlink():
+        fail("private iOS build root marker already exists")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(marker, flags, 0o600)
+    try:
+        os.write(descriptor, b"overte-ios-ci-private-build-v1\n")
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 def ios_artifact_sync() -> int:
     root = workspace()
-    source_config = private_existing_file("OVERTE_APPIUM_TARGETS")
+    artifact_source = environment(
+        "OVERTE_IOS_ARTIFACT_SOURCE", required=False,
+        default="personal-team-preinstalled")
+    if artifact_source not in IOS_ARTIFACT_SOURCES:
+        fail("OVERTE_IOS_ARTIFACT_SOURCE is unsupported")
+    source_config = private_existing_file("OVERTE_APPIUM_TARGETS", root)
+    local_inputs: dict[str, Path] = {}
+    if artifact_source == "local-personal-team":
+        local_inputs = {
+            option: private_existing_file(variable, root)
+            for option, variable in (
+                ("--unsigned-kit", "OVERTE_IOS_LOCAL_UNSIGNED_KIT"),
+                ("--attestation", "OVERTE_IOS_LOCAL_ATTESTATION"),
+                ("--overte-ipa", "OVERTE_IOS_LOCAL_OVERTE_IPA"),
+                ("--wda-ipa", "OVERTE_IOS_LOCAL_WDA_IPA"),
+            )
+        }
+    elif artifact_source == "personal-team-preinstalled":
+        local_inputs = {
+            "--attestation": private_existing_file(
+                "OVERTE_IOS_PREINSTALLED_ATTESTATION", root),
+        }
     raw_target_config = Path(environment("OVERTE_IOS_JOB_TARGET_CONFIG")).expanduser()
     target_config = raw_target_config.resolve()
     artifact_root = external_directory(root, "OVERTE_IOS_ARTIFACT_ROOT")
@@ -774,40 +1030,53 @@ def ios_artifact_sync() -> int:
     if (raw_target_config.is_symlink() or target_config.exists()
             or raw_target_config.parent.exists() and raw_target_config.parent.is_symlink()):
         fail("per-build iOS target configuration already exists or has an unsafe parent")
-    target_config.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    prepare_private_build_root(root, target_config.parent)
     shutil.copyfile(source_config, target_config)
     if os.name != "nt":
         target_config.chmod(0o600)
 
-    command = [
-        sys.executable,
-        str(root / "tests/device/ios/sync_fedora_artifacts.py"),
-        "--destination", str(artifact_root),
-        "--target-config", str(target_config),
-    ]
+    command = [sys.executable, str(root / "tests/device/ios/sync_fedora_artifacts.py")]
     environment("OVERTE_DEVICE_TARGET_SELECTOR")
-    run_id = environment("OVERTE_IOS_PRODUCER_RUN_ID", required=False)
-    if run_id:
-        if not run_id.isdigit() or int(run_id) <= 0:
-            fail("OVERTE_IOS_PRODUCER_RUN_ID must be a positive integer")
-        command.extend(("--run-id", run_id))
+    if artifact_source in {"local-personal-team", "personal-team-preinstalled"}:
+        command.append("local-import" if artifact_source == "local-personal-team"
+                       else "personal-team-preinstalled")
+        for option, path in local_inputs.items():
+            command.extend((option, str(path)))
+        command.extend(("--destination", str(artifact_root),
+                        "--target-config", str(target_config)))
     else:
-        inputs = (
-            ("--qt-host-cache-key", "OVERTE_IOS_QT_HOST_CACHE_KEY"),
-            ("--qt-ios-cache-key", "OVERTE_IOS_QT_IOS_CACHE_KEY"),
-            ("--qt-host-artifact-prefix", "OVERTE_IOS_QT_HOST_ARTIFACT_PREFIX"),
-            ("--qt-ios-artifact-prefix", "OVERTE_IOS_QT_IOS_ARTIFACT_PREFIX"),
-        )
-        for option, variable in inputs:
-            command.extend((option, environment(variable)))
-    result = subprocess.run(command, cwd=root, timeout=8 * 60 * 60 + 300, check=False)
+        command.extend(("--destination", str(artifact_root),
+                        "--target-config", str(target_config)))
+        run_id = environment("OVERTE_IOS_PRODUCER_RUN_ID", required=False)
+        run_attempt = environment("OVERTE_IOS_PRODUCER_RUN_ATTEMPT", required=False)
+        if bool(run_id) != bool(run_attempt):
+            fail("protected producer run ID and attempt must be supplied together")
+        if run_id:
+            if (not run_id.isdigit() or int(run_id) <= 0
+                    or not run_attempt.isdigit() or int(run_attempt) <= 0):
+                fail("protected producer run ID and attempt must be positive integers")
+            command.extend(("--run-id", run_id, "--run-attempt", run_attempt))
+        else:
+            inputs = (
+                ("--qt-host-cache-key", "OVERTE_IOS_QT_HOST_CACHE_KEY"),
+                ("--qt-ios-cache-key", "OVERTE_IOS_QT_IOS_CACHE_KEY"),
+                ("--qt-host-artifact-prefix", "OVERTE_IOS_QT_HOST_ARTIFACT_PREFIX"),
+                ("--qt-ios-artifact-prefix", "OVERTE_IOS_QT_IOS_ARTIFACT_PREFIX"),
+            )
+            for option, variable in inputs:
+                command.extend((option, environment(variable)))
+    try:
+        result = subprocess.run(command, cwd=root, timeout=8 * 60 * 60 + 300, check=False)
+    except BaseException:
+        target_config.unlink(missing_ok=True)
+        raise
     if result.returncode and target_config.exists():
         target_config.unlink()
     return result.returncode
 
 
 def cleanup_ios_private() -> int:
-    """Remove only the two private iOS paths belonging to this build root."""
+    """Remove the exact marker-bound private iOS build tree after publication."""
     root = workspace()
     external_raw = Path(environment("OVERTE_EXTERNAL_RESULT_ROOT")).expanduser()
     artifact_raw = Path(environment("OVERTE_IOS_ARTIFACT_ROOT")).expanduser()
@@ -832,22 +1101,15 @@ def cleanup_ios_private() -> int:
     if (not stat.S_ISDIR(external_stat.st_mode) or external_stat.st_uid != os.geteuid()
             or external_stat.st_mode & 0o077):
         fail("private iOS cleanup root is not an account-private directory")
-
-    if artifact_raw.is_symlink():
-        artifact_raw.unlink()
-    elif artifact.exists():
-        artifact_stat = artifact.lstat()
-        if not stat.S_ISDIR(artifact_stat.st_mode) or artifact_stat.st_uid != os.geteuid():
-            fail("private iOS artifact path is not an owned directory")
-        shutil.rmtree(artifact)
-    if config_raw.is_symlink():
-        config_raw.unlink()
-    elif config.exists():
-        config_stat = config.lstat()
-        if not stat.S_ISREG(config_stat.st_mode) or config_stat.st_uid != os.geteuid():
-            fail("private iOS target copy is not an owned regular file")
-        config.unlink()
-    print("Private iOS build artifacts removed.")
+    marker = external / PRIVATE_BUILD_MARKER
+    if (marker.is_symlink() or not marker.is_file()
+            or marker.lstat().st_uid != os.geteuid()
+            or marker.lstat().st_mode & 0o077
+            or marker.read_text(encoding="utf-8")
+            != "overte-ios-ci-private-build-v1\n"):
+        fail("private iOS cleanup root has no valid build marker")
+    shutil.rmtree(external)
+    print("Private iOS raw results, receipts, and artifact copies removed.")
     return 0
 
 
@@ -855,7 +1117,9 @@ def arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("run-suite", "cleanup-target", "stage-results",
                                            "self-check", "ios-runtime-preflight",
-                                           "ios-artifact-sync", "cleanup-ios-private"))
+                                           "ios-thermal-preflight",
+                                           "ios-ddi-preflight", "ios-artifact-sync",
+                                           "cleanup-ios-private"))
     return parser.parse_args()
 
 
@@ -869,6 +1133,10 @@ def main() -> int:
         return stage_results()
     if action == "ios-runtime-preflight":
         return ios_runtime_preflight()
+    if action == "ios-thermal-preflight":
+        return ios_thermal_preflight()
+    if action == "ios-ddi-preflight":
+        return ios_ddi_preflight()
     if action == "ios-artifact-sync":
         return ios_artifact_sync()
     if action == "cleanup-ios-private":

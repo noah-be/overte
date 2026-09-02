@@ -57,6 +57,12 @@ def snapshot(**avatar_overrides: object) -> dict:
             },
         },
         "avatar": avatar,
+        "verticalEvents": {
+            "jumpCount": 0, "jumpCompletedCount": 0,
+            "lastJumpStartY": None, "lastJumpPeakY": None,
+            "lastJumpLandingY": None, "flightCount": 0,
+            "lastFlightStartY": None, "lastFlightPeakY": None,
+        },
         "view": {"orientation": {"x": 0.0, "y": 0.0, "z": 0.0}},
         "tablet": {"open": False, "home": False, "toolbarMode": False},
         "asset": None,
@@ -206,6 +212,59 @@ class VerticalLocomotionTest(unittest.TestCase):
             with self.subTest(avatar=invalid["avatar"]):
                 with self.assertRaises(ValueError):
                     validate_probe_snapshot(invalid)
+
+    def test_probe_rejects_inconsistent_vertical_event_history(self):
+        invalid_values = []
+        completed_without_jump = snapshot()
+        completed_without_jump["verticalEvents"]["jumpCompletedCount"] = 1
+        invalid_values.append(completed_without_jump)
+        missing_jump_peak = snapshot()
+        missing_jump_peak["verticalEvents"].update({
+            "jumpCount": 1, "lastJumpStartY": 1.0,
+        })
+        invalid_values.append(missing_jump_peak)
+        descending_flight_peak = snapshot()
+        descending_flight_peak["verticalEvents"].update({
+            "flightCount": 1, "lastFlightStartY": 2.0, "lastFlightPeakY": 1.0,
+        })
+        invalid_values.append(descending_flight_peak)
+        for invalid in invalid_values:
+            with self.subTest(events=invalid["verticalEvents"]):
+                with self.assertRaises(ValueError):
+                    validate_probe_snapshot(invalid)
+
+    def test_vertical_suite_accepts_events_completed_before_first_snapshot(self):
+        with tempfile.TemporaryDirectory(prefix="overte-e2e-transient-vertical-") as temporary:
+            root = Path(temporary)
+            environment = os.environ.copy()
+            environment.update({
+                "OVERTE_MOCK_E2E_STATE": str(root / "state.json"),
+                "OVERTE_DEVICE_LAUNCH_SETTLE_SECONDS": "0",
+                "OVERTE_E2E_SCENE_URL": "http://fixture.invalid/scene.json",
+                "OVERTE_E2E_POLL_SECONDS": "0.05",
+                "OVERTE_MOCK_E2E_FAILURES": "transient-vertical",
+            })
+            result = subprocess.run([
+                sys.executable, str(DEVICE_ROOT / "run.py"),
+                "--adapter-manifest", str(DEVICE_ROOT / "adapters/mock/adapter.json"),
+                "--catalog", str(DEVICE_ROOT / "catalog.json"),
+                "--suite", "vertical-locomotion", "--allow-virtual", "--require-complete",
+                "--output-dir", str(root / "results"),
+            ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+               env=environment, check=False)
+            self.assertEqual(0, result.returncode, result.stdout)
+            summary = json.loads(
+                (root / "results/summary.json").read_text(encoding="utf-8"))
+            self.assertEqual(["passed", "passed", "passed"],
+                             [item["status"] for item in summary["results"]])
+            jump = json.loads((root / "results/modules/jump/jump-airborne.json").read_text(
+                encoding="utf-8"))
+            fly = json.loads((root / "results/modules/fly/fly-active.json").read_text(
+                encoding="utf-8"))
+            self.assertFalse(jump["avatar"]["inAir"])
+            self.assertFalse(fly["avatar"]["flying"])
+            self.assertEqual(1, jump["verticalEvents"]["jumpCompletedCount"])
+            self.assertEqual(1, fly["verticalEvents"]["flightCount"])
 
     def test_complete_vertical_suite_reuses_one_app_session_and_cleans_up(self):
         with tempfile.TemporaryDirectory(prefix="overte-e2e-vertical-") as temporary:

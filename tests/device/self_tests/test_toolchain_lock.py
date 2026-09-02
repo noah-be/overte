@@ -32,13 +32,25 @@ class ToolchainLockTest(unittest.TestCase):
         self.root = Path(self.temporary.name)
         (self.root / "jenkins").mkdir()
         self.data = json.loads(DEFAULT_LOCK.read_text(encoding="utf-8"))
-        source_plugins = DEVICE_ROOT / "jenkins" / "plugins.lock.txt"
-        (self.root / "jenkins" / "plugins.lock.txt").write_text(
-            source_plugins.read_text(encoding="utf-8"), encoding="utf-8"
+        jenkins = self.data["jenkins"]
+        plugin_lines = "".join(
+            f"{plugin}:{version}\n"
+            for plugin, version in sorted(jenkins["directPlugins"].items())
         )
-        source_artifacts = DEVICE_ROOT / "jenkins" / "plugins.artifacts.lock.json"
+        for name in ("plugins.txt", "plugins.lock.txt"):
+            (self.root / "jenkins" / name).write_text(plugin_lines, encoding="utf-8")
+        rows = [{
+            "id": plugin,
+            "version": jenkins["directPlugins"][plugin],
+            "requiredCore": jenkins["lts"]["version"],
+            **jenkins["directPluginArtifacts"][plugin],
+        } for plugin in sorted(jenkins["directPlugins"])]
         (self.root / "jenkins" / "plugins.artifacts.lock.json").write_text(
-            source_artifacts.read_text(encoding="utf-8"), encoding="utf-8"
+            json.dumps({
+                "schemaVersion": 1,
+                "jenkinsCore": jenkins["lts"]["version"],
+                "plugins": rows,
+            }, indent=2) + "\n", encoding="utf-8"
         )
 
     def tearDown(self):
@@ -52,11 +64,22 @@ class ToolchainLockTest(unittest.TestCase):
     def validate_copy(self, data: dict | None = None):
         return validate_lock(
             self.write_lock(data),
-            direct_plugins_path=DEVICE_ROOT / "jenkins" / "plugins.txt",
+            direct_plugins_path=self.root / "jenkins" / "plugins.txt",
         )
 
     def test_repository_lock_is_valid_and_complete(self):
         artifacts = validate_lock()
+        resolved_plugins = {
+            line.split(":", 1)[0]
+            for line in (DEVICE_ROOT / "jenkins/plugins.lock.txt").read_text(
+                encoding="utf-8"
+            ).splitlines()
+            if line and not line.startswith("#")
+        }
+        self.assertEqual(
+            {f"jenkins.plugins.{plugin}" for plugin in resolved_plugins},
+            {key for key in artifacts if key.startswith("jenkins.plugins.")},
+        )
         self.assertEqual(78, len(artifacts))
         self.assertIn("jenkins.plugins.configuration-as-code", artifacts)
         self.assertIn("jenkins.plugins.git", artifacts)
@@ -148,18 +171,17 @@ class ToolchainLockTest(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertIn("SHA-256 mismatch", output.getvalue())
 
-    def test_schema_document_is_well_formed_json_schema(self):
-        schema = json.loads(
-            (DEVICE_ROOT / "schemas" / "toolchain-lock.schema.json").read_text(encoding="utf-8")
-        )
-        self.assertEqual("https://json-schema.org/draft/2020-12/schema", schema["$schema"])
-        self.assertEqual(1, schema["properties"]["schemaVersion"]["const"])
-        plugin_schema = json.loads(
-            (DEVICE_ROOT / "schemas" / "jenkins-plugin-artifacts-lock.schema.json").read_text(
-                encoding="utf-8"
-            )
-        )
-        self.assertEqual(1, plugin_schema["properties"]["schemaVersion"]["const"])
+    def test_external_jenkins_inputs_are_optional_as_a_complete_set(self):
+        lock = self.write_lock()
+        for path in (self.root / "jenkins").iterdir():
+            path.unlink()
+        artifacts = validate_lock(lock)
+        self.assertEqual(17, len(artifacts))
+
+        (self.root / "jenkins" / "plugins.txt").write_text(
+            "git:5.10.1\n", encoding="utf-8")
+        with self.assertRaisesRegex(LockValidationError, "resolved plugin lock cannot be read"):
+            validate_lock(lock)
 
 
 if __name__ == "__main__":

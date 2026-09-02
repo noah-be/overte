@@ -55,11 +55,23 @@
       "position": {"x": 0.0, "y": 2.0, "z": 0.5},
       "shape": "Cube",
       "type": "Box"
+    },
+    {
+      "collisionless": true,
+      "color": {"blue": 40, "green": 150, "red": 255},
+      "dimensions": {"x": 0.8, "y": 0.8, "z": 0.2},
+      "id": "{00000000-0000-4000-8000-000000000006}",
+      "locked": true,
+      "name": "OVERTE_E2E_INTERACTABLE",
+      "position": {"x": 0.0, "y": 1.6, "z": 2.5},
+      "script": "scripted_interactable.js",
+      "shape": "Cube",
+      "type": "Box"
     }
   ],
   "Id": "{00000000-0000-4000-8000-000000000000}",
   "Paths": {
-    "/": "/0,0,4/0,0,0,1"
+    "/": "/0,2,4/0,0,0,1"
   },
   "Version": 1
 }

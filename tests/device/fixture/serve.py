@@ -58,7 +58,14 @@ def validate_fixture() -> dict:
     names = [entity.get("name") for entity in entities]
     if len(set(ids)) != len(ids) or not all(isinstance(item, str) and item for item in ids):
         raise ValueError("fixture entity IDs must be unique and non-empty")
-    if sorted(names) != manifest.get("requiredMarkers"):
+    interaction_contract = manifest.get("interactionTarget")
+    scripted_contract = manifest.get("scriptedInteraction")
+    interaction_target = next((entity for entity in entities
+                               if entity.get("name") == "OVERTE_E2E_INTERACTABLE"), None)
+    expected_names = list(manifest.get("requiredMarkers", []))
+    if isinstance(interaction_contract, dict):
+        expected_names.append(interaction_contract.get("name"))
+    if sorted(names) != sorted(expected_names):
         raise ValueError("fixture marker set does not match its manifest")
     if scene.get("Paths", {}).get("/") != manifest.get("spawnPath"):
         raise ValueError("fixture spawn path does not match its manifest")
@@ -71,8 +78,8 @@ def validate_fixture() -> dict:
             or not all(isinstance(spawn[axis], (int, float))
                        and not isinstance(spawn[axis], bool)
                        for axis in ("x", "y", "z"))
-            or abs(float(spawn["y"])) > 1e-6):
-        raise ValueError("fixture spawn must put the avatar's feet on the y=0 floor")
+            or spawn["y"] < 2.0):
+        raise ValueError("fixture spawn must be explicit and safely above the floor")
     expected_spawn_path = (f"/{spawn['x']},{spawn['y']},{spawn['z']}"
                            "/0,0,0,1")
     if manifest["spawnPath"] != expected_spawn_path:
@@ -99,6 +106,31 @@ def validate_fixture() -> dict:
             or collision_wall.get("position") != wall_contract.get("center")
             or collision_wall.get("dimensions") != wall_contract.get("dimensions")):
         raise ValueError("fixture collision wall does not match its manifest")
+    if (not isinstance(interaction_target, dict)
+            or not isinstance(interaction_contract, dict)
+            or set(interaction_contract) != {"dimensions", "name", "position"}
+            or interaction_contract.get("name") != "OVERTE_E2E_INTERACTABLE"
+            or interaction_target.get("collisionless") is not True
+            or interaction_target.get("locked") is not True
+            or interaction_target.get("position") != interaction_contract.get("position")
+            or interaction_target.get("dimensions") != interaction_contract.get("dimensions")):
+        raise ValueError("fixture interaction target does not match its manifest")
+    expected_script = ROOT / "scripted_interactable.js"
+    if (not isinstance(scripted_contract, dict)
+            or set(scripted_contract) != {
+                "activeColor", "contract", "idleColor", "script"}
+            or scripted_contract.get("script") != expected_script.name
+            or interaction_target.get("script") != expected_script.name
+            or scripted_contract.get("contract") != "overte-e2e-scripted-entity-v1"
+            or interaction_target.get("color") != scripted_contract.get("idleColor")
+            or not expected_script.is_file()):
+        raise ValueError("fixture scripted interaction contract is invalid")
+    scripted_source = expected_script.read_text(encoding="utf-8")
+    if (scripted_contract["contract"] not in scripted_source
+            or "this.preload" not in scripted_source
+            or "this.clickDownOnEntity" not in scripted_source
+            or "Entities.editEntity" not in scripted_source):
+        raise ValueError("fixture client entity script is incomplete")
     if manifest.get("externalResources") is not False or URL.search(json.dumps(scene)):
         raise ValueError("controlled fixture must not depend on external resources")
     asset = manifest.get("asset")
