@@ -157,7 +157,12 @@ Observation observeTablet() {
             }
         }
 
-        const QString controlId = item->objectName();
+        // A shared touch control may need a platform accessibility objectName
+        // while exposing the portable tablet contract separately. Prefer the
+        // explicit semanticId and retain objectName as the legacy fallback.
+        const QString explicitControlId = item->property("semanticId").toString();
+        const QString controlId = CONTROL_IDS.contains(explicitControlId)
+            ? explicitControlId : item->objectName();
         if (CONTROL_IDS.contains(controlId)) {
             visibleControls.insert(controlId);
             if (item->isEnabled() && !result.controls.contains(controlId)) {
