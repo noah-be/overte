@@ -77,6 +77,13 @@ def main() -> None:
     assert "visibleTabletItem" in native_bridge
     assert "tabletItemFrame" in native_bridge
     assert 'item->property("semanticId").toString()' in native_bridge
+    assert "QQuickItem* loadedItem = tabletRoot;" in native_bridge
+    assert "tabletVisualItems" in native_bridge
+    assert "items.at(index)->childItems()" in native_bridge
+    assert "tabletRoot->findChildren<QQuickItem*>()" not in native_bridge
+    assert 'item->property("semanticScreenId")' in native_bridge
+    assert "observedScreen != screen" in native_bridge
+    assert 'readonly property string semanticScreenId:' in window_root
     assert "getIOSTabletRoot" in tablet_proxy_header
     assert "QQuickItem* TabletProxy::getIOSTabletRoot() const" in tablet_proxy_source
     assert "OVERTE_IOS_E2E_TEST_BUILD" in application
