@@ -77,8 +77,11 @@ def prepare(arguments: argparse.Namespace) -> int:
         "variables": {
             "OVERTE_APPIUM_TARGETS": str(appium_path),
             "APPIUM_HOME": state["appiumHome"],
-            "OVERTE_CONAN_CACHE_ROOT": str(root / "conan-cache"),
-            "OVERTE_ANDROID_BUILD_ROOT": str(root / "android-build-workspaces"),
+            # These are roots for Jenkins to derive one writable namespace per
+            # BUILD_TAG.  Never expose a shared writable Conan/build directory
+            # directly to concurrently runnable platform jobs.
+            "OVERTE_E2E_CACHE_ROOT": str(root / "build-caches"),
+            "OVERTE_CONAN_SEED_ROOT": str(root / "conan-cache"),
         },
         "activationRequired": True,
         "note": "All targets are disabled until private selectors and hardware gates are completed.",

@@ -3,17 +3,87 @@
 
 String adapterManifest(String profile) {
     switch (profile) {
-        case 'android-phone-adb':
-            return 'tests/device/adapters/android/phone.json'
-        case 'android-pico-adb':
-            return 'tests/device/adapters/android/pico.json'
         case 'appium-android':
             return 'tests/device/adapters/appium/android.json'
         case 'appium-ios':
             return 'tests/device/adapters/appium/ios.json'
+        case 'android-pico-adb':
+            return 'tests/device/adapters/android/pico.json'
+        case 'desktop-oculix-linux':
+            return 'tests/device/adapters/desktop_oculix/linux.json'
+        case 'desktop-oculix-macos':
+            return 'tests/device/adapters/desktop_oculix/macos.json'
+        case 'desktop-oculix-windows':
+            return 'tests/device/adapters/desktop_oculix/windows.json'
         default:
             error("Unsupported target profile: ${profile}")
     }
+}
+
+String resolvedProfile() {
+    String profile = [
+        'android-device-e2e': 'appium-android',
+        'android-phone-tablet-e2e-candidate-46cfa407': 'appium-android',
+        'overte-device-phone-smoke': 'appium-android',
+        'overte-e2e-android': 'appium-android',
+        'ios-device-e2e': 'appium-ios',
+        'ios-tablet-e2e-candidate': 'appium-ios',
+        'overte-device-ipad-smoke': 'appium-ios',
+        'overte-e2e-ios': 'appium-ios',
+        'pico-device-e2e': 'android-pico-adb',
+        'overte-device-pico-smoke': 'android-pico-adb',
+        'overte-e2e-pico': 'android-pico-adb',
+        'overte-e2e-linux': 'desktop-oculix-linux',
+        'overte-e2e-macos': 'desktop-oculix-macos',
+        'overte-e2e-windows': 'desktop-oculix-windows',
+    ][env.JOB_BASE_NAME]
+    if (profile) {
+        return profile
+    }
+    if (params.TARGET_PROFILE?.trim() && params.TARGET_PROFILE.trim() != 'auto') {
+        return params.TARGET_PROFILE.trim()
+    }
+    if (!profile) {
+        error('TARGET_PROFILE must be explicit for an unmapped Jenkins job')
+    }
+}
+
+String agentLabel(String profile) {
+    String value = params.AGENT_LABEL?.trim()
+    if (!value) {
+        error("AGENT_LABEL must be supplied externally for ${profile}")
+    }
+    return value
+}
+
+String deviceResource(String profile) {
+    String value = params.DEVICE_RESOURCE?.trim()
+    if (!value) {
+        error("DEVICE_RESOURCE must be supplied externally for ${profile}")
+    }
+    return value
+}
+
+String targetCredential(String profile) {
+    String value = params.TARGET_SELECTOR_CREDENTIAL_ID?.trim()
+    if (!value) {
+        error("TARGET_SELECTOR_CREDENTIAL_ID must be supplied externally for ${profile}")
+    }
+    return value
+}
+
+String fixturePort(String profile) {
+    String value = params.FIXTURE_PORT?.trim()
+    if (!value) {
+        error("FIXTURE_PORT must be supplied externally for ${profile}")
+    }
+    return value
+}
+
+int profileOffset(String profile) {
+    return ['appium-android', 'appium-ios', 'android-pico-adb',
+            'desktop-oculix-linux', 'desktop-oculix-macos',
+            'desktop-oculix-windows'].indexOf(profile)
 }
 
 def ciPython(String action, boolean returnStatus = false) {
@@ -25,10 +95,15 @@ def ciPython(String action, boolean returnStatus = false) {
                returnStatus: returnStatus)
 }
 
-def runDeviceSuite(String suite, int timeoutMinutes) {
-    String manifest = adapterManifest(params.TARGET_PROFILE)
-    String externalOutput = "${env.OVERTE_EXTERNAL_RESULT_ROOT}/${suite}"
-    String stagedOutput = "${env.WORKSPACE}/device-ci-artifacts/${env.BUILD_NUMBER}/${suite}"
+def runDeviceSuite(String suite, int timeoutMinutes, String resultName = '') {
+    String profile = resolvedProfile()
+    String manifest = adapterManifest(profile)
+    String resultKey = resultName ?: suite
+    if (!(resultKey ==~ /[a-z][a-z0-9-]{0,63}/)) {
+        error('device suite result name is invalid')
+    }
+    String externalOutput = "${env.OVERTE_EXTERNAL_RESULT_ROOT}/${resultKey}"
+    String stagedOutput = "${env.WORKSPACE}/device-ci-artifacts/${env.BUILD_NUMBER}/${resultKey}"
     List configuration = [
         "OVERTE_CI_WORKSPACE=${env.WORKSPACE}",
         "OVERTE_CI_ADAPTER_MANIFEST=${manifest}",
@@ -38,36 +113,66 @@ def runDeviceSuite(String suite, int timeoutMinutes) {
         "OVERTE_CI_STAGED_OUTPUT_DIR=${stagedOutput}",
         "OVERTE_CI_FIXTURE_PUBLIC_HOST=${params.FIXTURE_PUBLIC_HOST.trim()}",
         'OVERTE_CI_FIXTURE_BIND=0.0.0.0',
-        "OVERTE_CI_FIXTURE_PORT=${params.FIXTURE_PORT.trim()}",
+        "OVERTE_CI_FIXTURE_PORT=${fixturePort(profile)}",
         "OVERTE_CI_FIXTURE_MODE=${params.FIXTURE_MODE}",
-        "OVERTE_CI_DOMAIN_SERVER_EXECUTABLE=${params.DOMAIN_SERVER_EXECUTABLE.trim()}",
-        "OVERTE_CI_ASSIGNMENT_CLIENT_EXECUTABLE=${params.ASSIGNMENT_CLIENT_EXECUTABLE.trim()}",
-        'OVERTE_CI_ALLOW_VIRTUAL=0',
+        "OVERTE_CI_ALLOW_VIRTUAL=${params.ALLOW_VIRTUAL_TARGET ? '1' : '0'}",
         "OVERTE_E2E_CAPTURE_ARTIFACTS=${params.CAPTURE_FAILURE_ARTIFACTS ? '1' : '0'}",
+        "OVERTE_IOS_ARTIFACT_SOURCE=${params.IOS_ARTIFACT_SOURCE}",
+        "OVERTE_CI_DOMAIN_SERVER=${params.DOMAIN_SERVER_EXECUTABLE.trim()}",
+        "OVERTE_CI_ASSIGNMENT_CLIENT=${params.ASSIGNMENT_CLIENT_EXECUTABLE.trim()}",
+        "OVERTE_CI_DOMAIN_PORT=${40102 + profileOffset(profile) * 10}",
+        "OVERTE_CI_DOMAIN_HTTP_PORT=${40100 + profileOffset(profile) * 10}",
+        "OVERTE_CONAN_CACHE_ROOT=${env.OVERTE_BUILD_ISOLATION_ROOT}/conan",
+        "OVERTE_ANDROID_BUILD_ROOT=${env.OVERTE_BUILD_ISOLATION_ROOT}/android",
+        "OVERTE_DEVICE_STATE_ROOT=${env.OVERTE_BUILD_ISOLATION_ROOT}/state",
+        "OVERTE_E2E_UPGRADE_SOURCE_ARTIFACT=${params.UPGRADE_SOURCE_ARTIFACT.trim()}",
+        "OVERTE_E2E_UPGRADE_CANDIDATE_ARTIFACT=${params.UPGRADE_CANDIDATE_ARTIFACT.trim()}",
+        "OVERTE_E2E_UPGRADE_FROM_VERSION=${params.UPGRADE_FROM_VERSION.trim()}",
+        "OVERTE_E2E_UPGRADE_TO_VERSION=${params.UPGRADE_TO_VERSION.trim()}",
+        "OVERTE_ANDROID_AAPT=${params.ANDROID_AAPT_EXECUTABLE.trim()}",
     ]
-    if (params.TARGET_PROFILE == 'appium-ios') {
+    if (profile == 'appium-ios') {
         configuration.add("OVERTE_APPIUM_TARGETS=${env.OVERTE_IOS_JOB_TARGET_CONFIG}")
         configuration.add("OVERTE_IOS_JOB_TARGET_CONFIG=${env.OVERTE_IOS_JOB_TARGET_CONFIG}")
+        configuration.add("OVERTE_IOS_DDI_ROOT=${params.IOS_DDI_ROOT.trim()}")
+    }
+    if (suite == 'accessibility') {
+        configuration.add('OVERTE_E2E_TABLET_OPEN_ACCESSIBILITY_ID=OverteTabletOpen')
+        configuration.add('OVERTE_E2E_TABLET_CLOSE_ACCESSIBILITY_ID=OverteTabletClose')
+    }
+    if (suite == 'tablet-e2e') {
+        configuration.add(
+            'OVERTE_CI_TABLET_POLICY=tests/device/adapters/appium/ios-flat-touch-policy.json'
+        )
     }
 
     withEnv(configuration) {
         try {
-            lock(resource: params.DEVICE_RESOURCE.trim(), inversePrecedence: true) {
-                withCredentials([string(credentialsId: params.TARGET_SELECTOR_CREDENTIAL_ID.trim(),
-                                        variable: 'OVERTE_DEVICE_TARGET_SELECTOR')]) {
-                    env.OVERTE_TARGET_NEEDS_CLEANUP = '1'
-                    try {
-                        timeout(time: timeoutMinutes, unit: 'MINUTES') {
-                            ciPython('run-suite')
+            // Old and canonical job names may target the same profile.  This
+            // profile lock keeps their fixture/domain ports disjoint even when
+            // their device-resource overrides differ.
+            lock(resource: "overte-e2e-profile-${profile}", inversePrecedence: true) {
+                lock(resource: deviceResource(profile), inversePrecedence: true) {
+                    withCredentials([string(credentialsId: targetCredential(profile),
+                                            variable: 'OVERTE_DEVICE_TARGET_SELECTOR')]) {
+                        env.OVERTE_TARGET_NEEDS_CLEANUP = '1'
+                        try {
+                            timeout(time: timeoutMinutes, unit: 'MINUTES') {
+                                if (profile == 'appium-ios') {
+                                    ciPython('ios-thermal-preflight')
+                                    ciPython('ios-ddi-preflight')
+                                }
+                                ciPython('run-suite')
+                            }
+                        } finally {
+                            // Deliberately outside the expired per-suite timeout while
+                            // still holding both ownership locks.
+                            int cleanupStatus = ciPython('cleanup-target', true)
+                            if (cleanupStatus != 0) {
+                                error("Target cleanup failed with exit code ${cleanupStatus}")
+                            }
+                            env.OVERTE_TARGET_NEEDS_CLEANUP = '0'
                         }
-                    } finally {
-                        // Deliberately outside the expired per-suite timeout while
-                        // still holding the resource lock.
-                        int cleanupStatus = ciPython('cleanup-target', true)
-                        if (cleanupStatus != 0) {
-                            error("Target cleanup failed with exit code ${cleanupStatus}")
-                        }
-                        env.OVERTE_TARGET_NEEDS_CLEANUP = '0'
                     }
                 }
             }
@@ -75,14 +180,14 @@ def runDeviceSuite(String suite, int timeoutMinutes) {
             // Results originate outside the checkout. Scan them for the private
             // selector before copying only publishable data into the workspace.
             int stagingStatus = 0
-            withCredentials([string(credentialsId: params.TARGET_SELECTOR_CREDENTIAL_ID.trim(),
+            withCredentials([string(credentialsId: targetCredential(profile),
                                     variable: 'OVERTE_DEVICE_TARGET_SELECTOR')]) {
                 stagingStatus = ciPython('stage-results', true)
             }
-            junit(testResults: "device-ci-artifacts/${env.BUILD_NUMBER}/${suite}/junit.xml",
+            junit(testResults: "device-ci-artifacts/${env.BUILD_NUMBER}/${resultKey}/junit.xml",
                   allowEmptyResults: false, keepLongStdio: true)
             archiveArtifacts(
-                artifacts: "device-ci-artifacts/${env.BUILD_NUMBER}/${suite}/**",
+                artifacts: "device-ci-artifacts/${env.BUILD_NUMBER}/${resultKey}/**",
                 allowEmptyArchive: false,
                 fingerprint: true
             )
@@ -94,48 +199,90 @@ def runDeviceSuite(String suite, int timeoutMinutes) {
 }
 
 pipeline {
-    agent { label 'overte-device-interactive' }
+    agent { label agentLabel(resolvedProfile()) }
 
     options {
         timeout(time: 8, unit: 'HOURS')
-        buildDiscarder(logRotator(numToKeepStr: '30', artifactNumToKeepStr: '15'))
+        disableConcurrentBuilds(abortPrevious: false)
+        buildDiscarder(logRotator(daysToKeepStr: '14', numToKeepStr: '20',
+                                  artifactDaysToKeepStr: '7', artifactNumToKeepStr: '5'))
     }
 
     parameters {
-        choice(
+        string(
             name: 'TARGET_PROFILE',
-            choices: [
-                'android-phone-adb',
-                'android-pico-adb',
-                'appium-android',
-                'appium-ios'
-            ],
-            description: 'Adapter implementation used for this physical target.'
+            defaultValue: 'auto',
+            description: 'auto uses the canonical job mapping; otherwise an exact pinned profile.'
+        )
+        string(
+            name: 'AGENT_LABEL',
+            defaultValue: '',
+            description: 'Externally configured Jenkins agent label for this job.'
         )
         string(
             name: 'DEVICE_RESOURCE',
-            defaultValue: 'android-phone-01',
-            description: 'Exact Lockable Resources name; never use a serial number here.'
+            defaultValue: '',
+            description: 'Externally configured lockable-resource name for this job.'
         )
         string(
             name: 'TARGET_SELECTOR_CREDENTIAL_ID',
-            defaultValue: 'overte-device-target-selector',
-            description: 'ID of a Jenkins Secret Text credential containing the private selector.'
+            defaultValue: '',
+            description: 'Externally configured Secret Text credential ID for this job.'
+        )
+        choice(
+            name: 'IOS_ARTIFACT_SOURCE',
+            choices: ['personal-team-preinstalled', 'local-personal-team', 'protected-github'],
+            description: 'Observed preinstalled Personal Team apps (primary), exported signed IPAs, or optional protected signer.'
+        )
+        string(
+            name: 'IOS_PREINSTALLED_ATTESTATION',
+            defaultValue: '',
+            description: 'Absolute private path to personal-team-preinstalled-attestation.json.'
+        )
+        string(
+            name: 'IOS_DDI_ROOT',
+            defaultValue: '',
+            description: 'Private mode-0700 directory containing the exact pinned Personalized DDI triplet.'
+        )
+        string(
+            name: 'IOS_LOCAL_UNSIGNED_KIT',
+            defaultValue: '',
+            description: 'Absolute private path to personal-team-e2e-kit.json for local import.'
+        )
+        string(
+            name: 'IOS_LOCAL_ATTESTATION',
+            defaultValue: '',
+            description: 'Absolute private path to personal-team-signed-handoff.json.'
+        )
+        string(
+            name: 'IOS_LOCAL_OVERTE_IPA',
+            defaultValue: '',
+            description: 'Absolute private path to the manually signed Overte Personal Team IPA.'
+        )
+        string(
+            name: 'IOS_LOCAL_WDA_IPA',
+            defaultValue: '',
+            description: 'Absolute private path to the manually signed WDA Personal Team IPA.'
         )
         string(
             name: 'IOS_GITHUB_TOKEN_CREDENTIAL_ID',
-            defaultValue: 'overte-ios-github-actions-token',
+            defaultValue: '',
             description: 'Fine-grained GitHub token credential with Actions read/write for the protected producer.'
         )
         string(
             name: 'IOS_AGE_IDENTITY_CREDENTIAL_ID',
-            defaultValue: 'overte-ios-age-identity',
+            defaultValue: '',
             description: 'Secret File credential containing the Fedora lab age identity.'
         )
         string(
             name: 'IOS_PRODUCER_RUN_ID',
             defaultValue: '',
-            description: 'Optional existing protected producer run; blank dispatches a new signed build.'
+            description: 'Optional existing protected producer run; requires its exact attempt.'
+        )
+        string(
+            name: 'IOS_PRODUCER_RUN_ATTEMPT',
+            defaultValue: '',
+            description: 'Exact positive attempt for IOS_PRODUCER_RUN_ID; blank only when dispatching.'
         )
         string(
             name: 'IOS_QT_HOST_CACHE_KEY',
@@ -164,13 +311,28 @@ pipeline {
         )
         string(
             name: 'FIXTURE_PORT',
-            defaultValue: '0',
-            description: 'Fixture TCP port; 0 selects an ephemeral port.'
+            defaultValue: '',
+            description: 'Externally configured isolated fixture port for this job.'
         )
         choice(
             name: 'FIXTURE_MODE',
             choices: ['network', 'embedded'],
-            description: 'Use network for iOS, embedded for Android debug E2E APKs.'
+            description: 'Use the fixed test-lab origin, or the Android/Pico embedded upgrade fixture.'
+        )
+        string(
+            name: 'DOMAIN_SERVER_EXECUTABLE',
+            defaultValue: '',
+            description: 'Agent-local real domain-server binary, required only for domain smoke.'
+        )
+        string(
+            name: 'ASSIGNMENT_CLIENT_EXECUTABLE',
+            defaultValue: '',
+            description: 'Agent-local real assignment-client binary, required only for domain smoke.'
+        )
+        booleanParam(
+            name: 'ALLOW_VIRTUAL_TARGET',
+            defaultValue: false,
+            description: 'Allow an isolated hardware-GPU virtual display target.'
         )
         booleanParam(
             name: 'CAPTURE_FAILURE_ARTIFACTS',
@@ -179,73 +341,62 @@ pipeline {
         )
         booleanParam(
             name: 'RUN_CORE',
-            defaultValue: false,
-            description: 'Run scene, look, movement and tablet after smoke; requires a complete Appium profile.'
-        )
-        booleanParam(
-            name: 'RUN_DOMAIN_ENTER',
-            defaultValue: false,
-            description: 'Run the controlled domain-entry E2E suite.'
-        )
-        booleanParam(
-            name: 'RUN_ASSET_LOAD',
-            defaultValue: false,
-            description: 'Run the controlled texture loading E2E suite.'
-        )
-        booleanParam(
-            name: 'RUN_SOUND_PLAYBACK',
-            defaultValue: false,
-            description: 'Run the controlled WAV loading and injector lifecycle E2E suite.'
-        )
-        booleanParam(
-            name: 'RUN_VERTICAL_LOCOMOTION',
-            defaultValue: false,
-            description: 'Run physical jump, landing and upward-flight verification.'
-        )
-        string(
-            name: 'DOMAIN_SERVER_EXECUTABLE',
-            defaultValue: '',
-            description: 'Absolute path to the trusted local domain-server executable.'
-        )
-        string(
-            name: 'ASSIGNMENT_CLIENT_EXECUTABLE',
-            defaultValue: '',
-            description: 'Absolute path to the trusted local assignment-client executable.'
-        )
-        string(
-            name: 'OVERTE_ANDROID_ADB',
-            defaultValue: '/usr/bin/adb',
-            description: 'ADB executable used by Android profiles.'
-        )
-        string(
-            name: 'ANDROID_ADB_SERVER_PORT',
-            defaultValue: '',
-            description: 'Non-default isolated ADB server port required by Pico OpenXR input.'
-        )
-        string(
-            name: 'OVERTE_ANDROID_E2E_DEBUG',
-            defaultValue: '0',
-            description: 'Set to 1 only for an audited debug E2E APK.'
-        )
-        string(
-            name: 'OVERTE_PICO_OPENXR_INPUT',
-            defaultValue: '0',
-            description: 'Set to 1 to enable the debug-only Pico OpenXR input layer.'
-        )
-        string(
-            name: 'OVERTE_PICO_OPENXR_STATE_DIR',
-            defaultValue: '',
-            description: 'Absolute private runtime-state directory for Pico OpenXR input.'
+            defaultValue: true,
+            description: 'Required iOS baseline: launch, scene, look, movement and tablet.'
         )
         booleanParam(
             name: 'RUN_ACCESSIBILITY',
             defaultValue: false,
-            description: 'Run the audited native accessibility contract after core; unsupported on android-pico-adb.'
+            description: 'Run the audited native accessibility contract after core.'
+        )
+        booleanParam(
+            name: 'RUN_TABLET_E2E',
+            defaultValue: false,
+            description: 'Run the deeper platform tablet product contract after portable smoke.'
+        )
+        booleanParam(
+            name: 'RUN_DOMAIN_SMOKE',
+            defaultValue: false,
+            description: 'Run the real domain-server and assignment-client smoke fixture.'
         )
         booleanParam(
             name: 'RUN_SOAKS',
             defaultValue: false,
             description: 'Run long lifecycle and idle suites only after smoke/core pass.'
+        )
+        booleanParam(
+            name: 'RUN_STABILITY_CAMPAIGN',
+            defaultValue: false,
+            description: 'Run portable-smoke 10-20 times; any failure stops immediately.'
+        )
+        string(
+            name: 'STABILITY_REPETITIONS',
+            defaultValue: '10',
+            description: 'Number of consecutive physical portable-smoke runs (10-20).'
+        )
+        booleanParam(
+            name: 'RUN_UPGRADE_TEST',
+            defaultValue: false,
+            description: 'Install source Pico APK, upgrade in place, retain settings, then run common smoke.'
+        )
+        string(
+            name: 'UPGRADE_SOURCE_ARTIFACT',
+            defaultValue: '',
+            description: 'Absolute external path to the versioned source Pico APK.'
+        )
+        string(
+            name: 'UPGRADE_CANDIDATE_ARTIFACT',
+            defaultValue: '',
+            description: 'Absolute external path to the versioned candidate Pico APK.'
+        )
+        string(name: 'UPGRADE_FROM_VERSION', defaultValue: '',
+               description: 'Expected installed source versionName.')
+        string(name: 'UPGRADE_TO_VERSION', defaultValue: '',
+               description: 'Expected candidate versionName.')
+        string(
+            name: 'ANDROID_AAPT_EXECUTABLE',
+            defaultValue: '',
+            description: 'Absolute path to the pinned Android aapt executable.'
         )
     }
 
@@ -253,51 +404,78 @@ pipeline {
         stage('Validate configuration') {
             steps {
                 script {
-                    if (!(params.DEVICE_RESOURCE ==~ /[A-Za-z0-9][A-Za-z0-9_.:-]*/)) {
+                    String profile = resolvedProfile()
+                    if (!(deviceResource(profile) ==~ /[A-Za-z0-9][A-Za-z0-9_.:-]*/)) {
                         error('DEVICE_RESOURCE contains unsupported characters')
                     }
-                    if (!params.TARGET_SELECTOR_CREDENTIAL_ID.trim()) {
-                        error('TARGET_SELECTOR_CREDENTIAL_ID is required')
+                    if (!targetCredential(profile)) {
+                        error('target profile has no fixed selector credential mapping')
                     }
-                    if (params.TARGET_PROFILE == 'appium-ios') {
-                        if (!params.IOS_GITHUB_TOKEN_CREDENTIAL_ID.trim()) {
-                            error('IOS_GITHUB_TOKEN_CREDENTIAL_ID is required for appium-ios')
+                    if (profile == 'appium-ios') {
+                        if (!params.IOS_DDI_ROOT.trim()) {
+                            error('IOS_DDI_ROOT is required for physical XCTest on Fedora')
                         }
-                        if (!params.IOS_AGE_IDENTITY_CREDENTIAL_ID.trim()) {
-                            error('IOS_AGE_IDENTITY_CREDENTIAL_ID is required for appium-ios')
-                        }
-                        if (params.IOS_PRODUCER_RUN_ID.trim() &&
-                                !(params.IOS_PRODUCER_RUN_ID.trim() ==~ /[1-9][0-9]*/)) {
-                            error('IOS_PRODUCER_RUN_ID must be a positive integer')
-                        }
-                        if (!params.IOS_PRODUCER_RUN_ID.trim() && [
-                                params.IOS_QT_HOST_CACHE_KEY,
-                                params.IOS_QT_IOS_CACHE_KEY,
-                                params.IOS_QT_HOST_ARTIFACT_PREFIX,
-                                params.IOS_QT_IOS_ARTIFACT_PREFIX,
-                            ].any { !it.trim() }) {
-                            error('all four audited Qt inputs are required to dispatch the iOS producer')
+                        if (params.IOS_ARTIFACT_SOURCE == 'personal-team-preinstalled') {
+                            if (!params.IOS_PREINSTALLED_ATTESTATION.trim()) {
+                                error('IOS_PREINSTALLED_ATTESTATION is required for the preinstalled gate')
+                            }
+                        } else if (params.IOS_ARTIFACT_SOURCE == 'local-personal-team') {
+                            if ([params.IOS_LOCAL_UNSIGNED_KIT,
+                                 params.IOS_LOCAL_ATTESTATION,
+                                 params.IOS_LOCAL_OVERTE_IPA,
+                                 params.IOS_LOCAL_WDA_IPA].any { !it.trim() }) {
+                                error('all four private Personal Team import paths are required')
+                            }
+                        } else {
+                            if (!params.IOS_GITHUB_TOKEN_CREDENTIAL_ID.trim()) {
+                                error('IOS_GITHUB_TOKEN_CREDENTIAL_ID is required for protected-github')
+                            }
+                            if (!params.IOS_AGE_IDENTITY_CREDENTIAL_ID.trim()) {
+                                error('IOS_AGE_IDENTITY_CREDENTIAL_ID is required for protected-github')
+                            }
+                            if (params.IOS_PRODUCER_RUN_ID.trim().isEmpty() !=
+                                    params.IOS_PRODUCER_RUN_ATTEMPT.trim().isEmpty()) {
+                                error('IOS_PRODUCER_RUN_ID and IOS_PRODUCER_RUN_ATTEMPT must be supplied together')
+                            }
+                            if (params.IOS_PRODUCER_RUN_ID.trim() &&
+                                    (!(params.IOS_PRODUCER_RUN_ID.trim() ==~ /[1-9][0-9]*/) ||
+                                     !(params.IOS_PRODUCER_RUN_ATTEMPT.trim() ==~ /[1-9][0-9]*/))) {
+                                error('producer run ID and attempt must be positive integers')
+                            }
+                            if (!params.IOS_PRODUCER_RUN_ID.trim() && [
+                                    params.IOS_QT_HOST_CACHE_KEY,
+                                    params.IOS_QT_IOS_CACHE_KEY,
+                                    params.IOS_QT_HOST_ARTIFACT_PREFIX,
+                                    params.IOS_QT_IOS_ARTIFACT_PREFIX,
+                                ].any { !it.trim() }) {
+                                error('all four audited Qt inputs are required to dispatch the iOS producer')
+                            }
                         }
                     }
-                    if ((params.RUN_DOMAIN_ENTER || params.RUN_ASSET_LOAD ||
-                            params.RUN_SOUND_PLAYBACK ||
-                            (params.RUN_CORE && params.FIXTURE_MODE == 'network')) &&
+                    if (!params.RUN_CORE) {
+                        error('RUN_CORE is mandatory for the cross-platform device-lab baseline')
+                    }
+                    if (params.FIXTURE_MODE == 'network' &&
                             !params.FIXTURE_PUBLIC_HOST.trim()) {
-                        error('FIXTURE_PUBLIC_HOST is required for network-backed E2E tests')
+                        error('FIXTURE_PUBLIC_HOST is required for the core scene test')
                     }
-                    if (params.RUN_DOMAIN_ENTER && (!params.DOMAIN_SERVER_EXECUTABLE.trim() ||
-                            !params.ASSIGNMENT_CLIENT_EXECUTABLE.trim())) {
-                        error('Both domain fixture executable paths are required for domain entry')
+                    if (!(fixturePort(profile) ==~ /[1-9][0-9]*/) ||
+                            fixturePort(profile).toInteger() > 65535) {
+                        error('FIXTURE_PORT must be a fixed TCP port from 1 through 65535')
                     }
-                    if (params.RUN_VERTICAL_LOCOMOTION &&
-                            params.TARGET_PROFILE != 'android-pico-adb') {
-                        error('RUN_VERTICAL_LOCOMOTION is currently accepted only for android-pico-adb')
+                    adapterManifest(profile)
+                    agentLabel(profile)
+                    if (params.RUN_DOMAIN_SMOKE &&
+                            (!params.DOMAIN_SERVER_EXECUTABLE.trim() ||
+                             !params.ASSIGNMENT_CLIENT_EXECUTABLE.trim())) {
+                        error('real domain-server and assignment-client binaries are required')
                     }
-                    if (params.RUN_ACCESSIBILITY &&
-                            params.TARGET_PROFILE == 'android-pico-adb') {
-                        error('RUN_ACCESSIBILITY is unsupported for android-pico-adb because the OpenXR surface does not expose an audited native accessibility tree')
+                    if (params.RUN_TABLET_E2E && profile != 'appium-ios') {
+                        error('the deep tablet policy is currently accepted only for iOS')
                     }
-                    adapterManifest(params.TARGET_PROFILE)
+                    if (!(env.BUILD_TAG ==~ /[A-Za-z0-9][A-Za-z0-9_.-]*/)) {
+                        error('BUILD_TAG is unsafe for per-build cache isolation')
+                    }
                     env.OVERTE_TARGET_NEEDS_CLEANUP = '0'
                     env.OVERTE_EXTERNAL_RESULT_ROOT =
                         "${pwd(tmp: true)}/overte-device-results/${env.BUILD_NUMBER}"
@@ -305,6 +483,8 @@ pipeline {
                         "${env.OVERTE_EXTERNAL_RESULT_ROOT}/private-ios-artifacts"
                     env.OVERTE_IOS_JOB_TARGET_CONFIG =
                         "${env.OVERTE_EXTERNAL_RESULT_ROOT}/private-ios-targets.json"
+                    env.OVERTE_BUILD_ISOLATION_ROOT =
+                        "${pwd(tmp: true)}/overte-e2e-isolation/${env.BUILD_TAG}"
                 }
             }
         }
@@ -318,77 +498,136 @@ pipeline {
         }
 
         stage('Fedora iOS runtime') {
-            when { expression { params.TARGET_PROFILE == 'appium-ios' } }
+            when { expression { resolvedProfile() == 'appium-ios' } }
             steps {
                 withEnv([
                     "OVERTE_CI_WORKSPACE=${env.WORKSPACE}",
                     "OVERTE_IOS_ARTIFACT_ROOT=${env.OVERTE_IOS_ARTIFACT_ROOT}",
                     "OVERTE_IOS_JOB_TARGET_CONFIG=${env.OVERTE_IOS_JOB_TARGET_CONFIG}",
+                    "OVERTE_IOS_ARTIFACT_SOURCE=${params.IOS_ARTIFACT_SOURCE}",
+                    "OVERTE_IOS_PREINSTALLED_ATTESTATION=${params.IOS_PREINSTALLED_ATTESTATION.trim()}",
+                    "OVERTE_IOS_LOCAL_UNSIGNED_KIT=${params.IOS_LOCAL_UNSIGNED_KIT.trim()}",
+                    "OVERTE_IOS_LOCAL_ATTESTATION=${params.IOS_LOCAL_ATTESTATION.trim()}",
+                    "OVERTE_IOS_LOCAL_OVERTE_IPA=${params.IOS_LOCAL_OVERTE_IPA.trim()}",
+                    "OVERTE_IOS_LOCAL_WDA_IPA=${params.IOS_LOCAL_WDA_IPA.trim()}",
                     "OVERTE_IOS_PRODUCER_RUN_ID=${params.IOS_PRODUCER_RUN_ID.trim()}",
+                    "OVERTE_IOS_PRODUCER_RUN_ATTEMPT=${params.IOS_PRODUCER_RUN_ATTEMPT.trim()}",
                     "OVERTE_IOS_QT_HOST_CACHE_KEY=${params.IOS_QT_HOST_CACHE_KEY.trim()}",
                     "OVERTE_IOS_QT_IOS_CACHE_KEY=${params.IOS_QT_IOS_CACHE_KEY.trim()}",
                     "OVERTE_IOS_QT_HOST_ARTIFACT_PREFIX=${params.IOS_QT_HOST_ARTIFACT_PREFIX.trim()}",
                     "OVERTE_IOS_QT_IOS_ARTIFACT_PREFIX=${params.IOS_QT_IOS_ARTIFACT_PREFIX.trim()}",
                 ]) {
-                    withCredentials([
-                        string(credentialsId: params.TARGET_SELECTOR_CREDENTIAL_ID.trim(),
-                               variable: 'OVERTE_DEVICE_TARGET_SELECTOR'),
-                        string(credentialsId: params.IOS_GITHUB_TOKEN_CREDENTIAL_ID.trim(),
-                               variable: 'OVERTE_GITHUB_TOKEN'),
-                        file(credentialsId: params.IOS_AGE_IDENTITY_CREDENTIAL_ID.trim(),
-                             variable: 'OVERTE_IOS_AGE_IDENTITY_FILE'),
-                    ]) {
+                    withCredentials([string(
+                        credentialsId: targetCredential(resolvedProfile()),
+                        variable: 'OVERTE_DEVICE_TARGET_SELECTOR'
+                    )]) {
                         script {
                             ciPython('ios-runtime-preflight')
-                            ciPython('ios-artifact-sync')
+                            if (params.IOS_ARTIFACT_SOURCE == 'local-personal-team') {
+                                ciPython('ios-artifact-sync')
+                            } else if (params.IOS_ARTIFACT_SOURCE == 'protected-github') {
+                                withCredentials([
+                                    string(
+                                        credentialsId: params.IOS_GITHUB_TOKEN_CREDENTIAL_ID.trim(),
+                                        variable: 'OVERTE_GITHUB_TOKEN'
+                                    ),
+                                    file(
+                                        credentialsId: params.IOS_AGE_IDENTITY_CREDENTIAL_ID.trim(),
+                                        variable: 'OVERTE_IOS_AGE_IDENTITY_FILE'
+                                    ),
+                                ]) {
+                                    ciPython('ios-artifact-sync')
+                                }
+                            }
                         }
                     }
                 }
             }
         }
 
-        stage('Physical smoke') {
+        stage('Preinstalled Personal Team gate') {
+            when { expression {
+                resolvedProfile() == 'appium-ios' &&
+                    params.IOS_ARTIFACT_SOURCE == 'personal-team-preinstalled'
+            } }
             steps {
-                script { runDeviceSuite('smoke', 10) }
+                withEnv([
+                    "OVERTE_CI_WORKSPACE=${env.WORKSPACE}",
+                    "OVERTE_IOS_ARTIFACT_ROOT=${env.OVERTE_IOS_ARTIFACT_ROOT}",
+                    "OVERTE_IOS_JOB_TARGET_CONFIG=${env.OVERTE_IOS_JOB_TARGET_CONFIG}",
+                    'OVERTE_IOS_ARTIFACT_SOURCE=personal-team-preinstalled',
+                    "OVERTE_IOS_PREINSTALLED_ATTESTATION=${params.IOS_PREINSTALLED_ATTESTATION.trim()}",
+                ]) {
+                    lock(resource: params.DEVICE_RESOURCE.trim(), inversePrecedence: true) {
+                        withCredentials([string(
+                            credentialsId: targetCredential(resolvedProfile()),
+                            variable: 'OVERTE_DEVICE_TARGET_SELECTOR'
+                        )]) {
+                            script { ciPython('ios-artifact-sync') }
+                        }
+                    }
+                }
             }
         }
 
-        stage('Pico domain entry') {
-            when { expression { params.RUN_DOMAIN_ENTER } }
+        stage('Cross-platform portable smoke') {
             steps {
-                script { runDeviceSuite('domain-smoke', 15) }
+                script { runDeviceSuite('portable-smoke', 45) }
             }
         }
 
-        stage('Pico asset load') {
-            when { expression { params.RUN_ASSET_LOAD } }
+        stage('Physical portable stability campaign') {
+            when { expression { params.RUN_STABILITY_CAMPAIGN } }
             steps {
-                script { runDeviceSuite('asset-smoke', 10) }
+                script {
+                    if (!(params.STABILITY_REPETITIONS ==~ /(?:1[0-9]|20)/)) {
+                        error('STABILITY_REPETITIONS must be from 10 through 20')
+                    }
+                    int repetitions = params.STABILITY_REPETITIONS.toInteger()
+                    for (int sequence = 1; sequence <= repetitions; sequence++) {
+                        String key = String.format('portable-stability-%02d', sequence)
+                        // No Jenkins retry wrapper is allowed here: it cannot
+                        // distinguish product failures from infrastructure.
+                        // The common stability_campaign.py entry point provides
+                        // classified infrastructure-only retries for local runs.
+                        runDeviceSuite('portable-smoke', 45, key)
+                    }
+                }
             }
         }
 
-        stage('Pico sound playback') {
-            when { expression { params.RUN_SOUND_PLAYBACK } }
+        stage('Versioned in-place upgrade') {
+            when { expression { params.RUN_UPGRADE_TEST } }
             steps {
-                script { runDeviceSuite('sound-smoke', 10) }
+                script {
+                    if (resolvedProfile() != 'android-pico-adb') {
+                        error('the real upgrade gate is currently implemented for Pico')
+                    }
+                    if (params.FIXTURE_MODE != 'embedded') {
+                        error('the Pico upgrade smoke requires the embedded fixture')
+                    }
+                    runDeviceSuite('update-upgrade', 60)
+                }
             }
         }
 
-        stage('Pico vertical locomotion') {
-            when { expression { params.RUN_VERTICAL_LOCOMOTION } }
+        stage('Platform tablet contract') {
+            when { expression {
+                params.RUN_TABLET_E2E && resolvedProfile() == 'appium-ios'
+            } }
             steps {
-                script { runDeviceSuite('vertical-locomotion', 15) }
+                script { runDeviceSuite('tablet-e2e', 20) }
             }
         }
 
-        stage('Physical core') {
-            when { expression { params.RUN_CORE } }
+        stage('Real domain fixture') {
+            when { expression { params.RUN_DOMAIN_SMOKE } }
             steps {
-                script { runDeviceSuite('e2e-core', 30) }
+                script { runDeviceSuite('domain-smoke', 30) }
             }
         }
 
-        stage('Accessibility') {
+        stage('Accessibility audit') {
             when { expression { params.RUN_ACCESSIBILITY } }
             steps {
                 script { runDeviceSuite('accessibility', 15) }
@@ -400,7 +639,6 @@ pipeline {
             steps {
                 script {
                     runDeviceSuite('stability', 240)
-                    runDeviceSuite('lifecycle-stability', 60)
                 }
             }
         }
@@ -414,20 +652,21 @@ pipeline {
                     // lock. This final fallback covers an outer Pipeline timeout or
                     // an interrupted cleanup step.
                     if (env.OVERTE_TARGET_NEEDS_CLEANUP == '1') {
-                        String manifest = adapterManifest(params.TARGET_PROFILE)
+                        String profile = resolvedProfile()
+                        String manifest = adapterManifest(profile)
                         List cleanupEnvironment = [
                             "OVERTE_CI_WORKSPACE=${env.WORKSPACE}",
                             "OVERTE_CI_ADAPTER_MANIFEST=${manifest}",
                         ]
-                        if (params.TARGET_PROFILE == 'appium-ios') {
+                        if (profile == 'appium-ios') {
                             cleanupEnvironment.add(
                                 "OVERTE_APPIUM_TARGETS=${env.OVERTE_IOS_JOB_TARGET_CONFIG}"
                             )
                         }
                         withEnv(cleanupEnvironment) {
-                            lock(resource: params.DEVICE_RESOURCE.trim(), inversePrecedence: true) {
+                            lock(resource: deviceResource(profile), inversePrecedence: true) {
                                 withCredentials([string(
-                                    credentialsId: params.TARGET_SELECTOR_CREDENTIAL_ID.trim(),
+                                    credentialsId: targetCredential(profile),
                                     variable: 'OVERTE_DEVICE_TARGET_SELECTOR'
                                 )]) {
                                     int cleanupStatus = ciPython('cleanup-target', true)
@@ -439,7 +678,7 @@ pipeline {
                         }
                     }
                 } finally {
-                    if (params.TARGET_PROFILE == 'appium-ios' &&
+                    if (resolvedProfile() == 'appium-ios' &&
                             env.OVERTE_EXTERNAL_RESULT_ROOT?.trim()) {
                         withEnv([
                             "OVERTE_CI_WORKSPACE=${env.WORKSPACE}",

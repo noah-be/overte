@@ -42,7 +42,6 @@
     var stableAvatarSamples = 0;
     var previousAvatarPosition = null;
     var sceneReady = false;
-    var sampleSequence = 0;
     var probeErrorCount = 0;
     var lastProbeError = "";
     var lastSampleEpochMs = 0;
@@ -50,10 +49,8 @@
     var sampleIntervalMs = 250;
     var heartbeatIntervalMs = 5000;
     var previousLocationKey = "";
+    var androidControlEligible = String(About.platform).toLowerCase() === "android";
     var androidControlAvailable = false;
-    // A world reload restarts this test script. Recover the acknowledged
-    // one-shot command from the address so the retained private command file
-    // cannot trigger a reload loop in the new script instance.
     var lastAndroidControlCommandId = reloadCommandIdFromAddress(location.href);
     var androidAssetEntityId = null;
     var flightNormalizationAllowed = true;
@@ -63,7 +60,6 @@
     var assetResource = null;
     var assetResourceUrl = "";
     var controlledAssetEntity = null;
-    var clientCommandRequest = null;
     var controlledKey = null;
     var controlledKeyCommandId = "";
     var controlledInputMappingName = "org.overte.e2e.probe.controlled-input";
@@ -71,8 +67,24 @@
     // Resolve while the script file is the active execution context. Timer
     // callbacks do not retain that source context on every script engine.
     var clientCommandFallbackUrl = String(Script.resolvePath("e2e-client-command.json"));
+    var clientCommandRequest = null;
     var clientCommandUnavailable = false;
     var lastClientCommandId = "";
+    var lastSceneCommandId = "";
+    var sampleSequence = 0;
+    var orientationHistory = [];
+    var verticalObservationPrevious = null;
+    var verticalJumpActive = false;
+    var verticalEvents = {
+        jumpCount: 0,
+        jumpCompletedCount: 0,
+        lastJumpStartY: null,
+        lastJumpPeakY: null,
+        lastJumpLandingY: null,
+        flightCount: 0,
+        lastFlightStartY: null,
+        lastFlightPeakY: null
+    };
     var soundCommandRequest = null;
     // Network-loaded probes retain the fixture-relative fallback. A target
     // adapter's private probe copy can replace it through the narrow command
@@ -97,9 +109,20 @@
     };
     var fixtureMarkers = ["OVERTE_E2E_COLLISION_WALL", "OVERTE_E2E_EAST",
         "OVERTE_E2E_FLOOR", "OVERTE_E2E_NORTH", "OVERTE_E2E_ORIGIN"];
+    var interactionTargetName = "OVERTE_E2E_INTERACTABLE";
+    var interactionPressCount = 0;
+    var interactionLastEntityName = "";
+    var interactionLastPointerId = null;
+    var peerTrackingId = "";
+    var peerPreviousPosition = null;
+    var peerObservationCount = 0;
+    var peerMovementDistance = 0.0;
+    var renderFrameCount = 0;
+    var renderLastFrameEpochMs = 0;
+    var renderStats = Render.getConfig("Stats");
     var domainMarkers = ["OVERTE_E2E_DOMAIN_FLOOR", "OVERTE_E2E_DOMAIN_NORTH",
         "OVERTE_E2E_DOMAIN_EAST", "OVERTE_E2E_DOMAIN_ORIGIN"];
-    var expectedSpawn = { x: 0.0, y: 0.0, z: 4.0 };
+    var expectedSpawn = { x: 0.0, y: 2.0, z: 4.0 };
 
     function controlledTabletOpen() {
         return Boolean(tablet.tabletShown || HMD.showTablet);
@@ -135,6 +158,75 @@
         }
         return vector(value);
     }
+
+    function observeRenderedFrame() {
+        renderFrameCount += 1;
+        renderLastFrameEpochMs = Date.now();
+    }
+
+    if (renderStats && renderStats.newStats) {
+        renderStats.newStats.connect(observeRenderedFrame);
+    }
+
+    function controlledPeer() {
+        var identifiers = AvatarList.getAvatarIdentifiers();
+        var candidates = [];
+        var index;
+        for (index = 0; index < identifiers.length; index += 1) {
+            if (String(identifiers[index]) === String(MyAvatar.sessionUUID)) {
+                continue;
+            }
+            var avatar = AvatarList.getAvatar(identifiers[index]);
+            if (avatar && String(avatar.displayName) === "OVERTE_E2E_PEER") {
+                candidates.push(avatar);
+            }
+        }
+        if (candidates.length !== 1) {
+            return {
+                present: false, sessionId: "", displayName: "", position: null,
+                observationCount: peerObservationCount,
+                movementDistanceMeters: peerMovementDistance
+            };
+        }
+        var peer = candidates[0];
+        var sessionId = String(peer.sessionUUID);
+        var position = vector(peer.position);
+        if (peerTrackingId !== sessionId) {
+            peerTrackingId = sessionId;
+            peerPreviousPosition = null;
+            peerObservationCount = 0;
+            peerMovementDistance = 0.0;
+        }
+        if (peerPreviousPosition !== null) {
+            var dx = position.x - peerPreviousPosition.x;
+            var dy = position.y - peerPreviousPosition.y;
+            var dz = position.z - peerPreviousPosition.z;
+            peerMovementDistance += Math.sqrt(dx * dx + dy * dy + dz * dz);
+        }
+        peerPreviousPosition = position;
+        peerObservationCount += 1;
+        return {
+            present: true,
+            sessionId: sessionId,
+            displayName: "OVERTE_E2E_PEER",
+            position: position,
+            observationCount: peerObservationCount,
+            movementDistanceMeters: peerMovementDistance
+        };
+    }
+
+    function observePrimaryInteraction(entityID, event) {
+        var properties = Entities.getEntityProperties(entityID, ["name"]);
+        if (String(properties.name) !== interactionTargetName) {
+            return;
+        }
+        interactionPressCount += 1;
+        interactionLastEntityName = interactionTargetName;
+        interactionLastPointerId = event && isFinite(Number(event.id))
+            ? Math.max(0, Math.floor(Number(event.id))) : null;
+    }
+
+    Entities.mousePressOnEntity.connect(observePrimaryInteraction);
 
     function controllerPose(channel) {
         var pose = Controller.getPoseValue(channel);
@@ -219,9 +311,6 @@
 
     function observeAsset(ids) {
         var candidates = [];
-        // Locally hosted entities are not guaranteed to participate in the
-        // spatial query on every client.  The production addEntity return
-        // value is the authoritative identity for both controlled channels.
         appendAssetCandidate(candidates, androidAssetEntityId);
         appendAssetCandidate(candidates, controlledAssetEntity);
         var index;
@@ -234,8 +323,6 @@
         }
         var id = candidates[0];
         var properties = Entities.getEntityProperties(id, [
-            // EntityItemProperties exposes the read-only naturalDimensions
-            // value under the common dimensions property flag.
             "name", "type", "imageURL", "userData", "dimensions", "naturalDimensions"
         ]);
         var metadata;
@@ -270,10 +357,6 @@
                 name: String(properties.name),
                 type: String(properties.type),
                 imageURL: imageURL,
-                // Image naturalDimensions is absent while the renderer is
-                // still resolving a newly assigned texture.  Zero is a
-                // non-ready observation; the harness still requires the
-                // finished resource and exact decoded aspect ratio.
                 naturalDimensions: pendingVector(properties.naturalDimensions)
             }
         };
@@ -377,12 +460,69 @@
         return origin ? origin[1] + "/e2e-client-command.json" : "";
     }
 
+    function controlledSceneLocation(value) {
+        var queryStart = value.indexOf("?");
+        if (queryStart === -1) {
+            return "";
+        }
+        var fragmentStart = value.indexOf("#", queryStart);
+        var query = value.slice(queryStart + 1,
+            fragmentStart === -1 ? value.length : fragmentStart);
+        var parts = query.split("&");
+        var index;
+        for (index = 0; index < parts.length; index += 1) {
+            var separator = parts[index].indexOf("=");
+            if (separator === -1) {
+                continue;
+            }
+            var name;
+            var path;
+            try {
+                name = decodeURIComponent(parts[index].slice(0, separator).replace(/\+/g, "%20"));
+                path = decodeURIComponent(parts[index].slice(separator + 1).replace(/\+/g, "%20"));
+            } catch (error) {
+                return "";
+            }
+            if (name !== "location") {
+                continue;
+            }
+            var sections = path.split("/");
+            if (sections.length !== 3 || sections[0] !== "") {
+                return "";
+            }
+            var position = sections[1].split(",");
+            var orientation = sections[2].split(",");
+            if (position.length !== 3 || orientation.length !== 4) {
+                return "";
+            }
+            var components = position.concat(orientation);
+            var component;
+            for (component = 0; component < components.length; component += 1) {
+                if (!/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/.test(components[component])
+                        || !isFinite(Number(components[component]))
+                        || Math.abs(Number(components[component]))
+                        > (component < 3 ? 100000 : 1.01)) {
+                    return "";
+                }
+            }
+            return path;
+        }
+        return "";
+    }
+
     function resetSceneObservation() {
         stableEntitySamples = 0;
         previousEntityCount = -1;
         stableAvatarSamples = 0;
         previousAvatarPosition = null;
         sceneReady = false;
+        // Reloading the same serverless URL does not change the domain key,
+        // but Window.location can leave the avatar in the temporary flight
+        // state used while applying its viewpoint. Re-arm the same bounded
+        // normalization used at initial startup before declaring readiness.
+        flightNormalizationAllowed = true;
+        flightNormalizationStableSamples = 0;
+        orientationHistory = [];
     }
 
     function reloadControlledScene(commandId) {
@@ -391,6 +531,21 @@
         resetSceneObservation();
         Window.location = baseAddress + separator + "overteE2EReloadCommandId="
             + encodeURIComponent(String(commandId));
+    }
+
+    function avatarAtExpectedSpawn() {
+        var position = MyAvatar.position;
+        var deltaX = Number(position.x) - expectedSpawn.x;
+        var deltaZ = Number(position.z) - expectedSpawn.z;
+        return deltaX * deltaX + deltaZ * deltaZ <= 1.0;
+    }
+
+    function applySceneLocation(commandId, scenePath) {
+        if (scenePath !== "" && lastClientCommandId === commandId && !sceneReady
+                && !avatarAtExpectedSpawn()) {
+            resetSceneObservation();
+            Window.location = scenePath;
+        }
     }
 
     function controlledKeySpec(name) {
@@ -445,9 +600,24 @@
         if (command.action === "scene-load"
                 && objectKeysMatch(command, ["schemaVersion", "commandId", "action", "url"])
                 && httpUrl(command.url)) {
-            lastClientCommandId = String(command.commandId);
+            var sceneCommandId = String(command.commandId);
+            var scenePath = controlledSceneLocation(command.url);
+            lastClientCommandId = sceneCommandId;
+            lastSceneCommandId = sceneCommandId;
             resetSceneObservation();
-            Window.location = command.url;
+            // app.launch already loaded this exact controlled serverless
+            // scene. Applying the bounded location path keeps the single
+            // Interface process and, unlike assigning the full URL again,
+            // does not restart this probe before its readiness observation.
+            if (scenePath !== "") {
+                Window.location = scenePath;
+            }
+            Script.setTimeout(function () {
+                applySceneLocation(sceneCommandId, scenePath);
+            }, 1500);
+            Script.setTimeout(function () {
+                applySceneLocation(sceneCommandId, scenePath);
+            }, 3500);
             return;
         }
         if (command.action === "navigate"
@@ -585,6 +755,15 @@
                 && httpUrl(command.commandUrl)) {
             soundCommandUrl = String(command.commandUrl);
             lastAndroidControlCommandId = String(command.commandId);
+            return;
+        }
+        if (command.action === "set-safe-setting"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action",
+                    "settingId", "enabled"])
+                && command.settingId === "audio.warn-when-muted"
+                && typeof command.enabled === "boolean") {
+            Audio.warnWhenMuted = command.enabled;
+            lastAndroidControlCommandId = String(command.commandId);
         }
     }
 
@@ -593,16 +772,18 @@
             return;
         }
         try {
-            // A distinct query keeps each atomically replaced command fresh.
             var command = Script.require("./android-control-command.json?sample="
                 + sampleSequence);
             applyAndroidControlCommand(command);
         } catch (error) {
-            // The host creates the command file only for a controlled operation.
+            // The launcher starts without a command and creates it on demand.
         }
     }
 
     function pollAndroidControlMarker() {
+        if (!androidControlEligible) {
+            return;
+        }
         if (androidControlAvailable) {
             pollAndroidControlCommand();
             return;
@@ -666,6 +847,55 @@
         }
     }
 
+    function observeVerticalMotion() {
+        var observation = {
+            y: Number(MyAvatar.position.y),
+            inAir: Boolean(MyAvatar.isInAir()),
+            flying: Boolean(MyAvatar.isFlying())
+        };
+        if (!sceneReady || flightNormalizationAllowed || flightNormalizationActive) {
+            verticalObservationPrevious = observation;
+            verticalJumpActive = false;
+            return;
+        }
+        if (verticalObservationPrevious === null) {
+            verticalObservationPrevious = observation;
+            return;
+        }
+
+        if (observation.flying && !verticalObservationPrevious.flying) {
+            verticalEvents.flightCount += 1;
+            verticalEvents.lastFlightStartY = verticalObservationPrevious.y;
+            verticalEvents.lastFlightPeakY = Math.max(
+                verticalObservationPrevious.y, observation.y);
+        } else if (observation.flying && verticalEvents.lastFlightPeakY !== null) {
+            verticalEvents.lastFlightPeakY = Math.max(
+                verticalEvents.lastFlightPeakY, observation.y);
+        }
+
+        if (observation.inAir && !observation.flying
+                && (!verticalObservationPrevious.inAir
+                    || verticalObservationPrevious.flying)) {
+            verticalEvents.jumpCount += 1;
+            verticalEvents.lastJumpStartY = verticalObservationPrevious.y;
+            verticalEvents.lastJumpPeakY = Math.max(
+                verticalObservationPrevious.y, observation.y);
+            verticalEvents.lastJumpLandingY = null;
+            verticalJumpActive = true;
+        }
+        if (verticalJumpActive && observation.inAir && !observation.flying) {
+            verticalEvents.lastJumpPeakY = Math.max(
+                verticalEvents.lastJumpPeakY, observation.y);
+        } else if (verticalJumpActive && !observation.inAir) {
+            verticalEvents.jumpCompletedCount = verticalEvents.jumpCount;
+            verticalEvents.lastJumpLandingY = observation.y;
+            verticalJumpActive = false;
+        } else if (verticalJumpActive && observation.flying) {
+            verticalJumpActive = false;
+        }
+        verticalObservationPrevious = observation;
+    }
+
     function sample(now) {
         pollAndroidControlMarker();
         pollClientCommand();
@@ -687,11 +917,18 @@
         var ids = Entities.findEntities(MyAvatar.position, 1000.0);
         var foundMarkers = {};
         var foundDomainMarkers = {};
+        var interactionTargetAvailable = false;
+        var scriptedEntity = {
+            targetAvailable: false, loaded: false, scriptUrl: "", activationCount: 0,
+            state: "unavailable", color: null
+        };
         var floorTopY = null;
         var collisionWall = null;
         var index;
         for (index = 0; index < ids.length; index += 1) {
-            var properties = Entities.getEntityProperties(ids[index], ["name", "position", "dimensions"]);
+            var properties = Entities.getEntityProperties(ids[index], [
+                "name", "position", "dimensions", "script", "userData", "color"
+            ]);
             if (fixtureMarkers.indexOf(properties.name) !== -1) {
                 foundMarkers[properties.name] = true;
             }
@@ -708,6 +945,30 @@
                     dimensions: vector(properties.dimensions)
                 };
             }
+            if (properties.name === interactionTargetName) {
+                interactionTargetAvailable = true;
+                var metadata = null;
+                try {
+                    metadata = JSON.parse(String(properties.userData));
+                } catch (error) {
+                    metadata = null;
+                }
+                scriptedEntity = {
+                    targetAvailable: true,
+                    loaded: Boolean(metadata && metadata.contract ===
+                        "overte-e2e-scripted-entity-v1" && metadata.loaded === true),
+                    scriptUrl: String(properties.script),
+                    activationCount: metadata && isFinite(Number(metadata.activationCount))
+                        ? Math.max(0, Math.floor(Number(metadata.activationCount))) : 0,
+                    state: metadata && (metadata.state === "active" || metadata.state === "idle")
+                        ? metadata.state : "idle",
+                    color: {
+                        red: Math.floor(Number(properties.color.red)),
+                        green: Math.floor(Number(properties.color.green)),
+                        blue: Math.floor(Number(properties.color.blue))
+                    }
+                };
+            }
         }
         if (ids.length === previousEntityCount) {
             stableEntitySamples += 1;
@@ -720,11 +981,9 @@
         var domainMarkerCount = Object.keys(foundDomainMarkers).length;
         var avatarPosition = vector(MyAvatar.position);
         var avatarFeetPosition = vector(MyAvatar.feetPosition);
-        var spawnDeltaX = avatarFeetPosition.x - expectedSpawn.x;
-        var spawnDeltaY = avatarFeetPosition.y - expectedSpawn.y;
-        var spawnDeltaZ = avatarFeetPosition.z - expectedSpawn.z;
-        var avatarAtSpawn = spawnDeltaX * spawnDeltaX + spawnDeltaY * spawnDeltaY
-            + spawnDeltaZ * spawnDeltaZ <= 1.0;
+        var spawnDeltaX = avatarPosition.x - expectedSpawn.x;
+        var spawnDeltaZ = avatarPosition.z - expectedSpawn.z;
+        var avatarAtSpawn = spawnDeltaX * spawnDeltaX + spawnDeltaZ * spawnDeltaZ <= 1.0;
         if (previousAvatarPosition !== null) {
             var deltaX = avatarPosition.x - previousAvatarPosition.x;
             var deltaY = avatarPosition.y - previousAvatarPosition.y;
@@ -733,12 +992,11 @@
                 ? stableAvatarSamples + 1 : 0;
         }
         previousAvatarPosition = avatarPosition;
-        spawnDeltaX = avatarFeetPosition.x - expectedSpawn.x;
-        spawnDeltaY = avatarFeetPosition.y - expectedSpawn.y;
-        spawnDeltaZ = avatarFeetPosition.z - expectedSpawn.z;
-        var avatarAboveFloor = floorTopY !== null && avatarPosition.y >= floorTopY - 0.05;
-        avatarAtSpawn = spawnDeltaX * spawnDeltaX + spawnDeltaY * spawnDeltaY
-            + spawnDeltaZ * spawnDeltaZ <= 1.0;
+        spawnDeltaX = avatarPosition.x - expectedSpawn.x;
+        spawnDeltaZ = avatarPosition.z - expectedSpawn.z;
+        var avatarAboveFloor = floorTopY !== null
+            && avatarFeetPosition.y >= floorTopY - 0.05;
+        avatarAtSpawn = spawnDeltaX * spawnDeltaX + spawnDeltaZ * spawnDeltaZ <= 1.0;
         if (!sceneReady && markerCount === fixtureMarkers.length && stableEntitySamples >= 3
                 && stableAvatarSamples >= 4 && avatarAboveFloor && avatarAtSpawn
                 && !flightNormalizationActive && !MyAvatar.isInAir()
@@ -752,17 +1010,18 @@
             if (soundState.playing) {
                 soundState.started = true;
             } else if (soundState.started) {
-                // Android can transition playing to false without forwarding
-                // AudioInjector.finished into the script engine. A prior true
-                // sample makes this a real non-looping injector completion,
-                // not a successful-call surrogate.
                 soundState.finished = true;
                 soundState.finishReason = soundStopRequested ? "stopped" : "natural";
             }
         }
         sampleSequence += 1;
-        var locationProtocol = String(location.protocol);
-        var serverless = locationProtocol === "file";
+        orientationHistory.push({
+            sampleSequence: sampleSequence,
+            orientation: vector(orientation)
+        });
+        if (orientationHistory.length > 48) {
+            orientationHistory.shift();
+        }
         Test.saveObject({
             schemaVersion: 2,
             sampleEpochMs: now,
@@ -783,15 +1042,29 @@
                 lastCommandId: lastAndroidControlCommandId
             } : null,
             domain: {
-                connected: !serverless && Boolean(location.isConnected),
+                // A file-backed serverless scene can report location.isConnected
+                // even though no domain server or domain UUID exists.
+                connected: Boolean(location.isConnected)
+                    && String(location.protocol) !== "file",
                 hostname: String(location.hostname),
                 id: String(location.domainID),
-                protocol: locationProtocol,
-                serverless: serverless
+                protocol: String(location.protocol),
+                serverless: String(location.protocol) === "file"
             },
             input: effectiveInputState(),
+            audio: {
+                muted: Boolean(Audio.muted)
+            },
+            settings: {
+                audioWarnWhenMuted: Boolean(Audio.warnWhenMuted)
+            },
+            render: {
+                frameCount: renderFrameCount,
+                lastFrameEpochMs: renderLastFrameEpochMs
+            },
             scene: {
                 url: currentAddress,
+                commandId: lastSceneCommandId,
                 ready: sceneReady,
                 entityCount: ids.length,
                 fixtureMarkerCount: markerCount,
@@ -813,8 +1086,10 @@
                 flying: Boolean(MyAvatar.isFlying()),
                 flyingEnabled: Boolean(MyAvatar.getFlyingEnabled())
             },
+            verticalEvents: verticalEvents,
             view: {
-                orientation: vector(orientation)
+                orientation: vector(orientation),
+                orientationHistory: orientationHistory
             },
             tablet: {
                 // tabletShown is explicitly unused in desktop toolbar mode.
@@ -824,6 +1099,14 @@
                 home: Boolean(tablet.onHomeScreen()),
                 toolbarMode: Boolean(tablet.toolbarMode)
             },
+            interaction: {
+                targetAvailable: interactionTargetAvailable,
+                pressCount: interactionPressCount,
+                lastEntityName: interactionLastEntityName,
+                lastPointerId: interactionLastPointerId
+            },
+            scriptedEntity: scriptedEntity,
+            peer: controlledPeer(),
             controller: {
                 route: {
                     openxrAxes: openXrAxes(),
@@ -879,6 +1162,7 @@
     }
 
     function updateProbe() {
+        observeVerticalMotion();
         var now = Date.now();
         if (lastSampleEpochMs !== 0 && now - lastSampleEpochMs < sampleIntervalMs) {
             return;
@@ -892,7 +1176,7 @@
             var detail = safeErrorText(error);
             Test.saveObject({
                 schemaVersion: 1,
-                sampleEpochMs: now,
+                sampleEpochMs: Date.now(),
                 sampleSequence: sampleSequence,
                 errorCount: probeErrorCount,
                 detail: detail
@@ -913,20 +1197,24 @@
     Script.update.connect(updateProbe);
     Script.scriptEnding.connect(function () {
         Script.update.disconnect(updateProbe);
-        if (androidAssetEntityId !== null) {
-            Entities.deleteEntity(androidAssetEntityId);
-            androidAssetEntityId = null;
-        }
         releaseControlledKey(controlledKeyCommandId);
         Controller.disableMapping(controlledInputMappingName);
-        if (controlledTabletOpen()) {
-            HMD.closeTablet();
+        Entities.mousePressOnEntity.disconnect(observePrimaryInteraction);
+        if (renderStats && renderStats.newStats) {
+            renderStats.newStats.disconnect(observeRenderedFrame);
         }
         if (flightNormalizationActive) {
             MyAvatar.setFlyingEnabled(flyingEnabledBeforeNormalization);
             flightNormalizationActive = false;
         }
+        if (controlledTabletOpen()) {
+            HMD.closeTablet();
+        }
         releaseAssetResource();
+        if (androidAssetEntityId !== null) {
+            Entities.deleteEntity(androidAssetEntityId);
+            androidAssetEntityId = null;
+        }
         if (controlledAssetEntity !== null) {
             Entities.deleteEntity(controlledAssetEntity);
             controlledAssetEntity = null;

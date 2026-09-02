@@ -20,19 +20,35 @@ from process_control import (  # noqa: E402 -- controlled tests path
     kill_process_group,  # noqa: F401 -- retained compatibility alias for callers and tests
     popen_session_kwargs,
 )
+from suite.run import DEFAULT_CATALOG, load_suites  # noqa: E402 -- canonical commands
 
-BASE_CASES = [
-    ("deep-links", [str(ROOT / "phone/tests/phone-deep-link-test.sh")]),
-    ("asset-cache", [str(TESTS_ROOT / "safe-asset-path-test.sh")]),
-    ("javascript", [str(TESTS_ROOT / "javascript/run-tests.sh")]),
-    ("native", [str(TESTS_ROOT / "native/run-native-tests.sh")]),
-    ("js-endurance", [str(TESTS_ROOT / "javascript/run-lifecycle-endurance.sh")]),
-    ("native-endurance", [str(TESTS_ROOT / "native/run-endurance-tests.sh")]),
-    ("mutations", [str(TESTS_ROOT / "mutation/run-critical-policy-mutations.sh")]),
+CASE_SUITES = [
+    ("deep-links", "java-deep-links"),
+    ("asset-cache", "java-safe-asset-paths"),
+    ("javascript", "javascript-test-support"),
+    ("native", "native-host-tests"),
+    ("js-endurance", "javascript-lifecycle-endurance"),
+    ("native-endurance", "native-policy-endurance"),
+    ("mutations", "critical-policy-mutations"),
 ]
+ROBOLECTRIC_SUITE = "phone-robolectric-launcher"
 
+
+def catalog_cases(catalog: Path = DEFAULT_CATALOG) -> list[tuple[str, list[str]]]:
+    suites = {suite["id"]: suite for suite in load_suites(catalog, "all")}
+    missing = [suite_id for _, suite_id in CASE_SUITES if suite_id not in suites]
+    if missing:
+        raise ValueError(f"stability suites missing from catalog: {', '.join(missing)}")
+    return [(name, list(suites[suite_id]["command"]))
+            for name, suite_id in CASE_SUITES]
+
+
+BASE_CASES = catalog_cases()
 ROBOLECTRIC_CASE = (
-    "robolectric", [str(TESTS_ROOT / "robolectric/run-tests.sh")])
+    "robolectric",
+    next(suite["command"] for suite in load_suites(DEFAULT_CATALOG, "all")
+         if suite["id"] == ROBOLECTRIC_SUITE),
+)
 
 
 def serial_order(round_index: int) -> list[tuple[str, list[str]]]:

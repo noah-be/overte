@@ -6,11 +6,16 @@ from __future__ import annotations
 import argparse
 import base64
 import hashlib
+import ipaddress
 import json
+import math
 import os
 from pathlib import Path, PurePosixPath
+import stat
 import sys
-import math
+import tempfile
+import time
+import xml.etree.ElementTree as ElementTree
 import re
 import uuid
 from urllib.error import HTTPError, URLError
@@ -28,7 +33,24 @@ from adapters.common import (EMBEDDED_FIXTURE_URL, emit, fail,  # noqa: E402
                              parse_operation_arguments,
                              read_fresh_json, require_fresh_snapshot,
                              state_directory)
-from contracts import validate_operation_arguments  # noqa: E402
+from contracts import (TABLET_CONTRACT_VERSION, load_tablet_ui_contract,  # noqa: E402
+                       validate_operation_arguments, validate_tablet_ui_snapshot)
+
+
+TARGET_FIELDS = {
+    "appId", "artifactReceipt", "background", "capabilities", "clientControl",
+    "controls", "displayName", "enabled", "model", "osVersion", "physical",
+    "platform", "probe", "process", "role", "scene", "selector", "serverUrl",
+    "testBuild",
+}
+MAX_PAGE_SOURCE_BYTES = 2 * 1024 * 1024
+TRANSITION_ATTEMPTS = 20
+TRANSITION_RETRY_SECONDS = 0.1
+TRANSITION_ERRORS = {
+    "iOS semantic source must expose exactly one visible screen",
+    "iOS semantic source contains duplicate visible controls",
+    "iOS semantic ready marker does not match the visible screen",
+}
 
 
 def cli() -> argparse.Namespace:
@@ -41,12 +63,51 @@ def cli() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def private_config_path(value: str) -> Path:
+    raw = Path(value).expanduser()
+    if not raw.is_absolute():
+        fail("Appium target configuration must be an absolute private path")
+    current = Path(raw.anchor)
+    for component in raw.parts[1:]:
+        current /= component
+        if current.is_symlink():
+            fail("Appium target configuration path must not contain symbolic links")
+    try:
+        metadata = raw.lstat()
+    except OSError:
+        fail("Appium target configuration is unavailable")
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+        fail("Appium target configuration must be an ordinary private file")
+    resolved = raw.resolve(strict=True)
+    try:
+        resolved.relative_to(REPOSITORY)
+    except ValueError:
+        pass
+    else:
+        fail("Appium target configuration must be stored outside the repository")
+    if (os.name != "nt"
+            and (metadata.st_uid != os.geteuid()
+                 or stat.S_IMODE(metadata.st_mode) != 0o600)):
+        fail("Appium target configuration must be current-user-owned with mode 0600")
+    return resolved
+
+
 class WebDriver:
-    MAX_RESPONSE_BYTES = 32 * 1024 * 1024
+    MAX_RESPONSE_BYTES = 16 * 1024 * 1024
 
     def __init__(self, server_url: str) -> None:
-        if not server_url.startswith(("http://127.0.0.1:", "http://localhost:", "https://")):
-            fail("Appium server URL must use local HTTP or HTTPS")
+        parsed = urlsplit(server_url)
+        if (parsed.scheme not in {"http", "https"} or not parsed.hostname
+                or parsed.username is not None or parsed.password is not None
+                or parsed.query or parsed.fragment):
+            fail("Appium serverUrl must be a credential-free HTTP(S) URL")
+        loopback = parsed.hostname == "localhost"
+        try:
+            loopback = loopback or ipaddress.ip_address(parsed.hostname).is_loopback
+        except ValueError:
+            pass
+        if parsed.scheme == "http" and not loopback:
+            fail("unencrypted Appium transport is restricted to loopback")
         self.server_url = server_url.rstrip("/")
 
     def call(self, method: str, path: str, payload: dict | None = None) -> object:
@@ -66,10 +127,11 @@ class WebDriver:
                 raw = response.read(self.MAX_RESPONSE_BYTES + 1)
                 if len(raw) > self.MAX_RESPONSE_BYTES:
                     fail("Appium response exceeds the safety limit")
-                document = json.loads(raw)
+                document = json.loads(raw.decode("utf-8"))
         except HTTPError as error:
             fail(f"Appium request failed with HTTP {error.code}")
-        except (URLError, OSError, json.JSONDecodeError):
+        except (URLError, OSError, TimeoutError, UnicodeDecodeError,
+                json.JSONDecodeError):
             fail("Appium server is unavailable or returned an invalid response")
         if not isinstance(document, dict) or "value" not in document:
             fail("Appium response does not satisfy the WebDriver protocol")
@@ -109,32 +171,42 @@ class AppiumAdapter:
         path_value = os.environ.get("OVERTE_APPIUM_TARGETS")
         if not path_value:
             fail("OVERTE_APPIUM_TARGETS must name a private target configuration")
-        path = Path(path_value).resolve()
+        path = private_config_path(path_value)
         payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            fail("unsupported Appium target configuration schema")
         entries = payload.get("targets")
         if payload.get("schemaVersion") != 1 or not isinstance(entries, list):
             fail("unsupported Appium target configuration schema")
         targets: dict[str, dict] = {}
         for entry in entries:
-            if not isinstance(entry, dict) or entry.get("platform") not in {"android", "ios"}:
-                fail("Appium target configuration contains an invalid target")
+            if not isinstance(entry, dict):
+                fail("Appium target configuration contains a non-object target")
+            # Each platform manifest owns only its own entries. Stale peer-platform
+            # provisioning must not prevent discovery of the selected platform.
+            if entry.get("platform") != self.platform:
+                continue
             selector = entry.get("selector")
             if not isinstance(selector, str) or not selector or selector in targets:
                 fail("Appium target selectors must be unique non-empty strings")
+            if set(entry) - TARGET_FIELDS:
+                fail("Appium target contains unsupported fields")
             if not isinstance(entry.get("capabilities"), dict) or not entry["capabilities"]:
                 fail("Appium target requires W3C capabilities")
             if (not isinstance(entry.get("serverUrl"), str) or not entry["serverUrl"]
-                    or not isinstance(entry.get("appId"), str) or not entry["appId"]):
-                fail("Appium target requires serverUrl and appId")
-            if not isinstance(entry.get("physical", False), bool):
-                fail("Appium target physical must be boolean")
-            if not isinstance(entry.get("enabled", True), bool):
-                fail("Appium target enabled must be boolean")
+                    or not isinstance(entry.get("appId"), str) or not entry["appId"]
+                    or not isinstance(entry.get("displayName"), str)
+                    or not entry["displayName"]):
+                fail("Appium target requires displayName, serverUrl and appId")
+            if (not isinstance(entry.get("physical"), bool)
+                    or "enabled" not in entry or not isinstance(entry["enabled"], bool)):
+                fail("Appium target physical and enabled flags must be boolean")
             for section in ("process", "scene", "controls", "probe", "background"):
                 if not isinstance(entry.get(section, {}), dict):
                     fail(f"Appium target {section} must be an object")
             if not isinstance(entry.get("clientControl", {}), dict):
                 fail("Appium target clientControl must be an object")
+            self.validate_controls(entry.get("controls", {}))
             tablet = entry.get("controls", {}).get("tablet", {})
             if not isinstance(tablet, dict):
                 fail("Appium target controls.tablet must be an object")
@@ -193,7 +265,60 @@ class AppiumAdapter:
                 self.validate_ios_test_build(entry)
                 self.validate_ios_artifact_receipt(entry)
             targets[selector] = entry
-        return {key: value for key, value in targets.items() if value["platform"] == self.platform}
+        return targets
+
+    @staticmethod
+    def validate_controls(controls: dict) -> None:
+        if set(controls) - {"look", "move", "tablet"}:
+            fail("Appium target contains unsupported shared controls")
+        if "look" in controls:
+            look = controls["look"]
+            if (not isinstance(look, dict)
+                    or not {"durationSeconds", "end", "start"} <= set(look)
+                    or set(look) - {"durationSeconds", "end", "mode", "start"}):
+                fail("Appium look control is invalid")
+            if look.get("mode", "swipe") not in {"swipe", "hold"}:
+                fail("Appium look control mode must be swipe or hold")
+            AppiumAdapter.validate_fractional_point(look["start"], "look.start")
+            AppiumAdapter.validate_fractional_point(look["end"], "look.end")
+            AppiumAdapter.validate_duration(look["durationSeconds"], "look.durationSeconds")
+        if "move" in controls:
+            move = controls["move"]
+            directions = {"backward", "forward", "left", "right"}
+            if not isinstance(move, dict) or not move or set(move) - directions:
+                fail("Appium move controls must define a non-empty shared direction subset")
+            for direction, gesture in move.items():
+                if (not isinstance(gesture, dict)
+                        or not {"durationSeconds", "end", "start"} <= set(gesture)
+                        or set(gesture) - {"durationSeconds", "end", "mode", "start"}):
+                    fail(f"Appium move control {direction} is invalid")
+                if gesture.get("mode", "swipe") not in {"swipe", "hold"}:
+                    fail(f"Appium move control {direction} mode must be swipe or hold")
+                AppiumAdapter.validate_fractional_point(
+                    gesture["start"], f"move.{direction}.start")
+                AppiumAdapter.validate_fractional_point(
+                    gesture["end"], f"move.{direction}.end")
+                AppiumAdapter.validate_duration(
+                    gesture["durationSeconds"], f"move.{direction}.durationSeconds")
+        if "tablet" in controls:
+            tablet = controls["tablet"]
+            allowed = {
+                "closeAccessibilityId", "closePoint", "openAccessibilityId",
+                "openPoint", "semanticUi", "toggleAccessibilityId", "togglePoint",
+            }
+            if not isinstance(tablet, dict) or set(tablet) - allowed:
+                fail("Appium tablet control is invalid")
+            for key in ("togglePoint", "openPoint", "closePoint"):
+                if key in tablet:
+                    AppiumAdapter.validate_fractional_point(tablet[key], f"tablet.{key}")
+            for key in ("toggleAccessibilityId", "openAccessibilityId",
+                        "closeAccessibilityId"):
+                if key in tablet and (not isinstance(tablet[key], str) or not tablet[key]):
+                    fail(f"tablet.{key} must be a non-empty accessibility ID")
+            semantic = tablet.get("semanticUi")
+            if semantic is not None and semantic != {
+                    "contractVersion": TABLET_CONTRACT_VERSION}:
+                fail("tablet.semanticUi must opt into the current contract exactly")
 
     @staticmethod
     def normalized_http_origin(value: object, label: str) -> str:
@@ -385,7 +510,7 @@ class AppiumAdapter:
 
     @classmethod
     def advertised_capabilities(cls, target: dict) -> list[str]:
-        values = ["accessibility.snapshot", "app.foreground", "app.launch",
+        values = ["accessibility.snapshot", "app.foreground", "app.install", "app.launch",
                   "artifact.screenshot", "lifecycle.background"]
         process = target.get("process", {})
         if target["platform"] == "ios" or process.get("kind") == "adb":
@@ -411,6 +536,8 @@ class AppiumAdapter:
                                          (tablet.get("openPoint") and
                                           tablet.get("closePoint"))):
             values += ["tablet.close", "tablet.open"]
+        if isinstance(tablet, dict) and tablet.get("semanticUi"):
+            values += ["tablet.activate", "tablet.snapshot"]
         return sorted(values)
 
     @staticmethod
@@ -421,6 +548,14 @@ class AppiumAdapter:
                            for item in value)):
             fail(f"{label} must contain two finite fractions from 0 inclusive through 1 exclusive")
         return [float(value[0]), float(value[1])]
+
+    @staticmethod
+    def validate_duration(value: object, label: str) -> float:
+        if (not isinstance(value, (int, float)) or isinstance(value, bool)
+                or not math.isfinite(float(value))
+                or not 0.05 <= float(value) <= 10.0):
+            fail(f"{label} must be from 0.05 through 10.0 seconds")
+        return float(value)
 
     def discover(self) -> list[dict]:
         return [{
@@ -450,21 +585,63 @@ class AppiumAdapter:
     def state_path(self, selector: str) -> Path:
         return state_directory(self.adapter_id, selector) / "session.json"
 
+    @staticmethod
+    def artifact_path(filename: str) -> Path:
+        root = os.environ.get("OVERTE_DEVICE_ARTIFACT_DIR")
+        if not root:
+            fail("artifact capture requires OVERTE_DEVICE_ARTIFACT_DIR")
+        directory = Path(root).resolve()
+        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        destination = directory / filename
+        if destination.parent != directory or destination.is_symlink():
+            fail("artifact destination is unsafe")
+        destination.unlink(missing_ok=True)
+        return destination
+
     def read_session(self, selector: str) -> dict | None:
         path = self.state_path(selector)
+        if path.is_symlink():
+            fail("Appium session state must not be a symbolic link")
         if not path.exists():
             return None
+        metadata = path.lstat()
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1
+                or os.name != "nt" and (metadata.st_uid != os.geteuid()
+                                         or metadata.st_mode & 0o077)):
+            fail("Appium session state is not a private ordinary file")
         try:
             value = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
-            return None
-        return value if isinstance(value, dict) and isinstance(value.get("sessionId"), str) else None
+            fail("Appium session state is unreadable")
+        allowed = {"generation", "processIdentity", "sessionId", "targetFingerprint"}
+        if (not isinstance(value, dict) or set(value) - allowed
+                or not isinstance(value.get("sessionId"), str) or not value["sessionId"]
+                or not isinstance(value.get("generation", 0), int)
+                or isinstance(value.get("generation", 0), bool)
+                or value.get("generation", 0) < 0
+                or "targetFingerprint" in value
+                and (not isinstance(value["targetFingerprint"], str)
+                     or not re.fullmatch(r"[0-9a-f]{64}", value["targetFingerprint"]))
+                or "processIdentity" in value
+                and (not isinstance(value["processIdentity"], str)
+                     or not value["processIdentity"])):
+            fail("Appium session state is invalid")
+        return value
 
     def save_session(self, selector: str, value: dict) -> None:
         path = self.state_path(selector)
-        temporary = path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(value, sort_keys=True) + "\n", encoding="utf-8")
-        temporary.replace(path)
+        descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix="session.")
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+                json.dump(value, output, sort_keys=True, separators=(",", ":"))
+                output.write("\n")
+            os.chmod(temporary, 0o600)
+            os.replace(temporary, path)
+        finally:
+            try:
+                os.unlink(temporary)
+            except FileNotFoundError:
+                pass
 
     def attest_physical_target(self, client: WebDriver, session: str, target: dict) -> None:
         if not target.get("physical"):
@@ -627,6 +804,111 @@ class AppiumAdapter:
         if not isinstance(element, str):
             fail("Appium element reference is invalid")
         client.call("POST", f"/session/{session}/element/{element}/click", {})
+
+    def parse_semantic_source(self, source: object) -> tuple[dict, dict[str, tuple[str, str]]]:
+        if not isinstance(source, str) or len(source.encode()) > MAX_PAGE_SOURCE_BYTES:
+            fail("Appium page source is invalid or too large")
+        if "<!DOCTYPE" in source.upper() or "<!ENTITY" in source.upper():
+            fail("Appium page source contains forbidden declarations")
+        try:
+            root = ElementTree.fromstring(source)
+        except ElementTree.ParseError:
+            fail("Appium page source is malformed XML")
+        contract = load_tablet_ui_contract()
+        known_controls = set(contract["controlIds"])
+        known_screens = set(contract["screenIds"])
+        screens: list[str] = []
+        controls: list[str] = []
+        actionable: dict[str, tuple[str, str]] = {}
+        ready_screens: set[str] = set()
+        ready = False
+        for element in root.iter():
+            values = {element.attrib.get(key, "")
+                      for key in ("resource-id", "content-desc", "name")}
+            direct = set(values)
+            direct.update(value.rsplit("/", 1)[-1] for value in values)
+            screen_markers = {
+                value.removeprefix("OverteTabletScreen.") for value in values
+                if value.startswith("OverteTabletScreen.")
+            }
+            control_markers = {
+                value.removeprefix("OverteTabletControl.") for value in values
+                if value.startswith("OverteTabletControl.")
+            }
+            clickable = element.attrib.get("clickable", "false").lower() == "true"
+            enabled = element.attrib.get("enabled", "true").lower() == "true"
+            visible = element.attrib.get(
+                "visible", element.attrib.get("displayed", "true")).lower() == "true"
+            if self.platform == "android":
+                found_screens = {item for item in direct & known_screens
+                                 if item not in known_controls or not clickable}
+                if visible:
+                    screens.extend(found_screens)
+                matched = {item for item in direct & known_controls
+                           if item not in known_screens or clickable}
+                if visible:
+                    controls.extend(matched)
+                ready = ready or bool(found_screens) and visible and enabled
+                if visible and enabled and clickable:
+                    for control in matched:
+                        for attribute, using in (("resource-id", "id"),
+                                                 ("content-desc", "accessibility id")):
+                            raw = element.attrib.get(attribute)
+                            if raw and (raw == control or raw.endswith("/" + control)):
+                                actionable[control] = (using, raw)
+            else:
+                unknown_screens = screen_markers - known_screens
+                unknown_controls = control_markers - known_controls
+                ready_markers = {
+                    value.removeprefix("OverteTabletReady.") for value in values
+                    if value.startswith("OverteTabletReady.")
+                }
+                unknown_ready = ready_markers - known_screens
+                if unknown_screens:
+                    fail("iOS semantic source contains an unknown screen marker")
+                if unknown_controls:
+                    fail("iOS semantic source contains an unknown control marker")
+                if unknown_ready:
+                    fail("iOS semantic source contains an unknown ready marker")
+                if visible:
+                    screens.extend(screen_markers & known_screens)
+                    controls.extend(control_markers & known_controls)
+                    ready_screens.update(ready_markers & known_screens)
+                if visible and enabled:
+                    actionable.update({
+                        control: ("accessibility id", "OverteTabletControl." + control)
+                        for control in control_markers & known_controls
+                    })
+        platform_name = "iOS" if self.platform == "ios" else "Android"
+        if len(screens) != 1:
+            fail(f"{platform_name} semantic source must expose exactly one visible screen")
+        if len(controls) != len(set(controls)):
+            fail(f"{platform_name} semantic source contains duplicate visible controls")
+        if self.platform == "ios":
+            if ready_screens - {screens[0]}:
+                fail("iOS semantic ready marker does not match the visible screen")
+            ready = screens[0] in ready_screens
+        snapshot = validate_tablet_ui_snapshot({
+            "contractVersion": TABLET_CONTRACT_VERSION,
+            "schemaVersion": 1,
+            "screenId": screens[0],
+            "ready": ready,
+            "visibleControlIds": sorted(set(controls)),
+        }, contract)
+        return snapshot, actionable
+
+    def semantic_snapshot(self, client: WebDriver,
+                          session: str) -> tuple[dict, dict[str, tuple[str, str]]]:
+        attempts = TRANSITION_ATTEMPTS if self.platform == "ios" else 1
+        for attempt in range(attempts):
+            source = client.call("GET", f"/session/{session}/source")
+            try:
+                return self.parse_semantic_source(source)
+            except RuntimeError as error:
+                if str(error) not in TRANSITION_ERRORS or attempt == attempts - 1:
+                    raise
+                time.sleep(TRANSITION_RETRY_SECONDS)
+        raise AssertionError("unreachable semantic transition loop")
 
     def probe_snapshot(self, client: WebDriver, session: str, target: dict) -> dict:
         probe = target.get("probe", {})
@@ -842,10 +1124,18 @@ class AppiumAdapter:
         })
 
     def invoke(self, selector: str, operation: str, values: dict) -> dict:
+        try:
+            arguments = validate_operation_arguments(operation, values)
+        except ValueError as error:
+            fail(str(error))
         target = self.target(selector)
+        if operation not in self.advertised_capabilities(target):
+            fail("operation is not advertised by this Appium target")
+        if (operation == "input.move"
+                and arguments["direction"] not in target.get("controls", {}).get("move", {})):
+            fail("requested movement direction is not configured")
         client, session, state = self.ensure_session(selector)
         if operation in {"navigation.enter-domain", "asset.load", "sound.play"}:
-            arguments = validate_operation_arguments(operation, values)
             if self.platform != "android" or not self.controlled_android_client(target):
                 fail("Appium target has no controlled client channel for this operation")
             if operation == "navigation.enter-domain":
@@ -864,6 +1154,12 @@ class AppiumAdapter:
                 })
                 return {"requested": True, "assetId": arguments["assetId"]}
             return self.request_android_sound(client, session, target, arguments)
+        if operation == "app.install":
+            source = Path(arguments["path"])
+            if not source.is_file() or source.is_symlink():
+                fail("application artifact must be a regular file")
+            client.execute(session, "mobile: installApp", {"appPath": str(source)})
+            return {"installed": True}
         if operation == "app.launch":
             if self.platform == "android" and target.get("scene", {}).get("kind") == "android-debug-e2e":
                 if self.query_app_state(client, session, target) >= 2:
@@ -927,7 +1223,7 @@ class AppiumAdapter:
             artifact_dir = os.environ.get("OVERTE_DEVICE_ARTIFACT_DIR")
             artifact = None
             if artifact_dir and os.environ.get("OVERTE_E2E_CAPTURE_ARTIFACTS") == "1":
-                destination = Path(artifact_dir) / "accessibility.xml"
+                destination = self.artifact_path("accessibility.xml")
                 destination.write_text(source, encoding="utf-8")
                 destination.chmod(0o600)
                 artifact = destination.name
@@ -943,16 +1239,15 @@ class AppiumAdapter:
                 fail("Appium screenshot is not valid base64")
             if not content:
                 fail("Appium screenshot is empty")
-            destination = Path(artifact_dir) / "screenshot.png"
-            destination.unlink(missing_ok=True)
+            destination = self.artifact_path("screenshot.png")
             destination.write_bytes(content)
             destination.chmod(0o600)
             return {"artifact": destination.name}
         controls = target.get("controls", {})
         if operation == "input.look":
             look = controls.get("look", {})
-            horizontal = values.get("horizontal", 0.25)
-            vertical = values.get("vertical", 0.0)
+            horizontal = arguments["horizontal"]
+            vertical = arguments["vertical"]
             if (not all(isinstance(item, (int, float)) and not isinstance(item, bool)
                         and math.isfinite(float(item)) for item in (horizontal, vertical))
                     or abs(float(horizontal)) > 0.45 or abs(float(vertical)) > 0.45):
@@ -963,11 +1258,11 @@ class AppiumAdapter:
             self.gesture(client, session, look, end_override=end)
             return {"performed": True}
         if operation == "input.move":
-            direction = values.get("direction", "forward")
+            direction = arguments["direction"]
             movement = controls.get("move", {}).get(direction)
             if not isinstance(movement, dict):
                 fail("Appium target does not define this movement direction")
-            duration = values.get("durationSeconds")
+            duration = arguments["durationSeconds"]
             self.gesture(client, session, movement,
                          float(duration) if isinstance(duration, (int, float)) else None)
             return {"performed": True}
@@ -985,6 +1280,24 @@ class AppiumAdapter:
                 self.tap_fractional_point(client, session, point,
                                           f"tablet.{point_key}")
             return {"performed": True}
+        if operation == "tablet.snapshot":
+            return self.semantic_snapshot(client, session)[0]
+        if operation == "tablet.activate":
+            _snapshot, elements = self.semantic_snapshot(client, session)
+            locator = elements.get(arguments["controlId"])
+            if locator is None:
+                fail("semantic tablet control is not currently actionable")
+            using, identifier = locator
+            value = client.call("POST", f"/session/{session}/element",
+                                {"using": using, "value": identifier})
+            if not isinstance(value, dict):
+                fail("Appium did not return an element reference")
+            element = (value.get("element-6066-11e4-a52e-4f735466cecf")
+                       or value.get("ELEMENT"))
+            if not isinstance(element, str) or not element:
+                fail("Appium element reference is invalid")
+            client.call("POST", f"/session/{session}/element/{element}/click", {})
+            return {"performed": True}
         fail(f"unsupported operation: {operation}")
 
     def cleanup(self, selector: str) -> dict:
@@ -999,8 +1312,9 @@ class AppiumAdapter:
                 pass
             try:
                 client.call("DELETE", f"/session/{state['sessionId']}")
-            except RuntimeError:
-                pass
+            except RuntimeError as error:
+                raise RuntimeError(
+                    "Appium session cleanup failed; private retry state was retained") from error
             self.state_path(selector).unlink(missing_ok=True)
         return {"cleaned": True}
 

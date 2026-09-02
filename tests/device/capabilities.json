@@ -5,6 +5,10 @@
       "operation": "accessibility.snapshot",
       "result": "Accessibility tree and optional artifact path"
     },
+    "app.crash": {
+      "operation": "app.crash",
+      "result": "{crashed: true}; arguments: {mode: abort}; the adapter must use a target-native forced crash path"
+    },
     "app.foreground": {
       "operation": "app.foreground",
       "result": "{foreground: boolean}"
@@ -25,13 +29,37 @@
       "operation": "app.stop",
       "result": "{stopped: true}; arguments: {}"
     },
+    "app.upgrade": {
+      "operation": "app.upgrade",
+      "result": "{applied: true}; arguments: {fromVersion, toVersion}; install the supplied candidate through the platform-native upgrade path"
+    },
+    "app.version": {
+      "operation": "app.version",
+      "result": "{schemaVersion: 1, version: string}; observe the installed Overte product version"
+    },
     "artifact.screenshot": {
       "operation": "artifact.screenshot",
       "result": "{artifact: string}"
     },
+    "artifact.video": {
+      "operation": "artifact.video",
+      "result": "{artifact: string}; arguments: {durationSeconds: number from 1 through 30}"
+    },
     "asset.load": {
       "operation": "asset.load",
       "result": "{requested: true}; completion is verified independently by fixture telemetry and probe.snapshot"
+    },
+    "audio.mute": {
+      "operation": "audio.mute",
+      "result": "{performed: true}; arguments: {muted: boolean}; use the target's real microphone-mute control path"
+    },
+    "collaboration.edit": {
+      "operation": "collaboration.edit",
+      "result": "{performed: true}; arguments: {entityName, value}; mutate the controlled entity through an independent fixture actor"
+    },
+    "collaboration.snapshot": {
+      "operation": "collaboration.snapshot",
+      "result": "{schemaVersion: 1, entityName, value, revision, actorId}; independently observe controlled shared entity state"
     },
     "input.fly": {
       "operation": "input.fly",
@@ -49,6 +77,10 @@
       "operation": "input.move",
       "result": "{performed: true}; arguments: {direction: backward|forward|left|right, durationSeconds: number from 0.1 through 10.0}"
     },
+    "input.primary": {
+      "operation": "input.primary",
+      "result": "{performed: true}; arguments: {}; perform one primary pointer press and release on the controlled world interaction target"
+    },
     "lifecycle.background": {
       "operation": "lifecycle.background",
       "result": "{backgrounded: true}"
@@ -57,13 +89,33 @@
       "operation": "navigation.enter-domain",
       "result": "{requested: true}"
     },
+    "permission.set": {
+      "operation": "permission.set",
+      "result": "{performed: true}; arguments: {permissionId: microphone, state: denied|granted}; drive the native OS permission path"
+    },
+    "permission.snapshot": {
+      "operation": "permission.snapshot",
+      "result": "{schemaVersion: 1, permissionId: microphone, state: denied|granted|unknown}"
+    },
     "probe.snapshot": {
       "operation": "probe.snapshot",
       "result": "Overte probe snapshot schema version 2; arguments: {afterSampleSequence?: positive integer}; result sequence must be greater when supplied"
     },
+    "render.snapshot": {
+      "operation": "render.snapshot",
+      "result": "Render presentation snapshot v1: backend, hardware acceleration, visible surface, black-frame classification, and monotonic frame sequence"
+    },
     "scene.load": {
       "operation": "scene.load",
       "result": "{requested: true, verification?: fixture-markers}; arguments: {url: absolute URL}"
+    },
+    "scene.reload": {
+      "operation": "scene.reload",
+      "result": "{requested: true, commandId: string, verification?: fixture-markers}; arguments: {url: absolute URL}; explicitly resets an already controlled scene"
+    },
+    "setting.set": {
+      "operation": "setting.set",
+      "result": "{performed: true}; arguments: {settingId: audio.warn-when-muted, enabled: boolean}; use the semantic product setting control"
     },
     "sound.play": {
       "operation": "sound.play",
@@ -92,6 +144,22 @@
     "telemetry.snapshot": {
       "operation": "telemetry.snapshot",
       "result": "Portable battery, memory and thermal sample"
+    },
+    "text.dismiss": {
+      "operation": "text.dismiss",
+      "result": "{performed: true}; arguments: {}; remove focus from the controlled E2E text field and dismiss any platform keyboard"
+    },
+    "text.focus": {
+      "operation": "text.focus",
+      "result": "{performed: true}; arguments: {}; focus and clear the repository-owned controlled E2E text field"
+    },
+    "text.snapshot": {
+      "operation": "text.snapshot",
+      "result": "Text input snapshot contract version 1: {schemaVersion, value, focused, keyboardVisible, submittedCount}"
+    },
+    "text.type": {
+      "operation": "text.type",
+      "result": "{performed: true}; arguments: {text: bounded Unicode string, backspaceCount: integer 0..32, submit: boolean}; use the target's real text-input path"
     }
   }
 }

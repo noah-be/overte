@@ -49,6 +49,32 @@ class SuiteRunnerTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "invalid tiers"):
                 run.load_suites(catalog, "fast")
 
+    def test_every_catalogued_script_exists_and_is_executable(self):
+        suites = run.load_suites(run.DEFAULT_CATALOG, "all")
+        self.assertGreater(len(suites), 0)
+        self.assertTrue(all(run.catalog_script(suite["command"]) for suite in suites))
+
+    def test_catalog_rejects_missing_or_non_executable_scripts_before_selection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            catalog = root / "catalog.json"
+            catalog.write_text(json.dumps({"schemaVersion": 1, "suites": [{
+                "id": "missing", "kind": "jvm", "description": "missing script",
+                "command": ["common/tests/missing.sh"], "tiers": ["host"],
+            }]}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "script does not exist"):
+                run.load_suites(catalog, "fast", command_root=root)
+
+            script = root / "common/tests/present.sh"
+            script.parent.mkdir(parents=True)
+            script.write_text("#!/usr/bin/env bash\n", encoding="utf-8")
+            catalog.write_text(json.dumps({"schemaVersion": 1, "suites": [{
+                "id": "not-executable", "kind": "jvm", "description": "bad mode",
+                "command": ["common/tests/present.sh"], "tiers": ["fast"],
+            }]}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "script is not executable"):
+                run.load_suites(catalog, "fast", command_root=root)
+
     def test_catalog_rejects_invalid_execution_controls(self):
         base = {"schemaVersion": 1, "suites": [{
             "id": "bad", "kind": "jvm", "description": "invalid execution control",

@@ -20,12 +20,22 @@ SPEC.loader.exec_module(audit)
 
 
 class StabilityRunnerTest(unittest.TestCase):
-    def test_production_case_commands_are_absolute_executable_files(self):
-        for name, command in [*audit.BASE_CASES, audit.ROBOLECTRIC_CASE]:
-            executable = Path(command[0])
-            self.assertTrue(executable.is_absolute(), name)
-            self.assertTrue(executable.is_file(), name)
-            self.assertTrue(os.access(executable, os.X_OK), name)
+    def test_commands_come_from_the_canonical_suite_catalog(self):
+        catalog_commands = {
+            suite["id"]: suite["command"]
+            for suite in audit.load_suites(audit.DEFAULT_CATALOG, "all")
+        }
+        self.assertEqual(
+            [(name, catalog_commands[suite_id])
+             for name, suite_id in audit.CASE_SUITES],
+            audit.BASE_CASES,
+        )
+        native = dict(audit.BASE_CASES)["native"]
+        self.assertEqual(["common/tests/native/run-native-tests.sh"], native)
+        self.assertEqual(
+            ("robolectric", catalog_commands[audit.ROBOLECTRIC_SUITE]),
+            audit.ROBOLECTRIC_CASE,
+        )
 
     def test_exit_vs_kill_race_is_already_terminated(self):
         with mock.patch.object(audit.os, "killpg", side_effect=ProcessLookupError):
