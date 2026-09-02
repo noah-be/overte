@@ -8,6 +8,14 @@ Copy `targets.example.json` outside the repository, insert private UDIDs and
 verified control identifiers, protect the file, and export
 `OVERTE_APPIUM_TARGETS=/absolute/private/targets.json`. Capabilities are
 advertised only when their corresponding control or probe transport exists.
+The path must already be absolute, must not cross symlinks or point back into
+the checkout, and on POSIX the ordinary current-user-owned file must have mode
+`0600`. Session metadata is stored through an equally private atomic file.
+
+The shared `app.install` operation accepts only an absolute regular artifact
+path and invokes Appium's standard `mobile: installApp` command. Unsupported
+operations and malformed arguments are rejected before creating or contacting
+a WebDriver session.
 
 For Android, `process.kind=adb` obtains a real PID/start-time identity from the
 physical device selected by `appium:udid`. Appium alone does not expose a
@@ -24,6 +32,14 @@ If a target's Qt build exposes no actionable QML nodes, configure the audited
 normalized `togglePoint`, or distinct `openPoint` and `closePoint`, instead.
 This touch fallback can verify tablet behavior through the probe, but it does
 not make the separate Accessibility gate pass.
+
+After the native tree has been audited against `tablet-ui-contract.json`, a
+target may opt into `tablet.snapshot` and `tablet.activate` with exactly
+`"semanticUi": {"contractVersion": 1}`. The adapter reduces Android resource
+IDs/content descriptions or iOS prefixed accessibility identifiers to the
+closed shared vocabulary, rejects ambiguous trees, and activates only a
+visible enabled control. Merely configuring open/close coordinates does not
+advertise the semantic operations.
 
 The Android example uses `scene.kind=android-debug-e2e`. This starts the
 shell-protected launcher that exists only in debug APKs; the launcher copies

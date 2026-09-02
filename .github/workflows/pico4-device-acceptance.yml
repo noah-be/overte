@@ -26,11 +26,11 @@ defaults:
 
 jobs:
   verify-candidate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Check out selected immutable tag without credentials
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -85,7 +85,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Check out selected immutable tag without credentials
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -120,6 +120,8 @@ jobs:
 
       - name: Reverify APK identity and release certificate before ADB
         env:
+          EXPECTED_VERSION_CODE: ${{ steps.release.outputs.version_code }}
+          EXPECTED_VERSION_NAME: ${{ steps.release.outputs.version_name }}
           PICO_RELEASE_CERT_SHA256: ${{ secrets.PICO_RELEASE_CERT_SHA256 }}
         run: |
           set -euo pipefail
@@ -128,8 +130,8 @@ jobs:
             --apksigner "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" \
             --forbid-e2e-input-layer \
             --source-revision "$GITHUB_SHA" \
-            --expected-version-code "${{ steps.release.outputs.version_code }}" \
-            --expected-version-name "${{ steps.release.outputs.version_name }}" \
+            --expected-version-code "$EXPECTED_VERSION_CODE" \
+            --expected-version-name "$EXPECTED_VERSION_NAME" \
             --expected-signer-sha256 "$PICO_RELEASE_CERT_SHA256" \
             --output build/pico4-device/apk-manifest-reverified.json
           cmp build/pico4-device/apk-manifest.json \

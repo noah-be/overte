@@ -37,6 +37,10 @@ status_path=os.environ.get("MOCK_PICO_OPENXR_STATUS", "")
 grant_log=os.environ.get("MOCK_PICO_OPENXR_GRANTS", "")
 process_path=os.environ.get("MOCK_ANDROID_PROCESS_STATE", "")
 process_state=open(process_path).read().strip() if process_path and os.path.exists(process_path) else "running"
+version_state_path=os.environ.get("MOCK_ANDROID_VERSION_STATE", "")
+version_state=(open(version_state_path).read().strip()
+               if version_state_path and os.path.exists(version_state_path)
+               else os.environ.get("MOCK_ANDROID_VERSION", "0.1.0"))
 foreground_path=os.environ.get("MOCK_ANDROID_FOREGROUND_STATE", "")
 foreground_state=(open(foreground_path).read().strip()
                   if foreground_path and os.path.exists(foreground_path) else "foreground")
@@ -106,9 +110,18 @@ elif cmd == ["shell", "input", "keyevent", "KEYCODE_HOME"]:
     if home_state_path: open(home_state_path,"w").write(str(home_events + 1))
     if foreground_path and home_events >= home_ignored_events:
         open(foreground_path,"w").write("background")
+elif cmd[:4] == ["install", "-r", "-d", "-g"]:
+    if process_path: open(process_path,"w").write("stopped")
+    if version_state_path:
+        open(version_state_path,"w").write(os.environ.get("MOCK_ANDROID_SOURCE_VERSION", version_state))
+    print("Success")
 elif cmd[:3] == ["install", "-r", "-g"]:
     if process_path: open(process_path,"w").write("stopped")
+    if version_state_path:
+        open(version_state_path,"w").write(os.environ.get("MOCK_ANDROID_CANDIDATE_VERSION", version_state))
     print("Success")
+elif cmd[:3] == ["shell", "dumpsys", "package"]:
+    print("  versionName=" + version_state)
 elif len(cmd) == 3 and cmd[:2] == ["shell", "-T"]:
     payload=sys.stdin.buffer.read()
     if "commands.json" in cmd[2]:
@@ -483,6 +496,61 @@ class AndroidAdapterTest(unittest.TestCase):
         self.assertFalse(any("am" in command and "start" in command
                              for command in adb_commands))
         self.assertFalse(any("force-stop" in command for command in adb_commands))
+
+    def test_safe_setting_uses_the_bounded_debug_command(self):
+        _process, payload_log, _argv_log = self.enable_controlled_phone()
+        result = self.invoke_phone("setting.set", {
+            "settingId": "audio.warn-when-muted", "enabled": False})
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertEqual({"performed": True}, json.loads(result.stdout))
+        command = json.loads(json.loads(
+            payload_log.read_text(encoding="utf-8").splitlines()[0])["payload"])
+        self.assertEqual({
+            "schemaVersion", "commandId", "action", "settingId", "enabled"},
+            set(command))
+        self.assertEqual("set-safe-setting", command["action"])
+        self.assertEqual("audio.warn-when-muted", command["settingId"])
+        self.assertIs(command["enabled"], False)
+
+    def test_versioned_upgrade_is_metadata_checked_and_preserves_package_data(self):
+        process, _payload_log, argv_log = self.enable_controlled_phone()
+        source = Path(self.temporary.name) / "source.apk"
+        candidate = Path(self.temporary.name) / "candidate.apk"
+        source.write_bytes(b"source")
+        candidate.write_bytes(b"candidate")
+        version_state = Path(self.temporary.name) / "installed-version"
+        version_state.write_text("1.0.0", encoding="utf-8")
+        aapt = Path(self.temporary.name) / "aapt"
+        aapt.write_text(
+            "#!/bin/sh\n"
+            "case \"$3\" in *source.apk) code=1; version=1.0.0 ;; "
+            "*) code=2; version=2.0.0 ;; esac\n"
+            "printf \"package: name='org.overte.phone' versionCode='%s' "
+            "versionName='%s'\\n\" \"$code\" \"$version\"\n", encoding="utf-8")
+        aapt.chmod(0o700)
+        self.environment.update({
+            "OVERTE_E2E_UPGRADE_SOURCE_ARTIFACT": str(source),
+            "OVERTE_E2E_UPGRADE_CANDIDATE_ARTIFACT": str(candidate),
+            "OVERTE_E2E_UPGRADE_FROM_VERSION": "1.0.0",
+            "OVERTE_E2E_UPGRADE_TO_VERSION": "2.0.0",
+            "OVERTE_ANDROID_AAPT": str(aapt),
+            "MOCK_ANDROID_VERSION_STATE": str(version_state),
+            "MOCK_ANDROID_SOURCE_VERSION": "1.0.0",
+            "MOCK_ANDROID_CANDIDATE_VERSION": "2.0.0",
+        })
+        self.assertIn("app.upgrade", self.discover_phone())
+        installed = self.invoke_phone("app.install", {"path": str(source)})
+        self.assertEqual(0, installed.returncode, installed.stdout)
+        result = self.invoke_phone("app.upgrade", {
+            "fromVersion": "1.0.0", "toVersion": "2.0.0"})
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertEqual({"applied": True}, json.loads(result.stdout))
+        self.assertEqual("2.0.0", version_state.read_text(encoding="utf-8"))
+        self.assertEqual("running", process.read_text(encoding="utf-8"))
+        commands = [json.loads(line) for line in
+                    argv_log.read_text(encoding="utf-8").splitlines()]
+        self.assertTrue(any(command[-4:] == ["install", "-r", "-g", str(candidate)]
+                            for command in commands))
 
     def test_controlled_phone_launch_preserves_confirmed_process(self):
         process, _payload_log, argv_log = self.enable_controlled_phone()
@@ -861,7 +929,7 @@ class AndroidAdapterTest(unittest.TestCase):
         self.assertTrue(all(command[:2] == ["-P", "5041"] for command in commands))
         payloads = [command[4:] if command[2:3] == ["-s"] else command[2:]
                     for command in commands]
-        self.assertEqual(1, sum(command[:3] == ["install", "-r", "-g"]
+        self.assertEqual(1, sum(command[:4] == ["install", "-r", "-d", "-g"]
                                 for command in payloads))
         self.assertEqual(1, sum(command[:4] == ["shell", "am", "start", "-W"]
                                 for command in payloads))

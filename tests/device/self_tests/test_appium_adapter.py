@@ -73,6 +73,7 @@ class AppiumHandler(BaseHTTPRequestHandler):
     sound_commands: list[dict] = []
     reject_sound = False
     reject_webdriver = False
+    page_source = '<hierarchy><node content-desc="OverteTablet"/></hierarchy>'
 
     def response(self, value: object) -> None:
         content = json.dumps({"value": value}).encode("utf-8")
@@ -87,7 +88,7 @@ class AppiumHandler(BaseHTTPRequestHandler):
         if self.path.endswith("/window/rect"):
             self.response({"x": 0, "y": 0, "width": 1000, "height": 500})
         elif self.path.endswith("/source"):
-            self.response('<hierarchy><node content-desc="OverteTablet"/></hierarchy>')
+            self.response(type(self).page_source)
         elif self.path.endswith("/screenshot"):
             self.response(base64.b64encode(b"mock-png").decode())
         else:
@@ -171,6 +172,8 @@ class AppiumAdapterTest(unittest.TestCase):
         AppiumHandler.sound_commands = []
         AppiumHandler.reject_sound = False
         AppiumHandler.reject_webdriver = False
+        AppiumHandler.page_source = (
+            '<hierarchy><node content-desc="OverteTablet"/></hierarchy>')
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), AppiumHandler)
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
@@ -185,21 +188,26 @@ class AppiumAdapterTest(unittest.TestCase):
             "targets": [
                 {
                     "selector": "phone-alias", "displayName": "Phone", "platform": "android",
-                    "physical": False, "serverUrl": url, "appId": "org.overte.phone",
+                    "physical": False, "enabled": True, "serverUrl": url,
+                    "appId": "org.overte.phone",
                     "capabilities": {"platformName": "Android", "appium:automationName": "UiAutomator2",
                                      "appium:autoLaunch": False},
                     "process": {"kind": "adb", "selector": "phone-mock"},
                     "scene": {"kind": "android-debug-e2e"},
                     "controls": {
-                        "look": {"start": [0.8, 0.5], "end": [0.2, 0.5]},
-                        "move": {"forward": {"mode": "hold", "start": [0.2, 0.8], "end": [0.2, 0.5]}},
+                        "look": {"start": [0.8, 0.5], "end": [0.2, 0.5],
+                                 "durationSeconds": 0.7},
+                        "move": {"forward": {"mode": "hold", "start": [0.2, 0.8],
+                                                "end": [0.2, 0.5],
+                                                "durationSeconds": 1.5}},
                         "tablet": {"toggleAccessibilityId": "OverteTablet"},
                     },
                     "probe": {"kind": "host-file", "path": str(self.probe)},
                 },
                 {
                     "selector": "ipad-alias", "displayName": "iPad", "platform": "ios",
-                    "physical": True, "serverUrl": url, "appId": "org.overte.interface.dev",
+                    "physical": True, "enabled": True, "serverUrl": url,
+                    "appId": "org.overte.interface.dev",
                     "capabilities": {"platformName": "iOS", "appium:automationName": "XCUITest",
                                      "appium:bundleId": "org.overte.interface.dev",
                                      "appium:udid": "private-mock-udid",
@@ -222,9 +230,11 @@ class AppiumAdapterTest(unittest.TestCase):
                     },
                     "scene": {"kind": "ios-test-build"},
                     "controls": {
-                        "look": {"start": [0.8, 0.5], "end": [0.2, 0.5]},
+                        "look": {"start": [0.8, 0.5], "end": [0.2, 0.5],
+                                 "durationSeconds": 0.7},
                         "move": {"forward": {"mode": "hold", "start": [0.2, 0.8],
-                                                "end": [0.2, 0.5]}},
+                                                "end": [0.2, 0.5],
+                                                "durationSeconds": 1.5}},
                         "tablet": {"toggleAccessibilityId": "OverteTablet"},
                     },
                     "probe": {"kind": "ios-documents"},
@@ -234,6 +244,7 @@ class AppiumAdapterTest(unittest.TestCase):
         self.targets = targets
         self.config = self.root / "targets.json"
         self.config.write_text(json.dumps(targets), encoding="utf-8")
+        self.config.chmod(0o600)
         self.environment = os.environ.copy()
         self.environment.update({
             "OVERTE_APPIUM_TARGETS": str(self.config),
@@ -314,7 +325,7 @@ class AppiumAdapterTest(unittest.TestCase):
     def test_android_operations_use_standard_webdriver_endpoints(self):
         target = ("--target", "phone-alias")
         for operation, values in (
-            ("app.launch", {}), ("input.look", {}),
+            ("app.launch", {}), ("input.look", {"horizontal": 0.25, "vertical": 0.0}),
             ("scene.load", {"url": "overte-e2e://fixture/scene"}),
             ("input.move", {"direction": "forward", "durationSeconds": 0.1}),
             ("tablet.open", {}), ("accessibility.snapshot", {}),
@@ -476,6 +487,54 @@ class AppiumAdapterTest(unittest.TestCase):
             "--operation", "tablet.open")
         self.assertEqual(2, rejected.returncode, rejected.stdout)
         self.assertIn("finite fractions", rejected.stdout)
+
+    def test_shared_install_and_semantic_tablet_contracts_are_preserved(self):
+        candidate = self.root / "candidate.apk"
+        candidate.write_bytes(b"device-free-appium-candidate")
+        installed = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "app.install",
+            "--arguments", json.dumps({"path": str(candidate)}))
+        self.assertEqual(0, installed.returncode, installed.stdout)
+        self.assertEqual({"installed": True}, json.loads(installed.stdout))
+        self.assertIn(("mobile: installApp", {"appPath": str(candidate)}),
+                      AppiumHandler.executions)
+
+        payload = copy.deepcopy(self.targets)
+        payload["targets"][0]["controls"]["tablet"]["semanticUi"] = {
+            "contractVersion": 1}
+        self.config.write_text(json.dumps(payload), encoding="utf-8")
+        AppiumHandler.page_source = (
+            '<hierarchy><node resource-id="tablet.home" enabled="true">'
+            '<node resource-id="app.settings" clickable="true" enabled="true"/>'
+            '</node></hierarchy>')
+        snapshot = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "tablet.snapshot")
+        self.assertEqual(0, snapshot.returncode, snapshot.stdout)
+        self.assertEqual("tablet.home", json.loads(snapshot.stdout)["screenId"])
+        activated = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "tablet.activate", "--arguments", json.dumps({
+                "contractVersion": 1, "controlId": "app.settings"}))
+        self.assertEqual(0, activated.returncode, activated.stdout)
+        self.assertEqual({"performed": True}, json.loads(activated.stdout))
+
+    @unittest.skipIf(os.name == "nt", "POSIX private-file modes are unavailable")
+    def test_shared_private_configuration_hardening_is_preserved(self):
+        self.config.chmod(0o644)
+        public = self.call("android", "discover")
+        self.assertEqual(2, public.returncode, public.stdout)
+        self.assertIn("mode 0600", public.stdout)
+        self.config.chmod(0o600)
+        relative_environment = self.environment.copy()
+        relative_environment["OVERTE_APPIUM_TARGETS"] = "targets.json"
+        relative = subprocess.run([
+            sys.executable, str(ADAPTER), "--platform", "android", "discover",
+        ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+           env=relative_environment, check=False)
+        self.assertEqual(2, relative.returncode, relative.stdout)
+        self.assertIn("absolute private path", relative.stdout)
 
     def test_ios_initial_launch_sets_arguments_and_background_preserves_process(self):
         target = ("--target", "ipad-alias")
