@@ -7,14 +7,24 @@
     "ref_name": {
       "include": [
         "refs/heads/android-vr-quest",
-        "refs/heads/apple-macos"
+        "refs/heads/apple-macos",
+        "refs/heads/backup/**"
       ],
       "exclude": []
     }
   },
   "rules": [
-    {"type": "deletion"},
-    {"type": "non_fast_forward"},
-    {"type": "update"}
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "non_fast_forward"
+    },
+    {
+      "type": "update",
+      "parameters": {
+        "update_allows_fetch_and_merge": false
+      }
+    }
   ]
 }

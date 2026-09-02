@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "contractVersion": 1,
+  "suites": {
+    "accessibility": {"artifacts": [], "fixture": "scene", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "extended"},
+    "asset-smoke": {"artifacts": [], "fixture": "scene", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "smoke"},
+    "audio-controls": {"artifacts": [], "fixture": "none", "requiredEnvironment": [], "session": "reusable", "tabletPolicy": false, "tier": "smoke"},
+    "crash-recovery-under-load": {"artifacts": [], "fixture": "scene", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "extended"},
+    "domain-recovery": {"artifacts": [], "fixture": "domain", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "extended"},
+    "domain-smoke": {"artifacts": [], "fixture": "domain", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "smoke"},
+    "e2e-core": {"artifacts": [], "fixture": "scene", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "smoke"},
+    "e2e-recovery": {"artifacts": [], "fixture": "scene", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "extended"},
+    "entity-sync-smoke": {"artifacts": [], "fixture": "domain", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "extended"},
+    "interaction-smoke": {"artifacts": [], "fixture": "scene", "requiredEnvironment": [], "session": "reusable", "tabletPolicy": false, "tier": "smoke"},
+    "lifecycle-stability": {"artifacts": [], "fixture": "none", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "soak"},
+    "lifecycle-under-load": {"artifacts": [], "fixture": "scene", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "extended"},
+    "multi-user-smoke": {"artifacts": [], "fixture": "domain", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "extended"},
+    "network-fault-recovery": {"artifacts": [], "fixture": "domain", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "extended"},
+    "permission-recovery": {"artifacts": [], "fixture": "none", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "extended"},
+    "portable-smoke": {"artifacts": [], "fixture": "scene", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "smoke"},
+    "render-health": {"artifacts": [], "fixture": "scene", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "smoke"},
+    "scripted-entity-smoke": {"artifacts": [], "fixture": "scene", "requiredEnvironment": [], "session": "reusable", "tabletPolicy": false, "tier": "extended"},
+    "settings-persistence": {"artifacts": [], "fixture": "none", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "extended"},
+    "smoke": {"artifacts": [], "fixture": "none", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "smoke"},
+    "sound-smoke": {"artifacts": [], "fixture": "scene", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "smoke"},
+    "stability": {"artifacts": [], "fixture": "none", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "soak"},
+    "tablet-e2e": {"artifacts": [], "fixture": "none", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": true, "tier": "extended"},
+    "text-input-smoke": {"artifacts": [], "fixture": "none", "requiredEnvironment": [], "session": "reusable", "tabletPolicy": false, "tier": "smoke"},
+    "update-upgrade": {"artifacts": ["candidate", "source"], "fixture": "scene", "requiredEnvironment": ["OVERTE_E2E_UPGRADE_FROM_VERSION", "OVERTE_E2E_UPGRADE_TO_VERSION"], "session": "fresh", "tabletPolicy": false, "tier": "extended"},
+    "vertical-locomotion": {"artifacts": [], "fixture": "scene", "requiredEnvironment": [], "session": "fresh", "tabletPolicy": false, "tier": "extended"}
+  }
+}

@@ -5,15 +5,23 @@
       "id": "launch-smoke",
       "description": "Launch the application and verify a stable foreground process.",
       "command": ["modules/launch_smoke.py"],
-      "suites": ["asset-smoke", "domain-smoke", "e2e-core", "e2e-recovery", "smoke", "sound-smoke", "stability", "tablet-e2e", "vertical-locomotion"],
+      "suites": ["asset-smoke", "audio-controls", "crash-recovery-under-load", "domain-recovery", "domain-smoke", "e2e-core", "e2e-recovery", "entity-sync-smoke", "interaction-smoke", "lifecycle-under-load", "multi-user-smoke", "network-fault-recovery", "permission-recovery", "portable-smoke", "render-health", "scripted-entity-smoke", "settings-persistence", "smoke", "sound-smoke", "stability", "tablet-e2e", "text-input-smoke", "vertical-locomotion"],
       "requires": ["app.foreground", "app.launch", "app.process"],
       "timeoutSeconds": 120
+    },
+    {
+      "id": "update-upgrade",
+      "description": "Install a supplied source, upgrade to the candidate, and verify version plus safe-setting continuity before the common smoke route.",
+      "command": ["modules/update_upgrade.py"],
+      "suites": ["update-upgrade"],
+      "requires": ["app.foreground", "app.install", "app.launch", "app.process", "app.stop", "app.upgrade", "app.version", "probe.snapshot", "setting.set"],
+      "timeoutSeconds": 600
     },
     {
       "id": "scene",
       "description": "Load the controlled E2E scene and observe every required fixture marker.",
       "command": ["modules/scene.py"],
-      "suites": ["e2e-core"],
+      "suites": ["crash-recovery-under-load", "e2e-core", "interaction-smoke", "lifecycle-under-load", "portable-smoke", "render-health", "scripted-entity-smoke", "update-upgrade"],
       "requires": ["probe.snapshot", "scene.load"],
       "timeoutSeconds": 120
     },
@@ -29,9 +37,113 @@
       "id": "domain-enter",
       "description": "Enter a controlled domain and observe its connection and assignment-owned scene.",
       "command": ["modules/domain_enter.py"],
-      "suites": ["domain-smoke"],
+      "suites": ["domain-recovery", "domain-smoke", "entity-sync-smoke", "multi-user-smoke", "network-fault-recovery"],
       "requires": ["app.foreground", "app.process", "navigation.enter-domain", "probe.snapshot"],
       "timeoutSeconds": 180
+    },
+    {
+      "id": "domain-roundtrip",
+      "description": "Leave and re-enter the controlled domain while preserving one foreground process.",
+      "command": ["modules/domain_roundtrip.py"],
+      "suites": ["domain-recovery"],
+      "requires": ["app.foreground", "app.process", "navigation.enter-domain", "probe.snapshot", "scene.load"],
+      "timeoutSeconds": 240
+    },
+    {
+      "id": "world-interaction",
+      "description": "Perform one platform-native primary action on the controlled world target and observe the entity event.",
+      "command": ["modules/world_interaction.py"],
+      "suites": ["interaction-smoke"],
+      "requires": ["app.foreground", "app.process", "input.primary", "probe.snapshot", "scene.load"],
+      "timeoutSeconds": 120
+    },
+    {
+      "id": "scripted-entity",
+      "description": "Activate the controlled client entity script and observe its independent entity-state mutation.",
+      "command": ["modules/scripted_entity.py"],
+      "suites": ["scripted-entity-smoke"],
+      "requires": ["app.foreground", "app.process", "input.primary", "probe.snapshot", "scene.load"],
+      "timeoutSeconds": 120
+    },
+    {
+      "id": "multi-user",
+      "description": "Observe one controlled moving peer avatar across a local leave and reconnect cycle.",
+      "command": ["modules/multi_user.py"],
+      "suites": ["multi-user-smoke"],
+      "requires": ["app.foreground", "app.process", "navigation.enter-domain", "probe.snapshot", "scene.load"],
+      "timeoutSeconds": 300
+    },
+    {
+      "id": "network-fault-recovery",
+      "description": "Interrupt and restore the controlled domain stack and require automatic in-process reconnection.",
+      "command": ["modules/network_fault_recovery.py"],
+      "suites": ["network-fault-recovery"],
+      "requires": ["app.foreground", "app.process", "navigation.enter-domain", "probe.snapshot"],
+      "timeoutSeconds": 300
+    },
+    {
+      "id": "text-input",
+      "description": "Enter bounded Unicode text through the native target path and verify editing, submit, dismissal, and world isolation.",
+      "command": ["modules/text_input.py"],
+      "suites": ["text-input-smoke"],
+      "requires": ["app.foreground", "app.process", "probe.snapshot", "text.dismiss", "text.focus", "text.snapshot", "text.type"],
+      "timeoutSeconds": 150
+    },
+    {
+      "id": "audio-controls",
+      "description": "Toggle microphone mute through the native product control and observe both exact states in Interface.",
+      "command": ["modules/audio_controls.py"],
+      "suites": ["audio-controls"],
+      "requires": ["app.foreground", "app.process", "audio.mute", "probe.snapshot"],
+      "timeoutSeconds": 120
+    },
+    {
+      "id": "settings-persistence",
+      "description": "Change one safe semantic setting, restart, verify persistence, and restore its original value.",
+      "command": ["modules/settings_persistence.py"],
+      "suites": ["settings-persistence"],
+      "requires": ["app.foreground", "app.launch", "app.process", "app.stop", "probe.snapshot", "setting.set"],
+      "timeoutSeconds": 240
+    },
+    {
+      "id": "lifecycle-under-load",
+      "description": "Background and reactivate one loaded scene and open tablet without process, content, input, or render loss.",
+      "command": ["modules/lifecycle_under_load.py"],
+      "suites": ["lifecycle-under-load"],
+      "requires": ["app.foreground", "app.launch", "app.process", "lifecycle.background", "probe.snapshot", "scene.load", "tablet.close", "tablet.open"],
+      "timeoutSeconds": 180
+    },
+    {
+      "id": "render-health",
+      "description": "Require a visible hardware-accelerated presentation and independently advancing renderer frames.",
+      "command": ["modules/render_health.py"],
+      "suites": ["render-health"],
+      "requires": ["app.foreground", "app.process", "probe.snapshot", "render.snapshot", "scene.load"],
+      "timeoutSeconds": 120
+    },
+    {
+      "id": "entity-sync",
+      "description": "Mutate one controlled domain entity through an independent fixture actor and observe its exact revision.",
+      "command": ["modules/entity_sync.py"],
+      "suites": ["entity-sync-smoke"],
+      "requires": ["app.foreground", "app.process", "collaboration.edit", "collaboration.snapshot", "navigation.enter-domain", "probe.snapshot"],
+      "timeoutSeconds": 180
+    },
+    {
+      "id": "permission-recovery",
+      "description": "Deny and grant microphone permission through the native OS path without losing the application process.",
+      "command": ["modules/permission_recovery.py"],
+      "suites": ["permission-recovery"],
+      "requires": ["app.foreground", "app.process", "permission.set", "permission.snapshot"],
+      "timeoutSeconds": 180
+    },
+    {
+      "id": "crash-recovery-under-load",
+      "description": "Crash a loaded scene and tablet, then require a new usable application session.",
+      "command": ["modules/crash_recovery_under_load.py"],
+      "suites": ["crash-recovery-under-load"],
+      "requires": ["app.crash", "app.foreground", "app.launch", "app.process", "probe.snapshot", "scene.load", "tablet.close", "tablet.open"],
+      "timeoutSeconds": 240
     },
     {
       "id": "asset-load",
@@ -53,17 +165,17 @@
       "id": "look",
       "description": "Apply look input and observe signed left, right, up, and down camera rotations.",
       "command": ["modules/look.py"],
-      "suites": ["e2e-core"],
+      "suites": ["e2e-core", "portable-smoke", "update-upgrade"],
       "requires": ["input.look", "probe.snapshot", "scene.load"],
-      "timeoutSeconds": 240
+      "timeoutSeconds": 90
     },
     {
       "id": "move",
       "description": "Apply forward, backward, left, and right input and verify body-relative displacement.",
       "command": ["modules/move.py"],
-      "suites": ["e2e-core"],
+      "suites": ["e2e-core", "portable-smoke", "update-upgrade"],
       "requires": ["input.move", "probe.snapshot", "scene.load"],
-      "timeoutSeconds": 210
+      "timeoutSeconds": 90
     },
     {
       "id": "input-neutral",
@@ -79,6 +191,14 @@
       "command": ["modules/collision.py"],
       "suites": ["e2e-core"],
       "requires": ["input.move", "probe.snapshot", "scene.load"],
+      "timeoutSeconds": 120
+    },
+    {
+      "id": "scene-reload",
+      "description": "Reload the fixture and verify it restores a free grounded spawn before vertical locomotion.",
+      "command": ["modules/scene_reload.py"],
+      "suites": ["e2e-core", "e2e-recovery"],
+      "requires": ["probe.snapshot", "scene.reload"],
       "timeoutSeconds": 120
     },
     {
@@ -101,7 +221,7 @@
       "id": "tablet",
       "description": "Open and close the system tablet and observe both state transitions.",
       "command": ["modules/tablet.py"],
-      "suites": ["e2e-core"],
+      "suites": ["e2e-core", "portable-smoke", "update-upgrade"],
       "requires": ["probe.snapshot", "scene.load", "tablet.close", "tablet.open"],
       "timeoutSeconds": 90
     },
@@ -112,14 +232,6 @@
       "suites": ["e2e-core"],
       "requires": ["input.move", "probe.snapshot", "scene.load", "tablet.close", "tablet.open"],
       "timeoutSeconds": 90
-    },
-    {
-      "id": "scene-reload",
-      "description": "Reload the fixture and verify entity, spawn, and readiness state are restored.",
-      "command": ["modules/scene_reload.py"],
-      "suites": ["e2e-core", "e2e-recovery"],
-      "requires": ["probe.snapshot", "scene.load"],
-      "timeoutSeconds": 120
     },
     {
       "id": "app-restart",
@@ -139,10 +251,10 @@
     },
     {
       "id": "accessibility",
-      "description": "Capture the native accessibility tree and require audited stable labels.",
+      "description": "Audit stable tablet controls while reusing one controlled app session.",
       "command": ["modules/accessibility.py"],
       "suites": ["accessibility"],
-      "requires": ["accessibility.snapshot"],
+      "requires": ["accessibility.snapshot", "app.launch", "app.process", "probe.snapshot", "scene.load", "tablet.close", "tablet.open"],
       "timeoutSeconds": 120
     },
     {

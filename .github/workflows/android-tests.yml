@@ -2,6 +2,8 @@ name: Android tests
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    branches: [main, android-main, android-phone, android-vr, android-vr-pico]
     paths:
       - "android/**"
       - "interface/**"
@@ -12,8 +14,10 @@ on:
   push:
     branches:
       - android-phone
-      - "ci/android-phone-**"
-      - "test/android-**"
+      - "ci/android/**"
+      - "test/android/**"
+      - "test/android-phone/**"
+      - "test/android-pico/**"
     paths:
       - "android/**"
       - "interface/**"
@@ -46,6 +50,7 @@ defaults:
 jobs:
   fast:
     name: Fast host tests
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -145,6 +150,7 @@ jobs:
 
   coverage:
     name: JVM and native host coverage
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -174,7 +180,7 @@ jobs:
       - name: Enforce native policy coverage
         run: common/tests/coverage/run-native-coverage.sh
       - name: Reject surviving critical policy mutations
-        if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'
+        if: github.event_name != 'workflow_dispatch'
         run: common/tests/run-tests.sh mutation
       - name: Summarize host coverage results
         if: always()
@@ -189,7 +195,7 @@ jobs:
             --coverage native-handoff=build/reports/coverage/native/pending-handoff.xml
             --output build/reports/summary/coverage.md
           )
-          if [[ "$EVENT_NAME" != schedule && "$EVENT_NAME" != workflow_dispatch ]]; then
+          if [[ "$EVENT_NAME" != workflow_dispatch ]]; then
             summary_args+=(--junit mutation=build/test-results/suite/TEST-android-mutation.xml)
             summary_args+=(--mutation critical=build/reports/mutation/critical-policies.json)
           fi
@@ -209,7 +215,10 @@ jobs:
 
   mutation-extended:
     name: Extended deterministic mutation campaign
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+      contains(github.event.pull_request.labels.*.name, 'android-long-diagnostics'))
     needs: [fast, contracts, coverage]
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -249,7 +258,10 @@ jobs:
 
   stability:
     name: Shuffled and parallel host stability
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+      contains(github.event.pull_request.labels.*.name, 'android-long-diagnostics'))
     needs: [fast, contracts, coverage]
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -288,7 +300,10 @@ jobs:
 
   endurance:
     name: Scaled lifecycle and policy endurance
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+      contains(github.event.pull_request.labels.*.name, 'android-long-diagnostics'))
     needs: [fast, contracts, coverage]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -342,10 +357,7 @@ jobs:
 
   regression:
     name: Complete device-free regression
-    if: >-
-      github.event_name == 'push' ||
-      github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_dispatch' && inputs.run_regression)
+    if: github.event_name == 'workflow_dispatch' && inputs.run_regression
     needs: [fast, contracts, coverage]
     runs-on: ubuntu-24.04
     timeout-minutes: 30

@@ -1,4 +1,26 @@
 # This is an unofficial personal fork.
 # SPDX-License-Identifier: MIT
 
+# Default ownership. Later rules intentionally restate privileged surfaces so
+# policy, automation, and release review remain distinct if ownership expands.
 * @noah-be
+
+# Repository policy and enforcement contracts
+/.github/CODEOWNERS @noah-be
+/.github/branch-policy.json @noah-be
+/.github/rulesets/ @noah-be
+/tools/branch-policy/ @noah-be
+/tests/branch-policy-test.py @noah-be
+
+# Workflow code and reusable automation
+/.github/actions/ @noah-be
+/.github/workflows/ @noah-be
+
+# Release, publication, installer, and package paths
+/.github/workflows/*release*.yml @noah-be
+/.github/workflows/master_deploy_*.yml @noah-be
+/cmake/installer/ @noah-be
+/launchers/*/cmake/installer/ @noah-be
+/pkg-scripts/ @noah-be
+/tools/ci-scripts/linux-package-release/ @noah-be
+/tools/ci-scripts/notarize @noah-be

@@ -17,8 +17,10 @@ import time
 import xml.etree.ElementTree as ET
 
 from adapter_client import load_command
-from contracts import (load_capability_registry, load_tablet_product_policy,
-                       validate_capabilities, validate_identifier)
+from contracts import (contains_private_identity, load_capability_registry,
+                       load_tablet_product_policy,
+                       validate_capabilities, validate_discovered_targets,
+                       validate_identifier)
 
 if os.name == "nt":
     import msvcrt
@@ -28,6 +30,10 @@ else:
 
 ROOT = Path(__file__).resolve().parents[2]
 MAX_OUTPUT_BYTES = 256 * 1024
+
+
+class TargetLockTimeout(RuntimeError):
+    """The target is owned by another run and was not acquired in time."""
 
 
 def fail(message: str) -> "NoReturn":
@@ -119,21 +125,11 @@ def adapter_call(command: list[str], action: str, target: str | None = None,
 
 
 def discover(command: list[str], requested: str | None, allow_virtual: bool) -> dict:
-    targets = adapter_call(command, "discover")
-    if not isinstance(targets, list):
-        fail("adapter discover result must be a list")
+    targets = validate_discovered_targets(adapter_call(command, "discover"))
     valid = []
     rejected_virtual = 0
     for target in targets:
-        if not isinstance(target, dict):
-            fail("adapter targets must be objects")
         selector = target.get("selector")
-        capabilities = target.get("capabilities")
-        if not isinstance(selector, str) or not selector:
-            fail("adapter target requires a selector")
-        if not isinstance(capabilities, list) or not all(
-                isinstance(item, str) and item for item in capabilities):
-            fail("adapter target requires a capability list")
         if target.get("physical") is not True and not allow_virtual:
             rejected_virtual += 1
             continue
@@ -149,11 +145,12 @@ def discover(command: list[str], requested: str | None, allow_virtual: bool) -> 
 
 
 @contextmanager
-def target_lock(adapter_id: str, selector: str, lock_root: Path):
+def target_lock(reservation_key: str, lock_root: Path, timeout_seconds: float):
     lock_root.mkdir(parents=True, exist_ok=True)
-    key = hashlib.sha256(f"{adapter_id}\0{selector}".encode()).hexdigest()[:24]
+    key = hashlib.sha256(reservation_key.encode()).hexdigest()[:24]
     path = lock_root / f"overte-device-{key}.lock"
     with path.open("a+b") as lock:
+        deadline = time.monotonic() + timeout_seconds
         if os.name == "nt":
             if path.stat().st_size == 0:
                 lock.write(b"\0")
@@ -164,9 +161,18 @@ def target_lock(adapter_id: str, selector: str, lock_root: Path):
                     msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
                     break
                 except OSError:
+                    if time.monotonic() >= deadline:
+                        raise TargetLockTimeout("timed out waiting for target reservation")
                     time.sleep(0.1)
         else:
-            fcntl.flock(lock, fcntl.LOCK_EX)
+            while True:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        raise TargetLockTimeout("timed out waiting for target reservation")
+                    time.sleep(0.1)
         try:
             yield
         finally:
@@ -223,8 +229,16 @@ def bounded(text: str) -> str:
     return (encoded[:size] + marker + encoded[-size:]).decode("utf-8", errors="replace")
 
 
+def redact(text: str, private_values: set[str]) -> str:
+    for value in sorted(private_values, key=len, reverse=True):
+        if value:
+            text = text.replace(value, "<target>")
+    return text
+
+
 def run_module(module: dict, catalog: Path, environment: dict[str, str],
-               artifact_dir: Path, selector: str, adapter_command: list[str],
+               artifact_dir: Path, selector: str, private_values: set[str],
+               adapter_command: list[str],
                capabilities: set[str]) -> dict:
     artifact_dir.mkdir(parents=True, mode=0o700)
     invalid = artifact_dir / "INVALID"
@@ -245,7 +259,7 @@ def run_module(module: dict, catalog: Path, environment: dict[str, str],
         timed_out = True
         stop_process(process)
         output, _ = process.communicate()
-    output = bounded(output.replace(selector, "<target>"))
+    output = bounded(redact(output, private_values))
     (artifact_dir / "module.log").write_text(output, encoding="utf-8")
     status = ("skipped" if process.returncode == 77 else
               "error" if process.returncode == 75 else
@@ -253,7 +267,7 @@ def run_module(module: dict, catalog: Path, environment: dict[str, str],
     if timed_out:
         status = "failed"
         output += f"\nModule timed out after {module.get('timeoutSeconds', 600)} seconds.\n"
-    if (status in {"failed", "error"} and "artifact.screenshot" in capabilities
+    if (status == "failed" and "artifact.screenshot" in capabilities
             and environment.get("OVERTE_E2E_CAPTURE_ARTIFACTS") == "1"):
         try:
             capture_environment = environment.copy()
@@ -268,7 +282,7 @@ def run_module(module: dict, catalog: Path, environment: dict[str, str],
                       "Failure screenshot captured.")
         except (OSError, subprocess.TimeoutExpired):
             detail = "Failure screenshot capture was unavailable."
-        output += "\n" + bounded(detail.replace(selector, "<target>")) + "\n"
+        output += "\n" + bounded(redact(detail, private_values)) + "\n"
     (artifact_dir / "module.log").write_text(output, encoding="utf-8")
     if status == "passed":
         invalid.unlink()
@@ -349,6 +363,8 @@ def main() -> int:
         output = Path(tempfile.mkdtemp(prefix="overte-device-run-"))
     if output == ROOT or ROOT in output.parents:
         fail("device artifacts must be stored outside the source worktree")
+    run_started_epoch_ms = int(time.time() * 1000)
+    run_started_monotonic = time.monotonic()
 
     environment = os.environ.copy()
     harness_python_path = str(Path(__file__).resolve().parent)
@@ -364,48 +380,95 @@ def main() -> int:
         environment["OVERTE_E2E_TABLET_POLICY"] = str(tablet_policy_path)
     results = []
     lock_root = Path(os.environ.get("OVERTE_DEVICE_LOCK_ROOT", tempfile.gettempdir()))
-    with target_lock(manifest["id"], selector, lock_root):
-        try:
-            description = adapter_call(command, "describe", selector)
-            if not isinstance(description, dict):
-                fail("adapter describe result must be an object")
-            description.pop("selector", None)
-            (output / "device.json").write_text(
-                json.dumps(description, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-            for module in modules:
-                missing = sorted(set(module.get("requires", [])) - capabilities)
-                if missing:
-                    results.append({"id": module["id"], "description": module["description"],
-                                    "status": "error" if args.require_complete else "skipped",
-                                    "returncode": 75 if args.require_complete else 77,
-                                    "durationSeconds": 0.0,
-                                    "output": f"Missing capabilities: {', '.join(missing)}\n"})
-                    if args.fail_fast and args.require_complete:
-                        break
-                    continue
-                artifact = output / "modules" / module["id"]
-                module_env = environment | {"OVERTE_DEVICE_ARTIFACT_DIR": str(artifact)}
-                print(f"[{module['id']}] {module['description']}", flush=True)
-                result = run_module(module, catalog_path, module_env, artifact, selector,
-                                    command, capabilities)
-                results.append(result)
-                if args.fail_fast and result["status"] in {"failed", "error"}:
-                    break
-        finally:
-            if not args.keep_running:
-                try:
-                    adapter_call(command, "cleanup", selector)
-                except Exception as error:
-                    results.append({"id": "target-cleanup", "description": "Target cleanup",
-                                    "status": "failed", "returncode": 2,
-                                    "durationSeconds": 0.0,
-                                    "output": str(error).replace(selector, "<target>") + "\n"})
+    try:
+        lock_timeout = float(os.environ.get("OVERTE_DEVICE_LOCK_TIMEOUT_SECONDS", "600"))
+    except ValueError:
+        fail("OVERTE_DEVICE_LOCK_TIMEOUT_SECONDS must be numeric")
+    if not 0.1 <= lock_timeout <= 86400.0:
+        fail("OVERTE_DEVICE_LOCK_TIMEOUT_SECONDS must be from 0.1 through 86400")
+    reservation_key = target.get("reservationKey", selector)
+    private_values = {selector, reservation_key}
+    try:
+        with target_lock(reservation_key, lock_root, lock_timeout):
+            try:
+                description = adapter_call(command, "describe", selector)
+                if not isinstance(description, dict):
+                    fail("adapter describe result must be an object")
+                if ("selector" in description
+                        or contains_private_identity(description, private_values)):
+                    fail("adapter describe result exposes a private target identity")
+                (output / "device.json").write_text(
+                    json.dumps(description, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+                infrastructure_failure = False
+                for module in modules:
+                    if infrastructure_failure:
+                        results.append({
+                            "id": module["id"], "description": module["description"],
+                            "status": "skipped", "returncode": 77,
+                            "durationSeconds": 0.0,
+                            "output": (
+                                "Blocked by an earlier device infrastructure failure; "
+                                "no device command was sent.\n"
+                            ),
+                        })
+                        continue
+                    missing = sorted(set(module.get("requires", [])) - capabilities)
+                    if missing:
+                        results.append({"id": module["id"], "description": module["description"],
+                                        "status": "error" if args.require_complete else "skipped",
+                                        "returncode": 75 if args.require_complete else 77,
+                                        "durationSeconds": 0.0,
+                                        "output": f"Missing capabilities: {', '.join(missing)}\n"})
+                        continue
+                    artifact = output / "modules" / module["id"]
+                    module_env = environment | {"OVERTE_DEVICE_ARTIFACT_DIR": str(artifact)}
+                    print(f"[{module['id']}] {module['description']}", flush=True)
+                    result = run_module(module, catalog_path, module_env, artifact, selector,
+                                        private_values, command, capabilities)
+                    results.append(result)
+                    infrastructure_failure = result["status"] == "error"
+            except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
+                detail = redact(str(error), private_values)
+                results.append({"id": "target-execution",
+                                "description": "Target setup or execution",
+                                "status": "error", "returncode": 75,
+                                "durationSeconds": 0.0, "output": detail + "\n"})
+            finally:
+                if not args.keep_running:
+                    try:
+                        adapter_call(command, "cleanup", selector)
+                    except Exception as error:
+                        results.append({"id": "target-cleanup", "description": "Target cleanup",
+                                        "status": "error", "returncode": 75,
+                                        "durationSeconds": 0.0,
+                                        "output": redact(str(error), private_values) + "\n"})
+    except TargetLockTimeout as error:
+        results.append({"id": "target-reservation", "description": "Target reservation",
+                        "status": "error", "returncode": 75,
+                        "durationSeconds": 0.0, "output": str(error) + "\n"})
     summary = {"schemaVersion": 1, "adapter": manifest["id"], "suite": args.suite,
                "status": "failed" if any(r["status"] in {"failed", "error"} for r in results) else "passed",
                "results": [{key: value for key, value in result.items() if key != "output"}
                            for result in results]}
     (output / "summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    run_finished_epoch_ms = int(time.time() * 1000)
+    run_manifest = {
+        "schemaVersion": 1,
+        "adapter": manifest["id"],
+        "suite": args.suite,
+        "platform": target["platform"],
+        "physical": target["physical"],
+        "requireComplete": args.require_complete,
+        "capabilities": sorted(capabilities),
+        "modules": [module["id"] for module in modules],
+        "startedEpochMs": run_started_epoch_ms,
+        "finishedEpochMs": run_finished_epoch_ms,
+        "durationSeconds": round(time.monotonic() - run_started_monotonic, 3),
+        "status": summary["status"],
+    }
+    (output / "run-manifest.json").write_text(
+        json.dumps(run_manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     write_junit(results, output / "junit.xml", args.suite)
     print(f"Results: {output}")
     return 1 if summary["status"] == "failed" else 0
