@@ -23,6 +23,11 @@
         "hifi/dialogs/security/ScriptSecurity.qml":
             "hifi/dialogs/security/ScriptSecurity.qml"
     };
+    var SETTINGS_CHILD_SOURCES = {
+        "hifi/tablet/TabletGeneralPreferences.qml": true,
+        "hifi/audio/Audio.qml": true,
+        "hifi/dialogs/security/Security.qml": true
+    };
     var tablet = Tablet.getTablet(SYSTEM_TABLET);
     var currentSource = "";
 
@@ -44,6 +49,7 @@
         icon: Script.resolvePath("../settings/img/icon_white.png"),
         activeIcon: Script.resolvePath("../settings/img/icon_black.png"),
         text: "SETTINGS",
+        semanticId: "app.settings",
         sortOrder: 2
     });
     var menuButton = tablet.addButton({
@@ -70,8 +76,15 @@
     }
 
     function fromQml(message) {
-        if (currentSource !== SETTINGS_SOURCE ||
-                !message || message.type !== "switchApp" ||
+        if (!message || typeof message !== "object") {
+            return;
+        }
+        if (message.type === "settings.back" &&
+                Object.prototype.hasOwnProperty.call(SETTINGS_CHILD_SOURCES, currentSource)) {
+            tablet.loadQMLSource(SETTINGS_SOURCE);
+            return;
+        }
+        if (currentSource !== SETTINGS_SOURCE || message.type !== "switchApp" ||
                 typeof message.appUrl !== "string" ||
                 !Object.prototype.hasOwnProperty.call(SETTINGS_ROUTES, message.appUrl)) {
             return;

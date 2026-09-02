@@ -29,6 +29,14 @@ require "$phone_profile" 'scriptingPluginsAvailable:[[:space:]]*false' \
     'Phone hides its incomplete scripting-plugin flow'
 require "$security" 'SecurityTouchConfiguration[[:space:]]*\{' \
     'Security resolves its Phone presentation through QFileSelector'
+require "$security" 'objectName:[[:space:]]*"settings[.]security"' \
+    'Security exposes the versioned semantic screen identity'
+require "$security" 'objectName:[[:space:]]*"nav[.]back"' \
+    'Security exposes a visible semantic Back control'
+require "$security" 'androidClickAction:[[:space:]]*function\(\)' \
+    'Security semantic Back uses the real Android button handler'
+require "$security" 'sendToScript\(\{[[:space:]]*type:[[:space:]]*"settings[.]back"[[:space:]]*\}\)' \
+    'Security Back returns to Settings through the allowlisted Phone router'
 require "$security" 'visible:[[:space:]]*touchConfiguration[.]showScriptingPlugins' \
     'Security gates the complete scripting-plugin section'
 require "$security" 'if[[:space:]]*\(touchConfiguration[.]showScriptingPlugins\)' \

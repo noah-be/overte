@@ -68,10 +68,18 @@ require "$tablet_preferences_dialog" 'objectName:[[:space:]]*"GeneralPreferences
     'General Settings expose a stable semantic identity for Save'
 require "$tablet_preferences_dialog" 'Accessible[.]description:[[:space:]]*qsTr\("Save all changed preferences"\)' \
     'General Settings describe the Save action independently of its visual label'
-require "$tablet_preferences_dialog" 'objectName:[[:space:]]*"GeneralPreferencesCancel"' \
-    'General Settings expose a stable semantic identity for Cancel'
+require "$shared_preferences" 'objectName:[[:space:]]*"stack"' \
+    'General Settings preserve the native StackView routing identity'
+require "$shared_preferences" 'objectName:[[:space:]]*profileRoot[.]semanticScreenId' \
+    'General Settings expose the versioned semantic screen identity on the visible dialog'
+require "$tablet_preferences_dialog" 'objectName:[[:space:]]*"nav[.]back"' \
+    'General Settings expose the contract Back control'
 require "$tablet_preferences_dialog" 'Accessible[.]description:[[:space:]]*qsTr\("Discard changed preferences"\)' \
     'General Settings describe the destructive Cancel result'
+require "$tablet_preferences_dialog" 'androidClickAction:[[:space:]]*function\(\)[[:space:]]*\{' \
+    'General Settings route Android semantic activation through the real button handler'
+require "$tablet_preferences_dialog" 'dialog[.]parent[.]sendToScript\(\{[[:space:]]*type:[[:space:]]*"settings[.]back"[[:space:]]*\}\)' \
+    'General Settings Back discards edits and returns through the allowlisted Phone router'
 
 require "$base_profile" 'property bool userInterfacePreferencesAvailable:[[:space:]]*true' \
     'desktop General Settings retain User Interface preferences'
