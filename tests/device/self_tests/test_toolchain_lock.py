@@ -80,7 +80,31 @@ class ToolchainLockTest(unittest.TestCase):
             {f"jenkins.plugins.{plugin}" for plugin in resolved_plugins},
             {key for key in artifacts if key.startswith("jenkins.plugins.")},
         )
-        self.assertEqual(78, len(artifacts))
+        expected_non_plugin_artifacts = {
+            "appium.core",
+            "appium.drivers.uiautomator2",
+            "appium.drivers.xcuitest",
+            "appium.iosRuntime.remoteXpc",
+            "appium.iosRuntime.webdriverAgent",
+            "appium.iosSecurity.age",
+            "appium.iosSecurity.rcodesign",
+            "jenkins.lts",
+            "jenkins.pluginManager",
+        }
+        if "oculix" in self.data:
+            expected_oculix_artifacts = {
+                f"oculix.ide.{platform}": self.data["oculix"]["ideArtifacts"][platform]
+                for platform in ("linux", "macos", "windows")
+            }
+            self.assertEqual(
+                expected_oculix_artifacts,
+                {key: artifacts[key] for key in expected_oculix_artifacts},
+            )
+            expected_non_plugin_artifacts.update(expected_oculix_artifacts)
+        self.assertEqual(
+            expected_non_plugin_artifacts,
+            {key for key in artifacts if not key.startswith("jenkins.plugins.")},
+        )
         self.assertIn("jenkins.plugins.configuration-as-code", artifacts)
         self.assertIn("jenkins.plugins.git", artifacts)
         self.assertIn("appium.iosRuntime.remoteXpc", artifacts)
@@ -176,7 +200,32 @@ class ToolchainLockTest(unittest.TestCase):
         for path in (self.root / "jenkins").iterdir():
             path.unlink()
         artifacts = validate_lock(lock)
-        self.assertEqual(17, len(artifacts))
+        expected_artifacts = {
+            "appium.core",
+            "appium.drivers.uiautomator2",
+            "appium.drivers.xcuitest",
+            "appium.iosRuntime.remoteXpc",
+            "appium.iosRuntime.webdriverAgent",
+            "appium.iosSecurity.age",
+            "appium.iosSecurity.rcodesign",
+            "jenkins.lts",
+            "jenkins.pluginManager",
+            *{
+                f"jenkins.plugins.{plugin}"
+                for plugin in self.data["jenkins"]["directPlugins"]
+            },
+        }
+        if "oculix" in self.data:
+            expected_oculix_artifacts = {
+                f"oculix.ide.{platform}": self.data["oculix"]["ideArtifacts"][platform]
+                for platform in ("linux", "macos", "windows")
+            }
+            self.assertEqual(
+                expected_oculix_artifacts,
+                {key: artifacts[key] for key in expected_oculix_artifacts},
+            )
+            expected_artifacts.update(expected_oculix_artifacts)
+        self.assertEqual(expected_artifacts, set(artifacts))
 
         (self.root / "jenkins" / "plugins.txt").write_text(
             "git:5.10.1\n", encoding="utf-8")
