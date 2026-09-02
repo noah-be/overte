@@ -41,11 +41,16 @@ REQUIRED_JUNIT_PATHS = {
     "android/build/reports/mutation/critical-policies-extended.json",
 }
 
-PERIODIC_CONDITION = "github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'"
+DIAGNOSTIC_CONDITION_PARTS = (
+    "github.event_name == 'workflow_dispatch'",
+    "github.event_name == 'pull_request'",
+    "contains(github.event.pull_request.labels.*.name, 'android-long-diagnostics')",
+)
 REGRESSION_CONDITION_PARTS = (
-    "github.event_name == 'push'", "github.event_name == 'schedule'",
+    "github.event_name == 'push'",
     "github.event_name == 'workflow_dispatch' && inputs.run_regression",
 )
+SCRIPT_REFERENCE = re.compile(r"(?<![\w./-])((?:[\w.+-]+/)+[\w.+-]+\.(?:py|sh))(?![\w./-])")
 
 
 def job_body(workflow: str, job: str) -> str | None:
@@ -91,6 +96,17 @@ def validate_workflow(workflow: str) -> list[str]:
     return errors
 
 
+def validate_script_references(workflow: str, android_root: Path) -> list[str]:
+    """Ensure every repository script named by the workflow exists statically."""
+    errors = []
+    root = android_root.resolve()
+    for relative in sorted(set(SCRIPT_REFERENCE.findall(workflow))):
+        candidate = (root / relative).resolve()
+        if not candidate.is_relative_to(root) or not candidate.is_file():
+            errors.append(f"workflow script does not exist below Android root: {relative}")
+    return errors
+
+
 def validate_wrapper(properties: str) -> list[str]:
     match = re.search(r"^distributionSha256Sum=(\S+)\s*$", properties, re.MULTILINE)
     if not match or not SHA256.fullmatch(match.group(1)):
@@ -102,14 +118,17 @@ def validate_wrapper(properties: str) -> list[str]:
 
 def validate_periodic_jobs(workflow: str) -> list[str]:
     errors = []
-    for job, command in (("stability", "common/tests/run-tests.sh stability"),
+    for job, command in (("mutation-extended", "common/tests/run-tests.sh mutation-extended"),
+                         ("stability", "common/tests/run-tests.sh stability"),
                          ("endurance", "common/tests/run-tests.sh endurance")):
         body = job_body(workflow, job)
         if body is None:
-            errors.append(f"workflow is missing periodic {job} job")
+            errors.append(f"workflow is missing long diagnostic {job} job")
             continue
-        if f"if: {PERIODIC_CONDITION}" not in body:
-            errors.append(f"{job} must run only for schedule/workflow_dispatch")
+        if not all(part in body for part in DIAGNOSTIC_CONDITION_PARTS):
+            errors.append(f"{job} must run only for manual or labeled diagnostics")
+        if "github.event_name == 'schedule'" in body:
+            errors.append(f"{job} must not run on the contract-only schedule")
         if command not in body:
             errors.append(f"{job} job is missing its tier command")
         if "if: always()" not in body or "continue-on-error: true" not in body:
@@ -127,27 +146,35 @@ def validate_periodic_jobs(workflow: str) -> list[str]:
     return errors
 
 
-def workflow_event_matrix(workflow: str, event: str, run_regression: bool = True) -> set[str]:
-    jobs = {job for job in ("fast", "contracts", "coverage") if job_body(workflow, job) is not None}
-    if event in {"push", "schedule"} or (event == "workflow_dispatch" and run_regression):
+def workflow_event_matrix(workflow: str, event: str, run_regression: bool = True,
+                          run_diagnostics: bool = False) -> set[str]:
+    jobs = {"contracts"} if job_body(workflow, "contracts") is not None else set()
+    if event != "schedule":
+        jobs.update(job for job in ("fast", "coverage") if job_body(workflow, job) is not None)
+    if event == "push" or (event == "workflow_dispatch" and run_regression):
         jobs.add("regression")
-    if event in {"schedule", "workflow_dispatch"}:
+    if event == "workflow_dispatch" or (event == "pull_request" and run_diagnostics):
         jobs.update({"mutation-extended", "stability", "endurance"})
     return jobs
 
 
 def quick_mutation_runs(event: str) -> bool:
-    return event not in {"schedule", "workflow_dispatch"}
+    return event != "workflow_dispatch"
 
 
 def validate_workflow_topology(workflow: str) -> list[str]:
     errors = []
-    for job in ("fast", "contracts", "coverage"):
+    for job in ("fast", "coverage"):
         body = job_body(workflow, job)
         if body is None:
             errors.append(f"workflow is missing required {job} job")
-        elif re.search(r"^    if:", body, re.MULTILINE):
-            errors.append(f"required {job} job must run for every workflow event")
+        elif "if: github.event_name != 'schedule'" not in body:
+            errors.append(f"{job} must skip the contract-only schedule")
+    contracts = job_body(workflow, "contracts")
+    if contracts is None:
+        errors.append("workflow is missing required contracts job")
+    elif re.search(r"^    if:", contracts, re.MULTILINE):
+        errors.append("contracts must run for every workflow event")
     for job in ("regression", "mutation-extended", "stability", "endurance"):
         body = job_body(workflow, job)
         if body is None:
@@ -157,8 +184,10 @@ def validate_workflow_topology(workflow: str) -> list[str]:
     regression = job_body(workflow, "regression") or ""
     if not all(part in regression for part in REGRESSION_CONDITION_PARTS):
         errors.append("regression event condition is incomplete")
+    if "github.event_name == 'schedule'" in regression:
+        errors.append("regression must not run on the contract-only schedule")
     coverage = job_body(workflow, "coverage") or ""
-    if "if: github.event_name != 'schedule' && github.event_name != 'workflow_dispatch'" not in coverage:
+    if "if: github.event_name != 'workflow_dispatch'" not in coverage:
         errors.append("quick mutation condition must complement periodic extended mutation")
     java_jobs = ("fast", "contracts", "coverage", "mutation-extended", "stability",
                  "endurance", "regression")
@@ -219,8 +248,10 @@ def validate_files(workflow: Path, wrapper: Path, build: Path, lockfile: Path) -
     except OSError as error:
         errors.append(f"cannot read Robolectric locking inputs: {error}")
     try:
-        errors.extend(validate_periodic_jobs(workflow.read_text(encoding="utf-8")))
-        errors.extend(validate_workflow_topology(workflow.read_text(encoding="utf-8")))
+        source = workflow.read_text(encoding="utf-8")
+        errors.extend(validate_periodic_jobs(source))
+        errors.extend(validate_workflow_topology(source))
+        errors.extend(validate_script_references(source, workflow.parents[2] / "android"))
     except OSError:
         pass
     return errors

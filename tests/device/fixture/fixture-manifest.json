@@ -4,7 +4,7 @@
   "spawnPath": "/0,2,4/0,0,0,1",
   "spawnPosition": {"x": 0, "y": 2, "z": 4},
   "minimumFloorThickness": 4.0,
-  "expectedEntityCount": 5,
+  "expectedEntityCount": 6,
   "requiredMarkers": [
     "OVERTE_E2E_COLLISION_WALL",
     "OVERTE_E2E_EAST",
@@ -17,6 +17,17 @@
     "center": {"x": 0.0, "y": 2.0, "z": 0.5},
     "dimensions": {"x": 8.0, "y": 4.0, "z": 0.5},
     "approachDirection": "forward"
+  },
+  "interactionTarget": {
+    "name": "OVERTE_E2E_INTERACTABLE",
+    "position": {"x": 0.0, "y": 1.6, "z": 2.5},
+    "dimensions": {"x": 0.8, "y": 0.8, "z": 0.2}
+  },
+  "scriptedInteraction": {
+    "script": "scripted_interactable.js",
+    "contract": "overte-e2e-scripted-entity-v1",
+    "idleColor": {"red": 255, "green": 150, "blue": 40},
+    "activeColor": {"red": 40, "green": 220, "blue": 100}
   },
   "externalResources": false,
   "asset": {

@@ -242,7 +242,7 @@ def validate_lock(
     lock_path: Path = DEFAULT_LOCK,
     *,
     resolved_plugins_path: Path | None = None,
-    direct_plugins_path: Path | None = DEFAULT_DIRECT_PLUGINS,
+    direct_plugins_path: Path | None = None,
 ) -> dict[str, dict[str, str]]:
     """Validate a lock and return its addressable artifact map."""
     errors: list[str] = []
@@ -415,31 +415,33 @@ def validate_lock(
         "jenkins.resolvedPluginsFile",
         errors,
     )
-    resolved = _parse_plugin_file(resolved_path, "resolved plugin lock", errors)
-    for plugin, version in direct.items():
-        if resolved.get(plugin) != version:
-            errors.append(f"resolved plugin lock does not pin {plugin}:{version}")
-    if direct_plugins_path is not None:
-        declared = _parse_plugin_file(direct_plugins_path, "direct plugin list", errors)
-        if declared != direct:
-            errors.append("jenkins/plugins.txt must exactly match jenkins.directPlugins")
     plugin_artifact_path = _relative_lock_path(
         lock_path,
         jenkins.get("resolvedPluginArtifactsFile"),
         "jenkins.resolvedPluginArtifactsFile",
         errors,
     )
-    all_plugin_artifacts = _read_plugin_artifacts(
-        plugin_artifact_path,
-        lts_version if isinstance(lts_version, str) else "",
-        resolved,
-        errors,
-    )
-    for plugin, artifact in all_plugin_artifacts.items():
-        direct_artifact = artifacts.get(f"jenkins.plugins.{plugin}")
-        if plugin in direct and direct_artifact != artifact:
-            errors.append(f"direct and resolved artifact metadata differs for {plugin}")
-        artifacts[f"jenkins.plugins.{plugin}"] = artifact
+    declared_path = direct_plugins_path or lock_path.parent / "jenkins" / "plugins.txt"
+    external_plugin_inputs = (resolved_path, declared_path, plugin_artifact_path)
+    if any(path.exists() for path in external_plugin_inputs):
+        resolved = _parse_plugin_file(resolved_path, "resolved plugin lock", errors)
+        for plugin, version in direct.items():
+            if resolved.get(plugin) != version:
+                errors.append(f"resolved plugin lock does not pin {plugin}:{version}")
+        declared = _parse_plugin_file(declared_path, "direct plugin list", errors)
+        if declared != direct:
+            errors.append("jenkins/plugins.txt must exactly match jenkins.directPlugins")
+        all_plugin_artifacts = _read_plugin_artifacts(
+            plugin_artifact_path,
+            lts_version if isinstance(lts_version, str) else "",
+            resolved,
+            errors,
+        )
+        for plugin, artifact in all_plugin_artifacts.items():
+            direct_artifact = artifacts.get(f"jenkins.plugins.{plugin}")
+            if plugin in direct and direct_artifact != artifact:
+                errors.append(f"direct and resolved artifact metadata differs for {plugin}")
+            artifacts[f"jenkins.plugins.{plugin}"] = artifact
 
     oculix = _mapping(root.get("oculix"), "oculix", errors)
     if oculix.get("license") != "MIT":

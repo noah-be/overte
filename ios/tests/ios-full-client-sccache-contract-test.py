@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Protect the failure-resilient full-client Xcode compiler checkpoint."""
+"""Protect the disk-only, failure-resilient Xcode compiler checkpoint."""
 
 # Copyright 2026 Overte e.V.
 # SPDX-License-Identifier: Apache-2.0
@@ -45,28 +45,31 @@ def main() -> None:
         integrated,
         "the full-client cache must use pinned action and compiler-cache revisions",
     )
-    require(
-        r'core\.exportVariable\("SCCACHE_GHA_CACHE_URL", cacheUrl\)[\s\S]*?core\.exportVariable\("SCCACHE_GHA_RUNTIME_TOKEN", runtimeToken\)',
-        integrated,
-        "each successful client object needs authenticated remote persistence",
-    )
+    for forbidden in (
+        "SCCACHE_GHA_",
+        "ACTIONS_RESULTS_URL",
+        "ACTIONS_CACHE_URL",
+        "ACTIONS_RUNTIME_TOKEN",
+    ):
+        if forbidden in integrated:
+            raise AssertionError(f"disk-only compiler caching retains forbidden GHA state: {forbidden}")
     require(r"SCCACHE_DIR:\s*\$\{\{ github\.workspace \}\}/build-ios/client-sccache", integrated, "the cache must stay in the bounded workspace path")
     require(r"SCCACHE_CACHE_SIZE:\s*512M", integrated, "the client cache must leave room for validated toolchain checkpoints")
     require(r'SCCACHE_IDLE_TIMEOUT:\s*"0"', integrated, "the cache server must survive long non-compiler Xcode phases")
-    for remote_setting in (
+    for disk_setting in (
         'SCCACHE_CLIENT_SIDE: "1"',
-        "SCCACHE_MULTILEVEL_CHAIN: disk,gha",
-        "SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: all",
-        'SCCACHE_GHA_ENABLED: "true"',
+        "SCCACHE_MULTILEVEL_CHAIN: disk",
+        "SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: l0",
     ):
-        if remote_setting not in integrated:
-            raise AssertionError(f"remote object persistence omits {remote_setting}")
+        if disk_setting not in integrated:
+            raise AssertionError(f"disk-only object persistence omits {disk_setting}")
     require(r"SCCACHE_BASEDIRS:\s*\$\{\{ github\.workspace \}\}", integrated, "workspace paths must be normalized")
     require(r"SCCACHE_C_CUSTOM_CACHE_BUSTER=.*namespace", integrated, "toolchain identity must enter compiler keys")
     for identity in ("QT_HOST_KEY", "QT_IOS_KEY", "CONAN_KEY", "V8_KEY", "MOLTENVK_KEY"):
         if identity not in integrated[namespace:restore]:
             raise AssertionError(f"compiler namespace omits {identity}")
-    require(r'echo "SCCACHE_GHA_VERSION=overte-ios-client-objects-v1-\$namespace"', integrated[namespace:restore], "remote objects must share the deterministic toolchain namespace")
+    if "SCCACHE_GHA_VERSION" in integrated[namespace:restore]:
+        raise AssertionError("the deterministic toolchain namespace must not enable a GHA backend")
 
     restore_slice = integrated[restore:start]
     require(r"actions/cache/restore@[0-9a-f]{40}", restore_slice, "compiler restore action must be immutable")
@@ -74,7 +77,7 @@ def main() -> None:
     require(r"restore-keys:[\s\S]*client-sccache-key\.outputs\.prefix", restore_slice, "retries must restore the newest compatible generation")
 
     start_slice = integrated[start:configure]
-    require(r"sccache --stop-server \|\| true", start_slice, "persistent runners need a fresh authenticated server")
+    require(r"sccache --stop-server \|\| true", start_slice, "persistent runners need a fresh cache server")
     require(r"sccache --start-server", start_slice, "Xcode must not implicitly start and wait on the cache server")
     require(r"sccache --zero-stats", start_slice, "each build needs isolated cache statistics")
 
@@ -93,14 +96,17 @@ def main() -> None:
 
     smoke_slice = integrated[smoke:build]
     require(r"ios/tests/fixtures/xcode-sccache", smoke_slice, "a real Xcode compile must prove launcher activity before the full build")
-    require(r"OVERTE_SCCACHE_REMOTE_PROBE=\$\{GITHUB_RUN_ID\}_\$\{GITHUB_RUN_ATTEMPT\}", smoke_slice, "every run must force a unique probe and prove a fresh remote write")
+    require(r"OVERTE_SCCACHE_LOCAL_PROBE=\$\{GITHUB_RUN_ID\}_\$\{GITHUB_RUN_ATTEMPT\}", smoke_slice, "every run must force a unique local cache write")
     require(r"sccache --zero-stats[\s\S]*cmake --build[\s\S]*sccache --show-stats --stats-format=json", smoke_slice, "the smoke compile needs isolated machine-readable statistics")
     if smoke_slice.count("sccache --zero-stats") != 2:
         raise AssertionError("the full build must start with clean statistics after the Xcode smoke")
     require(r"requests < 1 or cacheable < 1[\s\S]*Xcode compiler checkpoint smoke did not reach sccache", smoke_slice, "a bypassed launcher must fail before the long build")
-    for remote_evidence in ("cache_writes", "multi_level", "write_failures", "remote GHA cache"):
-        if remote_evidence not in smoke_slice:
-            raise AssertionError(f"the preflight does not prove remote object persistence: {remote_evidence}")
+    for local_evidence in ("cache_writes", "cache_write_errors"):
+        if local_evidence not in smoke_slice:
+            raise AssertionError(f"the preflight does not prove local object persistence: {local_evidence}")
+    for forbidden in ("multi_level", "write_failures", "remote GHA cache"):
+        if forbidden in smoke_slice:
+            raise AssertionError(f"the local preflight retains a remote-cache expectation: {forbidden}")
     require(r"id: full-client-build", integrated[build:verify], "checkpoint verification needs the named build outcome")
 
     build_slice = integrated[build:verify]
@@ -124,7 +130,7 @@ def main() -> None:
         if invariant not in verify_slice:
             raise AssertionError(f"compiler checkpoint does not validate {invariant}")
     require(r"if write_errors:[\s\S]*::warning::sccache reported[\s\S]*local checkpoint will still be archived", verify_slice,
-            "a partial remote write failure must remain visible without discarding valid local objects")
+            "a partial cache write failure must remain visible without discarding valid local objects")
     if "raise SystemExit(f\"sccache reported {write_errors} cache write errors\")" in verify_slice:
         raise AssertionError("a partial remote write failure must not suppress the local recovery checkpoint")
     if integrated.count('stats.get("requests_executed", stats.get("compile_requests", 0))') != 2:
@@ -176,7 +182,7 @@ def main() -> None:
             raise AssertionError(f"Xcode compiler checkpoint omits {setting}")
     require(r"command -v \"\$compiler_launcher\"", build_script, "the launcher must resolve to an executable")
 
-    print("Full-client sccache checkpoint contract passed")
+    print("Full-client disk-only sccache checkpoint contract passed")
 
 
 if __name__ == "__main__":

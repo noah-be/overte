@@ -1825,13 +1825,14 @@ def test_scope_contract() -> None:
 
 def test_ci_contract() -> None:
     workflow = SOURCE_ROOT / ".github" / "workflows" / "ios-bootstrap.yml"
+    workflow_text = workflow.read_text(encoding="utf-8")
     require_text(workflow, r"runs-on: macos-26", "CI must use an Xcode 26 capable host")
-    require_text(workflow, r"push:\s+branches:\s+- apple-ios", "iOS CI must run on the durable integration branch")
+    require_text(workflow, r"push:\s+branches:\s+- apple-ios", "normal integration pushes must run iOS host contracts")
+    require_text(workflow, r"pull_request:\s+paths:", "pull requests must run iOS host contracts")
     require_text(workflow, r"runs-on: ubuntu-24\.04", "host contracts need an independent Linux gate")
     require_text(workflow, r"needs: host-contracts", "macOS CI must wait for host contracts")
     require_text(workflow, r"persist-credentials: false", "checkout credentials must not persist")
-    require_text(workflow, r"families=iphone", "pull requests must retain a fast iPhone smoke test")
-    require_text(workflow, r'families="iphone ipad"', "full and touch-relevant runs must cover iPhone and iPad")
+    require_text(workflow, r"families=iphone ipad", "manual simulator runs must cover iPhone and iPad")
     require_text(workflow, r"- 'interface/resources/qml/\*\*'", "shared touch QML changes must trigger iOS CI")
     require_text(workflow, r"interface/src/IOSTouchUiMetrics[.]\*", "native touch metrics changes must trigger iOS CI")
     require_text(workflow, r"simulator-smoke\.sh", "CI must launch the selected form factors")
@@ -1841,6 +1842,55 @@ def test_ci_contract() -> None:
     require_text(workflow, r"github\.run_number.*overte-ios-device-unsigned", "CI artifact names must start with the build number")
     require_text(workflow, r"Payload/OverteIOSBootstrap\.app/default\.metallib", "CI must inspect the IPA payload")
     require_text(workflow, r"org\.overte\.bootstrap\.dev\s+\\\s+iphoneos", "bootstrap device SDK CI must verify its distinct platform identity")
+
+    jobs_text = workflow_text.split("\njobs:\n", 1)[1]
+    job_matches = list(
+        re.finditer(r"(?m)^  ([A-Za-z_][A-Za-z0-9_-]*):\s*$", jobs_text)
+    )
+    job_bodies = {
+        match.group(1): jobs_text[
+            match.end() : job_matches[index + 1].start()
+            if index + 1 < len(job_matches)
+            else len(jobs_text)
+        ]
+        for index, match in enumerate(job_matches)
+    }
+    long_jobs = {
+        "provision-qt-ios",
+        "integrated-ios-after-qt",
+        "fedora-e2e-producer",
+        "personal-team-e2e-kit",
+        "world-runtime-evidence",
+        "simulator",
+        "unsigned-device-sdk",
+    }
+    assert set(job_bodies) == long_jobs | {"host-contracts"}, (
+        "every bootstrap job must be classified as host-only or dispatch-only"
+    )
+    for job in long_jobs:
+        require_dispatch = re.search(
+            r"(?m)^    if:(?: >-\n)?[\s\S]*?github\.event_name == 'workflow_dispatch'",
+            job_bodies[job],
+        )
+        assert require_dispatch is not None, f"{job} must require an explicit workflow dispatch"
+        assert "needs: host-contracts" in job_bodies[job] or (
+            job == "integrated-ios-after-qt" and "needs: provision-qt-ios" in job_bodies[job]
+        ), f"{job} must wait directly or transitively for device-free host contracts"
+    assert re.search(r"(?m)^    if:", job_bodies["host-contracts"]) is None, (
+        "device-free host contracts must run for pull requests and normal pushes"
+    )
+    for forbidden in ("github.event.head_commit.message", "[qt-source]", "[ios-integrated]", "[ios-worlds]"):
+        assert forbidden not in workflow_text, f"automatic long-job opt-in remains: {forbidden}"
+    for job in ("simulator", "unsigned-device-sdk"):
+        for special_mode in (
+            "integrated",
+            "world_evidence",
+            "fedora_e2e_producer",
+            "personal_team_e2e_kit",
+        ):
+            assert f"inputs.{special_mode} != true" in job_bodies[job], (
+                f"{job} must yield to explicitly selected {special_mode} mode"
+            )
 
     verifier = IOS_ROOT / "ci" / "verify-app.sh"
     require_text(verifier, r'lipo "\$executable" -verify_arch arm64', "bundle verification must enforce arm64")
@@ -1863,8 +1913,8 @@ def test_ci_contract() -> None:
     require_text(integrated, r"Restore durable Qt iOS artifact after cache eviction[\s\S]*?QT_IOS_ARTIFACT_PREFIX[\s\S]*?qt-checkpoint-artifact\.py restore", "the consumer must survive target-cache eviction through the validated artifact")
     require_text(integrated, r"Fail closed without validated Qt host tools[\s\S]*?qt-host-artifact\.outputs\.restored != 'true'", "the consumer must fail when both host recovery sources are absent")
     require_text(integrated, r"Fail closed without validated Qt iOS target[\s\S]*?qt-ios-artifact\.outputs\.restored != 'true'", "the consumer must fail when both target recovery sources are absent")
-    require_text(integrated, r"Toolchain preflight[\s\S]*?qt-host-cache\.outputs\.cache-hit[\s\S]*?\|\| test .*qt-host-artifact\.outputs\.restored", "the preflight must accept a validated host artifact after cache eviction")
-    require_text(integrated, r"Toolchain preflight[\s\S]*?qt-ios-cache\.outputs\.cache-hit[\s\S]*?\|\| test .*qt-ios-artifact\.outputs\.restored", "the preflight must accept a validated iOS artifact after cache eviction")
+    require_text(integrated, r"Toolchain preflight[\s\S]*?QT_HOST_CACHE_HIT:\s*\$\{\{ steps\.qt-host-cache\.outputs\.cache-hit \}\}[\s\S]*?QT_HOST_ARTIFACT_RESTORED:\s*\$\{\{ steps\.qt-host-artifact\.outputs\.restored \}\}[\s\S]*?test \"\$QT_HOST_CACHE_HIT\" = true[\s\S]*?\|\| test \"\$QT_HOST_ARTIFACT_RESTORED\" = true", "the preflight must safely accept a validated host artifact after cache eviction")
+    require_text(integrated, r"Toolchain preflight[\s\S]*?QT_IOS_CACHE_HIT:\s*\$\{\{ steps\.qt-ios-cache\.outputs\.cache-hit \}\}[\s\S]*?QT_IOS_ARTIFACT_RESTORED:\s*\$\{\{ steps\.qt-ios-artifact\.outputs\.restored \}\}[\s\S]*?test \"\$QT_IOS_CACHE_HIT\" = true[\s\S]*?\|\| test \"\$QT_IOS_ARTIFACT_RESTORED\" = true", "the preflight must safely accept a validated iOS artifact after cache eviction")
     require_text(integrated, r"runs-on: ubuntu-24\.04", "integrated CI needs Linux host contracts")
     require_text(integrated, r"macos_runner:[\s\S]*default:\s*macos-26",
                  "integrated CI must default to the Xcode 26 hosted runner")
@@ -1924,7 +1974,9 @@ def test_ci_contract() -> None:
     require_text(qt_source, r'host_validator_hash="cb986644c5f67162982d39b4c00cebde2ce17fa43ce75ae97c95680360de1b8a"', "target validation fixes must retain the validated host artifact identity")
     require_text(qt_source, r'ios_plan_hash=.*build-qt-ios-from-source\.sh', "target cache key must change with iOS configure policy")
     require_text(qt_source, r"target_sdk:[\s\S]*?iphoneos[\s\S]*?iphonesimulator", "Qt provisioning must expose an explicit device/simulator SDK boundary")
-    require_text(qt_source, r'--target-sdk "\$\{\{ inputs\.target_sdk \}\}"', "every Qt source stage must receive the selected target SDK")
+    require_text(qt_source, r"OVERTE_TARGET_SDK:\s*\$\{\{ inputs\.target_sdk \}\}", "the selected target SDK must cross the shell boundary through the environment")
+    if qt_source_text.count('--target-sdk "$OVERTE_TARGET_SDK"') != 3:
+        raise AssertionError("every Qt source stage must receive the safely exported target SDK")
     require_text(qt_source, r"--stage ios", "Qt provisioning must build the iOS target independently")
     require_text(qt_source, r"Save compiler recovery cache after a build failure", "failed compiles must retain reusable compiler outputs without duplicating every successful run")
     require_text(qt_source, r"if: failure\(\) && steps\.sccache\.outcome == 'success'", "compiler recovery must only create a new generation after a failed build")
@@ -1936,12 +1988,11 @@ def test_ci_contract() -> None:
     require_text(bootstrap_workflow, r"provision-qt-ios:[\s\S]*?permissions:[\s\S]*?actions: write[\s\S]*?contents: read", "the reusable Qt caller must pass checkpoint permissions")
     require_text(bootstrap_workflow, r"needs\.provision-qt-ios\.outputs\.qt_host_cache_key", "host cache output must reach the integrated caller")
     require_text(bootstrap_workflow, r"needs\.provision-qt-ios\.outputs\.qt_ios_cache_key", "iOS cache output must reach the integrated caller")
-    require_text(bootstrap_workflow, r"contains\(github\.event\.head_commit\.message, '\[ios-integrated\]'\)", "integrated-only fixes must be able to reuse provisioned Qt caches")
     require_text(bootstrap_workflow, r"workflow_dispatch:[\s\S]*?integrated:[\s\S]*?type: boolean[\s\S]*?default: false", "manual integrated retries need an explicit opt-in")
     require_text(bootstrap_workflow, r"github\.event_name == 'workflow_dispatch' && inputs\.integrated", "the explicit manual opt-in must start Qt provisioning")
     require_text(bootstrap_workflow, r"e2e_test_build:\s*\$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.integrated \}\}", "a manual integrated build must produce the E2E Full Client")
-    require_text(bootstrap_workflow, r"simulator:[\s\S]*!contains\(github\.event\.head_commit\.message, '\[ios-integrated\]'\)", "integrated-only retries must skip the independent simulator gate")
-    require_text(bootstrap_workflow, r"unsigned-device-sdk:[\s\S]*!contains\(github\.event\.head_commit\.message, '\[ios-integrated\]'\)", "integrated-only retries must skip the independent device SDK gate")
+    require_text(bootstrap_workflow, r"simulator:[\s\S]*github\.event_name == 'workflow_dispatch'[\s\S]*inputs\.integrated != true", "simulator builds must require the default manual mode")
+    require_text(bootstrap_workflow, r"unsigned-device-sdk:[\s\S]*github\.event_name == 'workflow_dispatch'[\s\S]*inputs\.integrated != true", "device SDK builds must require the default manual mode")
     if bootstrap_workflow.read_text(encoding="utf-8").count("ios/tests/run-tests.sh") != 1:
         raise AssertionError("branch CI must run the host suite exactly once before macOS jobs")
 
@@ -1976,7 +2027,6 @@ def test_ci_contract() -> None:
             raise AssertionError(f"Qt source workflow contains forbidden acquisition behavior: {forbidden}")
     if re.search(r"actions/upload-artifact@[0-9a-f]{40}[\s\S]{0,500}(?:\.app|\.ipa|build-ios/artifacts)", qt_source_text):
         raise AssertionError("Qt provisioning must checkpoint SDK prefixes only, never application artifacts")
-    require_text(workflow, r"contains\(github\.event\.head_commit\.message, '\[qt-source\]'\)", "branch CI must require an explicit Qt source opt-in")
     require_text(workflow, r"uses: \./\.github/workflows/ios-qt-source\.yml", "branch CI must call the audited Qt provisioner")
     require_text(workflow, r"needs: provision-qt-ios", "integrated configure must wait for successful Qt provisioning")
     require_text(workflow, r"uses: \./\.github/workflows/ios-integrated\.yml", "opt-in branch CI must call the integrated configure gate")

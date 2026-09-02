@@ -40,6 +40,10 @@ def main() -> None:
     }
     tiers = {tier["id"]: tier for tier in policy["tiers"]}
     assert tiers["full-client-simulator"]["status"] == "prepared"
+    assert tiers["full-client-simulator"]["activationRequirement"] == (
+        "Use the explicit world_evidence bootstrap workflow-dispatch input; "
+        "pull requests and normal pushes remain device-free."
+    )
     assert tiers["full-client-ipad"]["status"] == "prepared"
     matrix_cases = {case["id"] for case in matrix["cases"]}
     declared_runtime_cases = {case["id"] for case in policy["runtimeCases"]}

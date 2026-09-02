@@ -208,7 +208,7 @@ jobs:
             --output "$PRIVATE_ROOT/resigner.tar.gz"
           printf '%s  %s\n' "$resigner_sha" "$PRIVATE_ROOT/resigner.tar.gz" | shasum -a 256 --check
           tar -xzf "$PRIVATE_ROOT/resigner.tar.gz" -C "$PRIVATE_ROOT/tools" --strip-components=1
-          [[ "$($PRIVATE_ROOT/tools/resigner --version)" == "resigner version v${RESIGNER_VERSION}" ]]
+          [[ "$("$PRIVATE_ROOT/tools/resigner" --version)" == "resigner version v${RESIGNER_VERSION}" ]]
 
           curl --fail --location --silent --show-error \
             --proto '=https' --tlsv1.2 --retry 3 --retry-all-errors \

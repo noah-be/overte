@@ -25,8 +25,14 @@ def require(text: str, pattern: str, message: str) -> None:
         raise AssertionError(message)
 
 
-require(WORKFLOW, r"^on:\n\s+workflow_call:\s*$", "world evidence must run only through its gated caller")
-assert "pull_request:" not in WORKFLOW and "push:" not in WORKFLOW
+def workflow_events(text: str) -> set[str]:
+    match = re.search(r"(?ms)^on:\n(?P<body>.*?)(?=^[A-Za-z0-9_-]+:\s*$)", text)
+    assert match is not None
+    return set(re.findall(r"(?m)^  ([a-z_]+):", match.group("body")))
+
+
+assert workflow_events(WORKFLOW) == {"workflow_call"}, "world evidence must run only through its gated caller"
+assert workflow_events(RUNTIME_ONLY) == {"workflow_dispatch"}, "candidate runtime must require an explicit manual dispatch"
 assert "cancel-in-progress: false" in WORKFLOW
 assert "persist-credentials: false" in WORKFLOW
 for line in WORKFLOW.splitlines():
@@ -92,6 +98,10 @@ for runtime_case in ("iphone-serverless", "iphone-online", "ipad-serverless", "i
 
 require(WORKFLOW, r"qt-simulator:[\s\S]*uses: \./\.github/workflows/ios-qt-source\.yml[\s\S]*target_sdk: iphonesimulator", "world workflow must provision simulator Qt")
 require(QT, r"target_sdk:[\s\S]*iphoneos[\s\S]*iphonesimulator", "Qt provisioner must keep device and simulator explicit")
+v8_job = WORKFLOW[WORKFLOW.index("  v8-simulator:"):WORKFLOW.index("  world-runtime:")]
+world_job = WORKFLOW[WORKFLOW.index("  world-runtime:"):]
+require(v8_job, r"permissions:\s+actions: read\s+contents: read", "the V8 producer must retain read-only token permissions")
+require(world_job, r"permissions:\s+actions: read\s+contents: read", "the world runtime must retain read-only token permissions")
 require(WORKFLOW, r"OVERTE_IOS_V8_PLATFORM: simulator", "V8 must be compiled and validated for the simulator")
 require(WORKFLOW, r"v8-build-plan\.py identity[\s\S]*--platform simulator", "simulator V8 must use the canonical output identity")
 assert 'recipe_hash="$(shasum -a 256 ios/v8.env ios/tools/build-v8-ios.sh' not in WORKFLOW
@@ -106,7 +116,8 @@ for checkpoint_step in (
     assert checkpoint_step in WORKFLOW
 assert "Simulator V8 sccache state before rebuild" in WORKFLOW
 assert "Simulator V8 sccache state after rebuild" in WORKFLOW
-assert "retention-days: 90" in WORKFLOW
+assert "retention-days: 90" not in WORKFLOW
+assert "retention-days: 30" in WORKFLOW
 require(WORKFLOW, r"target-sdk iphonesimulator --print-plan", "restored Qt must prove simulator provenance")
 require(WORKFLOW, r'QT_OSX_ARCHITECTURES "arm64"', "restored simulator Qt must prove its arm64 target architecture")
 require(MOLTENVK_SIMULATOR, r"OVERTE_IOS_MOLTENVK_SIMULATOR_ARCHIVE=MoltenVK-all\.tar", "simulator MoltenVK must use the multi-slice archive")
@@ -130,7 +141,8 @@ for checkpoint in (
     assert checkpoint in WORKFLOW
 require(WORKFLOW, r"overte-ios-world-build-tree-v1-.*steps[.]conan-key[.]outputs[.]namespace", "incremental build tree must be toolchain namespaced")
 require(WORKFLOW, r"overte-ios-world-client-local-v1-.*steps[.]conan-key[.]outputs[.]namespace", "local compiler fallback must be toolchain namespaced")
-require(WORKFLOW, r"report-sccache-stats[.]py[\s\S]*--max-remote-write-failure-rate 0[.]10", "Full Client remote cache failures must be bounded")
+require(WORKFLOW, r"report-sccache-stats[.]py[\s\S]*--phase after --require-activity", "Full Client local compiler-cache activity must be validated")
+assert "--max-remote-write-failure-rate" not in WORKFLOW
 
 for phase in (
     "v8-simulator-build",
@@ -143,7 +155,9 @@ assert WORKFLOW.count("--inactivity-timeout") >= 4
 assert WORKFLOW.count("--max-runtime") >= 4
 assert "compiler-live.jsonl" in WORKFLOW
 assert "sccache --show-stats" in WORKFLOW
-assert "SCCACHE_GHA_VERSION=overte-ios-world-client-objects" in WORKFLOW
+assert "SCCACHE_MULTILEVEL_CHAIN: disk" in WORKFLOW
+assert "SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: l0" in WORKFLOW
+assert "SCCACHE_GHA_" not in WORKFLOW
 
 require(WORKFLOW, r"https://mv\.overte\.org/server/api/v1/places/overte_hub", "online place must be resolved authoritatively at runtime")
 require(WORKFLOW, r'domain\.get\("active"\) is not True', "inactive online worlds must fail closed")
@@ -219,16 +233,16 @@ require(WORKFLOW, r"workflow_call:[\s\S]*runtime_case:[\s\S]*type: string[\s\S]*
 assert "inputs.runtime_case == 'all' || endsWith(inputs.runtime_case, '-online')" in WORKFLOW
 require(
     BOOTSTRAP,
-    r"concurrency:[\s\S]*ios-bootstrap-\$\{\{ github[.]ref \}\}-\$\{\{[\s\S]*inputs[.]world_evidence[\s\S]*'world'[\s\S]*inputs[.]integrated[\s\S]*'integrated'[\s\S]*'smoke'",
-    "world, integrated, and smoke runs must not share one branch-wide mutex",
+    r"concurrency:[\s\S]*ios-bootstrap-\$\{\{ github[.]ref \}\}-\$\{\{[\s\S]*inputs[.]world_evidence[\s\S]*'world'[\s\S]*inputs[.]integrated[\s\S]*'integrated'[\s\S]*'default'",
+    "world, integrated, and default manual runs must not share one branch-wide mutex",
 )
-require(BOOTSTRAP, r"contains\(github\.event\.head_commit\.message, '\[ios-worlds\]'\)", "branch world acceptance needs an explicit marker")
+require(BOOTSTRAP, r"world-runtime-evidence:[\s\S]*github\.event_name == 'workflow_dispatch' && inputs\.world_evidence", "world acceptance must require explicit manual opt-in")
 require(BOOTSTRAP, r"world-runtime-evidence:[\s\S]*needs: host-contracts[\s\S]*uses: \./\.github/workflows/ios-world-runtime\.yml", "world runtime must wait for all host contracts")
 for job, following in (("simulator:", "unsigned-device-sdk:"), ("unsigned-device-sdk:", None)):
     start = BOOTSTRAP.index(f"  {job}")
     end = BOOTSTRAP.index(f"  {following}", start) if following else len(BOOTSTRAP)
     body = BOOTSTRAP[start:end]
-    assert "!(github.event_name == 'workflow_dispatch' && inputs.world_evidence)" in body, (
+    assert "inputs.world_evidence != true" in body, (
         f"{job[:-1]} must not duplicate the Full Client world-evidence run"
     )
 assert RUN_TESTS.count("world-runtime-workflow-contract-test.py") == 1
