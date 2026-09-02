@@ -363,6 +363,8 @@
         icon: "icons/tablet-icons/menu-i.svg",
         activeIcon: "icons/tablet-icons/menu-a.svg",
         text: "TABLET",
+        accessibleName: "Open tablet",
+        accessibleDescription: "Open the Overte application tablet",
         objectName: "OverteTabletOpen"
     }));
     cameraButton = addButton(navigationBar, buttonProperties({

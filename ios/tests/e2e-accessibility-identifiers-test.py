@@ -49,8 +49,11 @@ def main() -> None:
     assert "onClicked: tabletProxy.hideAndroidTablet()" in tablet_home
     assert "Accessible.role: Accessible.Button" in button_qml
     assert "Accessible.id: objectName" in button_qml
-    assert "Accessible.name: text" in button_qml
-    assert "Accessible.onPressAction: clicked()" in button_qml
+    assert "property string accessibleName: text" in button_qml
+    assert 'property string accessibleDescription: ""' in button_qml
+    assert "Accessible.name: accessibleName" in button_qml
+    assert "Accessible.description: accessibleDescription" in button_qml
+    assert "Accessible.onPressAction: button.clicked()" in button_qml
     assert "activeFocusOnTab: true" in button_qml
     assert "Accessible.id: objectName" in tablet_home
     assert "Accessible.onPressAction: tabletProxy.hideAndroidTablet()" in tablet_home
