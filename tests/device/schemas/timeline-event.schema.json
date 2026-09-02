@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://overte.org/schemas/device-timeline-event-v1.json",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "sequence", "epochMs", "event"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "sequence": {"type": "integer", "minimum": 1},
+    "epochMs": {"type": "integer", "minimum": 1},
+    "event": {"type": "string", "minLength": 1},
+    "module": {"type": "string", "minLength": 1},
+    "status": {"type": "string", "minLength": 1},
+    "durationSeconds": {"type": "number", "minimum": 0}
+  }
+}

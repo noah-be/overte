@@ -1,9 +1,13 @@
 # Overte physical-device E2E harness
 
-This directory is the platform-neutral orchestration layer for unattended E2E
-tests on real devices. Scenarios contain no ADB, Appium, Xcode, or
-operating-system branches. Target adapters translate a versioned capability
-contract into those tools.
+The lifecycle policy, common CI flow, evidence contracts, stability campaign,
+and portable suite frontier are documented in
+[`CROSS_PLATFORM_OPERATIONS.md`](CROSS_PLATFORM_OPERATIONS.md).
+
+This directory contains the platform-neutral orchestration layer for device
+and desktop E2E tests. Scenarios contain no operating-system, packaging, or
+transport details. The integrated desktop and shared Appium adapters translate
+only their advertised versioned capabilities into transport operations.
 
 ## Architecture
 
@@ -15,7 +19,7 @@ catalog module -> OverteSession -> adapter operation -> target automation
 fixture server -> controlled serverless scene
 domain fixture -> ephemeral domain + assignment-owned marker scene
 runner         -> lock, timeout, cleanup, JSON, JUnit, private artifacts
-Jenkins        -> schedule, device reservation, history, artifact retention
+matrix         -> selector-free policy evaluation
 ```
 
 The runner reserves exactly one target for a complete run, applies module
@@ -45,6 +49,15 @@ assertion failure.
   [`TABLET_E2E.md`](TABLET_E2E.md).
 - `domain-smoke`: launch, enter an ephemeral controlled domain, and verify its
   exact identity and assignment-owned content without restarting Interface.
+- `domain-recovery`: leave the controlled domain for the local fixture and
+  re-enter it with stable content and process identity.
+- `interaction-smoke`: prove that one semantic primary action produces exactly
+  one event on the controlled interaction target; see
+  [`INTERACTION_E2E.md`](INTERACTION_E2E.md).
+- `text-input-smoke`, `scripted-entity-smoke`, `multi-user-smoke`,
+  `network-fault-recovery`, `audio-controls`, `settings-persistence`,
+  `lifecycle-under-load`, and `render-health`: extended common contracts
+  documented in [`PORTABLE_EXTENDED_E2E.md`](PORTABLE_EXTENDED_E2E.md).
 - `vertical-locomotion`: one jump with observed ascent and landing, followed by
   bounded flight with observed active ascent. Adapters lacking either input
   capability skip only the corresponding module unless `--require-complete`
@@ -58,13 +71,14 @@ assertion failure.
 
 Enable long suites only after the short suites are reliable on the target.
 
-All behavioral modules use `OverteSession` and verify effects through fresh
-schema-v2 `probe.snapshot` samples. A successful input command alone is never
-enough to pass a behavior.
+Modules that assert in-client effects use `OverteSession` and verify those
+effects through fresh schema-v2 `probe.snapshot` samples. A successful input
+command alone is never enough to pass a behavior.
 
-`domain-smoke` is fully specified and hardware-free tested, but intentionally
-not advertised by a real adapter yet. Adapter enablement remains a separate
-per-platform acceptance step.
+These suites are fully specified and hardware-free tested. Advertisement by a
+real adapter remains a separate capability decision, and the empty evidence
+registry means no production suite is currently documented as physically
+accepted.
 
 ## Adapter protocol
 
@@ -102,6 +116,10 @@ The common input and lifecycle contract is deliberately small:
   positive values mean right and up.
 - `input.move` accepts one of `forward`, `backward`, `left`, or `right` and a
   duration from `0.1` through `10.0` seconds.
+- `input.primary` accepts `{}` and reports a performed native action; the probe,
+  not that response, proves delivery to the controlled entity.
+- `text.focus`, `text.type`, `text.snapshot`, and `text.dismiss` expose only the
+  repository-owned fixed-text contract.
 - `probe.snapshot` accepts an optional positive `afterSampleSequence` cursor;
   the returned v2 sample must advance beyond it.
 - `app.stop` accepts `{}` and confirms `{"stopped": true}`.
@@ -114,41 +132,24 @@ product-adapter handoff are documented in [`TABLET_E2E.md`](TABLET_E2E.md).
 The runner deliberately does not expose the selected policy path to adapter
 processes.
 
-Concrete adapters:
-
-- [`adapters/android/`](adapters/android/): Phone and Pico ADB lifecycle,
-  installation, telemetry, and scene delivery;
-- [`adapters/appium/`](adapters/appium/): shared Android/iOS W3C sessions,
-  touch gestures, Accessibility, probe pull, and screenshots;
-- [`adapters/mock/`](adapters/mock/): deterministic virtual state machine used
-  only to prove every common scenario without hardware.
-
-[`openxr_input/`](openxr_input/) contains the fail-closed, device-free semantic
-input prototype for future Pico/OpenXR look, movement, and tablet automation.
-It remains intentionally disconnected from Pico capabilities until a test-only
-API layer is packaged in the debug APK and accepted on physical hardware.
-
-Every real adapter needs a private, untracked target configuration. Copy the
-relevant `targets.example.json` outside the checkout; never commit UDIDs,
-device serials, local account paths, signing data, or Jenkins credentials.
+[`adapters/mock/`](adapters/mock/) is a deterministic state machine that proves
+every common scenario without hardware. The integrated
+[`adapters/desktop_oculix/`](adapters/desktop_oculix/) and
+[`adapters/appium/`](adapters/appium/) implementations advertise smaller,
+truthful capability sets. The shared Appium layer contains no Android or iOS
+product implementation history. Real target configuration must remain outside
+the checkout; never commit device identifiers, account paths, signing data, or
+CI credentials.
 
 ## Controlled fixture and probe
 
-[`fixture/scene.json`](fixture/scene.json) contains five local primitive
-entities, including a deterministic collision wall, and no external assets.
-Start an ephemeral localhost server with:
+[`fixture/scene.json`](fixture/scene.json) contains six local primitive
+entities, including a deterministic collision wall and scripted interaction
+target, and no external assets. Validate the fixture without opening a
+long-running listener:
 
 ```bash
-python3 tests/device/fixture/serve.py --ready-file /tmp/overte-fixture.json
-```
-
-For a phone/headset on the LAN, bind all interfaces and provide the exact
-device-reachable host address:
-
-```bash
-python3 tests/device/fixture/serve.py \
-  --bind 0.0.0.0 --public-host 192.0.2.10 --port 18080 \
-  --ready-file /tmp/overte-fixture.json
+python3 tests/device/fixture/serve.py --check
 ```
 
 The Android debug E2E APK embeds the same scene and probe and can use
@@ -163,9 +164,9 @@ in-client [`probe/overte_e2e_probe.js`](probe/overte_e2e_probe.js) records
 application focus, scene readiness and markers, collision geometry, avatar
 position, velocity and body yaw, `inAir`, `flying`, `flyingEnabled`, camera
 orientation, tablet state, controlled asset resource/entity evidence, sound
-resource and injector state, monotonic sample sequence, and build identity
-through Interface's existing test-script result API. Android additionally
-records controller state and the gated OpenXR route. It records no audio
+resource and injector state, world-interaction and entity-script state,
+controlled peer replication, monotonic sample sequence, and build identity
+through Interface's existing test-script result API. It records no audio
 samples. Product adapters own the exact launch and result transport used to
 load it. The fixture exposes a same-origin `/e2e-client-command.json` channel;
 controlled adapters POST strict commands there and verify the exact response.
@@ -192,23 +193,30 @@ handoff.
 
 ## Running
 
-List a suite without contacting a target:
+List the common suite against the deterministic adapter:
 
 ```bash
 python3 tests/device/run.py \
   --adapter-manifest tests/device/adapters/android/phone.json \
   --catalog tests/device/catalog.json --suite e2e-core --list
+```
 
+Run representative suites in one ephemeral directory:
+
+```bash
+run_root="$(mktemp -d)"
+OVERTE_MOCK_E2E_STATE="$run_root/vertical-state.json" \
 python3 tests/device/run.py \
   --adapter-manifest tests/device/adapters/mock/adapter.json \
   --catalog tests/device/catalog.json --suite vertical-locomotion \
-  --output-dir /tmp/overte-device-run --require-complete
+  --output-dir "$run_root/vertical" --allow-virtual --require-complete
 
+OVERTE_MOCK_E2E_STATE="$run_root/tablet-state.json" \
 OVERTE_MOCK_TABLET_UI_PROFILE=flat python3 tests/device/run.py \
   --adapter-manifest tests/device/adapters/mock/adapter.json \
   --catalog tests/device/catalog.json --suite tablet-e2e \
   --tablet-policy tests/device/policies/mock-flat-touch.json \
-  --allow-virtual --require-complete
+  --output-dir "$run_root/tablet" --allow-virtual --require-complete
 ```
 
 Run on one discovered physical target and keep results outside the checkout:
@@ -227,20 +235,17 @@ a misleading partial pass. Use that flag for manual acceptance runs as well.
 Use `--target` only when discovery yields multiple targets. The value is never
 persisted, but shell tracing must still be disabled around it in CI.
 
-Verify the device-free implementation:
+Verify the device-free implementation through the project entry point:
 
 ```bash
-python3 -m unittest discover -s tests/device/self_tests -v
-tests/device/qml/run-qml-tests.sh
-python3 tests/device/fixture/serve.py --check
-python3 tests/device/fixture/domain.py --check
+python3 tests/device/run_control_plane_tests.py --profile quick
+python3 tests/run-project-tests.py --suite documentation
 ```
 
-Verify a configured adapter, optionally including cleanup idempotency:
+Inspect the reusable adapter verifier without selecting or contacting a target:
 
 ```bash
-python3 tests/device/verify_adapter.py \
-  --adapter-manifest path/to/adapter.json --require-target --check-cleanup
+python3 tests/device/verify_adapter.py --help
 ```
 
 See [`E2E_STRATEGY.md`](E2E_STRATEGY.md) for rollout, target ownership, Jenkins,

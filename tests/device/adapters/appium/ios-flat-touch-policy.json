@@ -1,0 +1,36 @@
+{
+  "contractVersion": 1,
+  "schemaVersion": 1,
+  "profileId": "ios.flat-touch",
+  "expectations": {
+    "settings.audio": {
+      "entryControlId": "settings.audio",
+      "requiredControlIds": ["nav.back", "nav.close", "nav.home"],
+      "forbiddenControlIds": []
+    },
+    "settings.general": {
+      "entryControlId": "settings.general",
+      "requiredControlIds": ["nav.back", "nav.close", "nav.home"],
+      "forbiddenControlIds": ["settings.hmd-preferences"]
+    },
+    "settings.graphics": {
+      "entryControlId": "settings.graphics",
+      "requiredControlIds": ["nav.back", "nav.close", "nav.home"],
+      "forbiddenControlIds": ["settings.vr-render-resolution"]
+    },
+    "settings.home": {
+      "entryControlId": "app.settings",
+      "requiredControlIds": ["nav.close", "nav.home", "settings.audio", "settings.general", "settings.graphics", "settings.security"],
+      "forbiddenControlIds": ["settings.controllers", "settings.hmd-preferences", "settings.vr-render-resolution"]
+    },
+    "settings.security": {
+      "entryControlId": "settings.security",
+      "requiredControlIds": ["nav.back", "nav.close", "nav.home"],
+      "forbiddenControlIds": []
+    },
+    "tablet.home": {
+      "requiredControlIds": ["app.settings", "nav.close"],
+      "forbiddenControlIds": []
+    }
+  }
+}

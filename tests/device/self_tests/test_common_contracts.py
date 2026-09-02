@@ -14,10 +14,42 @@ sys.path.insert(0, str(DEVICE_ROOT))
 
 from contracts import (validate_operation_arguments, validate_operation_result,
                        validate_probe_snapshot)
-from test_vertical_locomotion import snapshot
+from tests.device.self_tests.test_vertical_locomotion import snapshot
 
 
 class CommonContractTest(unittest.TestCase):
+    def test_install_and_visual_artifact_contracts_are_closed(self):
+        self.assertEqual(
+            {"path": "/private/candidate.bin"},
+            validate_operation_arguments(
+                "app.install", {"path": "/private/candidate.bin"}))
+        self.assertEqual(
+            {"durationSeconds": 3.0},
+            validate_operation_arguments(
+                "artifact.video", {"durationSeconds": 3.0}))
+        self.assertEqual(
+            {"installed": True},
+            validate_operation_result("app.install", {"installed": True}))
+        for operation, result in (
+                ("artifact.screenshot", {"artifact": "screenshot.png"}),
+                ("artifact.video", {"artifact": "screen-recording.mp4"})):
+            self.assertEqual(result, validate_operation_result(operation, result))
+        for operation, arguments in (
+                ("app.install", {"path": "relative.apk"}),
+                ("app.install", {}),
+                ("artifact.video", {"durationSeconds": 0.5}),
+                ("artifact.video", {"durationSeconds": 31})):
+            with self.subTest(operation=operation):
+                with self.assertRaises(ValueError):
+                    validate_operation_arguments(operation, arguments)
+        for operation, result in (
+                ("app.install", {"installed": False}),
+                ("artifact.screenshot", {"artifact": "../private.png"}),
+                ("artifact.video", {"artifact": ""})):
+            with self.subTest(operation=operation):
+                with self.assertRaises(ValueError):
+                    validate_operation_result(operation, result)
+
     def test_signed_look_and_directional_move_arguments_are_exact(self):
         self.assertEqual(
             {"horizontal": -0.25, "vertical": 0.0},
@@ -67,6 +99,31 @@ class CommonContractTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     validate_operation_result(operation, result)
 
+    def test_primary_interaction_operation_and_probe_evidence_are_exact(self):
+        self.assertEqual({}, validate_operation_arguments("input.primary", {}))
+        self.assertEqual({"performed": True}, validate_operation_result(
+            "input.primary", {"performed": True}))
+        with self.assertRaises(ValueError):
+            validate_operation_arguments("input.primary", {"button": "trigger"})
+
+        valid = snapshot()
+        valid["interaction"] = {
+            "targetAvailable": True,
+            "pressCount": 1,
+            "lastEntityName": "OVERTE_E2E_INTERACTABLE",
+            "lastPointerId": 2,
+        }
+        self.assertIs(valid, validate_probe_snapshot(valid))
+        for mutation in (
+                {"pressCount": -1},
+                {"pressCount": 1, "lastEntityName": "UNCONTROLLED"},
+                {"pressCount": 0, "lastEntityName": "OVERTE_E2E_INTERACTABLE"},
+                {"lastPointerId": -1}):
+            invalid = copy.deepcopy(valid)
+            invalid["interaction"].update(mutation)
+            with self.assertRaises(ValueError):
+                validate_probe_snapshot(invalid)
+
     def test_probe_v2_requires_motion_scene_tablet_and_sequence_evidence(self):
         valid = snapshot()
         self.assertIs(valid, validate_probe_snapshot(valid))
@@ -93,6 +150,26 @@ class CommonContractTest(unittest.TestCase):
             with self.subTest(invalid=invalid):
                 with self.assertRaises(ValueError):
                     validate_probe_snapshot(invalid)
+
+    def test_probe_orientation_history_is_bounded_ordered_and_current(self):
+        valid = snapshot()
+        valid["sampleSequence"] = 9
+        valid["view"]["orientationHistory"] = [
+            {"sampleSequence": 8, "orientation": {"x": 0.0, "y": -12.0, "z": 0.0}},
+            {"sampleSequence": 9, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0}},
+        ]
+        self.assertIs(valid, validate_probe_snapshot(valid))
+        for history in (
+                [{"sampleSequence": 10,
+                  "orientation": {"x": 0.0, "y": 0.0, "z": 0.0}}],
+                [{"sampleSequence": 8,
+                  "orientation": {"x": 0.0, "y": 0.0, "z": 0.0}},
+                 {"sampleSequence": 8,
+                  "orientation": {"x": 0.0, "y": 1.0, "z": 0.0}}]):
+            invalid = copy.deepcopy(valid)
+            invalid["view"]["orientationHistory"] = history
+            with self.assertRaisesRegex(ValueError, "orientation history sequence"):
+                validate_probe_snapshot(invalid)
 
 
 if __name__ == "__main__":

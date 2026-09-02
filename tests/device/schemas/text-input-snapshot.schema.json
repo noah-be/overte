@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://overte.org/schemas/device-text-input-snapshot-v1.json",
+  "title": "Controlled E2E text input snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "value", "focused", "keyboardVisible", "submittedCount"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "value": {"type": "string", "maxLength": 128, "pattern": "^[^\\u0000-\\u001F\\u007F]*$"},
+    "focused": {"type": "boolean"},
+    "keyboardVisible": {"type": ["boolean", "null"]},
+    "submittedCount": {"type": "integer", "minimum": 0}
+  }
+}

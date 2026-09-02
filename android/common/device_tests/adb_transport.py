@@ -57,6 +57,22 @@ class AdbTransport:
             raise RuntimeError("ADB operation failed")
         return result.stdout.replace("\r", "")
 
+    def execute_bytes(self, arguments: list[str], *, target: str | None = None,
+                      timeout: int = 20, check: bool = True) -> bytes:
+        """Run one bounded ADB command without decoding binary target output."""
+        command = list(self.command)
+        if target:
+            command += ["-s", target]
+        try:
+            result = subprocess.run(
+                [*command, *arguments], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                timeout=timeout, check=False)
+        except subprocess.TimeoutExpired as error:
+            raise RuntimeError("ADB binary operation timed out") from error
+        if check and result.returncode != 0:
+            raise RuntimeError("ADB binary operation failed")
+        return result.stdout
+
     @staticmethod
     def _validate_debug_app_file(package: str, relative_path: str) -> None:
         path = PurePosixPath(relative_path)

@@ -55,9 +55,11 @@ jobs:
       - name: Test Android topology policy
         run: python3 tests/android-branch-topology-test.py
       - name: Validate branch topology
+        env:
+          TARGET_BRANCH: ${{ github.base_ref }}
         run: >-
           python3 tests/android-branch-topology-check.py
-          --target "${{ github.base_ref }}"
+          --target "$TARGET_BRANCH"
           --android-main origin/android-main
           --android-vr origin/android-vr
           --head HEAD
