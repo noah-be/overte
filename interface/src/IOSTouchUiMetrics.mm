@@ -288,15 +288,50 @@ CGRect tabletItemFrame(QQuickItem* item, CGRect safeBounds) {
     return CGRectIntersection(frame, safeBounds);
 }
 
-QString observedTabletScreen(QQuickItem* loadedItem) {
-    if (loadedItem == nullptr) {
+QList<QQuickItem*> tabletVisualItems(QQuickItem* tabletRoot) {
+    QList<QQuickItem*> items;
+    if (tabletRoot == nullptr) {
+        return items;
+    }
+    items.append(tabletRoot);
+    for (int index = 0; index < items.size(); ++index) {
+        for (QQuickItem* child : items.at(index)->childItems()) {
+            if (child != nullptr && !items.contains(child)) {
+                items.append(child);
+            }
+        }
+    }
+    return items;
+}
+
+QString observedTabletScreen(QQuickItem* tabletRoot) {
+    if (tabletRoot == nullptr) {
         return {};
     }
-    QString screen = loadedItem->property("semanticScreenId").toString();
-    if (screen.isEmpty()) {
-        screen = loadedItem->objectName();
+
+    QString observedScreen;
+    for (QQuickItem* item : tabletVisualItems(tabletRoot)) {
+        if (!visibleTabletItem(item)) {
+            continue;
+        }
+        const QVariant property = item->property("semanticScreenId");
+        if (!property.isValid()) {
+            continue;
+        }
+        const QString screen = property.toString();
+        if (!tabletSemanticScreenIds().contains(screen)) {
+            continue;
+        }
+        if (observedScreen.isEmpty()) {
+            observedScreen = screen;
+        } else if (observedScreen != screen) {
+            // Dynamic QML replacement may briefly leave two pages in the
+            // object tree. Never claim a semantic screen while two different
+            // visible page contracts disagree.
+            return {};
+        }
     }
-    return tabletSemanticScreenIds().contains(screen) ? screen : QString();
+    return observedScreen;
 }
 
 BOOL activateTabletItem(QPointer<QQuickItem> guardedItem) {
@@ -510,9 +545,13 @@ void updateIOSTabletAccessibilityControls(
     QQuickItem* tabletRoot = tablet->getIOSTabletRoot();
     QQuickItem* loader = tabletRoot
         ? tabletRoot->findChild<QQuickItem*>(QStringLiteral("loader")) : nullptr;
-    QObject* loadedObject = loader
-        ? loader->property("item").value<QObject*>() : nullptr;
-    QQuickItem* loadedItem = qobject_cast<QQuickItem*>(loadedObject);
+    // QmlSurface.load() exposes its item as a JavaScript-valued QML property,
+    // which cannot be unwrapped reliably through QObject::property on the
+    // physical iOS build. Walk the stable root's visual QQuickItem tree and
+    // consume only explicit, allow-listed semanticScreenId properties. Equal
+    // duplicate projections are harmless; conflicting visible pages fail
+    // closed in observedTabletScreen().
+    QQuickItem* loadedItem = tabletRoot;
     const QString screenId = observedTabletScreen(loadedItem);
     NSMutableSet<NSString*>* activeIdentifiers = [NSMutableSet setWithObject:identifier];
 
@@ -549,12 +588,8 @@ void updateIOSTabletAccessibilityControls(
             [activeIdentifiers addObject:readyIdentifier];
         }
 
-        QList<QQuickItem*> candidates = tabletRoot->findChildren<QQuickItem*>();
-        if (!candidates.contains(loadedItem)) {
-            candidates.append(loadedItem);
-        }
         QSet<QString> exposedControls;
-        for (QQuickItem* item : candidates) {
+        for (QQuickItem* item : tabletVisualItems(tabletRoot)) {
             QString controlId = item->property("semanticId").toString();
             if (controlId.isEmpty()) {
                 controlId = item->objectName();
