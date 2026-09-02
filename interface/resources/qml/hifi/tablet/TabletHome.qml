@@ -445,9 +445,11 @@ Item {
 
             MouseArea {
                 id: closeTabletMouseArea
-                objectName: "nav.close"
+                property string semanticId: "nav.close"
                 anchors.fill: parent
+                objectName: "OverteTabletClose"
                 activeFocusOnTab: visible
+                Accessible.id: objectName
                 Accessible.role: Accessible.Button
                 Accessible.name: qsTr("Close tablet")
                 Accessible.description: qsTr("Return to the world controls")
