@@ -116,6 +116,46 @@ class AndroidBranchTopologyTest(unittest.TestCase):
         )
         self.assertTrue(any("tests/device differs" in error for error in errors))
 
+    def test_phone_flat_touch_policy_is_allowed(self):
+        run(self.repo, "checkout", "-q", self.android_main)
+        head = self.commit(
+            "tests/device/policies/android-phone-flat-touch.json", "{}\n"
+        )
+        self.assertEqual(
+            [],
+            MODULE.validate(
+                self.repo, "android-phone", self.android_main, self.android_vr, head
+            ),
+        )
+
+    def test_other_phone_policy_change_is_rejected(self):
+        run(self.repo, "checkout", "-q", self.android_main)
+        head = self.commit("tests/device/policies/android-phone-other.json", "{}\n")
+        errors = MODULE.validate(
+            self.repo, "android-phone", self.android_main, self.android_vr, head
+        )
+        self.assertTrue(any("tests/device differs" in error for error in errors))
+
+    def test_phone_flat_touch_policy_change_is_rejected_on_vr(self):
+        run(self.repo, "checkout", "-q", self.android_main)
+        head = self.commit(
+            "tests/device/policies/android-phone-flat-touch.json", "{}\n"
+        )
+        errors = MODULE.validate(
+            self.repo, "android-vr", self.android_main, self.android_vr, head
+        )
+        self.assertTrue(any("tests/device differs" in error for error in errors))
+
+    def test_phone_flat_touch_policy_change_is_rejected_on_pico(self):
+        run(self.repo, "checkout", "-q", self.android_vr)
+        head = self.commit(
+            "tests/device/policies/android-phone-flat-touch.json", "{}\n"
+        )
+        errors = MODULE.validate(
+            self.repo, "android-vr-pico", self.android_main, self.android_vr, head
+        )
+        self.assertTrue(any("tests/device differs" in error for error in errors))
+
     def test_shared_transport_change_is_rejected(self):
         run(self.repo, "checkout", "-q", self.android_vr)
         head = self.commit("android/common/device_tests/transport", "changed directly\n")
