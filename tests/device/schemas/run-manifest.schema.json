@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://overte.org/schemas/device-run-manifest-v1.json",
+  "title": "Overte device E2E run manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "adapter", "suite", "platform", "physical", "requireComplete", "capabilities", "modules", "startedEpochMs", "finishedEpochMs", "durationSeconds", "status"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "adapter": {"type": "string", "minLength": 1},
+    "suite": {"type": "string", "minLength": 1},
+    "platform": {"type": "string", "minLength": 1},
+    "physical": {"type": "boolean"},
+    "requireComplete": {"type": "boolean"},
+    "capabilities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "modules": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "startedEpochMs": {"type": "integer", "minimum": 1},
+    "finishedEpochMs": {"type": "integer", "minimum": 1},
+    "durationSeconds": {"type": "number", "minimum": 0},
+    "status": {"enum": ["passed", "failed"]}
+  }
+}

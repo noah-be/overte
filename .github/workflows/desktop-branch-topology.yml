@@ -16,7 +16,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Check out pull request merge
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -27,8 +27,10 @@ jobs:
           git show origin/main:tests/desktop-branch-topology-check.py
           > "$RUNNER_TEMP/desktop-branch-topology-check.py"
       - name: Validate ancestry and path ownership
+        env:
+          TARGET_BRANCH: ${{ github.base_ref }}
         run: >-
           python3 "$RUNNER_TEMP/desktop-branch-topology-check.py"
           --main origin/main
           --head HEAD
-          --target "${{ github.base_ref }}"
+          --target "$TARGET_BRANCH"

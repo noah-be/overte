@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+"""Device-free safety checks for Jenkins job migration."""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+from pathlib import Path
+import tempfile
+import unittest
+import xml.etree.ElementTree as ET
+
+
+HERE = Path(__file__).resolve().parent
+SPEC = importlib.util.spec_from_file_location(
+    "migrate_job_config", HERE / "migrate_job_config.py")
+MODULE = importlib.util.module_from_spec(SPEC)
+assert SPEC.loader is not None
+SPEC.loader.exec_module(MODULE)
+
+
+class JobMigrationTest(unittest.TestCase):
+    def test_versioned_job_matrix_is_sorted_and_mapped_by_the_shared_pipeline(self):
+        value = json.loads((HERE / "jobs.json").read_text(encoding="utf-8"))
+        jobs = value["jobs"]
+        self.assertEqual(1, value["schemaVersion"])
+        self.assertEqual(1, value["contractVersion"])
+        self.assertEqual(sorted(item["name"] for item in jobs),
+                         [item["name"] for item in jobs])
+        self.assertEqual(len(jobs), len({item["name"] for item in jobs}))
+        for item in jobs:
+            self.assertEqual(
+                {"name", "profile", "enabledAfterMigration"}, set(item))
+            self.assertIsInstance(item["name"], str)
+            self.assertIsInstance(item["profile"], str)
+            self.assertIsInstance(item["enabledAfterMigration"], bool)
+        source = (HERE / "Jenkinsfile").read_text(encoding="utf-8")
+        for item in jobs:
+            self.assertIn(f"'{item['name']}': '{item['profile']}'", source)
+        self.assertFalse(any(
+            item["enabledAfterMigration"]
+            for item in jobs if item["profile"] == "android-pico-adb"
+        ), "Pico jobs must remain disabled until their platform adapter is integrated")
+
+    def test_preserves_job_governance_and_replaces_only_pipeline_definition(self):
+        with tempfile.TemporaryDirectory(prefix="overte-job-migration-") as name:
+            root = Path(name)
+            repository = root / "repo"
+            repository.mkdir()
+            (repository / ".git").mkdir()
+            source = root / "source.xml"
+            source.write_text(
+                "<flow-definition><description>kept</description><properties>"
+                "<example>kept</example></properties><definition class='old'>"
+                "<script>legacy inline pipeline</script></definition><disabled>true</disabled>"
+                "</flow-definition>", encoding="utf-8")
+            destination = root / "destination.xml"
+            MODULE.migrate(source, destination, str(repository), "test/e2e")
+            value = ET.parse(destination).getroot()
+            self.assertEqual("kept", value.findtext("description"))
+            self.assertEqual("kept", value.findtext("properties/example"))
+            self.assertEqual("true", value.findtext("disabled"))
+            self.assertEqual(MODULE.SCRIPT_PATH, value.findtext("definition/scriptPath"))
+            self.assertEqual("*/test/e2e", value.findtext(
+                "definition/scm/branches/hudson.plugins.git.BranchSpec/name"))
+            self.assertNotIn("legacy inline pipeline", destination.read_text(encoding="utf-8"))
+
+
+if __name__ == "__main__":
+    unittest.main()

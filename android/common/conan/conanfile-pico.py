@@ -13,7 +13,7 @@ from pathlib import Path
 from conan.tools.cmake import CMakeDeps
 
 
-_upstream_path = Path(__file__).resolve().parents[2] / "conanfile.py"
+_upstream_path = Path(__file__).resolve().parents[3] / "conanfile.py"
 _spec = importlib.util.spec_from_file_location("overte_upstream_conanfile", _upstream_path)
 _module = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_module)
