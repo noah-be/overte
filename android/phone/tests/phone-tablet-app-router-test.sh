@@ -25,6 +25,14 @@ require 'currentSource !== SETTINGS_SOURCE' \
     'route messages are accepted only from the active Settings surface'
 require 'tablet[.]loadQMLSource\(SETTINGS_ROUTES\[message[.]appUrl\]\)' \
     'only an allowlisted resolved route reaches the tablet loader'
+require 'semanticId:[[:space:]]*"app[.]settings"' \
+    'the actual Phone Settings launcher exposes the common semantic ID'
+require 'Object[.]prototype[.]hasOwnProperty[.]call\(SETTINGS_CHILD_SOURCES,[[:space:]]*currentSource\)' \
+    'semantic Back accepts only an allowlisted Settings child surface'
+require 'message[.]type === "settings[.]back"' \
+    'nested visible Back controls use the bounded Phone routing message'
+require 'tablet[.]loadQMLSource\(SETTINGS_SOURCE\)' \
+    'semantic Back returns through the real Settings loader'
 
 node --check "$router"
 node "$script_dir/phone-tablet-app-router-mock.js"

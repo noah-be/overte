@@ -9,6 +9,8 @@ Rectangle {
 	readonly property string semanticScreenId: currentPage === "Settings"
 		? "settings.home" : currentPage === "Graphics" ? "settings.graphics" : ""
 	objectName: semanticScreenId
+	Accessible.role: Accessible.Client
+	Accessible.name: currentPage === "Settings" ? qsTr("Settings") : qsTr("Graphics settings")
 	color: Qt.rgba(0.1,0.1,0.1,1);
 	width: parent.width;
 	height: parent.height;

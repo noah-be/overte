@@ -23,6 +23,14 @@ require() {
 
 require "$audio" 'AudioTouchConfiguration[[:space:]]*\{' \
     'Audio resolves presentation through the shared capability configuration'
+require "$audio" 'objectName:[[:space:]]*"settings[.]audio"' \
+    'Audio exposes the versioned semantic screen identity'
+require "$audio" 'objectName:[[:space:]]*"nav[.]back"' \
+    'Audio exposes a visible semantic Back control'
+require "$audio" 'androidClickAction:[[:space:]]*function\(\)' \
+    'Audio semantic Back uses the real Android button handler'
+require "$audio" 'sendToScript\(\{[[:space:]]*type:[[:space:]]*"settings[.]back"[[:space:]]*\}\)' \
+    'Audio Back returns to Settings through the allowlisted Phone router'
 require "$shared_config" 'showModeTabs:[[:space:]]*profile[.]audioModeTabsAvailable' \
     'Audio derives mode navigation from the device profile'
 require "$base_profile" 'property bool audioModeTabsAvailable:[[:space:]]*true' \

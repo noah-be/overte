@@ -11,13 +11,21 @@ import "../audio" as HifiAudio
 
 Item {
     id: tablet
-    objectName: "tablet"
     readonly property string semanticScreenId: "tablet.home"
+    objectName: "tablet"
     property var tabletProxy: Tablet.getTablet("com.highfidelity.interface.tablet.system");
 
     property var currentGridItems: null
 
     focus: true
+
+    Item {
+        objectName: tablet.semanticScreenId
+        anchors.fill: parent
+        z: -1
+        Accessible.role: Accessible.Client
+        Accessible.name: qsTr("Tablet home")
+    }
 
     TabletTouchConfiguration {
         id: presentation
@@ -437,9 +445,11 @@ Item {
 
             MouseArea {
                 id: closeTabletMouseArea
-                objectName: "nav.close"
+                property string semanticId: "nav.close"
                 anchors.fill: parent
+                objectName: "OverteTabletClose"
                 activeFocusOnTab: visible
+                Accessible.id: objectName
                 Accessible.role: Accessible.Button
                 Accessible.name: qsTr("Close tablet")
                 Accessible.description: qsTr("Return to the world controls")

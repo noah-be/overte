@@ -8,6 +8,10 @@ readonly tablet_header="$repo_root/libraries/ui/src/ui/TabletScriptingInterface.
 readonly tablet_source="$repo_root/libraries/ui/src/ui/TabletScriptingInterface.cpp"
 readonly tablet_root="$repo_root/interface/resources/qml/hifi/tablet/TabletRoot.qml"
 readonly tablet_home="$repo_root/interface/resources/qml/hifi/tablet/TabletHome.qml"
+readonly settings_qml="$repo_root/scripts/system/settings/Settings.qml"
+readonly settings_header="$repo_root/scripts/system/settings/qml/HeaderElement.qml"
+readonly settings_script="$repo_root/scripts/system/+android_phoneInterface/mobileTabletApps.js"
+readonly tablet_policy="$repo_root/tests/device/policies/android-phone-flat-touch.json"
 readonly application="$repo_root/interface/src/Application.cpp"
 readonly interface_cmake="$repo_root/interface/CMakeLists.txt"
 readonly phone_gradle="$repo_root/android/phone/apps/phoneInterface/build.gradle"
@@ -56,6 +60,37 @@ require "$tablet_home" 'Tablet.getTablet\("com.highfidelity.interface.tablet.sys
     'TabletHome binds to the established system tablet proxy'
 require "$tablet_home" 'SwipeView[[:space:]]*\{' \
     'TabletHome retains touch-page navigation support'
+require "$tablet_home" 'objectName:[[:space:]]*tablet[.]semanticScreenId' \
+    'TabletHome publishes its contract screen ID through a native Accessibility marker'
+require "$settings_script" 'semanticId:[[:space:]]*"app[.]settings"' \
+    'the visible Settings application exposes its common semantic ID'
+require "$settings_qml" 'semanticScreenId:[[:space:]]*currentPage' \
+    'Settings publishes its actual semantic screen state'
+for semantic_page in general audio security; do
+    require "$settings_qml" "semanticId:[[:space:]]*\"settings[.]${semantic_page}\"" \
+        "Settings exposes the ${semantic_page} semantic entry control"
+done
+require "$settings_header" 'objectName:[[:space:]]*"nav[.]home"' \
+    'Settings exposes a visible semantic Home control'
+require "$settings_header" 'gotoHomeScreen\(\)' \
+    'semantic Home uses the real tablet navigation handler'
+test -s "$tablet_policy" || {
+    printf 'FAIL: Android Phone semantic tablet policy is missing\n' >&2
+    exit 1
+}
+PYTHONPATH="$repo_root/tests/device" python3 - "$tablet_policy" <<'PY'
+import sys
+from pathlib import Path
+from contracts import load_tablet_product_policy
+
+policy = load_tablet_product_policy(Path(sys.argv[1]))
+assert policy["profileId"] == "android-phone.flat-touch"
+home = policy["expectations"]["settings.home"]
+assert {"settings.general", "settings.audio", "settings.security"} <= set(home["requiredControlIds"])
+assert {"settings.controllers", "settings.graphics", "settings.vr-render-resolution"} <= set(home["forbiddenControlIds"])
+assert "settings.hmd-preferences" in policy["expectations"]["settings.general"]["forbiddenControlIds"]
+PY
+printf 'PASS: Android Phone policy is valid and fail-closed for unavailable VR features\n'
 
 require "$phone_gradle" 'inputs.dir\(file\("[$]\{projectDir\}/../../../../interface/resources"\)\)' \
     'tablet QML resources participate in Android package invalidation'

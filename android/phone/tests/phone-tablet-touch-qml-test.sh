@@ -88,6 +88,12 @@ fi
 printf 'PASS: the phone profile remains a capability-only adapter\n'
 require "$home" 'TabletTouchConfiguration[[:space:]]*\{' \
     'TabletHome consumes the selector-backed presentation settings'
+require "$home" 'semanticScreenId:[[:space:]]*"tablet[.]home"' \
+    'TabletHome declares the versioned semantic screen identity'
+require "$home" 'objectName:[[:space:]]*"tablet"' \
+    'TabletHome preserves the native C++ routing identity'
+require "$home" 'objectName:[[:space:]]*tablet[.]semanticScreenId' \
+    'TabletHome publishes its semantic identity through a native Accessibility marker'
 require "$home" 'cellWidth:[[:space:]]*width[[:space:]]*/[[:space:]]*presentation\.columns' \
     'the app grid uses the responsive column count'
 require "$home" 'presentation\.columns[[:space:]]*\*[[:space:]]*\(presentation\.maximumButtonExtent[[:space:]]*\+[[:space:]]*presentation\.buttonSpacing\)' \
@@ -105,6 +111,10 @@ require "$home" 'anchors\.bottom:[[:space:]]*closeTabletButton\.top' \
     'the app pages reserve bottom space and sit above the close control'
 require "$home" 'objectName:[[:space:]]*"androidTabletCloseButton"' \
     'the Android tablet exposes a stable close-control identity'
+require "$home" 'semanticId:[[:space:]]*"nav[.]close"' \
+    'the visible close action exposes the common semantic control identity'
+require "$home" 'objectName:[[:space:]]*"OverteTabletClose"' \
+    'the visible close action preserves the native automation identity'
 require "$home" 'onClicked:[[:space:]]*tabletProxy\.hideAndroidTablet\(\)' \
     'the close control routes through the native screen-space presenter'
 require "$home" 'hoverEnabled:[[:space:]]*!presentation\.touchOptimized' \

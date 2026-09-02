@@ -1,0 +1,31 @@
+{
+  "contractVersion": 1,
+  "schemaVersion": 1,
+  "profileId": "android-phone.flat-touch",
+  "expectations": {
+    "settings.audio": {
+      "entryControlId": "settings.audio",
+      "requiredControlIds": ["nav.back"],
+      "forbiddenControlIds": ["settings.controllers", "settings.hmd-preferences", "settings.vr-render-resolution"]
+    },
+    "settings.general": {
+      "entryControlId": "settings.general",
+      "requiredControlIds": ["nav.back"],
+      "forbiddenControlIds": ["settings.hmd-preferences", "settings.vr-render-resolution"]
+    },
+    "settings.home": {
+      "entryControlId": "app.settings",
+      "requiredControlIds": ["nav.home", "settings.audio", "settings.general", "settings.security"],
+      "forbiddenControlIds": ["settings.controllers", "settings.graphics", "settings.hmd-preferences", "settings.vr-render-resolution"]
+    },
+    "settings.security": {
+      "entryControlId": "settings.security",
+      "requiredControlIds": ["nav.back"],
+      "forbiddenControlIds": ["settings.controllers", "settings.hmd-preferences", "settings.vr-render-resolution"]
+    },
+    "tablet.home": {
+      "requiredControlIds": ["app.settings", "nav.close"],
+      "forbiddenControlIds": []
+    }
+  }
+}

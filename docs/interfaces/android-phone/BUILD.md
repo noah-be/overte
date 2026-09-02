@@ -1,7 +1,7 @@
 # Build Overte for Android phones
 
 The complete existing command reference remains
-[`android/ANDROID_PHONE_BUILD.md`](../../../android/ANDROID_PHONE_BUILD.md). Run
+[`android/phone/docs/BUILD.md`](../../../android/phone/docs/BUILD.md). Run
 its commands from `android/` on a 64-bit Linux host.
 
 ## Requirements

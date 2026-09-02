@@ -25,6 +25,8 @@ import "./" as AudioControls
 Rectangle {
     id: root;
     objectName: "settings.audio"
+    Accessible.role: Accessible.Client
+    Accessible.name: qsTr("Audio settings")
 
     HifiConstants { id: hifi; }
     AudioTouchConfiguration {
@@ -46,6 +48,24 @@ Rectangle {
     signal sendToScript(var message);
 
     color: hifi.colors.baseGray;
+
+    HifiControlsUit.Button {
+        id: semanticBackButton
+        objectName: "nav.back"
+        visible: touchConfiguration.directTouch
+        z: 1000
+        text: qsTr("Back")
+        width: Math.max(88, touchConfiguration.minimumControlHeight * 2)
+        height: Math.max(44, touchConfiguration.minimumControlHeight)
+        anchors.top: parent.top
+        anchors.right: parent.right
+        Accessible.role: Accessible.Button
+        Accessible.name: qsTr("Back to settings")
+        Accessible.description: qsTr("Return to the settings category list")
+        androidClickAction: function() {
+            root.sendToScript({ type: "settings.back" });
+        }
+    }
 
     // only show the title if loaded through a "loader"
     function showTitle() {

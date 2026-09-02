@@ -313,7 +313,7 @@ Item {
             }
 
             HifiControls.Button {
-                objectName: "GeneralPreferencesCancel"
+                objectName: "nav.back"
                 text: "Cancel"
                 activeFocusOnTab: true
                 Accessible.role: Accessible.Button
@@ -327,7 +327,11 @@ Item {
                 fontSize: preferencesLayout.compactFooter
                     ? preferencesLayout.buttonFontSize : hifi.fontSizes.buttonLabel
                 androidClickAction: function() {
-                    dialog.cancelToTabletHome();
+                    for (var i = 0; i < dialog.sections.length; ++i) {
+                        dialog.sections[i].restoreAll();
+                    }
+                    keyboard.raised = false;
+                    dialog.parent.sendToScript({ type: "settings.back" });
                 }
                 onClicked: dialog.restoreAll()
             }

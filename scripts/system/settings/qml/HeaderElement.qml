@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import TabletScriptingInterface 1.0
 import controlsUit 1.0 as HifiControls
 
 Item {
@@ -52,5 +53,23 @@ Item {
 		anchors.horizontalCenter: parent.horizontalCenter;
 		anchors.verticalCenter: parent.verticalCenter;
 		horizontalAlignment: Text.AlignHCenter;
+	}
+
+	HifiControls.Button {
+		id: semanticHomeButton
+		objectName: "nav.home"
+		visible: touchMetrics.directTouch && currentPage === "Settings"
+		text: qsTr("Home")
+		width: Math.max(88, touchMetrics.adaptiveMinimumControlHeight * 2)
+		height: Math.max(44, touchMetrics.adaptiveMinimumControlHeight)
+		anchors.right: parent.right
+		anchors.rightMargin: 10
+		anchors.verticalCenter: parent.verticalCenter
+		Accessible.role: Accessible.Button
+		Accessible.name: qsTr("Tablet home")
+		Accessible.description: qsTr("Return to the tablet application list")
+		androidClickAction: function() {
+			Tablet.getTablet("com.highfidelity.interface.tablet.system").gotoHomeScreen();
+		}
 	}
 }
