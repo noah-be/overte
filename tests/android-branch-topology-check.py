@@ -15,6 +15,11 @@ PARENTS = {
     "android-vr-pico": "android-vr",
 }
 SHARED_PATHS = ("tests/device", "android/common/device_tests")
+TARGET_SHARED_PATH_EXCLUSIONS = {
+    "android-phone": {
+        "tests/device": ("tests/device/policies/android-phone-flat-touch.json",),
+    },
+}
 
 
 def git(repository: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
@@ -45,8 +50,15 @@ def validate(
         errors.append(f"{target} must contain the current {parent_name} history")
 
     for shared_path in SHARED_PATHS:
+        pathspecs = [shared_path]
+        pathspecs.extend(
+            f":(exclude){path}"
+            for path in TARGET_SHARED_PATH_EXCLUSIONS.get(target, {}).get(
+                shared_path, ()
+            )
+        )
         shared_diff = git(
-            repository, "diff", "--quiet", android_main, head, "--", shared_path
+            repository, "diff", "--quiet", android_main, head, "--", *pathspecs
         )
         if shared_diff.returncode != 0:
             errors.append(
