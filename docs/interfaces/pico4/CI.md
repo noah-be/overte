@@ -13,4 +13,4 @@ The active development branch is `android-vr-pico`; the retired
 
 Workflow filenames, runner labels, artifacts, retention, and repository settings
 are detailed in
-[`android/docs/pico4-ci-cd.md`](../../../android/docs/pico4-ci-cd.md).
+[`android/vr/pico/docs/pico4-ci-cd.md`](../../../android/vr/pico/docs/pico4-ci-cd.md).
