@@ -77,7 +77,7 @@ class ExecutionPlanPipelineTest(unittest.TestCase):
         self.assertFalse(plan["ready"])
         self.assertEqual([
             "OVERTE_E2E_UPGRADE_FROM_VERSION", "OVERTE_E2E_UPGRADE_TO_VERSION",
-            "artifact:candidate", "artifact:source",
+            "artifact:candidate", "artifact:source", "fixture:scene",
         ], plan["missingInputs"])
 
     def test_policy_lifecycle_can_select_required_suites(self):

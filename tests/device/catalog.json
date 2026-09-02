@@ -5,15 +5,23 @@
       "id": "launch-smoke",
       "description": "Launch the application and verify a stable foreground process.",
       "command": ["modules/launch_smoke.py"],
-      "suites": ["asset-smoke", "audio-controls", "crash-recovery-under-load", "domain-recovery", "domain-smoke", "e2e-core", "e2e-recovery", "entity-sync-smoke", "interaction-smoke", "lifecycle-under-load", "multi-user-smoke", "network-fault-recovery", "permission-recovery", "render-health", "scripted-entity-smoke", "settings-persistence", "smoke", "sound-smoke", "stability", "tablet-e2e", "text-input-smoke", "update-upgrade", "vertical-locomotion"],
+      "suites": ["asset-smoke", "audio-controls", "crash-recovery-under-load", "domain-recovery", "domain-smoke", "e2e-core", "e2e-recovery", "entity-sync-smoke", "interaction-smoke", "lifecycle-under-load", "multi-user-smoke", "network-fault-recovery", "permission-recovery", "portable-smoke", "render-health", "scripted-entity-smoke", "settings-persistence", "smoke", "sound-smoke", "stability", "tablet-e2e", "text-input-smoke", "vertical-locomotion"],
       "requires": ["app.foreground", "app.launch", "app.process"],
       "timeoutSeconds": 120
+    },
+    {
+      "id": "update-upgrade",
+      "description": "Install a supplied source, upgrade to the candidate, and verify version plus safe-setting continuity before the common smoke route.",
+      "command": ["modules/update_upgrade.py"],
+      "suites": ["update-upgrade"],
+      "requires": ["app.foreground", "app.install", "app.launch", "app.process", "app.stop", "app.upgrade", "app.version", "probe.snapshot", "setting.set"],
+      "timeoutSeconds": 600
     },
     {
       "id": "scene",
       "description": "Load the controlled E2E scene and observe every required fixture marker.",
       "command": ["modules/scene.py"],
-      "suites": ["crash-recovery-under-load", "e2e-core", "interaction-smoke", "lifecycle-under-load", "render-health", "scripted-entity-smoke"],
+      "suites": ["crash-recovery-under-load", "e2e-core", "interaction-smoke", "lifecycle-under-load", "portable-smoke", "render-health", "scripted-entity-smoke", "update-upgrade"],
       "requires": ["probe.snapshot", "scene.load"],
       "timeoutSeconds": 120
     },
@@ -138,14 +146,6 @@
       "timeoutSeconds": 240
     },
     {
-      "id": "update-upgrade",
-      "description": "Install a supplied candidate over a source build and verify version plus safe-setting continuity.",
-      "command": ["modules/update_upgrade.py"],
-      "suites": ["update-upgrade"],
-      "requires": ["app.foreground", "app.launch", "app.process", "app.upgrade", "app.version", "probe.snapshot", "setting.set"],
-      "timeoutSeconds": 600
-    },
-    {
       "id": "asset-load",
       "description": "Load a controlled local texture and verify HTTP, resource, entity, and process evidence.",
       "command": ["modules/asset_load.py"],
@@ -165,17 +165,17 @@
       "id": "look",
       "description": "Apply look input and observe signed left, right, up, and down camera rotations.",
       "command": ["modules/look.py"],
-      "suites": ["e2e-core"],
+      "suites": ["e2e-core", "portable-smoke", "update-upgrade"],
       "requires": ["input.look", "probe.snapshot", "scene.load"],
-      "timeoutSeconds": 240
+      "timeoutSeconds": 90
     },
     {
       "id": "move",
       "description": "Apply forward, backward, left, and right input and verify body-relative displacement.",
       "command": ["modules/move.py"],
-      "suites": ["e2e-core"],
+      "suites": ["e2e-core", "portable-smoke", "update-upgrade"],
       "requires": ["input.move", "probe.snapshot", "scene.load"],
-      "timeoutSeconds": 210
+      "timeoutSeconds": 90
     },
     {
       "id": "input-neutral",
@@ -221,7 +221,7 @@
       "id": "tablet",
       "description": "Open and close the system tablet and observe both state transitions.",
       "command": ["modules/tablet.py"],
-      "suites": ["e2e-core"],
+      "suites": ["e2e-core", "portable-smoke", "update-upgrade"],
       "requires": ["probe.snapshot", "scene.load", "tablet.close", "tablet.open"],
       "timeoutSeconds": 90
     },
@@ -251,10 +251,10 @@
     },
     {
       "id": "accessibility",
-      "description": "Capture the native accessibility tree and require audited stable labels.",
+      "description": "Audit stable tablet controls while reusing one controlled app session.",
       "command": ["modules/accessibility.py"],
       "suites": ["accessibility"],
-      "requires": ["accessibility.snapshot"],
+      "requires": ["accessibility.snapshot", "app.launch", "app.process", "probe.snapshot", "scene.load", "tablet.close", "tablet.open"],
       "timeoutSeconds": 120
     },
     {

@@ -755,6 +755,15 @@
                 && httpUrl(command.commandUrl)) {
             soundCommandUrl = String(command.commandUrl);
             lastAndroidControlCommandId = String(command.commandId);
+            return;
+        }
+        if (command.action === "set-safe-setting"
+                && objectKeysMatch(command, ["schemaVersion", "commandId", "action",
+                    "settingId", "enabled"])
+                && command.settingId === "audio.warn-when-muted"
+                && typeof command.enabled === "boolean") {
+            Audio.warnWhenMuted = command.enabled;
+            lastAndroidControlCommandId = String(command.commandId);
         }
     }
 
