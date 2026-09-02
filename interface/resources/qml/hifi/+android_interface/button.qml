@@ -5,8 +5,9 @@ Item {
     activeFocusOnTab: true
     Accessible.id: objectName
     Accessible.role: Accessible.Button
-    Accessible.name: text
-    Accessible.onPressAction: clicked()
+    Accessible.name: accessibleName
+    Accessible.description: accessibleDescription
+    Accessible.onPressAction: button.clicked()
 
     property string icon: "icons/edit-icon.svg"
     property string hoverIcon: button.icon
@@ -45,6 +46,8 @@ Item {
 
     property bool isActive: false
     property bool bindToAudioMute: false
+    property string accessibleName: text
+    property string accessibleDescription: ""
 
     Binding {
         target: button
