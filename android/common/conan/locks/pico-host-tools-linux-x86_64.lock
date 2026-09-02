@@ -1,0 +1,15 @@
+{
+    "version": "0.5",
+    "requires": [
+        "spirv-tools/1.4.350.0#cfeb4688808ef44cd892c93a10dc6762%1778774685.159",
+        "spirv-headers/1.4.350.0#e00d02f9314156c0d0afa8cecc7e43c7%1778774681.399",
+        "spirv-cross/1.4.350.0#904299c8c5fd6cbe677e09fb9ce8ff5f%1778774679.723",
+        "scribe/2019.02@overte/stable#0c2eaba1220f4c3091a2d60773ee476a%1734724934.967",
+        "glslang/1.4.350.0#c4d9cb1ccdcdb314655e9648fe6cf5d0%1778774694.76"
+    ],
+    "build_requires": [
+        "cmake/3.31.12#173a926abc2b77f03c826b6fd6539426%1779785723.158"
+    ],
+    "python_requires": [],
+    "config_requires": []
+}

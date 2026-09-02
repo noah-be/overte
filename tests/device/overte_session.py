@@ -8,14 +8,17 @@ import math
 import os
 import time
 from typing import Callable
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
+from urllib.request import Request, urlopen
 import uuid
 
 from contracts import (TABLET_CONTRACT_VERSION, load_tablet_ui_contract,
                        validate_operation_arguments, validate_operation_result,
                        validate_probe_snapshot)
 from module_support import (InfrastructureError, assert_foreground, assert_process,
-                            fail, operation, process_identity, write_json)
+                            fail, operation, process_identity, wait_for_process,
+                            wait_for_process_stopped, write_json)
 
 
 class OverteSession:
@@ -38,6 +41,7 @@ class OverteSession:
         "right": (0.25, 0.0, "y", 1.0),
         "up": (0.0, 0.25, "x", 1.0),
     }
+    INTERACTION_TARGET = "OVERTE_E2E_INTERACTABLE"
 
     @staticmethod
     def _float_environment(name: str, default: float, minimum: float, maximum: float) -> float:
@@ -89,9 +93,13 @@ class OverteSession:
         result = self._invoke("scene.load", {"url": url})
         expected = url.split("#", 1)[0]
         marker_verification = result.get("verification") == "fixture-markers"
+        command_id = result.get("commandId")
+        if command_id is not None and (not isinstance(command_id, str) or not command_id):
+            raise InfrastructureError("scene.load returned an invalid command identity")
         snapshot = self.wait_until(
             "the controlled scene to become ready",
             lambda value: self._fixture_ready(value) and
+            (command_id is None or value["scene"].get("commandId") == command_id) and
             (marker_verification or
              self._same_scene(str(value["scene"].get("url", "")), expected)),
         )
@@ -121,8 +129,8 @@ class OverteSession:
             "OVERTE_E2E_SPAWN_TOLERANCE_METERS", 0.75, 0.05, 5.0)
         if self._distance(feet_position, expected) > spawn_tolerance:
             fail("Pico avatar did not stabilize near the fixture spawn")
-        if initial["avatar"].get("inAir") is not False \
-                or initial["avatar"].get("flying") is not False:
+        if (initial["avatar"].get("inAir") is not False
+                or initial["avatar"].get("flying") is not False):
             fail("Pico avatar did not start grounded at the fixture spawn")
 
         tolerance = self._float_environment(
@@ -141,6 +149,20 @@ class OverteSession:
             fail("Pico avatar did not provide five stable fresh samples")
         write_json("fixture-stable-samples.json", samples)
         return samples
+
+    def reload_controlled_scene(self) -> dict:
+        url = os.environ.get("OVERTE_E2E_SCENE_URL", "")
+        result = self._invoke("scene.reload", {"url": url})
+        command_id = result.get("commandId")
+        if not isinstance(command_id, str) or not command_id:
+            raise InfrastructureError("scene.reload returned no command identity")
+        snapshot = self.wait_until(
+            "the explicitly reloaded controlled scene to become ready",
+            lambda value: self._fixture_ready(value)
+            and value["scene"].get("commandId") == command_id,
+        )
+        write_json("scene-ready.json", snapshot)
+        return snapshot
 
     def load_asset(self, asset_id: str, url: str, entity_name: str,
                    width: int, height: int, identity: str) -> dict:
@@ -200,8 +222,24 @@ class OverteSession:
             expected = url.split("#", 1)[0]
             embedded = url == "overte-e2e://fixture/scene"
             scene = snapshot["scene"]
-            if (self._fixture_ready(snapshot)
-                    and (embedded or self._same_scene(str(scene.get("url", "")), expected))):
+            same_scene = embedded or self._same_scene(
+                str(scene.get("url", "")), expected)
+            if self._fixture_ready(snapshot) and same_scene:
+                write_json("scene-ready.json", snapshot)
+                return snapshot
+            command_id = scene.get("commandId")
+            if (same_scene and isinstance(command_id, str) and command_id):
+                # A prior module may observe the bounded location fallback while
+                # it temporarily re-arms readiness. Waiting for that exact
+                # command prevents a second scene.load from creating a reload
+                # cascade across otherwise independent modules.
+                snapshot = self.wait_until(
+                    "the existing controlled scene command to become ready",
+                    lambda value: self._fixture_ready(value)
+                    and value["scene"].get("commandId") == command_id
+                    and (embedded or self._same_scene(
+                        str(value["scene"].get("url", "")), expected)),
+                )
                 write_json("scene-ready.json", snapshot)
                 return snapshot
         return self.load_scene(url)
@@ -429,35 +467,371 @@ class OverteSession:
         write_json(f"look-{direction}-command.json", command)
         minimum = self._float_environment(
             "OVERTE_E2E_MIN_LOOK_DEGREES", 5.0, 0.1, 90.0)
-        observations = {
-            "axis": axis,
-            "direction": direction,
-            "maximumDirectedDeltaDegrees": float("-inf"),
-            "minimumDirectedDeltaDegrees": float("inf"),
-            "samples": 0,
-        }
-
-        def turned(value: dict) -> bool:
-            directed_delta = sign * self._signed_angle_delta(
-                before["view"]["orientation"], value["view"]["orientation"], axis)
-            observations["maximumDirectedDeltaDegrees"] = max(
-                observations["maximumDirectedDeltaDegrees"], directed_delta)
-            observations["minimumDirectedDeltaDegrees"] = min(
-                observations["minimumDirectedDeltaDegrees"], directed_delta)
-            observations["samples"] += 1
-            return directed_delta >= minimum
-
-        try:
-            after = self.wait_until(
-                f"view orientation to turn {direction} by at least {minimum} degrees",
-                turned,
-            )
-        finally:
-            if observations["samples"]:
-                write_json(f"look-{direction}-observations.json", observations)
+        after = self.wait_until(
+            f"view orientation to turn {direction} by at least {minimum} degrees",
+            lambda value: self.look_direction_delta(before, value, direction) >= minimum,
+        )
         write_json(f"look-{direction}-after.json", after)
         neutral = self.input_neutral_snapshot(f"look-{direction}-neutral.json")
         return before, after, neutral
+
+    def look_direction_delta(self, before: dict, after: dict, direction: str) -> float:
+        """Return the largest directionally correct view delta observed after before."""
+        if direction not in self.LOOK_INPUTS:
+            fail("look direction is unsupported")
+        _horizontal, _vertical, axis, sign = self.LOOK_INPUTS[direction]
+        candidates = [after["view"]["orientation"]]
+        candidates.extend(
+            observation["orientation"]
+            for observation in after["view"].get("orientationHistory", [])
+            if observation["sampleSequence"] > before["sampleSequence"]
+        )
+        return max(sign * self._signed_angle_delta(
+            before["view"]["orientation"], orientation, axis)
+                   for orientation in candidates)
+
+    def primary_interaction(self) -> tuple[dict, dict]:
+        """Perform one platform-native primary action and observe its world effect."""
+        before = self.snapshot("interaction-before.json")
+        interaction = before.get("interaction")
+        if interaction is None:
+            fail("probe does not provide world interaction evidence")
+        if interaction["targetAvailable"] is not True:
+            fail("controlled world interaction target is unavailable")
+        before_count = interaction["pressCount"]
+        self._invoke("input.primary", {})
+
+        def observed(value: dict) -> bool:
+            current = value.get("interaction")
+            if current is None:
+                fail("probe stopped providing world interaction evidence")
+            if current["targetAvailable"] is not True:
+                fail("controlled world interaction target disappeared")
+            if current["pressCount"] > before_count + 1:
+                fail("one primary input produced duplicate world interactions")
+            return (current["pressCount"] == before_count + 1
+                    and current["lastEntityName"] == self.INTERACTION_TARGET)
+
+        after = self.wait_until(
+            "one primary pointer interaction on the controlled world target", observed)
+        write_json("interaction-after.json", after)
+        return before, after
+
+    def scripted_entity_interaction(self) -> tuple[dict, dict]:
+        """Require the entity's own downloaded script to mutate its properties."""
+        ready = self.wait_until(
+            "the controlled client entity script to load",
+            lambda value: value.get("scriptedEntity") is not None
+            and value["scriptedEntity"]["targetAvailable"] is True
+            and value["scriptedEntity"]["loaded"] is True
+            and value["scriptedEntity"]["state"] in {"active", "idle"},
+        )
+        before = dict(ready["scriptedEntity"])
+        write_json("scripted-entity-before.json", before)
+        self.primary_interaction()
+
+        def activated(value: dict) -> bool:
+            current = value.get("scriptedEntity")
+            if current is None or current["targetAvailable"] is not True:
+                fail("controlled scripted entity disappeared")
+            if current["loaded"] is not True:
+                fail("controlled client entity script became unloaded")
+            if current["activationCount"] > before["activationCount"] + 1:
+                fail("one primary input produced duplicate scripted activations")
+            return (current["activationCount"] == before["activationCount"] + 1
+                    and current["state"] != before["state"]
+                    and current["color"] != before["color"])
+
+        observed = self.wait_until(
+            "one independent entity-script state and color mutation", activated)
+        after = dict(observed["scriptedEntity"])
+        write_json("scripted-entity-after.json", after)
+        return before, after
+
+    def focus_text_input(self) -> dict:
+        return self._invoke("text.focus", {})
+
+    def type_text(self, text: str, backspace_count: int, submit: bool) -> dict:
+        return self._invoke("text.type", {
+            "text": text,
+            "backspaceCount": backspace_count,
+            "submit": submit,
+        })
+
+    def dismiss_text_input(self) -> dict:
+        return self._invoke("text.dismiss", {})
+
+    def text_snapshot(self) -> dict:
+        return self._invoke("text.snapshot", {})
+
+    def wait_for_text(self, predicate: Callable[[dict], bool], description: str) -> dict:
+        deadline = time.monotonic() + self.timeout_seconds
+        last = None
+        while time.monotonic() < deadline:
+            last = self.text_snapshot()
+            if predicate(last):
+                return last
+            time.sleep(self.poll_seconds)
+        if last is not None:
+            write_json("text-last.json", last)
+        fail(f"timed out waiting for {description}")
+
+    def assert_controlled_peer_roundtrip(self) -> tuple[dict, dict]:
+        minimum = self._float_environment(
+            "OVERTE_E2E_MIN_PEER_MOVE_METERS", 0.25, 0.01, 10.0)
+
+        def replicated(value: dict) -> bool:
+            peer = value.get("peer")
+            return (peer is not None and peer["present"] is True
+                    and peer["displayName"] == "OVERTE_E2E_PEER"
+                    and peer["observationCount"] >= 3
+                    and peer["movementDistanceMeters"] >= minimum)
+
+        first_sample = self.wait_until(
+            f"the controlled peer and at least {minimum} meters of replicated movement",
+            replicated,
+        )
+        first = dict(first_sample["peer"])
+        write_json("peer-before-roundtrip.json", first)
+        serverless = self.load_controlled_scene()
+        if serverless["domain"]["connected"] or not serverless["domain"]["serverless"]:
+            fail("multi-user roundtrip did not enter the controlled serverless scene")
+        self.wait_until(
+            "the controlled peer to leave the local avatar view",
+            lambda value: value.get("peer") is not None
+            and value["peer"]["present"] is False,
+        )
+        self.enter_controlled_domain()
+
+        def same_peer(value: dict) -> bool:
+            peer = value.get("peer")
+            return (peer is not None and peer["present"] is True
+                    and peer["sessionId"] == first["sessionId"]
+                    and peer["movementDistanceMeters"] > first["movementDistanceMeters"])
+
+        reconnect_sample = self.wait_until(
+            "the same controlled peer and fresh replicated movement after reconnect",
+            same_peer,
+        )
+        reconnected = dict(reconnect_sample["peer"])
+        write_json("peer-after-roundtrip.json", reconnected)
+        return first, reconnected
+
+    @staticmethod
+    def _domain_control(action: str) -> dict:
+        url = os.environ.get("OVERTE_E2E_DOMAIN_CONTROL_URL", "")
+        token = os.environ.get("OVERTE_E2E_DOMAIN_CONTROL_TOKEN", "")
+        parsed = urlsplit(url)
+        try:
+            port = parsed.port
+        except ValueError:
+            port = None
+        if (parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "::1", "localhost"}
+                or port is None or parsed.path != "/v1/domain-state"
+                or parsed.username is not None or parsed.password is not None
+                or parsed.query or parsed.fragment or not token or len(token) > 256):
+            fail("controlled domain recovery requires a private loopback control endpoint")
+        payload = json.dumps({"schemaVersion": 1, "action": action}).encode("utf-8")
+        request = Request(url, data=payload, method="POST", headers={
+            "Content-Type": "application/json",
+            "X-Overte-E2E-Token": token,
+        })
+        try:
+            with urlopen(request, timeout=30) as response:
+                result = json.loads(response.read(4096).decode("utf-8"))
+        except (HTTPError, URLError, UnicodeError, json.JSONDecodeError, TimeoutError) as error:
+            raise InfrastructureError(
+                f"controlled domain {action} request failed: {type(error).__name__}") from error
+        if (not isinstance(result, dict) or set(result) != {
+                "generation", "schemaVersion", "state"}
+                or result.get("schemaVersion") != 1
+                or result.get("state") != action
+                or not isinstance(result.get("generation"), int)
+                or isinstance(result["generation"], bool) or result["generation"] < 1):
+            raise InfrastructureError("controlled domain returned an invalid recovery response")
+        return result
+
+    def assert_network_fault_recovery(self) -> tuple[dict, dict]:
+        before = self.snapshot("network-before.json")
+        if before["domain"]["connected"] is not True:
+            fail("network recovery did not start in a connected domain")
+        expected_domain = before["domain"]["id"]
+        expected_host = before["domain"]["hostname"].lower()
+        expected_markers = before["scene"]["domainMarkers"]
+        if not expected_markers:
+            fail("network recovery started without controlled domain markers")
+        identity = process_identity()
+        offline = False
+        try:
+            self._domain_control("offline")
+            offline = True
+            disconnected = self.wait_until(
+                "the controlled domain outage to become visible in Interface",
+                lambda value: value["domain"]["connected"] is False,
+            )
+            write_json("network-disconnected.json", disconnected)
+            assert_process(identity, "controlled domain outage")
+            assert_foreground("controlled domain outage")
+            self._domain_control("online")
+            offline = False
+        finally:
+            if offline:
+                try:
+                    self._domain_control("online")
+                except InfrastructureError:
+                    pass
+
+        stable: list[dict] = []
+
+        def recovered(value: dict) -> bool:
+            domain = value["domain"]
+            scene = value["scene"]
+            matches = (domain["connected"] is True
+                       and self._parsed_domain_uuid(domain["id"]) ==
+                       self._parsed_domain_uuid(expected_domain)
+                       and domain["hostname"].lower() == expected_host
+                       and scene["domainMarkers"] == expected_markers
+                       and scene["domainMarkerCount"] == len(expected_markers))
+            stable.append(value) if matches else stable.clear()
+            return len(stable) >= 3
+
+        reconnected = self.wait_until(
+            "automatic reconnection to the exact controlled domain and content",
+            recovered,
+        )
+        assert_process(identity, "controlled domain reconnection")
+        write_json("network-reconnected.json", reconnected)
+        return disconnected, reconnected
+
+    def assert_audio_mute_roundtrip(self) -> tuple[bool, bool, bool]:
+        before = self.snapshot("audio-controls-before.json")
+        if before.get("audio") is None:
+            fail("probe does not provide audio control evidence")
+        baseline = before["audio"]["muted"]
+        toggled = not baseline
+        try:
+            self._invoke("audio.mute", {"muted": toggled})
+            changed = self.wait_until(
+                f"microphone muted state to become {toggled}",
+                lambda value: value.get("audio") is not None
+                and value["audio"]["muted"] is toggled,
+            )
+            write_json("audio-controls-toggled.json", changed)
+        finally:
+            self._invoke("audio.mute", {"muted": baseline})
+        restored_sample = self.wait_until(
+            f"microphone muted state to restore to {baseline}",
+            lambda value: value.get("audio") is not None
+            and value["audio"]["muted"] is baseline,
+        )
+        write_json("audio-controls-restored.json", restored_sample)
+        return baseline, toggled, restored_sample["audio"]["muted"]
+
+    def _restart_for_setting(self) -> str:
+        self._invoke("app.stop", {})
+        wait_for_process_stopped()
+        self._invoke("app.launch", {})
+        identity = wait_for_process()
+        self._last_sample_sequence = None
+        assert_foreground("after settings restart")
+        return identity
+
+    def assert_setting_persistence(self) -> tuple[bool, bool]:
+        before = self.snapshot("setting-before.json")
+        settings = before.get("settings")
+        if settings is None:
+            fail("probe does not provide safe setting evidence")
+        baseline = settings["audioWarnWhenMuted"]
+        changed = not baseline
+        restored = False
+        try:
+            self._invoke("setting.set", {
+                "settingId": "audio.warn-when-muted", "enabled": changed})
+            self.wait_until(
+                f"safe setting to change to {changed}",
+                lambda value: value.get("settings") is not None
+                and value["settings"]["audioWarnWhenMuted"] is changed,
+            )
+            identity = self._restart_for_setting()
+            persisted = self.wait_until(
+                f"safe setting {changed} after application restart",
+                lambda value: value.get("settings") is not None
+                and value["settings"]["audioWarnWhenMuted"] is changed,
+            )
+            assert_process(identity, "settings persistence")
+            write_json("setting-persisted.json", persisted)
+        finally:
+            process = self._invoke("app.process", {})
+            if process["running"] is not True:
+                self._invoke("app.launch", {})
+                wait_for_process()
+                self._last_sample_sequence = None
+            self._invoke("setting.set", {
+                "settingId": "audio.warn-when-muted", "enabled": baseline})
+            self._restart_for_setting()
+            restored_sample = self.wait_until(
+                f"safe setting to restore persistently to {baseline}",
+                lambda value: value.get("settings") is not None
+                and value["settings"]["audioWarnWhenMuted"] is baseline,
+            )
+            write_json("setting-restored.json", restored_sample)
+            restored = True
+        if not restored:
+            fail("safe setting restoration did not complete")
+        return baseline, changed
+
+    def assert_lifecycle_under_load(self) -> tuple[dict, dict]:
+        self.set_tablet(True)
+        identity = process_identity()
+        before = self.snapshot("lifecycle-load-before.json")
+        if before.get("render") is None:
+            fail("probe does not provide renderer progress evidence")
+        try:
+            self._invoke("lifecycle.background", {})
+            if self._invoke("app.foreground", {})["foreground"] is not False:
+                fail("loaded application did not enter background")
+            assert_process(identity, "loaded background transition")
+            self._invoke("app.launch", {})
+            assert_foreground("loaded foreground transition")
+            assert_process(identity, "loaded foreground transition")
+            after = self.wait_until(
+                "scene, tablet, and renderer progress after foreground activation",
+                lambda value: self._fixture_ready(value)
+                and value["tablet"]["open"] is True
+                and value.get("render") is not None
+                and value["render"]["frameCount"] > before["render"]["frameCount"],
+            )
+            write_json("lifecycle-load-after.json", after)
+            return before, after
+        finally:
+            self.set_tablet(False)
+
+    def assert_render_health(self) -> tuple[dict, dict]:
+        native_before = self._invoke("render.snapshot", {})
+        if native_before["hardwareAccelerated"] is not True:
+            fail("target presentation is not hardware accelerated")
+        if native_before["surfaceVisible"] is not True:
+            fail("target render surface is not visible")
+        if native_before["blackFrame"] is True:
+            fail("target presentation was classified as a black frame")
+        probe_before = self.snapshot("render-probe-before.json")
+        if probe_before.get("render") is None:
+            fail("probe does not provide renderer frame evidence")
+        probe_after = self.wait_until(
+            "in-client renderer frames to advance",
+            lambda value: value.get("render") is not None
+            and value["render"]["frameCount"] > probe_before["render"]["frameCount"],
+        )
+        native_after = self._invoke("render.snapshot", {})
+        if (native_after["backend"] != native_before["backend"]
+                or native_after["hardwareAccelerated"] is not True
+                or native_after["surfaceVisible"] is not True
+                or native_after["blackFrame"] is True
+                or native_after["frameSequence"] <= native_before["frameSequence"]):
+            fail("native presentation did not remain healthy and advance")
+        write_json("render-native.json", native_after)
+        write_json("render-probe-after.json", probe_after)
+        return native_after, probe_after
 
     @staticmethod
     def movement_vector(body_yaw_degrees: float, direction: str) -> tuple[float, float]:
@@ -508,20 +882,38 @@ class OverteSession:
     def jump(self) -> tuple[dict, dict, dict]:
         before = self.stable_ground_snapshot("jump-before.json")
         identity = process_identity()
+        before_events = before.get("verticalEvents")
+        if before_events is None:
+            fail("probe does not provide vertical event history")
+        before_count = before_events["jumpCount"]
         self._invoke("input.jump", {})
         minimum = self._float_environment("OVERTE_E2E_MIN_JUMP_METERS", 0.15, 0.01, 5.0)
-        airborne = self.wait_until(
-            f"a non-flying jump height gain of at least {minimum} meters",
-            lambda value: value["avatar"]["inAir"] is True
-            and value["avatar"]["flying"] is False
-            and self._height(value) - self._height(before) >= minimum,
-        )
-        write_json("jump-airborne.json", airborne)
         landing_tolerance = self._float_environment(
             "OVERTE_E2E_LANDING_TOLERANCE_METERS", 0.12, 0.01, 1.0)
+
+        def jump_observed(value: dict) -> bool:
+            events = value.get("verticalEvents")
+            return (events is not None
+                    and events["jumpCount"] > before_count
+                    and events["lastJumpStartY"] is not None
+                    and events["lastJumpPeakY"] is not None
+                    and abs(events["lastJumpStartY"] - self._height(before))
+                    <= landing_tolerance
+                    and events["lastJumpPeakY"] - events["lastJumpStartY"] >= minimum)
+
+        airborne = self.wait_until(
+            f"a non-flying jump height gain of at least {minimum} meters",
+            jump_observed,
+        )
+        write_json("jump-airborne.json", airborne)
+        observed_count = airborne["verticalEvents"]["jumpCount"]
         landed = self.wait_until(
             f"landing within {landing_tolerance} meters of the baseline",
-            lambda value: value["avatar"]["inAir"] is False
+            lambda value: value["verticalEvents"]["jumpCompletedCount"] >= observed_count
+            and value["verticalEvents"]["lastJumpLandingY"] is not None
+            and abs(value["verticalEvents"]["lastJumpLandingY"]
+                    - self._height(before)) <= landing_tolerance
+            and value["avatar"]["inAir"] is False
             and value["avatar"]["flying"] is False
             and abs(self._height(value) - self._height(before)) <= landing_tolerance,
         )
@@ -534,14 +926,20 @@ class OverteSession:
         identity = process_identity()
         if before["avatar"]["flyingEnabled"] is not True:
             fail("avatar flying is not enabled")
+        before_events = before.get("verticalEvents")
+        if before_events is None:
+            fail("probe does not provide vertical event history")
+        before_count = before_events["flightCount"]
         self._invoke("input.fly", {"durationSeconds": duration_seconds})
         minimum = self._float_environment("OVERTE_E2E_MIN_FLY_METERS", 0.5, 0.05, 20.0)
         flying = self.wait_until(
             f"active flight with a height gain of at least {minimum} meters",
-            lambda value: value["avatar"]["inAir"] is True
-            and value["avatar"]["flying"] is True
-            and value["avatar"]["flyingEnabled"] is True
-            and self._height(value) - self._height(before) >= minimum,
+            lambda value: value["verticalEvents"]["flightCount"] > before_count
+            and value["verticalEvents"]["lastFlightStartY"] is not None
+            and value["verticalEvents"]["lastFlightPeakY"] is not None
+            and value["verticalEvents"]["lastFlightPeakY"]
+            - value["verticalEvents"]["lastFlightStartY"] >= minimum
+            and value["avatar"]["flyingEnabled"] is True,
         )
         write_json("fly-active.json", flying)
         assert_process(identity, "active flight")
@@ -582,7 +980,7 @@ class OverteSession:
             self.set_tablet(False)
 
     def assert_collision_wall(self) -> tuple[dict, dict]:
-        self.load_controlled_scene()
+        self.ensure_controlled_scene()
         before = self.assert_spawn_grounded()
         wall = before["scene"]["collisionWall"]
         center = wall["center"]
@@ -608,11 +1006,30 @@ class OverteSession:
         return before, after
 
     def reload_scene(self) -> tuple[dict, dict]:
-        before = self.ensure_controlled_scene()
-        after = self.load_controlled_scene()
-        if (after["scene"]["entityCount"] != before["scene"]["entityCount"]
+        before = self.snapshot()
+        scene = before["scene"]
+        if before["application"]["running"] is not True:
+            fail("application was not running before scene reload")
+        fixture_present = (
+            tuple(scene["fixtureMarkers"]) == self.FIXTURE_MARKERS
+            and scene["fixtureMarkerCount"] == len(self.FIXTURE_MARKERS)
+            and scene["floorTopY"] is not None
+            and scene["collisionWall"] is not None
+        )
+        after = (self.reload_controlled_scene() if fixture_present
+                 else self.load_controlled_scene())
+        after = self.assert_spawn_grounded()
+        if ((fixture_present
+                and after["scene"]["entityCount"] != before["scene"]["entityCount"])
                 or not after["scene"]["spawnValidated"]):
             fail("controlled scene reload did not restore the fixture")
+        wall = after["scene"]["collisionWall"]
+        near_face_z = (float(wall["center"]["z"])
+                       + float(wall["dimensions"]["z"]) / 2.0)
+        minimum_clearance = self._float_environment(
+            "OVERTE_E2E_MIN_VERTICAL_WALL_CLEARANCE_METERS", 1.0, 0.1, 20.0)
+        if float(after["avatar"]["position"]["z"]) - near_face_z < minimum_clearance:
+            fail("controlled scene reload did not restore free vertical locomotion space")
         write_json("scene-reloaded.json", after)
         return before, after
 

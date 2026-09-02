@@ -15,6 +15,11 @@ SPDX-License-Identifier: Apache-2.0
 > I use AI tools to assist with experiments and implementation work in this fork. Code in this repository may therefore be incomplete, poorly tested, insecure, or otherwise dangerous, including quick-and-dirty fixes and vulnerabilities that have not yet been identified. Building or running it may expose your device, data, accounts, or network to security risks. Review the code carefully and use it entirely at your own risk. Do not treat this fork as a clean, stable, or production-ready version of Overte.
 >
 > The Overte project has a [no-AI-contributions policy](https://github.com/overte-org/overte/blob/master/CONTRIBUTING.md), which I respect. AI tools help me work more efficiently, so I use them only for work maintained separately in this fork.
+>
+> Reviewed Overte updates may flow from upstream's `master` branch into this
+> fork's `main` branch. AI-assisted work developed in this fork must not flow
+> back to the upstream project. The one-way review process is documented in
+> the [upstream intake policy](docs/UPSTREAM_INTAKE.md).
 
 ### Repository structure
 
@@ -66,7 +71,10 @@ maintained on its corresponding development branch.
 ### Fork policies
 
 - [Contribution and AI-assistance policy](CONTRIBUTING.md)
-- [Security policy and private reporting](SECURITY.md)
+- [Security policy and current reporting route](SECURITY.md)
+- [One-way upstream intake policy](docs/UPSTREAM_INTAKE.md)
+- [Repository settings recommendations](docs/REPOSITORY_SETTINGS.md)
+- [License and REUSE inventory](docs/LICENSING.md)
 - [Repository roadmap](docs/ROADMAP.md)
 
 > [!NOTE]

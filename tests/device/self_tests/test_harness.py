@@ -26,9 +26,12 @@ p.add_argument("--arguments")
 a = p.parse_args()
 selector = os.environ.get("MOCK_SELECTOR", "private-device-123")
 if a.action == "discover":
-    print(json.dumps([{"selector": selector, "displayName": "Mock Phone",
-                       "platform": "mock", "physical": os.environ.get("MOCK_VIRTUAL") != "1",
-                       "capabilities": os.environ.get("MOCK_CAPABILITIES", "app.process").split(",")}]))
+    if os.environ.get("MOCK_EMPTY_DISCOVERY") == "1":
+        print("[]")
+    else:
+        print(json.dumps([{"selector": selector, "displayName": "Mock Phone",
+                           "platform": "mock", "physical": os.environ.get("MOCK_VIRTUAL") != "1",
+                           "capabilities": os.environ.get("MOCK_CAPABILITIES", "app.process").split(",")}]))
 elif a.action == "describe":
     print(json.dumps({"platform": "mock", "model": "Contract Device"}))
 elif a.action == "invoke":
@@ -135,23 +138,27 @@ class HarnessTest(unittest.TestCase):
         self.assertTrue((self.output / "modules/health/INVALID").exists())
         self.assertEqual("failed", json.loads((self.output / "summary.json").read_text())["status"])
 
-    def test_fail_fast_stops_modules_and_still_cleans_up(self):
-        modules = []
-        for identifier in ("first", "second"):
-            modules.append({
-                "id": identifier, "description": f"Mock {identifier} module",
-                "command": ["module.py"], "suites": ["smoke"],
-                "requires": ["app.process"], "timeoutSeconds": 10,
-            })
-        self.catalog.write_text(json.dumps({"schemaVersion": 1, "modules": modules}),
-                                encoding="utf-8")
+    def test_infrastructure_failure_blocks_later_device_commands_and_cleans_up(self):
+        catalog = json.loads(self.catalog.read_text(encoding="utf-8"))
+        catalog["modules"].append({
+            "id": "later", "description": "Must not run after transport loss",
+            "command": ["module.py"], "suites": ["smoke"],
+            "requires": ["app.process"], "timeoutSeconds": 10,
+        })
+        self.catalog.write_text(json.dumps(catalog), encoding="utf-8")
+
         result = self.run_harness(
-            "--fail-fast", environment={"MOCK_MODULE_EXIT": "9"})
+            "--require-complete", environment={"MOCK_MODULE_EXIT": "75"})
+
         self.assertEqual(1, result.returncode, result.stdout)
-        summary = json.loads((self.output / "summary.json").read_text())
-        self.assertEqual(["first"], [item["id"] for item in summary["results"]])
-        self.assertFalse((self.output / "modules/second").exists())
         self.assertTrue(self.cleanup_marker.exists())
+        self.assertFalse((self.output / "modules/later").exists())
+        summary = json.loads((self.output / "summary.json").read_text())
+        self.assertEqual(["error", "skipped"], [
+            entry["status"] for entry in summary["results"]])
+        junit = ET.parse(self.output / "junit.xml").getroot()
+        self.assertEqual("1", junit.attrib["errors"])
+        self.assertEqual("1", junit.attrib["skipped"])
 
     def test_missing_capability_is_reported_as_skip(self):
         result = self.run_harness(environment={"MOCK_CAPABILITIES": "telemetry.memory"})
@@ -208,6 +215,18 @@ class HarnessTest(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stdout)
         self.assertIn("satisfies the protocol", result.stdout)
         self.assertTrue(self.cleanup_marker.exists())
+
+    def test_adapter_protocol_verifier_can_require_a_discovered_target(self):
+        env = os.environ.copy()
+        env.update({"MOCK_CLEANUP_MARKER": str(self.cleanup_marker),
+                    "MOCK_EMPTY_DISCOVERY": "1"})
+        result = subprocess.run([
+            sys.executable, str(VERIFIER), "--adapter-manifest", str(self.manifest),
+            "--require-target",
+        ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+           env=env, check=False)
+        self.assertEqual(2, result.returncode, result.stdout)
+        self.assertIn("returned no target", result.stdout)
 
     def test_portable_launch_module_runs_through_adapter_contract(self):
         env = os.environ.copy()

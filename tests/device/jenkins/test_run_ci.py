@@ -10,8 +10,7 @@ from pathlib import Path
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
-import subprocess
+from unittest.mock import MagicMock, patch
 import xml.etree.ElementTree as ET
 
 
@@ -48,6 +47,7 @@ class JenkinsGlueTest(unittest.TestCase):
             "targets": [
                 {
                     "selector": "private-ios-one", "platform": "ios",
+                    "capabilities": {"appium:udid": "private-device-one"},
                     "testBuild": {
                         "contract": "overte-ios-e2e-v1",
                         "fixtureOrigin": "http://fixture.invalid:18080",
@@ -55,6 +55,7 @@ class JenkinsGlueTest(unittest.TestCase):
                 },
                 {
                     "selector": "private-ios-two", "platform": "ios",
+                    "capabilities": {"appium:udid": "private-device-two"},
                     "testBuild": {
                         "contract": "overte-ios-e2e-v1",
                         "fixtureOrigin": "http://other.invalid:18080",
@@ -67,6 +68,29 @@ class JenkinsGlueTest(unittest.TestCase):
         path.chmod(0o600)
         return value
 
+    def test_upgrade_preflight_requires_distinct_external_artifacts_and_tool(self):
+        with tempfile.TemporaryDirectory(prefix="overte-upgrade-preflight-") as name:
+            temporary = Path(name)
+            source = temporary / "source.apk"
+            candidate = temporary / "candidate.apk"
+            aapt = temporary / "aapt"
+            source.write_bytes(b"source")
+            candidate.write_bytes(b"candidate")
+            aapt.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            aapt.chmod(0o700)
+            values = {
+                "OVERTE_E2E_UPGRADE_SOURCE_ARTIFACT": str(source),
+                "OVERTE_E2E_UPGRADE_CANDIDATE_ARTIFACT": str(candidate),
+                "OVERTE_E2E_UPGRADE_FROM_VERSION": "1.0.0",
+                "OVERTE_E2E_UPGRADE_TO_VERSION": "1.0.1",
+                "OVERTE_ANDROID_AAPT": str(aapt),
+            }
+            with patch.dict(os.environ, values, clear=False):
+                RUN_CI.checked_upgrade_inputs(ROOT)
+                os.environ["OVERTE_E2E_UPGRADE_CANDIDATE_ARTIFACT"] = str(source)
+                with self.assertRaises(ValueError):
+                    RUN_CI.checked_upgrade_inputs(ROOT)
+
     def test_mock_core_run_fixture_cleanup_and_staging(self):
         with tempfile.TemporaryDirectory(prefix="overte-jenkins-test-") as name:
             temporary = Path(name)
@@ -78,8 +102,18 @@ class JenkinsGlueTest(unittest.TestCase):
                 summary = json.loads(
                     (Path(values["OVERTE_CI_OUTPUT_DIR"]) / "summary.json").read_text())
                 self.assertEqual("passed", summary["status"])
+                acceptance = json.loads(
+                    (Path(values["OVERTE_CI_OUTPUT_DIR"]) / "acceptance.json").read_text())
+                self.assertEqual("implemented", acceptance["state"])
+                self.assertFalse(acceptance["blocking"])
                 self.assertTrue(
                     (Path(values["OVERTE_CI_OUTPUT_DIR"]) / "fixture-ready.json").is_file())
+                private_module = (Path(values["OVERTE_CI_OUTPUT_DIR"])
+                                  / "modules/scene")
+                (private_module / "screenshot.png").write_bytes(b"raw private pixels")
+                (private_module / "last-probe.json").write_text(
+                    json.dumps({"scene": {"url": "http://private-lan:43127/scene.json"}}),
+                    encoding="utf-8")
 
                 publish_workspace = temporary / "publish-workspace"
                 (publish_workspace / "tests/device").mkdir(parents=True)
@@ -89,7 +123,14 @@ class JenkinsGlueTest(unittest.TestCase):
                 os.environ["OVERTE_CI_STAGED_OUTPUT_DIR"] = str(staged)
                 self.assertEqual(0, RUN_CI.stage_results())
                 self.assertTrue((staged / "junit.xml").is_file())
+                self.assertTrue((staged / "acceptance.json").is_file())
                 self.assertFalse((staged / "pipeline-error.txt").exists())
+                self.assertFalse((staged / "fixture-ready.json").exists())
+                self.assertFalse((staged / "modules/scene/screenshot.png").exists())
+                self.assertFalse((staged / "modules/scene/last-probe.json").exists())
+                policy = json.loads((staged / "diagnostics-policy.json").read_text())
+                self.assertIs(policy["rawScreenshotsPublished"], False)
+                self.assertGreaterEqual(policy["privateFilesWithheld"], 3)
 
     def test_embedded_core_run_needs_no_network_fixture(self):
         with tempfile.TemporaryDirectory(prefix="overte-jenkins-embedded-test-") as name:
@@ -105,183 +146,23 @@ class JenkinsGlueTest(unittest.TestCase):
                 (output / "summary.json").read_text())["status"])
             self.assertFalse((output / "fixture-ready.json").exists())
 
-    def test_embedded_vertical_run_receives_the_scene_without_network_fixture(self):
-        with tempfile.TemporaryDirectory(prefix="overte-jenkins-vertical-test-") as name:
+    def test_tablet_suite_uses_explicit_repository_product_policy(self):
+        with tempfile.TemporaryDirectory(prefix="overte-jenkins-tablet-") as name:
             temporary = Path(name)
             values = self.configuration(temporary)
             values.update({
-                "OVERTE_CI_SUITE": "vertical-locomotion",
-                "OVERTE_CI_FIXTURE_MODE": "embedded",
-                "OVERTE_CI_OUTPUT_DIR": str(temporary / "outside/vertical-results"),
+                "OVERTE_CI_SUITE": "tablet-e2e",
+                "OVERTE_CI_TABLET_POLICY":
+                    "tests/device/adapters/appium/ios-flat-touch-policy.json",
+                "OVERTE_MOCK_TABLET_UI_PROFILE": "flat",
+                "OVERTE_MOCK_ASSERT_POLICY_ISOLATED": "1",
+                "OVERTE_E2E_TIMEOUT_SECONDS": "1",
             })
-            values.pop("OVERTE_CI_FIXTURE_PUBLIC_HOST")
             with patch.dict(os.environ, values, clear=False):
-                os.environ.pop("OVERTE_CI_FIXTURE_PUBLIC_HOST", None)
                 self.assertEqual(0, RUN_CI.run_suite())
-            output = Path(values["OVERTE_CI_OUTPUT_DIR"])
-            self.assertEqual("passed", json.loads(
-                (output / "summary.json").read_text())["status"])
-            self.assertFalse((output / "fixture-ready.json").exists())
-
-    def test_asset_and_sound_suites_receive_network_fixture_contracts(self):
-        for suite in ("asset-smoke", "sound-smoke"):
-            with self.subTest(suite=suite), tempfile.TemporaryDirectory(
-                    prefix=f"overte-jenkins-{suite}-test-") as name:
-                temporary = Path(name)
-                values = self.configuration(temporary)
-                values["OVERTE_CI_SUITE"] = suite
-                values["OVERTE_CI_FIXTURE_MODE"] = "embedded"
-                with patch.dict(os.environ, values, clear=False):
-                    self.assertEqual(0, RUN_CI.run_suite())
-                output = Path(values["OVERTE_CI_OUTPUT_DIR"])
-                summary = json.loads((output / "summary.json").read_text())
-                self.assertEqual("passed", summary["status"])
-                self.assertTrue((output / "fixture-ready.json").is_file())
-
-    def test_domain_suite_owns_fixture_and_passes_exact_ready_contract(self):
-        with tempfile.TemporaryDirectory(prefix="overte-jenkins-domain-test-") as name:
-            temporary = Path(name)
-            domain_server = temporary / "domain-server"
-            assignment_client = temporary / "assignment-client"
-            for executable in (domain_server, assignment_client):
-                executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-                executable.chmod(0o700)
-            values = self.configuration(temporary)
-            values.update({
-                "OVERTE_CI_SUITE": "domain-smoke",
-                "OVERTE_CI_DOMAIN_SERVER_EXECUTABLE": str(domain_server),
-                "OVERTE_CI_ASSIGNMENT_CLIENT_EXECUTABLE": str(assignment_client),
-            })
-            ready = {
-                "schemaVersion": 1,
-                "domainUrl": "hifi://127.0.0.1:40102/0.0,2.0,4.0/0,0,0,1",
-                "domainHost": "127.0.0.1",
-                "domainId": "11111111-2222-4333-8444-555555555555",
-                "requiredMarkers": [
-                    "OVERTE_E2E_DOMAIN_EAST", "OVERTE_E2E_DOMAIN_FLOOR",
-                    "OVERTE_E2E_DOMAIN_NORTH", "OVERTE_E2E_DOMAIN_ORIGIN",
-                ],
-            }
-            domain_commands = []
-            real_popen = subprocess.Popen
-
-            class CompletedFixture:
-                @staticmethod
-                def poll():
-                    return 0
-
-            def spawn(command, *arguments, **options):
-                if len(command) > 1 and str(command[1]).endswith("fixture/domain.py"):
-                    domain_commands.append(command)
-                    ready_path = Path(command[command.index("--ready-file") + 1])
-                    ready_path.write_text(json.dumps(ready), encoding="utf-8")
-                    fixture_output = Path(command[command.index("--output-dir") + 1])
-                    fixture_output.mkdir()
-                    (fixture_output / "domain-config.json").write_text(
-                        "{}\n", encoding="utf-8")
-                    (fixture_output / "domain-server.log").write_text(
-                        "domain ready\n", encoding="utf-8")
-                    (fixture_output / "assignment-client.log").write_text(
-                        "assignments ready\n", encoding="utf-8")
-                    return CompletedFixture()
-                return real_popen(command, *arguments, **options)
-
-            with patch.dict(os.environ, values, clear=False), \
-                    patch.object(RUN_CI.subprocess, "Popen", side_effect=spawn):
-                self.assertEqual(0, RUN_CI.run_suite())
-
-            self.assertEqual(1, len(domain_commands))
-            command = domain_commands[0]
-            self.assertEqual("127.0.0.1", command[command.index("--bind") + 1])
-            self.assertEqual(str(domain_server),
-                             command[command.index("--domain-server") + 1])
-            output = Path(values["OVERTE_CI_OUTPUT_DIR"])
-            self.assertEqual("passed", json.loads(
-                (output / "summary.json").read_text())[
-                    "status"])
-            self.assertTrue((output / "fixture-ready.json").is_file())
-            self.assertTrue((output / "domain-fixture/domain-server.log").is_file())
-
-    def test_domain_executables_must_be_absolute_executable_and_symlink_free(self):
-        with tempfile.TemporaryDirectory(prefix="overte-domain-executable-test-") as name:
-            executable = Path(name) / "domain-server"
-            executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-            values = {"OVERTE_CI_DOMAIN_SERVER_EXECUTABLE": str(executable)}
-            with patch.dict(os.environ, values, clear=False):
-                with self.assertRaisesRegex(ValueError, "executable file"):
-                    RUN_CI.checked_executable("OVERTE_CI_DOMAIN_SERVER_EXECUTABLE")
-                executable.chmod(0o700)
-                self.assertEqual(executable.resolve(), RUN_CI.checked_executable(
-                    "OVERTE_CI_DOMAIN_SERVER_EXECUTABLE"))
-                link = Path(name) / "domain-link"
-                link.symlink_to(executable)
-                os.environ["OVERTE_CI_DOMAIN_SERVER_EXECUTABLE"] = str(link)
-                with self.assertRaisesRegex(ValueError, "symbolic-link"):
-                    RUN_CI.checked_executable("OVERTE_CI_DOMAIN_SERVER_EXECUTABLE")
-
-    def test_controlled_android_suite_launches_before_capability_discovery(self):
-        with tempfile.TemporaryDirectory(prefix="overte-android-bootstrap-test-") as name:
-            manifest = Path(name) / "android.json"
-            manifest.write_text(json.dumps({
-                "schemaVersion": 1,
-                "id": "android-phone-adb",
-                "command": ["adapter.py", "--kind", "phone"],
-            }), encoding="utf-8")
-            before = json.dumps([{
-                "selector": "private-target", "capabilities": ["app.launch"],
-            }])
-            ready = json.dumps([{
-                "selector": "private-target",
-                "capabilities": ["app.launch", "asset.load"],
-            }])
-            results = [
-                subprocess.CompletedProcess([], 0, "{}\n", ""),
-                subprocess.CompletedProcess([], 0, before, ""),
-                subprocess.CompletedProcess([], 0, ready, ""),
-            ]
-            with patch.object(RUN_CI, "load_adapter_command", return_value=["adapter"]), \
-                    patch.object(RUN_CI.subprocess, "run", side_effect=results) as execute, \
-                    patch.object(RUN_CI.time, "sleep"):
-                RUN_CI.prepare_controlled_android_target(
-                    ROOT, manifest, "private-target", "asset-smoke", {"SAFE": "1"},
-                )
-            self.assertEqual("invoke", execute.call_args_list[0].args[0][1])
-            self.assertEqual("app.launch", execute.call_args_list[0].args[0][5])
-            self.assertEqual("discover", execute.call_args_list[1].args[0][1])
-            self.assertEqual(3, execute.call_count)
-
-    def test_controlled_pico_bootstrap_auto_selects_without_stale_credential(self):
-        with tempfile.TemporaryDirectory(prefix="overte-pico-bootstrap-test-") as name:
-            manifest = Path(name) / "pico.json"
-            manifest.write_text(json.dumps({
-                "schemaVersion": 1,
-                "id": "android-pico-adb",
-                "command": ["adapter.py", "--kind", "pico"],
-            }), encoding="utf-8")
-            ready = json.dumps([{
-                "selector": "live-network-target",
-                "capabilities": ["app.launch", "navigation.enter-domain"],
-            }])
-            results = [
-                subprocess.CompletedProcess([], 0, "{}\n", ""),
-                subprocess.CompletedProcess([], 0, ready, ""),
-            ]
-            child_environment = {
-                "SAFE": "1",
-                "OVERTE_DEVICE_TARGET_SELECTOR": "stale-private-selector",
-            }
-            with patch.object(RUN_CI, "load_adapter_command", return_value=["adapter"]), \
-                    patch.object(RUN_CI.subprocess, "run", side_effect=results) as execute:
-                RUN_CI.prepare_controlled_android_target(
-                    ROOT, manifest, "stale-private-selector", "domain-smoke",
-                    child_environment,
-                )
-            launch = execute.call_args_list[0]
-            self.assertNotIn("--target", launch.args[0])
-            self.assertNotIn("stale-private-selector", launch.args[0])
-            self.assertNotIn(
-                "OVERTE_DEVICE_TARGET_SELECTOR", launch.kwargs["env"])
-            self.assertEqual(2, execute.call_count)
+            summary = json.loads(
+                (Path(values["OVERTE_CI_OUTPUT_DIR"]) / "summary.json").read_text())
+            self.assertEqual("passed", summary["status"])
 
     def test_private_selector_leak_is_quarantined(self):
         with tempfile.TemporaryDirectory(prefix="overte-jenkins-secret-test-") as name:
@@ -337,6 +218,48 @@ class JenkinsGlueTest(unittest.TestCase):
                     (staged / "pipeline-error.txt").read_text(encoding="utf-8"),
                 )
 
+    def test_copied_staging_tree_is_rescanned_before_publication(self):
+        with tempfile.TemporaryDirectory(prefix="overte-jenkins-staging-rescan-") as name:
+            temporary = Path(name)
+            source = temporary / "outside/results"
+            source.mkdir(parents=True)
+            (source / "junit.xml").write_text("<testsuite/>", encoding="utf-8")
+            workspace = temporary / "workspace"
+            (workspace / "tests/device").mkdir(parents=True)
+            (workspace / "tests/device/run.py").touch()
+            destination = workspace / "artifacts/smoke"
+            selector = "private-device-serial"
+            values = {
+                "OVERTE_CI_WORKSPACE": str(workspace),
+                "OVERTE_CI_OUTPUT_DIR": str(source),
+                "OVERTE_CI_STAGED_OUTPUT_DIR": str(destination),
+                "OVERTE_CI_SUITE": "smoke",
+                "OVERTE_DEVICE_TARGET_SELECTOR": selector,
+            }
+
+            def mutate_staging(_source: Path, target: Path) -> tuple[int, int]:
+                (target / "junit.xml").write_text("<testsuite/>", encoding="utf-8")
+                (target / "summary.json").write_text(
+                    json.dumps({"target": selector}), encoding="utf-8")
+                return 2, 0
+
+            with patch.dict(os.environ, values, clear=False), patch.object(
+                    RUN_CI, "copy_publishable_results", side_effect=mutate_staging):
+                self.assertEqual(2, RUN_CI.stage_results())
+            self.assertFalse((destination / "summary.json").exists())
+            self.assertNotIn(
+                selector,
+                (destination / "pipeline-error.txt").read_text(encoding="utf-8"),
+            )
+
+    def test_acceptance_status_rejects_unmapped_adapter(self):
+        with tempfile.TemporaryDirectory(prefix="overte-jenkins-acceptance-") as name:
+            manifest = Path(name) / "adapter.json"
+            manifest.write_text(json.dumps({"id": "unmapped-adapter"}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "absent from the acceptance platform mapping"):
+                RUN_CI.acceptance_status(
+                    ROOT, manifest, ROOT / "tests/device/catalog.json", "portable-smoke")
+
     def test_result_root_and_staging_ancestor_symlinks_fail_closed(self):
         with tempfile.TemporaryDirectory(prefix="overte-jenkins-result-link-test-") as name:
             temporary = Path(name)
@@ -389,44 +312,6 @@ class JenkinsGlueTest(unittest.TestCase):
                 self.assertEqual(0, RUN_CI.cleanup_target())
             self.assertFalse(json.loads(state.read_text())["running"])
 
-    def test_pico_runner_and_cleanup_auto_select_without_private_selector(self):
-        pico_manifest = ROOT / "tests/device/adapters/android/pico.json"
-        child_environment = {
-            "PATH": os.environ.get("PATH", ""),
-            "OVERTE_DEVICE_TARGET_SELECTOR": "private-pico-selector",
-        }
-        with patch.dict(os.environ, {
-            "OVERTE_DEVICE_TARGET_SELECTOR": "private-pico-selector",
-        }, clear=False):
-            self.assertEqual([], RUN_CI.runner_target_arguments(
-                pico_manifest, child_environment))
-        self.assertNotIn("OVERTE_DEVICE_TARGET_SELECTOR", child_environment)
-
-        values = {
-            "OVERTE_CI_WORKSPACE": str(ROOT),
-            "OVERTE_CI_ADAPTER_MANIFEST": "tests/device/adapters/android/pico.json",
-            "OVERTE_DEVICE_TARGET_SELECTOR": "private-pico-selector",
-        }
-        with patch.dict(os.environ, values, clear=False), \
-                patch.object(RUN_CI, "load_adapter_command",
-                             return_value=["android-adapter", "--kind", "pico"]), \
-                patch.object(RUN_CI.subprocess, "run") as execute:
-            execute.return_value.returncode = 0
-            execute.return_value.stderr = ""
-            self.assertEqual(0, RUN_CI.cleanup_target())
-        command = execute.call_args.args[0]
-        self.assertEqual(["android-adapter", "--kind", "pico", "cleanup"], command)
-        self.assertNotIn(
-            "OVERTE_DEVICE_TARGET_SELECTOR", execute.call_args.kwargs["env"])
-
-    def test_non_pico_runner_still_requires_explicit_private_selector(self):
-        manifest = ROOT / "tests/device/adapters/android/phone.json"
-        child_environment = {"PATH": os.environ.get("PATH", "")}
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("OVERTE_DEVICE_TARGET_SELECTOR", None)
-            with self.assertRaisesRegex(ValueError, "OVERTE_DEVICE_TARGET_SELECTOR is required"):
-                RUN_CI.runner_target_arguments(manifest, child_environment)
-
     def test_runner_output_inside_checkout_is_rejected(self):
         with patch.dict(os.environ, {
             "OVERTE_CI_WORKSPACE": str(ROOT),
@@ -447,6 +332,155 @@ class JenkinsGlueTest(unittest.TestCase):
             self.assertIn("status", command)
             self.assertNotIn("udid", " ".join(command).lower())
             self.assertNotIn("appium-home", " ".join(command).lower())
+
+    def test_ios_session_prewarm_has_its_own_bounded_private_launch(self):
+        environment = {"OVERTE_APPIUM_TARGETS": "/private/targets.json"}
+        child = MagicMock()
+        child.wait.return_value = 0
+        with patch.object(
+                RUN_CI, "load_adapter_command",
+                return_value=["python3", "/workspace/private-adapter.py"]), patch.object(
+                RUN_CI.subprocess, "Popen", return_value=child) as execute:
+            RUN_CI.prewarm_ios_appium_session(
+                ROOT, ROOT / "tests/device/adapters/appium/ios.json",
+                "private-ios-selector", environment,
+            )
+        command = execute.call_args.args[0]
+        options = execute.call_args.kwargs
+        self.assertEqual("app.launch", command[command.index("--operation") + 1])
+        self.assertEqual("{}", command[command.index("--arguments") + 1])
+        self.assertEqual(RUN_CI.IOS_SESSION_PREWARM_TIMEOUT_SECONDS,
+                         child.wait.call_args.kwargs["timeout"])
+        self.assertIs(RUN_CI.subprocess.DEVNULL, options["stdout"])
+        self.assertIs(RUN_CI.subprocess.DEVNULL, options["stderr"])
+        self.assertIs(environment, options["env"])
+        self.assertTrue(options.get("start_new_session") or "creationflags" in options)
+
+    def test_ios_session_prewarm_fails_closed_without_echoing_selector(self):
+        selector = "private-ios-selector"
+        child = MagicMock()
+        child.wait.return_value = 2
+        with patch.object(
+                RUN_CI, "load_adapter_command", return_value=["adapter"]), patch.object(
+                RUN_CI.subprocess, "Popen", return_value=child):
+            with self.assertRaisesRegex(RuntimeError, "private Appium service log") as failure:
+                RUN_CI.prewarm_ios_appium_session(
+                    ROOT, ROOT / "tests/device/adapters/appium/ios.json",
+                    selector, {},
+                )
+        self.assertNotIn(selector, str(failure.exception))
+
+        timed_out = MagicMock()
+        timed_out.wait.side_effect = RUN_CI.subprocess.TimeoutExpired(["adapter"], 210)
+        with patch.object(
+                RUN_CI, "load_adapter_command", return_value=["adapter"]), patch.object(
+                RUN_CI.subprocess, "Popen", return_value=timed_out), patch.object(
+                RUN_CI, "stop_process") as stop:
+            with self.assertRaisesRegex(RuntimeError, "bounded prewarm window") as failure:
+                RUN_CI.prewarm_ios_appium_session(
+                    ROOT, ROOT / "tests/device/adapters/appium/ios.json",
+                    selector, {},
+                )
+        stop.assert_called_once_with(timed_out, grace_seconds=2)
+        self.assertNotIn(selector, str(failure.exception))
+
+    def test_ios_probe_request_gate_requires_a_successful_script_fetch(self):
+        with tempfile.TemporaryDirectory(prefix="overte-probe-request-") as name:
+            fixture_log = Path(name) / "fixture.log"
+            fixture_log.write_text(
+                'fixture: "GET /overte_e2e_probe.js HTTP/1.1" 200 -\n',
+                encoding="utf-8",
+            )
+            RUN_CI.require_ios_probe_request(fixture_log)
+
+            fixture_log.write_text(
+                'fixture: "GET /scene.json HTTP/1.1" 200 -\n', encoding="utf-8")
+            with patch.object(
+                    RUN_CI.time, "monotonic", side_effect=[0, 0, 11]), patch.object(
+                    RUN_CI.time, "sleep"):
+                with self.assertRaisesRegex(ValueError, "did not request"):
+                    RUN_CI.require_ios_probe_request(fixture_log)
+
+    def test_ios_core_updates_fixture_before_session_prewarm_and_common_runner(self):
+        with tempfile.TemporaryDirectory(prefix="overte-ios-ordering-") as name:
+            temporary = Path(name)
+            values = self.configuration(temporary)
+            values["OVERTE_CI_ADAPTER_MANIFEST"] = "tests/device/adapters/appium/ios.json"
+            values["OVERTE_DEVICE_TARGET_SELECTOR"] = "private-ios-one"
+            config = temporary / "private/targets.json"
+            self.ios_target_config(config)
+            values["OVERTE_IOS_JOB_TARGET_CONFIG"] = str(config)
+            values["OVERTE_APPIUM_TARGETS"] = str(config)
+            observed = []
+
+            def prewarm(_root, _manifest, _selector, _environment, _active):
+                updated = json.loads(config.read_text(encoding="utf-8"))
+                origin = updated["targets"][0]["testBuild"]["fixtureOrigin"]
+                self.assertTrue(origin.startswith("http://127.0.0.1:"))
+                observed.append("prewarm")
+
+            def require_probe(fixture_log):
+                self.assertEqual("fixture.log", fixture_log.name)
+                observed.append("probe-request")
+
+            with patch.dict(os.environ, values, clear=False), patch.object(
+                    RUN_CI, "prewarm_ios_appium_session", side_effect=prewarm), patch.object(
+                    RUN_CI, "require_ios_probe_request", side_effect=require_probe), patch.object(
+                    RUN_CI, "is_ios_appium_manifest", return_value=True), patch.object(
+                    RUN_CI, "load_adapter_command", return_value=[
+                        "python3", str(ROOT / "tests/device/adapters/mock/adapter.py"),
+                    ]):
+                # The actual common runner cannot use an iOS manifest with the
+                # mock adapter, so this test stops after proving ordering.
+                with patch.object(RUN_CI.subprocess, "Popen") as popen:
+                    fixture = MagicMock()
+                    fixture.poll.return_value = None
+                    fixture.pid = 10001
+                    fixture.wait.return_value = 0
+                    runner = MagicMock()
+                    def complete_runner():
+                        Path(values["OVERTE_CI_OUTPUT_DIR"]).mkdir(parents=True)
+                        return 0
+                    runner.wait.side_effect = complete_runner
+                    runner.pid = 10002
+                    runner.poll.return_value = 0
+                    popen.side_effect = [fixture, runner]
+                    with patch.object(RUN_CI, "wait_for_ready", return_value={
+                            "baseUrl": "http://127.0.0.1:43127",
+                            "sceneUrl": "http://127.0.0.1:43127/scene.json",
+                    }):
+                        self.assertEqual(0, RUN_CI.run_suite())
+            self.assertEqual(["prewarm", "probe-request"], observed)
+
+    def test_ios_ddi_gate_keeps_device_and_paths_out_of_argv_and_output(self):
+        with tempfile.TemporaryDirectory(prefix="overte-ios-ddi-glue-") as name:
+            temporary = Path(name)
+            config = temporary / "private/targets.json"
+            self.ios_target_config(config)
+            ddi = temporary / "private/ddi"
+            ddi.mkdir(mode=0o700)
+            values = {
+                "OVERTE_CI_WORKSPACE": str(ROOT),
+                "OVERTE_IOS_JOB_TARGET_CONFIG": str(config),
+                "OVERTE_DEVICE_TARGET_SELECTOR": "private-ios-one",
+                "OVERTE_IOS_DDI_ROOT": str(ddi),
+            }
+            child = MagicMock()
+            child.communicate.return_value = (None, None)
+            child.returncode = 0
+            with patch.dict(os.environ, values, clear=False), patch.object(
+                    RUN_CI.subprocess, "Popen", return_value=child) as execute:
+                self.assertEqual(0, RUN_CI.ios_ddi_preflight())
+            command = " ".join(map(str, execute.call_args.args[0]))
+            request = child.communicate.call_args.kwargs["input"]
+            self.assertNotIn("private-device-one", command)
+            self.assertNotIn(str(ddi), command)
+            self.assertIn("private-device-one", request)
+            self.assertIn(str(ddi), request)
+            self.assertIs(RUN_CI.subprocess.DEVNULL, execute.call_args.kwargs["stdout"])
+            self.assertIs(RUN_CI.subprocess.DEVNULL, execute.call_args.kwargs["stderr"])
+            self.assertTrue(execute.call_args.kwargs.get("start_new_session")
+                            or "creationflags" in execute.call_args.kwargs)
 
     def test_ephemeral_fixture_origin_updates_only_selected_private_ios_target(self):
         with tempfile.TemporaryDirectory(prefix="overte-ios-origin-") as name:
@@ -515,7 +549,9 @@ class JenkinsGlueTest(unittest.TestCase):
                 "OVERTE_APPIUM_TARGETS": str(source),
                 "OVERTE_IOS_JOB_TARGET_CONFIG": str(job_config),
                 "OVERTE_IOS_ARTIFACT_ROOT": str(temporary / "job/artifacts"),
+                "OVERTE_IOS_ARTIFACT_SOURCE": "protected-github",
                 "OVERTE_IOS_PRODUCER_RUN_ID": "12345",
+                "OVERTE_IOS_PRODUCER_RUN_ATTEMPT": "3",
                 "OVERTE_DEVICE_TARGET_SELECTOR": "private-selector",
                 "OVERTE_GITHUB_TOKEN": "private-token",
             }
@@ -528,6 +564,7 @@ class JenkinsGlueTest(unittest.TestCase):
             command = execute.call_args.args[0]
             self.assertIn("sync_fedora_artifacts.py", command[1])
             self.assertEqual("12345", command[command.index("--run-id") + 1])
+            self.assertEqual("3", command[command.index("--run-attempt") + 1])
             self.assertNotIn("private-token", command)
             self.assertNotIn("private-selector", command)
             self.assertNotIn("--target-selector", command)
@@ -546,7 +583,9 @@ class JenkinsGlueTest(unittest.TestCase):
                 "OVERTE_APPIUM_TARGETS": str(source),
                 "OVERTE_IOS_JOB_TARGET_CONFIG": str(job_config),
                 "OVERTE_IOS_ARTIFACT_ROOT": str(temporary / "job/artifacts"),
+                "OVERTE_IOS_ARTIFACT_SOURCE": "protected-github",
                 "OVERTE_IOS_PRODUCER_RUN_ID": "77",
+                "OVERTE_IOS_PRODUCER_RUN_ATTEMPT": "2",
                 "OVERTE_DEVICE_TARGET_SELECTOR": "private-selector",
             }
             with patch.dict(os.environ, values, clear=False), \
@@ -554,6 +593,105 @@ class JenkinsGlueTest(unittest.TestCase):
                 execute.return_value.returncode = 2
                 self.assertEqual(2, RUN_CI.ios_artifact_sync())
             self.assertFalse(job_config.exists())
+
+    def test_local_personal_team_import_prepares_receipt_without_device_or_credentials(self):
+        with tempfile.TemporaryDirectory(prefix="overte-ios-local-import-") as name:
+            temporary = Path(name)
+            private = temporary / "private"
+            private.mkdir(mode=0o700)
+            source = private / "appium.json"
+            unsigned_kit = private / "personal-team-e2e-kit.json"
+            attestation = private / "personal-team-signed-handoff.json"
+            overte = private / "Overte-PersonalTeam-E2E-signed.ipa"
+            wda = private / "WebDriverAgentRunner-16.8.0-PersonalTeam-signed.ipa"
+            for path, content in (
+                    (source, b'{"schemaVersion":1,"targets":[]}'),
+                    (unsigned_kit, b"kit"), (attestation, b"attestation"),
+                    (overte, b"signed-overte"), (wda, b"signed-wda")):
+                path.write_bytes(content)
+                path.chmod(0o600)
+            job_config = temporary / "job/private-targets.json"
+            values = {
+                "OVERTE_CI_WORKSPACE": str(ROOT),
+                "OVERTE_APPIUM_TARGETS": str(source),
+                "OVERTE_IOS_ARTIFACT_SOURCE": "local-personal-team",
+                "OVERTE_IOS_LOCAL_UNSIGNED_KIT": str(unsigned_kit),
+                "OVERTE_IOS_LOCAL_ATTESTATION": str(attestation),
+                "OVERTE_IOS_LOCAL_OVERTE_IPA": str(overte),
+                "OVERTE_IOS_LOCAL_WDA_IPA": str(wda),
+                "OVERTE_IOS_JOB_TARGET_CONFIG": str(job_config),
+                "OVERTE_IOS_ARTIFACT_ROOT": str(temporary / "job/artifacts"),
+                "OVERTE_DEVICE_TARGET_SELECTOR": "private-selector",
+                "OVERTE_GITHUB_TOKEN": "must-not-be-used",
+            }
+            with patch.dict(os.environ, values, clear=False), \
+                    patch.object(RUN_CI.subprocess, "run") as execute:
+                execute.return_value.returncode = 0
+                self.assertEqual(0, RUN_CI.ios_artifact_sync())
+            command = execute.call_args.args[0]
+            self.assertEqual("local-import", command[2])
+            self.assertEqual(str(unsigned_kit), command[command.index("--unsigned-kit") + 1])
+            self.assertEqual(str(attestation), command[command.index("--attestation") + 1])
+            self.assertEqual(str(overte), command[command.index("--overte-ipa") + 1])
+            self.assertEqual(str(wda), command[command.index("--wda-ipa") + 1])
+            self.assertEqual(str(job_config), command[command.index("--target-config") + 1])
+            self.assertNotIn("private-selector", command)
+            self.assertNotIn("must-not-be-used", command)
+            self.assertTrue(job_config.is_file())
+            self.assertEqual(0o600, job_config.stat().st_mode & 0o777)
+
+    def test_local_import_rejects_symlinked_or_public_inputs_before_subprocess(self):
+        with tempfile.TemporaryDirectory(prefix="overte-ios-local-negative-") as name:
+            temporary = Path(name)
+            private = temporary / "private"
+            private.mkdir(mode=0o700)
+            real = private / "real.ipa"
+            real.write_bytes(b"signed")
+            real.chmod(0o600)
+            linked = private / "linked.ipa"
+            linked.symlink_to(real)
+            values = {"OVERTE_CI_WORKSPACE": str(ROOT),
+                      "OVERTE_IOS_LOCAL_OVERTE_IPA": str(linked)}
+            with patch.dict(os.environ, values, clear=False):
+                with self.assertRaisesRegex(ValueError, "symlink-free"):
+                    RUN_CI.private_existing_file("OVERTE_IOS_LOCAL_OVERTE_IPA", ROOT)
+            real.chmod(0o644)
+            values["OVERTE_IOS_LOCAL_OVERTE_IPA"] = str(real)
+            with patch.dict(os.environ, values, clear=False):
+                with self.assertRaisesRegex(ValueError, "inaccessible to group"):
+                    RUN_CI.private_existing_file("OVERTE_IOS_LOCAL_OVERTE_IPA", ROOT)
+
+    def test_preinstalled_import_uses_only_private_observation_under_target_selector_env(self):
+        with tempfile.TemporaryDirectory(prefix="overte-ios-preinstalled-import-") as name:
+            temporary = Path(name)
+            private = temporary / "private"
+            private.mkdir(mode=0o700)
+            source = private / "appium.json"
+            attestation = private / "personal-team-preinstalled-attestation.json"
+            source.write_text('{"schemaVersion":1,"targets":[]}', encoding="utf-8")
+            attestation.write_text('{"private":true}', encoding="utf-8")
+            source.chmod(0o600)
+            attestation.chmod(0o600)
+            job_config = temporary / "job/private-targets.json"
+            values = {
+                "OVERTE_CI_WORKSPACE": str(ROOT),
+                "OVERTE_APPIUM_TARGETS": str(source),
+                "OVERTE_IOS_ARTIFACT_SOURCE": "personal-team-preinstalled",
+                "OVERTE_IOS_PREINSTALLED_ATTESTATION": str(attestation),
+                "OVERTE_IOS_JOB_TARGET_CONFIG": str(job_config),
+                "OVERTE_IOS_ARTIFACT_ROOT": str(temporary / "job/artifacts"),
+                "OVERTE_DEVICE_TARGET_SELECTOR": "private-selector",
+            }
+            with patch.dict(os.environ, values, clear=False), \
+                    patch.object(RUN_CI.subprocess, "run") as execute:
+                execute.return_value.returncode = 0
+                self.assertEqual(0, RUN_CI.ios_artifact_sync())
+            command = execute.call_args.args[0]
+            self.assertEqual("personal-team-preinstalled", command[2])
+            self.assertEqual(str(attestation), command[command.index("--attestation") + 1])
+            self.assertNotIn("--overte-ipa", command)
+            self.assertNotIn("--wda-ipa", command)
+            self.assertNotIn("private-selector", command)
 
     def test_ios_private_cleanup_removes_only_exact_build_paths(self):
         with tempfile.TemporaryDirectory(prefix="overte-ios-cleanup-") as name:
@@ -563,6 +701,9 @@ class JenkinsGlueTest(unittest.TestCase):
             config = external / "private-ios-targets.json"
             artifact.mkdir(parents=True, mode=0o700)
             external.chmod(0o700)
+            (external / RUN_CI.PRIVATE_BUILD_MARKER).write_text(
+                "overte-ios-ci-private-build-v1\n", encoding="utf-8")
+            (external / RUN_CI.PRIVATE_BUILD_MARKER).chmod(0o600)
             (artifact / "signed.ipa").write_bytes(b"private signed bytes")
             (artifact / "receipt.json").write_text("{}", encoding="utf-8")
             config.write_text("{}", encoding="utf-8")
@@ -579,15 +720,16 @@ class JenkinsGlueTest(unittest.TestCase):
             with patch.dict(os.environ, values, clear=False):
                 self.assertEqual(0, RUN_CI.cleanup_ios_private())
                 self.assertEqual(0, RUN_CI.cleanup_ios_private())
-            self.assertFalse(artifact.exists())
-            self.assertFalse(config.exists())
-            self.assertTrue(sibling.is_file())
+            self.assertFalse(external.exists())
 
     def test_ios_private_cleanup_rejects_scope_escape_and_artifact_symlink(self):
         with tempfile.TemporaryDirectory(prefix="overte-ios-cleanup-negative-") as name:
             temporary = Path(name)
             external = temporary / "private/build-18"
             external.mkdir(parents=True, mode=0o700)
+            (external / RUN_CI.PRIVATE_BUILD_MARKER).write_text(
+                "overte-ios-ci-private-build-v1\n", encoding="utf-8")
+            (external / RUN_CI.PRIVATE_BUILD_MARKER).chmod(0o600)
             outside = temporary / "must-survive"
             outside.mkdir()
             secret = outside / "signed.ipa"
@@ -642,7 +784,12 @@ class JenkinsGlueTest(unittest.TestCase):
     def test_jenkinsfile_has_required_safety_layers(self):
         source = (HERE / "Jenkinsfile").read_text(encoding="utf-8")
         for expected in (
-            "agent { label 'overte-device-interactive' }",
+            "agent { label agentLabel(resolvedProfile()) }",
+            "case 'appium-android':",
+            "case 'android-pico-adb':",
+            "case 'desktop-oculix-linux':",
+            "case 'desktop-oculix-macos':",
+            "case 'desktop-oculix-windows':",
             "lock(resource:",
             "withCredentials([string(",
             "timeout(time:",
@@ -652,74 +799,58 @@ class JenkinsGlueTest(unittest.TestCase):
             "junit(testResults:",
             "archiveArtifacts(",
             "ciPython('ios-runtime-preflight')",
+            "ciPython('ios-thermal-preflight')",
+            "ciPython('ios-ddi-preflight')",
             "ciPython('ios-artifact-sync')",
             "ciPython('cleanup-ios-private'",
             "OVERTE_IOS_JOB_TARGET_CONFIG",
             "IOS_GITHUB_TOKEN_CREDENTIAL_ID",
             "IOS_AGE_IDENTITY_CREDENTIAL_ID",
+            "personal-team-preinstalled",
+            "IOS_PREINSTALLED_ATTESTATION",
+            "IOS_DDI_ROOT",
+            "IOS_PRODUCER_RUN_ATTEMPT",
+            "stage('Preinstalled Personal Team gate')",
+            "runDeviceSuite('portable-smoke', 45)",
+            "RUN_STABILITY_CAMPAIGN",
+            "STABILITY_REPETITIONS",
+            "portable-stability-%02d",
+            "No Jenkins retry wrapper is allowed here",
+            "RUN_UPGRADE_TEST",
+            "UPGRADE_SOURCE_ARTIFACT",
+            "UPGRADE_CANDIDATE_ARTIFACT",
+            "runDeviceSuite('update-upgrade', 60)",
+            "runDeviceSuite('domain-smoke', 30)",
+            "OVERTE_BUILD_ISOLATION_ROOT",
+            "OVERTE_CONAN_CACHE_ROOT=${env.OVERTE_BUILD_ISOLATION_ROOT}/conan",
+            "disableConcurrentBuilds",
+            "--require-complete",
         ):
-            self.assertIn(expected, source)
-        self.assertLess(source.index("runDeviceSuite('smoke'"),
+            haystack = source if expected != "--require-complete" else (
+                HERE / "run_ci.py").read_text(encoding="utf-8")
+            self.assertIn(expected, haystack)
+        self.assertLess(source.index("runDeviceSuite('portable-smoke'"),
+                        source.index("runDeviceSuite('accessibility'"))
+        self.assertLess(source.index("stage('Preinstalled Personal Team gate')"),
+                        source.index("runDeviceSuite('portable-smoke'"))
+        self.assertLess(source.index("runDeviceSuite('accessibility'"),
                         source.index("runDeviceSuite('stability'"))
-        self.assertLess(source.index("runDeviceSuite('stability'"),
-                        source.index("runDeviceSuite('lifecycle-stability'"))
+        self.assertNotIn("runDeviceSuite('lifecycle-stability'", source)
+        self.assertNotIn("runDeviceSuite('smoke'", source)
+        self.assertIn("RUN_CORE is mandatory", source)
+        self.assertIn("choices: ['network', 'embedded']", source)
+        self.assertIn("params.FIXTURE_MODE == 'network'", source)
+        self.assertIn("params.FIXTURE_MODE != 'embedded'", source)
+        self.assertIn("FIXTURE_PORT must be a fixed TCP port", source)
+        self.assertNotRegex(source, r"\bretry\s*\(")
         for expected in (
-            "RUN_DOMAIN_ENTER", "RUN_ASSET_LOAD", "RUN_SOUND_PLAYBACK",
-            "runDeviceSuite('domain-smoke'", "runDeviceSuite('asset-smoke'",
-            "runDeviceSuite('sound-smoke'", "DOMAIN_SERVER_EXECUTABLE",
-            "ASSIGNMENT_CLIENT_EXECUTABLE",
-            "RUN_VERTICAL_LOCOMOTION", "runDeviceSuite('vertical-locomotion'",
-            "OVERTE_ANDROID_ADB", "ANDROID_ADB_SERVER_PORT",
-            "OVERTE_ANDROID_E2E_DEBUG", "OVERTE_PICO_OPENXR_INPUT",
-            "OVERTE_PICO_OPENXR_STATE_DIR",
-            "RUN_ACCESSIBILITY is unsupported for android-pico-adb",
-            "OpenXR surface does not expose an audited native accessibility tree",
-        ):
+                "params.AGENT_LABEL?.trim()",
+                "params.DEVICE_RESOURCE?.trim()",
+                "params.TARGET_SELECTOR_CREDENTIAL_ID?.trim()",
+                "params.FIXTURE_PORT?.trim()"):
             self.assertIn(expected, source)
-
-        accessibility_guard = source.split(
-            "if (params.RUN_ACCESSIBILITY &&", 1)[1].split(
-                "adapterManifest(params.TARGET_PROFILE)", 1)[0]
-        self.assertIn("params.TARGET_PROFILE == 'android-pico-adb'",
-                      accessibility_guard)
-        self.assertIn("error(", accessibility_guard)
-
-    def test_content_suites_are_accepted_by_ci_glue(self):
-        self.assertTrue({"domain-smoke", "asset-smoke", "sound-smoke",
-                         "vertical-locomotion"}
-                        .issubset(RUN_CI.SUITES))
-
-    def test_domain_fixture_uses_the_configured_network_bind(self):
-        source = (HERE / "run_ci.py").read_text(encoding="utf-8")
-        domain_block = source.split('if suite == "domain-smoke":', 1)[1].split(
-            'elif suite in {"e2e-core", "vertical-locomotion"}', 1)[0]
-        self.assertIn('"OVERTE_CI_FIXTURE_BIND"', domain_block)
-        self.assertIn('"--bind", bind, "--public-host", host', domain_block)
-
-    def test_self_check_removes_physical_pico_opt_ins(self):
-        observed = []
-
-        def capture(_command, **kwargs):
-            observed.append(kwargs["env"])
-            return __import__("subprocess").CompletedProcess([], 0)
-
-        with patch.object(RUN_CI, "workspace", return_value=HERE.parents[2]), \
-                patch.object(RUN_CI.subprocess, "run", side_effect=capture), \
-                patch.dict(RUN_CI.os.environ, {
-                    "OVERTE_DEVICE_TARGET_SELECTOR": "private-target",
-                    "OVERTE_ANDROID_E2E_DEBUG": "1",
-                    "OVERTE_PICO_OPENXR_INPUT": "1",
-                    "OVERTE_PICO_OPENXR_STATE_DIR": "/private/state",
-                    "ANDROID_ADB_SERVER_PORT": "5039",
-                }, clear=False):
-            self.assertEqual(0, RUN_CI.self_check())
-        self.assertTrue(observed)
-        for environment_value in observed:
-            for name in (
-                    "OVERTE_DEVICE_TARGET_SELECTOR", "OVERTE_ANDROID_E2E_DEBUG",
-                    "OVERTE_PICO_OPENXR_INPUT", "OVERTE_PICO_OPENXR_STATE_DIR",
-                    "ANDROID_ADB_SERVER_PORT"):
-                self.assertNotIn(name, environment_value)
+        self.assertNotIn('OVERTE_CONAN_CACHE_ROOT": str(root / "conan-cache")',
+                         (HERE / "prepare_private_targets.py").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

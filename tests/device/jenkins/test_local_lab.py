@@ -86,7 +86,12 @@ class LocalLabBootstrapTest(unittest.TestCase):
             }))
             LAB.secure_write(root / "password", "unused\n")
             arguments = argparse.Namespace(config_root=str(root))
-            self.assertEqual(1, LAB.status(arguments))
+            with patch.object(
+                LAB, "wait_controller",
+                side_effect=RuntimeError("simulated offline controller"),
+            ) as wait_controller:
+                self.assertEqual(1, LAB.status(arguments))
+            wait_controller.assert_called_once()
 
     def test_systemd_appium_service_receives_android_sdk(self):
         with tempfile.TemporaryDirectory(prefix="overte-local-lab-systemd-") as name:
@@ -136,8 +141,8 @@ class LocalLabBootstrapTest(unittest.TestCase):
                                 for target in payload["targets"]))
             agent_environment = (root / "agent.env").read_text(encoding="utf-8")
             self.assertIn("OVERTE_APPIUM_TARGETS=", agent_environment)
-            self.assertIn("OVERTE_CONAN_CACHE_ROOT=", agent_environment)
-            self.assertIn("OVERTE_ANDROID_BUILD_ROOT=", agent_environment)
+            self.assertIn("OVERTE_CONAN_SEED_ROOT=", agent_environment)
+            self.assertIn("OVERTE_E2E_CACHE_ROOT=", agent_environment)
             self.assertNotIn("REPLACE_WITH_PRIVATE_UDID", agent_environment)
 
 
