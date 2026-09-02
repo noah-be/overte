@@ -377,9 +377,9 @@ bool startCrashHandler(std::string appPath, std::string crashURL, std::string cr
 
     std::map<std::string, std::string> annotations;
     annotations["sentry[release]"] = crashToken;
-    annotations["sentry[contexts][app][app_version]"] = BuildInfo::VERSION.toStdString();
-    annotations["sentry[contexts][app][app_build]"] = BuildInfo::BUILD_NUMBER.toStdString();
-    annotations["build_type"] = BuildInfo::BUILD_TYPE_STRING.toStdString();
+    annotations["sentry[contexts][app][app_version]"] = BuildInfo::VERSION;
+    annotations["sentry[contexts][app][app_build]"] = BuildInfo::BUILD_NUMBER;
+    annotations["build_type"] = BuildInfo::BUILD_TYPE_STRING;
 
     auto machineFingerPrint = uuidStringWithoutCurlyBraces(FingerprintUtils::getMachineFingerprint());
     annotations["machine_fingerprint"] = machineFingerPrint.toStdString();

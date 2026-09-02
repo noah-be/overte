@@ -516,10 +516,12 @@ jobs:
             symbol_binary="$symbol_bundle/Contents/Resources/DWARF/Overte"
             test -f "$symbol_binary"
           fi
-          echo "app=$app" >> "$GITHUB_OUTPUT"
-          echo "manifest=$manifest" >> "$GITHUB_OUTPUT"
-          echo "symbol_binary=$symbol_binary" >> "$GITHUB_OUTPUT"
-          echo "symbol_bundle=$symbol_bundle" >> "$GITHUB_OUTPUT"
+          {
+            echo "app=$app"
+            echo "manifest=$manifest"
+            echo "symbol_binary=$symbol_binary"
+            echo "symbol_bundle=$symbol_bundle"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Resolve current overte_hub domain identity
         if: ${{ !inputs.lldb_runtime_only }}
@@ -634,7 +636,6 @@ jobs:
         if: ${{ always() && (steps.worlds.outcome == 'failure' || steps.lldb.outcome == 'failure') }}
         run: |
           set -euo pipefail
-          app="${{ steps.candidate.outputs.app }}"
           symbol_binary="${{ steps.candidate.outputs.symbol_binary }}"
           for crash in "$RUNTIME_ROOT"/raw-diagnostics/*-overte-crash-report.log; do
             [[ -s "$crash" ]] || continue

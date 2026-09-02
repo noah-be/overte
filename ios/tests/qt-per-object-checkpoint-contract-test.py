@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Protect immediate remote persistence of every cacheable Qt compilation."""
+"""Protect bounded disk-only persistence of cacheable Qt compilations."""
 
 from pathlib import Path
 import re
@@ -16,57 +16,48 @@ def require(pattern: str, message: str) -> None:
 
 require(r"mozilla-actions/sccache-action@[0-9a-f]{40}\s+# v0\.0\.11[\s\S]*?version: v0\.17\.0",
         "Qt per-object checkpoint must use pinned sccache action and version")
-require(r"Export remote compiler checkpoint credentials[\s\S]*?"
-        r"actions/github-script@[0-9a-f]{40}\s+# v9\.0\.0[\s\S]*?"
-        r"process\.env\.ACTIONS_RESULTS_URL[\s\S]*?"
-        r"process\.env\.ACTIONS_RUNTIME_TOKEN[\s\S]*?"
-        r"core\.setSecret\(runtimeToken\)[\s\S]*?"
-        r'core\.exportVariable\("SCCACHE_GHA_CACHE_URL", cacheUrl\)[\s\S]*?'
-        r'core\.exportVariable\("SCCACHE_GHA_RUNTIME_TOKEN", runtimeToken\)',
-        "Qt per-object checkpoint must securely export ephemeral GHA cache credentials")
 for setting in (
     'SCCACHE_BASEDIRS: ${{ github.workspace }}',
     'SCCACHE_CLIENT_SIDE: "1"',
-    'SCCACHE_MULTILEVEL_CHAIN: disk,gha',
-    'SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: all',
-    'SCCACHE_GHA_ENABLED: "true"',
+    'SCCACHE_MULTILEVEL_CHAIN: disk',
+    'SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: l0',
 ):
     if setting not in WORKFLOW:
-        raise SystemExit(f"missing fail-closed per-object checkpoint setting: {setting}")
+        raise SystemExit(f"missing fail-closed disk-only checkpoint setting: {setting}")
+for forbidden in (
+    "SCCACHE_GHA_",
+    "ACTIONS_RESULTS_URL",
+    "ACTIONS_CACHE_URL",
+    "ACTIONS_RUNTIME_TOKEN",
+):
+    if forbidden in WORKFLOW:
+        raise SystemExit(f"disk-only Qt checkpoint retains forbidden GHA state: {forbidden}")
 
 key_start = WORKFLOW.index("Select deterministic cache key")
 key_end = WORKFLOW.index("Restore validated Qt host tools")
 key_slice = WORKFLOW[key_start:key_end]
-if 'echo "SCCACHE_GHA_VERSION=$remote_namespace" >> "$GITHUB_ENV"' not in key_slice:
-    raise SystemExit("SCCACHE_GHA_VERSION is not exported from the deterministic namespace")
-if 'remote_namespace="overte-qt-objects-v1-${ios_base}"' not in key_slice:
-    raise SystemExit("remote per-object namespace is not tied to the exact iOS toolchain plan")
-namespace_line = next(line for line in key_slice.splitlines() if "remote_namespace=" in line)
-if "GITHUB_RUN_ID" in namespace_line or "GITHUB_RUN_ATTEMPT" in namespace_line:
-    raise SystemExit("remote per-object namespace must survive runs of the same toolchain plan")
+if "SCCACHE_GHA_VERSION" in key_slice or "remote_namespace=" in key_slice:
+    raise SystemExit("deterministic cache keys must not enable a remote sccache backend")
 
-probe_start = WORKFLOW.index("Verify remote compiler checkpoint before the long build")
+probe_start = WORKFLOW.index("Verify local compiler cache before the long build")
 probe_end = WORKFLOW.index("Restore validated Qt host tools")
 probe_slice = WORKFLOW[probe_start:probe_end]
 if not key_start < probe_start < probe_end:
-    raise SystemExit("remote checkpoint probe must run after namespace selection and before long work")
+    raise SystemExit("local cache probe must run after key selection and before long work")
 for invariant in (
-    "SCCACHE_GHA_CACHE_URL",
-    "SCCACHE_GHA_RUNTIME_TOKEN",
-    "SCCACHE_GHA_ENABLED",
-    "SCCACHE_GHA_VERSION",
     "GITHUB_RUN_ID",
     "GITHUB_RUN_ATTEMPT",
     "sccache /usr/bin/clang",
     "requests_executed",
     "cache_writes",
     "cache_write_errors",
-    "multi_level",
-    "write_failures",
     "sccache --stop-server",
 ):
     if invariant not in probe_slice:
-        raise SystemExit(f"remote checkpoint preflight omits {invariant}")
+        raise SystemExit(f"local checkpoint preflight omits {invariant}")
+for forbidden in ("multi_level", "write_failures", "remote"):
+    if forbidden in probe_slice.lower():
+        raise SystemExit(f"local checkpoint preflight retains remote expectation: {forbidden}")
 
 install = WORKFLOW[WORKFLOW.index("Install source-build prerequisites"):
                    WORKFLOW.index("Verify or download pinned Qt source archive")]
@@ -74,7 +65,7 @@ if "brew install cmake ninja sccache" in install:
     raise SystemExit("unpinned Homebrew sccache bypasses the pinned checkpoint action")
 
 report = WORKFLOW.index("Report compiler-cache statistics")
-verify = WORKFLOW.index("Verify successful Qt build was remotely checkpointed")
+verify = WORKFLOW.index("Verify successful Qt build used the local compiler cache")
 diagnostics = WORKFLOW.index("Upload compiler stall diagnostics")
 stop = WORKFLOW.index("Stop compiler-cache server before recovery snapshot")
 save = WORKFLOW.index("Save compiler recovery cache after a build failure")
@@ -84,10 +75,10 @@ verify_slice = WORKFLOW[verify:diagnostics]
 for invariant in (
     "report-sccache-stats.py",
     "--require-activity",
-    "--max-remote-write-failure-rate 0.01",
-    "--max-remote-write-failures 32",
 ):
     if invariant not in verify_slice:
-        raise SystemExit(f"remote checkpoint verification omits {invariant}")
+        raise SystemExit(f"local checkpoint verification omits {invariant}")
+if "--max-remote" in verify_slice:
+    raise SystemExit("local checkpoint verification retains a remote threshold")
 
-print("Qt per-object checkpoint contract valid: immediate remote plus local failure recovery")
+print("Qt per-object checkpoint contract valid: disk-only activity plus local failure recovery")

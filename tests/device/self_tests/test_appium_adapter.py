@@ -897,6 +897,8 @@ class AppiumAdapterTests(unittest.TestCase):
         support.process_identity = lambda: identity
         support.assert_process = lambda expected, _label: self.assertEqual(identity, expected)
         support.assert_foreground = lambda _label: None
+        support.wait_for_process = lambda: identity
+        support.wait_for_process_stopped = lambda: None
         common_spec = importlib.util.spec_from_file_location(
             "overte_ios_common_vertical_session", DEVICE_ROOT / "overte_session.py")
         assert common_spec and common_spec.loader

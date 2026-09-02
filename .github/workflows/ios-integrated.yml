@@ -82,7 +82,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Check out requested revision
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -101,6 +101,8 @@ jobs:
       cache-key: ${{ steps.v8-cache-key.outputs.key }}
       artifact-prefix: ${{ steps.v8-cache-key.outputs.artifact-prefix }}
     env:
+      OVERTE_CHECKPOINT_REPOSITORY_ID: ${{ github.repository_id }}
+      OVERTE_CHECKPOINT_BRANCH: ${{ github.ref_name }}
       OVERTE_IOS_V8_ROOT: ${{ github.workspace }}/build-ios/external/v8-ios
       IOS_RUNNER_TELEMETRY_DIR: ${{ github.workspace }}/build-ios/v8-telemetry
       SCCACHE_DIR: ${{ github.workspace }}/build-ios/v8-sccache
@@ -108,13 +110,12 @@ jobs:
       SCCACHE_BASEDIRS: ${{ github.workspace }}
       SCCACHE_CLIENT_SIDE: "1"
       SCCACHE_IDLE_TIMEOUT: "0"
-      SCCACHE_MULTILEVEL_CHAIN: disk,gha
+      SCCACHE_MULTILEVEL_CHAIN: disk
       SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: l0
-      SCCACHE_GHA_ENABLED: "true"
       OVERTE_COMPILER_WATCHDOG_DIAGNOSTICS: ${{ github.workspace }}/build-ios/v8-compiler-watchdog-diagnostics
     steps:
       - name: Check out requested revision
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           clean: ${{ inputs.macos_runner != 'overte-ios-getmac' }}
@@ -124,20 +125,6 @@ jobs:
         with:
           version: v0.17.0
           disable_annotations: true
-
-      - name: Export V8 remote compiler checkpoint credentials
-        uses: actions/github-script@d746ffe35508b1917358783b479e04febd2b8f71 # v9.0.0
-        with:
-          script: |
-            const cacheUrl = process.env.ACTIONS_RESULTS_URL || process.env.ACTIONS_CACHE_URL;
-            const runtimeToken = process.env.ACTIONS_RUNTIME_TOKEN;
-            if (!cacheUrl || !runtimeToken) {
-              core.setFailed("GitHub Actions cache-service credentials are unavailable");
-              return;
-            }
-            core.setSecret(runtimeToken);
-            core.exportVariable("SCCACHE_GHA_CACHE_URL", cacheUrl);
-            core.exportVariable("SCCACHE_GHA_RUNTIME_TOKEN", runtimeToken);
 
       - name: Select deterministic iOS V8 cache key
         id: v8-cache-key
@@ -161,7 +148,6 @@ jobs:
             --github-output "$GITHUB_OUTPUT"
           identity="$(awk -F= '$1 == "identity" { print $2 }' "$GITHUB_OUTPUT" | tail -n 1)"
           test -n "$identity"
-          echo "SCCACHE_GHA_VERSION=overte-v8-ios-objects-v2-${identity}" >> "$GITHUB_ENV"
           echo "SCCACHE_C_CUSTOM_CACHE_BUSTER=${identity}" >> "$GITHUB_ENV"
 
           source ios/v8-legacy-checkpoints.env
@@ -171,10 +157,12 @@ jobs:
                 "$sdk_version" == "$OVERTE_IOS_V8_LEGACY_DEVICE_SDK_VERSION" ]]; then
             legacy_compatible=true
           fi
-          echo "legacy-compatible=$legacy_compatible" >> "$GITHUB_OUTPUT"
-          echo "legacy-cache-key=$OVERTE_IOS_V8_LEGACY_DEVICE_CACHE_KEY" >> "$GITHUB_OUTPUT"
-          echo "legacy-artifact-prefix=$OVERTE_IOS_V8_LEGACY_DEVICE_ARTIFACT_PREFIX" >> "$GITHUB_OUTPUT"
-          echo "legacy-library-sha256=$OVERTE_IOS_V8_LEGACY_DEVICE_LIBRARY_SHA256" >> "$GITHUB_OUTPUT"
+          {
+            echo "legacy-compatible=$legacy_compatible"
+            echo "legacy-cache-key=$OVERTE_IOS_V8_LEGACY_DEVICE_CACHE_KEY"
+            echo "legacy-artifact-prefix=$OVERTE_IOS_V8_LEGACY_DEVICE_ARTIFACT_PREFIX"
+            echo "legacy-library-sha256=$OVERTE_IOS_V8_LEGACY_DEVICE_LIBRARY_SHA256"
+          } >> "$GITHUB_OUTPUT"
           echo "V8 checkpoint key: overte-v8-ios-v2-${identity}"
           echo "V8 identity inputs: platform=device arch=arm64 xcode=$xcode_build sdk=$sdk_version sdk_build=$sdk_build compiler=$compiler_version"
 
@@ -193,8 +181,8 @@ jobs:
         run: |
           python3 ios/ci/qt-checkpoint-artifact.py probe \
             --artifact-prefix "${{ steps.v8-cache-key.outputs.artifact-prefix }}" \
-            --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --expected-branch "$OVERTE_CHECKPOINT_BRANCH" \
             --max-age-days 75 \
             --github-output "$GITHUB_OUTPUT"
 
@@ -209,8 +197,8 @@ jobs:
             --artifact-prefix "${{ steps.v8-cache-key.outputs.artifact-prefix }}" \
             --kind v8 \
             --cache-key "${{ steps.v8-cache-key.outputs.key }}" \
-            --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --expected-branch "$OVERTE_CHECKPOINT_BRANCH" \
             --max-age-days 75 \
             --install-root "${{ github.workspace }}/build-ios/external" \
             --github-output "$GITHUB_OUTPUT"
@@ -249,8 +237,8 @@ jobs:
             --artifact-prefix "${{ steps.v8-cache-key.outputs.legacy-artifact-prefix }}" \
             --kind v8 \
             --cache-key "${{ steps.v8-cache-key.outputs.legacy-cache-key }}" \
-            --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --expected-branch "$OVERTE_CHECKPOINT_BRANCH" \
             --max-age-days 21 \
             --install-root "${{ github.workspace }}/build-ios/external" \
             --github-output "$GITHUB_OUTPUT"
@@ -373,8 +361,8 @@ jobs:
             --prefix "$OVERTE_IOS_V8_ROOT" \
             --kind v8 \
             --cache-key "${{ steps.v8-cache-key.outputs.key }}" \
-            --producer-repository-id "${{ github.repository_id }}" \
-            --producer-branch "${{ github.ref_name }}" \
+            --producer-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --producer-branch "$OVERTE_CHECKPOINT_BRANCH" \
             --output-dir build-ios/v8-checkpoint
 
       - name: Upload durable static JITless V8 checkpoint
@@ -387,7 +375,7 @@ jobs:
             build-ios/v8-checkpoint/manifest.json
           if-no-files-found: error
           compression-level: 0
-          retention-days: 90
+          retention-days: 30
 
       - name: Save validated static JITless V8 for iOS
         if: steps.v8-cache.outputs.cache-hit != 'true'
@@ -427,6 +415,8 @@ jobs:
     runs-on: ${{ inputs.macos_runner }}
     timeout-minutes: 185
     env:
+      OVERTE_CHECKPOINT_REPOSITORY_ID: ${{ github.repository_id }}
+      OVERTE_CHECKPOINT_BRANCH: ${{ github.ref_name }}
       OVERTE_IOS_QT_ROOT: ${{ github.workspace }}/build-ios/qt-install/qt/ios
       OVERTE_IOS_QT_HOST_ROOT: ${{ github.workspace }}/build-ios/qt-install/qt/macos
       CONAN_HOME: ${{ github.workspace }}/build-ios/conan-home
@@ -441,9 +431,8 @@ jobs:
       SCCACHE_IDLE_TIMEOUT: "0"
       SCCACHE_BASEDIRS: ${{ github.workspace }}
       SCCACHE_CLIENT_SIDE: "1"
-      SCCACHE_MULTILEVEL_CHAIN: disk,gha
-      SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: all
-      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_MULTILEVEL_CHAIN: disk
+      SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: l0
       IOS_RUNNER_TELEMETRY_DIR: ${{ github.workspace }}/build-ios/runner-telemetry
       OVERTE_COMPILER_WATCHDOG_DIAGNOSTICS: ${{ github.workspace }}/build-ios/compiler-watchdog-diagnostics
     defaults:
@@ -464,20 +453,6 @@ jobs:
         with:
           version: v0.17.0
           disable_annotations: true
-
-      - name: Export full-client remote checkpoint credentials
-        uses: actions/github-script@d746ffe35508b1917358783b479e04febd2b8f71 # v9.0.0
-        with:
-          script: |
-            const cacheUrl = process.env.ACTIONS_RESULTS_URL || process.env.ACTIONS_CACHE_URL;
-            const runtimeToken = process.env.ACTIONS_RUNTIME_TOKEN;
-            if (!cacheUrl || !runtimeToken) {
-              core.setFailed("GitHub Actions cache-service credentials are unavailable");
-              return;
-            }
-            core.setSecret(runtimeToken);
-            core.exportVariable("SCCACHE_GHA_CACHE_URL", cacheUrl);
-            core.exportVariable("SCCACHE_GHA_RUNTIME_TOKEN", runtimeToken);
 
       - name: Fail closed without an explicit Qt cache key
         env:
@@ -513,8 +488,8 @@ jobs:
             --artifact-prefix "$QT_HOST_ARTIFACT_PREFIX" \
             --kind host \
             --cache-key "$QT_HOST_CACHE_KEY" \
-            --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --expected-branch "$OVERTE_CHECKPOINT_BRANCH" \
             --install-root "${{ github.workspace }}/build-ios/qt-install/qt" \
             --github-output "$GITHUB_OUTPUT"
 
@@ -543,8 +518,8 @@ jobs:
             --artifact-prefix "$QT_IOS_ARTIFACT_PREFIX" \
             --kind ios \
             --cache-key "$QT_IOS_CACHE_KEY" \
-            --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --expected-branch "$OVERTE_CHECKPOINT_BRANCH" \
             --install-root "${{ github.workspace }}/build-ios/qt-install/qt" \
             --github-output "$GITHUB_OUTPUT"
 
@@ -598,8 +573,8 @@ jobs:
             --artifact-prefix "${{ needs.v8-checkpoint.outputs.artifact-prefix }}" \
             --kind v8 \
             --cache-key "${{ needs.v8-checkpoint.outputs.cache-key }}" \
-            --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --expected-branch "$OVERTE_CHECKPOINT_BRANCH" \
             --max-age-days 75 \
             --install-root "${{ github.workspace }}/build-ios/external" \
             --github-output "$GITHUB_OUTPUT"
@@ -616,13 +591,20 @@ jobs:
         run: ios/tools/build-v8-ios.sh validate
 
       - name: Toolchain preflight
+        env:
+          QT_HOST_CACHE_HIT: ${{ steps.qt-host-cache.outputs.cache-hit }}
+          QT_HOST_ARTIFACT_RESTORED: ${{ steps.qt-host-artifact.outputs.restored }}
+          QT_IOS_CACHE_HIT: ${{ steps.qt-ios-cache.outputs.cache-hit }}
+          QT_IOS_ARTIFACT_RESTORED: ${{ steps.qt-ios-artifact.outputs.restored }}
+          V8_CACHE_HIT: ${{ steps.integrated-v8-cache.outputs.cache-hit }}
+          V8_ARTIFACT_RESTORED: ${{ steps.integrated-v8-artifact.outputs.restored }}
         run: |
-          test "${{ steps.qt-host-cache.outputs.cache-hit }}" = true \
-            || test "${{ steps.qt-host-artifact.outputs.restored }}" = true
-          test "${{ steps.qt-ios-cache.outputs.cache-hit }}" = true \
-            || test "${{ steps.qt-ios-artifact.outputs.restored }}" = true
-          test "${{ steps.integrated-v8-cache.outputs.cache-hit }}" = true \
-            || test "${{ steps.integrated-v8-artifact.outputs.restored }}" = true
+          test "$QT_HOST_CACHE_HIT" = true \
+            || test "$QT_HOST_ARTIFACT_RESTORED" = true
+          test "$QT_IOS_CACHE_HIT" = true \
+            || test "$QT_IOS_ARTIFACT_RESTORED" = true
+          test "$V8_CACHE_HIT" = true \
+            || test "$V8_ARTIFACT_RESTORED" = true
           ios/tools/prepare-qt-ios.sh validate
           ios/build-ios.sh doctor --platform device --require-qt --require-moltenvk
 
@@ -646,9 +628,11 @@ jobs:
             ios/conan/profiles/macos-arm64 | shasum -a 256 | awk '{print $1}')"
           key="overte-ios-conan-v1-${RUNNER_ARCH}-xcode-${xcode_build}-iphoneos-${sdk_version}-${graph_hash}"
           artifact_hash="$(printf '%s' "$key" | shasum -a 256 | cut -c1-32)"
-          echo "key=$key" >> "$GITHUB_OUTPUT"
-          echo "partial-prefix=${key}-partial-" >> "$GITHUB_OUTPUT"
-          echo "artifact-prefix=overte-ios-conan-checkpoint-v1-${artifact_hash}" >> "$GITHUB_OUTPUT"
+          {
+            echo "key=$key"
+            echo "partial-prefix=${key}-partial-"
+            echo "artifact-prefix=overte-ios-conan-checkpoint-v1-${artifact_hash}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Select full-client compiler cache namespace
         id: client-sccache-key
@@ -674,12 +658,13 @@ jobs:
             "$policy_hash" | shasum -a 256 | awk '{print $1}')"
           prefix="overte-ios-client-sccache-v2-${RUNNER_ARCH}-${namespace}-"
           prune_prefix="overte-ios-client-sccache-v2-${RUNNER_ARCH}-"
-          echo "namespace=$namespace" >> "$GITHUB_OUTPUT"
-          echo "prefix=$prefix" >> "$GITHUB_OUTPUT"
-          echo "prune_prefix=$prune_prefix" >> "$GITHUB_OUTPUT"
-          echo "key=${prefix}${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+          {
+            echo "namespace=$namespace"
+            echo "prefix=$prefix"
+            echo "prune_prefix=$prune_prefix"
+            echo "key=${prefix}${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          } >> "$GITHUB_OUTPUT"
           echo "SCCACHE_C_CUSTOM_CACHE_BUSTER=$namespace" >> "$GITHUB_ENV"
-          echo "SCCACHE_GHA_VERSION=overte-ios-client-objects-v1-$namespace" >> "$GITHUB_ENV"
 
       - name: Restore compatible full-client compiler checkpoint
         id: client-sccache-cache
@@ -705,8 +690,8 @@ jobs:
         run: |
           python3 ios/ci/qt-checkpoint-artifact.py probe \
             --artifact-prefix "${{ steps.conan-cache-key.outputs.artifact-prefix }}" \
-            --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --expected-branch "$OVERTE_CHECKPOINT_BRANCH" \
             --max-age-days 21 \
             --github-output "$GITHUB_OUTPUT"
 
@@ -721,8 +706,8 @@ jobs:
             --artifact-prefix "${{ steps.conan-cache-key.outputs.artifact-prefix }}" \
             --kind conan \
             --cache-key "${{ steps.conan-cache-key.outputs.key }}" \
-            --expected-repository-id "${{ github.repository_id }}" \
-            --expected-branch "${{ github.ref_name }}" \
+            --expected-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --expected-branch "$OVERTE_CHECKPOINT_BRANCH" \
             --max-age-days 21 \
             --install-root "${{ github.workspace }}/build-ios" \
             --github-output "$GITHUB_OUTPUT"
@@ -789,8 +774,8 @@ jobs:
               --prefix "$CONAN_HOME" \
               --kind conan \
               --cache-key "${{ steps.conan-cache-key.outputs.key }}" \
-              --producer-repository-id "${{ github.repository_id }}" \
-              --producer-branch "${{ github.ref_name }}" \
+              --producer-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+              --producer-branch "$OVERTE_CHECKPOINT_BRANCH" \
               --output-dir build-ios/conan-checkpoint
 
       - name: Upload durable Conan package checkpoint
@@ -869,7 +854,7 @@ jobs:
           compiler_launcher="$GITHUB_WORKSPACE/ios/ci/xcode-compiler-launcher.sh"
           cmake -S ios/tests/fixtures/xcode-sccache -B "$smoke_dir" -G Xcode \
             "-DCMAKE_XCODE_ATTRIBUTE_C_COMPILER_LAUNCHER=$compiler_launcher" \
-            "-DCMAKE_C_FLAGS=-DOVERTE_SCCACHE_REMOTE_PROBE=${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}" \
+            "-DCMAKE_C_FLAGS=-DOVERTE_SCCACHE_LOCAL_PROBE=${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}" \
             -DCMAKE_XCODE_ATTRIBUTE_CLANG_ENABLE_MODULES=NO \
             -DCMAKE_XCODE_ATTRIBUTE_COMPILER_INDEX_STORE_ENABLE=NO \
             -DCMAKE_XCODE_ATTRIBUTE_CLANG_USE_RESPONSE_FILE=NO
@@ -895,16 +880,10 @@ jobs:
           cacheable = total(stats.get("cache_hits", {})) + total(stats.get("cache_misses", {}))
           write_errors = int(stats.get("cache_write_errors", 0))
           writes = int(stats.get("cache_writes", 0))
-          remote_levels = [level for level in stats.get("multi_level", [])
-                           if "gha" in str(level.get("name", "")).lower()]
           if requests < 1 or cacheable < 1:
               raise SystemExit("Xcode compiler checkpoint smoke did not reach sccache")
           if write_errors or writes < 1:
               raise SystemExit("Xcode compiler checkpoint smoke did not produce a reusable object")
-          if len(remote_levels) != 1 or int(remote_levels[0].get("writes", 0)) < 1:
-              raise SystemExit("Xcode compiler checkpoint smoke did not reach the remote GHA cache")
-          if int(remote_levels[0].get("write_failures", 0)):
-              raise SystemExit("Xcode compiler checkpoint smoke reported a remote write failure")
           PY
           cmake -E remove_directory "$smoke_dir"
           sccache --zero-stats
@@ -965,7 +944,7 @@ jobs:
               raise SystemExit("sccache observed no reusable full-client compilation")
           if write_errors:
               print(
-                  f"::warning::sccache reported {write_errors} remote/cache write errors; "
+                  f"::warning::sccache reported {write_errors} cache write errors; "
                   "the validated local checkpoint will still be archived"
               )
           PY

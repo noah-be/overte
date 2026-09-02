@@ -125,7 +125,8 @@ class V8IOSCheckpointContractTest(unittest.TestCase):
         self.assertIn("SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: l0", v8)
         self.assertIn('SCCACHE_IDLE_TIMEOUT: "0"', v8)
         self.assertIn("--max-age-days 75", v8)
-        self.assertIn("retention-days: 90", v8)
+        self.assertNotIn("retention-days: 90", v8)
+        self.assertIn("retention-days: 30", v8)
         self.assertIn("OVERTE_IOS_V8_ROOT:", workflow)
         self.assertIn("--expected-branch apple-ios", v8)
         self.assertIn("github.ref_name != 'apple-ios'", v8)
@@ -147,7 +148,8 @@ class V8IOSCheckpointContractTest(unittest.TestCase):
         self.assertNotIn("fail-on-cache-miss: true", consumer)
         self.assertIn("Restore durable V8 artifact after cache miss", consumer)
         self.assertIn("needs.v8-checkpoint.outputs.artifact-prefix", consumer)
-        self.assertIn('--expected-branch "${{ github.ref_name }}"', consumer)
+        self.assertIn("OVERTE_CHECKPOINT_BRANCH: ${{ github.ref_name }}", consumer)
+        self.assertIn('--expected-branch "$OVERTE_CHECKPOINT_BRANCH"', consumer)
         self.assertIn("Fail closed without validated V8", consumer)
 
     def test_reviewed_legacy_promotion_is_exact_and_digest_bound(self):

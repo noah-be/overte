@@ -27,6 +27,7 @@ MAX_REPORT_OUTPUT_BYTES = 256 * 1024
 TERMINATION_GRACE_SECONDS = 1.0
 DEFAULT_SUITE_TIMEOUT_SECONDS = 480
 DEFAULT_REPORT_LOCK_TIMEOUT_SECONDS = 600.0
+SCRIPT_SUFFIXES = (".py", ".sh")
 DEFAULT_SUITE_TEMP_PARENT = (
     Path("/dev/shm") if Path("/dev/shm").is_dir() and os.access("/dev/shm", os.W_OK)
     else Path(tempfile.gettempdir())
@@ -113,11 +114,37 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_suites(catalog_path: Path, tier: str) -> list[dict]:
+def catalog_script(command: list[str]) -> str | None:
+    """Return the repository script launched by a catalog command, if any."""
+    for part in command:
+        if part.endswith(SCRIPT_SUFFIXES):
+            return part
+    return None
+
+
+def validate_catalog_scripts(suites: list[dict], command_root: Path = ANDROID_ROOT) -> None:
+    """Fail before execution when a catalogued repository script is unusable."""
+    root = command_root.resolve()
+    for suite in suites:
+        script = catalog_script(suite["command"])
+        if script is None:
+            continue
+        relative = Path(script)
+        candidate = (root / relative).resolve()
+        if relative.is_absolute() or not candidate.is_relative_to(root):
+            raise ValueError(f"suite {suite['id']} script must stay below the Android root: {script}")
+        if not candidate.is_file():
+            raise ValueError(f"suite {suite['id']} script does not exist: {script}")
+        if suite["command"][0] == script and not os.access(candidate, os.X_OK):
+            raise ValueError(f"suite {suite['id']} script is not executable: {script}")
+
+
+def load_suites(catalog_path: Path, tier: str,
+                command_root: Path = ANDROID_ROOT) -> list[dict]:
     payload = json.loads(catalog_path.read_text(encoding="utf-8"))
     if payload.get("schemaVersion") != 1 or not isinstance(payload.get("suites"), list):
         raise ValueError("unsupported test catalog schema")
-    selected = []
+    validated = []
     seen = set()
     for suite in payload["suites"]:
         suite_id = suite.get("id")
@@ -140,9 +167,10 @@ def load_suites(catalog_path: Path, tier: str) -> list[dict]:
         optional = suite.get("optionalWhenToolMissing", False)
         if not isinstance(optional, bool):
             raise ValueError(f"suite {suite_id} has invalid optionalWhenToolMissing")
-        if tier == "all" or tier in suite.get("tiers", []):
-            selected.append(suite)
-    return selected
+        validated.append(suite)
+    validate_catalog_scripts(validated, command_root)
+    return [suite for suite in validated
+            if tier == "all" or tier in suite.get("tiers", [])]
 
 
 def write_report(results: list[dict], destination: Path, tier: str) -> None:

@@ -109,7 +109,7 @@ def main() -> None:
         "AGE_VERSION: 1.2.1",
     ):
         assert version in workflow
-    assert ('[[ "$($PRIVATE_ROOT/tools/resigner --version)" == '
+    assert ('[[ "$("$PRIVATE_ROOT/tools/resigner" --version)" == '
             '"resigner version v${RESIGNER_VERSION}" ]]') in workflow
     for digest in (
         "2cccc74b0cc3f56afd029accc3a4553c56d7269c6c403cbf161aaf095bc5c0b8",

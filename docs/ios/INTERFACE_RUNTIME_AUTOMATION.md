@@ -34,13 +34,14 @@ the default branch. This is an activation boundary, not runtime evidence.
 
 `.github/workflows/ios-world-runtime.yml` is called only by the reviewed
 `ios-bootstrap.yml` gate after the complete host suite. The explicit
-`[ios-worlds]` commit marker (or `world_evidence` dispatch input) provisions
-independent arm64 `iphonesimulator` Qt, JITless V8, Conan and MoltenVK slices,
-builds the real `Overte` target and packages a numbered simulator candidate.
+`world_evidence` workflow-dispatch input provisions independent arm64
+`iphonesimulator` Qt, JITless V8, Conan and MoltenVK slices, builds the real
+`Overte` target and packages a numbered simulator candidate. Pull requests and
+normal pushes run the device-free host contracts only.
 Validated Qt, V8 and Conan outputs are saved immediately as both exact caches
-and provenance-bound durable artifacts. Cacheable Qt, V8 and client compiler
-outputs are also written to remote sccache storage as each translation unit
-finishes.
+and provenance-bound durable artifacts. Qt, V8 and client compiler outputs use
+bounded disk-only sccache recovery checkpoints; no native remote sccache
+backend is required.
 
 The runtime gate installs that exact app separately on iPhone and iPad
 simulators. Each family loads the bundled

@@ -68,6 +68,29 @@ class JenkinsGlueTest(unittest.TestCase):
         path.chmod(0o600)
         return value
 
+    def test_upgrade_preflight_requires_distinct_external_artifacts_and_tool(self):
+        with tempfile.TemporaryDirectory(prefix="overte-upgrade-preflight-") as name:
+            temporary = Path(name)
+            source = temporary / "source.apk"
+            candidate = temporary / "candidate.apk"
+            aapt = temporary / "aapt"
+            source.write_bytes(b"source")
+            candidate.write_bytes(b"candidate")
+            aapt.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            aapt.chmod(0o700)
+            values = {
+                "OVERTE_E2E_UPGRADE_SOURCE_ARTIFACT": str(source),
+                "OVERTE_E2E_UPGRADE_CANDIDATE_ARTIFACT": str(candidate),
+                "OVERTE_E2E_UPGRADE_FROM_VERSION": "1.0.0",
+                "OVERTE_E2E_UPGRADE_TO_VERSION": "1.0.1",
+                "OVERTE_ANDROID_AAPT": str(aapt),
+            }
+            with patch.dict(os.environ, values, clear=False):
+                RUN_CI.checked_upgrade_inputs(ROOT)
+                os.environ["OVERTE_E2E_UPGRADE_CANDIDATE_ARTIFACT"] = str(source)
+                with self.assertRaises(ValueError):
+                    RUN_CI.checked_upgrade_inputs(ROOT)
+
     def test_mock_core_run_fixture_cleanup_and_staging(self):
         with tempfile.TemporaryDirectory(prefix="overte-jenkins-test-") as name:
             temporary = Path(name)
@@ -79,6 +102,10 @@ class JenkinsGlueTest(unittest.TestCase):
                 summary = json.loads(
                     (Path(values["OVERTE_CI_OUTPUT_DIR"]) / "summary.json").read_text())
                 self.assertEqual("passed", summary["status"])
+                acceptance = json.loads(
+                    (Path(values["OVERTE_CI_OUTPUT_DIR"]) / "acceptance.json").read_text())
+                self.assertEqual("implemented", acceptance["state"])
+                self.assertFalse(acceptance["blocking"])
                 self.assertTrue(
                     (Path(values["OVERTE_CI_OUTPUT_DIR"]) / "fixture-ready.json").is_file())
                 private_module = (Path(values["OVERTE_CI_OUTPUT_DIR"])
@@ -96,6 +123,7 @@ class JenkinsGlueTest(unittest.TestCase):
                 os.environ["OVERTE_CI_STAGED_OUTPUT_DIR"] = str(staged)
                 self.assertEqual(0, RUN_CI.stage_results())
                 self.assertTrue((staged / "junit.xml").is_file())
+                self.assertTrue((staged / "acceptance.json").is_file())
                 self.assertFalse((staged / "pipeline-error.txt").exists())
                 self.assertFalse((staged / "fixture-ready.json").exists())
                 self.assertFalse((staged / "modules/scene/screenshot.png").exists())
@@ -189,6 +217,48 @@ class JenkinsGlueTest(unittest.TestCase):
                     "private-device-serial",
                     (staged / "pipeline-error.txt").read_text(encoding="utf-8"),
                 )
+
+    def test_copied_staging_tree_is_rescanned_before_publication(self):
+        with tempfile.TemporaryDirectory(prefix="overte-jenkins-staging-rescan-") as name:
+            temporary = Path(name)
+            source = temporary / "outside/results"
+            source.mkdir(parents=True)
+            (source / "junit.xml").write_text("<testsuite/>", encoding="utf-8")
+            workspace = temporary / "workspace"
+            (workspace / "tests/device").mkdir(parents=True)
+            (workspace / "tests/device/run.py").touch()
+            destination = workspace / "artifacts/smoke"
+            selector = "private-device-serial"
+            values = {
+                "OVERTE_CI_WORKSPACE": str(workspace),
+                "OVERTE_CI_OUTPUT_DIR": str(source),
+                "OVERTE_CI_STAGED_OUTPUT_DIR": str(destination),
+                "OVERTE_CI_SUITE": "smoke",
+                "OVERTE_DEVICE_TARGET_SELECTOR": selector,
+            }
+
+            def mutate_staging(_source: Path, target: Path) -> tuple[int, int]:
+                (target / "junit.xml").write_text("<testsuite/>", encoding="utf-8")
+                (target / "summary.json").write_text(
+                    json.dumps({"target": selector}), encoding="utf-8")
+                return 2, 0
+
+            with patch.dict(os.environ, values, clear=False), patch.object(
+                    RUN_CI, "copy_publishable_results", side_effect=mutate_staging):
+                self.assertEqual(2, RUN_CI.stage_results())
+            self.assertFalse((destination / "summary.json").exists())
+            self.assertNotIn(
+                selector,
+                (destination / "pipeline-error.txt").read_text(encoding="utf-8"),
+            )
+
+    def test_acceptance_status_rejects_unmapped_adapter(self):
+        with tempfile.TemporaryDirectory(prefix="overte-jenkins-acceptance-") as name:
+            manifest = Path(name) / "adapter.json"
+            manifest.write_text(json.dumps({"id": "unmapped-adapter"}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "absent from the acceptance platform mapping"):
+                RUN_CI.acceptance_status(
+                    ROOT, manifest, ROOT / "tests/device/catalog.json", "portable-smoke")
 
     def test_result_root_and_staging_ancestor_symlinks_fail_closed(self):
         with tempfile.TemporaryDirectory(prefix="overte-jenkins-result-link-test-") as name:
@@ -405,7 +475,10 @@ class JenkinsGlueTest(unittest.TestCase):
                     fixture.pid = 10001
                     fixture.wait.return_value = 0
                     runner = MagicMock()
-                    runner.wait.return_value = 0
+                    def complete_runner():
+                        Path(values["OVERTE_CI_OUTPUT_DIR"]).mkdir(parents=True)
+                        return 0
+                    runner.wait.side_effect = complete_runner
                     runner.pid = 10002
                     runner.poll.return_value = 0
                     popen.side_effect = [fixture, runner]
@@ -748,7 +821,12 @@ class JenkinsGlueTest(unittest.TestCase):
     def test_jenkinsfile_has_required_safety_layers(self):
         source = (HERE / "Jenkinsfile").read_text(encoding="utf-8")
         for expected in (
-            "agent { label 'overte-device-interactive' }",
+            "agent { label agentLabel(resolvedProfile()) }",
+            "case 'appium-android':",
+            "case 'android-pico-adb':",
+            "case 'desktop-oculix-linux':",
+            "case 'desktop-oculix-macos':",
+            "case 'desktop-oculix-windows':",
             "lock(resource:",
             "withCredentials([string(",
             "timeout(time:",
@@ -770,22 +848,46 @@ class JenkinsGlueTest(unittest.TestCase):
             "IOS_DDI_ROOT",
             "IOS_PRODUCER_RUN_ATTEMPT",
             "stage('Preinstalled Personal Team gate')",
-            "runDeviceSuite('e2e-core', 45)",
+            "runDeviceSuite('portable-smoke', 45)",
+            "RUN_STABILITY_CAMPAIGN",
+            "STABILITY_REPETITIONS",
+            "portable-stability-%02d",
+            "No Jenkins retry wrapper is allowed here",
+            "RUN_UPGRADE_TEST",
+            "UPGRADE_SOURCE_ARTIFACT",
+            "UPGRADE_CANDIDATE_ARTIFACT",
+            "runDeviceSuite('update-upgrade', 60)",
+            "runDeviceSuite('domain-smoke', 30)",
+            "OVERTE_BUILD_ISOLATION_ROOT",
+            "OVERTE_CONAN_CACHE_ROOT=${env.OVERTE_BUILD_ISOLATION_ROOT}/conan",
+            "disableConcurrentBuilds",
             "--require-complete",
         ):
             haystack = source if expected != "--require-complete" else (
                 HERE / "run_ci.py").read_text(encoding="utf-8")
             self.assertIn(expected, haystack)
-        self.assertLess(source.index("runDeviceSuite('e2e-core'"),
+        self.assertLess(source.index("runDeviceSuite('portable-smoke'"),
                         source.index("runDeviceSuite('accessibility'"))
         self.assertLess(source.index("stage('Preinstalled Personal Team gate')"),
-                        source.index("runDeviceSuite('e2e-core'"))
+                        source.index("runDeviceSuite('portable-smoke'"))
         self.assertLess(source.index("runDeviceSuite('accessibility'"),
                         source.index("runDeviceSuite('stability'"))
         self.assertNotIn("runDeviceSuite('lifecycle-stability'", source)
         self.assertNotIn("runDeviceSuite('smoke'", source)
         self.assertIn("RUN_CORE is mandatory", source)
+        self.assertIn("choices: ['network', 'embedded']", source)
+        self.assertIn("params.FIXTURE_MODE == 'network'", source)
+        self.assertIn("params.FIXTURE_MODE != 'embedded'", source)
         self.assertIn("FIXTURE_PORT must be a fixed TCP port", source)
+        self.assertNotRegex(source, r"\bretry\s*\(")
+        for expected in (
+                "params.AGENT_LABEL?.trim()",
+                "params.DEVICE_RESOURCE?.trim()",
+                "params.TARGET_SELECTOR_CREDENTIAL_ID?.trim()",
+                "params.FIXTURE_PORT?.trim()"):
+            self.assertIn(expected, source)
+        self.assertNotIn('OVERTE_CONAN_CACHE_ROOT": str(root / "conan-cache")',
+                         (HERE / "prepare_private_targets.py").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

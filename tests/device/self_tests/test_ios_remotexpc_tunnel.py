@@ -456,16 +456,23 @@ class IosRemoteXpcTunnelTest(unittest.TestCase):
             TUNNEL.visible_root_owner_uid(root, overflow)
 
     def test_host_python_accepts_the_visible_root_owner_in_a_user_namespace(self):
-        configured = Path(
-            TUNNEL.pymobiledevice3_lock(TUNNEL.load_lock())["pythonExecutable"]
-        )
-        with patch.object(
-                TUNNEL, "visible_root_owner_uid",
-                return_value=configured.lstat().st_uid):
+        configured = Path("/usr/bin/python3").resolve(strict=True)
+        runtime = dict(TUNNEL.pymobiledevice3_lock(TUNNEL.load_lock()))
+        runtime.update({
+            "pythonExecutable": str(configured),
+            "pythonExecutableSha256": TUNNEL.file_sha256(configured),
+            "pythonVersion": subprocess.run(
+                [str(configured), "-S", "-P", "-B", "-c",
+                 "import platform;print(platform.python_version())"],
+                text=True, stdout=subprocess.PIPE, check=True,
+            ).stdout.strip(),
+        })
+        owner = configured.lstat().st_uid
+        with patch.object(TUNNEL, "pymobiledevice3_lock", return_value=runtime), \
+                patch.object(TUNNEL, "visible_root_owner_uid", return_value=owner):
             self.assertEqual(configured, TUNNEL.validate_host_python(TUNNEL.load_lock()))
-        with patch.object(
-                TUNNEL, "visible_root_owner_uid",
-                return_value=configured.lstat().st_uid + 1):
+        with patch.object(TUNNEL, "pymobiledevice3_lock", return_value=runtime), \
+                patch.object(TUNNEL, "visible_root_owner_uid", return_value=owner + 1):
             with self.assertRaisesRegex(
                     TUNNEL.TunnelError, "host Python executable differs"):
                 TUNNEL.validate_host_python(TUNNEL.load_lock())

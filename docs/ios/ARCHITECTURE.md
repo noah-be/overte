@@ -162,9 +162,11 @@ so removing the library cannot leave a stale compile-time include edge.
 
 ## ADR-007: secret-free automation
 
-**Decision:** Pull-request CI builds and launches unsigned simulator bundles.
-Device signing is a separate, explicitly approved job whose secrets are held by
-the CI environment or local keychain.
+**Decision:** Pull requests and normal pushes run only the device-free iOS host
+contracts. Unsigned simulator and device-SDK builds remain available only
+through an explicit `workflow_dispatch`; device signing is a separate,
+explicitly approved job whose secrets are held by the CI environment or local
+keychain.
 
 No team ID, certificate, provisioning profile, keychain password, or App Store
 credential may be committed.

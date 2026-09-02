@@ -20,6 +20,7 @@ class ProjectSuiteCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("repository-health", result.stdout)
         self.assertIn("pico4-device-free", result.stdout)
+        self.assertIn("device-e2e-contracts", result.stdout)
         self.assertNotIn("native-ctest", result.stdout)
 
     def test_full_profile_includes_native_build(self):
@@ -31,6 +32,11 @@ class ProjectSuiteCliTests(unittest.TestCase):
         result = self.run_cli("--list", "--suite", "native-ctest")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.split()[0], "native-ctest")
+
+    def test_device_control_plane_alias_selects_the_device_contract_suite(self):
+        result = self.run_cli("--list", "--suite", "device-control-plane")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.split()[0], "device-e2e-contracts")
 
     def test_unknown_suite_and_invalid_timeout_fail(self):
         unknown = self.run_cli("--list", "--suite", "missing")

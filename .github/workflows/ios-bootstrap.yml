@@ -116,41 +116,30 @@ permissions:
   contents: read
 
 concurrency:
-  # Device, world-evidence, and lightweight smoke runs own disjoint build
-  # trees/cache namespaces.  Serialize duplicate writers within each mode,
-  # without making a long device build block independent world acceptance.
+  # Manually selected device and world-evidence modes own disjoint build
+  # trees/cache namespaces. Pull requests and normal pushes run host contracts
+  # only; long Apple jobs require an explicit workflow dispatch.
   group: >-
     ios-bootstrap-${{ github.ref }}-${{
       (github.event_name == 'workflow_dispatch' && inputs.world_evidence && 'world') ||
       (github.event_name == 'workflow_dispatch' && inputs.fedora_e2e_producer && 'fedora-e2e') ||
       (github.event_name == 'workflow_dispatch' && inputs.personal_team_e2e_kit && 'personal-team-e2e') ||
       (github.event_name == 'workflow_dispatch' && inputs.integrated && 'integrated') ||
-      (github.event_name == 'push' && contains(github.event.head_commit.message, '[ios-worlds]') && 'world') ||
-      (github.event_name == 'push' &&
-       (contains(github.event.head_commit.message, '[qt-source]') ||
-        contains(github.event.head_commit.message, '[ios-integrated]')) && 'integrated') ||
-      'smoke'
+      'default'
     }}
   cancel-in-progress: false
 
 jobs:
   provision-qt-ios:
-    if: >-
-      (github.event_name == 'workflow_dispatch' && inputs.integrated) ||
-      (github.event_name == 'push' &&
-       (contains(github.event.head_commit.message, '[qt-source]') ||
-        contains(github.event.head_commit.message, '[ios-integrated]')))
+    if: github.event_name == 'workflow_dispatch' && inputs.integrated
+    needs: host-contracts
     uses: ./.github/workflows/ios-qt-source.yml
     permissions:
       actions: write
       contents: read
 
   integrated-ios-after-qt:
-    if: >-
-      (github.event_name == 'workflow_dispatch' && inputs.integrated) ||
-      (github.event_name == 'push' &&
-       (contains(github.event.head_commit.message, '[qt-source]') ||
-        contains(github.event.head_commit.message, '[ios-integrated]')))
+    if: github.event_name == 'workflow_dispatch' && inputs.integrated
     needs: provision-qt-ios
     permissions:
       actions: write
@@ -204,10 +193,7 @@ jobs:
       overte_reuse_run_id: ${{ inputs.personal_team_overte_reuse_run_id }}
 
   world-runtime-evidence:
-    if: >-
-      (github.event_name == 'workflow_dispatch' && inputs.world_evidence) ||
-      (github.event_name == 'push' &&
-       contains(github.event.head_commit.message, '[ios-worlds]'))
+    if: github.event_name == 'workflow_dispatch' && inputs.world_evidence
     needs: host-contracts
     permissions:
       actions: write
@@ -259,13 +245,11 @@ jobs:
 
   simulator:
     if: >-
-      !(github.event_name == 'workflow_dispatch' && inputs.integrated) &&
-      !(github.event_name == 'workflow_dispatch' && inputs.world_evidence) &&
-      !(github.event_name == 'workflow_dispatch' && inputs.fedora_e2e_producer) &&
-      !(github.event_name == 'workflow_dispatch' && inputs.personal_team_e2e_kit) &&
-      (github.event_name != 'push' ||
-       (!contains(github.event.head_commit.message, '[ios-integrated]') &&
-        !contains(github.event.head_commit.message, '[ios-worlds]')))
+      github.event_name == 'workflow_dispatch' &&
+      inputs.integrated != true &&
+      inputs.world_evidence != true &&
+      inputs.fedora_e2e_producer != true &&
+      inputs.personal_team_e2e_kit != true
     needs: host-contracts
     runs-on: macos-26
     timeout-minutes: 35
@@ -289,18 +273,8 @@ jobs:
 
       - name: Select simulator coverage
         id: simulator-scope
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          EVENT_NAME: ${{ github.event_name }}
         run: |
-          families=iphone
-          if [[ "$EVENT_NAME" != pull_request ]]; then
-            families="iphone ipad"
-          elif git diff --name-only "$BASE_SHA" "$GITHUB_SHA" -- \
-            | grep -Eq '^(ios/|interface/resources/qml/|libraries/ui/|scripts/system/settings/)'; then
-            families="iphone ipad"
-          fi
-          printf 'families=%s\n' "$families" >> "$GITHUB_OUTPUT"
+          printf 'families=iphone ipad\n' >> "$GITHUB_OUTPUT"
 
       - name: Launch required simulators
         env:
@@ -336,13 +310,11 @@ jobs:
 
   unsigned-device-sdk:
     if: >-
-      !(github.event_name == 'workflow_dispatch' && inputs.integrated) &&
-      !(github.event_name == 'workflow_dispatch' && inputs.world_evidence) &&
-      !(github.event_name == 'workflow_dispatch' && inputs.fedora_e2e_producer) &&
-      !(github.event_name == 'workflow_dispatch' && inputs.personal_team_e2e_kit) &&
-      (github.event_name != 'push' ||
-       (!contains(github.event.head_commit.message, '[ios-integrated]') &&
-        !contains(github.event.head_commit.message, '[ios-worlds]')))
+      github.event_name == 'workflow_dispatch' &&
+      inputs.integrated != true &&
+      inputs.world_evidence != true &&
+      inputs.fedora_e2e_producer != true &&
+      inputs.personal_team_e2e_kit != true
     needs: host-contracts
     runs-on: macos-26
     timeout-minutes: 20
