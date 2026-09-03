@@ -558,7 +558,7 @@ pipeline {
                     'OVERTE_IOS_ARTIFACT_SOURCE=personal-team-preinstalled',
                     "OVERTE_IOS_PREINSTALLED_ATTESTATION=${params.IOS_PREINSTALLED_ATTESTATION.trim()}",
                 ]) {
-                    lock(resource: params.DEVICE_RESOURCE.trim(), inversePrecedence: true) {
+                    lock(resource: deviceResource(resolvedProfile()), inversePrecedence: true) {
                         withCredentials([string(
                             credentialsId: targetCredential(resolvedProfile()),
                             variable: 'OVERTE_DEVICE_TARGET_SELECTOR'
