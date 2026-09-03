@@ -1,6 +1,8 @@
 {
   "schemaVersion": 1,
   "bootstrapScript": "domain_content_agent.js",
+  "peerScript": "domain_peer_agent.js",
+  "peerDisplayName": "OVERTE_E2E_PEER",
   "expectedEntityCount": 4,
   "requiredMarkers": [
     "OVERTE_E2E_DOMAIN_EAST",

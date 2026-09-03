@@ -33,21 +33,20 @@ build.json
 pkglist.json
 
 # Python
-**/__pycache__
-**/.venv
+__pycache__/
+.venv/
 
-
-# Android Studio
+# JetBrains IDEs and Android Studio
+.idea/
 *.iml
 *.class
 local.properties
 *.jks
 *.keystore
 /android/build/
-/android/vr/pico/apps/picoInterface/build/
-/android/vr/pico/apps/picoInterface/.cxx/
-/android/phone/apps/phoneInterface/build/
-/android/phone/apps/phoneInterface/.cxx/
+/android/**/build/
+/android/**/.cxx/
+/android/**/.gradle/
 /android/common/conan/pico4-*/
 /android/common/conan/phone-16k-debug/
 /android/common/conan/phone-nonqt-16k-debug/
@@ -58,16 +57,10 @@ local.properties
 /android/pico-precompiled-compat/
 /android/power-results/
 /android/vr/pico/apps/picoInterface/src/main/runtime-overrides/
-/android/gradle*
-/android/.gradle
-/android/**/src/main/jniLibs
-/android/**/libs
-/android/**/bin
+/android/**/src/main/jniLibs/
+/android/**/libs/
+/android/**/bin/
 /android/**/src/main/res/values/libs.xml
-/android/**/src/main/assets
-/android/**/gradle*
-!/android/common/tests/robolectric/gradle.lockfile
-*.class
 
 # Visual Studio
 /.vs
@@ -101,7 +94,6 @@ xcuserdata
 profile
 *.moved-aside
 DerivedData
-.idea/
 
 # KDevelop
 *~
@@ -109,9 +101,10 @@ DerivedData
 
 *.hmap
 
-# ignore interface optional externals
-/interface/external/*/*
-!interface/external/*/readme.txt
+# Ignore generated optional external contents, not the checked-in 3Dconnexion
+# headers or component readmes.
+/interface/external/leapmotion/*
+!/interface/external/leapmotion/readme.txt
 
 # Ignore interfaceCache for Linux users
 /interface/interfaceCache/
@@ -138,21 +131,32 @@ npm-debug.log
 *___jb_old___
 
 # Resource binary file
-interface/compiledResources
+/interface/compiledResources/*
+!/interface/compiledResources/.placeholder
 *.rcc
 
 # GPUCache
 /interface/resources/GPUCache/*
 
-# package lock files
-/tools/jsdoc/package-lock.json
-/server-console/package-lock.json
+# npm lockfiles are reproducibility inputs and must remain versioned.
 
-# ignore local unity project files for avatar exporter
-/tools/unity-avatar-exporter
+# Local Unity project output for the checked-in avatar exporter
+/tools/unity-avatar-exporter/[Ll]ibrary/
+/tools/unity-avatar-exporter/[Tt]emp/
+/tools/unity-avatar-exporter/[Oo]bj/
+/tools/unity-avatar-exporter/[Bb]uild/
+/tools/unity-avatar-exporter/[Bb]uilds/
+/tools/unity-avatar-exporter/[Ll]ogs/
+/tools/unity-avatar-exporter/[Uu]ser[Ss]ettings/
 
 # Nitpick
-/tools/nitpick/compiledResources
+/tools/nitpick/compiledResources/*
+!/tools/nitpick/compiledResources/.placeholder
+
+# OS metadata
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
 
 # Act local GitHub Actions
 .secret
