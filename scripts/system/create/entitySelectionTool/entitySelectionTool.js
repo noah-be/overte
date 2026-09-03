@@ -296,6 +296,16 @@ SelectionManager = (function() {
     };
 
     that.clearSelections = function(caller) {
+        const selection =  Selection.getSelectedItemsList(HIGHLIGHT_LIST_NAME);
+
+        // Clear highlight handle list
+        if ( selection && selection.entities && selection.entities.length > 0 ) {
+            for (let i = 0; i < that.selections.length; i++) {
+                Selection.removeFromSelectedItemsList(HIGHLIGHT_LIST_NAME, "entity", that.selections[i]);
+            }
+        }
+
+        // Clear class-level selections list
         that.selections = [];
         that._update(true, caller);
     };

@@ -6,12 +6,16 @@ on:
       - ".github/actions/**"
       - ".github/workflows/**"
       - ".github/actionlint.yaml"
+      - "tools/workflow-security/**"
+      - "tests/workflow-action-pin-test.py"
   push:
     branches: [main]
     paths:
       - ".github/actions/**"
       - ".github/workflows/**"
       - ".github/actionlint.yaml"
+      - "tools/workflow-security/**"
+      - "tests/workflow-action-pin-test.py"
 
 permissions:
   contents: read
@@ -30,6 +34,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Verify immutable action references
+        run: python3 tools/workflow-security/check-action-pins.py
 
       - name: Install checksum-verified static analyzers
         env:
