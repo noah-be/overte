@@ -136,13 +136,14 @@ def validate_notice_archive(path: Path, components: list[dict]) -> None:
             for info in archive.infolist():
                 name = str(safe_archive_path(info.filename, "NOTICE entry"))
                 unix_type = (info.external_attr >> 16) & 0o170000
-                if info.is_dir() or unix_type == 0o120000:
+                if info.is_dir() or unix_type not in (0, 0o100000):
                     fail("NOTICE bundle must contain regular files only")
                 total_size += info.file_size
                 if info.file_size > 16 * 1024 * 1024 or total_size > 64 * 1024 * 1024:
                     fail("NOTICE bundle exceeds the contract size limit")
                 if name in names or info.file_size == 0:
                     fail("NOTICE bundle contains a duplicate or empty file")
+                archive.read(info)
                 names.add(name)
     except (OSError, zipfile.BadZipFile) as error:
         fail(f"invalid NOTICE bundle: {error}")
@@ -330,6 +331,23 @@ def validate_bundle(directory: Path) -> dict:
                 actual_subjects[subject.get("name")] = subject["digest"].get("sha256")
     if actual_subjects != expected_subjects:
         fail("provenance subjects are incomplete or have mismatched digests")
+    expected_predicate = {
+        "buildDefinition": {
+            "buildType": f"https://overte.org/buildtypes/{contract['product']}-release/v1",
+            "externalParameters": {"version": build["version"]},
+            "resolvedDependencies": build["environment"]["resolved_dependencies"],
+        },
+        "runDetails": {
+            "builder": {"id": build["environment"]["builder_id"]},
+            "metadata": {
+                "runnerImage": build["environment"]["runner_image"],
+                "toolchain": build["environment"]["toolchain"],
+                "actions": build["environment"]["actions"],
+            },
+        },
+    }
+    if provenance.get("predicate") != expected_predicate:
+        fail("provenance predicate disagrees with the verified build manifest")
     return contract
 
 

@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import tarfile
 import tempfile
@@ -180,6 +181,32 @@ class ReleaseBundleTests(unittest.TestCase):
         result = self.validate()
         self.assertEqual(2, result.returncode)
         self.assertIn("subjects", result.stderr)
+
+    def test_rejects_missing_or_unbound_provenance_predicate(self):
+        self.assertEqual(0, self.build().returncode)
+        path = self.output / "android-test-provenance.intoto.json"
+        value = json.loads(path.read_text())
+        value.pop("predicate")
+        path.write_text(json.dumps(value), encoding="utf-8")
+        contract = json.loads((self.output / "release-bundle.json").read_text())
+        contract["artifacts"]["provenance"]["sha256"] = self.digest(path)
+        (self.output / "release-bundle.json").write_text(json.dumps(contract), encoding="utf-8")
+        result = self.validate()
+        self.assertEqual(2, result.returncode)
+        self.assertIn("predicate", result.stderr)
+
+    def test_rejects_non_regular_notice_entry(self):
+        with zipfile.ZipFile(self.notices, "w") as archive:
+            archive.writestr("NOTICE.txt", "Synthetic distribution notices\n")
+            for name in ("licenses/openssl.txt", "licenses/qt.txt"):
+                archive.writestr(name, "license\n")
+            fifo = zipfile.ZipInfo("licenses/example.txt")
+            fifo.create_system = 3
+            fifo.external_attr = (stat.S_IFIFO | 0o644) << 16
+            archive.writestr(fifo, "not regular\n")
+        result = self.build()
+        self.assertEqual(2, result.returncode)
+        self.assertIn("regular files", result.stderr)
 
     def test_rejects_digest_mismatch(self):
         self.assertEqual(0, self.build().returncode)
