@@ -16,6 +16,9 @@ WORKFLOW_ROOT = Path(".github/workflows")
 ACTION_ROOT = Path(".github/actions")
 USES_LINE = re.compile(r"^\s*(?:-\s*)?uses\s*:\s*(?P<value>.*?)\s*$")
 USES_KEY = re.compile(r"(?:^|[^A-Za-z0-9_])[\"']?uses[\"']?\s*:")
+EXPLICIT_USES_KEY = re.compile(
+    r"^\s*(?:-\s*)?\?\s+(?:!!str\s+)?[\"']?uses[\"']?\s*(?:#.*)?$"
+)
 REMOTE_ACTION = re.compile(
     r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"
     r"(?:/[A-Za-z0-9_.-]+)*@[0-9a-f]{40}$"
@@ -93,6 +96,8 @@ def inventory(root: Path) -> tuple[ActionUse, ...]:
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if line.lstrip().startswith("#") or "uses" not in line:
                 continue
+            if EXPLICIT_USES_KEY.fullmatch(line):
+                raise PinError(f"{relative}:{number}: uses must be a block-style scalar")
             match = USES_LINE.fullmatch(line)
             if match is None:
                 if USES_KEY.search(line):

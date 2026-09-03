@@ -82,6 +82,8 @@ class ActionPinAuditTests(unittest.TestCase):
         for workflow in (
             "steps:\n  - uses: actions/checkout@1111111111111111111111111111111111111111\n  - {uses: owner/action@main}\n",
             "steps:\n  - uses: actions/checkout@1111111111111111111111111111111111111111\n  - \"uses\": owner/action@main\n",
+            "steps:\n  - uses: actions/checkout@1111111111111111111111111111111111111111\n  - ? uses\n    : actions/checkout@v4\n",
+            "steps:\n  - uses: actions/checkout@1111111111111111111111111111111111111111\n  - ? !!str \"uses\"\n    : actions/checkout@v4\n",
             "steps:\n  - uses:\n",
             "steps:\n  - uses: 'actions/checkout@1111111111111111111111111111111111111111\n",
         ):
