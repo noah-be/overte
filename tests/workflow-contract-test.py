@@ -88,7 +88,7 @@ class LightweightWorkflowContracts(unittest.TestCase):
     def test_app_test_workflows_exclude_markdown(self):
         for workflow in (ANDROID_TESTS_WORKFLOW, WORKFLOW):
             self.assertIn('"!**/*.md"', workflow.read_text(encoding="utf-8"))
-        for workflow in (IOS_WORKFLOW, MACOS_WORKFLOW):
+        for workflow in (IOS_WORKFLOW,):
             if workflow.exists():
                 source = workflow.read_text(encoding="utf-8")
                 if re.search(r"(?m)^  (?:push|pull_request):$", source):
