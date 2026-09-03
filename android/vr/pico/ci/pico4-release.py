@@ -131,7 +131,6 @@ def main() -> int:
             raise ValueError("invalid dependency checksum manifest")
         dependencies.append({"name": name.strip(), "sha256": digest})
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
     provenance = {
         "schema": "org.overte.pico.release-candidate.v1",
         "complete_release_bundle": False,
@@ -152,15 +151,6 @@ def main() -> int:
                         "hashes": [{"alg": "SHA-256", "content": item["sha256"]}]}
                        for item in sorted(dependencies, key=lambda item: item["name"])],
     }
-    files = {
-        "pico4-release-manifest.json": provenance,
-        "pico4-sbom.cdx.json": sbom,
-    }
-    for name, value in files.items():
-        (args.output_dir / name).write_text(canonical_json(value), encoding="utf-8")
-    digest_lines = [f"{sha256(args.output_dir / name)}  {name}" for name in sorted(files)]
-    digest_lines.append(f"{manifest['sha256']}  {manifest['apk']}")
-    (args.output_dir / "SHA256SUMS").write_text("\n".join(digest_lines) + "\n", encoding="utf-8")
     if full_bundle:
         if (not isinstance(manifest.get("apk"), str)
                 or Path(manifest["apk"]).name != manifest["apk"]
@@ -171,26 +161,37 @@ def main() -> int:
         if sha256(args.source_archive) != git_archive_sha256(
                 args.repository.resolve(), args.revision):
             raise ValueError("source archive does not match git archive for the release revision")
-        descriptor, temporary_name = tempfile.mkstemp(
-            prefix=".pico4-complete-version.", suffix=".json", dir=args.output_dir)
-        version_manifest = Path(temporary_name)
-        try:
-            with open(descriptor, "w", encoding="utf-8") as output:
-                output.write(canonical_json({**release, "source_revision": args.revision}))
+        scratch = args.output_dir.absolute().parent
+        scratch.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(
+                prefix=".pico4-complete-version-", dir=scratch) as temporary:
+            version_manifest = Path(temporary) / "version.json"
+            version_manifest.write_text(
+                canonical_json({**release, "source_revision": args.revision}),
+                encoding="utf-8",
+            )
             create_bundle(
-                product="pico4",
-                source_revision=args.revision,
-                payload=args.apk,
-                verified_manifest=args.apk_manifest,
-                version_manifest=version_manifest,
+                product="pico4", source_revision=args.revision, payload=args.apk,
+                verified_manifest=args.apk_manifest, version_manifest=version_manifest,
                 dependency_inventory=args.dependency_inventory,
-                notice_bundle=args.notice_bundle,
-                source_archive=args.source_archive,
+                notice_bundle=args.notice_bundle, source_archive=args.source_archive,
                 build_environment=args.build_environment,
                 output=args.complete_bundle_output_dir,
             )
-        finally:
-            version_manifest.unlink(missing_ok=True)
+
+    # Legacy reports remain useful locally, but are materialized only after a
+    # requested complete bundle has passed every fail-closed validation.
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    files = {
+        "pico4-release-manifest.json": provenance,
+        "pico4-sbom.cdx.json": sbom,
+    }
+    for name, value in files.items():
+        (args.output_dir / name).write_text(canonical_json(value), encoding="utf-8")
+    digest_lines = [f"{sha256(args.output_dir / name)}  {name}" for name in sorted(files)]
+    digest_lines.append(f"{manifest['sha256']}  {manifest['apk']}")
+    (args.output_dir / "SHA256SUMS").write_text(
+        "\n".join(digest_lines) + "\n", encoding="utf-8")
     return 0
 
 

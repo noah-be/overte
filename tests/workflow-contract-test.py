@@ -509,7 +509,8 @@ class PicoReleaseWorkflowContracts(unittest.TestCase):
         self.assertIn("environment: pico4-release-candidate", self.source)
         self.assertIn("runs-on: [self-hosted, linux, x64, overte-android-release]", self.source)
         self.assertRegex(self.source, r"(?m)^permissions:\n  contents: read$")
-        self.assertIn("contents: write", self.source)
+        self.assertNotIn("contents: write", self.source)
+        self.assertIn("if: ${{ false }}", self.source)
 
     def test_release_actions_are_pinned_and_checkout_has_no_credentials(self):
         actions = ACTION_USE.findall(self.source)
@@ -517,13 +518,13 @@ class PicoReleaseWorkflowContracts(unittest.TestCase):
         self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
         self.assertIn("persist-credentials: false", self.source)
 
-    def test_release_reuses_gates_and_only_creates_a_draft(self):
+    def test_legacy_release_reuses_gates_but_cannot_create_a_draft(self):
         for contract in ("tests/run-project-tests.py", "./vr/pico/build.sh deps --download",
                          "android/vr/pico/ci/verify-pico-apk.py", "--expected-version-code",
                          "--expected-version-name", "--expected-signer-sha256"):
             self.assertIn(contract, self.source)
-        self.assertIn("gh release create", self.source)
-        self.assertIn("--draft --verify-tag", self.source)
+        self.assertNotIn("gh release create", self.source)
+        self.assertNotIn("--draft --verify-tag", self.source)
         self.assertNotIn("gh release edit", self.source)
 
     def test_release_prepares_auditable_outputs_without_device_access(self):

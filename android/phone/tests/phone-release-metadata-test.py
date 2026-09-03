@@ -20,7 +20,7 @@ class PhoneReleaseMetadataTests(unittest.TestCase):
     def setUp(self):
         scratch = Path(os.environ.get(
             "OVERTE_RELEASE_TEST_TMPDIR",
-            "/home/user/Documents/github/overte-53x-test-tmp/release",
+            tempfile.gettempdir(),
         ))
         scratch.mkdir(parents=True, exist_ok=True)
         self.temporary = tempfile.TemporaryDirectory(dir=scratch)
@@ -109,15 +109,22 @@ class PhoneReleaseMetadataTests(unittest.TestCase):
                 "bom_ref": "pkg:conan/runtime@1.0", "name": "runtime", "version": "1.0",
                 "purl": "pkg:conan/runtime@1.0", "source": "https://example.invalid/runtime",
                 "sha256": "1" * 64, "spdx_license": "Apache-2.0",
-                "categories": ["asset", "conan", "font", "gradle", "native", "openssl",
+                "categories": ["asset", "conan", "font", "native", "openssl",
                                "qt", "script", "v8"],
                 "notice_files": ["licenses/runtime.txt"],
+            }, {
+                "bom_ref": "pkg:maven/example@1.0", "name": "example", "version": "1.0",
+                "purl": "pkg:maven/example@1.0", "source": "https://example.invalid/example",
+                "sha256": "8" * 64, "spdx_license": "Apache-2.0",
+                "categories": ["gradle"],
+                "notice_files": ["licenses/example.txt"],
             }],
         })
         notices = self.directory / "notices.zip"
         with zipfile.ZipFile(notices, "w") as archive:
             archive.writestr("NOTICE.txt", "Synthetic notice\n")
             archive.writestr("licenses/runtime.txt", "Apache License 2.0\n")
+            archive.writestr("licenses/example.txt", "Apache License 2.0\n")
         environment = self.write("environment.json", {
             "schema": "org.overte.release-build-environment.v1",
             "builder_id": "https://github.com/noah-be/overte/actions/runs/1",
