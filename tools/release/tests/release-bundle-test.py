@@ -24,7 +24,7 @@ class ReleaseBundleTests(unittest.TestCase):
     def setUp(self):
         scratch = Path(os.environ.get(
             "OVERTE_RELEASE_TEST_TMPDIR",
-            "/home/user/Documents/github/overte-53x-test-tmp/release",
+            tempfile.gettempdir(),
         ))
         scratch.mkdir(parents=True, exist_ok=True)
         self.temporary = tempfile.TemporaryDirectory(dir=scratch)
@@ -256,6 +256,17 @@ class ReleaseBundleTests(unittest.TestCase):
         result = self.build(self.write_inventory(self.components, complete=False))
         self.assertEqual(2, result.returncode)
         self.assertIn("complete=true", result.stderr)
+
+    def test_conan_category_cannot_evade_package_revisions(self):
+        components = json.loads(json.dumps(self.components))
+        components[0]["bom_ref"] = "opaque-conan"
+        components[0]["purl"] = "pkg:generic/openssl@3.0.0"
+        environment = json.loads(self.environment.read_text())
+        environment["resolved_dependencies"] = []
+        self.environment.write_text(json.dumps(environment), encoding="utf-8")
+        result = self.build(self.write_inventory(components))
+        self.assertEqual(2, result.returncode)
+        self.assertIn("Conan package URL", result.stderr)
 
 
 if __name__ == "__main__":

@@ -104,8 +104,11 @@ def validated_inventory(value: dict) -> tuple[list[dict], set[str]]:
             fail(f"{label} has an invalid category")
         categories.update(component_categories)
         purl = component.get("purl")
-        if ("conan" in component_categories or "gradle" in component_categories) and (
-                not isinstance(purl, str) or not purl.startswith("pkg:")):
+        if "conan" in component_categories and (
+                not isinstance(purl, str) or not purl.startswith("pkg:conan/")):
+            fail(f"{label} must contain a Conan package URL")
+        if "gradle" in component_categories and (
+                not isinstance(purl, str) or not purl.startswith(("pkg:maven/", "pkg:gradle/"))):
             fail(f"{label} must contain a package URL")
         notices = component.get("notice_files")
         if not isinstance(notices, list) or not notices:
@@ -170,7 +173,8 @@ def validate_source_archive(path: Path) -> None:
         fail(f"invalid source archive: {error}")
 
 
-def validate_environment(value: dict, component_refs: set[str]) -> None:
+def validate_environment(value: dict, components: list[dict]) -> None:
+    component_refs = {component["bom_ref"] for component in components}
     if value.get("schema") != "org.overte.release-build-environment.v1":
         fail("build environment has the wrong schema")
     for field in ("builder_id", "runner_image"):
@@ -199,7 +203,10 @@ def validate_environment(value: dict, component_refs: set[str]) -> None:
                    for field in ("recipe_revision", "package_revision")):
             fail("dependency recipe and package revisions must be recorded")
         resolved_refs.add(dependency["bom_ref"])
-    missing = {ref for ref in component_refs if ref.startswith("pkg:conan/")} - resolved_refs
+    missing = {
+        component["bom_ref"] for component in components
+        if "conan" in component["categories"]
+    } - resolved_refs
     if missing:
         fail("build environment omits Conan recipe/package revisions")
 
@@ -275,7 +282,7 @@ def validate_bundle(directory: Path) -> dict:
         fail("build manifest has the wrong schema")
     if build.get("product") != contract["product"] or build.get("source_revision") != contract["source_revision"]:
         fail("build manifest identity disagrees with bundle")
-    validate_environment(build.get("environment", {}), refs)
+    validate_environment(build.get("environment", {}), components)
 
     sbom = load_object(paths["sbom"], "SBOM")
     if sbom.get("bomFormat") != "CycloneDX" or sbom.get("specVersion") != "1.6":
@@ -374,7 +381,7 @@ def create_bundle(*, product: str, source_revision: str, payload: Path,
     validate_notice_archive(inputs["notice_bundle"], components)
     validate_source_archive(inputs["source_archive"])
     environment = load_object(inputs["build_environment"], "build environment")
-    validate_environment(environment, refs)
+    validate_environment(environment, components)
     verified = load_object(inputs["verified_manifest"], "verified manifest")
     version = load_object(inputs["version_manifest"], "version manifest")
     for manifest, label in ((verified, "verified manifest"), (version, "version manifest")):
