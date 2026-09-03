@@ -21,10 +21,13 @@ CHANGE_PREFIXES = (
 )
 PRIVILEGED_PATHS = (
     ".github/branch-policy.json",
+    ".github/maintenance-policy.json",
     ".github/workflows/branch-policy.yml",
     ".github/workflows/branch-sync.yml",
     "tools/branch-policy/",
+    "tools/maintenance/",
     "tools/workflow-security/",
+    "tests/maintenance/",
     "tests/workflow-action-pin-test.py",
 )
 
@@ -229,6 +232,14 @@ def is_exact_reconciliation_name(branch: Branch, head: str) -> bool:
     return head.startswith(prefix) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name) is not None
 
 
+def is_exact_task_name(branch: Branch, head: str) -> bool:
+    return re.fullmatch(
+        rf"task/{re.escape(branch.scope)}/"
+        r"[1-9][0-9]*-[a-z0-9]+(?:-[a-z0-9]+)*",
+        head,
+    ) is not None
+
+
 def is_dependabot_security_head(
     head: str, targets: tuple[DependabotTarget, ...]
 ) -> bool:
@@ -273,6 +284,14 @@ def classify_pull_request(
         raise PolicyError(
             f"blocked {relationship} merge {head} -> {base}; "
             f"only direct parent-to-child synchronization is allowed"
+        )
+
+    if head.startswith("task/"):
+        if is_exact_task_name(target, head):
+            return "task"
+        raise PolicyError(
+            f"task branch {head!r} must match "
+            f"task/{target.scope}/<positive-issue>-<lowercase-slug> exactly"
         )
 
     if head.startswith("reconcile/"):
@@ -416,6 +435,9 @@ def evaluate_pull_request(
     if base_repository_id != repository_id:
         raise PolicyError("pull request base repository does not match the event repository")
     validate_sha(head_sha, "head SHA")
+
+    if classification == "task" and head_repository_id != repository_id:
+        raise PolicyError("task branches must originate in the event repository")
 
     if classification == "dependabot-security":
         if head_repository_id != repository_id:
