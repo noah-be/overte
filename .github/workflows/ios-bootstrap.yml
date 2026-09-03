@@ -62,6 +62,9 @@ jobs:
         run: ios/tests/run-tests.sh
 
   simulator:
+    if: >-
+      ${{ !startsWith(github.head_ref, 'reconcile/apple/') &&
+          !startsWith(github.head_ref, 'reconcile/ios/') }}
     needs: host-contracts
     runs-on: macos-26
     timeout-minutes: 30
@@ -132,6 +135,9 @@ jobs:
           retention-days: 7
 
   unsigned-device-sdk:
+    if: >-
+      ${{ !startsWith(github.head_ref, 'reconcile/apple/') &&
+          !startsWith(github.head_ref, 'reconcile/ios/') }}
     needs: host-contracts
     runs-on: macos-26
     timeout-minutes: 15

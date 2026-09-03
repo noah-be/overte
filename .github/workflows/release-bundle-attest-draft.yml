@@ -1,0 +1,195 @@
+name: Attest and draft a verified release bundle
+
+on:
+  workflow_call:
+    inputs:
+      product:
+        description: Product identifier recorded in release-bundle.json
+        required: true
+        type: string
+      source_revision:
+        description: Exact 40-character commit selected by the immutable tag
+        required: true
+        type: string
+      release_tag:
+        description: Existing protected release tag
+        required: true
+        type: string
+      artifact_name:
+        description: Same-run artifact containing one complete release bundle
+        required: true
+        type: string
+      publish_environment:
+        description: Protected environment whose reviewers authorize draft creation
+        required: true
+        type: string
+      release_title:
+        description: Draft release title
+        required: true
+        type: string
+      release_notes_path:
+        description: Versioned release notes/checklist path
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  attest:
+    name: Attest validated payload and SBOM
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Reject non-tag or unsupported release invocation
+        env:
+          PRODUCT: ${{ inputs.product }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          SOURCE_REVISION: ${{ inputs.source_revision }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_TYPE" == tag ]]
+          [[ "$GITHUB_REF" == "refs/tags/$RELEASE_TAG" ]]
+          [[ "$GITHUB_SHA" == "$SOURCE_REVISION" ]]
+          case "$PRODUCT" in
+            android-phone)
+              [[ "$RELEASE_TAG" =~ ^android-phone-v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$ ]]
+              ;;
+            pico4)
+              [[ "$RELEASE_TAG" =~ ^pico4-v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]
+              ;;
+            *)
+              echo "Unsupported release product" >&2
+              exit 2
+              ;;
+          esac
+      - name: Check out exact tagged source without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.release_tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Download same-run release bundle
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: release-bundle
+      - name: Reverify tag and fail-closed bundle contract
+        id: bundle
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          SOURCE_REVISION: ${{ inputs.source_revision }}
+          PRODUCT: ${{ inputs.product }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_SHA" == "$SOURCE_REVISION" ]]
+          [[ "$(git rev-list -n 1 "refs/tags/$RELEASE_TAG")" == "$SOURCE_REVISION" ]]
+          tools/release/validate-release-bundle.py release-bundle \
+            --product "$PRODUCT" --source-revision "$SOURCE_REVISION" \
+            --release-tag "$RELEASE_TAG"
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          bundle = json.loads(Path("release-bundle/release-bundle.json").read_text())
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"payload={bundle['artifacts']['payload']['path']}\n")
+              output.write(f"sbom={bundle['artifacts']['sbom']['path']}\n")
+          PY
+      - name: Create build provenance for payload
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: release-bundle/${{ steps.bundle.outputs.payload }}
+      - name: Create SBOM attestation for payload
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: release-bundle/${{ steps.bundle.outputs.payload }}
+          sbom-path: release-bundle/${{ steps.bundle.outputs.sbom }}
+
+  draft-publish:
+    name: Create manually approved draft
+    needs: attest
+    environment: ${{ inputs.publish_environment }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Reject non-tag or unprotected release invocation
+        env:
+          PRODUCT: ${{ inputs.product }}
+          PUBLISH_ENVIRONMENT: ${{ inputs.publish_environment }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          SOURCE_REVISION: ${{ inputs.source_revision }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_TYPE" == tag ]]
+          [[ "$GITHUB_REF" == "refs/tags/$RELEASE_TAG" ]]
+          [[ "$GITHUB_SHA" == "$SOURCE_REVISION" ]]
+          case "$PRODUCT" in
+            android-phone)
+              [[ "$PUBLISH_ENVIRONMENT" == android-phone-release-candidate ]]
+              [[ "$RELEASE_TAG" =~ ^android-phone-v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$ ]]
+              ;;
+            pico4)
+              [[ "$PUBLISH_ENVIRONMENT" == pico4-release-candidate ]]
+              [[ "$RELEASE_TAG" =~ ^pico4-v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]
+              ;;
+            *)
+              echo "Unsupported release product" >&2
+              exit 2
+              ;;
+          esac
+      - name: Check out exact tagged source without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.release_tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Download only the same-run release bundle
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: release-bundle
+      - name: Reverify bundle and create draft only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRODUCT: ${{ inputs.product }}
+          RELEASE_NOTES_PATH: ${{ inputs.release_notes_path }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_TITLE: ${{ inputs.release_title }}
+          SOURCE_REVISION: ${{ inputs.source_revision }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_SHA" == "$SOURCE_REVISION" ]]
+          [[ "$(git rev-list -n 1 "refs/tags/$RELEASE_TAG")" == "$SOURCE_REVISION" ]]
+          tools/release/validate-release-bundle.py release-bundle \
+            --product "$PRODUCT" --source-revision "$SOURCE_REVISION" \
+            --release-tag "$RELEASE_TAG"
+          [[ -f "$RELEASE_NOTES_PATH" && ! -L "$RELEASE_NOTES_PATH" ]]
+          # GraphQL variables must remain literal.
+          # shellcheck disable=SC2016
+          existing_release=$(gh api graphql \
+            -f query='query($owner:String!,$name:String!,$tag:String!){repository(owner:$owner,name:$name){release(tagName:$tag){id}}}' \
+            -f owner="${GITHUB_REPOSITORY%/*}" -f name="${GITHUB_REPOSITORY#*/}" \
+            -f tag="$RELEASE_TAG" \
+            --jq 'if .data.repository.release == null then "absent" else "present" end')
+          [[ "$existing_release" == "absent" ]] || {
+            echo "A release already exists for this immutable tag" >&2
+            exit 2
+          }
+          mapfile -t assets < <(find release-bundle -maxdepth 1 -type f -print0 | \
+            sort -z | xargs -0 -n1 printf '%s\n')
+          [[ "${#assets[@]}" -gt 0 ]]
+          gh release create "$RELEASE_TAG" --draft --verify-tag \
+            --title "$RELEASE_TITLE" --notes-file "$RELEASE_NOTES_PATH" \
+            "${assets[@]}"

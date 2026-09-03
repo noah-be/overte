@@ -1,5 +1,10 @@
 {
   "schema": 1,
+  "dependabot_security_updates": [
+    {"ecosystem": "npm_and_yarn", "directory": "tools/jsdoc"},
+    {"ecosystem": "npm_and_yarn", "directory": "server-console"},
+    {"ecosystem": "gradle", "directory": "android/common/tests/robolectric"}
+  ],
   "branches": {
     "main": {
       "parent": null,

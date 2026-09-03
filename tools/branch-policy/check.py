@@ -24,6 +24,8 @@ PRIVILEGED_PATHS = (
     ".github/workflows/branch-policy.yml",
     ".github/workflows/branch-sync.yml",
     "tools/branch-policy/",
+    "tools/workflow-security/",
+    "tests/workflow-action-pin-test.py",
 )
 
 
@@ -37,6 +39,12 @@ class Branch:
     parent: str | None
     scope: str
     children: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class DependabotTarget:
+    ecosystem: str
+    directory: str
 
 
 @dataclass(frozen=True)
@@ -170,6 +178,33 @@ def load_policy(path: Path) -> dict[str, Branch]:
     return branches
 
 
+def load_dependabot_targets(path: Path) -> tuple[DependabotTarget, ...]:
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        raw_targets = document["dependabot_security_updates"]
+    except (OSError, json.JSONDecodeError, KeyError, TypeError) as error:
+        raise PolicyError("policy must define dependabot_security_updates") from error
+    if not isinstance(raw_targets, list) or not raw_targets:
+        raise PolicyError("dependabot_security_updates must be a non-empty list")
+    targets = []
+    for raw in raw_targets:
+        if not isinstance(raw, dict) or set(raw) != {"ecosystem", "directory"}:
+            raise PolicyError("invalid Dependabot security-update target")
+        ecosystem = raw["ecosystem"]
+        directory = raw["directory"]
+        if (
+            not isinstance(ecosystem, str)
+            or re.fullmatch(r"[a-z0-9][a-z0-9_-]*", ecosystem) is None
+            or not isinstance(directory, str)
+            or re.fullmatch(r"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*", directory) is None
+        ):
+            raise PolicyError("invalid Dependabot ecosystem or directory")
+        targets.append(DependabotTarget(ecosystem, directory))
+    if len(targets) != len(set(targets)):
+        raise PolicyError("Dependabot security-update targets must be unique")
+    return tuple(targets)
+
+
 def expected_prefixes(branch: Branch) -> tuple[str, ...]:
     scoped = tuple(f"{kind}/{branch.scope}/" for kind in CHANGE_PREFIXES)
     return scoped + (f"promote/{branch.scope}/",)
@@ -194,10 +229,39 @@ def is_exact_reconciliation_name(branch: Branch, head: str) -> bool:
     return head.startswith(prefix) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name) is not None
 
 
-def classify_pull_request(branches: dict[str, Branch], base: str, head: str) -> str:
+def is_dependabot_security_head(
+    head: str, targets: tuple[DependabotTarget, ...]
+) -> bool:
+    dependency = r"[A-Za-z0-9][A-Za-z0-9._+~%-]*"
+    return any(
+        re.fullmatch(
+            rf"dependabot/{re.escape(target.ecosystem)}/"
+            rf"{re.escape(target.directory)}/{dependency}",
+            head,
+        )
+        is not None
+        for target in targets
+    )
+
+
+def classify_pull_request(
+    branches: dict[str, Branch],
+    base: str,
+    head: str,
+    dependabot_targets: tuple[DependabotTarget, ...] = (),
+) -> str:
     if base not in branches:
         raise PolicyError(f"target branch {base!r} is not governed by the branch policy")
     target = branches[base]
+
+    if head.startswith("dependabot/"):
+        if base != "main":
+            raise PolicyError("Dependabot security updates may target only main")
+        if not is_dependabot_security_head(head, dependabot_targets):
+            raise PolicyError(
+                "Dependabot head does not match a governed ecosystem and directory"
+            )
+        return "dependabot-security"
 
     # A parent is allowed to flow wholesale into its direct child.
     if target.parent == head:
@@ -340,15 +404,28 @@ def evaluate_pull_request(
     expected_head_sha: str | None = None,
     changed_files: tuple[str, ...] = (),
     reconciliation_attestation: ReconciliationAttestation | None = None,
+    dependabot_targets: tuple[DependabotTarget, ...] = (),
+    pr_author_login: str | None = None,
+    pr_author_type: str | None = None,
 ) -> str:
     """Validate PR identity in addition to its branch-name direction."""
-    classification = classify_pull_request(branches, base, head)
+    classification = classify_pull_request(branches, base, head, dependabot_targets)
 
     if repository_id <= 0 or base_repository_id <= 0 or head_repository_id <= 0:
         raise PolicyError("repository IDs must be positive integers")
     if base_repository_id != repository_id:
         raise PolicyError("pull request base repository does not match the event repository")
     validate_sha(head_sha, "head SHA")
+
+    if classification == "dependabot-security":
+        if head_repository_id != repository_id:
+            raise PolicyError(
+                "Dependabot security updates must originate in the event repository"
+            )
+        if pr_author_login != "dependabot[bot]" or pr_author_type != "Bot":
+            raise PolicyError(
+                "Dependabot security updates require the immutable dependabot[bot] Bot identity"
+            )
 
     if classification == "downstream-sync":
         if head_repository_id != base_repository_id:
@@ -404,6 +481,8 @@ def parse_arguments() -> argparse.Namespace:
     check.add_argument("--head-sha", required=True)
     check.add_argument("--expected-head-sha")
     check.add_argument("--repository")
+    check.add_argument("--pr-author-login")
+    check.add_argument("--pr-author-type")
     check.add_argument("--changed-files-stdin", action="store_true")
     children = subparsers.add_parser("children", help="print direct children, one per line")
     children.add_argument("--parent", required=True)
@@ -418,13 +497,16 @@ def main() -> int:
     args = parse_arguments()
     try:
         branches = load_policy(args.policy)
+        dependabot_targets = load_dependabot_targets(args.policy)
         if args.command == "check-pr":
             changed_files = ()
             if args.changed_files_stdin:
                 changed_files = tuple(
                     line for line in (item.strip() for item in sys.stdin) if line
                 )
-            classification = classify_pull_request(branches, args.base, args.head)
+            classification = classify_pull_request(
+                branches, args.base, args.head, dependabot_targets
+            )
             reconciliation_attestation = None
             if classification == "reconciliation":
                 repository = args.repository or os.environ.get("GITHUB_REPOSITORY")
@@ -454,6 +536,9 @@ def main() -> int:
                 expected_head_sha=args.expected_head_sha,
                 changed_files=changed_files,
                 reconciliation_attestation=reconciliation_attestation,
+                dependabot_targets=dependabot_targets,
+                pr_author_login=args.pr_author_login,
+                pr_author_type=args.pr_author_type,
             )
             print(f"allowed: {classification}: {args.head} -> {args.base}")
         elif args.command == "children":

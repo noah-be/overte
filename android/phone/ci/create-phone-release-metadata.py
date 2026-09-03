@@ -16,11 +16,24 @@ import time
 import zipfile
 
 
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT / "tools/release"))
+
+from release_bundle import create_bundle, git_archive_sha256  # noqa: E402
+
+
 FINAL_NAMES = (
     "android-phone-sbom.cdx.json",
     "android-phone-provenance.intoto.json",
     "android-phone-release-manifest.json",
     "SHA256SUMS",
+)
+COMPLETE_BUNDLE_ARGUMENTS = (
+    "complete_bundle_output_dir",
+    "dependency_inventory",
+    "notice_bundle",
+    "source_archive",
+    "build_environment",
 )
 
 
@@ -50,6 +63,44 @@ def source_archive_digest(repository, revision):
     if process.wait():
         fail(f"git archive failed: {stderr.strip()}")
     return digest
+
+
+def complete_bundle_requested(args):
+    supplied = [getattr(args, name) is not None for name in COMPLETE_BUNDLE_ARGUMENTS]
+    if any(supplied) and not all(supplied):
+        fail(
+            "complete bundle mode requires --complete-bundle-output-dir, "
+            "--dependency-inventory, --notice-bundle, --source-archive, and "
+            "--build-environment together"
+        )
+    return all(supplied)
+
+
+def paths_overlap(first, second):
+    first = first.absolute()
+    second = second.absolute()
+    return first == second or first in second.parents or second in first.parents
+
+
+def create_complete_bundle(args):
+    version = load_json(args.version_manifest, "version manifest")
+    repository = args.repository.absolute()
+    source_archive = args.source_archive.absolute()
+    if sha256_file(source_archive) != git_archive_sha256(
+            repository, version["source_revision"]):
+        fail("source archive does not match git archive for the release revision")
+    return create_bundle(
+        product="android-phone",
+        source_revision=version["source_revision"],
+        payload=args.apk,
+        verified_manifest=args.apk_manifest,
+        version_manifest=args.version_manifest,
+        dependency_inventory=args.dependency_inventory,
+        notice_bundle=args.notice_bundle,
+        source_archive=source_archive,
+        build_environment=args.build_environment,
+        output=args.complete_bundle_output_dir,
+    )
 
 
 def load_json(path, label):
@@ -181,6 +232,8 @@ def create_metadata(args, staging):
         json.dumps(provenance, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     release = {
         "schema_version": 2, "status": "draft-candidate", "published": False,
+        "complete_release_bundle": False,
+        "inventory_scope": "packaged ARM64 native libraries only",
         "distribution": {"kind": "store-neutral", "signing_state": signing_state},
         "tag": version["tag"], "source_revision": version["source_revision"],
         "source_archive_sha256": source_digest,
@@ -207,7 +260,15 @@ def main():
     parser.add_argument("--apk-manifest", type=Path, required=True)
     parser.add_argument("--version-manifest", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--complete-bundle-output-dir", type=Path)
+    parser.add_argument("--dependency-inventory", type=Path)
+    parser.add_argument("--notice-bundle", type=Path)
+    parser.add_argument("--source-archive", type=Path)
+    parser.add_argument("--build-environment", type=Path)
     args = parser.parse_args()
+    full_bundle = complete_bundle_requested(args)
+    if full_bundle and paths_overlap(args.output_dir, args.complete_bundle_output_dir):
+        fail("legacy metadata and complete bundle output directories must not overlap")
     output = args.output_dir.resolve()
     timeout = release_metadata_lock_timeout()
     with release_metadata_lock(output, timeout):
@@ -221,6 +282,8 @@ def main():
             create_metadata(args, staging)
             for name in FINAL_NAMES:
                 os.replace(staging / name, output / name)
+            if full_bundle:
+                create_complete_bundle(args)
             published = True
             print(output / FINAL_NAMES[2])
         finally:
