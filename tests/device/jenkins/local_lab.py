@@ -14,6 +14,7 @@ import secrets
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 import xml.etree.ElementTree as ET
 from urllib.error import HTTPError, URLError
@@ -45,19 +46,38 @@ def sha256(path: Path) -> str:
 
 
 def secure_directory(path: Path) -> Path:
-    path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    requested = Path(os.path.abspath(path))
+    if path.is_symlink() or requested.resolve() != requested:
+        fail("private directory path must not contain symlinks")
+    requested.mkdir(parents=True, exist_ok=True, mode=0o700)
     if os.name != "nt":
-        path.chmod(0o700)
-    return path.resolve()
+        requested.chmod(0o700)
+        metadata = requested.stat()
+        if stat.S_IMODE(metadata.st_mode) != 0o700:
+            fail("private directory must have mode 0700")
+        if hasattr(os, "geteuid") and metadata.st_uid != os.geteuid():
+            fail("private directory must be owned by the current user")
+    return requested
 
 
 def secure_write(path: Path, value: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(value, encoding="utf-8")
-    if os.name != "nt":
-        temporary.chmod(stat.S_IRUSR | stat.S_IWUSR)
-    temporary.replace(path)
+    parent = secure_directory(path.parent)
+    destination = parent / path.name
+    descriptor, name = tempfile.mkstemp(prefix=f".{path.name}.", dir=parent)
+    temporary = Path(name)
+    try:
+        if os.name != "nt":
+            os.fchmod(descriptor, stat.S_IRUSR | stat.S_IWUSR)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+            descriptor = -1
+            output.write(value)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, destination)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        temporary.unlink(missing_ok=True)
 
 
 def download(artifact: dict, destination: Path) -> Path:
