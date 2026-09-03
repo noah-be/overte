@@ -27,14 +27,23 @@ class Suite:
 SUITES = (
     Suite("project-runner", "quick", (sys.executable, "tests/project-suite-self-test.py")),
     Suite("branch-policy", "quick", (sys.executable, "tests/branch-policy-test.py")),
+    Suite("workflow-action-pins", "quick", (sys.executable, "tests/workflow-action-pin-test.py")),
+    Suite("release-bundle", "quick", (sys.executable, "tools/release/tests/release-bundle-test.py")),
     Suite("desktop-topology", "quick", (sys.executable, "tests/desktop-branch-topology-test.py")),
     Suite("workflow-contracts", "quick", (sys.executable, "tests/workflow-contract-test.py")),
     Suite("repository-health", "quick", (sys.executable, "tests/project-health-test.py")),
     Suite("project-coverage", "quick", (sys.executable, "tests/project-coverage-test.py")),
     Suite("javascript-behavior", "quick", ("node", "tests/mocha/test/testVirtualBaton.js")),
+    Suite("device-e2e-contracts", "quick", (
+        sys.executable, "tests/device/run_control_plane_tests.py", "--profile", "quick",
+        "--junit", "build/test-results/device-e2e-contracts.xml")),
+    Suite("documentation", "documentation", (
+        sys.executable, "tests/check-documentation.py", "--base", "HEAD^1")),
     Suite("pico4-device-free", "quick", ("bash", "android/vr/pico/tests/pico-device-free-test.sh")),
     Suite("native-ctest", "native", ("bash", "tests/project-native-test.sh")),
 )
+
+SUITE_ALIASES = {"device-control-plane": "device-e2e-contracts"}
 
 
 def arguments() -> argparse.Namespace:
@@ -54,11 +63,12 @@ def arguments() -> argparse.Namespace:
 
 
 def select(args: argparse.Namespace) -> list[Suite]:
-    names = set(args.suite)
+    requested = set(args.suite)
     known = {suite.name for suite in SUITES}
-    unknown = sorted(names - known)
+    unknown = sorted(requested - known - set(SUITE_ALIASES))
     if unknown:
         raise ValueError("unknown suites: " + ", ".join(unknown))
+    names = {SUITE_ALIASES.get(name, name) for name in requested}
     if names:
         return [suite for suite in SUITES if suite.name in names]
     layers = {"quick"} if args.profile == "quick" else {"quick", "native"}

@@ -26,9 +26,12 @@ p.add_argument("--arguments")
 a = p.parse_args()
 selector = os.environ.get("MOCK_SELECTOR", "private-device-123")
 if a.action == "discover":
-    print(json.dumps([{"selector": selector, "displayName": "Mock Phone",
-                       "platform": "mock", "physical": os.environ.get("MOCK_VIRTUAL") != "1",
-                       "capabilities": os.environ.get("MOCK_CAPABILITIES", "app.process").split(",")}]))
+    if os.environ.get("MOCK_EMPTY_DISCOVERY") == "1":
+        print("[]")
+    else:
+        print(json.dumps([{"selector": selector, "displayName": "Mock Phone",
+                           "platform": "mock", "physical": os.environ.get("MOCK_VIRTUAL") != "1",
+                           "capabilities": os.environ.get("MOCK_CAPABILITIES", "app.process").split(",")}]))
 elif a.action == "describe":
     print(json.dumps({"platform": "mock", "model": "Contract Device"}))
 elif a.action == "invoke":
@@ -218,6 +221,18 @@ class HarnessTest(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stdout)
         self.assertIn("satisfies the protocol", result.stdout)
         self.assertTrue(self.cleanup_marker.exists())
+
+    def test_adapter_protocol_verifier_can_require_a_discovered_target(self):
+        env = os.environ.copy()
+        env.update({"MOCK_CLEANUP_MARKER": str(self.cleanup_marker),
+                    "MOCK_EMPTY_DISCOVERY": "1"})
+        result = subprocess.run([
+            sys.executable, str(VERIFIER), "--adapter-manifest", str(self.manifest),
+            "--require-target",
+        ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+           env=env, check=False)
+        self.assertEqual(2, result.returncode, result.stdout)
+        self.assertIn("returned no target", result.stdout)
 
     def test_portable_launch_module_runs_through_adapter_contract(self):
         env = os.environ.copy()
