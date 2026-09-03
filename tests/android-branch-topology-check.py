@@ -19,6 +19,13 @@ TARGET_SHARED_PATH_EXCLUSIONS = {
     "android-phone": {
         "tests/device": ("tests/device/policies/android-phone-flat-touch.json",),
     },
+    "android-vr-pico": {
+        "tests/device": (
+            "tests/device/jenkins/test_conan_cache_manager.py",
+            "tests/device/jenkins/test_local_lab.py",
+            "tests/device/self_tests/test_pico_openxr_adapter_session.py",
+        ),
+    },
 }
 
 

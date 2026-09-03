@@ -156,6 +156,36 @@ class AndroidBranchTopologyTest(unittest.TestCase):
         )
         self.assertTrue(any("tests/device differs" in error for error in errors))
 
+    def test_pico_owned_phase_c_test_fixtures_are_allowed(self):
+        for path in (
+            "tests/device/jenkins/test_conan_cache_manager.py",
+            "tests/device/jenkins/test_local_lab.py",
+            "tests/device/self_tests/test_pico_openxr_adapter_session.py",
+        ):
+            with self.subTest(path=path):
+                run(self.repo, "checkout", "-q", self.android_vr)
+                head = self.commit(path, "pico-owned fixture\n")
+                self.assertEqual(
+                    [],
+                    MODULE.validate(
+                        self.repo,
+                        "android-vr-pico",
+                        self.android_main,
+                        self.android_vr,
+                        head,
+                    ),
+                )
+
+    def test_other_pico_tests_device_change_is_rejected(self):
+        run(self.repo, "checkout", "-q", self.android_vr)
+        head = self.commit(
+            "tests/device/jenkins/test_unplanned_pico_change.py", "not owned\n"
+        )
+        errors = MODULE.validate(
+            self.repo, "android-vr-pico", self.android_main, self.android_vr, head
+        )
+        self.assertTrue(any("tests/device differs" in error for error in errors))
+
     def test_shared_transport_change_is_rejected(self):
         run(self.repo, "checkout", "-q", self.android_vr)
         head = self.commit("android/common/device_tests/transport", "changed directly\n")
