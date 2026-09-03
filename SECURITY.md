@@ -9,20 +9,18 @@ platform documentation.
 
 ## Reporting a vulnerability
 
-GitHub Private Vulnerability Reporting is not currently enabled for this fork,
-and the issue tracker is disabled. This means the repository does not presently
-offer a private channel for technical vulnerability details. Do not use the
-Security Advisory form unless the repository settings page shows that private
-reporting has been enabled.
+GitHub Private Vulnerability Reporting is enabled for this fork. Report a
+concern that requires private handling through GitHub's
+[private **Report a vulnerability** form](https://github.com/noah-be/overte/security/advisories/new).
+Do not put credentials, private logs, device identifiers, account data, or
+exploit material in a public issue, discussion, or pull request. The issue
+tracker remains disabled.
 
 For a concern that is safe to discuss publicly, open a
 [draft pull request](https://github.com/noah-be/overte/compare) with a minimal
 patch or reproduction and no credentials, private logs, device identifiers,
-account data, or exploit material. For a concern that requires private
-handling, a draft pull request may contain only a request for the maintainer to
-enable GitHub Private Vulnerability Reporting. Do not include any technical
-details in that request. Submit those details only after GitHub exposes the
-private **Report a vulnerability** form for this repository.
+account data, or exploit material. Use the private form above for technical
+details that should not be public.
 
 The project is maintained without a response-time or remediation guarantee.
 Reports should identify the affected fork revision, platform, reproduction
