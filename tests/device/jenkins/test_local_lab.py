@@ -30,7 +30,8 @@ class LocalLabBootstrapTest(unittest.TestCase):
     def test_secure_write_creates_private_atomic_file(self):
         with tempfile.TemporaryDirectory(prefix="overte-secure-write-") as name:
             root = Path(name) / "weak-parent"
-            root.mkdir(mode=0o755)
+            root.mkdir()
+            root.chmod(0o755)
             destination = root / "secret"
             LAB.secure_write(destination, "sensitive\n")
             self.assertEqual("sensitive\n", destination.read_text(encoding="utf-8"))
