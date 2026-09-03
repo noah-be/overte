@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CHECKER = ROOT / "tools/branch-policy/check.py"
 DRIFT_CHECKER = ROOT / "tools/branch-policy/drift.py"
 POLICY = ROOT / ".github/branch-policy.json"
-ARCHIVED_BRANCH_RULESET = ROOT / ".github/rulesets/archived-branches.json"
+ARCHIVED_BRANCH_RETIREMENT = ROOT / ".github/rulesets/retirements/archived-branches.json"
 SPEC = importlib.util.spec_from_file_location("branch_policy", CHECKER)
 assert SPEC and SPEC.loader
 BRANCH_POLICY = importlib.util.module_from_spec(SPEC)
@@ -125,6 +125,7 @@ class BranchPolicyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.branches = BRANCH_POLICY.load_policy(POLICY)
+        cls.dependabot_targets = BRANCH_POLICY.load_dependabot_targets(POLICY)
 
     def test_expected_hierarchy_is_complete(self):
         self.assertEqual(
@@ -151,7 +152,8 @@ class BranchPolicyTests(unittest.TestCase):
                         head,
                     )
 
-        ruleset = json.loads(ARCHIVED_BRANCH_RULESET.read_text(encoding="utf-8"))
+        plan = json.loads(ARCHIVED_BRANCH_RETIREMENT.read_text(encoding="utf-8"))
+        ruleset = plan["ruleset_retirement"]["expected_current"]
         self.assertEqual(ruleset["enforcement"], "active")
         self.assertEqual(
             ruleset["conditions"]["ref_name"]["include"],
@@ -212,6 +214,71 @@ class BranchPolicyTests(unittest.TestCase):
             ),
             "scoped-change",
         )
+
+    def test_genuine_dependabot_security_update_is_accepted(self):
+        result = BRANCH_POLICY.evaluate_pull_request(
+            self.branches,
+            base="main",
+            head="dependabot/npm_and_yarn/tools/jsdoc/markdown-it-14.1.0",
+            repository_id=100,
+            base_repository_id=100,
+            head_repository_id=100,
+            head_sha=CURRENT_SHA,
+            dependabot_targets=self.dependabot_targets,
+            pr_author_login="dependabot[bot]",
+            pr_author_type="Bot",
+        )
+        self.assertEqual(result, "dependabot-security")
+
+    def test_dependabot_same_repository_and_fork_spoofs_are_rejected(self):
+        cases = (
+            {"pr_author_login": "maintainer", "pr_author_type": "User"},
+            {"pr_author_login": "dependabot[bot]", "pr_author_type": "User"},
+            {
+                "pr_author_login": "dependabot[bot]",
+                "pr_author_type": "Bot",
+                "head_repository_id": 200,
+            },
+        )
+        for case in cases:
+            with self.subTest(case=case):
+                with self.assertRaises(BRANCH_POLICY.PolicyError):
+                    BRANCH_POLICY.evaluate_pull_request(
+                        self.branches,
+                        base="main",
+                        head="dependabot/gradle/android/common/tests/robolectric/junit-4.14",
+                        repository_id=100,
+                        base_repository_id=100,
+                        head_repository_id=case.get("head_repository_id", 100),
+                        head_sha=CURRENT_SHA,
+                        dependabot_targets=self.dependabot_targets,
+                        pr_author_login=case["pr_author_login"],
+                        pr_author_type=case["pr_author_type"],
+                    )
+
+    def test_dependabot_wrong_base_prefix_directory_or_nested_dependency_is_rejected(self):
+        cases = (
+            ("android-main", "dependabot/npm_and_yarn/tools/jsdoc/pkg-1.0"),
+            ("main", "dependabot/npm/tools/jsdoc/pkg-1.0"),
+            ("main", "dependabot/npm_and_yarn/unknown/pkg-1.0"),
+            ("main", "dependabot/npm_and_yarn/tools/jsdoc/scope/pkg-1.0"),
+            ("main", "dependabot/npm_and_yarn/tools/jsdoc/"),
+        )
+        for base, head in cases:
+            with self.subTest(base=base, head=head):
+                with self.assertRaises(BRANCH_POLICY.PolicyError):
+                    BRANCH_POLICY.evaluate_pull_request(
+                        self.branches,
+                        base=base,
+                        head=head,
+                        repository_id=100,
+                        base_repository_id=100,
+                        head_repository_id=100,
+                        head_sha=CURRENT_SHA,
+                        dependabot_targets=self.dependabot_targets,
+                        pr_author_login="dependabot[bot]",
+                        pr_author_type="Bot",
+                    )
 
     def test_exact_reconciliation_names_are_classified_separately(self):
         cases = (
