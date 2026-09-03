@@ -18,13 +18,13 @@ BRANCH_POLICY_WORKFLOW = ROOT / ".github/workflows/branch-policy.yml"
 BRANCH_SYNC_WORKFLOW = ROOT / ".github/workflows/branch-sync.yml"
 DESKTOP_TOPOLOGY_WORKFLOW = ROOT / ".github/workflows/desktop-branch-topology.yml"
 WORKFLOW_DIRECTORY = ROOT / ".github/workflows"
+CODEQL_WORKFLOW = ROOT / ".github/workflows/codeql.yml"
 IOS_WORKFLOW = ROOT / ".github/workflows/ios-bootstrap.yml"
 MACOS_WORKFLOW = ROOT / ".github/workflows/macos-bootstrap.yml"
 RULESETS = ROOT / ".github/rulesets"
 RULESET_FILES = {
     "Android target branch topology": "android-target-branches.json",
     "Apple target branch topology": "apple-target-branches.json",
-    "Archived branches": "archived-branches.json",
     "Desktop branch topology": "desktop-branches.json",
     "Immutable Android, canonical, and archive tags": "android-release-tags.json",
     "Immutable Pico 4 release and dependency tags": "pico4-release-tags.json",
@@ -89,6 +89,45 @@ class WorkflowStorageContracts(unittest.TestCase):
         self.assertNotIn("SCCACHE_GHA_ENABLED", sources)
 
 
+class CodeQLWorkflowContracts(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.source = CODEQL_WORKFLOW.read_text(encoding="utf-8")
+
+    def test_pilot_is_github_hosted_and_bounded(self):
+        self.assertIn("runs-on: ubuntu-24.04", self.source)
+        self.assertNotIn("self-hosted", self.source)
+        self.assertIn("timeout-minutes: 30", self.source)
+        self.assertIn("language: [javascript-typescript, python]", self.source)
+        self.assertIn("build-mode: none", self.source)
+
+    def test_permissions_are_least_privilege(self):
+        self.assertRegex(self.source, r"(?m)^permissions:\n  contents: read$")
+        analyze = self.source.split("  analyze:", 1)[1]
+        self.assertRegex(
+            analyze,
+            r"(?m)^    permissions:\n      contents: read\n      security-events: write$",
+        )
+        self.assertNotRegex(self.source, r"(?m)^\s+(actions|attestations|id-token|packages): write$")
+
+    def test_actions_are_fresh_full_sha_pins(self):
+        actions = ACTION_USE.findall(self.source)
+        self.assertEqual(len(actions), 3)
+        self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
+        codeql = [action for action in actions if action.startswith("github/codeql-action/")]
+        self.assertEqual(
+            codeql,
+            [
+                "github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938",
+                "github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938",
+            ],
+        )
+
+    def test_checkout_is_credential_free_and_default_setup_is_not_mixed_in(self):
+        self.assertIn("persist-credentials: false", self.source)
+        self.assertNotIn("autobuild", self.source)
+
+
 class BranchGovernanceWorkflowContracts(unittest.TestCase):
     def test_policy_is_a_native_read_only_pull_request_check(self):
         source = BRANCH_POLICY_WORKFLOW.read_text(encoding="utf-8")
@@ -104,6 +143,8 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         self.assertIn("github.event.pull_request.head.sha", source)
         self.assertIn("github.event.pull_request.head.repo.id", source)
         self.assertIn("github.event.pull_request.base.repo.id", source)
+        self.assertIn("github.event.pull_request.user.login", source)
+        self.assertIn("github.event.pull_request.user.type", source)
         self.assertIn("github.event.repository.id", source)
         self.assertNotIn("check-runs", source)
         self.assertNotRegex(source, r"(?m)^\s*(checks|pull-requests|contents): write$")
@@ -194,7 +235,7 @@ class RulesetManifestContracts(unittest.TestCase):
     def rule(manifest, rule_type):
         return next(rule for rule in manifest["rules"] if rule["type"] == rule_type)
 
-    def test_all_seven_live_rulesets_are_complete_and_versioned(self):
+    def test_all_six_persistent_rulesets_are_complete_and_versioned(self):
         versioned = []
         for path in RULESETS.glob("*.json"):
             candidate = json.loads(path.read_text(encoding="utf-8"))
@@ -280,7 +321,6 @@ class RulesetManifestContracts(unittest.TestCase):
         for name in (
             "Android target branch topology",
             "Apple target branch topology",
-            "Archived branches",
             "Immutable Android, canonical, and archive tags",
             "Immutable Pico 4 release and dependency tags",
             "Permanent branch governance",
@@ -288,21 +328,6 @@ class RulesetManifestContracts(unittest.TestCase):
             rule_types = {rule["type"] for rule in self.manifests[name]["rules"]}
             self.assertIn("deletion", rule_types)
             self.assertIn("non_fast_forward", rule_types)
-
-    def test_archives_are_immutable(self):
-        archived = self.manifests["Archived branches"]
-        self.assertEqual(
-            archived["conditions"]["ref_name"]["include"],
-            [
-                "refs/heads/android-vr-quest",
-                "refs/heads/apple-macos",
-                "refs/heads/backup/**",
-            ],
-        )
-        self.assertEqual(
-            self.rule(archived, "update")["parameters"],
-            {"update_allows_fetch_and_merge": False},
-        )
 
     def test_used_release_dependency_and_archive_tag_namespaces_are_protected(self):
         protected = set()
@@ -346,6 +371,39 @@ class RulesetManifestContracts(unittest.TestCase):
             },
         )
 
+
+class ArchivedRefRetirementContracts(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.path = RULESETS / "retirements/archived-branches.json"
+        cls.plan = json.loads(cls.path.read_text(encoding="utf-8"))
+
+    def test_temporary_ruleset_is_retired_without_bypass(self):
+        retirement = self.plan["ruleset_retirement"]
+        self.assertEqual(retirement["name"], "Archived branches")
+        self.assertEqual(retirement["operation"], "delete_ruleset_by_freshly_resolved_id")
+        self.assertEqual(retirement["expected_current"]["bypass_actors"], [])
+        self.assertIn("never use a bypass", retirement["sequence"])
+        self.assertFalse((RULESETS / "archived-branches.json").exists())
+
+    def test_all_exact_archive_refs_are_unique_and_batched_4_4_4_1(self):
+        refs = self.plan["archive_refs"]
+        self.assertEqual(len(refs), 13)
+        self.assertEqual(
+            [item["disposition"] for item in refs].count("verify_existing"), 2
+        )
+        self.assertEqual(
+            [item["disposition"] for item in refs].count("create_annotated"), 11
+        )
+        sources = [item["source"] for item in refs]
+        tags = [item["tag"] for item in refs]
+        self.assertEqual(len(sources), len(set(sources)))
+        self.assertEqual(len(tags), len(set(tags)))
+        self.assertTrue(all(re.fullmatch(r"[0-9a-f]{40}", item["tip"]) for item in refs))
+        self.assertTrue(all(tag.startswith("refs/tags/archive/") for tag in tags))
+        batches = self.plan["deletion_batches"]
+        self.assertEqual([len(batch) for batch in batches], [4, 4, 4, 1])
+        self.assertEqual([source for batch in batches for source in batch], sources)
 
 class PicoWorkflowContracts(unittest.TestCase):
     @classmethod

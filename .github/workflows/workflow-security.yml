@@ -31,6 +31,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Verify immutable action references
+        run: python3 tools/workflow-security/check-action-pins.py
+
       - name: Install checksum-verified static analyzers
         env:
           ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8

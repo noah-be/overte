@@ -44,6 +44,8 @@ jobs:
           HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
           HEAD_REPOSITORY_ID: ${{ github.event.pull_request.head.repo.id }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_AUTHOR_LOGIN: ${{ github.event.pull_request.user.login }}
+          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
           GH_TOKEN: ${{ github.token }}
           PULL_REQUEST: ${{ github.event.pull_request.number }}
           REPOSITORY: ${{ github.repository }}
@@ -69,5 +71,7 @@ jobs:
             --base-repository-id "$BASE_REPOSITORY_ID" \
             --head-repository-id "$HEAD_REPOSITORY_ID" \
             --head-sha "$HEAD_SHA" \
+            --pr-author-login "$PR_AUTHOR_LOGIN" \
+            --pr-author-type "$PR_AUTHOR_TYPE" \
             "${expected_head_args[@]}" \
             --changed-files-stdin
