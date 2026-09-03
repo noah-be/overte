@@ -49,6 +49,28 @@ jobs:
       id-token: write
       attestations: write
     steps:
+      - name: Reject non-tag or unsupported release invocation
+        env:
+          PRODUCT: ${{ inputs.product }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          SOURCE_REVISION: ${{ inputs.source_revision }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_TYPE" == tag ]]
+          [[ "$GITHUB_REF" == "refs/tags/$RELEASE_TAG" ]]
+          [[ "$GITHUB_SHA" == "$SOURCE_REVISION" ]]
+          case "$PRODUCT" in
+            android-phone)
+              [[ "$RELEASE_TAG" =~ ^android-phone-v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$ ]]
+              ;;
+            pico4)
+              [[ "$RELEASE_TAG" =~ ^pico4-v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]
+              ;;
+            *)
+              echo "Unsupported release product" >&2
+              exit 2
+              ;;
+          esac
       - name: Check out exact tagged source without credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -102,6 +124,31 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Reject non-tag or unprotected release invocation
+        env:
+          PRODUCT: ${{ inputs.product }}
+          PUBLISH_ENVIRONMENT: ${{ inputs.publish_environment }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          SOURCE_REVISION: ${{ inputs.source_revision }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_TYPE" == tag ]]
+          [[ "$GITHUB_REF" == "refs/tags/$RELEASE_TAG" ]]
+          [[ "$GITHUB_SHA" == "$SOURCE_REVISION" ]]
+          case "$PRODUCT" in
+            android-phone)
+              [[ "$PUBLISH_ENVIRONMENT" == android-phone-release-candidate ]]
+              [[ "$RELEASE_TAG" =~ ^android-phone-v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[0-9]+$ ]]
+              ;;
+            pico4)
+              [[ "$PUBLISH_ENVIRONMENT" == pico4-release-candidate ]]
+              [[ "$RELEASE_TAG" =~ ^pico4-v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]
+              ;;
+            *)
+              echo "Unsupported release product" >&2
+              exit 2
+              ;;
+          esac
       - name: Check out exact tagged source without credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

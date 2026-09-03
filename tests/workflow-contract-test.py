@@ -510,7 +510,8 @@ class PicoReleaseWorkflowContracts(unittest.TestCase):
         self.assertIn("runs-on: [self-hosted, linux, x64, overte-android-release]", self.source)
         self.assertRegex(self.source, r"(?m)^permissions:\n  contents: read$")
         self.assertNotIn("contents: write", self.source)
-        self.assertIn("if: ${{ false }}", self.source)
+        self.assertIn("if: ${{ inputs.release_pilot_authorized }}", self.source)
+        self.assertIn("default: false", self.source)
 
     def test_release_actions_are_pinned_and_checkout_has_no_credentials(self):
         actions = ACTION_USE.findall(self.source)
@@ -546,6 +547,23 @@ class SharedReleaseBundleWorkflowContracts(unittest.TestCase):
         )
         self.assertIn("validate-release-bundle.py", self.source)
         self.assertIn('git rev-list -n 1 "refs/tags/$RELEASE_TAG"', self.source)
+        self.assertEqual(self.source.count('[[ "$GITHUB_REF_TYPE" == tag ]]'), 2)
+        self.assertEqual(
+            self.source.count('[[ "$GITHUB_REF" == "refs/tags/$RELEASE_TAG" ]]'), 2
+        )
+
+    def test_release_products_tags_and_publish_environments_are_closed_sets(self):
+        for value in (
+                "android-phone-release-candidate", "pico4-release-candidate",
+                "^android-phone-v[0-9]+\\.[0-9]+\\.[0-9]+-alpha\\.[0-9]+$",
+                "^pico4-v[0-9]+\\.[0-9]+\\.[0-9]+-rc\\.[0-9]+$"):
+            self.assertIn(value, self.source)
+        self.assertEqual(self.source.count("Unsupported release product"), 2)
+        publish = self.source.split("  draft-publish:", 1)[1]
+        self.assertLess(
+            publish.index("Reject non-tag or unprotected release invocation"),
+            publish.index("actions/checkout@"),
+        )
 
     def test_build_and_sbom_attestations_are_isolated_and_pinned(self):
         attest = self.source.split("  attest:", 1)[1].split("  draft-publish:", 1)[0]
