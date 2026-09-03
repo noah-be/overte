@@ -101,6 +101,7 @@ class ActionPinAuditTests(unittest.TestCase):
             f'name: &action_key uses\nsteps:\n  - uses: {pinned}\n  - ? *action_key\n    : actions/checkout@v4\n',
             f'steps:\n  - uses: {pinned}\n  - ? |-\n      uses\n    : actions/checkout@v4\n',
             f'steps:\n  - uses: {pinned}\n  - ?\n      uses\n    : actions/checkout@v4\n',
+            f'steps:\n  - uses: {pinned}\n  - {{ ?\n      uses\n    : actions/checkout@v4 }}\n',
             f'steps:\n  - uses: {pinned}\n  - {{"us\\x65s": actions/checkout@v4}}\n',
         ):
             with self.subTest(workflow=workflow):

@@ -19,7 +19,7 @@ USES_KEY = re.compile(r"(?:^|[^A-Za-z0-9_])[\"']?uses[\"']?\s*:")
 EXPLICIT_USES_KEY = re.compile(
     r"^\s*(?:-\s*)?\?\s+(?:!!str\s+)?[\"']?uses[\"']?\s*(?:#.*)?$"
 )
-EXPLICIT_KEY = re.compile(r"^\s*(?:-\s*)?\?(?:\s|$)")
+EXPLICIT_KEY = re.compile(r"(?:^\s*(?:-\s*)?|[{,]\s*)\?(?:\s|$)")
 YAML_ANCHOR = re.compile(r"(?:^|:\s+|-\s+|[{,]\s*)&[A-Za-z0-9_-]+(?:\s|$)")
 YAML_ALIAS_KEY = re.compile(r"(?:^|[{,]\s*|-\s*)\*[A-Za-z0-9_-]+\s*:")
 ESCAPED_QUOTED_KEY = re.compile(
@@ -101,7 +101,7 @@ def inventory(root: Path) -> tuple[ActionUse, ...]:
         relative = path.relative_to(root)
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if (
-                EXPLICIT_KEY.match(line)
+                EXPLICIT_KEY.search(line)
                 or YAML_ANCHOR.search(line)
                 or YAML_ALIAS_KEY.search(line)
                 or ESCAPED_QUOTED_KEY.search(line)
