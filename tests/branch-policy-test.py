@@ -215,6 +215,91 @@ class BranchPolicyTests(unittest.TestCase):
             "scoped-change",
         )
 
+    def test_exact_task_namespace_is_accepted_on_every_permanent_base(self):
+        for branch in self.branches.values():
+            head = f"task/{branch.scope}/123-maintenance-policy"
+            with self.subTest(base=branch.name, head=head):
+                self.assertEqual(
+                    BRANCH_POLICY.classify_pull_request(
+                        self.branches, branch.name, head
+                    ),
+                    "task",
+                )
+
+    def test_malformed_or_wrong_scope_task_names_are_rejected_on_every_base(self):
+        for branch in self.branches.values():
+            other_scope = next(
+                candidate.scope
+                for candidate in self.branches.values()
+                if candidate.scope != branch.scope
+            )
+            cases = (
+                f"task/{other_scope}/123-change",
+                f"task/{branch.scope}/0-change",
+                f"task/{branch.scope}/01-change",
+                f"task/{branch.scope}/123-",
+                f"task/{branch.scope}/123-Upper",
+                f"task/{branch.scope}/123-two--parts",
+                f"task/{branch.scope}/123-two_parts",
+                f"task/{branch.scope}/123-two.parts",
+                f"task/{branch.scope}/123/nested",
+            )
+            for head in cases:
+                with self.subTest(base=branch.name, head=head):
+                    with self.assertRaises(BRANCH_POLICY.PolicyError):
+                        BRANCH_POLICY.classify_pull_request(
+                            self.branches, branch.name, head
+                        )
+
+    def test_legacy_names_remain_accepted_on_every_permanent_base(self):
+        legacy_kinds = (
+            "feature", "fix", "docs", "refactor",
+            "test", "tests", "ci", "sync",
+        )
+        for branch in self.branches.values():
+            for kind in legacy_kinds:
+                head = f"{kind}/{branch.scope}/transition-compatible"
+                with self.subTest(base=branch.name, head=head):
+                    self.assertEqual(
+                        BRANCH_POLICY.classify_pull_request(
+                            self.branches, branch.name, head
+                        ),
+                        "scoped-change",
+                    )
+            self.assertEqual(
+                BRANCH_POLICY.classify_pull_request(
+                    self.branches,
+                    branch.name,
+                    f"promote/{branch.scope}/transition-compatible",
+                ),
+                "promotion",
+            )
+
+    def test_task_namespace_requires_the_event_repository(self):
+        head = "task/main/123-maintenance-policy"
+        self.assertEqual(
+            BRANCH_POLICY.evaluate_pull_request(
+                self.branches,
+                base="main",
+                head=head,
+                repository_id=100,
+                base_repository_id=100,
+                head_repository_id=100,
+                head_sha=CURRENT_SHA,
+            ),
+            "task",
+        )
+        with self.assertRaisesRegex(BRANCH_POLICY.PolicyError, "event repository"):
+            BRANCH_POLICY.evaluate_pull_request(
+                self.branches,
+                base="main",
+                head=head,
+                repository_id=100,
+                base_repository_id=100,
+                head_repository_id=200,
+                head_sha=CURRENT_SHA,
+            )
+
     def test_genuine_dependabot_security_update_is_accepted(self):
         result = BRANCH_POLICY.evaluate_pull_request(
             self.branches,
@@ -420,6 +505,77 @@ class BranchPolicyTests(unittest.TestCase):
             changed_files=("tools/branch-policy/check.py",),
         )
         self.assertEqual(result, "scoped-change")
+
+    def test_maintenance_paths_are_privileged_without_prefix_confusion(self):
+        privileged = (
+            ".github/maintenance-policy.json",
+            "tools/maintenance/contracts.py",
+            "tests/maintenance/policy/test_policy.py",
+        )
+        ordinary = (
+            ".github/maintenance-policy.json.bak",
+            "tools/maintenance-extra/contracts.py",
+            "tests/maintenance-extra/test_policy.py",
+        )
+        for path in privileged:
+            with self.subTest(path=path):
+                self.assertTrue(BRANCH_POLICY.changes_privileged_policy((path,)))
+        for path in ordinary:
+            with self.subTest(path=path):
+                self.assertFalse(BRANCH_POLICY.changes_privileged_policy((path,)))
+
+    def test_maintenance_paths_follow_existing_privileged_transfer_rules(self):
+        paths = (
+            ".github/maintenance-policy.json",
+            "tools/maintenance/contracts.py",
+            "tests/maintenance/policy/test_policy.py",
+        )
+        for path in paths:
+            with self.subTest(path=path, route="main-task"):
+                self.assertEqual(
+                    BRANCH_POLICY.evaluate_pull_request(
+                        self.branches,
+                        base="main",
+                        head="task/main/123-maintenance-policy",
+                        repository_id=100,
+                        base_repository_id=100,
+                        head_repository_id=100,
+                        head_sha=CURRENT_SHA,
+                        changed_files=(path,),
+                    ),
+                    "task",
+                )
+
+            with self.subTest(path=path, route="child-task-rejected"):
+                with self.assertRaisesRegex(
+                    BRANCH_POLICY.PolicyError, "privileged policy"
+                ):
+                    BRANCH_POLICY.evaluate_pull_request(
+                        self.branches,
+                        base="android-main",
+                        head="task/android/123-maintenance-policy",
+                        repository_id=100,
+                        base_repository_id=100,
+                        head_repository_id=100,
+                        head_sha=CURRENT_SHA,
+                        changed_files=(path,),
+                    )
+
+            with self.subTest(path=path, route="verified-forward-sync"):
+                self.assertEqual(
+                    BRANCH_POLICY.evaluate_pull_request(
+                        self.branches,
+                        base="android-main",
+                        head="main",
+                        repository_id=100,
+                        base_repository_id=100,
+                        head_repository_id=100,
+                        head_sha=CURRENT_SHA,
+                        expected_head_sha=CURRENT_SHA,
+                        changed_files=(path,),
+                    ),
+                    "downstream-sync",
+                )
 
     def test_direct_parent_sync_may_carry_privileged_policy(self):
         for branch in self.branches.values():
