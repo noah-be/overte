@@ -53,11 +53,22 @@ jobs:
         run: |
           set -euo pipefail
           expected_head_args=()
+          identity_args=()
           if python3 tools/branch-policy/check.py is-permanent --branch "$HEAD_BRANCH" >/dev/null 2>&1; then
             expected_head_sha=$(gh api \
               "repos/$REPOSITORY/git/ref/heads/$HEAD_BRANCH" \
               --jq '.object.sha')
             expected_head_args=(--expected-head-sha "$expected_head_sha")
+          fi
+          # Bootstrap compatibility: this workflow deliberately executes the
+          # trusted default-branch checker, which lacks the new identity flags
+          # until this hardening PR itself is merged.
+          if python3 tools/branch-policy/check.py check-pr --help | \
+              grep -q -- '--pr-author-login'; then
+            identity_args=(
+              --pr-author-login "$PR_AUTHOR_LOGIN"
+              --pr-author-type "$PR_AUTHOR_TYPE"
+            )
           fi
 
           changed_files=$(gh api --paginate \
@@ -71,7 +82,6 @@ jobs:
             --base-repository-id "$BASE_REPOSITORY_ID" \
             --head-repository-id "$HEAD_REPOSITORY_ID" \
             --head-sha "$HEAD_SHA" \
-            --pr-author-login "$PR_AUTHOR_LOGIN" \
-            --pr-author-type "$PR_AUTHOR_TYPE" \
+            "${identity_args[@]}" \
             "${expected_head_args[@]}" \
             --changed-files-stdin
