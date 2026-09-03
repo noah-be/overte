@@ -46,10 +46,18 @@ def sha256(path: Path) -> str:
 
 
 def secure_directory(path: Path) -> Path:
-    path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    requested = Path(os.path.abspath(path))
+    if path.is_symlink() or requested.resolve() != requested:
+        fail("private directory path must not contain symlinks")
+    requested.mkdir(parents=True, exist_ok=True, mode=0o700)
     if os.name != "nt":
-        path.chmod(0o700)
-    return path.resolve()
+        requested.chmod(0o700)
+        metadata = requested.stat()
+        if stat.S_IMODE(metadata.st_mode) != 0o700:
+            fail("private directory must have mode 0700")
+        if hasattr(os, "geteuid") and metadata.st_uid != os.geteuid():
+            fail("private directory must be owned by the current user")
+    return requested
 
 
 def secure_write(path: Path, value: str) -> None:
