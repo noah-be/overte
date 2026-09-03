@@ -14,6 +14,7 @@ import unittest
 
 CHECK = Path(__file__).with_name("apple-branch-topology-check.py")
 WORKFLOW = CHECK.parents[1] / ".github/workflows/apple-branch-topology.yml"
+MACOS_WORKFLOW = CHECK.parents[1] / ".github/workflows/macos-bootstrap.yml"
 SPEC = importlib.util.spec_from_file_location("apple_topology", CHECK)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader
@@ -105,6 +106,12 @@ class AppleBranchTopologyTest(unittest.TestCase):
         self.assertNotIn(
             "apple-macos",
             WORKFLOW.read_text(encoding="utf-8"),
+        )
+        macos_workflow = MACOS_WORKFLOW.read_text(encoding="utf-8")
+        self.assertRegex(macos_workflow, r"(?m)^  workflow_dispatch:$")
+        self.assertNotRegex(
+            macos_workflow,
+            r"(?m)^  (push|pull_request|pull_request_target):$",
         )
 
     def test_exact_ios_owned_file_is_allowed(self):
