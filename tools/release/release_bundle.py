@@ -9,6 +9,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
+import subprocess
 import tarfile
 import tempfile
 from urllib.parse import urlparse
@@ -44,6 +45,26 @@ def sha256(path: Path) -> str:
     with path.open("rb") as source:
         for block in iter(lambda: source.read(1024 * 1024), b""):
             digest.update(block)
+    return digest.hexdigest()
+
+
+def git_archive_sha256(repository: Path, revision: str) -> str:
+    """Hash the canonical uncompressed Git archive for an exact commit."""
+    if not HEX40.fullmatch(revision):
+        fail("source revision must be a lowercase 40-character commit")
+    process = subprocess.Popen(
+        ["git", "-C", str(repository), "archive", "--format=tar", revision],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    digest = hashlib.sha256()
+    assert process.stdout is not None
+    for block in iter(lambda: process.stdout.read(1024 * 1024), b""):
+        digest.update(block)
+    assert process.stderr is not None
+    stderr = process.stderr.read().decode("utf-8", errors="replace")
+    if process.wait():
+        fail(f"git archive failed: {stderr.strip()}")
     return digest.hexdigest()
 
 

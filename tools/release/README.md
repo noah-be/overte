@@ -63,3 +63,15 @@ jobs must keep read-only repository permissions.
 Do not connect that reusable workflow until the product build produces a real,
 complete dependency and license inventory. A placeholder inventory must fail
 closed rather than turn this contract into an unsupported completeness claim.
+
+Both product entry points expose this contract without changing their existing
+legacy candidate-metadata mode. Pass the complete set of evidence options to
+`android/phone/ci/create-phone-release-metadata.py` or
+`android/vr/pico/ci/pico4-release.py` to create a separate complete bundle.
+Supplying only part of the set is rejected. The source archive must be the
+byte-identical uncompressed `git archive --format=tar` for the recorded commit.
+Legacy output is not accepted by the attestation/draft workflow as a complete
+bundle because it has no `release-bundle.json` with `complete: true`.
+The legacy manifests also carry `complete_release_bundle: false` and a narrow
+`inventory_scope`. Legacy and complete output directories must not overlap, so
+an unsuccessful complete build cannot be mistaken for upgraded legacy output.
