@@ -90,6 +90,26 @@ class ActionPinAuditTests(unittest.TestCase):
         with self.assertRaises(PIN_AUDIT.PinError):
             PIN_AUDIT.inventory(root)
 
+    def test_local_reusable_workflow_is_allowed_and_scanned(self):
+        pinned = "actions/checkout@" + "1" * 40
+        temporary, root = self.fixture(
+            "jobs:\n  call:\n    uses: ./.github/workflows/called.yml\n")
+        self.addCleanup(temporary.cleanup)
+        (root / ".github/workflows/called.yml").write_text(
+            f"jobs:\n  test:\n    steps:\n      - uses: {pinned}\n", encoding="utf-8"
+        )
+        uses = PIN_AUDIT.inventory(root)
+        self.assertEqual(sorted(item.kind for item in uses), ["local", "remote"])
+
+    def test_local_yaml_outside_workflow_root_is_not_a_reusable_workflow(self):
+        temporary, root = self.fixture("jobs:\n  call:\n    uses: ./vendor/called.yml\n")
+        self.addCleanup(temporary.cleanup)
+        target = root / "vendor/called.yml"
+        target.parent.mkdir(parents=True)
+        target.write_text("jobs: {}\n", encoding="utf-8")
+        with self.assertRaises(PIN_AUDIT.PinError):
+            PIN_AUDIT.inventory(root)
+
     def test_transitive_local_action_cycles_are_duplicate_safe(self):
         temporary, root = self.fixture("steps:\n  - uses: ./vendor/one\n")
         self.addCleanup(temporary.cleanup)
