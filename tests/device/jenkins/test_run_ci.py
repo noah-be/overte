@@ -848,6 +848,7 @@ class JenkinsGlueTest(unittest.TestCase):
             "IOS_DDI_ROOT",
             "IOS_PRODUCER_RUN_ATTEMPT",
             "stage('Preinstalled Personal Team gate')",
+            "lock(resource: deviceResource(resolvedProfile()), inversePrecedence: true)",
             "runDeviceSuite('portable-smoke', 45)",
             "RUN_STABILITY_CAMPAIGN",
             "STABILITY_REPETITIONS",
@@ -874,6 +875,7 @@ class JenkinsGlueTest(unittest.TestCase):
                         source.index("runDeviceSuite('stability'"))
         self.assertNotIn("runDeviceSuite('lifecycle-stability'", source)
         self.assertNotIn("runDeviceSuite('smoke'", source)
+        self.assertNotIn("lock(resource: params.DEVICE_RESOURCE", source)
         self.assertIn("RUN_CORE is mandatory", source)
         self.assertIn("choices: ['network', 'embedded']", source)
         self.assertIn("params.FIXTURE_MODE == 'network'", source)
