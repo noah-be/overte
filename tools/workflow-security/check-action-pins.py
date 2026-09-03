@@ -72,12 +72,23 @@ def scalar(value: str, path: Path, line: int) -> str:
     return value
 
 
-def local_action_manifest(root: Path, reference: str, path: Path, line: int) -> Path:
+def local_uses_source(root: Path, reference: str, path: Path, line: int) -> Path:
     target = (root / reference).resolve()
     try:
         target.relative_to(root.resolve())
     except ValueError as error:
         raise PinError(f"{path}:{line}: local action escapes the repository") from error
+    if target.is_file() and not target.is_symlink():
+        workflow_root = (root / WORKFLOW_ROOT).resolve()
+        try:
+            target.relative_to(workflow_root)
+        except ValueError as error:
+            raise PinError(
+                f"{path}:{line}: local reusable workflow must be under .github/workflows"
+            ) from error
+        if target.suffix not in (".yml", ".yaml"):
+            raise PinError(f"{path}:{line}: local reusable workflow has an invalid suffix")
+        return target
     manifests = [target / name for name in ("action.yml", "action.yaml")
                  if (target / name).is_file() and not (target / name).is_symlink()]
     if not target.is_dir() or len(manifests) != 1:
@@ -91,7 +102,7 @@ def classify(root: Path, reference: str, path: Path, line: int) -> str:
     if "${{" in reference:
         raise PinError(f"{path}:{line}: dynamic uses references are forbidden")
     if reference.startswith("./"):
-        local_action_manifest(root, reference, path, line)
+        local_uses_source(root, reference, path, line)
         return "local"
     if DIGEST_CONTAINER.fullmatch(reference):
         return "container"
@@ -138,7 +149,7 @@ def inventory(root: Path) -> tuple[ActionUse, ...]:
                           reference=reference, kind=kind)
             )
             if kind == "local":
-                manifest = local_action_manifest(root, reference, relative, number)
+                manifest = local_uses_source(root, reference, relative, number)
                 if manifest not in seen and manifest not in pending:
                     pending.append(manifest)
                     pending.sort()
