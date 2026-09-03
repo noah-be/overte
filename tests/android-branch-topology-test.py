@@ -136,6 +136,40 @@ class AndroidBranchTopologyTest(unittest.TestCase):
         )
         self.assertTrue(any("tests/device differs" in error for error in errors))
 
+    def test_phone_owned_phase_c_paths_are_allowed(self):
+        for path in (
+            "tests/device/adapters/appium/README.md",
+            "tests/device/adapters/appium/adapter.py",
+            "tests/device/jenkins/Jenkinsfile",
+            "tests/device/jenkins/README.md",
+            "tests/device/jenkins/run_ci.py",
+            "tests/device/jenkins/test_run_ci.py",
+            "tests/device/self_tests/test_appium_adapter.py",
+        ):
+            with self.subTest(path=path):
+                run(self.repo, "checkout", "-q", self.android_main)
+                head = self.commit(path, "phone-owned contract\n")
+                self.assertEqual(
+                    [],
+                    MODULE.validate(
+                        self.repo,
+                        "android-phone",
+                        self.android_main,
+                        self.android_vr,
+                        head,
+                    ),
+                )
+
+    def test_other_phone_harness_change_is_rejected(self):
+        run(self.repo, "checkout", "-q", self.android_main)
+        head = self.commit(
+            "tests/device/jenkins/test_unplanned_phone_change.py", "not owned\n"
+        )
+        errors = MODULE.validate(
+            self.repo, "android-phone", self.android_main, self.android_vr, head
+        )
+        self.assertTrue(any("tests/device differs" in error for error in errors))
+
     def test_phone_flat_touch_policy_change_is_rejected_on_vr(self):
         run(self.repo, "checkout", "-q", self.android_main)
         head = self.commit(
@@ -150,6 +184,36 @@ class AndroidBranchTopologyTest(unittest.TestCase):
         run(self.repo, "checkout", "-q", self.android_vr)
         head = self.commit(
             "tests/device/policies/android-phone-flat-touch.json", "{}\n"
+        )
+        errors = MODULE.validate(
+            self.repo, "android-vr-pico", self.android_main, self.android_vr, head
+        )
+        self.assertTrue(any("tests/device differs" in error for error in errors))
+
+    def test_pico_owned_phase_c_test_fixtures_are_allowed(self):
+        for path in (
+            "tests/device/jenkins/test_conan_cache_manager.py",
+            "tests/device/jenkins/test_local_lab.py",
+            "tests/device/self_tests/test_pico_openxr_adapter_session.py",
+        ):
+            with self.subTest(path=path):
+                run(self.repo, "checkout", "-q", self.android_vr)
+                head = self.commit(path, "pico-owned fixture\n")
+                self.assertEqual(
+                    [],
+                    MODULE.validate(
+                        self.repo,
+                        "android-vr-pico",
+                        self.android_main,
+                        self.android_vr,
+                        head,
+                    ),
+                )
+
+    def test_other_pico_tests_device_change_is_rejected(self):
+        run(self.repo, "checkout", "-q", self.android_vr)
+        head = self.commit(
+            "tests/device/jenkins/test_unplanned_pico_change.py", "not owned\n"
         )
         errors = MODULE.validate(
             self.repo, "android-vr-pico", self.android_main, self.android_vr, head
