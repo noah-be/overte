@@ -78,6 +78,48 @@ class ActionPinAuditTests(unittest.TestCase):
                 with self.assertRaises(PIN_AUDIT.PinError):
                     PIN_AUDIT.inventory(root)
 
+    def test_referenced_composite_outside_standard_root_is_scanned_transitively(self):
+        temporary, root = self.fixture("steps:\n  - uses: ./vendor/local-action\n")
+        self.addCleanup(temporary.cleanup)
+        action = root / "vendor/local-action"
+        action.mkdir(parents=True)
+        (action / "action.yml").write_text(
+            "runs:\n  using: composite\n  steps:\n    - uses: actions/checkout@v4\n",
+            encoding="utf-8",
+        )
+        with self.assertRaises(PIN_AUDIT.PinError):
+            PIN_AUDIT.inventory(root)
+
+    def test_transitive_local_action_cycles_are_duplicate_safe(self):
+        temporary, root = self.fixture("steps:\n  - uses: ./vendor/one\n")
+        self.addCleanup(temporary.cleanup)
+        for name, target in (("one", "two"), ("two", "one")):
+            action = root / "vendor" / name
+            action.mkdir(parents=True)
+            (action / "action.yaml").write_text(
+                "runs:\n  using: composite\n  steps:\n"
+                f"    - uses: ./vendor/{target}\n",
+                encoding="utf-8",
+            )
+        uses = PIN_AUDIT.inventory(root)
+        self.assertEqual([item.kind for item in uses], ["local", "local", "local"])
+        self.assertEqual(len({item.path for item in uses}), 3)
+
+    @unittest.skipUnless(hasattr(Path, "symlink_to"), "symlinks unavailable")
+    def test_symlinked_local_action_manifest_fails_closed(self):
+        temporary, root = self.fixture("steps:\n  - uses: ./vendor/local-action\n")
+        self.addCleanup(temporary.cleanup)
+        action = root / "vendor/local-action"
+        action.mkdir(parents=True)
+        real = root / "real-action.yml"
+        real.write_text("runs:\n  using: composite\n  steps: []\n", encoding="utf-8")
+        try:
+            (action / "action.yml").symlink_to(real)
+        except OSError:
+            self.skipTest("symlinks unavailable")
+        with self.assertRaises(PIN_AUDIT.PinError):
+            PIN_AUDIT.inventory(root)
+
     def test_inline_or_malformed_uses_fails_closed(self):
         for workflow in (
             "steps:\n  - uses: actions/checkout@1111111111111111111111111111111111111111\n  - {uses: owner/action@main}\n",

@@ -72,19 +72,26 @@ def scalar(value: str, path: Path, line: int) -> str:
     return value
 
 
+def local_action_manifest(root: Path, reference: str, path: Path, line: int) -> Path:
+    target = (root / reference).resolve()
+    try:
+        target.relative_to(root.resolve())
+    except ValueError as error:
+        raise PinError(f"{path}:{line}: local action escapes the repository") from error
+    manifests = [target / name for name in ("action.yml", "action.yaml")
+                 if (target / name).is_file() and not (target / name).is_symlink()]
+    if not target.is_dir() or len(manifests) != 1:
+        raise PinError(
+            f"{path}:{line}: local action must contain exactly one action manifest"
+        )
+    return manifests[0]
+
+
 def classify(root: Path, reference: str, path: Path, line: int) -> str:
     if "${{" in reference:
         raise PinError(f"{path}:{line}: dynamic uses references are forbidden")
     if reference.startswith("./"):
-        target = (root / reference).resolve()
-        try:
-            target.relative_to(root.resolve())
-        except ValueError as error:
-            raise PinError(f"{path}:{line}: local action escapes the repository") from error
-        if not target.is_dir() or not any(
-            (target / manifest).is_file() for manifest in ("action.yml", "action.yaml")
-        ):
-            raise PinError(f"{path}:{line}: local action manifest does not exist")
+        local_action_manifest(root, reference, path, line)
         return "local"
     if DIGEST_CONTAINER.fullmatch(reference):
         return "container"
@@ -97,7 +104,13 @@ def classify(root: Path, reference: str, path: Path, line: int) -> str:
 
 def inventory(root: Path) -> tuple[ActionUse, ...]:
     uses = []
-    for path in source_files(root):
+    pending = list(source_files(root))
+    seen: set[Path] = set()
+    while pending:
+        path = pending.pop(0)
+        if path in seen:
+            continue
+        seen.add(path)
         relative = path.relative_to(root)
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if (
@@ -119,14 +132,16 @@ def inventory(root: Path) -> tuple[ActionUse, ...]:
                     raise PinError(f"{relative}:{number}: uses must be a block-style scalar")
                 continue
             reference = scalar(match.group("value"), relative, number)
+            kind = classify(root, reference, relative, number)
             uses.append(
-                ActionUse(
-                    path=relative.as_posix(),
-                    line=number,
-                    reference=reference,
-                    kind=classify(root, reference, relative, number),
-                )
+                ActionUse(path=relative.as_posix(), line=number,
+                          reference=reference, kind=kind)
             )
+            if kind == "local":
+                manifest = local_action_manifest(root, reference, relative, number)
+                if manifest not in seen and manifest not in pending:
+                    pending.append(manifest)
+                    pending.sort()
     if not uses:
         raise PinError("no workflow or composite-action uses entries found")
     return tuple(uses)
@@ -153,7 +168,8 @@ def main() -> int:
         print(
             "action pin audit passed: "
             f"{len(uses)} uses ({counts['remote']} remote, {counts['local']} local, "
-            f"{counts['container']} container) across {len(source_files(args.root.resolve()))} files"
+            f"{counts['container']} container) across "
+            f"{len({item.path for item in uses})} files"
         )
     return 0
 
