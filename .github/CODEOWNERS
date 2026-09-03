@@ -11,6 +11,8 @@
 /.github/rulesets/ @noah-be
 /tools/branch-policy/ @noah-be
 /tests/branch-policy-test.py @noah-be
+/tools/workflow-security/ @noah-be
+/tests/workflow-action-pin-test.py @noah-be
 
 # Workflow code and reusable automation
 /.github/actions/ @noah-be
