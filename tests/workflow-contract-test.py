@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/project-tests.yml"
 BUILD_WORKFLOW = ROOT / ".github/workflows/pico4-build.yml"
 RELEASE_WORKFLOW = ROOT / ".github/workflows/pico4-release-candidate.yml"
+RELEASE_BUNDLE_WORKFLOW = ROOT / ".github/workflows/release-bundle-attest-draft.yml"
 DEVICE_WORKFLOW = ROOT / ".github/workflows/pico4-device-acceptance.yml"
 ANDROID_TESTS_WORKFLOW = ROOT / ".github/workflows/android-tests.yml"
 DOCUMENTATION_WORKFLOW = ROOT / ".github/workflows/documentation-checks.yml"
@@ -18,13 +19,13 @@ BRANCH_POLICY_WORKFLOW = ROOT / ".github/workflows/branch-policy.yml"
 BRANCH_SYNC_WORKFLOW = ROOT / ".github/workflows/branch-sync.yml"
 DESKTOP_TOPOLOGY_WORKFLOW = ROOT / ".github/workflows/desktop-branch-topology.yml"
 WORKFLOW_DIRECTORY = ROOT / ".github/workflows"
+CODEQL_WORKFLOW = ROOT / ".github/workflows/codeql.yml"
 IOS_WORKFLOW = ROOT / ".github/workflows/ios-bootstrap.yml"
 MACOS_WORKFLOW = ROOT / ".github/workflows/macos-bootstrap.yml"
 RULESETS = ROOT / ".github/rulesets"
 RULESET_FILES = {
     "Android target branch topology": "android-target-branches.json",
     "Apple target branch topology": "apple-target-branches.json",
-    "Archived branches": "archived-branches.json",
     "Desktop branch topology": "desktop-branches.json",
     "Immutable Android, canonical, and archive tags": "android-release-tags.json",
     "Immutable Pico 4 release and dependency tags": "pico4-release-tags.json",
@@ -89,6 +90,45 @@ class WorkflowStorageContracts(unittest.TestCase):
         self.assertNotIn("SCCACHE_GHA_ENABLED", sources)
 
 
+class CodeQLWorkflowContracts(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.source = CODEQL_WORKFLOW.read_text(encoding="utf-8")
+
+    def test_pilot_is_github_hosted_and_bounded(self):
+        self.assertIn("runs-on: ubuntu-24.04", self.source)
+        self.assertNotIn("self-hosted", self.source)
+        self.assertIn("timeout-minutes: 30", self.source)
+        self.assertIn("language: [javascript-typescript, python]", self.source)
+        self.assertIn("build-mode: none", self.source)
+
+    def test_permissions_are_least_privilege(self):
+        self.assertRegex(self.source, r"(?m)^permissions:\n  contents: read$")
+        analyze = self.source.split("  analyze:", 1)[1]
+        self.assertRegex(
+            analyze,
+            r"(?m)^    permissions:\n      contents: read\n      security-events: write$",
+        )
+        self.assertNotRegex(self.source, r"(?m)^\s+(actions|attestations|id-token|packages): write$")
+
+    def test_actions_are_fresh_full_sha_pins(self):
+        actions = ACTION_USE.findall(self.source)
+        self.assertEqual(len(actions), 3)
+        self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
+        codeql = [action for action in actions if action.startswith("github/codeql-action/")]
+        self.assertEqual(
+            codeql,
+            [
+                "github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938",
+                "github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938",
+            ],
+        )
+
+    def test_checkout_is_credential_free_and_default_setup_is_not_mixed_in(self):
+        self.assertIn("persist-credentials: false", self.source)
+        self.assertNotIn("autobuild", self.source)
+
+
 class BranchGovernanceWorkflowContracts(unittest.TestCase):
     def test_policy_is_a_native_read_only_pull_request_check(self):
         source = BRANCH_POLICY_WORKFLOW.read_text(encoding="utf-8")
@@ -104,6 +144,8 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         self.assertIn("github.event.pull_request.head.sha", source)
         self.assertIn("github.event.pull_request.head.repo.id", source)
         self.assertIn("github.event.pull_request.base.repo.id", source)
+        self.assertIn("github.event.pull_request.user.login", source)
+        self.assertIn("github.event.pull_request.user.type", source)
         self.assertIn("github.event.repository.id", source)
         self.assertNotIn("check-runs", source)
         self.assertNotRegex(source, r"(?m)^\s*(checks|pull-requests|contents): write$")
@@ -194,7 +236,7 @@ class RulesetManifestContracts(unittest.TestCase):
     def rule(manifest, rule_type):
         return next(rule for rule in manifest["rules"] if rule["type"] == rule_type)
 
-    def test_all_seven_live_rulesets_are_complete_and_versioned(self):
+    def test_all_six_persistent_rulesets_are_complete_and_versioned(self):
         versioned = []
         for path in RULESETS.glob("*.json"):
             candidate = json.loads(path.read_text(encoding="utf-8"))
@@ -280,7 +322,6 @@ class RulesetManifestContracts(unittest.TestCase):
         for name in (
             "Android target branch topology",
             "Apple target branch topology",
-            "Archived branches",
             "Immutable Android, canonical, and archive tags",
             "Immutable Pico 4 release and dependency tags",
             "Permanent branch governance",
@@ -288,21 +329,6 @@ class RulesetManifestContracts(unittest.TestCase):
             rule_types = {rule["type"] for rule in self.manifests[name]["rules"]}
             self.assertIn("deletion", rule_types)
             self.assertIn("non_fast_forward", rule_types)
-
-    def test_archives_are_immutable(self):
-        archived = self.manifests["Archived branches"]
-        self.assertEqual(
-            archived["conditions"]["ref_name"]["include"],
-            [
-                "refs/heads/android-vr-quest",
-                "refs/heads/apple-macos",
-                "refs/heads/backup/**",
-            ],
-        )
-        self.assertEqual(
-            self.rule(archived, "update")["parameters"],
-            {"update_allows_fetch_and_merge": False},
-        )
 
     def test_used_release_dependency_and_archive_tag_namespaces_are_protected(self):
         protected = set()
@@ -346,6 +372,39 @@ class RulesetManifestContracts(unittest.TestCase):
             },
         )
 
+
+class ArchivedRefRetirementContracts(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.path = RULESETS / "retirements/archived-branches.json"
+        cls.plan = json.loads(cls.path.read_text(encoding="utf-8"))
+
+    def test_temporary_ruleset_is_retired_without_bypass(self):
+        retirement = self.plan["ruleset_retirement"]
+        self.assertEqual(retirement["name"], "Archived branches")
+        self.assertEqual(retirement["operation"], "delete_ruleset_by_freshly_resolved_id")
+        self.assertEqual(retirement["expected_current"]["bypass_actors"], [])
+        self.assertIn("never use a bypass", retirement["sequence"])
+        self.assertFalse((RULESETS / "archived-branches.json").exists())
+
+    def test_all_exact_archive_refs_are_unique_and_batched_4_4_4_1(self):
+        refs = self.plan["archive_refs"]
+        self.assertEqual(len(refs), 13)
+        self.assertEqual(
+            [item["disposition"] for item in refs].count("verify_existing"), 2
+        )
+        self.assertEqual(
+            [item["disposition"] for item in refs].count("create_annotated"), 11
+        )
+        sources = [item["source"] for item in refs]
+        tags = [item["tag"] for item in refs]
+        self.assertEqual(len(sources), len(set(sources)))
+        self.assertEqual(len(tags), len(set(tags)))
+        self.assertTrue(all(re.fullmatch(r"[0-9a-f]{40}", item["tip"]) for item in refs))
+        self.assertTrue(all(tag.startswith("refs/tags/archive/") for tag in tags))
+        batches = self.plan["deletion_batches"]
+        self.assertEqual([len(batch) for batch in batches], [4, 4, 4, 1])
+        self.assertEqual([source for batch in batches for source in batch], sources)
 
 class PicoWorkflowContracts(unittest.TestCase):
     @classmethod
@@ -450,7 +509,9 @@ class PicoReleaseWorkflowContracts(unittest.TestCase):
         self.assertIn("environment: pico4-release-candidate", self.source)
         self.assertIn("runs-on: [self-hosted, linux, x64, overte-android-release]", self.source)
         self.assertRegex(self.source, r"(?m)^permissions:\n  contents: read$")
-        self.assertIn("contents: write", self.source)
+        self.assertNotIn("contents: write", self.source)
+        self.assertIn("if: ${{ inputs.release_pilot_authorized }}", self.source)
+        self.assertIn("default: false", self.source)
 
     def test_release_actions_are_pinned_and_checkout_has_no_credentials(self):
         actions = ACTION_USE.findall(self.source)
@@ -458,19 +519,76 @@ class PicoReleaseWorkflowContracts(unittest.TestCase):
         self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
         self.assertIn("persist-credentials: false", self.source)
 
-    def test_release_reuses_gates_and_only_creates_a_draft(self):
+    def test_legacy_release_reuses_gates_but_cannot_create_a_draft(self):
         for contract in ("tests/run-project-tests.py", "./vr/pico/build.sh deps --download",
                          "android/vr/pico/ci/verify-pico-apk.py", "--expected-version-code",
                          "--expected-version-name", "--expected-signer-sha256"):
             self.assertIn(contract, self.source)
-        self.assertIn("gh release create", self.source)
-        self.assertIn("--draft --verify-tag", self.source)
+        self.assertNotIn("gh release create", self.source)
+        self.assertNotIn("--draft --verify-tag", self.source)
         self.assertNotIn("gh release edit", self.source)
 
     def test_release_prepares_auditable_outputs_without_device_access(self):
         for output in ("pico4-release-manifest.json", "pico4-sbom.cdx.json", "SHA256SUMS"):
             self.assertIn(output, self.source)
         self.assertNotRegex(self.source, r"(?m)^\s+run:.*\badb\b")
+
+
+class SharedReleaseBundleWorkflowContracts(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.source = RELEASE_BUNDLE_WORKFLOW.read_text(encoding="utf-8")
+
+    def test_reusable_gate_has_no_untrusted_or_manual_entrypoint(self):
+        self.assertRegex(self.source, r"(?m)^  workflow_call:$")
+        self.assertNotRegex(
+            self.source,
+            r"(?m)^  (pull_request|pull_request_target|push|workflow_dispatch):$",
+        )
+        self.assertIn("validate-release-bundle.py", self.source)
+        self.assertIn('git rev-list -n 1 "refs/tags/$RELEASE_TAG"', self.source)
+        self.assertEqual(self.source.count('[[ "$GITHUB_REF_TYPE" == tag ]]'), 2)
+        self.assertEqual(
+            self.source.count('[[ "$GITHUB_REF" == "refs/tags/$RELEASE_TAG" ]]'), 2
+        )
+
+    def test_release_products_tags_and_publish_environments_are_closed_sets(self):
+        for value in (
+                "android-phone-release-candidate", "pico4-release-candidate",
+                "^android-phone-v[0-9]+\\.[0-9]+\\.[0-9]+-alpha\\.[0-9]+$",
+                "^pico4-v[0-9]+\\.[0-9]+\\.[0-9]+-rc\\.[0-9]+$"):
+            self.assertIn(value, self.source)
+        self.assertEqual(self.source.count("Unsupported release product"), 2)
+        publish = self.source.split("  draft-publish:", 1)[1]
+        self.assertLess(
+            publish.index("Reject non-tag or unprotected release invocation"),
+            publish.index("actions/checkout@"),
+        )
+
+    def test_build_and_sbom_attestations_are_isolated_and_pinned(self):
+        attest = self.source.split("  attest:", 1)[1].split("  draft-publish:", 1)[0]
+        self.assertRegex(
+            attest,
+            r"(?m)^    permissions:\n      contents: read\n      id-token: write\n      attestations: write$",
+        )
+        self.assertEqual(attest.count(
+            "actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6"), 2)
+        self.assertIn("subject-path:", attest)
+        self.assertIn("sbom-path:", attest)
+        actions = ACTION_USE.findall(self.source)
+        self.assertGreaterEqual(len(actions), 6)
+        self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
+
+    def test_draft_job_has_only_contents_write_and_environment_approval(self):
+        publish = self.source.split("  draft-publish:", 1)[1]
+        self.assertIn("environment: ${{ inputs.publish_environment }}", publish)
+        self.assertRegex(publish, r"(?m)^    permissions:\n      contents: write$")
+        self.assertNotIn("id-token: write", publish)
+        self.assertNotIn("attestations: write", publish)
+        self.assertIn("gh release create", publish)
+        self.assertIn("--draft --verify-tag", publish)
+        self.assertNotIn("gh release edit", publish)
+        self.assertNotIn("gh release upload", publish)
 
 
 class PicoDeviceAcceptanceWorkflowContracts(unittest.TestCase):
