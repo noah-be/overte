@@ -6,12 +6,16 @@ on:
       - ".github/actions/**"
       - ".github/workflows/**"
       - ".github/actionlint.yaml"
+      - "tools/workflow-security/**"
+      - "tests/workflow-action-pin-test.py"
   push:
     branches: [main]
     paths:
       - ".github/actions/**"
       - ".github/workflows/**"
       - ".github/actionlint.yaml"
+      - "tools/workflow-security/**"
+      - "tests/workflow-action-pin-test.py"
 
 permissions:
   contents: read

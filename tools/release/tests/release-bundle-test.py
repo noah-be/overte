@@ -159,7 +159,7 @@ class ReleaseBundleTests(unittest.TestCase):
         components[0]["spdx_license"] = "UNKNOWN"
         result = self.build(self.write_inventory(components))
         self.assertEqual(2, result.returncode)
-        self.assertIn("unresolved license", result.stderr)
+        self.assertIn("is unresolved", result.stderr)
 
     def test_rejects_unresolved_compound_or_trailing_license_text(self):
         for expression in ("UNKNOWN AND MIT", "MIT arbitrary text"):

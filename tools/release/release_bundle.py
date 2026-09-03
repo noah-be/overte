@@ -11,6 +11,7 @@ import re
 import shutil
 import tarfile
 import tempfile
+from urllib.parse import urlparse
 import zipfile
 
 
@@ -23,6 +24,7 @@ REQUIRED_CATEGORIES = {
 HEX64 = re.compile(r"[0-9a-f]{64}")
 HEX40 = re.compile(r"[0-9a-f]{40}")
 SPDX = re.compile(r"[A-Za-z0-9][A-Za-z0-9.+-]*(?: WITH [A-Za-z0-9.+-]+)?")
+UNRESOLVED = re.compile(r"(?:^|[^A-Za-z0-9])(?:NOASSERTION|NONE|UNKNOWN)(?:$|[^A-Za-z0-9])")
 
 
 class BundleError(RuntimeError):
@@ -69,6 +71,14 @@ def safe_name(value: object, label: str) -> str:
     return value
 
 
+def resolved_text(value: object, label: str) -> str:
+    if not isinstance(value, str) or not value.strip() or value != value.strip():
+        fail(f"{label} must be a non-empty normalized string")
+    if UNRESOLVED.search(value.upper()):
+        fail(f"{label} is unresolved")
+    return value
+
+
 def validated_inventory(value: dict) -> tuple[list[dict], set[str]]:
     if value.get("schema") != "org.overte.release-license-inventory.v1":
         fail("license inventory has the wrong schema")
@@ -87,16 +97,17 @@ def validated_inventory(value: dict) -> tuple[list[dict], set[str]]:
         if not isinstance(bom_ref, str) or not bom_ref or bom_ref in refs:
             fail(f"{label} has a missing or duplicate bom_ref")
         refs.add(bom_ref)
-        for field in ("name", "version", "source", "sha256", "spdx_license"):
-            if not isinstance(component.get(field), str) or not component[field].strip():
-                fail(f"{label} is missing {field}")
+        for field in ("name", "version", "source", "spdx_license"):
+            resolved_text(component.get(field), f"{label} {field}")
+        if not isinstance(component.get("sha256"), str):
+            fail(f"{label} is missing sha256")
         if not HEX64.fullmatch(component["sha256"]):
             fail(f"{label} has an invalid sha256")
-        if re.search(r"(?:^|[^A-Za-z0-9])(?:NOASSERTION|NONE|UNKNOWN)(?:$|[^A-Za-z0-9])",
-                     component["spdx_license"]):
-            fail(f"{label} has an unresolved license")
         if not SPDX.fullmatch(component["spdx_license"]):
             fail(f"{label} has an invalid SPDX license expression")
+        source = urlparse(component["source"])
+        if source.scheme not in {"https", "http", "git+https"} or not source.netloc:
+            fail(f"{label} source must be an absolute source URI")
         component_categories = component.get("categories")
         if not isinstance(component_categories, list) or not component_categories:
             fail(f"{label} must declare categories")
@@ -178,8 +189,7 @@ def validate_environment(value: dict, components: list[dict]) -> None:
     if value.get("schema") != "org.overte.release-build-environment.v1":
         fail("build environment has the wrong schema")
     for field in ("builder_id", "runner_image"):
-        if not isinstance(value.get(field), str) or not value[field].strip():
-            fail(f"build environment is missing {field}")
+        resolved_text(value.get(field), f"build environment {field}")
     toolchain = value.get("toolchain")
     if not isinstance(toolchain, dict) or not toolchain or any(
             not isinstance(key, str) or not isinstance(version, str) or not version.strip()
@@ -188,7 +198,7 @@ def validate_environment(value: dict, components: list[dict]) -> None:
     actions = value.get("actions")
     if not isinstance(actions, list) or not actions or any(
             not isinstance(action, dict)
-            or not isinstance(action.get("name"), str)
+            or not isinstance(action.get("name"), str) or not action["name"].strip()
             or not HEX40.fullmatch(str(action.get("sha", "")))
             for action in actions):
         fail("build environment actions must be pinned to full SHAs")
@@ -199,9 +209,8 @@ def validate_environment(value: dict, components: list[dict]) -> None:
     for dependency in resolved:
         if not isinstance(dependency, dict) or dependency.get("bom_ref") not in component_refs:
             fail("build environment contains an unknown dependency reference")
-        if not all(isinstance(dependency.get(field), str) and dependency[field]
-                   for field in ("recipe_revision", "package_revision")):
-            fail("dependency recipe and package revisions must be recorded")
+        for field in ("recipe_revision", "package_revision"):
+            resolved_text(dependency.get(field), f"dependency {field}")
         resolved_refs.add(dependency["bom_ref"])
     missing = {
         component["bom_ref"] for component in components
@@ -243,6 +252,8 @@ def validate_bundle(directory: Path) -> dict:
         fail("release bundle is missing product")
     if not HEX40.fullmatch(str(contract.get("source_revision", ""))):
         fail("release bundle has an invalid source revision")
+    if not isinstance(contract.get("release_tag"), str) or not contract["release_tag"]:
+        fail("release bundle is missing release tag")
     artifacts = contract.get("artifacts")
     required_roles = {
         "payload", "build_manifest", "sbom", "license_inventory", "notice_bundle",
@@ -282,15 +293,34 @@ def validate_bundle(directory: Path) -> dict:
         fail("build manifest has the wrong schema")
     if build.get("product") != contract["product"] or build.get("source_revision") != contract["source_revision"]:
         fail("build manifest identity disagrees with bundle")
+    verified = build.get("verified_artifact")
+    if not isinstance(verified, dict) or verified.get("source_revision") != contract["source_revision"] \
+            or verified.get("sha256") != sha256(paths["payload"]):
+        fail("verified artifact is not bound to the bundle payload")
+    version = build.get("version")
+    if not isinstance(version, dict) or version.get("source_revision") != contract["source_revision"]:
+        fail("build version is not bound to the bundle source")
+    for field in ("tag", "version_name", "version_code"):
+        if field not in version or version[field] in (None, ""):
+            fail(f"build version is missing {field}")
+    if version["tag"] != contract["release_tag"]:
+        fail("build version tag disagrees with bundle")
     validate_environment(build.get("environment", {}), components)
 
     sbom = load_object(paths["sbom"], "SBOM")
     if sbom.get("bomFormat") != "CycloneDX" or sbom.get("specVersion") != "1.6":
         fail("SBOM must be CycloneDX 1.6")
     sbom_components = sbom.get("components")
-    if not isinstance(sbom_components, list) or {item.get("bom-ref") for item in sbom_components
-                                                 if isinstance(item, dict)} != refs:
+    if (not isinstance(sbom_components, list) or len(sbom_components) != len(refs)
+            or any(not isinstance(item, dict) for item in sbom_components)
+            or len({item.get("bom-ref") for item in sbom_components}) != len(sbom_components)
+            or {item.get("bom-ref") for item in sbom_components} != refs):
         fail("SBOM and license inventory component sets disagree")
+    if sbom.get("metadata") != {"component": {
+            "type": "application", "name": contract["product"],
+            "version": str(version["version_name"]),
+    }}:
+        fail("SBOM application identity disagrees with bundle")
     inventory_by_ref = {component["bom_ref"]: component for component in components}
     for component in sbom_components:
         if not isinstance(component, dict):
@@ -332,10 +362,16 @@ def validate_bundle(directory: Path) -> dict:
                      "source_archive", "checksums")
     }
     actual_subjects = {}
-    if isinstance(subjects, list):
-        for subject in subjects:
-            if isinstance(subject, dict) and isinstance(subject.get("digest"), dict):
-                actual_subjects[subject.get("name")] = subject["digest"].get("sha256")
+    if not isinstance(subjects, list) or len(subjects) != len(expected_subjects):
+        fail("provenance subjects are incomplete or have mismatched digests")
+    for subject in subjects:
+        if (not isinstance(subject, dict) or set(subject) != {"name", "digest"}
+                or not isinstance(subject["name"], str)
+                or not isinstance(subject["digest"], dict)
+                or set(subject["digest"]) != {"sha256"}
+                or subject["name"] in actual_subjects):
+            fail("provenance subjects are malformed or duplicated")
+        actual_subjects[subject["name"]] = subject["digest"]["sha256"]
     if actual_subjects != expected_subjects:
         fail("provenance subjects are incomplete or have mismatched digests")
     expected_predicate = {
@@ -475,7 +511,8 @@ def create_bundle(*, product: str, source_revision: str, payload: Path,
             for role, name in names.items()
         }
         contract = {"schema": SCHEMA, "complete": True, "product": product,
-                    "source_revision": source_revision, "artifacts": artifacts}
+                    "source_revision": source_revision, "release_tag": version["tag"],
+                    "artifacts": artifacts}
         (staging / "release-bundle.json").write_text(canonical_json(contract), encoding="utf-8")
         validate_bundle(staging)
         if output.exists():

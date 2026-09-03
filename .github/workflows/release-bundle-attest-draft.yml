@@ -71,7 +71,8 @@ jobs:
           [[ "$GITHUB_SHA" == "$SOURCE_REVISION" ]]
           [[ "$(git rev-list -n 1 "refs/tags/$RELEASE_TAG")" == "$SOURCE_REVISION" ]]
           tools/release/validate-release-bundle.py release-bundle \
-            --product "$PRODUCT" --source-revision "$SOURCE_REVISION"
+            --product "$PRODUCT" --source-revision "$SOURCE_REVISION" \
+            --release-tag "$RELEASE_TAG"
           python3 - <<'PY'
           import json
           import os
@@ -125,9 +126,15 @@ jobs:
           [[ "$GITHUB_SHA" == "$SOURCE_REVISION" ]]
           [[ "$(git rev-list -n 1 "refs/tags/$RELEASE_TAG")" == "$SOURCE_REVISION" ]]
           tools/release/validate-release-bundle.py release-bundle \
-            --product "$PRODUCT" --source-revision "$SOURCE_REVISION"
+            --product "$PRODUCT" --source-revision "$SOURCE_REVISION" \
+            --release-tag "$RELEASE_TAG"
           [[ -f "$RELEASE_NOTES_PATH" && ! -L "$RELEASE_NOTES_PATH" ]]
-          ! gh release view "$RELEASE_TAG" >/dev/null 2>&1 || {
+          existing_release=$(gh api graphql \
+            -f query='query($owner:String!,$name:String!,$tag:String!){repository(owner:$owner,name:$name){release(tagName:$tag){id}}}' \
+            -f owner="${GITHUB_REPOSITORY%/*}" -f name="${GITHUB_REPOSITORY#*/}" \
+            -f tag="$RELEASE_TAG" \
+            --jq 'if .data.repository.release == null then "absent" else "present" end')
+          [[ "$existing_release" == "absent" ]] || {
             echo "A release already exists for this immutable tag" >&2
             exit 2
           }

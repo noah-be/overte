@@ -13,12 +13,15 @@ def main() -> None:
     parser.add_argument("bundle", type=Path)
     parser.add_argument("--product")
     parser.add_argument("--source-revision")
+    parser.add_argument("--release-tag")
     args = parser.parse_args()
     contract = validate_bundle(args.bundle)
     if args.product and contract["product"] != args.product:
         raise BundleError("bundle product does not match the expected product")
     if args.source_revision and contract["source_revision"] != args.source_revision:
         raise BundleError("bundle source revision does not match the expected commit")
+    if args.release_tag and contract["release_tag"] != args.release_tag:
+        raise BundleError("bundle release tag does not match the expected tag")
     print(args.bundle.resolve() / "release-bundle.json")
 
 

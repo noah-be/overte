@@ -24,6 +24,8 @@ PRIVILEGED_PATHS = (
     ".github/workflows/branch-policy.yml",
     ".github/workflows/branch-sync.yml",
     "tools/branch-policy/",
+    "tools/workflow-security/",
+    "tests/workflow-action-pin-test.py",
 )
 
 
