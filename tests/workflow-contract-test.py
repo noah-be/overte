@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/project-tests.yml"
 BUILD_WORKFLOW = ROOT / ".github/workflows/pico4-build.yml"
 RELEASE_WORKFLOW = ROOT / ".github/workflows/pico4-release-candidate.yml"
+RELEASE_BUNDLE_WORKFLOW = ROOT / ".github/workflows/release-bundle-attest-draft.yml"
 DEVICE_WORKFLOW = ROOT / ".github/workflows/pico4-device-acceptance.yml"
 ANDROID_TESTS_WORKFLOW = ROOT / ".github/workflows/android-tests.yml"
 DOCUMENTATION_WORKFLOW = ROOT / ".github/workflows/documentation-checks.yml"
@@ -529,6 +530,46 @@ class PicoReleaseWorkflowContracts(unittest.TestCase):
         for output in ("pico4-release-manifest.json", "pico4-sbom.cdx.json", "SHA256SUMS"):
             self.assertIn(output, self.source)
         self.assertNotRegex(self.source, r"(?m)^\s+run:.*\badb\b")
+
+
+class SharedReleaseBundleWorkflowContracts(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.source = RELEASE_BUNDLE_WORKFLOW.read_text(encoding="utf-8")
+
+    def test_reusable_gate_has_no_untrusted_or_manual_entrypoint(self):
+        self.assertRegex(self.source, r"(?m)^  workflow_call:$")
+        self.assertNotRegex(
+            self.source,
+            r"(?m)^  (pull_request|pull_request_target|push|workflow_dispatch):$",
+        )
+        self.assertIn("validate-release-bundle.py", self.source)
+        self.assertIn('git rev-list -n 1 "refs/tags/$RELEASE_TAG"', self.source)
+
+    def test_build_and_sbom_attestations_are_isolated_and_pinned(self):
+        attest = self.source.split("  attest:", 1)[1].split("  draft-publish:", 1)[0]
+        self.assertRegex(
+            attest,
+            r"(?m)^    permissions:\n      contents: read\n      id-token: write\n      attestations: write$",
+        )
+        self.assertEqual(attest.count(
+            "actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6"), 2)
+        self.assertIn("subject-path:", attest)
+        self.assertIn("sbom-path:", attest)
+        actions = ACTION_USE.findall(self.source)
+        self.assertGreaterEqual(len(actions), 6)
+        self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
+
+    def test_draft_job_has_only_contents_write_and_environment_approval(self):
+        publish = self.source.split("  draft-publish:", 1)[1]
+        self.assertIn("environment: ${{ inputs.publish_environment }}", publish)
+        self.assertRegex(publish, r"(?m)^    permissions:\n      contents: write$")
+        self.assertNotIn("id-token: write", publish)
+        self.assertNotIn("attestations: write", publish)
+        self.assertIn("gh release create", publish)
+        self.assertIn("--draft --verify-tag", publish)
+        self.assertNotIn("gh release edit", publish)
+        self.assertNotIn("gh release upload", publish)
 
 
 class PicoDeviceAcceptanceWorkflowContracts(unittest.TestCase):
