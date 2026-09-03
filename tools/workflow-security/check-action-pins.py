@@ -19,6 +19,12 @@ USES_KEY = re.compile(r"(?:^|[^A-Za-z0-9_])[\"']?uses[\"']?\s*:")
 EXPLICIT_USES_KEY = re.compile(
     r"^\s*(?:-\s*)?\?\s+(?:!!str\s+)?[\"']?uses[\"']?\s*(?:#.*)?$"
 )
+EXPLICIT_KEY = re.compile(r"^\s*(?:-\s*)?\?\s")
+YAML_ANCHOR = re.compile(r"(?:^|:\s+|-\s+|[{,]\s*)&[A-Za-z0-9_-]+(?:\s|$)")
+YAML_ALIAS_KEY = re.compile(r"(?:^|[{,]\s*|-\s*)\*[A-Za-z0-9_-]+\s*:")
+ESCAPED_QUOTED_KEY = re.compile(
+    r'(?:^\s*(?:-\s*)?|[{,]\s*)"(?:[^"\\]|\\.)*\\(?:[^"\\]|\\.)*"\s*:'
+)
 REMOTE_ACTION = re.compile(
     r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"
     r"(?:/[A-Za-z0-9_.-]+)*@[0-9a-f]{40}$"
@@ -94,6 +100,15 @@ def inventory(root: Path) -> tuple[ActionUse, ...]:
     for path in source_files(root):
         relative = path.relative_to(root)
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if (
+                EXPLICIT_KEY.match(line)
+                or YAML_ANCHOR.search(line)
+                or YAML_ALIAS_KEY.search(line)
+                or ESCAPED_QUOTED_KEY.search(line)
+            ):
+                raise PinError(
+                    f"{relative}:{number}: YAML key indirection is forbidden in workflow sources"
+                )
             if line.lstrip().startswith("#") or "uses" not in line:
                 continue
             if EXPLICIT_USES_KEY.fullmatch(line):

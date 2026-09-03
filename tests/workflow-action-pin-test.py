@@ -93,6 +93,21 @@ class ActionPinAuditTests(unittest.TestCase):
                 with self.assertRaises(PIN_AUDIT.PinError):
                     PIN_AUDIT.inventory(root)
 
+    def test_yaml_key_indirection_fails_closed(self):
+        pinned = "actions/checkout@" + "1" * 40
+        for workflow in (
+            f'steps:\n  - uses: {pinned}\n  - "us\\x65s": actions/checkout@v4\n',
+            f'name: &action_key uses\nsteps:\n  - uses: {pinned}\n  - *action_key: actions/checkout@v4\n',
+            f'name: &action_key uses\nsteps:\n  - uses: {pinned}\n  - ? *action_key\n    : actions/checkout@v4\n',
+            f'steps:\n  - uses: {pinned}\n  - ? |-\n      uses\n    : actions/checkout@v4\n',
+            f'steps:\n  - uses: {pinned}\n  - {{"us\\x65s": actions/checkout@v4}}\n',
+        ):
+            with self.subTest(workflow=workflow):
+                temporary, root = self.fixture(workflow)
+                self.addCleanup(temporary.cleanup)
+                with self.assertRaises(PIN_AUDIT.PinError):
+                    PIN_AUDIT.inventory(root)
+
     def test_cli_returns_nonzero_without_printing_an_unsafe_reference_inventory(self):
         temporary, root = self.fixture("steps:\n  - uses: owner/action@main\n")
         self.addCleanup(temporary.cleanup)
