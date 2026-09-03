@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "repository": "noah-be/overte",
+  "ruleset_retirement": {
+    "name": "Archived branches",
+    "target": "branch",
+    "expected_current": {
+      "enforcement": "active",
+      "bypass_actors": [],
+      "conditions": {
+        "ref_name": {
+          "include": [
+            "refs/heads/android-vr-quest",
+            "refs/heads/apple-macos",
+            "refs/heads/backup/**"
+          ],
+          "exclude": []
+        }
+      },
+      "rules": [
+        {"type": "deletion"},
+        {"type": "non_fast_forward"},
+        {
+          "type": "update",
+          "parameters": {"update_allows_fetch_and_merge": false}
+        }
+      ]
+    },
+    "operation": "delete_ruleset_by_freshly_resolved_id",
+    "preconditions": [
+      "all thirteen exact source tips match",
+      "all thirteen annotated archive tags exist and peel to their source tips",
+      "the archive tag namespace remains protected by an active tag ruleset",
+      "the recovery bundle contains every source tip",
+      "open pull requests and active or waiting Actions runs are zero",
+      "Jenkins has no consumer of any source branch",
+      "the live ruleset exactly matches expected_current and has no bypass actors"
+    ],
+    "sequence": "delete this branch ruleset normally after tag verification and immediately before the four explicit branch-deletion batches; never use a bypass",
+    "rollback": "recreate expected_current through the normal Rulesets API using the captured server-owned preimage; do not recreate it after all governed source branches are absent"
+  },
+  "archive_refs": [
+    {"source": "refs/heads/android-vr-quest", "tip": "f34c8b25a25356086197360cbdf1bf5878221fd7", "tag": "refs/tags/archive/android-vr-quest-2026-08-28", "disposition": "verify_existing", "tag_object": "6eee9641e4f4aae2ccd80806c5596193865d3d70"},
+    {"source": "refs/heads/apple-macos", "tip": "b88c7406bff0ae0440a7c627af2db8d71ad88ef5", "tag": "refs/tags/archive/apple-macos-2026-08-28", "disposition": "verify_existing", "tag_object": "5247fa28b04683287e4047ee5db1972ed3fecbe1"},
+    {"source": "refs/heads/backup/pico4-native-coverage-2026-08-09", "tip": "31eb8dea8c51857a641a3fbf3e7d3fadc0d02f61", "tag": "refs/tags/archive/backup-pico4-native-coverage-2026-08-09", "disposition": "create_annotated"},
+    {"source": "refs/heads/backup/pico4-work-2026-08-01", "tip": "f9fe43f9bf2f6c3844db080d4fe5a9a110bd05c4", "tag": "refs/tags/archive/backup-pico4-work-2026-08-01", "disposition": "create_annotated"},
+    {"source": "refs/heads/test/android/phone-hardware-acceptance", "tip": "1deacdbfbe39c082bbc7fc2a0f05cb9ebd041efa", "tag": "refs/tags/archive/android-phone-hardware-acceptance-2026-09-03", "disposition": "create_annotated"},
+    {"source": "refs/heads/test/ios/ipad-hardware-acceptance", "tip": "058fb1785e230743edf035c9de278cde4f602b29", "tag": "refs/tags/archive/ios-ipad-hardware-acceptance-2026-09-03", "disposition": "create_annotated"},
+    {"source": "refs/heads/test/main/cross-platform-e2e-integration", "tip": "d0444197b83aefa1aa4864ce12d52cc0ee27be75", "tag": "refs/tags/archive/test-main-cross-platform-e2e-pr477-2026-09-03", "disposition": "create_annotated"},
+    {"source": "refs/heads/test/pico/pico4-hardware-stability-upgrade", "tip": "cac0f4cad701f9f7b1cfac90a01be4417833ff3e", "tag": "refs/tags/archive/pico4-hardware-stability-upgrade-2026-09-03", "disposition": "create_annotated"},
+    {"source": "refs/heads/feature/universal-touch-ui", "tip": "9477c9a9174bc313229d6e849a5dece797e5fbe9", "tag": "refs/tags/archive/feature-universal-touch-ui-2026-09-03", "disposition": "create_annotated"},
+    {"source": "refs/heads/fix/ios/ipad-fast-dev-texture-reuse", "tip": "23c3bef6e52b98a5d21161c040395dc5b4fd04a9", "tag": "refs/tags/archive/ios-ipad-fast-dev-texture-reuse-2026-09-03", "disposition": "create_annotated"},
+    {"source": "refs/heads/test/universal-touch-ui-android-validation", "tip": "0c8aa9a93b1d011062c2551f13eed0d4ce08dfd4", "tag": "refs/tags/archive/universal-touch-ui-android-validation-2026-09-03", "disposition": "create_annotated"},
+    {"source": "refs/heads/test/universal-touch-ui-apple-validation", "tip": "64266864909868a4a51b4a5225bff97c95df4e49", "tag": "refs/tags/archive/universal-touch-ui-apple-validation-2026-09-03", "disposition": "create_annotated"},
+    {"source": "refs/heads/tests/unify-interfaces", "tip": "784fc22e33bcd4711b5dd7f65f4f5664d63f4127", "tag": "refs/tags/archive/tests-unify-interfaces-2026-09-03", "disposition": "create_annotated"}
+  ],
+  "deletion_batches": [
+    ["refs/heads/android-vr-quest", "refs/heads/apple-macos", "refs/heads/backup/pico4-native-coverage-2026-08-09", "refs/heads/backup/pico4-work-2026-08-01"],
+    ["refs/heads/test/android/phone-hardware-acceptance", "refs/heads/test/ios/ipad-hardware-acceptance", "refs/heads/test/main/cross-platform-e2e-integration", "refs/heads/test/pico/pico4-hardware-stability-upgrade"],
+    ["refs/heads/feature/universal-touch-ui", "refs/heads/fix/ios/ipad-fast-dev-texture-reuse", "refs/heads/test/universal-touch-ui-android-validation", "refs/heads/test/universal-touch-ui-apple-validation"],
+    ["refs/heads/tests/unify-interfaces"]
+  ]
+}

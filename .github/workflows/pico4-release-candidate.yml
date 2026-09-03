@@ -2,6 +2,12 @@ name: Pico 4 release candidate
 
 on:
   workflow_dispatch:
+    inputs:
+      release_pilot_authorized:
+        description: Enable only under the separately authorized release pilot
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -16,13 +22,18 @@ defaults:
 
 jobs:
   release-candidate:
+    # The former path created a draft from an explicitly incomplete legacy
+    # inventory. Keep it fail-closed until the complete inventory and NOTICE
+    # materializers can feed release-bundle-attest-draft.yml in the release
+    # pilot authorized separately from this hardening change.
+    if: ${{ inputs.release_pilot_authorized }}
     # Approval and secrets are owned by this protected environment. Never add
     # pull_request, push, or a mutable branch path to this workflow.
     environment: pico4-release-candidate
     runs-on: [self-hosted, linux, x64, overte-android-release]
     timeout-minutes: 300
     permissions:
-      contents: write
+      contents: read
     env:
       PICO_APK: android/vr/pico/apps/picoInterface/build/outputs/apk/release/picoInterface-release.apk
     steps:
@@ -120,25 +131,6 @@ jobs:
             build/pico4/SHA256SUMS
           if-no-files-found: error
           retention-days: 14
-
-      - name: Create draft release and attach verified files
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_VERSION_NAME: ${{ steps.release.outputs.version_name }}
-        run: |
-          set -euo pipefail
-          ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || {
-            echo "A release already exists for this immutable tag" >&2
-            exit 2
-          }
-          gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
-            --title "Overte Pico 4 $RELEASE_VERSION_NAME" \
-            --notes-file android/vr/pico/docs/PICO4_RELEASE_CHECKLIST.md \
-            "$PICO_APK" \
-            build/pico4/apk-manifest.json \
-            build/pico4/pico4-release-manifest.json \
-            build/pico4/pico4-sbom.cdx.json \
-            build/pico4/SHA256SUMS
 
       - name: Remove signing material
         if: always()

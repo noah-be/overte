@@ -6,7 +6,9 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 from pathlib import Path
+import stat
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -25,6 +27,32 @@ TARGET_SPEC.loader.exec_module(TARGETS)
 
 
 class LocalLabBootstrapTest(unittest.TestCase):
+    def test_secure_write_creates_private_atomic_file(self):
+        with tempfile.TemporaryDirectory(prefix="overte-secure-write-") as name:
+            root = Path(name) / "weak-parent"
+            root.mkdir(mode=0o755)
+            destination = root / "secret"
+            LAB.secure_write(destination, "sensitive\n")
+            self.assertEqual("sensitive\n", destination.read_text(encoding="utf-8"))
+            self.assertEqual([], list(root.glob(".secret.*")))
+            if os.name != "nt":
+                self.assertEqual(0o700, stat.S_IMODE(root.stat().st_mode))
+                self.assertEqual(0o600, stat.S_IMODE(destination.stat().st_mode))
+
+    def test_secure_write_rejects_symlinked_parent(self):
+        with tempfile.TemporaryDirectory(prefix="overte-secure-write-link-") as name:
+            root = Path(name)
+            victim = root / "victim"
+            victim.mkdir()
+            linked = root / "linked"
+            try:
+                linked.symlink_to(victim, target_is_directory=True)
+            except OSError:
+                self.skipTest("symlinks unavailable")
+            with self.assertRaises(RuntimeError):
+                LAB.secure_write(linked / "secret", "sensitive\n")
+            self.assertEqual([], list(victim.iterdir()))
+
     def test_rendered_casc_keeps_secrets_out_of_the_checkout(self):
         with tempfile.TemporaryDirectory(prefix="overte-local-lab-test-") as name:
             root = Path(name)
