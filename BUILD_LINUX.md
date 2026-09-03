@@ -79,13 +79,16 @@ sudo apt install nodejs
 
 Clone this repository:
 ```bash
-git clone https://github.com/overte-org/overte.git
+git clone https://github.com/noah-be/overte.git
 ```
 
-Then checkout the master branch with:
+Then check out this fork's default `main` branch:
 ```bash
-git checkout master
+git switch main
 ```
+
+The official upstream repository uses `master`; this fork uses `main`. See the
+[upstream intake policy](docs/UPSTREAM_INTAKE.md) before combining the two.
 
 If you need a different branch, you can get a list of all tags with:
 ```bash

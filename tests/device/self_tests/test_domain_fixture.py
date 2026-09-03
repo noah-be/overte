@@ -12,7 +12,7 @@ import sys
 import tempfile
 import time
 import unittest
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,12 +37,25 @@ server.serve_forever()
 '''
 
 FAKE_ASSIGNMENT = r'''#!/usr/bin/env python3
-import signal, time
+import json, os, pathlib, signal, sys, time, urllib.request
 stopping = False
 def stop(*_):
     global stopping
     stopping = True
 signal.signal(signal.SIGTERM, stop)
+if "--pool" in sys.argv and sys.argv[sys.argv.index("--pool") + 1] == "overte-e2e-domain":
+    config = pathlib.Path(os.environ["XDG_CONFIG_HOME"]).parents[1] / "domain-config.json"
+    value = json.loads(config.read_text())
+    script = value["scripts"]["persistent_scripts"][0]["url"]
+    request = urllib.request.Request(
+        script.rsplit("/", 1)[0] + "/domain-ready", method="POST",
+        data=b'{"schemaVersion":1,"markerCount":4}',
+        headers={"Content-Type": "application/json"})
+    for _ in range(50):
+        try:
+            urllib.request.urlopen(request, timeout=1).close(); break
+        except OSError:
+            time.sleep(0.02)
 while not stopping:
     time.sleep(0.05)
 '''
@@ -98,9 +111,26 @@ class DomainFixtureTest(unittest.TestCase):
                                  metadata["domainId"])
                 self.assertTrue(metadata["domainUrl"].startswith("hifi://127.0.0.1:"))
                 self.assertEqual(4, metadata["expectedEntityCount"])
+                self.assertEqual("OVERTE_E2E_PEER", metadata["peerDisplayName"])
                 with urlopen(metadata["bootstrapScriptUrl"], timeout=2) as response:
                     script = response.read().decode("utf-8")
                 self.assertIn('Entities.addEntity(properties, "domain")', script)
+                with urlopen(metadata["peerScriptUrl"], timeout=2) as response:
+                    peer_script = response.read().decode("utf-8")
+                self.assertIn("Agent.isAvatar = true", peer_script)
+                for action in ("offline", "online"):
+                    request = Request(
+                        metadata["controlUrl"], method="POST",
+                        data=json.dumps({"schemaVersion": 1, "action": action}).encode(),
+                        headers={
+                            "Content-Type": "application/json",
+                            "X-Overte-E2E-Token": metadata["controlToken"],
+                        },
+                    )
+                    with urlopen(request, timeout=5) as response:
+                        transition = json.loads(response.read())
+                    self.assertEqual(action, transition["state"])
+                    self.assertGreaterEqual(transition["generation"], 2)
                 self.assertIsNone(process.poll())
             finally:
                 process.terminate()
