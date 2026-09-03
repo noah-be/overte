@@ -5,19 +5,6 @@ name: macOS bootstrap
 
 on:
   workflow_dispatch:
-  push:
-    branches: [apple-macos]
-    paths:
-      - '.github/workflows/macos-bootstrap.yml'
-      - 'CMakeLists.txt'
-      - 'cmake/**'
-      - 'conanfile.py'
-      - 'docs/macos/**'
-      - 'interface/**'
-      - 'libraries/**'
-      - 'macos/**'
-      - 'plugins/**'
-      - '!**/*.md'
 
 permissions:
   contents: read
