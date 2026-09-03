@@ -17,7 +17,23 @@ PARENTS = {
 SHARED_PATHS = ("tests/device", "android/common/device_tests")
 TARGET_SHARED_PATH_EXCLUSIONS = {
     "android-phone": {
-        "tests/device": ("tests/device/policies/android-phone-flat-touch.json",),
+        "tests/device": (
+            "tests/device/adapters/appium/README.md",
+            "tests/device/adapters/appium/adapter.py",
+            "tests/device/jenkins/Jenkinsfile",
+            "tests/device/jenkins/README.md",
+            "tests/device/jenkins/run_ci.py",
+            "tests/device/jenkins/test_run_ci.py",
+            "tests/device/policies/android-phone-flat-touch.json",
+            "tests/device/self_tests/test_appium_adapter.py",
+        ),
+    },
+    "android-vr-pico": {
+        "tests/device": (
+            "tests/device/jenkins/test_conan_cache_manager.py",
+            "tests/device/jenkins/test_local_lab.py",
+            "tests/device/self_tests/test_pico_openxr_adapter_session.py",
+        ),
     },
 }
 
