@@ -80,7 +80,8 @@ class ActionPinAuditTests(unittest.TestCase):
 
     def test_inline_or_malformed_uses_fails_closed(self):
         for workflow in (
-            "steps: [{uses: actions/checkout@1111111111111111111111111111111111111111}]\n",
+            "steps:\n  - uses: actions/checkout@1111111111111111111111111111111111111111\n  - {uses: owner/action@main}\n",
+            "steps:\n  - uses: actions/checkout@1111111111111111111111111111111111111111\n  - \"uses\": owner/action@main\n",
             "steps:\n  - uses:\n",
             "steps:\n  - uses: 'actions/checkout@1111111111111111111111111111111111111111\n",
         ):

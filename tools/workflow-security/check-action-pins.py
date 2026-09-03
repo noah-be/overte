@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_ROOT = Path(".github/workflows")
 ACTION_ROOT = Path(".github/actions")
 USES_LINE = re.compile(r"^\s*(?:-\s*)?uses\s*:\s*(?P<value>.*?)\s*$")
+USES_KEY = re.compile(r"(?:^|[^A-Za-z0-9_])[\"']?uses[\"']?\s*:")
 REMOTE_ACTION = re.compile(
     r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"
     r"(?:/[A-Za-z0-9_.-]+)*@[0-9a-f]{40}$"
@@ -94,7 +95,7 @@ def inventory(root: Path) -> tuple[ActionUse, ...]:
                 continue
             match = USES_LINE.fullmatch(line)
             if match is None:
-                if re.search(r"(?:^|\s)uses\s*:", line):
+                if USES_KEY.search(line):
                     raise PinError(f"{relative}:{number}: uses must be a block-style scalar")
                 continue
             reference = scalar(match.group("value"), relative, number)
