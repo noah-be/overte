@@ -1,0 +1,15 @@
+name: Session 53X SHA enforcement canary
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/session-53x-sha-canary.yml
+
+permissions:
+  contents: read
+
+jobs:
+  rejected-mutable-reference:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
