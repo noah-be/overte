@@ -19,7 +19,7 @@ USES_KEY = re.compile(r"(?:^|[^A-Za-z0-9_])[\"']?uses[\"']?\s*:")
 EXPLICIT_USES_KEY = re.compile(
     r"^\s*(?:-\s*)?\?\s+(?:!!str\s+)?[\"']?uses[\"']?\s*(?:#.*)?$"
 )
-EXPLICIT_KEY = re.compile(r"^\s*(?:-\s*)?\?\s")
+EXPLICIT_KEY = re.compile(r"^\s*(?:-\s*)?\?(?:\s|$)")
 YAML_ANCHOR = re.compile(r"(?:^|:\s+|-\s+|[{,]\s*)&[A-Za-z0-9_-]+(?:\s|$)")
 YAML_ALIAS_KEY = re.compile(r"(?:^|[{,]\s*|-\s*)\*[A-Za-z0-9_-]+\s*:")
 ESCAPED_QUOTED_KEY = re.compile(

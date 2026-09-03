@@ -92,9 +92,10 @@ def validated_inventory(value: dict) -> tuple[list[dict], set[str]]:
                 fail(f"{label} is missing {field}")
         if not HEX64.fullmatch(component["sha256"]):
             fail(f"{label} has an invalid sha256")
-        if component["spdx_license"] in {"NOASSERTION", "NONE", "UNKNOWN"}:
+        if re.search(r"(?:^|[^A-Za-z0-9])(?:NOASSERTION|NONE|UNKNOWN)(?:$|[^A-Za-z0-9])",
+                     component["spdx_license"]):
             fail(f"{label} has an unresolved license")
-        if not SPDX.search(component["spdx_license"]):
+        if not SPDX.fullmatch(component["spdx_license"]):
             fail(f"{label} has an invalid SPDX license expression")
         component_categories = component.get("categories")
         if not isinstance(component_categories, list) or not component_categories:
@@ -219,9 +220,9 @@ def parse_checksums(path: Path) -> dict[str, str]:
 
 
 def validate_bundle(directory: Path) -> dict:
-    directory = directory.resolve()
     if directory.is_symlink() or not directory.is_dir():
         fail("bundle must be a real directory")
+    directory = directory.absolute()
     for path in directory.rglob("*"):
         if path.is_symlink():
             fail(f"bundle contains symlink: {path.relative_to(directory)}")
@@ -342,13 +343,13 @@ def create_bundle(*, product: str, source_revision: str, payload: Path,
     if not HEX40.fullmatch(source_revision):
         fail("source revision must be a lowercase 40-character commit")
     inputs = {
-        "payload": regular_file(payload.resolve(), "payload"),
-        "verified_manifest": regular_file(verified_manifest.resolve(), "verified manifest"),
-        "version_manifest": regular_file(version_manifest.resolve(), "version manifest"),
-        "license_inventory": regular_file(dependency_inventory.resolve(), "license inventory"),
-        "notice_bundle": regular_file(notice_bundle.resolve(), "NOTICE bundle"),
-        "source_archive": regular_file(source_archive.resolve(), "source archive"),
-        "build_environment": regular_file(build_environment.resolve(), "build environment"),
+        "payload": regular_file(payload.absolute(), "payload"),
+        "verified_manifest": regular_file(verified_manifest.absolute(), "verified manifest"),
+        "version_manifest": regular_file(version_manifest.absolute(), "version manifest"),
+        "license_inventory": regular_file(dependency_inventory.absolute(), "license inventory"),
+        "notice_bundle": regular_file(notice_bundle.absolute(), "NOTICE bundle"),
+        "source_archive": regular_file(source_archive.absolute(), "source archive"),
+        "build_environment": regular_file(build_environment.absolute(), "build environment"),
     }
     inventory = load_object(inputs["license_inventory"], "license inventory")
     components, refs = validated_inventory(inventory)
@@ -367,7 +368,7 @@ def create_bundle(*, product: str, source_revision: str, payload: Path,
     if verified.get("sha256") != sha256(inputs["payload"]):
         fail("payload digest disagrees with verified manifest")
 
-    output = output.resolve()
+    output = output.absolute()
     output.parent.mkdir(parents=True, exist_ok=True)
     if output.is_symlink() or (output.exists() and not output.is_dir()):
         fail("bundle output must be a real directory path")
