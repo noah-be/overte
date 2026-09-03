@@ -8,6 +8,7 @@ on:
       - "libraries/**"
       - "scripts/**"
       - "tests/**"
+      - "tools/release/**"
       - ".github/workflows/project-tests.yml"
       - "!**/*.md"
   push:
