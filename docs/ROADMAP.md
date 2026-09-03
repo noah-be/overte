@@ -4,8 +4,9 @@
 > This roadmap describes an unofficial, AI-assisted hobby fork. It is not an
 > Overte project commitment or a statement of official platform support.
 
-- **Updated:** 2026-08-28
-- **Baseline before this roadmap:** `main@9f00d77028`
+- **Updated:** 2026-09-03
+- **Repository baseline:** Session 53X final-state documentation and mandatory
+  4 + 3 + 1 forward propagation
 - **Current primary milestone:** `PICO-P1`
 - **Current maintenance milestone:** `R0`
 
@@ -66,7 +67,7 @@ recording the first blocking failure.
 
 ## MAINTENANCE
 
-### R0 — Reliable baseline and project compass
+### R0 — Reliable baseline and project compass (complete)
 
 **Goal:** Make the fork understandable and safe to continue before expanding
 the product surface.
@@ -81,12 +82,13 @@ the product surface.
 - [x] the roadmap and fork-policy baseline is propagated through every
   permanent child branch without reverse-merging child work;
 - [x] the quick project suite and branch-topology checks pass; and
-- [ ] topic branches and worktrees are classified and safely reduced using the
-  [`R0 cleanup checklist`](BRANCH_CLEANUP.md).
+- [x] all remote topic branches are classified, archived where needed, and
+  retired using the [`R0 cleanup record`](BRANCH_CLEANUP.md); local workspace
+  cleanup is deliberately post-review and is not a repository exit criterion.
 
-**Single next action:** Review the seven worktrees with local changes one at a
-time, starting with the superseded Android/Pico roadmap worktree, and preserve
-unique work before removing anything.
+**Maintenance handoff:** Keep the nine-branch topology, required checks,
+workflow pins, archive tags, and security settings consistent. Review local
+worktrees separately before any local deletion.
 
 ## LATER
 
@@ -113,14 +115,14 @@ does not imply that a target is actively being developed.
 
 | Interface or area | Priority | Current maturity | Development branch | Last reviewed evidence | Next gate |
 | --- | --- | --- | --- | --- | --- |
-| Repository baseline | MAINTENANCE | Structurally verified; cleanup incomplete | `main` | `main@5456a20883`; quick suite 7/7 on 2026-08-24 | Safely complete `R0` cleanup |
-| Pico 4 | NOW | Host-verified and build-ready; device acceptance incomplete | `android-vr-pico` | Interface roadmap and status reviewed 2026-08-24 | `PICO-P1` |
-| Android phones | NEXT 1 | Emulator-verified and build-ready; device coverage incomplete | `android-phone` | Interface roadmap and status reviewed 2026-08-24 | `PHONE-P1` after Pico |
-| iPhone and iPad | NEXT 2 | Simulator-verified bootstrap; integrated client experimental | `apple-ios` | iPad roadmap and status reviewed 2026-08-24 | `IOS-P1` after Android Phone |
-| macOS | ARCHIVED | Historical hosted Intel evidence; never accepted on owned physical hardware | frozen `apple-macos` | Branch frozen 2026-08-28 | None; not a project target |
-| Meta Quest | ARCHIVED | Historical experimental code; never accepted on physical hardware | frozen `android-vr-quest` | Branch frozen 2026-08-28 | None; not a project target |
-| Linux desktop | OUT OF SCOPE product; E2E MAINTENANCE | Inherited client baseline; dedicated adapter ownership being established | `linux-main` | Desktop E2E migration, 2026-08-28 | Repeatable Linux `e2e-core` target evidence |
-| Windows desktop | OUT OF SCOPE product; E2E MAINTENANCE | Inherited client baseline; dedicated adapter ownership being established | `windows-main` | Desktop E2E migration, 2026-08-28 | Hardware-free adapter contracts, then an interactive target |
+| Repository baseline | MAINTENANCE | Structurally verified; remote cleanup complete | `main` | Session 53X: 9 branches, 143 tags, policy/security audits and device-free checks | Preserve the verified baseline |
+| Pico 4 | NOW | Host-verified and build-ready; device acceptance incomplete | `android-vr-pico` | Session 53X device-free contracts and selective fixes | `PICO-P1` |
+| Android phones | NEXT 1 | Host-verified and build-ready; physical-device coverage incomplete | `android-phone` | Session 53X device-free contracts and selective fixes | `PHONE-P1` after Pico |
+| iPhone and iPad | NEXT 2 | Host-verified bootstrap; integrated client experimental | `apple-ios` | Session 53X device-free contracts and selective fixes | `IOS-P1` after Android Phone |
+| macOS | ARCHIVED | Historical hosted Intel evidence; never accepted on owned physical hardware | `archive/apple-macos-2026-08-28` | Protected archival tag verified 2026-09-03 | None; not a project target |
+| Meta Quest | ARCHIVED | Historical experimental code; never accepted on physical hardware | `archive/android-vr-quest-2026-08-28` | Protected archival tag verified 2026-09-03 | None; not a project target |
+| Linux desktop | OUT OF SCOPE product; E2E MAINTENANCE | Inherited client baseline; dedicated adapter branch retained | `linux-main` | Session 53X policy and topology checks | Repeatable Linux `e2e-core` target evidence |
+| Windows desktop | OUT OF SCOPE product; E2E MAINTENANCE | Inherited client baseline; dedicated adapter branch retained | `windows-main` | Session 53X policy and topology checks | Hardware-free adapter contracts, then an interactive target |
 
 Detailed technical facts and evidence remain authoritative in the interface
 documentation on each named product branch. This table records only portfolio
