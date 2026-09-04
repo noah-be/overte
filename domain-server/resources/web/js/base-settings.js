@@ -660,6 +660,31 @@ function makeTableCategoryHeader(categoryKey, categoryValue, numVisibleColumns, 
   return html;
 }
 
+function makeTableCategoryHeaderElement(categoryKey, categoryValue, numVisibleColumns, canRemove, message) {
+  var $row = $("<tr>")
+    .addClass(Settings.DATA_CATEGORY_CLASS)
+    .attr("data-key", categoryKey)
+    .attr("data-category", categoryValue);
+  var $toggleCell = $("<td>")
+    .attr("colspan", numVisibleColumns - 1)
+    .addClass(Settings.TOGGLE_CATEGORY_COLUMN_CLASS);
+  $toggleCell.append($("<span>").addClass(
+    Settings.TOGGLE_CATEGORY_SPAN_CLASSES + " " + Settings.TOGGLE_CATEGORY_EXPANDED_CLASS
+  ));
+  $toggleCell.append($("<span>").attr("message", message).text(categoryValue));
+  $row.append($toggleCell);
+  if (canRemove) {
+    $row.append(
+      $("<td>").addClass(Settings.ADD_DEL_BUTTONS_CLASSES).append(
+        $("<a>").attr("href", "javascript:void(0);").addClass(Settings.DEL_CATEGORY_SPAN_CLASSES)
+      )
+    );
+  } else {
+    $row.append($("<td>"));
+  }
+  return $row;
+}
+
 function makeTableHiddenInputs(setting, initialValues, categoryValue) {
   var html = "<tr class='inputs'" + (setting.can_add_new_categories && !categoryValue ? " hidden" : "") + " " +
                   (categoryValue ? ("data-category='" + categoryValue + "'") : "") + " " +
@@ -987,7 +1012,13 @@ function deleteTableRow($row) {
 
   if (!isArray) {
     if ($row.attr('name')) {
-      $row.html("<input type='hidden' class='form-control' name='" + $row.attr('name') + "' data-changed='true' value=''>");
+      $row.append($("<input>", {
+        type: "hidden",
+        "class": "form-control",
+        name: $row.attr("name"),
+        "data-changed": "true",
+        value: ""
+      }));
     } else {
       // for rows that didn't have a key, simply remove the row
       $row.remove();
@@ -1005,13 +1036,19 @@ function deleteTableRow($row) {
       $row.remove();
     } else {
       // this is the last row, we can't remove it completely since we need to post an empty array
+      var emptyArrayName = $table.attr("name").replace("[]", "");
       $row
         .removeClass(Settings.DATA_ROW_CLASS)
         .removeClass(Settings.NEW_ROW_CLASS)
         .removeAttr("data-category")
         .addClass('empty-array-row')
-        .html("<input type='hidden' class='form-control' name='" + $table.attr("name").replace('[]', '') + "' " +
-              "data-changed='true' value=''>");
+        .append($("<input>", {
+          type: "hidden",
+          "class": "form-control",
+          name: emptyArrayName,
+          "data-changed": "true",
+          value: ""
+        }));
     }
   }
 
@@ -1057,7 +1094,7 @@ function addTableCategory($categoryInputRow) {
     .attr("data-category", categoryValue)
     .addClass(Settings.NEW_ROW_CLASS);
 
-  var $newCategoryRow = $(makeTableCategoryHeader(categoryKey, categoryValue, width, true, " - " + message));
+  var $newCategoryRow = makeTableCategoryHeaderElement(categoryKey, categoryValue, width, true, " - " + message);
   $newCategoryRow.addClass(Settings.NEW_ROW_CLASS);
 
   $categoryInputRow
