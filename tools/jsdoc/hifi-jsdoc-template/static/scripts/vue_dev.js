@@ -241,6 +241,9 @@
    */
   function extend (to, _from) {
     for (var key in _from) {
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        continue
+      }
       to[key] = _from[key];
     }
     return to
@@ -1018,6 +1021,9 @@
     customSetter,
     shallow
   ) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+      return
+    }
     var dep = new Dep();
 
     var property = Object.getOwnPropertyDescriptor(obj, key);
@@ -1081,6 +1087,9 @@
     if (isUndef(target) || isPrimitive(target)
     ) {
       warn(("Cannot set reactive property on undefined, null, or primitive value: " + ((target))));
+    }
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+      return val
     }
     if (Array.isArray(target) && isValidArrayIndex(key)) {
       target.length = Math.max(target.length, key);
@@ -3094,6 +3103,9 @@
 
   function mergeProps (to, from) {
     for (var key in from) {
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        continue
+      }
       to[camelize(key)] = from[key];
     }
   }
