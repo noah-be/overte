@@ -4412,12 +4412,18 @@ function createTextureProperty(property, elProperty) {
             elDiv.classList.remove("with-texture");
             elDiv.classList.remove("no-texture");
             elDiv.classList.add("no-preview");
-        } else if (url.length > 0) {
+        } else if (url.indexOf("https://") === 0) {
             elDiv.classList.remove("no-texture");
             elDiv.classList.remove("no-preview");
             elDiv.classList.add("with-texture");
-            elImage.src = url;
+            elImage.src = encodeURI(url);
             elImage.style.display = "block";
+        } else if (url.length > 0) {
+            elImage.src = "";
+            elImage.style.display = "none";
+            elDiv.classList.remove("with-texture");
+            elDiv.classList.remove("no-texture");
+            elDiv.classList.add("no-preview");
         } else {
             elImage.src = "";
             elImage.style.display = "none";
@@ -5659,8 +5665,8 @@ function removeZoneFromZonesSelection(propertyId, zoneId) {
 }
 
 function displaySelectedZones(propertyId, isEditable) {
-    let i,j, name, listedZoneInner, hiddenData, isMultiple;
-    hiddenData = document.getElementById(propertyId).value;
+    let hiddenData = document.getElementById(propertyId).value;
+    let isMultiple;
     if (JSON.stringify(hiddenData) === '"undefined"') {
         isMultiple = true;
         hiddenData = "[]";
@@ -5668,26 +5674,49 @@ function displaySelectedZones(propertyId, isEditable) {
         isMultiple = false;  
     }
     let selectedZones = JSON.parse(hiddenData);
-    listedZoneInner = "<table>";
+    let table = document.createElement("table");
     if (selectedZones.length === 0) {
-        if (!isMultiple) {
-            listedZoneInner += "<tr><td class='zoneItem'>&nbsp;</td><td>&nbsp;</td></tr>";
-        } else {
-            listedZoneInner += "<tr><td class='zoneItem'>[ WARNING: Any changes will apply to all. ]</td><td>&nbsp;</td></tr>";
-        }
+        let emptyRow = document.createElement("tr");
+        let messageCell = document.createElement("td");
+        messageCell.className = "zoneItem";
+        messageCell.textContent = isMultiple ? "[ WARNING: Any changes will apply to all. ]" : "\u00a0";
+        emptyRow.appendChild(messageCell);
+        let spacerCell = document.createElement("td");
+        spacerCell.textContent = "\u00a0";
+        emptyRow.appendChild(spacerCell);
+        table.appendChild(emptyRow);
     } else {
-        for (i = 0; i < selectedZones.length; i++) {
-            name = getZoneName(selectedZones[i]);
+        for (let i = 0; i < selectedZones.length; i++) {
+            let zoneId = selectedZones[i];
+            let row = document.createElement("tr");
+            let nameCell = document.createElement("td");
+            nameCell.className = "zoneItem";
+            nameCell.textContent = getZoneName(zoneId);
+            row.appendChild(nameCell);
+            let actionCell = document.createElement("td");
             if (isEditable) {
-                listedZoneInner += "<tr><td class='zoneItem'>" + name + "</td><td><a href='#' onClick='removeZoneFromZonesSelection(" + '"' + propertyId + '"' + ", " + '"' + selectedZones[i] + '"' + ");' >";
-                listedZoneInner += "<img src='../../../html/css/img/remove_icon.png'></a></td></tr>";
+                let removeLink = document.createElement("a");
+                removeLink.href = "#";
+                removeLink.addEventListener("click", function(event) {
+                    event.preventDefault();
+                    removeZoneFromZonesSelection(propertyId, zoneId);
+                });
+                let removeImage = document.createElement("img");
+                removeImage.src = "../../../html/css/img/remove_icon.png";
+                removeLink.appendChild(removeImage);
+                actionCell.appendChild(removeLink);
             } else {
-                listedZoneInner += "<tr><td class='zoneItem'>" + name + "</td><td>&nbsp;</td></tr>";
+                actionCell.textContent = "\u00a0";
             }
+            row.appendChild(actionCell);
+            table.appendChild(row);
         }
     }
-    listedZoneInner += "</table>";
-    document.getElementById("selected-zones-" + propertyId).innerHTML = listedZoneInner; 
+    let selectedZonesElement = document.getElementById("selected-zones-" + propertyId);
+    while (selectedZonesElement.firstChild) {
+        selectedZonesElement.removeChild(selectedZonesElement.firstChild);
+    }
+    selectedZonesElement.appendChild(table);
     if (isEditable) {
         document.getElementById("multiZoneSelTools-" + propertyId).style.display = "block";
     } else {
@@ -5948,52 +5977,77 @@ function createArrayOfStrings(property, elProperty) {
 }
 
 function setArrayOfStringsUi(propertyId, isEditable) {
-    let i, listedStringsInner, hiddenData, isMultiple, useStringColor, tagStyle;
-    hiddenData = document.getElementById(propertyId).value;
-    useStringColor = document.getElementById(propertyId).getAttribute('useStringColor').toLowerCase() === "true";
+    let hiddenData = document.getElementById(propertyId).value;
+    let useStringColor = document.getElementById(propertyId).getAttribute('useStringColor').toLowerCase() === "true";
+    let isMultiple;
     if (JSON.stringify(hiddenData) === '"undefined"') {
         isMultiple = true;
         hiddenData = "[]";
     } else {
         isMultiple = false;
     }
-    listedStringsInner = "<div class='arrayOfStringsContainer'>";
+    let container = document.createElement("div");
+    container.className = "arrayOfStringsContainer";
     let selectedStrings = JSON.parse(hiddenData);
     if (selectedStrings.length === 0) {
         if (isMultiple) {
-            listedStringsInner += "<br>"; //or anything saying we dont suport multiple selection, but we might by the list with bulk actions.
+            container.appendChild(document.createElement("br"));
         }
     } else {
         selectedStrings.sort();
         let counter = 0;
-        for (i = 0; i < selectedStrings.length; i++) {
-            tagStyle = "";
+        for (let i = 0; i < selectedStrings.length; i++) {
+            let selectedString = selectedStrings[i];
+            let tag = document.createElement("div");
+            tag.className = "arrayOfStringsTags";
             if (useStringColor) {
-                tagStyle = " style='color:#bbbbbb; background-color:" + getColorOfString(selectedStrings[i]) + ";'";
+                tag.style.color = "#bbbbbb";
+                tag.style.backgroundColor = getColorOfString(selectedString);
             }
+            tag.textContent = selectedString;
             if (isEditable) {
-                listedStringsInner += "<div class='arrayOfStringsTags'" + tagStyle + ">" + selectedStrings[i] + "&nbsp;&nbsp;"; 
-                listedStringsInner += "<span class='arrayOfStringsTagsRemove' onClick='removeElementFromArrayOfStrings(" + '"' + propertyId + '"' + ", " + '"' + selectedStrings[i] + '"' + ");' >&#10006;</span>"
-                listedStringsInner += "</div>";
-            } else {
-                listedStringsInner += "<div class='arrayOfStringsTags'" + tagStyle + ">" + selectedStrings[i] + "</div>";
+                tag.appendChild(document.createTextNode("\u00a0\u00a0"));
+                let removeButton = document.createElement("span");
+                removeButton.className = "arrayOfStringsTagsRemove";
+                removeButton.textContent = "\u2716";
+                removeButton.addEventListener("click", function() {
+                    removeElementFromArrayOfStrings(propertyId, selectedString);
+                });
+                tag.appendChild(removeButton);
             }
+            container.appendChild(tag);
             counter++;
             if (counter === MAX_TAGS_PER_ROWS) {
-                listedStringsInner += "<br>";
+                container.appendChild(document.createElement("br"));
                 counter = 0;
             }
         }
     }
     if (isEditable && !isMultiple) {
-        let addComponent = "<div class='arrayOfStringsAddComponentContainer'><input class='arrayOfStringsStringToAdd' type='text' id='arrayOfStringsStringToAdd-" + propertyId + "'>";
-        addComponent += " <input type='button' class='glyph' value = 'K' id='arrayOfStringsAddButton-" + propertyId + "' onClick='addElementToArrayOfStrings(" + '"' + propertyId + '", "';
-        addComponent += "arrayOfStringsStringToAdd-" + propertyId + '"' + ");'>";
-        addComponent += "</div>";
-        listedStringsInner += addComponent;
+        let addComponent = document.createElement("div");
+        addComponent.className = "arrayOfStringsAddComponentContainer";
+        let input = document.createElement("input");
+        input.className = "arrayOfStringsStringToAdd";
+        input.type = "text";
+        input.id = "arrayOfStringsStringToAdd-" + propertyId;
+        addComponent.appendChild(input);
+        addComponent.appendChild(document.createTextNode(" "));
+        let addButton = document.createElement("input");
+        addButton.type = "button";
+        addButton.className = "glyph";
+        addButton.value = "K";
+        addButton.id = "arrayOfStringsAddButton-" + propertyId;
+        addButton.addEventListener("click", function() {
+            addElementToArrayOfStrings(propertyId, input.id);
+        });
+        addComponent.appendChild(addButton);
+        container.appendChild(addComponent);
     }
-    listedStringsInner += "</div>";
-    document.getElementById("arrayOfStrings-selector-" + propertyId).innerHTML = listedStringsInner;
+    let selector = document.getElementById("arrayOfStrings-selector-" + propertyId);
+    while (selector.firstChild) {
+        selector.removeChild(selector.firstChild);
+    }
+    selector.appendChild(container);
 }
 
 function removeElementFromArrayOfStrings(propertyId, stringText) {
