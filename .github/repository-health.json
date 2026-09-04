@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "repository": "noah-be/overte",
+  "reference_issue": 599,
+  "wip_limits": {
+    "workflow: ready": 3,
+    "workflow: active": 3
+  },
+  "labels": {
+    "workflow: inbox": {
+      "color": "C5DEF5",
+      "description": "Untriaged work; not ready to start"
+    },
+    "workflow: ready": {
+      "color": "0E8A16",
+      "description": "Ready to start; repository WIP limit 3"
+    },
+    "workflow: active": {
+      "color": "FBCA04",
+      "description": "Currently in progress; repository WIP limit 3"
+    },
+    "workflow: blocked": {
+      "color": "B60205",
+      "description": "Blocked; issue must state blocker and unblock condition"
+    },
+    "type: task": {
+      "color": "5319E7",
+      "description": "A concrete tracked task"
+    },
+    "system: reference": {
+      "color": "1D76DB",
+      "description": "Persistent operating reference; not a workflow state"
+    }
+  },
+  "required_workflows": [
+    "Android tests",
+    "Branch policy",
+    "Branch synchronization",
+    "CodeQL",
+    "Documentation checks",
+    "Workflow security",
+    "Android branch topology",
+    "Apple branch topology",
+    "Desktop branch topology",
+    "Dependabot Updates",
+    "Dependency Graph",
+    "Repository Health Doctor"
+  ],
+  "security_workflows": [
+    "CodeQL",
+    "Dependabot Updates",
+    "Dependency Graph",
+    "Workflow security"
+  ],
+  "security_thresholds": {
+    "codeql": 0,
+    "dependabot": 0,
+    "secret_scanning": 0
+  }
+}
