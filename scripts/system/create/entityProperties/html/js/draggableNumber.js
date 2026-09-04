@@ -153,7 +153,7 @@ DraggableNumber.prototype = {
         } else {
             this.elInput.value = newValue;
         }
-        this.elText.firstChild.data = this.elInput.value;
+        this.elText.textContent = this.elInput.value;
     },
 
     setMultiDiff: function(isMultiDiff) {
