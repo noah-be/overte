@@ -1,6 +1,6 @@
 'use strict'
 
-const request = require('request');
+const request = require('@cypress/request');
 const extend = require('extend');
 const util = require('util');
 const events = require('events');
