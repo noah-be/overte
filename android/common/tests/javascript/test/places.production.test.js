@@ -342,7 +342,7 @@ test("production Places supports the desktop web and synchronous directory path"
         androidPhone: false, has3DHTML: true,
         federation: [{ node: "https://other.test" }],
         metaversesToFetch: ["https://other.test"],
-        syncResponse: (url) => url.startsWith("https://meta.test")
+        syncResponse: (url) => new URL(url).origin === "https://meta.test"
             ? { status: 200, payload: { data: { places: [directoryPlace({ id: "desktop", name: "Desktop" })] } } }
             : { status: 500, payload: "unavailable" }
     });
