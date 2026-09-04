@@ -1,0 +1,69 @@
+name: Repository Health Doctor
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/repository-health.json"
+      - ".github/workflows/repository-health.yml"
+      - "tools/repository-health/**"
+      - "tests/repository-health-test.py"
+      - "docs/REPOSITORY_HEALTH.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repository-health-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pull-request-contracts:
+    name: Repository health fixture and contract tests
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out pull request without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run fixture and local contract tests without a live token
+        env:
+          GITHUB_TOKEN: ""
+        run: |
+          set -euo pipefail
+          python3 tests/repository-health-test.py
+          python3 tools/repository-health/check.py --local --report repository-health-report.json
+
+  live-audit:
+    name: Read-only live repository health audit
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      actions: read
+      issues: read
+      pull-requests: read
+      security-events: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out the trusted default branch without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Run the fail-closed read-only live audit
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/repository-health/check.py --report repository-health-report.json
+      - name: Upload the machine-readable report
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: repository-health-report-${{ github.run_id }}
+          path: repository-health-report.json
+          if-no-files-found: error
+          retention-days: 14
