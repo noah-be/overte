@@ -138,17 +138,34 @@ window.sender = null;
 window.onmessage = function(e) {
     var msg = e.data;
     if (msg.command) {
-        if (main[msg.command])
-            main[msg.command].apply(main, msg.args);
-        else
-            throw new Error("Unknown command:" + msg.command);
+        switch (msg.command) {
+            case "setValue":
+                main.setValue.apply(main, msg.args);
+                break;
+            case "getValue":
+                main.getValue.apply(main, msg.args);
+                break;
+            case "setOptions":
+                main.setOptions.apply(main, msg.args);
+                break;
+            case "changeOptions":
+                main.changeOptions.apply(main, msg.args);
+                break;
+            case "setTimeout":
+                main.setTimeout.apply(main, msg.args);
+                break;
+            default:
+                throw new Error("Unknown command:" + msg.command);
+        }
     }
     else if (msg.init) {        
         initBaseUrls(msg.tlns);
         require("ace/lib/es5-shim");
         sender = initSender();
-        var clazz = require(msg.module)[msg.classname];
-        main = new clazz(sender);
+        if (msg.module !== "ace/mode/javascript_worker" || msg.classname !== "JavaScriptWorker")
+            throw new Error("Unsupported worker module or class");
+        var JavaScriptWorker = require("ace/mode/javascript_worker").JavaScriptWorker;
+        main = new JavaScriptWorker(sender);
     } 
     else if (msg.event && sender) {
         sender._emit(msg.event, msg.data);
