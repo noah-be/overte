@@ -1,7 +1,7 @@
-const remote = require('electron').remote;
+const ipcRenderer = require('electron').ipcRenderer;
 const os = require('os');
 const fs = require('fs');
-const Tail = require('always-tail');
+const Tail = require('./modules/file-tail');
 
 function cleanPath(path) {
     if (os.type() == "Windows_NT") {
@@ -40,10 +40,6 @@ function difference(a, b) {
 
 ready = function() {
     window.$ = require('./vendor/jquery/jquery-2.1.4.min.js');
-
-    var domainServer = remote.getGlobal('domainServer');
-    var acMonitor = remote.getGlobal('acMonitor');
-    var openLogDirectory = remote.getGlobal('openLogDirectory');
 
     var pendingLines = {
         'ds': new Array(),
@@ -108,26 +104,24 @@ ready = function() {
 
     function updateLogFiles() {
         // Get ds and ac logs from main application
-        var dsLogs = domainServer.getLogs();
-        var acLogs = acMonitor.getLogs();
+        var logs = ipcRenderer.sendSync('log:get-files');
+        if (!logs) {
+            return;
+        }
 
-        updateLogWatchers('ds', logWatchers.ds, dsLogs);
-        updateLogWatchers('ac', logWatchers.ac, acLogs);
+        updateLogWatchers('ds', logWatchers.ds, logs.ds);
+        updateLogWatchers('ac', logWatchers.ac, logs.ac);
     }
 
     window.onbeforeunload = function(e) {
         clearInterval(interval);
-        domainServer.removeListener('logs-updated', updateLogFiles);
-        acMonitor.removeListener('logs-updated', updateLogFiles);
+        ipcRenderer.removeListener('log:files-updated', updateLogFiles);
     };
 
-    domainServer.on('logs-updated', updateLogFiles);
-    acMonitor.on('logs-updated', updateLogFiles);
+    ipcRenderer.on('log:files-updated', updateLogFiles);
 
 
     const maxLogLines = 2500;
-    const ipcRenderer = require('electron').ipcRenderer;
-
     var currentTab = 'domain-server';
     var tabStates = {
         'domain-server': {
@@ -219,10 +213,9 @@ ready = function() {
         appendLogMessages('ac');
     }
 
-    // Binding a remote function directly does not work, so bind to a function
-    // that calls the remote function.
+    // Ask the main process to open the trusted log directory.
     $('#view-logs').on('click', function() {
-        openLogDirectory();
+        ipcRenderer.send('log:open-directory');
     });
 
     // handle filtering of table rows on input change

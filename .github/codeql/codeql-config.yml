@@ -1,0 +1,11 @@
+name: "Overte CodeQL configuration"
+
+paths-ignore:
+  # Intentionally malformed fixture used to verify script syntax-error handling.
+  - scripts/developer/tests/unit_tests/scriptTests/nested/syntax-error.js
+  # QML JavaScript libraries use the valid QML-only `.pragma library` directive,
+  # which is not valid standalone ECMAScript syntax.
+  - tests-manual/qml/qml/qml/UI.js
+  - tests-manual/qml/qml/qml/+android/UI.js
+  - tests-manual/qml/qml/qml/+ios/UI.js
+  - tests-manual/qml/qml/qml/+osx/UI.js
