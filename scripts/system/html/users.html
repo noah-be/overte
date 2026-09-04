@@ -482,7 +482,10 @@
                     $(this).addClass("current");
                     myVisibility = $(this).data("visibility");
                     var newButtonText = $(this).find("h5").text();
-                    $("#visibility-toggle").html(newButtonText + "<span class='glyphicon glyphicon-menu-down'></span>");
+                    $("#visibility-toggle")
+                        .empty()
+                        .text(newButtonText)
+                        .append($("<span>", { "class": "glyphicon glyphicon-menu-down" }));
                     var visibilityObject = {
                         "type": "toggle-visibility",
                         "data": {
