@@ -1,11 +1,12 @@
-var remote = require('electron').remote;
+var ipcRenderer = require('electron').ipcRenderer;
 
 ready = function() {
     window.$ = require('./vendor/jquery/jquery-2.1.4.min.js');
 
-    var userConfig = remote.getGlobal('userConfig');
+    var userConfig = ipcRenderer.sendSync('splash:get-config');
+    $('#suppress-splash').prop('checked', userConfig.doNotShowSplash);
     $('#suppress-splash').change(function() {
         console.log("updating");
-        userConfig.set('doNotShowSplash', $(this).is(':checked'));
+        ipcRenderer.send('splash:set-suppressed', $(this).is(':checked'));
     });
 }
