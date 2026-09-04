@@ -1,14 +1,12 @@
-const request = require('request');
-const notifier = require('node-notifier');
+const request = require('@cypress/request');
 const os = require('os');
 const process = require('process');
 const hfApp = require('./hf-app');
 const path = require('path');
 const AccountInfo = require('./hf-acctinfo').AccountInfo;
-const url = require('url');
-const shell = require('electron').shell;
-const GetBuildInfo = hfApp.getBuildInfo;
-const buildInfo = GetBuildInfo();
+const electron = require('electron');
+const Notification = electron.Notification;
+const shell = electron.shell;
 const osType = os.type();
 
 const notificationIcon = path.join(__dirname, '../../resources/console-notification.png');
@@ -42,6 +40,7 @@ const NotificationType = {
 function HifiNotification(notificationType, notificationData, menuNotificationCallback) {
     this.type = notificationType;
     this.data = notificationData;
+    this.menuNotificationCallback = menuNotificationCallback;
 }
 
 HifiNotification.prototype = {
@@ -119,25 +118,50 @@ HifiNotification.prototype = {
                 url = "hifiapp:INVENTORY";
                 break;
         }
-        notifier.notify({
-            notificationType: this.type,
+        if (!Notification.isSupported()) {
+            if (finished) {
+                finished();
+            }
+            return;
+        }
+
+        var notification = new Notification({
             icon: notificationIcon,
             title: text,
-            message: message,
-            wait: true,
-            appID: buildInfo.appUserModelId,
-            url: url,
-            timeout: 5
-            },
-            function (error, reason, metadata) {
-                if (finished) {
-                    if (osType === 'Darwin') {
-                        setTimeout(finished, OSX_CLICK_DELAY_TIMEOUT);
-                    } else {
-                        finished();
-                    }
+            body: message
+        });
+        var didFinish = false;
+        function complete() {
+            if (!didFinish && finished) {
+                didFinish = true;
+                if (osType === 'Darwin') {
+                    setTimeout(finished, OSX_CLICK_DELAY_TIMEOUT);
+                } else {
+                    finished();
                 }
-            });
+            }
+        }
+        notification.on('click', function() {
+            try {
+                var parsedURL = new URL(url);
+                if (parsedURL.protocol === "hifi:" || parsedURL.protocol === "hifiapp:") {
+                    StartInterface(url);
+                    if (this.menuNotificationCallback) {
+                        this.menuNotificationCallback(this.type, false);
+                    }
+                } else if (parsedURL.protocol === "https:" || parsedURL.protocol === "http:") {
+                    shell.openExternal(parsedURL.toString()).catch(function(error) {
+                        console.log("Unable to open notification URL", error);
+                    });
+                }
+            } catch (error) {
+                console.log("Rejected invalid notification URL", url);
+            }
+            complete();
+        }.bind(this));
+        notification.on('close', complete);
+        notification.on('failed', complete);
+        notification.show();
     }
 }
 
@@ -154,16 +178,6 @@ function HifiNotifications(config, menuNotificationCallback) {
     this.pendingNotifications = [];
 
 
-    var _menuNotificationCallback = menuNotificationCallback;
-    notifier.on('click', function (notifierObject, options) {
-        const optUrl = url.parse(options.url);
-        if ((optUrl.protocol === "hifi:") || (optUrl.protocol === "hifiapp:")) {
-            StartInterface(options.url);
-            _menuNotificationCallback(options.notificationType, false);
-        } else {
-            shell.openExternal(options.url);
-        }
-    });
 }
 
 HifiNotifications.prototype = {
@@ -257,6 +271,7 @@ HifiNotifications.prototype = {
         }
     },
     _addNotification: function (notification) {
+        notification.menuNotificationCallback = this.menuNotificationCallback;
         this.pendingNotifications.push(notification);
         if (this.pendingNotifications.length === 1) {
             this._showNotification();
@@ -516,4 +531,5 @@ HifiNotifications.prototype = {
 };
 
 exports.HifiNotifications = HifiNotifications;
+exports.HifiNotification = HifiNotification;
 exports.NotificationType = NotificationType;
