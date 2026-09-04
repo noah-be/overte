@@ -43368,6 +43368,9 @@ function mergeDeep(source, target) {
   }
 
   for (var key in target) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+      continue;
+    }
     var sourceProperty = source[key];
     var targetProperty = target[key]; // Only continue deep merging if
     // both properties are objects

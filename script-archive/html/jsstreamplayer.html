@@ -16,18 +16,17 @@
 <!DOCTYPE html>
 <html lang="en">
 	<head>
-		<script src="http://code.jquery.com/jquery-1.11.3.min.js"></script>
-
 		<script type="text/javascript">
-		$(function(){
+		document.addEventListener("DOMContentLoaded", function () {
+			var audio = document.querySelector("body > audio");
 			if (window.EventBridge !== undefined) {
 	        	EventBridge.scriptEventReceived.connect(function(data) {
 	        		var myData = JSON.parse(data);
 	        		if (myData.action == "changeStream") {
-	        			$('body > audio').attr("src", myData.stream);
+					audio.setAttribute("src", myData.stream);
 	        		}
 	        		if (myData.action == "changeVolume") {
-	        			$('body > audio').prop("volume", myData.volume);
+					audio.volume = myData.volume;
 	        		}
 	        	});
 	    	}

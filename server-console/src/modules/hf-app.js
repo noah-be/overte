@@ -7,7 +7,7 @@ const path = require('path');
 const argv = require('yargs').argv;
 const hfprocess = require('./hf-process');
 const osHomeDir = require('os-homedir');
-const childProcess = require('child_process');
+const openUrl = require('./open-url').openUrl;
 const Process = hfprocess.Process;
 
 const binaryType = argv.binaryType;
@@ -69,7 +69,7 @@ exports.startInterface = function(url) {
         } else if (buildInfo.releaseType == 'PRODUCTION') {
             bundle_id = 'org.overte.interface';
         }
-        childProcess.exec('open -b ' + bundle_id + ' --args --url ' + url);
+        openUrl(bundle_id, url);
     } else {
         var argArray = [];
 
