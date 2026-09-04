@@ -2,7 +2,6 @@ function ready() {
     console.log("Ready");
 
     const electron = require('electron');
-    const remote = electron.remote;
     window.$ = require('./vendor/jquery/jquery-2.1.4.min.js');
 
     $(".state").hide();
@@ -24,7 +23,7 @@ function ready() {
         } else if (state == 'installing') {
         } else if (state == 'complete') {
             setTimeout(function() {
-                remote.getCurrentWindow().close();
+                electron.ipcRenderer.send('downloader:close');
             }, 2000);
         } else if (state == 'error') {
             $('#error-message').html(args.message);
