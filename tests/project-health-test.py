@@ -199,15 +199,8 @@ class ProjectHealthTests(unittest.TestCase):
 
     def test_javascript_syntax(self):
         self.assertIsNotNone(__import__("shutil").which("node"), "node is required")
-        # Intentional syntax fixture plus files using Interface's non-Node include dialect.
+        # Intentional syntax fixture plus QML JavaScript files with `.pragma library`.
         allowlist = {
-            Path("script-archive/acScripts/botProceduralWayPoints.js"),
-            Path("script-archive/drylake/ratCreator.js"),
-            Path("script-archive/example/brownianFun.js"),
-            Path("script-archive/example/soundToys.js"),
-            Path("script-archive/pointer.js"),
-            Path("scripts/developer/debugging/queryAACubeInspector.js"),
-            Path("scripts/developer/tests/performance/domain-check.js"),
             Path("scripts/developer/tests/unit_tests/scriptTests/nested/syntax-error.js"),
             Path("tests-manual/qml/qml/qml/+android/UI.js"),
             Path("tests-manual/qml/qml/qml/+ios/UI.js"),
