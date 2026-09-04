@@ -63,7 +63,8 @@ function onClicked() {
 }
 
 function onScreenChanged(type, url) {
-    onEmoteScreen = type === "Web" && (url.indexOf(EMOTE_APP_BASE) === url.length - EMOTE_APP_BASE.length);
+    onEmoteScreen = type === "Web" && url.length >= EMOTE_APP_BASE.length &&
+        url.indexOf(EMOTE_APP_BASE) === url.length - EMOTE_APP_BASE.length;
     button.editProperties({ isActive: onEmoteScreen });
 }
 
