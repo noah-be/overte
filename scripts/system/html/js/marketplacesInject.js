@@ -31,6 +31,18 @@
     var marketplaceBaseURL = "https://highfidelity.com";
     var messagesWaiting = false;
 
+    function isUrlWithin(value, origin, pathPrefix) {
+        try {
+            var candidate = new URL(value);
+            var allowed = new URL(origin);
+            return candidate.origin === allowed.origin &&
+                (pathPrefix === "/" || candidate.pathname === pathPrefix ||
+                    candidate.pathname.indexOf(pathPrefix + "/") === 0);
+        } catch (error) {
+            return false;
+        }
+    }
+
     function injectCommonCode(isDirectoryPage) {
         // Supporting styles from marketplaces.css.
         // Glyph font family, size, and spacing adjusted because HiFi-Glyphs cannot be used cross-domain.
@@ -109,7 +121,7 @@
         // Have to repeatedly update Clara page because its content can change dynamically without location.href changing.
 
         // Clara library page.
-        if (location.href.indexOf("clara.io/library") !== -1) {
+        if (isUrlWithin(location.href, "https://clara.io", "/library")) {
             // Make entries navigate to "Image" view instead of default "Real Time" view.
             var elements = $("a.thumbnail");
             for (var i = 0, length = elements.length; i < length; i++) {
@@ -121,7 +133,7 @@
         }
 
         // Clara item page.
-        if (location.href.indexOf("clara.io/view/") !== -1) {
+        if (isUrlWithin(location.href, "https://clara.io", "/view")) {
             // Make site navigation links retain gameCheck etc. parameters.
             var element = $("a[href^=\'/library\']")[0];
             var parameters = "?gameCheck=true&public=true";
@@ -332,9 +344,9 @@
         var HIFI_ITEM_PAGE = 3;
         var pageType = DIRECTORY;
 
-        if (location.href.indexOf(marketplaceBaseURL + "/") !== -1) { pageType = HIFI; }
-        if (location.href.indexOf("clara.io/") !== -1) { pageType = CLARA; }
-        if (location.href.indexOf(marketplaceBaseURL + "/marketplace/items/") !== -1) { pageType = HIFI_ITEM_PAGE; }
+        if (isUrlWithin(location.href, marketplaceBaseURL, "/")) { pageType = HIFI; }
+        if (isUrlWithin(location.href, "https://clara.io", "/")) { pageType = CLARA; }
+        if (isUrlWithin(location.href, marketplaceBaseURL, "/marketplace/items")) { pageType = HIFI_ITEM_PAGE; }
 
         injectCommonCode(pageType === DIRECTORY);
         switch (pageType) {
