@@ -464,8 +464,8 @@ if (USE_CONSTANT_SPAWNER === true) {
                         //if we have too many injectors hanging around there are problems
                         metaRat.injector.stop();
                         delete metaRat.injector;
-                    }, RAT_SPAWN_RATE * RAT_SOUND_CLEAR_RATE;
-                }
+                    }, RAT_SPAWN_RATE * RAT_SOUND_CLEAR_RATE);
+            }
 
             }, RAT_SPAWN_RATE);
     }

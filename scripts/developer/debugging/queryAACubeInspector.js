@@ -62,7 +62,7 @@ Script.setInterval(function() {
 
 function cleanup() {
     for (var entityID in overlays) {
-        Entities.deleteEntity((overlays[entityID]);
+        Entities.deleteEntity(overlays[entityID]);
     }
 }
 
