@@ -32,7 +32,7 @@ var buttonOnColor = {
 var userCanPoint = false;
 Script.include(["libraries/toolBars.js"]);
 var toolBar = new ToolBar(0, 0, ToolBar.HORIZONTAL, "highfidelity.pointer.toolbar", function (screenSize) {
-    return {x: screenSize.x / 2 - BUTTON_SIZE * 2 + PADDING, y: screenSize.y - (BUTTON_SIZE + PADDING)},
+    return {x: screenSize.x / 2 - BUTTON_SIZE * 2 + PADDING, y: screenSize.y - (BUTTON_SIZE + PADDING)};
 });
 var pointerButton = toolBar.addOverlay("image", {
   width: BUTTON_SIZE,

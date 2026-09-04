@@ -4,23 +4,22 @@ const electron = require('electron');
 const app = electron.app;  // Module to control application life.
 const BrowserWindow = electron.BrowserWindow;
 const nativeImage = electron.nativeImage;
+const Notification = electron.Notification;
 
-const notifier = require('node-notifier');
 const util = require('util');
 const dialog = electron.dialog;
 const Menu = electron.Menu;
 const Tray = electron.Tray;
 const shell = electron.shell;
 const os = require('os');
-const childProcess = require('child_process');
 const path = require('path');
+const fileURLToPath = require('url').fileURLToPath;
 const fs = require('fs-extra');
-const Tail = require('always-tail');
 const http = require('http');
 const zlib = require('zlib');
 const tar = require('tar-fs');
 
-const request = require('request');
+const request = require('@cypress/request');
 const progress = require('request-progress');
 const osHomeDir = require('os-homedir');
 
@@ -50,6 +49,45 @@ const getApplicationDataDirectory = hfApp.getApplicationDataDirectory;
 const osType = os.type();
 
 const appIcon = path.join(__dirname, '../resources/console.png');
+
+const rendererWebPreferences = {
+    nodeIntegration: true,
+    contextIsolation: false,
+    sandbox: false,
+    webSecurity: true,
+    allowRunningInsecureContent: false
+};
+
+function openExternalURL(targetURL) {
+    try {
+        const parsedURL = new URL(targetURL);
+        if (parsedURL.protocol === 'https:' || parsedURL.protocol === 'http:') {
+            shell.openExternal(parsedURL.toString()).catch(function(error) {
+                log.error("Unable to open external URL", error);
+            });
+        }
+    } catch (error) {
+        log.warn("Rejected invalid external URL", targetURL);
+    }
+}
+
+function createRendererWindow(options) {
+    const windowOptions = Object.assign({}, options, {
+        webPreferences: Object.assign({}, rendererWebPreferences, options.webPreferences || {})
+    });
+    const window = new BrowserWindow(windowOptions);
+
+    window.webContents.setWindowOpenHandler(function(details) {
+        openExternalURL(details.url);
+        return { action: 'deny' };
+    });
+    window.webContents.on('will-navigate', function(event, targetURL) {
+        event.preventDefault();
+        openExternalURL(targetURL);
+    });
+
+    return window;
+}
 
 const menuNotificationIcon = path.join(__dirname, '../resources/tray-menu-notification.png');
 
@@ -136,7 +174,11 @@ function shutdown() {
                 buttons: ['Yes', 'No'],
                 title: 'Stopping Overte Sandbox',
                 message: 'Quitting will stop your Sandbox and your Home domain will no longer be running.\nDo you wish to continue?'
-            }, shutdownCallback);
+            }).then(function(result) {
+                shutdownCallback(result.response);
+            }).catch(function(error) {
+                log.error("Unable to show shutdown dialog", error);
+            });
         } else {
             shutdownCallback(0);
         }
@@ -264,7 +306,7 @@ var interfacePath = null;
 var dsPath = null;
 var acPath = null;
 
-var debug = argv.debug;
+var debug = argv.consoleDebug;
 
 var binaryType = argv.binaryType;
 
@@ -300,15 +342,11 @@ function binaryMissingMessage(displayName, executableName, required) {
 }
 
 function openFileBrowser(path) {
-    // Add quotes around path
-    path = '"' + path + '"';
-    if (osType == "Windows_NT") {
-        childProcess.exec('start "" ' + path);
-    } else if (osType == "Darwin") {
-        childProcess.exec('open ' + path);
-    } else if (osType == "Linux") {
-        childProcess.exec('xdg-open ' + path);
-    }
+    shell.openPath(path).then(function(errorMessage) {
+        if (errorMessage) {
+            log.error("Unable to open path", errorMessage);
+        }
+    });
 }
 
 function openLogDirectory() {
@@ -322,11 +360,9 @@ app.on('window-all-closed', function() {
 });
 
 var tray = null;
-global.homeServer = null;
-global.domainServer = null;
-global.acMonitor = null;
-global.userConfig = userConfig;
-global.openLogDirectory = openLogDirectory;
+var homeServer = null;
+var domainServer = null;
+var acMonitor = null;
 
 const hfNotifications = require('./modules/hf-notifications.js');
 const HifiNotifications = hfNotifications.HifiNotifications;
@@ -367,6 +403,13 @@ var LogWindow = function(ac, ds) {
     this.window = null;
     this.acMonitor = null;
     this.dsMonitor = null;
+    this.logsUpdated = function() {
+        if (this.window && !this.window.isDestroyed()) {
+            this.window.webContents.send('log:files-updated');
+        }
+    }.bind(this);
+    this.ac.on('logs-updated', this.logsUpdated);
+    this.ds.on('logs-updated', this.logsUpdated);
 }
 LogWindow.prototype = {
     open: function() {
@@ -376,11 +419,11 @@ LogWindow.prototype = {
             return;
         }
         // Create the browser window.
-        this.window = new BrowserWindow({ width: 700, height: 500, icon: appIcon });
+        this.window = createRendererWindow({ width: 700, height: 500, icon: appIcon });
         this.window.loadURL('file://' + __dirname + '/log.html');
 
         if (!debug) {
-            this.window.setMenu(null);
+            this.window.removeMenu();
         }
 
         this.window.on('closed', function() {
@@ -404,6 +447,54 @@ function visitSandboxClicked() {
 }
 
 var logWindow = null;
+
+function isExpectedRenderer(event, fileName) {
+    try {
+        return path.resolve(fileURLToPath(event.senderFrame.url)) === path.resolve(__dirname, fileName);
+    } catch (error) {
+        return false;
+    }
+}
+
+ipcMain.on('log:get-files', function(event) {
+    if (!isExpectedRenderer(event, 'log.html') || !logWindow) {
+        event.returnValue = null;
+        return;
+    }
+    event.returnValue = {
+        ds: logWindow.ds.getLogs(),
+        ac: logWindow.ac.getLogs()
+    };
+});
+
+ipcMain.on('log:open-directory', function(event) {
+    if (isExpectedRenderer(event, 'log.html')) {
+        openLogDirectory();
+    }
+});
+
+ipcMain.on('splash:get-config', function(event) {
+    if (isExpectedRenderer(event, 'splash.html')) {
+        event.returnValue = {
+            doNotShowSplash: userConfig.get('doNotShowSplash', false)
+        };
+    }
+});
+
+ipcMain.on('splash:set-suppressed', function(event, suppressed) {
+    if (isExpectedRenderer(event, 'splash.html') && typeof suppressed === 'boolean') {
+        userConfig.set('doNotShowSplash', suppressed);
+    }
+});
+
+ipcMain.on('downloader:close', function(event) {
+    if (isExpectedRenderer(event, 'downloader.html')) {
+        const window = BrowserWindow.fromWebContents(event.sender);
+        if (window) {
+            window.close();
+        }
+    }
+});
 
 var labels = {
     serverState: {
@@ -707,7 +798,7 @@ function maybeInstallDefaultContentSet(onComplete) {
     }
 
     // Show popup
-    var window = new BrowserWindow({
+    var window = createRendererWindow({
         icon: appIcon,
         width: 640,
         height: 480,
@@ -718,7 +809,7 @@ function maybeInstallDefaultContentSet(onComplete) {
     });
     window.loadURL('file://' + __dirname + '/downloader.html');
     if (!debug) {
-        window.setMenu(null);
+        window.removeMenu();
     }
     window.show();
 
@@ -804,7 +895,7 @@ function maybeShowSplash() {
 
     if (!suppressSplash) {
         const zoomFactor = 0.8;
-        var window = new BrowserWindow({
+        var window = createRendererWindow({
             icon: appIcon,
             width: 1600 * zoomFactor,
             height: 650 * zoomFactor,
@@ -816,14 +907,10 @@ function maybeShowSplash() {
         });
         window.loadURL('file://' + __dirname + '/splash.html');
         if (!debug) {
-            window.setMenu(null);
+            window.removeMenu();
         }
         window.show();
 
-        window.webContents.on('new-window', function(e, url) {
-            e.preventDefault();
-            require('shell').openExternal(url);
-        });
     }
 }
 
@@ -865,14 +952,15 @@ function onContentLoaded() {
             const updateChecker = new updater.UpdateChecker(buildInfo, CHECK_FOR_UPDATES_INTERVAL_SECONDS);
             updateChecker.on('update-available', function(latestVersion, url) {
                 if (!hasShownUpdateNotification) {
-                    notifier.notify({
+                    const notification = new Notification({
                         icon: notificationIcon,
                         title: 'An update is available!',
-                        message: 'Overte version ' + latestVersion + ' is available',
-                        wait: true,
-                        appID: buildInfo.appUserModelId,
-                        url: url
+                        body: 'Overte version ' + latestVersion + ' is available'
                     });
+                    notification.on('click', function() {
+                        openExternalURL(url);
+                    });
+                    notification.show();
                     hasShownUpdateNotification = true;
                 }
             });
