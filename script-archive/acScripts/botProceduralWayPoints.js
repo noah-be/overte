@@ -20,7 +20,7 @@
 //
 
 //For procedural walk animation
-Script.include(Script.getExternalPath(Script.ExternalPaths.Assets, "scripts/acScripts/proceduralAnimationAPI.js");
+Script.include(Script.getExternalPath(Script.ExternalPaths.Assets, "scripts/acScripts/proceduralAnimationAPI.js"));
 
 var procAnimAPI = new ProcAnimAPI();
 
@@ -732,4 +732,3 @@ function updateBehavior(deltaTime) {
 }
 
 Script.update.connect(updateBehavior);
-

@@ -1,10 +1,11 @@
 {
   "name": "overte-api-docs",
   "dependencies": {
+    "@jsdoc/salty": "0.2.12",
     "cheerio": "^1.0.0-rc.2",
     "dedent-js": "^1.0.1",
     "htmlclean": "^3.0.8",
-    "jsdoc": "^3.6.11",
+    "jsdoc": "4.0.5",
     "pretty": "^2.0.0",
     "rimraf": "^3.0.2"
   },
