@@ -33,6 +33,7 @@ SUITES = (
     Suite("workflow-contracts", "quick", (sys.executable, "tests/workflow-contract-test.py")),
     Suite("repository-health", "quick", (sys.executable, "tests/project-health-test.py")),
     Suite("project-coverage", "quick", (sys.executable, "tests/project-coverage-test.py")),
+    Suite("codeql-remediation", "quick", ("node", "--test", "tests/codeql-remediation-test.js")),
     Suite("javascript-behavior", "quick", ("node", "tests/mocha/test/testVirtualBaton.js")),
     Suite("device-e2e-contracts", "quick", (
         sys.executable, "tests/device/run_control_plane_tests.py", "--profile", "quick",
