@@ -1,6 +1,5 @@
 'use strict'
 
-const request = require('request');
 const extend = require('extend');
 const util = require('util');
 const events = require('events');
