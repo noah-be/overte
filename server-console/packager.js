@@ -1,4 +1,4 @@
-var packager = require('electron-packager')
+const { packager } = require('@electron/packager');
 var osType = require('os').type();
 
 var platform = null;
@@ -17,7 +17,7 @@ var iconName = argv.production ? "console" : "console-beta";
 var options = {
     dir: __dirname,
     name: "server-console",
-    version: "0.37.5",
+    appVersion: "0.37.5",
     overwrite: true,
     prune: true,
     arch: "x64",
@@ -32,10 +32,10 @@ var FULL_NAME = argv.client_only ? "Overte Console" : "Overte Sandbox";
 
 // setup per OS options
 if (osType == "Darwin") {
-    options["app-bundle-id"] = "org.overte.server-console" + (argv.production ? "" : "-dev")
+    options.appBundleId = "org.overte.server-console" + (argv.production ? "" : "-dev")
     options["name"] = SHORT_NAME
 } else if (osType == "Windows_NT") {
-    options["version-string"] = {
+    options.win32metadata = {
         CompanyName: "Overte",
         FileDescription: FULL_NAME,
         ProductName: FULL_NAME,
