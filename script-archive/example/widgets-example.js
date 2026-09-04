@@ -190,7 +190,7 @@ function join(obj) {
     var s = "{";
     var sep = "\n";
     for (var k in obj) {
-        s += sep + k + ": " + (""+obj[k]).replace("\n", "\n");
+        s += sep + k + ": " + obj[k];
         sep = ",\n";
     }
     if (s.length > 1)

@@ -13,6 +13,16 @@ $(document).ready(function(){
   var isRestoring = false;
   var restoreErrorShown = false;
 
+  function createUploadSessionId() {
+    var cryptoProvider = window.crypto || window.msCrypto;
+    if (!cryptoProvider || !cryptoProvider.getRandomValues) {
+      throw new Error("Secure randomness is required to restore domain content");
+    }
+    var randomValue = new Uint32Array(1);
+    cryptoProvider.getRandomValues(randomValue);
+    return randomValue[0] % 2147483648;
+  }
+
   function progressBarHTML(extraClass, label) {
     var html = "<div class='progress'>";
     html += "<div class='" + extraClass + " progress-bar progress-bar-success progress-bar-striped active' role='progressbar' aria-valuemin='0' aria-valuemax='100'>";
@@ -36,7 +46,7 @@ $(document).ready(function(){
       }
       if (id == undefined) {
           // Identify this upload session
-          id = Math.round(Math.random() * 2147483647);
+          id = createUploadSessionId();
       }
 
       var fileSize = file.size;
