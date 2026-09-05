@@ -1,0 +1,4 @@
+sources:
+  '1.4':
+    sha256: 79633fd3a18e2d11a7d5c40c4c79c1786ba0c74b59ad752e8429746fe1781dd6
+    url: https://github.com/stachenov/quazip/archive/v1.4.tar.gz

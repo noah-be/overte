@@ -851,10 +851,10 @@ require_text tests/verify-phone-16k-dependencies.sh \
     'readlink -- "\$entry"' \
     'sentinel digest includes shared-library symlink metadata'
 require_text tests/verify-phone-16k-dependencies.sh \
-    "'libcrypto\.so\.1\.1'" \
+    "'libcrypto\.so\.3'" \
     'sentinel covers the staged OpenSSL crypto library consumed by Gradle'
 require_text tests/verify-phone-16k-dependencies.sh \
-    "'libssl\.so\.1\.1'" \
+    "'libssl\.so\.3'" \
     'sentinel covers the staged OpenSSL TLS library consumed by Gradle'
 require_text tests/verify-phone-16k-dependencies.sh \
     'append_manifest_entry staged-library nonqt' \

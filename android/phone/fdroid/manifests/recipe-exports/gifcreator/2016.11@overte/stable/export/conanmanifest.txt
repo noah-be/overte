@@ -1,0 +1,4 @@
+1788600137
+conandata.yml: 5fa78067e9ec779192f95724619a4c5e
+conanfile.py: 88f050896b2cc7c6f3baa3f0998cb352
+export_source/patches/0001-header-inline-and-wide-shift.patch: 1f813952f7d83a97d153d2c57f3e2f1d
