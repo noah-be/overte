@@ -3,13 +3,14 @@
 #include "IOSAudioAdapter.h"
 
 namespace overte::ios {
-bool IOSAudioAdapter::apply() {
+bool IOSAudioAdapter::apply(bool notify) {
     const auto revision = ++_revision;
     _capture = false;
     if (!_native) { _gate.fail(); return false; }
     try {
         if (!_gate.mayActivate()) {
             if (!_native->deactivate()) { _gate.fail(); return false; }
+            if (notify) { audio::notifyIOSAudioStateChanged(); }
             return true;
         }
         const bool capture = _gate.outcome() == audio::Outcome::Capturing;
@@ -23,6 +24,7 @@ bool IOSAudioAdapter::apply() {
             return false;
         }
         _capture = capture && _gate.outcome() == audio::Outcome::Capturing;
+        if (notify) { audio::notifyIOSAudioStateChanged(); }
         return true;
     } catch (...) {
         _gate.fail();
@@ -84,9 +86,20 @@ bool IOSAudioAdapter::deactivate() {
     // Invalidate pending permission without reporting Stopped before the OS.
     _gate.requestStart();
     _gate.fail();
-    const bool success = apply();
-    if (success) { _gate.stop(); }
+    const bool success = apply(false);
+    if (success) {
+        _gate.stop();
+        audio::notifyIOSAudioStateChanged();
+    }
     return success;
+}
+void IOSAudioAdapter::routeChanged() {
+    refreshPermission();
+    // Route changes do not reconfigure AVAudioSession themselves: that could
+    // produce another route notification. Shared reopens its current Qt input.
+    if (_gate.outcome() != audio::Outcome::Failed) {
+        audio::notifyIOSAudioStateChanged();
+    }
 }
 void IOSAudioAdapter::foreground(bool active) {
     _capture = false;

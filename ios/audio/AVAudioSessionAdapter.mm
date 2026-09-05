@@ -137,7 +137,7 @@ void installNativeAudioAdapter() {
         }];
         [center addObserverForName:AVAudioSessionRouteChangeNotification object:nil
                              queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification*) {
-            adapter->refreshPermission();
+            adapter->routeChanged();
         }];
         [center addObserverForName:AVAudioSessionMediaServicesWereResetNotification object:nil
                              queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification*) {

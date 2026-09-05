@@ -22,6 +22,15 @@ struct Native final : NativeAudioOperations {
 int main() {
     auto native = std::make_shared<Native>();
     auto adapter = std::make_shared<IOSAudioAdapter>(native);
+    int notifications = 0;
+    Outcome notified = Outcome::Stopped;
+    setIOSAudioStateCallback([&] {
+        ++notifications;
+        notified = adapter->outcome();
+        // Real Shared callback only enqueues. Check native state here without
+        // reentering the registry or querying native permission.
+        assert(native->captures == (notified == Outcome::Capturing));
+    });
     assert(!adapter->activate() && native->starts == 0);
     adapter->foreground(true);
     assert(adapter->activate() && !adapter->microphonePermissionGranted());
@@ -29,12 +38,16 @@ int main() {
     assert(native->completion);
     auto stale = native->completion;
     assert(adapter->deactivate());
+    assert(notified == Outcome::Stopped);
+    const auto stoppedNotifications = notifications;
     stale(Permission::Granted);
+    assert(notifications == stoppedNotifications);
     assert(adapter->outcome() == Outcome::Stopped && !adapter->microphonePermissionGranted());
     assert(adapter->activate()); // stop did not invent a background transition
     adapter->requestMicrophonePermission();
     native->granted = Permission::Granted;
     native->completion(Permission::Granted);
+    assert(notified == Outcome::Capturing);
     assert(adapter->microphonePermissionGranted() && native->captures);
     adapter->muted(true);
     assert(!adapter->microphonePermissionGranted() && !native->captures);
@@ -42,6 +55,7 @@ int main() {
     assert(adapter->microphonePermissionGranted());
     auto priorActivation = native->lastValidity;
     adapter->foreground(false);
+    assert(notified == Outcome::Suspended);
     assert(!priorActivation() && !adapter->microphonePermissionGranted() && !native->captures);
     adapter->foreground(true);
     adapter->interruption(true);
@@ -52,10 +66,21 @@ int main() {
     native->granted = Permission::Denied;
     assert(!adapter->microphonePermissionGranted() && !native->captures);
     native->failStop = true;
+    const auto beforeFailedStop = notifications;
     assert(!adapter->deactivate() && adapter->outcome() == Outcome::Failed);
+    assert(notifications == beforeFailedStop); // no false native stop receipt
     native->failStop = false;
     assert(adapter->deactivate() && adapter->outcome() == Outcome::Stopped);
     native->failStart = true;
     assert(!adapter->activate() && !adapter->microphonePermissionGranted());
     assert(adapter->outcome() == Outcome::Failed);
+    native->failStart = false;
+    assert(adapter->activate());
+    const auto beforeRoute = notifications;
+    const auto beforeRouteStarts = native->starts;
+    adapter->routeChanged();
+    assert(notifications == beforeRoute + 1 && native->starts == beforeRouteStarts);
+    setIOSAudioStateCallback({});
+    adapter->routeChanged();
+    assert(notifications == beforeRoute + 1);
 }

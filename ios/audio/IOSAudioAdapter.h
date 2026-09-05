@@ -29,9 +29,10 @@ public:
     void interruption(bool began, bool shouldResume = false);
     void muted(bool value);
     void refreshPermission();
+    void routeChanged();
     audio::Outcome outcome() const { return _gate.outcome(); }
 private:
-    bool apply();
+    bool apply(bool notify = true);
     void promptIfNeeded();
     std::shared_ptr<NativeAudioOperations> _native;
     audio::AudioLifecycleGate _gate;
