@@ -12,8 +12,12 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import plistlib
+import subprocess
 import sys
+import tempfile
 import types
+import zipfile
 
 import verify_io001_candidate as candidate
 from verify_io001_release import pinned_adapter
@@ -54,6 +58,10 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--expected-inputs", type=Path, required=True)
     parser.add_argument("--minimum-version", type=int, required=True)
     parser.add_argument("--expected-channel", choices=("source-proof", "internal-candidate"), required=True)
+    parser.add_argument("--stage-simulator", action="store_true")
+    parser.add_argument("--execute-simulator", "--execute", action="store_true")
+    parser.add_argument("--output-dir", type=Path)
+    parser.add_argument("--online-domain-uuid")
     for key in identity.EVIDENCE_KEYS:
         parser.add_argument("--" + key, type=Path, required=True)
     args = parser.parse_args(argv)
@@ -78,12 +86,26 @@ def main(argv: list[str]) -> int:
         if result["artifactSha256"] != binding["artifactSha256"]:
             raise ValueError("IOS_IDENTITY_ARTIFACT_CHANGED")
         candidate._verify_repository_head(args.repository, args.expected_source_sha)
-    except (OSError, ValueError, TypeError, KeyError):
+        simulator_state = "NOT_EXECUTED"
+        if args.stage_simulator or args.execute_simulator:
+            from run_simulator_candidate import stage_archive, simulator
+            if args.execute_simulator and (args.output_dir is None or args.online_domain_uuid is None):
+                raise ValueError("SIMULATOR_PARAMETERS")
+            with tempfile.TemporaryDirectory(prefix="ios-bound-candidate-") as scratch:
+                app, bundle = stage_archive(artifact, Path(scratch), result["artifactSha256"])
+                candidate._verify_repository_head(args.repository, args.expected_source_sha)
+                simulator_state = "ARCHIVE_STAGED_NOT_EXECUTED"
+                if args.execute_simulator:
+                    plan = Path(__file__).resolve().parents[2] / "tests/io001-simulator-cases.json"
+                    simulator.execute_plan(plan, app, bundle, args.output_dir, args.online_domain_uuid)
+                    simulator_state = "SIMULATOR_CASES_COMPLETED_NOT_NODE_ACCEPTED"
+    except (OSError, ValueError, TypeError, KeyError, zipfile.BadZipFile,
+            plistlib.InvalidFileException, subprocess.SubprocessError, RuntimeError):
         print("IOS_CANDIDATE_HANDOFF_REJECTED", file=sys.stderr)
         return 1
     print(json.dumps({"status": "IOS_CANDIDATE_BYTES_BOUND_VERIFICATION_PENDING",
         "sharedEvidence": binding["sharedEvidence"], "artifactIdentity": result,
-        "sharedBuildInputJoin": "BOUND_TO_INDEPENDENT_INPUTS"}, sort_keys=True))
+        "sharedBuildInputJoin": "BOUND_TO_INDEPENDENT_INPUTS", "simulator": simulator_state}, sort_keys=True))
     return 0
 
 

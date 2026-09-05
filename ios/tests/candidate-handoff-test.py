@@ -7,10 +7,13 @@ import copy
 import importlib.util
 import json
 from pathlib import Path
+import plistlib
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
+import zipfile
 
 sys.dont_write_bytecode = True
 parser = argparse.ArgumentParser(description=__doc__)
@@ -36,7 +39,14 @@ with tempfile.TemporaryDirectory(prefix="ios-handoff-test-") as scratch:
                     "-c", "user.email=fixture@example.invalid", "commit", "-q",
                     "--allow-empty", "-m", "synthetic source"], check=True, timeout=10)
     sha = subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"], text=True, timeout=10).strip()
-    artifact = ios / "tests/fixtures/io001-candidate/0001-OverteIOSClient-Release-simulator.zip"
+    artifact = Path(scratch) / "0001-OverteIOSClient-Release-simulator.zip"
+    with zipfile.ZipFile(artifact, "w") as package:
+        package.writestr("Overte.app/Info.plist", plistlib.dumps(dict(
+            CFBundleExecutable="Overte", CFBundlePackageType="APPL",
+            CFBundleSupportedPlatforms=["iPhoneSimulator"], CFBundleIdentifier="org.overte.fixture")))
+        executable = zipfile.ZipInfo("Overte.app/Overte")
+        executable.external_attr = (stat.S_IFREG | 0o755) << 16
+        package.writestr(executable, b"synthetic-not-a-native-binary")
     evidence_fixture.SOURCE, evidence_fixture.ARTIFACT = sha, identity.digest_file(artifact)
     evidence, provenance = evidence_fixture.ContractTests(), fixture.IdentityTests()
     evidence.setUp()
@@ -45,6 +55,7 @@ with tempfile.TemporaryDirectory(prefix="ios-handoff-test-") as scratch:
         shutil.copy2(artifact, evidence.root)
         manifest = json.loads((ios / "tests/fixtures/io001-candidate/valid.json").read_text())
         manifest["source"]["revision"] = sha
+        manifest["artifact"].update(sha256=identity.digest_file(artifact), sizeBytes=artifact.stat().st_size)
         evidence.candidate.write_text(json.dumps(manifest))
         evidence.manifest["candidateSha256"] = identity.digest_file(evidence.candidate)
         normalized = identity.normalized_inputs(provenance.inputs)
@@ -70,6 +81,11 @@ with tempfile.TemporaryDirectory(prefix="ios-handoff-test-") as scratch:
         result = json.loads(success.stdout)
         assert result["status"] == "IOS_CANDIDATE_BYTES_BOUND_VERIFICATION_PENDING"
         assert result["sharedBuildInputJoin"] == "BOUND_TO_INDEPENDENT_INPUTS"
+        stage_command = command.copy()
+        stage_command[1] = str(ios / "tools/candidate/run_simulator_candidate.py")
+        staged = subprocess.run(stage_command, capture_output=True, text=True, timeout=45)
+        assert staged.returncode == 0, staged.stderr
+        assert json.loads(staged.stdout)["simulator"] == "ARCHIVE_STAGED_NOT_EXECUTED"
         # An internally coherent foreign build cohort cannot supply its own
         # expectations, even when source and artifact bytes still match.
         for key in ("normalizedInputsSha256", "toolchainSha256"):

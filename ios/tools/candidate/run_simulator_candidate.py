@@ -108,35 +108,11 @@ def stage_archive(archive: Path, destination: Path, expected_digest: str | None 
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("manifest", type=Path)
-    parser.add_argument("--artifact-root", type=Path, required=True)
-    parser.add_argument("--repository", type=Path, required=True)
-    parser.add_argument("--expected-source-sha", required=True)
-    parser.add_argument("--shared-contract-root", type=Path, required=True)
-    parser.add_argument("--execute", action="store_true")
-    parser.add_argument("--output-dir", type=Path)
-    parser.add_argument("--online-domain-uuid")
-    args = parser.parse_args(argv)
-    try:
-        adapter = pinned_adapter(args.shared_contract_root)
-        binding = verifier.verify_candidate(args.manifest, args.artifact_root, args.expected_source_sha,
-            repository=args.repository, shared_evidence_adapter=adapter, require_shared_evidence=True)
-        manifest = verifier._load_manifest(args.manifest)
-        archive = verifier._safe_artifact_path(args.artifact_root, manifest["artifact"]["relativePath"])
-        with tempfile.TemporaryDirectory(prefix="ios-exact-candidate-") as scratch:
-            app, bundle = stage_archive(archive, Path(scratch), binding["artifactSha256"])
-            verifier._verify_repository_head(args.repository, args.expected_source_sha)
-            if args.execute:
-                if args.output_dir is None or args.online_domain_uuid is None:
-                    raise ValueError("SIMULATOR_PARAMETERS")
-                plan = Path(__file__).resolve().parents[2] / "tests/io001-simulator-cases.json"
-                simulator.execute_plan(plan, app, bundle, args.output_dir, args.online_domain_uuid)
-        print("SIMULATOR_CASES_COMPLETED_NOT_NODE_ACCEPTED" if args.execute else "SIMULATOR_ARCHIVE_VERIFIED_NOT_EXECUTED")
-        return 0
-    except (OSError, ValueError, zipfile.BadZipFile, plistlib.InvalidFileException):
-        print("SIMULATOR_CANDIDATE_REJECTED", file=sys.stderr)
-        return 1
+    # The simulator consumer uses the same required SH-002/009 binding as the
+    # candidate handoff. --execute remains an explicit, separately authorized
+    # operation; without it this entry only stages the verified archive.
+    from verify_candidate_handoff import main as verify_handoff
+    return verify_handoff([*argv, "--stage-simulator"])
 
 
 if __name__ == "__main__":
