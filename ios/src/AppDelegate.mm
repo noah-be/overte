@@ -11,6 +11,7 @@
 #import "SceneDelegate.h"
 
 #include "LifecycleStateMachine.h"
+#include "RedactingDiagnostics.h"
 
 namespace {
 os_log_t lifecycleLog() {
@@ -22,8 +23,8 @@ bool setAudioSessionActive(bool active, AVAudioSessionSetActiveOptions options =
     NSError* error = nil;
     BOOL changed = [AVAudioSession.sharedInstance setActive:active withOptions:options error:&error];
     if (!changed) {
-        os_log_error(lifecycleLog(), "Audio session %{public}s failed: %{public}@",
-                     active ? "activation" : "deactivation", error);
+        overte::ios::logDiagnostic(active ? overte::ios::DiagnosticEvent::AudioActivationFailed
+                                         : overte::ios::DiagnosticEvent::AudioDeactivationFailed);
     }
     return changed;
 }
@@ -49,7 +50,7 @@ bool setAudioSessionActive(bool active, AVAudioSessionSetActiveOptions options =
                                                  AVAudioSessionCategoryOptionAllowBluetoothHFP)
                                           error:&error];
     if (!configured) {
-        os_log_error(lifecycleLog(), "Audio session configuration failed: %{public}@", error);
+        overte::ios::logDiagnostic(overte::ios::DiagnosticEvent::AudioConfigurationFailed);
     }
 
     AVAudioSessionRecordPermission permission = audioSession.recordPermission;

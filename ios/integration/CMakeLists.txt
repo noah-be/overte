@@ -21,3 +21,18 @@ endif()
 target_link_libraries(Overte overte-ios-entity-integration)
 target_link_libraries(Overte overte-ios-rendering-compatibility)
 add_dependencies(Overte overte-ios-entity-integration)
+
+# iOS-owned native storage/sink implementation. Shared registers its AccountManager
+# consumer against the published PX-15 interface; the native primitive never
+# falls back to AccountInfo.bin or defines account serialization itself.
+target_sources(Overte PRIVATE
+    "${CMAKE_CURRENT_LIST_DIR}/../src/SecureAccountStore.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../src/SecureAccountStore.mm"
+    "${CMAKE_CURRENT_LIST_DIR}/../src/RedactingDiagnostics.mm"
+)
+set_source_files_properties(
+    "${CMAKE_CURRENT_LIST_DIR}/../src/SecureAccountStore.mm"
+    "${CMAKE_CURRENT_LIST_DIR}/../src/RedactingDiagnostics.mm"
+    PROPERTIES COMPILE_OPTIONS "-fobjc-arc"
+)
+target_link_libraries(Overte "-framework Security" "-framework LocalAuthentication")
