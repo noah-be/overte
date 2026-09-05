@@ -61,6 +61,7 @@ void routeURLContexts(NSSet<UIOpenURLContext*>* URLContexts) {
 
 - (void)sceneDidBecomeActive:(UIScene*)scene {
     (void)scene;
+    [(BootstrapViewController*)self.window.rootViewController setPreviewForeground:YES];
     [(AppDelegate*)UIApplication.sharedApplication.delegate setAudioForeground:YES];
     overte::ios::LifecycleStateMachine::instance().apply(
         overte::ios::LifecycleEvent::DidBecomeActive);
@@ -69,6 +70,7 @@ void routeURLContexts(NSSet<UIOpenURLContext*>* URLContexts) {
 
 - (void)sceneWillResignActive:(UIScene*)scene {
     (void)scene;
+    [(BootstrapViewController*)self.window.rootViewController setPreviewForeground:NO];
     [(AppDelegate*)UIApplication.sharedApplication.delegate setAudioForeground:NO];
     overte::ios::LifecycleStateMachine::instance().apply(
         overte::ios::LifecycleEvent::WillResignActive);
@@ -77,6 +79,7 @@ void routeURLContexts(NSSet<UIOpenURLContext*>* URLContexts) {
 
 - (void)sceneDidEnterBackground:(UIScene*)scene {
     (void)scene;
+    [(BootstrapViewController*)self.window.rootViewController setPreviewForeground:NO];
     [(AppDelegate*)UIApplication.sharedApplication.delegate setAudioForeground:NO];
     overte::ios::LifecycleStateMachine::instance().apply(
         overte::ios::LifecycleEvent::DidEnterBackground);

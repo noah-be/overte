@@ -6,5 +6,5 @@
 #import <UIKit/UIKit.h>
 
 @interface BootstrapViewController : UIViewController
+- (void)setPreviewForeground:(BOOL)active;
 @end
-
