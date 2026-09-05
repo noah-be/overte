@@ -220,40 +220,21 @@ ScriptValue ScriptValueV8Wrapper::data() const {
     v8::HandleScope handleScope(isolate);
     auto context = _engine->getContext();
     v8::Context::Scope contextScope(context);
-    // Private properties are an experimental feature for now on V8, so we are using regular value for now
-    if (_value.constGet()->IsObject()) {
-        auto v8Object = v8::Local<v8::Object>::Cast(_value.constGet());
-         v8::Local<v8::Value> data;
-         //bool createData = false;
-         if (!v8Object->Get(context, v8::String::NewFromUtf8(isolate, "__data").ToLocalChecked()).ToLocal(&data)) {
-             data = v8::Undefined(isolate);
-             Q_ASSERT(false);
-             //createData = true;
-         }
-         /*else {
-             if (data->IsUndefined()) {
-                 createData = true;
-             }
-         }
-         if (createData) {
-             qCDebug(scriptengine_v8) << "ScriptValueV8Wrapper::data(): Data object doesn't exist, creating new one";
-             // Create data object if it's non-existent or invalid
-             data = v8::Object::New(isolate);
-             if( !v8Object->Set(_engine->getContext(), v8::String::NewFromUtf8(isolate, "__data").ToLocalChecked(), data).FromMaybe(false)) {
-                 qCDebug(scriptengine_v8) << "ScriptValueV8Wrapper::data(): Data object couldn't be created";
-                 Q_ASSERT(false);
-             }
-         }*/
-         V8ScriptValue result(_engine, data);
-         return ScriptValue(new ScriptValueV8Wrapper(_engine, std::move(result)));
-    } else {
-        qCDebug(scriptengine_v8) << "ScriptValueV8Wrapper::data() was called on a value that is not an object";
-        Q_ASSERT(false);
+    // __data remains the existing ordinary property, not a private storage API.
+    // A script may replace it with a throwing getter; never assert on that input.
+    if (!_value.constGet()->IsObject()) {
+        return _engine->nullValue();
     }
-    //V8TODO I'm not sure how this would work in V8
-    //V8ScriptValue result = _value.data();
-    //return ScriptValue(new ScriptValueV8Wrapper(_engine, std::move(result)));
-    return _engine->nullValue();
+    auto object = _value.constGet().As<v8::Object>();
+    v8::Local<v8::Value> data;
+    if (!object->Get(context, v8::String::NewFromUtf8Literal(isolate, "__data")).ToLocal(&data)) {
+        if (isolate->IsExecutionTerminating()) {
+            return ScriptValue();
+        }
+        return _engine->undefinedValue();
+    }
+    V8ScriptValue result(_engine, data);
+    return ScriptValue(new ScriptValueV8Wrapper(_engine, std::move(result)));
 }
 
 ScriptEnginePointer ScriptValueV8Wrapper::engine() const {

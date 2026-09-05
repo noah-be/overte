@@ -1,4 +1,12 @@
-# SH-005 named V8 getter lock/error prerequisite v001
+# SH-005 V8 getter lock/error prerequisite v002
+
+v002 requires v001 and also hardens the actual data() getter. __data remains an
+ordinary script property, not private/protected storage. A throwing accessor now
+returns undefined with the outer exception intact; terminal failure returns an
+empty ScriptValue. Nonobject data() retains its null fallback without asserting
+on script-controlled input. No new data lock or lifetime guarantee is introduced.
+Ten real-V8 cases now compile both complete original getter functions and pass
+in2.033s, covering ordinary/missing/null/throw/termination outcomes for each.
 
 Actual ScriptValueV8Wrapper::property(QString, ResolveFlags) leaked its read
 lock when V8 Get failed. This can prevent later release/teardown after a throwing

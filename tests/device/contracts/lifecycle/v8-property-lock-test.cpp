@@ -24,6 +24,7 @@ struct ScriptEngineV8 {
     v8::Isolate* getIsolate() { return isolate; }
     v8::Local<v8::Context> getContext() { return context; }
     ScriptValue undefinedValue();
+    ScriptValue nullValue();
 };
 struct V8ScriptValue {
     ScriptEngineV8* engine;
@@ -38,12 +39,17 @@ struct ScriptValueV8Wrapper {
     mutable QReadWriteLock lock;
     ScriptValueV8Wrapper(ScriptEngineV8* engine, V8ScriptValue value) : _engine(engine), _value(std::move(value)) {}
     ScriptValue property(const QString&, const ScriptValue::ResolveFlags&) const;
+    ScriptValue data() const;
 };
 ScriptValue ScriptEngineV8::undefinedValue() {
     return ScriptValue(new ScriptValueV8Wrapper(this, V8ScriptValue(this, v8::Undefined(isolate))));
 }
+ScriptValue ScriptEngineV8::nullValue() {
+    return ScriptValue(new ScriptValueV8Wrapper(this, V8ScriptValue(this, v8::Null(isolate))));
+}
 // Original complete function; only engine/value lifetime storage is substituted.
 #include "v8-property-lock.inc"
+#include "v8-data-getter.inc"
 
 static std::atomic<bool> entered { false };
 static void markEntered(const v8::FunctionCallbackInfo<v8::Value>&) {
@@ -52,7 +58,9 @@ static void markEntered(const v8::FunctionCallbackInfo<v8::Value>&) {
 
 int main(int argc, char** argv) {
     assert(argc == 2);
-    const std::string mode(argv[1]);
+    const std::string scenario(argv[1]);
+    const bool dataGetter = scenario.rfind("data-",0) == 0;
+    const auto mode = dataGetter ? scenario.substr(5) : scenario;
     v8::V8::InitializeICUDefaultLocation(argv[0]);
     auto platform = v8::platform::NewDefaultPlatform();
     v8::V8::InitializePlatform(platform.get());
@@ -74,7 +82,8 @@ int main(int argc, char** argv) {
         if (mode == "terminate") { source = "({get secretProperty(){entered();for(;;){}}})"; }
         if (mode == "missing") { source = "({})"; }
         if (mode == "null") { source = "null"; }
-        auto value = v8::Script::Compile(context,v8::String::NewFromUtf8(isolate,source).ToLocalChecked())
+        const auto effectiveSource = dataGetter ? QString::fromUtf8(source).replace("secretProperty","__data").toUtf8() : QByteArray(source);
+        auto value = v8::Script::Compile(context,v8::String::NewFromUtf8(isolate,effectiveSource.constData()).ToLocalChecked())
             .ToLocalChecked()->Run(context).ToLocalChecked();
         ScriptValueV8Wrapper wrapper(&engine,V8ScriptValue(&engine,value));
         v8::TryCatch caught(isolate);
@@ -85,7 +94,7 @@ int main(int argc, char** argv) {
                 isolate->TerminateExecution();
             });
         }
-        auto result = wrapper.property(QStringLiteral("secretProperty"),0);
+        auto result = dataGetter ? wrapper.data() : wrapper.property(QStringLiteral("secretProperty"),0);
         if (terminator.joinable()) { terminator.join(); }
         // A failed named getter previously leaked a read lock here.
         assert(wrapper.lock.tryLockForWrite());
@@ -97,6 +106,7 @@ int main(int argc, char** argv) {
             assert(result.wrapper);
             auto returned = result.wrapper->_value.constGet();
             if (mode == "ordinary") { assert(returned->Int32Value(context).FromJust() == 42); }
+            else if (dataGetter && mode == "null") { assert(returned->IsNull()); }
             else { assert(returned->IsUndefined()); }
         }
     }
