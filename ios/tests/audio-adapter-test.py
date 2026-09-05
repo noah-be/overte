@@ -11,4 +11,10 @@ with tempfile.TemporaryDirectory(prefix="overte-ios-audio-") as scratch:
                     "-x", "c++", str(ios.parent / "libraries/audio-client/src/IOSAudioPermission.mm"),
                     "-o", binary], check=True, timeout=60)
     subprocess.run([binary], check=True, timeout=10)
+    shared_binary = str(Path(scratch) / "original-shim-test")
+    subprocess.run(["c++", "-std=c++14", "-Wall", "-Wextra", "-Werror", "-pthread",
+                    "-x", "c++", str(ios.parent / "libraries/audio-client/src/IOSAudioPermission.mm"),
+                    str(ios.parent / "tests/device/contracts/audio/ios-shim-test.cpp"),
+                    "-o", shared_binary], check=True, timeout=60)
+    subprocess.run([shared_binary], check=True, timeout=10)
 print("PASS real iOS audio adapter: permission, stale callbacks, mute, suspension, interruption and stop failure")
