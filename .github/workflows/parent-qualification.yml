@@ -1,0 +1,81 @@
+name: Parent qualification
+
+on:
+  push:
+    branches: [main, android-main, android-vr, apple-main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: parent-qualification-${{ github.ref_name }}-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  qualify-parent:
+    name: Qualify exact parent
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out the exact parent commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Materialize the exact live parent ref
+        env:
+          PARENT_BRANCH: ${{ github.ref_name }}
+        run: git fetch --no-tags origin "+refs/heads/$PARENT_BRANCH:refs/remotes/origin/$PARENT_BRANCH"
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22"
+      - name: Install QML contract runtime
+        run: |
+          set -euo pipefail
+          sudo apt-get -o Acquire::Retries=4 update
+          sudo apt-get -o Acquire::Retries=4 install --no-install-recommends -y \
+            qml-module-qttest qtdeclarative5-dev-tools
+      - name: Run shared project qualification
+        run: >-
+          python3 tests/run-project-tests.py --profile quick --timeout 240
+          --junit build/test-results/parent-project-tests.xml
+      - name: Run complete device control-plane qualification
+        run: >-
+          python3 tests/device/run_control_plane_tests.py --profile full
+          --require-qml --timeout-seconds 900
+          --junit build/test-results/parent-device-control-plane.xml
+      - name: Create content-addressed qualification evidence
+        env:
+          PARENT_BRANCH: ${{ github.ref_name }}
+          PARENT_COMMIT: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+          REPOSITORY_ID: ${{ github.event.repository.id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUN_ID: ${{ github.run_id }}
+        run: >-
+          python3 tools/sync-test-reuse/qualification.py
+          --repository "$REPOSITORY" --repository-id "$REPOSITORY_ID"
+          --parent-branch "$PARENT_BRANCH" --commit "$PARENT_COMMIT"
+          --run-id "$RUN_ID" --run-attempt "$RUN_ATTEMPT"
+          --output build/parent-qualification/qualification.json
+      - name: Upload immutable qualification evidence
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: parent-qualification-${{ github.sha }}
+          path: build/parent-qualification/qualification.json
+          if-no-files-found: error
+          retention-days: 4
+      - name: Upload qualification test reports
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: parent-qualification-reports-${{ github.sha }}-${{ github.run_attempt }}
+          path: build/test-results/
+          if-no-files-found: warn
+          retention-days: 7
