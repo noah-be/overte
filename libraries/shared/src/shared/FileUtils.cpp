@@ -28,44 +28,36 @@
 #include "GlobalAppProperties.h"
 
 #include "../SharedLogging.h"
+#include "../../../ui/src/CapabilityProfile.h"
 
 const QStringList& FileUtils::getFileSelectors() {
     static std::once_flag once;
     static QStringList extraSelectors;
     std::call_once(once, [] {
 
-#if defined(Q_OS_ANDROID)
-        extraSelectors << "android_" HIFI_ANDROID_APP;
-        // Pico uses the same reduced mobile script variants as the standalone
-        // Quest client (not the much larger desktop defaults).
-        if (QStringLiteral(HIFI_ANDROID_APP) == QStringLiteral("picoInterface")) {
-            extraSelectors << "android_questInterface";
-        } else if (QStringLiteral(HIFI_ANDROID_APP) == QStringLiteral("phoneInterface")) {
-            // Reuse the established touchscreen, action-bar, audio and view
-            // scripts while the phone-specific UI is introduced incrementally.
-            extraSelectors << "android_interface";
+        using namespace overte::ui;
+        Product product = Product::Desktop;
+#if defined(Q_OS_ANDROID) && defined(Q_OS_IOS)
+        product = Product::Unknown;
+#elif defined(Q_OS_ANDROID)
+        product = resolveProduct(true, false, HIFI_ANDROID_APP);
+#elif defined(Q_OS_IOS)
+        product = Product::IOS;
+#endif
+        const bool gles = hifi::properties::getGraphicsAPI() == hifi::properties::GraphicsAPI::GLES32;
+#if defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
+        if (product == Product::Unknown) {
+            // Other established Android products are outside this three-product
+            // contract; preserve their old selector behavior without granting
+            // them Phone/Pico capabilities.
+            extraSelectors << "android_" HIFI_ANDROID_APP;
+            if (gles) { extraSelectors << "gles"; }
+            return;
         }
 #endif
-
-#if defined(Q_OS_IOS)
-        // Qt's built-in platform selector is supplemented explicitly because
-        // Overte also uses this list for resources selected outside QML.
-        extraSelectors << "ios" << "mobile" << "touch"
-                       // Reuse the tested Phone presentation until a component
-                       // needs an iOS-specific override. The iOS selector has
-                       // higher priority and remains the migration boundary.
-                       << "android_phoneInterface" << "android_interface"
-                       << "webview";
-#endif
-
-    auto backendApi = hifi::properties::getGraphicsAPI();
-    if (backendApi == hifi::properties::GraphicsAPI::GLES32) {
-        extraSelectors << "gles";
-    }
-
-#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
-        extraSelectors << "webengine";
-#endif
+        for (const auto& selector : profileSelectors(product, gles)) {
+            extraSelectors << QString::fromStdString(selector);
+        }
     });
     return extraSelectors;
 
