@@ -46,4 +46,26 @@ inline Support controlSupport(Product product, const std::string& id) {
     }
     return Support::Hidden;
 }
+// Retained Preferences registry, not a grant to arbitrary script/settings APIs.
+// Mixed categories stay hidden on touch products until their complete controls
+// have a useful implementation. Keep the existing desktop registry extensible.
+inline bool preferenceAllowed(Product product, const std::string& category, const std::string& name) {
+    if (product == Product::Desktop) { return true; }
+    if (product == Product::Unknown) { return false; }
+    if (category == "HMD" || category == "VR Movement") {
+        return controlSupport(product, "settings.hmd-preferences") == Support::Supported;
+    }
+    if (category == "Controllers" || (category == "Avatar Tuning" && name == "Dominant Hand")) {
+        return controlSupport(product, "settings.controllers") == Support::Supported;
+    }
+    if (category == "User Interface") { return product == Product::Pico; }
+    // Oculus desktop plugin, directory pickers and desktop/no-op privacy
+    // switches are not made available by a mobile selector alias.
+    if (category == "Plugins" || category == "Snapshots" || category == "Privacy") { return false; }
+    return category == "Navigation" || category == "Mouse Sensitivity" ||
+        category == "Avatar Basics" || category == "Avatar Tuning" ||
+        category == "Desktop Movement" || category == "View" ||
+        category == "Audio Buffers" || category == "Networking" ||
+        category == "Graphics Quality" || category == "Level of Detail Tuning";
+}
 }} // namespace overte::ui
