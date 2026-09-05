@@ -13,15 +13,16 @@ class RequestCancellation(unittest.TestCase):
         setup = (ROOT / "interface/src/Application_Setup.cpp").read_text()
         essentials = setup.split("bool setupEssentials(", 1)[1].split("\n}", 1)[0]
         hook = next(line.strip() for line in essentials.splitlines()
-                    if "setClientLookupVisibility(" in line)
+                    if "observeQtVisibility(" in line)
         flags = shlex.split(subprocess.check_output(
             ["pkg-config", "--cflags", "Qt6Gui"], text=True))
         source = """#include <QGuiApplication>
+#include "interface/src/ApplicationLifecycle.h"
 class AddressManager { public: void setClientLookupVisibility(bool); };
 class DependencyManager { public: template<class T> static T* get(); };
 void setupEssentialsScope() {
 """ + hook + "\n}\n"
-        result = subprocess.run(["c++", "-std=c++17", "-fPIC", "-fsyntax-only",
+        result = subprocess.run(["c++", "-std=c++17", "-fPIC", "-fsyntax-only", "-I", str(ROOT),
                                  "-x", "c++", "-", *flags], input=source,
                                 capture_output=True, text=True, timeout=20)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -55,8 +56,9 @@ void setupEssentialsScope() {
         address = (ROOT / "libraries/networking/src/AddressManager.cpp").read_text()
         header = (ROOT / "libraries/networking/src/AddressManager.h").read_text()
         self.assertLess(header.index("void setClientLookupVisibility("), header.index("public slots:"))
-        self.assertIn("setClientLookupVisibility(state == Qt::ApplicationActive)", events)
-        self.assertIn("setClientLookupVisibility(QGuiApplication::applicationState() == Qt::ApplicationActive)", setup)
+        self.assertIn("observeQtVisibility(state == Qt::ApplicationActive)", events)
+        self.assertIn("setClientLookupVisibility(effective)", events)
+        self.assertIn("observeQtVisibility(QGuiApplication::applicationState() == Qt::ApplicationActive)", setup)
         self.assertIn("callbackParams.requestTicket = _lookupRequests.next()", address)
         for method, argument in (("handleAPIResponse", "requestReply"), ("handleAPIError", "errorReply")):
             body = address.split("void AddressManager::" + method + "(", 1)[1].split("\n}", 1)[0]

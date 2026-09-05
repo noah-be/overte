@@ -124,4 +124,22 @@ private:
 
 // One full-client instance, defined out of line to avoid per-DSO singleton copies.
 Gate& applicationGate();
+
+// Input combination only, not a second lifecycle/connection state machine.
+// GUI-thread owned. Qt is always required; native is an additional veto once
+// first observed. An absent native adapter leaves the existing Qt authority.
+class VisibilityInputs {
+public:
+    bool observeQt(bool foreground) { _qt = foreground; return effective(); }
+    bool observeNative(bool foreground) { _nativeSeen = true; _native = foreground; return effective(); }
+    bool effective() const { return _qt && (!_nativeSeen || _native); }
+private:
+    bool _qt { false }, _nativeSeen { false }, _native { false };
+};
+
+// One out-of-line full-client input owner. Both marshal to the application
+// thread and publish the SAME effective value to the Gate and HTTP policy.
+// Native owners replace direct applicationGate().visible(nativeState) calls.
+void observeQtVisibility(bool foreground);
+void observeNativeVisibility(bool foreground);
 } }

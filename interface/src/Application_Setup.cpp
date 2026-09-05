@@ -14,6 +14,7 @@
 //
 
 #include "Application.h"
+#include "ApplicationLifecycle.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -366,7 +367,7 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     DependencyManager::set<recording::Deck>();
     DependencyManager::set<recording::Recorder>();
     DependencyManager::set<AddressManager>();
-    DependencyManager::get<AddressManager>()->setClientLookupVisibility(QGuiApplication::applicationState() == Qt::ApplicationActive);
+    overte::lifecycle::observeQtVisibility(QGuiApplication::applicationState() == Qt::ApplicationActive);
     DependencyManager::set<NodeList>(NodeType::Agent, listenPort);
     DependencyManager::set<recording::ClipCache>();
     DependencyManager::set<GeometryCache>();
