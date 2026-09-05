@@ -182,6 +182,8 @@ def verify_candidate(
     repository: Path | None = None,
     shared_evidence_adapter: Path | None = None,
     require_shared_evidence: bool = False,
+    expected_normalized_inputs_sha256: str | None = None,
+    expected_toolchain_sha256: str | None = None,
 ) -> dict[str, Any]:
     """Verify candidate identity and return a privacy-bounded summary."""
 
@@ -243,6 +245,8 @@ def verify_candidate(
             manifest_path,
             revision,
             actual_digest,
+            expected_normalized_inputs_sha256=expected_normalized_inputs_sha256,
+            expected_toolchain_sha256=expected_toolchain_sha256,
         )
     except EvidenceBindingError as error:
         raise CandidateVerificationError(str(error)) from error

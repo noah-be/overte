@@ -2,8 +2,7 @@
 """Require SH-002 evidence and SH-009 byte/input identity for an iOS candidate.
 
 Offline binding only, not signing, SBOM semantic completeness or node acceptance.
-SH-002 v001 cannot yet join its build-input cohort to SH-009's frozen input map;
-that pending Shared hook is reported explicitly and forbids final handoff use.
+SH-002 v002 joins its build-input cohort to SH-009's independently frozen map.
 Expected inputs, channel and minimum version come from the frozen build request,
 never from the producer's identity record. No Common schema is copied here.
 """
@@ -60,9 +59,6 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
     try:
         evidence = pinned_adapter(args.shared_contract_root)
-        binding = candidate.verify_candidate(args.manifest, args.artifact_root,
-            args.expected_source_sha, repository=args.repository,
-            shared_evidence_adapter=evidence, require_shared_evidence=True)
         metadata = candidate._load_manifest(args.manifest)
         artifact = candidate._safe_artifact_path(args.artifact_root, metadata["artifact"]["relativePath"])
         record = identity.read_record(args.identity_record)
@@ -70,9 +66,15 @@ def main(argv: list[str]) -> int:
         # expected product/channel, without changing Common record semantics.
         if record.get("product") != "ios" or record.get("channel") != args.expected_channel:
             raise ValueError("IOS_IDENTITY_CONTEXT")
+        inputs = identity.read_record(args.expected_inputs)
         result = identity.validate(record, artifact,
             {key: getattr(args, key) for key in identity.EVIDENCE_KEYS},
-            args.expected_source_sha, identity.read_record(args.expected_inputs), args.minimum_version)
+            args.expected_source_sha, inputs, args.minimum_version)
+        binding = candidate.verify_candidate(args.manifest, args.artifact_root,
+            args.expected_source_sha, repository=args.repository,
+            shared_evidence_adapter=evidence, require_shared_evidence=True,
+            expected_normalized_inputs_sha256=identity.normalized_inputs(inputs),
+            expected_toolchain_sha256=inputs["toolchain"])
         if result["artifactSha256"] != binding["artifactSha256"]:
             raise ValueError("IOS_IDENTITY_ARTIFACT_CHANGED")
         candidate._verify_repository_head(args.repository, args.expected_source_sha)
@@ -81,7 +83,7 @@ def main(argv: list[str]) -> int:
         return 1
     print(json.dumps({"status": "IOS_CANDIDATE_BYTES_BOUND_VERIFICATION_PENDING",
         "sharedEvidence": binding["sharedEvidence"], "artifactIdentity": result,
-        "sharedBuildInputJoin": "PENDING_SHARED_CONTRACT"}, sort_keys=True))
+        "sharedBuildInputJoin": "BOUND_TO_INDEPENDENT_INPUTS"}, sort_keys=True))
     return 0
 
 

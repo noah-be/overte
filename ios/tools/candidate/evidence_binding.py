@@ -14,6 +14,7 @@ the binding; stdout and stderr are never retained or exposed here.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -39,6 +40,8 @@ def bind_shared_evidence(
     artifact_sha256: str,
     *,
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
+    expected_normalized_inputs_sha256: str | None = None,
+    expected_toolchain_sha256: str | None = None,
 ) -> str:
     """Return ``BOUND`` or ``DEFERRED`` without parsing shared evidence."""
 
@@ -60,6 +63,12 @@ def bind_shared_evidence(
         "--expected-artifact-sha256",
         artifact_sha256,
     ]
+    expected = (expected_normalized_inputs_sha256, expected_toolchain_sha256)
+    if any(value is not None for value in expected):
+        if not all(isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) for value in expected):
+            raise EvidenceBindingError("both independent input identities are required")
+        command += ["--expected-normalized-inputs-sha256", expected_normalized_inputs_sha256,
+                    "--expected-toolchain-sha256", expected_toolchain_sha256]
     try:
         with tempfile.TemporaryDirectory(prefix="ios-evidence-import-") as scratch:
             environment = os.environ.copy()

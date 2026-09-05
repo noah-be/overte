@@ -19,8 +19,8 @@ except ImportError:
     import verify_io001_candidate as candidate
     from shared_release import verify_release
 
-CONTRACT = "sh002-ios-evidence/v001"
-MANIFEST_SHA256 = "82aeff4ed3cfb35c21a5ef193593c0f753482026d552ab9771b3f4ca42d5e182"
+CONTRACT = "sh002-ios-evidence/v002"
+MANIFEST_SHA256 = "6eace7138cc76534b64ce57176fe85a75555d00143ac6c901c400fde78ca36ec"
 ADAPTER = "ios/ci/evidence/verify-shared-evidence.py"
 
 

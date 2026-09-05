@@ -21,6 +21,7 @@ def verify_release(root: Path, manifest_sha256: str, entrypoint: str, *, executa
     for line in raw.decode("ascii").splitlines():
         expected, name = line.split("  ", 1)
         relative = PurePosixPath(name)
+        name = str(relative) # sha256sum releases may use either ./path or path
         if relative.is_absolute() or ".." in relative.parts or name in seen:
             raise ValueError("SHARED_MANIFEST_PATH")
         seen.add(name)
@@ -48,6 +49,6 @@ def verify_release(root: Path, manifest_sha256: str, entrypoint: str, *, executa
             if file.is_symlink() or str(file.relative_to(root)) not in declared:
                 raise ValueError("SHARED_UNDECLARED_SOURCE")
     adapter = root / entrypoint
-    if "./" + entrypoint not in seen or (executable and not os.access(adapter, os.X_OK)):
+    if entrypoint not in seen or (executable and not os.access(adapter, os.X_OK)):
         raise ValueError("SHARED_ADAPTER_NOT_EXECUTABLE")
     return adapter

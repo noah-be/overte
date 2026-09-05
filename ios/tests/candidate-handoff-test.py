@@ -69,7 +69,20 @@ with tempfile.TemporaryDirectory(prefix="ios-handoff-test-") as scratch:
         assert success.returncode == 0, success.stderr
         result = json.loads(success.stdout)
         assert result["status"] == "IOS_CANDIDATE_BYTES_BOUND_VERIFICATION_PENDING"
-        assert result["sharedBuildInputJoin"] == "PENDING_SHARED_CONTRACT"
+        assert result["sharedBuildInputJoin"] == "BOUND_TO_INDEPENDENT_INPUTS"
+        # An internally coherent foreign build cohort cannot supply its own
+        # expectations, even when source and artifact bytes still match.
+        for key in ("normalizedInputsSha256", "toolchainSha256"):
+            saved = evidence.manifest[key]
+            evidence.manifest[key] = "e" * 64
+            for tier in ("cold-full-client-build", "warm-full-client-build"):
+                evidence.receipts[tier]["provenance"][key] = "e" * 64
+            evidence.publish()
+            assert run().returncode == 1
+            evidence.manifest[key] = saved
+            for tier in ("cold-full-client-build", "warm-full-client-build"):
+                evidence.receipts[tier]["provenance"][key] = saved
+            evidence.publish()
         for mutation in ({"product": "android-phone"}, {"channel": "internal-candidate"},
                          {"versionCode": 1}, {"artifactSha256": "f" * 64},
                          {"inputs": dict(provenance.inputs, toolchain="f" * 64)},
@@ -85,4 +98,4 @@ with tempfile.TemporaryDirectory(prefix="ios-handoff-test-") as scratch:
     finally:
         evidence.doCleanups()
         provenance.doCleanups()
-print("PASS iOS original SH-002/009 consumer; build-input join/native acceptance remain pending")
+print("PASS iOS original SH-002 v002/SH-009 join, foreign-cohort negatives; native acceptance pending")
