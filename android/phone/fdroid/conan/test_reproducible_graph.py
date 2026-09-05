@@ -30,6 +30,14 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def lock_identity(path):
+    document = load_json(path)
+    for key in ("requires", "build_requires", "python_requires", "config_requires"):
+        document[key] = [item.split("%", 1)[0] for item in document[key]]
+    payload = json.dumps(document, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def refs(lock, context):
     return {item.split("%", 1)[0] for item in lock[context]}
 
@@ -59,6 +67,9 @@ class ReproducibleGraphTest(unittest.TestCase):
         )
         for graph in self.manifest["graphs"].values():
             self.assertEqual(graph["lock_sha256"], digest(ROOT / graph["lock"]))
+            self.assertEqual(
+                graph["identity_sha256"], lock_identity(ROOT / graph["lock"])
+            )
             self.assertEqual(
                 graph["profile_sha256"], digest(ROOT / graph["profile"])
             )
@@ -176,6 +187,7 @@ class ReproducibleGraphTest(unittest.TestCase):
         )
         for graph in self.manifest["graphs"].values():
             text = (ROOT / graph["profile"]).read_text(encoding="utf-8")
+            self.assertRegex(text, r"(?m)^include\(\.\./\.\./profiles/[^)]+\)$")
             self.assertIsNone(forbidden.search(text), graph["profile"])
             self.assertIn("tools.system.package_manager:mode=report", text)
             self.assertIn("tools.system.package_manager:sudo=False", text)

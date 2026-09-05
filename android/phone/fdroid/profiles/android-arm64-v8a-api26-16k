@@ -1,5 +1,4 @@
 {% set android_ndk = os.getenv("ANDROID_NDK_HOME") %}
-{% set android_sdk = os.getenv("ANDROID_SDK_ROOT") %}
 
 [settings]
 os=Android
@@ -10,28 +9,11 @@ compiler.version=18
 compiler.libcxx=c++_shared
 compiler.cppstd=gnu20
 build_type=Debug
-webrtc-audio-processing/*:build_type=Release
-
-[options]
-qt/*:android_sdk={{ android_sdk }}
-qt/*:config=QMAKE_CXXFLAGS+=-D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION QMAKE_CXXFLAGS+=-Wno-enum-constexpr-conversion QMAKE_CXXFLAGS+=-Wno-c++11-narrowing-const-reference -no-feature-geoservices_mapboxgl
-qt/*:opengl=es2
-qt/*:qtwebengine=False
-qt/*:with_mysql=False
-qt/*:with_odbc=False
-qt/*:with_openal=False
-qt/*:with_pq=False
-hwloc/*:shared=True
 
 [conf]
 tools.android:ndk_path={{ android_ndk }}
-tools.cmake.cmaketoolchain:generator=Ninja
 tools.build:cflags=["-D__BIONIC_NO_PAGE_SIZE_MACRO"]
 tools.build:cxxflags=["-D__BIONIC_NO_PAGE_SIZE_MACRO"]
 tools.build:exelinkflags=["-Wl,-z,max-page-size=16384", "-Wl,-z,common-page-size=16384"]
 tools.build:sharedlinkflags=["-Wl,-z,max-page-size=16384", "-Wl,-z,common-page-size=16384"]
 tools.build:jobs=4
-tools.system.package_manager:mode=report
-tools.system.package_manager:sudo=False
-user.overte:make_path=/usr/bin/make
-user.overte:perl_path=/usr/bin/perl

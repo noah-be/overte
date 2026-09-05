@@ -1,0 +1,24 @@
+include(../../profiles/android-arm64-v8a-api26-16k)
+
+{% set android_sdk = os.getenv("ANDROID_SDK_ROOT") %}
+
+[settings]
+webrtc-audio-processing/*:build_type=Release
+
+[options]
+qt/*:android_sdk={{ android_sdk }}
+qt/*:config=QMAKE_CXXFLAGS+=-D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION QMAKE_CXXFLAGS+=-Wno-enum-constexpr-conversion QMAKE_CXXFLAGS+=-Wno-c++11-narrowing-const-reference -no-feature-geoservices_mapboxgl
+qt/*:opengl=es2
+qt/*:qtwebengine=False
+qt/*:with_mysql=False
+qt/*:with_odbc=False
+qt/*:with_openal=False
+qt/*:with_pq=False
+hwloc/*:shared=True
+
+[conf]
+tools.cmake.cmaketoolchain:generator=Ninja
+tools.system.package_manager:mode=report
+tools.system.package_manager:sudo=False
+user.overte:make_path=/usr/bin/make
+user.overte:perl_path=/usr/bin/perl
