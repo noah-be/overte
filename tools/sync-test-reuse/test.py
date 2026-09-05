@@ -260,12 +260,24 @@ class TopologyContracts(unittest.TestCase):
             with self.subTest(base=base), \
                  mock.patch.object(gate, "branch_sha", side_effect=[BASE, PARENT, BASE, PARENT]), \
                  mock.patch.object(gate, "commit", side_effect=[{"sha": PARENT}, {"sha": MERGE, "parents": [{"sha": BASE}, {"sha": PARENT}]}]), \
-                 mock.patch.object(gate, "compare_files", side_effect=[(HEAD, set()), (HEAD, {"docs/change.md"})]), \
+                 mock.patch.object(gate, "compare_merge_base", return_value=HEAD), \
+                 mock.patch.object(gate, "compare_files", return_value=(HEAD, {"docs/change.md"})), \
                  mock.patch.object(gate, "paginate_pull_files", return_value=[{"filename": "docs/change.md"}]):
                 api = MappingApi({f"repos/{REPOSITORY}/pulls/610": {"state": "open", "mergeable": True, "merge_commit_sha": MERGE}})
                 result = gate.classify_event(self.event(base, edge["parent"]), config(), api)
                 self.assertEqual(result.parent, edge["parent"])
                 self.assertEqual(result.profile, "documentation")
+
+    def test_merge_base_lookup_ignores_only_the_unneeded_capped_file_list(self):
+        endpoint = f"repos/{REPOSITORY}/compare/{PARENT}...{BASE}"
+        document = {
+            "base_commit": {"sha": PARENT},
+            "merge_base_commit": {"sha": HEAD},
+            "files": [{"filename": f"historical/{index}"} for index in range(300)],
+        }
+        self.assertEqual(gate.compare_merge_base(MappingApi({endpoint: document}), REPOSITORY, PARENT, BASE), HEAD)
+        with self.assertRaises(gate.GateError):
+            gate.compare_files(MappingApi({endpoint: document}), REPOSITORY, PARENT, BASE)
 
     def test_ordinary_development_dependabot_fork_and_promotion_stay_ordinary(self):
         for head, repo_id in (
