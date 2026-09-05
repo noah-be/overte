@@ -58,11 +58,16 @@ TextureCache& SharedObject::getTextureCache() {
 #define OFFSCREEN_QML_SHARED_CONTEXT_PROPERTY "com.highfidelity.qml.gl.sharedContext"
 #define OFFSCREEN_QML_SOFTWARE_PROPERTY "org.overte.qml.softwareRendering"
 void SharedObject::setSharedContext(QOpenGLContext* sharedContext) {
+#if defined(Q_OS_IOS)
+    Q_UNUSED(sharedContext)
+    qFatal("OVT_IOS_QML_GL_CONTEXT_UNSUPPORTED");
+#else
     qApp->setProperty(OFFSCREEN_QML_SOFTWARE_PROPERTY, false);
     qApp->setProperty(OFFSCREEN_QML_SHARED_CONTEXT_PROPERTY, QVariant::fromValue<void*>(sharedContext));
     if (QOpenGLContextWrapper::currentContext() != sharedContext) {
         qFatal("The shared context must be the current context when setting");
     }
+#endif
 }
 
 QOpenGLContext* SharedObject::getSharedContext() {
@@ -383,6 +388,12 @@ void SharedObject::releaseTextureAndFence() {
 }
 
 void SharedObject::setRenderTarget(uint32_t fbo, uint32_t texture, const QSize& size) {
+#if defined(Q_OS_IOS)
+    Q_UNUSED(fbo)
+    Q_UNUSED(texture)
+    Q_UNUSED(size)
+    qFatal("OVT_IOS_QML_GL_TARGET_UNSUPPORTED");
+#else
 #ifndef DISABLE_QML
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     Q_UNUSED(fbo)
@@ -390,6 +401,7 @@ void SharedObject::setRenderTarget(uint32_t fbo, uint32_t texture, const QSize& 
 #else
     Q_UNUSED(texture)
     _quickWindow->setRenderTarget(fbo, size);
+#endif
 #endif
 #endif
 }
