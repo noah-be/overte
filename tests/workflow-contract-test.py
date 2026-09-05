@@ -46,12 +46,19 @@ class LightweightWorkflowContracts(unittest.TestCase):
         self.assertIn("timeout-minutes: 5", documentation)
         self.assertIn("persist-credentials: false", documentation)
 
-    def test_app_test_workflows_exclude_markdown(self):
-        for workflow in (ANDROID_TESTS_WORKFLOW, WORKFLOW):
-            self.assertIn('"!**/*.md"', workflow.read_text(encoding="utf-8"))
-        for workflow in (IOS_WORKFLOW, MACOS_WORKFLOW):
-            if workflow.exists():
-                self.assertIn("'!**/*.md'", workflow.read_text(encoding="utf-8"))
+    def test_triggered_app_test_workflows_exclude_markdown(self):
+        for workflow in (
+            ANDROID_TESTS_WORKFLOW,
+            WORKFLOW,
+            IOS_WORKFLOW,
+            MACOS_WORKFLOW,
+        ):
+            if not workflow.exists():
+                continue
+            source = workflow.read_text(encoding="utf-8")
+            if not re.search(r"(?m)^  (?:push|pull_request):", source):
+                continue
+            self.assertRegex(source, r'''["']!\*\*/\*\.md["']''', workflow.name)
 
 
 class WorkflowStorageContracts(unittest.TestCase):
