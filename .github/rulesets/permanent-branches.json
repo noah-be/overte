@@ -49,6 +49,10 @@
           {
             "context": "branch-policy",
             "integration_id": 15368
+          },
+          {
+            "context": "sync-test-reuse",
+            "integration_id": 15368
           }
         ],
         "strict_required_status_checks_policy": true
