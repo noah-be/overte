@@ -20,7 +20,12 @@ class LibnodeAndroidConan(ConanFile):
         self.tool_requires("nasm/2.15.05")
 
     def requirements(self):
-        self.requires("openssl/1.1.1q", headers=True, libs=True, transitive_libs=True)
+        self.requires(
+            "openssl/3.5.8@overte/stable",
+            headers=True,
+            libs=True,
+            transitive_libs=True,
+        )
         self.requires("zlib/[>=1.3 <1.4]")
 
     def source(self):

@@ -127,3 +127,37 @@ git merge-base --is-ancestor origin/main origin/windows-main
 Each command must exit successfully. Also use `git branch -r --contains` for a
 product-adapter commit and confirm that it appears only in its intended product
 branch unless a later reviewed propagation deliberately changes that scope.
+
+## Exact-parent test reuse
+
+The four permanent branches that have children (`main`, `android-main`,
+`android-vr`, and `apple-main`) qualify each exact pushed commit once. The
+qualification runs the shared project and complete device-control-plane suites,
+then uploads a short-lived machine-readable artifact. The artifact binds the
+repository numeric ID and name, parent commit and tree, qualification workflow
+blob, shared test definitions, workflows, lockfiles, toolchain inputs, test
+configuration, successful results, run identity, GitHub Actions App ID, and
+validity interval. Its canonical JSON digest makes accidental or malicious
+content changes detectable.
+
+The trusted `sync-test-reuse` check is loaded only from the default branch. For
+one of the eight direct edges it re-reads the current base and parent refs,
+validates the exact merge parents and merge tree, rejects paths outside the
+parent delta, and accepts exactly one matching non-expired qualification from a
+successful `push` run of the expected workflow. It re-reads both permanent refs
+after verification so a target or parent race fails closed.
+
+When all bindings match, a separate read-only validation workflow runs only the
+edge-specific hardware-free differential profile. The redundant Android and
+project-wide suites delegate to this required check, while topology, policy,
+workflow-security, documentation, and relevant Android VR or iOS checks remain
+independent. A documentation-only sync selects only documentation and contract
+validation.
+
+Missing, stale, duplicated, incomplete, foreign, or otherwise mismatched
+evidence selects the complete shared fallback in the isolated read-only
+validation workflow. It never turns an evidence error into an unchecked pass.
+Ordinary task, feature, promotion, Dependabot, and fork pull requests are not
+eligible for delegation and keep their existing full path-appropriate checks.
+The machine-readable contract is
+[`../.github/sync-test-reuse.json`](../.github/sync-test-reuse.json).
