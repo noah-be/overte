@@ -18,6 +18,7 @@
 #include <QtCore/QDir>
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
+#include "../../../security/redaction/SafeDiagnostics.h"
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonObject>
 #include <QtCore/QMap>
@@ -575,7 +576,7 @@ void AccountManager::setAccessTokenForCurrentAuthURL(const QString& accessToken)
     newOAuthToken.token = accessToken;
 
     if (!accessToken.isEmpty()) {
-        qCDebug(networking) << "Setting new AccountManager OAuth token. F2C:" << accessToken.left(2) << "L2C:" << accessToken.right(2);
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::AuthReady);
     } else if (!_accountInfo.getAccessToken().token.isEmpty()) {
         qCDebug(networking) << "Clearing AccountManager OAuth token.";
     }
