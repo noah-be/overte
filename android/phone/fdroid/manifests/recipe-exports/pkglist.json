@@ -305,9 +305,9 @@
   },
   "qt/5.15.18-2026.01.04@overte/stable": {
     "revisions": {
-      "c615fd9bf2e6410b92a3e6b84fa73980": {
-        "timestamp": 1788598575.1969585,
-        "recipe_folder": "qtfea71855f734b"
+      "067e63fa931d764bcb1e93004544cf4f": {
+        "timestamp": 1788642525.1578007,
+        "recipe_folder": "qt56a3937b63691"
       }
     }
   },
