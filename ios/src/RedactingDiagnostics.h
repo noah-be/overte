@@ -1,26 +1,30 @@
 // Copyright 2026 Overte e.V.
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
+#include "../../security/redaction/SafeDiagnostics.h"
 
 namespace overte::ios {
-// Local native events take no free-form payload. Shared PX-16 binding is separate.
+// Local call sites map to the pinned PX-16 event vocabulary.
 enum class DiagnosticEvent {
     AudioConfigurationFailed, AudioActivationFailed, AudioDeactivationFailed,
     ApplicationSupportUnavailable, DirectoryLookupFailed, DirectoryResponseInvalid,
     SecureStorageUnavailable, RecoveryExhausted
 };
-constexpr const char* diagnosticEventCode(DiagnosticEvent event) noexcept {
+inline const char* diagnosticEventCode(DiagnosticEvent event) noexcept {
+    using Shared = security::DiagnosticEvent;
     switch (event) {
-        case DiagnosticEvent::AudioConfigurationFailed: return "audio_configuration_failed";
-        case DiagnosticEvent::AudioActivationFailed: return "audio_activation_failed";
-        case DiagnosticEvent::AudioDeactivationFailed: return "audio_deactivation_failed";
-        case DiagnosticEvent::ApplicationSupportUnavailable: return "application_support_unavailable";
-        case DiagnosticEvent::DirectoryLookupFailed: return "directory_lookup_failed";
-        case DiagnosticEvent::DirectoryResponseInvalid: return "directory_response_invalid";
-        case DiagnosticEvent::SecureStorageUnavailable: return "secure_storage_unavailable";
-        case DiagnosticEvent::RecoveryExhausted: return "recovery_exhausted";
+        case DiagnosticEvent::AudioConfigurationFailed:
+        case DiagnosticEvent::AudioActivationFailed:
+        case DiagnosticEvent::AudioDeactivationFailed: return security::diagnosticEvent(Shared::AudioStopped);
+        case DiagnosticEvent::ApplicationSupportUnavailable:
+        case DiagnosticEvent::SecureStorageUnavailable: return security::diagnosticEvent(Shared::StorageUnavailable);
+        case DiagnosticEvent::DirectoryLookupFailed:
+        case DiagnosticEvent::DirectoryResponseInvalid:
+        case DiagnosticEvent::RecoveryExhausted: return security::diagnosticEvent(Shared::ConnectionFailed);
     }
-    return "unknown_event";
+    return security::diagnosticEvent(Shared::Redacted);
 }
 void logDiagnostic(DiagnosticEvent event) noexcept;
+void logSharedDiagnostic(security::DiagnosticEvent event) noexcept;
+void logRedactedDiagnostic(const char* payload, std::size_t length) noexcept;
 } // namespace overte::ios

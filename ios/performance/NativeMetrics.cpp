@@ -1,8 +1,22 @@
 // Copyright 2026 Overte e.V.
 // SPDX-License-Identifier: Apache-2.0
 #include "NativeMetrics.h"
+#include <mutex>
 
 namespace overte::ios {
+namespace {
+std::mutex metricsMutex;
+NativeMetrics latest;
+}
+void recordNativeMetrics(const NativeMetrics& metrics) {
+    std::lock_guard guard(metricsMutex);
+    latest = metrics;
+    if (!latest.footprintAvailable) { latest.footprintBytes = 0; }
+}
+NativeMetrics latestNativeMetrics() {
+    std::lock_guard guard(metricsMutex);
+    return latest;
+}
 std::string formatNativeMetrics(const NativeMetrics& metrics) {
     const char* thermal = "unknown";
     switch (metrics.thermal) {

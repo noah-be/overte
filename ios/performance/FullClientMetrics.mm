@@ -16,7 +16,7 @@ void installIOSNativeMetrics() {
         timer->setTimerType(Qt::VeryCoarseTimer);
         QObject::connect(timer, &QTimer::timeout, app, [] {
             if (QGuiApplication::applicationState() == Qt::ApplicationActive) {
-                overte::ios::logNativeMetrics(overte::ios::sampleNativeMetrics());
+                overte::ios::recordNativeMetrics(overte::ios::sampleNativeMetrics());
             }
         });
         timer->start();

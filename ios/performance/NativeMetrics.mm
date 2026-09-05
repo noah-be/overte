@@ -3,7 +3,6 @@
 #include "NativeMetrics.h"
 #import <Foundation/Foundation.h>
 #import <mach/mach.h>
-#import <os/log.h>
 
 namespace overte::ios {
 NativeMetrics sampleNativeMetrics() noexcept {
@@ -29,9 +28,4 @@ NativeMetrics sampleNativeMetrics() noexcept {
     return result;
 }
 
-void logNativeMetrics(const NativeMetrics& metrics) noexcept {
-    static os_log_t log = os_log_create("org.overte.interface", "performance");
-    const auto safe = formatNativeMetrics(metrics);
-    os_log_info(log, "native_metrics %{public}s", safe.c_str());
-}
 } // namespace overte::ios

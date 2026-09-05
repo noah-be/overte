@@ -16,7 +16,10 @@ struct NativeMetrics {
 };
 NativeMetrics sampleNativeMetrics() noexcept;
 std::string formatNativeMetrics(const NativeMetrics& metrics);
-void logNativeMetrics(const NativeMetrics& metrics) noexcept;
+// Keep a single in-process sample. Export/renderer consumers require the Shared
+// metrics contract; PX-16 does not allow arbitrary numeric diagnostic strings.
+void recordNativeMetrics(const NativeMetrics& metrics);
+NativeMetrics latestNativeMetrics();
 constexpr int previewFrameLimit(ThermalState thermal, bool lowPower, bool reduceMotion) noexcept {
     if (thermal == ThermalState::Critical) { return 15; }
     if (thermal == ThermalState::Serious || lowPower || reduceMotion) { return 30; }

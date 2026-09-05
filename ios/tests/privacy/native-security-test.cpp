@@ -18,10 +18,10 @@ int main() {
     SecureAccountStore::clear(value);
     assert(value.empty());
     SecureAccountStore::clear(value);
-    assert(std::string_view(diagnosticEventCode(static_cast<DiagnosticEvent>(-1))) == "unknown_event");
+    assert(std::string_view(diagnosticEventCode(static_cast<DiagnosticEvent>(-1))) == "OVT_REDACTED");
     for (int i = 0; i <= static_cast<int>(DiagnosticEvent::RecoveryExhausted); ++i) {
         std::string_view code = diagnosticEventCode(static_cast<DiagnosticEvent>(i));
-        assert(code.size() < 64);
-        for (char c : code) { assert((c >= 'a' && c <= 'z') || c == '_'); }
+        assert(code.size() <= 32);
+        for (char c : code) { assert((c >= 'A' && c <= 'Z') || c == '_'); }
     }
 }

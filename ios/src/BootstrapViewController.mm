@@ -518,7 +518,7 @@ typedef struct {
     const auto metrics = overte::ios::sampleNativeMetrics();
     self.metalView.preferredFramesPerSecond = overte::ios::previewFrameLimit(
         metrics.thermal, metrics.lowPower, UIAccessibilityIsReduceMotionEnabled());
-    overte::ios::logNativeMetrics(metrics);
+    overte::ios::recordNativeMetrics(metrics);
     self.view.accessibilityIdentifier = UIAccessibilityIsReduceMotionEnabled()
         ? @"overte.bootstrap.reduce-motion"
         : @"overte.bootstrap.standard-motion";

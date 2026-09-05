@@ -10,6 +10,10 @@ int main() {
     assert(formatNativeMetrics(unavailable) ==
         "footprint_bytes=unavailable thermal=unknown low_power=false energy_joules=unavailable");
     NativeMetrics measured { true, 123456, ThermalState::Serious, true };
+    recordNativeMetrics(measured);
+    assert(latestNativeMetrics().footprintBytes == 123456);
+    recordNativeMetrics(unavailable);
+    assert(!latestNativeMetrics().footprintAvailable && latestNativeMetrics().footprintBytes == 0);
     assert(formatNativeMetrics(measured) ==
         "footprint_bytes=123456 thermal=serious low_power=true energy_joules=unavailable");
     measured.footprintBytes = std::numeric_limits<std::uint64_t>::max();
