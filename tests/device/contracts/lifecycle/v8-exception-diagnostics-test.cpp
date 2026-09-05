@@ -5,6 +5,9 @@
 #include <cassert>
 #include <memory>
 #include <thread>
+#include <QLoggingCategory>
+#include "libraries/script-engine/src/ScriptProgram.h"
+Q_LOGGING_CATEGORY(scriptengine_v8, "sh005.v8-test")
 
 class ScriptEngineV8 {
 public:
@@ -16,6 +19,23 @@ public:
 };
 // These two complete functions are extracted unchanged from production.
 #include "v8-diagnostic-callers.inc"
+#include "v8-syntax-result.inc"
+// Only the engine's retained program storage is substituted; compilation,
+// syntax-result class and all V8 operations below remain original source.
+struct V8ScriptProgram {
+    V8ScriptProgram() = default;
+    V8ScriptProgram(ScriptEngineV8*, v8::Local<v8::Script>) {}
+};
+struct ScriptProgramV8Wrapper {
+    ScriptEngineV8* _engine;
+    QString _source;
+    QString _url { QStringLiteral("focused-script.js") };
+    V8ScriptProgram _value;
+    bool _isCompiled { false };
+    ScriptSyntaxCheckResultV8Wrapper _compileResult;
+    bool compile();
+};
+#include "v8-program-compile.inc"
 
 static std::atomic<bool> entered { false };
 static void markEntered(const v8::FunctionCallbackInfo<v8::Value>&) {
@@ -40,6 +60,27 @@ int main(int argc, char** argv) {
         auto context = v8::Context::New(isolate);
         v8::Context::Scope contextScope(context);
         ScriptEngineV8 engine { isolate, context };
+        if (mode == "none") {
+            ScriptProgramV8Wrapper valid { &engine, QStringLiteral("1 + 2") };
+            assert(valid.compile() && valid._isCompiled);
+            assert(valid._compileResult.state() == ScriptSyntaxCheckResult::Valid);
+            assert(valid.compile()); // cached result
+            auto setup = v8::Script::Compile(context, v8::String::NewFromUtf8Literal(isolate,
+                "globalThis.compileReads=0; Error.prepareStackTrace=()=>{compileReads++; return 'unsafe';}"))
+                .ToLocalChecked();
+            assert(!setup->Run(context).IsEmpty());
+            ScriptProgramV8Wrapper invalid { &engine, QStringLiteral("function (") };
+            assert(!invalid.compile() && !invalid._isCompiled);
+            assert(invalid._compileResult.state() == ScriptSyntaxCheckResult::Error);
+            assert(invalid._compileResult.errorLineNumber() == 1);
+            assert(!invalid._compileResult.errorMessage().isEmpty());
+            auto reads = context->Global()->Get(context,
+                v8::String::NewFromUtf8Literal(isolate, "compileReads")).ToLocalChecked();
+            assert(reads->Int32Value(context).FromJust() == 0);
+            ScriptSyntaxCheckResultV8Wrapper retained(ScriptSyntaxCheckResult::Error,
+                4, 5, QStringLiteral("failure"), QStringLiteral("captured frame"));
+            assert(retained.errorBacktrace() == QStringLiteral("captured frame"));
+        }
         isolate->SetCaptureStackTraceForUncaughtExceptions(true, 64);
         auto key = v8::String::NewFromUtf8Literal(isolate, "entered");
         assert(context->Global()->Set(context, key,

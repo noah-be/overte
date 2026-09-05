@@ -1,4 +1,14 @@
-# SH-005 V8 diagnostic safety prerequisite v001
+# SH-005 V8 diagnostic safety prerequisite v002
+
+v002 adds the actual ScriptProgramV8Wrapper::compile error path to the same
+captured-metadata reader. Syntax diagnostics no longer invoke exception.stack
+or arbitrary exception coercion. The syntax-result constructor now retains its
+already-declared errorBacktrace argument (previously silently discarded).
+Apply v002 after immutable v001; no native migration hook. The focused test now
+also compiles that complete original compile function and original syntax-result
+class, using only test substitutions for engine storage. Real V8 validates valid,
+cached and invalid source, with hostile prepareStackTrace untouched. Original
+six diagnostic scenarios still pass; the combined check took 2.021 seconds.
 
 This is a functional Shared error-path repair, NOT entity-script consent or
 finite revocation. No TerminateExecution caller, timeout, stop/restart policy or

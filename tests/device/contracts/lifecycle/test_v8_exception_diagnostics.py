@@ -27,6 +27,13 @@ class V8ExceptionDiagnostics(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="sh005-v8-diagnostics-") as temporary:
             temporary = pathlib.Path(temporary)
             (temporary / "v8-diagnostic-callers.inc").write_text(first + second)
+            wrapper_header = (ROOT / "libraries/script-engine/src/v8/ScriptProgramV8Wrapper.h").read_text()
+            syntax_class = wrapper_header[wrapper_header.index("class ScriptSyntaxCheckResultV8Wrapper final"):
+                                          wrapper_header.index("/// [V8] Implements ScriptProgram")]
+            wrapper_source = (ROOT / "libraries/script-engine/src/v8/ScriptProgramV8Wrapper.cpp").read_text()
+            compile_body = wrapper_source[wrapper_source.index("bool ScriptProgramV8Wrapper::compile()") :]
+            (temporary / "v8-syntax-result.inc").write_text(syntax_class)
+            (temporary / "v8-program-compile.inc").write_text(compile_body)
             binary = temporary / "test"
             library = prefix / "usr/lib64"
             subprocess.run(["c++", "-std=c++17", "-fPIC", "-pthread", "-I", str(ROOT),
