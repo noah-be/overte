@@ -1,0 +1,4 @@
+sources:
+  1.1.46:
+    sha256: f99bb64263c4b640139b5df11f43ae035cefa03585eceda879c195928aeec5ca
+    url: https://github.com/KhronosGroup/OpenXR-SDK/archive/refs/tags/release-1.1.46.tar.gz
