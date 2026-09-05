@@ -148,6 +148,26 @@ class QtSourceStoreTest(unittest.TestCase):
                 {item["id"] for item in document["components"]},
                 set(attestation["component_sha256"]),
             )
+            self.assertEqual(
+                MODULE.EXPECTED_TOP_LEVEL_DIRECTORIES,
+                {
+                    path.name
+                    for path in (output / "qt5").iterdir()
+                    if path.is_dir()
+                },
+            )
+
+    def test_unselected_superproject_directories_are_pruned(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            qt_root = Path(temporary) / "qt5"
+            (qt_root / "qtbase").mkdir(parents=True)
+            (qt_root / "qtwebengine").mkdir()
+            (qt_root / "qtwebengine/source").write_text("forbidden", encoding="utf-8")
+            (qt_root / "coin").mkdir()
+            removed = MODULE.prune_unselected_top_level(qt_root)
+            self.assertEqual(["coin", "qtwebengine"], removed)
+            self.assertTrue((qt_root / "qtbase").is_dir())
+            self.assertFalse((qt_root / "qtwebengine").exists())
 
     def test_missing_tampered_source_and_existing_output_fail(self):
         with tempfile.TemporaryDirectory() as temporary:

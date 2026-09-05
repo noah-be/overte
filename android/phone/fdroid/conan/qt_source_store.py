@@ -45,6 +45,12 @@ EXPECTED_ARCHIVE_LIMITS = {
     "max_members_per_archive": 300_000,
 }
 
+EXPECTED_TOP_LEVEL_DIRECTORIES = {
+    PurePosixPath(destination).parts[1]
+    for identifier, destination in EXPECTED_COMPONENTS.items()
+    if identifier != "qt5-superproject"
+}
+
 
 def _reject_duplicates(pairs):
     result = {}
@@ -235,6 +241,21 @@ def extract_archive(
         return len(member_paths), unpacked_bytes
 
 
+def prune_unselected_top_level(qt_root: Path) -> list[str]:
+    removed = []
+    for candidate in sorted(qt_root.iterdir(), key=lambda path: path.name):
+        if candidate.name in EXPECTED_TOP_LEVEL_DIRECTORIES:
+            continue
+        if candidate.is_symlink():
+            candidate.unlink()
+        elif candidate.is_dir():
+            shutil.rmtree(candidate)
+        else:
+            continue
+        removed.append(candidate.name)
+    return removed
+
+
 def compose(manifest_path: Path, source_store: Path, output: Path) -> dict:
     manifest_path = manifest_path.resolve(strict=True)
     source_store = source_store.resolve(strict=True)
@@ -273,12 +294,14 @@ def compose(manifest_path: Path, source_store: Path, output: Path) -> dict:
                 "max_total_unpacked_bytes"
             ]:
                 raise SourceStoreError("total unpacked-size limit exceeded")
+        pruned_top_level = prune_unselected_top_level(stage / "qt5")
         attestation = {
             "schema_version": 1,
             "status": "COMPOSED_UNQUALIFIED_LICENSE_HASHES_PENDING",
             "manifest_sha256": sha256_file(manifest_path),
             "component_count": len(document["components"]),
             "total_unpacked_bytes": total_unpacked_bytes,
+            "pruned_top_level": pruned_top_level,
             "component_sha256": {
                 component["id"]: component["sha256"]
                 for component in document["components"]
