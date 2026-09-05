@@ -17,6 +17,8 @@
 #include "ApplicationLifecycle.h"
 
 #include <QtCore/QMimeData>
+#include <QtCore/QCoreApplication>
+#include <QtCore/QThread>
 
 #include <controllers/InputRecorder.h>
 #include <display-plugins/CompositorHelper.h>
