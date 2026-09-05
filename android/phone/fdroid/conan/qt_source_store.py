@@ -75,7 +75,10 @@ def load_manifest(path: Path) -> dict:
 def validate_manifest(document: dict) -> None:
     if document.get("schema_version") != 1:
         raise SourceStoreError("unsupported manifest schema")
-    if document.get("status") != "SOURCE_ARCHIVES_LOCKED_LICENSE_HASHES_PENDING":
+    if (
+        document.get("status")
+        != "SOURCE_AND_LICENSE_ARCHIVES_LOCKED_ATTRIBUTION_SCANNER_PENDING"
+    ):
         raise SourceStoreError("unexpected qualification status")
     if document.get("source_authority") != {
         "package": "overte-fdroid-buildpath-prework/00-source-graph-design",
@@ -86,6 +89,14 @@ def validate_manifest(document: dict) -> None:
         raise SourceStoreError("source authority changed")
     if document.get("archive_limits") != EXPECTED_ARCHIVE_LIMITS:
         raise SourceStoreError("archive safety limits changed")
+    if document.get("license_lock") != {
+        "path": "android/phone/fdroid/manifests/qt-license.lock.tsv",
+        "sha256": "73112c92373d338b14a8f1e88691d6d3e185f75ec8abe6cb0dee2fec55336474",
+        "files": 258,
+        "components": 17,
+        "qualification": "QTATTRIBUTIONSSCANNER_PENDING",
+    }:
+        raise SourceStoreError("Qt license lock binding changed")
     components = document.get("components")
     if not isinstance(components, list) or len(components) != len(EXPECTED_COMPONENTS):
         raise SourceStoreError("exactly 17 Qt source components are required")
@@ -161,6 +172,31 @@ def sha256_file(path: Path) -> str:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def write_tree_lock(root: Path) -> tuple[str, int]:
+    """Bind every regular file and symlink in the composed Qt source tree."""
+    rows = ["path\tmode\tsha256"]
+    count = 0
+    for path in sorted(root.rglob("*")):
+        relative = path.relative_to(root).as_posix()
+        if any(character in relative for character in "\t\r\n"):
+            raise SourceStoreError(f"unsafe tree-lock path: {relative!r}")
+        if path.is_symlink():
+            mode = "120000"
+            digest = hashlib.sha256(
+                b"symlink\0" + os.readlink(path).encode("utf-8")
+            ).hexdigest()
+        elif path.is_file():
+            mode = "100755" if path.stat().st_mode & stat.S_IXUSR else "100644"
+            digest = sha256_file(path)
+        else:
+            continue
+        rows.append(f"{relative}\t{mode}\t{digest}")
+        count += 1
+    lock = root.parent / "TREE_LOCK.tsv"
+    lock.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    return sha256_file(lock), count
 
 
 def _stripped_member_path(member: tarfile.TarInfo, strip_components: int) -> Path | None:
@@ -295,10 +331,14 @@ def compose(manifest_path: Path, source_store: Path, output: Path) -> dict:
             ]:
                 raise SourceStoreError("total unpacked-size limit exceeded")
         pruned_top_level = prune_unselected_top_level(stage / "qt5")
+        tree_lock_sha256, tree_entries = write_tree_lock(stage / "qt5")
         attestation = {
             "schema_version": 1,
-            "status": "COMPOSED_UNQUALIFIED_LICENSE_HASHES_PENDING",
+            "status": "COMPOSED_SOURCE_AND_LICENSE_LOCKED_ATTRIBUTION_SCANNER_PENDING",
             "manifest_sha256": sha256_file(manifest_path),
+            "license_lock_sha256": document["license_lock"]["sha256"],
+            "tree_lock_sha256": tree_lock_sha256,
+            "tree_entries": tree_entries,
             "component_count": len(document["components"]),
             "total_unpacked_bytes": total_unpacked_bytes,
             "pruned_top_level": pruned_top_level,
