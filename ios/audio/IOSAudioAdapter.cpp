@@ -6,10 +6,20 @@ namespace overte::ios {
 bool IOSAudioAdapter::apply(bool notify) {
     const auto revision = ++_revision;
     _capture = false;
-    if (!_native) { _gate.fail(); return false; }
+    const auto failed = [this, notify, revision] {
+        if (_revision != revision) { return false; } // superseded operation
+        _capture = false;
+        _gate.fail();
+        // v003: Failed is an observation requiring Qt containment, not a
+        // successful native-stop receipt. Keep native cleanup pending.
+        if (notify) { audio::notifyIOSAudioStateChanged(); }
+        return false;
+    };
+    if (!_native) { return failed(); }
     try {
         if (!_gate.mayActivate()) {
-            if (!_native->deactivate()) { _gate.fail(); return false; }
+            if (!_native->deactivate()) { return failed(); }
+            if (_revision != revision) { return false; }
             if (notify) { audio::notifyIOSAudioStateChanged(); }
             return true;
         }
@@ -20,15 +30,13 @@ bool IOSAudioAdapter::apply(bool notify) {
             return self && self->_revision == revision && self->_gate.mayActivate();
         });
         if (!active || _revision != revision || !_gate.mayActivate()) {
-            _gate.fail();
-            return false;
+            return failed();
         }
         _capture = capture && _gate.outcome() == audio::Outcome::Capturing;
         if (notify) { audio::notifyIOSAudioStateChanged(); }
         return true;
     } catch (...) {
-        _gate.fail();
-        return false;
+        return failed();
     }
 }
 
@@ -47,7 +55,15 @@ void IOSAudioAdapter::refreshPermission() {
             _gate.permission(permission);
             apply();
         }
-    } catch (...) { _capture = false; _gate.fail(); }
+    } catch (...) {
+        _capture = false;
+        // A repeated failing permission query must not enqueue itself forever
+        // through Shared's refresh callback. Notify the failure transition once.
+        if (_gate.outcome() != audio::Outcome::Failed) {
+            _gate.fail();
+            apply(); // attempt bounded native stop before failure notification
+        }
+    }
 }
 
 void IOSAudioAdapter::requestMicrophonePermission() {
@@ -69,7 +85,7 @@ void IOSAudioAdapter::promptIfNeeded() {
             self->_permission = permission;
             self->apply();
         });
-    } catch (...) { _gate.fail(); _capture = false; }
+    } catch (...) { _gate.fail(); _capture = false; apply(); }
 }
 
 bool IOSAudioAdapter::activate() {
@@ -89,8 +105,8 @@ bool IOSAudioAdapter::deactivate() {
     const bool success = apply(false);
     if (success) {
         _gate.stop();
-        audio::notifyIOSAudioStateChanged();
     }
+    audio::notifyIOSAudioStateChanged(); // Stopped on success, Failed otherwise
     return success;
 }
 void IOSAudioAdapter::routeChanged() {

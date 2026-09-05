@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "../audio/IOSAudioAdapter.h"
 #include <cassert>
+#include <stdexcept>
 using namespace overte::ios;
 using namespace overte::audio;
 struct Native final : NativeAudioOperations {
     Permission granted { Permission::Unknown };
     bool failStart { false }, failStop { false }, captures { false };
+    bool throwPermission { false };
     int starts { 0 }, stops { 0 };
     std::function<void(Permission)> completion;
     std::function<bool()> lastValidity;
@@ -15,8 +17,11 @@ struct Native final : NativeAudioOperations {
         captures = !failStart && capture && current();
         return !failStart && current();
     }
-    bool deactivate() override { ++stops; captures = false; return !failStop; }
-    Permission permission() override { return granted; }
+    bool deactivate() override { ++stops; if (!failStop) { captures = false; } return !failStop; }
+    Permission permission() override {
+        if (throwPermission) { throw std::runtime_error("synthetic permission fault"); }
+        return granted;
+    }
     void requestPermission(std::function<void(Permission)> callback) override { completion = callback; }
 };
 int main() {
@@ -24,12 +29,17 @@ int main() {
     auto adapter = std::make_shared<IOSAudioAdapter>(native);
     int notifications = 0;
     Outcome notified = Outcome::Stopped;
+    bool observedPendingNativeStop = false;
     setIOSAudioStateCallback([&] {
         ++notifications;
         notified = adapter->outcome();
         // Real Shared callback only enqueues. Check native state here without
         // reentering the registry or querying native permission.
-        assert(native->captures == (notified == Outcome::Capturing));
+        if (notified == Outcome::Failed) {
+            observedPendingNativeStop |= native->captures;
+        } else {
+            assert(native->captures == (notified == Outcome::Capturing));
+        }
     });
     assert(!adapter->activate() && native->starts == 0);
     adapter->foreground(true);
@@ -65,10 +75,16 @@ int main() {
     assert(adapter->activate());
     native->granted = Permission::Denied;
     assert(!adapter->microphonePermissionGranted() && !native->captures);
+    native->granted = Permission::Granted;
+    adapter->refreshPermission();
+    assert(native->captures);
     native->failStop = true;
     const auto beforeFailedStop = notifications;
     assert(!adapter->deactivate() && adapter->outcome() == Outcome::Failed);
-    assert(notifications == beforeFailedStop); // no false native stop receipt
+    assert(notifications == beforeFailedStop + 1 && notified == Outcome::Failed);
+    assert(observedPendingNativeStop && !adapter->microphonePermissionGranted());
+    for (int i = 0; i < 100; ++i) { assert(!adapter->microphonePermissionGranted()); }
+    assert(notifications == beforeFailedStop + 1); // no refresh feedback loop
     native->failStop = false;
     assert(adapter->deactivate() && adapter->outcome() == Outcome::Stopped);
     native->failStart = true;
@@ -76,6 +92,14 @@ int main() {
     assert(adapter->outcome() == Outcome::Failed);
     native->failStart = false;
     assert(adapter->activate());
+    native->throwPermission = true;
+    const auto beforePermissionFailure = notifications;
+    assert(!adapter->microphonePermissionGranted() && !native->captures);
+    assert(notifications == beforePermissionFailure + 1 && notified == Outcome::Failed);
+    for (int i = 0; i < 100; ++i) { assert(!adapter->microphonePermissionGranted()); }
+    assert(notifications == beforePermissionFailure + 1);
+    native->throwPermission = false;
+    assert(adapter->activate()); // only explicit restart leaves Failed
     const auto beforeRoute = notifications;
     const auto beforeRouteStarts = native->starts;
     adapter->routeChanged();

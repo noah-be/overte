@@ -113,7 +113,7 @@ private:
 void installNativeAudioAdapter() {
     auto adapter = std::make_shared<IOSAudioAdapter>(std::make_shared<AVAudioOperations>());
     if (!audio::installIOSAudioSessionAdapter(adapter)) {
-        logSharedDiagnostic(security::DiagnosticEvent::AudioStopped);
+        logSharedDiagnostic(security::DiagnosticEvent::Redacted);
         return;
     }
     dispatch_async(dispatch_get_main_queue(), ^{
