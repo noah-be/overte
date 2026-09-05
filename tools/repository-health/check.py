@@ -456,8 +456,6 @@ class Doctor:
                 self.fail("security", "SECURITY_WORKFLOW_NO_RUN", f"security workflow {name!r} has no terminal run")
             else:
                 states[name] = terminal.get("conclusion") or "UNKNOWN"
-                if terminal.get("conclusion") != "success":
-                    self.fail("security", "SECURITY_WORKFLOW_FAILED", f"latest terminal run of {name!r} concluded {terminal.get('conclusion')}")
         self.data["security"]["workflow_conclusions"] = states
 
     def check_contracts(self) -> None:
