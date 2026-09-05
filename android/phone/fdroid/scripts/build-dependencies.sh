@@ -86,7 +86,9 @@ preflight() {
   gcc --version | head -1 | grep -Eq ' 15[.]3[.]0$'
   g++ --version | head -1 | grep -Eq ' 15[.]3[.]0$'
   "$JAVA_HOME/bin/java" -version 2>&1 | head -1 | grep -Eq 'version "17[.]'
-  conan --version | grep -Fx 'Conan version 2.25.2'
+  # Conan initializes CONAN_HOME even for a version query.  Keep that probe in
+  # the container tmpfs so the qualified attempt cache remains truly empty.
+  CONAN_HOME=/tmp/sh001-conan-version-probe conan --version | grep -Fx 'Conan version 2.25.2'
   cmake --version | head -1 | grep -Fx 'cmake version 3.31.6'
   ninja --version | grep -Fx '1.13.2'
   if [ "$resume" -eq 0 ]; then
