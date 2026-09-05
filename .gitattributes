@@ -48,3 +48,8 @@
 *.woff binary
 *.woff2 binary
 *.zip binary
+
+# Conan recipe exports are preserved byte-for-byte from their locked RREVs.
+# Some upstream patch payloads intentionally contain whitespace that Git would
+# otherwise rewrite or reject during the repository diff check.
+android/phone/fdroid/manifests/recipe-exports/** -text -eol -whitespace
