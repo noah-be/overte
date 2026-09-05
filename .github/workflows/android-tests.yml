@@ -143,31 +143,34 @@ jobs:
   contracts:
     name: Architecture and security contracts
     needs: route
-    if: needs.route.outputs.run_full == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        if: needs.route.outputs.run_full == 'true'
         with:
           persist-credentials: false
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.0.0
+        if: needs.route.outputs.run_full == 'true'
         with:
           distribution: temurin
           java-version: 21
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.0.0
+        if: needs.route.outputs.run_full == 'true'
         with:
           node-version: 22
       - name: Run contract tier
+        if: needs.route.outputs.run_full == 'true'
         run: common/tests/run-tests.sh contracts
       - name: Summarize contract results
-        if: always()
+        if: always() && needs.route.outputs.run_full == 'true'
         continue-on-error: true
         run: >-
           python3 common/tests/reporting/generate_summary.py
           --junit contracts=build/test-results/suite/TEST-android-contracts.xml
           --output build/reports/summary/contracts.md
       - name: Publish JUnit report
-        if: always()
+        if: always() && needs.route.outputs.run_full == 'true'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: android-contract-results-${{ github.run_attempt }}
