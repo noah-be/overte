@@ -27,7 +27,10 @@ class V8PropertyCopy(unittest.TestCase):
                             str(pathlib.Path(__file__).with_name("v8-property-copy-test.cpp")),
                             "-L", str(library), "-Wl,-rpath," + str(library), "-lnode",
                             "-o", str(binary), *flags], check=True, timeout=40)
-            for mode in ("ordinary", "getter", "keys", "setter", "terminate", "snapshot", "snapshot-error"):
+            for mode in ("ordinary", "getter", "keys", "setter", "terminate", "snapshot", "snapshot-error",
+                         "require-ordinary", "require-source-script", "require-source-require",
+                         "require-destination-script", "require-destination-require", "require-getter",
+                         "require-cache-getter", "require-terminate"):
                 with self.subTest(mode=mode):
                     subprocess.run(["unshare", "--user", "--map-root-user", "--net", str(binary), mode],
                                    check=True, timeout=5)

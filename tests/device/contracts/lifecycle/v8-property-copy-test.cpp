@@ -48,7 +48,43 @@ int main(int argc, char** argv) {
             return v8::Script::Compile(context, v8::String::NewFromUtf8(isolate, text).ToLocalChecked())
                 .ToLocalChecked()->Run(context).ToLocalChecked();
         };
-        if (mode == "snapshot" || mode == "snapshot-error") {
+        if (mode.rfind("require-", 0) == 0) {
+            const char* sourceText = "({Script:{require:Object.assign(function(){},{cache:41})}})";
+            const char* destinationText = "({Script:{require:function(){}}})";
+            if (mode == "require-source-script") { sourceText = "({Script:1})"; }
+            if (mode == "require-source-require") { sourceText = "({Script:{require:null}})"; }
+            if (mode == "require-destination-script") { destinationText = "({})"; }
+            if (mode == "require-destination-require") { destinationText = "({Script:{require:4}})"; }
+            if (mode == "require-getter") { sourceText = "({get Script(){throw 1;}})"; }
+            if (mode == "require-cache-getter") { sourceText = "({Script:{require:{get cache(){throw 1;}}}})"; }
+            if (mode == "require-terminate") { sourceText = "({Script:{require:{get cache(){entered();for(;;){}}}}})"; }
+            auto source = evaluate(sourceText).As<v8::Object>();
+            auto destination = evaluate(destinationText).As<v8::Object>();
+            v8::TryCatch caught(isolate);
+            std::thread terminator;
+            if (mode == "require-terminate") {
+                terminator = std::thread([isolate] {
+                    while (!entered.load(std::memory_order_acquire)) { std::this_thread::yield(); }
+                    isolate->TerminateExecution();
+                });
+            }
+            const bool copied = overte::scripting::copyRequireProperties(context, source, destination);
+            if (terminator.joinable()) { terminator.join(); }
+            assert(copied == (mode == "require-ordinary"));
+            if (copied) {
+                auto script = destination->Get(context, v8::String::NewFromUtf8Literal(isolate,"Script"))
+                    .ToLocalChecked().As<v8::Object>();
+                auto require = script->Get(context, v8::String::NewFromUtf8Literal(isolate,"require"))
+                    .ToLocalChecked().As<v8::Object>();
+                assert(require->IsFunction());
+                auto cache = require->Get(context, v8::String::NewFromUtf8Literal(isolate,"cache")).ToLocalChecked();
+                assert(cache->Int32Value(context).FromJust() == 41);
+            }
+            const bool expectedException = mode == "require-getter" ||
+                mode == "require-cache-getter" || mode == "require-terminate";
+            assert(caught.HasCaught() == expectedException);
+            assert(caught.HasTerminated() == (mode == "require-terminate"));
+        } else if (mode == "snapshot" || mode == "snapshot-error") {
             ScriptEngineV8 engine { isolate, context };
             if (mode == "snapshot-error") {
                 evaluate("Object.defineProperty(globalThis,'bad',{enumerable:true,configurable:true,get(){throw 1;}})");

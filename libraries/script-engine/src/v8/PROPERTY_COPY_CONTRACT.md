@@ -1,4 +1,18 @@
-# SH-005 checked V8 property-copy prerequisite v001
+# SH-005 checked V8 property-copy prerequisite v002
+
+v002 requires unchanged v001 and replaces the actual Script.require transfer
+block with copyRequireProperties. Source/destination Script and require objects
+are validated before casting; callable require objects remain supported. Getter
+failures, missing/malformed objects, cache enumeration/copy errors and termination
+discard the closure context with a balanced evaluation counter. No debug-only
+assertions or QString exception path substitutes for validation here.
+
+The original seven tests plus eight real-V8 require cases pass in1.959s including
+compilation. Added cases exercise callable cache success, each malformed object
+boundary, source getter/cache getter errors and termination inside cache getter.
+An initial malformed JavaScript termination fixture lacked a closing brace and
+failed during test setup; corrected fixture compiles and tests the intended
+actual helper. This was not a candidate build or production-runtime result.
 
 Requires sh005-v8-diagnostics/v001 (v002 recommended for the compiler caller).
 This narrow Shared V8 implementation is the actual callee beneath ScriptManager;
@@ -34,7 +48,7 @@ error notification is substituted in the snapshot harness. Full evaluateInClosur
 is not compiled by this focused test. Host Node22.23.1/V8 is test-only, never a
 candidate input or pinned toolchain replacement.
 
-Still pending: remaining Script.require, registration, constructor/property and
+Still pending: registration, constructor/property and
 native callback paths; sticky revocation, lifetime-safe termination, regrant on
 a fresh isolate; actual default-deny fetch/compile/run consent and informed UI;
 whole script-engine/platform build and finite device acceptance. No claim of
