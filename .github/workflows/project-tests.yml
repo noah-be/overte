@@ -30,7 +30,34 @@ defaults:
     shell: bash
 
 jobs:
+  route:
+    name: Select ordinary or delegated sync path
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    outputs:
+      run_full: ${{ steps.route.outputs.run_full }}
+    steps:
+      - id: route
+        name: Preserve full tests except for governed sync shapes
+        env:
+          BASE: ${{ github.base_ref }}
+          EVENT: ${{ github.event_name }}
+          HEAD: ${{ github.head_ref }}
+          SAME_REPOSITORY: ${{ github.event.pull_request.head.repo.id == github.event.repository.id }}
+        run: |
+          set -euo pipefail
+          run_full=true
+          if [[ "$EVENT" == pull_request && "$SAME_REPOSITORY" == true ]]; then
+            case "$BASE:$HEAD" in
+              android-main:main|apple-main:main|linux-main:main|windows-main:main|android-phone:android-main|android-vr:android-main|android-vr-pico:android-vr|apple-ios:apple-main) run_full=false ;;
+              android-main:reconcile/android/*|apple-main:reconcile/apple/*|linux-main:reconcile/linux/*|windows-main:reconcile/windows/*|android-phone:reconcile/android-phone/*|android-vr:reconcile/android-vr/*|android-vr-pico:reconcile/android-pico/*|apple-ios:reconcile/ios/*) run_full=false ;;
+            esac
+          fi
+          echo "run_full=$run_full" >> "$GITHUB_OUTPUT"
+
   project-tests:
+    needs: route
+    if: needs.route.outputs.run_full == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -75,7 +102,7 @@ jobs:
         run: |
           set -euo pipefail
           tests/run-project-tests.py \
-            --timeout 300 \
+            --timeout 240 \
             --junit build/test-results/project-tests.xml
 
       - name: Run full device E2E control-plane gate

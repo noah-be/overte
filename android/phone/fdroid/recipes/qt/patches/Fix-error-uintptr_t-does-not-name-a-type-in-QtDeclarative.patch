@@ -1,0 +1,29 @@
+From 94fc9546bf33a9c62705aae9aae2237b7f5c062f Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Julian=20Gro=C3=9F?= <julian.g@posteo.de>
+Date: Sun, 4 Jan 2026 11:01:43 +0100
+Subject: [PATCH] =?UTF-8?q?Fix=20`error:=20=E2=80=98uintptr=5Ft=E2=80=99?=
+ =?UTF-8?q?=20does=20not=20name=20a=20type`=20in=20QtDeclarative=20QML=20c?=
+ =?UTF-8?q?ompiler=20qv4compiler.cpp.?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ src/qml/compiler/qv4compiler.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/qml/compiler/qv4compiler.cpp b/src/qml/compiler/qv4compiler.cpp
+index 18e19cf01c..13934eebb5 100644
+--- a/src/qml/compiler/qv4compiler.cpp
++++ b/src/qml/compiler/qv4compiler.cpp
+@@ -47,6 +47,7 @@
+ #include <private/qml_compile_hash_p.h>
+ #include <private/qqmlirbuilder_p.h>
+ #include <QCryptographicHash>
++#include <cstdint>
+ 
+ // Efficient implementation that takes advantage of powers of two.
+ static inline size_t roundUpToMultipleOf(size_t divisor, size_t x)
+-- 
+2.51.0
+
