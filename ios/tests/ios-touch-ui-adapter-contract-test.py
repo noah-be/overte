@@ -88,8 +88,11 @@ for app_property in (
 ):
     assert f'qApp->setProperty("{app_property}"' in GRAPHICS
 assert "OVERTE_IOS_TOUCH_UI_GATE stage=native-metrics-published" in GRAPHICS
-assert 'extraSelectors << "ios" << "mobile" << "touch"' in SELECTORS
-assert "android_phoneInterface" in SELECTORS
+assert "product = Product::IOS" in SELECTORS
+assert "profileSelectors(product, gles)" in SELECTORS
+PROFILE_IMPLEMENTATION = (ROOT / "libraries/ui/src/CapabilityProfile.h").read_text()
+assert 'case Product::IOS: result = {"ios", "mobile", "touch",' in PROFILE_IMPLEMENTATION
+assert "android_phoneInterface" in PROFILE_IMPLEMENTATION
 assert 'import ".." as SharedControls' in PROFILE
 assert "SharedControls.TouchUiProfileBase" in PROFILE
 assert "graphicsSettingsAvailable: true" in PROFILE

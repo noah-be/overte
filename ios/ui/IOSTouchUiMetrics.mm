@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "../../interface/src/IOSTouchUiMetrics.h"
+#include "KeyboardGeometry.h"
 
 #import <UIKit/UIKit.h>
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
 #include <QCoreApplication>
 #include <QAccessible>
@@ -21,6 +23,32 @@
 
 #include <shared/IOSRuntimeLogging.h>
 #include <ui/TabletScriptingInterface.h>
+
+// Owned through the existing opaque private pointer: no Shared header/API change.
+@interface OverteIOSMetricsLayoutObserver : UIView
+@property(nonatomic, copy) void (^geometryChanged)(void);
+@end
+@implementation OverteIOSMetricsLayoutObserver
+- (void)layoutSubviews {
+    [super layoutSubviews];
+    if (self.geometryChanged) { self.geometryChanged(); }
+}
+- (void)safeAreaInsetsDidChange {
+    [super safeAreaInsetsDidChange];
+    if (self.geometryChanged) { self.geometryChanged(); }
+}
+@end
+
+@interface OverteIOSMetricsState : NSObject
+@property(nonatomic, strong) NSMutableArray* tokens;
+@property(nonatomic, strong) OverteIOSMetricsLayoutObserver* layoutObserver;
+@property(nonatomic, weak) UIWindow* window;
+@property(nonatomic) CGRect bounds;
+@property(nonatomic) CGRect screenFrame;
+@property(nonatomic) UIInterfaceOrientation orientation;
+@end
+@implementation OverteIOSMetricsState
+@end
 
 @interface OverteIOSAccessibilityElement : UIAccessibilityElement
 @property(nonatomic, copy) BOOL (^activationHandler)(void);
@@ -81,11 +109,11 @@ UIWindow* activeWindow() {
     UIWindow* fallback = nil;
     for (UIScene* scene in UIApplication.sharedApplication.connectedScenes) {
         if (![scene isKindOfClass:UIWindowScene.class] ||
-            scene.activationState == UISceneActivationStateUnattached) {
+            scene.activationState != UISceneActivationStateForegroundActive) {
             continue;
         }
         for (UIWindow* window in ((UIWindowScene*)scene).windows) {
-            if (window.isKeyWindow) {
+            if (window.isKeyWindow && !window.hidden) {
                 return window;
             }
             if (fallback == nil && !window.hidden) {
@@ -365,27 +393,47 @@ BOOL activateTabletItem(QPointer<QQuickItem> guardedItem) {
 }
 
 IOSTouchUiMetrics::IOSTouchUiMetrics(QObject* parent) : QObject(parent) {
-    NSMutableArray* tokens = [NSMutableArray array];
+    OverteIOSMetricsState* state = [OverteIOSMetricsState new];
+    state.tokens = [NSMutableArray array];
+    state.layoutObserver = [[OverteIOSMetricsLayoutObserver alloc] initWithFrame:CGRectZero];
+    state.layoutObserver.userInteractionEnabled = NO;
+    state.layoutObserver.isAccessibilityElement = NO;
+    state.layoutObserver.accessibilityElementsHidden = YES;
+    state.layoutObserver.backgroundColor = UIColor.clearColor;
+    state.layoutObserver.autoresizingMask = UIViewAutoresizingFlexibleWidth |
+        UIViewAutoresizingFlexibleHeight;
+    QPointer<IOSTouchUiMetrics> guarded(this);
+    state.layoutObserver.geometryChanged = ^{
+        if (guarded) { guarded->refresh(); }
+    };
+    _notificationTokens = (__bridge_retained void*)state;
     NSNotificationCenter* center = NSNotificationCenter.defaultCenter;
     NSArray<NSNotificationName>* names = @[
         UIApplicationDidBecomeActiveNotification,
+        UIApplicationWillResignActiveNotification,
+        UIApplicationDidEnterBackgroundNotification,
+        UISceneDidActivateNotification,
+        UISceneWillDeactivateNotification,
+        UISceneDidEnterBackgroundNotification,
+        UISceneDidDisconnectNotification,
         UIWindowDidBecomeKeyNotification,
+        UIWindowDidResignKeyNotification,
         UIContentSizeCategoryDidChangeNotification,
         UIDeviceOrientationDidChangeNotification,
         UIKeyboardWillShowNotification,
         UIKeyboardDidShowNotification,
         UIKeyboardWillChangeFrameNotification,
         UIKeyboardDidChangeFrameNotification,
-        UIKeyboardWillHideNotification
+        UIKeyboardWillHideNotification,
+        UIKeyboardDidHideNotification
     ];
     for (NSNotificationName name in names) {
         id token = [center addObserverForName:name object:nil queue:NSOperationQueue.mainQueue
                                    usingBlock:^(NSNotification* notification) {
-            refresh((__bridge void*)notification);
+            if (guarded) { guarded->refresh((__bridge void*)notification); }
         }];
-        [tokens addObject:token];
+        [state.tokens addObject:token];
     }
-    _notificationTokens = (__bridge_retained void*)tokens;
     refresh();
     // During Application::initializeUi() UIKit may publish the key window one
     // event-loop turn later. This queued refresh is observed by the native
@@ -394,15 +442,36 @@ IOSTouchUiMetrics::IOSTouchUiMetrics(QObject* parent) : QObject(parent) {
 }
 
 IOSTouchUiMetrics::~IOSTouchUiMetrics() {
-    NSArray* tokens = (__bridge_transfer NSArray*)_notificationTokens;
-    for (id token in tokens) {
+    OverteIOSMetricsState* state = (__bridge_transfer OverteIOSMetricsState*)_notificationTokens;
+    _notificationTokens = nullptr;
+    state.layoutObserver.geometryChanged = nil;
+    [state.layoutObserver removeFromSuperview];
+    for (id token in state.tokens) {
         [NSNotificationCenter.defaultCenter removeObserver:token];
     }
 }
 
 void IOSTouchUiMetrics::refresh(void* keyboardNotification) {
+    OverteIOSMetricsState* state = (__bridge OverteIOSMetricsState*)_notificationTokens;
     UIWindow* window = activeWindow();
+    NSNotification* notification = (__bridge NSNotification*)keyboardNotification;
+    const bool deactivating =
+        [notification.name isEqualToString:UIApplicationWillResignActiveNotification] ||
+        [notification.name isEqualToString:UIApplicationDidEnterBackgroundNotification] ||
+        (([notification.name isEqualToString:UISceneWillDeactivateNotification] ||
+          [notification.name isEqualToString:UISceneDidEnterBackgroundNotification] ||
+          [notification.name isEqualToString:UISceneDidDisconnectNotification]) &&
+         notification.object == window.windowScene);
+    if (deactivating) { window = nil; }
     if (window == nil) {
+        state.window = nil;
+        [state.layoutObserver removeFromSuperview];
+        const bool hadMetrics = _surfaceWidth != 0.0 || _surfaceHeight != 0.0 ||
+            _imeInsetBottom != 0.0 || _keyboardVisible;
+        _safeInsetLeft = _safeInsetTop = _safeInsetRight = _safeInsetBottom = 0.0;
+        _surfaceWidth = _surfaceHeight = _imeInsetBottom = 0.0;
+        _keyboardVisible = false;
+        if (hadMetrics) { emit metricsChanged(); }
         return;
     }
 
@@ -410,7 +479,28 @@ void IOSTouchUiMetrics::refresh(void* keyboardNotification) {
     CGRect bounds = window.bounds;
     qreal imeInset = _imeInsetBottom;
     bool keyboardIsVisible = _keyboardVisible;
-    NSNotification* notification = (__bridge NSNotification*)keyboardNotification;
+    CGRect screenFrame = [window convertRect:bounds toCoordinateSpace:window.screen.coordinateSpace];
+    const bool geometryChanged = state.window != window ||
+        !CGRectEqualToRect(state.bounds, bounds) ||
+        !CGRectEqualToRect(state.screenFrame, screenFrame) ||
+        state.orientation != window.windowScene.interfaceOrientation ||
+        [notification.name isEqualToString:UIDeviceOrientationDidChangeNotification] ||
+        [notification.name isEqualToString:UIWindowDidResignKeyNotification];
+    if (geometryChanged) {
+        imeInset = 0.0;
+        keyboardIsVisible = false;
+    }
+    state.window = window;
+    state.bounds = bounds;
+    state.screenFrame = screenFrame;
+    state.orientation = window.windowScene.interfaceOrientation;
+    if (state.layoutObserver.superview != window) {
+        [state.layoutObserver removeFromSuperview];
+        state.layoutObserver.frame = bounds;
+        [window addSubview:state.layoutObserver];
+    } else if (!CGRectEqualToRect(state.layoutObserver.frame, bounds)) {
+        state.layoutObserver.frame = bounds;
+    }
     const bool keyboardNotificationReceived =
         [notification.name hasPrefix:@"UIKeyboard"];
     if (keyboardNotificationReceived) {
@@ -422,15 +512,30 @@ void IOSTouchUiMetrics::refresh(void* keyboardNotification) {
             suppressInputAssistantForAllWindows();
         });
     }
-    if ([notification.name isEqualToString:UIKeyboardWillHideNotification]) {
+    const bool matchingScreen = ![notification.object isKindOfClass:UIScreen.class] ||
+        notification.object == window.screen;
+    if (matchingScreen && ([notification.name isEqualToString:UIKeyboardWillHideNotification] ||
+                          [notification.name isEqualToString:UIKeyboardDidHideNotification])) {
         imeInset = 0.0;
         keyboardIsVisible = false;
-    } else if ([notification.name isEqualToString:UIKeyboardWillChangeFrameNotification]) {
-        NSValue* frameValue = notification.userInfo[UIKeyboardFrameEndUserInfoKey];
-        CGRect keyboardFrame = [window convertRect:frameValue.CGRectValue fromWindow:nil];
-        CGRect overlap = CGRectIntersection(bounds, keyboardFrame);
-        imeInset = CGRectIsNull(overlap) ? 0.0 : CGRectGetHeight(overlap);
-        keyboardIsVisible = imeInset > 0.0;
+    } else if (matchingScreen && keyboardNotificationReceived) {
+        // Missing/malformed end frames clear old state; they are not measurements.
+        overte::ios::KeyboardOcclusion occlusion;
+        id frameValue = notification.userInfo[UIKeyboardFrameEndUserInfoKey];
+        if ([frameValue isKindOfClass:NSValue.class] &&
+                std::strcmp([frameValue objCType], @encode(CGRect)) == 0) {
+            CGRect frame = [frameValue CGRectValue];
+            if (overte::ios::validKeyboardRect({ frame.origin.x, frame.origin.y,
+                    frame.size.width, frame.size.height })) {
+                // Notification coordinates are screen points, not device pixels.
+                frame = [window convertRect:frame fromCoordinateSpace:window.screen.coordinateSpace];
+                occlusion = overte::ios::keyboardOcclusion(
+                    { bounds.origin.x, bounds.origin.y, bounds.size.width, bounds.size.height },
+                    { frame.origin.x, frame.origin.y, frame.size.width, frame.size.height });
+            }
+        }
+        imeInset = occlusion.available ? occlusion.bottomInset : 0.0;
+        keyboardIsVisible = occlusion.available && occlusion.visible;
     }
 
     qreal scale = std::max<qreal>(1.0, window.screen.scale);
