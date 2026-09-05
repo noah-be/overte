@@ -85,15 +85,20 @@ ScriptValue ScriptValueV8Wrapper::call(const ScriptValue& thisObject, const Scri
     v8::HandleScope handleScope(isolate);
     auto context = _engine->getContext();
     v8::Context::Scope contextScope(context);
+    const auto callable = _value.get();
+    if (args.length() > Q_METAMETHOD_INVOKE_MAX_ARGS || callable.IsEmpty() || !callable->IsFunction()) {
+        return _engine->undefinedValue();
+    }
     V8ScriptValue v8This = fullUnwrap(thisObject);
-    Q_ASSERT(args.length() <= Q_METAMETHOD_INVOKE_MAX_ARGS);
+    if (isolate->IsExecutionTerminating() || v8This.get().IsEmpty()) { return ScriptValue(); }
     v8::Local<v8::Value> v8Args[Q_METAMETHOD_INVOKE_MAX_ARGS];
     int argIndex = 0;
     for (ScriptValueList::const_iterator iter = args.begin(); iter != args.end(); ++iter) {
-        v8Args[argIndex++] = fullUnwrap(*iter).get();
+        const auto argument = fullUnwrap(*iter).get();
+        if (isolate->IsExecutionTerminating() || argument.IsEmpty()) { return ScriptValue(); }
+        v8Args[argIndex++] = argument;
     }
-    Q_ASSERT(_value.get()->IsFunction());
-    v8::Local<v8::Function> v8Function = v8::Local<v8::Function>::Cast(_value.get());
+    v8::Local<v8::Function> v8Function = callable.As<v8::Function>();
     v8::TryCatch tryCatch(isolate);
     v8::Local<v8::Value> recv;
     if (v8This.get()->IsObject()) {
@@ -102,9 +107,11 @@ ScriptValue ScriptValueV8Wrapper::call(const ScriptValue& thisObject, const Scri
         recv = context->Global();
     }
 
-    lock.lockForRead();
-    auto maybeResult = v8Function->Call(context, recv, args.length(), v8Args);
-    lock.unlock();
+    v8::MaybeLocal<v8::Value> maybeResult;
+    {
+        QReadLocker guard(&lock);
+        maybeResult = v8Function->Call(context, recv, args.length(), v8Args);
+    }
     if (tryCatch.HasTerminated() || isolate->IsExecutionTerminating()) {
         return ScriptValue();
     }
@@ -170,25 +177,29 @@ ScriptValue ScriptValueV8Wrapper::construct(const ScriptValueList& args) {
     v8::HandleScope handleScope(isolate);
     auto context = _engine->getContext();
     v8::Context::Scope contextScope(context);
-    Q_ASSERT(args.length() <= Q_METAMETHOD_INVOKE_MAX_ARGS);
+    const auto callable = _value.get();
+    if (args.length() > Q_METAMETHOD_INVOKE_MAX_ARGS || callable.IsEmpty() ||
+            !callable->IsFunction() || !callable.As<v8::Function>()->IsConstructor()) {
+        return _engine->undefinedValue();
+    }
     v8::Local<v8::Value> v8Args[Q_METAMETHOD_INVOKE_MAX_ARGS];
     int argIndex = 0;
     for (ScriptValueList::const_iterator iter = args.begin(); iter != args.end(); ++iter) {
-        v8Args[argIndex++] = fullUnwrap(*iter).get();
+        const auto argument = fullUnwrap(*iter).get();
+        if (isolate->IsExecutionTerminating() || argument.IsEmpty()) { return ScriptValue(); }
+        v8Args[argIndex++] = argument;
     }
-    //V8TODO: should there be a v8 try-catch here?
-    //V8TODO: Can something else than a function be callable in this way in JS?
-    if (!_value.get()->IsFunction()) {
-        qCWarning(scriptengine_v8) << "ScriptValueV8Wrapper::construct: value is not a function";
-        return _engine->undefinedValue();
-    }
-
-    v8::Local<v8::Function> v8Function = v8::Local<v8::Function>::Cast(_value.get());
+    v8::Local<v8::Function> v8Function = callable.As<v8::Function>();
     // V8TODO: I'm not sure if this is correct, maybe use CallAsConstructor instead?
     // Maybe it's CallAsConstructor for function and NewInstance for class?
-    lock.lockForRead();
-    auto maybeResult = v8Function->NewInstance(context, args.length(), v8Args);
-    lock.unlock();
+    // Preserve the caller's TryCatch/exception semantics; no script coercion or
+    // diagnostic callbacks while termination is unwinding.
+    v8::MaybeLocal<v8::Object> maybeResult;
+    {
+        QReadLocker guard(&lock);
+        maybeResult = v8Function->NewInstance(context, args.length(), v8Args);
+    }
+    if (isolate->IsExecutionTerminating()) { return ScriptValue(); }
     v8::Local<v8::Object> result;
     if (maybeResult.ToLocal(&result)) {
         return ScriptValue(new ScriptValueV8Wrapper(_engine, V8ScriptValue(_engine, result)));
