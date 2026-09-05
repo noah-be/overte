@@ -17,6 +17,9 @@ ANDROID_TESTS_WORKFLOW = ROOT / ".github/workflows/android-tests.yml"
 DOCUMENTATION_WORKFLOW = ROOT / ".github/workflows/documentation-checks.yml"
 BRANCH_POLICY_WORKFLOW = ROOT / ".github/workflows/branch-policy.yml"
 BRANCH_SYNC_WORKFLOW = ROOT / ".github/workflows/branch-sync.yml"
+PARENT_QUALIFICATION_WORKFLOW = ROOT / ".github/workflows/parent-qualification.yml"
+SYNC_REUSE_WORKFLOW = ROOT / ".github/workflows/sync-test-reuse.yml"
+SYNC_VALIDATION_WORKFLOW = ROOT / ".github/workflows/sync-validation.yml"
 DESKTOP_TOPOLOGY_WORKFLOW = ROOT / ".github/workflows/desktop-branch-topology.yml"
 WORKFLOW_DIRECTORY = ROOT / ".github/workflows"
 CODEQL_WORKFLOW = ROOT / ".github/workflows/codeql.yml"
@@ -177,7 +180,7 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         self.assertIn("GITHUB_TOKEN: ${{ github.token }}", source)
         self.assertNotIn("actions/create-github-app-token@", source)
         self.assertNotIn("BRANCH_SYNC_APP", source)
-        self.assertNotIn("secrets.", source)
+        self.assertNotIn("${{ secrets.", source)
         self.assertNotIn("gh pr", source)
         self.assertNotIn("--auto", source)
         self.assertNotIn("check-runs", source)
@@ -202,6 +205,57 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
             policy,
             r'"children": \["android-main", "apple-main", "linux-main", "windows-main"\]',
         )
+
+    def test_sync_reuse_gate_is_trusted_terminal_and_fail_closed(self):
+        source = SYNC_REUSE_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("pull_request_target:", source)
+        self.assertNotIn("paths:", source)
+        self.assertIn("timeout-minutes: 35", source)
+        self.assertIn("ref: ${{ github.event.repository.default_branch }}", source)
+        self.assertIn("persist-credentials: false", source)
+        self.assertIn("dispatch-and-wait", source)
+        self.assertIn("steps.inspect.outputs.mode != 'ordinary'", source)
+        self.assertNotIn("github.event.pull_request.head.sha }}\n          path:", source)
+        self.assertNotIn("${{ secrets.", source)
+
+    def test_candidate_execution_is_isolated_read_only(self):
+        source = SYNC_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
+        self.assertRegex(source, r"(?m)^permissions:\n  contents: read\n  pull-requests: read$")
+        self.assertNotIn("actions: write", source)
+        self.assertNotIn("secrets.", source)
+        self.assertIn("ref: main", source)
+        self.assertIn("path: trusted", source)
+        self.assertIn("ref: ${{ inputs.expected_merge_sha }}", source)
+        self.assertIn("path: candidate", source)
+        self.assertIn("inputs.mode == 'fallback'", source)
+        self.assertIn('GH_TOKEN: ""', source)
+        self.assertIn('GITHUB_TOKEN: ""', source)
+
+    def test_qualification_is_exact_push_only_and_bounded(self):
+        source = PARENT_QUALIFICATION_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("push:", source)
+        self.assertNotIn("pull_request:", source)
+        self.assertNotIn("workflow_dispatch:", source)
+        self.assertIn("branches: [main, android-main, android-vr, apple-main]", source)
+        self.assertIn("ref: ${{ github.sha }}", source)
+        self.assertIn("cancel-in-progress: false", source)
+        self.assertIn("retention-days: 4", source)
+
+    def test_common_suites_delegate_only_governed_same_repository_sync_shapes(self):
+        for path in (
+            ROOT / ".github/workflows/android-tests.yml",
+            ROOT / ".github/workflows/project-tests.yml",
+        ):
+            source = path.read_text(encoding="utf-8")
+            self.assertIn("SAME_REPOSITORY", source)
+            self.assertIn("run_full=true", source)
+            self.assertIn("needs.route.outputs.run_full == 'true'", source)
+            self.assertNotIn("paths-ignore:", source)
+        android = (ROOT / ".github/workflows/android-tests.yml").read_text(
+            encoding="utf-8"
+        )
+        route = android.split("- id: route", 1)[1].split("\n\n  fast:", 1)[0]
+        self.assertIn("working-directory: .", route)
 
     def test_desktop_topology_uses_trusted_main_policy(self):
         source = DESKTOP_TOPOLOGY_WORKFLOW.read_text(encoding="utf-8")
@@ -267,10 +321,12 @@ class RulesetManifestContracts(unittest.TestCase):
             )["parameters"]
             self.assertTrue(parameters["strict_required_status_checks_policy"])
             self.assertFalse(parameters["do_not_enforce_on_create"])
-            self.assertEqual(
-                parameters["required_status_checks"],
-                [{"context": context, "integration_id": 15368}],
-            )
+            expected_checks = [{"context": context, "integration_id": 15368}]
+            if name == "Permanent branch governance":
+                expected_checks.append(
+                    {"context": "sync-test-reuse", "integration_id": 15368}
+                )
+            self.assertEqual(parameters["required_status_checks"], expected_checks)
 
     def test_desktop_workflow_and_manifest_use_identical_check_context(self):
         workflow = DESKTOP_TOPOLOGY_WORKFLOW.read_text(encoding="utf-8")
