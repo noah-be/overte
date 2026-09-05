@@ -32,12 +32,16 @@ target_sources(Overte PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/../auth/KeychainAccountAdapter.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/../auth/RegisterKeychainAccountStore.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/../diagnostics/InstallSafeQtLogging.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../audio/IOSAudioAdapter.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../audio/AVAudioSessionAdapter.mm"
 )
 set_source_files_properties(
     "${CMAKE_CURRENT_LIST_DIR}/../src/SecureAccountStore.mm"
     "${CMAKE_CURRENT_LIST_DIR}/../src/RedactingDiagnostics.mm"
     PROPERTIES COMPILE_OPTIONS "-fobjc-arc"
 )
+set_source_files_properties("${CMAKE_CURRENT_LIST_DIR}/../audio/AVAudioSessionAdapter.mm"
+    PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
 target_link_libraries(Overte "-framework Security" "-framework LocalAuthentication")
 
 # Real Full Client caller: a foreground-only, 30-second native metrics sampler.
