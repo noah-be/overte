@@ -104,13 +104,16 @@ ScriptValue ScriptValueV8Wrapper::call(const ScriptValue& thisObject, const Scri
     lock.lockForRead();
     auto maybeResult = v8Function->Call(context, recv, args.length(), v8Args);
     lock.unlock();
+    if (tryCatch.HasTerminated() || isolate->IsExecutionTerminating()) {
+        return ScriptValue();
+    }
     if (tryCatch.HasCaught()) {
         QString errorMessage(QString("Function call failed: \"") + _engine->formatErrorMessageFromTryCatch(tryCatch));
         if (_engine->_manager) {
             v8::Local<v8::Message> exceptionMessage = tryCatch.Message();
             int errorLineNumber = -1;
             if (!exceptionMessage.IsEmpty()) {
-                errorLineNumber = exceptionMessage->GetLineNumber(context).FromJust();
+                errorLineNumber = exceptionMessage->GetLineNumber(context).FromMaybe(-1);
             }
             _engine->_manager->scriptErrorMessage(errorMessage, getFileNameFromTryCatch(tryCatch, isolate, context),
                                                   errorLineNumber);
