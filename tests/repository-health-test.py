@@ -274,6 +274,17 @@ class WorkflowAndSecurityFixtures(unittest.TestCase):
                 subject.check_security()
                 self.assertIn("SECURITY_ALERTS", {item.code for item in subject.findings["security"]})
 
+    def test_terminal_security_workflow_failure_is_recorded_not_reclassified(self):
+        class FailedRunApi(FakeApi):
+            def get(self, path):
+                if "/actions/workflows/" in path and "/runs?" in path:
+                    return {"workflow_runs": [{"status": "completed", "conclusion": "failure"}]}
+                return super().get(path)
+        subject = doctor(FailedRunApi())
+        subject.check_security()
+        self.assertEqual(subject.findings["security"], [])
+        self.assertEqual(set(subject.data["security"]["workflow_conclusions"].values()), {"failure"})
+
     def test_development_scope_and_codeql_severity_are_grouped(self):
         api = FakeApi()
         api.alerts["dependabot"] = [{"security_advisory": {"severity": "high"}, "dependency": {"scope": "development"}}]
@@ -329,8 +340,12 @@ class WorkflowContractTests(unittest.TestCase):
         local, live = self.source.split("  live-audit:", 1)
         self.assertIn('GITHUB_TOKEN: ""', local)
         self.assertNotIn("github.token", local)
+        self.assertNotIn("REPOSITORY_HEALTH_READ_TOKEN", local)
         self.assertIn("github.event.repository.default_branch", live)
-        self.assertIn("GITHUB_TOKEN: ${{ github.token }}", live)
+        self.assertIn(
+            "GITHUB_TOKEN: ${{ secrets.REPOSITORY_HEALTH_READ_TOKEN || github.token }}",
+            live,
+        )
         self.assertIn("persist-credentials: false", self.source)
 
     def test_timeout_concurrency_summary_and_always_artifact(self):
