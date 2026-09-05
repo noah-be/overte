@@ -6,19 +6,15 @@ execution still requires the governing admission; staging is not render proof.
 """
 # Copyright 2026 Overte e.V.
 # SPDX-License-Identifier: Apache-2.0
-import argparse
 import hashlib
-import json
 import os
 from pathlib import Path, PurePosixPath
 import plistlib
 import stat
 import sys
-import tempfile
 import zipfile
 
 import verify_io001_candidate as verifier
-from verify_io001_release import pinned_adapter
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tests"))
 import io001_simulator_plan as simulator
 
