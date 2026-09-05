@@ -9,6 +9,8 @@ frames clear old geometry; zero exposed inset does not mean a measured keyboard.
 
 The passive non-accessible layout observer refreshes safe area and window bounds;
 window identity, screen position and orientation changes invalidate old IME state.
+Physical face-up/face-down or unsupported device rotation without an actual
+interface/window change does not discard the last valid IME frame.
 Show/change end-frame notifications repopulate it. Hide, missing active windows
 and suspension clear it. QPointer callbacks and observer teardown guard lifetime.
 The existing E2E accessibility controls and ordinary passive overlay remain separate.

@@ -484,8 +484,10 @@ void IOSTouchUiMetrics::refresh(void* keyboardNotification) {
         !CGRectEqualToRect(state.bounds, bounds) ||
         !CGRectEqualToRect(state.screenFrame, screenFrame) ||
         state.orientation != window.windowScene.interfaceOrientation ||
-        [notification.name isEqualToString:UIDeviceOrientationDidChangeNotification] ||
         [notification.name isEqualToString:UIWindowDidResignKeyNotification];
+    // A physical face-up/face-down or unsupported rotation notification need
+    // not change the interface. Invalidate on actual window/interface geometry,
+    // not every accelerometer orientation event, which may have no new IME frame.
     if (geometryChanged) {
         imeInset = 0.0;
         keyboardIsVisible = false;

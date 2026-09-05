@@ -28,4 +28,5 @@ for required in ("safeAreaInsetsDidChange", "layoutSubviews", "QPointer<IOSTouch
                  "UISceneActivationStateForegroundActive"):
     assert required in native, required
 assert "imeInset = CGRectIsNull(overlap)" not in refresh
+assert "isEqualToString:UIDeviceOrientationDidChangeNotification" not in refresh
 print("PASS production keyboard geometry math; native lifecycle source wiring only (UIKit unexecuted)")
