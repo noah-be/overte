@@ -102,6 +102,7 @@ class SyncRequest:
     parent_sha: str
     profile: str
     changed_paths: tuple[str, ...]
+    parent_changed_paths: tuple[str, ...]
 
 
 def load_config(path: Path = DEFAULT_CONFIG) -> dict:
@@ -251,7 +252,7 @@ def classify_event(event: dict, config: dict, api: GitHubApi) -> SyncRequest | N
         head_repository_id=head_repository_id, merge_sha=merge_sha,
         classification="direct" if direct else "reconciliation", parent=parent,
         parent_sha=current_parent, profile="documentation" if doc_only else edge["differential"],
-        changed_paths=changed,
+        changed_paths=changed, parent_changed_paths=tuple(sorted(parent_delta)),
     )
 
 
@@ -382,9 +383,13 @@ def verify_evidence(api: GitHubApi, config: dict, request: SyncRequest, now: dat
     if actual_digest != expected_digest:
         raise EvidenceError("qualification evidence digest is invalid")
     _, merge_tree = recursive_tree(api, request.repository, request.merge_sha)
-    for entry in entries:
-        if merge_tree.get(entry["path"]) != entry:
-            raise EvidenceError("qualified input changed in the expected merge tree: " + entry["path"])
+    qualified_parent_delta = sorted(
+        path for path in request.parent_changed_paths
+        if any(fnmatch(path, pattern) for pattern in config["qualified_inputs"])
+    )
+    for path in qualified_parent_delta:
+        if merge_tree.get(path) != parent_tree.get(path):
+            raise EvidenceError("qualified parent-delta input changed in the expected merge tree: " + path)
     if branch_sha(api, request.repository, request.base) != request.base_sha or branch_sha(api, request.repository, request.parent) != request.parent_sha:
         raise EvidenceError("target or parent head moved during evidence validation")
     return evidence

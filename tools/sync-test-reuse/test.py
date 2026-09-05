@@ -100,13 +100,16 @@ def evidence_fixture(now=None):
     return document, tree
 
 
-def request(parent="main", parent_sha=PARENT, base="android-main"):
+def request(parent="main", parent_sha=PARENT, base="android-main", parent_changed_paths=None):
+    if parent_changed_paths is None:
+        parent_changed_paths = tuple(config()["required_qualified_inputs"])
     return gate.SyncRequest(
         repository=REPOSITORY, repository_id=REPOSITORY_ID, number=610,
         base=base, base_sha=BASE, head=parent, head_sha=parent_sha,
         head_repository_id=REPOSITORY_ID, merge_sha=MERGE,
         classification="direct", parent=parent, parent_sha=parent_sha,
         profile="android-family", changed_paths=("interface/example.cpp",),
+        parent_changed_paths=tuple(parent_changed_paths),
     )
 
 
@@ -130,7 +133,7 @@ class QualificationContracts(unittest.TestCase):
 
 
 class EvidenceContracts(unittest.TestCase):
-    def verify(self, document=None, parent_tree=None, merge_tree=None, now=None):
+    def verify(self, document=None, parent_tree=None, merge_tree=None, now=None, sync_request=None):
         evidence, tree = evidence_fixture(now)
         if document:
             evidence.update(document)
@@ -142,7 +145,7 @@ class EvidenceContracts(unittest.TestCase):
         with mock.patch.object(gate, "artifact_evidence", return_value=({"id": 99, "run_attempt": 1}, evidence)), \
              mock.patch.object(gate, "recursive_tree", side_effect=[(TREE, parent_tree), ("7" * 40, merge_tree)]), \
              mock.patch.object(gate, "branch_sha", side_effect=[BASE, PARENT]):
-            return gate.verify_evidence(object(), config(), request(), now=now)
+            return gate.verify_evidence(object(), config(), sync_request or request(), now=now)
 
     def test_exact_valid_evidence_is_accepted(self):
         self.assertEqual(self.verify()["parent_commit"], PARENT)
@@ -169,6 +172,30 @@ class EvidenceContracts(unittest.TestCase):
             changed[path] = dict(changed[path], sha="f" * 40)
             with self.subTest(path=path), self.assertRaises(gate.EvidenceError):
                 self.verify(merge_tree=changed)
+
+    def test_historical_target_input_outside_parent_delta_does_not_invalidate_reuse(self):
+        _, tree = evidence_fixture()
+        path = "tests/run-project-tests.py"
+        changed = dict(tree)
+        changed[path] = dict(changed[path], sha="f" * 40)
+        self.assertEqual(
+            self.verify(
+                merge_tree=changed,
+                sync_request=request(parent_changed_paths=("interface/example.cpp",)),
+            )["parent_commit"],
+            PARENT,
+        )
+
+    def test_parent_delta_deletion_must_be_absent_from_candidate(self):
+        _, tree = evidence_fixture()
+        path = "tests/obsolete-parent-input.py"
+        retained = dict(tree)
+        retained[path] = entry(path, "f" * 40)
+        with self.assertRaises(gate.EvidenceError):
+            self.verify(
+                merge_tree=retained,
+                sync_request=request(parent_changed_paths=(path,)),
+            )
 
     def test_stale_and_replayed_evidence_is_rejected(self):
         now = datetime.now(timezone.utc).replace(microsecond=0)
