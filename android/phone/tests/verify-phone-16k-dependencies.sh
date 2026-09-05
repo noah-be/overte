@@ -80,8 +80,8 @@ declare -a nonqt_generator_patterns=(
 # renames them for Android. Package-folder verification alone is insufficient:
 # Conan can leave this staging directory stale after regenerating packages.
 declare -a staged_nonqt_libraries=(
-    'libcrypto.so.1.1'
-    'libssl.so.1.1'
+    'libcrypto.so.3'
+    'libssl.so.3'
 )
 
 [[ ! -L "$temp_root" ]] || {

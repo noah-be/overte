@@ -1,0 +1,410 @@
+{
+  "abseil/20250127.0": {
+    "revisions": {
+      "e0dcc4b8a367edb49b062cb07ed8e9e6": {
+        "timestamp": 1773137903.431,
+        "recipe_folder": "abseib50d55d9182ee"
+      }
+    }
+  },
+  "artery-font-format/1.0.1": {
+    "revisions": {
+      "23844a04de4e68fb711bf9585059886f": {
+        "timestamp": 1719797778.809,
+        "recipe_folder": "artercb12dee26048c"
+      }
+    }
+  },
+  "brotli/1.1.0": {
+    "revisions": {
+      "3f631ef77008f7b5eb388780116371a3": {
+        "timestamp": 1764862343.045,
+        "recipe_folder": "brotl94fc700f37be1"
+      }
+    }
+  },
+  "bullet3/3.25": {
+    "revisions": {
+      "61b0be0c0f12810ee4f43437bd1785ad": {
+        "timestamp": 1775496596.665,
+        "recipe_folder": "bulle6bb4e50e778b7"
+      }
+    }
+  },
+  "bzip2/1.0.8": {
+    "revisions": {
+      "c470882369c2d95c5c77e970c0c7e321": {
+        "timestamp": 1762886692.465,
+        "recipe_folder": "bzip27c53f29661835"
+      }
+    }
+  },
+  "cgltf/1.14@overte/stable": {
+    "revisions": {
+      "2894bc7b159024d19d59df7b28103ec1": {
+        "timestamp": 1734909924.733,
+        "recipe_folder": "cgltfd4e8fa2fa53c1"
+      }
+    }
+  },
+  "cmake/3.31.12": {
+    "revisions": {
+      "055c11ab0a919e8c6034a902b4025ce1": {
+        "timestamp": 1788598983.462195,
+        "recipe_folder": "cmake944eb6d3dae9d"
+      }
+    }
+  },
+  "cmake/4.4.0": {
+    "revisions": {
+      "055c11ab0a919e8c6034a902b4025ce1": {
+        "timestamp": 1788598983.679494,
+        "recipe_folder": "cmakeaea4fecaa0213"
+      }
+    }
+  },
+  "double-conversion/3.3.0": {
+    "revisions": {
+      "6ad026cf92c316c476919f7f152072d7": {
+        "timestamp": 1744043471.91,
+        "recipe_folder": "doubl53094e3a6ae70"
+      }
+    }
+  },
+  "draco/1.3.5": {
+    "revisions": {
+      "0f9bb06e7f72693bf3832b49307329c6": {
+        "timestamp": 1676401864.952,
+        "recipe_folder": "dracob2d5664e04fbe"
+      }
+    }
+  },
+  "etc2comp/cci.20170424": {
+    "revisions": {
+      "8e756ea70fd978770514033a07b43a0a": {
+        "timestamp": 1779811493.254,
+        "recipe_folder": "etc2c643e2bb14ab8c"
+      }
+    }
+  },
+  "freetype/2.13.3": {
+    "revisions": {
+      "75ca69fb4dc1a016c91b7f422ae58adc": {
+        "timestamp": 1756828313.132,
+        "recipe_folder": "freet9cca1632d1929"
+      }
+    }
+  },
+  "gifcreator/2016.11@overte/stable": {
+    "revisions": {
+      "024aa96f06f47fe2c22e6f9a0db4ab0d": {
+        "timestamp": 1788600137.4809818,
+        "recipe_folder": "gifcr887d414d25a4c"
+      }
+    }
+  },
+  "glad/0.1.36@overte/experimental": {
+    "revisions": {
+      "9612a3032fecdd1d8781dfb1b2bd6dc6": {
+        "timestamp": 1781788610.579,
+        "recipe_folder": "glad69740ea2ff402"
+      }
+    }
+  },
+  "gli/cci.20210515": {
+    "revisions": {
+      "f7109e63244407c1c4b015bc5addb366": {
+        "timestamp": 1782474720.763,
+        "recipe_folder": "glid28f96070f246"
+      }
+    }
+  },
+  "glm/0.9.9.5": {
+    "revisions": {
+      "76af69559013450c9016c773fc3fc408": {
+        "timestamp": 1700512111.317,
+        "recipe_folder": "glmb55741c6f88c8"
+      }
+    }
+  },
+  "glslang/1.4.350.0": {
+    "revisions": {
+      "c4d9cb1ccdcdb314655e9648fe6cf5d0": {
+        "timestamp": 1778774694.76,
+        "recipe_folder": "glsla1bbb5e0d2adff"
+      }
+    }
+  },
+  "hwloc/2.12.2": {
+    "revisions": {
+      "81314118300a8ee69b352f2d1b21d9d7": {
+        "timestamp": 1787391717.667042,
+        "recipe_folder": "hwloc3cbe4a38d275a"
+      }
+    }
+  },
+  "imath/3.1.9": {
+    "revisions": {
+      "20f703aa156f46ddc326e668ed22ffb6": {
+        "timestamp": 1775543418.628,
+        "recipe_folder": "imathe32cfb8c0b1e6"
+      }
+    }
+  },
+  "jsoncpp/1.9.6": {
+    "revisions": {
+      "c3730c7936aefa462eb6c6560a5e1fd8": {
+        "timestamp": 1726135496.917,
+        "recipe_folder": "jsoncfce47b1c69057"
+      }
+    }
+  },
+  "libjpeg/9f": {
+    "revisions": {
+      "8b1b89da851ad9172565c35f14e23c4c": {
+        "timestamp": 1780476337.068,
+        "recipe_folder": "libjp3aee07793791a"
+      }
+    }
+  },
+  "libnode/22.22.3@overte/stable": {
+    "revisions": {
+      "3fd33b0199406fa08037c90d5dd1a635": {
+        "timestamp": 1788598574.960734,
+        "recipe_folder": "libnob475bafdf0ce2"
+      }
+    }
+  },
+  "libpng/1.6.44": {
+    "revisions": {
+      "9e1aa08fb46946c7c91e4ae03bd49811": {
+        "timestamp": 1726517437.225,
+        "recipe_folder": "libpn96b6230f1a784"
+      }
+    }
+  },
+  "md4c/0.5.2": {
+    "revisions": {
+      "3d7106721e458f9f799b87d4d50d02e0": {
+        "timestamp": 1746796758.933,
+        "recipe_folder": "md4c05e52f0325162"
+      }
+    }
+  },
+  "meson/1.10.2": {
+    "revisions": {
+      "9d2d10681fe7fe61c788c58626c89b25": {
+        "timestamp": 1775558003.754,
+        "recipe_folder": "mesonda23a8960e507"
+      }
+    }
+  },
+  "meson/1.6.0": {
+    "revisions": {
+      "df190c5b0592572e6f5a1b05999e7e6d": {
+        "timestamp": 1729471712.809,
+        "recipe_folder": "mesona38054f510f57"
+      }
+    }
+  },
+  "nasm/2.15.05": {
+    "revisions": {
+      "f7d6a6f3b14f583e001d9ae84e8cd152": {
+        "timestamp": 1745483325.985,
+        "recipe_folder": "nasm2107f4beb03e4"
+      }
+    }
+  },
+  "ninja/1.13.2": {
+    "revisions": {
+      "c8c5dc2a52ed6e4e42a66d75b4717ceb": {
+        "timestamp": 1764096931.974,
+        "recipe_folder": "ninjaa4e39ef845913"
+      }
+    }
+  },
+  "nlohmann_json/3.11.2": {
+    "revisions": {
+      "1ded6ae5d200a68ac17c51d528b945e2": {
+        "timestamp": 1700513003.368,
+        "recipe_folder": "nlohm720064fe68557"
+      }
+    }
+  },
+  "nvidia-texture-tools/2023.01@overte/stable": {
+    "revisions": {
+      "0619db1dd752cc6e324ee810f22d25c4": {
+        "timestamp": 1788266659.872723,
+        "recipe_folder": "nvidiab03bbe88a9a0"
+      }
+    }
+  },
+  "onetbb/2021.10.0": {
+    "revisions": {
+      "ee3f2e5539ab683fdaba561d89c9ecee": {
+        "timestamp": 1788266660.0963924,
+        "recipe_folder": "onetb41edd847c44a2"
+      }
+    }
+  },
+  "openexr/3.1.9": {
+    "revisions": {
+      "cb853b3a9baee5f924ee5929ed94d55b": {
+        "timestamp": 1727884745.806,
+        "recipe_folder": "openee487817fefaeb"
+      }
+    }
+  },
+  "opengl/system": {
+    "revisions": {
+      "cfcf523b9d2bad75cbf377f56562634c": {
+        "timestamp": 1762526044.744,
+        "recipe_folder": "opengd32fdf9133620"
+      }
+    }
+  },
+  "openssl/3.5.8@overte/stable": {
+    "revisions": {
+      "33b2f0ee1a4417ab2c5429ae844d0ea5": {
+        "timestamp": 1788598574.740708,
+        "recipe_folder": "opens70ffd61ae7f8c"
+      }
+    }
+  },
+  "openxr/1.1.46@overte/stable": {
+    "revisions": {
+      "7ac70ec1fe70bb9c9cddeba10906b4dd": {
+        "timestamp": 1743940069.53,
+        "recipe_folder": "openxd6693a694f85e"
+      }
+    }
+  },
+  "opus/1.5.2": {
+    "revisions": {
+      "18fcc73dcd16edae063173f3ceb3ed56": {
+        "timestamp": 1757941039.736,
+        "recipe_folder": "opus3a5db111a8d77"
+      }
+    }
+  },
+  "pcre2/10.42": {
+    "revisions": {
+      "a0b25dffca18f5987304619e9c93fb44": {
+        "timestamp": 1783075188.143,
+        "recipe_folder": "pcre223287598fb2bc"
+      }
+    }
+  },
+  "pkgconf/2.2.0": {
+    "revisions": {
+      "4ac315b50ef734072b00ff3aacbf52bf": {
+        "timestamp": 1755505628.021,
+        "recipe_folder": "pkgcoab306a552f3bb"
+      }
+    }
+  },
+  "qt/5.15.18-2026.01.04@overte/stable": {
+    "revisions": {
+      "c615fd9bf2e6410b92a3e6b84fa73980": {
+        "timestamp": 1788598575.1969585,
+        "recipe_folder": "qtfea71855f734b"
+      }
+    }
+  },
+  "quazip/1.4": {
+    "revisions": {
+      "b5b53ba941dd1da8e788f0c47b9ba8f5": {
+        "timestamp": 1727332204.769,
+        "recipe_folder": "quazi8728a2837d31c"
+      }
+    }
+  },
+  "scribe/2019.02@overte/stable": {
+    "revisions": {
+      "0c2eaba1220f4c3091a2d60773ee476a": {
+        "timestamp": 1734724934.967,
+        "recipe_folder": "scrib61ad1876b33d7"
+      }
+    }
+  },
+  "spirv-cross/1.4.350.0": {
+    "revisions": {
+      "904299c8c5fd6cbe677e09fb9ce8ff5f": {
+        "timestamp": 1778774679.723,
+        "recipe_folder": "spirv79f8de18a57ef"
+      }
+    }
+  },
+  "spirv-headers/1.4.350.0": {
+    "revisions": {
+      "e00d02f9314156c0d0afa8cecc7e43c7": {
+        "timestamp": 1778774681.399,
+        "recipe_folder": "spirvf24aa820c7e4a"
+      }
+    }
+  },
+  "spirv-tools/1.4.350.0": {
+    "revisions": {
+      "cfeb4688808ef44cd892c93a10dc6762": {
+        "timestamp": 1778774685.159,
+        "recipe_folder": "spirv6fcfb8a98d46a"
+      }
+    }
+  },
+  "sqlite3/3.47.0": {
+    "revisions": {
+      "7a0904fd061f5f8a2366c294f9387830": {
+        "timestamp": 1729587442.707,
+        "recipe_folder": "sqlit3ee75eb3690bd"
+      }
+    }
+  },
+  "v-hacd/4.1.0": {
+    "revisions": {
+      "9fce39e9131eb1ea7c84b9536030a603": {
+        "timestamp": 1694777856.295,
+        "recipe_folder": "v-hacda7bf98ed0fde"
+      }
+    }
+  },
+  "vulkan-headers/1.4.350.0": {
+    "revisions": {
+      "40281e91ad8723fb102e36396da35409": {
+        "timestamp": 1778774701.016,
+        "recipe_folder": "vulka408c0af5cf74f"
+      }
+    }
+  },
+  "vulkan-memory-allocator/3.0.1": {
+    "revisions": {
+      "26cced541c90dff13aeabb74be316cad": {
+        "timestamp": 1745823407.851,
+        "recipe_folder": "vulka66024701be0aa"
+      }
+    }
+  },
+  "webrtc-audio-processing/2.1@overte/stable": {
+    "revisions": {
+      "32fb29cc6d631d059c3cd9afb7839203": {
+        "timestamp": 1744670561.176,
+        "recipe_folder": "webrt832a8c555ecdb"
+      }
+    }
+  },
+  "zlib/1.3.1": {
+    "revisions": {
+      "cac0f6daea041b0ccf42934163defb20": {
+        "timestamp": 1765284699.337,
+        "recipe_folder": "zlib41379b6e5ce18"
+      }
+    }
+  },
+  "zstd/1.5.6": {
+    "revisions": {
+      "8b5ebac476eb7d9ec2080ad31f2816fc": {
+        "timestamp": 1760955094.262,
+        "recipe_folder": "zstdd28725f3e5d98"
+      }
+    }
+  }
+}
