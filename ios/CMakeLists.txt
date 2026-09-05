@@ -43,6 +43,7 @@ add_executable(OverteIOSBootstrap MACOSX_BUNDLE
     src/SecureAccountStore.cpp
     src/SecureAccountStore.mm
     src/RedactingDiagnostics.mm
+    networking/BoundedDirectoryRequest.mm
     src/PendingDeepLinkStore.h
     src/PendingDeepLinkStore.cpp
     src/OverteAddress.h

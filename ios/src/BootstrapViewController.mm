@@ -13,6 +13,9 @@
 
 #include "OverteAddress.h"
 #include "PendingDeepLinkStore.h"
+#include "RedactingDiagnostics.h"
+#include "../networking/CallbackEpoch.h"
+#import "../networking/BoundedDirectoryRequest.h"
 
 @interface BootstrapViewController () <MTKViewDelegate, UITextFieldDelegate>
 @property(nonatomic, strong) MTKView* metalView;
@@ -25,7 +28,7 @@
 @property(nonatomic, strong) UITextField* addressField;
 @property(nonatomic, strong) UIButton* connectButton;
 @property(nonatomic, strong) UILabel* connectionStatusLabel;
-@property(nonatomic, strong) NSURLSessionDataTask* directoryTask;
+@property(nonatomic, strong) BoundedDirectoryRequest* directoryTask;
 @property(nonatomic, strong) PlatformProbe* platformProbe;
 @property(nonatomic) BOOL sceneLoaded;
 @property(nonatomic) float sceneYaw;
@@ -46,7 +49,9 @@ typedef struct {
     uint32_t reserved;
 } OverteSceneUniforms;
 
-@implementation BootstrapViewController
+@implementation BootstrapViewController {
+    overte::ios::CallbackEpoch _directoryEpoch;
+}
 
 - (void)viewDidLoad {
     [super viewDidLoad];
@@ -186,16 +191,19 @@ typedef struct {
 
     self.platformProbe = [[PlatformProbe alloc] init];
     NSString* motionStatus = self.platformProbe.deviceMotionAvailable ? @"motion ready" : @"motion unavailable";
-    self.statusLabel.accessibilityHint = [NSString stringWithFormat:@"%@; app support at %@",
-                                          motionStatus, self.platformProbe.applicationSupportPath];
+    self.statusLabel.accessibilityHint = motionStatus;
     __weak BootstrapViewController* weakSelf = self;
     [self.platformProbe startNetworkMonitoringWithHandler:^(BOOL reachable) {
         BootstrapViewController* strongSelf = weakSelf;
         if (strongSelf != nil) {
             strongSelf.view.accessibilityValue = reachable ? @"Network reachable" : @"Network unavailable";
+            if (!reachable) { [strongSelf cancelDirectoryLookup]; }
         }
     }];
 
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self selector:@selector(directoryApplicationDidEnterBackground:)
+        name:UIApplicationDidEnterBackgroundNotification object:nil];
     [[NSNotificationCenter defaultCenter]
         addObserver:self
            selector:@selector(openURLReceived:)
@@ -250,9 +258,26 @@ typedef struct {
 }
 
 - (void)dealloc {
+    _directoryEpoch.cancel();
     [self.directoryTask cancel];
     [[NSNotificationCenter defaultCenter] removeObserver:self];
     [self.platformProbe stop];
+}
+
+- (void)cancelDirectoryLookup {
+    _directoryEpoch.cancel();
+    if (self.directoryTask != nil) {
+        [self.directoryTask cancel];
+        self.directoryTask = nil;
+        self.connectButton.enabled = YES;
+        self.sceneLoaded = NO;
+        [self setConnectionMessage:@"Connection interrupted. Check domain to retry." error:YES];
+    }
+}
+
+- (void)directoryApplicationDidEnterBackground:(NSNotification*)notification {
+    (void)notification;
+    [self cancelDirectoryLookup];
 }
 
 - (BOOL)textFieldShouldReturn:(UITextField*)textField {
@@ -288,6 +313,7 @@ typedef struct {
 
 - (void)checkDomain:(id)sender {
     (void)sender;
+    [self cancelDirectoryLookup];
     [self.addressField resignFirstResponder];
     self.sceneLoaded = NO;
     const char* encodedAddress = self.addressField.text.UTF8String;
@@ -319,38 +345,31 @@ typedef struct {
         return;
     }
 
-    [self.directoryTask cancel];
     self.connectButton.enabled = NO;
     self.connectionStatusLabel.textColor = [UIColor colorWithWhite:1.0 alpha:0.9];
     self.connectionStatusLabel.text = [NSString stringWithFormat:@"Resolving %@…", place];
-    NSMutableURLRequest* request = [NSMutableURLRequest requestWithURL:url];
-    request.timeoutInterval = 12.0;
-    [request setValue:@"Mozilla/5.0 (OverteInterface iOS Preview)" forHTTPHeaderField:@"User-Agent"];
-
+    auto epoch = _directoryEpoch.begin();
     __weak BootstrapViewController* weakSelf = self;
-    self.directoryTask = [NSURLSession.sharedSession
-        dataTaskWithRequest:request
-          completionHandler:^(NSData* data, NSURLResponse* response, NSError* error) {
+    self.directoryTask = [[BoundedDirectoryRequest alloc] initWithURL:url completion:^(NSData* data) {
         dispatch_async(dispatch_get_main_queue(), ^{
             BootstrapViewController* strongSelf = weakSelf;
-            if (strongSelf == nil) {
+            if (strongSelf == nil || !epoch.current()) {
                 return;
             }
             strongSelf.connectButton.enabled = YES;
-            NSHTTPURLResponse* httpResponse = [response isKindOfClass:NSHTTPURLResponse.class]
-                ? (NSHTTPURLResponse*)response : nil;
-            if (error != nil || httpResponse.statusCode != 200 || data == nil) {
-                NSString* detail = error.localizedDescription ?: [NSString stringWithFormat:
-                    @"HTTP %ld", (long)httpResponse.statusCode];
-                [strongSelf setConnectionMessage:[NSString stringWithFormat:
-                    @"Directory lookup failed: %@", detail] error:YES];
+            strongSelf.directoryTask = nil;
+            if (data == nil) {
+                overte::ios::logDiagnostic(overte::ios::DiagnosticEvent::DirectoryLookupFailed);
+                [strongSelf setConnectionMessage:@"Directory lookup failed. Check domain to retry." error:YES];
                 return;
             }
 
             NSError* jsonError = nil;
-            NSDictionary* root = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonError];
-            NSDictionary* placeData = [root[@"data"] isKindOfClass:NSDictionary.class]
-                ? root[@"data"][@"place"] : nil;
+            id decoded = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonError];
+            NSDictionary* root = [decoded isKindOfClass:NSDictionary.class] ? decoded : nil;
+            NSDictionary* payload = [root[@"data"] isKindOfClass:NSDictionary.class] ? root[@"data"] : nil;
+            NSDictionary* placeData = [payload[@"place"] isKindOfClass:NSDictionary.class]
+                ? payload[@"place"] : nil;
             NSDictionary* domain = [placeData[@"domain"] isKindOfClass:NSDictionary.class]
                 ? placeData[@"domain"] : nil;
             NSString* address = [placeData[@"address"] isKindOfClass:NSString.class]
@@ -363,7 +382,10 @@ typedef struct {
                 ? domain[@"active"] : nil;
             NSNumber* attendance = [placeData[@"current_attendance"] isKindOfClass:NSNumber.class]
                 ? placeData[@"current_attendance"] : @0;
-            if (jsonError != nil || domain == nil || host.length == 0 || port == nil || address.length == 0) {
+            if (jsonError != nil || domain == nil || host.length == 0 || port == nil ||
+                port.doubleValue < 1 || port.doubleValue > 65535 ||
+                port.doubleValue != port.unsignedIntegerValue || address.length == 0) {
+                overte::ios::logDiagnostic(overte::ios::DiagnosticEvent::DirectoryResponseInvalid);
                 [strongSelf setConnectionMessage:@"The directory returned an incomplete place record." error:YES];
                 return;
             }
@@ -386,7 +408,6 @@ typedef struct {
             }
         });
     }];
-    [self.directoryTask resume];
 }
 
 - (void)handlePan:(UIPanGestureRecognizer*)gesture {
