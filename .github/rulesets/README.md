@@ -17,7 +17,11 @@ by the Android/canonical/archive tag ruleset throughout.
 Required status checks are strict and bound to GitHub Actions integration ID
 `15368`. A check with the same display name from another integration does not
 satisfy the rule. The Desktop workflow job, manifest, and contract all use the
-context `Enforce main desktop sync path`.
+context `Enforce main desktop sync path`. Permanent branch governance also
+requires `sync-test-reuse`; it is an always-terminal trusted gate, so path
+filters cannot leave a required status pending. It reports ordinary pull
+requests without delegating their existing checks and authorizes a sync fast
+path only after exact evidence validation.
 
 Deletion and non-fast-forward protection remains enabled for permanent branches
 and tags. The retirement manifest records the temporary lock on archived target
