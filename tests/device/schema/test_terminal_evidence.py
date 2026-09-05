@@ -67,6 +67,35 @@ class ContractTests(unittest.TestCase):
         with self.assertRaisesRegex(evidence.EvidenceError, 'MISSING_REGULAR'):
             self.verify()
 
+    def test_independently_frozen_inputs_cli(self):
+        base = [str(ADAPTER), '--candidate-metadata', str(self.candidate),
+                '--expected-source-sha', SOURCE, '--expected-artifact-sha256', ARTIFACT]
+        for inputs, toolchain, code in [('d' * 64, 'c' * 64, 0),
+                                        ('e' * 64, 'c' * 64, 1),
+                                        ('d' * 64, 'e' * 64, 1),
+                                        ('invalid', 'c' * 64, 1)]:
+            with self.subTest(inputs=inputs, toolchain=toolchain):
+                result = subprocess.run(base + ['--expected-normalized-inputs-sha256', inputs,
+                                               '--expected-toolchain-sha256', toolchain],
+                                        capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, code, result.stderr)
+                if code == 0:
+                    value = json.loads(result.stdout)
+                    self.assertEqual(value['normalizedInputsSha256'], inputs)
+                    self.assertEqual(value['toolchainSha256'], toolchain)
+
+    def test_coherent_foreign_cohort_is_not_independent_evidence(self):
+        self.manifest['normalizedInputsSha256'] = 'e' * 64
+        for receipt in self.receipts.values():
+            if receipt['provenance']:
+                receipt['provenance']['normalizedInputsSha256'] = 'e' * 64
+        self.publish()
+        self.assertEqual(self.verify()['normalizedInputsSha256'], 'e' * 64)
+        with self.assertRaisesRegex(evidence.EvidenceError, 'EXPECTED_BUILD_INPUT_MISMATCH'):
+            evidence.validate(self.candidate, SOURCE, ARTIFACT,
+                              expected_normalized_inputs_sha256='d' * 64,
+                              expected_toolchain_sha256='c' * 64)
+
     def test_semantic_negative_matrix(self):
         original = copy.deepcopy(self.receipts)
         changes = [('sourceRevision', 'e' * 40), ('artifactSha256', 'e' * 64),

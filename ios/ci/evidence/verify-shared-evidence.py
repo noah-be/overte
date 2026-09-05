@@ -19,10 +19,14 @@ def main():
     parser.add_argument('--candidate-metadata', type=Path, required=True)
     parser.add_argument('--expected-source-sha', required=True)
     parser.add_argument('--expected-artifact-sha256', required=True)
+    parser.add_argument('--expected-normalized-inputs-sha256')
+    parser.add_argument('--expected-toolchain-sha256')
     args = parser.parse_args()
     try:
         result = module.validate(args.candidate_metadata, args.expected_source_sha,
-                                 args.expected_artifact_sha256)
+                                 args.expected_artifact_sha256,
+                                 expected_normalized_inputs_sha256=args.expected_normalized_inputs_sha256,
+                                 expected_toolchain_sha256=args.expected_toolchain_sha256)
     except (module.EvidenceError, OSError, ValueError, TypeError) as error:
         code = str(error) if isinstance(error, module.EvidenceError) else 'EVIDENCE_IO_OR_FORMAT'
         print('shared-evidence: ' + code, file=sys.stderr)
