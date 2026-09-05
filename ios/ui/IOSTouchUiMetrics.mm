@@ -747,16 +747,29 @@ void updateIOSTabletAccessibilityControls(
     }
     retainTabletE2EAccessibilityButtons(window, activeIdentifiers);
 #else
-    OverteIOSAccessibilityElement* element =
-        [[OverteIOSAccessibilityElement alloc] initWithAccessibilityContainer:overlay];
+    OverteIOSAccessibilityElement* element = nil;
+    NSArray* existingElements = overlay.accessibilityElements;
+    if (existingElements.count == 1 &&
+            [existingElements.firstObject isKindOfClass:OverteIOSAccessibilityElement.class]) {
+        element = existingElements.firstObject;
+    }
+    const bool targetChanged = element == nil ||
+        ![element.accessibilityIdentifier isEqualToString:identifier];
+    if (targetChanged) {
+        element = [[OverteIOSAccessibilityElement alloc] initWithAccessibilityContainer:overlay];
+    }
     element.accessibilityTraits = UIAccessibilityTraitButton;
     element.accessibilityIdentifier = identifier;
     element.accessibilityLabel = label;
     element.accessibilityHint = hint;
-    element.accessibilityFrameInContainerSpace = controlFrame;
+    element.accessibilityFrameInContainerSpace = [overlay convertRect:controlFrame fromView:window];
     element.activationHandler = activationHandler;
-    overlay.accessibilityElements = @[element];
-    UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification, element);
+    if (targetChanged) {
+        overlay.accessibilityElements = @[element];
+        // Geometry/text-scale updates retain the focused native element. Only a
+        // real open/close target replacement requests a VoiceOver focus change.
+        UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification, element);
+    }
 #endif
 }
 
