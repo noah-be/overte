@@ -33,7 +33,7 @@ class CMakeSourceConan(ConanFile):
         prefix = shlex.quote(self.package_folder)
         self.run(
             f"{bootstrap} --prefix={prefix} --parallel={build_jobs(self)} "
-            "--no-qt-gui --no-system-libs"
+            "--no-qt-gui --no-system-libs -- -DCMAKE_USE_OPENSSL=OFF"
         )
         self.run(f"make -j{build_jobs(self)}")
 
@@ -42,7 +42,7 @@ class CMakeSourceConan(ConanFile):
         copy(
             self,
             "Copyright.txt",
-            src=os.path.join(self.source_folder, "Copyright.txt"),
+            src=self.source_folder,
             dst=os.path.join(self.package_folder, "licenses"),
         )
 
