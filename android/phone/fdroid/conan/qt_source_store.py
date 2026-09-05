@@ -75,7 +75,10 @@ def load_manifest(path: Path) -> dict:
 def validate_manifest(document: dict) -> None:
     if document.get("schema_version") != 1:
         raise SourceStoreError("unsupported manifest schema")
-    if document.get("status") != "SOURCE_ARCHIVES_LOCKED_LICENSE_HASHES_PENDING":
+    if (
+        document.get("status")
+        != "SOURCE_AND_LICENSE_ARCHIVES_LOCKED_ATTRIBUTION_SCANNER_PENDING"
+    ):
         raise SourceStoreError("unexpected qualification status")
     if document.get("source_authority") != {
         "package": "overte-fdroid-buildpath-prework/00-source-graph-design",
@@ -86,6 +89,14 @@ def validate_manifest(document: dict) -> None:
         raise SourceStoreError("source authority changed")
     if document.get("archive_limits") != EXPECTED_ARCHIVE_LIMITS:
         raise SourceStoreError("archive safety limits changed")
+    if document.get("license_lock") != {
+        "path": "android/phone/fdroid/manifests/qt-license.lock.tsv",
+        "sha256": "73112c92373d338b14a8f1e88691d6d3e185f75ec8abe6cb0dee2fec55336474",
+        "files": 258,
+        "components": 17,
+        "qualification": "QTATTRIBUTIONSSCANNER_PENDING",
+    }:
+        raise SourceStoreError("Qt license lock binding changed")
     components = document.get("components")
     if not isinstance(components, list) or len(components) != len(EXPECTED_COMPONENTS):
         raise SourceStoreError("exactly 17 Qt source components are required")

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "SOURCE_ARCHIVES_LOCKED_LICENSE_HASHES_PENDING",
+  "status": "SOURCE_AND_LICENSE_ARCHIVES_LOCKED_ATTRIBUTION_SCANNER_PENDING",
   "source_family": "Qt 5.15.18 KDE patch collection 2026.01.04",
   "source_authority": {
     "package": "overte-fdroid-buildpath-prework/00-source-graph-design",
@@ -12,6 +12,13 @@
     "max_component_unpacked_bytes": 2147483648,
     "max_total_unpacked_bytes": 17179869184,
     "max_members_per_archive": 300000
+  },
+  "license_lock": {
+    "path": "android/phone/fdroid/manifests/qt-license.lock.tsv",
+    "sha256": "73112c92373d338b14a8f1e88691d6d3e185f75ec8abe6cb0dee2fec55336474",
+    "files": 258,
+    "components": 17,
+    "qualification": "QTATTRIBUTIONSSCANNER_PENDING"
   },
   "components": [
     {
@@ -191,7 +198,7 @@
     "qtxmlpatterns-testsuite"
   ],
   "qualification_blocks": [
-    "Bind every selected module license file and SHA-256 before recipe qualification",
+    "Run the vendored Qt qtattributionsscanner against this exact 258-file lock before recipe qualification",
     "Vendor and review the Qt recipe without Git or recursive-submodule source paths",
     "Qualify a separate Linux x86_64 Qt host-tools package and bind its RREV/PREV",
     "Qualify the Android arm64 Qt target against OpenSSL 3.5.8 and the host-tools package"

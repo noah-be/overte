@@ -44,7 +44,7 @@ def write_fixture_manifest(path: Path, source_store: Path) -> dict:
 
 
 class QtSourceStoreTest(unittest.TestCase):
-    def test_real_manifest_is_exact_and_still_unqualified(self):
+    def test_real_manifest_is_exact_and_scanner_pending(self):
         document = MODULE.load_manifest(MANIFEST)
         self.assertEqual(17, len(document["components"]))
         self.assertEqual(
@@ -52,7 +52,8 @@ class QtSourceStoreTest(unittest.TestCase):
             {item["id"]: item["destination"] for item in document["components"]},
         )
         self.assertEqual(
-            "SOURCE_ARCHIVES_LOCKED_LICENSE_HASHES_PENDING", document["status"]
+            "SOURCE_AND_LICENSE_ARCHIVES_LOCKED_ATTRIBUTION_SCANNER_PENDING",
+            document["status"],
         )
         self.assertEqual(4, len(document["qualification_blocks"]))
 
