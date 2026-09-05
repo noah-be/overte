@@ -18,6 +18,7 @@ import os
 from pathlib import Path, PurePosixPath
 import textwrap
 import shutil
+import shlex
 
 required_conan_version = ">=1.60.0 <2 || >=2.0.5"
 
@@ -600,6 +601,23 @@ class QtConan(ConanFile):
             raise ConanInvalidConfiguration("composed Qt tree differs from its lock")
         return qt_root
 
+    def _sync_source_headers(self):
+        # Pinned commit archives are not release tarballs: they have neither
+        # generated forwarding headers nor .git. Qt configure only invokes its
+        # bootstrap syncqt when .git exists. Generate headers explicitly from
+        # the verified scripts/profiles, without forging repository metadata.
+        qt_root = Path(self.source_folder) / "qt5"
+        syncqt = qt_root / "qtbase" / "bin" / "syncqt.pl"
+        modules = [qt_root / name for name in sorted({"qtbase"} | self._composed_modules)]
+        if not syncqt.is_file() or any(not (module / "sync.profile").is_file() for module in modules):
+            raise ConanInvalidConfiguration("Qt syncqt source/profile is missing")
+        version = str(self.version).split("-", 1)[0]
+        for module in modules:
+            self.run(shlex.join(["perl", str(syncqt), "-quiet", "-version", version,
+                                 "-outdir", str(module), str(module)]))
+        if not (qt_root / "qtbase" / "include" / "QtCore" / "qglobal.h").is_file():
+            raise ConanInvalidConfiguration("Qt syncqt did not generate bootstrap headers")
+
     def source(self):
         composed = os.environ.get("OVERTE_QT_COMPOSED_SOURCE")
         if not composed or not os.path.isabs(composed):
@@ -623,6 +641,7 @@ class QtConan(ConanFile):
         # shorten the path to ANGLE to avoid the following error:
         # C:\J2\w\prod-v2\bsr@4\104220\ebfcf\p\qtde01f793a6074\s\qt5\qtbase\src\3rdparty\angle\src\libANGLE\renderer\d3d\d3d11\texture_format_table_autogen.cpp : fatal error C1083: Cannot open compiler generated file: '': Invalid argument
         copy(self, "*", os.path.join(self.source_folder, "qt5", "qtbase", "src", "3rdparty", "angle"), self.angle_path)
+        self._sync_source_headers()
 
     def generate(self):
         pc = PkgConfigDeps(self)
