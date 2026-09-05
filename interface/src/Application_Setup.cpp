@@ -1532,6 +1532,9 @@ void Application::setupSignalsAndOperators() {
     {
         connect(this, SIGNAL(aboutToQuit()), this, SLOT(onAboutToQuit()));
         connect(this, &Application::applicationStateChanged, this, &Application::activeChanged);
+        // Seed the same full-client gate: an already active Qt application may
+        // not emit another state change after this connection is installed.
+        activeChanged(applicationState());
         connect(_window, SIGNAL(windowMinimizedChanged(bool)), this, SLOT(windowMinimizedChanged(bool)));
 
         auto discoverabilityManager = DependencyManager::get<DiscoverabilityManager>();

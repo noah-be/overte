@@ -377,6 +377,7 @@ void Application::activeChanged(Qt::ApplicationState state) {
             _isForeground = false;
             break;
         case Qt::ApplicationInactive:
+            _isForeground = false;
             if (!_aboutToQuit && _startUpFinished) {
                 getRefreshRateManager().setRefreshRateRegime(RefreshRateManager::RefreshRateRegime::UNFOCUS);
             }
