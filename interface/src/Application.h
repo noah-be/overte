@@ -116,6 +116,8 @@ public:
 
     // Return an HTTP User-Agent string with OS and device information.
     Q_INVOKABLE QString getUserAgent();
+    Q_INVOKABLE qulonglong openContainedNativeWeb(const QString& url);
+    Q_INVOKABLE void closeContainedNativeWeb(qulonglong ticket);
 
     PerformanceManager& getPerformanceManager() { return _performanceManager; }
     RefreshRateManager& getRefreshRateManager() { return _refreshRateManager; }

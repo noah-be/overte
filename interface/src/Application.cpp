@@ -50,6 +50,7 @@ overte::lifecycle::Gate& overte::lifecycle::applicationGate() {
 
 #include <AccountManager.h>
 #include <AddressManager.h>
+#include "NativeWebPolicy.h"
 #include <AnimationCacheScriptingInterface.h>
 #include <AnimDebugDraw.h>
 #include <AvatarBookmarks.h>
@@ -339,6 +340,23 @@ Application::Application(
     qInstallMessageHandler(messageHandler);
 
     DependencyManager::set<PathUtils>();
+}
+
+qulonglong Application::openContainedNativeWeb(const QString& url) {
+#if defined(Q_OS_IOS)
+    return overte::web::openNativeWeb(url);
+#else
+    Q_UNUSED(url)
+    return 0;
+#endif
+}
+
+void Application::closeContainedNativeWeb(qulonglong ticket) {
+#if defined(Q_OS_IOS)
+    overte::web::closeNativeWeb(ticket);
+#else
+    Q_UNUSED(ticket)
+#endif
 }
 
 Application::~Application() {
