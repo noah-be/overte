@@ -1,7 +1,7 @@
 // Copyright 2026 Overte e.V.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "IOSTouchUiMetrics.h"
+#include "../../interface/src/IOSTouchUiMetrics.h"
 
 #import <UIKit/UIKit.h>
 

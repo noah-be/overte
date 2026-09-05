@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 HEADER = (ROOT / "interface/src/IOSTouchUiMetrics.h").read_text()
-SOURCE = (ROOT / "interface/src/IOSTouchUiMetrics.mm").read_text()
+SOURCE = (ROOT / "ios/ui/IOSTouchUiMetrics.mm").read_text()
 PROFILE = (ROOT / "interface/resources/qml/controlsUit/+ios/TouchUiProfile.qml").read_text()
 GRAPHICS = (ROOT / "interface/src/Application_Graphics.cpp").read_text()
 APPLICATION = (ROOT / "interface/src/Application.cpp").read_text()

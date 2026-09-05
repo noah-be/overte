@@ -24,7 +24,7 @@ def main() -> None:
         ROOT / "interface/resources/qml/hifi/+android_interface/button.qml"
     ).read_text(encoding="utf-8")
     native_bridge = (
-        ROOT / "interface/src/IOSTouchUiMetrics.mm"
+        ROOT / "ios/ui/IOSTouchUiMetrics.mm"
     ).read_text(encoding="utf-8")
     interface_cmake = (
         ROOT / "interface/CMakeLists.txt"
@@ -100,10 +100,12 @@ def main() -> None:
     assert native_bridge.count("UIAccessibilityPostNotification(") == 2
     assert re.search(
         r'set_source_files_properties\(\s*'
-        r'"\$\{CMAKE_CURRENT_SOURCE_DIR\}/src/IOSTouchUiMetrics[.]mm"\s*'
+        r'"\$\{IOS_TOUCH_UI_METRICS_MM\}"\s*'
         r'PROPERTIES\s+COMPILE_OPTIONS\s+"-fobjc-arc"\s*\)',
         interface_cmake,
     )
+    assert '${CMAKE_CURRENT_SOURCE_DIR}/../ios/ui/IOSTouchUiMetrics.mm' in interface_cmake
+    assert 'list(APPEND INTERFACE_OBJCPP_SRCS "${IOS_TOUCH_UI_METRICS_MM}")' in interface_cmake
     assert "updateIOSTabletAccessibilityControls(systemTablet" in application
     assert "&TabletProxy::tabletShownChanged" in application
     print("PASS stable iOS tablet accessibility identifiers")
