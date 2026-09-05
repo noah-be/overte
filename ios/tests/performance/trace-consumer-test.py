@@ -13,11 +13,12 @@ import sys
 sys.dont_write_bytecode = True
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--shared-contract-root", type=Path, required=True)
+parser.add_argument("--fixture-contract-root", type=Path, required=True)
 args = parser.parse_args()
 ios = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ios / "performance"))
 import verify_trace as consumer
-consumer.load_analyzer(args.shared_contract_root, ios.parent)
+consumer.load_analyzer(args.shared_contract_root, ios.parent, args.fixture_contract_root)
 sys.path.insert(0, str(ios.parent / "tests/performance/schema"))
 import test_metrics as fixture
 
@@ -26,6 +27,7 @@ case.setUp()
 try:
     command = [sys.executable, str(ios / "performance/verify_trace.py"),
         "--shared-contract-root", str(args.shared_contract_root), "--trace", str(case.path),
+        "--fixture-contract-root", str(args.fixture_contract_root),
         "--expected-source-sha", "a" * 40, "--expected-artifact-sha256", "b" * 64,
         "--form-factor", "ipad", "--expected-fixture-sha256", case.fixture]
     def run(extra=()):
@@ -33,10 +35,16 @@ try:
     result = run()
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout)["status"] == "METRICS_BOUND_BUDGETS_PENDING"
+    assert run(["--fixture-contract-root", str(args.shared_contract_root)]).returncode == 1
+    # Old traces/expectations and budgets are not silently upgraded to the new tone.
+    old_fixture = "5b529ac6221218630120596eafcb44ba3966d2beab09ee19a8abbeab7fd72154"
+    assert case.fixture == "88d94ad1936dd68deeedd9e91f0bb0170621ff69e6ce70c39580c901e679062b"
+    assert run(["--expected-fixture-sha256", old_fixture]).returncode == 1
     assert run(["--require-budget"]).returncode == 1
     original = copy.deepcopy(case.trace)
     for change in ({"platform": "ios-iphone"}, {"samples": case.samples[:-1]},
-                   {"fixtureSha256": "c" * 64}, {"artifactSha256": "c" * 64}):
+                   {"fixtureSha256": "c" * 64}, {"fixtureSha256": old_fixture},
+                   {"artifactSha256": "c" * 64}):
         case.trace = copy.deepcopy(original)
         case.trace.update(change)
         case.write()
@@ -60,6 +68,10 @@ try:
     result = run(["--require-budget", "--budget", str(budget_path), "--expected-budget-sha256", digest])
     assert result.returncode == 0 and json.loads(result.stdout)["status"] == "BUDGETS_CHECKED_NOT_NODE_ACCEPTED"
     assert run(["--budget", str(budget_path), "--expected-budget-sha256", "c" * 64]).returncode == 1
+    budget["fixtureSha256"] = old_fixture
+    budget_path.write_text(json.dumps(budget))
+    old_budget_digest = hashlib.sha256(budget_path.read_bytes()).hexdigest()
+    assert run(["--budget", str(budget_path), "--expected-budget-sha256", old_budget_digest]).returncode == 1
 finally:
     case.doCleanups()
-print("PASS real iOS Shared performance consumer; synthetic inputs only, no endurance/device acceptance")
+print("PASS real iOS Shared v001 analyzer/v002 fixture consumer, old trace/budget rejection; synthetic only")

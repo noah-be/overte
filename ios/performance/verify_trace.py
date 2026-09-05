@@ -17,24 +17,26 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools/candidate"))
 from shared_release import verify_release
 
 MANIFEST_SHA256 = "ca53fddbdf16ffdb48ecb2298f3e6ebd260d9be413d09904bee9c9cc579cad96"
+FIXTURE_MANIFEST_SHA256 = "38def334f05daf1d9b6c958d034d0b08010f28ef98a9198e853264af1b6e45cc"
 MODULE_SHA256 = "a48201c899e0bf3608d9ec8554c1e234759e54560815914799040449f1eff15f"
 MODULE = "tests/performance/schema/metrics.py"
 REFERENCE = "tests/performance/schema/reference-fixture.json"
 
 
-def load_analyzer(release: Path, repository: Path):
+def load_analyzer(release: Path, repository: Path, fixture_release: Path):
     published = verify_release(release, MANIFEST_SHA256, MODULE, executable=False)
-    # This release refers to existing repository fixture files rather than
-    # duplicating them. Verify its exact installed module/reference, then let
-    # the ORIGINAL validator recheck all referenced fixture bytes itself.
+    verify_release(fixture_release, FIXTURE_MANIFEST_SHA256, REFERENCE, executable=False)
+    # v002 deliberately carries the promoted fixture only, retaining v001's
+    # analyzer as an explicit prerequisite. Pin both releases, never relabel old
+    # traces/budgets, and let the ORIGINAL validator check all actual fixture bytes.
     source = None
-    for relative in (MODULE, REFERENCE):
+    for relative, origin in ((MODULE, release), (REFERENCE, fixture_release)):
         installed = repository / relative
         if any(path.is_symlink() for path in (installed, *installed.parents)) or not installed.is_file():
             raise ValueError("IOS_METRICS_SOURCE")
         with installed.open("rb") as stream:
             content = stream.read(1048577)
-        if len(content) > 1048576 or content != (release / relative).read_bytes():
+        if len(content) > 1048576 or content != (origin / relative).read_bytes():
             raise ValueError("IOS_METRICS_SOURCE")
         if relative == MODULE:
             source = content
@@ -49,6 +51,8 @@ def load_analyzer(release: Path, repository: Path):
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--shared-contract-root", type=Path, required=True)
+    parser.add_argument("--fixture-contract-root", type=Path, required=True,
+                        help="Pinned SH-008 performance v002 promoted fixture release")
     parser.add_argument("--consumer-repository", type=Path, default=Path(__file__).resolve().parents[2])
     parser.add_argument("--trace", type=Path, required=True)
     parser.add_argument("--expected-source-sha", required=True)
@@ -62,7 +66,8 @@ def main(argv: list[str]) -> int:
     try:
         if args.require_budget and (args.budget is None or args.expected_budget_sha256 is None):
             raise ValueError("IOS_APPROVED_BUDGET_REQUIRED")
-        analyzer = load_analyzer(args.shared_contract_root, args.consumer_repository)
+        analyzer = load_analyzer(args.shared_contract_root, args.consumer_repository,
+                                 args.fixture_contract_root)
         result = analyzer.validate(args.trace, args.expected_source_sha, args.expected_artifact_sha256,
             "ios-" + args.form_factor, args.expected_fixture_sha256, args.budget, args.expected_budget_sha256)
     except (OSError, ValueError, TypeError, KeyError, RecursionError):
