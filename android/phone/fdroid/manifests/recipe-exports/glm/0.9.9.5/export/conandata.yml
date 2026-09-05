@@ -1,0 +1,4 @@
+sources:
+  0.9.9.5:
+    sha256: 4fe34860ce69156f63eea6c3d84c91cadfc330353cf275ff394aef4e163cafee
+    url: https://github.com/g-truc/glm/releases/download/0.9.9.5/glm-0.9.9.5.zip
