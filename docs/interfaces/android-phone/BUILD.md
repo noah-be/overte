@@ -2,7 +2,7 @@
 
 The complete existing command reference remains
 [`android/phone/docs/BUILD.md`](../../../android/phone/docs/BUILD.md). Run
-its commands from `android/` on a 64-bit Linux host.
+its commands from `android/phone/` on a 64-bit Linux host.
 
 ## Requirements
 
@@ -17,10 +17,10 @@ Android Studio is optional.
 ## Normal developer path
 
 ```bash
-cd android
-./build-phone.sh doctor
-./build-phone.sh setup --download
-./build-phone.sh build
+cd android/phone
+./build.sh doctor
+./build.sh setup --download
+./build.sh build
 ```
 
 The download path restores the pinned dependency graph. The APK build fails
@@ -29,7 +29,7 @@ closed if the dedicated Phone outputs are missing, stale, incomplete, or not
 
 ## Dependency-maintainer path
 
-`build-phone.sh deps`, `build-phone-qt-16k.sh`,
+`build.sh deps`, `build-phone-qt-16k.sh`,
 `prepare-phone-16k-conan-deps.sh`, and `phone-prebuilt-16k-deps.sh export` are
 artifact-producer operations. They require substantial time, disk, memory, and
 swap and are not part of ordinary onboarding. Follow the ordered procedure in

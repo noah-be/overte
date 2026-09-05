@@ -11,13 +11,17 @@
 The `phoneInterface` module packages Overte's normal mono 2D renderer and
 touchscreen input for 64-bit Android phones. It deliberately has its own
 application ID (`org.overte.phone`) and does not package the Pico OpenXR
-runtime. The port currently targets landscape-oriented, ARM64 devices running
-Android 8 (API 26) or newer and targets Android 16 (API 36).
+runtime. The port currently targets ARM64 devices running Android 8 (API 26)
+or newer and targets Android 16 (API 36). Landscape is the primary qualified
+layout; the manifest's `fullSensor` policy also permits portrait as an
+experimental, not-yet-qualified layout. The normative classification is in
+[`docs/interfaces/android-phone/ORIENTATION.md`](../../../docs/interfaces/android-phone/ORIENTATION.md).
 
 For the device-free Actions checks and trusted build-runner architecture, see
 [Android Phone CI/CD](ANDROID_PHONE_CI_CD.md).
 
-Run the commands in this document from the repository's `android/` directory.
+Run the commands in this document from the repository's `android/phone/`
+directory.
 
 ## Fast x86_64 emulator tests
 
@@ -43,7 +47,7 @@ system animations, and run the AndroidX instrumentation suite:
 The included smoke test runs inside Android and verifies that the installed
 Phone package is executing on an x86_64 device and contains the native
 `libphoneInterface.so` for that ABI. Add further device tests below
-`phone/apps/phoneInterface/src/androidTest/`.
+`apps/phoneInterface/src/androidTest/`.
 
 The first dependency build compiles Qt and the other Android native packages
 and is substantially slower than later incremental runs. Individual phases
@@ -64,8 +68,10 @@ The first development milestone provides:
 - the same pinned Android/Qt/Conan toolchain used by the Pico port.
 
 The microphone permission is requested at startup, but denying it does not
-block access to a world. Portrait mode, 32-bit devices, store publication, and
-broad phone/GPU compatibility are outside this first milestone.
+block access to a world. Portrait rotation is tolerated by the source contract
+but still awaits physical-device qualification. 32-bit devices, store
+publication, and broad phone/GPU compatibility are outside this first
+milestone.
 
 > [!IMPORTANT]
 > The phone APK must use the dedicated, verified 16 KiB Qt and Conan outputs.
@@ -103,7 +109,7 @@ Android Studio is optional. By default the scripts look for the SDK in
 Inspect the environment without downloading dependencies or changing it:
 
 ```bash
-./build-phone.sh doctor
+./build.sh doctor
 ```
 
 The doctor command uses the established shared environment checker because both
@@ -138,7 +144,7 @@ before the dependency build; there is intentionally no unbounded fallback.
    and the smaller Phone-specific 16 KiB delta, then build:
 
    ```bash
-   ./build-phone.sh setup --download
+   ./build.sh setup --download
    ```
 
    Both archives are SHA-256 verified before Conan sees them. The Phone delta
@@ -170,7 +176,7 @@ before the dependency build; there is intentionally no unbounded fallback.
    use the Phone entry point just as with Pico:
 
    ```bash
-   ./build-phone.sh deps --download
+   ./build.sh deps --download
    ```
 
    This command downloads only the complete pinned Phone Conan graph from
@@ -187,7 +193,7 @@ needed after the current Phone delta has been published:
    part of normal developer setup:
 
    ```bash
-   ./build-phone.sh deps
+   ./build.sh deps
    ```
 
    It installs the shared Android graph, rebuilds Qt for 16 KiB pages, rebuilds
@@ -223,7 +229,7 @@ needed after the current Phone delta has been published:
 6. Build the APK from the verified graph:
 
    ```bash
-   ./build-phone.sh build
+   ./build.sh build
    ```
 
 The prebuilt archive contains the exact pinned Phone target and build-context
@@ -237,23 +243,23 @@ outputs and readiness marker exist.
 
 | Command | Purpose |
 | --- | --- |
-| `./build-phone.sh doctor` | Inspect the shared Android build environment |
-| `./build-phone.sh deps --download` | Restore all published shared and Phone-specific dependencies without source builds |
-| `./build-phone.sh deps` | Slow artifact-producer fallback: build and verify missing dependencies locally |
-| `./build-phone.sh prepare` | Restage already available Qt/Conan dependencies |
-| `./build-phone.sh build` | Build the debug APK from verified 16 KiB dependencies |
-| `./build-phone.sh` | Prepare dependencies and build the debug APK |
-| `./build-phone.sh install` | Install and start an already built APK |
-| `./build-phone.sh deploy` | Prepare, build, install, and start the app |
-| `./build-phone.sh setup --download` | Restore shared plus Phone 16 KiB artifacts, verify, and build |
+| `./build.sh doctor` | Inspect the shared Android build environment |
+| `./build.sh deps --download` | Restore all published shared and Phone-specific dependencies without source builds |
+| `./build.sh deps` | Slow artifact-producer fallback: build and verify missing dependencies locally |
+| `./build.sh prepare` | Restage already available Qt/Conan dependencies |
+| `./build.sh build` | Build the debug APK from verified 16 KiB dependencies |
+| `./build.sh` | Prepare dependencies and build the debug APK |
+| `./build.sh install` | Install and start an already built APK |
+| `./build.sh deploy` | Prepare, build, install, and start the app |
+| `./build.sh setup --download` | Restore shared plus Phone 16 KiB artifacts, verify, and build |
 | `./phone-prebuilt-16k-deps.sh export /absolute/path` | Produce the release-ready Phone cache delta and checksum |
-| `./build-phone.sh --help` | Show the command summary |
+| `./build.sh --help` | Show the command summary |
 
-Limit native compilation parallelism performed through `build-phone.sh` when
+Limit native compilation parallelism performed through `build.sh` when
 memory is constrained:
 
 ```bash
-PHONE_BUILD_JOBS=4 ./build-phone.sh
+PHONE_BUILD_JOBS=4 ./build.sh
 ```
 
 This setting is forwarded to the wrapper's prepare and CMake build phases. It
@@ -262,7 +268,7 @@ serial to avoid memory spikes. It does not override the fixed four-job count in
 the dedicated Conan 16 KiB profiles. The long dependency helpers additionally enforce their documented
 32 GB swap prerequisite and 16 GB decimal cgroup memory ceiling.
 
-Use `./build-phone.sh build --stacktrace` to include Gradle failure details in
+Use `./build.sh build --stacktrace` to include Gradle failure details in
 CI or local build diagnostics.
 
 ## Install on a phone
@@ -278,7 +284,7 @@ and accept Android's authorization prompt. Confirm that ADB reports it as
 Then build, install, and launch the client:
 
 ```bash
-./build-phone.sh deploy
+./build.sh deploy
 ```
 
 Installation never lets ADB choose an implicit default target. When exactly
@@ -286,14 +292,14 @@ one authorized non-Pico phone is connected it is selected unambiguously;
 otherwise select the intended phone explicitly:
 
 ```bash
-ANDROID_SERIAL=<serial> ./build-phone.sh deploy
+ANDROID_SERIAL=<serial> ./build.sh deploy
 ```
 
 `install` uses `adb install -r`, preserving existing application data. The
 debug APK is written to:
 
 ```text
-phone/apps/phoneInterface/build/outputs/apk/debug/phoneInterface-debug.apk
+apps/phoneInterface/build/outputs/apk/debug/phoneInterface-debug.apk
 ```
 
 ## Static regression check
@@ -322,7 +328,7 @@ and wrapper commands.
 
 ## Architecture notes
 
-`settings-phone.gradle` selects only `phoneInterface`, allowing the phone APK
+`settings.gradle` selects only `phoneInterface`, allowing the phone APK
 to evolve independently of `picoInterface`. The module's native target links
 the main Interface client. It consequently uses Overte's existing
 `Basic2DWindowOpenGLDisplayPlugin` and touchscreen virtual-pad integration
@@ -639,7 +645,7 @@ gate after packaging. Run the same gate on an existing APK explicitly with:
 
 ```bash
 ./tests/check-phone-apk-16k.sh \
-    phone/apps/phoneInterface/build/outputs/apk/release/phoneInterface-release.apk
+    apps/phoneInterface/build/outputs/apk/release/phoneInterface-release.apk
 ```
 
 The lower-level ELF check also accepts an unpacked APK or staged library
@@ -702,7 +708,7 @@ to the checkout. A partially configured key fails during Gradle configuration.
 After the verified 16 KiB dependencies are ready, create the bundle with:
 
 ```bash
-./gradlew --settings-file settings-phone.gradle \
+../common/gradlew --settings-file settings.gradle \
     -PVERSION_CODE=<new-positive-integer> \
     -PRELEASE_NUMBER=<version-name> \
     :phoneInterface:bundleRelease
@@ -712,7 +718,7 @@ Direct `gradlew` invocations do not perform the wrapper's JDK discovery. Set
 `JAVA_HOME` to a JDK version from 17 through 21 before running them.
 
 The resulting `.aab` is under
-`phone/apps/phoneInterface/build/outputs/bundle/release/`. Enroll the application in
+`apps/phoneInterface/build/outputs/bundle/release/`. Enroll the application in
 Play App Signing and use the externally managed key above only as its upload
 key; the Play-managed app-signing key must not be copied into this repository.
 Run the secret-free static release check with:
@@ -725,10 +731,10 @@ Run the secret-free static release check with:
 
 ### Android dependencies are missing
 
-Populate the source cache with `./build-pico.sh deps --download`, then follow
+Populate the source cache with `../vr/pico/build.sh deps --download`, then follow
 the complete Qt, non-Qt, and APK sequence under “First setup and required
 16 KiB build order”. If the source cache is already populated, start with
-`./build-phone-qt-16k.sh`; `./build-phone.sh prepare` alone does not create the
+`./build-phone-qt-16k.sh`; `./build.sh prepare` alone does not create the
 verified 16 KiB dependency outputs.
 
 ### No compatible JDK was found

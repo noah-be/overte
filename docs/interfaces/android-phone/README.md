@@ -9,10 +9,12 @@
 ## Current status
 
 The `phoneInterface` module packages Overte's mono 2D renderer and touchscreen
-input as the independent `org.overte.phone` application. It targets
-landscape-oriented 64-bit Android phones running Android 8/API 26 or newer and
-targets API 36. Portrait, 32-bit devices, broad GPU compatibility, and store
-publication are outside the current milestone.
+input as the independent `org.overte.phone` application. It targets 64-bit
+Android phones running Android 8/API 26 or newer and targets API 36. Landscape
+is the primary qualified layout; portrait is accepted by the current
+`fullSensor` Activity contract but remains experimental pending physical-device
+acceptance. See [Orientation contract](ORIENTATION.md). 32-bit devices, broad
+GPU compatibility, and store publication are outside the current milestone.
 
 ## Support matrix
 
@@ -26,12 +28,12 @@ publication are outside the current milestone.
 
 ## Normal developer setup
 
-Run from `android/`:
+Run from `android/phone/`:
 
 ```bash
-cd android
-./build-phone.sh doctor
-./build-phone.sh setup --download
+cd android/phone
+./build.sh doctor
+./build.sh setup --download
 ```
 
 This restores checksum-verified shared and Phone-specific dependencies and
@@ -41,7 +43,7 @@ and is documented separately in [BUILD.md](BUILD.md).
 ## Emulator tests
 
 ```bash
-cd android
+cd android/phone
 ./phone-emulator-test.sh doctor
 ./phone-emulator-test.sh all
 ```
@@ -52,12 +54,12 @@ APK.
 ## Output, installation, and launch
 
 The debug APK is
-`android/apps/phoneInterface/build/outputs/apk/debug/phoneInterface-debug.apk`.
+`android/phone/apps/phoneInterface/build/outputs/apk/debug/phoneInterface-debug.apk`.
 Install and start it on an explicitly selected phone with:
 
 ```bash
-cd android
-ANDROID_SERIAL=<serial> ./build-phone.sh deploy
+cd android/phone
+ANDROID_SERIAL=<serial> ./build.sh deploy
 ```
 
 ## Known limitations
@@ -68,6 +70,14 @@ ANDROID_SERIAL=<serial> ./build-phone.sh deploy
 - Microphone denial is supported, but privacy and security review is incomplete.
 - Current artifacts are for developer installation and testing, not publication.
 
+Validate every active Phone documentation command and the orientation wording
+without building or starting an emulator:
+
+```bash
+python3 docs/interfaces/android-phone/check-documentation-contract.py
+python3 docs/interfaces/android-phone/check-documentation-contract.py --self-test
+```
+
 ## Documentation
 
 - [Roadmap and current milestone](ROADMAP.md)
@@ -77,4 +87,5 @@ ANDROID_SERIAL=<serial> ./build-phone.sh deploy
 - [Security and privacy](SECURITY_AND_PRIVACY.md)
 - [Continuous integration](CI.md)
 - [Development status](DEVELOPMENT_STATUS.md)
+- [Orientation contract](ORIENTATION.md)
 - [Developer artifacts](RELEASE.md)
