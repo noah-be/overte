@@ -397,16 +397,16 @@
       "timestamp": 1755505628.021
     },
     "qt/5.15.18-2026.01.04@overte/stable": {
-      "cache_folder": "qtfea71855f734b",
+      "cache_folder": "qt56a3937b63691",
       "files": {
         "export/conandata.yml": "21c1c850b37b11fb2a36c0b19bd196abc08d5856e1e788ee19112c0ae616dcb2",
-        "export/conanfile.py": "334d08c4d224a3521141e4c5716e9f65278cbd28ff901b5a392ce47ee0ca8260",
-        "export/conanmanifest.txt": "bfd911e606bb1cd7c85565c5a040b371156a01a4fb43e409ae1f675e6f0a43e2",
+        "export/conanfile.py": "32d34f909ff268962acb68818a42d3b3a334d61d55da33a3ed9d016a3fe16151",
+        "export/conanmanifest.txt": "d74d7e0fbfcc0815623378c8d2ac97082d6ba7385f8cd18b8ac40484ce72723b",
         "export/qtmodules5.15.18-2026.01.04.conf": "98d8632bcfa4cc7e7dc1659770bca0a1da4397c762ef5a4f99eb413e5b756b70",
         "export_sources/patches/Fix-error-uintptr_t-does-not-name-a-type-in-QtDeclarative.patch": "33d389780c86d24d6de3f9bed8a5fa28379ad45eddcb508c365bb9f24d1aa9d7"
       },
-      "rrev": "c615fd9bf2e6410b92a3e6b84fa73980",
-      "timestamp": 1788598575.1969585
+      "rrev": "067e63fa931d764bcb1e93004544cf4f",
+      "timestamp": 1788642525.1578007
     },
     "quazip/1.4": {
       "cache_folder": "quazi8728a2837d31c",
