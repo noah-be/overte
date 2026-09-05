@@ -12,6 +12,10 @@ _spec.loader.exec_module(_module)
 
 class OverteAndroidTarget(_module.PicoOverte):
     name = "OverteAndroidSourceTarget"
+    qt_ref = (
+        "qt/5.15.18-2026.01.04@overte/stable"
+        "#c615fd9bf2e6410b92a3e6b84fa73980"
+    )
     default_options = dict(_module.PicoOverte.default_options)
     default_options.update(
         {
