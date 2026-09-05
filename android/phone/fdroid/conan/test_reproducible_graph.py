@@ -107,7 +107,7 @@ class ReproducibleGraphTest(unittest.TestCase):
         target_build = refs(
             locks["android-arm64-v8a-api26-16k.lock"], "build_requires"
         )
-        cmake_rrev = "cmake/3.31.12#055c11ab0a919e8c6034a902b4025ce1"
+        cmake_rrev = "cmake/3.31.12#2f6c0934c9dc141602cd279f67cfe048"
         qt_rrev = (
             "qt/5.15.18-2026.01.04@overte/stable"
             "#c615fd9bf2e6410b92a3e6b84fa73980"
