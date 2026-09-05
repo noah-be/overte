@@ -103,6 +103,30 @@ expect_rejection("wrong-artifact.json", "artifact SHA-256 mismatch")
 expect_rejection("missing-mandatory-tier.json", "missing mandatory tier")
 expect_rejection("unexplained-skip.json", "skipped without a reason")
 
+with tempfile.TemporaryDirectory(prefix="io001-candidate-types-") as temporary:
+    root = Path(temporary)
+    manifest = materialize(root, "valid.json")
+    for invalid in (0, 0.0, True, None, "false", [], {}):
+        payload = json.loads((FIXTURES / "valid.json").read_text(encoding="utf-8"))
+        payload["producer"]["credentialsUsed"] = invalid
+        manifest.write_text(json.dumps(payload), encoding="utf-8")
+        try:
+            verifier.verify_candidate(manifest, root, EXPECTED_SOURCE)
+        except verifier.CandidateVerificationError as error:
+            assert "producer is not credential-free" in str(error)
+        else:
+            raise AssertionError("non-boolean false credential claim was accepted")
+    for invalid in ([], {}, 0, None, True):
+        payload = json.loads((FIXTURES / "valid.json").read_text(encoding="utf-8"))
+        payload["tiers"][0]["status"] = invalid
+        manifest.write_text(json.dumps(payload), encoding="utf-8")
+        try:
+            verifier.verify_candidate(manifest, root, EXPECTED_SOURCE)
+        except verifier.CandidateVerificationError as error:
+            assert "tier has an invalid status" in str(error)
+        else:
+            raise AssertionError("non-string tier status was accepted")
+
 with tempfile.TemporaryDirectory(prefix="io001-candidate-strict-") as temporary:
     root = Path(temporary)
     manifest = materialize(root, "valid.json")

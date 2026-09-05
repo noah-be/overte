@@ -155,7 +155,7 @@ def _verify_tiers(raw_tiers: Any) -> tuple[str, ...]:
             raise CandidateVerificationError("candidate tier has an invalid id")
         if tier_id in tiers:
             raise CandidateVerificationError("candidate tier ids must be unique")
-        if status_value not in {"PASS", "FAIL", "SKIPPED"}:
+        if not isinstance(status_value, str) or status_value not in {"PASS", "FAIL", "SKIPPED"}:
             raise CandidateVerificationError("candidate tier has an invalid status")
         skip_reason = tier.get("skipReason")
         if status_value == "SKIPPED" and (
@@ -212,7 +212,7 @@ def verify_candidate(
         "architecture": "arm64",
         "credentialsUsed": False,
     }
-    if producer != expected_producer:
+    if producer != expected_producer or producer.get("credentialsUsed") is not False:
         raise CandidateVerificationError("candidate producer is not credential-free Release arm64 simulator")
 
     artifact_metadata = _require_object(manifest["artifact"], "candidate artifact")
