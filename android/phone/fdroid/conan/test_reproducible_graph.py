@@ -1,7 +1,6 @@
 import hashlib
 import json
 import re
-import tarfile
 import unittest
 from pathlib import Path
 
@@ -51,13 +50,13 @@ class ReproducibleGraphTest(unittest.TestCase):
         self.assertEqual(1, self.manifest["schema_version"])
         self.assertEqual("SH-001", self.manifest["node"])
         self.assertEqual(
-            "IMPLEMENTATION_COMPLETE_VERIFICATION_PENDING",
+            "THREE_GATES_IMPLEMENTED_COLD_BUILD_PENDING",
             self.manifest["status"],
         )
         self.assertNotEqual("PASS", self.manifest["status"])
         self.assertEqual(0, self.manifest["cold_build"]["attempts_consumed"])
         self.assertEqual(
-            "NOT_STARTED_INSUFFICIENT_DISK",
+            "NOT_STARTED_CLEAN_ROOM_READINESS_PENDING",
             self.manifest["cold_build"]["status"],
         )
         self.assertEqual(
@@ -79,8 +78,11 @@ class ReproducibleGraphTest(unittest.TestCase):
             )
         for relative, expected in self.manifest["bound_files"].items():
             self.assertEqual(expected, digest(ROOT / relative), relative)
-        bundle = self.manifest["recipe_export_bundle"]
-        self.assertEqual(bundle["sha256"], digest(ROOT / bundle["path"]))
+        store = self.manifest["recipe_export_store"]
+        self.assertEqual(store["sha256"], digest(ROOT / store["path"]))
+        self.assertEqual(
+            store["pkglist_sha256"], digest(ROOT / store["pkglist_path"])
+        )
 
     def test_three_exact_lock_graphs_separate_host_and_target(self):
         locks = {
@@ -135,20 +137,24 @@ class ReproducibleGraphTest(unittest.TestCase):
         ].items():
             self.assertIn(f"{reference}#{revision}", all_refs, reference)
 
-    def test_bundle_is_recipe_exports_only(self):
-        bundle = ROOT / self.manifest["recipe_export_bundle"]["path"]
-        with tarfile.open(bundle, "r:gz") as archive:
-            names = [member.name for member in archive.getmembers()]
-        conanfiles = [name for name in names if name.endswith("/e/conanfile.py")]
+    def test_directory_store_is_recipe_exports_only(self):
+        store = ROOT / self.manifest["recipe_export_store"]["path"]
+        index = load_json(store)
+        self.assertEqual(51, len(index["recipes"]))
+        self.assertFalse((store.parent.parent / "recipe-exports.tgz").exists())
+        conanfiles = []
+        for reference, entry in index["recipes"].items():
+            top_level = {Path(name).parts[0] for name in entry["files"]}
+            self.assertTrue(top_level <= {"export", "export_sources"}, reference)
+            self.assertIn("export", top_level, reference)
+            conanfiles.extend(
+                name for name in entry["files"] if name == "export/conanfile.py"
+            )
+            self.assertFalse(
+                any(name.endswith((".a", ".so", ".dll", ".exe", ".jar", ".dex")) for name in entry["files"]),
+                reference,
+            )
         self.assertEqual(51, len(conanfiles))
-        self.assertFalse(
-            [
-                name
-                for name in names
-                if "p" in Path(name).parts or "s" in Path(name).parts
-            ]
-        )
-        self.assertFalse(any(name.endswith((".a", ".so", ".dll", ".exe")) for name in names))
 
     def test_source_identities_match_the_bound_recipe_data(self):
         identities = self.manifest["source_identities"]
