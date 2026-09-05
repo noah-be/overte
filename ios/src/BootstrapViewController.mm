@@ -17,6 +17,8 @@
 #include "../networking/CallbackEpoch.h"
 #import "../networking/BoundedDirectoryRequest.h"
 #include "../performance/NativeMetrics.h"
+#include "../input/PreviewCamera.h"
+#import "../ui/PreviewInputLayout.h"
 
 @interface BootstrapViewController () <MTKViewDelegate, UITextFieldDelegate>
 @property(nonatomic, strong) MTKView* metalView;
@@ -28,13 +30,11 @@
 @property(nonatomic, strong) UILabel* touchStatusLabel;
 @property(nonatomic, strong) UITextField* addressField;
 @property(nonatomic, strong) UIButton* connectButton;
+@property(nonatomic, strong) UIStackView* inputRow;
 @property(nonatomic, strong) UILabel* connectionStatusLabel;
 @property(nonatomic, strong) BoundedDirectoryRequest* directoryTask;
 @property(nonatomic, strong) PlatformProbe* platformProbe;
 @property(nonatomic) BOOL sceneLoaded;
-@property(nonatomic) float sceneYaw;
-@property(nonatomic) float scenePitch;
-@property(nonatomic) float sceneZoom;
 @property(nonatomic) uint32_t sceneAttendance;
 @property(nonatomic) uint32_t sceneSeed;
 @end
@@ -52,6 +52,7 @@ typedef struct {
 
 @implementation BootstrapViewController {
     overte::ios::CallbackEpoch _directoryEpoch;
+    overte::ios::PreviewCamera _camera;
 }
 
 - (void)viewDidLoad {
@@ -71,8 +72,13 @@ typedef struct {
     self.metalView.depthStencilPixelFormat = MTLPixelFormatDepth32Float;
     self.metalView.clearColor = MTLClearColorMake(0.015, 0.035, 0.075, 1.0);
     self.commandQueue = [device newCommandQueue];
-    self.scenePitch = -0.28f;
-    self.sceneZoom = 1.0f;
+    self.metalView.accessibilityCustomActions = @[
+        [[UIAccessibilityCustomAction alloc] initWithName:@"Look left" target:self selector:@selector(cameraLeft:)],
+        [[UIAccessibilityCustomAction alloc] initWithName:@"Look right" target:self selector:@selector(cameraRight:)],
+        [[UIAccessibilityCustomAction alloc] initWithName:@"Zoom in" target:self selector:@selector(cameraZoomIn:)],
+        [[UIAccessibilityCustomAction alloc] initWithName:@"Zoom out" target:self selector:@selector(cameraZoomOut:)],
+        [[UIAccessibilityCustomAction alloc] initWithName:@"Reset camera" target:self selector:@selector(cameraReset:)]
+    ];
 
     NSError* pipelineError = nil;
     id<MTLLibrary> library = [device newDefaultLibrary];
@@ -170,6 +176,7 @@ typedef struct {
     inputRow.axis = UILayoutConstraintAxisHorizontal;
     inputRow.alignment = UIStackViewAlignmentFill;
     inputRow.spacing = 10.0;
+    self.inputRow = inputRow;
 
     self.connectionStatusLabel = [[UILabel alloc] initWithFrame:CGRectZero];
     self.connectionStatusLabel.translatesAutoresizingMaskIntoConstraints = NO;
@@ -258,8 +265,8 @@ typedef struct {
         [self.touchStatusLabel.leadingAnchor constraintGreaterThanOrEqualToAnchor:safeArea.leadingAnchor constant:16.0],
         [self.touchStatusLabel.trailingAnchor constraintLessThanOrEqualToAnchor:safeArea.trailingAnchor constant:-16.0],
         [self.touchStatusLabel.centerXAnchor constraintEqualToAnchor:safeArea.centerXAnchor],
-        [self.touchStatusLabel.bottomAnchor constraintEqualToAnchor:safeArea.bottomAnchor constant:-16.0],
     ]];
+    installPreviewKeyboardLayout(self.view, self.touchStatusLabel);
 
     [self drainPendingDeepLinks];
 }
@@ -290,6 +297,46 @@ typedef struct {
 - (BOOL)textFieldShouldReturn:(UITextField*)textField {
     [textField resignFirstResponder];
     [self checkDomain:self.connectButton];
+    return YES;
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    updatePreviewInputLayout(self.view, self.inputRow);
+}
+
+- (NSArray<UIKeyCommand*>*)keyCommands {
+    if (self.addressField.isFirstResponder || !self.sceneLoaded) { return @[]; }
+    return @[
+        [UIKeyCommand keyCommandWithInput:UIKeyInputLeftArrow modifierFlags:0 action:@selector(cameraLeft:)],
+        [UIKeyCommand keyCommandWithInput:UIKeyInputRightArrow modifierFlags:0 action:@selector(cameraRight:)],
+        [UIKeyCommand keyCommandWithInput:@"+" modifierFlags:0 action:@selector(cameraZoomIn:)],
+        [UIKeyCommand keyCommandWithInput:@"-" modifierFlags:0 action:@selector(cameraZoomOut:)],
+        [UIKeyCommand keyCommandWithInput:@"0" modifierFlags:0 action:@selector(cameraReset:)]
+    ];
+}
+
+- (BOOL)cameraLeft:(id)sender {
+    (void)sender;
+    return self.sceneLoaded && _camera.rotate(-0.15, 0);
+}
+- (BOOL)cameraRight:(id)sender {
+    (void)sender;
+    return self.sceneLoaded && _camera.rotate(0.15, 0);
+}
+- (BOOL)cameraZoomIn:(id)sender {
+    (void)sender;
+    return self.sceneLoaded && _camera.scale(1.1);
+}
+- (BOOL)cameraZoomOut:(id)sender {
+    (void)sender;
+    return self.sceneLoaded && _camera.scale(1.0 / 1.1);
+}
+- (BOOL)cameraReset:(id)sender {
+    (void)sender;
+    if (!self.sceneLoaded) { return NO; }
+    _camera.reset();
+    self.touchStatusLabel.text = @"Camera reset · drag to look · pinch to zoom";
     return YES;
 }
 
@@ -421,9 +468,7 @@ typedef struct {
     CGPoint translation = [gesture translationInView:self.metalView];
     CGPoint velocity = [gesture velocityInView:self.metalView];
     if (self.sceneLoaded) {
-        self.sceneYaw += (float)translation.x * 0.005f;
-        self.scenePitch = fmaxf(-1.1f, fminf(0.35f,
-            self.scenePitch + (float)translation.y * 0.003f));
+        _camera.rotate(translation.x * 0.005, translation.y * 0.003);
         [gesture setTranslation:CGPointZero inView:self.metalView];
     }
     self.touchStatusLabel.text = [NSString stringWithFormat:
@@ -438,9 +483,7 @@ typedef struct {
 - (void)handleTap:(UITapGestureRecognizer*)gesture {
     CGPoint location = [gesture locationInView:self.metalView];
     if (self.sceneLoaded) {
-        self.sceneYaw = 0.0f;
-        self.scenePitch = -0.28f;
-        self.sceneZoom = 1.0f;
+        _camera.reset();
         self.touchStatusLabel.text = @"Camera reset · drag to look · pinch to zoom";
         return;
     }
@@ -454,9 +497,9 @@ typedef struct {
     if (!self.sceneLoaded) {
         return;
     }
-    self.sceneZoom = fmaxf(0.55f, fminf(1.8f, self.sceneZoom * (float)gesture.scale));
+    _camera.scale(gesture.scale);
     gesture.scale = 1.0;
-    self.touchStatusLabel.text = [NSString stringWithFormat:@"Scene zoom %.0f%%", self.sceneZoom * 100.0f];
+    self.touchStatusLabel.text = [NSString stringWithFormat:@"Scene zoom %.0f%%", _camera.zoom * 100.0f];
 }
 
 - (void)handleHover:(UIHoverGestureRecognizer*)gesture API_AVAILABLE(ios(13.0)) {
@@ -510,9 +553,9 @@ typedef struct {
         const float height = fmaxf((float)view.drawableSize.height, 1.0f);
         OverteSceneUniforms uniforms = {
             .aspect = width / height,
-            .yaw = self.sceneYaw,
-            .pitch = self.scenePitch,
-            .zoom = self.sceneZoom,
+            .yaw = _camera.yaw,
+            .pitch = _camera.pitch,
+            .zoom = _camera.zoom,
             .sceneLoaded = 1,
             .attendance = self.sceneAttendance,
             .domainSeed = self.sceneSeed,
