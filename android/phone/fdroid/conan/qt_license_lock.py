@@ -25,8 +25,7 @@ _SINGLE_LICENSE = re.compile(
     r'"LicenseFile"\s*:\s*"((?:\\.|[^"\\])*)"', re.DOTALL
 )
 _MULTIPLE_LICENSES = re.compile(
-    r'"LicenseFiles"\s*:\s*\[((?:\s*"(?:\\.|[^"\\])*"\s*,?\s*)+)\]',
-    re.DOTALL,
+    r'"LicenseFiles"\s*:\s*\[([^\]]*)\]', re.DOTALL
 )
 _JSON_STRING = re.compile(r'"((?:\\.|[^"\\])*)"', re.DOTALL)
 
