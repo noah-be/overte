@@ -12,6 +12,7 @@ void recordNativeMetrics(const NativeMetrics& metrics) {
     std::lock_guard guard(metricsMutex);
     latest = metrics;
     if (!latest.footprintAvailable) { latest.footprintBytes = 0; }
+    if (!latest.lowPowerAvailable) { latest.lowPower = false; }
 }
 NativeMetrics latestNativeMetrics() {
     std::lock_guard guard(metricsMutex);
@@ -28,7 +29,8 @@ std::string formatNativeMetrics(const NativeMetrics& metrics) {
     }
     return std::string("footprint_bytes=") +
         (metrics.footprintAvailable ? std::to_string(metrics.footprintBytes) : "unavailable") +
-        " thermal=" + thermal + " low_power=" + (metrics.lowPower ? "true" : "false") +
+        " thermal=" + thermal + " low_power=" +
+        (!metrics.lowPowerAvailable ? "unavailable" : metrics.lowPower ? "true" : "false") +
         " energy_joules=unavailable";
 }
 } // namespace overte::ios

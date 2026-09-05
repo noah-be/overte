@@ -10,13 +10,16 @@ NativeMetrics sampleNativeMetrics() noexcept {
     task_vm_info_data_t vm {};
     mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
     if (task_info(mach_task_self(), TASK_VM_INFO, reinterpret_cast<task_info_t>(&vm), &count) == KERN_SUCCESS &&
-        count >= TASK_VM_INFO_REV1_COUNT) {
+        count >= TASK_VM_INFO_REV1_COUNT && vm.phys_footprint > 0) {
         result.footprintAvailable = true;
         result.footprintBytes = vm.phys_footprint;
     }
     @autoreleasepool {
+      @try {
         NSProcessInfo* process = NSProcessInfo.processInfo;
+        if (process == nil) { return result; }
         result.lowPower = process.lowPowerModeEnabled;
+        result.lowPowerAvailable = true;
         switch (process.thermalState) {
             case NSProcessInfoThermalStateNominal: result.thermal = ThermalState::Nominal; break;
             case NSProcessInfoThermalStateFair: result.thermal = ThermalState::Fair; break;
@@ -24,6 +27,11 @@ NativeMetrics sampleNativeMetrics() noexcept {
             case NSProcessInfoThermalStateCritical: result.thermal = ThermalState::Critical; break;
             default: break;
         }
+      } @catch (NSException*) {
+        result.lowPowerAvailable = false;
+        result.lowPower = false;
+        result.thermal = ThermalState::Unknown;
+      }
     }
     return result;
 }

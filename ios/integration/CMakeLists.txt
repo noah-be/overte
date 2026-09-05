@@ -51,4 +51,5 @@ target_sources(Overte PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/../performance/NativeMetrics.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/../performance/NativeMetrics.mm"
     "${CMAKE_CURRENT_LIST_DIR}/../performance/FullClientMetrics.mm"
+    "${CMAKE_CURRENT_LIST_DIR}/../performance/SharedMetricsPublisher.cpp"
 )

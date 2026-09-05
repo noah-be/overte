@@ -15,6 +15,8 @@ with tempfile.TemporaryDirectory(prefix="overte-ios-metrics-qt-") as scratch:
     binary = str(Path(scratch) / "test")
     subprocess.run(["c++", "-x", "c++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-fPIC",
                     str(ios / "performance/NativeMetrics.cpp"),
+                    str(ios / "performance/SharedMetricsPublisher.cpp"),
+                    str(ios.parent / "interface/src/metrics/NativeMetrics.cpp"),
                     str(ios / "performance/FullClientMetrics.mm"),
                     str(Path(__file__).with_suffix(".cpp")), "-o", binary, *flags],
                    check=True, timeout=60)

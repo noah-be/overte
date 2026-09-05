@@ -1,6 +1,7 @@
 // Copyright 2026 Overte e.V.
 // SPDX-License-Identifier: Apache-2.0
 #include "NativeMetrics.h"
+#include "SharedMetricsPublisher.h"
 #include <QCoreApplication>
 #include <QGuiApplication>
 #include <QTimer>
@@ -18,17 +19,17 @@ void installIOSNativeMetrics() {
         timer->setTimerType(Qt::VeryCoarseTimer);
         QObject::connect(timer, &QTimer::timeout, app, [] {
             if (QGuiApplication::applicationState() == Qt::ApplicationActive) {
-                overte::ios::recordNativeMetrics(overte::ios::sampleNativeMetrics());
+                overte::ios::publishNativeMetrics(overte::ios::sampleNativeMetrics(), true);
             }
         });
         const auto update = [timer](Qt::ApplicationState state) {
             if (state == Qt::ApplicationActive) {
-                overte::ios::recordNativeMetrics(overte::ios::sampleNativeMetrics());
+                overte::ios::publishNativeMetrics(overte::ios::sampleNativeMetrics(), true);
                 timer->start();
             } else {
                 timer->stop();
                 // A foreground sample must not look current after suspension.
-                overte::ios::recordNativeMetrics({});
+                overte::ios::publishNativeMetrics({}, false);
             }
         };
         QObject::connect(gui, &QGuiApplication::applicationStateChanged, app, update);
