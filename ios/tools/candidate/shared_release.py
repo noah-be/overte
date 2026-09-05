@@ -31,6 +31,22 @@ def verify_release(root: Path, manifest_sha256: str, entrypoint: str, *, executa
             contents = stream.read(1048577)
         if len(contents) > 1048576 or hashlib.sha256(contents).hexdigest() != expected:
             raise ValueError("SHARED_SOURCE_DIGEST")
+    # Hashing known modules is insufficient if Python can import an extra
+    # sibling module or a precompiled cache instead. Immutable releases must
+    # contain exactly the declared files and their real parent directories.
+    declared = {str(PurePosixPath(name)) for name in seen} | {"SHA256SUMS"}
+    entries = 0
+    for directory, directories, files in os.walk(root, followlinks=False):
+        entries += len(directories) + len(files)
+        if entries > 1024:
+            raise ValueError("SHARED_TREE_LIMIT")
+        for name in directories:
+            if (Path(directory) / name).is_symlink():
+                raise ValueError("SHARED_UNDECLARED_SOURCE")
+        for name in files:
+            file = Path(directory) / name
+            if file.is_symlink() or str(file.relative_to(root)) not in declared:
+                raise ValueError("SHARED_UNDECLARED_SOURCE")
     adapter = root / entrypoint
     if "./" + entrypoint not in seen or (executable and not os.access(adapter, os.X_OK)):
         raise ValueError("SHARED_ADAPTER_NOT_EXECUTABLE")

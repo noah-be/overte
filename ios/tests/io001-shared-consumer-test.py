@@ -11,6 +11,8 @@ import subprocess
 import sys
 import tempfile
 
+sys.dont_write_bytecode = True  # importing fixtures must not mutate the release
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--shared-contract-root", type=Path, required=True)
 args = parser.parse_args()
@@ -65,4 +67,16 @@ with tempfile.TemporaryDirectory(prefix="ios-shared-consumer-") as scratch:
         raise AssertionError("changed Shared module was accepted")
     except ValueError as error:
         assert str(error) == "SHARED_SOURCE_DIGEST"
+    clean_copy = root / "extra-contract"
+    shutil.copytree(args.shared_contract_root, clean_copy, ignore=shutil.ignore_patterns("__pycache__"))
+    for name in ("json.py", "terminal_evidence.pyc"):
+        extra = clean_copy / "tests/device/schema" / name
+        extra.write_text("raise RuntimeError('UNDECLARED-CANARY')\n")
+        try:
+            consumer.pinned_adapter(clean_copy)
+        except ValueError as error:
+            assert str(error) == "SHARED_UNDECLARED_SOURCE"
+        else:
+            raise AssertionError("unverified import source accepted")
+        extra.unlink()
 print("PASS pinned Shared consumer: synthetic binding, missing sidecar rejection, source tamper rejection")

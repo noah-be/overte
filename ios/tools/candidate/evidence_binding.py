@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 
 
@@ -60,14 +61,19 @@ def bind_shared_evidence(
         artifact_sha256,
     ]
     try:
-        completed = subprocess.run(
-            command,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=False,
-            timeout=timeout_seconds,
-        )
+        with tempfile.TemporaryDirectory(prefix="ios-evidence-import-") as scratch:
+            environment = os.environ.copy()
+            environment["PYTHONDONTWRITEBYTECODE"] = "1"
+            environment["PYTHONPYCACHEPREFIX"] = scratch
+            completed = subprocess.run(
+                command,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                timeout=timeout_seconds,
+                env=environment,
+            )
     except subprocess.TimeoutExpired as error:
         raise EvidenceBindingError("shared evidence adapter timed out") from error
     if completed.returncode != 0:

@@ -8,6 +8,8 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 
+sys.dont_write_bytecode = True  # importing fixtures must not mutate the release
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--shared-contract-root", type=Path, required=True)
 args = parser.parse_args()
