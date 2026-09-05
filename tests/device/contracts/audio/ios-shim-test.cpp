@@ -42,6 +42,16 @@ int main() {
     overteIOSRequestMicrophonePermission(); assert(native->requests==1);
     native->gate.permission(Permission::Granted);
     assert(overteIOSMicrophonePermissionGranted());
+    bool failedStateNotified = false;
+    native->gate.fail(); // Native stop attempted but did not complete successfully.
+    setIOSAudioStateCallback([&] {
+        failedStateNotified = !overteIOSMicrophonePermissionGranted();
+    });
+    notifyIOSAudioStateChanged();
+    assert(failedStateNotified && native->gate.outcome() == Outcome::Failed);
+    assert(!native->gate.mayActivate());
+    setIOSAudioStateCallback({});
+    native->gate.requestStart();
     native->gate.interruption(true); assert(!overteIOSMicrophonePermissionGranted());
     assert(overteIOSDeactivateAudioSession());
     native->gate.interruption(false); assert(!overteIOSMicrophonePermissionGranted());
