@@ -301,11 +301,11 @@ def write_junit(results: list[dict], path: Path, suite: str) -> None:
         case = ET.SubElement(root, "testcase", classname="overte.device",
                              name=result["id"], time=f"{result['durationSeconds']:.3f}")
         if result["status"] == "failed":
-            failure = ET.SubElement(case, "failure", message=f"exit code {result['returncode']}")
-            failure.text = result["output"]
+            failure = ET.SubElement(case, "failure", message="OVT_TEST_FAILED")
+            failure.text = "OVT_REDACTED"
         elif result["status"] == "error":
-            error = ET.SubElement(case, "error", message="device infrastructure failure")
-            error.text = result["output"]
+            error = ET.SubElement(case, "error", message="OVT_TEST_INFRASTRUCTURE_ERROR")
+            error.text = "OVT_REDACTED"
         elif result["status"] == "skipped":
             ET.SubElement(case, "skipped", message="module skipped")
         # Retained JUnit is a cross-platform export sink. Detailed module logs
