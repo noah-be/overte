@@ -13,6 +13,7 @@
 //
 
 #include "ScriptValueV8Wrapper.h"
+#include <QReadLocker>
 
 #include "ScriptValueIteratorV8Wrapper.h"
 
@@ -313,22 +314,20 @@ ScriptValue ScriptValueV8Wrapper::property(const QString& name, const ScriptValu
         v8::Local<v8::String> key = v8::String::NewFromUtf8(_engine->getIsolate(), name.toStdString().c_str(),v8::NewStringType::kNormal).ToLocalChecked();
         const v8::Local<v8::Object> object = v8::Local<v8::Object>::Cast(_value.constGet());
         //V8TODO: Which context?
-        lock.lockForRead();
-        if (object->Get(context, key).ToLocal(&resultLocal)) {
+        v8::MaybeLocal<v8::Value> maybeResult;
+        {
+            QReadLocker readLock(&lock);
+            maybeResult = object->Get(context, key);
+        }
+        if (maybeResult.ToLocal(&resultLocal)) {
             V8ScriptValue result(_engine, resultLocal);
-            lock.unlock();
             return ScriptValue(new ScriptValueV8Wrapper(_engine, std::move(result)));
         } else {
-            QString parentValueQString("");
-            v8::Local<v8::String> parentValueString;
-            if (_value.constGet()->ToDetailString(context).ToLocal(&parentValueString)) {
-                QString(*v8::String::Utf8Value(isolate, parentValueString));
+            if (isolate->IsExecutionTerminating()) {
+                return ScriptValue();
             }
-            qCDebug(scriptengine_v8) << "Failed to get property, parent of value: " << name << ", parent type: " << QString(*v8::String::Utf8Value(isolate, _value.constGet()->TypeOf(isolate))) << " parent value: " << parentValueQString;
+            qCDebug(scriptengine_v8) << "Failed to get script property";
         }
-    }
-    if (name == QString("x")) {
-        printf("x");
     }
     return _engine->undefinedValue();
 }
