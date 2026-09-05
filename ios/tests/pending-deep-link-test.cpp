@@ -3,11 +3,68 @@
 
 #include "PendingDeepLinkStore.h"
 
+#include <algorithm>
 #include <cassert>
 #include <string>
+#include <thread>
+#include <unordered_set>
+#include <vector>
 
 using overte::ios::DeepLinkEnqueueResult;
 using overte::ios::PendingDeepLinkStore;
+
+namespace {
+
+void assertConcurrentDuplicateIsAtomic() {
+    PendingDeepLinkStore store;
+    constexpr std::size_t THREAD_COUNT { 32 };
+    std::vector<DeepLinkEnqueueResult> results(THREAD_COUNT, DeepLinkEnqueueResult::Invalid);
+    std::vector<std::thread> threads;
+    threads.reserve(THREAD_COUNT);
+    for (std::size_t index = 0; index < THREAD_COUNT; ++index) {
+        threads.emplace_back([&store, &results, index] {
+            results[index] = store.enqueue("overte://concurrency/same");
+        });
+    }
+    for (auto& thread : threads) {
+        thread.join();
+    }
+
+    assert(std::count(results.begin(), results.end(), DeepLinkEnqueueResult::Accepted) == 1);
+    assert(std::count(results.begin(), results.end(), DeepLinkEnqueueResult::Duplicate) ==
+        THREAD_COUNT - 1);
+    assert(store.size() == 1);
+    const auto pending = store.takeAll();
+    assert(pending == std::vector<std::string> { "overte://concurrency/same" });
+}
+
+void assertConcurrentCapacityIsBounded() {
+    PendingDeepLinkStore store;
+    constexpr std::size_t THREAD_COUNT { PendingDeepLinkStore::MAX_PENDING_URLS * 2 };
+    std::vector<DeepLinkEnqueueResult> results(THREAD_COUNT, DeepLinkEnqueueResult::Invalid);
+    std::vector<std::thread> threads;
+    threads.reserve(THREAD_COUNT);
+    for (std::size_t index = 0; index < THREAD_COUNT; ++index) {
+        threads.emplace_back([&store, &results, index] {
+            results[index] = store.enqueue("hifi://concurrency/" + std::to_string(index));
+        });
+    }
+    for (auto& thread : threads) {
+        thread.join();
+    }
+
+    assert(std::count(results.begin(), results.end(), DeepLinkEnqueueResult::Accepted) ==
+        PendingDeepLinkStore::MAX_PENDING_URLS);
+    assert(std::count(results.begin(), results.end(), DeepLinkEnqueueResult::Full) ==
+        THREAD_COUNT - PendingDeepLinkStore::MAX_PENDING_URLS);
+    assert(store.size() == PendingDeepLinkStore::MAX_PENDING_URLS);
+    const auto pending = store.takeAll();
+    const std::unordered_set<std::string> unique(pending.begin(), pending.end());
+    assert(unique.size() == PendingDeepLinkStore::MAX_PENDING_URLS);
+    assert(store.size() == 0);
+}
+
+} // namespace
 
 int main() {
     PendingDeepLinkStore store;
@@ -37,5 +94,8 @@ int main() {
     }
     assert(store.enqueue("overte://capacity/overflow") == DeepLinkEnqueueResult::Full);
     assert(store.size() == PendingDeepLinkStore::MAX_PENDING_URLS);
+
+    assertConcurrentDuplicateIsAtomic();
+    assertConcurrentCapacityIsBounded();
     return 0;
 }
