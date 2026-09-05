@@ -15,7 +15,7 @@
         "bzip2/1.0.8#c470882369c2d95c5c77e970c0c7e321%1762886692.465"
     ],
     "build_requires": [
-        "cmake/3.31.12#055c11ab0a919e8c6034a902b4025ce1%1788598983.462195"
+        "cmake/3.31.12#2f6c0934c9dc141602cd279f67cfe048%1788629853.560991"
     ],
     "python_requires": [],
     "config_requires": []
