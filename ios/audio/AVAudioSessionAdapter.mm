@@ -69,19 +69,23 @@ private:
         auto operation = std::make_shared<Operation>();
         auto busy = _busy;
         dispatch_async(_queue, ^{
+            bool success = false;
           try {
             @try {
-                bool success = !operation->cancelled && action();
-                if (operation->cancelled || !stillCurrent()) {
-                    // A late native activation must be stopped, never reported
-                    // as success after its caller's finite deadline expired.
+                success = !operation->cancelled && action();
+                success = success && !operation->cancelled && stillCurrent();
+            } @catch (NSException*) { success = false; }
+          } catch (...) { success = false; }
+            if (!success) {
+                // Failure (including exception) can leave the previous capture
+                // session active. Attempt native stop, but preserve failure:
+                // cleanup is not a successful operation/stop receipt.
+                @try {
                     NSError* error = nil;
                     [AVAudioSession.sharedInstance setActive:NO error:&error];
-                    success = false;
-                }
-                operation->succeeded = success;
-            } @catch (NSException*) { operation->succeeded = false; }
-          } catch (...) { operation->succeeded = false; }
+                } @catch (NSException*) {}
+            }
+            operation->succeeded = success;
             dispatch_semaphore_signal(operation->finished);
         });
         if (dispatch_semaphore_wait(operation->finished, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)) != 0) {
