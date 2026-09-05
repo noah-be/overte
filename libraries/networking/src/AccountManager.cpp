@@ -17,6 +17,7 @@
 #include <QtCore/QDataStream>
 #include <QtCore/QDir>
 #include <QtCore/QFile>
+#include <QtCore/QFileInfo>
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonObject>
 #include <QtCore/QMap>
@@ -146,29 +147,64 @@ QString accountFilePath() {
     return accountFileDir() + "/AccountInfo.bin";
 }
 
+namespace {
+overte::security::AccountStoreCoordinator& protectedAccountCoordinator() {
+    static overte::security::AccountStoreCoordinator coordinator;
+    return coordinator;
+}
+
+overte::security::LegacyAccountInput legacyAccountInput() {
+    using namespace overte::security;
+    return {
+        [](AccountBytes& output) {
+            QFileInfo info(accountFilePath());
+            if (info.isSymLink()) { return StoreResult::Corrupt; }
+            if (!info.exists()) { return StoreResult::Absent; }
+            if (!info.isFile() || info.size() <= 0 || info.size() > static_cast<qint64>(MAX_ACCOUNT_BYTES)) {
+                return StoreResult::Corrupt;
+            }
+            QFile input(accountFilePath());
+            if (!input.open(QIODevice::ReadOnly)) { return StoreResult::IoError; }
+            QByteArray bytes = input.read(MAX_ACCOUNT_BYTES + 1);
+            if (bytes.isEmpty() || bytes.size() > static_cast<int>(MAX_ACCOUNT_BYTES) || !input.atEnd()) {
+                bytes.fill('\0');
+                return StoreResult::Corrupt;
+            }
+            QDataStream stream(bytes);
+            QVariantMap checked;
+            stream >> checked;
+            const bool valid = stream.status() == QDataStream::Ok && stream.atEnd();
+            if (valid) { output.assign(bytes.begin(), bytes.end()); }
+            bytes.fill('\0');
+            return valid ? StoreResult::Ok : StoreResult::Corrupt;
+        },
+        []() {
+            QFileInfo info(accountFilePath());
+            if (info.isSymLink()) { return false; }
+            return !info.exists() || QFile::remove(accountFilePath());
+        }
+    };
+}
+}
+
+bool AccountManager::installProtectedAccountStore(std::shared_ptr<overte::security::ProtectedAccountStore> adapter) {
+    return protectedAccountCoordinator().install(std::move(adapter));
+}
+
 QVariantMap accountMapFromFile(bool& success) {
-    QFile accountFile { accountFilePath() };
-
-    if (accountFile.open(QIODevice::ReadOnly)) {
-        // grab the current QVariantMap from the settings file
-        QDataStream readStream(&accountFile);
-        QVariantMap accountMap;
-
-        readStream >> accountMap;
-
-        // close the file now that we have read the data
-        accountFile.close();
-
-        success = true;
-
-        return accountMap;
-    } else {
-        // failed to open file, return empty QVariantMap
-        // there was only an error if the account file existed when we tried to load it
-        success = !accountFile.exists();
-
-        return QVariantMap();
+    overte::security::AccountBytes bytes;
+    auto result = protectedAccountCoordinator().read(bytes, legacyAccountInput());
+    success = result == overte::security::StoreResult::Absent;
+    QVariantMap accountMap;
+    if (result == overte::security::StoreResult::Ok) {
+        QByteArray serialized(reinterpret_cast<const char*>(bytes.data()), static_cast<int>(bytes.size()));
+        QDataStream stream(serialized);
+        stream >> accountMap;
+        success = stream.status() == QDataStream::Ok && stream.atEnd();
+        serialized.fill('\0');
     }
+    overte::security::clearAccountBytes(bytes);
+    return success ? accountMap : QVariantMap();
 }
 
 void AccountManager::setAuthURL(const QUrl& authURL) {
@@ -178,17 +214,18 @@ void AccountManager::setAuthURL(const QUrl& authURL) {
         qCDebug(networking) << "AccountManager URL for authenticated requests has been changed to" << qPrintable(_authURL.toString());
 
         // check if there are existing access tokens to load from settings
-        QFile accountsFile { accountFilePath() };
         bool loadedMap = false;
         auto accountsMap = accountMapFromFile(loadedMap);
 
-        if (accountsFile.exists() && loadedMap) {
+        _accountInfo = DataServerAccountInfo();
+        if (loadedMap) {
             // pull out the stored account info and store it in memory
             _accountInfo = accountsMap[_authURL.toString()].value<DataServerAccountInfo>();
 
             qCDebug(networking) << "Found directory services API account information for" << qPrintable(_authURL.toString());
         } else {
             qCWarning(networking) << "Unable to load account file. No existing account settings will be loaded.";
+            emit authRequired();
         }
 
         if (_isAgent && !_accountInfo.getAccessToken().token.isEmpty() && !_accountInfo.hasProfile()) {
@@ -429,31 +466,23 @@ void AccountManager::sendRequest(const QString& path,
 }
 
 bool writeAccountMapToFile(const QVariantMap& accountMap) {
-    // re-open the file and truncate it
-    QFile accountFile { accountFilePath() };
-
-    // make sure the directory that will hold the account file exists
-    QDir accountFileDirectory { accountFileDir() };
-    accountFileDirectory.mkpath(".");
-
-    if (accountFile.open(QIODevice::WriteOnly)) {
-        QDataStream writeStream(&accountFile);
-
-        // persist the updated account QVariantMap to file
-        writeStream << accountMap;
-
-        // close the file with the newly persisted settings
-        accountFile.close();
-
-        return true;
-    } else {
+    QByteArray serialized;
+    QDataStream stream(&serialized, QIODevice::WriteOnly);
+    stream << accountMap;
+    if (stream.status() != QDataStream::Ok || serialized.size() > static_cast<int>(overte::security::MAX_ACCOUNT_BYTES)) {
+        serialized.fill('\0');
         return false;
     }
+    overte::security::AccountBytes bytes(serialized.begin(), serialized.end());
+    serialized.fill('\0');
+    auto result = protectedAccountCoordinator().write(bytes, legacyAccountInput());
+    overte::security::clearAccountBytes(bytes);
+    return result == overte::security::StoreResult::Ok;
 }
 
 void AccountManager::persistAccountToFile() {
 
-    qCDebug(networking) << "Persisting AccountManager accounts to" << accountFilePath();
+    qCDebug(networking) << "Persisting protected account state";
 
     bool wasLoaded = false;
     auto accountMap = accountMapFromFile(wasLoaded);
@@ -469,22 +498,19 @@ void AccountManager::persistAccountToFile() {
     }
 
     qCWarning(networking) << "Could not load accounts file - unable to persist account information to file.";
+    _accountInfo = DataServerAccountInfo();
+    emit authRequired();
 }
 
 void AccountManager::removeAccountFromFile() {
-    bool wasLoaded = false;
-    auto accountMap = accountMapFromFile(wasLoaded);
-
-    if (wasLoaded) {
-        accountMap.remove(_authURL.toString());
-        if (writeAccountMapToFile(accountMap)) {
-            qCDebug(networking) << "Removed account info for" << _authURL << "from settings file.";
-            return;
-        }
+    _accountInfo = DataServerAccountInfo();
+    _pendingPrivateKey.fill('\0');
+    _pendingPrivateKey.clear();
+    // The adapter stores one account map. Logout erases the complete map so an
+    // unreadable/corrupt map cannot retain an account silently.
+    if (protectedAccountCoordinator().erase(legacyAccountInput()) != overte::security::StoreResult::Ok) {
+        qCWarning(networking) << "Protected account removal requires re-authentication";
     }
-
-    qCWarning(networking) << "Count not load accounts file - unable to remove account information for" << _authURL
-        << "from settings file.";
 }
 
 void AccountManager::setAccountInfo(const DataServerAccountInfo &newAccountInfo) {

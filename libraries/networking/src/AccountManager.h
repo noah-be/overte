@@ -27,6 +27,7 @@
 #include "MetaverseAPI.h"
 #include "NetworkAccessManager.h"
 #include <SharedUtil.h>
+#include "../../../security/storage/ProtectedAccountStore.h"
 
 class JSONCallbackParameters {
 public:
@@ -64,6 +65,10 @@ class AccountManager : public QObject, public Dependency {
     Q_OBJECT
 public:
     AccountManager(bool accountSettingsEnabled = false, UserAgentGetter userAgentGetter = DEFAULT_USER_AGENT_GETTER);
+
+    // Native owners register once before loading account state. No adapter means
+    // no persistent credentials; there is no plaintext fallback.
+    static bool installProtectedAccountStore(std::shared_ptr<overte::security::ProtectedAccountStore> adapter);
 
     QNetworkRequest createRequest(QString path, AccountManagerAuth::Type authType);
     Q_INVOKABLE void sendRequest(const QString& path,
