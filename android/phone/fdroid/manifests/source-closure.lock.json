@@ -1466,7 +1466,8 @@
         "exported_files": {
           "android/phone/fdroid/manifests/recipe-exports/nasm/2.15.05/export/conandata.yml": "dac1899d2f98e4e3356c1a48a43c18926fa9ddfcbb413ea0fac679a3feb7a0c0",
           "android/phone/fdroid/manifests/recipe-exports/nasm/2.15.05/export/conanfile.py": "db0163a994c6717c925d188debfa2cefbc5035c2ad573fc522ad1fb07b34804e",
-          "android/phone/fdroid/manifests/recipe-exports/nasm/2.15.05/export/conanmanifest.txt": "c4c497176c001cd9ded9a9322240c6e4611daec48d456e8034391d43e32dd45c"
+          "android/phone/fdroid/manifests/recipe-exports/nasm/2.15.05/export/conanmanifest.txt": "c4c497176c001cd9ded9a9322240c6e4611daec48d456e8034391d43e32dd45c",
+          "android/phone/fdroid/manifests/recipe-exports/nasm/2.15.05/export_sources/patches/2.15.05-0001-disable-newly-integrated-dependency-tracking.patch": "bc798f4f18f97d44d41014d1656704fe9efd6ba5e8b86d038236b17219920e0e"
         },
         "path": "android/phone/fdroid/manifests/recipe-exports/nasm/2.15.05/export/conanfile.py",
         "sha256": "db0163a994c6717c925d188debfa2cefbc5035c2ad573fc522ad1fb07b34804e"
@@ -2054,7 +2055,8 @@
         "exported_files": {
           "android/phone/fdroid/manifests/recipe-exports/pkgconf/2.2.0/export/conandata.yml": "68bb3fe809c30362ca1df6d51dc8fbae48ba3f004d99182ed50fdd49d42c0885",
           "android/phone/fdroid/manifests/recipe-exports/pkgconf/2.2.0/export/conanfile.py": "a6108977015f9b9d9d2285a41999e83318cfc7f959f9657fa3db614438bf589c",
-          "android/phone/fdroid/manifests/recipe-exports/pkgconf/2.2.0/export/conanmanifest.txt": "9f5d00f880a169fdadbeb12489994de361814e9e1a721e5a7e1f103a05e4fb6e"
+          "android/phone/fdroid/manifests/recipe-exports/pkgconf/2.2.0/export/conanmanifest.txt": "9f5d00f880a169fdadbeb12489994de361814e9e1a721e5a7e1f103a05e4fb6e",
+          "android/phone/fdroid/manifests/recipe-exports/pkgconf/2.2.0/export_sources/patches/2.2.0-0001-PKG_CONF_PATH-allow-colon+semicolon-separator.patch": "1f6fd2140c5ab9312f8d5e9eb3fedbafa1157879472a8d7dee17eb4f44aa8fc9"
         },
         "path": "android/phone/fdroid/manifests/recipe-exports/pkgconf/2.2.0/export/conanfile.py",
         "sha256": "a6108977015f9b9d9d2285a41999e83318cfc7f959f9657fa3db614438bf589c"
@@ -3004,7 +3006,8 @@
         "exported_files": {
           "android/phone/fdroid/manifests/recipe-exports/vulkan-memory-allocator/3.0.1/export/conandata.yml": "9da9ca121f4c41f44302efdb9bd6f5b33dc1136c20f6faa06c228d7d4fa1982f",
           "android/phone/fdroid/manifests/recipe-exports/vulkan-memory-allocator/3.0.1/export/conanfile.py": "1425cb35d99b08cc46b57797f8eb9fb4b4600031e708be75d41e2dc147ef55c2",
-          "android/phone/fdroid/manifests/recipe-exports/vulkan-memory-allocator/3.0.1/export/conanmanifest.txt": "c64bee1c00793d8289682844a8b4cdc563bf8e972878602bcac0acead7e39142"
+          "android/phone/fdroid/manifests/recipe-exports/vulkan-memory-allocator/3.0.1/export/conanmanifest.txt": "c64bee1c00793d8289682844a8b4cdc563bf8e972878602bcac0acead7e39142",
+          "android/phone/fdroid/manifests/recipe-exports/vulkan-memory-allocator/3.0.1/export_sources/patches/3.0.1-add-missing-cstdio.patch": "d4aedda0af123d20a1b0e5beea387ef91e54bdb12c663b1cccc351ec90622f6b"
         },
         "path": "android/phone/fdroid/manifests/recipe-exports/vulkan-memory-allocator/3.0.1/export/conanfile.py",
         "sha256": "1425cb35d99b08cc46b57797f8eb9fb4b4600031e708be75d41e2dc147ef55c2"
@@ -3210,7 +3213,7 @@
     "path": "android/phone/fdroid/manifests/recipe-exports/index.json",
     "pkglist_path": "android/phone/fdroid/manifests/recipe-exports/pkglist.json",
     "pkglist_sha256": "e9cc3d0e8ac25c511c7a75d15244ee99f8ec80e5c208512ba035e1837b1d69ff",
-    "sha256": "ab587824aabcb98edea92f141f080aab26999023262e676e7236f4200f6e570b"
+    "sha256": "221cb2de4ebefe906a4775f4b96b482f88b594ec162f676a98499981c08f396d"
   },
   "schema_version": 1,
   "status": "SOURCE_CLOSURE_GATE_PASS",
