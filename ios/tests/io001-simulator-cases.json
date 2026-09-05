@@ -1,0 +1,43 @@
+{
+  "contract": "overte-ios-io001-simulator-plan-v1",
+  "harness": "ios/ci/interface-world-simulator-smoke.sh",
+  "maxTotalRuntimeSeconds": 720,
+  "cases": [
+    {
+      "id": "iphone-serverless",
+      "family": "iphone",
+      "scenario": "serverless",
+      "expectedDomainBinding": "none",
+      "runtimeTimeoutSeconds": 120,
+      "outputSubdirectory": "iphone-serverless",
+      "requiresCredentials": false
+    },
+    {
+      "id": "iphone-online",
+      "family": "iphone",
+      "scenario": "online",
+      "expectedDomainBinding": "public-domain-uuid",
+      "runtimeTimeoutSeconds": 240,
+      "outputSubdirectory": "iphone-online",
+      "requiresCredentials": false
+    },
+    {
+      "id": "ipad-serverless",
+      "family": "ipad",
+      "scenario": "serverless",
+      "expectedDomainBinding": "none",
+      "runtimeTimeoutSeconds": 120,
+      "outputSubdirectory": "ipad-serverless",
+      "requiresCredentials": false
+    },
+    {
+      "id": "ipad-online",
+      "family": "ipad",
+      "scenario": "online",
+      "expectedDomainBinding": "public-domain-uuid",
+      "runtimeTimeoutSeconds": 240,
+      "outputSubdirectory": "ipad-online",
+      "requiresCredentials": false
+    }
+  ]
+}
