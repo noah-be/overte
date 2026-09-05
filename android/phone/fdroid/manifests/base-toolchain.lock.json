@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "identity_sha256": "27e3d4ea512b944d9ea7e98c290f1c14da786080adb04ec9e9bf3f20180d552f",
+  "baseline": {
+    "builder_image": {
+      "name": "fdroidserver/buildserver-trixie",
+      "digest": "sha256:f81172f142454bccb6e198739d40bf3a98a393f09805140c1aa8b49807d0e3b7"
+    },
+    "host": {
+      "os": "Linux",
+      "arch": "x86_64",
+      "compiler": "gcc",
+      "compiler_version": "15",
+      "compiler_libcxx": "libstdc++11",
+      "cppstd": "gnu20",
+      "build_type": "Release"
+    },
+    "android": {
+      "sdk_platform": "36",
+      "build_tools": "36.0.0",
+      "ndk": "27.3.13750724",
+      "ndk_clang": "18",
+      "minimum_api": 26,
+      "abi": "arm64-v8a",
+      "conan_arch": "armv8",
+      "libcxx": "c++_shared",
+      "page_size": 16384
+    },
+    "build_clients": {
+      "java": "17",
+      "gradle": "8.13",
+      "android_gradle_plugin": "8.13.2",
+      "android_cmake": "3.31.6",
+      "conan": "2.25.2"
+    },
+    "builder_image_bound_tools": [
+      "gcc", "g++", "binutils", "python3", "perl", "git", "make",
+      "patch", "tar", "xz"
+    ],
+    "required_environment": ["ANDROID_SDK_ROOT", "ANDROID_NDK_HOME", "JAVA_HOME", "CONAN_HOME"],
+    "allowed_path_entries": [
+      "$JAVA_HOME/bin",
+      "$ANDROID_SDK_ROOT/build-tools/36.0.0",
+      "$ANDROID_SDK_ROOT/platform-tools",
+      "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin",
+      "/usr/bin",
+      "/bin"
+    ],
+    "forbidden_implicit_inputs": [
+      "conan-default-profile", "conan-remote", "conan-cache-restore",
+      "profile-detect", "package-manager", "sudo", "undeclared-path-tool",
+      "product-selector"
+    ]
+  }
+}
