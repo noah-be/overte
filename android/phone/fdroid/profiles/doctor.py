@@ -127,6 +127,11 @@ def validate_map(root: Path) -> tuple[dict[str, Any], list[dict[str, str]]]:
             raise ContractError(f"input digest mismatch: {relative}")
         if target.suffix in {"", ".cmake", ".py"}:
             text = target.read_text(encoding="utf-8")
+            for explicit_non_mutating_setting in (
+                "tools.system.package_manager:mode=report",
+                "tools.system.package_manager:sudo=False",
+            ):
+                text = text.replace(explicit_non_mutating_setting, "")
             match = FORBIDDEN_TEXT.search(text)
             if match:
                 raise ContractError(f"forbidden implicit input in {relative}: {match.group(0)}")

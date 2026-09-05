@@ -9,3 +9,5 @@ build_type=Release
 
 [conf]
 tools.build:jobs=4
+tools.system.package_manager:mode=report
+tools.system.package_manager:sudo=False

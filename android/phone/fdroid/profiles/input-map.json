@@ -4,8 +4,8 @@
     {"role": "base-toolchain", "path": "android/phone/fdroid/manifests/base-toolchain.lock.json", "sha256": "074ea62862cd07e8b7b354437ad7ede9f892b4bfd52d13c88b65f68fd6e6dc2b"},
     {"role": "cmake-toolchain", "path": "android/common/cmake/overte-android-toolchain.cmake", "sha256": "14f30644a18223aec071f5f43069c7af46294a9d2007d3accfb35a04771fbe2e"},
     {"role": "bootstrap-graph", "path": "android/phone/fdroid/conan/bootstrap.conanfile.py", "sha256": "20fef41ccc7451561045ddf970c61f40c07f941158954268aebd05d533da9c91"},
-    {"role": "bootstrap-profile", "path": "android/phone/fdroid/profiles/linux-x86_64-bootstrap", "sha256": "f68314ac8936299f2c09988553010b7bb2b4e724c29689c9c223d226ade8f31a"},
-    {"role": "hosttools-profile", "path": "android/phone/fdroid/profiles/linux-x86_64-hosttools", "sha256": "f68314ac8936299f2c09988553010b7bb2b4e724c29689c9c223d226ade8f31a"},
-    {"role": "target-profile", "path": "android/phone/fdroid/profiles/android-arm64-v8a-api26-16k", "sha256": "11d9bc7d719ed73a9e6e3b6d7dda34340b2964a3bce76357da84c0698a3b3a99"}
+    {"role": "bootstrap-profile", "path": "android/phone/fdroid/profiles/linux-x86_64-bootstrap", "sha256": "6358198bba3502b32e7d0c7a945c716aeb7c0b2dd4d5e60fb315a0aa1d392929"},
+    {"role": "hosttools-profile", "path": "android/phone/fdroid/profiles/linux-x86_64-hosttools", "sha256": "96f79bb171ca8700188fc43eb2d352298897427c7320a9dab3829c359c23eff0"},
+    {"role": "target-profile", "path": "android/phone/fdroid/profiles/android-arm64-v8a-api26-16k", "sha256": "f4a425b829f359b9521023e83794dfb10e3e038bcc9ec035296ebc2ca74eab1d"}
   ]
 }

@@ -68,7 +68,7 @@ class PicoOverte(_module.Overte):
         self.requires("jsoncpp/1.9.6", force=True)
         self.requires(
             "qt/5.15.18-2026.01.04@overte/stable"
-            "#4fc772a2dbcd84731eb6ff9904e6e358",
+            "#c615fd9bf2e6410b92a3e6b84fa73980",
             force=True,
         )
         self.requires("openssl/3.5.8@overte/stable", force=True)
