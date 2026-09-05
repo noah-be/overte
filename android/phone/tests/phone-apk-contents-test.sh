@@ -73,8 +73,8 @@ required = {
     'lib/arm64-v8a/libQt5Qml_arm64-v8a.so': b'qml-runtime',
     'lib/arm64-v8a/libQt5Quick_arm64-v8a.so': b'quick',
     'lib/arm64-v8a/libQt5PositioningQuick_arm64-v8a.so': b'positioning',
-    'lib/arm64-v8a/libcrypto_1_1.so': b'crypto',
-    'lib/arm64-v8a/libssl_1_1.so': b'ssl',
+    'lib/arm64-v8a/libcrypto_3.so': b'crypto',
+    'lib/arm64-v8a/libssl_3.so': b'ssl',
 }
 declared_libraries = {
     'lib/arm64-v8a/' + item.text.split(':', 1)[0]
