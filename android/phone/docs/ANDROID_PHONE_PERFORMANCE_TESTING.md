@@ -11,7 +11,7 @@ Install a debuggable Phone APK, connect one phone with ADB, and choose an online
 world that is stable enough for comparisons:
 
 ```bash
-cd android
+cd android/phone
 ANDROID_SERIAL=<serial> PHONE_PERF_CONFIRM_NON_VR=YES \
   ./tests/phone-world-loading-test.sh \
   --target overte://<domain-or-place>/<x>,<y>,<z> \

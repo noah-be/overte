@@ -17,7 +17,7 @@ The setup consists of:
   `PHONE_EMULATOR_BUILD=1`; normal Phone debug and release builds remain
   ARM64-only;
 - x86_64 Qt loader resources under
-  `phone/apps/phoneInterface/src/emulator/res/values/`;
+  `apps/phoneInterface/src/emulator/res/values/` relative to `android/phone/`;
 - `phone-emulator-test.sh`, which checks the host, builds, starts an existing
   x86_64 AVD headlessly with KVM, disables animations, runs instrumentation,
   and stops the AVD on request;
@@ -85,7 +85,7 @@ combination.
 
 ## Commands
 
-Run from `android/`:
+Run from `android/phone/`:
 
 ```bash
 ./phone-emulator-test.sh doctor
@@ -143,7 +143,8 @@ This includes
 Phone deep-link tests, and the Permissions activity intent tests. The latter
 use a negative `hasExtra` matcher that also handles intents whose extras bundle
 is absent. The generated test report is located below
-`phone/apps/phoneInterface/build/reports/androidTests/connected/emulator/`.
+`apps/phoneInterface/build/reports/androidTests/connected/emulator/` relative
+to `android/phone/`.
 
 The emulator configuration test, Phone release configuration test, shell
 syntax checks, and Git whitespace checks also passed. Some older regression

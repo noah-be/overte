@@ -3,8 +3,8 @@
 Start with:
 
 ```bash
-cd android
-./build-phone.sh doctor
+cd android/phone
+./build.sh doctor
 ```
 
 ## Dependencies are missing or stale
@@ -25,6 +25,7 @@ Enable USB debugging, unlock the device, accept the RSA prompt, and inspect
 
 ## The APK does not start
 
-Run `ANDROID_SERIAL=<serial> ./tests/phone-device-test.sh`. Do not capture or
+From `android/phone/`, run
+`ANDROID_SERIAL=<serial> ./tests/phone-device-test.sh`. Do not capture or
 commit global Logcat output; it can contain unrelated application, account, and
 user data.

@@ -52,7 +52,8 @@ is never installed. Do not approve it merely because the RC build succeeded.
 The release runner must be isolated and preferably ephemeral, with labels
 `self-hosted, linux, x64, overte-android-phone-release`. Provision JDK 17–21,
 Node.js 18 or newer, Android SDK/NDK and Build Tools 36.0.0, CMake 3.31.6,
-Ninja, Conan and the tools required by `build-phone.sh doctor`. Node.js is an
+Ninja, Conan and the tools required by `build.sh doctor` from `android/phone/`.
+Node.js is an
 explicit runner prerequisite because the mandatory device-free JavaScript host
 tests run before dependency restoration. The cached Qt host tools currently
 require glibc 2.38 or newer; run the worker in an immutable, digest-pinned Ubuntu

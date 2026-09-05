@@ -16,8 +16,9 @@ failure.
 
 - [ ] At a named source revision, the documented Linux path builds the ARM64
   APK, installs it on one named phone, and launches it successfully.
-- [ ] One representative world loads and renders usefully in the supported
-  landscape layout, including the named device's cutout and safe areas.
+- [ ] One representative world loads and renders usefully in the primary
+  landscape layout, including the named device's cutout and safe areas; the
+  tolerated portrait path does not crash or expose unreachable core controls.
 - [ ] Touch movement, camera control, selection, and one representative object
   interaction work for the core journey.
 - [ ] Tablet controls, text entry, and the Android system keyboard remain usable
@@ -47,7 +48,8 @@ Android phone and run the physical-device baseline from an exact
 
 - Adreno-plus-Mali coverage or a broad device matrix, which belongs to
   `PHONE-V1`;
-- portrait support, 32-bit devices, store publication, and release support;
+- production qualification of portrait/reverse-orientation layouts, 32-bit
+  devices, store publication, and release support;
 - iPad, macOS, Quest, or optional feature-parity work during `PHONE-P1`; and
 - treating emulator success as physical-device acceptance.
 
@@ -56,5 +58,6 @@ Android phone and run the physical-device baseline from an exact
 - [Development status](DEVELOPMENT_STATUS.md)
 - [Testing](TESTING.md)
 - [Build and deployment](BUILD.md)
+- [Orientation contract](ORIENTATION.md)
 - [Security and privacy](SECURITY_AND_PRIVACY.md)
 - [Retained historical notes](archive/README.md)

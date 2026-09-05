@@ -3,7 +3,7 @@
 ## Device-free host tests
 
 ```bash
-cd android
+cd android/phone
 ./tests/phone-static-regression-test.sh
 ```
 
@@ -13,7 +13,7 @@ It does not prove an APK build or physical runtime behavior.
 ## Emulator
 
 ```bash
-cd android
+cd android/phone
 ./phone-emulator-test.sh all
 ```
 
@@ -24,7 +24,7 @@ instrumentation. See
 ## Physical phone
 
 ```bash
-cd android
+cd android/phone
 ANDROID_SERIAL=<serial> ./tests/phone-device-test.sh
 ```
 
