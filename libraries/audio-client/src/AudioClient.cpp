@@ -93,16 +93,9 @@ static bool picoMicTraceEnabled() {
 }
 
 static int picoMicCaptureSeconds() {
-    static const int seconds = [] {
-        char value[PROP_VALUE_MAX] {};
-        if (__system_property_get("debug.overte.audio_capture_seconds", value) <= 0) {
-            return 0;
-        }
-        bool ok { false };
-        const int requested = QString::fromLatin1(value).toInt(&ok);
-        return ok ? std::max(0, std::min(requested, 60)) : 0;
-    }();
-    return seconds;
+    // A debug property is not informed consent to persist microphone content.
+    // Keep raw WAV capture disabled until a separately approved recording UI.
+    return 0;
 }
 
 static QString picoMicRequestedInput() {
@@ -120,6 +113,9 @@ static QString picoMicCapturePath() {
 }
 
 #if defined(ANDROID_APP_PICO_INTERFACE)
+#include "PicoCapturePolicy.h"
+static overte::audio::PicoCapturePolicy picoCapturePolicy;
+static std::atomic<bool> picoAudioRefreshScheduled { false };
 static std::atomic<jclass> androidAudioInputClass { nullptr };
 static std::atomic<JavaVM*> androidJavaVm { nullptr };
 
@@ -173,8 +169,9 @@ static bool androidAudioCallbackSizeValid(int bytes) {
     return valid;
 }
 
-static bool enqueueAndroidAudio(const QByteArray& audio) {
+static bool enqueueAndroidAudio(const QByteArray& audio, std::uint64_t policyTicket) {
     std::lock_guard<std::mutex> guard(androidAudioTransportMutex);
+    if (!picoCapturePolicy.accepts(policyTicket)) { return false; }
     androidAudioCapturedBytes += audio.size();
     if (audio.isEmpty() || androidAudioMaxBufferBytes <= 0 ||
             audio.size() % androidAudioBytesPerFrame != 0) {
@@ -321,6 +318,7 @@ static QString picoAndroidAudioSource() {
 
 static bool startAndroidAudioInput(
         const QAudioFormat& format, int framesPerBuffer, const QString& audioSource) {
+    if (!picoCapturePolicy.allows()) { return false; }
     const jclass inputClass = androidAudioInputClass.load(std::memory_order_acquire);
     if (!inputClass) {
         return false;
@@ -333,7 +331,6 @@ static bool startAndroidAudioInput(
         inputClass, "start", "(Ljava/lang/String;III)Z");
     if (!startMethod) {
         if (environment->ExceptionCheck()) {
-            environment->ExceptionDescribe();
             environment->ExceptionClear();
         }
         return false;
@@ -357,7 +354,6 @@ static bool startAndroidAudioInput(
         environment->DeleteLocalRef(sourceString);
     }
     if (environment->ExceptionCheck()) {
-        environment->ExceptionDescribe();
         environment->ExceptionClear();
         return false;
     }
@@ -386,7 +382,6 @@ static void prioritizeAndroidAudioThread() {
     }
     const jint priority = environment->CallStaticIntMethod(inputClass, priorityMethod);
     if (environment->ExceptionCheck()) {
-        environment->ExceptionDescribe();
         environment->ExceptionClear();
         return;
     }
@@ -407,8 +402,33 @@ static void stopAndroidAudioInput() {
         environment->CallStaticVoidMethod(inputClass, stopMethod);
     }
     if (environment->ExceptionCheck()) {
-        environment->ExceptionDescribe();
         environment->ExceptionClear();
+    }
+}
+
+static void setAndroidAudioMuted(bool muted) {
+    const jclass inputClass = androidAudioInputClass.load(std::memory_order_acquire);
+    AndroidJniEnvironment environment;
+    if (!inputClass || !environment) { picoCapturePolicy.change(false); return; }
+    const jmethodID method = environment->GetStaticMethodID(inputClass, "setMuted", "(Z)V");
+    if (method) { environment->CallStaticVoidMethod(inputClass, method, muted ? JNI_TRUE : JNI_FALSE); }
+    if (!method || environment->ExceptionCheck()) {
+        if (environment->ExceptionCheck()) { environment->ExceptionClear(); }
+        picoCapturePolicy.change(false);
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_overte_pico_AndroidAudioInput_nativePolicyChanged(JNIEnv*, jclass, jboolean allowed) {
+    if (!picoCapturePolicy.change(allowed == JNI_TRUE)) { return; }
+    // Invalidate queued PCM synchronously, before the queued Qt device action.
+    finishAndroidAudioDrain(true);
+    auto client = DependencyManager::get<AudioClient>();
+    bool expected = false;
+    if (client && picoAudioRefreshScheduled.compare_exchange_strong(expected, true)) {
+        if (!QMetaObject::invokeMethod(client.data(), "refreshAndroidAudioInput", Qt::QueuedConnection)) {
+            picoAudioRefreshScheduled.store(false);
+        }
     }
 }
 
@@ -434,6 +454,8 @@ Java_org_overte_pico_AndroidAudioInput_nativeInitialize(
 extern "C" JNIEXPORT void JNICALL
 Java_org_overte_pico_AndroidAudioInput_nativeOnAudioData(
         JNIEnv* environment, jclass, jbyteArray data, jint bytesRead) {
+    const auto policyTicket = picoCapturePolicy.ticket();
+    if (!picoCapturePolicy.accepts(policyTicket)) { return; }
     if (!data || bytesRead <= 0 || bytesRead > environment->GetArrayLength(data) ||
             !androidAudioCallbackSizeValid(bytesRead)) {
         return;
@@ -448,7 +470,7 @@ Java_org_overte_pico_AndroidAudioInput_nativeOnAudioData(
     }
 
     auto audioClient = DependencyManager::get<AudioClient>();
-    if (enqueueAndroidAudio(audio)) {
+    if (enqueueAndroidAudio(audio, policyTicket)) {
         const bool scheduled = audioClient && QMetaObject::invokeMethod(
             audioClient.data(),
             "drainAndroidAudioInput",
@@ -1952,12 +1974,29 @@ void AudioClient::handleMicAudioInput() {
 }
 
 #if defined(ANDROID_APP_PICO_INTERFACE)
+void AudioClient::refreshAndroidAudioInput() {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, "refreshAndroidAudioInput", Qt::QueuedConnection);
+        return;
+    }
+    picoAudioRefreshScheduled.store(false);
+    switchInputToAudioDevice(HifiAudioDeviceInfo(), true);
+    finishAndroidAudioDrain(true);
+    _inputRingBuffer.clear();
+    _loopbackPendingAudio.clear();
+    _lastRawInputLoudness = 0.0f;
+    if (_audioLifecycleRunning && !_isMuted && picoCapturePolicy.allows()) {
+        switchInputToAudioDevice(defaultAudioDeviceForMode(QAudio::AudioInput, QString()));
+    }
+}
+
 void AudioClient::drainAndroidAudioInput() {
+    const auto policyTicket = picoCapturePolicy.ticket();
     // AudioClient's existing input ring holds ten network frames. Drain at
     // most that much per event so a batched write cannot discard older PCM.
     const int maxDrainBytes = std::max(_numInputCallbackBytes, _numInputCallbackBytes * 5);
     QByteArray inputByteArray = takePendingAndroidAudio(maxDrainBytes);
-    if (!_androidAudioInputActive || _isPlayingBackRecording || inputByteArray.isEmpty()) {
+    if (!_androidAudioInputActive || _isMuted || !picoCapturePolicy.accepts(policyTicket) || _isPlayingBackRecording || inputByteArray.isEmpty()) {
         finishAndroidAudioDrain(true);
         return;
     }
@@ -1970,7 +2009,7 @@ void AudioClient::drainAndroidAudioInput() {
             samples[i] = static_cast<int16_t>(samples[i] * _androidAudioInputVolume);
         }
     }
-    processMicAudioInput(inputByteArray);
+    processMicAudioInput(inputByteArray, policyTicket);
     markAndroidAudioProcessed(inputByteArray.size());
 
     if (picoMicTraceEnabled()) {
@@ -1993,7 +2032,17 @@ void AudioClient::drainAndroidAudioInput() {
 }
 #endif
 
-void AudioClient::processMicAudioInput(QByteArray& inputByteArray) {
+void AudioClient::processMicAudioInput(QByteArray& inputByteArray, quint64 policyTicket) {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    if (_isMuted || !picoCapturePolicy.accepts(policyTicket)) { _inputRingBuffer.clear(); return; }
+    if (_picoInputPolicyTicket != policyTicket) {
+        _inputRingBuffer.clear();
+        _loopbackPendingAudio.clear();
+        _picoInputPolicyTicket = policyTicket;
+    }
+#else
+    Q_UNUSED(policyTicket);
+#endif
     // input samples required to produce exactly NETWORK_FRAME_SAMPLES of output
     const int inputSamplesRequired = (_inputToNetworkResampler ?
                                       _inputToNetworkResampler->getMinInput(AudioConstants::NETWORK_FRAME_SAMPLES_PER_CHANNEL) :
@@ -2049,6 +2098,9 @@ void AudioClient::processMicAudioInput(QByteArray& inputByteArray) {
     static int16_t networkAudioSamples[AudioConstants::NETWORK_FRAME_SAMPLES_STEREO];
 
     while (_inputRingBuffer.samplesAvailable() >= inputSamplesRequired) {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+        if (_isMuted || !picoCapturePolicy.accepts(policyTicket)) { _inputRingBuffer.clear(); return; }
+#endif
 
         _inputRingBuffer.readSamples(inputAudioSamples.get(), inputSamplesRequired);
 
@@ -2375,8 +2427,19 @@ void AudioClient::sendMuteEnvironmentPacket() {
 }
 
 void AudioClient::setMuted(bool muted, bool emitSignal) {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, [this, muted, emitSignal] { setMuted(muted, emitSignal); }, Qt::QueuedConnection);
+        return;
+    }
+#endif
     if (_isMuted != muted) {
         _isMuted = muted;
+#if defined(ANDROID_APP_PICO_INTERFACE)
+        if (muted) { picoCapturePolicy.change(false); }
+        setAndroidAudioMuted(muted);
+        refreshAndroidAudioInput();
+#endif
         if (emitSignal) {
             emit muteToggled(_isMuted);
         }
@@ -2603,7 +2666,7 @@ bool AudioClient::switchInputToAudioDevice(const HifiAudioDeviceInfo inputDevice
 #if defined(ANDROID_APP_PICO_INTERFACE)
                 resetAndroidAudioTransport(_inputFormat);
                 const QString androidAudioSource = picoAndroidAudioSource();
-                _androidAudioInputActive = startAndroidAudioInput(
+                _androidAudioInputActive = !_isMuted && startAndroidAudioInput(
                     _inputFormat, numFrameSamples, androidAudioSource);
                 if (_androidAudioInputActive) {
                     emit inputVolumeChanged(_androidAudioInputVolume);
