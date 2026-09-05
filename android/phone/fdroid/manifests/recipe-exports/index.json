@@ -1,0 +1,534 @@
+{
+  "recipes": {
+    "abseil/20250127.0": {
+      "cache_folder": "abseib50d55d9182ee",
+      "files": {
+        "export/conandata.yml": "9ecc0a9d5cd139fc7bf0a5d37f1d85e1d0288c61b3aab51de419c3e51278d8b2",
+        "export/conanfile.py": "7bcdc2190b203d140e16c6355bc09f3d4e50ff89eea22589f41a5ddef7d751e4",
+        "export/conanmanifest.txt": "8a1c3fd3cc668b28d29d713b7f0c55a0467881db1ec4e604e5a85b2cf1f4f493"
+      },
+      "rrev": "e0dcc4b8a367edb49b062cb07ed8e9e6",
+      "timestamp": 1773137903.431
+    },
+    "artery-font-format/1.0.1": {
+      "cache_folder": "artercb12dee26048c",
+      "files": {
+        "export/conandata.yml": "fd03af8eb4e026153b2e140d740bb0a271672516a5c6ae3274a623cf8822df53",
+        "export/conanfile.py": "ec8ea86b470715f311b4401e27d77f679feae0d8187afb973991d58581e66b6e",
+        "export/conanmanifest.txt": "fa8cea58c66d75cb9f87fbbe069c72d01cbb135afc6509aef38fb98d0ed22694"
+      },
+      "rrev": "23844a04de4e68fb711bf9585059886f",
+      "timestamp": 1719797778.809
+    },
+    "brotli/1.1.0": {
+      "cache_folder": "brotl94fc700f37be1",
+      "files": {
+        "export/conandata.yml": "4a9b203c8bb15c629908612f4d143e2403fb412e105791070686d927724a351c",
+        "export/conanfile.py": "af5181d506a925cd76af4996e081a042d310ee1dfff084e6f128f6aa6de67535",
+        "export/conanmanifest.txt": "aae27dffcc6f35aa86503e8c551cae35b672c3996167274be87f5574197ec44a",
+        "export_sources/patches/1.1.0-target-props.patch": "ba2bf9416de281cc5bee2faef260600f3396f7ac78f7f706d4a8a9b063049a6c"
+      },
+      "rrev": "3f631ef77008f7b5eb388780116371a3",
+      "timestamp": 1764862343.045
+    },
+    "bullet3/3.25": {
+      "cache_folder": "bulle6bb4e50e778b7",
+      "files": {
+        "export/conandata.yml": "507c1f859ca5bd169ed3b7b76d8862f406766ed39fcdb2eb8e0abd35655ccec7",
+        "export/conanfile.py": "c9b99046ec74bd73948f0cfff173ac43af0ede1408989f6dcf9a5b78c20f45c1",
+        "export/conanmanifest.txt": "ce840d1a1c1bb672b0098661fa2066fe82c40989b8f50cceb9bd9384ec6ebe99"
+      },
+      "rrev": "61b0be0c0f12810ee4f43437bd1785ad",
+      "timestamp": 1775496596.665
+    },
+    "bzip2/1.0.8": {
+      "cache_folder": "bzip27c53f29661835",
+      "files": {
+        "export/conandata.yml": "c121e111903a10a3b1da28d52711e24501812eab7b364aa53f9ce666c6fc6048",
+        "export/conanfile.py": "0506b289011780df1b5375e13d203ca3a29ea77a7b28813719c774d4fa5dde39",
+        "export/conanmanifest.txt": "b6738d46394e68f19e80f8c6d1ee01cc78983bb1634aa474a40c54da313f5af3",
+        "export_sources/CMakeLists.txt": "2867e44fe5fb30fa90dc9facff500749dc70b109cf2eb5b5546e6b5daea45d74"
+      },
+      "rrev": "c470882369c2d95c5c77e970c0c7e321",
+      "timestamp": 1762886692.465
+    },
+    "cgltf/1.14@overte/stable": {
+      "cache_folder": "cgltfd4e8fa2fa53c1",
+      "files": {
+        "export/conandata.yml": "93231deebc3baf7bfcab84fca6ad9f72eb5e2a510e5728f075f7038c2ec8f84a",
+        "export/conanfile.py": "bb01efdd8823480a0387b799a89b13632c5f400b81f8576b6f5121ebf74bca4d",
+        "export/conanmanifest.txt": "6e4c960cb016e4520213100b3f88d895cbb307f569062ec09d8808427a2af9e0"
+      },
+      "rrev": "2894bc7b159024d19d59df7b28103ec1",
+      "timestamp": 1734909924.733
+    },
+    "cmake/3.31.12": {
+      "cache_folder": "cmake944eb6d3dae9d",
+      "files": {
+        "export/conandata.yml": "b2165ca064910fc7ce85843c42fbafd5a4e5b6a8918c2c1c73481ec95043f842",
+        "export/conanfile.py": "89085688ea2526ddf795da8fc06b6ae03f94df4512693cca9ebb6b6702a53b5e",
+        "export/conanmanifest.txt": "c831b86cf3c9cc42807e6a3bf9e1e5eb42067c2eaddc0424320e05a2082316ec"
+      },
+      "rrev": "055c11ab0a919e8c6034a902b4025ce1",
+      "timestamp": 1788598983.462195
+    },
+    "cmake/4.4.0": {
+      "cache_folder": "cmakeaea4fecaa0213",
+      "files": {
+        "export/conandata.yml": "b2165ca064910fc7ce85843c42fbafd5a4e5b6a8918c2c1c73481ec95043f842",
+        "export/conanfile.py": "89085688ea2526ddf795da8fc06b6ae03f94df4512693cca9ebb6b6702a53b5e",
+        "export/conanmanifest.txt": "c831b86cf3c9cc42807e6a3bf9e1e5eb42067c2eaddc0424320e05a2082316ec"
+      },
+      "rrev": "055c11ab0a919e8c6034a902b4025ce1",
+      "timestamp": 1788598983.679494
+    },
+    "double-conversion/3.3.0": {
+      "cache_folder": "doubl53094e3a6ae70",
+      "files": {
+        "export/conandata.yml": "6a7d1c7436583fa84853dafb476a642802bf5807751cee2effe00a2926dbc0d0",
+        "export/conanfile.py": "c2aadaf06a64dbe556d5ead3cdc8e8bb38e5f7fdeaab4c8f49aebb6934207d97",
+        "export/conanmanifest.txt": "cec25344b1c0ba7f5761123e34fffa37f1f24e825bb6a19462c9de3c8390426b"
+      },
+      "rrev": "6ad026cf92c316c476919f7f152072d7",
+      "timestamp": 1744043471.91
+    },
+    "draco/1.3.5": {
+      "cache_folder": "dracob2d5664e04fbe",
+      "files": {
+        "export/conandata.yml": "2a2c2930c0e34656ccb1f7e6d07a487674b2a1796263fed300042b413f0e6d6f",
+        "export/conanfile.py": "7b24dd9b97f2e3c0d30e02e577db6b0c778e78666c4629fa09c9e8732e2670d6",
+        "export/conanmanifest.txt": "37fd0c4ce2d5c757bb1e9aa7b2b0d60e68ed391a56a9db802d452622986eab15",
+        "export_sources/patches/0001-fix-cmake-1.3.5.patch": "1705c34309fd893fd6b61d1d4bb09a2440eca260092cf72386614278204c2b36",
+        "export_sources/patches/0002-v1.3.5-gcc-11.patch": "315583c9ac13da36a40b5d33ed15c1f5060967139a64f8757bcdd48f52bda0a4"
+      },
+      "rrev": "0f9bb06e7f72693bf3832b49307329c6",
+      "timestamp": 1676401864.952
+    },
+    "etc2comp/cci.20170424": {
+      "cache_folder": "etc2c643e2bb14ab8c",
+      "files": {
+        "export/conandata.yml": "7c05007042c1fdff1150782823c9c48b1e02cca65823aaef6a3016f312e1b33f",
+        "export/conanfile.py": "8b5d5c3710977077b3dcd6623928071eb45dc5ca47c299aeca3be2c76b58fa11",
+        "export/conanmanifest.txt": "325c8d2447093d9acae389e016d06f29184135c15f593665ab0314e1b629940f",
+        "export_sources/patches/fix-cmake.patch": "68d2ee43abde8b97b669cf8da84b05344260908ba6e9fe80b329feebcba973e2"
+      },
+      "rrev": "8e756ea70fd978770514033a07b43a0a",
+      "timestamp": 1779811493.254
+    },
+    "freetype/2.13.3": {
+      "cache_folder": "freet9cca1632d1929",
+      "files": {
+        "export/conandata.yml": "6bce7628d0cca4a6b634ac98fa9c86fbdbb2ba041b51d59d8ba130847240ed14",
+        "export/conanfile.py": "24976788d405e56f6f30dc4f400a9fd3ac5d0511ee8f2ef7d9317136b343315e",
+        "export/conanmanifest.txt": "446043ffea6f177a8a460f85ed412652aaeb650d34118404bbde10986c940444",
+        "export_sources/patches/2.13.3-0002-meson-Fix-static-windows.patch": "bdd9a52dccff80cba0b2c903314b3b57d0636e5d1d0bd6bb328f016adb842cdf"
+      },
+      "rrev": "75ca69fb4dc1a016c91b7f422ae58adc",
+      "timestamp": 1756828313.132
+    },
+    "gifcreator/2016.11@overte/stable": {
+      "cache_folder": "gifcr887d414d25a4c",
+      "files": {
+        "export/conandata.yml": "494f4c3a58f346400ba1d9395e1932db5d93f3aec6cac700faa167ec8faa27ce",
+        "export/conanfile.py": "7cdf4805eab1897b3332b736e2ef961493d4683a765f5a8940348c81e2140a7c",
+        "export/conanmanifest.txt": "4e35465c03aced0d5291c9f3ad0fb3a0ed0f2c40d92b6fc452baa9987093e43d",
+        "export_sources/patches/0001-header-inline-and-wide-shift.patch": "ca54226a7bec1271ae4fa81d6d1f0a337c6512ed4edf8c067bffbdf7a861a885"
+      },
+      "rrev": "024aa96f06f47fe2c22e6f9a0db4ab0d",
+      "timestamp": 1788600137.4809818
+    },
+    "glad/0.1.36@overte/experimental": {
+      "cache_folder": "glad69740ea2ff402",
+      "files": {
+        "export/conandata.yml": "c2ecdee4e7e1948a8baf41863958fe379113092e016efda0803390529b3b90e2",
+        "export/conanfile.py": "b250a5ce2c01026c974a5d5bd13f40f49b057dcccdcd5a812bb81f0e14544ea1",
+        "export/conanmanifest.txt": "1eaa5914cc55c4cda6a47de48401eb95c03f8d22cd5d5f7875ae47d69f691081",
+        "export_sources/patches/0003-CMake-handle-all-specs.patch": "8eced4659306ae0afb6bcd0a4a49656a6935b5a669a35829b41da7147c14e9c6"
+      },
+      "rrev": "9612a3032fecdd1d8781dfb1b2bd6dc6",
+      "timestamp": 1781788610.579
+    },
+    "gli/cci.20210515": {
+      "cache_folder": "glid28f96070f246",
+      "files": {
+        "export/conandata.yml": "4bdc5fbde4f760b4440df42351bdb8b2467da41868e31dbc57d8809348a5bc21",
+        "export/conanfile.py": "d3f8274d92feddf7dfbd289b431ad174c4641e215198806bd958c40ae02f7122",
+        "export/conanmanifest.txt": "d22d9cdd4188e844352e73c5a7d6748be1b14f0e829cca79b224f6821ec6ea34"
+      },
+      "rrev": "f7109e63244407c1c4b015bc5addb366",
+      "timestamp": 1782474720.763
+    },
+    "glm/0.9.9.5": {
+      "cache_folder": "glmb55741c6f88c8",
+      "files": {
+        "export/conandata.yml": "f41c8c1a0343e5896197c35e543934fd86b73c8fe7be3350b34a658bd0560184",
+        "export/conanfile.py": "e30850ff65b2176e643ae13c9693fd1d4344aabf5cbcc836dbaa8b82ef17a171",
+        "export/conanmanifest.txt": "7fde2b6ed53c7ff16b7727d5e2f909baf06e17fd870bb0c7aa300b2ac6951a17"
+      },
+      "rrev": "76af69559013450c9016c773fc3fc408",
+      "timestamp": 1700512111.317
+    },
+    "glslang/1.4.350.0": {
+      "cache_folder": "glsla1bbb5e0d2adff",
+      "files": {
+        "export/conandata.yml": "6c8e14b893eaf7c171bb9b8393a83c13cfc49dea405c61482f610b0841aca391",
+        "export/conanfile.py": "3696eeba66bbcd193af04f289cad6892cd5a9f09306bb5814ac120b5cda38322",
+        "export/conanmanifest.txt": "8af04d17bbbdcdd1299b828f977e4335e2dedd0b373c8bb5ced8bab24aea3d23",
+        "export_sources/CMakeLists.txt": "c9bb25708f66cec6c2ba0c05959eabc93b8bb2db3f6f560141097f80bf158776"
+      },
+      "rrev": "c4d9cb1ccdcdb314655e9648fe6cf5d0",
+      "timestamp": 1778774694.76
+    },
+    "hwloc/2.12.2": {
+      "cache_folder": "hwloc3cbe4a38d275a",
+      "files": {
+        "export/conandata.yml": "80e92973a79f9a8ee3d0ab93a0e2da6fb509f13b698c9d07cd95ad1ed45fd4e6",
+        "export/conanfile.py": "8e09f4b1dbf07a5418ac93bc19bd97879e6ca2df74de498ee5afc0d4260a5208",
+        "export/conanmanifest.txt": "b237e58f476e4e40c35abababca974152342737323a7d64e5aca58f22cb630f0"
+      },
+      "rrev": "81314118300a8ee69b352f2d1b21d9d7",
+      "timestamp": 1787391717.667042
+    },
+    "imath/3.1.9": {
+      "cache_folder": "imathe32cfb8c0b1e6",
+      "files": {
+        "export/conandata.yml": "8bd96beecfca25172298458921fb7514d37f0440de7e4d77202ee52289d29022",
+        "export/conanfile.py": "6ba2b5c2068780c97c9e10fd45a9732a0d19f3480ac5263b69c27b0133cd1c18",
+        "export/conanmanifest.txt": "9ba6b55e959df362ff2267b94abe8fff01cbeb51dedd52c57924725a57290a6b"
+      },
+      "rrev": "20f703aa156f46ddc326e668ed22ffb6",
+      "timestamp": 1775543418.628
+    },
+    "jsoncpp/1.9.6": {
+      "cache_folder": "jsoncfce47b1c69057",
+      "files": {
+        "export/conandata.yml": "21c33999b75080713747af7f80be98f4df49affca5534600d95d8609eb4dcd5e",
+        "export/conanfile.py": "b9c5d758436a64991e59bc96207b070a65d1aaaa38710e294db3c14ea4e87f10",
+        "export/conanmanifest.txt": "9a110259117aa933469d3eaa40e8113e6f312e893a67b2938fc77c99de1aa5f4"
+      },
+      "rrev": "c3730c7936aefa462eb6c6560a5e1fd8",
+      "timestamp": 1726135496.917
+    },
+    "libjpeg/9f": {
+      "cache_folder": "libjp3aee07793791a",
+      "files": {
+        "export/conandata.yml": "959015b43573c71bf5a33f6e1da7fa21ed9e2827f05243aaccb57407b02264c7",
+        "export/conanfile.py": "356a78b3f62a7f68cb6de3d54330771fd93b8dc80abe4987e66011737b929e40",
+        "export/conanmanifest.txt": "0bb9aed6d50362ebf307a83254a39d3c157f72873d56d3d469c9fea707a5188f",
+        "export_sources/patches/0001-9f-libjpeg-add-msvc-dll-support.patch": "8b2c9debe3e113adb5628ef460ba28f29c7a70fa7b0c44ed74ac36d25054690c"
+      },
+      "rrev": "8b1b89da851ad9172565c35f14e23c4c",
+      "timestamp": 1780476337.068
+    },
+    "libnode/22.22.3@overte/stable": {
+      "cache_folder": "libnob475bafdf0ce2",
+      "files": {
+        "export/conandata.yml": "388a498501a3efdb3142363dd89220780beb66600f449c912a9a1965a7c2fadf",
+        "export/conanfile.py": "b51db7ad522d3e66d4e5682ad56410fad15465269b9a1e9b86643e734d71a960",
+        "export/conanmanifest.txt": "a42519f8242343fd9170241a8f9d4ae90738662b34fe2ecca976e2feccc38673"
+      },
+      "rrev": "3fd33b0199406fa08037c90d5dd1a635",
+      "timestamp": 1788598574.960734
+    },
+    "libpng/1.6.44": {
+      "cache_folder": "libpn96b6230f1a784",
+      "files": {
+        "export/conandata.yml": "4e94090f83b50883cc44b180f402a36631a1ceb7d03f834513fd16560e98c02f",
+        "export/conanfile.py": "6aa88fb681bbe5cdaf5720b3c6a66ac79933a6ab43bf0c7d3bc35cbda6416fa8",
+        "export/conanmanifest.txt": "af11906ef29db0eee0c3a7e528f4a36d7fe59629d3cadff64915de7dc2eb972d",
+        "export_sources/src/conan_cmake_project_include.cmake": "40eeee643497197b1f024f66f44b97394c1a5f1053aba5eff6ae4d584736343a"
+      },
+      "rrev": "9e1aa08fb46946c7c91e4ae03bd49811",
+      "timestamp": 1726517437.225
+    },
+    "md4c/0.5.2": {
+      "cache_folder": "md4c05e52f0325162",
+      "files": {
+        "export/conandata.yml": "499302cc9ccf50c432452417791d5c9c19ee3c87b84dc1e4e59768974952d314",
+        "export/conanfile.py": "5d9c7706f62e63085a08e95bdcaec83631e5bd17808711a960f4be63f7c6502c",
+        "export/conanmanifest.txt": "a692bd2e63e94c15387b41940bcf478ec99660f5b1574d394a41623a9adfaa74",
+        "export_sources/patches/0.5.2-0001-honor-vc-runtime.patch": "4f20c988b8646d3afe1aa424dc6baba38b9cf14f0df7c0d4e872601f45c8c05c"
+      },
+      "rrev": "3d7106721e458f9f799b87d4d50d02e0",
+      "timestamp": 1746796758.933
+    },
+    "meson/1.10.2": {
+      "cache_folder": "mesonda23a8960e507",
+      "files": {
+        "export/conandata.yml": "617000b71b0cf0298a084379e8df2ab486869ea1de718e03375c4693385b2379",
+        "export/conanfile.py": "990721acda3c568dec5314e6f91e5a37290db951b73529ea59ffdc37a5f0ccf6",
+        "export/conanmanifest.txt": "b3351a9db4da4c48253aead28eeef4634860d6087d2e31eb69d32c33e3bba9b9"
+      },
+      "rrev": "9d2d10681fe7fe61c788c58626c89b25",
+      "timestamp": 1775558003.754
+    },
+    "meson/1.6.0": {
+      "cache_folder": "mesona38054f510f57",
+      "files": {
+        "export/conandata.yml": "3b94b04dc136a24cb85f8dbf9f3483a9d828385144a8ecee03894468019ba6a1",
+        "export/conanfile.py": "990721acda3c568dec5314e6f91e5a37290db951b73529ea59ffdc37a5f0ccf6",
+        "export/conanmanifest.txt": "1bbefd55cbe69f5fd70c4df6924ae91d4db4c74ea3bdf62ae8384c9d2f996e73"
+      },
+      "rrev": "df190c5b0592572e6f5a1b05999e7e6d",
+      "timestamp": 1729471712.809
+    },
+    "nasm/2.15.05": {
+      "cache_folder": "nasm2107f4beb03e4",
+      "files": {
+        "export/conandata.yml": "dac1899d2f98e4e3356c1a48a43c18926fa9ddfcbb413ea0fac679a3feb7a0c0",
+        "export/conanfile.py": "db0163a994c6717c925d188debfa2cefbc5035c2ad573fc522ad1fb07b34804e",
+        "export/conanmanifest.txt": "c4c497176c001cd9ded9a9322240c6e4611daec48d456e8034391d43e32dd45c"
+      },
+      "rrev": "f7d6a6f3b14f583e001d9ae84e8cd152",
+      "timestamp": 1745483325.985
+    },
+    "ninja/1.13.2": {
+      "cache_folder": "ninjaa4e39ef845913",
+      "files": {
+        "export/conandata.yml": "63c092c58f13f786c6709d8c30741c994b4d50b2daecb2c32af186b59656b84e",
+        "export/conanfile.py": "6bcbf77a8b085edf27e37a0b69a0237ca682d6478835398a4f1410b66a994372",
+        "export/conanmanifest.txt": "e161ac5215562114800ecb5d61fedd5360bcee77500a279d39a5be7b9b1e6687"
+      },
+      "rrev": "c8c5dc2a52ed6e4e42a66d75b4717ceb",
+      "timestamp": 1764096931.974
+    },
+    "nlohmann_json/3.11.2": {
+      "cache_folder": "nlohm720064fe68557",
+      "files": {
+        "export/conandata.yml": "6ad19365c0767330efe163c00ed469668bb91b9ee56a1fa585e99cad0235c7a7",
+        "export/conanfile.py": "af09fa7eb90584564c5d8ddb7deee7d4bcc941135e0705a5229beb4e715072ca",
+        "export/conanmanifest.txt": "7e5e7c42d73a44da96247426252b6535091be1c0455c35c1d9adda36447906f0"
+      },
+      "rrev": "1ded6ae5d200a68ac17c51d528b945e2",
+      "timestamp": 1700513003.368
+    },
+    "nvidia-texture-tools/2023.01@overte/stable": {
+      "cache_folder": "nvidiab03bbe88a9a0",
+      "files": {
+        "export/conandata.yml": "6034350c8f47c0358b8e85b5dd76a31333c0789202ca9fdb452b188085088627",
+        "export/conanfile.py": "ba5b3e799505e32afef7548727a6591d876c5d0b4ab04382e8a9cfa706d6a96c",
+        "export/conanmanifest.txt": "19166a385963f58be57dd6da2a6c7ba66aa07f55a947484bf652795df0b6bc47"
+      },
+      "rrev": "0619db1dd752cc6e324ee810f22d25c4",
+      "timestamp": 1788266659.872723
+    },
+    "onetbb/2021.10.0": {
+      "cache_folder": "onetb41edd847c44a2",
+      "files": {
+        "export/conandata.yml": "eafec66885ae79ba1127b1f345ffda5f0688e115ce8094a2c6efccccb481814d",
+        "export/conanfile.py": "9fa8ad610906cf61d4725108664978da8a4c783369c673dc327a8ebbfd3b4695",
+        "export/conanmanifest.txt": "a0ccd500dd3bf798c030293e55e18f0c7a4e14fb78368aa30ad218fcb5193e8c"
+      },
+      "rrev": "ee3f2e5539ab683fdaba561d89c9ecee",
+      "timestamp": 1788266660.0963924
+    },
+    "openexr/3.1.9": {
+      "cache_folder": "openee487817fefaeb",
+      "files": {
+        "export/conandata.yml": "8276ead5c3e8687d793b4a6328682651dd7c097d433a3cfcffea388ef84956e6",
+        "export/conanfile.py": "19ab94c52d3701209ce433bd5d4b535dd9d2f3d566007ad6845a99d0e63aba62",
+        "export/conanmanifest.txt": "9e6381acf37794d200b521e88e1a3597feb84de51391a30e8255ec09bfad2e3f",
+        "export_sources/patches/3.1.4-gcc5-bug-workaround.patch": "65cdaed30c21f16cf3287eaf59493b08bd3a2fe315b4a456ce29449455b72600"
+      },
+      "rrev": "cb853b3a9baee5f924ee5929ed94d55b",
+      "timestamp": 1727884745.806
+    },
+    "opengl/system": {
+      "cache_folder": "opengd32fdf9133620",
+      "files": {
+        "export/conanfile.py": "0465444ca2d4e3d16b9613799bb2a84e4c2f7ef191b6e65284672f2ad61dabbf",
+        "export/conanmanifest.txt": "e561ab7b04f68c1448656e3b1d72ae5f6990d32906d676c87ad973867904b576"
+      },
+      "rrev": "cfcf523b9d2bad75cbf377f56562634c",
+      "timestamp": 1762526044.744
+    },
+    "openssl/3.5.8@overte/stable": {
+      "cache_folder": "opens70ffd61ae7f8c",
+      "files": {
+        "export/conandata.yml": "8fb30a2f8a338a50831774f9cd5f64a8b156a2d2f3252b22b0d27ed05298d620",
+        "export/conanfile.py": "b657dc7a45695d17d41406bb53ec1d755e4039f67065748a86ea1bb94d6c6cba",
+        "export/conanmanifest.txt": "3fd57121ab941cec87d2c1ec0d6b332663263dfaa1f61ff699fe24376ca80869"
+      },
+      "rrev": "33b2f0ee1a4417ab2c5429ae844d0ea5",
+      "timestamp": 1788598574.740708
+    },
+    "openxr/1.1.46@overte/stable": {
+      "cache_folder": "openxd6693a694f85e",
+      "files": {
+        "export/conandata.yml": "6ffad4fa96177bfe533e6d156a4fe53c7329ec5e4490c3fe45b0830a51ced3d8",
+        "export/conanfile.py": "653af45dc671401bcfc5d9c319d1c34cfc6b29a563aa52c863709271db8dfea3",
+        "export/conanmanifest.txt": "679a3df70ccc9eecd7e923424b289e3f0537ee882c2be00965e0ab47d0d8806c"
+      },
+      "rrev": "7ac70ec1fe70bb9c9cddeba10906b4dd",
+      "timestamp": 1743940069.53
+    },
+    "opus/1.5.2": {
+      "cache_folder": "opus3a5db111a8d77",
+      "files": {
+        "export/conandata.yml": "437e96ad9e84eb6b93528546f72f58c6f7b1ee6c13ef25b568fc47f9e320101b",
+        "export/conanfile.py": "6cd2193d9ad53c89bc4ea6ac92e6e254e0332cdc957b133381e6535f3ccfda4c",
+        "export/conanmanifest.txt": "5f7c9ed48ee934b182a9b3f18b4f4194fcf4a177eea16d1bed947b20cc74fce8",
+        "export_sources/patches/1.5.2-add-sse4.1-flag-when-using-clang-cl.patch": "2a3bccfce8d67cd186adcec4849f1c19e74927a6fa2ba5be4f4a746e7f7a58e9"
+      },
+      "rrev": "18fcc73dcd16edae063173f3ceb3ed56",
+      "timestamp": 1757941039.736
+    },
+    "pcre2/10.42": {
+      "cache_folder": "pcre223287598fb2bc",
+      "files": {
+        "export/conandata.yml": "b29d58f079086ffa4846a450ccbe825d91c67e5a92802425f68359b9e3e1097c",
+        "export/conanfile.py": "820fe4adfef201c15c3ab5a0b7bb23694af5af4571fcf182c3d48f44828f1fa2",
+        "export/conanmanifest.txt": "3280271eea0972975c8bfac22fdb57ba5e5f5a17412bcf20f7e8e833ba9e017b",
+        "export_sources/patches/0002-fix-cmake-c-std.patch": "188c202e07b5f0a84ea8f98654adbaac6ba50f2e336ac972256b2985fe81561c"
+      },
+      "rrev": "a0b25dffca18f5987304619e9c93fb44",
+      "timestamp": 1783075188.143
+    },
+    "pkgconf/2.2.0": {
+      "cache_folder": "pkgcoab306a552f3bb",
+      "files": {
+        "export/conandata.yml": "68bb3fe809c30362ca1df6d51dc8fbae48ba3f004d99182ed50fdd49d42c0885",
+        "export/conanfile.py": "a6108977015f9b9d9d2285a41999e83318cfc7f959f9657fa3db614438bf589c",
+        "export/conanmanifest.txt": "9f5d00f880a169fdadbeb12489994de361814e9e1a721e5a7e1f103a05e4fb6e"
+      },
+      "rrev": "4ac315b50ef734072b00ff3aacbf52bf",
+      "timestamp": 1755505628.021
+    },
+    "qt/5.15.18-2026.01.04@overte/stable": {
+      "cache_folder": "qtfea71855f734b",
+      "files": {
+        "export/conandata.yml": "21c1c850b37b11fb2a36c0b19bd196abc08d5856e1e788ee19112c0ae616dcb2",
+        "export/conanfile.py": "334d08c4d224a3521141e4c5716e9f65278cbd28ff901b5a392ce47ee0ca8260",
+        "export/conanmanifest.txt": "bfd911e606bb1cd7c85565c5a040b371156a01a4fb43e409ae1f675e6f0a43e2",
+        "export/qtmodules5.15.18-2026.01.04.conf": "98d8632bcfa4cc7e7dc1659770bca0a1da4397c762ef5a4f99eb413e5b756b70",
+        "export_sources/patches/Fix-error-uintptr_t-does-not-name-a-type-in-QtDeclarative.patch": "33d389780c86d24d6de3f9bed8a5fa28379ad45eddcb508c365bb9f24d1aa9d7"
+      },
+      "rrev": "c615fd9bf2e6410b92a3e6b84fa73980",
+      "timestamp": 1788598575.1969585
+    },
+    "quazip/1.4": {
+      "cache_folder": "quazi8728a2837d31c",
+      "files": {
+        "export/conandata.yml": "27dbd1683dc2e37961e9ed35b13deeb468c58e1997217edd2184bb6e9ce602d9",
+        "export/conanfile.py": "ff44e00b259e13596b6d6b0fe42f57240f2aad515b1884b4ae81b99f27d57d91",
+        "export/conanmanifest.txt": "2ab16c5d0723f962e9f19c358c62bcd75c00f888f0afbcf39897bb5b4b42e0c7"
+      },
+      "rrev": "b5b53ba941dd1da8e788f0c47b9ba8f5",
+      "timestamp": 1727332204.769
+    },
+    "scribe/2019.02@overte/stable": {
+      "cache_folder": "scrib61ad1876b33d7",
+      "files": {
+        "export/conandata.yml": "a725beb62f0f6c1b553612d1df2951333758333209b444bd1b26def21daa6cd6",
+        "export/conanfile.py": "6a6fc647fcd97dfd9151dc2747dfaac50fbb6eb0e75585b64e7b595c3cf0c99c",
+        "export/conanmanifest.txt": "fda0018750f850f0412c69ea5866d20fe7591dcf8cf5a1b0a98e2825befd60a4"
+      },
+      "rrev": "0c2eaba1220f4c3091a2d60773ee476a",
+      "timestamp": 1734724934.967
+    },
+    "spirv-cross/1.4.350.0": {
+      "cache_folder": "spirv79f8de18a57ef",
+      "files": {
+        "export/conandata.yml": "bf5c046d05f2a58a799285b8b65ee2637fc921cb4210334c87676b9367d4ddf4",
+        "export/conanfile.py": "f693fab92832d24ad38283d60250e95530672cd0e09b153366e4f84eae69f4bb",
+        "export/conanmanifest.txt": "49901465ba4fa0b4a1e256765a566c5e2a880937b60dfd0545775c04d64ef87f"
+      },
+      "rrev": "904299c8c5fd6cbe677e09fb9ce8ff5f",
+      "timestamp": 1778774679.723
+    },
+    "spirv-headers/1.4.350.0": {
+      "cache_folder": "spirvf24aa820c7e4a",
+      "files": {
+        "export/conandata.yml": "6f1126848ebbf252a99f7cbbf3d1688f0305b159a058e32c8905093a454f1e21",
+        "export/conanfile.py": "ee1598b56ded8678c1f21d8de174bb3c711930f2d902a77751233e1557c74cef",
+        "export/conanmanifest.txt": "008aa6e6655e8c19372135616ebd448ef0bd905d4ee17128ff3daa18b937091d"
+      },
+      "rrev": "e00d02f9314156c0d0afa8cecc7e43c7",
+      "timestamp": 1778774681.399
+    },
+    "spirv-tools/1.4.350.0": {
+      "cache_folder": "spirv6fcfb8a98d46a",
+      "files": {
+        "export/conandata.yml": "f1b7586d280788431850671e7af7bd44c96e0682824eb519466c8eb930f3a0a6",
+        "export/conanfile.py": "74809cf0af9ccfe0da817fd09e02bb206f9eab0df279bc6b3366b788097cc517",
+        "export/conanmanifest.txt": "f7e6d8079d7145d26a7264da6ea6979194b543f6b0fdaf49c09252683d20e615"
+      },
+      "rrev": "cfeb4688808ef44cd892c93a10dc6762",
+      "timestamp": 1778774685.159
+    },
+    "sqlite3/3.47.0": {
+      "cache_folder": "sqlit3ee75eb3690bd",
+      "files": {
+        "export/conandata.yml": "e3499c56e0fdf62d8092f1603474c16887688c1ca984f73628a68092c89534fc",
+        "export/conanfile.py": "b37580545c3cf41c0236ac50ed384ae6066c07df92944f2b1dc4ea13ba5a1dcb",
+        "export/conanmanifest.txt": "7184759b5f498bb3b21b65824d1ea0b51811c831f0bb71028d41a9e53258809d",
+        "export_sources/CMakeLists.txt": "afbb00981112276f5687f7ae145389588a5c42d20ae6a070972919e8707a5c89"
+      },
+      "rrev": "7a0904fd061f5f8a2366c294f9387830",
+      "timestamp": 1729587442.707
+    },
+    "v-hacd/4.1.0": {
+      "cache_folder": "v-hacda7bf98ed0fde",
+      "files": {
+        "export/conandata.yml": "47fee6ecd6298753eb15d5c4c6b9e3486f64f33c25acd050231550a7c4acd516",
+        "export/conanfile.py": "0eb03825072d3f513d2bf39f85bb70af88dd419dea991c53d50edcac66fde565",
+        "export/conanmanifest.txt": "df21f560751d9ae97a419400e24dc16dde24fc72a6a51e5f36dc3a782a6769e9"
+      },
+      "rrev": "9fce39e9131eb1ea7c84b9536030a603",
+      "timestamp": 1694777856.295
+    },
+    "vulkan-headers/1.4.350.0": {
+      "cache_folder": "vulka408c0af5cf74f",
+      "files": {
+        "export/conandata.yml": "940a25ca3bdc67d725988574cb14d0d3a4c52b32e544e1b7bafe260d2bf22af0",
+        "export/conanfile.py": "ccf24fbaba2066158eb931ff40b96fd61e3942e608979cbdf4ee19d2ac8d44d3",
+        "export/conanmanifest.txt": "72987320ea3fd13185db08b874a6e1e40d1a65ab02479c9b606540560863cd1c"
+      },
+      "rrev": "40281e91ad8723fb102e36396da35409",
+      "timestamp": 1778774701.016
+    },
+    "vulkan-memory-allocator/3.0.1": {
+      "cache_folder": "vulka66024701be0aa",
+      "files": {
+        "export/conandata.yml": "9da9ca121f4c41f44302efdb9bd6f5b33dc1136c20f6faa06c228d7d4fa1982f",
+        "export/conanfile.py": "1425cb35d99b08cc46b57797f8eb9fb4b4600031e708be75d41e2dc147ef55c2",
+        "export/conanmanifest.txt": "c64bee1c00793d8289682844a8b4cdc563bf8e972878602bcac0acead7e39142"
+      },
+      "rrev": "26cced541c90dff13aeabb74be316cad",
+      "timestamp": 1745823407.851
+    },
+    "webrtc-audio-processing/2.1@overte/stable": {
+      "cache_folder": "webrt832a8c555ecdb",
+      "files": {
+        "export/conandata.yml": "cee6380ac791a3d031f55b0eb260077e99f1cb9e403044a2f30f0008d762a4f5",
+        "export/conanfile.py": "33e3a1ec4dd28b41506711774c7744ad1d4bf0107473f1c1362b7b273a4f049f",
+        "export/conanmanifest.txt": "7dc2f0df25ca3f24ac8ba211abc75a50814d0d53ce35153380d705a6a93295e9"
+      },
+      "rrev": "32fb29cc6d631d059c3cd9afb7839203",
+      "timestamp": 1744670561.176
+    },
+    "zlib/1.3.1": {
+      "cache_folder": "zlib41379b6e5ce18",
+      "files": {
+        "export/conandata.yml": "b504ce8c2c1ead47fb080f3f079bf843d469e2f45ff0bb8db1a36951ecc987df",
+        "export/conanfile.py": "4ca5db5afe62e282e598c1a53951a95fbc432b67d4284449164a784fdb67f932",
+        "export/conanmanifest.txt": "c41370395fbd66d7f9dbe65d3e579a23b5e7a66409a9dc658656afd27f333a25",
+        "export_sources/patches/1.3.1/0001-fix-cmake.patch": "9ead0750e8e4e691cc91cf8595aa2a4fbc9c5a0a5773e7e1c78e36e313ca8b10"
+      },
+      "rrev": "cac0f6daea041b0ccf42934163defb20",
+      "timestamp": 1765284699.337
+    },
+    "zstd/1.5.6": {
+      "cache_folder": "zstdd28725f3e5d98",
+      "files": {
+        "export/conandata.yml": "7712ce75e273b18f120eb9944130da7509fbe07127c21fdf05fcb5a505015280",
+        "export/conanfile.py": "8b6c11e02712acc23d751db78c3322201acbfbd3786b3c1de2c5938eca2cf4f7",
+        "export/conanmanifest.txt": "c217713d7f38fc7d7aa3f395e1f05a7007e8a00ae4243b333c6ceeeef601795d",
+        "export_sources/patches/1.5.6-public-scope-windows-shared.patch": "2dcd60fb323399cf6ff64e3d410a4abf48a968c65968c9100938ce6b5438cff8"
+      },
+      "rrev": "8b5ebac476eb7d9ec2080ad31f2816fc",
+      "timestamp": 1760955094.262
+    }
+  },
+  "schema_version": 1
+}

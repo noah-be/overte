@@ -12,8 +12,13 @@ android {
 }
 
 def legacyConanDir = file('../../../common/conan/pico4-debug')
-def phoneQtConanDir = file('../../../common/conan/phone-16k-debug')
-def phoneNonQtConanDir = file('../../../common/conan/phone-nonqt-16k-debug')
+def fdroidSourceOnlyConanPath = System.getenv('OVERTE_FDROID_CONAN_DIR')
+def fdroidSourceOnlyConanDir = fdroidSourceOnlyConanPath == null
+    ? null : file(fdroidSourceOnlyConanPath)
+def phoneQtConanDir = fdroidSourceOnlyConanDir ?:
+    file('../../../common/conan/phone-16k-debug')
+def phoneNonQtConanDir = fdroidSourceOnlyConanDir ?:
+    file('../../../common/conan/phone-nonqt-16k-debug')
 def phoneEmulatorConanDir = file('../../../common/conan/phone-emulator-x86_64-debug')
 def phoneEmulatorReadySentinel = new File(phoneEmulatorConanDir,
     '.phone-emulator-dependencies.ready')
@@ -80,7 +85,7 @@ if (!qtPackageMatch.find()) {
 }
 def qtPackageDir = file(qtPackageMatch.group(1))
 def phoneQtRuntimeDir = layout.buildDirectory.dir('generated/phoneQtRuntime')
-def runtimeOverrides = file('../../../common/runtime-overrides/arm64-v8a')
+def runtimeOverrides = file('../../../vr/pico/apps/picoInterface/src/main/runtime-overrides/arm64-v8a')
 def phoneElfAlignmentCheck = file('../../../phone/tests/check-phone-elf-alignment.sh')
 def phone16kDependencyCheck = file('../../../phone/tests/verify-phone-16k-dependencies.sh')
 def phone16kApkCheck = file('../../../phone/tests/check-phone-apk-16k.sh')
@@ -250,12 +255,12 @@ tasks.register('preparePhoneQtRuntime', Sync) {
     }
     // QtActivity preloads these Android-safe names before libphoneInterface.
     from(androidOpenSslDir) {
-        include 'libcrypto.so.1.1'
-        rename { 'libcrypto_1_1.so' }
+        include 'libcrypto.so.3'
+        rename { 'libcrypto_3.so' }
     }
     from(androidOpenSslDir) {
-        include 'libssl.so.1.1'
-        rename { 'libssl_1_1.so' }
+        include 'libssl.so.3'
+        rename { 'libssl_3.so' }
     }
     def qmlPluginPaths = [
         'Qt/labs/settings', 'QtQml', 'QtQml/Models.2',
@@ -310,6 +315,12 @@ android {
                     '-DDISABLE_QML=OFF',
                     '-DDISABLE_KTX_CACHE=OFF',
                     '-DUSE_BREAKPAD=OFF'
+                // The qualified F-Droid executor provisions and verifies Ninja
+                // 1.13.2 at this immutable path.  Force CMake to use that
+                // binary instead of the older Ninja bundled in the Android SDK.
+                if (fdroidSourceOnlyConanDir != null) {
+                    arguments '-DCMAKE_MAKE_PROGRAM=/usr/bin/ninja'
+                }
                 targets 'phoneInterface'
             }
         }
