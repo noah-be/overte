@@ -1560,6 +1560,7 @@ protected:
      * @param errorInfo Description of the error, if any
      */
     void updateEntityScriptStatus(const EntityItemID& entityID, const QString& scriptURL, const EntityScriptStatus& status, const QString& errorInfo = QString());
+    bool rejectEntityScriptWithoutConsent(const EntityItemID& entityID, const QString& scriptURL);
 
 
     /**
@@ -1649,7 +1650,7 @@ protected:
      */
     void callWithEnvironment(const EntityItemID& entityID, const QUrl& sandboxURL, const ScriptValue& function, const ScriptValue& thisObject, const ScriptValueList& args);
 
-    Context _context;
+    const Context _context;
     Type _type;
     ScriptEnginePointer _engine;
     QString _scriptContents;
