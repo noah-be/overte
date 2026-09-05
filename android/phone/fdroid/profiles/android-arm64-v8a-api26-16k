@@ -1,0 +1,19 @@
+{% set android_ndk = os.getenv("ANDROID_NDK_HOME") %}
+
+[settings]
+os=Android
+os.api_level=26
+arch=armv8
+compiler=clang
+compiler.version=18
+compiler.libcxx=c++_shared
+compiler.cppstd=gnu20
+build_type=Debug
+
+[conf]
+tools.android:ndk_path={{ android_ndk }}
+tools.build:cflags=["-D__BIONIC_NO_PAGE_SIZE_MACRO"]
+tools.build:cxxflags=["-D__BIONIC_NO_PAGE_SIZE_MACRO"]
+tools.build:exelinkflags=["-Wl,-z,max-page-size=16384", "-Wl,-z,common-page-size=16384"]
+tools.build:sharedlinkflags=["-Wl,-z,max-page-size=16384", "-Wl,-z,common-page-size=16384"]
+tools.build:jobs=4
