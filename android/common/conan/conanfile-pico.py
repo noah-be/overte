@@ -21,6 +21,10 @@ _spec.loader.exec_module(_module)
 
 class PicoOverte(_module.Overte):
     name = "OvertePico"
+    qt_ref = (
+        "qt/5.15.18-2026.01.04@overte/stable"
+        "#4fc772a2dbcd84731eb6ff9904e6e358"
+    )
 
     def generate(self):
         # The dependency packages intentionally remain Debug packages, but an
@@ -66,9 +70,5 @@ class PicoOverte(_module.Overte):
         self.requires("zlib/1.3.1")
         self.requires("glm/0.9.9.5", force=True)
         self.requires("jsoncpp/1.9.6", force=True)
-        self.requires(
-            "qt/5.15.18-2026.01.04@overte/stable"
-            "#4fc772a2dbcd84731eb6ff9904e6e358",
-            force=True,
-        )
+        self.requires(self.qt_ref, force=True)
         self.requires("openssl/3.5.8@overte/stable", force=True)
