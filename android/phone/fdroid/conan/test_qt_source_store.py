@@ -139,6 +139,15 @@ class QtSourceStoreTest(unittest.TestCase):
                 "73112c92373d338b14a8f1e88691d6d3e185f75ec8abe6cb0dee2fec55336474",
                 result["license_lock_sha256"],
             )
+            self.assertGreaterEqual(result["tree_entries"], 17)
+            self.assertEqual(
+                MODULE.sha256_file(output / "TREE_LOCK.tsv"),
+                result["tree_lock_sha256"],
+            )
+            self.assertEqual(
+                "path\tmode\tsha256",
+                (output / "TREE_LOCK.tsv").read_text(encoding="utf-8").splitlines()[0],
+            )
             self.assertTrue((output / "qt5/qtbase/payload.txt").is_file())
             self.assertTrue(
                 (

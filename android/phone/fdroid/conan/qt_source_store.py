@@ -174,6 +174,31 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def write_tree_lock(root: Path) -> tuple[str, int]:
+    """Bind every regular file and symlink in the composed Qt source tree."""
+    rows = ["path\tmode\tsha256"]
+    count = 0
+    for path in sorted(root.rglob("*")):
+        relative = path.relative_to(root).as_posix()
+        if any(character in relative for character in "\t\r\n"):
+            raise SourceStoreError(f"unsafe tree-lock path: {relative!r}")
+        if path.is_symlink():
+            mode = "120000"
+            digest = hashlib.sha256(
+                b"symlink\0" + os.readlink(path).encode("utf-8")
+            ).hexdigest()
+        elif path.is_file():
+            mode = "100755" if path.stat().st_mode & stat.S_IXUSR else "100644"
+            digest = sha256_file(path)
+        else:
+            continue
+        rows.append(f"{relative}\t{mode}\t{digest}")
+        count += 1
+    lock = root.parent / "TREE_LOCK.tsv"
+    lock.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    return sha256_file(lock), count
+
+
 def _stripped_member_path(member: tarfile.TarInfo, strip_components: int) -> Path | None:
     source = PurePosixPath(member.name)
     if source.is_absolute() or ".." in source.parts:
@@ -306,11 +331,14 @@ def compose(manifest_path: Path, source_store: Path, output: Path) -> dict:
             ]:
                 raise SourceStoreError("total unpacked-size limit exceeded")
         pruned_top_level = prune_unselected_top_level(stage / "qt5")
+        tree_lock_sha256, tree_entries = write_tree_lock(stage / "qt5")
         attestation = {
             "schema_version": 1,
             "status": "COMPOSED_SOURCE_AND_LICENSE_LOCKED_ATTRIBUTION_SCANNER_PENDING",
             "manifest_sha256": sha256_file(manifest_path),
             "license_lock_sha256": document["license_lock"]["sha256"],
+            "tree_lock_sha256": tree_lock_sha256,
+            "tree_entries": tree_entries,
             "component_count": len(document["components"]),
             "total_unpacked_bytes": total_unpacked_bytes,
             "pruned_top_level": pruned_top_level,
