@@ -35,10 +35,17 @@ after callback processing; a destroyed receiver aborts/releases its orphan.
 Other AccountManager operations retain explicitly unscoped behavior.
 
 Phone/iOS use the actual Shared Setup/Events callers. Pico must add exactly:
-`DependencyManager::get<AddressManager>()->setClientLookupVisibility(applicationState() == Qt::ApplicationActive);`
+`DependencyManager::get<AddressManager>()->setClientLookupVisibility(QGuiApplication::applicationState() == Qt::ApplicationActive);`
 immediately after its existing `DependencyManager::set<AddressManager>();` in
 the full-copy Application_Setup override, until SH-011 removes that override.
 This is a narrow released native startup hook, no duplicate lifecycle singleton.
+
+Required v002 migration: v001 omitted the QGuiApplication qualification in this
+free-function startup scope. Import the v002 Shared correction and replace the
+same one line in the Pico-owned startup override. The later Application member
+activeChanged seed is unchanged. A focused real Qt6Gui compile of the original
+startup line reproduced the v001 error and passes with this correction; full
+platform compilation remains pending. Earlier v001 release bytes stay immutable.
 All other released changes are Shared-owned and imported together. The existing
 lifecycle test receives only a new AddressManager boundary, preserving execution
 of the ORIGINAL Application::activeChanged body.

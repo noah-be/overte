@@ -9,6 +9,23 @@ ROOT = pathlib.Path(__file__).resolve().parents[4]
 
 
 class RequestCancellation(unittest.TestCase):
+    def test_startup_lookup_hook_compiles_in_free_function_scope(self):
+        setup = (ROOT / "interface/src/Application_Setup.cpp").read_text()
+        essentials = setup.split("bool setupEssentials(", 1)[1].split("\n}", 1)[0]
+        hook = next(line.strip() for line in essentials.splitlines()
+                    if "setClientLookupVisibility(" in line)
+        flags = shlex.split(subprocess.check_output(
+            ["pkg-config", "--cflags", "Qt6Gui"], text=True))
+        source = """#include <QGuiApplication>
+class AddressManager { public: void setClientLookupVisibility(bool); };
+class DependencyManager { public: template<class T> static T* get(); };
+void setupEssentialsScope() {
+""" + hook + "\n}\n"
+        result = subprocess.run(["c++", "-std=c++17", "-fPIC", "-fsyntax-only",
+                                 "-x", "c++", "-", *flags], input=source,
+                                capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_actual_account_request_and_real_qt_abort(self):
         source = (ROOT / "libraries/networking/src/AccountManager.cpp").read_text()
         header = (ROOT / "libraries/networking/src/AccountManager.h").read_text()
@@ -39,7 +56,7 @@ class RequestCancellation(unittest.TestCase):
         header = (ROOT / "libraries/networking/src/AddressManager.h").read_text()
         self.assertLess(header.index("void setClientLookupVisibility("), header.index("public slots:"))
         self.assertIn("setClientLookupVisibility(state == Qt::ApplicationActive)", events)
-        self.assertIn("setClientLookupVisibility(applicationState() == Qt::ApplicationActive)", setup)
+        self.assertIn("setClientLookupVisibility(QGuiApplication::applicationState() == Qt::ApplicationActive)", setup)
         self.assertIn("callbackParams.requestTicket = _lookupRequests.next()", address)
         for method, argument in (("handleAPIResponse", "requestReply"), ("handleAPIError", "errorReply")):
             body = address.split("void AddressManager::" + method + "(", 1)[1].split("\n}", 1)[0]
