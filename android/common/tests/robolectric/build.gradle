@@ -38,6 +38,9 @@ sourceSets {
             include 'org/overte/pico/AndroidAudioInput.java'
             include 'org/overte/pico/AndroidAudioInputPolicy.java'
             include 'org/overte/pico/PicoAudioCaptureState.java'
+            include 'org/overte/pico/RedactingDiagnostics.java'
+            include 'org/overte/pico/PicoAudioLifecycle.java'
+            include 'org/overte/pico/PicoAudioShutdown.java'
             include 'io/highfidelity/questInterface/PermissionsChecker.java'
         }
         compileClasspath += sourceSets.boundary.output
