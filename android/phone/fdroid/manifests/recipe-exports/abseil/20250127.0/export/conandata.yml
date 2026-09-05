@@ -1,0 +1,4 @@
+sources:
+  '20250127.0':
+    sha256: 16242f394245627e508ec6bb296b433c90f8d914f73b9c026fddb905e27276e8
+    url: https://github.com/abseil/abseil-cpp/archive/20250127.0.tar.gz
