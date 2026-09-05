@@ -1,22 +1,18 @@
 #!/usr/bin/env python3
-"""Execute actual iOS Qt startup seeding with original SH-005 Gate and a test owner."""
+"""Guard SH-005 v002 migration and execute original Shared production-body checks."""
+# Copyright 2026 Overte e.V.
+# SPDX-License-Identifier: Apache-2.0
 import os
-import shlex
 import subprocess
-import tempfile
+import sys
 from pathlib import Path
 
-ios = Path(__file__).resolve().parents[1]
-flags = shlex.split(subprocess.check_output(
-    ["pkg-config", "--cflags", "--libs", "Qt6Gui"], text=True, timeout=10))
-flags = [part for flag in flags for part in
-         (["-isystem", flag[2:]] if flag.startswith("-I") else [flag])]
-with tempfile.TemporaryDirectory(prefix="ios-startup-lifecycle-") as scratch:
-    binary = str(Path(scratch) / "test")
-    subprocess.run(["c++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-fPIC",
-                    str(ios / "lifecycle/FullClientLifecycle.cpp"),
-                    str(Path(__file__).with_suffix(".cpp")), "-o", binary, *flags],
-                   check=True, timeout=60)
-    subprocess.run([binary], check=True, timeout=10,
-                   env=dict(os.environ, QT_QPA_PLATFORM="offscreen", XDG_RUNTIME_DIR=scratch))
-print("PASS actual iOS Qt initial lifecycle seeding; full Application/native execution pending")
+root = Path(__file__).resolve().parents[2]
+setup = (root / "interface/src/Application_Setup.cpp").read_text()
+connection = "connect(this, &Application::applicationStateChanged, this, &Application::activeChanged);"
+assert "activeChanged(applicationState());" in setup.split(connection, 1)[1].split("connect(", 1)[0]
+assert "FullClientLifecycle.cpp" not in (root / "ios/integration/CMakeLists.txt").read_text()
+assert not (root / "ios/lifecycle/FullClientLifecycle.cpp").exists()
+subprocess.run([sys.executable, str(root / "tests/device/contracts/lifecycle/test_contract.py")],
+               check=True, timeout=90, env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1"))
+print("PASS iOS uses original SH-005 v002 initial observer, no duplicate native seed; native execution pending")
