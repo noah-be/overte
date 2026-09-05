@@ -14,6 +14,7 @@
 //
 
 #include "Application.h"
+#include "ApplicationLifecycle.h"
 
 #include <QtCore/QMimeData>
 
@@ -301,6 +302,9 @@ void Application::onPresent(quint32 frameCount) {
 }
 
 void Application::activeChanged(Qt::ApplicationState state) {
+    // Native owners consume this exact generation-bearing gate. Duplicate Qt
+    // state notifications do not reset pending work; leaving active cancels it.
+    overte::lifecycle::applicationGate().visible(state == Qt::ApplicationActive);
     switch (state) {
         case Qt::ApplicationActive:
             _isForeground = true;

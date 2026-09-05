@@ -13,6 +13,12 @@
 //
 
 #include "Application.h"
+#include "ApplicationLifecycle.h"
+
+overte::lifecycle::Gate& overte::lifecycle::applicationGate() {
+    static Gate gate;
+    return gate;
+}
 
 #include <cmath>
 
