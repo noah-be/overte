@@ -17,6 +17,7 @@ import time
 import xml.etree.ElementTree as ET
 
 from adapter_client import load_command
+from execution_identity import ExecutionIdentity
 from contracts import (contains_private_identity, load_capability_registry,
                        load_tablet_product_policy,
                        validate_capabilities, validate_discovered_targets,
@@ -330,6 +331,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--require-complete", action="store_true",
                         help="treat missing module capabilities as infrastructure errors")
     parser.add_argument("--list", action="store_true")
+    parser.add_argument("--candidate-artifact", type=Path,
+                        help="exact candidate bytes; requires both expected identity flags")
+    parser.add_argument("--expected-source-sha")
+    parser.add_argument("--expected-artifact-sha256")
     return parser.parse_args()
 
 
@@ -343,6 +348,13 @@ def main() -> int:
         for module in modules:
             print(f"{module['id']}: {module['description']}")
         return 0
+    identity = None
+    identity_bound = False
+    identity_arguments = (args.candidate_artifact, args.expected_source_sha, args.expected_artifact_sha256)
+    if any(value is not None for value in identity_arguments):
+        if not all(value is not None for value in identity_arguments):
+            fail("OVT_IDENTITY_ALL_ARGUMENTS_REQUIRED")
+        identity = ExecutionIdentity(*identity_arguments)
     tablet_policy_path = None
     if any(module["id"] == "tablet-e2e" for module in modules):
         if args.tablet_policy is None:
@@ -397,6 +409,8 @@ def main() -> int:
                 if ("selector" in description
                         or contains_private_identity(description, private_values)):
                     fail("adapter describe result exposes a private target identity")
+                if identity is not None:
+                    identity.verify_description(description)
                 (output / "device.json").write_text(
                     json.dumps(description, indent=2, sort_keys=True) + "\n", encoding="utf-8")
                 infrastructure_failure = False
@@ -427,6 +441,12 @@ def main() -> int:
                                         private_values, command, capabilities)
                     results.append(result)
                     infrastructure_failure = result["status"] == "error"
+                if identity is not None:
+                    # Recheck the still-reserved target before cleanup. A native
+                    # adapter must inspect installation, not echo our arguments.
+                    identity.verify_description(adapter_call(command, "describe", selector))
+                    identity.verify_artifact()
+                    identity_bound = True
             except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
                 detail = redact(str(error), private_values)
                 results.append({"id": "target-execution",
@@ -470,6 +490,8 @@ def main() -> int:
     (output / "run-manifest.json").write_text(
         json.dumps(run_manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     write_junit(results, output / "junit.xml", args.suite)
+    if identity is not None and identity_bound:
+        identity.emit(output)
     print(f"Results: {output}")
     return 1 if summary["status"] == "failed" else 0
 
