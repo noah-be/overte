@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "status": "SOURCE_ARCHIVES_LOCKED_LICENSE_HASHES_PENDING",
+  "source_family": "Qt 5.15.18 KDE patch collection 2026.01.04",
+  "source_authority": {
+    "package": "overte-fdroid-buildpath-prework/00-source-graph-design",
+    "sha256sums_sha256": "7129917d10c59b808903d61925fdbc751e1dada80bc6c0ca3759d4a2b728035a"
+  },
+  "isolated_network": "NONE",
+  "archive_limits": {
+    "max_archive_bytes": 536870912,
+    "max_component_unpacked_bytes": 2147483648,
+    "max_total_unpacked_bytes": 17179869184,
+    "max_members_per_archive": 300000
+  },
+  "components": [
+    {
+      "id": "qt5-superproject",
+      "role": "superproject-metadata",
+      "commit": "b966a9ddb282501e772dd6aad66a7b8cb1d6559a",
+      "canonical_url": "https://invent.kde.org/qt/qt/qt5/-/archive/b966a9ddb282501e772dd6aad66a7b8cb1d6559a/qt5-b966a9ddb282501e772dd6aad66a7b8cb1d6559a.tar.gz",
+      "sha256": "4b1d6e898aeddb63be9dda2555ff07e8a5cbd38ee7324a91b8df4e1b1c710944",
+      "store_name": "4b1d6e898aeddb63be9dda2555ff07e8a5cbd38ee7324a91b8df4e1b1c710944.tar.gz",
+      "destination": "qt5",
+      "strip_components": 1
+    },
+    {
+      "id": "qtbase",
+      "role": "required-module",
+      "commit": "bebdfd54917e25d1c100e6bd9f5dd53c2e645fd8",
+      "canonical_url": "https://invent.kde.org/qt/qt/qtbase/-/archive/bebdfd54917e25d1c100e6bd9f5dd53c2e645fd8/qtbase-bebdfd54917e25d1c100e6bd9f5dd53c2e645fd8.tar.gz",
+      "sha256": "bdbd3a1eab033385cccf672da5bc9ab1e20e4edefb41d6674f2c3d9ee2388fc3",
+      "store_name": "bdbd3a1eab033385cccf672da5bc9ab1e20e4edefb41d6674f2c3d9ee2388fc3.tar.gz",
+      "destination": "qt5/qtbase",
+      "strip_components": 1
+    },
+    {
+      "id": "qtdeclarative",
+      "role": "required-module",
+      "commit": "f78bc0b2c6884fd730bf34a931870d67936cf01d",
+      "canonical_url": "https://invent.kde.org/qt/qt/qtdeclarative/-/archive/f78bc0b2c6884fd730bf34a931870d67936cf01d/qtdeclarative-f78bc0b2c6884fd730bf34a931870d67936cf01d.tar.gz",
+      "sha256": "06e21e7f9b8d2ce488e35e656e2103fecc340596a94346a70c7b3a4d03f238b0",
+      "store_name": "06e21e7f9b8d2ce488e35e656e2103fecc340596a94346a70c7b3a4d03f238b0.tar.gz",
+      "destination": "qt5/qtdeclarative",
+      "strip_components": 1
+    },
+    {
+      "id": "qtgraphicaleffects",
+      "role": "required-module",
+      "commit": "dfb2e7b2c98a9b7185c300d0b92b4048f5d89ba5",
+      "canonical_url": "https://invent.kde.org/qt/qt/qtgraphicaleffects/-/archive/dfb2e7b2c98a9b7185c300d0b92b4048f5d89ba5/qtgraphicaleffects-dfb2e7b2c98a9b7185c300d0b92b4048f5d89ba5.tar.gz",
+      "sha256": "beb263a375bdd1fa919af634ec7302e55d310b425144d3eaf3ecb5ed536e14b1",
+      "store_name": "beb263a375bdd1fa919af634ec7302e55d310b425144d3eaf3ecb5ed536e14b1.tar.gz",
+      "destination": "qt5/qtgraphicaleffects",
+      "strip_components": 1
+    },
+    {
+      "id": "qtimageformats",
+      "role": "required-module",
+      "commit": "c91e4c63c1eaf1e23806d9df10e3d5a9ae353c1d",
+      "canonical_url": "https://invent.kde.org/qt/qt/qtimageformats/-/archive/c91e4c63c1eaf1e23806d9df10e3d5a9ae353c1d/qtimageformats-c91e4c63c1eaf1e23806d9df10e3d5a9ae353c1d.tar.gz",
+      "sha256": "49afe07c4cde8d1a7ff6ab2441a02e0552ead07b8f8bee23541ff678f461d7fa",
+      "store_name": "49afe07c4cde8d1a7ff6ab2441a02e0552ead07b8f8bee23541ff678f461d7fa.tar.gz",
+      "destination": "qt5/qtimageformats",
+      "strip_components": 1
+    },
+    {
+      "id": "qtlocation",
+      "role": "required-module",
+      "commit": "ba48a8b5cedd157d972c08d371ac2581db166bf7",
+      "canonical_url": "https://invent.kde.org/qt/qt/qtlocation/-/archive/ba48a8b5cedd157d972c08d371ac2581db166bf7/qtlocation-ba48a8b5cedd157d972c08d371ac2581db166bf7.tar.gz",
+      "sha256": "74bfd3d148ccfb1de462a4932a8afdd8cab70cb7012a26ee9f13d88f08debf34",
+      "store_name": "74bfd3d148ccfb1de462a4932a8afdd8cab70cb7012a26ee9f13d88f08debf34.tar.gz",
+      "destination": "qt5/qtlocation",
+      "strip_components": 1
+    },
+    {
+      "id": "qtmultimedia",
+      "role": "required-module",
+      "commit": "ff83d119c75cd8406f73ccc08958fe36747e7390",
+      "canonical_url": "https://invent.kde.org/qt/qt/qtmultimedia/-/archive/ff83d119c75cd8406f73ccc08958fe36747e7390/qtmultimedia-ff83d119c75cd8406f73ccc08958fe36747e7390.tar.gz",
+      "sha256": "9a3b328fd0be9b8c0618f5e343fd384b00cd2a9379c78c023520159604971846",
+      "store_name": "9a3b328fd0be9b8c0618f5e343fd384b00cd2a9379c78c023520159604971846.tar.gz",
+      "destination": "qt5/qtmultimedia",
+      "strip_components": 1
+    },
+    {
+      "id": "qtquickcontrols",
+      "role": "required-module",
+      "commit": "0c3c18bf8bdac1ef1afdb8aade903edb5c2bc041",
+      "canonical_url": "https://invent.kde.org/qt/qt/qtquickcontrols/-/archive/0c3c18bf8bdac1ef1afdb8aade903edb5c2bc041/qtquickcontrols-0c3c18bf8bdac1ef1afdb8aade903edb5c2bc041.tar.gz",
+      "sha256": "47b96e56be0db2dd5b53751e767ed53ef7a3bf564e64051f274dff22c03f2c0e",
+      "store_name": "47b96e56be0db2dd5b53751e767ed53ef7a3bf564e64051f274dff22c03f2c0e.tar.gz",
+      "destination": "qt5/qtquickcontrols",
+      "strip_components": 1
+    },
+    {
+      "id": "qtquickcontrols2",
+      "role": "required-module",
+      "commit": "e464888c53a641ee44a34ff2350cfb156c8ed59f",
+      "canonical_url": "https://invent.kde.org/qt/qt/qtquickcontrols2/-/archive/e464888c53a641ee44a34ff2350cfb156c8ed59f/qtquickcontrols2-e464888c53a641ee44a34ff2350cfb156c8ed59f.tar.gz",
+      "sha256": "af5dc754197cbe762dd4b5f3fb32e7b2fe75c9f6ce5d565ab6a897e4d1b238ca",
+      "store_name": "af5dc754197cbe762dd4b5f3fb32e7b2fe75c9f6ce5d565ab6a897e4d1b238ca.tar.gz",
+      "destination": "qt5/qtquickcontrols2",
+      "strip_components": 1
+    },
+    {
+      "id": "qtscxml",
+      "role": "required-module",
+      "commit": "57491f554bc53bd020978b5744437b7ac7e56a27",
+      "canonical_url": "https://invent.kde.org/qt/qt/qtscxml/-/archive/57491f554bc53bd020978b5744437b7ac7e56a27/qtscxml-57491f554bc53bd020978b5744437b7ac7e56a27.tar.gz",
+      "sha256": "510bf1496d27cfd9625c696ae03914ec6bc4bf1b678b19f7c83459cb6e96dba6",
+      "store_name": "510bf1496d27cfd9625c696ae03914ec6bc4bf1b678b19f7c83459cb6e96dba6.tar.gz",
+      "destination": "qt5/qtscxml",
+      "strip_components": 1
+    },
+    {
+      "id": "qtsvg",
+      "role": "required-module",
+      "commit": "b74f7291f343dcbcb487b020868f042d8fe83098",
+      "canonical_url": "https://invent.kde.org/qt/qt/qtsvg/-/archive/b74f7291f343dcbcb487b020868f042d8fe83098/qtsvg-b74f7291f343dcbcb487b020868f042d8fe83098.tar.gz",
+      "sha256": "b692a6c194d6f0716d35ca9a9dba75a81b7796551748929b56718bdf29c8f8dc",
+      "store_name": "b692a6c194d6f0716d35ca9a9dba75a81b7796551748929b56718bdf29c8f8dc.tar.gz",
+      "destination": "qt5/qtsvg",
+      "strip_components": 1
+    },
+    {
+      "id": "qttools",
+      "role": "required-host-and-target",
+      "commit": "fa40a2d3373b89be0cd0a43fe0c1d047e3d34058",
+      "canonical_url": "https://invent.kde.org/qt/qt/qttools/-/archive/fa40a2d3373b89be0cd0a43fe0c1d047e3d34058/qttools-fa40a2d3373b89be0cd0a43fe0c1d047e3d34058.tar.gz",
+      "sha256": "c7f946fb2f27fe9e92674daabcd46a726753a94921f28081b33a4cabce9f0a0f",
+      "store_name": "c7f946fb2f27fe9e92674daabcd46a726753a94921f28081b33a4cabce9f0a0f.tar.gz",
+      "destination": "qt5/qttools",
+      "strip_components": 1
+    },
+    {
+      "id": "qtwebchannel",
+      "role": "required-module",
+      "commit": "2a157921861e651f43456cb7941b250c89feb736",
+      "canonical_url": "https://invent.kde.org/qt/qt/qtwebchannel/-/archive/2a157921861e651f43456cb7941b250c89feb736/qtwebchannel-2a157921861e651f43456cb7941b250c89feb736.tar.gz",
+      "sha256": "123ae8e7ef24db9b14d7a6b781253feedde1996285c7c615af5f6cd74ba06a04",
+      "store_name": "123ae8e7ef24db9b14d7a6b781253feedde1996285c7c615af5f6cd74ba06a04.tar.gz",
+      "destination": "qt5/qtwebchannel",
+      "strip_components": 1
+    },
+    {
+      "id": "qtwebsockets",
+      "role": "required-module",
+      "commit": "0f910acb737cefc889ce1088fc60d15bc18efe9c",
+      "canonical_url": "https://invent.kde.org/qt/qt/qtwebsockets/-/archive/0f910acb737cefc889ce1088fc60d15bc18efe9c/qtwebsockets-0f910acb737cefc889ce1088fc60d15bc18efe9c.tar.gz",
+      "sha256": "b1d425ef2d576099c0b7dc4fa128d3133355bb8d48d70874f670a109caba35c9",
+      "store_name": "b1d425ef2d576099c0b7dc4fa128d3133355bb8d48d70874f670a109caba35c9.tar.gz",
+      "destination": "qt5/qtwebsockets",
+      "strip_components": 1
+    },
+    {
+      "id": "qtwebview",
+      "role": "required-module",
+      "commit": "34342073a59f3a27ef3de02f6b21337c4f8db6cf",
+      "canonical_url": "https://invent.kde.org/qt/qt/qtwebview/-/archive/34342073a59f3a27ef3de02f6b21337c4f8db6cf/qtwebview-34342073a59f3a27ef3de02f6b21337c4f8db6cf.tar.gz",
+      "sha256": "26b5edaaebe868a5985225a2c944ebd5ed1200db2eea458a8eac1132509980db",
+      "store_name": "26b5edaaebe868a5985225a2c944ebd5ed1200db2eea458a8eac1132509980db.tar.gz",
+      "destination": "qt5/qtwebview",
+      "strip_components": 1
+    },
+    {
+      "id": "qtxmlpatterns",
+      "role": "required-module",
+      "commit": "0b644263abca66503db1ce8a4e126cf358a34685",
+      "canonical_url": "https://invent.kde.org/qt/qt/qtxmlpatterns/-/archive/0b644263abca66503db1ce8a4e126cf358a34685/qtxmlpatterns-0b644263abca66503db1ce8a4e126cf358a34685.tar.gz",
+      "sha256": "e39128b29afcb57bf9ab832c7148a597fa583760008e7ad49d0d791d625cddc7",
+      "store_name": "e39128b29afcb57bf9ab832c7148a597fa583760008e7ad49d0d791d625cddc7.tar.gz",
+      "destination": "qt5/qtxmlpatterns",
+      "strip_components": 1
+    },
+    {
+      "id": "qtlocation-mapboxgl",
+      "role": "required-nested-source",
+      "commit": "35d566724c48180c9a372c2ed50a253871a51574",
+      "canonical_url": "https://invent.kde.org/qt/qt/qtlocation-mapboxgl/-/archive/35d566724c48180c9a372c2ed50a253871a51574/qtlocation-mapboxgl-35d566724c48180c9a372c2ed50a253871a51574.tar.gz",
+      "sha256": "698c5fc853d9db59d6322c874916d44956f4b68e670033d49e53d37299116dbe",
+      "store_name": "698c5fc853d9db59d6322c874916d44956f4b68e670033d49e53d37299116dbe.tar.gz",
+      "destination": "qt5/qtlocation/src/3rdparty/mapbox-gl-native",
+      "strip_components": 1
+    }
+  ],
+  "forbidden_components": [
+    "qtdeclarative-test262",
+    "qtwebengine",
+    "qtxmlpatterns-testsuite"
+  ],
+  "qualification_blocks": [
+    "Bind every selected module license file and SHA-256 before recipe qualification",
+    "Vendor and review the Qt recipe without Git or recursive-submodule source paths",
+    "Qualify a separate Linux x86_64 Qt host-tools package and bind its RREV/PREV",
+    "Qualify the Android arm64 Qt target against OpenSSL 3.5.8 and the host-tools package"
+  ]
+}
