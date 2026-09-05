@@ -308,7 +308,9 @@ def write_junit(results: list[dict], path: Path, suite: str) -> None:
             error.text = result["output"]
         elif result["status"] == "skipped":
             ET.SubElement(case, "skipped", message="module skipped")
-        ET.SubElement(case, "system-out").text = result["output"]
+        # Retained JUnit is a cross-platform export sink. Detailed module logs
+        # remain separately audited; never duplicate arbitrary text into XML.
+        ET.SubElement(case, "system-out").text = "OVT_REDACTED"
     temporary = path.with_suffix(path.suffix + ".tmp")
     ET.ElementTree(root).write(temporary, encoding="utf-8", xml_declaration=True)
     os.replace(temporary, path)
