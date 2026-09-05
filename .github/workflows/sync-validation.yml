@@ -1,0 +1,96 @@
+name: Sync validation
+run-name: Sync validation ${{ inputs.correlation }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      correlation: {required: true, type: string}
+      mode: {required: true, type: choice, options: [reuse, fallback]}
+      profile: {required: true, type: string}
+      pull_request: {required: true, type: string}
+      expected_base_sha: {required: true, type: string}
+      expected_head_sha: {required: true, type: string}
+      expected_merge_sha: {required: true, type: string}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: sync-validation-${{ inputs.pull_request }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: ${{ inputs.mode == 'fallback' && 'Full sync fallback' || 'Sync differential gate' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out trusted validator
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: trusted
+          persist-credentials: false
+      - name: Recheck live PR identity and collect paths
+        env:
+          BASE_SHA: ${{ inputs.expected_base_sha }}
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ inputs.expected_head_sha }}
+          MERGE_SHA: ${{ inputs.expected_merge_sha }}
+          PULL_REQUEST: ${{ inputs.pull_request }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$MERGE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$PULL_REQUEST" =~ ^[1-9][0-9]*$ ]]
+          actual=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PULL_REQUEST")
+          [[ "$(jq -r .base.sha <<< "$actual")" == "$BASE_SHA" ]]
+          [[ "$(jq -r .head.sha <<< "$actual")" == "$HEAD_SHA" ]]
+          [[ "$(jq -r .merge_commit_sha <<< "$actual")" == "$MERGE_SHA" ]]
+          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PULL_REQUEST/files" \
+            --jq '.[].filename' > changed-paths.txt
+      - name: Check out the immutable candidate merge without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.expected_merge_sha }}
+          path: candidate
+          persist-credentials: false
+      - name: Run branch-specific differential contracts
+        if: inputs.mode == 'reuse'
+        env:
+          PROFILE: ${{ inputs.profile }}
+        run: >-
+          python3 trusted/tools/sync-test-reuse/differential.py
+          --candidate candidate --profile "$PROFILE"
+          --changed-paths changed-paths.txt
+      - name: Set up full-fallback Python
+        if: inputs.mode == 'fallback'
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+      - name: Set up full-fallback Node.js
+        if: inputs.mode == 'fallback'
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22"
+      - name: Install full-fallback QML runtime
+        if: inputs.mode == 'fallback'
+        run: |
+          sudo apt-get -o Acquire::Retries=4 update
+          sudo apt-get -o Acquire::Retries=4 install --no-install-recommends -y \
+            qml-module-qttest qtdeclarative5-dev-tools
+      - name: Run the complete common fallback
+        if: inputs.mode == 'fallback'
+        working-directory: candidate
+        env:
+          GH_TOKEN: ""
+          GITHUB_TOKEN: ""
+        run: |
+          set -euo pipefail
+          python3 tests/run-project-tests.py --profile quick --timeout 240 \
+            --junit build/test-results/sync-fallback-project.xml
+          python3 tests/device/run_control_plane_tests.py --profile full \
+            --require-qml --timeout-seconds 900 \
+            --junit build/test-results/sync-fallback-device.xml
