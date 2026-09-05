@@ -27,6 +27,7 @@ class Suite:
 SUITES = (
     Suite("project-runner", "quick", (sys.executable, "tests/project-suite-self-test.py")),
     Suite("branch-policy", "quick", (sys.executable, "tests/branch-policy-test.py")),
+    Suite("sync-test-reuse", "quick", (sys.executable, "tools/sync-test-reuse/test.py")),
     Suite("workflow-action-pins", "quick", (sys.executable, "tests/workflow-action-pin-test.py")),
     Suite("release-bundle", "quick", (sys.executable, "tools/release/tests/release-bundle-test.py")),
     Suite("desktop-topology", "quick", (sys.executable, "tests/desktop-branch-topology-test.py")),

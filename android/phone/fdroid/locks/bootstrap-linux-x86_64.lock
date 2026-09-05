@@ -1,0 +1,13 @@
+{
+    "version": "0.5",
+    "requires": [],
+    "build_requires": [
+        "pkgconf/2.2.0#4ac315b50ef734072b00ff3aacbf52bf%1755505628.021",
+        "ninja/1.13.2#c8c5dc2a52ed6e4e42a66d75b4717ceb%1764096931.974",
+        "nasm/2.15.05#f7d6a6f3b14f583e001d9ae84e8cd152%1745483325.985",
+        "meson/1.10.2#9d2d10681fe7fe61c788c58626c89b25%1775558003.754",
+        "cmake/3.31.12#055c11ab0a919e8c6034a902b4025ce1%1788598983.462195"
+    ],
+    "python_requires": [],
+    "config_requires": []
+}

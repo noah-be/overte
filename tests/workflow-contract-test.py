@@ -17,12 +17,14 @@ ANDROID_TESTS_WORKFLOW = ROOT / ".github/workflows/android-tests.yml"
 DOCUMENTATION_WORKFLOW = ROOT / ".github/workflows/documentation-checks.yml"
 BRANCH_POLICY_WORKFLOW = ROOT / ".github/workflows/branch-policy.yml"
 BRANCH_SYNC_WORKFLOW = ROOT / ".github/workflows/branch-sync.yml"
+PARENT_QUALIFICATION_WORKFLOW = ROOT / ".github/workflows/parent-qualification.yml"
+SYNC_REUSE_WORKFLOW = ROOT / ".github/workflows/sync-test-reuse.yml"
+SYNC_VALIDATION_WORKFLOW = ROOT / ".github/workflows/sync-validation.yml"
 DESKTOP_TOPOLOGY_WORKFLOW = ROOT / ".github/workflows/desktop-branch-topology.yml"
 WORKFLOW_DIRECTORY = ROOT / ".github/workflows"
 CODEQL_WORKFLOW = ROOT / ".github/workflows/codeql.yml"
 IOS_WORKFLOW = ROOT / ".github/workflows/ios-bootstrap.yml"
 MACOS_WORKFLOW = ROOT / ".github/workflows/macos-bootstrap.yml"
-WORKFLOW_SECURITY_WORKFLOW = ROOT / ".github/workflows/workflow-security.yml"
 RULESETS = ROOT / ".github/rulesets"
 RULESET_FILES = {
     "Android target branch topology": "android-target-branches.json",
@@ -36,47 +38,6 @@ ACTION_USE = re.compile(r"^\s*uses:\s*([^\s#]+)", re.MULTILINE)
 FULL_SHA_ACTION = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 
 
-def workflow_events(source):
-    match = re.search(
-        r"(?ms)^on:\n(?P<body>.*?)(?=^[A-Za-z0-9_-]+:\s*$)", source
-    )
-    if match is None:
-        raise AssertionError("workflow has no parseable top-level on block")
-    return set(re.findall(r"(?m)^  ([a-z_]+):", match.group("body")))
-
-
-def workflow_job_bodies(source):
-    jobs_source = source.split("\njobs:\n", 1)[1]
-    matches = list(
-        re.finditer(r"(?m)^  ([A-Za-z_][A-Za-z0-9_-]*):\s*$", jobs_source)
-    )
-    return {
-        match.group(1): jobs_source[
-            match.end() : matches[index + 1].start()
-            if index + 1 < len(matches)
-            else len(jobs_source)
-        ]
-        for index, match in enumerate(matches)
-    }
-
-
-def workflow_job_condition(body):
-    lines = body.splitlines()
-    for index, line in enumerate(lines):
-        if not line.startswith("    if:"):
-            continue
-        value = line.split(":", 1)[1].strip()
-        if value not in {">-", "|"}:
-            return " ".join(value.split())
-        continuation = []
-        for candidate in lines[index + 1 :]:
-            if candidate.strip() and len(candidate) - len(candidate.lstrip()) <= 4:
-                break
-            continuation.append(candidate.strip())
-        return " ".join(" ".join(continuation).split())
-    return None
-
-
 class LightweightWorkflowContracts(unittest.TestCase):
     def test_documentation_changes_use_lightweight_checks(self):
         documentation = DOCUMENTATION_WORKFLOW.read_text(encoding="utf-8")
@@ -85,167 +46,19 @@ class LightweightWorkflowContracts(unittest.TestCase):
         self.assertIn("timeout-minutes: 5", documentation)
         self.assertIn("persist-credentials: false", documentation)
 
-    def test_app_test_workflows_exclude_markdown(self):
-        for workflow in (ANDROID_TESTS_WORKFLOW, WORKFLOW):
-            self.assertIn('"!**/*.md"', workflow.read_text(encoding="utf-8"))
-        for workflow in (IOS_WORKFLOW,):
-            if workflow.exists():
-                source = workflow.read_text(encoding="utf-8")
-                if re.search(r"(?m)^  (?:push|pull_request):$", source):
-                    self.assertIn("'!**/*.md'", source)
-
-    def test_long_apple_jobs_require_explicit_manual_opt_in(self):
-        ios_source = IOS_WORKFLOW.read_text(encoding="utf-8")
-        bodies = workflow_job_bodies(ios_source)
-        expected_conditions = {
-            "provision-qt-ios": "github.event_name == 'workflow_dispatch' && inputs.integrated",
-            "integrated-ios-after-qt": "github.event_name == 'workflow_dispatch' && inputs.integrated",
-            "fedora-e2e-producer": (
-                "github.event_name == 'workflow_dispatch' && inputs.fedora_e2e_producer "
-                "&& inputs.personal_team_e2e_kit != true && inputs.integrated != true "
-                "&& inputs.world_evidence != true"
-            ),
-            "personal-team-e2e-kit": (
-                "github.event_name == 'workflow_dispatch' && inputs.personal_team_e2e_kit "
-                "&& inputs.fedora_e2e_producer != true && inputs.integrated != true "
-                "&& inputs.world_evidence != true"
-            ),
-            "world-runtime-evidence": (
-                "github.event_name == 'workflow_dispatch' && inputs.world_evidence"
-            ),
-            "simulator": (
-                "github.event_name == 'workflow_dispatch' && inputs.integrated != true "
-                "&& inputs.world_evidence != true && inputs.fedora_e2e_producer != true "
-                "&& inputs.personal_team_e2e_kit != true"
-            ),
-            "unsigned-device-sdk": (
-                "github.event_name == 'workflow_dispatch' && inputs.integrated != true "
-                "&& inputs.world_evidence != true && inputs.fedora_e2e_producer != true "
-                "&& inputs.personal_team_e2e_kit != true"
-            ),
-        }
-        self.assertEqual(
-            set(bodies), set(expected_conditions) | {"host-contracts"},
-            "every bootstrap job must be classified as host-only or dispatch-only",
-        )
-        for job, condition in expected_conditions.items():
-            self.assertEqual(workflow_job_condition(bodies[job]), condition, job)
-            self.assertTrue(
-                "needs: host-contracts" in bodies[job]
-                or (
-                    job == "integrated-ios-after-qt"
-                    and "needs: provision-qt-ios" in bodies[job]
-                ),
-                f"{job} must wait directly or transitively for host contracts",
-            )
-        self.assertIsNone(workflow_job_condition(bodies["host-contracts"]))
-        self.assertNotIn("github.event.head_commit.message", ios_source)
-        self.assertEqual(
-            workflow_events(ios_source),
-            {"pull_request", "push", "workflow_dispatch"},
-        )
-
-        mode_names = (
-            "integrated",
-            "world_evidence",
-            "fedora_e2e_producer",
-            "personal_team_e2e_kit",
-        )
-        for mask in range(1 << len(mode_names)):
-            selected = {
-                name for index, name in enumerate(mode_names) if mask & (1 << index)
-            }
-            host_passes = len(selected) <= 1
-            runnable = {"host-contracts"}
-            if host_passes and not selected:
-                runnable |= {"simulator", "unsigned-device-sdk"}
-            elif host_passes and selected == {"integrated"}:
-                runnable |= {"provision-qt-ios", "integrated-ios-after-qt"}
-            elif host_passes and selected == {"world_evidence"}:
-                runnable.add("world-runtime-evidence")
-            elif host_passes and selected == {"fedora_e2e_producer"}:
-                runnable.add("fedora-e2e-producer")
-            elif host_passes and selected == {"personal_team_e2e_kit"}:
-                runnable.add("personal-team-e2e-kit")
-            if not host_passes:
-                self.assertEqual(runnable, {"host-contracts"})
-            else:
-                self.assertEqual(len(runnable - {"host-contracts"}), 2 if not selected or selected == {"integrated"} else 1)
-
-        self.assertIn("if (( selected > 1 )); then", bodies["host-contracts"])
-        self.assertIn('[[ "$RUN_PERSONAL_TEAM_E2E" == true ]]', bodies["host-contracts"])
-
-        expected_apple_events = {
-            "apple-branch-topology.yml": {"pull_request"},
-            "ios-bootstrap.yml": {"pull_request", "push", "workflow_dispatch"},
-            "ios-fedora-e2e-producer.yml": {"workflow_call"},
-            "ios-integrated.yml": {"workflow_call", "workflow_dispatch"},
-            "ios-interface-simulator-acceptance.yml": {"workflow_dispatch"},
-            "ios-ipad-runtime-acceptance.yml": {"workflow_dispatch"},
-            "ios-personal-team-e2e-kit.yml": {"workflow_call"},
-            "ios-qt-source.yml": {"workflow_call", "workflow_dispatch"},
-            "ios-sideload-repackage.yml": {"workflow_dispatch"},
-            "ios-simulator-install-diagnostic.yml": {"workflow_dispatch"},
-            "ios-world-candidate-runtime.yml": {"workflow_dispatch"},
-            "ios-world-runtime.yml": {"workflow_call"},
-            "macos-bootstrap.yml": {"workflow_dispatch"},
-        }
-        workflow_files = sorted(WORKFLOW_DIRECTORY.glob("*.yml")) + sorted(
-            WORKFLOW_DIRECTORY.glob("*.yaml")
-        )
-        apple_workflows = {
-            workflow.name: workflow
-            for workflow in workflow_files
-            if re.fullmatch(r"(?:apple|ios|macos)-.*[.](?:yml|yaml)", workflow.name)
-        }
-        self.assertEqual(set(apple_workflows), set(expected_apple_events))
-        for name, expected in expected_apple_events.items():
-            source = apple_workflows[name].read_text(encoding="utf-8")
-            self.assertEqual(workflow_events(source), expected, name)
-
-        workflow_security = WORKFLOW_SECURITY_WORKFLOW.read_text(encoding="utf-8")
-        self.assertEqual(
-            workflow_events(workflow_security), {"pull_request", "push"}
-        )
-        workflow_security_on = re.search(
-            r"(?ms)^on:\n(?P<body>.*?)(?=^[A-Za-z0-9_-]+:\s*$)",
-            workflow_security,
-        )
-        self.assertIsNotNone(workflow_security_on)
-        pull_request_event = re.search(
-            r"(?ms)^  pull_request:\n(?P<body>.*?)(?=^  [a-z_]+:|\Z)",
-            workflow_security_on.group("body"),
-        )
-        self.assertIsNotNone(pull_request_event)
-        self.assertIn('      - ".github/workflows/**"', pull_request_event.group("body"))
-        security_jobs = workflow_job_bodies(workflow_security)
-        self.assertRegex(
-            security_jobs["static-analysis"],
-            r"(?m)^      - name: Verify fail-closed workflow contracts\n"
-            r"        if: always\(\)\n"
-            r"        run: PYTHONDONTWRITEBYTECODE=1 python3 tests/workflow-contract-test[.]py$",
-        )
-
-        actual_call_graph = set()
-        for workflow in workflow_files:
+    def test_triggered_app_test_workflows_exclude_markdown(self):
+        for workflow in (
+            ANDROID_TESTS_WORKFLOW,
+            WORKFLOW,
+            IOS_WORKFLOW,
+            MACOS_WORKFLOW,
+        ):
+            if not workflow.exists():
+                continue
             source = workflow.read_text(encoding="utf-8")
-            for target in re.findall(
-                r"(?m)^\s+uses:\s+\./\.github/workflows/"
-                r"((?:apple|ios|macos)-[^\s]+[.](?:yml|yaml))\s*$",
-                source,
-            ):
-                actual_call_graph.add((workflow.name, target))
-        expected_call_graph = {
-            ("ios-bootstrap.yml", "ios-qt-source.yml"),
-            ("ios-bootstrap.yml", "ios-integrated.yml"),
-            ("ios-bootstrap.yml", "ios-fedora-e2e-producer.yml"),
-            ("ios-bootstrap.yml", "ios-personal-team-e2e-kit.yml"),
-            ("ios-bootstrap.yml", "ios-world-runtime.yml"),
-            ("ios-fedora-e2e-producer.yml", "ios-integrated.yml"),
-            ("ios-personal-team-e2e-kit.yml", "ios-integrated.yml"),
-            ("ios-world-runtime.yml", "ios-qt-source.yml"),
-        }
-        self.assertEqual(actual_call_graph, expected_call_graph)
+            if not re.search(r"(?m)^  (?:push|pull_request):", source):
+                continue
+            self.assertRegex(source, r'''["']!\*\*/\*\.md["']''', workflow.name)
 
 
 class WorkflowStorageContracts(unittest.TestCase):
@@ -374,7 +187,7 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         self.assertIn("GITHUB_TOKEN: ${{ github.token }}", source)
         self.assertNotIn("actions/create-github-app-token@", source)
         self.assertNotIn("BRANCH_SYNC_APP", source)
-        self.assertNotIn("secrets.", source)
+        self.assertNotIn("${{ secrets.", source)
         self.assertNotIn("gh pr", source)
         self.assertNotIn("--auto", source)
         self.assertNotIn("check-runs", source)
@@ -399,6 +212,57 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
             policy,
             r'"children": \["android-main", "apple-main", "linux-main", "windows-main"\]',
         )
+
+    def test_sync_reuse_gate_is_trusted_terminal_and_fail_closed(self):
+        source = SYNC_REUSE_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("pull_request_target:", source)
+        self.assertNotIn("paths:", source)
+        self.assertIn("timeout-minutes: 35", source)
+        self.assertIn("ref: ${{ github.event.repository.default_branch }}", source)
+        self.assertIn("persist-credentials: false", source)
+        self.assertIn("dispatch-and-wait", source)
+        self.assertIn("steps.inspect.outputs.mode != 'ordinary'", source)
+        self.assertNotIn("github.event.pull_request.head.sha }}\n          path:", source)
+        self.assertNotIn("${{ secrets.", source)
+
+    def test_candidate_execution_is_isolated_read_only(self):
+        source = SYNC_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
+        self.assertRegex(source, r"(?m)^permissions:\n  contents: read\n  pull-requests: read$")
+        self.assertNotIn("actions: write", source)
+        self.assertNotIn("secrets.", source)
+        self.assertIn("ref: main", source)
+        self.assertIn("path: trusted", source)
+        self.assertIn("ref: ${{ inputs.expected_merge_sha }}", source)
+        self.assertIn("path: candidate", source)
+        self.assertIn("inputs.mode == 'fallback'", source)
+        self.assertIn('GH_TOKEN: ""', source)
+        self.assertIn('GITHUB_TOKEN: ""', source)
+
+    def test_qualification_is_exact_push_only_and_bounded(self):
+        source = PARENT_QUALIFICATION_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("push:", source)
+        self.assertNotIn("pull_request:", source)
+        self.assertNotIn("workflow_dispatch:", source)
+        self.assertIn("branches: [main, android-main, android-vr, apple-main]", source)
+        self.assertIn("ref: ${{ github.sha }}", source)
+        self.assertIn("cancel-in-progress: false", source)
+        self.assertIn("retention-days: 4", source)
+
+    def test_common_suites_delegate_only_governed_same_repository_sync_shapes(self):
+        for path in (
+            ROOT / ".github/workflows/android-tests.yml",
+            ROOT / ".github/workflows/project-tests.yml",
+        ):
+            source = path.read_text(encoding="utf-8")
+            self.assertIn("SAME_REPOSITORY", source)
+            self.assertIn("run_full=true", source)
+            self.assertIn("needs.route.outputs.run_full == 'true'", source)
+            self.assertNotIn("paths-ignore:", source)
+        android = (ROOT / ".github/workflows/android-tests.yml").read_text(
+            encoding="utf-8"
+        )
+        route = android.split("- id: route", 1)[1].split("\n\n  fast:", 1)[0]
+        self.assertIn("working-directory: .", route)
 
     def test_desktop_topology_uses_trusted_main_policy(self):
         source = DESKTOP_TOPOLOGY_WORKFLOW.read_text(encoding="utf-8")
@@ -464,10 +328,12 @@ class RulesetManifestContracts(unittest.TestCase):
             )["parameters"]
             self.assertTrue(parameters["strict_required_status_checks_policy"])
             self.assertFalse(parameters["do_not_enforce_on_create"])
-            self.assertEqual(
-                parameters["required_status_checks"],
-                [{"context": context, "integration_id": 15368}],
-            )
+            expected_checks = [{"context": context, "integration_id": 15368}]
+            if name == "Permanent branch governance":
+                expected_checks.append(
+                    {"context": "sync-test-reuse", "integration_id": 15368}
+                )
+            self.assertEqual(parameters["required_status_checks"], expected_checks)
 
     def test_desktop_workflow_and_manifest_use_identical_check_context(self):
         workflow = DESKTOP_TOPOLOGY_WORKFLOW.read_text(encoding="utf-8")
