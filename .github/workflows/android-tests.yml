@@ -57,6 +57,7 @@ jobs:
     steps:
       - id: route
         name: Preserve full tests except for governed sync shapes
+        working-directory: .
         env:
           BASE: ${{ github.base_ref }}
           EVENT: ${{ github.event_name }}

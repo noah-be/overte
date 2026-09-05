@@ -251,6 +251,11 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
             self.assertIn("run_full=true", source)
             self.assertIn("needs.route.outputs.run_full == 'true'", source)
             self.assertNotIn("paths-ignore:", source)
+        android = (ROOT / ".github/workflows/android-tests.yml").read_text(
+            encoding="utf-8"
+        )
+        route = android.split("- id: route", 1)[1].split("\n\n  fast:", 1)[0]
+        self.assertIn("working-directory: .", route)
 
     def test_desktop_topology_uses_trusted_main_policy(self):
         source = DESKTOP_TOPOLOGY_WORKFLOW.read_text(encoding="utf-8")
