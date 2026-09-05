@@ -85,6 +85,12 @@ int main() {
     assert(store.enqueue(" overte://leading-space") == DeepLinkEnqueueResult::UnsupportedScheme);
     assert(store.enqueue("https://example.com") == DeepLinkEnqueueResult::UnsupportedScheme);
     assert(store.enqueue("overte://line\nbreak") == DeepLinkEnqueueResult::Invalid);
+    assert(store.enqueue("hifi:") == DeepLinkEnqueueResult::Invalid);
+    assert(store.enqueue("hifi:place") == DeepLinkEnqueueResult::Invalid);
+    assert(store.enqueue("hifi://") == DeepLinkEnqueueResult::Invalid);
+    assert(store.enqueue("hifi:///no-authority") == DeepLinkEnqueueResult::Invalid);
+    assert(store.enqueue("hifi://bad host.test") == DeepLinkEnqueueResult::Invalid);
+    assert(store.enqueue("hifi://host\\path") == DeepLinkEnqueueResult::Invalid);
     assert(store.enqueue(std::string(PendingDeepLinkStore::MAX_URL_BYTES + 1, 'a')) ==
         DeepLinkEnqueueResult::Invalid);
 

@@ -7,6 +7,7 @@
 #include <charconv>
 #include <cctype>
 #include <utility>
+#include <arpa/inet.h>
 
 namespace overte::ios {
 namespace {
@@ -80,6 +81,11 @@ ParsedAddress parseOverteAddress(std::string_view input) {
     if (authority.empty() || authority.find('@') != std::string_view::npos) {
         return invalid("User lookups are not available in this preview.");
     }
+    if (std::any_of(authority.begin(), authority.end(), [](unsigned char c) {
+        return std::isspace(c) != 0 || c == '\\' || c == '%' || c >= 128;
+    })) {
+        return invalid("Use an ASCII host name without whitespace or escapes.");
+    }
 
     std::string_view host;
     std::string_view portText;
@@ -89,23 +95,46 @@ ParsedAddress parseOverteAddress(std::string_view input) {
             return invalid("The IPv6 address is missing its closing bracket.");
         }
         host = authority.substr(1, bracket - 1);
+        in6_addr ipv6 {};
+        if (inet_pton(AF_INET6, std::string(host).c_str(), &ipv6) != 1) {
+            return invalid("The IPv6 address is invalid.");
+        }
         if (bracket + 1 < authority.size()) {
             if (authority[bracket + 1] != ':') {
                 return invalid("Unexpected text after the IPv6 address.");
             }
             portText = authority.substr(bracket + 2);
+            if (portText.empty()) { return invalid("The domain port is missing."); }
         }
     } else {
         const auto colon = authority.rfind(':');
         if (colon != std::string_view::npos) {
             host = authority.substr(0, colon);
             portText = authority.substr(colon + 1);
+            if (portText.empty()) { return invalid("The domain port is missing."); }
+            if (host.find(':') != std::string_view::npos) {
+                return invalid("IPv6 addresses require brackets.");
+            }
         } else {
             host = authority;
         }
     }
     if (host.empty()) {
         return invalid("The address has no host or place name.");
+    }
+    if (authority.front() != '[') {
+        auto labels = host;
+        if (labels.back() == '.') { labels.remove_suffix(1); }
+        if (labels.empty() || labels.size() > 253) { return invalid("The host name is invalid."); }
+        while (!labels.empty()) {
+            const auto end = labels.find('.');
+            const auto label = labels.substr(0, end);
+            if (label.empty() || label.size() > 63 || label.front() == '-' || label.back() == '-' ||
+                !validPlace(label)) { return invalid("The host name is invalid."); }
+            if (end == std::string_view::npos) { break; }
+            labels.remove_prefix(end + 1);
+            if (labels.empty()) { return invalid("The host name is invalid."); }
+        }
     }
 
     ParsedAddress result;

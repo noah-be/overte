@@ -154,8 +154,10 @@ typedef struct {
     self.addressField.placeholder = @"Overte place or hifi:// address";
     self.addressField.accessibilityIdentifier = @"overte.preview.address";
     self.addressField.delegate = self;
-    NSString* savedAddress = [NSUserDefaults.standardUserDefaults stringForKey:@"lastOverteAddress"];
-    self.addressField.text = savedAddress.length > 0 ? savedAddress : @"overte_hub";
+    // Locations can embed private queries/path material. This native preview
+    // retains the current input only in memory and removes its old raw history.
+    [NSUserDefaults.standardUserDefaults removeObjectForKey:@"lastOverteAddress"];
+    self.addressField.text = @"overte_hub";
 
     self.connectButton = [UIButton buttonWithType:UIButtonTypeSystem];
     self.connectButton.translatesAutoresizingMaskIntoConstraints = NO;
@@ -378,7 +380,6 @@ typedef struct {
     }
 
     NSString* normalized = [NSString stringWithUTF8String:parsed.normalized.c_str()];
-    [NSUserDefaults.standardUserDefaults setObject:normalized forKey:@"lastOverteAddress"];
     self.addressField.text = normalized;
     if (parsed.kind == overte::ios::AddressKind::Network) {
         NSString* message = [NSString stringWithFormat:

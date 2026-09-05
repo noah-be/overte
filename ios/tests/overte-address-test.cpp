@@ -34,5 +34,13 @@ int main() {
     assert(!parseOverteAddress("hifi://example.com:70000"));
     assert(!parseOverteAddress("hifi://@someone"));
     assert(!parseOverteAddress("bad place"));
+    for (const auto input : {"hifi://example.com:", "hifi://[::1]:", "hifi://[not-ipv6]",
+                             "hifi://2001:db8::1", "hifi://bad host.test", "hifi://bad%20host.test",
+                             "hifi://example..test", "hifi://-example.test", "hifi://example.test..",
+                             "hifi://example.test\\secret", "hifi://[::1]trailing"}) {
+        assert(!parseOverteAddress(input));
+    }
+    assert(parseOverteAddress("hifi://example.test."));
+    assert(parseOverteAddress("hifi://[::1]"));
     return 0;
 }
