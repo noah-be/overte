@@ -71,4 +71,4 @@ class PicoOverte(_module.Overte):
             "#4fc772a2dbcd84731eb6ff9904e6e358",
             force=True,
         )
-        self.requires("openssl/1.1.1q", force=True)
+        self.requires("openssl/3.5.8@overte/stable", force=True)

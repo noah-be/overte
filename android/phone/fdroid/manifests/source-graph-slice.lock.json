@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "node": "SH-001",
+  "slice": "openssl-3.5.8-libnode-android-consumer",
+  "status": "IMPLEMENTATION_COMPLETE_VERIFICATION_PENDING",
+  "frozen_base_sha": "62867a47b2b123897d913ef2eb2af19263506321",
+  "source": {
+    "ref": "openssl/3.5.8@overte/stable",
+    "url": "https://github.com/openssl/openssl/releases/download/openssl-3.5.8/openssl-3.5.8.tar.gz",
+    "sha256": "a8f84a39918ec6415ce765d9b429d313ba97b8143169c172e734b9514464f5b2",
+    "license": "Apache-2.0",
+    "license_file": "LICENSE.txt"
+  },
+  "exported_recipe_revisions": {
+    "libnode/22.22.3@overte/stable": "3fd33b0199406fa08037c90d5dd1a635",
+    "openssl/3.5.8@overte/stable": "33b2f0ee1a4417ab2c5429ae844d0ea5"
+  },
+  "bound_files": {
+    "android/common/cmake/overte-android-toolchain.cmake": "14f30644a18223aec071f5f43069c7af46294a9d2007d3accfb35a04771fbe2e",
+    "android/common/conan/conanfile-pico.py": "9fa44344b2e89e1498764e652199c9289c526218a4012c44afef4cc4623b90ef",
+    "android/common/conan/recipes/libnode/conandata.yml": "388a498501a3efdb3142363dd89220780beb66600f449c912a9a1965a7c2fadf",
+    "android/common/conan/recipes/libnode/conanfile.py": "b51db7ad522d3e66d4e5682ad56410fad15465269b9a1e9b86643e734d71a960",
+    "android/common/conan/recipes/openssl/conandata.yml": "8fb30a2f8a338a50831774f9cd5f64a8b156a2d2f3252b22b0d27ed05298d620",
+    "android/common/conan/recipes/openssl/conanfile.py": "b657dc7a45695d17d41406bb53ec1d755e4039f67065748a86ea1bb94d6c6cba",
+    "android/phone/fdroid/profiles/android-arm64-v8a-api26-16k": "11d9bc7d719ed73a9e6e3b6d7dda34340b2964a3bce76357da84c0698a3b3a99"
+  },
+  "consumer_contract": {
+    "libnode_ref": "libnode/22.22.3@overte/stable",
+    "openssl_ref": "openssl/3.5.8@overte/stable",
+    "external_shared_openssl_required": true,
+    "root_node_22_23_2_untouched": true
+  },
+  "provider_policy": {
+    "shared": true,
+    "modules": false,
+    "default_provider": "built-in",
+    "fips": false,
+    "openssldir": "/etc/ssl"
+  },
+  "tool_contract": {
+    "perl_conf": "user.overte:perl_path",
+    "make_conf": "user.overte:make_path",
+    "implicit_path_lookup": false
+  },
+  "target_contract": {
+    "os": "Android",
+    "arch": "armv8",
+    "api_level": "26",
+    "compiler": "clang",
+    "compiler_version": "18",
+    "page_size": 16384
+  },
+  "historical_locks": {
+    "android/common/conan/locks/phone-arm64-16k-linux-x86_64.lock": "1d7f347dc8802dac6eb52aec939ef8b7c389a9526a27b9c11e15cb468b3199df",
+    "android/common/conan/locks/phone-emulator-x86_64-linux-x86_64.lock": "1d7f347dc8802dac6eb52aec939ef8b7c389a9526a27b9c11e15cb468b3199df",
+    "android/common/conan/locks/phone-nonqt-arm64-16k-linux-x86_64.lock": "1d7f347dc8802dac6eb52aec939ef8b7c389a9526a27b9c11e15cb468b3199df",
+    "android/common/conan/locks/pico4-arm64-linux-x86_64.lock": "1d7f347dc8802dac6eb52aec939ef8b7c389a9526a27b9c11e15cb468b3199df"
+  },
+  "historical_lock_disposition": "EVIDENCE_ONLY_CONTAINS_OPENSSL_1_1_1Q_DO_NOT_EDIT",
+  "required_before_pass": [
+    "Generate and review bootstrap-linux-x86_64.lock from the complete source-only graph",
+    "Generate and review host-tools-linux-x86_64.lock from the complete source-only graph",
+    "Generate and review android-arm64-v8a-api26-16k.lock from the complete source-only graph",
+    "Record the exported OpenSSL and libnode recipe revisions in recipe-source.lock.json",
+    "Complete one empty-cache no-remote cold build with compile/link evidence",
+    "Verify libnode.so.127 and APK DT_NEEDED contain OpenSSL 3 only",
+    "Pass TLS 1.2, TLS 1.3, WSS, Qt QSslSocket, Node Crypto, and certificate-error smoke tests"
+  ]
+}
