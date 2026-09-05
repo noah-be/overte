@@ -104,7 +104,16 @@ int main() {
     const auto beforeRouteStarts = native->starts;
     adapter->routeChanged();
     assert(notifications == beforeRoute + 1 && native->starts == beforeRouteStarts);
+    adapter->interruption(true);
+    adapter->interruption(false, false);
+    assert(adapter->outcome() == Outcome::Stopped);
+    native->throwPermission = true;
+    const auto beforeStoppedQueries = notifications;
+    for (int i = 0; i < 100; ++i) { assert(!adapter->microphonePermissionGranted()); }
+    assert(notifications == beforeStoppedQueries + 1);
+    native->throwPermission = false;
+    const auto beforeUnregister = notifications;
     setIOSAudioStateCallback({});
     adapter->routeChanged();
-    assert(notifications == beforeRoute + 1);
+    assert(notifications == beforeUnregister);
 }

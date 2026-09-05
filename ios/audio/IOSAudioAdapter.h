@@ -37,6 +37,7 @@ private:
     std::shared_ptr<NativeAudioOperations> _native;
     audio::AudioLifecycleGate _gate;
     std::atomic<bool> _capture { false }, _promptRequested { false };
+    std::atomic<bool> _permissionQueryFailed { false };
     std::atomic<audio::Permission> _permission { audio::Permission::Unknown };
     std::atomic<std::uint64_t> _revision { 0 };
 };

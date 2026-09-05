@@ -50,6 +50,7 @@ void IOSAudioAdapter::refreshPermission() {
     if (!_native) { _capture = false; return; }
     try {
         const auto permission = _native->permission();
+        _permissionQueryFailed = false;
         if (_permission.exchange(permission) != permission) {
             _capture = false;
             _gate.permission(permission);
@@ -59,7 +60,9 @@ void IOSAudioAdapter::refreshPermission() {
         _capture = false;
         // A repeated failing permission query must not enqueue itself forever
         // through Shared's refresh callback. Notify the failure transition once.
-        if (_gate.outcome() != audio::Outcome::Failed) {
+        // Gate reports Stopped before Failed when no start is requested, so
+        // notification suppression cannot depend on its Outcome alone.
+        if (!_permissionQueryFailed.exchange(true)) {
             _gate.fail();
             apply(); // attempt bounded native stop before failure notification
         }
