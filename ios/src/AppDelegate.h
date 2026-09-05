@@ -8,6 +8,6 @@
 @interface AppDelegate : UIResponder <UIApplicationDelegate>
 
 @property(nonatomic, strong) UIWindow* window;
+- (void)setAudioForeground:(BOOL)foreground;
 
 @end
-

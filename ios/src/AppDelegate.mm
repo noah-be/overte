@@ -30,6 +30,10 @@ bool setAudioSessionActive(bool active, AVAudioSessionSetActiveOptions options =
 @interface AppDelegate ()
 @property(nonatomic, strong) id audioInterruptionObserver;
 @property(nonatomic, strong) id audioRouteObserver;
+@property(nonatomic) BOOL audioForeground;
+@property(nonatomic) BOOL audioConfigured;
+@property(nonatomic) BOOL audioInterrupted;
+@property(nonatomic) BOOL audioResumeAllowed;
 @end
 
 @implementation AppDelegate
@@ -41,42 +45,39 @@ bool setAudioSessionActive(bool active, AVAudioSessionSetActiveOptions options =
 
     AVAudioSession* audioSession = AVAudioSession.sharedInstance;
     NSError* error = nil;
-    BOOL configured = [audioSession setCategory:AVAudioSessionCategoryPlayAndRecord
-                                           mode:AVAudioSessionModeGameChat
-                                        options:(AVAudioSessionCategoryOptionDefaultToSpeaker |
-                                                 AVAudioSessionCategoryOptionAllowBluetoothHFP)
+    // The preview has no voice-input caller. Do not prompt for a microphone or
+    // configure recording merely to display its native scene.
+    BOOL configured = [audioSession setCategory:AVAudioSessionCategoryPlayback
+                                           mode:AVAudioSessionModeDefault
+                                        options:0
                                           error:&error];
     if (!configured) {
         overte::ios::logDiagnostic(overte::ios::DiagnosticEvent::AudioConfigurationFailed);
     }
 
-    AVAudioSessionRecordPermission permission = audioSession.recordPermission;
-    if (permission == AVAudioSessionRecordPermissionUndetermined) {
-        [audioSession requestRecordPermission:^(BOOL granted) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                logSharedDiagnostic(granted ? Event::PermissionGranted : Event::PermissionDenied);
-            });
-        }];
-    } else {
-        logSharedDiagnostic(permission == AVAudioSessionRecordPermissionGranted
-            ? Event::PermissionGranted : Event::PermissionDenied);
-    }
-
+    self.audioConfigured = configured;
+    self.audioResumeAllowed = YES;
+    __weak AppDelegate* weakSelf = self;
     self.audioInterruptionObserver = [NSNotificationCenter.defaultCenter
         addObserverForName:AVAudioSessionInterruptionNotification
                     object:audioSession
                      queue:NSOperationQueue.mainQueue
                 usingBlock:^(NSNotification* notification) {
         NSNumber* typeValue = notification.userInfo[AVAudioSessionInterruptionTypeKey];
+        AppDelegate* strongSelf = weakSelf;
+        if (strongSelf == nil || ![typeValue isKindOfClass:NSNumber.class]) { return; }
         AVAudioSessionInterruptionType type = (AVAudioSessionInterruptionType)typeValue.unsignedIntegerValue;
         if (type == AVAudioSessionInterruptionTypeBegan) {
+            strongSelf.audioInterrupted = YES;
             logSharedDiagnostic(Event::AudioInterrupted);
         } else {
             NSNumber* optionValue = notification.userInfo[AVAudioSessionInterruptionOptionKey];
-            BOOL shouldResume = (optionValue.unsignedIntegerValue &
+            BOOL shouldResume = [optionValue isKindOfClass:NSNumber.class] && (optionValue.unsignedIntegerValue &
                                  AVAudioSessionInterruptionOptionShouldResume) != 0;
+            strongSelf.audioInterrupted = NO;
+            strongSelf.audioResumeAllowed = shouldResume;
             logSharedDiagnostic(Event::AudioStopped);
-            if (shouldResume) {
+            if (shouldResume && strongSelf.audioForeground && strongSelf.audioConfigured) {
                 setAudioSessionActive(true);
             }
         }
@@ -111,24 +112,35 @@ bool setAudioSessionActive(bool active, AVAudioSessionSetActiveOptions options =
 
 - (void)applicationDidBecomeActive:(UIApplication*)application {
     (void)application;
-    setAudioSessionActive(true);
+    [self setAudioForeground:YES];
     logSharedDiagnostic(Event::LifecycleResumed);
 }
 
 - (void)applicationWillResignActive:(UIApplication*)application {
     (void)application;
+    [self setAudioForeground:NO];
     logSharedDiagnostic(Event::LifecycleSuspended);
 }
 
 - (void)applicationDidEnterBackground:(UIApplication*)application {
     (void)application;
-    setAudioSessionActive(false, AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation);
+    [self setAudioForeground:NO];
     logSharedDiagnostic(Event::LifecycleSuspended);
 }
 
 - (void)applicationWillEnterForeground:(UIApplication*)application {
     (void)application;
     logSharedDiagnostic(Event::LifecycleResumed);
+}
+
+- (void)setAudioForeground:(BOOL)foreground {
+    if (self.audioForeground == foreground) { return; }
+    _audioForeground = foreground;
+    if (!foreground) {
+        setAudioSessionActive(false, AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation);
+    } else if (self.audioConfigured && !self.audioInterrupted && self.audioResumeAllowed) {
+        setAudioSessionActive(true);
+    }
 }
 
 - (void)applicationDidReceiveMemoryWarning:(UIApplication*)application {

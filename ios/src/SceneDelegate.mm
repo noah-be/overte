@@ -7,6 +7,7 @@
 
 
 #import "BootstrapViewController.h"
+#import "AppDelegate.h"
 
 #include "PendingDeepLinkStore.h"
 #include "LifecycleStateMachine.h"
@@ -60,6 +61,7 @@ void routeURLContexts(NSSet<UIOpenURLContext*>* URLContexts) {
 
 - (void)sceneDidBecomeActive:(UIScene*)scene {
     (void)scene;
+    [(AppDelegate*)UIApplication.sharedApplication.delegate setAudioForeground:YES];
     overte::ios::LifecycleStateMachine::instance().apply(
         overte::ios::LifecycleEvent::DidBecomeActive);
     logSharedDiagnostic(Event::LifecycleResumed);
@@ -67,6 +69,7 @@ void routeURLContexts(NSSet<UIOpenURLContext*>* URLContexts) {
 
 - (void)sceneWillResignActive:(UIScene*)scene {
     (void)scene;
+    [(AppDelegate*)UIApplication.sharedApplication.delegate setAudioForeground:NO];
     overte::ios::LifecycleStateMachine::instance().apply(
         overte::ios::LifecycleEvent::WillResignActive);
     logSharedDiagnostic(Event::LifecycleSuspended);
@@ -74,6 +77,7 @@ void routeURLContexts(NSSet<UIOpenURLContext*>* URLContexts) {
 
 - (void)sceneDidEnterBackground:(UIScene*)scene {
     (void)scene;
+    [(AppDelegate*)UIApplication.sharedApplication.delegate setAudioForeground:NO];
     overte::ios::LifecycleStateMachine::instance().apply(
         overte::ios::LifecycleEvent::DidEnterBackground);
     logSharedDiagnostic(Event::LifecycleSuspended);
