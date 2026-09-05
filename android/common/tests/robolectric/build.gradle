@@ -15,6 +15,7 @@ def picoJava = file('../../../vr/pico/apps/picoInterface/src/main/java')
 def picoTests = file('../../../vr/pico/apps/picoInterface/src/test/java')
 def questJava = file('../../../vr/quest/apps/questInterface/src/main/java')
 def questTests = file('../../../vr/quest/apps/questInterface/src/test/java')
+def sharedRedactionJava = file('../../../../security/redaction/java')
 
 sourceSets {
     boundary {
@@ -22,7 +23,10 @@ sourceSets {
     }
     main {
         java {
-            srcDirs phoneJava, interfaceJava, picoJava, questJava
+            srcDirs phoneJava, interfaceJava, picoJava, questJava, sharedRedactionJava
+            include 'org/overte/security/SafeDiagnostics.java'
+            include 'org/overte/phone/SecureAccountStore.java'
+            include 'org/overte/phone/RedactingDiagnostics.java'
             include 'org/overte/phone/PermissionsActivity.java'
             include 'org/overte/phone/PhoneDeepLink.java'
             include 'org/overte/phone/PhoneDeepLinkNormalizer.java'
@@ -44,6 +48,7 @@ sourceSets {
             srcDirs phoneTests, interfaceTests, picoTests, questTests
             include 'org/overte/phone/PermissionsActivityRobolectricTest.java'
             include 'org/overte/phone/PhoneDeepLinkRobolectricTest.java'
+            include 'org/overte/phone/RedactingDiagnosticsRobolectricTest.java'
             include 'io/highfidelity/hifiinterface/HifiUtilsTest.java'
             include 'io/highfidelity/hifiinterface/PermissionCheckerRobolectricTest.java'
             include 'org/overte/pico/PermissionsActivityRobolectricTest.java'
