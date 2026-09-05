@@ -72,6 +72,31 @@ def validate(index_path: Path):
             raise RecipeStoreError(f"recipe file ledger mismatch: {reference}")
         if "export/conanfile.py" not in actual or "export/conanmanifest.txt" not in actual:
             raise RecipeStoreError(f"incomplete recipe export: {reference}")
+        # The ledger alone cannot prove completeness: both it and the directory
+        # previously omitted three patches required by frozen Conan manifests.
+        lines = (ref_root / "export/conanmanifest.txt").read_text(encoding="utf-8").splitlines()
+        if not lines or not lines[0].isdigit():
+            raise RecipeStoreError(f"invalid Conan export manifest: {reference}")
+        declared = {}
+        for line in lines[1:]:
+            parts = line.rsplit(": ", 1)
+            if len(parts) != 2:
+                raise RecipeStoreError(f"invalid Conan export manifest entry: {reference}")
+            name, expected_md5 = parts
+            if (not name or PurePosixPath(name).is_absolute() or ".." in PurePosixPath(name).parts
+                    or len(expected_md5) != 32 or any(c not in "0123456789abcdef" for c in expected_md5)):
+                raise RecipeStoreError(f"invalid Conan export manifest path/hash: {reference}")
+            relative = ("export_sources/" + name.removeprefix("export_source/")) if name.startswith("export_source/") else "export/" + name
+            if relative in declared:
+                raise RecipeStoreError(f"duplicate Conan export manifest path: {reference}")
+            declared[relative] = expected_md5
+        if set(declared) != set(actual) - {"export/conanmanifest.txt"}:
+            raise RecipeStoreError(f"Conan export manifest file set mismatch: {reference}")
+        for relative, expected_md5 in declared.items():
+            # MD5 is Conan's legacy manifest format, not our security digest;
+            # the independently bound index also validates every file's SHA256.
+            if hashlib.md5((ref_root / relative).read_bytes(), usedforsecurity=False).hexdigest() != expected_md5:
+                raise RecipeStoreError(f"Conan export manifest byte mismatch: {reference}:{relative}")
     return index, pkglist
 
 
@@ -111,9 +136,12 @@ def create_transport(index_path: Path, output: Path, scanned_root: Path):
                     folder = entry["cache_folder"]
                     for directory in (folder, f"{folder}/d", f"{folder}/d/metadata", f"{folder}/e"):
                         _add_directory(archive, directory)
-                    export_sources = any(name.startswith("export_sources/") for name in entry["files"])
-                    if export_sources:
-                        _add_directory(archive, f"{folder}/es")
+                    # Conan requires es/ whenever export_sources() exists, even
+                    # if a recipe version exports zero files.
+                    # Git cannot preserve empty directories. Include this empty
+                    # cache-layout directory for every validated recipe; it adds
+                    # no source/package bytes and leaves every RREV unchanged.
+                    _add_directory(archive, f"{folder}/es")
                     seen_dirs = {folder, f"{folder}/d", f"{folder}/d/metadata", f"{folder}/e", f"{folder}/es"}
                     for relative in sorted(entry["files"]):
                         if relative.startswith("export/"):
@@ -168,6 +196,9 @@ def restore(index_path: Path, conan_home: Path, transport: Path, scanned_root: P
         revisions = restored[reference].get("revisions", {})
         if set(revisions) != {entry["rrev"]}:
             raise RecipeStoreError(f"restored RREV mismatch: {reference}")
+        export_sources = conan_home / "p" / entry["cache_folder"] / "es"
+        if not export_sources.is_dir() or export_sources.is_symlink():
+            raise RecipeStoreError(f"restored export-sources directory missing: {reference}")
 
 
 def main():
