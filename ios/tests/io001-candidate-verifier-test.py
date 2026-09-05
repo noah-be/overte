@@ -55,6 +55,40 @@ def write_adapter(path: Path, exit_code: int) -> None:
     path.chmod(0o700)
 
 
+def create_source_repository(path: Path) -> tuple[Path, str]:
+    source = path / "source"
+    source.mkdir()
+    subprocess.run(["git", "init", "-q", str(source)], check=True, timeout=10)
+    subprocess.run(
+        ["git", "-C", str(source), "config", "user.name", "IO-001 Fixture"],
+        check=True,
+        timeout=10,
+    )
+    subprocess.run(
+        ["git", "-C", str(source), "config", "user.email", "fixture@example.invalid"],
+        check=True,
+        timeout=10,
+    )
+    tracked = source / "tracked.txt"
+    tracked.write_text("exact source\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "-C", str(source), "add", "tracked.txt"], check=True, timeout=10
+    )
+    subprocess.run(
+        ["git", "-C", str(source), "commit", "-q", "-m", "fixture source"],
+        check=True,
+        timeout=10,
+    )
+    head = subprocess.run(
+        ["git", "-C", str(source), "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    ).stdout.strip()
+    return source, head
+
+
 with tempfile.TemporaryDirectory(prefix="io001-candidate-valid-") as temporary:
     root = Path(temporary)
     manifest = materialize(root, "valid.json")
@@ -116,22 +150,48 @@ with tempfile.TemporaryDirectory(prefix="io001-candidate-head-") as temporary:
     root = Path(temporary)
     manifest = materialize(root, "valid.json")
     payload = json.loads(manifest.read_text(encoding="utf-8"))
-    head = subprocess.run(
-        ["git", "-C", str(REPOSITORY), "rev-parse", "HEAD"],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=10,
-    ).stdout.strip()
+    source, head = create_source_repository(root)
     payload["source"]["revision"] = head
     manifest.write_text(json.dumps(payload), encoding="utf-8")
     summary = verifier.verify_candidate(
         manifest,
         root,
         head,
-        repository=REPOSITORY,
+        repository=source,
     )
     assert summary["sourceRevision"] == head
+
+    (source / "tracked.txt").write_text("dirty source\n", encoding="utf-8")
+    try:
+        verifier.verify_candidate(manifest, root, head, repository=source)
+    except verifier.CandidateVerificationError as error:
+        assert "uncommitted content" in str(error)
+    else:
+        raise AssertionError("dirty source repository was accepted")
+    subprocess.run(
+        ["git", "-C", str(source), "restore", "tracked.txt"], check=True, timeout=10
+    )
+    untracked = source / "untracked.txt"
+    untracked.write_text("untracked build input\n", encoding="utf-8")
+    try:
+        verifier.verify_candidate(manifest, root, head, repository=source)
+    except verifier.CandidateVerificationError as error:
+        assert "uncommitted content" in str(error)
+    else:
+        raise AssertionError("untracked source content was accepted")
+    untracked.unlink()
+    (source / "tracked.txt").write_text("new exact source\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "-C", str(source), "commit", "-qam", "advance source"],
+        check=True,
+        timeout=10,
+    )
+    try:
+        verifier.verify_candidate(manifest, root, head, repository=source)
+    except verifier.CandidateVerificationError as error:
+        assert "does not match repository HEAD" in str(error)
+    else:
+        raise AssertionError("stale expected source HEAD was accepted")
 
 with tempfile.TemporaryDirectory(prefix="io001-candidate-adapter-") as temporary:
     root = Path(temporary)
@@ -179,6 +239,10 @@ with tempfile.TemporaryDirectory(prefix="io001-candidate-adapter-") as temporary
 with tempfile.TemporaryDirectory(prefix="io001-candidate-cli-") as temporary:
     root = Path(temporary)
     manifest = materialize(root, "valid.json")
+    source, head = create_source_repository(root)
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    payload["source"]["revision"] = head
+    manifest.write_text(json.dumps(payload), encoding="utf-8")
     completed = subprocess.run(
         [
             sys.executable,
@@ -187,7 +251,9 @@ with tempfile.TemporaryDirectory(prefix="io001-candidate-cli-") as temporary:
             "--artifact-root",
             str(root),
             "--expected-source-sha",
-            EXPECTED_SOURCE,
+            head,
+            "--repository",
+            str(source),
         ],
         check=False,
         capture_output=True,
@@ -198,5 +264,22 @@ with tempfile.TemporaryDirectory(prefix="io001-candidate-cli-") as temporary:
     cli_summary = json.loads(completed.stdout)
     assert cli_summary["sharedEvidence"] == "DEFERRED"
     assert str(root) not in completed.stdout
+
+    missing_repository = subprocess.run(
+        [
+            sys.executable,
+            str(CANDIDATE_TOOLS / "verify_io001_candidate.py"),
+            str(manifest),
+            "--artifact-root",
+            str(root),
+            "--expected-source-sha",
+            head,
+        ],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=30,
+    )
+    assert missing_repository.returncode == 2
 
 print("PASS credential-free IO-001 candidate verifier fixtures")

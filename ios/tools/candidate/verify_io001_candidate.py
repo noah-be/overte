@@ -116,6 +116,29 @@ def _verify_repository_head(repository: Path, expected_source_sha: str) -> None:
         raise CandidateVerificationError("source repository has no verifiable HEAD")
     if head != expected_source_sha:
         raise CandidateVerificationError("expected source SHA does not match repository HEAD")
+    try:
+        status = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repository.resolve()),
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all",
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise CandidateVerificationError("source repository status lookup timed out") from error
+    if status.returncode != 0:
+        raise CandidateVerificationError("source repository status is unavailable")
+    if status.stdout:
+        raise CandidateVerificationError("source repository has uncommitted content")
 
 
 def _verify_tiers(raw_tiers: Any) -> tuple[str, ...]:
@@ -241,7 +264,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("manifest", type=Path)
     parser.add_argument("--artifact-root", required=True, type=Path)
     parser.add_argument("--expected-source-sha", required=True)
-    parser.add_argument("--repository", type=Path)
+    parser.add_argument("--repository", required=True, type=Path)
     parser.add_argument("--shared-evidence-adapter", type=Path)
     parser.add_argument("--require-shared-evidence", action="store_true")
     return parser.parse_args(argv)

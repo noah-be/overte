@@ -11,6 +11,7 @@ import json
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 
@@ -110,6 +111,38 @@ with tempfile.TemporaryDirectory(prefix="io001-simulator-execute-") as temporary
     assert calls[0][4] == "-" and calls[2][4] == "-"
     assert calls[1][4] == public_domain and calls[3][4] == public_domain
     assert all(call[1] == "org.overte.interface.e2e" for call in calls)
+
+with tempfile.TemporaryDirectory(prefix="io001-simulator-timeout-") as temporary:
+    root = Path(temporary)
+    app = root / "Overte.app"
+    app.mkdir()
+    harness = root / "slow-harness.py"
+    harness.write_text(
+        "#!/usr/bin/env python3\nimport time\ntime.sleep(2)\n",
+        encoding="utf-8",
+    )
+    harness.chmod(0o700)
+    bounded_plan = copy.deepcopy(plan)
+    bounded_plan["cases"][0]["runtimeTimeoutSeconds"] = 1
+    bounded_plan_path = root / "bounded-plan.json"
+    bounded_plan_path.write_text(json.dumps(bounded_plan), encoding="utf-8")
+    started = time.monotonic()
+    try:
+        simulator.execute_plan(
+            bounded_plan_path,
+            app,
+            "org.overte.interface.e2e",
+            root / "evidence",
+            "11111111-1111-4111-8111-111111111111",
+            harness_override=harness,
+            allow_non_darwin=True,
+            process_grace_seconds=0,
+        )
+    except simulator.SimulatorPlanError as error:
+        assert "exceeded its process bound" in str(error)
+    else:
+        raise AssertionError("hung simulator harness exceeded its bound")
+    assert time.monotonic() - started < 3
 
 completed = subprocess.run(
     [sys.executable, str(TESTS / "io001_simulator_plan.py"), "--plan", str(PLAN)],

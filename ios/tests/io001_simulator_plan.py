@@ -120,6 +120,7 @@ def execute_plan(
     *,
     harness_override: Path | None = None,
     allow_non_darwin: bool = False,
+    process_grace_seconds: int = PROCESS_GRACE_SECONDS,
 ) -> dict[str, Any]:
     """Execute exactly four bounded cases without exposing their raw output."""
 
@@ -134,6 +135,12 @@ def execute_plan(
         raise SimulatorPlanError("bundle identifier is invalid")
     if UUID.fullmatch(online_domain_uuid) is None:
         raise SimulatorPlanError("public online domain UUID is invalid")
+    if (
+        not isinstance(process_grace_seconds, int)
+        or isinstance(process_grace_seconds, bool)
+        or not 0 <= process_grace_seconds <= PROCESS_GRACE_SECONDS
+    ):
+        raise SimulatorPlanError("simulator process grace is out of bounds")
 
     repository_root = Path(__file__).resolve().parents[2]
     harness = (harness_override or (repository_root / plan["harness"])).resolve()
@@ -165,7 +172,7 @@ def execute_plan(
                 stderr=subprocess.DEVNULL,
                 env=environment,
                 check=False,
-                timeout=case["runtimeTimeoutSeconds"] + PROCESS_GRACE_SECONDS,
+                timeout=case["runtimeTimeoutSeconds"] + process_grace_seconds,
             )
         except subprocess.TimeoutExpired as error:
             raise SimulatorPlanError(
