@@ -177,6 +177,21 @@ def compare_files(api: GitHubApi, repository: str, base: str, head: str) -> tupl
     return merge_base, files
 
 
+def compare_merge_base(api: GitHubApi, repository: str, base: str, head: str) -> str:
+    """Read the exact merge base without trusting the capped comparison file list."""
+    value = api.json(f"repos/{repository}/compare/{base}...{head}")
+    if not isinstance(value, dict):
+        raise GateError("GitHub API returned invalid ancestry comparison")
+    try:
+        compared_base = validate_sha(value["base_commit"]["sha"], "comparison base SHA")
+        merge_base = validate_sha(value["merge_base_commit"]["sha"], "merge-base SHA")
+    except (KeyError, TypeError) as error:
+        raise GateError("GitHub API returned malformed ancestry comparison") from error
+    if compared_base != base:
+        raise GateError("GitHub API returned a mismatched comparison base")
+    return merge_base
+
+
 def classify_event(event: dict, config: dict, api: GitHubApi) -> SyncRequest | None:
     try:
         repository = event["repository"]["full_name"]
@@ -231,15 +246,13 @@ def classify_event(event: dict, config: dict, api: GitHubApi) -> SyncRequest | N
     merge_commit = commit(api, repository, merge_sha)
     if commit_parents(merge_commit) != (current_base, head_sha):
         raise GateError("pull-request merge parents do not match current target and head")
-    merge_base, parent_paths = compare_files(api, repository, current_parent, current_base)
+    merge_base = compare_merge_base(api, repository, current_parent, current_base)
     _, parent_delta = compare_files(api, repository, merge_base, current_parent)
     changed_documents = paginate_pull_files(api, repository, number)
     try:
         changed = tuple(sorted({item["filename"] for item in changed_documents}))
     except (KeyError, TypeError) as error:
         raise GateError("pull request contains malformed changed paths") from error
-    if parent_paths and not isinstance(parent_paths, set):
-        raise GateError("invalid ancestry comparison")
     unexpected = sorted(set(changed) - parent_delta)
     if unexpected:
         raise GateError("sync changes paths absent from the exact parent delta: " + ", ".join(unexpected[:10]))
