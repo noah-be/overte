@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "repository": "https://github.com/overte-org/overte-conan-recipes",
+  "commit": "a37c17acf0835de484280c6a7756bc9e7470757a",
+  "path": "qt/5.x.x",
+  "upstream_conanfile_sha256": "9209dec7c5471c9100bebf685b49fcb01431d7982b6ef522dc3122f18e37213b",
+  "qtmodules_sha256": "98d8632bcfa4cc7e7dc1659770bca0a1da4397c762ef5a4f99eb413e5b756b70",
+  "vendored_patch_sha256": "33d389780c86d24d6de3f9bed8a5fa28379ad45eddcb508c365bb9f24d1aa9d7",
+  "disposition": "VENDORED_SOURCE_ONLY_ADAPTER_UNQUALIFIED"
+}
