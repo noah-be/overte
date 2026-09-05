@@ -16,6 +16,7 @@
 #include "RedactingDiagnostics.h"
 #include "../networking/CallbackEpoch.h"
 #import "../networking/BoundedDirectoryRequest.h"
+#include "../performance/NativeMetrics.h"
 
 @interface BootstrapViewController () <MTKViewDelegate, UITextFieldDelegate>
 @property(nonatomic, strong) MTKView* metalView;
@@ -230,6 +231,12 @@ typedef struct {
            selector:@selector(accessibilitySettingsDidChange:)
                name:UIAccessibilityReduceMotionStatusDidChangeNotification
              object:nil];
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self selector:@selector(accessibilitySettingsDidChange:)
+        name:NSProcessInfoThermalStateDidChangeNotification object:nil];
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self selector:@selector(accessibilitySettingsDidChange:)
+        name:NSProcessInfoPowerStateDidChangeNotification object:nil];
     [self updateAccessibilitySettings];
 
     UILayoutGuide* safeArea = self.view.safeAreaLayoutGuide;
@@ -460,11 +467,15 @@ typedef struct {
 
 - (void)accessibilitySettingsDidChange:(NSNotification*)notification {
     (void)notification;
-    [self updateAccessibilitySettings];
+    // Process-info notifications need not arrive on the UIKit queue.
+    dispatch_async(dispatch_get_main_queue(), ^{ [self updateAccessibilitySettings]; });
 }
 
 - (void)updateAccessibilitySettings {
-    self.metalView.preferredFramesPerSecond = UIAccessibilityIsReduceMotionEnabled() ? 30 : 60;
+    const auto metrics = overte::ios::sampleNativeMetrics();
+    self.metalView.preferredFramesPerSecond = overte::ios::previewFrameLimit(
+        metrics.thermal, metrics.lowPower, UIAccessibilityIsReduceMotionEnabled());
+    overte::ios::logNativeMetrics(metrics);
     self.view.accessibilityIdentifier = UIAccessibilityIsReduceMotionEnabled()
         ? @"overte.bootstrap.reduce-motion"
         : @"overte.bootstrap.standard-motion";

@@ -36,3 +36,11 @@ set_source_files_properties(
     PROPERTIES COMPILE_OPTIONS "-fobjc-arc"
 )
 target_link_libraries(Overte "-framework Security" "-framework LocalAuthentication")
+
+# Real Full Client caller: a foreground-only, 30-second native metrics sampler.
+# Render-budget adaptation remains the Shared renderer's responsibility.
+target_sources(Overte PRIVATE
+    "${CMAKE_CURRENT_LIST_DIR}/../performance/NativeMetrics.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../performance/NativeMetrics.mm"
+    "${CMAKE_CURRENT_LIST_DIR}/../performance/FullClientMetrics.mm"
+)
