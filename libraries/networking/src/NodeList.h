@@ -14,6 +14,7 @@
 #define hifi_NodeList_h
 
 #include <stdint.h>
+#include <atomic>
 #include <iterator>
 #include <assert.h>
 
@@ -55,6 +56,11 @@ class NodeList : public LimitedNodeList {
 
 public:
     void startThread();
+    // Full-client C++ lifecycle binding only, never a script/QML slot. Atomic
+    // because assignment check-in callers may run outside the NodeList thread.
+    void setClientTransportVisibility(bool foreground) {
+        _clientTransportSuspended.store(!foreground, std::memory_order_release);
+    }
     NodeType_t getOwnerType() const { return _ownerType.load(); }
     void setOwnerType(NodeType_t ownerType) { _ownerType.store(ownerType); }
 
@@ -184,6 +190,7 @@ private:
     bool _requestsDomainListData { false };
 
     bool _sendDomainServerCheckInEnabled { true };
+    std::atomic<bool> _clientTransportSuspended { false }; // Unmanaged server/assignment behavior unchanged.
     bool _domainPortAutoDiscovery { true };
 
     mutable QReadWriteLock _ignoredSetLock;

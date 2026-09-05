@@ -324,6 +324,7 @@ void NodeList::addSetOfNodeTypesToNodeInterestSet(const NodeSet& setOfNodeTypes)
 }
 
 void NodeList::sendDomainServerCheckIn() {
+    if (_clientTransportSuspended.load(std::memory_order_acquire)) { return; }
 
     // On ThreadedAssignments (assignment clients), this function
     // is called by the server check-in timer thread
@@ -610,6 +611,7 @@ void NodeList::processDomainServerPathResponse(QSharedPointer<ReceivedMessage> m
 }
 
 void NodeList::handleICEConnectionToDomainServer() {
+    if (_clientTransportSuspended.load(std::memory_order_acquire)) { return; }
     // if we're still waiting to get sockets we want to ping for the domain-server
     // then send another heartbeat now
     if (!_domainHandler.getICEPeer().hasSockets()) {
@@ -625,6 +627,7 @@ void NodeList::handleICEConnectionToDomainServer() {
 }
 
 void NodeList::pingPunchForDomainServer() {
+    if (_clientTransportSuspended.load(std::memory_order_acquire)) { return; }
     // make sure if we're here that we actually still need to ping the domain-server
     if (_domainHandler.getIP().isNull() && _domainHandler.getICEPeer().hasSockets()) {
 
@@ -872,6 +875,7 @@ void NodeList::sendAssignment(Assignment& assignment) {
 }
 
 void NodeList::pingPunchForInactiveNode(const SharedNodePointer& node) {
+    if (_clientTransportSuspended.load(std::memory_order_acquire)) { return; }
     if (node->getType() == NodeType::AudioMixer) {
         flagTimeForConnectionStep(LimitedNodeList::ConnectionStep::SendAudioPing);
     }
@@ -901,6 +905,7 @@ void NodeList::pingPunchForInactiveNode(const SharedNodePointer& node) {
 }
 
 void NodeList::startNodeHolePunch(const SharedNodePointer& node) {
+    if (_clientTransportSuspended.load(std::memory_order_acquire)) { return; }
     // we don't hole punch to downstream servers, since it is assumed that we have a direct line to them
     // we also don't hole punch to relayed upstream nodes, since we do not communicate directly with them
 
@@ -964,6 +969,7 @@ void NodeList::stopKeepalivePingTimer() {
 }
 
 void NodeList::sendKeepAlivePings() {
+    if (_clientTransportSuspended.load(std::memory_order_acquire)) { return; }
     // send keep-alive ping packets to nodes of types we care about that are not relayed to us from an upstream node
 
     eachMatchingNode([this](const SharedNodePointer& node)->bool {
