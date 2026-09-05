@@ -1,0 +1,43 @@
+FROM registry.gitlab.com/fdroid/fdroidserver@sha256:f81172f142454bccb6e198739d40bf3a98a393f09805140c1aa8b49807d0e3b7
+
+LABEL org.overte.sh001.base-digest="sha256:f81172f142454bccb6e198739d40bf3a98a393f09805140c1aa8b49807d0e3b7"
+LABEL org.overte.sh001.fdroidserver-revision="3cbbe81055e5e03a1644cc5a2f3149c5783d83d5"
+
+# The pinned F-Droid trixie image intentionally contains only its base build
+# environment.  SH-001 adds the exact missing FLOSS tools from Debian's signed
+# repositories during the online preparation phase.  The binary-producing
+# container is subsequently run with --network=none.
+RUN printf '%s\n' \
+      'deb https://deb.debian.org/debian unstable main' \
+      > /etc/apt/sources.list.d/sh001-unstable.list \
+ && printf '%s\n' \
+      'Package: *' \
+      'Pin: release a=unstable' \
+      'Pin-Priority: 90' \
+      > /etc/apt/preferences.d/sh001-unstable \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends \
+      ca-certificates \
+      cmake=3.31.6-2 \
+      git \
+      make \
+      patch \
+      perl \
+      python3-pip \
+      python3-venv \
+      tar \
+      xz-utils \
+ && apt-get install -y --no-install-recommends -t unstable \
+      gcc-15=15.3.0-3 \
+      g++-15=15.3.0-3 \
+      ninja-build=1.13.2-1 \
+      openjdk-17-jdk-headless=17.0.20.1+1-1 \
+ && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-15 150 \
+ && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-15 150 \
+ && python3 -m venv /opt/sh001/conan \
+ && /opt/sh001/conan/bin/pip install --no-cache-dir 'conan==2.25.2' \
+ && ln -s /opt/sh001/conan/bin/conan /usr/local/bin/conan \
+ && rm -rf /var/lib/apt/lists/* /root/.cache
+
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV PATH=/opt/sh001/conan/bin:/usr/lib/jvm/java-17-openjdk-amd64/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

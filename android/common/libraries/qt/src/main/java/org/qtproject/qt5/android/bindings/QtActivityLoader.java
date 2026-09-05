@@ -62,11 +62,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 
-import dalvik.system.DexClassLoader;
-
 public class QtActivityLoader {
-    private static final String DEX_PATH_KEY = "dex.path";
-    private static final String LIB_PATH_KEY = "lib.path";
     private static final String NATIVE_LIBRARIES_KEY = "native.libraries";
     private static final String ENVIRONMENT_VARIABLES_KEY = "environment.variables";
     private static final String APPLICATION_PARAMETERS_KEY = "application.parameters";
@@ -101,10 +97,13 @@ public class QtActivityLoader {
             loaderParams.putStringArrayList(BUNDLED_LIBRARIES_KEY, libs);
 
             // load and start QtLoader class
-            DexClassLoader classLoader = new DexClassLoader(loaderParams.getString(DEX_PATH_KEY), // .jar/.apk files
-                m_context.getDir("outdex", Context.MODE_PRIVATE).getAbsolutePath(), // directory where optimized DEX files should be written.
-                loaderParams.containsKey(LIB_PATH_KEY) ? loaderParams.getString(LIB_PATH_KEY) : null, // libs folder (if exists)
-                m_context.getClassLoader()); // parent loader
+            // QtActivityDelegate is compiled into the application DEX from the
+            // bundled, FLOSS Qt Android JAR.  The former empty auxiliary path
+            // only delegated to this same application loader.
+            ClassLoader classLoader = m_context.getClassLoader();
+            if (classLoader == null) {
+                throw new IllegalStateException("Application class loader is unavailable");
+            }
 
             Class<?> loaderClass = classLoader.loadClass(loaderClassName()); // load QtLoader class
             Object qtLoader = loaderClass.newInstance(); // create an instance
@@ -358,7 +357,6 @@ public class QtActivityLoader {
             }
 
             Bundle loaderParams = new Bundle();
-            loaderParams.putString(DEX_PATH_KEY, new String());
             if (m_contextInfo.metaData.containsKey("android.app.static_init_classes")) {
                 loaderParams.putStringArray(STATIC_INIT_CLASSES_KEY,
                     m_contextInfo.metaData.getString("android.app.static_init_classes").split(":"));
