@@ -2,6 +2,8 @@
 #include "../../../../libraries/audio-client/src/IOSAudioPermission.h"
 #include <cassert>
 #include <iostream>
+#include <atomic>
+#include <thread>
 using namespace overte::audio;
 struct TestNative : IOSAudioSessionAdapter {
     AudioLifecycleGate gate;
@@ -12,6 +14,21 @@ struct TestNative : IOSAudioSessionAdapter {
     bool deactivate() override { gate.stop(); return true; }
 };
 int main() {
+    int notifications = 0;
+    notifyIOSAudioStateChanged();
+    setIOSAudioStateCallback([&] { ++notifications; });
+    notifyIOSAudioStateChanged();
+    assert(notifications == 1);
+    std::atomic<int> concurrent {0};
+    setIOSAudioStateCallback([&] { ++concurrent; });
+    std::thread notifier([] { for (int i=0; i<1000; ++i) { notifyIOSAudioStateChanged(); } });
+    setIOSAudioStateCallback({});
+    const int afterUnregister = concurrent.load();
+    notifier.join();
+    assert(concurrent == afterUnregister);
+    setIOSAudioStateCallback({});
+    notifyIOSAudioStateChanged();
+    assert(notifications == 1);
     assert(!overteIOSMicrophonePermissionGranted());
     overteIOSRequestMicrophonePermission();
     assert(!overteIOSActivateAudioSession() && !overteIOSDeactivateAudioSession());

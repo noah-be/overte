@@ -6,6 +6,19 @@
 namespace {
 std::shared_ptr<overte::audio::IOSAudioSessionAdapter> adapter;
 std::mutex installationMutex;
+std::mutex callbackMutex;
+std::function<void()> stateCallback;
+}
+
+void overte::audio::setIOSAudioStateCallback(std::function<void()> callback) {
+    std::lock_guard<std::mutex> lock(callbackMutex);
+    stateCallback = std::move(callback);
+}
+void overte::audio::notifyIOSAudioStateChanged() {
+    // Unregistration waits for in-flight enqueue to finish before AudioClient
+    // teardown. The callback itself must not call back into this registry.
+    std::lock_guard<std::mutex> lock(callbackMutex);
+    if (stateCallback) { stateCallback(); }
 }
 
 bool overte::audio::installIOSAudioSessionAdapter(std::shared_ptr<IOSAudioSessionAdapter> value) {

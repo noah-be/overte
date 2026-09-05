@@ -484,6 +484,9 @@ private:
 #endif
 
     bool switchInputToAudioDevice(const HifiAudioDeviceInfo inputDeviceInfo, bool isShutdownRequest = false);
+#if defined(Q_OS_IOS)
+    void refreshIOSAudioInput();
+#endif
     bool switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDeviceInfo, bool isShutdownRequest = false);
 
     // Callback acceleration dependent calculations

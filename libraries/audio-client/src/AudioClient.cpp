@@ -1207,10 +1207,14 @@ void AudioClient::start() {
     prioritizeAndroidAudioThread();
 #endif
 #if defined(Q_OS_IOS)
-    overteIOSRequestMicrophonePermission();
+    overte::audio::setIOSAudioStateCallback([this] {
+        QMetaObject::invokeMethod(this, [this] { refreshIOSAudioInput(); }, Qt::QueuedConnection);
+    });
     if (!overteIOSActivateAudioSession()) {
         qCWarning(audioclient) << "iOS audio session activation failed; Qt audio startup remains unverified";
     }
+    // The native start state must exist before creating a permission ticket.
+    overteIOSRequestMicrophonePermission();
 #endif
 
     // set up the desired audio format
@@ -1241,6 +1245,10 @@ void AudioClient::start() {
 }
 
 void AudioClient::stop() {
+#if defined(Q_OS_IOS)
+    // Synchronize callback unregistration before QObject/device teardown.
+    overte::audio::setIOSAudioStateCallback({});
+#endif
     {
         Lock lock(_checkDevicesMutex);
         if (!_audioLifecycleRunning) {
@@ -2374,8 +2382,17 @@ void AudioClient::sendMuteEnvironmentPacket() {
 }
 
 void AudioClient::setMuted(bool muted, bool emitSignal) {
+#if defined(Q_OS_IOS)
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, [this, muted, emitSignal] { setMuted(muted, emitSignal); }, Qt::QueuedConnection);
+        return;
+    }
+#endif
     if (_isMuted != muted) {
         _isMuted = muted;
+#if defined(Q_OS_IOS)
+        refreshIOSAudioInput();
+#endif
         if (emitSignal) {
             emit muteToggled(_isMuted);
         }
@@ -2492,6 +2509,25 @@ void AudioClient::outputFormatChanged() {
     _receivedAudioStream.outputFormatChanged(_outputFormat.sampleRate(), OUTPUT_CHANNEL_COUNT);
 }
 
+#if defined(Q_OS_IOS)
+void AudioClient::refreshIOSAudioInput() {
+    Q_ASSERT(QThread::currentThread() == thread());
+    {
+        Lock lock(_checkDevicesMutex);
+        if (!_audioLifecycleRunning) { return; }
+    }
+    if (_isMuted || !overteIOSMicrophonePermissionGranted()) {
+        switchInputToAudioDevice(HifiAudioDeviceInfo(), true);
+        _inputRingBuffer.clear();
+        _lastRawInputLoudness = _lastSmoothedRawInputLoudness = _lastInputLoudness = 0.0f;
+        emit deviceChanged(HifiAudioDeviceMode::Input, HifiAudioDeviceInfo());
+        emit inputLoudnessChanged(0.0f, false);
+    } else {
+        switchInputToAudioDevice(defaultAudioDeviceForMode(HifiAudioDeviceMode::Input, QString()));
+    }
+}
+#endif
+
 bool AudioClient::switchInputToAudioDevice(const HifiAudioDeviceInfo inputDeviceInfo, bool isShutdownRequest) {
     Q_ASSERT_X(QThread::currentThread() == thread(), Q_FUNC_INFO, "Function invoked on wrong thread");
 
@@ -2559,7 +2595,7 @@ bool AudioClient::switchInputToAudioDevice(const HifiAudioDeviceInfo inputDevice
 
     bool microphonePermissionGranted = true;
 #if defined(Q_OS_IOS)
-    microphonePermissionGranted = overteIOSMicrophonePermissionGranted();
+    microphonePermissionGranted = !_isMuted && overteIOSMicrophonePermissionGranted();
     if (!microphonePermissionGranted) {
         qCWarning(audioclient) << "iOS microphone input disabled: record permission is not granted";
     }
