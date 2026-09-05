@@ -1,5 +1,5 @@
-1788598575
+1788642525
 conandata.yml: d4bb7f2776544700fb12ecb1ed259d19
-conanfile.py: 21ea72ea5f19dfa5818a64cf0001bd93
+conanfile.py: 2a57fc3d3d70a435067e90a0e671b478
 export_source/patches/Fix-error-uintptr_t-does-not-name-a-type-in-QtDeclarative.patch: c3fd518815e4e546756c8c4f8f91efd3
 qtmodules5.15.18-2026.01.04.conf: c5bdf645623d9c82e9817a8b0cc2e85d
