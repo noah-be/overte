@@ -132,7 +132,12 @@ class QtSourceStoreTest(unittest.TestCase):
             result = MODULE.compose(manifest, source_store, output)
             self.assertEqual(17, result["component_count"])
             self.assertEqual(
-                "COMPOSED_UNQUALIFIED_LICENSE_HASHES_PENDING", result["status"]
+                "COMPOSED_SOURCE_AND_LICENSE_LOCKED_ATTRIBUTION_SCANNER_PENDING",
+                result["status"],
+            )
+            self.assertEqual(
+                "73112c92373d338b14a8f1e88691d6d3e185f75ec8abe6cb0dee2fec55336474",
+                result["license_lock_sha256"],
             )
             self.assertTrue((output / "qt5/qtbase/payload.txt").is_file())
             self.assertTrue(

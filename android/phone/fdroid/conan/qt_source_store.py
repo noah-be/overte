@@ -308,8 +308,9 @@ def compose(manifest_path: Path, source_store: Path, output: Path) -> dict:
         pruned_top_level = prune_unselected_top_level(stage / "qt5")
         attestation = {
             "schema_version": 1,
-            "status": "COMPOSED_UNQUALIFIED_LICENSE_HASHES_PENDING",
+            "status": "COMPOSED_SOURCE_AND_LICENSE_LOCKED_ATTRIBUTION_SCANNER_PENDING",
             "manifest_sha256": sha256_file(manifest_path),
+            "license_lock_sha256": document["license_lock"]["sha256"],
             "component_count": len(document["components"]),
             "total_unpacked_bytes": total_unpacked_bytes,
             "pruned_top_level": pruned_top_level,
