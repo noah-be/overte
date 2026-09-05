@@ -29,6 +29,8 @@ target_sources(Overte PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/../src/SecureAccountStore.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/../src/SecureAccountStore.mm"
     "${CMAKE_CURRENT_LIST_DIR}/../src/RedactingDiagnostics.mm"
+    "${CMAKE_CURRENT_LIST_DIR}/../auth/KeychainAccountAdapter.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../auth/RegisterKeychainAccountStore.cpp"
 )
 set_source_files_properties(
     "${CMAKE_CURRENT_LIST_DIR}/../src/SecureAccountStore.mm"

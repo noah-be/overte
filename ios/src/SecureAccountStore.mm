@@ -50,6 +50,7 @@ SecureStoreStatus SecureAccountStore::read(std::string_view key, std::vector<std
     clear(value);
     std::lock_guard guard(storeMutex);
     @autoreleasepool {
+      @try {
         NSMutableDictionary* query = queryFor(key);
         if (query == nil) { return SecureStoreStatus::Invalid; }
         query[(__bridge id)kSecReturnData] = @YES;
@@ -71,6 +72,10 @@ SecureStoreStatus SecureAccountStore::read(std::string_view key, std::vector<std
         const auto bytes = static_cast<const std::uint8_t*>(data.bytes);
         value.assign(bytes, bytes + data.length);
         return SecureStoreStatus::Ok;
+      } @catch (NSException*) {
+        clear(value);
+        return SecureStoreStatus::Failed;
+      }
     }
 }
 
@@ -78,6 +83,7 @@ SecureStoreStatus SecureAccountStore::write(std::string_view key, const std::vec
     if (value.empty() || value.size() > MAX_VALUE_BYTES) { return SecureStoreStatus::Invalid; }
     std::lock_guard guard(storeMutex);
     @autoreleasepool {
+      @try {
         NSMutableDictionary* query = queryFor(key);
         if (query == nil) { return SecureStoreStatus::Invalid; }
         NSData* data = [NSData dataWithBytes:value.data() length:value.size()];
@@ -96,17 +102,24 @@ SecureStoreStatus SecureAccountStore::write(std::string_view key, const std::vec
             }
         }
         return statusFor(status);
+      } @catch (NSException*) {
+        return SecureStoreStatus::Failed;
+      }
     }
 }
 
 SecureStoreStatus SecureAccountStore::remove(std::string_view key) {
     std::lock_guard guard(storeMutex);
     @autoreleasepool {
+      @try {
         NSMutableDictionary* query = queryFor(key);
         if (query == nil) { return SecureStoreStatus::Invalid; }
         const auto status = SecItemDelete((__bridge CFDictionaryRef)query);
         // Removing an absent item is idempotent. Locked/error is never success.
         return status == errSecItemNotFound ? SecureStoreStatus::Ok : statusFor(status);
+      } @catch (NSException*) {
+        return SecureStoreStatus::Failed;
+      }
     }
 }
 } // namespace overte::ios
