@@ -21,6 +21,16 @@ def main():
         errors.append("inventory must require the existing renderer")
     if policy.get("bootstrap_geometry_is_evidence"):
         errors.append("bootstrap geometry cannot be rendering evidence")
+    producer = data.get("qml_producer", {})
+    if (producer.get("implementation") != "SOFTWARE_QML_CPU_UPLOAD_TO_VULKAN"
+            or producer.get("contract") != "sh007-ios-qml/v001"
+            or producer.get("source_status") != "implemented"
+            or producer.get("native_execution_status") != "unverified"
+            or producer.get("native_rhi_qml") is not False
+            or producer.get("gpu_accelerated_qml") is not False
+            or producer.get("webview_composition_verified") is not False
+            or not producer.get("limitations")):
+        errors.append("QML producer must match SH-007 source facts without native acceptance claims")
     path = data.get("required_path", [])
     for required in ("entities-renderer", "gpu-vk", "vk", "MoltenVK::MoltenVK", "CAMetalLayer"):
         if required not in path:
@@ -83,7 +93,7 @@ def main():
                     errors.append(f"{check_id}/{task.get('id')}: missing source anchor")
         if check_id == "interface-display-gl-api-boundary":
             if status != "blocked" or not subtasks:
-                errors.append(f"{check_id}: residual GL API debt must remain fail-visible")
+                errors.append(f"{check_id}: retained QML coverage/link/present limitations must remain visible")
             for task in subtasks:
                 task_source = ROOT / task.get("source", "")
                 if not task_source.is_file():
