@@ -32,8 +32,13 @@ The workflow has only read permissions. It never changes an Issue or label,
 pushes or merges a branch, edits a ruleset, or attempts an automatic repair.
 Actions use full commit pins and checkout does not persist credentials. A denied
 security API is reported as `UNKNOWN_PERMISSION`, never as zero alerts, and makes
-the run fail. The required permission is `security-events: read`; token values
-are never reported.
+the run fail. CodeQL requires `security-events: read`, and Dependabot requires
+`vulnerability-alerts: read`. GitHub's workflow token cannot read secret-scanning
+alerts; that check therefore fails closed unless an approved read-only credential
+with the dedicated permission is supplied as the repository Actions secret
+`REPOSITORY_HEALTH_READ_TOKEN`. If that secret is absent, the workflow falls
+back to `GITHUB_TOKEN` and fails closed rather than claiming zero alerts. Token
+values are never reported.
 
 Run the local contract checks with:
 
