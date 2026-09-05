@@ -1,0 +1,10 @@
+sources:
+  "5.15.18-2026.01.04":
+    composition_manifest_sha256: "62f963f5db37f1381264585ba527cd2f8943c6ed3058c41079484a3fbb0720a4"
+    license_lock_sha256: "73112c92373d338b14a8f1e88691d6d3e185f75ec8abe6cb0dee2fec55336474"
+
+patches:
+  "5.15.18-2026.01.04":
+    - base_path: "qt5/qtdeclarative"
+      patch_file: "patches/Fix-error-uintptr_t-does-not-name-a-type-in-QtDeclarative.patch"
+      patch_sha256: "33d389780c86d24d6de3f9bed8a5fa28379ad45eddcb508c365bb9f24d1aa9d7"

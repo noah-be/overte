@@ -1,0 +1,99 @@
+name: Sync test reuse
+run-name: Sync test reuse for PR ${{ github.event.pull_request.number || 'contract-seed' }}
+
+on: # zizmor: ignore[dangerous-triggers] Default-branch data-only gate; candidate execution is dispatched read-only without secrets.
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+    branches:
+      - main
+      - android-main
+      - android-phone
+      - android-vr
+      - android-vr-pico
+      - apple-main
+      - apple-ios
+      - linux-main
+      - windows-main
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: sync-test-reuse-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  sync-test-reuse:
+    name: sync-test-reuse
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Check out trusted default-branch gate only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Seed and test the trusted contract
+        if: github.event_name == 'workflow_dispatch'
+        run: python3 tools/sync-test-reuse/test.py
+      - name: Inspect topology and exact parent evidence
+        if: github.event_name == 'pull_request_target'
+        id: inspect
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python3 tools/sync-test-reuse/gate.py inspect
+          --event "$GITHUB_EVENT_PATH" --output "$GITHUB_OUTPUT"
+      - name: Summarize ordinary pull request
+        if: github.event_name == 'pull_request_target' && steps.inspect.outputs.mode == 'ordinary'
+        run: >-
+          echo 'Ordinary PR: all existing path-appropriate checks remain enabled.'
+          >> "$GITHUB_STEP_SUMMARY"
+      - name: Dispatch isolated read-only validation
+        if: github.event_name == 'pull_request_target' && steps.inspect.outputs.mode != 'ordinary'
+        id: validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ steps.inspect.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.inspect.outputs.head_sha }}
+          MERGE_SHA: ${{ steps.inspect.outputs.merge_sha }}
+          MODE: ${{ steps.inspect.outputs.mode }}
+          PROFILE: ${{ steps.inspect.outputs.profile }}
+          PULL_REQUEST: ${{ steps.inspect.outputs.pr }}
+          REPOSITORY: ${{ steps.inspect.outputs.repository }}
+        run: >-
+          python3 tools/sync-test-reuse/gate.py dispatch-and-wait
+          --repository "$REPOSITORY" --pull-request "$PULL_REQUEST"
+          --mode "$MODE" --profile "$PROFILE" --base-sha "$BASE_SHA"
+          --head-sha "$HEAD_SHA" --merge-sha "$MERGE_SHA"
+          --gate-run-id "$GITHUB_RUN_ID" --output "$GITHUB_OUTPUT"
+      - name: Stop only redundant common suites after accepted reuse
+        if: github.event_name == 'pull_request_target' && steps.inspect.outputs.mode == 'reuse'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ steps.inspect.outputs.head_sha }}
+          PULL_REQUEST: ${{ steps.inspect.outputs.pr }}
+          REPOSITORY: ${{ steps.inspect.outputs.repository }}
+        run: >-
+          python3 tools/sync-test-reuse/gate.py cancel-redundant
+          --repository "$REPOSITORY" --pull-request "$PULL_REQUEST"
+          --head-sha "$HEAD_SHA" --window 60
+      - name: Publish decision
+        if: github.event_name == 'pull_request_target'
+        env:
+          CLASSIFICATION: ${{ steps.inspect.outputs.classification }}
+          EVIDENCE_RUN: ${{ steps.inspect.outputs.evidence_run_id }}
+          MODE: ${{ steps.inspect.outputs.mode }}
+          REASON: ${{ steps.inspect.outputs.reason }}
+          VALIDATION_URL: ${{ steps.validation.outputs.validation_url }}
+        run: |
+          {
+            echo "mode=$MODE"
+            echo "classification=$CLASSIFICATION"
+            echo "evidence_run=$EVIDENCE_RUN"
+            echo "validation=$VALIDATION_URL"
+            echo "reason=$REASON"
+          } >> "$GITHUB_STEP_SUMMARY"
