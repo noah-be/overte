@@ -27,7 +27,7 @@ struct ScriptEngineV8 {
     v8::Isolate* isolate;
     v8::Local<v8::Context> context;
     ManagerBoundary* _manager;
-    bool emptyConversion { false };
+    bool emptyConversion { false }, stopConversion { false };
     int conversions { 0 }, uncaught { 0 }, pops { 0 };
     v8::Isolate* _v8Isolate = isolate;
     void abortEvaluation();
@@ -36,6 +36,7 @@ struct ScriptEngineV8 {
     v8::Local<v8::Context> getContext() { return context; }
     V8ScriptValue castVariantToValue(const QVariant& value) {
         ++conversions;
+        if (stopConversion) { abortEvaluation(); isolate->CancelTerminateExecution(); }
         return V8ScriptValue(isolate, emptyConversion ? v8::Local<v8::Value>() : v8::Local<v8::Value>(v8::Integer::New(isolate, value.toInt())));
     }
     QString formatErrorMessageFromTryCatch(const v8::TryCatch&) { return QStringLiteral("captured diagnostic boundary"); }
@@ -88,7 +89,7 @@ int main(int argc, char** argv) {
         ManagerBoundary manager;
         ScriptEngineV8 engine { isolate, context, &manager };
         Emitter emitter;
-        const char* signature = mode == "zero" ? "zero()" : mode == "ten" ? "ten(int,int,int,int,int,int,int,int,int,int)" :
+        const char* signature = mode == "zero" ? "zero()" : (mode == "ten" || mode == "conversion-stop") ? "ten(int,int,int,int,int,int,int,int,int,int)" :
             mode == "over" ? "huge(int,int,int,int,int,int,int,int,int,int,int)" : "ping(int)";
         auto meta = emitter.metaObject()->method(emitter.metaObject()->indexOfSignal(signature));
         assert(meta.isValid());
@@ -108,6 +109,7 @@ int main(int argc, char** argv) {
         proxy._connections.append({ V8ScriptValue(isolate, {}), V8ScriptValue(isolate, v8::Function::New(context, next).ToLocalChecked()) });
         assert(QMetaObject::connect(&emitter, meta.methodIndex(), &proxy, proxy.metaObject()->methodCount()));
         engine.emptyConversion = mode == "empty-conversion";
+        engine.stopConversion = mode == "conversion-stop";
         std::thread terminator;
         if (mode == "terminate") {
             terminator = std::thread([isolate] {
@@ -121,7 +123,7 @@ int main(int argc, char** argv) {
             assert(engine.isEvaluationAborted() && !isolate->IsExecutionTerminating());
         }
         if (mode == "zero") { emitter.zero(); }
-        else if (mode == "ten") { emitter.ten(1,2,3,4,5,6,7,8,9,10); }
+        else if (mode == "ten" || mode == "conversion-stop") { emitter.ten(1,2,3,4,5,6,7,8,9,10); }
         else if (mode == "over") { emitter.huge(1,2,3,4,5,6,7,8,9,10,11); }
         else if (mode == "null-arguments" || mode == "null-argument") {
             void* arguments[] { nullptr, nullptr };
@@ -132,13 +134,14 @@ int main(int argc, char** argv) {
         assert(proxy.getLock().tryLockForWrite());
         proxy.getLock().unlock();
         assert(engine.pops == 0);
-        const bool rejected = mode == "over" || mode == "empty-conversion" || mode == "null-arguments" || mode == "null-argument" || mode == "terminate" || mode == "stopped";
+        const bool rejected = mode == "conversion-stop" || mode == "over" || mode == "empty-conversion" || mode == "null-arguments" || mode == "null-argument" || mode == "terminate" || mode == "stopped";
         assert(second == (rejected ? 0 : 1));
         assert(manager.notifications == (mode == "throw" ? 1 : 0));
         assert(engine.uncaught == (mode == "throw" ? 1 : 0));
         const bool normal = mode == "zero" || mode == "one" || mode == "ten";
         assert(first == (normal ? 1 : 0));
         if (normal) { assert(observedArguments == (mode == "zero" ? 0 : mode == "ten" ? 10 : 1)); }
+        if (mode == "conversion-stop") { assert(engine.conversions == 1 && engine.isEvaluationAborted()); }
         if (mode == "over" || mode == "stopped") { assert(engine.conversions == 0); }
     }
     isolate->Dispose();
