@@ -77,11 +77,11 @@ declare -a nonqt_generator_patterns=(
 )
 
 # preparePhoneQtRuntime copies these exact files from conanlibs/Debug and
-# renames them for Android. Package-folder verification alone is insufficient:
+# preserves their canonical Android names. Package-folder verification alone is insufficient:
 # Conan can leave this staging directory stale after regenerating packages.
 declare -a staged_nonqt_libraries=(
-    'libcrypto.so.3'
-    'libssl.so.3'
+    'libcrypto_3.so'
+    'libssl_3.so'
 )
 
 [[ ! -L "$temp_root" ]] || {

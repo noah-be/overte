@@ -1,7 +1,9 @@
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -34,6 +36,7 @@ class RecipeExportStoreTest(unittest.TestCase):
                 names = [member.name for member in archive.getmembers()]
             self.assertIn("pkglist.json", names)
             self.assertEqual(51, len([name for name in names if name.endswith("/e/conanfile.py")]))
+            self.assertEqual(51, len([name for name in names if name.endswith("/es")]))
             self.assertFalse([name for name in names if "p" in Path(name).parts or "s" in Path(name).parts])
             self.assertFalse(any(name.endswith((".a", ".apk", ".dex", ".jar", ".o", ".so")) for name in names))
 
@@ -58,6 +61,50 @@ class RecipeExportStoreTest(unittest.TestCase):
             self.assertEqual(set(expected), set(result))
             self.assertFalse(list((home / "p").glob("*/p")))
             self.assertEqual([], MODULE._conan_json(home, "remote", "list"))
+            # Exercise the precise ORIGINAL Conan guard that failed in retry02,
+            # using the original NASM class, not a replacement recipe/model.
+            from conan.errors import ConanException
+            from conan.internal.cache.conan_reference_layout import RecipeLayout
+            from conan.internal.source import retrieve_exports_sources
+            nasm_source = INDEX.parent / "nasm/2.15.05/export/conanfile.py"
+            spec = importlib.util.spec_from_file_location("original_nasm_recipe", nasm_source)
+            nasm_module = importlib.util.module_from_spec(spec)
+            previous_bytecode = sys.dont_write_bytecode
+            try:
+                sys.dont_write_bytecode = True
+                spec.loader.exec_module(nasm_module)
+            finally:
+                sys.dont_write_bytecode = previous_bytecode
+            nasm = nasm_module.NASMConan()
+            reference = "nasm/2.15.05"
+            folder = home / "p" / expected[reference]["cache_folder"]
+            self.assertTrue((folder / "es/patches/2.15.05-0001-disable-newly-integrated-dependency-tracking.patch").is_file())
+            self.assertIsNone(retrieve_exports_sources(None, RecipeLayout(reference, str(folder)),
+                                                        nasm, reference, []))
+            with self.assertRaisesRegex(ConanException, "sources not found in local cache"):
+                retrieve_exports_sources(None, RecipeLayout(reference, str(root / "missing")),
+                                         nasm, reference, [])
+            subprocess.run(["conan", "cache", "check-integrity", "*#*"],
+                           env={**os.environ, "CONAN_HOME": str(home)}, check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=30)
+
+    def test_consistently_incomplete_ledger_and_tampered_export_fail_frozen_manifest(self):
+        for tamper in (False, True):
+            with self.subTest(tamper=tamper), tempfile.TemporaryDirectory() as temporary:
+                store = Path(temporary) / "store"
+                shutil.copytree(INDEX.parent, store)
+                document = MODULE.load_json(store / "index.json")
+                relative = "export_sources/patches/2.15.05-0001-disable-newly-integrated-dependency-tracking.patch"
+                patch_path = store / "nasm/2.15.05" / relative
+                if tamper:
+                    patch_path.write_text("test-only substituted patch\n")
+                    document["recipes"]["nasm/2.15.05"]["files"][relative] = MODULE.sha256_file(patch_path)
+                else:
+                    patch_path.unlink()
+                    del document["recipes"]["nasm/2.15.05"]["files"][relative]
+                (store / "index.json").write_text(json.dumps(document))
+                with self.assertRaisesRegex(MODULE.RecipeStoreError, "Conan export manifest (byte|file set) mismatch"):
+                    MODULE.validate(store / "index.json")
 
     def test_nonempty_cache_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:

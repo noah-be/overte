@@ -48,3 +48,27 @@ grep -Fq 'package contains no inspectable shared libraries' "$fixture/empty.out"
 ! grep -Fq "$fixture" "$fixture/empty.out"
 
 echo 'Phone ELF alignment error privacy checks passed.'
+
+# Model NDK LLVM's rejection of -- and require an absolute single filename.
+cat >"$fixture/bin/llvm-readelf" <<'MOCK'
+#!/usr/bin/env bash
+[[ $# == 2 && $1 == -lW && $2 == /* ]] || exit 9
+printf '  LOAD 0x0 0x0 0x0 0x1 0x1 R %s\n' "${PHONE_TEST_ALIGNMENT:-0x4000}"
+MOCK
+chmod +x "$fixture/bin/llvm-readelf"
+mkdir -p "$fixture/-relative package"
+printf fixture > "$fixture/-relative package/libfixture.so"
+(cd "$fixture"; PATH="$fixture/bin:/usr/bin:/bin" "$checker" '-relative package')     >"$fixture/llvm.out" 2>&1
+grep -Fq 'All ELF LOAD segments meet' "$fixture/llvm.out"
+if PHONE_TEST_ALIGNMENT=0x1000 PATH="$fixture/bin:/usr/bin:/bin"         "$checker" "$fixture/package" >"$fixture/unaligned.out" 2>&1; then
+    echo 'FAIL: 4KiB library was accepted' >&2
+    exit 1
+fi
+grep -Fq 'below 0x4000' "$fixture/unaligned.out"
+ln -s "$fixture/private.apk" "$fixture/package/lib/arm64-v8a/libescape.so"
+if PATH="$fixture/bin:/usr/bin:/bin" "$checker" "$fixture/package"         >"$fixture/escape.out" 2>&1; then
+    echo 'FAIL: escaping library symlink was accepted' >&2
+    exit 1
+fi
+grep -Fq 'symlink escapes the package directory' "$fixture/escape.out"
+echo 'GNU/LLVM invocation, 16KiB rejection and symlink containment checks passed.'

@@ -129,6 +129,14 @@ for name, omit in [('complete.apk', None), ('partial.apk', 'assets/kept.txt')]:
             if entry != omit:
                 archive.writestr(entry, data)
 
+# Duplicate or legacy provider entries are forbidden even alongside the pair.
+for provider in ('libcrypto.so', 'libssl.so', 'libcrypto.so.3', 'libssl.so.3'):
+    with zipfile.ZipFile(root / ('legacy-' + provider + '.apk'), 'w') as archive:
+        archive.writestr('assets/cache_assets.txt', cache_manifest)
+        for entry, data in required.items():
+            archive.writestr(entry, data)
+        archive.writestr('lib/arm64-v8a/' + provider, b'legacy-provider')
+
 with zipfile.ZipFile(root / 'cache-digest-mismatch.apk', 'w') as archive:
     archive.writestr('assets/cache_assets.txt', cache_manifest)
     for entry, data in required.items():
@@ -582,3 +590,11 @@ while IFS=$'\t' read -r fixture omitted; do
 done < "$fixture_dir/qml-asset-fixtures.txt"
 
 echo 'Phone APK contents checks passed.'
+
+for provider in libcrypto.so libssl.so libcrypto.so.3 libssl.so.3; do
+    if "$checker" "$fixture_dir/legacy-$provider.apk" >"$fixture_dir/provider.out" 2>&1; then
+        echo "FAIL: legacy provider $provider was accepted" >&2
+        exit 1
+    fi
+    grep -Fq 'unexpected ARM64 native entries' "$fixture_dir/provider.out"
+done

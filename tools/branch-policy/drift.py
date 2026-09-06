@@ -125,7 +125,15 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--repository", required=True)
     parser.add_argument("--parent", action="append")
     parser.add_argument("--expected-parent-sha")
+    parser.add_argument("--observe-push", action="store_true",
+                        help="report immediate post-push lag as pending, never as accepted synchronization")
     return parser.parse_args()
+
+
+def result_status(drifts: list[Drift], observe_push: bool = False) -> tuple[str, int]:
+    if not drifts:
+        return "SYNCHRONIZED", 0
+    return ("PENDING_PROPAGATION", 0) if observe_push else ("DRIFT", 1)
 
 
 def main() -> int:
@@ -137,6 +145,8 @@ def main() -> int:
         ]
         if args.expected_parent_sha and len(parents) != 1:
             raise PolicyError("an expected parent SHA requires exactly one --parent")
+        if args.observe_push and (not args.parent or len(parents) != 1 or not args.expected_parent_sha):
+            raise PolicyError("push observation requires one explicit parent and its exact event SHA")
         api = GitHubApi(os.environ.get("GITHUB_TOKEN", ""))
         drifts = []
         for parent in parents:
@@ -153,15 +163,19 @@ def main() -> int:
         print(f"branch drift detection failed closed: {error}", file=sys.stderr)
         return 2
 
+    status, code = result_status(drifts, args.observe_push)
     if drifts:
-        print("## Branch synchronization drift detected")
+        print(f"## Branch synchronization: {status}")
         for drift in drifts:
             print(
                 f"- `{drift.parent}` -> `{drift.child}`: "
                 f"{drift.ahead_by} parent commit(s) missing (`{drift.parent_sha}`)"
             )
         print("\nNo pull request was selected, created, or merged.")
-        return 1
+        if args.observe_push:
+            print("Immediate post-push observation only: propagation is pending, NOT accepted. "
+                  "The nightly/manual audit still fails on unresolved drift.")
+        return code
 
     print("## Branch synchronization drift\n\nNo parent-to-child drift detected.")
     return 0

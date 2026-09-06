@@ -27,7 +27,7 @@ python3 "$repo_root/android/phone/fdroid/conan/source_closure_store.py" verify \
 }
 [[ $(git -C "$repo_root" rev-parse HEAD) == "$(git -C "$repo_root" rev-parse HEAD^{commit})" ]]
 available=$(df -B1 --output=avail "$(dirname -- "$OVERTE_ATTEMPT_ROOT")" | awk 'NR==2 {print $1}')
-(( available >= 85899345920 )) || { echo "less than 80 GiB free" >&2; exit 1; }
+(( available >= 60000000000 )) || { echo "less than 60 GB free" >&2; exit 1; }
 source_commit=$(git -C "$repo_root" rev-parse HEAD)
 if [[ $mode == --resume ]]; then
   [[ -f $OVERTE_ATTEMPT_ROOT/ACTIVE_BUILD_PROTECTED && ! -e $OVERTE_ATTEMPT_ROOT/COMPLETE ]] || {

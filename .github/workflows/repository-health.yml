@@ -2,7 +2,8 @@ name: Repository Health Doctor
 
 on:
   schedule:
-    - cron: "17 6 * * *"
+    - cron: "17 2 * * *"
+      timezone: "Europe/Berlin"
   workflow_dispatch:
   pull_request:
     paths:
@@ -61,7 +62,8 @@ jobs:
           # repository-approved read-only token enables that check; absence
           # deliberately falls back to GITHUB_TOKEN and fails closed.
           GITHUB_TOKEN: ${{ secrets.REPOSITORY_HEALTH_READ_TOKEN || github.token }}
-        run: python3 tools/repository-health/check.py --report repository-health-report.json
+          HEALTH_EVENT: ${{ github.event_name }}
+        run: python3 tools/repository-health/check.py --when-idle --event "$HEALTH_EVENT" --report repository-health-report.json
       - name: Upload the machine-readable report
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0

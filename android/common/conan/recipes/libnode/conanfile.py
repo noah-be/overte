@@ -1,9 +1,10 @@
 import os
+import shutil
 
 from conan import ConanFile
 from conan.tools.build import build_jobs
 from conan.tools.env import Environment
-from conan.tools.files import collect_libs, copy, get, replace_in_file
+from conan.tools.files import copy, get, replace_in_file
 from conan.tools.gnu import AutotoolsToolchain, PkgConfigDeps
 
 
@@ -30,6 +31,21 @@ class LibnodeAndroidConan(ConanFile):
 
     def source(self):
         get(self, **self.conan_data["sources"][self.version], strip_root=True)
+        # configure.py applies shared-library paths to both GYP toolsets by
+        # default. Android zlib/OpenSSL belong only to target links; Linux
+        # node_js2c/mksnapshot must not consume their Bionic/ARM64 objects.
+        replace_in_file(
+            self,
+            "configure.py",
+            "  if getattr(options, shared_lib):\n",
+            "  if (options.cross_compiling and flavor == 'android' and\n"
+            "      lib in ('openssl', 'zlib')):\n"
+            "    target_output = {'include_dirs': [], 'libraries': []}\n"
+            "    output.setdefault('target_conditions', []).append(\n"
+            "        ['_toolset==\"target\"', target_output])\n"
+            "    output = target_output\n\n"
+            "  if getattr(options, shared_lib):\n",
+        )
         # Node's bundled c-ares selects its Linux configuration during this
         # cross build. bionic has getservbyport(), but not the glibc-specific
         # re-entrant getservbyport_r() API advertised by that configuration.
@@ -124,16 +140,9 @@ class LibnodeAndroidConan(ConanFile):
             "--cross-compiling",
             f"--prefix={self.package_folder}",
         ]
-        # With an x86_64 Android target, GYP's host and target CPU names are
-        # identical. Passing the Android OpenSSL package globally then makes
-        # host generators link Bionic libraries with the Linux linker. Let
-        # Node build its bundled OpenSSL for each toolset in that configuration.
-        if str(self.settings.arch) != "x86_64":
-            args += self._shared_args("openssl", "openssl")
-        else:
-            # Node's bundled OpenSSL selects a legacy x86_64 GCC assembly
-            # implementation that is not accepted by the Android clang target.
-            args.append("--openssl-no-asm")
+        # Toolset ownership, not CPU-name inequality, separates the host tools.
+        # Every Android target keeps the source-only external OpenSSL3.5.8 graph.
+        args += self._shared_args("openssl", "openssl")
         args += self._shared_args("zlib", "zlib")
         if self.settings.build_type == "Debug":
             args.append("--debug")
@@ -169,19 +178,14 @@ class LibnodeAndroidConan(ConanFile):
             os.path.join(self.package_folder, "include", "cppgc"),
             keep_path=False,
         )
-        copy(
-            self,
-            "libnode.*",
-            os.path.join(self.source_folder, "out", str(self.settings.build_type)),
-            os.path.join(self.package_folder, "lib"),
-            keep_path=False,
-        )
-        copy(
-            self,
-            "*.a",
-            os.path.join(self.source_folder, "out", str(self.settings.build_type)),
-            os.path.join(self.package_folder, "lib"),
-            keep_path=False,
+        # GYP copies the finished target DSO to this top-level output. Recursive
+        # globs also collect obj.host archives and non-relocatable thin archives
+        # referencing build-only objects, none of which this shared package uses.
+        library_dir = os.path.join(self.package_folder, "lib")
+        os.makedirs(library_dir, exist_ok=True)
+        shutil.copy2(
+            os.path.join(self.source_folder, "out", str(self.settings.build_type), "libnode.so"),
+            os.path.join(library_dir, "libnode.so"),
         )
 
     def package_info(self):

@@ -49,17 +49,17 @@
   },
   "cmake/3.31.12": {
     "revisions": {
-      "055c11ab0a919e8c6034a902b4025ce1": {
-        "timestamp": 1788598983.462195,
-        "recipe_folder": "cmake944eb6d3dae9d"
+      "2f6c0934c9dc141602cd279f67cfe048": {
+        "timestamp": 1788629853.560991,
+        "recipe_folder": "cmakeb3d389c8c1935"
       }
     }
   },
   "cmake/4.4.0": {
     "revisions": {
-      "055c11ab0a919e8c6034a902b4025ce1": {
-        "timestamp": 1788598983.679494,
-        "recipe_folder": "cmakeaea4fecaa0213"
+      "2f6c0934c9dc141602cd279f67cfe048": {
+        "timestamp": 1788629853.793768,
+        "recipe_folder": "cmakeb37c0e8a6aed1"
       }
     }
   },
@@ -169,9 +169,9 @@
   },
   "libnode/22.22.3@overte/stable": {
     "revisions": {
-      "3fd33b0199406fa08037c90d5dd1a635": {
-        "timestamp": 1788598574.960734,
-        "recipe_folder": "libnob475bafdf0ce2"
+      "a76ae5683eb20fbde3f88e16d8bea96e": {
+        "timestamp": 1788699903.7871914,
+        "recipe_folder": "libno305d75f71bd38"
       }
     }
   },
@@ -265,9 +265,9 @@
   },
   "openssl/3.5.8@overte/stable": {
     "revisions": {
-      "33b2f0ee1a4417ab2c5429ae844d0ea5": {
-        "timestamp": 1788598574.740708,
-        "recipe_folder": "opens70ffd61ae7f8c"
+      "e2ab566b1c764e543d69c8a6fa0def5b": {
+        "timestamp": 1788699369.9561644,
+        "recipe_folder": "opens463dc92cf1e1a"
       }
     }
   },
@@ -305,9 +305,9 @@
   },
   "qt/5.15.18-2026.01.04@overte/stable": {
     "revisions": {
-      "c615fd9bf2e6410b92a3e6b84fa73980": {
-        "timestamp": 1788598575.1969585,
-        "recipe_folder": "qtfea71855f734b"
+      "b573e9e65fe29366102c09d5ec013c09": {
+        "timestamp": 1788701578.080668,
+        "recipe_folder": "qt47bb19961f59e"
       }
     }
   },
