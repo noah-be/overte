@@ -1262,6 +1262,13 @@ void ScriptManager::stop(bool marshal) {
     _isStopping = true; // this can be done on any thread
     _scriptLoadContext.setActive(false);
 
+    // Interrupt JavaScript before queuing manager-thread work: that thread may
+    // be occupied by an unbounded evaluation. Retain the engine during the call.
+    auto engine = _engine;
+    if (engine) {
+        engine->abortEvaluation();
+    }
+
     if (marshal) {
         // Lambda is necessary there to keep shared_ptr counter above zero if this gets called from different thread
         QMetaObject::invokeMethod(this, [=, manager = shared_from_this()]{

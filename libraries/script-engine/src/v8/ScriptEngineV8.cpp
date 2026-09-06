@@ -1152,8 +1152,11 @@ ScriptValue ScriptEngineV8::undefinedValue() {
 }
 
 void ScriptEngineV8::abortEvaluation() {
-    //V8TODO
-    //QScriptEngine::abortEvaluation();
+    // V8 permits termination from another thread without acquiring its Locker.
+    // Taking a scope/Locker here would wait for the very script being stopped.
+    // The engine owns this isolate for its lifetime; this does not interrupt a
+    // blocking native callback or prove that manager teardown has completed.
+    _v8Isolate->TerminateExecution();
 }
 
 void ScriptEngineV8::clearExceptions() {
