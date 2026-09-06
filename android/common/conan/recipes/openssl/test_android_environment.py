@@ -72,13 +72,19 @@ class AndroidEnvironment(unittest.TestCase):
                 RECIPE._android_ndk(recipe)
 
     def test_actual_build_pins_api_provider_and_same_environment(self):
-        recipe = types.SimpleNamespace(source_folder="/source with spaces", run=Mock(),
-                                       _required_tool=lambda key: "/absolute tools/" + ("perl" if "perl" in key else "make"))
-        with patch.object(MODULE, "build_jobs", return_value=3):
-            RECIPE.build(recipe)
+        with tempfile.TemporaryDirectory(prefix="openssl config ") as temporary:
+            recipe = types.SimpleNamespace(source_folder="/source with spaces", run=Mock(),
+                                           build_folder=temporary,
+                                           _required_tool=lambda key: "/absolute tools/" + ("perl" if "perl" in key else "make"))
+            with patch.object(MODULE, "build_jobs", return_value=3):
+                RECIPE.build(recipe)
+            target_config = pathlib.Path(temporary) / "overte-android.conf"
+            self.assertIn('inherit_from => [ "android-arm64" ]', target_config.read_text())
+            self.assertIn('shlib_variant => "_3"', target_config.read_text())
         configure, make = recipe.run.call_args_list
         command = shlex.split(configure.args[0])
-        self.assertEqual(command[:3], ["/absolute tools/perl", "/source with spaces/Configure", "android-arm64"])
+        self.assertEqual(command[:3], ["/absolute tools/perl", "/source with spaces/Configure", "overte-android-arm64"])
+        self.assertIn("--config=" + str(target_config), command)
         self.assertIn("-D__ANDROID_API__=26", command)
         for option in ("shared", "no-module", "no-fips", "no-tests"):
             self.assertIn(option, command)
