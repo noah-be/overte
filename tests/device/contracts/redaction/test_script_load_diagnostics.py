@@ -43,7 +43,10 @@ struct ScriptCache {
 } cache;
 struct DependencyManager { template<class T> static T* get() { return &cache; } };
 QUrl expandScriptUrl(const QUrl& value) { return value; }
+// VM execution is covered separately by the real V8 stop regression.
+struct Engine { void abortEvaluation() {} };
 struct ScriptManager : QObject, std::enable_shared_from_this<ScriptManager> {
+    std::shared_ptr<Engine> _engine = std::make_shared<Engine>();
     bool _isRunning = false, _isReloading = false;
     std::atomic<bool> _isStopping {false}, _isFinished {false};
     int runningSignals = 0;
