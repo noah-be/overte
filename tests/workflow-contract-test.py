@@ -183,6 +183,9 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         self.assertRegex(source, r"(?m)^permissions:\n  contents: read$")
         self.assertIn("tools/branch-policy/drift.py", source)
         self.assertIn("--expected-parent-sha \"$PUSH_SHA\"", source)
+        self.assertIn('--expected-parent-sha "$PUSH_SHA" --observe-push', source)
+        strict_tail = source.split('          else\n', 1)[1]
+        self.assertNotIn('--observe-push', strict_tail)
         self.assertIn("github.event.repository.default_branch", source)
         self.assertIn("GITHUB_TOKEN: ${{ github.token }}", source)
         self.assertNotIn("actions/create-github-app-token@", source)
