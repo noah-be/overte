@@ -769,6 +769,22 @@ class QtConan(ConanFile):
 
         return None
 
+    def _android_profile_flags(self):
+        # Qt's configure/qmake path does not use Conan's CMake or Autotools
+        # toolchain generators. Forward the target profile explicitly.
+        args = []
+        for config, variable in (
+            ("cflags", "QMAKE_CFLAGS"),
+            ("cxxflags", "QMAKE_CXXFLAGS"),
+            ("exelinkflags", "QMAKE_LFLAGS_APP"),
+            ("sharedlinkflags", "QMAKE_LFLAGS_SHLIB"),
+            ("sharedlinkflags", "QMAKE_LFLAGS_PLUGIN"),
+        ):
+            flags = self.conf.get("tools.build:" + config, default=[], check_type=list)
+            if flags:
+                args.append(shlex.quote(variable + "+=" + " ".join(flags)))
+        return args
+
     def build(self):
         args = ["-confirm-license", "-silent", "-nomake examples", "-nomake tests",
                 f"-prefix {self.package_folder}"]
@@ -920,6 +936,7 @@ class QtConan(ConanFile):
             if self.settings.arch == "armv8":
                 args.append('QMAKE_APPLE_DEVICE_ARCHS="arm64"')
         elif self.settings.os == "Android":
+            args += self._android_profile_flags()
             args += [f"-android-ndk {self.conf.get('tools.android:ndk_path')}"]
             args += [f"-android-ndk-platform android-{self.settings.os.api_level}"]
             args += [f"-android-abis {android_abi(self)}"]

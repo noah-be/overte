@@ -445,10 +445,10 @@ require_text "$interface_activity" \
     'FLAG_KEEP_SCREEN_ON' \
     'phone activity keeps the display awake'
 require_text "$interface_activity" \
-    'System\.loadLibrary\("crypto"\)' \
+    'System\.loadLibrary\("crypto_3"\)' \
     'phone activity preloads the OpenSSL crypto SONAME'
 require_text "$interface_activity" \
-    'System\.loadLibrary\("ssl"\)' \
+    'System\.loadLibrary\("ssl_3"\)' \
     'phone activity preloads the OpenSSL TLS SONAME'
 require_text "$interface_activity" \
     'PhoneDeepLink\.fromInternalExtra\(intent\)' \
@@ -877,10 +877,10 @@ require_text tests/verify-phone-16k-dependencies.sh \
     'readlink -- "\$entry"' \
     'sentinel digest includes shared-library symlink metadata'
 require_text tests/verify-phone-16k-dependencies.sh \
-    "'libcrypto\.so\.3'" \
+    "'libcrypto_3\.so'" \
     'sentinel covers the staged OpenSSL crypto library consumed by Gradle'
 require_text tests/verify-phone-16k-dependencies.sh \
-    "'libssl\.so\.3'" \
+    "'libssl_3\.so'" \
     'sentinel covers the staged OpenSSL TLS library consumed by Gradle'
 require_text tests/verify-phone-16k-dependencies.sh \
     'append_manifest_entry staged-library nonqt' \
