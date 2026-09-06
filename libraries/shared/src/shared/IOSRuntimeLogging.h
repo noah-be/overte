@@ -22,29 +22,27 @@
 #include <QtCore/QString>
 #include <QtCore/QStringList>
 #include <QtCore/QStandardPaths>
+#include "../../../../security/redaction/SafeDiagnostics.h"
 
 #if defined(Q_OS_IOS)
 #include <os/log.h>
 #endif
 
-// CoreSimulator does not reliably preserve stdout/stderr from a GUI process.
-// Keep Qt's normal diagnostic stream, but mirror bounded acceptance markers to
-// Apple unified logging so runtime automation can observe them deterministically.
-template<typename... Args>
-inline void logIOSRuntimeMarker(Args&&... args) {
-    QString message;
-    {
-        QDebug stream(&message);
-        stream.noquote();
-        (stream << ... << std::forward<Args>(args));
-    }
-
+// Both sinks accept the same closed event vocabulary. Public OS logging must
+// not bypass the Qt sanitizer. Diagnostics are not artifact/device acceptance.
+inline void logIOSRuntimeEvent(overte::security::DiagnosticEvent event) {
+    const char* message = overte::security::diagnosticEvent(event);
     qInfo().noquote() << message;
-
 #if defined(Q_OS_IOS)
-    const QByteArray utf8 = message.toUtf8();
-    os_log_info(OS_LOG_DEFAULT, "%{public}s", utf8.constData());
+    os_log_info(OS_LOG_DEFAULT, "%{public}s", message);
 #endif
+}
+
+// Compatibility for existing variadic callers: discard, do not format their
+// payload. Legacy marker text/identifiers are no longer an evidence channel.
+template<typename... Args>
+inline void logIOSRuntimeMarker(Args&&...) {
+    logIOSRuntimeEvent(overte::security::DiagnosticEvent::Redacted);
 }
 
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
@@ -157,12 +155,7 @@ inline QJsonObject iosRuntimeDiagnosticConfig() {
     cache.loadedExists = true;
     cache.loadedSize = size;
     cache.loadedModifiedMs = modifiedMs;
-    logIOSRuntimeMarker(
-        "OVERTE_IOS_DIAGNOSTIC_CONFIG stage=reloaded",
-        "keys=", cache.config.size(),
-        "schema=", cache.config.value(QStringLiteral("schemaVersion")).toInt(0),
-        "size=", size,
-        "path=", iosRuntimeDiagnosticConfigPath());
+    logIOSRuntimeEvent(overte::security::DiagnosticEvent::Redacted);
     return cache.config;
 }
 
