@@ -1,5 +1,14 @@
 # Script info and same-thread shutdown public diagnostics
 
+v010 redacts the actual destructor's public qDebug event without formatting
+script type or filename. Scope guard, seven resource resets, return-value reset,
+deleted marker and fixed ENTITY_CLIENT printf are unchanged. The new focused
+fixture compiles the complete actual destructor with real Qt logging and explicit
+engine/resource seams; both script types reject filename canaries and preserve
+ordered cleanup under the guard. Baseline fails the actual private-world log
+assertion; corrected implementation passes. This is not full native destructor
+or real resource lifetime proof, nor complete script privacy/consent acceptance.
+
 v009 is an evidence-only extension: no production behavior changed. A real
 QThread is held before its event loop starts; actual stop(true) on another thread
 must immediately deny both late cache outcomes while _isFinished is still false.
