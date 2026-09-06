@@ -17,6 +17,7 @@
 #include "AndroidHelper.h"
 #include "PhoneLifecycleHandoff.h"
 #include "PhonePendingHandoff.h"
+#include "PhonePendingNavigation.h"
 #include "PhoneTouchUiMetrics.h"
 #include "ui/PhoneDialogRouter.h"
 
@@ -47,7 +48,8 @@ QString fromJavaString(JNIEnv* env, jstring value) {
 // startup services, making it a stronger boundary than dependency existence.
 class PendingUrlDelivery final : public QObject {
 public:
-    explicit PendingUrlDelivery(QCoreApplication* application) : QObject(application) {
+    explicit PendingUrlDelivery(QCoreApplication* application)
+        : QObject(application), _pending(overte::lifecycle::applicationGate()) {
         auto& helper = AndroidHelper::instance();
         connect(&helper, &AndroidHelper::qtAppLoadComplete,
                 this, [this]() { deliverIfReady(); });
@@ -58,6 +60,8 @@ public:
         _pending.replace(std::move(url), valid);
         deliverIfReady();
     }
+
+    void cancel() { _pending.clear(); }
 
 private:
     void deliverIfReady() {
@@ -71,7 +75,7 @@ private:
         AndroidHelper::instance().processURL(url);
     }
 
-    phone::PendingHandoff<QString> _pending;
+    phone::PendingNavigation<QString> _pending;
 };
 
 PendingUrlDelivery* urlDelivery(QCoreApplication* application) {
@@ -192,6 +196,13 @@ public:
     }
 
     void submit(bool foreground) {
+        // Publish native input to Shared's single Qt/native arbiter, even
+        // before AndroidHelper is ready. Native true cannot override Qt false.
+        // Local URL cancellation below is separate from Shared HTTP policy.
+        overte::lifecycle::observeNativeVisibility(foreground);
+        if (!foreground) {
+            urlDelivery(QCoreApplication::instance())->cancel();
+        }
         apply(_handoff.setForeground(foreground));
     }
 
@@ -232,12 +243,25 @@ Java_org_overte_phone_PhoneInterfaceActivity_nativeProcessUrl(
         return JNI_FALSE;
     }
 
+    // Queue ownership of native foreground is not an applied Qt-active receipt.
+    // Leave an early URL in Java's bounded retry until the Shared gate is active.
+    // Capture freshness BEFORE queueing so suspend/resume cannot revive it.
+    const auto snapshot = overte::lifecycle::applicationGate().snapshot();
+    if (!snapshot.foreground) {
+        return JNI_FALSE;
+    }
+    const auto generation = snapshot.generation;
+
     // Transfer ownership to Qt instead of blocking Android's UI thread during
     // native startup. The native owner retains only the latest pending URL and
     // waits for Application's established load-complete boundary.
     const bool ownedByNative = QMetaObject::invokeMethod(
         application,
-        [application, url]() {
+        [application, url, generation]() {
+            const auto current = overte::lifecycle::applicationGate().snapshot();
+            if (!current.foreground || current.generation != generation) {
+                return;
+            }
             urlDelivery(application)->submit(url);
         },
         Qt::QueuedConnection);

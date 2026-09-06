@@ -68,10 +68,10 @@ public final class PhoneInterfaceActivity extends QtActivity
     private static final int MAX_METRICS_RETRY_ATTEMPTS = 300;
     private static final long E2E_OVERRIDE_RETRY_DELAY_MS = 50;
     private static final int MAX_E2E_OVERRIDE_RETRY_ATTEMPTS = 600;
-    private static final String STATE_PENDING_URL = "pendingUrl";
-    private static final String STATE_PENDING_URL_RETRY_ATTEMPTS = "pendingUrlRetryAttempts";
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final Runnable drainPendingUrlTask = this::drainPendingUrl;
+    private final Runnable drainForegroundTask = this::drainNativeForegroundState;
+    private final PhoneForegroundDeliveryState foregroundDelivery = new PhoneForegroundDeliveryState();
     private final Runnable drainTouchUiMetricsTask = this::drainTouchUiMetrics;
     private final Runnable drainE2eFlyingOverrideTask = this::drainE2eFlyingOverride;
     private final View.OnLayoutChangeListener touchUiLayoutListener =
@@ -82,8 +82,8 @@ public final class PhoneInterfaceActivity extends QtActivity
     private boolean resumed;
     private boolean nativeBackConsumed;
     private Object api33BackHandler;
-    private PhoneTouchUiMetricsPolicy.Snapshot pendingTouchUiMetrics;
-    private PhoneTouchUiMetricsPolicy.Snapshot lastPublishedTouchUiMetrics;
+    private final PhoneTouchUiMetricsPolicy.Delivery touchUiMetrics =
+            new PhoneTouchUiMetricsPolicy.Delivery();
     private int touchUiMetricsRetryAttempts;
     private InputManager inputManager;
     private boolean inputListenerRegistered;
@@ -117,11 +117,25 @@ public final class PhoneInterfaceActivity extends QtActivity
     }
 
     private void publishNativeForegroundState(boolean foreground) {
+        foregroundDelivery.replace(foreground);
+        drainNativeForegroundState();
+    }
+
+    private void drainNativeForegroundState() {
+        mainHandler.removeCallbacks(drainForegroundTask);
+        Boolean pending = foregroundDelivery.pending();
+        if (pending == null) { return; }
+        boolean accepted = false;
         try {
-            nativeSetForegroundState(foreground);
+            accepted = nativeSetForegroundState(pending);
         } catch (UnsatisfiedLinkError error) {
-            // Qt can still be loading while Android delivers early lifecycle
-            // callbacks. The next callback will publish the current state.
+            // Early callbacks need bounded retry; there may be no later
+            // lifecycle event after Qt finishes loading.
+        }
+        if (accepted) {
+            foregroundDelivery.accepted(pending);
+        } else if (foregroundDelivery.failedAttempt()) {
+            mainHandler.postDelayed(drainForegroundTask, 250);
         }
     }
 
@@ -163,6 +177,9 @@ public final class PhoneInterfaceActivity extends QtActivity
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Prepare the framework-owned root path only. Keystore and credential
+        // operations execute later through Shared, after JNI registration.
+        SecureAccountStore.prepare(getApplicationContext());
         // Establish adaptive sensor rotation before Qt creates its surface.
         // Otherwise Qt 5 can retain the previous orientation's launch geometry
         // after Android rotates the Activity.
@@ -175,20 +192,13 @@ public final class PhoneInterfaceActivity extends QtActivity
         APPLICATION_PARAMETERS = "--cache " + getCacheDir().getAbsolutePath();
 
         // Deep links use a dedicated internal extra, never Qt's command line.
-        // Preserve an undelivered link across Activity recreation; still
-        // consume the Intent extra so QtActivityLoader cannot retain it.
+        // SH-005 does not revive a suspended intent from saved state/history.
+        // Consume the internal extra even when that old delivery is discarded.
         String intentUrl = takePendingUrl(getIntent());
-        if (savedInstanceState != null) {
-            String savedUrl = PhoneDeepLinkNormalizer.normalize(
-                    savedInstanceState.getString(STATE_PENDING_URL));
-            pendingUrl = savedUrl != null ? savedUrl : intentUrl;
-            pendingUrlRetryAttempts = savedUrl != null
-                    ? Math.max(0, Math.min(MAX_URL_RETRY_ATTEMPTS - 1,
-                            savedInstanceState.getInt(STATE_PENDING_URL_RETRY_ATTEMPTS)))
-                    : 0;
-        } else {
-            replacePendingUrl(intentUrl);
-        }
+        boolean fromHistory = getIntent() != null
+                && (getIntent().getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0;
+        replacePendingUrl(PhonePendingUrlPolicy.initialDestination(
+                intentUrl, savedInstanceState != null, fromHistory));
 
         HifiUtils.upackAssets(getAssets(), getCacheDir().getAbsolutePath());
         replacePendingE2eFlyingOverride(
@@ -219,6 +229,9 @@ public final class PhoneInterfaceActivity extends QtActivity
     @Override
     protected void onPause() {
         resumed = false;
+        // SH-005 invalidates the old navigation budget on suspension. An
+        // explicit newer onNewIntent may populate a new request afterwards.
+        replacePendingUrl(null);
         // Android may pause the Activity before delivering the matching key-up
         // (for example after Back backgrounds the task). Never carry that
         // one-gesture bookkeeping into the next foreground session.
@@ -234,6 +247,9 @@ public final class PhoneInterfaceActivity extends QtActivity
     @Override
     protected void onDestroy() {
         resumed = false;
+        replacePendingUrl(null);
+        publishNativeForegroundState(false);
+        mainHandler.removeCallbacks(drainForegroundTask);
         mainHandler.removeCallbacks(drainPendingUrlTask);
         mainHandler.removeCallbacks(drainTouchUiMetricsTask);
         mainHandler.removeCallbacks(drainE2eFlyingOverrideTask);
@@ -244,13 +260,6 @@ public final class PhoneInterfaceActivity extends QtActivity
             api33BackHandler = null;
         }
         super.onDestroy();
-    }
-
-    @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        super.onSaveInstanceState(outState);
-        outState.putString(STATE_PENDING_URL, pendingUrl);
-        outState.putInt(STATE_PENDING_URL_RETRY_ATTEMPTS, pendingUrlRetryAttempts);
     }
 
     @Override
@@ -432,13 +441,14 @@ public final class PhoneInterfaceActivity extends QtActivity
                 hasHoverInput(),
                 hasHardwareKeyboard(configuration),
                 hasHaptics());
-        if (!snapshot.valid || snapshot.equals(lastPublishedTouchUiMetrics)) {
+        if (!snapshot.valid) {
             return;
         }
-        if (!snapshot.equals(pendingTouchUiMetrics)) {
-            pendingTouchUiMetrics = snapshot;
+        if (touchUiMetrics.offer(snapshot)) {
             touchUiMetricsRetryAttempts = 0;
         }
+        // Even returning to the last published size must drain/cancel the
+        // scheduled retry: it may still contain an obsolete IME measurement.
         drainTouchUiMetrics();
     }
 
@@ -478,10 +488,10 @@ public final class PhoneInterfaceActivity extends QtActivity
 
     private void drainTouchUiMetrics() {
         mainHandler.removeCallbacks(drainTouchUiMetricsTask);
-        if (!resumed || pendingTouchUiMetrics == null) {
+        PhoneTouchUiMetricsPolicy.Snapshot snapshot = touchUiMetrics.pending();
+        if (!resumed || snapshot == null) {
             return;
         }
-        PhoneTouchUiMetricsPolicy.Snapshot snapshot = pendingTouchUiMetrics;
         boolean accepted = false;
         try {
             accepted = nativeUpdateTouchUiMetrics(
@@ -503,8 +513,7 @@ public final class PhoneInterfaceActivity extends QtActivity
             // Qt loads the phone native library asynchronously.
         }
         if (accepted) {
-            lastPublishedTouchUiMetrics = snapshot;
-            pendingTouchUiMetrics = null;
+            touchUiMetrics.accepted(snapshot);
             touchUiMetricsRetryAttempts = 0;
             return;
         }
@@ -515,7 +524,7 @@ public final class PhoneInterfaceActivity extends QtActivity
         } else {
             // A future layout, inset, configuration, or input-device change
             // starts a fresh bounded delivery attempt.
-            pendingTouchUiMetrics = null;
+            touchUiMetrics.dropPending();
             touchUiMetricsRetryAttempts = 0;
         }
     }
@@ -613,7 +622,9 @@ public final class PhoneInterfaceActivity extends QtActivity
         boolean handedOff = false;
         try {
             // Qt loads libphoneInterface as part of its asynchronous startup.
-            handedOff = nativeProcessUrl(pendingUrl);
+            if (foregroundDelivery.foregroundDelivered()) {
+                handedOff = nativeProcessUrl(pendingUrl);
+            }
         } catch (UnsatisfiedLinkError nativeLibraryNotReady) {
             // Keep the latest URL pending until Qt has loaded the JNI symbol.
         }
@@ -640,6 +651,38 @@ public final class PhoneInterfaceActivity extends QtActivity
     private void replacePendingUrl(String destination) {
         pendingUrl = destination;
         pendingUrlRetryAttempts = 0;
+    }
+}
+
+/** Bounded latest-state transport, not a duplicate Shared lifecycle machine. */
+final class PhoneForegroundDeliveryState {
+    static final int MAX_ATTEMPTS = 120;
+    private Boolean pending;
+    private boolean foregroundDelivered;
+    private int attempts;
+
+    void replace(boolean foreground) {
+        pending = foreground;
+        foregroundDelivered = false;
+        attempts = 0;
+    }
+    Boolean pending() { return pending; }
+    boolean foregroundDelivered() { return foregroundDelivered; }
+    void accepted(boolean delivered) {
+        if (pending != null && pending == delivered) {
+            pending = null;
+            foregroundDelivered = delivered;
+            attempts = 0;
+        }
+    }
+    boolean failedAttempt() {
+        if (pending == null) { return false; }
+        if (++attempts >= MAX_ATTEMPTS) {
+            pending = null;
+            foregroundDelivered = false;
+            return false;
+        }
+        return true;
     }
 }
 

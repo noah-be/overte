@@ -10,6 +10,11 @@ final class PhonePendingUrlPolicy {
     private PhonePendingUrlPolicy() {
     }
 
+    static String initialDestination(String incoming, boolean restored, boolean fromHistory) {
+        // A recreated/history Activity is not a new explicit navigation grant.
+        return restored || fromHistory ? null : incoming;
+    }
+
     static boolean canAttempt(String pendingUrl, boolean resumed) {
         return pendingUrl != null && resumed;
     }

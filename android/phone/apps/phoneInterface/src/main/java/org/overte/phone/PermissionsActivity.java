@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import org.overte.security.SafeDiagnostics;
 
 /** Requests optional voice permission before starting the native client. */
 public final class PermissionsActivity extends Activity {
@@ -64,12 +65,22 @@ public final class PermissionsActivity extends Activity {
             int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (PhonePermissionFlow.shouldLaunchInterfaceAfterResult(requestCode)) {
+            RedactingDiagnostics.event(checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                    == PackageManager.PERMISSION_GRANTED
+                    ? SafeDiagnostics.Event.PERMISSION_GRANTED
+                    : SafeDiagnostics.Event.PERMISSION_DENIED);
             // Voice remains optional; denying it must not block world access.
             launchInterface();
         }
     }
 
     private void launchInterface() {
+        // Permission delivery may race Back/cancellation or destruction of
+        // this launcher. Never resurrect native UI from that stale callback.
+        if (isFinishing() || isDestroyed() || launchState == null) {
+            RedactingDiagnostics.event(SafeDiagnostics.Event.CALLBACK_DISCARDED);
+            return;
+        }
         if (!launchState.beginInterfaceLaunch()) {
             return;
         }

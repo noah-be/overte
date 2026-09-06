@@ -27,6 +27,12 @@
     "phone-contracts"
   ],
   "tested": {
+    "android/phone/apps/phoneInterface/src/PhonePendingNavigation.h": ["android/phone/tests/instrumentation/PhonePendingNavigationTest.cpp"],
+    "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/RedactingDiagnostics.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/RedactingDiagnosticsRobolectricTest.java"],
+    "android/phone/apps/phoneInterface/src/PhoneProtectedAccountStore.h": ["android/phone/tests/security/PhoneProtectedAccountStoreJniTest.cpp"],
+    "android/phone/apps/phoneInterface/src/PhoneProtectedAccountStore.cpp": ["android/phone/tests/security/PhoneProtectedAccountStoreJniTest.cpp"],
+    "android/phone/apps/phoneInterface/src/PhoneProtectedStoreRegistration.cpp": ["android/phone/tests/security/run-jni-storage.py"],
+    "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/SecureAccountStore.java": ["android/phone/tests/security/SecureAccountStoreHostTest.java"],
     "android/phone/apps/phoneInterface/src/debug/AndroidManifest.xml": ["android/phone/tests/phone-host-regression-test.sh"],
     "android/phone/apps/phoneInterface/src/debug/java/org/overte/phone/E2eFlightControlActivity.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/E2eFlightControlActivityTest.java"],
     "android/phone/apps/phoneInterface/src/debug/java/org/overte/phone/E2eLauncherActivity.java": ["android/phone/tests/phone-host-regression-test.sh"],
@@ -36,7 +42,7 @@
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneLaunchState.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhoneLaunchStateTest.java"],
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhonePendingUrlPolicy.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhonePendingUrlPolicyTest.java"],
     "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhonePermissionFlow.java": ["android/phone/apps/phoneInterface/src/test/java/org/overte/phone/PhonePermissionFlowTest.java"],
-    "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneTouchUiMetricsPolicy.java": ["android/common/tests/java/org/overte/phone/PhoneTouchUiMetricsPolicyStandaloneTest.java"],
+    "android/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneTouchUiMetricsPolicy.java": ["android/common/tests/java/org/overte/phone/PhoneTouchUiMetricsPolicyStandaloneTest.java", "android/phone/tests/instrumentation/PhoneMetricsDeliveryHostTest.java"],
     "android/phone/apps/phoneInterface/src/PhoneLifecycleHandoff.h": ["android/common/tests/native/phone_lifecycle_handoff_test.cpp"],
     "android/phone/apps/phoneInterface/src/PhonePendingHandoff.h": ["android/common/tests/native/phone_pending_handoff_lifecycle_test.cpp", "android/common/tests/native/phone_pending_handoff_replacement_test.cpp"],
     "android/phone/apps/phoneInterface/src/PhoneTouchUiMetrics.h": ["android/common/tests/native/phone_touch_ui_metrics_test.cpp"],

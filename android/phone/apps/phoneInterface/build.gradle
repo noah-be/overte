@@ -328,6 +328,9 @@ android {
     sourceSets {
         main {
             java.srcDir '../../../common/libraries/qt/src/main/java'
+            // Original PX-16 source; Phone owns this entry after the published
+            // px16-android-host/v001 release. Never fork a second sanitizer.
+            java.srcDir '../../../../security/redaction/java'
             jniLibs.srcDirs '../../../common/libraries/qt/libs', phoneQtRuntimeDir
         }
         debug {
