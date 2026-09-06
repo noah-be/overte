@@ -24,13 +24,16 @@ Canvas {
     onColorChanged: requestPaint()
     onWidthChanged: requestPaint()
     onHeightChanged: requestPaint()
+    function paintTint(ctx) {
+        ctx.fillStyle = color
+        ctx.fillRect(0, 0, width, height)
+    }
     onPaint: {
         var ctx = getContext("2d")
         ctx.reset()
         if (width <= 0 || height <= 0 || source.toString() === "" || !isImageLoaded(source)) return
         ctx.drawImage(source, 0, 0, width, height)
         ctx.globalCompositeOperation = "source-in"
-        ctx.fillStyle = color
-        ctx.fillRect(0, 0, width, height)
+        paintTint(ctx)
     }
 }
