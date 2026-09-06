@@ -11,6 +11,9 @@
 
 void Preferences::addPreference(Preference* preference) {
     preference->setParent(this);
+    // Neither retained dialog can construct an unsupported control from the
+    // registry. Keep QObject ownership, but never expose its writable pointer.
+    if (!preference->isProfileAllowed()) { return; }
 
     const QString& category = preference->getCategory();
 

@@ -28,7 +28,7 @@
 #include "GlobalAppProperties.h"
 
 #include "../SharedLogging.h"
-#include "../../../ui/src/CapabilityProfile.h"
+#include "../../../ui/src/ConfiguredCapabilityProfile.h"
 
 const QStringList& FileUtils::getFileSelectors() {
     static std::once_flag once;
@@ -36,16 +36,9 @@ const QStringList& FileUtils::getFileSelectors() {
     std::call_once(once, [] {
 
         using namespace overte::ui;
-        Product product = Product::Desktop;
-#if defined(Q_OS_ANDROID) && defined(Q_OS_IOS)
-        product = Product::Unknown;
-#elif defined(Q_OS_ANDROID)
-        product = resolveProduct(true, false, HIFI_ANDROID_APP);
-#elif defined(Q_OS_IOS)
-        product = Product::IOS;
-#endif
+        const Product product = configuredProduct();
         const bool gles = hifi::properties::getGraphicsAPI() == hifi::properties::GraphicsAPI::GLES32;
-#if defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
+#if defined(Q_OS_ANDROID) && !defined(Q_OS_IOS) && defined(HIFI_ANDROID_APP)
         if (product == Product::Unknown) {
             // Other established Android products are outside this three-product
             // contract; preserve their old selector behavior without granting
