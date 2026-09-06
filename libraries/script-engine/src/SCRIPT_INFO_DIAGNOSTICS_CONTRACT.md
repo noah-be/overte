@@ -1,5 +1,15 @@
 # Script info and same-thread shutdown public diagnostics
 
+v009 is an evidence-only extension: no production behavior changed. A real
+QThread is held before its event loop starts; actual stop(true) on another thread
+must immediately deny both late cache outcomes while _isFinished is still false.
+After releasing the event loop, the original queued stop finishes exactly once.
+The fixture restores QObject affinity before destruction and uses bounded process/
+thread waits. A compiled mutation moving invalidation into target-thread work
+must fail the precise queued-stop content assertion (not an unrelated failure).
+This verifies this specific cross-thread admission ordering, not the surrounding
+manager's general thread safety, full native/header or finite evaluation stop.
+
 v008 deactivates the load RequestScope immediately in the actual stop method,
 before any optional thread marshalling. Late success/error cache completions and
 new load requests cannot change contents or emit load outcomes after stopping.
