@@ -1,7 +1,7 @@
 # Repository Health Doctor
 
 The Repository Health Doctor is a fail-closed, read-only audit of repository
-governance. It runs every day and can be dispatched manually. Pull requests run
+governance. It is scheduled at02:17 Europe/Berlin and can be dispatched manually. Pull requests run
 only local fixture and contract tests; live GitHub queries run only after the
 workflow checks out the trusted default branch.
 
@@ -25,6 +25,47 @@ Configuration and expected label values live in
 human-readable result is written to the GitHub Step Summary. The full structured
 result is uploaded as `repository-health-report.json`, even when a check fails.
 All checks continue where safely possible so a run reports every finding at once.
+
+## Quiet admission and propagation
+
+Automatic live audits use `--when-idle --event schedule`. A delayed scheduled
+invocation outside00:00–06:00 Europe/Berlin is recorded as
+`DEFERRED_OUTSIDE_NIGHT_WINDOW` without executing the audit. Timezone-aware cron
+tracks daylight saving time; GitHub can still delay/drop scheduled invocations
+([official scheduling documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)).
+The next nightly invocation retries; an integrator can explicitly dispatch after
+finishing propagation. No automatic midnight completion or retry-time guarantee.
+
+Admission checks all nine permanent heads, exact-SHA ancestry, same-repository
+open governed propagation PRs and all nonterminal parent-qualification runs.
+Active propagation yields `DEFERRED_PROPAGATION`, with every audit area `NOT_RUN`.
+Recent unresolved hierarchy drift has a30-minute grace bridging the gap between
+parent merge and the next PR/qualification. It is audited normally after that
+grace; a PR/qualification older than2hours causes a fail-closed operational error
+for inspection, not indefinite quiet deferral. API, permission, malformed or
+incomplete responses remain errors. Fork PRs cannot suppress the audit.
+
+Manual dispatch bypasses only the night window, never propagation admission.
+An already synchronized hierarchy needs no arbitrary post-merge delay. The
+integrator must not start another propagation while the Doctor is running.
+Heads/activity are checked again after the actual audit: a newly started
+propagation or changed head invalidates the result as
+`DEFERRED_REPOSITORY_CHANGED`; independent security/permission/contract failures
+are still reported as failures. This is read-only detection and result binding,
+not an atomic lock against an unrelated actor who ignores integration protocol.
+
+`DEFERRED_*` exits successfully as a scheduling decision to avoid a false
+failure notification, but is NEVER a Doctor PASS. Acceptance consumers must
+inspect the uploaded report and require `status=PASS`, `audit_executed=true`,
+`admission.accepted=true` and their exact expected main/head set, not just the
+GitHub workflow conclusion. A postponed/invalidated report cannot satisfy a gate.
+
+The separate Branch synchronization push job uses exact-event-SHA-bound
+`--observe-push`: normal immediate child lag is `PENDING_PROPAGATION`, not a
+failed build and not accepted synchronization. Its default CLI, weekly schedule
+and manual invocation remain strict and fail unresolved drift. API errors and
+stale event identities still fail closed. No GitHub notification settings,
+branch protection or required security gates are disabled.
 
 ## Security and failure behavior
 

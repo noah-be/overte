@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import datetime, timezone
 from pathlib import Path
 import importlib.util
 import json
@@ -325,7 +326,9 @@ class WorkflowContractTests(unittest.TestCase):
 
     def test_yaml_shape_schedule_dispatch_and_pr_paths(self):
         self.assertRegex(self.source, r"(?m)^name: Repository Health Doctor$")
-        self.assertIn('cron: "17 6 * * *"', self.source)
+        self.assertIn('cron: "17 2 * * *"', self.source)
+        self.assertIn('timezone: "Europe/Berlin"', self.source)
+        self.assertIn('--when-idle --event "$HEALTH_EVENT"', self.source)
         self.assertIn("workflow_dispatch:", self.source)
         self.assertIn("pull_request:", self.source)
         self.assertNotIn("pull_request_target", self.source)
@@ -360,6 +363,151 @@ class WorkflowContractTests(unittest.TestCase):
         subject = doctor()
         report = subject.local()
         self.assertEqual(report["status"], "PASS", report)
+
+
+class QuiescenceTests(unittest.TestCase):
+    NOW = datetime(2026, 9, 6, 0, 17, tzinfo=timezone.utc)
+
+    class Api:
+        def __init__(self):
+            self.prs = []
+            self.runs = {}
+            self.sha = SHA
+            self.date = '2026-09-05T20:00:00Z'
+            self.behind = 0
+            self.failure = False
+
+        def pages(self, path):
+            return self.prs
+
+        def get(self, path):
+            if self.failure:
+                raise HEALTH.PermissionUnknown('fixture permission denial')
+            if '/git/ref/heads/' in path:
+                return {'object': {'sha': self.sha}}
+            if '/commits/' in path:
+                return {'sha': self.sha, 'commit': {'committer': {'date': self.date}}}
+            if '/compare/' in path:
+                return {'behind_by': self.behind, 'status': 'diverged' if self.behind else 'identical'}
+            if '/runs?status=' in path:
+                status = path.split('status=')[1].split('&')[0]
+                runs = self.runs.get(status, [])
+                return {'total_count': len(runs), 'workflow_runs': runs}
+            raise AssertionError(path)
+
+    def subject(self):
+        api = self.Api()
+        subject = doctor(api)
+        subject.live = mock.Mock(side_effect=lambda: subject.report('live'))
+        return subject, api
+
+    def test_busy_pr_never_invokes_audit(self):
+        subject, api = self.subject()
+        api.prs = [{'base': {'ref': 'apple-ios', 'repo': {'full_name': CONFIG['repository']}},
+                    'head': {'ref': 'reconcile/ios/657-test', 'repo': {'full_name': CONFIG['repository']}},
+                    'created_at': '2026-09-06T00:00:00Z'}]
+        report = subject.live_when_idle('workflow_dispatch', lambda: self.NOW)
+        self.assertEqual(report['status'], 'DEFERRED_PROPAGATION')
+        self.assertFalse(report['audit_executed'])
+        self.assertTrue(all(result['status'] == 'NOT_RUN' for result in report['results'].values()))
+        subject.live.assert_not_called()
+
+    def test_every_nonterminal_qualification_state_defers(self):
+        for status in ('queued', 'in_progress', 'waiting', 'pending', 'requested'):
+            with self.subTest(status=status):
+                subject, api = self.subject()
+                api.runs[status] = [{'status': status, 'head_branch': 'android-vr',
+                                     'created_at': '2026-09-06T00:00:00Z'}]
+                self.assertEqual(subject.live_when_idle('workflow_dispatch', lambda: self.NOW)['status'],
+                                 'DEFERRED_PROPAGATION')
+                subject.live.assert_not_called()
+
+    def test_recent_unfinished_hierarchy_bridges_between_prs(self):
+        subject, api = self.subject()
+        api.date, api.behind = '2026-09-06T00:10:00Z', 1
+        self.assertEqual(subject.live_when_idle('workflow_dispatch', lambda: self.NOW)['status'],
+                         'DEFERRED_PROPAGATION')
+        subject.live.assert_not_called()
+        # Old unresolved drift is sent to the real audit, not deferred forever.
+        api.date = '2026-09-05T20:00:00Z'
+        subject.live.side_effect = lambda: subject.fail('branches', 'BRANCH_DRIFT', 'fixture') or subject.report('live')
+        self.assertEqual(subject.live_when_idle('workflow_dispatch', lambda: self.NOW)['status'], 'FAIL')
+        subject.live.assert_called_once()
+
+    def test_night_window_uses_berlin_summer_and_winter(self):
+        for moment in (datetime(2026, 9, 6, 10, tzinfo=timezone.utc),
+                       datetime(2026, 1, 6, 6, tzinfo=timezone.utc)):
+            subject, _ = self.subject()
+            report = subject.live_when_idle('schedule', lambda: moment)
+            self.assertEqual(report['status'], 'DEFERRED_OUTSIDE_NIGHT_WINDOW')
+            subject.live.assert_not_called()
+        subject, _ = self.subject()
+        self.assertEqual(subject.live_when_idle('schedule', lambda: self.NOW)['status'], 'PASS')
+
+    def test_manual_daytime_and_final_synchronized_heads_are_allowed(self):
+        subject, api = self.subject()
+        api.date = '2026-09-06T00:10:00Z'
+        report = subject.live_when_idle('workflow_dispatch',
+            lambda: datetime(2026, 9, 6, 10, 17, tzinfo=timezone.utc))
+        self.assertEqual(report['status'], 'PASS')
+        self.assertTrue(report['audit_executed'] and report['admission']['accepted'])
+        self.assertEqual(report['admission']['before']['heads'], report['admission']['after']['heads'])
+
+    def test_mid_audit_head_change_cannot_produce_accepted_pass(self):
+        subject, api = self.subject()
+        def changed():
+            api.sha = '2' * 40
+            return subject.report('live')
+        subject.live.side_effect = changed
+        report = subject.live_when_idle('workflow_dispatch', lambda: self.NOW)
+        self.assertEqual(report['status'], 'DEFERRED_REPOSITORY_CHANGED')
+        self.assertFalse(report['admission']['accepted'])
+
+    def test_head_change_never_hides_independent_security_failure(self):
+        subject, api = self.subject()
+        def changed():
+            api.sha = '2' * 40
+            subject.fail('security', 'SECURITY_ALERT', 'fixture')
+            return subject.report('live')
+        subject.live.side_effect = changed
+        report = subject.live_when_idle('workflow_dispatch', lambda: self.NOW)
+        self.assertEqual(report['status'], 'FAIL')
+        self.assertFalse(report['admission']['accepted'])
+
+    def test_unreadable_or_stale_activity_fails_closed(self):
+        subject, api = self.subject()
+        api.failure = True
+        with self.assertRaises(HEALTH.AuditError):
+            subject.live_when_idle('workflow_dispatch', lambda: self.NOW)
+        subject.live.assert_not_called()
+        api.failure = False
+        api.runs['in_progress'] = [{'status': 'in_progress', 'head_branch': 'main',
+                                    'created_at': '2026-09-05T20:00:00Z'}]
+        with self.assertRaisesRegex(HEALTH.AuditError, 'two-hour'):
+            subject.live_when_idle('workflow_dispatch', lambda: self.NOW)
+
+    def test_incomplete_activity_and_invalid_head_never_admit(self):
+        subject, api = self.subject()
+        api.sha = 'not-a-sha'
+        with self.assertRaisesRegex(HEALTH.AuditError, 'invalid permanent head'):
+            subject.live_when_idle('workflow_dispatch', lambda: self.NOW)
+        subject, api = self.subject()
+        original = api.get
+        api.get = lambda path: {'total_count': 101, 'workflow_runs': []} if '/runs?' in path else original(path)
+        with self.assertRaisesRegex(HEALTH.AuditError, 'incomplete'):
+            subject.live_when_idle('workflow_dispatch', lambda: self.NOW)
+        subject.live.assert_not_called()
+
+    def test_new_propagation_during_audit_invalidates_report(self):
+        subject, api = self.subject()
+        def started():
+            api.runs['queued'] = [{'status': 'queued', 'head_branch': 'main',
+                                    'created_at': '2026-09-06T00:00:00Z'}]
+            return subject.report('live')
+        subject.live.side_effect = started
+        report = subject.live_when_idle('workflow_dispatch', lambda: self.NOW)
+        self.assertEqual(report['status'], 'DEFERRED_REPOSITORY_CHANGED')
+        self.assertFalse(report['admission']['accepted'])
 
 
 if __name__ == "__main__":
