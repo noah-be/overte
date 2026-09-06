@@ -183,6 +183,7 @@ private:
 
     QUrl _authURL;
     overte::network::RequestScope _credentialContext;
+    overte::network::RequestScope _profileContext;
 
     DataServerAccountInfo _accountInfo;
     bool _isWaitingForTokenRefresh { false };

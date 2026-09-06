@@ -1057,17 +1057,29 @@ void AccountManager::refreshAccessTokenError(QNetworkReply::NetworkError error) 
 }
 
 void AccountManager::requestProfile() {
+    if (_isWaitingForAccessToken) { return; }
+    const auto credentials = _credentialContext.snapshot();
+    const auto profileContext = _profileContext.next();
+    QPointer<AccountManager> owner(this);
     QNetworkAccessManager& networkAccessManager = NetworkAccessManager::getInstance();
 
     QUrl profileURL = _authURL;
     profileURL.setPath(getMetaverseServerURLPath() + "/api/v1/user/profile");
 
     QNetworkRequest profileRequest(profileURL);
-    profileRequest.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    profileRequest.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
     profileRequest.setHeader(QNetworkRequest::UserAgentHeader, _userAgentGetter());
+    if (!owner || !credentials.current() || !profileContext.current()) { return; }
     profileRequest.setRawHeader(ACCESS_TOKEN_AUTHORIZATION_HEADER, _accountInfo.getAccessToken().authorizationHeaderValue());
 
     QNetworkReply* profileReply = networkAccessManager.get(profileRequest);
+    // Both lifetimes must remain current. Each watcher retains its own ticket;
+    // replyCurrent checks the final (profile) ticket, credentials are explicit.
+    profileReply->setProperty("_overte_profile_credentials", QVariant::fromValue(credentials));
+    overte::network::watchRequest(profileReply, credentials);
+    overte::network::watchRequest(profileReply, profileContext);
+    observeAccountTokenDeadline(profileReply);
+    if (!owner || !credentials.current() || !profileContext.current()) { return; }
     connect(profileReply, &QNetworkReply::finished, this, &AccountManager::requestProfileFinished);
 #if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
     connect(profileReply, &QNetworkReply::errorOccurred, this, &AccountManager::requestProfileError);
@@ -1077,21 +1089,42 @@ void AccountManager::requestProfile() {
 }
 
 void AccountManager::requestProfileFinished() {
-    QNetworkReply* profileReply = reinterpret_cast<QNetworkReply*>(sender());
-
-    QJsonDocument jsonResponse = QJsonDocument::fromJson(profileReply->readAll());
+    auto* profileReply = qobject_cast<QNetworkReply*>(sender());
+    if (!profileReply || profileReply->property("_overte_profile_finished").toBool()) { return; }
+    profileReply->setProperty("_overte_profile_finished", true);
+    profileReply->deleteLater();
+    const auto credentials = profileReply->property("_overte_profile_credentials").value<overte::network::RequestTicket>();
+    const auto profileContext = profileReply->property("_overte_request_ticket").value<overte::network::RequestTicket>();
+    if (!credentials.current() || !profileContext.current() ||
+            !credentials.sameRequest(_credentialContext.snapshot()) ||
+            !profileContext.sameRequest(_profileContext.snapshot())) { return; }
+    QPointer<AccountManager> owner(this);
+    QPointer<QNetworkReply> survivingReply(profileReply);
+    constexpr qint64 MAX_PROFILE_BYTES = 1024 * 1024;
+    const auto payload = profileReply->read(MAX_PROFILE_BYTES + 1);
+    if (!owner || !survivingReply || !credentials.current() || !profileContext.current()) { return; }
+    const int status = profileReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    QJsonParseError parseError;
+    QJsonDocument jsonResponse = QJsonDocument::fromJson(payload, &parseError);
+    if (profileReply->property("_overte_account_auth_timed_out").toBool() ||
+            profileReply->error() != QNetworkReply::NoError || status < 200 || status >= 300 ||
+            payload.size() > MAX_PROFILE_BYTES || profileReply->bytesAvailable() != 0 ||
+            parseError.error != QJsonParseError::NoError || !jsonResponse.isObject() ||
+            !owner || !credentials.current() || !profileContext.current()) { return; }
     const QJsonObject& rootObject = jsonResponse.object();
 
-    if (rootObject.contains("status") && rootObject["status"].toString() == "success") {
+    const auto user = rootObject.value("data").toObject().value("user").toObject();
+    if (rootObject.value("status").toString() == "success" &&
+            user.value("username").isString() && !user.value("username").toString().isEmpty()) {
         _accountInfo.setProfileInfoFromJSON(rootObject);
 
+        persistAccountToFile();
+        if (!owner || !credentials.current() || !profileContext.current()) { return; }
         emit profileChanged();
+        if (!owner || !credentials.current() || !profileContext.current()) { return; }
 
         // the username has changed to whatever came back
         emit usernameChanged(_accountInfo.getUsername());
-
-        // store the whole profile into the local settings
-        persistAccountToFile();
 
     } else {
         // TODO: error handling
