@@ -121,7 +121,7 @@ class ReproducibleGraphTest(unittest.TestCase):
             target,
         )
         self.assertIn(
-            "libnode/22.22.3@overte/stable#3fd33b0199406fa08037c90d5dd1a635",
+            "libnode/22.22.3@overte/stable#01bc09301fde787710c8e19a8820bbb4",
             target,
         )
         for tool in ("glslang/", "scribe/", "spirv-cross/", "spirv-tools/"):
