@@ -140,12 +140,23 @@ inline QJsonObject iosRuntimeDiagnosticConfig() {
         return cache.config;
     }
 
+    // This hot-reloaded file is external input, not a renderer-sized payload.
+    // Keep the last valid configuration during a partial/oversized replacement.
+    // Check both metadata and bounded bytes: the file may grow after QFileInfo.
+    constexpr qint64 MAX_CONFIG_BYTES { 1024 * 1024 };
+    if (size < 0 || size > MAX_CONFIG_BYTES) {
+        return cache.config;
+    }
     QFile file(iosRuntimeDiagnosticConfigPath());
     if (!file.open(QIODevice::ReadOnly)) {
         return cache.config;
     }
+    const auto bytes = file.read(MAX_CONFIG_BYTES + 1);
+    if (file.error() != QFileDevice::NoError || bytes.size() > MAX_CONFIG_BYTES || !file.atEnd()) {
+        return cache.config;
+    }
     QJsonParseError error;
-    const auto document = QJsonDocument::fromJson(file.readAll(), &error);
+    const auto document = QJsonDocument::fromJson(bytes, &error);
     if (error.error != QJsonParseError::NoError || !document.isObject()) {
         // AFC replacement is not guaranteed to be atomic. Retain the last
         // valid object and retry instead of briefly disabling all diagnostics.
