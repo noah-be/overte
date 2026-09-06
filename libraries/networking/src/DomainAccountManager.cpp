@@ -25,6 +25,7 @@
 #include "NetworkAccessManager.h"
 #include "NetworkLogging.h"
 #include "NodeList.h"
+#include "../../../security/redaction/SafeDiagnostics.h"
 
 // FIXME: Generalize to other OAuth2 sources for domain login.
 
@@ -34,12 +35,35 @@ DomainAccountManager::DomainAccountManager() {
     connect(this, &DomainAccountManager::loginComplete, this, &DomainAccountManager::sendInterfaceAccessTokenToServer);
 }
 
+DomainAccountManager::~DomainAccountManager() {
+    invalidatePendingAccessToken();
+}
+
+void DomainAccountManager::invalidatePendingAccessToken() {
+    _accessTokenRequests.next(); // Invalidate BEFORE abort can emit finished.
+    const auto pending = _pendingAccessTokenReply;
+    _pendingAccessTokenReply.clear();
+    if (pending) {
+        pending->abort();
+        pending->deleteLater();
+    }
+}
+
+void DomainAccountManager::setClientID(const QString& clientID) {
+    if (_currentAuth.clientID == clientID) {
+        return;
+    }
+    invalidatePendingAccessToken();
+    _currentAuth.clientID = clientID;
+}
+
 void DomainAccountManager::setDomainURL(const QUrl& domainURL) {
     if (domainURL == _currentAuth.domainURL) {
         return;
     }
 
-    qCDebug(networking) << "DomainAccountManager domain URL has been changed to" << qPrintable(domainURL.toString());
+    invalidatePendingAccessToken();
+    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     // Restore OAuth2 authorization if have it for this domain.
     if (_knownAuths.contains(domainURL)) {
@@ -57,9 +81,9 @@ void DomainAccountManager::setAuthURL(const QUrl& authURL) {
         return;
     }
 
+    invalidatePendingAccessToken();
     _currentAuth.authURL = authURL;
-    qCDebug(networking) << "DomainAccountManager URL for authenticated requests has been changed to"
-        << qPrintable(_currentAuth.authURL.toString());
+    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     _currentAuth.accessToken = "";
     _currentAuth.refreshToken = "";
@@ -76,6 +100,13 @@ bool DomainAccountManager::isLoggedIn() {
 }
 
 void DomainAccountManager::requestAccessToken(const QString& username, const QString& password) {
+
+    invalidatePendingAccessToken();
+    const auto ticket = _accessTokenRequests.snapshot();
+    if (!ticket.current()) {
+        emit loginFailed();
+        return;
+    }
 
     _currentAuth.username = username;
     _currentAuth.accessToken = "";
@@ -101,12 +132,19 @@ void DomainAccountManager::requestAccessToken(const QString& username, const QSt
 
     QNetworkAccessManager& networkAccessManager = NetworkAccessManager::getInstance();
     QNetworkReply* requestReply = networkAccessManager.post(request, formData);
+    _pendingAccessTokenReply = requestReply;
+    overte::network::watchRequest(requestReply, ticket);
     connect(requestReply, &QNetworkReply::finished, this, &DomainAccountManager::requestAccessTokenFinished);
+    connect(requestReply, &QNetworkReply::finished, requestReply, &QObject::deleteLater);
 }
 
 void DomainAccountManager::requestAccessTokenFinished() {
 
-    QNetworkReply* requestReply = reinterpret_cast<QNetworkReply*>(sender());
+    auto* requestReply = qobject_cast<QNetworkReply*>(sender());
+    if (!requestReply || requestReply != _pendingAccessTokenReply || !overte::network::replyCurrent(requestReply)) {
+        return;
+    }
+    _pendingAccessTokenReply.clear(); // One terminal reply; reject duplicates.
 
     QJsonDocument jsonResponse = QJsonDocument::fromJson(requestReply->readAll());
     const QJsonObject& rootObject = jsonResponse.object();
@@ -131,14 +169,13 @@ void DomainAccountManager::requestAccessTokenFinished() {
             emit loginComplete();
         } else {
             // Failure.
-            qCDebug(networking) << "Received a response for password grant that is missing one or more expected values.";
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::AuthFailed);
             emit loginFailed();
         }
 
     } else {
         // Failure.
-        qCDebug(networking) << "Error in response for password grant -" << httpStatus << requestReply->error()
-            << "-" << rootObject["error"].toString() << rootObject["error_description"].toString();
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::AuthFailed);
         emit loginFailed();
     }
 }
@@ -161,8 +198,7 @@ bool DomainAccountManager::hasValidAccessToken() {
     // if (currentDomainAccessToken.isEmpty() || accessTokenIsExpired()) {
     if (currentDomainAccessToken.isEmpty()) {
         if (VERBOSE_HTTP_REQUEST_DEBUGGING) {
-            qCDebug(networking) << "An access token is required for requests to"
-                                << qPrintable(_currentAuth.authURL.toString());
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::AuthRequired);
         }
 
         return false;
@@ -195,7 +231,11 @@ bool DomainAccountManager::checkAndSignalForAccessToken() {
 
         // Dialog can be hidden immediately after showing if we've just teleported to the domain, unless the signal is delayed.
         auto domain = _currentAuth.authURL.host();
-        QTimer::singleShot(500, this, [this, domain] {
+        const auto ticket = _accessTokenRequests.snapshot();
+        QTimer::singleShot(500, this, [this, domain, ticket] {
+            if (!ticket.current()) {
+                return;
+            }
             emit this->authRequired(domain);
         });
     }

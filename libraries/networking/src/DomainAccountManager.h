@@ -14,6 +14,8 @@
 
 #include <QtCore/QObject>
 #include <QtCore/QUrl>
+#include <QtCore/QPointer>
+#include "RequestCancellation.h"
 
 #include <DependencyManager.h>
 
@@ -33,10 +35,11 @@ class DomainAccountManager : public QObject, public Dependency {
     Q_OBJECT
 public:
     DomainAccountManager();
+    ~DomainAccountManager() override;
 
     void setDomainURL(const QUrl& domainURL);
     void setAuthURL(const QUrl& authURL);
-    void setClientID(const QString& clientID) { _currentAuth.clientID = clientID; }
+    void setClientID(const QString& clientID);
 
     const QString& getUsername() { return _currentAuth.username; }
     const QString& getAccessToken() { return _currentAuth.accessToken; }
@@ -61,6 +64,7 @@ signals:
     void newTokens();
 
 private:
+    void invalidatePendingAccessToken();
     bool hasValidAccessToken();
     bool accessTokenIsExpired();
     void setTokensFromJSON(const QJsonObject&, const QUrl& url);
@@ -68,6 +72,8 @@ private:
 
     DomainAccountDetails _currentAuth;
     QHash<QUrl, DomainAccountDetails> _knownAuths;  // <domainURL, DomainAccountDetails>
+    overte::network::RequestScope _accessTokenRequests;
+    QPointer<QNetworkReply> _pendingAccessTokenReply;
 };
 
 #endif  // hifi_DomainAccountManager_h
