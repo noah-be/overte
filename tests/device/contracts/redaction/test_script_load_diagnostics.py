@@ -26,6 +26,7 @@ class ScriptLoadDiagnostics(unittest.TestCase):
 #include <memory>
 #include <cassert>
 #include "security/redaction/SafeDiagnostics.h"
+#include "libraries/networking/src/RequestCancellation.h"
 Q_LOGGING_CATEGORY(scriptengine, "overte.test.script-load")
 QStringList logs;
 struct ScriptCache {
@@ -42,6 +43,7 @@ struct DependencyManager { template<class T> static T* get() { return &cache; } 
 QUrl expandScriptUrl(const QUrl& value) { return value; }
 struct ScriptManager : std::enable_shared_from_this<ScriptManager> {
     bool _isRunning = false, _isReloading = false;
+    overte::network::RequestScope _scriptLoadContext;
     QString _fileNameString, _scriptContents = "existing-script";
     QStringList errors, failed, loaded;
     std::function<void()> onError;
@@ -116,9 +118,40 @@ int main(int argc, char** argv) {
     cache.callback(callbackUrl, "private-late-source", true, true, status);
     cache.callback(callbackUrl, "", true, false, status);
     assert(logs.isEmpty());
+    auto ordered = std::make_shared<ScriptManager>();
+    ordered->loadURL(url, false);
+    auto oldCompletion = cache.callback;
+    ordered->loadURL(url, true);
+    auto currentCompletion = cache.callback;
+    currentCompletion(callbackUrl, "new-source", true, true, status);
+    logs.clear();
+    oldCompletion(callbackUrl, "stale-source", true, true, status);
+    assert(ordered->_scriptContents == "new-source");
+    assert(ordered->loaded.size() == 1 && logs.isEmpty());
+    currentCompletion(callbackUrl, "duplicate-source", true, true, status);
+    assert(ordered->_scriptContents == "new-source" && ordered->loaded.size() == 1);
+    ordered->loadURL(url, false);
+    auto interrupted = cache.callback;
+    ordered->onError = [&] { ordered->loadURL(url, true); };
+    interrupted(callbackUrl, "", true, false, status);
+    assert(ordered->failed.isEmpty() && ordered->loaded.size() == 1);
+    ordered->onError = {};
+    cache.callback(callbackUrl, "replacement-source", true, true, status);
+    assert(ordered->_scriptContents == "replacement-source" && ordered->loaded.size() == 2);
+    ordered->loadURL(url, false);
+    auto invalidated = cache.callback;
+    ordered->loadURL(QUrl("https://private.example/no-script.txt"), false);
+    const auto loadedBefore = ordered->loaded.size();
+    logs.clear();
+    invalidated(callbackUrl, "invalidated-source", true, true, status);
+    assert(ordered->_scriptContents == "replacement-source");
+    assert(ordered->loaded.size() == loadedBefore && logs.isEmpty());
 }
 '''
-        flags = shlex.split(subprocess.check_output(['pkg-config', '--cflags', '--libs', 'Qt6Core'], text=True))
+        header = (ROOT / 'libraries/script-engine/src/ScriptManager.h').read_text()
+        self.assertIn('overte::network::RequestScope _scriptLoadContext;', header)
+        self.assertIn('#include <RequestCancellation.h>', header)
+        flags = shlex.split(subprocess.check_output(['pkg-config', '--cflags', '--libs', 'Qt6Core', 'Qt6Network'], text=True))
         with tempfile.TemporaryDirectory(prefix='overte-script-load-') as temporary:
             cpp = Path(temporary) / 'test.cpp'
             binary = Path(temporary) / 'test'
