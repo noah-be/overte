@@ -32,6 +32,7 @@
 #include "NetworkLogging.h"
 #include "NetworkingConstants.h"
 #include "UserActivityLogger.h"
+#include "../../../security/redaction/SafeDiagnostics.h"
 #include "udt/PacketHeaders.h"
 
 const QString REDIRECT_HIFI_ADDRESS = NetworkingConstants::REDIRECT_HIFI_ADDRESS;
@@ -177,10 +178,10 @@ void AddressManager::storeCurrentAddress() {
                 currentAddressHandle.set(url);
             }
         } else {
-            qCWarning(networking) << "Ignoring attempt to save current address because not connected to domain:" << url;
+            qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::ConnectionFailed);
         }
     } else {
-        qCWarning(networking) << "Ignoring attempt to save current address with an invalid url:" << url;
+        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::UrlRejected);
     }
 }
 
@@ -194,16 +195,14 @@ QString AddressManager::currentPath(bool withOrientation) const {
                 QString orientationString = createByteArray(_orientationGetter());
                 pathString += "/" + orientationString;
             } else {
-                qCDebug(networking) << "Cannot add orientation to path without a getter for position."
-                    << "Call AddressManager::setOrientationGetter to pass a function that will return a glm::quat";
+                qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::UrlRejected);
             }
 
         }
 
         return pathString;
     } else {
-        qCDebug(networking) << "Cannot create address path without a getter for position."
-            << "Call AddressManager::setPositionGetter to pass a function that will return a const glm::vec3&";
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::UrlRejected);
         return QString();
     }
 }
@@ -222,25 +221,39 @@ QString AddressManager::currentFacingPath() const {
 
         return "/" + createByteArray(position) + "/" + createByteArray(orientation);
     } else {
-        qCDebug(networking) << "Cannot create address path without a getter for position/orientation.";
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::UrlRejected);
         return QString();
     }
 }
 
-const JSONCallbackParameters& AddressManager::apiCallbackParameters() {
-    static bool hasSetupParameters = false;
-    static JSONCallbackParameters callbackParams;
-
-    if (!hasSetupParameters) {
-        callbackParams.callbackReceiver = this;
-        callbackParams.jsonCallbackMethod = "handleAPIResponse";
-        callbackParams.errorCallbackMethod = "handleAPIError";
+void AddressManager::setClientLookupVisibility(bool foreground) {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, [this, foreground] { setClientLookupVisibility(foreground); }, Qt::QueuedConnection);
+        return;
     }
+    const bool leavingForeground = _clientLookupPolicy && _lookupForeground && !foreground;
+    _clientLookupPolicy = true;
+    _lookupForeground = foreground;
+    _lookupRequests.setActive(foreground);
+    if (!foreground) {
+        if (leavingForeground) { _lookupNeedsExplicitIntent = true; }
+        _previousAPILookup.clear();
+    }
+}
 
+JSONCallbackParameters AddressManager::apiCallbackParameters() {
+    JSONCallbackParameters callbackParams(this, "handleAPIResponse", "handleAPIError");
+    callbackParams.requestTicket = _lookupRequests.next();
     return callbackParams;
 }
 
 bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, const QString& lookupUrlInString) {
+    if (_clientLookupPolicy) {
+        if (!_lookupForeground) { return false; }
+        if (_lookupNeedsExplicitIntent) {
+            if (trigger != UserInput && trigger != Back && trigger != Forward && trigger != Suggestions) { return false; }
+        }
+    }
     static QString URL_TYPE_USER = "user";
     static QString URL_TYPE_DOMAIN_ID = "domain_id";
     static QString URL_TYPE_PLACE = "place";
@@ -250,7 +263,7 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
 
     if (!lookupUrl.host().isEmpty() && !lookupUrl.path().isEmpty()) {
         // Assignment clients ping for empty url until assigned. Don't spam.
-        qCDebug(networking) << "Trying to go to URL" << lookupUrl.toString();
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 
     if (lookupUrl.scheme().isEmpty() && !lookupUrl.path().startsWith("/")) {
@@ -284,6 +297,9 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
             lookupUrl = QUrl(lookupUrl.toString().replace(HIFI_SCHEME_REGEX, URL_SCHEME_OVERTE + "://"));
         }
 
+        if (lookupUrl.host().isEmpty()) { return false; }
+        _lookupRequests.next(); // Also cancel HTTP when the new target is direct IP/DNS.
+        _lookupNeedsExplicitIntent = false;
         DependencyManager::get<NodeList>()->flagTimeForConnectionStep(LimitedNodeList::ConnectionStep::LookupAddress);
 
         // there are 4 possible lookup strings
@@ -297,7 +313,7 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
         if (handleUsername(lookupUrl.authority())) {
             // handled a username for lookup
 
-            UserActivityLogger::getInstance().wentTo(trigger, URL_TYPE_USER, lookupUrl.toString());
+            UserActivityLogger::getInstance().wentTo(trigger, URL_TYPE_USER, QStringLiteral("OVT_REDACTED"));
 
             // save the last visited domain URL.
             _lastVisitedURL = lookupUrl;
@@ -312,7 +328,7 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
             if (handleNetworkAddress(lookupUrl.host()
                                      + (lookupUrl.port() == -1 ? "" : ":" + QString::number(lookupUrl.port())), trigger, hostChanged)) {
 
-                UserActivityLogger::getInstance().wentTo(trigger, URL_TYPE_NETWORK_ADDRESS, lookupUrl.toString());
+                UserActivityLogger::getInstance().wentTo(trigger, URL_TYPE_NETWORK_ADDRESS, QStringLiteral("OVT_REDACTED"));
 
                 // save the last visited domain URL.
                 _lastVisitedURL = lookupUrl;
@@ -334,7 +350,7 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
                 // we may have a path that defines a relative viewpoint - if so we should jump to that now
                 handlePath(path, trigger);
             } else if (handleDomainID(lookupUrl.host())){
-                UserActivityLogger::getInstance().wentTo(trigger, URL_TYPE_DOMAIN_ID, lookupUrl.toString());
+                UserActivityLogger::getInstance().wentTo(trigger, URL_TYPE_DOMAIN_ID, QStringLiteral("OVT_REDACTED"));
 
                 // save the last visited domain URL.
                 _lastVisitedURL = lookupUrl;
@@ -348,7 +364,7 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
             } else {
                 // wasn't an address - lookup the place name
                 // we may have a path that defines a relative viewpoint - pass that through the lookup so we can go to it after
-                UserActivityLogger::getInstance().wentTo(trigger, URL_TYPE_PLACE, lookupUrl.toString());
+                UserActivityLogger::getInstance().wentTo(trigger, URL_TYPE_PLACE, QStringLiteral("OVT_REDACTED"));
 
                 // save the last visited domain URL.
                 _lastVisitedURL = lookupUrl;
@@ -383,7 +399,9 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
         return true;
 
     } else if (lookupUrl.toString().startsWith('/')) {
-        qCDebug(networking) << "Going to relative path" << lookupUrl.path();
+        _lookupRequests.next();
+        _lookupNeedsExplicitIntent = false;
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
         // a path lookup clears the previous lookup since we don't expect to re-attempt it
         _previousAPILookup.clear();
@@ -395,6 +413,8 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
         return true;
     } else if (lookupUrl.scheme() == HIFI_URL_SCHEME_FILE || lookupUrl.scheme() == HIFI_URL_SCHEME_HTTPS
             || lookupUrl.scheme() == HIFI_URL_SCHEME_HTTP) {
+        _lookupRequests.next();
+        _lookupNeedsExplicitIntent = false;
 
         // Save the last visited domain URL.
         _lastVisitedURL = lookupUrl;
@@ -458,6 +478,7 @@ const QString DATA_OBJECT_DOMAIN_KEY = "domain";
 
 
 void AddressManager::handleAPIResponse(QNetworkReply* requestReply) {
+    if (!overte::network::replyCurrent(requestReply)) { return; }
     QJsonObject responseObject = QJsonDocument::fromJson(requestReply->readAll()).object();
     QJsonObject dataObject = responseObject["data"].toObject();
 
@@ -523,8 +544,7 @@ void AddressManager::goToAddressFromObject(const QVariantMap& dataObject, const 
                         ? domainObject[DOMAIN_NETWORK_PORT_KEY].toUInt()
                         : DEFAULT_DOMAIN_SERVER_PORT;
 
-                    qCDebug(networking) << "Possible domain change required to connect to" << domainHostname
-                        << "on" << domainPort;
+                    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
                     QUrl domainURL;
                     domainURL.setScheme(URL_SCHEME_OVERTE);
                     domainURL.setHost(domainHostname);
@@ -535,8 +555,7 @@ void AddressManager::goToAddressFromObject(const QVariantMap& dataObject, const 
                 } else {
                     QString iceServerAddress = domainObject[DOMAIN_ICE_SERVER_ADDRESS_KEY].toString();
 
-                    qCDebug(networking_ice) << "Possible domain change required to connect to domain with ID" << domainID
-                        << "via ice-server at" << iceServerAddress;
+                    qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
                     emit possibleDomainChangeRequiredViaICEForID(iceServerAddress, domainID);
                 }
@@ -593,8 +612,7 @@ void AddressManager::goToAddressFromObject(const QVariantMap& dataObject, const 
                         if (shouldFaceViewpoint) {
                             // try to parse this returned path as a viewpoint, that's the only thing it could be for now
                             if (!handleViewpoint(returnedPath, shouldFaceViewpoint, trigger)) {
-                                qCDebug(networking) << "Received a location path that was could not be handled as a viewpoint -"
-                                    << returnedPath;
+                                qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::UrlRejected);
                             }
                         } else {
                             handlePath(returnedPath, trigger);
@@ -610,21 +628,20 @@ void AddressManager::goToAddressFromObject(const QVariantMap& dataObject, const 
                 }
 
             } else {
-                qCDebug(networking) << "Received an address manager API response with no domain key. Cannot parse.";
-                qCDebug(networking) << locationMap;
+                qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::UrlRejected);
             }
         } else {
             // we've been told that this result exists but is offline, emit our signal so the application can handle
             emit lookupResultIsOffline();
         }
     } else {
-        qCDebug(networking) << "Received an address manager API response with no location key or place key. Cannot parse.";
-        qCDebug(networking) << locationMap;
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::UrlRejected);
     }
 }
 
 void AddressManager::handleAPIError(QNetworkReply* errorReply) {
-    qCDebug(networking) << "AddressManager API error -" << errorReply->error() << "-" << errorReply->errorString();
+    if (!overte::network::replyCurrent(errorReply)) { return; }
+    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::ConnectionFailed);
 
     if (errorReply->error() == QNetworkReply::ContentNotFoundError) {
         // if this is a lookup that has no result, don't keep re-trying it
@@ -745,8 +762,7 @@ bool AddressManager::handleDomainID(const QString& host) {
 
 void AddressManager::handlePath(const QString& path, LookupTrigger trigger, bool wasPathOnly) {
     if (!handleViewpoint(path, false, trigger, wasPathOnly)) {
-        qCDebug(networking) << "User entered path could not be handled as a viewpoint - " << path <<
-                            "- will attempt to ask domain-server to resolve.";
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
         if (!wasPathOnly) {
             // if we received a path with a host then we need to remember what it was here so we can not
@@ -813,7 +829,7 @@ bool AddressManager::handleViewpoint(const QString& viewpointString, bool should
                     && !isNaN(newOrientation.w)) {
                     orientationChanged = true;
                 } else {
-                    qCDebug(networking) << "Orientation parsed from lookup string is invalid. Won't use for location change.";
+                    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::UrlRejected);
                 }
             }
 
@@ -823,7 +839,7 @@ bool AddressManager::handleViewpoint(const QString& viewpointString, bool should
             );
 
         } else {
-            qCDebug(networking) << "Could not jump to position from lookup string because it has an invalid value.";
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::UrlRejected);
         }
 
         return true;
@@ -891,9 +907,9 @@ bool AddressManager::setDomainInfo(const QUrl& domainURL, LookupTrigger trigger)
     _rootPlaceID = QUuid();
 
     if (_domainURL.scheme() == URL_SCHEME_OVERTE) {
-        qCDebug(networking) << "Possible domain change required to connect to domain at" << hostname << "on" << port;
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     } else {
-        qCDebug(networking) << "Possible domain change required to serverless domain: " << domainURL.toString();
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 
     DependencyManager::get<NodeList>()->flagTimeForConnectionStep(LimitedNodeList::ConnectionStep::HandleAddress);
@@ -912,6 +928,8 @@ void AddressManager::goToEntry(LookupTrigger trigger) {
 }
 
 void AddressManager::goToUser(const QString& username, bool shouldMatchOrientation) {
+    if (_clientLookupPolicy && !_lookupForeground) { return; }
+    _lookupNeedsExplicitIntent = false;
     QString formattedUsername = QUrl::toPercentEncoding(username);
 
     // for history storage handling we remember how this lookup was triggered - for a username it's always user input
@@ -998,7 +1016,7 @@ void AddressManager::handleShareableNameAPIResponse(QNetworkReply* requestReply)
         }
 
         if (shareableNameChanged) {
-            qCDebug(networking) << "AddressManager shareable name changed to" << _shareablePlaceName;
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         }
     }
 }

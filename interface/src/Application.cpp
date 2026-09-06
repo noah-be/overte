@@ -13,6 +13,12 @@
 //
 
 #include "Application.h"
+#include "ApplicationLifecycle.h"
+
+overte::lifecycle::Gate& overte::lifecycle::applicationGate() {
+    static Gate gate;
+    return gate;
+}
 
 #include <cmath>
 
@@ -65,6 +71,7 @@
 #include <input-plugins/KeyboardMouseDevice.h>
 #include <LocationScriptingInterface.h>
 #include <LogHandler.h>
+#include "../../security/redaction/SafeDiagnostics.h"
 #include <MainWindow.h>
 #include <MessagesClient.h>
 #include <material-networking/TextureCacheScriptingInterface.h>
@@ -200,7 +207,13 @@ const QString DEFAULT_CURSOR_NAME = "SYSTEM";
 Setting::Handle<int> sessionRunTime { "sessionRunTime", 0 };
 
 void messageHandler(QtMsgType type, const QMessageLogContext& context, const QString& message) {
-    QString logMessage = LogHandler::getInstance().printMessage((LogMsgType) type, context, message);
+    Q_UNUSED(context);
+    // Never forward dynamic Qt context, source path, category or arbitrary text.
+    // Closed event constants carry useful outcomes without reversible fragments.
+    const QByteArray input = message.size() <= 32 ? message.toUtf8() : QByteArray();
+    const char* safe = overte::security::sanitizeDiagnostic(input.constData(), static_cast<std::size_t>(input.size()));
+    const QString logMessage = QString::fromLatin1(safe) + QLatin1Char('\n');
+    fprintf(stdout, "%s\n", safe);
 
     if (!logMessage.isEmpty()) {
 #ifdef Q_OS_ANDROID
@@ -230,6 +243,12 @@ void messageHandler(QtMsgType type, const QMessageLogContext& context, const QSt
         qApp->getLogger()->addMessage(qPrintable(logMessage));
 #endif
     }
+}
+
+void privacySafeShutdownMessageHandler(QtMsgType type, const QMessageLogContext&, const QString& message) {
+    const QByteArray input = message.size() <= 32 ? message.toUtf8() : QByteArray();
+    fprintf(stderr, "%s\n", overte::security::sanitizeDiagnostic(input.constData(), static_cast<std::size_t>(input.size())));
+    if (type == QtFatalMsg) { abort(); }
 }
 
 Application::Application(
@@ -414,7 +433,7 @@ Application::~Application() {
     }
 
     // Can't log to file past this point, FileLogger about to be deleted
-    qInstallMessageHandler(LogHandler::verboseMessageHandler);
+    qInstallMessageHandler(privacySafeShutdownMessageHandler);
 
 #ifdef Q_OS_MAC
     // 26 Feb 2021 - Tried re-enabling this call but OSX still crashes on exit.
@@ -537,8 +556,9 @@ void Application::openDirectory(const QString& path) {
 }
 
 void Application::forceLoginWithTokens(const QString& tokens) {
-    DependencyManager::get<AccountManager>()->setAccessTokens(tokens);
-    Setting::Handle<bool>(KEEP_ME_LOGGED_IN_SETTING_NAME, true).set(true);
+    if (DependencyManager::get<AccountManager>()->setAccessTokens(tokens)) {
+        Setting::Handle<bool>(KEEP_ME_LOGGED_IN_SETTING_NAME, true).set(true);
+    }
 }
 
 void Application::setConfigFileURL(const QString& fileUrl) {

@@ -14,6 +14,7 @@
 
 #include "ScriptValueIteratorV8Wrapper.h"
 #include "ScriptEngineLoggingV8.h"
+#include <limits>
 
 V8ScriptValueIterator::V8ScriptValueIterator(ScriptEngineV8* engine, v8::Local<v8::Value> object) : _engine(engine)  {
     auto isolate = _engine->getIsolate();
@@ -22,12 +23,18 @@ V8ScriptValueIterator::V8ScriptValueIterator(ScriptEngineV8* engine, v8::Local<v
     _context.Reset(isolate, _engine->getContext());
     auto context = _context.Get(isolate);
     v8::Context::Scope contextScope(context);
-    Q_ASSERT(object->IsObject());
+    if (object.IsEmpty() || !object->IsObject()) {
+        return;
+    }
     v8::Local<v8::Object> v8Object = v8::Local<v8::Object>::Cast(object);
+    v8::Local<v8::Array> names;
+    if (!v8Object->GetOwnPropertyNames(context).ToLocal(&names) ||
+            names->Length() > static_cast<uint32_t>(std::numeric_limits<int>::max())) {
+        return;
+    }
     _object.Reset(isolate, v8Object);
-    _propertyNames.Reset(isolate, v8Object->GetOwnPropertyNames(context).ToLocalChecked());
-    _length = _propertyNames.Get(isolate)->Length();
-    _currentIndex = -1;
+    _propertyNames.Reset(isolate, names);
+    _length = static_cast<int>(names->Length());
 }
 
 V8ScriptValueIterator::~V8ScriptValueIterator() {
@@ -44,7 +51,9 @@ bool V8ScriptValueIterator::hasNext() const {
 }
 
 QString V8ScriptValueIterator::name() const {
-    Q_ASSERT(_currentIndex >= 0);
+    if (_currentIndex < 0 || _currentIndex >= _length || _propertyNames.IsEmpty()) {
+        return {};
+    }
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
@@ -52,9 +61,10 @@ QString V8ScriptValueIterator::name() const {
     v8::Context::Scope contextScope(context);
     v8::Local<v8::Value> propertyName;
     if (!_propertyNames.Get(isolate)->Get(context, _currentIndex).ToLocal(&propertyName)) {
-        Q_ASSERT(false);
+        return {};
     }
-    return QString(*v8::String::Utf8Value(isolate, propertyName));
+    v8::String::Utf8Value bytes(isolate, propertyName);
+    return *bytes ? QString::fromUtf8(*bytes, bytes.length()) : QString();
 }
 
 void V8ScriptValueIterator::next() {
@@ -64,22 +74,18 @@ void V8ScriptValueIterator::next() {
 }
 
 V8ScriptValue V8ScriptValueIterator::value() {
-    Q_ASSERT(_currentIndex >= 0);
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
+    if (_currentIndex < 0 || _currentIndex >= _length || _propertyNames.IsEmpty() || _object.IsEmpty()) {
+        return V8ScriptValue(_engine, v8::Undefined(isolate));
+    }
     auto context = _context.Get(isolate);
     v8::Context::Scope contextScope(context);
     v8::Local<v8::Value> v8Value;
     v8::Local<v8::Value> propertyName;
-    if (!_propertyNames.Get(isolate)->Get(context, _currentIndex).ToLocal(&propertyName)) {
-        Q_ASSERT(false);
-    }
-    if (!_object.Get(isolate)->Get(context, propertyName->ToString(context).ToLocalChecked()).ToLocal(&v8Value)) {
-        Q_ASSERT(false);
-    }
-    if (v8Value.IsEmpty()) {
-        qDebug() << "V8ScriptValueIterator::value: value handle is empty for key: " << *v8::String::Utf8Value(isolate, propertyName->ToString(context).ToLocalChecked());
+    if (!_propertyNames.Get(isolate)->Get(context, _currentIndex).ToLocal(&propertyName) ||
+            !_object.Get(isolate)->Get(context, propertyName).ToLocal(&v8Value)) {
         v8Value = v8::Undefined(isolate);
     }
     return V8ScriptValue(_engine, v8Value);
