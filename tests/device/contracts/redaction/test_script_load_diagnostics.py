@@ -29,6 +29,7 @@ class ScriptLoadDiagnostics(unittest.TestCase):
 #include "libraries/networking/src/RequestCancellation.h"
 Q_LOGGING_CATEGORY(scriptengine, "overte.test.script-load")
 QStringList logs;
+std::function<void()> onLog;
 struct ScriptCache {
     using Callback = std::function<void(const QString&, const QString&, bool, bool, const QString&)>;
     Callback callback;
@@ -63,6 +64,7 @@ int main(int argc, char** argv) {
     QLoggingCategory::setFilterRules("overte.test.script-load.debug=true");
     qInstallMessageHandler([](QtMsgType type, const QMessageLogContext&, const QString& message) {
         assert(type == QtDebugMsg); logs.append(message);
+        if (onLog) { auto action = onLog; action(); }
     });
     const QUrl url("https://private.example/private.js?token=credential-canary");
     const QString callbackUrl = "https://private-cache.example/script.js?token=cache-canary";
@@ -146,6 +148,15 @@ int main(int argc, char** argv) {
     invalidated(callbackUrl, "invalidated-source", true, true, status);
     assert(ordered->_scriptContents == "replacement-source");
     assert(ordered->loaded.size() == loadedBefore && logs.isEmpty());
+    ordered->loadURL(url, false);
+    auto logInterrupted = cache.callback;
+    onLog = [&] { onLog = {}; ordered->loadURL(url, true); };
+    logInterrupted(callbackUrl, "log-superseded-source", true, true, status);
+    assert(ordered->_scriptContents == "replacement-source");
+    assert(ordered->loaded.size() == loadedBefore);
+    cache.callback(callbackUrl, "after-log-replacement", true, true, status);
+    assert(ordered->_scriptContents == "after-log-replacement");
+    assert(ordered->loaded.size() == loadedBefore + 1);
 }
 '''
         header = (ROOT / 'libraries/script-engine/src/ScriptManager.h').read_text()
