@@ -51,7 +51,7 @@ class V8Signal(unittest.TestCase):
                             "-L", str(library), "-Wl,-rpath," + str(library), "-lnode", "-o", str(binary), *flags],
                            check=True, timeout=40)
             for mode in ("zero", "one", "ten", "over", "empty-callback", "null-callback", "object-callback",
-                         "undefined-callback", "empty-conversion", "null-arguments", "null-argument", "throw", "terminate", "stopped"):
+                         "undefined-callback", "empty-conversion", "null-arguments", "null-argument", "throw", "terminate", "stopped", "conversion-stop"):
                 with self.subTest(mode=mode):
                     result = subprocess.run(["unshare", "--user", "--map-root-user", "--net", str(binary), mode],
                                             text=True, capture_output=True, timeout=5)
