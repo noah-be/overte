@@ -11,6 +11,7 @@
 //
 
 #include "DomainHandler.h"
+#include "../../../security/redaction/SafeDiagnostics.h"
 
 #include <math.h>
 
@@ -83,8 +84,8 @@ void DomainHandler::disconnect(QString reason) {
         _sockAddr.clear();
     }
 
-    qCDebug(networking_ice) << "Disconnecting from domain server.";
-    qCDebug(networking_ice) << "REASON:" << reason;
+    qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
+    qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     setIsConnected(false);
 }
 
@@ -105,7 +106,7 @@ void DomainHandler::clearSettings() {
 }
 
 void DomainHandler::softReset(QString reason) {
-    qCDebug(networking) << "Resetting current domain connection information.";
+    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     disconnect(reason);
 
     clearSettings();
@@ -133,7 +134,7 @@ void DomainHandler::hardReset(QString reason) {
     _isInErrorState = false;
     emit redirectErrorStateChanged(_isInErrorState);
 
-    qCDebug(networking) << "Hard reset in NodeList DomainHandler.";
+    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     _pendingDomainID = QUuid();
     _iceServerSockAddr = SockAddr();
     _sockAddr.clear();
@@ -194,7 +195,7 @@ void DomainHandler::setSockAddr(const SockAddr& sockAddr, const QString& hostnam
 void DomainHandler::setUUID(const QUuid& uuid) {
     if (uuid != _uuid) {
         _uuid = uuid;
-        qCDebug(networking) << "Domain ID changed to" << uuidStringWithoutCurlyBraces(_uuid);
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 }
 
@@ -229,12 +230,12 @@ void DomainHandler::setURLAndID(QUrl domainURL, QUuid domainID) {
         _hasCheckedForDomainAccessToken = false;
 
         if (previousHost != domainURL.host()) {
-            qCDebug(networking) << "Updated domain hostname to" << domainURL.host();
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
             if (!domainURL.host().isEmpty()) {
                 if (domainURL.scheme() == URL_SCHEME_OVERTE) {
                     // re-set the sock addr to null and fire off a lookup of the IP address for this domain-server's hostname
-                    qCDebug(networking, "Looking up DS hostname %s.", domainURL.host().toLocal8Bit().constData());
+                    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
                     _hostnameLookup.start(domainURL.host(), this, [this](const QHostInfo& info) {
                         completedHostnameLookup(info);
                     });
@@ -252,7 +253,7 @@ void DomainHandler::setURLAndID(QUrl domainURL, QUuid domainID) {
         emit domainURLChanged(_domainURL);
 
         if (_sockAddr.getPort() != domainPort) {
-            qCDebug(networking) << "Updated domain port to" << domainPort;
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             _sockAddr.setPort(domainPort);
         }
     }
@@ -308,7 +309,7 @@ void DomainHandler::setIceServerHostnameAndID(const QString& iceServerHostname, 
             completedIceServerHostnameLookup();
         }
 
-        qCDebug(networking_ice) << "ICE required to connect to domain via ice server at" << iceServerHostname;
+        qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 }
 
@@ -348,8 +349,7 @@ void DomainHandler::completedHostnameLookup(const QHostInfo& hostInfo) {
 
             DependencyManager::get<NodeList>()->flagTimeForConnectionStep(LimitedNodeList::ConnectionStep::SetDomainSocket);
 
-            qCDebug(networking, "DS at %s is at %s", _domainURL.host().toLocal8Bit().constData(),
-                   _sockAddr.getAddress().toString().toLocal8Bit().constData());
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
             emit completedSocketDiscovery();
 
@@ -358,11 +358,11 @@ void DomainHandler::completedHostnameLookup(const QHostInfo& hostInfo) {
     }
 
     // if we got here then we failed to lookup the address
-    qCDebug(networking, "Failed domain server lookup");
+    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 }
 
 void DomainHandler::completedIceServerHostnameLookup() {
-    qCDebug(networking_ice) << "ICE server socket is at" << _iceServerSockAddr;
+    qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     DependencyManager::get<NodeList>()->flagTimeForConnectionStep(LimitedNodeList::ConnectionStep::SetICEServerSocket);
 
@@ -432,7 +432,7 @@ void DomainHandler::setRedirectErrorState(QUrl errorUrl, QString reasonMessage, 
     if (getInterstitialModeEnabled() && isHardRefusal(reasonCode)) {
         _errorDomainURL = errorUrl;
         _isInErrorState = true;
-        qCDebug(networking) << "Error connecting to domain: " << reasonMessage;
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         emit redirectErrorStateChanged(_isInErrorState);
         emit redirectToErrorDomainURL(_errorDomainURL);
     } else {
@@ -441,7 +441,7 @@ void DomainHandler::setRedirectErrorState(QUrl errorUrl, QString reasonMessage, 
 }
 
 void DomainHandler::requestDomainSettings() {
-    qCDebug(networking) << "Requesting settings from domain server";
+    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     Assignment::Type assignmentType = Assignment::typeForNodeType(DependencyManager::get<NodeList>()->getOwnerType());
 
@@ -463,7 +463,7 @@ void DomainHandler::processSettingsPacketList(QSharedPointer<ReceivedMessage> pa
     _settingsObject = QJsonDocument::fromJson(data).object();
     
     if (!_settingsObject.isEmpty()) {
-        qCDebug(networking) << "Received domain settings: \n" << _settingsObject;
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 
     emit settingsReceived(_settingsObject);
@@ -471,7 +471,7 @@ void DomainHandler::processSettingsPacketList(QSharedPointer<ReceivedMessage> pa
 
 void DomainHandler::processICEPingReplyPacket(QSharedPointer<ReceivedMessage> message) {
     const SockAddr& senderSockAddr = message->getSenderSockAddr();
-    qCDebug(networking_ice) << "Received reply from domain-server on" << senderSockAddr;
+    qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     if (getIP().isNull()) {
         // we're hearing back from this domain-server, no need to refresh API information
@@ -479,13 +479,13 @@ void DomainHandler::processICEPingReplyPacket(QSharedPointer<ReceivedMessage> me
 
         // for now we're unsafely assuming this came back from the domain
         if (senderSockAddr == _icePeer.getLocalSocket()) {
-            qCDebug(networking_ice) << "Connecting to domain using local socket";
+            qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             activateICELocalSocket();
         } else if (senderSockAddr == _icePeer.getPublicSocket()) {
-            qCDebug(networking_ice) << "Conecting to domain using public socket";
+            qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             activateICEPublicSocket();
         } else {
-            qCDebug(networking_ice) << "Reply does not match either local or public socket for domain. Will not connect.";
+            qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         }
     }
 }
@@ -495,7 +495,7 @@ void DomainHandler::processDTLSRequirementPacket(QSharedPointer<ReceivedMessage>
     unsigned short dtlsPort;
     message->readPrimitive(&dtlsPort);
 
-    qCDebug(networking) << "domain-server DTLS port changed to" << dtlsPort << "- Enabling DTLS.";
+    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     _sockAddr.setPort(dtlsPort);
 
@@ -504,7 +504,7 @@ void DomainHandler::processDTLSRequirementPacket(QSharedPointer<ReceivedMessage>
 
 void DomainHandler::processICEResponsePacket(QSharedPointer<ReceivedMessage> message) {
     if (_icePeer.hasSockets()) {
-        qCDebug(networking_ice) << "Received an ICE peer packet for domain-server but we already have sockets. Not processing.";
+        qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         // bail on processing this packet if our ice peer already has sockets
         return;
     }
@@ -519,10 +519,10 @@ void DomainHandler::processICEResponsePacket(QSharedPointer<ReceivedMessage> mes
     DependencyManager::get<NodeList>()->flagTimeForConnectionStep(LimitedNodeList::ConnectionStep::ReceiveDSPeerInformation);
 
     if (_icePeer.getUUID() != _pendingDomainID) {
-        qCDebug(networking_ice) << "Received a network peer with ID that does not match current domain. Will not attempt connection.";
+        qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         _icePeer.reset();
     } else {
-        qCDebug(networking_ice) << "Received network peer object for domain -" << _icePeer;
+        qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
         // ask the peer object to start its ping timer
         _icePeer.startPingTimer();
@@ -594,9 +594,7 @@ void DomainHandler::processDomainServerConnectionDeniedPacket(QSharedPointer<Rec
 
     // output to the log so the user knows they got a denied connection request
     // and check and signal for an access token so that we can make sure they are logged in
-    QString sanitizedExtraInfo = extraInfo.toLower().startsWith("http") ? "" : extraInfo;  // Don't log URLs.
-    qCWarning(networking) << "The domain-server denied a connection request: " << reasonMessage 
-        << " extraInfo:" << sanitizedExtraInfo;
+    qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     if (!_domainConnectionRefusals.contains(reasonMessage)) {
         _domainConnectionRefusals.insert(reasonMessage);
@@ -612,7 +610,7 @@ void DomainHandler::processDomainServerConnectionDeniedPacket(QSharedPointer<Rec
 
     // Some connection refusal reasons imply that a login is required. If so, suggest a new login.
     if (reasonSuggestsMetaverseLogin(reasonCode)) {
-        qCWarning(networking) << "Make sure you are logged in to the directory server.";
+        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
         auto accountManager = DependencyManager::get<AccountManager>();
 
@@ -635,7 +633,7 @@ void DomainHandler::processDomainServerConnectionDeniedPacket(QSharedPointer<Rec
         domainAccountManager->setClientID(QString());
 
     } else if (reasonSuggestsDomainLogin(reasonCode)) {
-        qCWarning(networking) << "Make sure you are logged in to the domain.";
+        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
         auto domainAccountManager = DependencyManager::get<DomainAccountManager>();
         if (!extraInfo.isEmpty()) {
@@ -664,13 +662,13 @@ bool DomainHandler::checkInPacketTimeout() {
     ++_checkInPacketsSinceLastReply;
 
     if (_checkInPacketsSinceLastReply > 1) {
-        qCDebug(networking_ice) << "Silent domain checkins:" << _checkInPacketsSinceLastReply;
+        qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 
     auto nodeList = DependencyManager::get<NodeList>();
 
     if (_checkInPacketsSinceLastReply > SILENT_DOMAIN_TRAFFIC_DROP_MIN) {
-        qCDebug(networking_ice) << _checkInPacketsSinceLastReply << "seconds since last domain list request, squelching traffic";
+        qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         nodeList->setDropOutgoingNodeTraffic(true);
     }
 
@@ -680,10 +678,9 @@ bool DomainHandler::checkInPacketTimeout() {
         // so emit our signal that says that
 
 #ifdef DEBUG_EVENT_QUEUE
-        int nodeListQueueSize = ::hifi::qt::getEventQueueSize(nodeList->thread());
-        qCDebug(networking) << "Limit of silent domain checkins reached (network qt queue: " << nodeListQueueSize << ")";
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 #else  // DEBUG_EVENT_QUEUE
-        qCDebug(networking) << "Limit of silent domain checkins reached";
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 #endif // DEBUG_EVENT_QUEUE
 
         emit limitOfSilentDomainCheckInsReached();
