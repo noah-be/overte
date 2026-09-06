@@ -7,13 +7,13 @@ status consumers and TopBar mouse handlers remain. Relative URLs are resolved
 at the original caller, including TopBar inventory and script-driven updates.
 Empty sources remain empty rather than resolving to the caller document.
 
-RoundImage uses a zero-delay Timer to refresh its Canvas cache after Image
-bindings settle. The cache request includes the requested source size. A real
-counted provider returns different pixels for different requested sizes: changing
-size requires one new provider fetch and displays the new pixels; radius repaint
-requires none. Removing the Canvas size argument fails that pixel check. This
-proves the tested synchronous Qt6 provider/cache paths only. Async network/cache
-lifetime and Qt5/native behavior remain acceptance gaps.
+RoundImage schedules a public grabToImage capture of its transparent, naturally
+sized Qt Image after bindings settle. Canvas consumes the retained in-memory
+result URL; sourceSize stays with Qt Image. The real counted provider returns
+different pixels for requested sizes and proves one new request after changing
+size, including while hidden. The current negative makes the capture source
+invisible and fails pixels. The earlier cache-size negative belongs to sealed
+v017 evidence. Qt5/native and asynchronous lifetime acceptance remain open.
 
 The caller fixture extracts each complete actual image subtree and uses the
 original file URL and AvatarImages import. Real Qt6 software QQuickView tests
