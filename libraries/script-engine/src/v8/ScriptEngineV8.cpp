@@ -14,6 +14,7 @@
 
 #include "ScriptEngineV8.h"
 #include "V8ExceptionDiagnostics.h"
+#include "V8PropertyCopy.h"
 
 #include <chrono>
 #include <mutex>
@@ -496,9 +497,9 @@ const v8::Local<v8::Context> ScriptEngineV8::getConstContext() const {
 }
 
 // Stored objects are used to create global objects for evaluateInClosure
-void ScriptEngineV8::storeGlobalObjectContents() {
+bool ScriptEngineV8::storeGlobalObjectContents() {
     if (areGlobalObjectContentsStored) {
-        return;
+        return true;
     }
     Q_ASSERT(_v8Isolate->IsCurrent());
     v8::HandleScope handleScope(_v8Isolate);
@@ -506,17 +507,19 @@ void ScriptEngineV8::storeGlobalObjectContents() {
     v8::Context::Scope contextScope(context);
     v8::Local<v8::Object> globalMemberObjects = v8::Object::New(_v8Isolate);
 
-    auto globalMemberNames = context->Global()->GetPropertyNames(context).ToLocalChecked();
-    for (uint32_t i = 0; i < globalMemberNames->Length(); i++) {
-        auto name = globalMemberNames->Get(context, i).ToLocalChecked();
-        if(!globalMemberObjects->Set(context, name, context->Global()->Get(context, name).ToLocalChecked()).FromMaybe(false)) {
-            Q_ASSERT(false);
+    v8::TryCatch caught(_v8Isolate);
+    if (!overte::scripting::copyEnumerableProperties(context, context, context->Global(), globalMemberObjects)) {
+        if (caught.HasCaught()) {
+            setUncaughtException(caught, "global snapshot failed");
+        } else {
+            setUncaughtEngineException("Global snapshot failed");
         }
+        return false;
     }
 
     _globalObjectContents.Reset(_v8Isolate, globalMemberObjects);
-    qCDebug(scriptengine_v8) << "ScriptEngineV8::storeGlobalObjectContents: " << globalMemberNames->Length() << " objects stored";
     areGlobalObjectContentsStored = true;
+    return true;
 }
 
 ScriptValue ScriptEngineV8::evaluateInClosure(const ScriptValue& _closure,
@@ -528,10 +531,12 @@ ScriptValue ScriptEngineV8::evaluateInClosure(const ScriptValue& _closure,
     _evaluatingCounter++;
     Q_ASSERT(_v8Isolate->IsCurrent());
     v8::HandleScope handleScope(_v8Isolate);
-    storeGlobalObjectContents();
+    if (!storeGlobalObjectContents()) {
+        _evaluatingCounter--;
+        return ScriptValue();
+    }
 
     v8::Local<v8::Object> closureObject;
-    v8::Local<v8::Value> closureGlobal;
     ScriptValueV8Wrapper* unwrappedClosure;
     ScriptProgramV8Wrapper* unwrappedProgram;
 
@@ -545,9 +550,6 @@ ScriptValue ScriptEngineV8::evaluateInClosure(const ScriptValue& _closure,
             Q_ASSERT(false);
             return nullValue();
         }
-
-        const auto fileName = unwrappedProgram->fileName();
-        const auto shortName = QUrl(fileName).fileName();
 
         unwrappedClosure = ScriptValueV8Wrapper::unwrap(_closure);
         if (unwrappedClosure == nullptr) {
@@ -566,21 +568,10 @@ ScriptValue ScriptEngineV8::evaluateInClosure(const ScriptValue& _closure,
         }
         Q_ASSERT(closure.constGet()->IsObject());
         closureObject = v8::Local<v8::Object>::Cast(closure.constGet());
-        qCDebug(scriptengine_v8) << "Closure object members:" << scriptValueDebugListMembersV8(closure);
-        v8::Local<v8::Object> testObject = v8::Object::New(_v8Isolate);
-        if(!testObject->Set(context, v8::String::NewFromUtf8(_v8Isolate, "test_value").ToLocalChecked(), closureObject).FromMaybe(false)) {
-            Q_ASSERT(false);
-        }
-        qCDebug(scriptengine_v8) << "Test object members:" << scriptValueDebugListMembersV8(V8ScriptValue(this, testObject));
-
-        if (!closureObject->Get(closure.constGetContext(), v8::String::NewFromUtf8(_v8Isolate, "global").ToLocalChecked())
-                 .ToLocal(&closureGlobal)) {
-            _evaluatingCounter--;
-            qCDebug(scriptengine_v8) << "Cannot get global from unwrapped closure";
-            Q_ASSERT(false);
-            return nullValue();
-        }
     }
+#ifdef DEBUG_JS
+    const auto shortName = QUrl(unwrappedProgram->fileName()).fileName();
+#endif
     v8::Local<v8::Context> closureContext;
 
     closureContext = v8::Context::New(_v8Isolate);
@@ -602,6 +593,7 @@ ScriptValue ScriptEngineV8::evaluateInClosure(const ScriptValue& _closure,
             }
             qCCritical(scriptengine_v8) << errorMessage << _program->fileName() << ":" << compileResult->errorLineNumber();
             popContext();
+            _evaluatingCounter--;
             return nullValue();
         }
         const V8ScriptProgram& program = unwrappedProgram->toV8Value();
@@ -617,23 +609,20 @@ ScriptValue ScriptEngineV8::evaluateInClosure(const ScriptValue& _closure,
             v8::TryCatch tryCatch(getIsolate());
             // Since V8 cannot use arbitrary object as global object, objects from main global need to be copied to closure's global object
             auto globalObjectContents = _globalObjectContents.Get(_v8Isolate);
-            auto globalMemberNames = globalObjectContents->GetPropertyNames(globalObjectContents->GetCreationContextChecked()).ToLocalChecked();
-            for (uint32_t i = 0; i < globalMemberNames->Length(); i++) {
-                auto name = globalMemberNames->Get(closureContext, i).ToLocalChecked();
-                if(!closureContext->Global()->Set(closureContext, name, globalObjectContents->Get(globalObjectContents->GetCreationContextChecked(), name).ToLocalChecked()).FromMaybe(false)) {
-                    Q_ASSERT(false);
+            v8::Local<v8::Context> globalSourceContext;
+            if (!globalObjectContents->GetCreationContext().ToLocal(&globalSourceContext) ||
+                    !overte::scripting::copyEnumerableProperties(globalSourceContext, closureContext,
+                        globalObjectContents, closureContext->Global()) ||
+                    !overte::scripting::copyEnumerableProperties(closureContext, closureContext,
+                        closureObject, closureContext->Global())) {
+                if (tryCatch.HasCaught()) {
+                    setUncaughtException(tryCatch, "closure property copy failed");
+                } else {
+                    setUncaughtEngineException("Closure property copy failed");
                 }
-            }
-            qCDebug(scriptengine_v8) << "ScriptEngineV8::evaluateInClosure: " << globalMemberNames->Length() << " objects added to global";
-
-            // Objects from closure need to be copied to global object too
-            // V8TODO: I'm not sure which context to use with Get
-            auto closureMemberNames = closureObject->GetPropertyNames(closureContext).ToLocalChecked();
-            for (uint32_t i = 0; i < closureMemberNames->Length(); i++) {
-                auto name = closureMemberNames->Get(closureContext, i).ToLocalChecked();
-                if(!closureContext->Global()->Set(closureContext, name, closureObject->Get(closureContext, name).ToLocalChecked()).FromMaybe(false)) {
-                    Q_ASSERT(false);
-                }
+                popContext();
+                _evaluatingCounter--;
+                return ScriptValue();
             }
             // "Script" API is context-dependent, so it needs to be recreated for each new context
             {
@@ -647,68 +636,18 @@ ScriptValue ScriptEngineV8::evaluateInClosure(const ScriptValue& _closure,
             require.setProperty("resolve", resolve, ScriptValue::ReadOnly | ScriptValue::Undeletable);
             globalObject().setProperty("require", require, ScriptValue::ReadOnly | ScriptValue::Undeletable);
 
-            // Script.require properties need to be copied, since that's where the Script.require cache is
-            // Get source and destination Script.require objects
-            try {
-                v8::Local<v8::Value> oldScriptObjectValue;
-                if (!globalObjectContents
-                         ->Get(closureContext, v8::String::NewFromUtf8(_v8Isolate, "Script").ToLocalChecked())
-                         .ToLocal(&oldScriptObjectValue)) {
-                    throw(QString("evaluateInClosure: Script API object does not exist in calling script"));
+            // Transfer the original Script.require cache without unchecked
+            // getter results or debug-only type validation.
+            if (!overte::scripting::copyRequireProperties(closureContext,
+                    globalObjectContents, closureContext->Global())) {
+                if (tryCatch.HasCaught()) {
+                    setUncaughtException(tryCatch, "Script.require copy failed");
+                } else {
+                    setUncaughtEngineException("Script.require copy failed");
                 }
-                if (!oldScriptObjectValue->IsObject()) {
-                    throw(QString("evaluateInClosure: Script API object invalid in calling script"));
-                }
-                v8::Local<v8::Object> oldScriptObject = v8::Local<v8::Object>::Cast(oldScriptObjectValue);
-
-                v8::Local<v8::Value> oldRequireObjectValue;
-                if (!oldScriptObject->Get(closureContext, v8::String::NewFromUtf8(_v8Isolate, "require").ToLocalChecked())
-                         .ToLocal(&oldRequireObjectValue)) {
-                    throw(QString("evaluateInClosure: Script.require API object does not exist in calling script"));
-                }
-                if (!oldRequireObjectValue->IsObject()) {
-                    throw(QString("evaluateInClosure: Script.require API object invalid in calling script"));
-                }
-                v8::Local<v8::Object> oldRequireObject = v8::Local<v8::Object>::Cast(oldRequireObjectValue);
-
-                v8::Local<v8::Value> newScriptObjectValue;
-                if (!closureContext->Global()
-                         ->Get(closureContext, v8::String::NewFromUtf8(_v8Isolate, "Script").ToLocalChecked())
-                         .ToLocal(&newScriptObjectValue)) {
-                    Q_ASSERT(false);  // This should never happen
-                }
-                if (!newScriptObjectValue->IsObject()) {
-                    Q_ASSERT(false);  // This should never happen
-                }
-                v8::Local<v8::Object> newScriptObject = v8::Local<v8::Object>::Cast(newScriptObjectValue);
-
-                v8::Local<v8::Value> newRequireObjectValue;
-                if (!newScriptObject->Get(closureContext, v8::String::NewFromUtf8(_v8Isolate, "require").ToLocalChecked())
-                         .ToLocal(&newRequireObjectValue)) {
-                    Q_ASSERT(false);  // This should never happen
-                }
-                if (!newRequireObjectValue->IsObject()) {
-                    Q_ASSERT(false);  // This should never happen
-                }
-                v8::Local<v8::Object> newRequireObject = v8::Local<v8::Object>::Cast(newRequireObjectValue);
-
-                auto requireMemberNames =
-                    oldRequireObject->GetPropertyNames(oldRequireObject->GetCreationContextChecked()).ToLocalChecked();
-                for (uint32_t i = 0; i < requireMemberNames->Length(); i++) {
-                    auto name = requireMemberNames->Get(closureContext, i).ToLocalChecked();
-                    v8::Local<v8::Value> oldObject;
-                    if (!oldRequireObject->Get(oldRequireObject->GetCreationContextChecked(), name).ToLocal(&oldObject)) {
-                        Q_ASSERT(false);  // This should never happen, the property has been reported as existing
-                    }
-                    if (!newRequireObject->Set(closureContext, name,oldObject).FromMaybe(false)) {
-                        Q_ASSERT(false);
-                    }
-                }
-            } catch (QString exception) {
-                raiseException(exception);
                 popContext();
                 _evaluatingCounter--;
-                return nullValue();
+                return ScriptValue();
             }
 
             auto maybeResult = program.constGet()->GetUnboundScript()->BindToCurrentContext()->Run(closureContext);
