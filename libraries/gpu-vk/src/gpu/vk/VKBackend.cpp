@@ -89,9 +89,8 @@ static void reportDescriptorCoverage(const char* kind,
         return;
     }
     const auto missing = missingDescriptorBindings(required, writes);
-    os_log_info(OS_LOG_DEFAULT,
-                "OVERTE_IOS_VULKAN_DESCRIPTOR coverage=%{public}s required=%zu written=%zu missing=%{public}s invalid=%zu",
-                kind, required.size(), writes.size(), missing.c_str(), invalid);
+    os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
 }
 
 static uint64_t iosDiagnosticFingerprint(const std::string& value) {
@@ -255,13 +254,11 @@ VKBackend::VKBackend() {
         settings.remove("ios/vulkanPendingPipelines");
         settings.setValue("ios/vulkanQuarantinedPipelines", toQStringList(_iosQuarantinedPipelines));
         settings.sync();
-        os_log_fault(OS_LOG_DEFAULT,
-                     "OVERTE_IOS_VULKAN_ISOLATION recovered_unretired_submit candidates=%zu persistence_status=%d",
-                     _iosQuarantinedPipelines.size(), static_cast<int>(settings.status()));
+        os_log_fault(OS_LOG_DEFAULT, "%{public}s",
+                    overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         for (const auto& id : pending) {
-            os_log_fault(OS_LOG_DEFAULT,
-                         "OVERTE_IOS_VULKAN_ISOLATION recovered_candidate=%{public}s",
-                         id.toUtf8().constData());
+            os_log_fault(OS_LOG_DEFAULT, "%{public}s",
+                        overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         }
     }
     insertQStringList(_iosQuarantinedPipelines,
@@ -309,29 +306,8 @@ VKBackend::VKBackend() {
         iosRuntimeDiagnosticInt("traceDrawLimit", 512, 0, 1000000));
     _iosExecuteDrawOrdinalLimit = static_cast<uint64_t>(
         iosRuntimeDiagnosticInt("executeDrawOrdinalLimit", 0, 0, 0x7fffffff));
-    os_log_info(OS_LOG_DEFAULT,
-                "OVERTE_IOS_VULKAN_CONFIG path=%{public}s file_exists=%d json_keys=%zu json_schema=%d mode=%{public}s batch_ids=%zu batch_names=%zu pipeline_ids=%zu vertex_shaders=%zu fragment_shaders=%zu shader_pairs=%zu draw_commands=%zu named_calls=%zu batch_commands=%zu trace_all=%d trace_batch_limit=%zu trace_pipeline_limit=%zu trace_draw_limit=%zu execute_draw_ordinal_limit=%llu persisted_ignore=%d persisted_clear=%d persist_submits=%d fallback_uniforms=%zu fallback_storage=%zu fallback_textures=%zu fallback_sources=%zu",
-                iosRuntimeDiagnosticConfigPath().toUtf8().constData(),
-                static_cast<int>(QFileInfo::exists(iosRuntimeDiagnosticConfigPath())),
-                static_cast<size_t>(iosRuntimeDiagnosticConfig().size()),
-                iosRuntimeDiagnosticConfig().value(QStringLiteral("schemaVersion")).toInt(0),
-                iosRuntimeRenderDiagnosticMode().constData(),
-                static_cast<size_t>(std::count_if(_iosQuarantinedPipelines.cbegin(), _iosQuarantinedPipelines.cend(),
-                    [](const std::string& value) { return value.rfind("batch:", 0) == 0; })),
-                _iosQuarantinedBatchNames.size(),
-                static_cast<size_t>(std::count_if(_iosQuarantinedPipelines.cbegin(), _iosQuarantinedPipelines.cend(),
-                    [](const std::string& value) { return value.rfind("pipeline:", 0) == 0; })),
-                _iosQuarantinedVertexShaders.size(), _iosQuarantinedFragmentShaders.size(),
-                _iosQuarantinedShaderPairs.size(), _iosQuarantinedDrawCommands.size(),
-                _iosQuarantinedNamedCalls.size(), _iosQuarantinedBatchCommands.size(),
-                static_cast<int>(_iosTraceAllDraws), _iosBatchTraceLimit,
-                _iosPipelineTraceLimit, _iosDrawTraceLimit,
-                static_cast<unsigned long long>(_iosExecuteDrawOrdinalLimit),
-                static_cast<int>(ignorePersistedQuarantine),
-                static_cast<int>(clearPersistedQuarantine),
-                static_cast<int>(_iosPersistSubmitCandidates),
-                _iosFallbackUniformBindings.size(), _iosFallbackStorageBindings.size(),
-                _iosFallbackTextureBindings.size(), _iosFallbackTextureSources.size());
+    os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
 #endif
 
     {
@@ -563,10 +539,8 @@ void VKBackend::render(const Batch& batch) {
     const bool quarantineBatch = _iosQuarantinedPipelines.contains(batchDiagnosticId) ||
         _iosQuarantinedBatchNames.contains(batch.getName());
     if (quarantineBatch) {
-        os_log_fault(OS_LOG_DEFAULT,
-                     "OVERTE_IOS_VULKAN_ISOLATION action=skip_batch id=%{public}s batch=%{public}s commands=%zu selector=%{public}s",
-                     batchDiagnosticId.c_str(), batch.getName().c_str(), batch.getCommands().size(),
-                     _iosQuarantinedBatchNames.contains(batch.getName()) ? "name" : "id");
+        os_log_fault(OS_LOG_DEFAULT, "%{public}s",
+                    overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         return;
     }
     if (!_iosHealthyPipelines.contains(batchDiagnosticId)) {
@@ -577,10 +551,8 @@ void VKBackend::render(const Batch& batch) {
             (_iosTraceAllDraws || batchReports < _iosBatchTraceLimit ||
              _iosTracedBatchNames.contains(batch.getName()))) {
         ++batchReports;
-        os_log_info(OS_LOG_DEFAULT,
-                    "OVERTE_IOS_VULKAN_BATCH_USE id=%{public}s batch=%{public}s commands=%zu healthy=%d",
-                    batchDiagnosticId.c_str(), batch.getName().c_str(), batch.getCommands().size(),
-                    static_cast<int>(_iosHealthyPipelines.contains(batchDiagnosticId)));
+        os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                    overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
     }
 #endif
 
@@ -617,9 +589,8 @@ void VKBackend::render(const Batch& batch) {
     const bool traceFullscreenBatch = iosRuntimeRenderDiagnosticsEnabled() &&
         (batch.getName() == "Resample::run" || batch.getName() == "CompositeHUD");
     if (traceFullscreenBatch) {
-        os_log_info(OS_LOG_DEFAULT,
-                    "OVERTE_IOS_VULKAN_DRAW batch=%{public}s stage=begin commands=%zu",
-                    batch.getName().c_str(), batch.getCommands().size());
+        os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                    overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
     }
 #endif
 
@@ -634,9 +605,8 @@ void VKBackend::render(const Batch& batch) {
 #endif
 #if defined(Q_OS_IOS)
     if (traceFullscreenBatch) {
-        os_log_info(OS_LOG_DEFAULT,
-                    "OVERTE_IOS_VULKAN_DRAW batch=%{public}s stage=transfer_complete",
-                    batch.getName().c_str());
+        os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                    overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
     }
 #endif
 
@@ -653,9 +623,8 @@ void VKBackend::render(const Batch& batch) {
     }
 #if defined(Q_OS_IOS)
     if (traceFullscreenBatch) {
-        os_log_info(OS_LOG_DEFAULT,
-                    "OVERTE_IOS_VULKAN_DRAW batch=%{public}s stage=draw_pass_complete",
-                    batch.getName().c_str());
+        os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                    overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
     }
 #endif
 
@@ -1199,28 +1168,18 @@ void VKBackend::updateVkDescriptorWriteSetsUniform(const Cache::PipelineLayout &
 #if defined(Q_OS_IOS)
         if (iosRuntimeRenderDiagnosticsEnabled() &&
                 !validRange && (hasPipelineChanged || _iosTraceCurrentDraw || forcedFallback)) {
-            os_log_info(OS_LOG_DEFAULT,
-                        "OVERTE_IOS_VULKAN_DESCRIPTOR fallback=uniform binding=%zu required=%zu source_bytes=%zu offset=%llu range=%llu forced=%d",
-                        i, bindingMap.size(), sourceBytes,
-                        static_cast<unsigned long long>(sourceOffset),
-                        static_cast<unsigned long long>(sourceRange),
-                        static_cast<int>(forcedFallback));
+            os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                        overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         } else if (iosRuntimeRenderDiagnosticsEnabled() &&
                    (hasPipelineChanged || _iosTraceCurrentDraw)) {
-            os_log_info(OS_LOG_DEFAULT,
-                        "OVERTE_IOS_VULKAN_DESCRIPTOR detail=uniform binding=%zu source_bytes=%zu offset=%llu range=%llu fallback=0",
-                        i, sourceBytes,
-                        static_cast<unsigned long long>(sourceOffset),
-                        static_cast<unsigned long long>(sourceRange));
+            os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                        overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         }
         if (hadSourceBuffer && !validRange && !forcedFallback) {
             static size_t invalidUniformReports { 0 };
             if (invalidUniformReports++ < 32) {
-                os_log_fault(OS_LOG_DEFAULT,
-                             "OVERTE_IOS_VULKAN_DESCRIPTOR invalid=uniform_source binding=%zu source_bytes=%zu offset=%llu range=%llu",
-                             i, sourceBytes,
-                             static_cast<unsigned long long>(sourceOffset),
-                             static_cast<unsigned long long>(sourceRange));
+                os_log_fault(OS_LOG_DEFAULT, "%{public}s",
+                            overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
             }
         }
 #endif
@@ -1235,12 +1194,8 @@ void VKBackend::updateVkDescriptorWriteSetsUniform(const Cache::PipelineLayout &
         reportDescriptorCoverage("uniform", layout.uniformBindingMap, sets, invalid);
         for (size_t index = 0; index < bufferInfos.size(); ++index) {
             if (bufferInfos[index].buffer == VK_NULL_HANDLE || bufferInfos[index].range == 0) {
-                os_log_fault(OS_LOG_DEFAULT,
-                             "OVERTE_IOS_VULKAN_DESCRIPTOR invalid=uniform binding=%u buffer_null=%d offset=%llu range=%llu",
-                             sets[index].dstBinding,
-                             static_cast<int>(bufferInfos[index].buffer == VK_NULL_HANDLE),
-                             static_cast<unsigned long long>(bufferInfos[index].offset),
-                             static_cast<unsigned long long>(bufferInfos[index].range));
+                os_log_fault(OS_LOG_DEFAULT, "%{public}s",
+                            overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
             }
         }
     }
@@ -1366,25 +1321,13 @@ void VKBackend::updateVkDescriptorWriteSetsTexture(const Cache::PipelineLayout &
 #if defined(Q_OS_IOS)
         if (iosRuntimeRenderDiagnosticsEnabled() &&
                 (hasPipelineChanged || _iosTraceCurrentDraw || forcedFallback)) {
-            os_log_info(OS_LOG_DEFAULT,
-                        "OVERTE_IOS_VULKAN_TEXTURE binding=%zu required=%zu source=%{public}s bytes=%zu dimensions=%ux%ux%u mips=%u type=%u layout=%u fallback=%d forced_binding=%d forced_source=%d",
-                        i, bindingMap.size(), source.empty() ? "-" : source.c_str(),
-                        texturePointer ? static_cast<size_t>(texturePointer->getSize()) : 0U,
-                        texturePointer ? static_cast<uint32_t>(texturePointer->getWidth()) : 0U,
-                        texturePointer ? static_cast<uint32_t>(texturePointer->getHeight()) : 0U,
-                        texturePointer ? static_cast<uint32_t>(texturePointer->getDepth()) : 0U,
-                        texturePointer ? static_cast<uint32_t>(texturePointer->getNumMips()) : 0U,
-                        texturePointer ? static_cast<uint32_t>(texturePointer->getType()) : 0U,
-                        static_cast<uint32_t>(imageInfo.imageLayout),
-                        static_cast<int>(!validTexture), static_cast<int>(forcedBinding),
-                        static_cast<int>(forcedSource));
+            os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                        overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         }
         if (iosRuntimeRenderDiagnosticsEnabled() &&
                 !validTexture && (hasPipelineChanged || _iosTraceCurrentDraw || forcedFallback)) {
-            os_log_info(OS_LOG_DEFAULT,
-                        "OVERTE_IOS_VULKAN_DESCRIPTOR fallback=texture binding=%zu required=%zu bound=%zu forced=%d",
-                        i, bindingMap.size(), _resource._textures.size(),
-                        static_cast<int>(forcedFallback));
+            os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                        overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         }
         if (texturePointer && !validTexture && !forcedFallback) {
 #if defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)
@@ -1396,17 +1339,11 @@ void VKBackend::updateVkDescriptorWriteSetsTexture(const Cache::PipelineLayout &
             static bool reportedExpectedExternalFallback { false };
             if (expectedExternalFallback && !reportedExpectedExternalFallback) {
                 reportedExpectedExternalFallback = true;
-                os_log_info(OS_LOG_DEFAULT,
-                            "OVERTE_IOS_VULKAN_TEXTURE fallback=external_interop_disabled binding=%zu source=%{public}s",
-                            i, source.c_str());
+                os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                            overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
             } else if (!expectedExternalFallback && invalidTextureReports++ < 32) {
-                os_log_fault(OS_LOG_DEFAULT,
-                             "OVERTE_IOS_VULKAN_TEXTURE invalid=bound_texture binding=%zu source=%{public}s bytes=%zu dimensions=%ux%ux%u",
-                             i, source.empty() ? "-" : source.c_str(),
-                             static_cast<size_t>(texturePointer->getSize()),
-                             static_cast<uint32_t>(texturePointer->getWidth()),
-                             static_cast<uint32_t>(texturePointer->getHeight()),
-                             static_cast<uint32_t>(texturePointer->getDepth()));
+                os_log_fault(OS_LOG_DEFAULT, "%{public}s",
+                            overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
             }
         }
 #endif
@@ -1426,12 +1363,8 @@ void VKBackend::updateVkDescriptorWriteSetsTexture(const Cache::PipelineLayout &
             if (!write.pImageInfo || write.pImageInfo->imageView == VK_NULL_HANDLE ||
                     write.pImageInfo->sampler == VK_NULL_HANDLE ||
                     write.pImageInfo->imageLayout == VK_IMAGE_LAYOUT_UNDEFINED) {
-                os_log_fault(OS_LOG_DEFAULT,
-                             "OVERTE_IOS_VULKAN_DESCRIPTOR invalid=texture binding=%u info_null=%d view_null=%d sampler_null=%d layout=%u",
-                             write.dstBinding, static_cast<int>(!write.pImageInfo),
-                             static_cast<int>(!write.pImageInfo || write.pImageInfo->imageView == VK_NULL_HANDLE),
-                             static_cast<int>(!write.pImageInfo || write.pImageInfo->sampler == VK_NULL_HANDLE),
-                             write.pImageInfo ? static_cast<uint32_t>(write.pImageInfo->imageLayout) : 0U);
+                os_log_fault(OS_LOG_DEFAULT, "%{public}s",
+                            overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
             }
         }
     }
@@ -1514,22 +1447,18 @@ void VKBackend::updateVkDescriptorWriteSetsStorage(const Cache::PipelineLayout &
 #if defined(Q_OS_IOS)
         if (iosRuntimeRenderDiagnosticsEnabled() &&
                 !validRange && (hasPipelineChanged || _iosTraceCurrentDraw || forcedFallback)) {
-            os_log_info(OS_LOG_DEFAULT,
-                        "OVERTE_IOS_VULKAN_DESCRIPTOR fallback=storage binding=%zu required=%zu source_bytes=%zu forced=%d",
-                        i, bindingMap.size(), sourceBytes,
-                        static_cast<int>(forcedFallback));
+            os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                        overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         } else if (iosRuntimeRenderDiagnosticsEnabled() &&
                    (hasPipelineChanged || _iosTraceCurrentDraw)) {
-            os_log_info(OS_LOG_DEFAULT,
-                        "OVERTE_IOS_VULKAN_DESCRIPTOR detail=storage binding=%zu source_bytes=%zu offset=0 range=%zu fallback=0",
-                        i, sourceBytes, sourceBytes);
+            os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                        overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         }
         if (hadSourceBuffer && !validRange && !forcedFallback) {
             static size_t invalidStorageReports { 0 };
             if (invalidStorageReports++ < 32) {
-                os_log_fault(OS_LOG_DEFAULT,
-                             "OVERTE_IOS_VULKAN_DESCRIPTOR invalid=storage_source binding=%zu source_bytes=%zu",
-                             i, sourceBytes);
+                os_log_fault(OS_LOG_DEFAULT, "%{public}s",
+                            overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
             }
         }
 #endif
@@ -1544,12 +1473,8 @@ void VKBackend::updateVkDescriptorWriteSetsStorage(const Cache::PipelineLayout &
         reportDescriptorCoverage("storage", layout.storageBindingMap, sets, invalid);
         for (size_t index = 0; index < bufferInfos.size(); ++index) {
             if (bufferInfos[index].buffer == VK_NULL_HANDLE || bufferInfos[index].range == 0) {
-                os_log_fault(OS_LOG_DEFAULT,
-                             "OVERTE_IOS_VULKAN_DESCRIPTOR invalid=storage binding=%u buffer_null=%d offset=%llu range=%llu",
-                             sets[index].dstBinding,
-                             static_cast<int>(bufferInfos[index].buffer == VK_NULL_HANDLE),
-                             static_cast<unsigned long long>(bufferInfos[index].offset),
-                             static_cast<unsigned long long>(bufferInfos[index].range));
+                os_log_fault(OS_LOG_DEFAULT, "%{public}s",
+                            overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
             }
         }
     }
@@ -1998,22 +1923,12 @@ void VKBackend::renderPassDraw(const Batch& batch) {
             if (iosRuntimeRenderDiagnosticsEnabled() &&
                     (_iosTraceCurrentDraw || pipelineUseReports < _iosPipelineTraceLimit)) {
                 ++pipelineUseReports;
-                os_log_info(OS_LOG_DEFAULT,
-                            "OVERTE_IOS_VULKAN_PIPELINE_USE ordinal=%llu id=%{public}s pair=%{public}s batch=%{public}s batch_command=%{public}s command=%zu draw=%d draw_command=%{public}s named_call=%{public}s vertex=%{public}s fragment=%{public}s quarantined=%d healthy=%d detailed=%d",
-                            static_cast<unsigned long long>(_iosDrawOrdinal),
-                            pipelineDiagnosticId.c_str(), shaderPair.c_str(),
-                            batch.getName().c_str(), batchCommandSelector.c_str(),
-                            _commandIndex, _currentDraw, drawCommandName,
-                            namedCall.c_str(),
-                            vertexSource.name.c_str(), fragmentSource.name.c_str(),
-                            static_cast<int>(quarantinePipeline),
-                            static_cast<int>(_iosHealthyPipelines.contains(pipelineDiagnosticId)),
-                            static_cast<int>(_iosTraceCurrentDraw));
+                os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                            overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
             }
             if (traceFullscreenBatch) {
-                os_log_info(OS_LOG_DEFAULT,
-                            "OVERTE_IOS_VULKAN_DRAW batch=%{public}s command=%zu stage=pipeline_ready",
-                            batch.getName().c_str(), _commandIndex);
+                os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                            overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
             }
 #endif
             if (layout.pipeline != currentPipeline) {
@@ -2165,13 +2080,13 @@ void VKBackend::renderPassDraw(const Batch& batch) {
                             << " textures=" << layout.textureBindingMap.size()
                             << " storage=" << layout.storageBindingMap.size();
                     const auto message = details.str();
-                    os_log_info(OS_LOG_DEFAULT, "%{public}s", message.c_str());
+                    os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                                overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
                 }
             }
             if (traceFullscreenBatch) {
-                os_log_info(OS_LOG_DEFAULT,
-                            "OVERTE_IOS_VULKAN_DRAW batch=%{public}s command=%zu stage=descriptors_ready",
-                            batch.getName().c_str(), _commandIndex);
+                os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                            overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
             }
 #endif
             CommandCall call = _commandCalls[(*command)];
@@ -2179,21 +2094,16 @@ void VKBackend::renderPassDraw(const Batch& batch) {
             if (!quarantinePipeline) {
                 (this->*(call))(batch, *offset);
             } else {
-                os_log_fault(OS_LOG_DEFAULT,
-                             "OVERTE_IOS_VULKAN_ISOLATION action=skip_pipeline scope=draw ordinal=%llu id=%{public}s batch=%{public}s batch_command=%{public}s command=%zu named_call=%{public}s draw_command=%{public}s",
-                             static_cast<unsigned long long>(_iosDrawOrdinal),
-                             pipelineDiagnosticId.c_str(), batch.getName().c_str(),
-                             batchCommandSelector.c_str(), _commandIndex,
-                             namedCall.c_str(), drawCommandName);
+                os_log_fault(OS_LOG_DEFAULT, "%{public}s",
+                            overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
             }
 #else
             (this->*(call))(batch, *offset);
 #endif
 #if defined(Q_OS_IOS)
             if (traceFullscreenBatch) {
-                os_log_info(OS_LOG_DEFAULT,
-                            "OVERTE_IOS_VULKAN_DRAW batch=%{public}s command=%zu stage=command_complete",
-                            batch.getName().c_str(), _commandIndex);
+                os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                            overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
             }
 #endif
 #if defined(Q_OS_IOS)
@@ -2897,14 +2807,8 @@ void VKBackend::persistIOSDiagnosticSubmit(uint64_t submitId) {
         now - lastProgressReport >= std::chrono::seconds(5);
     if (reportProgress) {
         const auto evidence = iosRuntimeEntityEvidenceSnapshot();
-        os_log_info(OS_LOG_DEFAULT,
-                    "OVERTE_IOS_VULKAN_FRAME submit=%llu mode=%{public}s scissor_enabled_draws=%llu scissor_disabled_full_draws=%llu scissor_invalid_draws=%llu scene_entities=%d entered_entity_render=%d",
-                    static_cast<unsigned long long>(submitId),
-                    iosRuntimeRenderDiagnosticMode().constData(),
-                    static_cast<unsigned long long>(_iosScissorEnabledDraws),
-                    static_cast<unsigned long long>(_iosScissorDisabledDraws),
-                    static_cast<unsigned long long>(_iosScissorInvalidDraws),
-                    evidence.scene, evidence.drawn);
+        os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                    overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         lastProgressReport = now;
     }
     _iosScissorEnabledDraws = 0;
@@ -2917,10 +2821,8 @@ void VKBackend::persistIOSDiagnosticSubmit(uint64_t submitId) {
     }
     if (!_iosPersistSubmitCandidates) {
         if (iosRuntimeRenderDiagnosticsEnabled()) {
-            os_log_info(OS_LOG_DEFAULT,
-                        "OVERTE_IOS_VULKAN_ISOLATION submit=%llu untrusted=%zu persistence=disabled",
-                        static_cast<unsigned long long>(submitId),
-                        _iosSubmittedUntrustedPipelines.size());
+            os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                        overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         }
         return;
     }
@@ -2929,15 +2831,11 @@ void VKBackend::persistIOSDiagnosticSubmit(uint64_t submitId) {
     settings.setValue("ios/vulkanPendingSubmitId", QString::number(submitId));
     settings.sync();
     if (iosRuntimeRenderDiagnosticsEnabled()) {
-        os_log_info(OS_LOG_DEFAULT,
-                    "OVERTE_IOS_VULKAN_ISOLATION submit=%llu untrusted=%zu persistence_status=%d",
-                    static_cast<unsigned long long>(submitId),
-                    _iosSubmittedUntrustedPipelines.size(),
-                    static_cast<int>(settings.status()));
+        os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                    overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         for (const auto& id : _iosSubmittedUntrustedPipelines) {
-            os_log_info(OS_LOG_DEFAULT,
-                        "OVERTE_IOS_VULKAN_ISOLATION submit=%llu candidate=%{public}s",
-                        static_cast<unsigned long long>(submitId), id.c_str());
+            os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                        overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         }
     }
 }
@@ -2950,9 +2848,8 @@ void VKBackend::retireIOSDiagnosticSubmit() {
     }
     if (!_iosPersistSubmitCandidates) {
         if (iosRuntimeRenderDiagnosticsEnabled()) {
-            os_log_info(OS_LOG_DEFAULT,
-                        "OVERTE_IOS_VULKAN_ISOLATION retired newly_healthy=%zu total_healthy=%zu persistence=disabled",
-                        _iosSubmittedUntrustedPipelines.size(), _iosHealthyPipelines.size());
+            os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                        overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         }
         _iosSubmittedUntrustedPipelines.clear();
         return;
@@ -2962,10 +2859,8 @@ void VKBackend::retireIOSDiagnosticSubmit() {
     settings.remove("ios/vulkanPendingSubmitId");
     settings.sync();
     if (iosRuntimeRenderDiagnosticsEnabled()) {
-        os_log_info(OS_LOG_DEFAULT,
-                    "OVERTE_IOS_VULKAN_ISOLATION retired newly_healthy=%zu total_healthy=%zu persistence_status=%d",
-                    _iosSubmittedUntrustedPipelines.size(), _iosHealthyPipelines.size(),
-                    static_cast<int>(settings.status()));
+        os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                    overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
     }
     _iosSubmittedUntrustedPipelines.clear();
 }
@@ -3525,36 +3420,16 @@ void VKBackend::updateTransform(const gpu::Batch& batch) {
         const bool objectRangeValid = validatedObjectIndexes > 0 &&
             invalidObjectIndexes == 0;
         if (_iosTraceCurrentDraw) {
-            os_log_info(OS_LOG_DEFAULT,
-                        "OVERTE_IOS_VULKAN_DRAW_BUFFER ordinal=%llu batch=%{public}s command=%zu draw=%d draw_command=%{public}s named=%d binding=%u offset=%llu draw_info_bytes=%zu logical_draw_infos=%zu available_elements=%zu first_instance=%zu instances=%zu required_bytes=%zu range_valid=%d object_bytes=%zu objects=%zu object_index=%d object_valid=%d validated_object_indexes=%zu invalid_object_indexes=%zu maximum_object_index=%u",
-                        static_cast<unsigned long long>(_iosDrawOrdinal),
-                        batch.getName().c_str(), _commandIndex, _currentDraw,
-                        iosDrawCommandName(command),
-                        static_cast<int>(!batch._currentNamedCall.empty()), drawCallInfoBinding,
-                        static_cast<unsigned long long>(diagnosticDrawCallOffset),
-                        static_cast<size_t>(drawInfoBytes), drawInfos.size(),
-                        availableDrawCallInfoElements, firstInstance, effectiveInstances,
-                        requiredDrawInfoBytes,
-                        static_cast<int>(drawInfoRangeValid), static_cast<size_t>(objectBytes),
-                        batch._objects.size(), objectIndex,
-                        static_cast<int>(objectRangeValid), validatedObjectIndexes,
-                        invalidObjectIndexes, maximumObjectIndex);
+            os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                        overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         }
         if (!drawInfoRangeValid) {
-            os_log_fault(OS_LOG_DEFAULT,
-                         "OVERTE_IOS_VULKAN_DRAW_BUFFER invalid=draw_call_info batch=%{public}s command=%zu offset=%llu bytes=%zu available_elements=%zu first_instance=%zu instances=%zu",
-                         batch.getName().c_str(), _commandIndex,
-                         static_cast<unsigned long long>(diagnosticDrawCallOffset),
-                         static_cast<size_t>(drawInfoBytes), availableDrawCallInfoElements,
-                         firstInstance, effectiveInstances);
+            os_log_fault(OS_LOG_DEFAULT, "%{public}s",
+                        overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         }
         if (!objectRangeValid) {
-            os_log_fault(OS_LOG_DEFAULT,
-                         "OVERTE_IOS_VULKAN_DRAW_BUFFER invalid=object_index ordinal=%llu batch=%{public}s command=%zu objects=%zu validated=%zu invalid=%zu maximum=%u",
-                         static_cast<unsigned long long>(_iosDrawOrdinal),
-                         batch.getName().c_str(), _commandIndex, batch._objects.size(),
-                         validatedObjectIndexes, invalidObjectIndexes,
-                         maximumObjectIndex);
+            os_log_fault(OS_LOG_DEFAULT, "%{public}s",
+                        overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         }
 
         bool indexed { false };
@@ -3590,19 +3465,12 @@ void VKBackend::updateTransform(const gpu::Batch& batch) {
             indexRangeValid = requiredIndexEnd <= indexBytes;
         }
         if (_iosTraceCurrentDraw) {
-            os_log_info(OS_LOG_DEFAULT,
-                        "OVERTE_IOS_VULKAN_DRAW_ACCESS ordinal=%llu batch=%{public}s command=%zu draw_command=%{public}s indexed=%d first=%zu count=%zu instances=%zu index_bytes=%zu index_required_end=%zu index_valid=%d",
-                        static_cast<unsigned long long>(_iosDrawOrdinal),
-                        batch.getName().c_str(), _commandIndex, iosDrawCommandName(command),
-                        static_cast<int>(indexed), firstElement, elementCount,
-                        effectiveInstances, indexBytes, requiredIndexEnd,
-                        static_cast<int>(indexRangeValid));
+            os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                        overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         }
         if (!indexRangeValid) {
-            os_log_fault(OS_LOG_DEFAULT,
-                         "OVERTE_IOS_VULKAN_DRAW_ACCESS invalid=index batch=%{public}s command=%zu bytes=%zu required_end=%zu",
-                         batch.getName().c_str(), _commandIndex, indexBytes,
-                         requiredIndexEnd);
+            os_log_fault(OS_LOG_DEFAULT, "%{public}s",
+                        overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         }
 
         const auto format = gpu::acquire(_input._format);
@@ -3643,19 +3511,12 @@ void VKBackend::updateTransform(const gpu::Batch& batch) {
                 const bool inputRangeValid = inputBuffer && inputOffset <= inputBytes &&
                     (!exactIndex || requiredInputEnd <= inputBytes);
                 if (_iosTraceCurrentDraw) {
-                    os_log_info(OS_LOG_DEFAULT,
-                                "OVERTE_IOS_VULKAN_INPUT_ACCESS ordinal=%llu batch=%{public}s command=%zu binding=%zu bytes=%zu offset=%zu stride=%zu rate=%{public}s attribute_extent=%zu max_element=%zu exact=%d required_end=%zu valid=%d",
-                                static_cast<unsigned long long>(_iosDrawOrdinal),
-                                batch.getName().c_str(), _commandIndex, binding, inputBytes,
-                                inputOffset, stride, perInstance ? "instance" : "vertex",
-                                attributeExtent, maxElement, static_cast<int>(exactIndex),
-                                requiredInputEnd, static_cast<int>(inputRangeValid));
+                    os_log_info(OS_LOG_DEFAULT, "%{public}s",
+                                overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
                 }
                 if (!inputRangeValid) {
-                    os_log_fault(OS_LOG_DEFAULT,
-                                 "OVERTE_IOS_VULKAN_INPUT_ACCESS invalid=vertex batch=%{public}s command=%zu binding=%zu bytes=%zu required_end=%zu exact=%d",
-                                 batch.getName().c_str(), _commandIndex, binding,
-                                 inputBytes, requiredInputEnd, static_cast<int>(exactIndex));
+                    os_log_fault(OS_LOG_DEFAULT, "%{public}s",
+                                overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
                 }
             }
         }
