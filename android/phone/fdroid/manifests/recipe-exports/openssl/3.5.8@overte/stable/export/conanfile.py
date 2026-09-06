@@ -1,5 +1,6 @@
 import os
 import shlex
+import shutil
 
 from conan import ConanFile
 from conan.errors import ConanInvalidConfiguration
@@ -117,6 +118,13 @@ class OpenSSLAndroidConan(ConanFile):
         make = shlex.quote(self._required_tool("user.overte:make_path"))
         destination = shlex.quote(self.package_folder)
         self.run(f"{make} install_sw DESTDIR={destination}", env="conanbuild")
+        # Android installs unversioned SONAMEs. Phone's verified staging
+        # contract also needs .so.3 files to produce its _3.so preload names.
+        # Keep the original linker inputs and add identical staging copies;
+        # never change the provider ABI or substitute another binary.
+        for library in ("crypto", "ssl"):
+            shared = os.path.join(self.package_folder, "lib", f"lib{library}.so")
+            shutil.copy2(shared, shared + ".3")
         copy(
             self,
             "LICENSE.txt",
