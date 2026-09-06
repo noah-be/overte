@@ -80,6 +80,7 @@ V8ScriptValue ScriptValueV8Wrapper::fullUnwrap(ScriptEngineV8* engine, const Scr
 }
 
 ScriptValue ScriptValueV8Wrapper::call(const ScriptValue& thisObject, const ScriptValueList& args) {
+    if (_engine->isEvaluationAborted()) { return ScriptValue(); }
     Q_ASSERT(_engine == _value.getEngine());
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
@@ -147,6 +148,7 @@ ScriptValue ScriptValueV8Wrapper::call(const ScriptValue& thisObject, const Scri
 }
 
 ScriptValue ScriptValueV8Wrapper::call(const ScriptValue& thisObject, const ScriptValue& arguments) {
+    if (_engine->isEvaluationAborted()) { return ScriptValue(); }
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
@@ -172,6 +174,7 @@ ScriptValue ScriptValueV8Wrapper::call(const ScriptValue& thisObject, const Scri
 }
 
 ScriptValue ScriptValueV8Wrapper::construct(const ScriptValueList& args) {
+    if (_engine->isEvaluationAborted()) { return ScriptValue(); }
     //V8TODO: there is CallAsContructor in V8
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
@@ -213,6 +216,7 @@ ScriptValue ScriptValueV8Wrapper::construct(const ScriptValueList& args) {
 
 // V8TODO: this seems to never be used?
 ScriptValue ScriptValueV8Wrapper::construct(const ScriptValue& arguments) {
+    if (_engine->isEvaluationAborted()) { return ScriptValue(); }
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
