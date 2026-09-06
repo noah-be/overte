@@ -11,6 +11,7 @@
 #include <QtCore/QLoggingCategory>
 #include <QtCore/QPointer>
 #include <QtCore/QThread>
+#include <QtCore/QUuid>
 #include <QtNetwork/QHttpMultiPart>
 #include <QtNetwork/QNetworkAccessManager>
 #include "libraries/networking/src/RequestCancellation.h"
@@ -21,13 +22,15 @@ Q_DECLARE_METATYPE(JSONCallbackParameters)
 Q_LOGGING_CATEGORY(networking, "request-scope-test")
 const bool VERBOSE_HTTP_REQUEST_DEBUGGING = false;
 const QByteArray METAVERSE_SESSION_ID_HEADER("Test-Session-Only");
+const QUuid initialSession("{11111111-2222-3333-4444-555555555555}");
+const QUuid updatedSession("{66666666-7777-8888-9999-aaaaaaaaaaaa}");
 int sent = 0, aborted = 0;
 class FakeReply : public QNetworkReply {
 public:
     FakeReply(QObject* parent) : QNetworkReply(parent) { open(QIODevice::ReadOnly); }
     void abort() override { if (!isFinished()) { ++aborted; setError(OperationCanceledError, "test-only"); finish(); } }
     void finish() { setFinished(true); emit finished(); }
-    void sessionHeader() { setRawHeader(METAVERSE_SESSION_ID_HEADER, "must-not-overwrite"); }
+    void sessionHeader() { setRawHeader(METAVERSE_SESSION_ID_HEADER, updatedSession.toString().toLatin1()); }
     qint64 readData(char*, qint64) override { return 0; }
 };
 class FakeNetwork : public QNetworkAccessManager {
@@ -42,7 +45,7 @@ FakeNetwork* fakeNetwork;
 QNetworkAccessManager& NetworkAccessManager::getInstance() { return *fakeNetwork; }
 class AccountManager : public QObject {
 public:
-    QByteArray _sessionID { "initial" };
+#include "account-session-field.inc"
     QNetworkRequest createRequest(const QString&, AccountManagerAuth::Type) { return QNetworkRequest(); }
     void sendRequest(const QString&, AccountManagerAuth::Type, QNetworkAccessManager::Operation,
                      const JSONCallbackParameters&, const QByteArray&, QHttpMultiPart*, const QVariantMap&);
@@ -69,6 +72,7 @@ int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     FakeNetwork transport; fakeNetwork = &transport;
     AccountManager manager;
+    manager._sessionID = initialSession;
     Receiver receiver;
     overte::network::RequestScope scope;
     JSONCallbackParameters callback(&receiver, "success", "error");
@@ -84,19 +88,22 @@ int main(int argc, char** argv) {
     auto replacement = scope.next(); assert(!current.current() && replacement.current());
     assert(!overte::network::replyCurrent(transport.last));
     transport.last->sessionHeader(); transport.last->finish();
-    assert(receiver.delivered == 0 && manager._sessionID == "initial");
+    assert(receiver.delivered == 0 && manager._sessionID == initialSession);
     events();
     callback.requestTicket = scope.next(); send();
     scope.setActive(false); assert(!callback.requestTicket.current());
     events(); assert(aborted == 1 && receiver.delivered == 0); // actual reply::abort timer, no stale callbacks
     scope.setActive(true); callback.requestTicket = scope.next(); send();
+    transport.last->sessionHeader();
     transport.last->finish(); assert(receiver.delivered == 1); events(); // valid original callback still works
+    assert(manager._sessionID == updatedSession);
+    manager._sessionID = initialSession;
     auto temporary = new Receiver;
     callback = JSONCallbackParameters(temporary, "success", "error");
     callback.requestTicket = scope.next(); send();
     transport.last->sessionHeader();
     delete temporary; events(); assert(aborted == 2 && transport.last.isNull());
-    assert(manager._sessionID == "initial");
+    assert(manager._sessionID == initialSession);
     callback = JSONCallbackParameters(&receiver, "success", "error");
     send(); transport.last->finish(); assert(receiver.delivered == 2); events(); // unscoped compatibility
     overte::network::RequestTicket destroyed;
