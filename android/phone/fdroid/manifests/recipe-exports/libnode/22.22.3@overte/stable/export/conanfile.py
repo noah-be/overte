@@ -1,9 +1,10 @@
 import os
+import shutil
 
 from conan import ConanFile
 from conan.tools.build import build_jobs
 from conan.tools.env import Environment
-from conan.tools.files import collect_libs, copy, get, replace_in_file
+from conan.tools.files import copy, get, replace_in_file
 from conan.tools.gnu import AutotoolsToolchain, PkgConfigDeps
 
 
@@ -177,19 +178,14 @@ class LibnodeAndroidConan(ConanFile):
             os.path.join(self.package_folder, "include", "cppgc"),
             keep_path=False,
         )
-        copy(
-            self,
-            "libnode.*",
-            os.path.join(self.source_folder, "out", str(self.settings.build_type)),
-            os.path.join(self.package_folder, "lib"),
-            keep_path=False,
-        )
-        copy(
-            self,
-            "*.a",
-            os.path.join(self.source_folder, "out", str(self.settings.build_type)),
-            os.path.join(self.package_folder, "lib"),
-            keep_path=False,
+        # GYP copies the finished target DSO to this top-level output. Recursive
+        # globs also collect obj.host archives and non-relocatable thin archives
+        # referencing build-only objects, none of which this shared package uses.
+        library_dir = os.path.join(self.package_folder, "lib")
+        os.makedirs(library_dir, exist_ok=True)
+        shutil.copy2(
+            os.path.join(self.source_folder, "out", str(self.settings.build_type), "libnode.so"),
+            os.path.join(library_dir, "libnode.so"),
         )
 
     def package_info(self):
