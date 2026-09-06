@@ -6,6 +6,7 @@
 #include <vector>
 #include "security/redaction/SafeDiagnostics.h"
 #include "interface/src/ui/PhoneLoginState.h"
+#include "libraries/networking/src/RequestCancellation.h"
 #if TEST_PHONE
 #define ANDROID_APP_PHONE_INTERFACE 1
 #endif
@@ -30,17 +31,21 @@ struct AccountManager {
 };
 struct DomainAccountManager : AccountManager {
     bool pending {};
+    overte::network::RequestScope scope;
     bool isAccessTokenRequestPending() const { return pending; }
-    void requestAccessToken(const QString& u, const QString& p) {
+    overte::network::RequestTicket requestAccessToken(const QString& u, const QString& p) {
         AccountManager::requestAccessToken(u, p); pending = true;
+        return scope.next();
     }
 };
 struct DependencyManager { template<class T> static T* get() { static T instance; return &instance; } };
 struct LoginDialog : QObject {
+    mutable overte::network::RequestTicket _domainLoginRequest;
     void login(const QString&, const QString&) const;
     void loginDomain(const QString&, const QString&) const;
     void signup(const QString&, const QString&, const QString&);
     bool isPhoneLoginRequestPending() const;
+    void handleDomainLoginFailed(const QString&) const {} // No invalid admission in this transport fixture.
 };
 #include "login-methods.inc"
 static std::vector<QString> logs;

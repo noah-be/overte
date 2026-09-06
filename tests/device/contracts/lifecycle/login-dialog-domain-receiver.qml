@@ -18,6 +18,8 @@ QtObject {
     property var avatarBoundary: ({ displayName: "" })
     property int successStarts: 0
     property int failureLoads: 0
+    property int destroys: 0
+    function tryDestroy() { destroys++; }
     property string lastSource: ""
     property var lastProperties: ({})
     property QtObject successTimer: QtObject {

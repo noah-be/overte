@@ -16,6 +16,7 @@
 #include <QtGui/QDesktopServices>
 #include <QtCore/QJsonArray>
 #include <QtCore/QJsonDocument>
+#include <QtCore/QTimer>
 #include <QtNetwork/QNetworkReply>
 
 #include <plugins/PluginManager.h>
@@ -70,13 +71,34 @@ void releasePhoneLoginUiFocus() {
 LoginDialog::LoginDialog(QQuickItem *parent) : OffscreenQmlDialog(parent) {
     auto accountManager = DependencyManager::get<AccountManager>();
     auto domainAccountManager = DependencyManager::get<DomainAccountManager>();
-    // Domain authentication uses this QML dialog on every platform, including
-    // Android VR. Its terminal result must reach the existing QML handlers;
-    // the native Android account-login and focus routes remain separate below.
-    connect(domainAccountManager.data(), &DomainAccountManager::loginComplete,
-        this, &LoginDialog::handleLoginCompleted);
-    connect(domainAccountManager.data(), &DomainAccountManager::loginFailed,
-        this, &LoginDialog::handleLoginFailed);
+    // A reopened domain view may observe the existing request. Delivery is
+    // queued so loginDomain stores its returned ticket before any outcome.
+    if (getDomainLoginRequested()) {
+        _domainLoginRequest = domainAccountManager->accessTokenRequestTicket();
+    }
+    connect(domainAccountManager.data(), &DomainAccountManager::loginRequestFinished, this,
+        [this](overte::network::RequestTicket ticket, overte::network::RequestTicket context, int outcome) {
+            using Outcome = DomainAccountManager::LoginOutcome;
+            if (!_domainLoginRequest.sameRequest(ticket)) {
+                return;
+            }
+            // Timeout/oversize invalidate their reply before abort, so the
+            // producer supplies a separate post-abort context snapshot. A later
+            // domain/auth/client switch suppresses their old recovery form too.
+            if (outcome != static_cast<int>(Outcome::Cancelled) && !context.current()) {
+                return;
+            }
+            _domainLoginRequest = {};
+            if (outcome == static_cast<int>(Outcome::Succeeded)) {
+                emit handleLoginCompleted();
+            } else if (outcome == static_cast<int>(Outcome::Cancelled)) {
+                emit handleDomainLoginFailed("cancelled");
+            } else if (outcome == static_cast<int>(Outcome::TimedOut)) {
+                emit handleDomainLoginFailed("timeout");
+            } else {
+                emit handleDomainLoginFailed("failed");
+            }
+        }, Qt::QueuedConnection);
     // the login hasn't been dismissed yet if the user isn't logged in and is encouraged to login.
 #if !defined(Q_OS_ANDROID) || defined(ANDROID_APP_PHONE_INTERFACE)
     connect(accountManager.data(), &AccountManager::loginComplete,
@@ -238,7 +260,18 @@ void LoginDialog::loginDomain(const QString& username, const QString& password) 
         return;
     }
 #endif
-    DependencyManager::get<DomainAccountManager>()->requestAccessToken(username, password);
+    _domainLoginRequest = DependencyManager::get<DomainAccountManager>()->requestAccessToken(username, password);
+    if (!_domainLoginRequest.current()) {
+        // Exhausted/inactive admission has no live reply. Defer its failure
+        // until QML has loaded the progress view, without clearing a newer login.
+        const auto rejected = _domainLoginRequest;
+        QTimer::singleShot(0, this, [this, rejected] {
+            if (rejected.matchesSnapshot() && !_domainLoginRequest.current()) {
+                _domainLoginRequest = {};
+                emit const_cast<LoginDialog*>(this)->handleDomainLoginFailed("failed");
+            }
+        });
+    }
 }
 
 #if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)

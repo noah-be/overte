@@ -383,6 +383,25 @@ Item {
             loggingInBody.loadingSuccess();
         }
 
+        function onHandleDomainLoginFailed(reason) {
+            loggingInSpinner.visible = false;
+            loggingInGlyph.visible = false;
+            if (reason === "cancelled") {
+                // The old context is gone. Close this view rather than offer
+                // its credentials against a newly selected domain.
+                loginDialog.dismissLoginDialog();
+                root.tryDestroy();
+                return;
+            }
+            var message = reason === "timeout"
+                ? qsTr("Domain sign-in timed out. Check your connection and try again.")
+                : qsTr("Domain sign-in failed. Check your connection and credentials, then try again.");
+            bodyLoader.setSource("LinkAccountBody.qml", {
+                "loginDialog": loginDialog, "root": root,
+                "bodyLoader": bodyLoader, "errorString": message
+            });
+        }
+
         function onHandleLoginFailed() {
             console.log("Login Failed");
             loggingInSpinner.visible = false;

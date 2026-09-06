@@ -10,6 +10,8 @@
 #include <cassert>
 #include "interface/src/ui/PhoneLoginState.h"
 #include "interface/src/ui/AccountLoginStateBinding.h"
+#include "libraries/networking/src/RequestCancellation.h"
+#include "security/redaction/SafeDiagnostics.h"
 
 using QQuickItem = QObject;
 using OffscreenQmlDialog = QObject;
@@ -21,9 +23,29 @@ signals:
 };
 class DomainAccountManager : public QObject {
     Q_OBJECT
+public:
+    enum class LoginOutcome { Succeeded, Failed, Cancelled, TimedOut, ResponseRejected };
+    overte::network::RequestScope scope;
+    bool pending {};
+    bool rejectStart {};
+    overte::network::RequestTicket latest;
+    bool isAccessTokenRequestPending() const { return pending; }
+    overte::network::RequestTicket accessTokenRequestTicket() const { return pending ? latest : overte::network::RequestTicket(); }
+    overte::network::RequestTicket requestAccessToken(const QString&, const QString&) {
+        scope.setActive(!rejectStart);
+        pending = !rejectStart; latest = scope.next(); return latest;
+    }
+    void finish(LoginOutcome outcome) {
+        pending = false;
+        if (outcome == LoginOutcome::Cancelled || outcome == LoginOutcome::TimedOut || outcome == LoginOutcome::ResponseRejected) {
+            scope.next();
+        }
+        emit loginRequestFinished(latest, scope.snapshot(), static_cast<int>(outcome));
+    }
 signals:
     void loginComplete();
     void loginFailed();
+    void loginRequestFinished(overte::network::RequestTicket ticket, overte::network::RequestTicket context, int outcome);
 };
 struct DependencyManager {
     template<class T> static QSharedPointer<T> get() {
@@ -46,9 +68,15 @@ class LoginDialog : public QObject {
     Q_OBJECT
 public:
     LoginDialog(QQuickItem* parent = nullptr);
+    void loginDomain(const QString&, const QString&) const;
+    bool getDomainLoginRequested() const { return true; } // Actual DialogsManager selection boundary.
+    mutable overte::network::RequestTicket _domainLoginRequest;
+    int domainDismissals {};
+    Q_INVOKABLE void dismissLoginDialog() { ++domainDismissals; }
 signals:
     void handleLoginCompleted();
     void handleLoginFailed();
+    void handleDomainLoginFailed(const QString& reason);
     void dismissedLoginDialog();
     void focusEnabled();
     void focusDisabled();
@@ -72,13 +100,15 @@ QPointer<AccountLoginStateBinding<AccountManager>> phoneAccountLoginBinding;
 
 int main(int argc, char** argv) {
     Application app(argc, argv);
+    qRegisterMetaType<overte::network::RequestTicket>();
     auto account = DependencyManager::get<AccountManager>();
     auto domain = DependencyManager::get<DomainAccountManager>();
-    int completed = 0, failed = 0, focused = 0, unfocused = 0;
+    int completed = 0, failed = 0, domainFailed = 0, focused = 0, unfocused = 0;
     {
         LoginDialog dialog;
         QObject::connect(&dialog, &LoginDialog::handleLoginCompleted, &app, [&] { ++completed; });
         QObject::connect(&dialog, &LoginDialog::handleLoginFailed, &app, [&] { ++failed; });
+        QObject::connect(&dialog, &LoginDialog::handleDomainLoginFailed, &app, [&] { ++domainFailed; });
         QObject::connect(&dialog, &LoginDialog::focusEnabled, &app, [&] { ++focused; });
         QObject::connect(&dialog, &LoginDialog::focusDisabled, &app, [&] { ++unfocused; });
         QQmlEngine engine;
@@ -90,21 +120,25 @@ int main(int argc, char** argv) {
         QScopedPointer<QObject> view(component.create());
         assert(view);
 
+        dialog.loginDomain("u", "p");
         assert(phoneLoginState.beginRequest());
-        emit domain->loginComplete();
+        domain->finish(DomainAccountManager::LoginOutcome::Succeeded);
+        QCoreApplication::processEvents();
         assert(completed == 1 && failed == 0);
         assert(view->property("successStarts").toInt() == 1);
         assert(avatar.property("displayName").toString() == "domain receiver fixture");
         assert(phoneLoginState.requestPending()); // Domain result cannot clear account ownership.
         phoneLoginState.finishRequest();
+        dialog.loginDomain("u", "p");
         assert(phoneLoginState.beginRequest());
         // Manager's failure signal is also its finite-deadline outcome.
-        emit domain->loginFailed();
-        assert(completed == 1 && failed == 1);
+        domain->finish(DomainAccountManager::LoginOutcome::Failed);
+        QCoreApplication::processEvents();
+        assert(completed == 1 && failed == 0 && domainFailed == 1);
         assert(view->property("failureLoads").toInt() == 1);
         assert(view->property("lastSource").toString() == "LinkAccountBody.qml");
         auto properties = view->property("lastProperties").value<QJSValue>();
-        assert(properties.property("errorString").toString() == "Username or password is incorrect.");
+        assert(properties.property("errorString").toString() == "Domain sign-in failed. Check your connection and credentials, then try again.");
         assert(properties.property("loginDialog").toQObject() == &dialog);
         assert(!view->property("loggingInSpinner").value<QJSValue>().property("visible").toBool());
         assert(!view->property("loggingInGlyph").value<QJSValue>().property("visible").toBool());
@@ -116,11 +150,47 @@ int main(int argc, char** argv) {
         emit account->loginFailed();
         emit app.loginDialogFocusEnabled();
         emit app.loginDialogFocusDisabled();
-        assert(completed == 1 + accountExpected && failed == 1 + accountExpected);
+        assert(completed == 1 + accountExpected && failed == accountExpected);
         assert(focused == accountExpected && unfocused == accountExpected);
         assert(phoneLoginState.requestPending() == !TEST_EXPECT_PENDING);
         emit dialog.dismissedLoginDialog();
         assert(app.dismissals == 1);
+        phoneLoginState.finishRequest();
+        dialog.loginDomain("u", "p");
+        domain->finish(DomainAccountManager::LoginOutcome::TimedOut);
+        QCoreApplication::processEvents();
+        assert(domainFailed == 2);
+        properties = view->property("lastProperties").value<QJSValue>();
+        assert(properties.property("errorString").toString() == "Domain sign-in timed out. Check your connection and try again.");
+        // Old cancellation queued before a new login cannot close the newer view.
+        dialog.loginDomain("u", "p");
+        const auto oldTicket = domain->latest;
+        domain->finish(DomainAccountManager::LoginOutcome::Cancelled);
+        dialog.loginDomain("u", "p");
+        QCoreApplication::processEvents();
+        assert(domainFailed == 2 && view->property("destroys").toInt() == 0);
+        emit domain->loginRequestFinished(oldTicket, oldTicket, static_cast<int>(DomainAccountManager::LoginOutcome::Succeeded));
+        QCoreApplication::processEvents();
+        assert(completed == 1 + accountExpected);
+        domain->finish(DomainAccountManager::LoginOutcome::Cancelled);
+        QCoreApplication::processEvents();
+        assert(domainFailed == 3 && view->property("destroys").toInt() == 1 && dialog.domainDismissals == 1);
+        // Duplicate terminal result remains consumed, including after invalidation.
+        emit domain->loginRequestFinished(domain->latest, domain->scope.snapshot(), static_cast<int>(DomainAccountManager::LoginOutcome::Cancelled));
+        QCoreApplication::processEvents();
+        assert(domainFailed == 3);
+        domain->rejectStart = true;
+        dialog.loginDomain("u", "p");
+        QCoreApplication::processEvents();
+        assert(domainFailed == 4); // Inactive admission fails visibly without a live reply.
+        domain->rejectStart = false;
+        // Timeout's request is invalidated by its own abort, but a subsequent
+        // context change must still prevent showing its recovery credentials.
+        dialog.loginDomain("u", "p");
+        domain->finish(DomainAccountManager::LoginOutcome::TimedOut);
+        domain->scope.next();
+        QCoreApplication::processEvents();
+        assert(domainFailed == 4);
     }
     const int oldCompleted = completed, oldFailed = failed;
     emit domain->loginComplete();

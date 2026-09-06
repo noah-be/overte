@@ -35,6 +35,7 @@ constexpr qint64 MAX_DOMAIN_AUTH_RESPONSE_BYTES = 1024 * 1024;
 }
 
 DomainAccountManager::DomainAccountManager() {
+    qRegisterMetaType<overte::network::RequestTicket>();
     connect(this, &DomainAccountManager::loginComplete, this, &DomainAccountManager::sendInterfaceAccessTokenToServer);
 }
 
@@ -42,13 +43,16 @@ DomainAccountManager::~DomainAccountManager() {
     invalidatePendingAccessToken();
 }
 
-void DomainAccountManager::invalidatePendingAccessToken() {
+void DomainAccountManager::invalidatePendingAccessToken(LoginOutcome outcome) {
+    const auto ticket = _accessTokenRequests.snapshot();
     _accessTokenRequests.next(); // Invalidate BEFORE abort can emit finished.
+    const auto context = _accessTokenRequests.snapshot(); // Capture before abort's external callbacks too.
     const auto pending = _pendingAccessTokenReply;
     _pendingAccessTokenReply.clear();
     if (pending) {
         pending->abort();
         pending->deleteLater();
+        emit loginRequestFinished(ticket, context, static_cast<int>(outcome));
     }
 }
 
@@ -102,13 +106,14 @@ bool DomainAccountManager::isLoggedIn() {
     return !_currentAuth.authURL.isEmpty() && hasValidAccessToken();
 }
 
-void DomainAccountManager::requestAccessToken(const QString& username, const QString& password) {
+overte::network::RequestTicket DomainAccountManager::requestAccessToken(const QString& username, const QString& password) {
 
     invalidatePendingAccessToken();
     const auto ticket = _accessTokenRequests.snapshot();
     if (!ticket.current()) {
         emit loginFailed();
-        return;
+        emit loginRequestFinished(ticket, _accessTokenRequests.snapshot(), static_cast<int>(LoginOutcome::Failed));
+        return ticket;
     }
 
     _currentAuth.username = username;
@@ -142,7 +147,7 @@ void DomainAccountManager::requestAccessToken(const QString& username, const QSt
     connect(requestReply, &QNetworkReply::readyRead, this, [this, requestReply, ticket] {
         if (requestReply == _pendingAccessTokenReply && ticket.current() &&
                 requestReply->bytesAvailable() > MAX_DOMAIN_AUTH_RESPONSE_BYTES) {
-            invalidatePendingAccessToken();
+            invalidatePendingAccessToken(LoginOutcome::ResponseRejected);
             emit loginFailed();
         }
     });
@@ -156,10 +161,11 @@ void DomainAccountManager::requestAccessToken(const QString& username, const QSt
         if (requestReply != _pendingAccessTokenReply || !ticket.current()) {
             return;
         }
-        invalidatePendingAccessToken();
+        invalidatePendingAccessToken(LoginOutcome::TimedOut);
         emit loginFailed();
     });
     deadline->start();
+    return ticket;
 }
 
 void DomainAccountManager::requestAccessTokenFinished() {
@@ -169,6 +175,7 @@ void DomainAccountManager::requestAccessTokenFinished() {
         return;
     }
     _pendingAccessTokenReply.clear(); // One terminal reply; reject duplicates.
+    const auto ticket = requestReply->property("_overte_request_ticket").value<overte::network::RequestTicket>();
 
     auto httpStatus = requestReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     const auto payload = requestReply->read(MAX_DOMAIN_AUTH_RESPONSE_BYTES + 1);
@@ -199,16 +206,19 @@ void DomainAccountManager::requestAccessTokenFinished() {
             // ####### TODO: Handle "keep me logged in".
 
             emit loginComplete();
+            emit loginRequestFinished(ticket, ticket, static_cast<int>(LoginOutcome::Succeeded));
         } else {
             // Failure.
             qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::AuthFailed);
             emit loginFailed();
+            emit loginRequestFinished(ticket, ticket, static_cast<int>(LoginOutcome::Failed));
         }
 
     } else {
         // Failure.
         qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::AuthFailed);
         emit loginFailed();
+        emit loginRequestFinished(ticket, ticket, static_cast<int>(LoginOutcome::Failed));
     }
 }
 
