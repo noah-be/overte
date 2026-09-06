@@ -19,10 +19,12 @@ class AccountManager : public QObject {
 public:
     DataServerAccountInfo _accountInfo;
     int persisted = 0, profiles = 0;
+    bool _isWaitingForTokenRefresh = true;
     QString getMetaverseServerURLPath() { return "/api"; }
     void persistAccountToFile() { ++persisted; }
     void requestProfile() { ++profiles; }
     void requestAccessTokenFinished();
+    void refreshAccessTokenFinished();
 signals:
     void loginComplete(QUrl);
     void loginFailed();
@@ -51,6 +53,7 @@ struct Reply : QNetworkReply {
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     const QByteArray good("{\"access_token\":\"token-canary\",\"expires_in\":3600,\"token_type\":\"Bearer\"}");
+    for (bool refreshing : {false, true}) {
     auto check = [&](QByteArray payload, int status, bool error, bool accepted) {
         AccountManager manager;
         manager._accountInfo.tokens.insert("prior", true);
@@ -60,16 +63,20 @@ int main(int argc, char** argv) {
         });
         QObject::connect(&manager, &AccountManager::loginFailed, [&] { ++failure; });
         QPointer<Reply> reply = new Reply(std::move(payload), status, error);
-        QObject::connect(reply.data(), &QNetworkReply::finished, &manager, &AccountManager::requestAccessTokenFinished);
+        QObject::connect(reply.data(), &QNetworkReply::finished, &manager,
+                         refreshing ? &AccountManager::refreshAccessTokenFinished : &AccountManager::requestAccessTokenFinished);
         reply->finish();
-        assert(success == int(accepted) && failure == int(!accepted));
-        assert(manager.persisted == int(accepted) && manager.profiles == int(accepted));
+        assert(success == int(accepted && !refreshing) && failure == int(!accepted && !refreshing));
+        assert(manager.persisted == int(accepted) && manager.profiles == int(accepted && !refreshing));
+        if (refreshing) assert(!manager._isWaitingForTokenRefresh);
         if (accepted) assert(manager._accountInfo.tokens.value("access_token") == "token-canary");
         else assert(manager._accountInfo.tokens.value("prior").toBool());
         reply->finish();
-        assert(success == int(accepted) && failure == int(!accepted));
-        manager.requestAccessTokenFinished(); // No sender: must not cast/dereference null.
-        assert(success == int(accepted) && failure == int(!accepted));
+        assert(success == int(accepted && !refreshing) && failure == int(!accepted && !refreshing));
+        assert(manager.persisted == int(accepted));
+        if (refreshing) manager.refreshAccessTokenFinished();
+        else manager.requestAccessTokenFinished(); // No sender must not dereference null.
+        assert(success == int(accepted && !refreshing) && failure == int(!accepted && !refreshing));
         QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
         assert(!reply);
     };
@@ -115,4 +122,5 @@ int main(int argc, char** argv) {
     assert(exact.size() == 1024 * 1024);
     check(exact, 200, false, true);
     check(exact + ' ', 200, false, false);
+    }
 }

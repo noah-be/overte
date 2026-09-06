@@ -1,4 +1,17 @@
-# Account credential finished-response boundary — SH-005 v002
+# Account credential finished-response boundary — SH-005 v003
+
+Additive v003 applies the same response-size/network/HTTP/JSON and token-field
+checks to the actual refreshAccessTokenFinished method. Typed sender and a
+separate per-reply consumed property prevent null access and duplicate refresh
+persistence; every valid sender schedules deletion and clears the existing
+waiting flag before parsing. Invalid refresh preserves prior account tokens and
+does not persist. As before, refresh does not emit interactive loginComplete or
+loginFailed and does not request a profile. The fixture executes BOTH complete
+original methods on real Qt replies/signals and verifies these distinct effects.
+The baseline refresh method crashes on the tested no-sender callback. This is
+not a request ownership/generation fix: late replies or the separate error
+callback can still affect a newer request's waiting flag; request deadlines,
+retry policy and account-target replacement remain outstanding.
 
 Additive v002 requires nonempty string access_token/token_type, numeric whole
 expires_in in [1, 2147483647] seconds, and a string refresh_token if present.
@@ -8,8 +21,8 @@ recommended credential lifetime or server-expiry policy. It prevents malformed
 types and enormous/fractional lifetimes reaching OAuthAccessToken's unchecked
 double-seconds conversion. Invalid responses emit the existing failure outcome
 without replacing/persisting the previous account or requesting a profile.
-String token grammar, supported token-type semantics and refresh callback
-validation are NOT established by these checks.
+String token grammar and supported token-type semantics are NOT established by
+these checks. The separate setAccessTokens injection path is not changed.
 
 The actual requestAccessTokenFinished callback now emits loginFailed for its
 existing missing-field case instead of only logging and leaving UI pending.
@@ -30,5 +43,5 @@ the existing block extractor test_login_dialog_domain_receiver.py. Separate Appl
 export preserves its extra error callback and Qt6 guards. Its errorOccurred path
 may independently signal loginFailed; per-finished de-duplication is NOT a claim
 of exactly-once outcomes across all signals. Other live reply buffering/TLS/JSON
-allocation, token grammar/server expiry/refresh callback validity, redirects, target generation,
+allocation, token grammar/server expiry/refresh request ownership, redirects, target generation,
 foreground/consent, complete UI/privacy and artifact/native acceptance remain.
