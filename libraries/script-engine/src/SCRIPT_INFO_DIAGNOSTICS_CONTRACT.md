@@ -1,5 +1,11 @@
 # Script info and same-thread shutdown public diagnostics
 
+v002 adds the actual error, warning and printed-message wrappers. Their public
+Qt sinks use the same bounded event while retaining critical/warning/debug
+severity. The five-method fixture exercises each wrapper's normal console,
+entity and server-fallback routes and asserts original internal arguments.
+Baseline of the newly covered wrappers RED1.598s; no console output removed.
+
 Two public Qt sinks now emit the existing bounded Redacted diagnostic event:
 the same-thread waitTillDoneRunning warning and scriptInfoMessage's qCInfo.
 The actual wrapper no longer formats script filename or message for public logs.
@@ -15,8 +21,8 @@ contents remain asserted. Baseline with actual wrapper was RED1.597s; corrected
 Main PASS1.440s. The earlier diagnostic conflated public and console sinks and
 is superseded by this more precise two-method test.
 
-This does not prove privacy for the internal console, other script warning/error/
-print sinks, all telemetry, native execution or full-node acceptance. Disabled
+This does not prove privacy for the internal console, direct script logging
+outside these wrappers, all telemetry, native execution or full-node acceptance. Disabled
 timeout blocks remain disabled and unmodified. No stop/evaluation/consent/revoke
 behavior changes; entity scripts remain fail-closed pending complete consent and
 finite safe revocation. Native signal transport/lifetime remains a separate gate.
