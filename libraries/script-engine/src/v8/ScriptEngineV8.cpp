@@ -13,6 +13,7 @@
 //
 
 #include "ScriptEngineV8.h"
+#include "V8ExceptionDiagnostics.h"
 
 #include <chrono>
 #include <mutex>
@@ -83,14 +84,7 @@ std::unique_ptr<ScriptEngine::ScriptEngineScopeGuard> ScriptEngineV8::getScopeGu
 }
 
 QString getFileNameFromTryCatch(v8::TryCatch &tryCatch, v8::Isolate *isolate, v8::Local<v8::Context> &context ) {
-    v8::Local<v8::Message> exceptionMessage = tryCatch.Message();
-    QString errorFileName;
-    auto resource = exceptionMessage->GetScriptResourceName();
-    v8::Local<v8::String> v8resourceString;
-    if (resource->ToString(context).ToLocal(&v8resourceString)) {
-        errorFileName = QString(*v8::String::Utf8Value(isolate, v8resourceString));
-    }
-    return errorFileName;
+    return overte::scripting::exceptionDiagnostics(isolate, context, tryCatch).file;
 }
 
 ScriptValue ScriptEngineV8::makeError(const ScriptValue& _other, const QString& type) {
@@ -720,15 +714,20 @@ ScriptValue ScriptEngineV8::evaluateInClosure(const ScriptValue& _closure,
             auto maybeResult = program.constGet()->GetUnboundScript()->BindToCurrentContext()->Run(closureContext);
             v8::Local<v8::Value> v8Result;
             if (!maybeResult.ToLocal(&v8Result)) {
-                v8::String::Utf8Value utf8Value(getIsolate(), tryCatch.Exception());
-                QString errorMessage = QString(__FUNCTION__) + " hasCaught:" + QString(*utf8Value) + "\n"
-                    + "tryCatch details:" + formatErrorMessageFromTryCatch(tryCatch);
+                if (tryCatch.HasTerminated() || _v8Isolate->IsExecutionTerminating()) {
+                    setUncaughtException(tryCatch, "closure evaluation terminated");
+                    popContext();
+                    _evaluatingCounter--;
+                    return ScriptValue();
+                }
+                QString errorMessage = QString(__FUNCTION__) + " tryCatch details:"
+                    + formatErrorMessageFromTryCatch(tryCatch);
                 v8Result = v8::Null(_v8Isolate);
                 if (_manager) {
                     v8::Local<v8::Message> exceptionMessage = tryCatch.Message();
                     int errorLineNumber = -1;
                     if (!exceptionMessage.IsEmpty()) {
-                        errorLineNumber = exceptionMessage->GetLineNumber(closureContext).FromJust();
+                        errorLineNumber = exceptionMessage->GetLineNumber(closureContext).FromMaybe(-1);
                     }
                     _manager->scriptErrorMessage(errorMessage, getFileNameFromTryCatch(tryCatch, _v8Isolate, closureContext),
                                                           errorLineNumber);
@@ -785,12 +784,17 @@ ScriptValue ScriptEngineV8::evaluate(const QString& sourceCode, const QString& f
     {
         v8::TryCatch tryCatch(getIsolate());
         if (!v8::Script::Compile(context, v8::String::NewFromUtf8(getIsolate(), sourceCode.toStdString().c_str()).ToLocalChecked(), &scriptOrigin).ToLocal(&script)) {
+            if (tryCatch.HasTerminated() || _v8Isolate->IsExecutionTerminating()) {
+                setUncaughtException(tryCatch, "script compilation terminated");
+                _evaluatingCounter--;
+                return ScriptValue();
+            }
             QString errorMessage(QString("Error while compiling script: \"") + fileName + QString("\" ") + formatErrorMessageFromTryCatch(tryCatch));
             if (_manager) {
                 v8::Local<v8::Message> exceptionMessage = tryCatch.Message();
                 int errorLineNumber = -1;
                 if (!exceptionMessage.IsEmpty()) {
-                    errorLineNumber = exceptionMessage->GetLineNumber(context).FromJust();
+                    errorLineNumber = exceptionMessage->GetLineNumber(context).FromMaybe(-1);
                 }
                 _manager->scriptErrorMessage(errorMessage, getFileNameFromTryCatch(tryCatch, _v8Isolate, context),
                                                       errorLineNumber);
@@ -807,14 +811,22 @@ ScriptValue ScriptEngineV8::evaluate(const QString& sourceCode, const QString& f
     v8::TryCatch tryCatchRun(getIsolate());
     if (!script->Run(context).ToLocal(&result)) {
         Q_ASSERT(tryCatchRun.HasCaught());
+        if (tryCatchRun.HasTerminated() || _v8Isolate->IsExecutionTerminating()) {
+            setUncaughtException(tryCatchRun, "script evaluation terminated");
+            _evaluatingCounter--;
+            return ScriptValue();
+        }
         auto runError = tryCatchRun.Message();
-        ScriptValue errorValue(new ScriptValueV8Wrapper(this, V8ScriptValue(this, runError->Get())));
+        ScriptValue errorValue;
+        if (!runError.IsEmpty()) {
+            errorValue = ScriptValue(new ScriptValueV8Wrapper(this, V8ScriptValue(this, runError->Get())));
+        }
         QString errorMessage(QString("Running script: \"") + fileName + QString("\" ") + formatErrorMessageFromTryCatch(tryCatchRun));
         if (_manager) {
             v8::Local<v8::Message> exceptionMessage = tryCatchRun.Message();
             int errorLineNumber = -1;
             if (!exceptionMessage.IsEmpty()) {
-                errorLineNumber = exceptionMessage->GetLineNumber(context).FromJust();
+                errorLineNumber = exceptionMessage->GetLineNumber(context).FromMaybe(-1);
             }
             _manager->scriptErrorMessage(errorMessage, getFileNameFromTryCatch(tryCatchRun, _v8Isolate, context),
                                                   errorLineNumber);
@@ -851,33 +863,19 @@ void ScriptEngineV8::setUncaughtException(const v8::TryCatch &tryCatch, const QS
     v8::HandleScope handleScope(_v8Isolate);
     v8::Local<v8::Context> context = getContext();
     v8::Context::Scope contextScope(context);
-    QString result("");
-
-    QString errorMessage = "";
-    QString errorBacktrace = "";
-    v8::String::Utf8Value utf8Value(getIsolate(), tryCatch.Message()->Get());
-
-    ex->errorMessage = QString(*utf8Value);
-
-    auto exceptionValue = tryCatch.Exception();
-    ex->thrownValue =  ScriptValue(new ScriptValueV8Wrapper(this, V8ScriptValue(this, exceptionValue)));
-
-
-    v8::Local<v8::Message> exceptionMessage = tryCatch.Message();
-    if (!exceptionMessage.IsEmpty()) {
-        ex->errorLine = exceptionMessage->GetLineNumber(context).FromJust();
-        ex->errorColumn = exceptionMessage->GetStartColumn(context).FromJust();
-        v8::Local<v8::Value> backtraceV8String;
-        if (tryCatch.StackTrace(context).ToLocal(&backtraceV8String)) {
-            if (backtraceV8String->IsString()) {
-                if (v8::Local<v8::String>::Cast(backtraceV8String)->Length() > 0) {
-                    v8::String::Utf8Value backtraceUtf8Value(getIsolate(), backtraceV8String);
-                    QString errorBacktrace = QString(*backtraceUtf8Value).replace("\\n","\n");
-                    ex->backtrace = errorBacktrace.split("\n");
-
-                }
-            }
-        }
+    const auto diagnostic = overte::scripting::exceptionDiagnostics(_v8Isolate, context, tryCatch);
+    ex->errorMessage = diagnostic.message;
+    ex->errorLine = diagnostic.line;
+    ex->errorColumn = diagnostic.column;
+    ex->backtrace = diagnostic.backtrace;
+    const auto exceptionValue = tryCatch.Exception();
+    if (!diagnostic.terminated && !exceptionValue.IsEmpty()) {
+        ex->thrownValue = ScriptValue(new ScriptValueV8Wrapper(this, V8ScriptValue(this, exceptionValue)));
+    }
+    if (diagnostic.terminated) {
+        // Do not emit a callback which could re-enter JS during termination.
+        _uncaughtException = ex;
+        return;
     }
 
     setUncaughtException(ex);
@@ -897,30 +895,13 @@ QString ScriptEngineV8::formatErrorMessageFromTryCatch(v8::TryCatch &tryCatch) {
     v8::HandleScope handleScope(_v8Isolate);
     auto context = getContext();
     v8::Context::Scope contextScope(context);
-    QString result("");
-    int errorColumnNumber = 0;
-    int errorLineNumber = 0;
-    QString errorMessage = "";
-    QString errorBacktrace = "";
-    v8::String::Utf8Value utf8Value(getIsolate(), tryCatch.Message()->Get());
-    errorMessage = QString(*utf8Value);
-    v8::Local<v8::Message> exceptionMessage = tryCatch.Message();
-    if (!exceptionMessage.IsEmpty()) {
-        errorLineNumber = exceptionMessage->GetLineNumber(context).FromJust();
-        errorColumnNumber = exceptionMessage->GetStartColumn(context).FromJust();
-        v8::Local<v8::Value> backtraceV8String;
-        if (tryCatch.StackTrace(context).ToLocal(&backtraceV8String)) {
-            if (backtraceV8String->IsString()) {
-                if (v8::Local<v8::String>::Cast(backtraceV8String)->Length() > 0) {
-                    v8::String::Utf8Value backtraceUtf8Value(getIsolate(), backtraceV8String);
-                    errorBacktrace = QString(*backtraceUtf8Value).replace("\\n","\n");
-                }
-            }
-        }
-        QTextStream resultStream(&result);
-        resultStream << "failed on line " << errorLineNumber << " column " << errorColumnNumber << " with message: \"" << errorMessage <<"\" backtrace: " << errorBacktrace;
+    const auto diagnostic = overte::scripting::exceptionDiagnostics(_v8Isolate, context, tryCatch);
+    if (diagnostic.terminated) {
+        return diagnostic.message;
     }
-    return result.replace("\\n", "\n");
+    return QStringLiteral("failed on line %1 column %2 with message: \"%3\" backtrace: %4")
+        .arg(diagnostic.line).arg(diagnostic.column).arg(diagnostic.message)
+        .arg(diagnostic.backtrace.join(QStringLiteral("\n")));
 }
 
 v8::Local<v8::ObjectTemplate> ScriptEngineV8::getObjectProxyTemplate() {
@@ -1044,8 +1025,12 @@ Q_INVOKABLE ScriptValue ScriptEngineV8::evaluate(const ScriptProgramPointer& pro
             if (!v8Program.constGet()->Run(context).ToLocal(&result)) {
                 Q_ASSERT(tryCatchRun.HasCaught());
                 auto runError = tryCatchRun.Message();
-                errorValue = ScriptValue(new ScriptValueV8Wrapper(this, V8ScriptValue(this, runError->Get())));
-                raiseException(errorValue, "evaluation error");
+                if (tryCatchRun.HasTerminated() || _v8Isolate->IsExecutionTerminating() || runError.IsEmpty()) {
+                    setUncaughtException(tryCatchRun, "script evaluation");
+                } else {
+                    errorValue = ScriptValue(new ScriptValueV8Wrapper(this, V8ScriptValue(this, runError->Get())));
+                    raiseException(errorValue, "evaluation error");
+                }
                 hasFailed = true;
             } else {
                 // V8TODO this is just to check if run will always return false for uncaught exception
