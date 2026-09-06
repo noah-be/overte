@@ -43,8 +43,8 @@ make_package tbb "$nonqt/generators/TBB-debug-armv8-data.cmake"
 make_package libnode "$nonqt/generators/libnode-debug-armv8-data.cmake"
 make_package webrtc-audio-processing \
     "$nonqt/generators/webrtc-audio-processing-debug-armv8-data.cmake"
-printf crypto > "$nonqt/conanlibs/Debug/libcrypto.so.3"
-printf ssl > "$nonqt/conanlibs/Debug/libssl.so.3"
+printf crypto > "$nonqt/conanlibs/Debug/libcrypto_3.so"
+printf ssl > "$nonqt/conanlibs/Debug/libssl_3.so"
 
 verify() {
     "$test_root/tests/verify-phone-16k-dependencies.sh" "$qt" "$nonqt" "$sentinel"
@@ -128,7 +128,7 @@ expect_failure 'generator symlink' verify
 rm -- "$generator"
 mv -- "$generator.real" "$generator"
 
-staged="$nonqt/conanlibs/Debug/libssl.so.3"
+staged="$nonqt/conanlibs/Debug/libssl_3.so"
 mv -- "$staged" "$staged.real"
 ln -s -- "$(basename -- "$staged.real")" "$staged"
 expect_failure 'staged library symlink' verify
@@ -146,7 +146,7 @@ rm -- "$package/lib/libescape.so"
 # The fake alignment checker mutates the staged source after the verifier has
 # copied it. A fresh sentinel must describe the checked snapshot, so the next
 # verification against the changed source must reject it as stale.
-PHONE_TEST_MUTATE_STAGED="$nonqt/conanlibs/Debug/libcrypto.so.3" \
+PHONE_TEST_MUTATE_STAGED="$nonqt/conanlibs/Debug/libcrypto_3.so" \
     "$test_root/tests/verify-phone-16k-dependencies.sh" --write-sentinel \
     "$qt" "$nonqt" "$sentinel"
 expect_failure 'source mutation after snapshot' verify
