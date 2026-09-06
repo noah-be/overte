@@ -598,13 +598,23 @@ void ScriptManager::loadURL(const QUrl& scriptURL, bool reload) {
         return;
     }
 
+    const auto loadRequest = _scriptLoadContext.next();
+    if (!loadRequest.current()) {
+        return;
+    }
     QUrl url = expandScriptUrl(scriptURL);
+    if (!loadRequest.current()) {
+        return;
+    }
     _fileNameString = url.toString();
     _isReloading = reload;
 
     // Check that script has a supported file extension
     if (!hasValidScriptSuffix(_fileNameString)) {
         scriptErrorMessage("File extension of file: " + _fileNameString + " is not a currently supported script type", _fileNameString, -1);
+        if (!loadRequest.current()) {
+            return;
+        }
         emit errorLoadingScript(_fileNameString);
         return;
     }
@@ -612,17 +622,29 @@ void ScriptManager::loadURL(const QUrl& scriptURL, bool reload) {
     const auto maxRetries = 0; // for consistency with previous scriptCache->getScript() behavior
     std::weak_ptr<ScriptManager> weakRef(shared_from_this());
     auto scriptCache = DependencyManager::get<ScriptCache>();
-    scriptCache->getScriptContents(url.toString(), [this, weakRef](const QString& url, const QString& scriptContents, bool isURL, bool success, const QString&status) {
+    scriptCache->getScriptContents(url.toString(), [this, weakRef, loadRequest](const QString& url, const QString& scriptContents, bool isURL, bool success, const QString&status) {
         // Cache requests do not own the manager. Retain it only while delivering
         // a live completion, including reentrant error/loaded signal receivers.
         auto strongRef = weakRef.lock();
-        if (!strongRef) {
+        if (!strongRef || !loadRequest.current()) {
+            return;
+        }
+        // Consume this response before invoking any reentrant receiver. A new
+        // load supersedes the completion ticket as well as all older requests.
+        const auto completion = _scriptLoadContext.next();
+        if (!completion.current()) {
             return;
         }
         qCDebug(scriptengine) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         if (!success) {
             scriptErrorMessage("ERROR Loading file (" + status + "):" + url, url, -1);
+            if (!completion.current()) {
+                return;
+            }
             emit errorLoadingScript(_fileNameString);
+            if (!completion.current()) {
+                return;
+            }
 
             // emitting scriptLoaded will keep Interface from discarding
             // scripts that might only be temporarily unavailable

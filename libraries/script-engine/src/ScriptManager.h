@@ -38,6 +38,7 @@
 #include "EntityScriptUtils.h"
 #include <ExternalResource.h>
 #include <SettingHandle.h>
+#include <RequestCancellation.h>
 
 #include "AssetScriptingInterface.h"
 #include "ConsoleScriptingInterface.h"
@@ -1673,6 +1674,7 @@ protected:
     qint64 _lastUpdate;
 
     QString _fileNameString;
+    overte::network::RequestScope _scriptLoadContext;
     std::shared_ptr<Quat> _quatLibrary;
     std::shared_ptr<Vec3> _vec3Library;
     std::shared_ptr<Mat4> _mat4Library;

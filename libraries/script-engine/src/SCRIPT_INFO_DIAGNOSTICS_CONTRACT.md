@@ -1,5 +1,20 @@
 # Script info and same-thread shutdown public diagnostics
 
+v006 scopes actual loadURL requests with the existing RequestCancellation.h
+RequestScope/RequestTicket implementation. A newer request (including an invalid
+suffix) supersedes prior completions even for the same URL. A callback advances
+the scope before delivery, consuming duplicate callbacks; completion ownership
+is checked after reentrant error and failure receivers before further signals.
+Existing running-script rejection, weak/strong lifetime, reload/retry behavior
+and public privacy remain. Counter exhaustion rejects further loading.
+The actual-method Qt fixture uses the real scope implementation and proves stale
+same-URL success, duplicate completion, reentrant replacement during error and
+invalid-suffix supersession. Baseline stale-source assertion RED1.798s.
+Both production header member/include and existing networking link are checked;
+full original ScriptManager header/native compilation remains unproved. Atomic
+tickets do not make surrounding manager state cross-thread safe or abort cache
+downloads. This is not full cancellation, consent/revoke or full-node acceptance.
+
 v005 additionally protects the actual loadURL cache completion lifetime using
 the manager's existing shared ownership model: cache storage holds a weak_ptr,
 and a live callback locks one strong reference before accessing this. Expired
