@@ -607,7 +607,7 @@ void AccountManager::requestAccessToken(const QString& login, const QString& pas
     QNetworkAccessManager& networkAccessManager = NetworkAccessManager::getInstance();
 
     QNetworkRequest request;
-    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
     request.setHeader(QNetworkRequest::UserAgentHeader, _userAgentGetter());
 
     QUrl grantURL = _authURL;
@@ -630,7 +630,7 @@ void AccountManager::requestAccessTokenWithAuthCode(const QString& authCode, con
     QNetworkAccessManager& networkAccessManager = NetworkAccessManager::getInstance();
 
     QNetworkRequest request;
-    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
     request.setHeader(QNetworkRequest::UserAgentHeader, _userAgentGetter());
 
     QUrl grantURL = _authURL;
@@ -638,9 +638,9 @@ void AccountManager::requestAccessTokenWithAuthCode(const QString& authCode, con
 
     QByteArray postData;
     postData.append("grant_type=authorization_code&");
-    postData.append("client_id=" + clientId.toUtf8() + "&");
-    postData.append("client_secret=" + clientSecret.toUtf8() + "&");
-    postData.append("code=" + authCode.toUtf8() + "&");
+    postData.append("client_id=" + QUrl::toPercentEncoding(clientId) + "&");
+    postData.append("client_secret=" + QUrl::toPercentEncoding(clientSecret) + "&");
+    postData.append("code=" + QUrl::toPercentEncoding(authCode) + "&");
     postData.append("redirect_uri=" + QUrl::toPercentEncoding(redirectUri));
 
     request.setUrl(grantURL);
@@ -654,6 +654,7 @@ void AccountManager::requestAccessTokenWithSteam(QByteArray authSessionTicket) {
     QNetworkAccessManager& networkAccessManager = NetworkAccessManager::getInstance();
 
     QNetworkRequest request;
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
     request.setHeader(QNetworkRequest::UserAgentHeader, _userAgentGetter());
 
     QUrl grantURL = _authURL;
@@ -676,6 +677,7 @@ void AccountManager::requestAccessTokenWithOculus(const QString& nonce, const QS
     QNetworkAccessManager& networkAccessManager = NetworkAccessManager::getInstance();
 
     QNetworkRequest request;
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
     request.setHeader(QNetworkRequest::UserAgentHeader, _userAgentGetter());
 
     QUrl grantURL = _authURL;
@@ -683,8 +685,8 @@ void AccountManager::requestAccessTokenWithOculus(const QString& nonce, const QS
 
     QByteArray postData;
     postData.append("grant_type=password&");
-    postData.append("oculus_nonce=" + nonce.toUtf8() + "&");
-    postData.append("oculus_id=" + oculusID.toUtf8() + "&");
+    postData.append("oculus_nonce=" + QUrl::toPercentEncoding(nonce) + "&");
+    postData.append("oculus_id=" + QUrl::toPercentEncoding(oculusID) + "&");
     postData.append("scope=" + ACCOUNT_MANAGER_REQUESTED_SCOPE.toUtf8());
 
     request.setUrl(grantURL);
@@ -706,7 +708,7 @@ void AccountManager::refreshAccessToken() {
         QNetworkAccessManager& networkAccessManager = NetworkAccessManager::getInstance();
 
         QNetworkRequest request;
-        request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+        request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
         request.setHeader(QNetworkRequest::UserAgentHeader, _userAgentGetter());
 
         QUrl grantURL = _authURL;
