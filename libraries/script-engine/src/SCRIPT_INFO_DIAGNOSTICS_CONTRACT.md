@@ -1,5 +1,17 @@
 # Script info and same-thread shutdown public diagnostics
 
+v008 deactivates the load RequestScope immediately in the actual stop method,
+before any optional thread marshalling. Late success/error cache completions and
+new load requests cannot change contents or emit load outcomes after stopping.
+The fixture now executes complete production stop as well as loadURL/suffix
+methods, using actual QObject/invokeMethod and real atomic RequestScope. Both
+marshal=true (same-thread Qt delivery) and repeated direct stop preserve the
+original exactly-once runningStateChanged behavior. BaselineRED2.098s proved
+late stopped-source overwrite; no evaluation/event-loop termination changed.
+Cross-thread manager state, physical cache abort, finite script revocation and
+full native/header integration remain unproved. Scope invalidation is not a
+claim that currently executing script code stops within a bounded time.
+
 v007 rechecks load completion ownership after the public Qt diagnostic, since
 a synchronous message handler can start a replacement load. Actual Qt handler
 reentrancy baselineRED2.101s exposed old contents overriding the new request;
