@@ -308,8 +308,8 @@ Item {
                     dialog.saveAll();
                 }
                 onClicked: {
-                    // Android dispatch belongs to the base Button handler.
-                    if (Qt.platform.os !== "android") { dialog.saveAll(); }
+                    // Follow the actual base dispatch, including Apple's variant.
+                    if (!usesAndroidClickAction) { dialog.saveAll(); }
                 }
             }
 
@@ -332,8 +332,8 @@ Item {
                 }
                 onClicked: {
                     // Preserve each platform's existing intended back route,
-                    // without running a second restore/navigation on Android.
-                    if (Qt.platform.os !== "android") { dialog.restoreAll(); }
+                    // without running a second restore/navigation via the base.
+                    if (!usesAndroidClickAction) { dialog.restoreAll(); }
                 }
             }
         }

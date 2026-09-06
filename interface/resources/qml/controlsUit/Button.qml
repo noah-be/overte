@@ -34,6 +34,9 @@ Original.Button {
     // guaranteed action route it through the handler that actually receives
     // the signal.
     property var androidClickAction: null
+    // Derived handlers must use the same dispatch decision as this base.
+    // Apple retains its Android-or-iOS expression in this single binding.
+    readonly property bool usesAndroidClickAction: Qt.platform.os === "android"
 
     width: hifi.dimensions.buttonWidth
     height: Math.max(hifi.dimensions.controlLineHeight,
@@ -66,7 +69,7 @@ Original.Button {
 
     onClicked: {
         if (!control.visible || !control.enabled) { return; }
-        if (Qt.platform.os === "android") {
+        if (control.usesAndroidClickAction) {
             if (typeof control.androidClickAction === "function") {
                 control.androidClickAction();
             }

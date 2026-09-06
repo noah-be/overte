@@ -15,7 +15,9 @@ static void capture(QtMsgType, const QMessageLogContext&, const QString& text) {
 int main(int argc, char** argv) {
     QGuiApplication app(argc, argv);
     QLoggingCategory::setFilterRules("qml.debug=true\nqml.info=true\nqml.warning=true");
-    assert(argc == 2);
+    assert(argc == 3);
+    const QString variant = QString::fromLocal8Bit(argv[2]);
+    assert(variant == "main" || variant == "phone" || variant == "apple");
     qmlRegisterModule("TabletScriptingInterface", 1, 0);
     QQmlEngine engine;
     auto tablet = engine.evaluate("({playSound:function(){}, getTablet:function(){return testNavigation;}})");
@@ -42,8 +44,13 @@ int main(int argc, char** argv) {
                     assert(navigation);
                     QQmlEngine::setObjectOwnership(navigation, QQmlEngine::CppOwnership);
                     engine.globalObject().setProperty("testNavigation", engine.newQObject(navigation));
-                    auto* button = root->findChild<QQuickItem*>(cancel ? "GeneralPreferencesCancel" : "GeneralPreferencesSave");
+                    auto* button = root->findChild<QQuickItem*>(cancel
+                        ? (variant == "phone" ? "nav.back" : "GeneralPreferencesCancel") : "GeneralPreferencesSave");
                     assert(button);
+                    const bool baseCallback = QString::fromLatin1(platform) == "android"
+                        || (variant == "apple" && QString::fromLatin1(platform) == "ios");
+                    assert(button->property("usesAndroidClickAction").isValid());
+                    assert(button->property("usesAndroidClickAction").toBool() == baseCallback);
                     QCoreApplication::processEvents();
                     QTest::qWait(30); // Let the real Qt positioner polish before pointer hit testing.
                     const QPoint inside = button->mapToScene(QPointF(button->width()/2, button->height()/2)).toPoint();
@@ -66,12 +73,14 @@ int main(int argc, char** argv) {
                     }
                     assert(root->property("saves").toInt() == (cancel ? 0 : 1));
                     assert(root->property("restores").toInt() == (cancel ? 1 : 0));
-                    const bool androidCancel = cancel && QString::fromLatin1(platform) == "android";
-                    assert(root->property("homes").toInt() == (androidCancel || (!active && route == 0) ? 1 : 0));
-                    assert(root->property("previous").toInt() == (!androidCancel && route == 1 ? 1 : 0));
-                    assert(root->property("scripts").toInt() == (!androidCancel && route == 2 ? 1 : 0));
-                    assert(root->property("pops").toInt() == (!androidCancel && active && route == 0 ? 1 : 0));
-                    if (androidCancel) { assert(!root->property("keyboardRaised").toBool()); }
+                    const bool callbackCancel = cancel && baseCallback;
+                    const bool settingsBack = callbackCancel && variant == "phone";
+                    assert(root->property("homes").toInt() == ((callbackCancel && !settingsBack) || (!callbackCancel && !active && route == 0) ? 1 : 0));
+                    assert(root->property("previous").toInt() == (!callbackCancel && route == 1 ? 1 : 0));
+                    assert(root->property("scripts").toInt() == (settingsBack || (!callbackCancel && route == 2) ? 1 : 0));
+                    assert(root->property("lastMessage").toString() == (settingsBack ? "settings.back" : (!callbackCancel && route == 2 ? "returnToPreviousApp" : "")));
+                    assert(root->property("pops").toInt() == (!callbackCancel && active && route == 0 ? 1 : 0));
+                    if (callbackCancel) { assert(!root->property("keyboardRaised").toBool()); }
                     for (const auto& message : messages) { assert(!message.contains("category-private-canary")); }
                     qInstallMessageHandler(nullptr);
                     delete root;

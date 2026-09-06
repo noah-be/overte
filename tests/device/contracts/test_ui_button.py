@@ -6,6 +6,7 @@ import shlex
 import subprocess
 import tempfile
 import unittest
+from test_tablet_preferences_actions import ui_variant
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 
@@ -26,7 +27,7 @@ class UiButton(unittest.TestCase):
                 for platform in ("android", "linux", "ios"):
                     with self.subTest(control=control, platform=platform):
                         subprocess.run(["unshare", "--user", "--map-root-user", "--net", str(binary),
-                                        str(ROOT / ("interface/resources/qml/controlsUit/" + control + ".qml")), platform],
+                                        str(ROOT / ("interface/resources/qml/controlsUit/" + control + ".qml")), platform, ui_variant()],
                                        env={**os.environ, "QT_QPA_PLATFORM": "offscreen", "QT_QUICK_BACKEND": "software"},
                                        check=True, timeout=10)
 

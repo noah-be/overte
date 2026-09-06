@@ -10,6 +10,13 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 
 
+def ui_variant():
+    variant = os.environ.get("OVERTE_UI_VARIANT", "main")
+    if variant not in ("main", "phone", "apple"):
+        raise ValueError("OVERTE_UI_VARIANT must be main, phone or apple")
+    return variant
+
+
 def block(source, offset):
     start = source.index("{", offset)
     depth = 1
@@ -22,6 +29,7 @@ def block(source, offset):
 
 class TabletPreferenceActions(unittest.TestCase):
     def test_actual_derived_handlers_and_routes(self):
+        variant = ui_variant()
         qml = ROOT / "interface/resources/qml"
         original = (qml / "hifi/tablet/tabletWindows/TabletPreferencesDialog.qml").read_text()
         self.assertNotIn("PICO_TABLET_PREFERENCES_", original)
@@ -50,13 +58,14 @@ Item {
  id: harness; width: 600; height: 240
  property int saves: 0; property int restores: 0
  property int homes: 0; property int previous: 0; property int pops: 0; property int scripts: 0
+ property string lastMessage: ""
  property bool hmdActive: false
  property alias previousFlag: dialog.gotoPreviousApp
  property alias scriptFlag: dialog.gotoPreviousAppFromScript
  property alias keyboardRaised: keyboard.raised
  property alias dialogItem: dialog
  property alias navigationItem: navigation
- function sendToScript(message) { scripts++; }
+ function sendToScript(message) { scripts++; lastMessage = typeof message === "string" ? message : message.type; }
  QtObject { id: section; function saveAll() { harness.saves++; } function restoreAll() { harness.restores++; } }
  QtObject { id: navigation
    function gotoHomeScreen() { harness.homes++; }
@@ -84,7 +93,7 @@ Item {
             binary = temporary / "test"
             subprocess.run(["c++", "-std=c++17", "-fPIC", str(here / "tablet-preferences-actions-test.cpp"),
                             "-o", str(binary), *flags], check=True, timeout=30)
-            subprocess.run(["unshare", "--user", "--map-root-user", "--net", str(binary), str(temporary / "fixture.qml")],
+            subprocess.run(["unshare", "--user", "--map-root-user", "--net", str(binary), str(temporary / "fixture.qml"), variant],
                            env={**os.environ, "QT_QPA_PLATFORM": "offscreen", "QT_QUICK_BACKEND": "software"},
                            check=True, timeout=20)
 

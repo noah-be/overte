@@ -1,4 +1,28 @@
-# SH-003 Tablet Preferences Save/Cancel dispatch v001
+# SH-003 Tablet Preferences Save/Cancel dispatch v002
+
+v002 adds one readonly Button dispatch capability, `usesAndroidClickAction`.
+The base and both derived handlers read this same value; do not duplicate an OS
+test in the dialog. Main/Pico and Phone retain Android-only callback selection;
+Apple retains Android-or-iOS. This does not globally enable the iOS callback on
+other source variants or remove Apple's existing callback for other consumers.
+
+Three explicitly selected test variants (`OVERTE_UI_VARIANT=main|phone|apple`)
+assert the intended dispatch truth table independently of the implementation.
+Main is the default. Tests require all four updated Python/C++ test files and
+existing Button/toggle fixtures. Phone/Apple import their separately pinned
+General-produced compatible source release, not the main patch over differing
+production files. Preserve Phone's `nav.back` selector and Android
+`settings.back` message; preserve Apple's existing callback Cancel-to-home
+including keyboard lowering on Android/iOS. Other noncallback routes are intact.
+The base callback is the intended route on Apple's affected mobile builds;
+the accidental second derived restore/navigation is removed, not redefined.
+
+v001 below described only the main/Pico source variant. It is not suitable as
+an unchanged Phone migration or a passing Apple implementation. Both owners
+reported those exact integration differences; v002 resolves dispatch selection.
+No native Qt5, persistence, full dialog or whole-UI acceptance is implied.
+
+## Historical v001 main/Pico behavior
 
 The actual TabletPreferencesDialog buttons now select one existing handler path
 per normal activation. Android uses the Shared Button's androidClickAction;
