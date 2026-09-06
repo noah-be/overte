@@ -1,5 +1,15 @@
 # Script info and same-thread shutdown public diagnostics
 
+v003 additionally closes all three public debugPrint sinks: no manager, source
+debugging enabled, and ordinary managed print. Debug severity and the original
+internal ScriptManager::print(message) delivery remain unchanged. The complete
+production function executes under real Qt logging in eight routes including
+native parent traversal, absent parent/source location, and empty arguments.
+Engine/context/logger-interface and internal console are explicit fixture seams.
+Original baseline fails the public event assertion; corrected Main passes.
+This does not sanitize internal console data or the remaining direct runtime,
+module-loader, exception and lifecycle diagnostic sites.
+
 v002 adds the actual error, warning and printed-message wrappers. Their public
 Qt sinks use the same bounded event while retaining critical/warning/debug
 severity. The five-method fixture exercises each wrapper's normal console,
