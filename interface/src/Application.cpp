@@ -589,8 +589,9 @@ void Application::openDirectory(const QString& path) {
 }
 
 void Application::forceLoginWithTokens(const QString& tokens) {
-    DependencyManager::get<AccountManager>()->setAccessTokens(tokens);
-    Setting::Handle<bool>(KEEP_ME_LOGGED_IN_SETTING_NAME, true).set(true);
+    if (DependencyManager::get<AccountManager>()->setAccessTokens(tokens)) {
+        Setting::Handle<bool>(KEEP_ME_LOGGED_IN_SETTING_NAME, true).set(true);
+    }
 }
 
 void Application::setConfigFileURL(const QString& fileUrl) {

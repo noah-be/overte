@@ -783,18 +783,40 @@ void AccountManager::refreshAccessToken() {
     }
 }
 
-void AccountManager::setAccessTokens(const QString& response) {
-    QJsonDocument jsonResponse = QJsonDocument::fromJson(response.toUtf8());
+bool AccountManager::setAccessTokens(const QString& response) {
+    constexpr int MAX_RESPONSE_BYTES = 1024 * 1024;
+    // Bound conversion first, then validate the actual UTF8 byte size.
+    if (response.size() > MAX_RESPONSE_BYTES) {
+        emit loginFailed();
+        return false;
+    }
+    const auto payload = response.toUtf8();
+    if (payload.size() > MAX_RESPONSE_BYTES) {
+        emit loginFailed();
+        return false;
+    }
+    QJsonParseError parseError;
+    QJsonDocument jsonResponse = QJsonDocument::fromJson(payload, &parseError);
+    if (parseError.error != QJsonParseError::NoError || !jsonResponse.isObject()) {
+        emit loginFailed();
+        return false;
+    }
     const QJsonObject& rootObject = jsonResponse.object();
 
     if (!rootObject.contains("error")) {
         // construct an OAuthAccessToken from the json object
 
-        if (!rootObject.contains("access_token") || !rootObject.contains("expires_in")
-            || !rootObject.contains("token_type")) {
-            // TODO: error handling - malformed token response
+        const auto accessToken = rootObject.value("access_token");
+        const auto tokenType = rootObject.value("token_type");
+        const auto expiresIn = rootObject.value("expires_in");
+        const auto refreshToken = rootObject.value("refresh_token");
+        if (!accessToken.isString() || accessToken.toString().isEmpty() ||
+                !tokenType.isString() || tokenType.toString().isEmpty() ||
+                !expiresIn.isDouble() || expiresIn.toInt(-1) <= 0 ||
+                (!refreshToken.isUndefined() && !refreshToken.isString())) {
             qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
+            emit loginFailed();
         } else {
             // clear the path from the response URL so we have the right root URL for this access token
             QUrl rootURL = rootObject.contains("url") ? rootObject["url"].toString() : _authURL;
@@ -804,17 +826,30 @@ void AccountManager::setAccessTokens(const QString& response) {
 
             _accountInfo = DataServerAccountInfo();
             _accountInfo.setAccessTokenFromJSON(rootObject);
+            const auto completionContext = _credentialContext.snapshot();
+            QPointer<AccountManager> completionOwner(this);
             emit loginComplete(rootURL);
+            if (!completionOwner || !completionContext.current()) {
+                return false;
+            }
 
             persistAccountToFile();
+            if (!completionOwner || !completionContext.current()) {
+                return false;
+            }
             saveLoginStatus(true);
+            if (!completionOwner || !completionContext.current()) {
+                return false;
+            }
             requestProfile();
+            return completionOwner && completionContext.current();
         }
     } else {
         // TODO: error handling
         qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         emit loginFailed();
     }
+    return false;
 }
 
 void AccountManager::requestAccessTokenFinished() {
