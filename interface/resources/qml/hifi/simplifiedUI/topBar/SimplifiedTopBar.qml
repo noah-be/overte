@@ -9,13 +9,13 @@
 //
 
 import "../../avatarapp" as AvatarImages
+import "../../audio" as SharedAudio
 import QtQuick 2.10
 import hifi.simplifiedUI.simplifiedControls 1.0 as SimplifiedControls
 import "../simplifiedConstants" as SimplifiedConstants
 import "../inputDeviceButton" as InputDeviceButton
 import stylesUit 1.0 as HifiStylesUit
 import TabletScriptingInterface 1.0
-import Qt5Compat.GraphicalEffects
 import "qrc:/qml/hifi/models" as HifiModels  // Absolute path so the same code works everywhere.
 
 Rectangle {
@@ -182,10 +182,10 @@ Rectangle {
             mipmap: true
         }
 
-        ColorOverlay {
+        SharedAudio.TintedImage {
             anchors.fill: outputDeviceButton
             opacity: outputDeviceButtonMouseArea.containsMouse ? 1.0 : 0.7
-            source: outputDeviceButton
+            source: outputDeviceButton.source
             color: (outputDeviceButton.outputMuted ? simplifiedUI.colors.controls.outputVolumeButton.text.muted : simplifiedUI.colors.controls.outputVolumeButton.text.noisy)
         }
 
@@ -231,13 +231,7 @@ Rectangle {
             width: 22
             height: width
             radius: width/2
-            visible: false
-        }
-
-        ColorOverlay {
-            anchors.fill: statusButton
             opacity: statusButton.currentStatus ? (statusButtonMouseArea.containsMouse ? 1.0 : 0.7) : 0.7
-            source: statusButton
             color: if (statusButton.currentStatus === "busy") {
                 "#ff001a"
             } else if (statusButton.currentStatus === "available") {
@@ -249,6 +243,8 @@ Rectangle {
             }
         }
 
+
+
         Image {
             id: statusIcon
             source: statusButton.currentStatus === "available" ? "images/statusPresent.svg" : "images/statusAway.svg"
@@ -258,10 +254,10 @@ Rectangle {
             mipmap: true
         }
 
-        ColorOverlay {
+        SharedAudio.TintedImage {
             anchors.fill: statusIcon
             opacity: statusButton.currentStatus ? (statusButtonMouseArea.containsMouse ? 1.0 : 0.7) : 0.7
-            source: statusIcon
+            source: statusIcon.source
             color: "#ffffff"
         }
 
@@ -350,10 +346,10 @@ Rectangle {
             mipmap: true
         }
 
-        ColorOverlay {
+        SharedAudio.TintedImage {
             anchors.fill: displayModeImage
             opacity: displayModeMouseArea.containsMouse ? 1.0 : 0.7
-            source: displayModeImage
+            source: displayModeImage.source
             color: simplifiedUI.colors.text.white
         }
 
@@ -418,10 +414,10 @@ Rectangle {
             mipmap: true
         }
 
-        ColorOverlay {
+        SharedAudio.TintedImage {
             opacity: helpButtonMouseArea.containsMouse ? 1.0 : 0.7
             anchors.fill: helpButtonImage
-            source: helpButtonImage
+            source: helpButtonImage.source
             color: simplifiedUI.colors.text.white
         }
 
@@ -462,10 +458,10 @@ Rectangle {
             mipmap: true
         }
 
-        ColorOverlay {
+        SharedAudio.TintedImage {
             opacity: settingsButtonMouseArea.containsMouse ? 1.0 : 0.7
             anchors.fill: settingsButtonImage
-            source: settingsButtonImage
+            source: settingsButtonImage.source
             color: simplifiedUI.colors.text.white
         }
 
