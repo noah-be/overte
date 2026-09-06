@@ -14,8 +14,8 @@ Image for all seven modes. Border, clipping, error/empty clearing and provider
 counts pass. A size request while hidden obtains one additional provider result,
 and showing again paints its distinct pixels; radius repaint requests no new
 source. The four real avatar caller subtrees and TopBar update functions remain
-passing. Making the captured source invisible rather than transparent fails the
-pixel check. The public zero-opacity capture probe is retained with the evidence.
+passing. Omitting the Canvas snapshot load fails the pixel check. A preliminary hidden-
+source mutation also passed with this geometry on Qt6 and is not negative proof. The public zero-opacity capture probe is retained with the evidence.
 
 This removes an unverified Canvas overload dependency. It does not prove native
 Qt5 compatibility: the exact pinned Qt5 archive/header and runtime were not tested.

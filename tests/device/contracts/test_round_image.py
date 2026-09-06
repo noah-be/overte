@@ -14,9 +14,9 @@ class RoundImage(unittest.TestCase):
     for name in ['RoundImage.qml','TransparencyMask.qml']:
      (d/name).write_bytes(subprocess.check_output(['git','show',baseline+':interface/resources/qml/hifi/avatarapp/'+name],cwd=ROOT))
     qml=d/'RoundImage.qml'
-   if os.environ.get('OVERTE_ROUND_IMAGE_HIDE_CAPTURE_SOURCE'):
-    original=qml.read_text();assert original.count('opacity: 0')==1
-    mutant=d/'RoundImage.qml';mutant.write_text(original.replace('opacity: 0', 'visible: false'));qml=mutant
+   if os.environ.get('OVERTE_ROUND_IMAGE_DROP_SNAPSHOT_LOAD'):
+    original=qml.read_text();assert original.count('drawing.loadImage(result.url)')==1
+    mutant=d/'RoundImage.qml';mutant.write_text(original.replace('drawing.loadImage(result.url)', '/* captured pixels deliberately not loaded */'));qml=mutant
    subprocess.run(['c++','-std=c++17','-fPIC',str(pathlib.Path(__file__).with_name('round-image-test.cpp')),'-o',str(binary),*flags],check=True,timeout=30)
    subprocess.run(['unshare','--user','--map-root-user','--net',str(binary),str(qml),str(reference),str(asset)],env=dict(os.environ,QT_QPA_PLATFORM='offscreen',QT_QUICK_BACKEND='software'),check=True,timeout=15)
 if __name__=='__main__':unittest.main()
