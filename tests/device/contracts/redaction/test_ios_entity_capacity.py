@@ -25,13 +25,15 @@ class EntityCapacity(unittest.TestCase):
                 target.write_bytes(subprocess.check_output(['git', '-C', str(ROOT),
                                    'show', baseline + ':' + relative]))
                 (scratch / 'security').symlink_to(ROOT / 'security', target_is_directory=True)
-            binary = scratch / 'test'
-            subprocess.run(['c++', '-std=c++17', '-fPIC', '-DOVERTE_IOS=1',
-                            '-DTEST_BASELINE=' + str(int(bool(baseline))), '-I', str(include),
-                            str(Path(__file__).with_name('ios-entity-capacity-test.cpp')),
-                            '-o', str(binary), *flags], check=True, timeout=30)
-            subprocess.run(['unshare', '--user', '--map-root-user', '--net', str(binary)],
-                           check=True, timeout=10)
+            for name in ('ios-entity-correlation-test.cpp', 'ios-entity-capacity-test.cpp'):
+                with self.subTest(fixture=name):
+                    binary = scratch / name.removesuffix('.cpp')
+                    subprocess.run(['c++', '-std=c++17', '-fPIC', '-DOVERTE_IOS=1',
+                                    '-DTEST_BASELINE=' + str(int(bool(baseline))), '-I', str(include),
+                                    str(Path(__file__).with_name(name)),
+                                    '-o', str(binary), *flags], check=True, timeout=30)
+                    subprocess.run(['unshare', '--user', '--map-root-user', '--net', str(binary)],
+                                   check=True, timeout=10)
 
 
 if __name__ == '__main__':

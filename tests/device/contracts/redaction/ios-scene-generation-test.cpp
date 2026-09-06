@@ -51,6 +51,7 @@ int main(int argc, char** argv) {
 #endif
     renderer.updateInScene(0, transaction); // Queued while unarmed.
     beginIOSRuntimeEntityEvidence();
+    setExpectedIOSRuntimeEntities({renderer._entity->getID().toString()});
     transaction.flush();
     assert(iosRuntimeEntityEvidenceSnapshot().scene == 0);
 #if !TEST_BASELINE
@@ -58,6 +59,7 @@ int main(int argc, char** argv) {
 #endif
     renderer.updateInScene(0, transaction);
     beginIOSRuntimeEntityEvidence(); // New world before the old render-thread callback.
+    setExpectedIOSRuntimeEntities({renderer._entity->getID().toString()});
 #if !TEST_BASELINE
     assert(iosRuntimeEntityEvidenceGeneration() != first);
 #endif
@@ -75,6 +77,7 @@ int main(int argc, char** argv) {
     assert(!recordIOSRuntimeSceneEntity("foreign-private-canary", 0));
 #endif
     beginIOSRuntimeEntityEvidence();
+    setExpectedIOSRuntimeEntities({renderer._entity->getID().toString()});
     renderer.updateInScene(0, transaction);
     renderer.valid = false;
     transaction.flush();

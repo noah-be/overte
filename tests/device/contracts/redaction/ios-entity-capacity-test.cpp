@@ -23,6 +23,11 @@ int main(int argc, char** argv) {
     for (int path = 0; path < 4; ++path) {
         beginIOSRuntimeEntityEvidence();
         const auto generation = iosRuntimeEntityEvidenceGeneration();
+        if (path != 0) {
+            QStringList matching;
+            for (int i = 0; i < limit; ++i) matching.append(QString::number(i));
+            setExpectedIOSRuntimeEntities(matching);
+        }
         auto record = [&](const QString& key) {
             switch (path) {
                 case 0: recordIOSRuntimeTreeEntity(key); break;

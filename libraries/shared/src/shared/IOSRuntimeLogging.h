@@ -70,6 +70,7 @@ struct IOSRuntimeEntityEvidenceSnapshot {
     bool armed { false };
     bool committed { false };
     int expected { 0 };
+    // These are intersections with expectedEntities, never unrelated raw totals.
     int renderables { 0 };
     int scene { 0 };
     int drawn { 0 };
@@ -277,13 +278,22 @@ inline bool iosRuntimeRenderDiagnosticsEnabled() {
 inline IOSRuntimeEntityEvidenceSnapshot iosRuntimeEntityEvidenceSnapshot() {
     auto& state = iosRuntimeEntityEvidenceState();
     std::lock_guard<std::mutex> lock(state.mutex);
+    const auto expectedCount = [&](const QSet<QString>& observed) {
+        int count = 0;
+        for (const auto& entity : observed) {
+            if (state.expectedEntities.contains(entity)) {
+                ++count;
+            }
+        }
+        return count;
+    };
     return {
         state.armed,
         state.committed,
         static_cast<int>(state.expectedEntities.size()),
-        static_cast<int>(state.renderedEntities.size()),
-        static_cast<int>(state.sceneEntities.size()),
-        static_cast<int>(state.drawnEntities.size()),
+        expectedCount(state.renderedEntities),
+        expectedCount(state.sceneEntities),
+        expectedCount(state.drawnEntities),
         state.capacityExceeded
     };
 }
@@ -304,7 +314,7 @@ inline QString takeIOSRuntimeEntityEvidenceIfReady(IOSRuntimeEntityEvidenceState
 inline QString recordIOSRuntimeTreeEntity(const QString& entity) {
     auto& state = iosRuntimeEntityEvidenceState();
     std::lock_guard<std::mutex> lock(state.mutex);
-    if (!state.armed || state.emitted) {
+    if (!state.armed) {
         return {};
     }
     if (!insertIOSRuntimeEntityBounded(state, state.expectedEntities, entity)) {
@@ -316,7 +326,7 @@ inline QString recordIOSRuntimeTreeEntity(const QString& entity) {
 inline QString setExpectedIOSRuntimeEntities(const QStringList& entities) {
     auto& state = iosRuntimeEntityEvidenceState();
     std::lock_guard<std::mutex> lock(state.mutex);
-    if (!state.armed || state.emitted) {
+    if (!state.armed) {
         return {};
     }
     if (entities.size() > IOS_RUNTIME_MAX_OBSERVED_ENTITIES) {
@@ -335,7 +345,7 @@ inline QString setExpectedIOSRuntimeEntities(const QStringList& entities) {
 inline QString recordIOSRuntimeRenderableEntity(const QString& entity) {
     auto& state = iosRuntimeEntityEvidenceState();
     std::lock_guard<std::mutex> lock(state.mutex);
-    if (!state.armed || state.emitted) {
+    if (!state.armed) {
         return {};
     }
     if (!insertIOSRuntimeEntityBounded(state, state.renderedEntities, entity)) {
