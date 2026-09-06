@@ -12,7 +12,19 @@
 class OffscreenUi : public QObject {
     Q_OBJECT
 public:
+    enum Icon { ICON_NONE };
+    QVariant inputResult;
+    QVariantMap lastItemConfig;
+    QString lastItemTitle;
+    QQuickItem* nextItemDialog { nullptr };
     QList<QObject*> _modalDialogListeners;
+    QVariant inputDialog(Icon, const QString&, const QString&, const QVariant&) { return inputResult; }
+    ModalDialogListener* customInputDialogAsync(Icon, const QString& title, const QVariantMap& config) {
+        lastItemConfig = config; lastItemTitle = title;
+        return make(1, nextItemDialog);
+    }
+    static QString getText(Icon, const QString&, const QString&, const QString&, bool*);
+    static ModalDialogListener* getItemAsync(Icon, const QString&, const QString&, const QStringList&, int, bool);
     void removeModalDialog(QObject*);
     void registerModalDialog(ModalDialogListener*);
     ModalDialogListener* make(int kind, QQuickItem* dialog, bool owned = true);
@@ -122,6 +134,39 @@ int main(int argc, char** argv) {
         dialog->choose(kind); assert(count == 1);
         delete static_cast<QObject*>(listener.data()); delete dialog;
         owner = retainedOwner;
+    }
+    // Actual input listener distinguishes cancel from an accepted empty value.
+    for (bool canceled : { true, false }) {
+        Dialog input;
+        auto* listener = owner->make(1, &input, false);
+        QVariant received("unset");
+        QObject::connect(listener, &ModalDialogListener::response, &app, [&](const QVariant& value) { received = value; });
+        if (canceled) { emit input.canceled(); } else { emit input.selected(QVariant(QString())); }
+        assert(received.isValid() != canceled);
+        owner->inputResult = received;
+        bool ok = !canceled;
+        assert(OffscreenUi::getText(OffscreenUi::ICON_NONE, "Title", "Label", "old", &ok).isEmpty());
+        assert(ok != canceled);
+        delete static_cast<QObject*>(listener);
+    }
+    {
+        Dialog item;
+        owner->nextItemDialog = &item;
+        QPointer<ModalDialogListener> listener = OffscreenUi::getItemAsync(OffscreenUi::ICON_NONE, "Item", "Choose", { "first", "second" }, 1, false);
+        assert(listener && listener->parent() == owner.data());
+        assert(owner->lastItemTitle == "Item");
+        assert(owner->lastItemConfig.value("items").toStringList() == QStringList({ "first", "second" }));
+        assert(owner->lastItemConfig.value("label").toString() == "Choose");
+        assert(owner->lastItemConfig.value("current").toInt() == 1);
+        assert(!owner->lastItemConfig.value("editable").toBool());
+        emit item.canceled(); flush(); assert(!listener);
+        owner->nextItemDialog = nullptr;
+        listener = OffscreenUi::getItemAsync(OffscreenUi::ICON_NONE, "Item", "Choose", {}, 0, true);
+        assert(listener);
+        int canceled = 0;
+        QObject::connect(listener, &ModalDialogListener::response, &app, [&](const QVariant& value) { assert(!value.isValid()); ++canceled; });
+        QCoreApplication::processEvents(); assert(canceled == 1);
+        flush(); assert(!listener);
     }
     {
         Dialog pendingDialog;

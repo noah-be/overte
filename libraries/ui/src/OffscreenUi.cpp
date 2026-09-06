@@ -520,18 +520,21 @@ class InputDialogListener : public ModalDialogListener {
             return;
         }
         connect(_dialog, SIGNAL(selected(QVariant)), this, SLOT(onSelected(const QVariant&)));
-        connect(_dialog, SIGNAL(canceled()), this, SLOT(onSelected()));
+        connect(_dialog, SIGNAL(canceled()), this, SLOT(onCanceled()));
     }
 
 private slots:
-    void onSelected(const QVariant& result = "") {
+    void onSelected(const QVariant& result) {
         finish(result);
+    }
+    void onCanceled() {
+        finish(QVariant());
     }
 };
 
 QString OffscreenUi::getText(const Icon icon, const QString& title, const QString& label, const QString& text, bool* ok) {
     if (ok) { *ok = false; }
-    QVariant result = DependencyManager::get<OffscreenUi>()->inputDialog(icon, title, label, text).toString();
+    QVariant result = DependencyManager::get<OffscreenUi>()->inputDialog(icon, title, label, text);
     if (ok && result.isValid()) {
         *ok = true;
     }
@@ -571,18 +574,14 @@ ModalDialogListener* OffscreenUi::getTextAsync(const Icon icon, const QString& t
 ModalDialogListener* OffscreenUi::getItemAsync(const Icon icon, const QString& title, const QString& label, const QStringList& items,
     int current, bool editable) {
 
-    auto offscreenUi = DependencyManager::get<OffscreenUi>();
-    auto inputDialog = offscreenUi->createInputDialog(icon, title, label, current);
-    if (!inputDialog) {
-        return nullptr;
-    }
-    inputDialog->setProperty("items", items);
-    inputDialog->setProperty("editable", editable);
-
-    InputDialogListener* inputDialogListener = new InputDialogListener(inputDialog);
-    offscreenUi->getModalDialogListeners().push_back(qobject_cast<QObject*>(inputDialogListener));
-
-    return inputDialogListener;
+    QVariantMap config;
+    config.insert("label", label);
+    config.insert("current", current);
+    config.insert("items", items);
+    config.insert("editable", editable);
+    // The existing asynchronous factory marshals creation to the UI thread,
+    // registers ownership and reports creation failure through cancellation.
+    return DependencyManager::get<OffscreenUi>()->customInputDialogAsync(icon, title, config);
 }
 
 QVariant OffscreenUi::inputDialog(const Icon icon, const QString& title, const QString& label, const QVariant& current) {
