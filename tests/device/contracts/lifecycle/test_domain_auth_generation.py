@@ -12,7 +12,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[4]
 class DomainAuthGeneration(unittest.TestCase):
     def test_original_domain_auth_lifecycle_and_raw_diagnostics(self):
         include_root = pathlib.Path(os.environ.get('OVERTE_DOMAIN_AUTH_BASELINE_ROOT', ROOT))
-        source = (include_root / 'libraries/networking/src/DomainAccountManager.cpp').read_text()
+        baseline_sha = os.environ.get('OVERTE_DOMAIN_AUTH_BASELINE_SHA')
+        source = (subprocess.check_output(['git', '-C', str(include_root), 'show',
+                  baseline_sha + ':libraries/networking/src/DomainAccountManager.cpp'], text=True)
+                  if baseline_sha else (include_root / 'libraries/networking/src/DomainAccountManager.cpp').read_text())
         # Replace dependency includes only; retain ALL original methods verbatim.
         methods = '\n'.join(line for line in source.splitlines() if not line.startswith('#include'))
         flags = shlex.split(subprocess.check_output(['pkg-config', '--cflags', '--libs', 'Qt6Core', 'Qt6Network'], text=True))

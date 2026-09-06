@@ -27,6 +27,8 @@ struct FakeReply : QNetworkReply {
         // Deliberately race an apparently successful response with cancellation.
         finish(200, "{\"access_token\":\"aborted-token-private-canary\"}");
     }
+    void networkFailure() { setError(QNetworkReply::RemoteHostClosedError, "private-error-canary"); }
+    void stream(QByteArray data) { response = data; offset = 0; emit readyRead(); }
     qint64 bytesAvailable() const override { return response.size() - offset + QNetworkReply::bytesAvailable(); }
     qint64 readData(char* output, qint64 maximum) override {
         const auto count = qMin(maximum, qint64(response.size()) - offset);
@@ -112,6 +114,52 @@ int main(int argc, char** argv) {
     manager.requestAccessToken("u", "p");
     network.latest->finish(200, "{}");
     assert(failure == 2 && manager.getAccessToken().isEmpty());
+    // Actual form encoding and redirect policy, not a reconstructed request.
+    manager.setClientID("client&scope=private +\xC3\xA4");
+    manager.requestAccessToken("u+&", "p=&");
+    assert(network.body == "grant_type=password&username=u%2B%26&password=p%3D%26&client_id=client%26scope%3Dprivate%20%2B%C3%A4");
+    assert(network.latest->request().attribute(QNetworkRequest::RedirectPolicyAttribute).toInt() ==
+           QNetworkRequest::ManualRedirectPolicy);
+    assert(network.latest->readBufferSize() == 1024 * 1024 + 1);
+    network.latest->finish(302, "{\"access_token\":\"redirect-private-canary\"}");
+    assert(failure == 3 && success == 1 && tokens == 1 && manager.getAccessToken().isEmpty());
+    const std::vector<QByteArray> invalidPayloads {
+        "{", "[]", "null", "{\"access_token\":null}", "{\"access_token\":true}",
+        "{\"access_token\":123}", "{\"access_token\":{}}", "{\"access_token\":[]}",
+        "{\"access_token\":\"\"}", "{\"access_token\":\"  \\t\"}",
+        "{\"access_token\":\"t\",\"refresh_token\":null}",
+        "{\"access_token\":\"t\",\"refresh_token\":1}",
+        QByteArray("{\"access_token\":\"t\",\"padding\":\"") + QByteArray(1024 * 1024, 'x') + "\"}"
+    };
+    for (const auto& payload : invalidPayloads) {
+        const int before = failure;
+        manager.requestAccessToken("u", "p");
+        network.latest->finish(200, payload);
+        assert(failure == before + 1 && success == 1 && tokens == 1);
+        assert(manager.getAccessToken().isEmpty() && manager.getRefreshToken().isEmpty());
+        network.latest->finish(200, "{\"access_token\":\"duplicate-private-canary\"}");
+        assert(failure == before + 1 && success == 1);
+    }
+    int before = failure;
+    manager.requestAccessToken("u", "p");
+    network.latest->networkFailure();
+    network.latest->finish(200, "{\"access_token\":\"network-error-private-canary\"}");
+    assert(failure == before + 1 && success == 1 && manager.getAccessToken().isEmpty());
+    before = failure;
+    manager.requestAccessToken("u", "p");
+    auto streaming = network.latest;
+    streaming->stream(QByteArray(1024 * 1024 + 1, 'x'));
+    assert(streaming->aborts == 1 && failure == before + 1 && success == 1);
+    streaming->stream(QByteArray(1024 * 1024 + 1, 'x'));
+    assert(streaming->aborts == 1 && failure == before + 1);
+    // Inclusive boundary succeeds; optional absent/empty refresh token remains supported.
+    manager.requestAccessToken("u", "p");
+    QByteArray exact("{\"access_token\":\"boundary-token\",\"refresh_token\":\"\",\"padding\":\"");
+    exact += QByteArray(1024 * 1024 - exact.size() - 2, 'x'); exact += "\"}";
+    assert(exact.size() == 1024 * 1024);
+    network.latest->finish(200, exact);
+    assert(success == 2 && tokens == 2 && manager.getAccessToken() == "boundary-token");
+    assert(manager.getRefreshToken().isEmpty());
     manager.checkAndSignalForAccessToken();
     manager.setClientID("client-c"); // Cancel the old delayed dialog.
     waitTimers(); assert(prompts == 0);

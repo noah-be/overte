@@ -30,6 +30,9 @@
 // FIXME: Generalize to other OAuth2 sources for domain login.
 
 const bool VERBOSE_HTTP_REQUEST_DEBUGGING = false;
+namespace {
+constexpr qint64 MAX_DOMAIN_AUTH_RESPONSE_BYTES = 1024 * 1024;
+}
 
 DomainAccountManager::DomainAccountManager() {
     connect(this, &DomainAccountManager::loginComplete, this, &DomainAccountManager::sendInterfaceAccessTokenToServer);
@@ -124,16 +127,25 @@ void DomainAccountManager::requestAccessToken(const QString& username, const QSt
     formData.append("grant_type=password&");
     formData.append("username=" + QUrl::toPercentEncoding(username) + "&");
     formData.append("password=" + QUrl::toPercentEncoding(password) + "&");
-    formData.append("client_id=" + _currentAuth.clientID.toUtf8());
+    formData.append("client_id=" + QUrl::toPercentEncoding(_currentAuth.clientID));
 
     request.setUrl(_currentAuth.authURL);
 
-    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    // Never replay a credential-bearing POST to an unreviewed redirect target.
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
 
     QNetworkAccessManager& networkAccessManager = NetworkAccessManager::getInstance();
     QNetworkReply* requestReply = networkAccessManager.post(request, formData);
     _pendingAccessTokenReply = requestReply;
     overte::network::watchRequest(requestReply, ticket);
+    requestReply->setReadBufferSize(MAX_DOMAIN_AUTH_RESPONSE_BYTES + 1);
+    connect(requestReply, &QNetworkReply::readyRead, this, [this, requestReply, ticket] {
+        if (requestReply == _pendingAccessTokenReply && ticket.current() &&
+                requestReply->bytesAvailable() > MAX_DOMAIN_AUTH_RESPONSE_BYTES) {
+            invalidatePendingAccessToken();
+            emit loginFailed();
+        }
+    });
     connect(requestReply, &QNetworkReply::finished, this, &DomainAccountManager::requestAccessTokenFinished);
     connect(requestReply, &QNetworkReply::finished, requestReply, &QObject::deleteLater);
     auto deadline = new QTimer(requestReply);
@@ -158,11 +170,19 @@ void DomainAccountManager::requestAccessTokenFinished() {
     }
     _pendingAccessTokenReply.clear(); // One terminal reply; reject duplicates.
 
-    QJsonDocument jsonResponse = QJsonDocument::fromJson(requestReply->readAll());
-    const QJsonObject& rootObject = jsonResponse.object();
-
     auto httpStatus = requestReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    if (200 <= httpStatus && httpStatus < 300) {
+    const auto payload = requestReply->read(MAX_DOMAIN_AUTH_RESPONSE_BYTES + 1);
+    QJsonParseError parseError;
+    const auto jsonResponse = QJsonDocument::fromJson(payload, &parseError);
+    const auto rootObject = jsonResponse.object();
+    const auto accessToken = rootObject.value("access_token");
+    const auto refreshToken = rootObject.value("refresh_token");
+    const bool validResponse = requestReply->error() == QNetworkReply::NoError &&
+        payload.size() <= MAX_DOMAIN_AUTH_RESPONSE_BYTES && requestReply->bytesAvailable() == 0 &&
+        parseError.error == QJsonParseError::NoError && jsonResponse.isObject() &&
+        accessToken.isString() && !accessToken.toString().trimmed().isEmpty() &&
+        (refreshToken.isUndefined() || refreshToken.isString());
+    if (200 <= httpStatus && httpStatus < 300 && validResponse) {
 
         // miniOrange plugin provides no scope.
         if (rootObject.contains("access_token")) {
