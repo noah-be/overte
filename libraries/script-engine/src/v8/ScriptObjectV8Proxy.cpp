@@ -1315,35 +1315,33 @@ int ScriptSignalV8Proxy::qt_metacall(QMetaObject::Call call, int id, void** argu
         v8::Context::Scope contextScope(context);
         v8::Local<v8::Value> args[Q_METAMETHOD_INVOKE_MAX_ARGS];
         int numArgs = _meta.parameterCount();
+        if (numArgs < 0 || numArgs > Q_METAMETHOD_INVOKE_MAX_ARGS || (numArgs > 0 && !arguments)) {
+            return -1;
+        }
         for (int arg = 0; arg < numArgs; ++arg) {
             int methodArgTypeId = _meta.parameterType(arg);
-            Q_ASSERT(methodArgTypeId != QMetaType::UnknownType);
-            QVariant argValue = variantFromMetaTypeId(methodArgTypeId, arguments[arg + 1]);
+            if (methodArgTypeId == QMetaType::UnknownType || !arguments[arg + 1]) { return -1; }
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+            QVariant argValue(QMetaType(methodArgTypeId), arguments[arg + 1]);
+#else
+            QVariant argValue(methodArgTypeId, arguments[arg + 1]);
+#endif
             args[arg] = _engine->castVariantToValue(argValue).get();
+            if (isolate->IsExecutionTerminating() || args[arg].IsEmpty()) { return -1; }
         }
         for (ConnectionList::iterator iter = connections.begin(); iter != connections.end(); ++iter) {
             Connection& conn = *iter;
             {
                 auto functionContext = context;
 
-                Q_ASSERT(!conn.callback.get().IsEmpty());
-                Q_ASSERT(!conn.callback.get()->IsUndefined());
-                if (conn.callback.get()->IsNull()) {
-                    qCDebug(scriptengine_v8) << "ScriptSignalV8Proxy::qt_metacall: Connection callback is Null";
-                    _engine->popContext();
-                    continue;
-                }
-                if (!conn.callback.get()->IsFunction()) {
-                    auto stringV8 = conn.callback.get()->ToDetailString(functionContext).ToLocalChecked();
-                    QString error = *v8::String::Utf8Value(_engine->getIsolate(), stringV8);
-                    qCDebug(scriptengine_v8) << error;
-                    Q_ASSERT(false);
-                }
-                v8::Local<v8::Function> callback = v8::Local<v8::Function>::Cast(conn.callback.get());
+                const auto callbackValue = conn.callback.get();
+                if (callbackValue.IsEmpty() || !callbackValue->IsFunction()) { continue; }
+                v8::Local<v8::Function> callback = callbackValue.As<v8::Function>();
 
                 v8::Local<v8::Value> v8This;
-                if (conn.thisValue.get()->IsObject()) {
-                    v8This = conn.thisValue.get();
+                const auto receiver = conn.thisValue.get();
+                if (!receiver.IsEmpty() && receiver->IsObject()) {
+                    v8This = receiver;
                 } else {
                     v8This = functionContext->Global();
                 }
@@ -1351,14 +1349,17 @@ int ScriptSignalV8Proxy::qt_metacall(QMetaObject::Call call, int id, void** argu
                 v8::TryCatch tryCatch(isolate);
                 auto maybeResult = callback->Call(functionContext, v8This, numArgs, args);
                 Q_UNUSED(maybeResult); // Signals don't have return values
+                if (tryCatch.HasTerminated() || isolate->IsExecutionTerminating()) {
+                    return -1; // No diagnostic reentry or later signal callback.
+                }
                 if (tryCatch.HasCaught()) {
                     QString errorMessage(QString("Signal proxy ") + fullName() + " connection call failed: \""
                                           + _engine->formatErrorMessageFromTryCatch(tryCatch)
-                                          + "\nThis provided: " + QString::number(conn.thisValue.get()->IsObject()));
+                                          + "\nThis provided: " + QString::number(!receiver.IsEmpty() && receiver->IsObject()));
                     v8::Local<v8::Message> exceptionMessage = tryCatch.Message();
                     int errorLineNumber = -1;
                     if (!exceptionMessage.IsEmpty()) {
-                        errorLineNumber = exceptionMessage->GetLineNumber(context).FromJust();
+                        errorLineNumber = exceptionMessage->GetLineNumber(context).FromMaybe(-1);
                     }
                     if (_engine->_manager) {
                         _engine->_manager->scriptErrorMessage(errorMessage, getFileNameFromTryCatch(tryCatch, isolate, context),
