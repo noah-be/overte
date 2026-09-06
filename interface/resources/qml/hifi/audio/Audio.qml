@@ -15,7 +15,6 @@
 import QtQuick 2.10
 import QtQuick.Controls 2.2
 import QtQuick.Layouts 1.3
-import Qt5Compat.GraphicalEffects
 
 import stylesUit 1.0
 import controlsUit 1.0 as HifiControlsUit
@@ -746,41 +745,14 @@ Rectangle {
                         AudioScriptingInterface.inputLevelChanged.disconnect(onInputLevelChanged);
                     }
 
-                    Rectangle { // base
-                        radius: 4;
-                        anchors { fill: parent }
-                        color: colors.gutter;
-                    }
-
-                    Rectangle { // noiseMask
-                        id: noiseMask;
-                        width: parent.width * noiseBar.level;
-                        radius: 5;
-                        anchors {
-                            bottom: parent.bottom;
-                            bottomMargin: 0;
-                            top: parent.top;
-                            topMargin: 0;
-                            left: parent.left;
-                            leftMargin: 0;
-                        }
-                    }
-
-                    LinearGradient {
-                        anchors { fill: noiseMask }
-                        source: noiseMask
-                        start: Qt.point(0, 0);
-                        end: Qt.point(noiseBar.width, 0);
-                        gradient: Gradient {
-                            GradientStop {
-                                position: 0;
-                                color: noiseBar.gated ? "#E2334D" : "#39A38F";
-                            }
-                            GradientStop {
-                                position: 1;
-                                color: noiseBar.gated ? "#E2334D" : "#39A38F";
-                            }
-                        }
+                    LevelMeter {
+                        anchors.fill: parent
+                        level: noiseBar.level
+                        vertical: false
+                        gutter: colors.gutter
+                        low: noiseBar.gated ? "#E2334D" : "#39A38F"
+                        middle: low
+                        high: low
                     }
                 }
             }

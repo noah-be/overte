@@ -245,48 +245,14 @@ Rectangle {
         width: 8;
         height: 32;
 
-        Rectangle { // base
-            id: baseBar
-            radius: 4;
-            anchors { fill: parent }
-            color: colors.gutter;
-        }
-
-        Rectangle { // mask
-            id: mask;
-            visible: (!(pushToTalk && !pushingToTalk))
-            height: parent.height * level;
-            width: parent.width;
-            radius: 5;
-            anchors {
-                bottom: parent.bottom;
-                bottomMargin: 0;
-                left: parent.left;
-                leftMargin: 0;
-            }
-        }
-
-        LinearGradient {
-            anchors { fill: mask }
-            visible: (!(pushToTalk && !pushingToTalk))
-            source: mask
-            start: Qt.point(0, 0);
-            end: Qt.point(0, bar.height);
-            rotation: 180
-            gradient: Gradient {
-                GradientStop {
-                    position: 0.0;
-                    color: colors.greenStart;
-                }
-                GradientStop {
-                    position: 0.5;
-                    color: colors.greenEnd;
-                }
-                GradientStop {
-                    position: 1.0;
-                    color: colors.yellow;
-                }
-            }
+        LevelMeter {
+            anchors.fill: parent
+            level: (pushToTalk && !pushingToTalk) ? 0 : micBar.level
+            vertical: true
+            gutter: colors.gutter
+            low: colors.greenStart
+            middle: colors.greenEnd
+            high: colors.yellow
         }
     }
 }
