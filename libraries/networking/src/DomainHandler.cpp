@@ -123,6 +123,7 @@ void DomainHandler::softReset(QString reason) {
 }
 
 void DomainHandler::hardReset(QString reason) {
+    _hostnameLookup.cancel();
     emit resetting();
 
     softReset(reason);
@@ -233,7 +234,9 @@ void DomainHandler::setURLAndID(QUrl domainURL, QUuid domainID) {
                 if (domainURL.scheme() == URL_SCHEME_OVERTE) {
                     // re-set the sock addr to null and fire off a lookup of the IP address for this domain-server's hostname
                     qCDebug(networking, "Looking up DS hostname %s.", domainURL.host().toLocal8Bit().constData());
-                    QHostInfo::lookupHost(domainURL.host(), this, &DomainHandler::completedHostnameLookup);
+                    _hostnameLookup.start(domainURL.host(), this, [this](const QHostInfo& info) {
+                        completedHostnameLookup(info);
+                    });
                 }
 
                 DependencyManager::get<NodeList>()->flagTimeForConnectionStep(

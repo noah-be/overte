@@ -34,6 +34,7 @@
 #include "ReceivedMessage.h"
 #include "NetworkingConstants.h"
 #include "MetaverseAPI.h"
+#include "ScopedHostnameLookup.h"
 
 const unsigned short DEFAULT_DOMAIN_SERVER_PORT =
     QProcessEnvironment::systemEnvironment()
@@ -296,6 +297,7 @@ private:
     QUuid _uuid;
     Node::LocalID _localID;
     QUrl _domainURL;
+    overte::network::ScopedHostnameLookup _hostnameLookup;
     QUrl _errorDomainURL;
     SockAddr _sockAddr;
     QUuid _assignmentUUID;
