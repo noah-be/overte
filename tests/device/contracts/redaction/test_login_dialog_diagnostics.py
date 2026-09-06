@@ -13,8 +13,9 @@ class LoginDialogDiagnostics(unittest.TestCase):
     def test_original_credentials_and_phone_guard_without_raw_logs(self):
         source = (ROOT / 'interface/src/ui/LoginDialog.cpp').read_text()
         methods = []
-        for name in ('login', 'loginDomain', 'signup'):
-            start = source.index('void LoginDialog::' + name + '(')
+        for name in ('login', 'loginDomain', 'signup', 'isPhoneLoginRequestPending'):
+            prefix = 'bool' if name == 'isPhoneLoginRequestPending' else 'void'
+            start = source.index(prefix + ' LoginDialog::' + name + '(')
             end = source.index('\n}', start) + 2
             methods.append(source[start:end])
         flags = shlex.split(subprocess.check_output(['pkg-config', '--cflags', '--libs', 'Qt6Core', 'Qt6Network'], text=True))

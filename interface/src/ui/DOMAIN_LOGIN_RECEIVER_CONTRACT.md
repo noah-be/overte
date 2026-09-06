@@ -4,8 +4,12 @@ The complete LoginDialog constructor now forwards DomainAccountManager's
 loginComplete/loginFailed on every platform, including Android VR/Pico. Only
 these two connections move outside the existing Android account/focus guard.
 AccountManager's native Android route, Phone (and retained Apple iOS) pending
-state cleanup, focus connections, dismissal and showWithSelection HMD/Tablet
+guards, focus connections, dismissal and showWithSelection HMD/Tablet
 routing are unchanged. No duplicate domain connections are added.
+
+Later LOGIN_PENDING_OWNERSHIP_CONTRACT.md replaces dialog-owned pending cleanup
+with application-owned account observers and the actual domain pending getter.
+Domain result forwarding remains the same; it cannot clear account ownership.
 
 Actual Pico Application_Setup connects DomainAccountManager::authRequired to
 DialogsManager::showDomainLoginDialog; the latter selects domain login and

@@ -3,7 +3,9 @@
 LoginDialog::login, loginDomain and signup no longer log the supplied username.
 Their three qDebug expressions emit the existing fixed Redacted event. Actual
 username/password/email dispatch, callback names and the Phone-specific
-phoneLoginState.beginRequest gating remain byte-for-byte unchanged.
+credential admission is now refined by LOGIN_PENDING_OWNERSHIP_CONTRACT.md:
+account-only beginRequest, actual domain pending owner, and both guards checked.
+The closed diagnostic expressions themselves remain unchanged.
 
 Requires px16-redaction/v001 SafeDiagnostics.h and the existing PhoneLoginState.h
 where the Phone variant uses it. No dependency on the new DomainAccountManager

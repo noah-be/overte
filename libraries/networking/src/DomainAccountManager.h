@@ -48,6 +48,7 @@ public:
 
     bool hasLogIn();
     bool isLoggedIn();
+    bool isAccessTokenRequestPending() const { return !_pendingAccessTokenReply.isNull(); }
 
     Q_INVOKABLE bool checkAndSignalForAccessToken();
 

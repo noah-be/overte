@@ -9,6 +9,7 @@
 #include <QtQml/QJSValue>
 #include <cassert>
 #include "interface/src/ui/PhoneLoginState.h"
+#include "interface/src/ui/AccountLoginStateBinding.h"
 
 using QQuickItem = QObject;
 using OffscreenQmlDialog = QObject;
@@ -53,6 +54,7 @@ signals:
     void focusDisabled();
 };
 PhoneLoginState phoneLoginState;
+QPointer<AccountLoginStateBinding<AccountManager>> phoneAccountLoginBinding;
 #include "receiver.moc"
 // Define production switches only after host Qt/moc headers are parsed.
 #if TEST_ANDROID
@@ -93,7 +95,7 @@ int main(int argc, char** argv) {
         assert(completed == 1 && failed == 0);
         assert(view->property("successStarts").toInt() == 1);
         assert(avatar.property("displayName").toString() == "domain receiver fixture");
-        assert(phoneLoginState.requestPending() == !TEST_EXPECT_PENDING);
+        assert(phoneLoginState.requestPending()); // Domain result cannot clear account ownership.
         phoneLoginState.finishRequest();
         assert(phoneLoginState.beginRequest());
         // Manager's failure signal is also its finite-deadline outcome.
@@ -106,7 +108,7 @@ int main(int argc, char** argv) {
         assert(properties.property("loginDialog").toQObject() == &dialog);
         assert(!view->property("loggingInSpinner").value<QJSValue>().property("visible").toBool());
         assert(!view->property("loggingInGlyph").value<QJSValue>().property("visible").toBool());
-        assert(phoneLoginState.requestPending() == !TEST_EXPECT_PENDING);
+        assert(phoneLoginState.requestPending());
 
         // Account and focus routing stay excluded on Pico, enabled elsewhere.
         const int accountExpected = !TEST_ANDROID || TEST_PHONE;
@@ -116,6 +118,7 @@ int main(int argc, char** argv) {
         emit app.loginDialogFocusDisabled();
         assert(completed == 1 + accountExpected && failed == 1 + accountExpected);
         assert(focused == accountExpected && unfocused == accountExpected);
+        assert(phoneLoginState.requestPending() == !TEST_EXPECT_PENDING);
         emit dialog.dismissedLoginDialog();
         assert(app.dismissals == 1);
     }
@@ -123,4 +126,40 @@ int main(int argc, char** argv) {
     emit domain->loginComplete();
     emit domain->loginFailed();
     assert(completed == oldCompleted && failed == oldFailed);
+    // A closed dialog does not remove the application's account-state observer.
+    phoneLoginState.finishRequest();
+    assert(phoneLoginState.beginRequest());
+    {
+        LoginDialog reopened;
+        assert(phoneLoginState.requestPending()); // Rebinding same manager cannot erase it.
+    }
+    emit account->loginComplete(QUrl());
+    assert(phoneLoginState.requestPending() == !TEST_EXPECT_PENDING);
+    phoneLoginState.finishRequest();
+    assert(phoneLoginState.beginRequest());
+    emit account->loginFailed();
+    assert(phoneLoginState.requestPending() == !TEST_EXPECT_PENDING);
+
+    // Real binding lifetime/replacement: a queued old-manager result cannot
+    // clear a request admitted against the replacement manager.
+    PhoneLoginState isolatedState;
+    QPointer<AccountLoginStateBinding<AccountManager>> isolatedBinding;
+    auto first = new AccountManager;
+    auto second = new AccountManager;
+    bindAccountLoginState(isolatedState, isolatedBinding, first, &app);
+    auto* originalBinding = isolatedBinding.data();
+    bindAccountLoginState(isolatedState, isolatedBinding, first, &app);
+    assert(isolatedBinding.data() == originalBinding);
+    assert(isolatedState.beginRequest());
+    QMetaObject::invokeMethod(first, [first] { emit first->loginFailed(); }, Qt::QueuedConnection);
+    bindAccountLoginState(isolatedState, isolatedBinding, second, &app);
+    assert(!isolatedState.requestPending());
+    assert(isolatedState.beginRequest());
+    QCoreApplication::processEvents();
+    assert(isolatedState.requestPending());
+    delete first;
+    assert(isolatedState.requestPending());
+    delete second;
+    assert(!isolatedState.requestPending());
+    delete isolatedBinding.data(); // Destroy before referenced local state.
 }

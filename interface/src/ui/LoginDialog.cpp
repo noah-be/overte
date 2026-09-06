@@ -31,6 +31,7 @@
 #include "DialogsManager.h"
 #include "Menu.h"
 #include "PhoneLoginState.h"
+#include "AccountLoginStateBinding.h"
 
 #include "Application.h"
 #include "scripting/HMDScriptingInterface.h"
@@ -47,6 +48,7 @@ namespace {
 bool phoneLoginOwnsUiFocus { false };
 bool phoneLoginCleanupQueued { false };
 PhoneLoginState phoneLoginState;
+QPointer<AccountLoginStateBinding<AccountManager>> phoneAccountLoginBinding;
 
 void acquirePhoneLoginUiFocus() {
     if (!phoneLoginOwnsUiFocus) {
@@ -82,12 +84,7 @@ LoginDialog::LoginDialog(QQuickItem *parent) : OffscreenQmlDialog(parent) {
     connect(accountManager.data(), &AccountManager::loginFailed,
             this, &LoginDialog::handleLoginFailed);
 #if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
-    connect(this, &LoginDialog::handleLoginCompleted, this, [] {
-        phoneLoginState.finishRequest();
-    });
-    connect(this, &LoginDialog::handleLoginFailed, this, [] {
-        phoneLoginState.finishRequest();
-    });
+    bindAccountLoginState(phoneLoginState, phoneAccountLoginBinding, accountManager.data(), qApp);
 #endif
     connect(qApp, &Application::loginDialogFocusEnabled, this, &LoginDialog::focusEnabled);
     connect(qApp, &Application::loginDialogFocusDisabled, this, &LoginDialog::focusDisabled);
@@ -225,7 +222,8 @@ void LoginDialog::dismissPhoneLoginDialog() {
 void LoginDialog::login(const QString& username, const QString& password) const {
     qDebug() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 #if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
-    if (!phoneLoginState.beginRequest()) {
+    if (DependencyManager::get<DomainAccountManager>()->isAccessTokenRequestPending() ||
+            !phoneLoginState.beginRequest()) {
         return;
     }
 #endif
@@ -235,7 +233,8 @@ void LoginDialog::login(const QString& username, const QString& password) const 
 void LoginDialog::loginDomain(const QString& username, const QString& password) const {
     qDebug() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 #if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
-    if (!phoneLoginState.beginRequest()) {
+    if (phoneLoginState.requestPending() ||
+            DependencyManager::get<DomainAccountManager>()->isAccessTokenRequestPending()) {
         return;
     }
 #endif
@@ -244,7 +243,8 @@ void LoginDialog::loginDomain(const QString& username, const QString& password) 
 
 #if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
 bool LoginDialog::isPhoneLoginRequestPending() const {
-    return phoneLoginState.requestPending();
+    return phoneLoginState.requestPending() ||
+        DependencyManager::get<DomainAccountManager>()->isAccessTokenRequestPending();
 }
 #endif
 
