@@ -54,6 +54,22 @@ class OpenSSLAndroidConan(ConanFile):
             raise ConanInvalidConfiguration("OpenSSL must be shared in the Android APK graph")
         self._required_tool("user.overte:perl_path")
         self._required_tool("user.overte:make_path")
+        self._android_ndk()
+
+    def _android_ndk(self):
+        ndk = self.conf.get("tools.android:ndk_path", check_type=str)
+        if not ndk or not os.path.isabs(ndk):
+            raise ConanInvalidConfiguration("tools.android:ndk_path must be an absolute NDK directory")
+        if (str(self.settings_build.os), str(self.settings_build.arch)) != ("Linux", "x86_64"):
+            raise ConanInvalidConfiguration("OpenSSL requires the bound Linux x86_64 build toolchain")
+        if not os.path.isfile(os.path.join(ndk, "source.properties")):
+            raise ConanInvalidConfiguration("tools.android:ndk_path must contain NDK source.properties")
+        binaries = os.path.join(ndk, "toolchains", "llvm", "prebuilt", "linux-x86_64", "bin")
+        for name in ("clang", "llvm-ar", "aarch64-linux-android26-clang"):
+            path = os.path.join(binaries, name)
+            if not os.path.isfile(path) or not os.access(path, os.X_OK):
+                raise ConanInvalidConfiguration("Configured NDK lacks required executable " + name)
+        return ndk, binaries
 
     def _required_tool(self, key):
         path = self.conf.get(key, check_type=str)
@@ -67,7 +83,16 @@ class OpenSSLAndroidConan(ConanFile):
         get(self, **self.conan_data["sources"][self.version], strip_root=True)
 
     def generate(self):
-        AutotoolsToolchain(self).generate()
+        ndk, binaries = self._android_ndk()
+        toolchain = AutotoolsToolchain(self)
+        environment = toolchain.environment()
+        # OpenSSL's own Android Configure logic needs both variables even when
+        # Autotools already supplies an absolute CC. Never inherit another NDK.
+        environment.define("ANDROID_NDK_ROOT", ndk)
+        environment.prepend_path("PATH", binaries)
+        environment.unset("CROSS_SYSROOT")
+        environment.unset("CROSS_COMPILE")
+        toolchain.generate(environment)
 
     def build(self):
         perl = shlex.quote(self._required_tool("user.overte:perl_path"))
@@ -75,6 +100,7 @@ class OpenSSLAndroidConan(ConanFile):
         configure = shlex.quote(os.path.join(self.source_folder, "Configure"))
         args = [
             "android-arm64",
+            "-D__ANDROID_API__=26",
             "shared",
             "no-docs",
             "no-fips",
