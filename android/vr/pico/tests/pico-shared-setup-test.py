@@ -9,7 +9,7 @@ import re
 import subprocess
 import unittest
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 COMMON = ROOT / 'interface/src/Application_Setup.cpp'
 PICO = ROOT / 'android/vr/pico/apps/picoInterface'
 
