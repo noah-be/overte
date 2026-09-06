@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Original complete controlsUit Button on real Qt Quick Controls; OS is a fixture."""
+"""Original complete Button/CheckBox/RadioButton on real Qt Quick; OS is a fixture."""
 import os
 import pathlib
 import shlex
@@ -22,12 +22,13 @@ class UiButton(unittest.TestCase):
             binary = temporary / "test"
             subprocess.run(["c++", "-std=c++17", "-fPIC", str(here / "ui-button-test.cpp"), str(generated),
                             "-o", str(binary), *flags], check=True, timeout=30)
-            for platform in ("android", "linux", "ios"):
-                with self.subTest(platform=platform):
-                    subprocess.run(["unshare", "--user", "--map-root-user", "--net", str(binary),
-                                    str(ROOT / "interface/resources/qml/controlsUit/Button.qml"), platform],
-                                   env={**os.environ, "QT_QPA_PLATFORM": "offscreen", "QT_QUICK_BACKEND": "software"},
-                                   check=True, timeout=10)
+            for control in ("Button", "CheckBox", "RadioButton"):
+                for platform in ("android", "linux", "ios"):
+                    with self.subTest(control=control, platform=platform):
+                        subprocess.run(["unshare", "--user", "--map-root-user", "--net", str(binary),
+                                        str(ROOT / ("interface/resources/qml/controlsUit/" + control + ".qml")), platform],
+                                       env={**os.environ, "QT_QPA_PLATFORM": "offscreen", "QT_QUICK_BACKEND": "software"},
+                                       check=True, timeout=10)
 
 
 if __name__ == "__main__":
