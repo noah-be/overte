@@ -612,7 +612,7 @@ void ScriptManager::loadURL(const QUrl& scriptURL, bool reload) {
     const auto maxRetries = 0; // for consistency with previous scriptCache->getScript() behavior
     auto scriptCache = DependencyManager::get<ScriptCache>();
     scriptCache->getScriptContents(url.toString(), [this](const QString& url, const QString& scriptContents, bool isURL, bool success, const QString&status) {
-        qCDebug(scriptengine) << "loadURL" << url << status << QThread::currentThread();
+        qCDebug(scriptengine) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         if (!success) {
             scriptErrorMessage("ERROR Loading file (" + status + "):" + url, url, -1);
             emit errorLoadingScript(_fileNameString);
