@@ -169,9 +169,9 @@
   },
   "libnode/22.22.3@overte/stable": {
     "revisions": {
-      "01bc09301fde787710c8e19a8820bbb4": {
-        "timestamp": 1788679238.8188562,
-        "recipe_folder": "libnoa30b2cf9ebcd5"
+      "a76ae5683eb20fbde3f88e16d8bea96e": {
+        "timestamp": 1788699903.7871914,
+        "recipe_folder": "libno305d75f71bd38"
       }
     }
   },
@@ -265,9 +265,9 @@
   },
   "openssl/3.5.8@overte/stable": {
     "revisions": {
-      "1ca155ce3b857ad3b1f742ea3dd7fc85": {
-        "timestamp": 1788688914.2852457,
-        "recipe_folder": "opense69bdb50f54aa"
+      "e2ab566b1c764e543d69c8a6fa0def5b": {
+        "timestamp": 1788699369.9561644,
+        "recipe_folder": "opens463dc92cf1e1a"
       }
     }
   },
@@ -305,9 +305,9 @@
   },
   "qt/5.15.18-2026.01.04@overte/stable": {
     "revisions": {
-      "067e63fa931d764bcb1e93004544cf4f": {
-        "timestamp": 1788642525.1578007,
-        "recipe_folder": "qt56a3937b63691"
+      "b573e9e65fe29366102c09d5ec013c09": {
+        "timestamp": 1788701578.080668,
+        "recipe_folder": "qt47bb19961f59e"
       }
     }
   },
