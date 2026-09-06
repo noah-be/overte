@@ -17,15 +17,18 @@ class IceHostname(unittest.TestCase):
         completion = "void DomainHandler::completedIceServerHostnameLookup()" + source.split(
             "void DomainHandler::completedIceServerHostnameLookup()", 1)[1].split("void DomainHandler::setIsConnected(", 1)[0]
         reset = source.split("void DomainHandler::hardReset(QString reason) {", 1)[1].split("emit resetting();", 1)[0]
-        self.assertEqual(reset.strip(), "_hostnameLookup.cancel();\n    _iceHostnameLookup.cancel();")
+        self.assertIn("_discoveryScope.next();", reset)
+        self.assertIn("_iceHostnameLookup.cancel();", reset)
         self.assertNotIn("~SockAddr", setter)
         self.assertNotIn("&SockAddr::lookupCompleted", setter)
         header = (ROOT / "libraries/networking/src/DomainHandler.h").read_text()
         self.assertIn("overte::network::ScopedHostnameLookup _iceHostnameLookup;", header)
+        lifecycle = "void DomainHandler::setClientDiscoveryVisibility(" + source.split(
+            "void DomainHandler::setClientDiscoveryVisibility(", 1)[1].split("void DomainHandler::hardReset(", 1)[0]
         flags = shlex.split(subprocess.check_output(["pkg-config", "--cflags", "--libs", "Qt6Core", "Qt6Network"], text=True))
         with tempfile.TemporaryDirectory(prefix="sh005-ice-dns-") as temporary:
             temporary = pathlib.Path(temporary)
-            (temporary / "ice-original.inc").write_text(setter + completion)
+            (temporary / "ice-original.inc").write_text(lifecycle + setter + completion)
             (temporary / "ice-reset.inc").write_text(reset)
             binary = temporary / "test"
             subprocess.run(["c++", "-std=c++17", "-fPIC", "-I", str(ROOT), "-I", str(temporary),
