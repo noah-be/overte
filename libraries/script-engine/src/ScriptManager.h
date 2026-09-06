@@ -38,6 +38,7 @@
 #include "EntityScriptUtils.h"
 #include <ExternalResource.h>
 #include <SettingHandle.h>
+#include <RequestCancellation.h>
 
 #include "AssetScriptingInterface.h"
 #include "ConsoleScriptingInterface.h"
@@ -1560,6 +1561,7 @@ protected:
      * @param errorInfo Description of the error, if any
      */
     void updateEntityScriptStatus(const EntityItemID& entityID, const QString& scriptURL, const EntityScriptStatus& status, const QString& errorInfo = QString());
+    bool rejectEntityScriptWithoutConsent(const EntityItemID& entityID, const QString& scriptURL);
 
 
     /**
@@ -1649,7 +1651,7 @@ protected:
      */
     void callWithEnvironment(const EntityItemID& entityID, const QUrl& sandboxURL, const ScriptValue& function, const ScriptValue& thisObject, const ScriptValueList& args);
 
-    Context _context;
+    const Context _context;
     Type _type;
     ScriptEnginePointer _engine;
     QString _scriptContents;
@@ -1672,6 +1674,7 @@ protected:
     qint64 _lastUpdate;
 
     QString _fileNameString;
+    overte::network::RequestScope _scriptLoadContext;
     std::shared_ptr<Quat> _quatLibrary;
     std::shared_ptr<Vec3> _vec3Library;
     std::shared_ptr<Mat4> _mat4Library;

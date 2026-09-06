@@ -14,6 +14,7 @@
 //
 
 #include "Application.h"
+#include "ApplicationLifecycle.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -370,6 +371,7 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     DependencyManager::set<recording::Recorder>();
     DependencyManager::set<AddressManager>();
     DependencyManager::set<NodeList>(NodeType::Agent, listenPort);
+    overte::lifecycle::observeQtVisibility(QGuiApplication::applicationState() == Qt::ApplicationActive);
     DependencyManager::set<recording::ClipCache>();
     DependencyManager::set<GeometryCache>();
     DependencyManager::set<ModelFormatRegistry>(); // ModelFormatRegistry must be defined before ModelCache. See the ModelCache constructor.
@@ -1460,6 +1462,9 @@ void Application::setupSignalsAndOperators() {
     {
         connect(this, SIGNAL(aboutToQuit()), this, SLOT(onAboutToQuit()));
         connect(this, &Application::applicationStateChanged, this, &Application::activeChanged);
+        // Seed the same full-client gate: an already active Qt application may
+        // not emit another state change after this connection is installed.
+        activeChanged(applicationState());
         connect(_window, SIGNAL(windowMinimizedChanged(bool)), this, SLOT(windowMinimizedChanged(bool)));
 
         auto discoverabilityManager = DependencyManager::get<DiscoverabilityManager>();
