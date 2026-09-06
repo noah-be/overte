@@ -80,6 +80,32 @@ int main(int argc, char** argv) {
         check(invalid, 200, false, false);
     }
     check(good, 200, false, true);
+    const auto goodObject = QJsonDocument::fromJson(good).object();
+    for (const auto& key : {QString("access_token"), QString("token_type")}) {
+        for (const QJsonValue& invalid : {QJsonValue(), QJsonValue(false), QJsonValue(12),
+                                       QJsonValue(QJsonObject()), QJsonValue("")}) {
+            auto object = goodObject; object.insert(key, invalid);
+            check(QJsonDocument(object).toJson(), 200, false, false);
+        }
+    }
+    for (const QJsonValue& invalid : {QJsonValue(), QJsonValue(true), QJsonValue("3600"),
+                                   QJsonValue(-1), QJsonValue(0), QJsonValue(0.5),
+                                   QJsonValue(2147483648.0), QJsonValue(1e100)}) {
+        auto object = goodObject; object.insert("expires_in", invalid);
+        check(QJsonDocument(object).toJson(), 200, false, false);
+    }
+    for (const QJsonValue& invalid : {QJsonValue(), QJsonValue(false), QJsonValue(12),
+                                   QJsonValue(QJsonObject())}) {
+        auto object = goodObject; object.insert("refresh_token", invalid);
+        check(QJsonDocument(object).toJson(), 200, false, false);
+    }
+    for (int lifetime : {1, 2147483647}) {
+        auto object = goodObject; object.insert("expires_in", lifetime);
+        object.insert("refresh_token", ""); // Empty optional refresh token means no refresh.
+        check(QJsonDocument(object).toJson(), 200, false, true);
+        object.insert("refresh_token", "refresh-canary");
+        check(QJsonDocument(object).toJson(), 200, false, true);
+    }
     check(good, 302, false, false);
     check(good, 401, false, false);
     check(good, 500, false, false);
