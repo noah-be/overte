@@ -30,10 +30,10 @@ class ScopedHostname(unittest.TestCase):
         source = (ROOT / "libraries/networking/src/DomainHandler.cpp").read_text()
         header = (ROOT / "libraries/networking/src/DomainHandler.h").read_text()
         reset = source.split("void DomainHandler::hardReset(QString reason) {", 1)[1].split("\n}", 1)[0]
-        self.assertTrue(reset.lstrip().startswith("_hostnameLookup.cancel();"))
+        self.assertLess(reset.index("_hostnameLookup.cancel();"), reset.index("emit resetting();"))
         self.assertIn("overte::network::ScopedHostnameLookup _hostnameLookup;", header)
         binding = source.split("_hostnameLookup.start(", 1)[1].split("});", 1)[0]
-        self.assertEqual(binding.strip(), "domainURL.host(), this, [this](const QHostInfo& info) {\n                        completedHostnameLookup(info);")
+        self.assertEqual(binding.strip(), "domainURL.host(), this, [this, discoveryTicket](const QHostInfo& info) {\n        if (!discoveryTicket.current()) { return; }\n        completedHostnameLookup(info);")
         self.assertNotIn("QHostInfo::lookupHost(", source)
         # Real callback remains the only socket setter; generation guard runs
         # before entering it. No domain URL comparison is used as a ticket.

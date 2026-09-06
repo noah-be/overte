@@ -42,12 +42,14 @@ bool TestHostInfo::failStart = false;
 class DomainCaller : public QObject {
 public:
     void start(QUrl domainURL) {
+        const auto discoveryTicket = _discoveryScope.snapshot();
 #include "domain-lookup-binding.inc"
     }
     void reset() { _hostnameLookup.cancel(); }
     void completedHostnameLookup(const QHostInfo&) { ++socketChanges; }
     unsigned socketChanges { 0 };
     overte::network::ScopedHostnameLookup _hostnameLookup;
+    overte::network::RequestScope _discoveryScope;
 };
 
 int main(int argc, char** argv) {

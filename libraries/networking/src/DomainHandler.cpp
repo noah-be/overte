@@ -123,9 +123,57 @@ void DomainHandler::softReset(QString reason) {
     }
 }
 
+void DomainHandler::setClientDiscoveryVisibility(bool foreground) {
+    const bool wasForeground = _discoveryScope.snapshot().current();
+    _discoveryScope.setActive(foreground);
+    if (wasForeground == foreground) { return; }
+    const auto ticket = _discoveryScope.snapshot();
+    QMetaObject::invokeMethod(this, [this, ticket, foreground] {
+        if (!ticket.matchesSnapshot()) { return; }
+        if (!foreground) {
+            _hostnameLookup.cancel();
+            _iceHostnameLookup.cancel();
+        } else if (!_isConnected) {
+            if (!_iceServerHostname.isEmpty()) {
+                if (_iceServerSockAddr.getAddress().isNull()) { resolveIceHostname(); }
+                else { completedIceServerHostnameLookup(); }
+            } else if (_sockAddr.getAddress().isNull()) {
+                resolveDomainHostname();
+            }
+        }
+    }, Qt::AutoConnection);
+}
+
+void DomainHandler::resolveDomainHostname() {
+    const auto discoveryTicket = _discoveryScope.snapshot();
+    if (!discoveryTicket.current() || _domainURL.scheme() != URL_SCHEME_OVERTE || _domainURL.host().isEmpty()) { return; }
+    const QUrl domainURL = _domainURL;
+    _hostnameLookup.start(domainURL.host(), this, [this, discoveryTicket](const QHostInfo& info) {
+        if (!discoveryTicket.current()) { return; }
+        completedHostnameLookup(info);
+    });
+}
+
+void DomainHandler::resolveIceHostname() {
+    const auto discoveryTicket = _discoveryScope.snapshot();
+    if (!discoveryTicket.current() || _iceServerHostname.isEmpty()) { return; }
+    _iceHostnameLookup.start(_iceServerHostname, this, [this, discoveryTicket](const QHostInfo& info) {
+        if (!discoveryTicket.current() || info.error() != QHostInfo::NoError) { return; }
+        for (const auto& address : info.addresses()) {
+            if (address.protocol() == QAbstractSocket::IPv4Protocol) {
+                _iceServerSockAddr.setAddress(address);
+                completedIceServerHostnameLookup();
+                return;
+            }
+        }
+    });
+}
+
 void DomainHandler::hardReset(QString reason) {
+    _discoveryScope.next(); // Domain changes also invalidate queued visibility work.
     _hostnameLookup.cancel();
     _iceHostnameLookup.cancel();
+    _iceServerHostname.clear();
     emit resetting();
 
     softReset(reason);
@@ -236,9 +284,7 @@ void DomainHandler::setURLAndID(QUrl domainURL, QUuid domainID) {
                 if (domainURL.scheme() == URL_SCHEME_OVERTE) {
                     // re-set the sock addr to null and fire off a lookup of the IP address for this domain-server's hostname
                     qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
-                    _hostnameLookup.start(domainURL.host(), this, [this](const QHostInfo& info) {
-                        completedHostnameLookup(info);
-                    });
+                    resolveDomainHostname();
                 }
 
                 DependencyManager::get<NodeList>()->flagTimeForConnectionStep(
@@ -284,6 +330,7 @@ void DomainHandler::setIceServerHostnameAndID(const QString& iceServerHostname, 
         _iceClientID = QUuid::createUuid();
 
         _pendingDomainID = id;
+        _iceServerHostname = iceServerHostname;
 
         // Keep QObject storage stable. Own the asynchronous lookup here so a
         // hard reset invalidates queued replies before changing domain/socket.
@@ -295,16 +342,7 @@ void DomainHandler::setIceServerHostnameAndID(const QString& iceServerHostname, 
         nodeList->flagTimeForConnectionStep(LimitedNodeList::ConnectionStep::SetICEServerHostname);
 
         if (_iceServerSockAddr.getAddress().isNull()) {
-            _iceHostnameLookup.start(iceServerHostname, this, [this](const QHostInfo& info) {
-                if (info.error() != QHostInfo::NoError) { return; }
-                for (const auto& address : info.addresses()) {
-                    if (address.protocol() == QAbstractSocket::IPv4Protocol) {
-                        _iceServerSockAddr.setAddress(address);
-                        completedIceServerHostnameLookup();
-                        return;
-                    }
-                }
-            });
+            resolveIceHostname();
         } else {
             completedIceServerHostnameLookup();
         }
@@ -362,6 +400,7 @@ void DomainHandler::completedHostnameLookup(const QHostInfo& hostInfo) {
 }
 
 void DomainHandler::completedIceServerHostnameLookup() {
+    if (!_discoveryScope.snapshot().current()) { return; }
     qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     DependencyManager::get<NodeList>()->flagTimeForConnectionStep(LimitedNodeList::ConnectionStep::SetICEServerSocket);

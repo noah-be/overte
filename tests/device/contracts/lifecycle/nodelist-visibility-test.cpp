@@ -16,6 +16,10 @@ using SharedNodePointer = std::shared_ptr<Node>;
 struct NodeType { static bool isDownstream(int type) { return type == 3; } };
 class NodeList {
 public:
+    struct DiscoveryBoundary {
+        bool foreground { true };
+        void setClientDiscoveryVisibility(bool value) { foreground = value; }
+    } _domainHandler;
 #include "node-visibility-state.inc"
     void sendDomainServerCheckIn();
     void handleICEConnectionToDomainServer();
@@ -45,12 +49,14 @@ int main() {
     client.exercise(); // Unmanaged assignment/server default unchanged.
     assert(client.afterFence == 5 && client.packets == 1 && client.enumerations == 1);
     client.setClientTransportVisibility(false);
+    assert(!client._domainHandler.foreground);
     client.exercise();
     assert(client.afterFence == 5 && client.packets == 1 && client.enumerations == 1);
     client.setClientTransportVisibility(false); // Duplicate pause stays closed.
     client.exercise();
     assert(client.afterFence == 5 && client.packets == 1);
     client.setClientTransportVisibility(true);
+    assert(client._domainHandler.foreground);
     client.exercise();
     assert(client.afterFence == 10 && client.packets == 2 && client.enumerations == 2);
     std::thread pause([&] { client.setClientTransportVisibility(false); });

@@ -60,6 +60,7 @@ public:
     // because assignment check-in callers may run outside the NodeList thread.
     void setClientTransportVisibility(bool foreground) {
         _clientTransportSuspended.store(!foreground, std::memory_order_release);
+        _domainHandler.setClientDiscoveryVisibility(foreground);
     }
     NodeType_t getOwnerType() const { return _ownerType.load(); }
     void setOwnerType(NodeType_t ownerType) { _ownerType.store(ownerType); }

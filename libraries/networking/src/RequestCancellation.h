@@ -13,6 +13,9 @@ class RequestTicket {
 public:
     // Other AccountManager requests remain explicitly unscoped.
     bool scoped() const { return bool(_state); }
+    bool matchesSnapshot() const {
+        return _state && _state->load(std::memory_order_acquire) == _value;
+    }
     bool current() const {
         return !_state || ((_value & 1) && _state->load(std::memory_order_acquire) == _value);
     }
@@ -34,6 +37,11 @@ public:
     ~RequestScope() { _state->store(0, std::memory_order_release); }
     RequestScope(const RequestScope&) = delete;
     RequestScope& operator=(const RequestScope&) = delete;
+    RequestTicket snapshot() const {
+        RequestTicket ticket; ticket._state = _state;
+        ticket._value = _state->load(std::memory_order_acquire);
+        return ticket;
+    }
     // A new HTTP lookup supersedes the preceding lookup, without exposing URLs
     // in tickets. Zero is permanent exhausted/destroyed state, never reusable.
     RequestTicket next() {

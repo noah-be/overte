@@ -5,6 +5,8 @@
 #include <QtCore/QCoreApplication>
 #include <QtCore/QLoggingCategory>
 #include <QtCore/QUuid>
+#include <QtCore/QThread>
+#include <thread>
 #include <QtNetwork/QHostInfo>
 #include "libraries/networking/src/RequestCancellation.h"
 #include "security/redaction/SafeDiagnostics.h"
@@ -30,6 +32,7 @@ public:
 #include "libraries/networking/src/ScopedHostnameLookup.h"
 enum class SocketType { UDP };
 constexpr quint16 ICE_SERVER_DEFAULT_PORT = 7337;
+const QString URL_SCHEME_OVERTE = QStringLiteral("hifi");
 // Socket storage, node timing receiver and reset tail are explicit boundaries;
 // actual QHostAddress/QUuid and both full ICE production functions are compiled.
 struct SockAddr {
@@ -54,8 +57,13 @@ struct DependencyManager { template<class T> static T* get() { return &node; } }
 class DomainHandler : public QObject {
 public:
     SockAddr _iceServerSockAddr;
+    SockAddr _sockAddr;
+    QUrl _domainURL;
+    QString _iceServerHostname;
+    overte::network::RequestScope _discoveryScope;
     QUuid _pendingDomainID, _iceClientID;
     bool _isInErrorState { false };
+    bool _isConnected { false };
     int emissions { 0 };
     overte::network::ScopedHostnameLookup _hostnameLookup, _iceHostnameLookup;
     void hardReset(QString = {}) {
@@ -65,6 +73,10 @@ public:
         _isInErrorState = false;
     }
     void setIceServerHostnameAndID(const QString&, const QUuid&);
+    void setClientDiscoveryVisibility(bool);
+    void resolveDomainHostname();
+    void resolveIceHostname();
+    void completedHostnameLookup(const QHostInfo& info) { _sockAddr.setAddress(info.addresses().front()); ++emissions; }
     void completedIceServerHostnameLookup();
     void iceSocketAndIDReceived() { ++emissions; }
 };
@@ -121,4 +133,44 @@ int main(int argc, char** argv) {
     }
     dead(success);
     assert(node.completions == 3);
+
+    DomainHandler lifecycle;
+    lifecycle.setIceServerHostnameAndID("old-visible.invalid", firstID);
+    auto prePause = QHostInfo::pending.back();
+    std::thread pause([&] { lifecycle.setClientDiscoveryVisibility(false); });
+    pause.join();
+    prePause(success); // Before queued Qt cancellation runs, ticket already invalid.
+    assert(lifecycle.emissions == 0);
+    QCoreApplication::processEvents();
+    lifecycle.setIceServerHostnameAndID("latest-hidden.invalid", secondID);
+    const auto pendingWhileHidden = QHostInfo::pending.size();
+    assert(lifecycle.emissions == 0);
+    lifecycle.setClientDiscoveryVisibility(true);
+    assert(QHostInfo::pending.size() == pendingWhileHidden + 1);
+    prePause(success);
+    assert(lifecycle.emissions == 0);
+    QHostInfo::pending.back()(success);
+    assert(lifecycle.emissions == 1 && lifecycle._pendingDomainID == secondID);
+    lifecycle.setClientDiscoveryVisibility(true);
+    assert(lifecycle.emissions == 1); // Duplicate visibility is not a new intent.
+
+    lifecycle.hardReset();
+    lifecycle._domainURL = QUrl("hifi://direct.invalid");
+    lifecycle.resolveDomainHostname();
+    auto preDirectPause = QHostInfo::pending.back();
+    std::thread quickToggle([&] {
+        lifecycle.setClientDiscoveryVisibility(false);
+        lifecycle.setClientDiscoveryVisibility(true);
+    });
+    quickToggle.join();
+    preDirectPause(success);
+    assert(lifecycle.emissions == 1);
+    QCoreApplication::processEvents(); // Stale queued pause cannot cancel current resume.
+    QHostInfo::pending.back()(success);
+    assert(lifecycle.emissions == 2);
+    lifecycle.setClientDiscoveryVisibility(false);
+    lifecycle.setIceServerHostnameAndID("127.0.0.4", firstID);
+    assert(lifecycle.emissions == 2); // Numeric fast path also respects background.
+    lifecycle.setClientDiscoveryVisibility(true);
+    assert(lifecycle.emissions == 3);
 }
