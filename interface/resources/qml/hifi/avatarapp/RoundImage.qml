@@ -5,39 +5,62 @@ Item {
     property alias border: borderRectangle.border
     property alias source: image.source
     property alias fillMode: image.fillMode
+    property size sourceSize: Qt.size(-1, -1)
+    property alias mipmap: image.mipmap
+    property alias smooth: image.smooth
     property alias radius: borderRectangle.radius
     property alias status: image.status
     property alias progress: image.progress
     onRadiusChanged: drawing.requestPaint()
+    onSourceSizeChanged: refresh.restart()
+    function synchronizeImage() { refresh.restart() }
+    Timer { id: refresh; interval: 0; onTriggered: root.refreshImage() }
+    function refreshImage() {
+        if (!drawing) return
+        if (drawing.cachedSource.toString() !== "") drawing.unloadImage(drawing.cachedSource)
+        drawing.cachedSource = ""
+        if (image.status === Image.Ready) {
+            drawing.cachedSource = image.source
+            // Match the Image cache key, including its requested source size.
+            drawing.loadImage(image.source, root.sourceSize)
+        }
+        drawing.requestPaint()
+    }
 
-    // Keep Qt's image loading/cache/status implementation. Canvas draws this
-    // already loaded image directly, without another URL request or export.
+    // Keep Qt's image loading/status implementation. Refresh the Canvas cache
+    // after bindings settle so a size change does not load an intermediate key.
+    // Canvas draws into memory and creates no export.
     Image {
         id: image
         visible: false
+        sourceSize: root.sourceSize
         anchors.fill: parent
         anchors.margins: borderRectangle.border.width
-        onSourceChanged: drawing.requestPaint()
-        onStatusChanged: drawing.requestPaint()
+        onSourceChanged: root.synchronizeImage()
+        onStatusChanged: root.synchronizeImage()
         onFillModeChanged: drawing.requestPaint()
+        onSourceSizeChanged: root.synchronizeImage()
+        onSmoothChanged: drawing.requestPaint()
         onImplicitWidthChanged: drawing.requestPaint()
         onImplicitHeightChanged: drawing.requestPaint()
     }
 
     Canvas {
         id: drawing
+        property url cachedSource
         anchors.fill: image
         renderTarget: Canvas.Image
-        smooth: true
+        smooth: image.smooth
         antialiasing: true
         onWidthChanged: requestPaint()
         onHeightChanged: requestPaint()
-        onAvailableChanged: if (available) requestPaint()
+        onAvailableChanged: if (available) root.synchronizeImage()
+        onImageLoaded: requestPaint()
         onVisibleChanged: if (visible) requestPaint()
         onPaint: {
             var ctx = getContext("2d")
             ctx.reset()
-            if (image.status !== Image.Ready || width <= 0 || height <= 0) return
+            if (image.status !== Image.Ready || !isImageLoaded(cachedSource) || width <= 0 || height <= 0) return
             var sw = image.implicitWidth
             var sh = image.implicitHeight
             if (sw <= 0 || sh <= 0) return

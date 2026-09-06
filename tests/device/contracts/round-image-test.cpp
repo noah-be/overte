@@ -11,11 +11,12 @@
 #include <iostream>
 struct CountedImages : QQuickImageProvider {
  int requests {0};
+ QSize requested;
  CountedImages():QQuickImageProvider(QQuickImageProvider::Image){}
- QImage requestImage(const QString& id,QSize* size,const QSize&) override {
-  ++requests;
+ QImage requestImage(const QString& id,QSize* size,const QSize& request) override {
+  ++requests;requested=request;
   if(id=="missing"){*size=QSize();return {};}
-  QImage image(24,16,QImage::Format_ARGB32_Premultiplied);image.fill(Qt::cyan);*size=image.size();return image;
+  QImage image(24,16,QImage::Format_ARGB32_Premultiplied);image.fill(request.width()>0 ? Qt::green : Qt::cyan);*size=image.size();return image;
  }
 };
 int main(int argc,char**argv){
@@ -40,6 +41,10 @@ int main(int argc,char**argv){
  r->setProperty("source",QUrl("image://counted/one"));QTest::qWait(100);
  assert(provider->requests==1&&r->property("status").toInt()==1);
  r->setProperty("radius",20);QTest::qWait(100);image=rounded.grabWindow();assert(image.pixelColor(32,32)==QColor(Qt::cyan));assert(provider->requests==1);
- r->setProperty("source",QUrl("image://counted/missing"));QTest::qWait(100);assert(provider->requests==2&&r->property("status").toInt()==3);image=rounded.grabWindow();assert(image.pixelColor(32,32).alpha()==0);
+ assert(QQmlProperty(r,"sourceSize.width").write(12));QTest::qWait(100);assert(provider->requests==2&&provider->requested.width()==12);
+ image=rounded.grabWindow();assert(image.pixelColor(32,32)==QColor(Qt::green));
+ r->setProperty("radius",18);QTest::qWait(100);assert(provider->requests==2);image=rounded.grabWindow();assert(image.pixelColor(32,32)==QColor(Qt::green));
+ assert(r->setProperty("mipmap",true));assert(r->property("mipmap").toBool());assert(r->setProperty("smooth",false));assert(!r->property("smooth").toBool());
+ r->setProperty("source",QUrl("image://counted/missing"));QTest::qWait(100);assert(provider->requests==3&&r->property("status").toInt()==3);image=rounded.grabWindow();assert(image.pixelColor(32,32).alpha()==0);
  r->setProperty("source",QUrl());QTest::qWait(100);assert(r->property("status").toInt()==0);image=rounded.grabWindow();assert(image.pixelColor(32,32).alpha()==0);
 }
