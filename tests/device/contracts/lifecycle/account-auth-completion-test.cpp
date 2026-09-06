@@ -22,6 +22,7 @@ public:
     DataServerAccountInfo _accountInfo;
     int persisted = 0, profiles = 0;
     bool _isWaitingForTokenRefresh = true;
+    bool _isWaitingForAccessToken = false;
     QString getMetaverseServerURLPath() { return "/api"; }
     void persistAccountToFile() { ++persisted; }
     void requestProfile() { ++profiles; }

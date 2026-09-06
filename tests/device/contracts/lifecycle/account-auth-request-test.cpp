@@ -55,6 +55,7 @@ public:
     overte::network::RequestScope _credentialContext;
     QUrl _authURL { "https://auth-private.invalid" };
     bool _isWaitingForTokenRefresh = false;
+    bool _isWaitingForAccessToken = false;
     int loginFinished = 0, refreshFinished = 0;
     QString _userAgentGetter() { return "overte-request-test"; }
     QString getMetaverseServerURLPath() { return "/api"; }
@@ -64,9 +65,17 @@ public:
     void requestAccessTokenWithOculus(const QString&, const QString&);
     void refreshAccessToken();
 public slots:
-    void requestAccessTokenFinished() { ++loginFinished; }
-    void refreshAccessTokenFinished() { ++refreshFinished; }
     void requestAccessTokenError(QNetworkReply::NetworkError) {}
+    // Receiver state boundary; complete production receivers run separately.
+    // Count stale delivery here as well to exercise every original timer.
+    void requestAccessTokenFinished() {
+        ++loginFinished;
+        if (overte::network::replyCurrent(qobject_cast<QNetworkReply*>(sender()))) _isWaitingForAccessToken = false;
+    }
+    void refreshAccessTokenFinished() {
+        ++refreshFinished;
+        if (overte::network::replyCurrent(qobject_cast<QNetworkReply*>(sender()))) _isWaitingForTokenRefresh = false;
+    }
     void refreshAccessTokenError(QNetworkReply::NetworkError) {}
 };
 #include "requests.inc"
@@ -110,28 +119,38 @@ int main(int argc, char** argv) {
     manager._accountInfo.token.refreshToken = seed;
     manager.refreshAccessToken();
     check({{"grant_type", "refresh_token"}, {"refresh_token", seed}, {"scope", "owner"}}, true);
-    assert(network.posts == 5 && manager._isWaitingForTokenRefresh);
+    assert(network.posts == 5 && !manager._isWaitingForTokenRefresh);
     QEventLoop loop;
     Reply::deadlineLoop = &loop;
     QElapsedTimer elapsed;
     elapsed.start();
-    manager.requestAccessToken(seed, seed);
-    QPointer<Reply> hungPassword(network.reply);
-    manager.requestAccessTokenWithAuthCode(seed, seed, seed, seed);
-    QPointer<Reply> hungCode(network.reply);
-    manager.requestAccessTokenWithSteam(steam);
-    QPointer<Reply> hungSteam(network.reply);
-    manager.requestAccessTokenWithOculus(seed, seed);
-    QPointer<Reply> hungOculus(network.reply);
-    manager.refreshAccessToken();
+    // Independent owners keep all five requests current for the original15s
+    // deadline check. Superseded same-owner requests now abort via RequestScope
+    // first; that behavior is exercised by the full context fixture instead.
+    AccountManager deadlines[5];
+    deadlines[4]._accountInfo.token.refreshToken = seed;
+    deadlines[4].refreshAccessToken();
     QPointer<Reply> hungRefresh(network.reply);
     network.reply->setProperty("delete_on_abort", true);
+    deadlines[0].requestAccessToken(seed, seed);
+    QPointer<Reply> hungPassword(network.reply);
+    deadlines[1].requestAccessTokenWithAuthCode(seed, seed, seed, seed);
+    QPointer<Reply> hungCode(network.reply);
+    deadlines[2].requestAccessTokenWithSteam(steam);
+    QPointer<Reply> hungSteam(network.reply);
+    deadlines[3].requestAccessTokenWithOculus(seed, seed);
+    QPointer<Reply> hungOculus(network.reply);
+    const int beforeBlockedRefresh = network.posts;
+    deadlines[3].refreshAccessToken();
+    assert(network.posts == beforeBlockedRefresh);
     manager.requestAccessToken(seed, seed);
     delete network.reply; // Reply-context destruction cancels its timer.
     QTimer::singleShot(16500, &loop, &QEventLoop::quit);
     loop.exec();
     assert(Reply::aborted == 5 && elapsed.elapsed() >= 15000);
-    assert(manager.loginFinished == 8 && manager.refreshFinished == 2);
+    assert(manager.loginFinished == 4 && manager.refreshFinished == 1);
+    for (int i = 0; i < 4; ++i) assert(deadlines[i].loginFinished == 1 && deadlines[i].refreshFinished == 0);
+    assert(deadlines[4].loginFinished == 0 && deadlines[4].refreshFinished == 1);
     QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     assert(!hungPassword && !hungCode && !hungSteam && !hungOculus && !hungRefresh);
     Reply::deadlineLoop = nullptr;

@@ -186,6 +186,7 @@ private:
 
     DataServerAccountInfo _accountInfo;
     bool _isWaitingForTokenRefresh { false };
+    bool _isWaitingForAccessToken { false };
     bool _isAgent { false };
 
     bool _isWaitingForKeypairResponse { false };

@@ -20,6 +20,7 @@ class AccountManager : public QObject {
     Q_OBJECT
 public:
     overte::network::RequestScope _credentialContext;
+    bool _isWaitingForTokenRefresh = false, _isWaitingForAccessToken = false;
     DataServerAccountInfo _accountInfo;
     QUrl _authURL { "https://private-test.invalid" };
     std::function<void()> onPersist, onSave, onProfile;
