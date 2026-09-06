@@ -11,6 +11,7 @@
 //
 
 #include "LoginDialog.h"
+#include "../../../security/redaction/SafeDiagnostics.h"
 
 #include <QtGui/QDesktopServices>
 #include <QtCore/QJsonArray>
@@ -219,7 +220,7 @@ void LoginDialog::dismissPhoneLoginDialog() {
 #endif
 
 void LoginDialog::login(const QString& username, const QString& password) const {
-    qDebug() << "Attempting to login" << username;
+    qDebug() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 #if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
     if (!phoneLoginState.beginRequest()) {
         return;
@@ -229,7 +230,7 @@ void LoginDialog::login(const QString& username, const QString& password) const 
 }
 
 void LoginDialog::loginDomain(const QString& username, const QString& password) const {
-    qDebug() << "Attempting to login" << username << "into a domain";
+    qDebug() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 #if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
     if (!phoneLoginState.beginRequest()) {
         return;
@@ -458,7 +459,7 @@ void LoginDialog::signup(const QString& email, const QString& username, const QS
 
     payload.insert("user", userObject);
 
-    qDebug() << "Sending a request to create an account for" << username;
+    qDebug() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     auto accountManager = DependencyManager::get<AccountManager>();
     accountManager->sendRequest(API_SIGNUP_PATH, AccountManagerAuth::None,
