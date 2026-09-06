@@ -30,7 +30,7 @@ struct Transaction {
         for (auto& callback : callbacks) { callback(payload); }
     }
 };
-struct EntityRenderer {
+struct EntityRenderer : std::enable_shared_from_this<EntityRenderer> {
     bool valid { true };
     int synchronous {}, asynchronous {}, _updateTime {}, _renderItemID { 1 };
     std::shared_ptr<Entity> _entity { std::make_shared<Entity>() };
@@ -42,7 +42,8 @@ struct EntityRenderer {
 #include "scene-method.inc"
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
-    EntityRenderer renderer;
+    auto rendererOwner = std::make_shared<EntityRenderer>();
+    auto& renderer = *rendererOwner;
     Transaction transaction;
 #if TEST_IOS
 #if !TEST_BASELINE
@@ -80,6 +81,17 @@ int main(int argc, char** argv) {
     assert(iosRuntimeEntityEvidenceSnapshot().scene == 0 && renderer.asynchronous == 4);
     renderer.updateInScene(0, transaction);
     assert(transaction.pending.empty() && renderer.synchronous == 5);
+#if !TEST_BASELINE
+    // A queued callback must not own the renderer or dereference a destroyed one.
+    auto transient = std::make_shared<EntityRenderer>();
+    const std::weak_ptr<EntityRenderer> weak = transient;
+    transient->updateInScene(0, transaction);
+    assert(transient.use_count() == 1);
+    transient.reset();
+    assert(weak.expired());
+    transaction.flush();
+    assert(iosRuntimeEntityEvidenceSnapshot().scene == 0);
+#endif
 #if !TEST_BASELINE
     auto& state = iosRuntimeEntityEvidenceState();
     { std::lock_guard<std::mutex> lock(state.mutex); state.generation = std::numeric_limits<std::uint64_t>::max(); }

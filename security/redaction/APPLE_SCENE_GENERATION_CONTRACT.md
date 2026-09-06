@@ -8,6 +8,15 @@ the new scene counter. Duplicate entities remain de-duplicated. Ordinary render
 update work still executes: this is observation cancellation, not cancellation
 of rendering or entity mutation. Non-iOS preprocessing retains its old lambda.
 
+Version 002 also captures a weak renderer owner at enqueue and locks it before
+the first callback dereference of `this`. Queued work does not keep the renderer
+alive. If it is gone, the callback returns without accessing entity/render state;
+otherwise the strong local owner covers the whole invocation. The real factory
+already creates EntityRenderer through shared_ptr, as shared_from_this requires.
+This does not repair unrelated raw callbacks or promise arbitrary renderer
+thread safety. The focused test queues the original lambda, releases its real
+std::shared_ptr owner, verifies weak expiry and flushes without state mutation.
+
 Each beginIOSRuntimeEntityEvidence advances a mutex-protected uint64 generation.
 Zero is invalid. Exhaustion permanently disarms observation rather than wrapping
 to an old ticket. The one-argument scene recorder is replaced, not implicitly
