@@ -36,7 +36,7 @@ class ColdBuildExecutorTest(unittest.TestCase):
         self.assertIn("/proc/net/route", preflight)
         self.assertIn("Conan cache is not empty", preflight)
         self.assertIn("stale binary output exists", preflight)
-        self.assertIn("less than 80 GiB free", preflight)
+        self.assertIn("less than 60 GB free", preflight)
 
     def test_outer_executor_pins_image_and_dual_network_isolation(self):
         self.assertIn("localhost/overte-sh001-fdroid-toolchain:three-gates", self.outer)
