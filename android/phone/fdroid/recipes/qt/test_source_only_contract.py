@@ -52,6 +52,28 @@ class SourceOnlyQtRecipeTests(unittest.TestCase):
     def setUpClass(cls):
         cls.module = load_recipe()
 
+    def test_android_profile_flags_preserve_target_kind_and_shell_arguments(self):
+        values = {
+            "tools.build:cflags": ["-D__BIONIC_NO_PAGE_SIZE_MACRO"],
+            "tools.build:cxxflags": ["-DNAME='value with spaces'"],
+            "tools.build:exelinkflags": ["-Wl,-z,max-page-size=16384", "-Wl,app-only"],
+            "tools.build:sharedlinkflags": ["-Wl,-z,max-page-size=16384", "-Wl,shared-only"],
+        }
+        recipe = Mock()
+        recipe.conf.get.side_effect = lambda key, **kwargs: values.get(key, kwargs["default"])
+        args = self.module.QtConan._android_profile_flags(recipe)
+        decoded = [shlex.split(arg) for arg in args]
+        self.assertTrue(all(len(arg) == 1 for arg in decoded))
+        assignments = dict(arg[0].split("+=", 1) for arg in decoded)
+        self.assertEqual("-DNAME='value with spaces'", assignments["QMAKE_CXXFLAGS"])
+        self.assertIn("app-only", assignments["QMAKE_LFLAGS_APP"])
+        for key in ("QMAKE_LFLAGS_SHLIB", "QMAKE_LFLAGS_PLUGIN"):
+            self.assertIn("shared-only", assignments[key])
+            self.assertNotIn("app-only", assignments[key])
+            self.assertIn("max-page-size=16384", assignments[key])
+        recipe.conf.get.side_effect = lambda key, **kwargs: kwargs["default"]
+        self.assertEqual([], self.module.QtConan._android_profile_flags(recipe))
+
     def make_composition(self, root: Path) -> Path:
         qt = root / "qt5" / "qtbase"
         qt.mkdir(parents=True)
