@@ -2109,6 +2109,23 @@ bool ScriptManager::hasEntityScriptDetails(const EntityItemID& entityID, const Q
     return it.value().contains(scriptURL);
 }
 
+bool ScriptManager::rejectEntityScriptWithoutConsent(const EntityItemID& entityID, const QString& scriptURL) {
+    // Client entity code is untrusted even when embedded, cached or file-backed.
+    // No informed-consent + lifetime-safe finite-revoke backend is bound yet.
+    // Fail closed until that complete backend replaces this fence; mutable
+    // Script.type, URL schemes, settings and environment cannot grant consent.
+    switch (_context) {
+        case ENTITY_SERVER_SCRIPT:
+        case AGENT_SCRIPT:
+        case NETWORKLESS_TEST_SCRIPT:
+            return false;
+        default:
+            updateEntityScriptStatus(entityID, scriptURL, EntityScriptStatus::ERROR_LOADING_SCRIPT,
+                                     QStringLiteral("ENTITY_SCRIPT_CONSENT_UNAVAILABLE"));
+            return true;
+    }
+}
+
 void ScriptManager::loadEntityScript(const EntityItemID& entityID, const QString& entityScript, bool forceRedownload) {
     if (QThread::currentThread() != thread()) {
         // Lambda is necessary there to keep shared_ptr counter above zero
@@ -2117,13 +2134,14 @@ void ScriptManager::loadEntityScript(const EntityItemID& entityID, const QString
         });
         return;
     }
+    if (rejectEntityScriptWithoutConsent(entityID, entityScript)) {
+        return;
+    }
     PROFILE_RANGE(script, __FUNCTION__);
 
     QSharedPointer<ScriptEngines> scriptEngines(_scriptEngines);
     if (isStopping() || !scriptEngines || scriptEngines->isStopped()) {
-        qCDebug(scriptengine) << "loadEntityScript.start " << entityID.toString()
-                                     << " but isStopping==" << isStopping()
-                                     << " || engines->isStopped==" << scriptEngines->isStopped();
+        qCDebug(scriptengine) << "Entity script loader unavailable";
         return;
     }
 
@@ -2185,10 +2203,7 @@ void ScriptManager::loadEntityScript(const EntityItemID& entityID, const QString
 void ScriptManager::entityScriptContentAvailable(const EntityItemID& entityID, const QString& scriptOrURL, const QString& contents, bool isURL, bool success , const QString& status) {
     if (QThread::currentThread() != thread()) {
 #ifdef THREAD_DEBUGGING
-        qCDebug(scriptengine) << "*** WARNING *** ScriptManager::entityScriptContentAvailable() called on wrong thread ["
-            << QThread::currentThread() << "], invoking on correct thread [" << thread()
-            << "]  " "entityID:" << entityID << "scriptOrURL:" << scriptOrURL << "contents:"
-            << contents << "isURL:" << isURL << "success:" << success;
+        qCDebug(scriptengine) << "Entity script callback queued to its owner thread";
 #endif
 
         // Lambda is necessary there to keep shared_ptr counter above zero
@@ -2198,9 +2213,9 @@ void ScriptManager::entityScriptContentAvailable(const EntityItemID& entityID, c
         return;
     }
 
-#ifdef THREAD_DEBUGGING
-    qCDebug(scriptengine) << "ScriptManager::entityScriptContentAvailable() thread [" << QThread::currentThread() << "] expected thread [" << thread() << "]";
-#endif
+    if (rejectEntityScriptWithoutConsent(entityID, scriptOrURL)) {
+        return;
+    }
 
     auto scriptCache = DependencyManager::get<ScriptCache>();
     bool isFileUrl = isURL && scriptOrURL.startsWith("file://");
