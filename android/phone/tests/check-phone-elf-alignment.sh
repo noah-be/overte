@@ -56,6 +56,8 @@ scan_root_canonical=$(realpath -e -- "$scan_root") || {
     exit 2
 }
 
+scan_root=$scan_root_canonical
+
 readelf_tool=""
 for candidate in llvm-readelf readelf; do
     if command -v "$candidate" >/dev/null 2>&1; then
@@ -98,7 +100,14 @@ while IFS= read -r -d '' library; do
                 ;;
         esac
     fi
-    program_headers=$($readelf_tool -lW -- "$inspected_library" 2>&1)
+    # NDK LLVM readelf does not accept --. Use an absolute path so a
+    # relative input beginning with '-' cannot become a tool option.
+    inspected_library=$(realpath -e -- "$inspected_library") || {
+        echo "ERROR  $display_path: could not resolve shared library" >&2
+        ((inspection_error_count += 1))
+        continue
+    }
+    program_headers=$("$readelf_tool" -lW "$inspected_library" 2>&1)
     readelf_status=$?
     if (( readelf_status != 0 )); then
         echo "ERROR  $display_path: readelf failed" >&2
