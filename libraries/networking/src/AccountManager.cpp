@@ -779,9 +779,24 @@ void AccountManager::setAccessTokens(const QString& response) {
 }
 
 void AccountManager::requestAccessTokenFinished() {
-    QNetworkReply* requestReply = reinterpret_cast<QNetworkReply*>(sender());
+    auto* requestReply = qobject_cast<QNetworkReply*>(sender());
+    if (!requestReply || requestReply->property("_overte_account_auth_finished").toBool()) {
+        return;
+    }
+    requestReply->setProperty("_overte_account_auth_finished", true);
+    requestReply->deleteLater();
 
-    QJsonDocument jsonResponse = QJsonDocument::fromJson(requestReply->readAll());
+    constexpr qint64 MAX_RESPONSE_BYTES = 1024 * 1024;
+    const auto payload = requestReply->read(MAX_RESPONSE_BYTES + 1);
+    QJsonParseError parseError;
+    QJsonDocument jsonResponse = QJsonDocument::fromJson(payload, &parseError);
+    const int status = requestReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    if (requestReply->error() != QNetworkReply::NoError || status < 200 || status >= 300 ||
+            payload.size() > MAX_RESPONSE_BYTES || requestReply->bytesAvailable() != 0 ||
+            parseError.error != QJsonParseError::NoError || !jsonResponse.isObject()) {
+        emit loginFailed();
+        return;
+    }
     const QJsonObject& rootObject = jsonResponse.object();
 
     if (!rootObject.contains("error")) {
@@ -792,6 +807,7 @@ void AccountManager::requestAccessTokenFinished() {
             // TODO: error handling - malformed token response
             qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
+            emit loginFailed();
         } else {
             // clear the path from the response URL so we have the right root URL for this access token
             QUrl rootURL = requestReply->url();
