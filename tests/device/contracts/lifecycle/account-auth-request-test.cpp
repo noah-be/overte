@@ -66,7 +66,6 @@ public:
 public slots:
     void requestAccessTokenFinished() { ++loginFinished; }
     void refreshAccessTokenFinished() { ++refreshFinished; }
-    void requestAccessTokenError(QNetworkReply::NetworkError) {}
     void refreshAccessTokenError(QNetworkReply::NetworkError) {}
 };
 #include "requests.inc"

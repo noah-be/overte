@@ -701,7 +701,6 @@ void AccountManager::requestAccessTokenWithSteam(QByteArray authSessionTicket) {
     overte::network::watchRequest(requestReply, requestContext);
     observeAccountTokenDeadline(requestReply);
     connect(requestReply, &QNetworkReply::finished, this, &AccountManager::requestAccessTokenFinished);
-    connect(requestReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(requestAccessTokenError(QNetworkReply::NetworkError)));
 }
 
 void AccountManager::requestAccessTokenWithOculus(const QString& nonce, const QString &oculusID) {
@@ -728,7 +727,6 @@ void AccountManager::requestAccessTokenWithOculus(const QString& nonce, const QS
     overte::network::watchRequest(requestReply, requestContext);
     observeAccountTokenDeadline(requestReply);
     connect(requestReply, &QNetworkReply::finished, this, &AccountManager::requestAccessTokenFinished);
-    connect(requestReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(requestAccessTokenError(QNetworkReply::NetworkError)));
 }
 
 void AccountManager::refreshAccessToken() {
