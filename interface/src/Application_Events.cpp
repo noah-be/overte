@@ -366,6 +366,9 @@ void publishClientVisibility(bool native, bool foreground) {
     if (DependencyManager::isSet<AddressManager>()) {
         DependencyManager::get<AddressManager>()->setClientLookupVisibility(effective);
     }
+    if (DependencyManager::isSet<NodeList>()) {
+        DependencyManager::get<NodeList>()->setClientTransportVisibility(effective);
+    }
 }
 } // namespace
 

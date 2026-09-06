@@ -383,8 +383,8 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     DependencyManager::set<recording::Deck>();
     DependencyManager::set<recording::Recorder>();
     DependencyManager::set<AddressManager>();
-    overte::lifecycle::observeQtVisibility(QGuiApplication::applicationState() == Qt::ApplicationActive);
     DependencyManager::set<NodeList>(NodeType::Agent, listenPort);
+    overte::lifecycle::observeQtVisibility(QGuiApplication::applicationState() == Qt::ApplicationActive);
     DependencyManager::set<recording::ClipCache>();
     DependencyManager::set<GeometryCache>();
     DependencyManager::set<ModelFormatRegistry>(); // ModelFormatRegistry must be defined before ModelCache. See the ModelCache constructor.

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <cassert>
 #include <thread>
+#include <type_traits>
 #include <QtCore/QCoreApplication>
 #include <QtCore/QThread>
 #include "interface/src/ApplicationLifecycle.h"
@@ -14,10 +15,23 @@ struct AddressManager {
     }
 };
 AddressManager addresses;
+struct NodeList {
+    bool foreground = false;
+    unsigned observations = 0;
+    void setClientTransportVisibility(bool value) { foreground = value; ++observations; }
+};
+NodeList nodes;
 bool addressInstalled = false;
+bool nodeInstalled = false;
 struct DependencyManager {
-    template<class T> static bool isSet() { return addressInstalled; }
-    template<class T> static T* get() { assert(addressInstalled); return &addresses; }
+    template<class T> static bool isSet() {
+        if constexpr (std::is_same<T, NodeList>::value) { return nodeInstalled; }
+        else { return addressInstalled; }
+    }
+    template<class T> static T* get() {
+        if constexpr (std::is_same<T, NodeList>::value) { assert(nodeInstalled); return &nodes; }
+        else { assert(addressInstalled); return &addresses; }
+    }
 };
 overte::lifecycle::Gate gate;
 overte::lifecycle::Gate& overte::lifecycle::applicationGate() { return gate; }
@@ -28,12 +42,16 @@ int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     observeNativeVisibility(true); // Early callback must not create dependencies.
     assert(!gate.snapshot().foreground && addresses.observations == 0);
+    assert(nodes.observations == 0);
     observeNativeVisibility(false);
     addressInstalled = true;
+    nodeInstalled = true;
     observeQtVisibility(true); // Startup must respect retained native pause.
     assert(!gate.snapshot().foreground && !addresses.foreground);
+    assert(!nodes.foreground && nodes.observations == 1);
     observeNativeVisibility(true);
     assert(gate.snapshot().foreground && addresses.foreground);
+    assert(nodes.foreground);
     const auto ticket = addresses.requests.next();
     const auto generation = gate.snapshot().generation;
     observeQtVisibility(true);
@@ -53,6 +71,7 @@ int main(int argc, char** argv) {
     assert(next.current()); // Queued delivery, not a false synchronous-stop claim.
     QCoreApplication::processEvents();
     assert(!next.current() && !gate.snapshot().foreground && !addresses.foreground);
+    assert(!nodes.foreground);
     observeQtVisibility(false);
     std::thread nativeResume([] { observeNativeVisibility(true); });
     nativeResume.join();
@@ -65,4 +84,5 @@ int main(int argc, char** argv) {
     observeNativeVisibility(true);
     assert(gate.snapshot().state == State::Stopped);
     assert(!addresses.foreground);
+    assert(!nodes.foreground);
 }
