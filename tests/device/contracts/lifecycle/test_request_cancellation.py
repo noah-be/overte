@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import pathlib
+import re
 import shlex
 import subprocess
 import tempfile
@@ -30,6 +31,8 @@ void setupEssentialsScope() {
     def test_actual_account_request_and_real_qt_abort(self):
         source = (ROOT / "libraries/networking/src/AccountManager.cpp").read_text()
         header = (ROOT / "libraries/networking/src/AccountManager.h").read_text()
+        session_field = re.findall(r"^\s*(QUuid _sessionID\s*\{[^\n]+\};)", header, re.MULTILINE)
+        self.assertEqual(len(session_field), 1, "Actual session owner must retain its reviewed QUuid type")
         method = "void AccountManager::sendRequest(" + source.split("void AccountManager::sendRequest(", 1)[1].split("\nbool writeAccountMapToFile", 1)[0]
         callback = "class JSONCallbackParameters {" + header.split("class JSONCallbackParameters {", 1)[1].split("\n};", 1)[0] + "\n};\n"
         constructor = "JSONCallbackParameters::JSONCallbackParameters(" + source.split("JSONCallbackParameters::JSONCallbackParameters(", 1)[1].split("\n}", 1)[0] + "\n}\n"
@@ -41,6 +44,7 @@ void setupEssentialsScope() {
         with tempfile.TemporaryDirectory(prefix="sh005-http-cancel-") as temporary:
             temporary = pathlib.Path(temporary)
             (temporary / "callback-parameters.inc").write_text(callback + constructor)
+            (temporary / "account-session-field.inc").write_text(session_field[0] + "\n")
             (temporary / "account-send-request.inc").write_text(method)
             (temporary / "address-request-methods.inc").write_text(address_methods)
             moc = temporary / "request-cancellation-test.moc"
