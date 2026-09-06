@@ -17,7 +17,7 @@
         "pcre2/10.42#a0b25dffca18f5987304619e9c93fb44%1783075188.143",
         "opus/1.5.2#18fcc73dcd16edae063173f3ceb3ed56%1757941039.736",
         "openxr/1.1.46@overte/stable#7ac70ec1fe70bb9c9cddeba10906b4dd%1743940069.53",
-        "openssl/3.5.8@overte/stable#d98b923ce574f06e672c00c17e63ac9c%1788671617.100123",
+        "openssl/3.5.8@overte/stable#1ca155ce3b857ad3b1f742ea3dd7fc85%1788688914.2852457",
         "opengl/system#cfcf523b9d2bad75cbf377f56562634c%1762526044.744",
         "openexr/3.1.9#cb853b3a9baee5f924ee5929ed94d55b%1727884745.806",
         "onetbb/2021.10.0#ee3f2e5539ab683fdaba561d89c9ecee%1788266660.0963924",
@@ -76,7 +76,7 @@
             null,
             "jsoncpp/1.9.6"
         ],
-        "openssl/3.5.8@overte/stable#d98b923ce574f06e672c00c17e63ac9c": [
+        "openssl/3.5.8@overte/stable#1ca155ce3b857ad3b1f742ea3dd7fc85": [
             null,
             "openssl/3.5.8@overte/stable"
         ],
