@@ -9,7 +9,6 @@
 //
 
 import QtQuick 2.5
-import Qt5Compat.GraphicalEffects
 
 import "."
 import stylesUit 1.0

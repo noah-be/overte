@@ -8,7 +8,6 @@
 
 
 import QtQuick 2.5
-import Qt5Compat.GraphicalEffects
 
 import stylesUit 1.0
 import "../../controls"

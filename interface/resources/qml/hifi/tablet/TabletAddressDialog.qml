@@ -11,7 +11,6 @@
 import Hifi 1.0
 import QtQuick 2.7
 import QtQuick.Controls 2.2
-import Qt5Compat.GraphicalEffects
 import "../../controls"
 import "../../styles"
 import "../../windows"

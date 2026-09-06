@@ -1,5 +1,4 @@
 import QtQuick 2.9
-import Qt5Compat.GraphicalEffects
 
 Item {
     width: 92
