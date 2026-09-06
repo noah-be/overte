@@ -1179,8 +1179,12 @@ void AccountManager::requestAccountSettings() {
     _pullSettingsRetryTimer->stop();
     const auto download = _settingsGetContext.next();
     QPointer<AccountManager> owner(this);
-    const auto requestedTimestamp = _settings.lastChangeTimestamp();
-    _settings.startedLoading();
+    quint64 requestedTimestamp = 0;
+    if (!_settings.beginDownload(requestedTimestamp)) {
+        _numPullRetries = 0;
+        _postSettingsTimer->start();
+        return;
+    }
 
     qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
@@ -1373,6 +1377,7 @@ void AccountManager::postAccountSettingsFinished() {
 
     if (rootObject.contains("status") && rootObject["status"].toString() == "success") {
         _lastSuccessfulSyncTimestamp = lockerReply->property("_overte_settings_timestamp").toULongLong();
+        _settings.acknowledgeSnapshot(_lastSuccessfulSyncTimestamp);
     } else {
         qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }

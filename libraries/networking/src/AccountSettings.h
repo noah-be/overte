@@ -30,6 +30,8 @@ public:
 
     void loggedOut();
     void startedLoading();
+    bool beginDownload(quint64& requestedTimestamp);
+    void acknowledgeSnapshot(quint64 timestamp);
     quint64 lastChangeTimestamp() const { QReadLocker lock(&_settingsLock); return _lastChangeTimestamp; }
 
     struct Snapshot {
@@ -51,6 +53,7 @@ private:
     void unpackLocked(const QJsonObject& data);
     mutable QReadWriteLock _settingsLock;
     quint64 _lastChangeTimestamp { 0 };
+    bool _hasLocalChanges { false };
 
     State _homeLocationState { LoggedOut };
     QString _homeLocation;

@@ -57,6 +57,7 @@ void AccountSettings::unpackLocked(const QJsonObject& data) {
     auto it = data.find(HOME_LOCATION_KEY);
     _homeLocationState = it != data.end() && it->isString() ? Loaded : NotPresent;
     _homeLocation = _homeLocationState == Loaded ? it->toString() : "";
+    _hasLocalChanges = false;
 }
 
 void AccountSettings::setHomeLocation(QString homeLocation) {
@@ -65,6 +66,7 @@ void AccountSettings::setHomeLocation(QString homeLocation) {
         // Explicit local intent while loading (or choosing an absent value)
         // supersedes the pending server snapshot, even for equal text.
         advanceTimestampLocked();
+        _hasLocalChanges = true;
     }
     _homeLocation = homeLocation;
     _homeLocationState = Loaded;
@@ -75,9 +77,23 @@ void AccountSettings::startedLoading() {
     _homeLocationState = Loading;
 }
 
+bool AccountSettings::beginDownload(quint64& requestedTimestamp) {
+    QWriteLocker lock(&_settingsLock);
+    if (_hasLocalChanges) { return false; }
+    requestedTimestamp = _lastChangeTimestamp;
+    _homeLocationState = Loading;
+    return true;
+}
+
+void AccountSettings::acknowledgeSnapshot(quint64 timestamp) {
+    QWriteLocker lock(&_settingsLock);
+    if (timestamp == _lastChangeTimestamp) { _hasLocalChanges = false; }
+}
+
 void AccountSettings::loggedOut() {
     QWriteLocker lock(&_settingsLock);
     advanceTimestampLocked();
     _homeLocation.clear();
+    _hasLocalChanges = false;
     _homeLocationState = LoggedOut;
 }
