@@ -255,7 +255,8 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
             if (trigger != UserInput && trigger != Back && trigger != Forward && trigger != Suggestions) { return false; }
         }
     }
-    static QString URL_TYPE_USER = "user";
+    auto lookup = _lookupRequests.snapshot();
+    if (!lookup.current()) { return false; }
     static QString URL_TYPE_DOMAIN_ID = "domain_id";
     static QString URL_TYPE_PLACE = "place";
     static QString URL_TYPE_NETWORK_ADDRESS = "network_address";
@@ -266,6 +267,8 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
         // Assignment clients ping for empty url until assigned. Don't spam.
         qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
+
+    if (!lookup.current()) { return false; }
 
     if (lookupUrl.scheme().isEmpty() && !lookupUrl.path().startsWith("/")) {
         // 'urls' without schemes are taken as domain names, as opposed to
@@ -303,9 +306,11 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
         }
 
         if (lookupUrl.host().isEmpty()) { return false; }
-        _lookupRequests.next(); // Also cancel HTTP when the new target is direct IP/DNS.
+        lookup = _lookupRequests.next(); // Also cancel HTTP when the new target is direct IP/DNS.
         _lookupNeedsExplicitIntent = false;
         DependencyManager::get<NodeList>()->flagTimeForConnectionStep(LimitedNodeList::ConnectionStep::LookupAddress);
+
+        if (!lookup.current()) { return true; }
 
         // there are 4 possible lookup strings
 
@@ -315,25 +320,19 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
         // 4. domain network address (IP or dns resolvable hostname)
 
         // use our regex'ed helpers to figure out what we're supposed to do with this
-        if (handleUsername(lookupUrl.authority())) {
-            // handled a username for lookup
-
-            UserActivityLogger::getInstance().wentTo(trigger, URL_TYPE_USER, QStringLiteral("OVT_REDACTED"));
-
-            // save the last visited domain URL.
-            _lastVisitedURL = lookupUrl;
-
-            // in case we're failing to connect to where we thought this user was
-            // store their username as previous lookup so we can refresh their location via API
-            _previousAPILookup = lookupUrl;
+        if (handleUsername(lookupUrl.authority(), lookupUrl, trigger)) {
+            // Username handling stores intent before starting its HTTP request.
         } else {
             // we're assuming this is either a network address or global place name
             // check if it is a network address first
             bool hostChanged;
-            if (handleNetworkAddress(lookupUrl.host()
-                                     + (lookupUrl.port() == -1 ? "" : ":" + QString::number(lookupUrl.port())), trigger, hostChanged)) {
-
+            const bool networkAddress = handleNetworkAddress(lookupUrl.host()
+                + (lookupUrl.port() == -1 ? "" : ":" + QString::number(lookupUrl.port())), trigger, hostChanged);
+            if (!lookup.current()) { return true; }
+            if (networkAddress) {
                 UserActivityLogger::getInstance().wentTo(trigger, URL_TYPE_NETWORK_ADDRESS, QStringLiteral("OVT_REDACTED"));
+
+                if (!lookup.current()) { return true; }
 
                 // save the last visited domain URL.
                 _lastVisitedURL = lookupUrl;
@@ -357,6 +356,8 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
             } else if (handleDomainID(lookupUrl.host())){
                 UserActivityLogger::getInstance().wentTo(trigger, URL_TYPE_DOMAIN_ID, QStringLiteral("OVT_REDACTED"));
 
+                if (!lookup.current()) { return true; }
+
                 // save the last visited domain URL.
                 _lastVisitedURL = lookupUrl;
 
@@ -370,6 +371,8 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
                 // wasn't an address - lookup the place name
                 // we may have a path that defines a relative viewpoint - pass that through the lookup so we can go to it after
                 UserActivityLogger::getInstance().wentTo(trigger, URL_TYPE_PLACE, QStringLiteral("OVT_REDACTED"));
+
+                if (!lookup.current()) { return true; }
 
                 // save the last visited domain URL.
                 _lastVisitedURL = lookupUrl;
@@ -404,21 +407,24 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
         return true;
 
     } else if (lookupUrl.toString().startsWith('/')) {
-        _lookupRequests.next();
+        lookup = _lookupRequests.next();
         _lookupNeedsExplicitIntent = false;
         qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
+
+        if (!lookup.current()) { return true; }
 
         // a path lookup clears the previous lookup since we don't expect to re-attempt it
         _previousAPILookup.clear();
 
         // if this is a relative path then handle it as a relative viewpoint
         handlePath(lookupUrl.path(), trigger, true);
+        if (!lookup.current()) { return true; }
         emit lookupResultsFinished();
 
         return true;
     } else if (lookupUrl.scheme() == HIFI_URL_SCHEME_FILE || lookupUrl.scheme() == HIFI_URL_SCHEME_HTTPS
             || lookupUrl.scheme() == HIFI_URL_SCHEME_HTTP) {
-        _lookupRequests.next();
+        lookup = _lookupRequests.next();
         _lookupNeedsExplicitIntent = false;
 
         // Save the last visited domain URL.
@@ -427,8 +433,10 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
         _previousAPILookup.clear();
         _shareablePlaceName.clear();
         setDomainInfo(lookupUrl, trigger);
+        if (!lookup.current()) { return true; }
         emit lookupResultsFinished();
 
+        if (!lookup.current()) { return true; }
         QString path = DOMAIN_SPAWNING_POINT;
         QUrlQuery queryArgs(lookupUrl);
         const QString LOCATION_QUERY_KEY = "location";
@@ -719,6 +727,9 @@ void AddressManager::attemptDomainIDLookup(const QString& lookupString, const QS
 }
 
 bool AddressManager::handleNetworkAddress(const QString& lookupString, LookupTrigger trigger, bool& hostChanged) {
+    const auto lookup = _lookupRequests.snapshot();
+    hostChanged = false;
+    if (!lookup.current()) { return false; }
     const QString IP_ADDRESS_REGEX_STRING = "^((?:(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}"
         "(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]))(?::(\\d{1,5}))?$";
 
@@ -737,6 +748,7 @@ bool AddressManager::handleNetworkAddress(const QString& lookupString, LookupTri
         }
 
         emit lookupResultsFinished();
+        if (!lookup.current()) { return true; }
         QUrl domainURL;
         domainURL.setScheme(URL_SCHEME_OVERTE);
         domainURL.setHost(domainIPString);
@@ -764,6 +776,7 @@ bool AddressManager::handleNetworkAddress(const QString& lookupString, LookupTri
         }
 
         emit lookupResultsFinished();
+        if (!lookup.current()) { return true; }
         QUrl domainURL;
         domainURL.setScheme(URL_SCHEME_OVERTE);
         domainURL.setHost(domainHostname);
@@ -881,13 +894,20 @@ bool AddressManager::handleViewpoint(const QString& viewpointString, bool should
 
 const QString GET_USER_LOCATION = "/api/v1/users/%1/location";
 
-bool AddressManager::handleUsername(const QString& lookupString) {
+bool AddressManager::handleUsername(const QString& lookupString, const QUrl& lookupUrl, LookupTrigger trigger) {
+    const auto lookup = _lookupRequests.snapshot();
+    const QString URL_TYPE_USER = "user";
     const QString USERNAME_REGEX_STRING = "^@(\\S+)";
 
     const QRegularExpression usernameRegex(USERNAME_REGEX_STRING);
     const auto usernameMatch = usernameRegex.match(lookupString);
 
     if (usernameMatch.hasMatch()) {
+        if (!lookup.current()) { return true; }
+        _lastVisitedURL = lookupUrl;
+        _previousAPILookup = lookupUrl;
+        UserActivityLogger::getInstance().wentTo(trigger, URL_TYPE_USER, QStringLiteral("OVT_REDACTED"));
+        if (!lookup.current()) { return true; }
         goToUser(usernameMatch.captured(1));
         return true;
     }
