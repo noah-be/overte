@@ -21,6 +21,7 @@ class ScriptLoadDiagnostics(unittest.TestCase):
 #include <QtCore/QFileInfo>
 #include <QtCore/QUrl>
 #include <QtCore/QThread>
+#include <QtCore/QSemaphore>
 #include <QtCore/QStringList>
 #include <functional>
 #include <memory>
@@ -175,11 +176,39 @@ int main(int argc, char** argv) {
     stopping->loadURL(url, true);
     stopping->stop(false);
     assert(cache.calls == callsBeforeStoppedLoad && stopping->runningSignals == 1);
+    // Hold the real target event loop before it can deliver the marshalled stop.
+    struct HeldThread : QThread {
+        QSemaphore entered, proceed;
+        void run() override { entered.release(); proceed.acquire(); exec(); }
+    } worker;
+    auto queued = std::make_shared<ScriptManager>();
+    queued->loadURL(url, false);
+    auto queuedCompletion = cache.callback;
+    queued->moveToThread(&worker);
+    worker.start();
+    assert(worker.entered.tryAcquire(1, 2000));
+    queued->stop(true);
+    assert(queued->_isStopping && !queued->_isFinished && queued->runningSignals == 0);
+    logs.clear();
+    queuedCompletion(callbackUrl, "queued-stop-source", true, true, status);
+    queuedCompletion(callbackUrl, "", true, false, status);
+    assert(queued->_scriptContents == "existing-script" && queued->loaded.isEmpty());
+    assert(queued->failed.isEmpty() && logs.isEmpty());
+    worker.proceed.release();
+    auto mainThread = QThread::currentThread();
+    // Runs behind the queued stop; then restore affinity for safe destruction.
+    assert(QMetaObject::invokeMethod(queued.get(), [queued, mainThread] {
+        queued->moveToThread(mainThread);
+    }, Qt::BlockingQueuedConnection));
+    assert(queued->_isFinished && queued->runningSignals == 1);
+    worker.quit();
+    assert(worker.wait(2000));
 }
 '''
         header = (ROOT / 'libraries/script-engine/src/ScriptManager.h').read_text()
         self.assertIn('overte::network::RequestScope _scriptLoadContext;', header)
         self.assertIn('#include <RequestCancellation.h>', header)
+        self.assertIn('std::atomic<bool> _isStopping', header)
         flags = shlex.split(subprocess.check_output(['pkg-config', '--cflags', '--libs', 'Qt6Core', 'Qt6Network'], text=True))
         with tempfile.TemporaryDirectory(prefix='overte-script-load-') as temporary:
             cpp = Path(temporary) / 'test.cpp'
@@ -188,6 +217,19 @@ int main(int argc, char** argv) {
             subprocess.run(['c++', '-std=c++17', '-fPIC', '-I', str(ROOT), str(cpp),
                             '-o', str(binary), *flags], check=True, timeout=60)
             subprocess.run([str(binary)], check=True, timeout=10)
+            # Moving invalidation onto the target thread must fail specifically
+            # while that thread is held, despite passing direct-stop cases.
+            late_invalidation = methods.replace('_scriptLoadContext.setActive(false);', '')
+            late_invalidation = late_invalidation.replace(
+                'if (!_isFinished) {',
+                'if (!_isFinished) { _scriptLoadContext.setActive(false);')
+            self.assertNotEqual(methods, late_invalidation)
+            cpp.write_text(driver + late_invalidation + checks)
+            subprocess.run(['c++', '-std=c++17', '-fPIC', '-I', str(ROOT), str(cpp),
+                            '-o', str(binary), *flags], check=True, timeout=60)
+            rejected = subprocess.run([str(binary)], capture_output=True, text=True, timeout=10)
+            self.assertNotEqual(0, rejected.returncode)
+            self.assertIn('queued->_scriptContents == "existing-script"', rejected.stderr)
 
 
 if __name__ == '__main__':
