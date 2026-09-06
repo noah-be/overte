@@ -124,6 +124,7 @@ void DomainHandler::softReset(QString reason) {
 
 void DomainHandler::hardReset(QString reason) {
     _hostnameLookup.cancel();
+    _iceHostnameLookup.cancel();
     emit resetting();
 
     softReset(reason);
@@ -283,9 +284,9 @@ void DomainHandler::setIceServerHostnameAndID(const QString& iceServerHostname, 
 
         _pendingDomainID = id;
 
-        SockAddr* replaceableSockAddr = &_iceServerSockAddr;
-        replaceableSockAddr->~SockAddr();
-        replaceableSockAddr = new (replaceableSockAddr) SockAddr(SocketType::UDP, iceServerHostname, ICE_SERVER_DEFAULT_PORT);
+        // Keep QObject storage stable. Own the asynchronous lookup here so a
+        // hard reset invalidates queued replies before changing domain/socket.
+        _iceServerSockAddr = SockAddr(SocketType::UDP, QHostAddress(iceServerHostname), ICE_SERVER_DEFAULT_PORT);
         _iceServerSockAddr.setObjectName("IceServer");
 
         auto nodeList = DependencyManager::get<NodeList>();
@@ -293,8 +294,16 @@ void DomainHandler::setIceServerHostnameAndID(const QString& iceServerHostname, 
         nodeList->flagTimeForConnectionStep(LimitedNodeList::ConnectionStep::SetICEServerHostname);
 
         if (_iceServerSockAddr.getAddress().isNull()) {
-            // connect to lookup completed for ice-server socket so we can request a heartbeat once hostname is looked up
-            connect(&_iceServerSockAddr, &SockAddr::lookupCompleted, this, &DomainHandler::completedIceServerHostnameLookup);
+            _iceHostnameLookup.start(iceServerHostname, this, [this](const QHostInfo& info) {
+                if (info.error() != QHostInfo::NoError) { return; }
+                for (const auto& address : info.addresses()) {
+                    if (address.protocol() == QAbstractSocket::IPv4Protocol) {
+                        _iceServerSockAddr.setAddress(address);
+                        completedIceServerHostnameLookup();
+                        return;
+                    }
+                }
+            });
         } else {
             completedIceServerHostnameLookup();
         }

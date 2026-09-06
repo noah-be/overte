@@ -298,6 +298,7 @@ private:
     Node::LocalID _localID;
     QUrl _domainURL;
     overte::network::ScopedHostnameLookup _hostnameLookup;
+    overte::network::ScopedHostnameLookup _iceHostnameLookup;
     QUrl _errorDomainURL;
     SockAddr _sockAddr;
     QUuid _assignmentUUID;
