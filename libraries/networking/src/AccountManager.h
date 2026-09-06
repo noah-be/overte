@@ -118,7 +118,7 @@ public:
     bool getLimitedCommerce() { return _limitedCommerce; }
     void setLimitedCommerce(bool isLimited);
 
-    void setAccessTokens(const QString& response);
+    bool setAccessTokens(const QString& response);
     void setConfigFileURL(const QString& fileURL) { _configFileURL = fileURL; }
     void saveLoginStatus(bool isLoggedIn);
 
