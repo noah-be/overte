@@ -479,9 +479,11 @@ void NodeList::sendDomainServerCheckIn() {
             // Domain account.
             if (_hasDomainAccountManager) {
                 auto domainAccountManager = DependencyManager::get<DomainAccountManager>();
-                if (!domainAccountManager->getUsername().isEmpty() && !domainAccountManager->getAccessToken().isEmpty()) {
-                    packetStream << domainAccountManager->getUsername();
-                    packetStream << (domainAccountManager->getAccessToken() + ":" + domainAccountManager->getRefreshToken());
+                const auto domainUsername = domainAccountManager->getUsername();
+                const auto domainAccessToken = domainAccountManager->getAccessToken();
+                if (!domainUsername.isEmpty() && !domainAccessToken.isEmpty()) {
+                    packetStream << domainUsername;
+                    packetStream << (domainAccessToken + ":" + domainAccountManager->getRefreshToken());
                 }
             }
 
