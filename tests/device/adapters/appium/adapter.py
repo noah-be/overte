@@ -34,6 +34,7 @@ from adapters.common import (EMBEDDED_FIXTURE_URL, emit, fail,  # noqa: E402
                              parse_operation_arguments,
                              read_fresh_json, require_fresh_snapshot,
                              state_directory)
+from adapters.native_binding import PrivateParser, attach_binding, create_adapter  # noqa: E402
 from contracts import (load_tablet_ui_contract, validate_operation_arguments,
                        validate_probe_snapshot, validate_tablet_ui_snapshot)  # noqa: E402
 from ios.private_artifact_tree import (  # noqa: E402
@@ -42,14 +43,20 @@ from ios.private_artifact_tree import (  # noqa: E402
 )
 
 
-def cli() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
+def cli(argv=None):
+    parser = PrivateParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("--platform", choices=("android", "ios"), required=True)
     parser.add_argument("action", choices=("discover", "describe", "invoke", "cleanup"))
     parser.add_argument("--target")
     parser.add_argument("--operation")
     parser.add_argument("--arguments", default="{}")
-    return parser.parse_args()
+    parser.add_argument("--native-binding", action="store_true")
+    product_parser = PrivateParser(add_help=False, allow_abbrev=False)
+    product_parser.add_argument("--platform", choices=("android", "ios"))
+    provisional, _ = product_parser.parse_known_args(argv)
+    # The Android Appium profile does not distinguish Phone/Pico. It must not
+    # guess a native product from a platform alias; those wrappers stay owned.
+    return attach_binding(parser, provisional.platform, argv)
 
 
 class WebDriverRequestError(RuntimeError):
@@ -1987,9 +1994,11 @@ class AppiumAdapter:
         return {"cleaned": True}
 
 
-def main() -> int:
-    args = cli()
-    adapter = AppiumAdapter(args.platform)
+def main(argv=None) -> int:
+    args, binding = cli(argv)
+    adapter = create_adapter(args, binding, AppiumAdapter, args.platform)
+    if adapter.platform != args.platform or adapter.adapter_id != "appium-" + args.platform:
+        fail("OVT_NATIVE_BINDING_PROFILE_REJECTED")
     if args.action == "discover":
         emit(adapter.discover())
         return 0
@@ -2010,6 +2019,7 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as error:
-        print(f"error: {error}", file=sys.stderr)
+    except (OSError, RuntimeError, ValueError, TypeError, ImportError, AttributeError) as error:
+        print("OVT_APPIUM_ADAPTER_REJECTED" if "--native-binding" in sys.argv
+              else f"error: {error}", file=sys.stderr)
         raise SystemExit(2)
