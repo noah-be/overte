@@ -17,13 +17,13 @@ class AccountDiagnostics(unittest.TestCase):
         source = (subprocess.check_output(['git', '-C', str(ROOT), 'show', baseline + ':' + relative],
                   text=True) if baseline else (ROOT / relative).read_text())
         calls = re.findall(r'^\s*(q(?:CDebug|CWarning|Critical)\([^)]*\)\s*<<[^;]+;)', source, re.M)
-        self.assertEqual(len(calls), 53)
+        self.assertEqual(len(calls), 54) # Retained Apple requestAccessTokenError is the extra actual sink.
         for call in calls:
             self.assertRegex(call, r'^q(?:CDebug|CWarning|Critical)\((?:networking)?\) << '
                              r'overte::security::diagnosticEvent\(overte::security::DiagnosticEvent::(?:Redacted|AuthReady)\);$')
         self.assertEqual(sum('DiagnosticEvent::AuthReady' in call for call in calls), 1)
         methods = []
-        for name in ('setSessionID', 'publicKeyUploadFailed', 'handleKeypairGenerationError'):
+        for name in ('setSessionID', 'publicKeyUploadFailed', 'handleKeypairGenerationError', 'requestAccessTokenError'):
             start = source.index('void AccountManager::' + name + '(')
             end = source.index('\n}', start) + 2
             methods.append(source[start:end])

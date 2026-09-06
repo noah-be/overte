@@ -816,7 +816,7 @@ void AccountManager::requestAccessTokenFinished() {
 }
 
 void AccountManager::requestAccessTokenError(QNetworkReply::NetworkError error) {
-    qCWarning(networking) << "AccountManager: failed to request access token -" << error;
+    qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     emit loginFailed();
 }
 
