@@ -4,6 +4,7 @@
 #include <QtCore/QCoreApplication>
 #include <QtCore/QLoggingCategory>
 #include <QtCore/QUrl>
+#include <QtCore/QPointer>
 #include "security/redaction/SafeDiagnostics.h"
 #include "libraries/networking/src/RequestCancellation.h"
 Q_LOGGING_CATEGORY(networking, "address-diagnostics-test")
@@ -22,6 +23,7 @@ public:
 };
 class AddressManager {
 public:
+    overte::network::RequestScope _lookupRequests;
     void handleAPIError(QNetworkReply*);
     void lookupResultIsNotFound() { ++missing; }
     void lookupResultsFinished() { ++finished; }

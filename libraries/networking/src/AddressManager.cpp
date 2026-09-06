@@ -18,6 +18,7 @@
 #include <QClipboard>
 #include <QDebug>
 #include <QJsonDocument>
+#include <QPointer>
 #include <QRegularExpression>
 #include <QStringList>
 #include <QThread>
@@ -477,9 +478,15 @@ const QString DATA_OBJECT_DOMAIN_KEY = "domain";
 
 
 void AddressManager::handleAPIResponse(QNetworkReply* requestReply) {
-    if (!overte::network::replyCurrent(requestReply)) { return; }
+    QPointer<QNetworkReply> guardedReply(requestReply);
+    const auto lookup = _lookupRequests.snapshot();
+    const auto current = [&] { return guardedReply && lookup.current() &&
+        overte::network::replyCurrent(guardedReply.data()); };
+    if (!current()) { return; }
     QJsonObject responseObject = QJsonDocument::fromJson(requestReply->readAll()).object();
     QJsonObject dataObject = responseObject["data"].toObject();
+
+    if (!current()) { return; }
 
     // Lookup succeeded, don't keep re-trying it (especially on server restarts)
     _previousAPILookup.clear();
@@ -490,13 +497,19 @@ void AddressManager::handleAPIResponse(QNetworkReply* requestReply) {
         goToAddressFromObject(responseObject.toVariantMap(), requestReply);
     }
 
-    emit lookupResultsFinished();
+    if (current()) { emit lookupResultsFinished(); }
 }
 
 const char OVERRIDE_PATH_KEY[] = "override_path";
 const char LOOKUP_TRIGGER_KEY[] = "lookup_trigger";
 
 void AddressManager::goToAddressFromObject(const QVariantMap& dataObject, const QNetworkReply* reply) {
+
+    QPointer<const QNetworkReply> guardedReply(reply);
+    const auto lookup = _lookupRequests.snapshot();
+    const auto current = [&] { return guardedReply && lookup.current() &&
+        overte::network::replyCurrent(guardedReply.data()); };
+    if (!current()) { return; }
 
     const QString DATA_OBJECT_PLACE_KEY = "place";
     const QString DATA_OBJECT_USER_LOCATION_KEY = "location";
@@ -550,14 +563,18 @@ void AddressManager::goToAddressFromObject(const QVariantMap& dataObject, const 
                     if (domainPort > 0) {
                         domainURL.setPort(domainPort);
                     }
+                    if (!current()) { return; }
                     emit possibleDomainChangeRequired(domainURL, domainID);
                 } else {
                     QString iceServerAddress = domainObject[DOMAIN_ICE_SERVER_ADDRESS_KEY].toString();
 
                     qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
+                    if (!current()) { return; }
                     emit possibleDomainChangeRequiredViaICEForID(iceServerAddress, domainID);
                 }
+
+                if (!current()) { return; }
 
                 LookupTrigger trigger = (LookupTrigger) reply->property(LOOKUP_TRIGGER_KEY).toInt();
 
@@ -591,6 +608,8 @@ void AddressManager::goToAddressFromObject(const QVariantMap& dataObject, const 
                         trigger = LookupTrigger::Internal;
                     }
                 }
+
+                if (!current()) { return; }
 
                 // check if we had a path to override the path returned
                 QString overridePath = reply->property(OVERRIDE_PATH_KEY).toString();
@@ -639,9 +658,14 @@ void AddressManager::goToAddressFromObject(const QVariantMap& dataObject, const 
 }
 
 void AddressManager::handleAPIError(QNetworkReply* errorReply) {
-    if (!overte::network::replyCurrent(errorReply)) { return; }
+    QPointer<QNetworkReply> guardedReply(errorReply);
+    const auto lookup = _lookupRequests.snapshot();
+    const auto current = [&] { return guardedReply && lookup.current() &&
+        overte::network::replyCurrent(guardedReply.data()); };
+    if (!current()) { return; }
     qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::ConnectionFailed);
 
+    if (!current()) { return; }
     if (errorReply->error() == QNetworkReply::ContentNotFoundError) {
         // if this is a lookup that has no result, don't keep re-trying it
         _previousAPILookup.clear();
@@ -649,7 +673,7 @@ void AddressManager::handleAPIError(QNetworkReply* errorReply) {
         emit lookupResultIsNotFound();
     }
 
-    emit lookupResultsFinished();
+    if (current()) { emit lookupResultsFinished(); }
 }
 
 void AddressManager::attemptPlaceNameLookup(const QString& lookupString, const QString& overridePath, LookupTrigger trigger) {
@@ -872,9 +896,12 @@ bool AddressManager::handleUsername(const QString& lookupString) {
 }
 
 bool AddressManager::setHost(const QString& host, LookupTrigger trigger, quint16 port) {
+    const auto lookup = _lookupRequests.snapshot();
+    if (!lookup.current()) { return false; }
     bool hostHasChanged = QString::compare(host, _domainURL.host(), Qt::CaseInsensitive);
     if (hostHasChanged || port != _domainURL.port()) {
         addCurrentAddressToHistory(trigger);
+        if (!lookup.current()) { return false; }
 
         _domainURL = QUrl();
         _domainURL.setScheme(URL_SCHEME_OVERTE);
@@ -897,6 +924,8 @@ bool AddressManager::setHost(const QString& host, LookupTrigger trigger, quint16
 }
 
 bool AddressManager::setDomainInfo(const QUrl& domainURL, LookupTrigger trigger) {
+    const auto lookup = _lookupRequests.snapshot();
+    if (!lookup.current()) { return false; }
     const QString hostname = domainURL.host();
     quint16 port = domainURL.port();
     bool emitHostChanged { false };
@@ -905,6 +934,7 @@ bool AddressManager::setDomainInfo(const QUrl& domainURL, LookupTrigger trigger)
 
     if (domainURL != _domainURL || isInErrorState) {
         addCurrentAddressToHistory(trigger);
+        if (!lookup.current()) { return false; }
         emitHostChanged = true;
     }
 
@@ -922,9 +952,11 @@ bool AddressManager::setDomainInfo(const QUrl& domainURL, LookupTrigger trigger)
 
     DependencyManager::get<NodeList>()->flagTimeForConnectionStep(LimitedNodeList::ConnectionStep::HandleAddress);
 
+    if (!lookup.current()) { return false; }
     if (emitHostChanged) {
         emit hostChanged(domainURL.host());
     }
+    if (!lookup.current()) { return false; }
     emit possibleDomainChangeRequired(_domainURL, QUuid());
 
     return emitHostChanged;
@@ -1048,6 +1080,11 @@ void AddressManager::lookupShareableNameForDomainID(const QUuid& domainID) {
 
 void AddressManager::addCurrentAddressToHistory(LookupTrigger trigger) {
 
+    const auto lookup = _lookupRequests.snapshot();
+    if (!lookup.current()) { return; }
+    const auto address = currentAddress();
+    if (!lookup.current()) { return; }
+
     // if we're cold starting and this is called for the first address (from settings) we don't do anything
     if (trigger != LookupTrigger::StartupFromSettings
         && trigger != LookupTrigger::DomainPathResponse
@@ -1062,13 +1099,15 @@ void AddressManager::addCurrentAddressToHistory(LookupTrigger trigger) {
 
             // when the user is going back, we move the current address to the forward stack
             // and do not but it into the back stack
-            _forwardStack.push(currentAddress());
+            if (!lookup.current()) { return; }
+            _forwardStack.push(address);
         } else {
             if (trigger == LookupTrigger::UserInput || trigger == LookupTrigger::VisitUserFromPAL) {
                 // anyime the user has actively triggered an address we know we should clear the forward stack
                 _forwardStack.clear();
 
                 emit goForwardPossible(false);
+                if (!lookup.current()) { return; }
             }
 
             // we're about to push to the back stack
@@ -1078,7 +1117,8 @@ void AddressManager::addCurrentAddressToHistory(LookupTrigger trigger) {
             }
 
             // unless this was triggered from the result of a named path lookup, add the current address to the history
-            _backStack.push(currentAddress());
+            if (!lookup.current()) { return; }
+            _backStack.push(address);
         }
     }
 }
