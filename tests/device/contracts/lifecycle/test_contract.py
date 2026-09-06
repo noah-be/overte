@@ -36,6 +36,9 @@ class LifecycleTests(unittest.TestCase):
 #include <cassert>
 #include <initializer_list>
 namespace Qt { enum ApplicationState { ApplicationActive, ApplicationInactive, ApplicationSuspended, ApplicationHidden }; }
+struct AddressManager { bool foreground = false; void setClientLookupVisibility(bool value) { foreground = value; } };
+AddressManager addresses;
+struct DependencyManager { template<class T> static T* get() { return &addresses; } };
 struct RefreshRateManager {
     enum class RefreshRateRegime { FOCUS_ACTIVE, UNFOCUS };
     void setRefreshRateRegime(RefreshRateRegime) {}
@@ -53,11 +56,13 @@ int main() {
     for (auto hidden : {Qt::ApplicationInactive, Qt::ApplicationSuspended, Qt::ApplicationHidden}) {
         app.activeChanged(Qt::ApplicationActive);
         assert(app._isForeground && gate.snapshot().foreground);
+        assert(addresses.foreground);
         auto generation = gate.snapshot().generation;
         app.activeChanged(Qt::ApplicationActive);
         assert(gate.snapshot().generation == generation);
         app.activeChanged(hidden);
         assert(!app._isForeground && !gate.snapshot().foreground);
+        assert(!addresses.foreground);
         assert(gate.snapshot().state == overte::lifecycle::State::Suspended);
     }
 }

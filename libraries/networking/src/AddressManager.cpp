@@ -227,20 +227,34 @@ QString AddressManager::currentFacingPath() const {
     }
 }
 
-const JSONCallbackParameters& AddressManager::apiCallbackParameters() {
-    static bool hasSetupParameters = false;
-    static JSONCallbackParameters callbackParams;
-
-    if (!hasSetupParameters) {
-        callbackParams.callbackReceiver = this;
-        callbackParams.jsonCallbackMethod = "handleAPIResponse";
-        callbackParams.errorCallbackMethod = "handleAPIError";
+void AddressManager::setClientLookupVisibility(bool foreground) {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, [this, foreground] { setClientLookupVisibility(foreground); }, Qt::QueuedConnection);
+        return;
     }
+    const bool leavingForeground = _clientLookupPolicy && _lookupForeground && !foreground;
+    _clientLookupPolicy = true;
+    _lookupForeground = foreground;
+    _lookupRequests.setActive(foreground);
+    if (!foreground) {
+        if (leavingForeground) { _lookupNeedsExplicitIntent = true; }
+        _previousAPILookup.clear();
+    }
+}
 
+JSONCallbackParameters AddressManager::apiCallbackParameters() {
+    JSONCallbackParameters callbackParams(this, "handleAPIResponse", "handleAPIError");
+    callbackParams.requestTicket = _lookupRequests.next();
     return callbackParams;
 }
 
 bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, const QString& lookupUrlInString) {
+    if (_clientLookupPolicy) {
+        if (!_lookupForeground) { return false; }
+        if (_lookupNeedsExplicitIntent) {
+            if (trigger != UserInput && trigger != Back && trigger != Forward && trigger != Suggestions) { return false; }
+        }
+    }
     static QString URL_TYPE_USER = "user";
     static QString URL_TYPE_DOMAIN_ID = "domain_id";
     static QString URL_TYPE_PLACE = "place";
@@ -288,6 +302,9 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
             lookupUrl = QUrl(lookupUrl.toString().replace(HIFI_SCHEME_REGEX, URL_SCHEME_OVERTE + "://"));
         }
 
+        if (lookupUrl.host().isEmpty()) { return false; }
+        _lookupRequests.next(); // Also cancel HTTP when the new target is direct IP/DNS.
+        _lookupNeedsExplicitIntent = false;
         DependencyManager::get<NodeList>()->flagTimeForConnectionStep(LimitedNodeList::ConnectionStep::LookupAddress);
 
         // there are 4 possible lookup strings
@@ -387,6 +404,8 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
         return true;
 
     } else if (lookupUrl.toString().startsWith('/')) {
+        _lookupRequests.next();
+        _lookupNeedsExplicitIntent = false;
         qCDebug(networking) << "Going to relative path" << lookupUrl.path();
 
         // a path lookup clears the previous lookup since we don't expect to re-attempt it
@@ -399,6 +418,8 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
         return true;
     } else if (lookupUrl.scheme() == HIFI_URL_SCHEME_FILE || lookupUrl.scheme() == HIFI_URL_SCHEME_HTTPS
             || lookupUrl.scheme() == HIFI_URL_SCHEME_HTTP) {
+        _lookupRequests.next();
+        _lookupNeedsExplicitIntent = false;
 
         // Save the last visited domain URL.
         _lastVisitedURL = lookupUrl;
@@ -457,6 +478,7 @@ const QString DATA_OBJECT_DOMAIN_KEY = "domain";
 
 
 void AddressManager::handleAPIResponse(QNetworkReply* requestReply) {
+    if (!overte::network::replyCurrent(requestReply)) { return; }
     QJsonObject responseObject = QJsonDocument::fromJson(requestReply->readAll()).object();
     QJsonObject dataObject = responseObject["data"].toObject();
 
@@ -623,6 +645,7 @@ void AddressManager::goToAddressFromObject(const QVariantMap& dataObject, const 
 }
 
 void AddressManager::handleAPIError(QNetworkReply* errorReply) {
+    if (!overte::network::replyCurrent(errorReply)) { return; }
     qCDebug(networking) << "AddressManager API error -" << errorReply->error() << "-" << errorReply->errorString();
 
     if (errorReply->error() == QNetworkReply::ContentNotFoundError) {
@@ -920,6 +943,8 @@ void AddressManager::goToEntry(LookupTrigger trigger) {
 }
 
 void AddressManager::goToUser(const QString& username, bool shouldMatchOrientation) {
+    if (_clientLookupPolicy && !_lookupForeground) { return; }
+    _lookupNeedsExplicitIntent = false;
     QString formattedUsername = QUrl::toPercentEncoding(username);
 
     // for history storage handling we remember how this lookup was triggered - for a username it's always user input

@@ -330,6 +330,7 @@ void AccountManager::sendRequest(const QString& path,
         return;
     }
 
+    if (!callbackParams.requestTicket.current()) { return; }
     QNetworkAccessManager& networkAccessManager = NetworkAccessManager::getInstance();
 
     QNetworkRequest networkRequest = createRequest(path, authType);
@@ -385,7 +386,18 @@ void AccountManager::sendRequest(const QString& path,
             }
         }
 
-        connect(networkReply, &QNetworkReply::finished, this, [this, networkReply] {
+        overte::network::watchRequest(networkReply, callbackParams.requestTicket);
+        if (callbackParams.requestTicket.scoped() && callbackParams.callbackReceiver) {
+            connect(callbackParams.callbackReceiver, &QObject::destroyed, networkReply, [networkReply, callbackParams] {
+                // QObject::destroyed is emitted before all receiver connections
+                // disappear. Invalidate BEFORE abort synchronously emits finished.
+                callbackParams.requestTicket.deactivateIfCurrent();
+                networkReply->abort();
+                networkReply->deleteLater();
+            });
+        }
+        connect(networkReply, &QNetworkReply::finished, this, [this, networkReply, callbackParams] {
+            if (!callbackParams.requestTicket.current()) { return; }
             // double check if the finished network reply had a session ID in the header and make
             // sure that our session ID matches that value if so
             if (networkReply->hasRawHeader(METAVERSE_SESSION_ID_HEADER)) {
@@ -403,6 +415,10 @@ void AccountManager::sendRequest(const QString& path,
 
             connect(networkReply, &QNetworkReply::finished, callbackParams.callbackReceiver,
                     [callbackParams, networkReply] {
+                if (!callbackParams.requestTicket.current()) {
+                    networkReply->deleteLater();
+                    return;
+                }
                 if (networkReply->error() == QNetworkReply::NoError) {
                     if (!callbackParams.jsonCallbackMethod.isEmpty()) {
                         bool invoked = false;

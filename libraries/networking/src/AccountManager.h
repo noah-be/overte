@@ -28,6 +28,7 @@
 #include "NetworkAccessManager.h"
 #include <SharedUtil.h>
 #include "../../../security/storage/ProtectedAccountStore.h"
+#include "RequestCancellation.h"
 
 class JSONCallbackParameters {
 public:
@@ -42,6 +43,7 @@ public:
     QString jsonCallbackMethod;
     QString errorCallbackMethod;
     QJsonObject callbackData;
+    overte::network::RequestTicket requestTicket;
 };
 
 namespace AccountManagerAuth {
