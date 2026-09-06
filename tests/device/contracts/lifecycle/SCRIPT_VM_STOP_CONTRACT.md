@@ -35,3 +35,32 @@ abort, signal teardown, or destruction. Later evaluations/ending handlers and
 complete manager teardown require separate bounded-revocation work. There is no
 consent grant API added here: remote entity scripts remain default-denied. This
 closes the empty VM-abort implementation, not SH-005 acceptance or finite revoke.
+
+## Persistent admission after interruption
+
+The engine now owns an atomic abort latch. `abortEvaluation` sets it before
+requesting V8 termination; it never resets for that engine lifetime. This matches
+the production stop caller, which does not restart a stopped manager. All three
+direct evaluation overloads, both call/construct overload pairs and the actual
+Qt signal meta-call entry check the latch before engine work. Signal dispatch
+also checks it between callbacks. V8's transient terminating state alone cannot
+represent permanent manager stop after an evaluation has unwound.
+
+The original invocation fixture additionally compiles the complete production
+String evaluation method. Ordinary arithmetic succeeds first. Then the actual
+abort method runs, the test deliberately cancels V8's transient termination,
+and late evaluation/call/construct must return empty without running JavaScript,
+converting arguments or notifying error receivers. The real Qt/moc signal test
+does the same and requires zero callbacks/conversions. The atomic field, getter
+and abort method are extracted verbatim from current production source/header;
+engine construction/value ownership and diagnostic receivers remain seams.
+Existing throwing, termination, argument-boundary and lock-release cases remain.
+
+Controlled negative runs retain the current latch/abort implementation but
+compile the preceding entry bodies via `OVERTE_ABORT_ADMISSION_BASELINE`.
+They fail specifically on late String evaluation and signal callback delivery,
+showing that V8 cancellation alone does not enforce admission. Program/closure
+overload admission is source-reviewed, not a full runtime proof of those bodies.
+This is still not a full-header, native/JITless or finite-revocation proof:
+property/proxy/conversion side effects and native resource/callback teardown
+need separate review. The deny-by-default entity consent fence stays intact.

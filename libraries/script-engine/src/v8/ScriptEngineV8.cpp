@@ -524,6 +524,7 @@ bool ScriptEngineV8::storeGlobalObjectContents() {
 
 ScriptValue ScriptEngineV8::evaluateInClosure(const ScriptValue& _closure,
                                                            const ScriptProgramPointer& _program) {
+    if (isEvaluationAborted()) { return ScriptValue(); }
     PROFILE_RANGE(script, "evaluateInClosure");
     if (!IS_THREADSAFE_INVOCATION(thread(), __FUNCTION__)) {
         return nullValue();
@@ -696,6 +697,7 @@ ScriptValue ScriptEngineV8::evaluateInClosure(const ScriptValue& _closure,
 }
 
 ScriptValue ScriptEngineV8::evaluate(const QString& sourceCode, const QString& fileName) {
+    if (isEvaluationAborted()) { return ScriptValue(); }
 
     // V8TODO: Is this ever used on another thread with script engine in a script manager?
     // It's the only case where invoke would be needed.
@@ -921,6 +923,7 @@ void ScriptEngineV8::popContext() {
 }
 
 Q_INVOKABLE ScriptValue ScriptEngineV8::evaluate(const ScriptProgramPointer& program) {
+    if (isEvaluationAborted()) { return ScriptValue(); }
 
     if (QThread::currentThread() != thread()) {
         ScriptValue result;
@@ -1152,6 +1155,7 @@ ScriptValue ScriptEngineV8::undefinedValue() {
 }
 
 void ScriptEngineV8::abortEvaluation() {
+    _abortRequested.store(true);
     // V8 permits termination from another thread without acquiring its Locker.
     // Taking a scope/Locker here would wait for the very script being stopped.
     // The engine owns this isolate for its lifetime; this does not interrupt a

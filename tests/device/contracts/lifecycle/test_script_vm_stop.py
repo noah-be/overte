@@ -23,6 +23,12 @@ class ScriptVMStop(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='overte-vm-stop-') as temporary:
             scratch = Path(temporary)
             (scratch / 'methods.inc').write_text(abort + stop)
+            engine_header = (ROOT / 'libraries/script-engine/src/v8/ScriptEngineV8.h').read_text()
+            state = next(line for line in engine_header.splitlines() if 'std::atomic<bool> _abortRequested' in line)
+            state += '\n' + next(line for line in engine_header.splitlines() if 'bool isEvaluationAborted() const' in line)
+            engine_source = (ROOT / 'libraries/script-engine/src/v8/ScriptEngineV8.cpp').read_text()
+            abort = 'void ScriptEngineV8::abortEvaluation(' + engine_source.split('void ScriptEngineV8::abortEvaluation(', 1)[1].split('\n}', 1)[0] + '\n}\n'
+            (scratch / 'abort-state.inc').write_text(state)
             binary = scratch / 'test'
             library = prefix / 'usr/lib64'
             subprocess.run(['c++', '-std=c++17', '-fPIC', '-pthread', '-I', str(ROOT),

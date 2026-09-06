@@ -29,6 +29,9 @@ struct ScriptEngineV8 {
     ManagerBoundary* _manager;
     bool emptyConversion { false };
     int conversions { 0 }, uncaught { 0 }, pops { 0 };
+    v8::Isolate* _v8Isolate = isolate;
+    void abortEvaluation();
+#include "abort-state.inc"
     v8::Isolate* getIsolate() { return isolate; }
     v8::Local<v8::Context> getContext() { return context; }
     V8ScriptValue castVariantToValue(const QVariant& value) {
@@ -39,6 +42,7 @@ struct ScriptEngineV8 {
     void setUncaughtException(const v8::TryCatch&, const char*) { ++uncaught; }
     void popContext() { ++pops; }
 };
+#include "abort-method.inc"
 QString getFileNameFromTryCatch(const v8::TryCatch&, v8::Isolate*, v8::Local<v8::Context>) { return {}; }
 class ScriptSignalV8Proxy final : public ScriptSignalV8ProxyBase, public ReadWriteLockable {
 public:
@@ -111,6 +115,11 @@ int main(int argc, char** argv) {
                 isolate->TerminateExecution();
             });
         }
+        if (mode == "stopped") {
+            engine.abortEvaluation();
+            isolate->CancelTerminateExecution();
+            assert(engine.isEvaluationAborted() && !isolate->IsExecutionTerminating());
+        }
         if (mode == "zero") { emitter.zero(); }
         else if (mode == "ten") { emitter.ten(1,2,3,4,5,6,7,8,9,10); }
         else if (mode == "over") { emitter.huge(1,2,3,4,5,6,7,8,9,10,11); }
@@ -123,14 +132,14 @@ int main(int argc, char** argv) {
         assert(proxy.getLock().tryLockForWrite());
         proxy.getLock().unlock();
         assert(engine.pops == 0);
-        const bool rejected = mode == "over" || mode == "empty-conversion" || mode == "null-arguments" || mode == "null-argument" || mode == "terminate";
+        const bool rejected = mode == "over" || mode == "empty-conversion" || mode == "null-arguments" || mode == "null-argument" || mode == "terminate" || mode == "stopped";
         assert(second == (rejected ? 0 : 1));
         assert(manager.notifications == (mode == "throw" ? 1 : 0));
         assert(engine.uncaught == (mode == "throw" ? 1 : 0));
         const bool normal = mode == "zero" || mode == "one" || mode == "ten";
         assert(first == (normal ? 1 : 0));
         if (normal) { assert(observedArguments == (mode == "zero" ? 0 : mode == "ten" ? 10 : 1)); }
-        if (mode == "over") { assert(engine.conversions == 0); }
+        if (mode == "over" || mode == "stopped") { assert(engine.conversions == 0); }
     }
     isolate->Dispose();
     v8::V8::Dispose();

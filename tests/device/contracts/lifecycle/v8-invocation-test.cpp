@@ -36,12 +36,20 @@ struct ScriptEngineV8 {
     ManagerBoundary* _manager;
     ContextBoundary contextBoundary;
     unsigned unwraps { 0 };
+    int _evaluatingCounter { 0 }, uncaught { 0 };
+    v8::Isolate* _v8Isolate = isolate;
+    void abortEvaluation();
+#include "abort-state.inc"
     v8::Isolate* getIsolate() { return isolate; }
     v8::Local<v8::Context> getContext() { return context; }
     ScriptValue undefinedValue();
+    ScriptValue nullValue();
+    ScriptValue evaluate(const QString&, const QString&);
+    void setUncaughtException(const v8::TryCatch&, const char*) { ++uncaught; }
     QString formatErrorMessageFromTryCatch(const v8::TryCatch&) { return QStringLiteral("captured diagnostic boundary"); }
     ContextBoundary* currentContext() { return &contextBoundary; }
 };
+#include "abort-method.inc"
 QString getFileNameFromTryCatch(const v8::TryCatch&, v8::Isolate*, v8::Local<v8::Context>) { return {}; }
 struct V8ScriptValue {
     ScriptEngineV8* engine;
@@ -67,9 +75,13 @@ struct ScriptValueV8Wrapper {
 ScriptValue ScriptEngineV8::undefinedValue() {
     return ScriptValue(new ScriptValueV8Wrapper(this, V8ScriptValue(this, v8::Undefined(isolate))));
 }
+ScriptValue ScriptEngineV8::nullValue() {
+    return ScriptValue(new ScriptValueV8Wrapper(this, V8ScriptValue(this, v8::Null(isolate))));
+}
 // Only manager/context diagnostic receivers and cross-engine conversion/value
 // ownership are boundaries; both complete production invocation bodies follow.
 #include "v8-invocation.inc"
+#include "v8-evaluate.inc"
 static std::atomic<bool> entered { false };
 static void markEntered(const v8::FunctionCallbackInfo<v8::Value>&) { entered.store(true, std::memory_order_release); }
 int main(int argc, char** argv) {
@@ -113,12 +125,23 @@ int main(int argc, char** argv) {
                 isolate->TerminateExecution();
             });
         }
+        if (mode == "stopped") {
+            auto ordinary = engine.evaluate(QStringLiteral("1 + 2"), QStringLiteral("fixture.js"));
+            assert(ordinary.wrapper->_value.get()->Int32Value(context).FromJust() == 3);
+            engine.abortEvaluation();
+            // V8's transient termination state is not the manager's lifetime.
+            isolate->CancelTerminateExecution();
+            assert(engine.isEvaluationAborted() && !isolate->IsExecutionTerminating());
+            auto late = engine.evaluate(QStringLiteral("entered(); 1 + 2"), QStringLiteral("fixture.js"));
+            assert(!late.wrapper && !entered.load() && engine._evaluatingCounter == 0 && engine.uncaught == 0);
+        }
         auto result = constructing ? wrapper.construct(args) : wrapper.call(ScriptValue(), args);
         if (terminator.joinable()) { terminator.join(); }
         assert(wrapper.lock.tryLockForWrite());
         wrapper.lock.unlock();
-        if (mode == "terminate" || mode == "empty-argument") {
+        if (mode == "terminate" || mode == "empty-argument" || mode == "stopped") {
             assert(!result.wrapper && manager.notifications == 0);
+            if (mode == "stopped") { assert(engine.unwraps == 0); }
         } else if (mode == "over" || mode == "nonfunction" || (constructing && mode == "arrow")) {
             assert(result.wrapper->_value.get()->IsUndefined() && engine.unwraps == 0);
         } else if (mode == "throw") {

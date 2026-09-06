@@ -1288,6 +1288,8 @@ int ScriptSignalV8Proxy::qt_metacall(QMetaObject::Call call, int id, void** argu
         return id;
     }
 
+    if (_engine->isEvaluationAborted()) { return -1; }
+
 #ifdef SCRIPT_EVENT_PERFORMANCE_STATISTICS
     _callCounter++;
     if (_callCounter % 1000 == 0) {
@@ -1330,6 +1332,7 @@ int ScriptSignalV8Proxy::qt_metacall(QMetaObject::Call call, int id, void** argu
             if (isolate->IsExecutionTerminating() || args[arg].IsEmpty()) { return -1; }
         }
         for (ConnectionList::iterator iter = connections.begin(); iter != connections.end(); ++iter) {
+            if (_engine->isEvaluationAborted()) { return -1; }
             Connection& conn = *iter;
             {
                 auto functionContext = context;
