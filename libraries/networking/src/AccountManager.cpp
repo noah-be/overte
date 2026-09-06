@@ -536,6 +536,10 @@ void AccountManager::persistAccountToFile() {
     }
 
     qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
+    // Failed persistence invalidates this credential transaction before re-auth
+    // can reenter. Existing completion guards must not continue as a success.
+    _credentialContext.next();
+    _isWaitingForTokenRefresh = false;
     _accountInfo = DataServerAccountInfo();
     emit authRequired();
 }
