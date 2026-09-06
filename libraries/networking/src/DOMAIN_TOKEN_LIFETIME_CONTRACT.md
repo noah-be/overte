@@ -10,7 +10,13 @@ domain switch and later cache restoration cannot extend the lifetime.
 `accessTokenIsExpired` is implemented, `hasValidAccessToken` checks the deadline,
 and the actual `getAccessToken` getter returns no expired value. This getter is
 the NodeList domain-auth packet consumer, so checking only the login-state API
-would be insufficient. No already-sent packet is recalled by a getter check.
+would be insufficient. The actual NodeList packet block snapshots the admitted
+token once; a second getter crossing the deadline can no longer serialize an
+empty access credential with a refresh token. Its original source block is
+compiled with a changing getter seam and real QDataStream; both admission and
+exact packet bytes are asserted. Validity is checked when taking the snapshot,
+not against future packet-delivery time. No already-sent packet is recalled by a
+getter check, and cross-thread account mutation is not proven safe here.
 
 Responses without `expires_in` preserve the existing session-only behavior;
 they are not claimed to have server-verified expiry. Nothing is newly persisted.
