@@ -15,6 +15,7 @@
 #include <QtNetwork/QHttpMultiPart>
 #include <QtNetwork/QNetworkAccessManager>
 #include "libraries/networking/src/RequestCancellation.h"
+#include "security/redaction/SafeDiagnostics.h"
 #include "callback-parameters.inc"
 namespace AccountManagerAuth { enum Type { None, Required, Optional }; }
 Q_DECLARE_METATYPE(AccountManagerAuth::Type)
