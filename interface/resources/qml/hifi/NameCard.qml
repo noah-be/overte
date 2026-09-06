@@ -9,6 +9,7 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
+import "avatarapp" as AvatarImages
 import QtQuick 2.5
 import QtQuick.Controls 1.4
 import QtQuick.Controls.Styles 1.4
@@ -58,25 +59,15 @@ Item {
         anchors.topMargin: isMyCard ? 0 : 8;
         anchors.left: parent.left
         clip: true
-        Image {
+        AvatarImages.RoundImage {
+            border.width: 0
+            radius: width / 2
             id: userImage
-            source: profileUrl !== "" ? ((0 === profileUrl.indexOf("http")) ? profileUrl : (Account.metaverseServerURL + profileUrl)) : "";
+            source: profileUrl !== "" ? Qt.resolvedUrl((0 === profileUrl.indexOf("http")) ? profileUrl : (Account.metaverseServerURL + profileUrl)) : "";
             mipmap: true;
             // Anchors
             anchors.fill: parent
-            layer.enabled: true
-            layer.effect: OpacityMask {
-                maskSource: Item {
-                    width: userImage.width;
-                    height: userImage.height;
-                    Rectangle {
-                        anchors.centerIn: parent;
-                        width: userImage.width; // This works because userImage is square
-                        height: width;
-                        radius: width;
-                    }
-                }
-            }
+
         }
         AnimatedImage {
             source: "../../icons/profilePicLoading.gif"

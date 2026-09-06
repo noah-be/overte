@@ -3,8 +3,11 @@
 RoundImage now draws its already-loaded Qt Image directly into Canvas.Image,
 clipped to a rounded path, with the original native Rectangle border above it.
 The source, fillMode, status, progress, radius and border API remains available.
-Qt Image still owns source loading and cache/status transitions; Canvas does not
-load the URL a second time and creates no export. Invalid/loading/empty images
+sourceSize, mipmap and smooth are forwarded for migrated Image callers.
+Qt Image still owns source loading and status transitions. Canvas.loadImage
+uses the same URL and requested source size after bindings settle. The counted
+provider fixture proves cache reuse for its tested keys, not every asynchronous
+network/cache path. Canvas creates no export. Invalid/loading/empty images
 clear the drawing. Layout/radius/fill-mode and completed source changes repaint.
 
 Stretch, aspect-fit, aspect-crop, pad, tile, horizontal tile and vertical tile
@@ -19,7 +22,9 @@ The full actual RoundImage QML runs in a real Qt6 software QQuickView. Tests
 compare all seven fill-mode layouts to a real Qt Image reference, then check
 rounded corners, visible center, border, ready/progress, empty and failed source
 clearing. A real counted QQmlImageProvider confirms one request, including after
-repainting. The pattern asset/provider are explicit test inputs; there is no
+repainting, and one additional request plus visible pixels after changing
+sourceSize. Omitting the Canvas cache size fails the resized pixel assertion.
+The pattern asset/provider are explicit test inputs; there is no
 avatar/server/device artifact acceptance. The previous complete RoundImage and
 TransparencyMask source files fail because expected image pixels are transparent
 on this software backend. Initial filtering and pattern-drawing probe failures
