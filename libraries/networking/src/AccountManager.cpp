@@ -832,12 +832,13 @@ bool AccountManager::setAccessTokens(const QString& response) {
             _accountInfo.setAccessTokenFromJSON(rootObject);
             const auto completionContext = _credentialContext.snapshot();
             QPointer<AccountManager> completionOwner(this);
-            emit loginComplete(rootURL);
+            // Do not publish successful login before protected persistence.
+            persistAccountToFile();
             if (!completionOwner || !completionContext.current()) {
                 return false;
             }
 
-            persistAccountToFile();
+            emit loginComplete(rootURL);
             if (!completionOwner || !completionContext.current()) {
                 return false;
             }
@@ -910,12 +911,13 @@ void AccountManager::requestAccessTokenFinished() {
 
             const auto completionContext = _credentialContext.snapshot();
             QPointer<AccountManager> completionOwner(this);
-            emit loginComplete(rootURL);
+            // The failure path invalidates this snapshot and requests re-auth.
+            persistAccountToFile();
             if (!completionOwner || !completionContext.current()) {
                 return;
             }
 
-            persistAccountToFile();
+            emit loginComplete(rootURL);
             if (!completionOwner || !completionContext.current()) {
                 return;
             }

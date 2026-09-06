@@ -86,12 +86,12 @@ int main(int argc, char** argv) {
             QPointer<AccountManager> manager = new AccountManager; selected = manager;
             persisted = saved = profiles = kept = 0;
             auto invalidate = [&] { if (destroy) delete manager.data(); else manager->_credentialContext.next(); };
-            if (stage == 0) QObject::connect(manager.data(), &AccountManager::loginComplete, invalidate);
-            else if (stage == 1) manager->onPersist = invalidate;
+            if (stage == 0) manager->onPersist = invalidate;
+            else if (stage == 1) QObject::connect(manager.data(), &AccountManager::loginComplete, invalidate);
             else if (stage == 2) manager->onSave = invalidate;
             else manager->onProfile = invalidate;
             caller.forceLoginWithTokens(QString::fromUtf8(QJsonDocument(good).toJson()));
-            assert(persisted == int(stage >= 1) && saved == int(stage >= 2) && profiles == int(stage >= 3) && kept == 0);
+            assert(persisted == 1 && saved == int(stage >= 2) && profiles == int(stage >= 3) && kept == 0);
             if (manager) delete manager.data();
         }
     }
