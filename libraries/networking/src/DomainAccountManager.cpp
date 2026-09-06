@@ -136,6 +136,18 @@ void DomainAccountManager::requestAccessToken(const QString& username, const QSt
     overte::network::watchRequest(requestReply, ticket);
     connect(requestReply, &QNetworkReply::finished, this, &DomainAccountManager::requestAccessTokenFinished);
     connect(requestReply, &QNetworkReply::finished, requestReply, &QObject::deleteLater);
+    auto deadline = new QTimer(requestReply);
+    deadline->setSingleShot(true);
+    deadline->setInterval(15000);
+    connect(requestReply, &QNetworkReply::finished, deadline, &QTimer::stop);
+    connect(deadline, &QTimer::timeout, this, [this, requestReply, ticket] {
+        if (requestReply != _pendingAccessTokenReply || !ticket.current()) {
+            return;
+        }
+        invalidatePendingAccessToken();
+        emit loginFailed();
+    });
+    deadline->start();
 }
 
 void DomainAccountManager::requestAccessTokenFinished() {

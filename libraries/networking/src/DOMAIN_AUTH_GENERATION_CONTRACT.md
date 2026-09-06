@@ -14,6 +14,15 @@ a context change or newer login request suppresses the old dialog. Requests with
 an exhausted scope fail closed. Same-value setters remain no-ops. Domain/account
 state and successful token/refresh-token signals remain otherwise unchanged.
 
+Version 002 adds a real single-shot 15s Qt deadline parented to each reply. A
+current timeout invalidates ownership before abort, then emits loginFailed
+exactly once through the existing UI signal. Finished replies stop the deadline;
+stale/dead manager callbacks cannot run through the QObject context connection.
+No automatic retry is added. A dedicated test waits for the actual production
+15s timer, including abort's synchronous apparent-success signal and reply
+deletion. This is an event-loop deadline, not a hard OS stop guarantee while
+the thread is blocked or the application is suspended.
+
 All five DomainAccountManager diagnostic expressions now use existing closed
 events, including OAuth server error/description and private domain/auth URLs.
 The real original diagnostics sink is captured in the focused test; credential
@@ -33,7 +42,7 @@ duplicate/no-sender, HTTP/malformed failure, delayed dialog, destruction and
 raw diagnostic canaries. This is not a whole networking library or device build.
 
 Pending: actual native Qt5/thread-affinity execution and end-to-end domain login,
-global foreground/lifecycle fence, finite request timeout/recovery UI, TLS and
+global foreground/lifecycle fence, blocked-thread/OS timeout and recovery UI, TLS and
 redirect/origin credential policy, strict token response types/expiry/refresh,
 cached-domain authorization policy and other auth requests. Existing cross-thread
 ownership assumptions are not made safe by the atomic ticket alone. The former

@@ -51,6 +51,28 @@ int main(int argc, char** argv) {
     qInstallMessageHandler(capture);
     auto& network = NetworkAccessManager::getInstance();
     DomainAccountManager manager;
+    if (argc > 1 && QByteArray(argv[1]) == "timeout") {
+        int failures = 0, successes = 0;
+        QObject::connect(&manager, &DomainAccountManager::loginFailed, [&] { ++failures; });
+        QObject::connect(&manager, &DomainAccountManager::loginComplete, [&] { ++successes; });
+        manager.setAuthURL(QUrl("https://timeout.invalid/token"));
+        manager.requestAccessToken("u", "p");
+        QPointer<FakeReply> pending = network.latest;
+        QElapsedTimer elapsed; elapsed.start();
+        QEventLoop loop;
+        QObject::connect(&manager, &DomainAccountManager::loginFailed, &loop, &QEventLoop::quit);
+        QTimer::singleShot(17000, &loop, &QEventLoop::quit);
+        loop.exec();
+        assert(failures == 1 && successes == 0 && manager.getAccessToken().isEmpty());
+        // Actual production 15s timer, not a rewritten interval or synthetic timeout.
+        // Coarse Qt timers may fire slightly early; OS scheduling is not a hard bound.
+        assert(elapsed.elapsed() >= 14000 && elapsed.elapsed() < 17000);
+        if (pending) { assert(pending->aborts == 1); }
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        assert(!pending);
+        qInstallMessageHandler(nullptr);
+        return 0;
+    }
     int success = 0, failure = 0, tokens = 0, prompts = 0;
     QObject::connect(&manager, &DomainAccountManager::loginComplete, [&] { ++success; });
     QObject::connect(&manager, &DomainAccountManager::loginFailed, [&] { ++failure; });
