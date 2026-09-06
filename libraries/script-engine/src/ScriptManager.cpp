@@ -575,8 +575,12 @@ void ScriptManager::waitTillDoneRunning(bool shutdown) {
 }
 
 void ScriptManager::removeFromScriptEngines() {
-    Q_ASSERT(_scriptEngines);
-    _scriptEngines.toStrongRef()->removeScriptEngine(shared_from_this());
+    // Retirement may finish after the application's registry has been released.
+    // Retain it across removal when available; an expired registry needs no edit.
+    const auto scriptEngines = _scriptEngines.toStrongRef();
+    if (scriptEngines) {
+        scriptEngines->removeScriptEngine(shared_from_this());
+    }
 }
 
 QString ScriptManager::getFilename() const {
