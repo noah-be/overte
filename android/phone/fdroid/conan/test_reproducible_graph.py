@@ -117,7 +117,7 @@ class ReproducibleGraphTest(unittest.TestCase):
         self.assertIn(qt_rrev, target)
         self.assertIn(qt_rrev, target_build)
         self.assertIn(
-            "openssl/3.5.8@overte/stable#33b2f0ee1a4417ab2c5429ae844d0ea5",
+            "openssl/3.5.8@overte/stable#d98b923ce574f06e672c00c17e63ac9c",
             target,
         )
         self.assertIn(
