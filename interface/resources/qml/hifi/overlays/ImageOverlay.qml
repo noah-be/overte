@@ -1,5 +1,4 @@
 import QtQuick 2.3
-import Qt5Compat.GraphicalEffects
 
 import "."
 
@@ -47,7 +46,7 @@ Overlay {
         image.anchors.bottomMargin = (image.yStart + image.ySize - image.sourceSize.height) * root.height / image.ySize;
     }
 
-    ColorOverlay {
+    ItemTint {
         id: color
         anchors.fill: image
         source: image
