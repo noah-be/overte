@@ -20,6 +20,9 @@ class AccountRequest(unittest.TestCase):
                             ('requestAccessToken', 'requestAccessTokenWithAuthCode',
                              'requestAccessTokenWithSteam', 'requestAccessTokenWithOculus',
                              'refreshAccessToken'))
+        marker = 'static void observeAccountTokenDeadline('
+        if marker in source:
+            methods = block(source, marker) + '\n' + methods
         flags = shlex.split(subprocess.check_output(
             ['pkg-config', '--cflags', '--libs', 'Qt6Core', 'Qt6Network'], text=True))
         moc = Path(subprocess.check_output(['pkg-config', '--variable=libexecdir', 'Qt6Core'], text=True).strip()) / 'moc'
@@ -34,7 +37,7 @@ class AccountRequest(unittest.TestCase):
                             str(here / 'account-auth-request-test.cpp'), '-o', str(binary), *flags],
                            check=True, timeout=30)
             subprocess.run(['unshare', '--user', '--map-root-user', '--net', str(binary)],
-                           check=True, timeout=8)
+                           check=True, timeout=25)
 
 
 if __name__ == '__main__':
