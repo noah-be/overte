@@ -1,37 +1,25 @@
-# Shared rounded avatar image without shader masking
+# Shared rounded avatar image through public Qt capture
 
-RoundImage now draws its already-loaded Qt Image directly into Canvas.Image,
-clipped to a rounded path, with the original native Rectangle border above it.
-The source, fillMode, status, progress, radius and border API remains available.
-sourceSize, mipmap and smooth are forwarded for migrated Image callers.
-Qt Image still owns source loading and status transitions. Canvas.loadImage
-uses the same URL and requested source size after bindings settle. The counted
-provider fixture proves cache reuse for its tested keys, not every asynchronous
-network/cache path. Canvas creates no export. Invalid/loading/empty images
-clear the drawing. Layout/radius/fill-mode and completed source changes repaint.
+RoundImage retains Qt Image source loading, requested sourceSize, mipmap, smooth,
+status and progress. The naturally-sized Image remains visible with opacity zero;
+public grabToImage captures its decoded pixels into a retained in-memory result.
+Canvas loads that result URL with one argument and paints the rounded shape and
+original border. No optional Canvas loadImage size overload or image export is
+used. One capture is in flight; source/size/visibility generations reject obsolete
+results, and pending changes coalesce after bindings settle.
 
-Stretch, aspect-fit, aspect-crop, pad, tile, horizontal tile and vertical tile
-retain the default centered Qt Image layout. Tiling uses explicit CPU draws;
-large/tiny-tile performance and native/DPR behavior are not accepted here.
-Qt Image and Canvas interpolation differ at source color discontinuities. The
-fixture records that finding and compares interior regions for layout rather
-than claiming every edge pixel is identical. Rounded clipping now has normal
-Canvas antialiasing; it is not the old shader's binary alpha-threshold algorithm.
+Stretch, aspect fit/crop, pad and all three tile modes retain centered layout.
+The full actual Qt6 software component compares interior regions with a real Qt
+Image for all seven modes. Border, clipping, error/empty clearing and provider
+counts pass. A size request while hidden obtains one additional provider result,
+and showing again paints its distinct pixels; radius repaint requests no new
+source. The four real avatar caller subtrees and TopBar update functions remain
+passing. Making the captured source invisible rather than transparent fails the
+pixel check. The public zero-opacity capture probe is retained with the evidence.
 
-The full actual RoundImage QML runs in a real Qt6 software QQuickView. Tests
-compare all seven fill-mode layouts to a real Qt Image reference, then check
-rounded corners, visible center, border, ready/progress, empty and failed source
-clearing. A real counted QQmlImageProvider confirms one request, including after
-repainting, and one additional request plus visible pixels after changing
-sourceSize. Omitting the Canvas cache size fails the resized pixel assertion.
-The pattern asset/provider are explicit test inputs; there is no
-avatar/server/device artifact acceptance. The previous complete RoundImage and
-TransparencyMask source files fail because expected image pixels are transparent
-on this software backend. Initial filtering and pattern-drawing probe failures
-are retained with the final evidence.
-
-RoundImage's old TransparencyMask connection is removed. The legacy standalone
-TransparencyMask components remain in source for other possible consumers;
-absence of another static reference does not prove dynamic QML reachability.
-Full retained QML closure, native MoltenVK present, avatar journey, visual quality,
-thread/resource performance and all original SH003/SH007/IO009 gates remain open.
+This removes an unverified Canvas overload dependency. It does not prove native
+Qt5 compatibility: the exact pinned Qt5 archive/header and runtime were not tested.
+Native Qt5/Qt6, DPR, filtering equivalence, large-image capture memory/cadence and
+full resource lifetime remain open. The snapshot adds a render/capture step; no
+performance budget is claimed. Existing interpolation differences and explicit
+CPU tile loops remain, with native/avatar journey and original39 acceptance open.

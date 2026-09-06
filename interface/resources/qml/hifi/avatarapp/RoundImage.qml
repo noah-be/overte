@@ -12,43 +12,64 @@ Item {
     property alias status: image.status
     property alias progress: image.progress
     onRadiusChanged: drawing.requestPaint()
-    onSourceSizeChanged: refresh.restart()
-    function synchronizeImage() { refresh.restart() }
-    Timer { id: refresh; interval: 0; onTriggered: root.refreshImage() }
-    function refreshImage() {
+    property int captureGeneration: 0
+    property bool captureBusy: false
+    property bool captureAgain: false
+    onSourceSizeChanged: synchronizeImage()
+    onVisibleChanged: synchronizeImage()
+    function synchronizeImage() {
         if (!drawing) return
+        captureGeneration++
         if (drawing.cachedSource.toString() !== "") drawing.unloadImage(drawing.cachedSource)
         drawing.cachedSource = ""
-        if (image.status === Image.Ready) {
-            drawing.cachedSource = image.source
-            // Match the Image cache key, including its requested source size.
-            drawing.loadImage(image.source, root.sourceSize)
-        }
+        drawing.snapshot = null
         drawing.requestPaint()
+        captureAgain = true
+        refresh.restart()
+    }
+    Timer { id: refresh; interval: 0; onTriggered: root.refreshImage() }
+    function refreshImage() {
+        if (captureBusy || !drawing.available || !visible || image.status !== Image.Ready || image.width <= 0 || image.height <= 0) return
+        captureAgain = false
+        captureBusy = true
+        var ticket = captureGeneration
+        var started = image.grabToImage(function(result) {
+            captureBusy = false
+            if (ticket === captureGeneration && image.status === Image.Ready && root.visible) {
+                drawing.snapshot = result
+                drawing.cachedSource = result.url
+                drawing.loadImage(result.url)
+                drawing.requestPaint()
+            }
+            if (captureAgain) refresh.restart()
+        })
+        if (!started) captureBusy = false
     }
 
-    // Keep Qt's image loading/status implementation. Refresh the Canvas cache
-    // after bindings settle so a size change does not load an intermediate key.
-    // Canvas draws into memory and creates no export.
+    // Keep sourceSize/cache/status in Qt Image. A transparent, naturally-sized
+    // item provides its decoded pixels through the public in-memory capture API.
+
     Image {
         id: image
-        visible: false
+        opacity: 0
+        width: implicitWidth
+        height: implicitHeight
         sourceSize: root.sourceSize
-        anchors.fill: parent
-        anchors.margins: borderRectangle.border.width
         onSourceChanged: root.synchronizeImage()
         onStatusChanged: root.synchronizeImage()
         onFillModeChanged: drawing.requestPaint()
         onSourceSizeChanged: root.synchronizeImage()
         onSmoothChanged: drawing.requestPaint()
-        onImplicitWidthChanged: drawing.requestPaint()
-        onImplicitHeightChanged: drawing.requestPaint()
+        onImplicitWidthChanged: root.synchronizeImage()
+        onImplicitHeightChanged: root.synchronizeImage()
     }
 
     Canvas {
         id: drawing
         property url cachedSource
-        anchors.fill: image
+        property var snapshot
+        anchors.fill: parent
+        anchors.margins: borderRectangle.border.width
         renderTarget: Canvas.Image
         smooth: image.smooth
         antialiasing: true
@@ -79,7 +100,7 @@ Item {
                 y0 -= Math.ceil(y0 / th) * th
                 for (var y = y0; y < height; y += th)
                     for (var x = x0; x < width; x += tw)
-                        ctx.drawImage(image, x, y, tw, th)
+                        ctx.drawImage(cachedSource, x, y, tw, th)
             } else {
                 var dw = width
                 var dh = height
@@ -92,7 +113,7 @@ Item {
                     dw = sw
                     dh = sh
                 }
-                ctx.drawImage(image, (width - dw) / 2, (height - dh) / 2, dw, dh)
+                ctx.drawImage(cachedSource, (width - dw) / 2, (height - dh) / 2, dw, dh)
             }
         }
     }
