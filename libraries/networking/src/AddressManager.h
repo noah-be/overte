@@ -526,7 +526,7 @@ private:
     void handlePath(const QString& path, LookupTrigger trigger, bool wasPathOnly = false);
     bool handleViewpoint(const QString& viewpointString, bool shouldFace, LookupTrigger trigger,
                          bool definitelyPathOnly = false, const QString& pathString = QString());
-    bool handleUsername(const QString& lookupString);
+    bool handleUsername(const QString& lookupString, const QUrl& lookupUrl, LookupTrigger trigger);
     bool handleDomainID(const QString& host);
 
     void attemptPlaceNameLookup(const QString& lookupString, const QString& overridePath, LookupTrigger trigger);
