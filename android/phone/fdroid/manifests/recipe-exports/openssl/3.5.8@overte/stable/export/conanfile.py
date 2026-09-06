@@ -127,6 +127,8 @@ class OpenSSLAndroidConan(ConanFile):
 
     def package_info(self):
         self.cpp_info.libs = ["ssl", "crypto"]
-        self.cpp_info.system_libs = ["dl", "pthread"]
+        # This recipe admits only Android: Bionic supplies pthread APIs in
+        # libc, and the NDK has no separate libpthread to pass to consumers.
+        self.cpp_info.system_libs = ["dl"]
         self.cpp_info.set_property("cmake_file_name", "OpenSSL")
         self.cpp_info.set_property("pkg_config_name", "openssl")
