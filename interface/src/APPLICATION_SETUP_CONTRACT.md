@@ -23,7 +23,7 @@ include directives only. Header resolution is separately checked for the new
 wrapper and the two moved Pico include paths. This is conditional/body identity,
 not native type checking, linking, initialization execution or startup evidence.
 
-test_setup_selection.py preprocesses the real selected production bodies,
+Pico's tests/pico-shared-setup-test.py preprocesses the selected production bodies,
 checks one definition and the distinct Phone/Pico policies, and rejects using
 the Pico wrapper for Phone. Existing Pico account JNI, lifecycle, accessibility,
 package and Tablet tests read the actual common source after the refactor.
