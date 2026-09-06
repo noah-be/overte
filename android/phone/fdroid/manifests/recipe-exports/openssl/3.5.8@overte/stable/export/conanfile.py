@@ -4,7 +4,7 @@ import shlex
 from conan import ConanFile
 from conan.errors import ConanInvalidConfiguration
 from conan.tools.build import build_jobs
-from conan.tools.files import copy, get, rmdir
+from conan.tools.files import copy, get, rmdir, save
 from conan.tools.gnu import AutotoolsToolchain
 from conan.tools.layout import basic_layout
 
@@ -98,8 +98,21 @@ class OpenSSLAndroidConan(ConanFile):
         perl = shlex.quote(self._required_tool("user.overte:perl_path"))
         make = shlex.quote(self._required_tool("user.overte:make_path"))
         configure = shlex.quote(os.path.join(self.source_folder, "Configure"))
+        platform_config = os.path.join(self.build_folder, "overte-android.conf")
+        # Qt's Android runtime resolver uses the OpenSSL-major suffix. Produce
+        # that name and SONAME at the original link, not by copying/patching an
+        # already-built provider. Upstream retains the development symlinks for
+        # -lssl/-lcrypto; APK consumers must package only the canonical pair.
+        save(self, platform_config, '''my %targets = (
+    "overte-android-arm64" => {
+        inherit_from => [ "android-arm64" ],
+        shlib_variant => "_3",
+    },
+);
+''')
         args = [
-            "android-arm64",
+            "overte-android-arm64",
+            "--config=" + shlex.quote(platform_config),
             "-D__ANDROID_API__=26",
             "shared",
             "no-docs",

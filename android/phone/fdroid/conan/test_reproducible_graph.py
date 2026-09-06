@@ -110,18 +110,18 @@ class ReproducibleGraphTest(unittest.TestCase):
         cmake_rrev = "cmake/3.31.12#2f6c0934c9dc141602cd279f67cfe048"
         qt_rrev = (
             "qt/5.15.18-2026.01.04@overte/stable"
-            "#067e63fa931d764bcb1e93004544cf4f"
+            "#b573e9e65fe29366102c09d5ec013c09"
         )
         self.assertIn(cmake_rrev, bootstrap)
         self.assertIn(qt_rrev, host)
         self.assertIn(qt_rrev, target)
         self.assertIn(qt_rrev, target_build)
         self.assertIn(
-            "openssl/3.5.8@overte/stable#1ca155ce3b857ad3b1f742ea3dd7fc85",
+            "openssl/3.5.8@overte/stable#e2ab566b1c764e543d69c8a6fa0def5b",
             target,
         )
         self.assertIn(
-            "libnode/22.22.3@overte/stable#01bc09301fde787710c8e19a8820bbb4",
+            "libnode/22.22.3@overte/stable#a76ae5683eb20fbde3f88e16d8bea96e",
             target,
         )
         for tool in ("glslang/", "scribe/", "spirv-cross/", "spirv-tools/"):
