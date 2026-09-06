@@ -14,6 +14,7 @@
 
 #include "ScriptValueV8Wrapper.h"
 #include <QReadLocker>
+#include <limits>
 
 #include "ScriptValueIteratorV8Wrapper.h"
 
@@ -485,7 +486,10 @@ bool ScriptValueV8Wrapper::strictlyEquals(const ScriptValue& other) const {
     v8::HandleScope handleScope(isolate);
     v8::Context::Scope contextScope(_engine->getContext());
     ScriptValueV8Wrapper* unwrappedOther = unwrap(other);
-    return unwrappedOther ? _value.constGet()->StrictEquals(unwrappedOther->toV8Value().constGet()) : false;
+    if (!unwrappedOther || isolate != unwrappedOther->_engine->getIsolate()) { return false; }
+    const auto value = _value.constGet();
+    const auto otherValue = unwrappedOther->toV8Value().constGet();
+    return !value.IsEmpty() && !otherValue.IsEmpty() && value->StrictEquals(otherValue);
 }
 
 inline QList<QString> ScriptValueV8Wrapper::getPropertyNames() const {
@@ -495,7 +499,7 @@ inline QList<QString> ScriptValueV8Wrapper::getPropertyNames() const {
     auto context = _engine->getContext();
     v8::Context::Scope contextScope(context);
     v8::Local<v8::Value> value = _value.constGet();
-    if (value->IsNullOrUndefined()) {
+    if (value.IsEmpty() || value->IsNullOrUndefined()) {
         return QList<QString>();
     }
     if (!value->IsObject()) {
@@ -508,8 +512,12 @@ inline QList<QString> ScriptValueV8Wrapper::getPropertyNames() const {
     }
     QList<QString> names;
     for (uint32_t n = 0; n < array->Length(); n++) {
-        v8::Local<v8::String> name = array->Get(context, n).ToLocalChecked()->ToString(context).ToLocalChecked();
-        names.append(*v8::String::Utf8Value(isolate, name));
+        v8::Local<v8::Value> key;
+        v8::Local<v8::String> name;
+        if (!array->Get(context, n).ToLocal(&key) || !key->ToString(context).ToLocal(&name)) { return {}; }
+        v8::String::Utf8Value text(isolate, name);
+        if (!*text) { return {}; }
+        names.append(QString::fromUtf8(*text, text.length()));
     }
     return names;
 }
@@ -528,9 +536,10 @@ qint32 ScriptValueV8Wrapper::toInt32() const {
     v8::HandleScope handleScope(isolate);
     auto context = _engine->getContext();
     v8::Context::Scope contextScope(context);
-    v8::Local<v8::Integer> integer;
-    if (!_value.constGet()->ToInteger(context).ToLocal(&integer)) {
-        Q_ASSERT(false);
+    v8::Local<v8::Int32> integer;
+    const auto value = _value.constGet();
+    if (value.IsEmpty() || !value->ToInt32(context).ToLocal(&integer)) {
+        return 0;
     }
     return static_cast<int32_t>((integer)->Value());
 }
@@ -542,8 +551,9 @@ double ScriptValueV8Wrapper::toInteger() const {
     auto context = _engine->getContext();
     v8::Context::Scope contextScope(context);
     v8::Local<v8::Integer> integer;
-    if (!_value.constGet()->ToInteger(context).ToLocal(&integer)) {
-        Q_ASSERT(false);
+    const auto value = _value.constGet();
+    if (value.IsEmpty() || !value->ToInteger(context).ToLocal(&integer)) {
+        return 0;
     }
     return (integer)->Value();
 }
@@ -555,8 +565,9 @@ double ScriptValueV8Wrapper::toNumber() const {
     auto context = _engine->getContext();
     v8::Context::Scope contextScope(context);
     v8::Local<v8::Number> number;
-    if (!_value.constGet()->ToNumber(context).ToLocal(&number)) {
-        Q_ASSERT(false);
+    const auto value = _value.constGet();
+    if (value.IsEmpty() || !value->ToNumber(context).ToLocal(&number)) {
+        return std::numeric_limits<double>::quiet_NaN();
     }
     return number->Value();
 }
@@ -565,10 +576,13 @@ QString ScriptValueV8Wrapper::toString() const {
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
-    v8::Context::Scope contextScope(_engine->getContext());
-    v8::String::Utf8Value string(_engine->getIsolate(), _value.constGet());
-    Q_ASSERT(*string != nullptr);
-    return QString(*string);
+    const auto context = _engine->getContext();
+    v8::Context::Scope contextScope(context);
+    const auto value = _value.constGet();
+    v8::Local<v8::String> converted;
+    if (value.IsEmpty() || !value->ToString(context).ToLocal(&converted)) { return {}; }
+    v8::String::Utf8Value string(isolate, converted);
+    return *string ? QString::fromUtf8(*string, string.length()) : QString();
 }
 
 quint16 ScriptValueV8Wrapper::toUInt16() const {
@@ -578,8 +592,9 @@ quint16 ScriptValueV8Wrapper::toUInt16() const {
     auto context = _engine->getContext();
     v8::Context::Scope contextScope(context);
     v8::Local<v8::Uint32> integer;
-    if (!_value.constGet()->ToUint32(context).ToLocal(&integer)) {
-        Q_ASSERT(false);
+    const auto value = _value.constGet();
+    if (value.IsEmpty() || !value->ToUint32(context).ToLocal(&integer)) {
+        return 0;
     }
     return static_cast<uint16_t>(integer->Value());
 }
@@ -591,8 +606,9 @@ quint32 ScriptValueV8Wrapper::toUInt32() const {
     auto context = _engine->getContext();
     v8::Context::Scope contextScope(context);
     v8::Local<v8::Uint32> integer;
-    if (!_value.constGet()->ToUint32(context).ToLocal(&integer)) {
-        Q_ASSERT(false);
+    const auto value = _value.constGet();
+    if (value.IsEmpty() || !value->ToUint32(context).ToLocal(&integer)) {
+        return 0;
     }
     return integer->Value();
 }
@@ -743,16 +759,12 @@ bool ScriptValueV8Wrapper::equals(const ScriptValue& other) const {
     auto context = _engine->getContext();
     v8::Context::Scope contextScope(context);
     ScriptValueV8Wrapper* unwrappedOther = unwrap(other);
-    Q_ASSERT(_engine->getIsolate() == unwrappedOther->_engine->getIsolate());
-    if (!unwrappedOther) {
-        return false;
-    }else{
-        if (_value.constGet()->Equals(context, unwrappedOther->toV8Value().constGet()).IsNothing()) {
-            return false;
-        } else {
-            return _value.constGet()->Equals(context, unwrappedOther->toV8Value().constGet()).FromJust();
-        }
-    }
+    if (!unwrappedOther || isolate != unwrappedOther->_engine->getIsolate()) { return false; }
+    const auto value = _value.constGet();
+    const auto otherValue = unwrappedOther->toV8Value().constGet();
+    // Equals may invoke user coercion. Evaluate it exactly once: a second
+    // invocation can change state or throw even if the first one succeeded.
+    return !value.IsEmpty() && !otherValue.IsEmpty() && value->Equals(context, otherValue).FromMaybe(false);
 }
 
 bool ScriptValueV8Wrapper::isArray() const {
