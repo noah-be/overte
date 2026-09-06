@@ -1,5 +1,11 @@
 # Script info and same-thread shutdown public diagnostics
 
+v007 rechecks load completion ownership after the public Qt diagnostic, since
+a synchronous message handler can start a replacement load. Actual Qt handler
+reentrancy baselineRED2.101s exposed old contents overriding the new request;
+the post-log fence retains prior contents/signals and admits the replacement.
+No diagnostic format, request API or native/thread/consent acceptance change.
+
 v006 scopes actual loadURL requests with the existing RequestCancellation.h
 RequestScope/RequestTicket implementation. A newer request (including an invalid
 suffix) supersedes prior completions even for the same URL. A callback advances

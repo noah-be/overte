@@ -636,6 +636,9 @@ void ScriptManager::loadURL(const QUrl& scriptURL, bool reload) {
             return;
         }
         qCDebug(scriptengine) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
+        if (!completion.current()) {
+            return;
+        }
         if (!success) {
             scriptErrorMessage("ERROR Loading file (" + status + "):" + url, url, -1);
             if (!completion.current()) {
