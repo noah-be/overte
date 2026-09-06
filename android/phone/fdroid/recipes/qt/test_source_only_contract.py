@@ -5,9 +5,11 @@ import hashlib
 import importlib.util
 import json
 import os
+import shlex
 import sys
 import tempfile
 import unittest
+from unittest.mock import Mock
 from pathlib import Path
 
 
@@ -50,6 +52,28 @@ class SourceOnlyQtRecipeTests(unittest.TestCase):
     def setUpClass(cls):
         cls.module = load_recipe()
 
+    def test_android_profile_flags_preserve_target_kind_and_shell_arguments(self):
+        values = {
+            "tools.build:cflags": ["-D__BIONIC_NO_PAGE_SIZE_MACRO"],
+            "tools.build:cxxflags": ["-DNAME='value with spaces'"],
+            "tools.build:exelinkflags": ["-Wl,-z,max-page-size=16384", "-Wl,app-only"],
+            "tools.build:sharedlinkflags": ["-Wl,-z,max-page-size=16384", "-Wl,shared-only"],
+        }
+        recipe = Mock()
+        recipe.conf.get.side_effect = lambda key, **kwargs: values.get(key, kwargs["default"])
+        args = self.module.QtConan._android_profile_flags(recipe)
+        decoded = [shlex.split(arg) for arg in args]
+        self.assertTrue(all(len(arg) == 1 for arg in decoded))
+        assignments = dict(arg[0].split("+=", 1) for arg in decoded)
+        self.assertEqual("-DNAME='value with spaces'", assignments["QMAKE_CXXFLAGS"])
+        self.assertIn("app-only", assignments["QMAKE_LFLAGS_APP"])
+        for key in ("QMAKE_LFLAGS_SHLIB", "QMAKE_LFLAGS_PLUGIN"):
+            self.assertIn("shared-only", assignments[key])
+            self.assertNotIn("app-only", assignments[key])
+            self.assertIn("max-page-size=16384", assignments[key])
+        recipe.conf.get.side_effect = lambda key, **kwargs: kwargs["default"]
+        self.assertEqual([], self.module.QtConan._android_profile_flags(recipe))
+
     def make_composition(self, root: Path) -> Path:
         qt = root / "qt5" / "qtbase"
         qt.mkdir(parents=True)
@@ -90,6 +114,56 @@ class SourceOnlyQtRecipeTests(unittest.TestCase):
         self.assertNotIn("qtwebengine", modules)
         self.assertIn("qttools", modules)
         self.assertIn("qtwebview", modules)
+
+    def make_sync_source(self, root):
+        recipe = DummyRecipe()
+        recipe.source_folder = str(root)
+        recipe.version = "5.15.18-2026.01.04"
+        recipe._composed_modules = self.module.QtConan._composed_modules
+        for name in {"qtbase"} | recipe._composed_modules:
+            directory = root / "qt5" / name
+            directory.mkdir(parents=True)
+            (directory / "sync.profile").write_text("# test profile\n")
+        script = root / "qt5/qtbase/bin/syncqt.pl"
+        script.parent.mkdir()
+        script.write_text("# test boundary\n")
+        recipe.run = Mock()
+        return recipe
+
+    def test_archive_headers_generated_for_all_frozen_modules(self):
+        with tempfile.TemporaryDirectory(prefix="qt sync fixture ") as temporary:
+            root = Path(temporary)
+            recipe = self.make_sync_source(root)
+            def generated(command):
+                args = shlex.split(command)
+                self.assertEqual(args[:1], ["perl"])
+                self.assertEqual(args[2:6], ["-quiet", "-version", "5.15.18", "-outdir"])
+                self.assertEqual(args[6], args[7])
+                if Path(args[6]).name == "qtbase":
+                    header = Path(args[6]) / "include/QtCore/qglobal.h"
+                    header.parent.mkdir(parents=True)
+                    header.write_text("# test generated header\n")
+            recipe.run.side_effect = generated
+            self.module.QtConan._sync_source_headers(recipe)
+            self.assertEqual(recipe.run.call_count, 15)
+            self.assertFalse(any((root / "qt5").rglob(".git")))
+
+    def test_missing_sync_profile_or_generated_header_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            recipe = self.make_sync_source(root)
+            with self.assertRaisesRegex(self.module.ConanInvalidConfiguration, "did not generate"):
+                self.module.QtConan._sync_source_headers(recipe)
+            (root / "qt5/qttools/sync.profile").unlink()
+            recipe.run.reset_mock()
+            with self.assertRaisesRegex(self.module.ConanInvalidConfiguration, "profile is missing"):
+                self.module.QtConan._sync_source_headers(recipe)
+            recipe.run.assert_not_called()
+
+    def test_real_source_calls_sync_after_verified_copy_and_patches(self):
+        source = RECIPE.read_text().split("    def source(self):", 1)[1].split("    def generate", 1)[0]
+        self.assertLess(source.index("_verify_composed_source"), source.index("shutil.copytree"))
+        self.assertLess(source.index("apply_conandata_patches"), source.index("self._sync_source_headers()"))
 
     def test_vendored_inputs_match_the_origin_lock(self):
         origin = json.loads(ORIGIN.read_text(encoding="utf-8"))

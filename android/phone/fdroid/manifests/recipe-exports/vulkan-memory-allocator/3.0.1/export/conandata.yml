@@ -1,0 +1,10 @@
+patches:
+  3.0.1:
+  - patch_description: Needed to build with GCC 13+
+    patch_file: patches/3.0.1-add-missing-cstdio.patch
+    patch_source: https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator/commit/29d492b60c84ca784ea0943efc7d2e6e0f3bdaac
+    patch_type: backport
+sources:
+  3.0.1:
+    sha256: 2a84762b2d10bf540b9dc1802a198aca8ad1f3d795a4ae144212c595696a360c
+    url: https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator/archive/refs/tags/v3.0.1.tar.gz

@@ -28,7 +28,9 @@ qt/*:with_gssapi=False
 qt/*:with_icu=False
 qt/*:with_pcre2=True
 qt/*:with_doubleconversion=True
-qt/*:with_freetype=False
+# QtGui's Linux platform plugins require fontdatabase_support-private. The
+# pinned Qt sources only build that module on Linux with FreeType enabled.
+qt/*:with_freetype=True
 qt/*:with_fontconfig=False
 qt/*:with_harfbuzz=False
 qt/*:with_libjpeg=False

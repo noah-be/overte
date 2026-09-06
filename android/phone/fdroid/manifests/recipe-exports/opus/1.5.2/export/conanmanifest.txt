@@ -1,0 +1,4 @@
+1757941004
+conandata.yml: 74ea0232e5f9d2c4f66936f1e910cf22
+conanfile.py: 5acc7e37584339810c21372b78afa42f
+export_source/patches/1.5.2-add-sse4.1-flag-when-using-clang-cl.patch: 36337c5e26020e63b10a9a6deeae2707

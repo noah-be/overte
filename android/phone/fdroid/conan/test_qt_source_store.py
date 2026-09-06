@@ -205,8 +205,8 @@ class QtSourceStoreTest(unittest.TestCase):
 
     def test_wrapper_has_no_implicit_source_or_network_path(self):
         text = WRAPPER.read_text(encoding="utf-8")
-        self.assertIn("OVERTE_SOURCE_STORE", text)
-        self.assertIn("OVERTE_QT_SOURCE_ROOT", text)
+        self.assertIn("OVERTE_SOURCE_CLOSURE_STORE", text)
+        self.assertIn("OVERTE_ATTEMPT_ROOT", text)
         for forbidden in ("curl", "wget", "git clone", "profile detect", "--build=missing"):
             self.assertNotIn(forbidden, text.lower())
         self.assertTrue(os.stat(WRAPPER).st_mode & 0o111)

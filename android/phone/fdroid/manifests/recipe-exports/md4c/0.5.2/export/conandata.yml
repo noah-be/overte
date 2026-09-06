@@ -1,0 +1,9 @@
+patches:
+  0.5.2:
+  - patch_description: Honor msvc runtime from profile
+    patch_file: patches/0.5.2-0001-honor-vc-runtime.patch
+    patch_type: conan
+sources:
+  0.5.2:
+    sha256: 55d0111d48fb11883aaee91465e642b8b640775a4d6993c2d0e7a8092758ef21
+    url: https://github.com/mity/md4c/archive/refs/tags/release-0.5.2.tar.gz

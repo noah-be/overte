@@ -20,8 +20,8 @@ BASE_REQUIRED_ENTRIES = {
     "lib/arm64-v8a/libQt5Qml_arm64-v8a.so",
     "lib/arm64-v8a/libQt5Quick_arm64-v8a.so",
     "lib/arm64-v8a/libQt5PositioningQuick_arm64-v8a.so",
-    "lib/arm64-v8a/libcrypto_1_1.so",
-    "lib/arm64-v8a/libssl_1_1.so",
+    "lib/arm64-v8a/libcrypto_3.so",
+    "lib/arm64-v8a/libssl_3.so",
 }
 # Native libraries linked into the modular phoneInterface build. Qt's
 # bundled_in_lib declaration only describes libraries copied into Qt's runtime
@@ -64,7 +64,6 @@ LINKED_NATIVE_LIBRARY_NAMES = {
     "libavatars-renderer.so",
     "libavatars.so",
     "libcontrollers.so",
-    "libcrypto.so",
     "libdisplay-plugins.so",
     "libentities-renderer.so",
     "libentities.so",
@@ -99,7 +98,6 @@ LINKED_NATIVE_LIBRARY_NAMES = {
     "libscript-engine.so",
     "libshaders.so",
     "libshared.so",
-    "libssl.so",
     "libtask.so",
     "libtbb_debug.so",
     "libui-plugins.so",

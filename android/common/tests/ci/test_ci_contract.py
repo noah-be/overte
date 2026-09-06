@@ -127,8 +127,7 @@ class CiContractTest(unittest.TestCase):
         required = {"fast", "contracts", "coverage"}
         periodic = {"mutation-extended", "stability", "endurance"}
         self.assertEqual(required, contract.workflow_event_matrix(workflow, "pull_request"))
-        self.assertEqual(required | {"regression"},
-                         contract.workflow_event_matrix(workflow, "push"))
+        self.assertEqual(required, contract.workflow_event_matrix(workflow, "push"))
         self.assertEqual({"contracts"},
                          contract.workflow_event_matrix(workflow, "schedule"))
         self.assertEqual(required | periodic | {"regression"},
@@ -142,6 +141,16 @@ class CiContractTest(unittest.TestCase):
         self.assertTrue(contract.quick_mutation_runs("push"))
         self.assertFalse(contract.quick_mutation_runs("workflow_dispatch"))
         self.assertEqual([], contract.validate_workflow_topology(workflow))
+
+        push_regression = workflow.replace(
+            "github.event_name == 'workflow_dispatch' && inputs.run_regression",
+            "github.event_name == 'push' ||\n"
+            "      (github.event_name == 'workflow_dispatch' && inputs.run_regression)",
+            1,
+        )
+        self.assertTrue(any("must not run automatically on push" in error
+                            for error in contract.validate_workflow_topology(
+                                push_regression)))
 
     def test_workflow_script_references_must_exist(self):
         with self.subTest("actual workflow"):

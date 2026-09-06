@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "base_image": {
+    "reference": "registry.gitlab.com/fdroid/fdroidserver@sha256:f81172f142454bccb6e198739d40bf3a98a393f09805140c1aa8b49807d0e3b7",
+    "digest": "sha256:f81172f142454bccb6e198739d40bf3a98a393f09805140c1aa8b49807d0e3b7",
+    "fdroidserver_revision": "3cbbe81055e5e03a1644cc5a2f3149c5783d83d5"
+  },
+  "build_image": {
+    "reference": "localhost/overte-sh001-fdroid-toolchain:three-gates",
+    "image_id": "1b2da099cf7c03f6ea4b751cf8f148784f12db71fdaabb2b6330d60ba1572dda",
+    "manifest_digest": "sha256:e5026f3764dea05d86880d09a04ff9b7b18a85d37870ef32e45ccebd2c95151b",
+    "containerfile": "android/phone/fdroid/container/Containerfile",
+    "containerfile_sha256": "4c5a1203ba2d125664428a98a03aa028a06805d5548948b2cbf7566719f8224b"
+  },
+  "debian_packages": {
+    "cmake": "3.31.6-2",
+    "g++-15": "15.3.0-3",
+    "gcc-15": "15.3.0-3",
+    "ninja-build": "1.13.2-1",
+    "openjdk-17-jdk-headless": "17.0.20.1+1-1"
+  },
+  "required_versions": {
+    "cmake": "3.31.6",
+    "conan": "2.25.2",
+    "g++": "15.3.0",
+    "gcc": "15.3.0",
+    "java_major": "17",
+    "ninja": "1.13.2"
+  },
+  "android_sdk_bindings": {
+    "build-tools/36.0.0/package.xml": "737904dbcee0845bc18385d3627cd6238bf5f1395f07c7300f88db717b7303b7",
+    "cmake/3.31.6/package.xml": "71303bb0b5fbf8762e96d171df1e80de5f7843a98de032c602f27ba5070986da",
+    "ndk/27.3.13750724/source.properties": "fb5eec1ca5dac09442109cf79e9ce49faecd8b312dbc997e88903a394e14994a",
+    "platforms/android-36/package.xml": "0dc071809e3df6e8a1a98bbda66753722804737105f20cd75d1f3c33c4d772b9"
+  },
+  "gradle_bindings": {
+    "android/common/gradle/wrapper/gradle-wrapper.jar": "381dff8aa434499aa93bc25572b049c8c586a67faff2c02f375e4f23e17e49de",
+    "android/common/gradle/wrapper/gradle-wrapper.properties": "5b12f89652e6dd107efdc16f9da38e96ae8ff8b39b2ad28bee3afe11afe7f35f",
+    "distribution_sha256": "20f1b1176237254a6fc204d8434196fa11a4cfb387567519c61556e8710aed78",
+    "gradle": "8.13",
+    "android_gradle_plugin": "8.13.2"
+  },
+  "binary_production_network": "none",
+  "provisioning_phase": "online-only-before-binary-production",
+  "licenses": {
+    "conan": "MIT",
+    "debian_packages": "package-specific DFSG licenses under /usr/share/doc/*/copyright",
+    "openjdk": "GPL-2.0-only WITH Classpath-exception-2.0"
+  }
+}

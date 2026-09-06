@@ -1,0 +1,4 @@
+sources:
+  "22.22.3":
+    url: "https://github.com/nodejs/node/archive/refs/tags/v22.22.3.tar.gz"
+    sha256: "5b1cfc9d141ec3f76c808ff761fbe866759c2d1e4d38306417c708f591af23cb"

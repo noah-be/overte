@@ -47,7 +47,6 @@ DIAGNOSTIC_CONDITION_PARTS = (
     "contains(github.event.pull_request.labels.*.name, 'android-long-diagnostics')",
 )
 REGRESSION_CONDITION_PARTS = (
-    "github.event_name == 'push'",
     "github.event_name == 'workflow_dispatch' && inputs.run_regression",
 )
 SCRIPT_REFERENCE = re.compile(r"(?<![\w./-])((?:[\w.+-]+/)+[\w.+-]+\.(?:py|sh))(?![\w./-])")
@@ -151,7 +150,7 @@ def workflow_event_matrix(workflow: str, event: str, run_regression: bool = True
     jobs = {"contracts"} if job_body(workflow, "contracts") is not None else set()
     if event != "schedule":
         jobs.update(job for job in ("fast", "coverage") if job_body(workflow, job) is not None)
-    if event == "push" or (event == "workflow_dispatch" and run_regression):
+    if event == "workflow_dispatch" and run_regression:
         jobs.add("regression")
     if event == "workflow_dispatch" or (event == "pull_request" and run_diagnostics):
         jobs.update({"mutation-extended", "stability", "endurance"})
@@ -184,6 +183,8 @@ def validate_workflow_topology(workflow: str) -> list[str]:
     regression = job_body(workflow, "regression") or ""
     if not all(part in regression for part in REGRESSION_CONDITION_PARTS):
         errors.append("regression event condition is incomplete")
+    if "github.event_name == 'push'" in regression:
+        errors.append("regression must not run automatically on push")
     if "github.event_name == 'schedule'" in regression:
         errors.append("regression must not run on the contract-only schedule")
     coverage = job_body(workflow, "coverage") or ""

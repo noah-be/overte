@@ -1,0 +1,4 @@
+1745823396
+conandata.yml: 750f568722e9f357e1f780e0badc9eea
+conanfile.py: 8133056697410aa64794d596575971d2
+export_source/patches/3.0.1-add-missing-cstdio.patch: d1800cce0589aaa73c768864ba19f06f

@@ -1,0 +1,65 @@
+--- a/gif.h
++++ b/gif.h
+@@ -76,3 +76,3 @@
+-int GifIMax(int l, int r) { return l>r?l:r; }
+-int GifIMin(int l, int r) { return l<r?l:r; }
+-int GifIAbs(int i) { return i<0?-i:i; }
++inline int GifIMax(int l, int r) { return l>r?l:r; }
++inline int GifIMin(int l, int r) { return l<r ? l : r; }
++inline int GifIAbs(int i) { return i<0 ? -i : i; }
+@@ -84 +84 @@
+-void GifGetClosestPaletteColor(GifPalette* pPal, int r, int g, int b, int& bestInd, int& bestDiff, int treeRoot = 1)
++inline void GifGetClosestPaletteColor(GifPalette* pPal, int r, int g, int b, int& bestInd, int& bestDiff, int treeRoot = 1)
+@@ -132 +132 @@
+-void GifSwapPixels(uint8_t* image, int pixA, int pixB)
++inline void GifSwapPixels(uint8_t* image, int pixA, int pixB)
+@@ -156 +156 @@
+-int GifPartition(uint8_t* image, const int left, const int right, const int elt, int pivotIndex)
++inline int GifPartition(uint8_t* image, const int left, const int right, const int elt, int pivotIndex)
+@@ -185 +185 @@
+-void GifPartitionByMedian(uint8_t* image, int left, int right, int com, int neededCenter)
++inline void GifPartitionByMedian(uint8_t* image, int left, int right, int com, int neededCenter)
+@@ -203 +203 @@
+-void GifSplitPalette(uint8_t* image, int numPixels, int firstElt, int lastElt, int splitElt, int splitDist, int treeNode, bool buildForDither, GifPalette* pal)
++inline void GifSplitPalette(uint8_t* image, int numPixels, int firstElt, int lastElt, int splitElt, int splitDist, int treeNode, bool buildForDither, GifPalette* pal)
+@@ -322 +322 @@
+-int GifPickChangedPixels( const uint8_t* lastFrame, uint8_t* frame, int numPixels )
++inline int GifPickChangedPixels( const uint8_t* lastFrame, uint8_t* frame, int numPixels )
+@@ -348 +348 @@
+-void GifMakePalette( const uint8_t* lastFrame, const uint8_t* nextFrame, uint32_t width, uint32_t height, int bitDepth, bool buildForDither, GifPalette* pPal )
++inline void GifMakePalette(const uint8_t* lastFrame, const uint8_t* nextFrame, uint32_t width, uint32_t height, int bitDepth, bool buildForDither, GifPalette* pPal)
+@@ -371,2 +371,2 @@
+-    pPal->treeSplit[1 << (bitDepth-1)] = 0;
+-    pPal->treeSplitElt[1 << (bitDepth-1)] = 0;
++    pPal->treeSplit[INT64_C(1) << (bitDepth-1)] = 0;
++    pPal->treeSplitElt[INT64_C(1) << (bitDepth-1)] = 0;
+@@ -378 +378 @@
+-void GifDitherImage( const uint8_t* lastFrame, const uint8_t* nextFrame, uint8_t* outFrame, uint32_t width, uint32_t height, GifPalette* pPal )
++inline void GifDitherImage(const uint8_t* lastFrame, const uint8_t* nextFrame, uint8_t* outFrame, uint32_t width, uint32_t height, GifPalette* pPal)
+@@ -487 +487 @@
+-void GifThresholdImage( const uint8_t* lastFrame, const uint8_t* nextFrame, uint8_t* outFrame, uint32_t width, uint32_t height, GifPalette* pPal )
++inline void GifThresholdImage(const uint8_t* lastFrame, const uint8_t* nextFrame, uint8_t* outFrame, uint32_t width, uint32_t height, GifPalette* pPal)
+@@ -536 +536 @@
+-void GifWriteBit( GifBitStatus& stat, uint32_t bit )
++inline void GifWriteBit(GifBitStatus& stat, uint32_t bit)
+@@ -554 +554 @@
+-void GifWriteChunk( FILE* f, GifBitStatus& stat )
++inline void GifWriteChunk(FILE* f, GifBitStatus& stat)
+@@ -564 +564 @@
+-void GifWriteCode( FILE* f, GifBitStatus& stat, uint32_t code, uint32_t length )
++inline void GifWriteCode(FILE* f, GifBitStatus& stat, uint32_t code, uint32_t length)
+@@ -586 +586 @@
+-void GifWritePalette( const GifPalette* pPal, FILE* f )
++inline void GifWritePalette(const GifPalette* pPal, FILE* f)
+@@ -605 +605 @@
+-void GifWriteLzwImage(FILE* f, uint8_t* image, uint32_t left, uint32_t top,  uint32_t width, uint32_t height, uint32_t delay, GifPalette* pPal)
++inline void GifWriteLzwImage(FILE* f, uint8_t* image, uint32_t left, uint32_t top, uint32_t width, uint32_t height, uint32_t delay, GifPalette* pPal)
+@@ -728 +728 @@
+-bool GifBegin( GifWriter* writer, const char* filename, uint32_t width, uint32_t height, uint32_t delay, int32_t bitDepth = 8, bool dither = false )
++inline bool GifBegin(GifWriter* writer, const char* filename, uint32_t width, uint32_t height, uint32_t delay, int32_t bitDepth = 8, bool dither = false)
+@@ -788 +788 @@
+-bool GifWriteFrame( GifWriter* writer, const uint8_t* image, uint32_t width, uint32_t height, uint32_t delay, int bitDepth = 8, bool dither = false )
++inline bool GifWriteFrame(GifWriter* writer, const uint8_t* image, uint32_t width, uint32_t height, uint32_t delay, int bitDepth = 8, bool dither = false)
+@@ -811 +811 @@
+-bool GifEnd( GifWriter* writer )
++inline bool GifEnd(GifWriter* writer)

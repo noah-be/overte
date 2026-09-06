@@ -1,0 +1,4 @@
+1760955084
+conandata.yml: 2a45c81d9873b39b371d2834c5abd372
+conanfile.py: 5664c61209b6f761c34e9bf6a830cdbb
+export_source/patches/1.5.6-public-scope-windows-shared.patch: 27d5728a9e96c6066c12a66c9b29efb1

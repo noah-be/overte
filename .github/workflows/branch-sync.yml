@@ -40,7 +40,7 @@ jobs:
             python3 tools/branch-policy/drift.py \
               --repository "$REPOSITORY" \
               --parent "$PUSH_PARENT" \
-              --expected-parent-sha "$PUSH_SHA" | tee -a "$GITHUB_STEP_SUMMARY"
+              --expected-parent-sha "$PUSH_SHA" --observe-push | tee -a "$GITHUB_STEP_SUMMARY"
           else
             python3 tools/branch-policy/drift.py \
               --repository "$REPOSITORY" | tee -a "$GITHUB_STEP_SUMMARY"

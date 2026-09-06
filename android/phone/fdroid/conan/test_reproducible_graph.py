@@ -1,7 +1,6 @@
 import hashlib
 import json
 import re
-import tarfile
 import unittest
 from pathlib import Path
 
@@ -51,13 +50,13 @@ class ReproducibleGraphTest(unittest.TestCase):
         self.assertEqual(1, self.manifest["schema_version"])
         self.assertEqual("SH-001", self.manifest["node"])
         self.assertEqual(
-            "IMPLEMENTATION_COMPLETE_VERIFICATION_PENDING",
+            "THREE_GATES_IMPLEMENTED_COLD_BUILD_PENDING",
             self.manifest["status"],
         )
         self.assertNotEqual("PASS", self.manifest["status"])
         self.assertEqual(0, self.manifest["cold_build"]["attempts_consumed"])
         self.assertEqual(
-            "NOT_STARTED_INSUFFICIENT_DISK",
+            "NOT_STARTED_CLEAN_ROOM_READINESS_PENDING",
             self.manifest["cold_build"]["status"],
         )
         self.assertEqual(
@@ -79,8 +78,11 @@ class ReproducibleGraphTest(unittest.TestCase):
             )
         for relative, expected in self.manifest["bound_files"].items():
             self.assertEqual(expected, digest(ROOT / relative), relative)
-        bundle = self.manifest["recipe_export_bundle"]
-        self.assertEqual(bundle["sha256"], digest(ROOT / bundle["path"]))
+        store = self.manifest["recipe_export_store"]
+        self.assertEqual(store["sha256"], digest(ROOT / store["path"]))
+        self.assertEqual(
+            store["pkglist_sha256"], digest(ROOT / store["pkglist_path"])
+        )
 
     def test_three_exact_lock_graphs_separate_host_and_target(self):
         locks = {
@@ -105,21 +107,21 @@ class ReproducibleGraphTest(unittest.TestCase):
         target_build = refs(
             locks["android-arm64-v8a-api26-16k.lock"], "build_requires"
         )
-        cmake_rrev = "cmake/3.31.12#055c11ab0a919e8c6034a902b4025ce1"
+        cmake_rrev = "cmake/3.31.12#2f6c0934c9dc141602cd279f67cfe048"
         qt_rrev = (
             "qt/5.15.18-2026.01.04@overte/stable"
-            "#c615fd9bf2e6410b92a3e6b84fa73980"
+            "#b573e9e65fe29366102c09d5ec013c09"
         )
         self.assertIn(cmake_rrev, bootstrap)
         self.assertIn(qt_rrev, host)
         self.assertIn(qt_rrev, target)
         self.assertIn(qt_rrev, target_build)
         self.assertIn(
-            "openssl/3.5.8@overte/stable#33b2f0ee1a4417ab2c5429ae844d0ea5",
+            "openssl/3.5.8@overte/stable#e2ab566b1c764e543d69c8a6fa0def5b",
             target,
         )
         self.assertIn(
-            "libnode/22.22.3@overte/stable#3fd33b0199406fa08037c90d5dd1a635",
+            "libnode/22.22.3@overte/stable#a76ae5683eb20fbde3f88e16d8bea96e",
             target,
         )
         for tool in ("glslang/", "scribe/", "spirv-cross/", "spirv-tools/"):
@@ -135,20 +137,42 @@ class ReproducibleGraphTest(unittest.TestCase):
         ].items():
             self.assertIn(f"{reference}#{revision}", all_refs, reference)
 
-    def test_bundle_is_recipe_exports_only(self):
-        bundle = ROOT / self.manifest["recipe_export_bundle"]["path"]
-        with tarfile.open(bundle, "r:gz") as archive:
-            names = [member.name for member in archive.getmembers()]
-        conanfiles = [name for name in names if name.endswith("/e/conanfile.py")]
+    def test_linux_gui_host_locks_its_required_font_backend(self):
+        profile = (ROOT / "android/phone/fdroid/conan/profiles/linux-x86_64-hosttools").read_text()
+        self.assertRegex(profile, r"(?m)^qt/\*:gui=True$")
+        self.assertRegex(profile, r"(?m)^qt/\*:with_freetype=True$")
+        # Linux QtGui's platform plugins require fontdatabase_support-private;
+        # qtbase enables that source module only with FreeType on Linux.
+        host = load_json(LOCK_DIR / "host-tools-linux-x86_64.lock")
+        target = load_json(LOCK_DIR / "android-arm64-v8a-api26-16k.lock")
+        for lock, role in ((host, "requires"), (target, "build_requires")):
+            for ref in ("freetype/2.13.3#75ca69fb4dc1a016c91b7f422ae58adc",
+                        "libpng/1.6.44#9e1aa08fb46946c7c91e4ae03bd49811",
+                        "brotli/1.1.0#3f631ef77008f7b5eb388780116371a3"):
+                self.assertIn(ref, refs(lock, role))
+        for ref in ("meson/1.10.2#9d2d10681fe7fe61c788c58626c89b25",
+                    "ninja/1.13.2#c8c5dc2a52ed6e4e42a66d75b4717ceb",
+                    "pkgconf/2.2.0#4ac315b50ef734072b00ff3aacbf52bf"):
+            self.assertIn(ref, refs(host, "build_requires"))
+
+    def test_directory_store_is_recipe_exports_only(self):
+        store = ROOT / self.manifest["recipe_export_store"]["path"]
+        index = load_json(store)
+        self.assertEqual(51, len(index["recipes"]))
+        self.assertFalse((store.parent.parent / "recipe-exports.tgz").exists())
+        conanfiles = []
+        for reference, entry in index["recipes"].items():
+            top_level = {Path(name).parts[0] for name in entry["files"]}
+            self.assertTrue(top_level <= {"export", "export_sources"}, reference)
+            self.assertIn("export", top_level, reference)
+            conanfiles.extend(
+                name for name in entry["files"] if name == "export/conanfile.py"
+            )
+            self.assertFalse(
+                any(name.endswith((".a", ".so", ".dll", ".exe", ".jar", ".dex")) for name in entry["files"]),
+                reference,
+            )
         self.assertEqual(51, len(conanfiles))
-        self.assertFalse(
-            [
-                name
-                for name in names
-                if "p" in Path(name).parts or "s" in Path(name).parts
-            ]
-        )
-        self.assertFalse(any(name.endswith((".a", ".so", ".dll", ".exe")) for name in names))
 
     def test_source_identities_match_the_bound_recipe_data(self):
         identities = self.manifest["source_identities"]

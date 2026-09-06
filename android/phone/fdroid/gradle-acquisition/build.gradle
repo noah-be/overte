@@ -1,0 +1,22 @@
+plugins {
+    id 'com.android.application' version '8.13.2' apply false
+}
+
+def acquisitionBuildDir = System.getenv('OVERTE_GRADLE_ACQUISITION_BUILD_DIR')
+if (acquisitionBuildDir == null) {
+    throw new GradleException('OVERTE_GRADLE_ACQUISITION_BUILD_DIR is required')
+}
+layout.buildDirectory.set(file(acquisitionBuildDir))
+
+configurations { fdroidAcquisition }
+dependencies {
+    fdroidAcquisition 'com.google.guava:guava:23.0'
+}
+
+tasks.register('resolveFdroidAcquisition') {
+    doLast {
+        configurations.fdroidAcquisition.files.each { file ->
+            if (!file.isFile()) throw new GradleException("unresolved artifact: ${file}")
+        }
+    }
+}

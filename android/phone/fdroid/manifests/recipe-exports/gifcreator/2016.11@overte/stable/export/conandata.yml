@@ -1,0 +1,9 @@
+sources:
+  "2016.11":
+    url: "https://github.com/charlietangora/gif-h/archive/66fe8bf0c5bfdfccfb77f42007654d325e22c18d.tar.gz"
+    sha256: "6e078da86e0e204d90c28dbf1c3bb40941ef452036d12835307ab602c688426c"
+patches:
+  "2016.11":
+    - patch_file: "patches/0001-header-inline-and-wide-shift.patch"
+      patch_description: "Reproduce the historical Overte header-only ODR and wide-shift fixes"
+      patch_type: "portability"

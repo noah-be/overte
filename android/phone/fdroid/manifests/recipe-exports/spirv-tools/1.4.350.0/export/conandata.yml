@@ -1,0 +1,4 @@
+sources:
+  1.4.350.0:
+    sha256: 446b288fe76d3f31bbf9a405d62b97020ac0f135edb0ed5dbdf1136c488138f5
+    url: https://github.com/KhronosGroup/SPIRV-Tools/archive/refs/tags/vulkan-sdk-1.4.350.0.tar.gz

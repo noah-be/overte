@@ -1,0 +1,4 @@
+1781788512
+conandata.yml: ed709df503c646bd72fc2dc532c20fef
+conanfile.py: 556a4a7be14a667c15db229f2cf84332
+export_source/patches/0003-CMake-handle-all-specs.patch: a88e6d79d4a2bceea7a57d37cb757973

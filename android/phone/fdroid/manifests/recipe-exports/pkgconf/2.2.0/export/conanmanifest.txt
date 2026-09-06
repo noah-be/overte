@@ -1,0 +1,4 @@
+1755505618
+conandata.yml: 10768a9b1858c8530081381f4d063f8d
+conanfile.py: a2dd86bd474dd3d65322dd3e13ab7a35
+export_source/patches/2.2.0-0001-PKG_CONF_PATH-allow-colon+semicolon-separator.patch: fe2d4a23e193aaa9776b255053f984bd
