@@ -7,6 +7,7 @@
 #include <QtCore/QUuid>
 #include <QtNetwork/QHostInfo>
 #include "libraries/networking/src/RequestCancellation.h"
+#include "security/redaction/SafeDiagnostics.h"
 Q_LOGGING_CATEGORY(networking_ice, "sh005.ice-test")
 class ResolverBoundary : public QHostInfo {
 public:
