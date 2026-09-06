@@ -845,17 +845,37 @@ void AccountManager::requestAccessTokenError(QNetworkReply::NetworkError error) 
 }
 
 void AccountManager::refreshAccessTokenFinished() {
-    QNetworkReply* requestReply = reinterpret_cast<QNetworkReply*>(sender());
+    auto* requestReply = qobject_cast<QNetworkReply*>(sender());
+    if (!requestReply || requestReply->property("_overte_account_refresh_finished").toBool()) {
+        return;
+    }
+    requestReply->setProperty("_overte_account_refresh_finished", true);
+    requestReply->deleteLater();
+    _isWaitingForTokenRefresh = false;
 
-    QJsonDocument jsonResponse = QJsonDocument::fromJson(requestReply->readAll());
+    constexpr qint64 MAX_RESPONSE_BYTES = 1024 * 1024;
+    const auto payload = requestReply->read(MAX_RESPONSE_BYTES + 1);
+    QJsonParseError parseError;
+    QJsonDocument jsonResponse = QJsonDocument::fromJson(payload, &parseError);
+    const int status = requestReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    if (requestReply->error() != QNetworkReply::NoError || status < 200 || status >= 300 ||
+            payload.size() > MAX_RESPONSE_BYTES || requestReply->bytesAvailable() != 0 ||
+            parseError.error != QJsonParseError::NoError || !jsonResponse.isObject()) {
+        return;
+    }
     const QJsonObject& rootObject = jsonResponse.object();
 
     if (!rootObject.contains("error")) {
         // construct an OAuthAccessToken from the json object
 
-        if (!rootObject.contains("access_token") || !rootObject.contains("expires_in")
-            || !rootObject.contains("token_type")) {
-            // TODO: error handling - malformed token response
+        const auto accessToken = rootObject.value("access_token");
+        const auto tokenType = rootObject.value("token_type");
+        const auto expiresIn = rootObject.value("expires_in");
+        const auto refreshToken = rootObject.value("refresh_token");
+        if (!accessToken.isString() || accessToken.toString().isEmpty() ||
+                !tokenType.isString() || tokenType.toString().isEmpty() ||
+                !expiresIn.isDouble() || expiresIn.toInt(-1) <= 0 ||
+                (!refreshToken.isUndefined() && !refreshToken.isString())) {
             qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         } else {
             // clear the path from the response URL so we have the right root URL for this access token
@@ -872,7 +892,6 @@ void AccountManager::refreshAccessTokenFinished() {
         qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 
-    _isWaitingForTokenRefresh = false;
 }
 
 void AccountManager::refreshAccessTokenError(QNetworkReply::NetworkError error) {
