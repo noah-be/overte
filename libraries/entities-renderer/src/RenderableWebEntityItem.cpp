@@ -569,18 +569,9 @@ void WebEntityRenderer::doRender(RenderArgs* args) {
                     (pixel.red() != 0 || pixel.green() != 0 || pixel.blue() != 0);
             }
             QString capturePath;
-            bool captureSaved = false;
-            const bool captureSelected = sourceMatches &&
-                ((diagnostics.captureFirstFrame && _softwareFrameOrdinal == 1) ||
-                 selectedOrdinal || selectedInterval || selectedSequence);
-            if (captureSelected) {
-                capturePath = QDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation))
-                    .filePath(_softwareFrameOrdinal == 1
-                        ? QStringLiteral("Overte-iOS-QML-FirstFrame-%1.png").arg(_geometryId)
-                        : QStringLiteral("Overte-iOS-QML-Frame-%1-%2.png")
-                            .arg(_geometryId).arg(_softwareFrameOrdinal));
-                captureSaved = uploadImage.save(capturePath, "PNG");
-            }
+            const bool captureSaved = false;
+            // Raw QML pixels can contain account or private-world content.
+            // Diagnostic selectors do not authorize exporting them to Documents.
             if (diagnostics.captureSequence >= 0) {
                 _lastSoftwareCaptureSequence = diagnostics.captureSequence;
             }

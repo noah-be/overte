@@ -65,3 +65,21 @@ measurement may be derived from requested FPS, an upload marker or this inventor
 Consumer: iOS may import this exact Shared delta into its existing Qt6 stack.
 Phone/Pico have no migration requirement and must not copy iOS rendering code
 over their platform implementation. All original dependency/device gates remain.
+
+## Local integration: diagnostic image export retirement
+
+The screen and world-QML upload paths no longer save raw QML images into the
+application Documents directory. Frame/sequence/source selectors are diagnostic
+inputs, not authorization to retain account or private-world pixels. Their
+`captureSaved` observation remains false and `capturePath` empty. Original
+texture conversion, upload and display code is preserved; no existing image or
+evidence file is deleted by this source change.
+
+`test_diagnostic_image_exports.py` compiles each original export branch against
+real Qt QImage/PNG I/O and a scratch-only Documents path boundary. All capture
+selectors are enabled. Current branches create no file and preserve source image
+pixels; the previous branches create an export and fail the same assertions.
+The two branches are explicit extracted source regions, not a full renderer or
+native screenshot acceptance test. The retained producer-boundary test checks
+selection and both image consumers. This does not establish full privacy of
+other diagnostic/export sinks, full QML effects support or real presentation.
