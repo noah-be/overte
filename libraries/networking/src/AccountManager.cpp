@@ -208,7 +208,7 @@ void AccountManager::setAuthURL(const QUrl& authURL) {
     if (_authURL != authURL) {
         _authURL = authURL;
 
-        qCDebug(networking) << "AccountManager URL for authenticated requests has been changed to" << qPrintable(_authURL.toString());
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
         // check if there are existing access tokens to load from settings
         bool loadedMap = false;
@@ -219,9 +219,9 @@ void AccountManager::setAuthURL(const QUrl& authURL) {
             // pull out the stored account info and store it in memory
             _accountInfo = accountsMap[_authURL.toString()].value<DataServerAccountInfo>();
 
-            qCDebug(networking) << "Found directory services API account information for" << qPrintable(_authURL.toString());
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         } else {
-            qCWarning(networking) << "Unable to load account file. No existing account settings will be loaded.";
+            qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             emit authRequired();
         }
 
@@ -250,7 +250,7 @@ void AccountManager::updateAuthURLFromMetaverseServerURL() {
 
 void AccountManager::setSessionID(const QUuid& sessionID) {
     if (_sessionID != sessionID) {
-        qCDebug(networking) << "Directory Services session ID changed to" << uuidStringWithoutCurlyBraces(sessionID);
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         _sessionID = sessionID;
     }
 }
@@ -294,8 +294,7 @@ QNetworkRequest AccountManager::createRequest(QString path, AccountManagerAuth::
                                         _accountInfo.getAccessToken().authorizationHeaderValue());
         } else {
             if (authType == AccountManagerAuth::Required) {
-                qCDebug(networking) << "No valid access token present. Bailing on invoked request to"
-                    << path << "that requires authentication";
+                qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
                 return QNetworkRequest();
             }
         }
@@ -332,10 +331,10 @@ void AccountManager::sendRequest(const QString& path,
     QNetworkRequest networkRequest = createRequest(path, authType);
 
     if (VERBOSE_HTTP_REQUEST_DEBUGGING) {
-        qCDebug(networking) << "Making a request to" << qPrintable(networkRequest.url().toString());
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
         if (!dataByteArray.isEmpty()) {
-            qCDebug(networking) << "The POST/PUT body -" << QString(dataByteArray);
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         }
     }
 
@@ -432,13 +431,13 @@ void AccountManager::sendRequest(const QString& path,
                         if (!invoked) {
                             QString error = "Could not invoke " + callbackParams.jsonCallbackMethod + " with QNetworkReply* "
                             + "on callbackReceiver.";
-                            qCWarning(networking) << error;
+                            qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
                             Q_ASSERT_X(invoked, "AccountManager::passErrorToCallback", qPrintable(error));
                         }
                     } else {
                         if (VERBOSE_HTTP_REQUEST_DEBUGGING) {
-                            qCDebug(networking) << "Received JSON response from directory services API that has no matching callback.";
-                            qCDebug(networking) << QJsonDocument::fromJson(networkReply->readAll());
+                            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
+                            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
                         }
                     }
                 } else {
@@ -459,15 +458,15 @@ void AccountManager::sendRequest(const QString& path,
                         if (!invoked) {
                             QString error = "Could not invoke " + callbackParams.errorCallbackMethod + " with QNetworkReply* "
                             + "on callbackReceiver.";
-                            qCWarning(networking) << error;
+                            qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
                             Q_ASSERT_X(invoked, "AccountManager::passErrorToCallback", qPrintable(error));
                         }
 
                     } else {
                         if (VERBOSE_HTTP_REQUEST_DEBUGGING) {
-                            qCDebug(networking) << "Received error response from directory services API that has no matching callback.";
-                            qCDebug(networking) << "Error" << networkReply->error() << "-" << networkReply->errorString();
-                            qCDebug(networking) << networkReply->readAll();
+                            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
+                            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
+                            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
                         }
                     }
                 }
@@ -495,7 +494,7 @@ bool writeAccountMapToFile(const QVariantMap& accountMap) {
 
 void AccountManager::persistAccountToFile() {
 
-    qCDebug(networking) << "Persisting protected account state";
+    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     bool wasLoaded = false;
     auto accountMap = accountMapFromFile(wasLoaded);
@@ -510,7 +509,7 @@ void AccountManager::persistAccountToFile() {
         }
     }
 
-    qCWarning(networking) << "Could not load accounts file - unable to persist account information to file.";
+    qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     _accountInfo = DataServerAccountInfo();
     emit authRequired();
 }
@@ -522,7 +521,7 @@ void AccountManager::removeAccountFromFile() {
     // The adapter stores one account map. Logout erases the complete map so an
     // unreadable/corrupt map cannot retain an account silently.
     if (protectedAccountCoordinator().erase(legacyAccountInput()) != overte::security::StoreResult::Ok) {
-        qCWarning(networking) << "Protected account removal requires re-authentication";
+        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 }
 
@@ -545,7 +544,7 @@ bool AccountManager::hasValidAccessToken() {
     if (_accountInfo.getAccessToken().token.isEmpty() || _accountInfo.getAccessToken().isExpired()) {
 
         if (VERBOSE_HTTP_REQUEST_DEBUGGING) {
-            qCDebug(networking) << "An access token is required for requests to" << qPrintable(_authURL.toString());
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         }
 
         return false;
@@ -590,7 +589,7 @@ void AccountManager::setAccessTokenForCurrentAuthURL(const QString& accessToken)
     if (!accessToken.isEmpty()) {
         qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::AuthReady);
     } else if (!_accountInfo.getAccessToken().token.isEmpty()) {
-        qCDebug(networking) << "Clearing AccountManager OAuth token.";
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 
     _accountInfo.setAccessToken(newOAuthToken);
@@ -700,7 +699,7 @@ void AccountManager::refreshAccessToken() {
 
     // we can't refresh our access token if we don't have a refresh token, so check for that first
     if (!_accountInfo.getAccessToken().refreshToken.isEmpty()) {
-        qCDebug(networking) << "Refreshing access token since it will be expiring soon.";
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
         _isWaitingForTokenRefresh = true;
 
@@ -725,8 +724,7 @@ void AccountManager::refreshAccessToken() {
         connect(requestReply, &QNetworkReply::finished, this, &AccountManager::refreshAccessTokenFinished);
         connect(requestReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(refreshAccessTokenError(QNetworkReply::NetworkError)));
     } else {
-        qCWarning(networking) << "Cannot refresh access token without refresh token."
-            << "Access token will need to be manually refreshed.";
+        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 }
 
@@ -740,14 +738,14 @@ void AccountManager::setAccessTokens(const QString& response) {
         if (!rootObject.contains("access_token") || !rootObject.contains("expires_in")
             || !rootObject.contains("token_type")) {
             // TODO: error handling - malformed token response
-            qCWarning(networking) << "Error setting access token. Received a response for password grant that is missing one or more expected values.";
-            qCWarning(networking) << "Response:" << QJsonDocument(rootObject).toJson(QJsonDocument::Compact);
+            qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
+            qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         } else {
             // clear the path from the response URL so we have the right root URL for this access token
             QUrl rootURL = rootObject.contains("url") ? rootObject["url"].toString() : _authURL;
             rootURL.setPath(getMetaverseServerURLPath());
 
-            qCDebug(networking) << "Storing an account with access-token for" << qPrintable(rootURL.toString());
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
             _accountInfo = DataServerAccountInfo();
             _accountInfo.setAccessTokenFromJSON(rootObject);
@@ -759,7 +757,7 @@ void AccountManager::setAccessTokens(const QString& response) {
         }
     } else {
         // TODO: error handling
-        qCWarning(networking) << "Error in response for password grant -" << rootObject["error"].toString();
+        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         emit loginFailed();
     }
 }
@@ -776,14 +774,14 @@ void AccountManager::requestAccessTokenFinished() {
         if (!rootObject.contains("access_token") || !rootObject.contains("expires_in")
             || !rootObject.contains("token_type")) {
             // TODO: error handling - malformed token response
-            qCWarning(networking) << "Error requesting access token. Received a response for password grant that is missing one or more expected values.";
-            qCWarning(networking) << "Response:" << QJsonDocument(rootObject).toJson(QJsonDocument::Compact);
+            qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
+            qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         } else {
             // clear the path from the response URL so we have the right root URL for this access token
             QUrl rootURL = requestReply->url();
             rootURL.setPath(getMetaverseServerURLPath());
 
-            qCDebug(networking) << "Storing an account with access-token for" << qPrintable(rootURL.toString());
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
             _accountInfo = DataServerAccountInfo();
             _accountInfo.setAccessTokenFromJSON(rootObject);
@@ -796,7 +794,7 @@ void AccountManager::requestAccessTokenFinished() {
         }
     } else {
         // TODO: error handling
-        qCWarning(networking) <<  "Error in response for password grant -" << rootObject["error"].toString();
+        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         emit loginFailed();
     }
 }
@@ -813,20 +811,20 @@ void AccountManager::refreshAccessTokenFinished() {
         if (!rootObject.contains("access_token") || !rootObject.contains("expires_in")
             || !rootObject.contains("token_type")) {
             // TODO: error handling - malformed token response
-            qCDebug(networking) << "Received a response for refresh grant that is missing one or more expected values.";
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         } else {
             // clear the path from the response URL so we have the right root URL for this access token
             QUrl rootURL = requestReply->url();
             rootURL.setPath(getMetaverseServerURLPath());
 
-            qCDebug(networking) << "Storing an account with a refreshed access-token for" << qPrintable(rootURL.toString());
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
             _accountInfo.setAccessTokenFromJSON(rootObject);
 
             persistAccountToFile();
         }
     } else {
-        qCWarning(networking) << "Error in response for refresh grant - " << rootObject["error_description"].toString();
+        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 
     _isWaitingForTokenRefresh = false;
@@ -834,7 +832,7 @@ void AccountManager::refreshAccessTokenFinished() {
 
 void AccountManager::refreshAccessTokenError(QNetworkReply::NetworkError error) {
     // TODO: error handling
-    qCDebug(networking) << "AccountManager: failed to refresh access token - " << error;
+    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     _isWaitingForTokenRefresh = false;
 }
 
@@ -873,13 +871,13 @@ void AccountManager::requestProfileFinished() {
 
     } else {
         // TODO: error handling
-        qCDebug(networking) << "Error in response for profile";
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 }
 
 void AccountManager::requestProfileError(QNetworkReply::NetworkError error) {
     // TODO: error handling
-    qCDebug(networking) << "AccountManager requestProfileError - " << error;
+    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 }
 
 void AccountManager::requestAccountSettings() {
@@ -887,7 +885,7 @@ void AccountManager::requestAccountSettings() {
         return;
     }
 
-    qCDebug(networking) << "Requesting the Account Settings from the Directory Services API";
+    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     QNetworkAccessManager& networkAccessManager = NetworkAccessManager::getInstance();
 
@@ -917,18 +915,18 @@ void AccountManager::requestAccountSettingsFinished() {
             _settings.unpack(rootObject["data"].toObject());
             _lastSuccessfulSyncTimestamp = _settings.lastChangeTimestamp();
 
-            qCDebug(networking) << "Received the Account Settings from the Directory Services API";
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
             emit accountSettingsLoaded();
         } else {
-            qCDebug(networking) << "Error in response for account settings: no data object";
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             if (!_pullSettingsRetryTimer->isActive() && _numPullRetries < MAX_PULL_RETRIES) {
                 ++_numPullRetries;
                 _pullSettingsRetryTimer->start();
             }
         }
     } else {
-        qCDebug(networking) << "Error in response for account settings" << lockerReply->errorString();
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         if (!_pullSettingsRetryTimer->isActive() && _numPullRetries < MAX_PULL_RETRIES) {
             ++_numPullRetries;
             _pullSettingsRetryTimer->start();
@@ -937,7 +935,7 @@ void AccountManager::requestAccountSettingsFinished() {
 }
 
 void AccountManager::requestAccountSettingsError(QNetworkReply::NetworkError error) {
-    qCWarning(networking) << "Account settings request encountered an error" << error;
+    qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     if (!_pullSettingsRetryTimer->isActive() && _numPullRetries < MAX_PULL_RETRIES) {
         ++_numPullRetries;
         _pullSettingsRetryTimer->start();
@@ -954,11 +952,11 @@ void AccountManager::postAccountSettings() {
         return;
     }
     if (!isLoggedIn()) {
-        qCWarning(networking) << "Can't post account settings: Not logged in";
+        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         return;
     }
 
-    qCDebug(networking) << "Account Settings have changed, pushing them to the Directory Services API";
+    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     QNetworkAccessManager& networkAccessManager = NetworkAccessManager::getInstance();
 
@@ -991,12 +989,12 @@ void AccountManager::postAccountSettingsFinished() {
     if (rootObject.contains("status") && rootObject["status"].toString() == "success") {
         _lastSuccessfulSyncTimestamp = _currentSyncTimestamp;
     } else {
-        qCDebug(networking) << "Error in response for account settings post" << lockerReply->errorString();
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 }
 
 void AccountManager::postAccountSettingsError(QNetworkReply::NetworkError error) {
-    qCWarning(networking) << "Post encountered an error" << error;
+    qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 }
 
 void AccountManager::generateNewKeypair(bool isUserKeypair, const QUuid& domainID) {
@@ -1007,7 +1005,7 @@ void AccountManager::generateNewKeypair(bool isUserKeypair, const QUuid& domainI
     }
 
     if (!isUserKeypair && domainID.isNull()) {
-        qCWarning(networking) << "AccountManager::generateNewKeypair called for domain keypair with no domain ID. Will not generate keypair.";
+        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         return;
     }
 
@@ -1019,7 +1017,7 @@ void AccountManager::generateNewKeypair(bool isUserKeypair, const QUuid& domainI
         _isWaitingForKeypairResponse = true;
 
         // clear the current private key
-        qCDebug(networking) << "Clearing current private key in DataServerAccountInfo";
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         _accountInfo.setPrivateKey(QByteArray());
 
         // Create a runnable keypair generated to create an RSA pair and exit.
@@ -1036,8 +1034,7 @@ void AccountManager::generateNewKeypair(bool isUserKeypair, const QUuid& domainI
             &AccountManager::handleKeypairGenerationError);
 
         static constexpr int RSA_THREAD_PRIORITY = 1;
-        qCDebug(networking) << "Starting worker thread to generate 2048-bit RSA keypair, priority"
-            << RSA_THREAD_PRIORITY << "- QThreadPool::maxThreadCount =" << QThreadPool::globalInstance()->maxThreadCount();
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         // Start on Qt's global thread pool.
         QThreadPool::globalInstance()->start(keypairGenerator, RSA_THREAD_PRIORITY);
     }
@@ -1045,7 +1042,7 @@ void AccountManager::generateNewKeypair(bool isUserKeypair, const QUuid& domainI
 
 void AccountManager::processGeneratedKeypair(QByteArray publicKey, QByteArray privateKey) {
 
-    qCDebug(networking) << "Generated 2048-bit RSA keypair.";
+    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     // hold the private key to later set our directory services API account info if upload succeeds
     _pendingPublicKey = publicKey;
@@ -1058,7 +1055,7 @@ void AccountManager::uploadPublicKey() {
         return;
     }
 
-    qCDebug(networking) << "Attempting upload of public key";
+    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     // upload the public key so data-web has an up-to-date key
     const QString USER_PUBLIC_KEY_UPDATE_PATH = "/api/v1/user/public_key";
@@ -1105,7 +1102,7 @@ void AccountManager::uploadPublicKey() {
 }
 
 void AccountManager::publicKeyUploadSucceeded(QNetworkReply* reply) {
-    qCDebug(networking) << "Uploaded public key to Directory Services API. RSA keypair generation is completed.";
+    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     // public key upload complete - store the matching private key and persist the account to settings
     _accountInfo.setPrivateKey(_pendingPrivateKey);
@@ -1121,14 +1118,14 @@ void AccountManager::publicKeyUploadSucceeded(QNetworkReply* reply) {
 
 void AccountManager::publicKeyUploadFailed(QNetworkReply* reply) {
     // the public key upload has failed
-    qCritical() << "PAGE: Public key upload failed from AccountManager to" << reply->url() << reply->errorString();
+    qCritical() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     // we aren't waiting for a response any longer
     _isWaitingForKeypairResponse = false;
 }
 
 void AccountManager::handleKeypairGenerationError() {
-    qCritical() << "Error generating keypair - this is likely to cause authentication issues.";
+    qCritical() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     // reset our waiting state for keypair response
     _isWaitingForKeypairResponse = false;
