@@ -98,6 +98,27 @@ int main() {
     intent.setHomeLocation("");
     assert(intent.lastChangeTimestamp() > absentIntent.timestamp);
     assert(intent.homeLocationState() == AccountSettings::Loaded);
+    AccountSettings pending;
+    quint64 requestStamp = 777;
+    assert(pending.beginDownload(requestStamp) && requestStamp == 0);
+    pending.unpack({{"home_location", "initial"}});
+    pending.setHomeLocation("unsent");
+    const auto unsent = pending.snapshot();
+    requestStamp = 777;
+    assert(!pending.beginDownload(requestStamp) && requestStamp == 777);
+    assert(pending.homeLocationState() == AccountSettings::Loaded);
+    pending.acknowledgeSnapshot(unsent.timestamp - 1);
+    assert(!pending.beginDownload(requestStamp));
+    pending.setHomeLocation("newer");
+    pending.acknowledgeSnapshot(unsent.timestamp);
+    assert(!pending.beginDownload(requestStamp));
+    pending.acknowledgeSnapshot(pending.lastChangeTimestamp());
+    assert(pending.beginDownload(requestStamp));
+    assert(requestStamp == pending.lastChangeTimestamp());
+    pending.setHomeLocation("newer"); // Same-value local intent while Loading.
+    assert(!pending.beginDownload(requestStamp));
+    pending.loggedOut();
+    assert(pending.beginDownload(requestStamp));
     ticks = std::numeric_limits<quint64>::max() - 1;
     settings.setHomeLocation("last-revision");
     try {

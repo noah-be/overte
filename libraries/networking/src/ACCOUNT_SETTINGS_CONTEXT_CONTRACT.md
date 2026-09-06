@@ -13,6 +13,10 @@ connections. No consumer-owned paths or build inputs are changed.
   Conditional server application compares and mutates under one write lock.
   Explicit same-value local intent during Loading or from NotPresent/LoggedOut
   advances the revision too. Unchanged values already Loaded remain a no-op.
+  Download admission atomically rejects unacknowledged local changes and captures
+  the requested revision/Loading state under the write lock. Rejection schedules
+  onward upload instead. Only acknowledgement of the exact current revision
+  clears the local-change latch; older successful PUTs cannot clear newer edits.
 - PUT admission is single-flight, reserved before reentrant callbacks. A reply
   acknowledges its own sent revision only, once, for its current credential and
   upload request. New local values remain eligible for a later timer/caller PUT.
@@ -56,8 +60,7 @@ by changing error assertions or inventing platform acceptance.
 These are source/host Qt tests, not full native clients, device UI, server or
 per-node acceptance. Client single-flight does not establish server-side write
 ordering after an uncertain timeout/abort. Exhausted GET retries can leave
-Loading; explicit fresh GET over an already-dirty value still needs wider
-synchronization semantics. No general cross-thread manager,
+Loading; retry-exhaustion presentation/recovery remains open. No general cross-thread manager,
 total streaming allocation, initial auth-origin/HTTPS, or complete cancellation/
 foreground guarantee is made. Platform consumption, build/artifact/runtime
 checks and original feature criteria remain independently required.

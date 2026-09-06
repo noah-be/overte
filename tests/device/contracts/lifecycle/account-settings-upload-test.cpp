@@ -75,15 +75,21 @@ public:
         connect(&pullTimer, &QTimer::timeout, this, &AccountManager::requestAccountSettings);
     }
     struct Settings {
+        bool dirty = false;
         quint64 stamp = 10;
         AccountSettings::State state = AccountSettings::Loaded;
         AccountSettings::State homeLocationState() const { return state; }
-        void loggedOut() { stamp = 0; state = AccountSettings::LoggedOut; }
+        void loggedOut() { stamp = 0; state = AccountSettings::LoggedOut; dirty = false; }
         quint64 lastChangeTimestamp() const { return stamp; }
         QJsonObject pack() const { return {{ "home_location", QString::number(stamp) }}; }
         AccountSettings::Snapshot snapshot() const { return {pack(), stamp}; }
         void startedLoading() {}
-        void unpack(QJsonObject) { stamp = 30; state = AccountSettings::Loaded; }
+        bool beginDownload(quint64& timestamp) {
+            if (dirty) return false;
+            timestamp = stamp; return true;
+        }
+        void acknowledgeSnapshot(quint64 timestamp) { if (timestamp == stamp) dirty = false; }
+        void unpack(QJsonObject) { stamp = 30; state = AccountSettings::Loaded; dirty = false; }
         bool unpackIfUnchanged(const QJsonObject& data, quint64 expected, quint64& applied) {
             if (stamp != expected) return false;
             unpack(data); applied = stamp; return true;
@@ -188,6 +194,30 @@ int main(int argc, char** argv) {
     }
     // A GET started before a local edit must neither overwrite that edit nor
     // mark its new timestamp as synchronized. Actual GET/finished are compiled.
+    AccountManager alreadyEdited;
+    alreadyEdited._settings.dirty = true;
+    const auto beforeDirtyGet = network.created.size();
+    alreadyEdited.requestAccountSettings();
+    assert(network.created.size() == beforeDirtyGet);
+    assert(alreadyEdited.postTimer.isActive());
+    alreadyEdited.postAccountSettings(); network.last->finish();
+    assert(!alreadyEdited._settings.dirty);
+    alreadyEdited.requestAccountSettings();
+    assert(network.created.size() == beforeDirtyGet + 2);
+    network.last->finish();
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    AccountManager pendingNewer;
+    pendingNewer._settings.dirty = true;
+    pendingNewer.postAccountSettings();
+    pendingNewer._settings.stamp = 20;
+    network.last->finish();
+    assert(pendingNewer._settings.dirty);
+    const auto beforeNewerGet = network.created.size();
+    pendingNewer.requestAccountSettings();
+    assert(network.created.size() == beforeNewerGet && pendingNewer.postTimer.isActive());
+    pendingNewer.postAccountSettings(); network.last->finish();
+    assert(!pendingNewer._settings.dirty && pendingNewer._lastSuccessfulSyncTimestamp == 20);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     AccountManager downloading;
     downloading.requestAccountSettings(); auto* downloaded = network.last;
     downloading._settings.stamp = 20;
