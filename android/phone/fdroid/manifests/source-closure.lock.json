@@ -10,7 +10,7 @@
     },
     "target": {
       "path": "android/phone/fdroid/locks/android-arm64-v8a-api26-16k.lock",
-      "sha256": "beb6c8f35e30f2b7a2b5ba8eca2e503ad2c1ff2f078bdc01d98e234279ed8def"
+      "sha256": "7c043b7e2580962170576cfbead870c53fe91d2bd7897a62c35736d54bb10d66"
     }
   },
   "node": "SH-001",
@@ -1197,13 +1197,13 @@
       "recipe": {
         "exported_files": {
           "android/phone/fdroid/manifests/recipe-exports/libnode/22.22.3@overte/stable/export/conandata.yml": "388a498501a3efdb3142363dd89220780beb66600f449c912a9a1965a7c2fadf",
-          "android/phone/fdroid/manifests/recipe-exports/libnode/22.22.3@overte/stable/export/conanfile.py": "b51db7ad522d3e66d4e5682ad56410fad15465269b9a1e9b86643e734d71a960",
-          "android/phone/fdroid/manifests/recipe-exports/libnode/22.22.3@overte/stable/export/conanmanifest.txt": "a42519f8242343fd9170241a8f9d4ae90738662b34fe2ecca976e2feccc38673"
+          "android/phone/fdroid/manifests/recipe-exports/libnode/22.22.3@overte/stable/export/conanfile.py": "399bd12dbc6bd89355acc3810ea82d4b3f3720240da9038d7c73ccf1fcf45c32",
+          "android/phone/fdroid/manifests/recipe-exports/libnode/22.22.3@overte/stable/export/conanmanifest.txt": "9c1bac1ebb23adb20eb20c4315e5353b682e2c184a4c302a4a80aed61728fc79"
         },
         "path": "android/phone/fdroid/manifests/recipe-exports/libnode/22.22.3@overte/stable/export/conanfile.py",
-        "sha256": "b51db7ad522d3e66d4e5682ad56410fad15465269b9a1e9b86643e734d71a960"
+        "sha256": "399bd12dbc6bd89355acc3810ea82d4b3f3720240da9038d7c73ccf1fcf45c32"
       },
-      "recipe_revision": "3fd33b0199406fa08037c90d5dd1a635",
+      "recipe_revision": "01bc09301fde787710c8e19a8820bbb4",
       "reference": "libnode/22.22.3@overte/stable",
       "sources": [
         {
@@ -3254,8 +3254,8 @@
   "recipe_export_index": {
     "path": "android/phone/fdroid/manifests/recipe-exports/index.json",
     "pkglist_path": "android/phone/fdroid/manifests/recipe-exports/pkglist.json",
-    "pkglist_sha256": "839a20596bac6f1112ee28b70b5711125ae93b48d303b7fb8833295037cc131b",
-    "sha256": "8d4bfb8f5768d3574176d972c9a8b9ae8f53c25a968453c07a5f000538a95d46"
+    "pkglist_sha256": "c208dac44eb38e904c1065f5342402f315fa2bb6aea0f242a4b1193c49bb7ac2",
+    "sha256": "50145ea8ec69a0de2c9ef4b70cd81e58db22631496572664badf25eeabbb632d"
   },
   "schema_version": 1,
   "status": "SOURCE_CLOSURE_GATE_PASS",
