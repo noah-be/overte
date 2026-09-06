@@ -111,18 +111,22 @@ def adapter_call(command: list[str], action: str, target: str | None = None,
         argv += ["--target", target]
     adapter_environment = os.environ.copy()
     adapter_environment.pop("OVERTE_E2E_TABLET_POLICY", None)
-    result = subprocess.run(argv, text=True, stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE, timeout=timeout, check=False,
-                            env=adapter_environment)
+    try:
+        # Adapter stderr is arbitrary device/native data, not a reviewed error
+        # vocabulary. Do not capture it or retain it in exception/JUnit/CLI sinks.
+        result = subprocess.run(argv, text=True, stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, timeout=timeout, check=False,
+                                env=adapter_environment)
+    except (OSError, subprocess.TimeoutExpired, UnicodeError):
+        # TimeoutExpired/OSError text can contain the command's private target
+        # and executable path. Suppress the chained exception as well.
+        raise RuntimeError("OVT_TEST_INFRASTRUCTURE_ERROR") from None
     if result.returncode != 0:
-        detail = result.stderr.strip() or f"adapter {action} failed"
-        if target:
-            detail = detail.replace(target, "<target>")
-        raise RuntimeError(detail)
+        raise RuntimeError("OVT_TEST_INFRASTRUCTURE_ERROR")
     try:
         return json.loads(result.stdout)
-    except json.JSONDecodeError as error:
-        raise RuntimeError(f"adapter {action} returned invalid JSON") from error
+    except json.JSONDecodeError:
+        raise RuntimeError("OVT_TEST_INFRASTRUCTURE_ERROR") from None
 
 
 def discover(command: list[str], requested: str | None, allow_virtual: bool) -> dict:
