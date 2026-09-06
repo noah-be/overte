@@ -1,5 +1,13 @@
 # Script info and same-thread shutdown public diagnostics
 
+v004 closes the loadURL cache-completion public sink: URL, server status and
+thread identity are not logged. Actual loadURL and suffix methods execute with
+real Qt and explicit cache/expansion/signal boundaries. Running-script rejection,
+invalid suffix, deferred cache callback, success/failure with both isURL values,
+reload/no-retry arguments, original source contents and internal error/loaded
+signals are asserted unchanged. No cache lifetime, network or native acceptance
+is inferred; internal error messages still intentionally retain their payload.
+
 v003 additionally closes all three public debugPrint sinks: no manager, source
 debugging enabled, and ordinary managed print. Debug severity and the original
 internal ScriptManager::print(message) delivery remain unchanged. The complete
