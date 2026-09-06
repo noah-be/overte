@@ -921,6 +921,18 @@ class BranchDriftTests(unittest.TestCase):
             [("main", "android-main", 3)],
         )
 
+    def test_push_observation_is_pending_not_accepted_and_strict_default_still_fails(self):
+        drifts = [BRANCH_DRIFT.Drift('main', 'android-main', CURRENT_SHA, 3, 'diverged')]
+        self.assertEqual(BRANCH_DRIFT.result_status(drifts), ('DRIFT', 1))
+        self.assertEqual(BRANCH_DRIFT.result_status(drifts, True), ('PENDING_PROPAGATION', 0))
+        self.assertEqual(BRANCH_DRIFT.result_status([], True), ('SYNCHRONIZED', 0))
+
+    def test_unbound_push_observation_fails_before_any_network_read(self):
+        result = subprocess.run([sys.executable, str(DRIFT_CHECKER), '--repository',
+                                 'noah-be/overte', '--observe-push'], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('requires one explicit parent', result.stderr)
+
     def test_stale_push_parent_sha_fails_closed(self):
         with self.assertRaisesRegex(BRANCH_DRIFT.PolicyError, "stale parent SHA"):
             BRANCH_DRIFT.scan_parent(
