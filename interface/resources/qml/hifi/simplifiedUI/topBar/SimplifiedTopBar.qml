@@ -8,6 +8,7 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
+import "../../avatarapp" as AvatarImages
 import QtQuick 2.10
 import hifi.simplifiedUI.simplifiedControls 1.0 as SimplifiedControls
 import "../simplifiedConstants" as SimplifiedConstants
@@ -95,9 +96,11 @@ Rectangle {
         width: 48
         height: width
 
-        Image {
+        AvatarImages.RoundImage {
+            border.width: 0
+            radius: width / 2
             id: avatarButtonImage
-            source: "../images/defaultAvatar.svg"
+            source: Qt.resolvedUrl("../images/defaultAvatar.svg")
             anchors.centerIn: parent
             width: 32
             height: width
@@ -105,10 +108,6 @@ Rectangle {
             sourceSize.height: height
             mipmap: true
             fillMode: Image.PreserveAspectCrop
-            layer.enabled: true
-            layer.effect: OpacityMask {
-                maskSource: mask
-            }
 
             MouseArea {
                 id: avatarButtonImageMouseArea
@@ -147,12 +146,6 @@ Rectangle {
             }
         }
 
-        Rectangle {
-            id: mask
-            anchors.fill: avatarButtonImage
-            radius: avatarButtonImage.width
-            visible: false
-        }
     }
 
 
@@ -504,12 +497,12 @@ Rectangle {
                 if (previewUrl.indexOf("missing.png") > -1) {
                     previewUrl = "../images/defaultAvatar.svg";
                 }
-                avatarButtonImage.source = previewUrl;
+                avatarButtonImage.source = previewUrl ? Qt.resolvedUrl(previewUrl) : "";
                 return;
             }
         }
-        
-        avatarButtonImage.source = "../images/defaultAvatar.svg";
+
+        avatarButtonImage.source = Qt.resolvedUrl("../images/defaultAvatar.svg");
     }
 
 
@@ -521,9 +514,9 @@ Rectangle {
         switch (message.method) {
             case "updateAvatarThumbnailURL":
                 if (message.data.avatarThumbnailURL.indexOf("defaultAvatar.svg") > -1) {
-                    avatarButtonImage.source = "../images/defaultAvatar.svg";
+                    avatarButtonImage.source = Qt.resolvedUrl("../images/defaultAvatar.svg");
                 } else {
-                    avatarButtonImage.source = message.data.avatarThumbnailURL;
+                    avatarButtonImage.source = message.data.avatarThumbnailURL ? Qt.resolvedUrl(message.data.avatarThumbnailURL) : "";
                 }
                 break;
 
