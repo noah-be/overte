@@ -265,9 +265,9 @@
   },
   "openssl/3.5.8@overte/stable": {
     "revisions": {
-      "6be64ded507c01fdcc910a6cafc21c2e": {
-        "timestamp": 1788697828.4090133,
-        "recipe_folder": "opens5e40049062d4e"
+      "1ca155ce3b857ad3b1f742ea3dd7fc85": {
+        "timestamp": 1788688914.2852457,
+        "recipe_folder": "opense69bdb50f54aa"
       }
     }
   },
