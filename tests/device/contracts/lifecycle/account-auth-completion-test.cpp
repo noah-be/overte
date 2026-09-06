@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     const QByteArray good("{\"access_token\":\"token-canary\",\"expires_in\":3600,\"token_type\":\"Bearer\"}");
     for (bool refreshing : {false, true}) {
-    auto check = [&](QByteArray payload, int status, bool error, bool accepted) {
+    auto check = [&](QByteArray payload, int status, bool error, bool accepted, bool timedOut = false) {
         AccountManager manager;
         manager._accountInfo.tokens.insert("prior", true);
         int success = 0, failure = 0;
@@ -63,6 +63,7 @@ int main(int argc, char** argv) {
         });
         QObject::connect(&manager, &AccountManager::loginFailed, [&] { ++failure; });
         QPointer<Reply> reply = new Reply(std::move(payload), status, error);
+        reply->setProperty("_overte_account_auth_timed_out", timedOut);
         QObject::connect(reply.data(), &QNetworkReply::finished, &manager,
                          refreshing ? &AccountManager::refreshAccessTokenFinished : &AccountManager::requestAccessTokenFinished);
         reply->finish();
@@ -87,6 +88,7 @@ int main(int argc, char** argv) {
         check(invalid, 200, false, false);
     }
     check(good, 200, false, true);
+    check(good, 200, false, false, true); // Abort with NoError cannot revive a timeout.
     const auto goodObject = QJsonDocument::fromJson(good).object();
     for (const auto& key : {QString("access_token"), QString("token_type")}) {
         for (const QJsonValue& invalid : {QJsonValue(), QJsonValue(false), QJsonValue(12),

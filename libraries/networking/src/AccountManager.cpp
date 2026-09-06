@@ -22,6 +22,7 @@
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonObject>
 #include <QtCore/QMap>
+#include <QtCore/QPointer>
 #include <QtCore/QStringList>
 #include <QtCore/QStandardPaths>
 #include <QtCore/QUrlQuery>
@@ -113,6 +114,23 @@ AccountManager::AccountManager(bool accountSettingsEnabled, UserAgentGetter user
 }
 
 const QString ACCOUNT_MANAGER_REQUESTED_SCOPE = "owner";
+
+// One absolute event-loop deadline, not an inactivity timer. The reply owns
+// the timer callback, so deletion cancels it without extending reply lifetime.
+static void observeAccountTokenDeadline(QNetworkReply* reply) {
+    QTimer::singleShot(15000, Qt::PreciseTimer, reply, [reply] {
+        if (reply->isFinished()) {
+            return;
+        }
+        // Abort may synchronously emit finished; fence it before that signal.
+        reply->setProperty("_overte_account_auth_timed_out", true);
+        const QPointer<QNetworkReply> survivingReply(reply);
+        reply->abort();
+        if (survivingReply) {
+            survivingReply->deleteLater();
+        }
+    });
+}
 
 void AccountManager::logout() {
     postAccountSettings();
@@ -623,6 +641,7 @@ void AccountManager::requestAccessToken(const QString& login, const QString& pas
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 
     QNetworkReply* requestReply = networkAccessManager.post(request, postData);
+    observeAccountTokenDeadline(requestReply);
     connect(requestReply, &QNetworkReply::finished, this, &AccountManager::requestAccessTokenFinished);
 }
 
@@ -647,6 +666,7 @@ void AccountManager::requestAccessTokenWithAuthCode(const QString& authCode, con
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 
     QNetworkReply* requestReply = networkAccessManager.post(request, postData);
+    observeAccountTokenDeadline(requestReply);
     connect(requestReply, &QNetworkReply::finished, this, &AccountManager::requestAccessTokenFinished);
 }
 
@@ -669,6 +689,7 @@ void AccountManager::requestAccessTokenWithSteam(QByteArray authSessionTicket) {
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 
     QNetworkReply* requestReply = networkAccessManager.post(request, postData);
+    observeAccountTokenDeadline(requestReply);
     connect(requestReply, &QNetworkReply::finished, this, &AccountManager::requestAccessTokenFinished);
     connect(requestReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(requestAccessTokenError(QNetworkReply::NetworkError)));
 }
@@ -693,6 +714,7 @@ void AccountManager::requestAccessTokenWithOculus(const QString& nonce, const QS
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 
     QNetworkReply* requestReply = networkAccessManager.post(request, postData);
+    observeAccountTokenDeadline(requestReply);
     connect(requestReply, &QNetworkReply::finished, this, &AccountManager::requestAccessTokenFinished);
     connect(requestReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(requestAccessTokenError(QNetworkReply::NetworkError)));
 }
@@ -723,6 +745,7 @@ void AccountManager::refreshAccessToken() {
         request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 
         QNetworkReply* requestReply = networkAccessManager.post(request, postData);
+        observeAccountTokenDeadline(requestReply);
         connect(requestReply, &QNetworkReply::finished, this, &AccountManager::refreshAccessTokenFinished);
         connect(requestReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(refreshAccessTokenError(QNetworkReply::NetworkError)));
     } else {
@@ -777,7 +800,8 @@ void AccountManager::requestAccessTokenFinished() {
     QJsonParseError parseError;
     QJsonDocument jsonResponse = QJsonDocument::fromJson(payload, &parseError);
     const int status = requestReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    if (requestReply->error() != QNetworkReply::NoError || status < 200 || status >= 300 ||
+    if (requestReply->property("_overte_account_auth_timed_out").toBool() ||
+            requestReply->error() != QNetworkReply::NoError || status < 200 || status >= 300 ||
             payload.size() > MAX_RESPONSE_BYTES || requestReply->bytesAvailable() != 0 ||
             parseError.error != QJsonParseError::NoError || !jsonResponse.isObject()) {
         emit loginFailed();
@@ -839,7 +863,8 @@ void AccountManager::refreshAccessTokenFinished() {
     QJsonParseError parseError;
     QJsonDocument jsonResponse = QJsonDocument::fromJson(payload, &parseError);
     const int status = requestReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    if (requestReply->error() != QNetworkReply::NoError || status < 200 || status >= 300 ||
+    if (requestReply->property("_overte_account_auth_timed_out").toBool() ||
+            requestReply->error() != QNetworkReply::NoError || status < 200 || status >= 300 ||
             payload.size() > MAX_RESPONSE_BYTES || requestReply->bytesAvailable() != 0 ||
             parseError.error != QJsonParseError::NoError || !jsonResponse.isObject()) {
         return;
