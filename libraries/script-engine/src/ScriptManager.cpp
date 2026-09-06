@@ -402,7 +402,7 @@ bool ScriptManager::isDebugMode() const {
 
 ScriptManager::~ScriptManager() {
     auto scopeGuard = engine()->getScopeGuard();
-    qDebug() << "ScriptManager::~ScriptManager() : Script manager deleted, type: " << _type << " name: " << _fileNameString;
+    qDebug() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     if (_type == ScriptManager::Type::ENTITY_CLIENT) {
         printf("ScriptManager::~ScriptManager");
     }
