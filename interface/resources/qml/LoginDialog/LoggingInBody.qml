@@ -320,7 +320,7 @@ Item {
             }
         }
         function onHandleCreateFailed() {
-            console.log("Create Failed: " + error);
+            console.log("Create Failed");
             if (loggingInBody.withOculus) {
                 if (loggingInBody.loginDialogPoppedUp) {
                     var data = {
@@ -354,7 +354,7 @@ Item {
             loggingInBody.loadingSuccess();
         }
         function onHandleLinkFailed() {
-            console.log("Link Failed: " + error);
+            console.log("Link Failed");
             loggingInSpinner.visible = false;
             if (loggingInBody.linkOculus) {
                 loggingInText.text = "Oculus failed to link";
