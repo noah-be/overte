@@ -288,6 +288,10 @@ int ScriptEngineV8::computeCastPenalty(const V8ScriptValue& v8Val, int destTypeI
 }
 
 bool ScriptEngineV8::castValueToVariant(const V8ScriptValue& v8Val, QVariant& dest, int destTypeId) {
+    if (isEvaluationAborted()) {
+        dest.clear();
+        return false;
+    }
     Q_ASSERT(_v8Isolate->IsCurrent());
     v8::HandleScope handleScope(_v8Isolate);
     v8::Local<v8::Context> context = getContext();

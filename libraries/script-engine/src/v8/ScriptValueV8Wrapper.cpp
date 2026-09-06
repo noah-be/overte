@@ -231,6 +231,7 @@ ScriptValue ScriptValueV8Wrapper::construct(const ScriptValue& arguments) {
 
 // V8TODO: check how data() is used and if it needs fixing
 ScriptValue ScriptValueV8Wrapper::data() const {
+    if (_engine->isEvaluationAborted()) { return ScriptValue(); }
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
@@ -273,6 +274,7 @@ ScriptValueIteratorPointer ScriptValueV8Wrapper::newIterator() const {
 }
 
 bool ScriptValueV8Wrapper::hasProperty(const QString& name) const {
+    if (_engine->isEvaluationAborted()) { return false; }
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
@@ -297,6 +299,7 @@ bool ScriptValueV8Wrapper::hasProperty(const QString& name) const {
 
 
 ScriptValue ScriptValueV8Wrapper::property(const QString& name, const ScriptValue::ResolveFlags &mode) const {
+    if (_engine->isEvaluationAborted()) { return ScriptValue(); }
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
@@ -330,6 +333,7 @@ ScriptValue ScriptValueV8Wrapper::property(const QString& name, const ScriptValu
 }
 
 ScriptValue ScriptValueV8Wrapper::property(quint32 arrayIndex, const ScriptValue::ResolveFlags& mode) const {
+    if (_engine->isEvaluationAborted()) { return ScriptValue(); }
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
@@ -355,6 +359,7 @@ ScriptValue ScriptValueV8Wrapper::property(quint32 arrayIndex, const ScriptValue
 }
 
 ScriptValue ScriptValueV8Wrapper::prototype() const {
+    if (_engine->isEvaluationAborted()) { return ScriptValue(); }
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
@@ -372,6 +377,7 @@ ScriptValue ScriptValueV8Wrapper::prototype() const {
 }
 
 void ScriptValueV8Wrapper::setData(const ScriptValue& value) {
+    if (_engine->isEvaluationAborted()) { return; }
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
@@ -396,6 +402,7 @@ void ScriptValueV8Wrapper::setData(const ScriptValue& value) {
 }
 
 void ScriptValueV8Wrapper::setProperty(const QString& name, const ScriptValue& value, const ScriptValue::PropertyFlags& flags) {
+    if (_engine->isEvaluationAborted()) { return; }
     Q_ASSERT(flags != ScriptValue::PropertyGetter || flags != ScriptValue::PropertySetter);
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
@@ -432,6 +439,7 @@ void ScriptValueV8Wrapper::setProperty(const QString& name, const ScriptValue& v
 }
 
 void ScriptValueV8Wrapper::setProperty(quint32 arrayIndex, const ScriptValue& value, const ScriptValue::PropertyFlags& flags) {
+    if (_engine->isEvaluationAborted()) { return; }
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
@@ -459,6 +467,7 @@ void ScriptValueV8Wrapper::setProperty(quint32 arrayIndex, const ScriptValue& va
 }
 
 void ScriptValueV8Wrapper::setPrototype(const ScriptValue& prototype) {
+    if (_engine->isEvaluationAborted()) { return; }
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
@@ -497,6 +506,7 @@ bool ScriptValueV8Wrapper::strictlyEquals(const ScriptValue& other) const {
 }
 
 inline QList<QString> ScriptValueV8Wrapper::getPropertyNames() const {
+    if (_engine->isEvaluationAborted()) { return {}; }
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
@@ -535,6 +545,7 @@ bool ScriptValueV8Wrapper::toBool() const {
 }
 
 qint32 ScriptValueV8Wrapper::toInt32() const {
+    if (_engine->isEvaluationAborted()) { return 0; }
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
@@ -549,6 +560,7 @@ qint32 ScriptValueV8Wrapper::toInt32() const {
 }
 
 double ScriptValueV8Wrapper::toInteger() const {
+    if (_engine->isEvaluationAborted()) { return 0; }
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
@@ -563,6 +575,7 @@ double ScriptValueV8Wrapper::toInteger() const {
 }
 
 double ScriptValueV8Wrapper::toNumber() const {
+    if (_engine->isEvaluationAborted()) { return std::numeric_limits<double>::quiet_NaN(); }
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
@@ -577,6 +590,7 @@ double ScriptValueV8Wrapper::toNumber() const {
 }
 
 QString ScriptValueV8Wrapper::toString() const {
+    if (_engine->isEvaluationAborted()) { return {}; }
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
@@ -590,6 +604,7 @@ QString ScriptValueV8Wrapper::toString() const {
 }
 
 quint16 ScriptValueV8Wrapper::toUInt16() const {
+    if (_engine->isEvaluationAborted()) { return 0; }
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
@@ -604,6 +619,7 @@ quint16 ScriptValueV8Wrapper::toUInt16() const {
 }
 
 quint32 ScriptValueV8Wrapper::toUInt32() const {
+    if (_engine->isEvaluationAborted()) { return 0; }
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
@@ -618,6 +634,7 @@ quint32 ScriptValueV8Wrapper::toUInt32() const {
 }
 
 QVariant ScriptValueV8Wrapper::toVariant() const {
+    if (_engine->isEvaluationAborted()) { return {}; }
     QVariant dest;
     if (_engine->castValueToVariant(_value, dest, QMetaType::UnknownType)) {
         return dest;
@@ -628,6 +645,7 @@ QVariant ScriptValueV8Wrapper::toVariant() const {
 }
 
 QObject* ScriptValueV8Wrapper::toQObject() const {
+    if (_engine->isEvaluationAborted()) { return nullptr; }
     QVariant dest;
     if (_engine->castValueToVariant(_value, dest, QMetaType::QObjectStar)) {
         if (dest.canConvert<QObject*>()) {
@@ -743,6 +761,7 @@ static QString reprImpl(
 }
 
 QString ScriptValueV8Wrapper::repr() const {
+    if (_engine->isEvaluationAborted()) { return {}; }
     auto* isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
 
@@ -757,6 +776,7 @@ QString ScriptValueV8Wrapper::repr() const {
 }
 
 bool ScriptValueV8Wrapper::equals(const ScriptValue& other) const {
+    if (_engine->isEvaluationAborted()) { return false; }
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);

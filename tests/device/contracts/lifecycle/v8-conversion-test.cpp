@@ -18,9 +18,13 @@ struct ScriptValue {
 struct ScriptEngineV8 {
     v8::Isolate* isolate;
     v8::Local<v8::Context> context;
+    v8::Isolate* _v8Isolate = isolate;
+    void abortEvaluation();
+#include "abort-state.inc"
     v8::Isolate* getIsolate() { return isolate; }
     v8::Local<v8::Context> getContext() { return context; }
 };
+#include "abort-method.inc"
 struct V8ScriptValue {
     ScriptEngineV8* engine;
     std::shared_ptr<v8::Global<v8::Value>> value;
@@ -81,6 +85,7 @@ int main(int argc, char** argv) {
         if (kind == "names") { source = "({'a\\u0000b':1,42:2})"; }
         if (mode == "throw") { source = kind == "names" ? "new Proxy({}, {ownKeys(){throw 17;}})" : "({[Symbol.toPrimitive](){throw 17;}})"; }
         if (mode == "terminate") { source = kind == "names" ? "new Proxy({}, {ownKeys(){entered();for(;;){}}})" : "({[Symbol.toPrimitive](){entered();for(;;){}}})"; }
+        if (mode == "stopped") { source = kind == "names" ? "new Proxy({}, {ownKeys(){entered();return ['x'];}})" : "({[Symbol.toPrimitive](){entered();return 42;}})"; }
         if (mode == "wrap") { source = "4294967297"; }
         if (mode == "nul") { source = "'a\\u0000b'"; }
         if (mode == "nan") { source = "undefined"; }
@@ -99,7 +104,8 @@ int main(int argc, char** argv) {
                 isolate->TerminateExecution();
             });
         }
-        const bool failed = mode == "throw" || mode == "terminate" || mode == "empty";
+        if (mode == "stopped") { engine.abortEvaluation(); isolate->CancelTerminateExecution(); }
+        const bool failed = mode == "throw" || mode == "terminate" || mode == "empty" || mode == "stopped";
         if (kind == "equals" || kind == "strict") {
             const bool result = kind == "equals" ? wrapper.equals(other) : wrapper.strictlyEquals(other);
             assert(result == (mode == "ordinary"));
@@ -122,6 +128,7 @@ int main(int argc, char** argv) {
             else { assert(result == (failed ? 0 : mode == "wrap" ? 1 : kind == "number" ? 42.75 : 42)); }
         }
         if (terminator.joinable()) { terminator.join(); }
+        if (mode == "stopped") { assert(!entered.load() && engine.isEvaluationAborted()); }
         assert(caught.HasCaught() == (mode == "throw" || mode == "terminate"));
         if (mode == "terminate") { assert(caught.HasTerminated()); }
     }

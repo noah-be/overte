@@ -10,9 +10,13 @@
 struct ScriptEngineV8 {
     v8::Isolate* isolate;
     v8::Local<v8::Context> context;
+    v8::Isolate* _v8Isolate = isolate;
+    void abortEvaluation();
+#include "abort-state.inc"
     v8::Isolate* getIsolate() { return isolate; }
     v8::Local<v8::Context> getContext() { return context; }
 };
+#include "abort-method.inc"
 struct V8ScriptValue {
     ScriptEngineV8* engine;
     std::shared_ptr<v8::Global<v8::Value>> value;
@@ -53,6 +57,8 @@ int main(int argc,char** argv) {
         if(mode == "keys-terminate") { source = "new Proxy({}, {ownKeys(){entered();for(;;){}}})"; }
         if(mode == "getter-throw") { source = "({get first(){throw 1;}})"; }
         if(mode == "getter-terminate") { source = "({get first(){entered();for(;;){}}})"; }
+        if(mode == "stopped") { source = "new Proxy({}, {ownKeys(){entered();return ['first'];}})"; }
+        if(mode == "stopped-existing") { source = "({get first(){entered();return 42;}})"; }
         auto object = v8::Script::Compile(context,v8::String::NewFromUtf8(isolate,source).ToLocalChecked())
             .ToLocalChecked()->Run(context).ToLocalChecked();
         v8::TryCatch caught(isolate);
@@ -64,10 +70,18 @@ int main(int argc,char** argv) {
             });
         }
         {
+            if(mode == "stopped") { engine.abortEvaluation(); isolate->CancelTerminateExecution(); }
             V8ScriptValueIterator iterator(&engine,object);
             assert(iterator.name().isEmpty());
             assert(iterator.value().constGet()->IsUndefined());
-            if(mode == "ordinary") {
+            if(mode == "stopped-existing") {
+                assert(iterator.hasNext()); iterator.next();
+                engine.abortEvaluation(); isolate->CancelTerminateExecution();
+                assert(!iterator.hasNext() && iterator.name().isEmpty());
+                assert(iterator.value().constGet()->IsUndefined());
+                iterator.next();
+                assert(!entered.load());
+            } else if(mode == "ordinary") {
                 assert(iterator.hasNext()); iterator.next();
                 assert(iterator.name() == "first" && iterator.value().constGet()->Int32Value(context).FromJust() == 42);
                 assert(iterator.hasNext()); iterator.next();
@@ -81,6 +95,7 @@ int main(int argc,char** argv) {
             }
         }
         if(terminator.joinable()) { terminator.join(); }
+        if(mode.rfind("stopped",0) == 0) { assert(!entered.load() && engine.isEvaluationAborted()); }
         const bool failure = mode.find("throw") != std::string::npos || mode.find("terminate") != std::string::npos;
         assert(caught.HasCaught() == failure);
         assert(caught.HasTerminated() == (mode.find("terminate") != std::string::npos));

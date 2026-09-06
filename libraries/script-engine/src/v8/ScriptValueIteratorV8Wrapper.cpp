@@ -17,6 +17,7 @@
 #include <limits>
 
 V8ScriptValueIterator::V8ScriptValueIterator(ScriptEngineV8* engine, v8::Local<v8::Value> object) : _engine(engine)  {
+    if (_engine->isEvaluationAborted()) { return; }
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
@@ -47,10 +48,12 @@ V8ScriptValueIterator::~V8ScriptValueIterator() {
 }
 
 bool V8ScriptValueIterator::hasNext() const {
+    if (_engine->isEvaluationAborted()) { return false; }
     return _currentIndex < _length - 1;
 }
 
 QString V8ScriptValueIterator::name() const {
+    if (_engine->isEvaluationAborted()) { return {}; }
     if (_currentIndex < 0 || _currentIndex >= _length || _propertyNames.IsEmpty()) {
         return {};
     }
@@ -68,6 +71,7 @@ QString V8ScriptValueIterator::name() const {
 }
 
 void V8ScriptValueIterator::next() {
+    if (_engine->isEvaluationAborted()) { return; }
     if (_currentIndex < _length - 1) {
         _currentIndex++;
     }
@@ -77,6 +81,7 @@ V8ScriptValue V8ScriptValueIterator::value() {
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
+    if (_engine->isEvaluationAborted()) { return V8ScriptValue(_engine, v8::Undefined(isolate)); }
     if (_currentIndex < 0 || _currentIndex >= _length || _propertyNames.IsEmpty() || _object.IsEmpty()) {
         return V8ScriptValue(_engine, v8::Undefined(isolate));
     }
