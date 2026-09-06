@@ -4,6 +4,7 @@
 #include <QtCore/QLoggingCategory>
 #include <QtCore/QPointer>
 #include "libraries/networking/src/RequestCancellation.h"
+#include "libraries/networking/src/OAuthTokenValidation.h"
 #include "security/redaction/SafeDiagnostics.h"
 #include <cassert>
 #include <cstring>

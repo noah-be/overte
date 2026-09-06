@@ -4,6 +4,7 @@
 #include <QtCore/QLoggingCategory>
 #include <QtCore/QPointer>
 #include "libraries/networking/src/RequestCancellation.h"
+#include "libraries/networking/src/OAuthTokenValidation.h"
 #include "security/redaction/SafeDiagnostics.h"
 #include <cassert>
 #include <functional>
@@ -69,6 +70,15 @@ int main(int argc, char** argv) {
     for (const auto& input : {QString("{}"), QString("{"), QString("[]"), QString("null"),
                              QString("{\"error\":\"private-error-canary\"}")}) check(input, false);
     check(QString::fromUtf8(QJsonDocument(good).toJson()), true);
+    for (const QString& invalid : {QString(" "), QString("a\r\nInjected: value"), QString("a b"),
+                                  QString("a=b"), QString("="), QString("a:b"), QString::fromUtf8("t\xc3\xa9")}) {
+        auto object = good; object.insert("access_token", invalid);
+        check(QString::fromUtf8(QJsonDocument(object).toJson()), false);
+    }
+    for (const QString& invalid : {QString("Basic"), QString(" Bearer"), QString("Bearer\n")}) {
+        auto object = good; object.insert("token_type", invalid);
+        check(QString::fromUtf8(QJsonDocument(object).toJson()), false);
+    }
     for (const auto& key : {QString("access_token"), QString("token_type"), QString("refresh_token")}) {
         for (const auto& invalid : {QJsonValue(), QJsonValue(false), QJsonValue(12), QJsonValue(QJsonObject())}) {
             auto object = good; object.insert(key, invalid); check(QString::fromUtf8(QJsonDocument(object).toJson()), false);

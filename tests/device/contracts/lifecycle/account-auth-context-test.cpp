@@ -5,6 +5,7 @@
 #include <QtCore/QPointer>
 #include <QtNetwork/QNetworkAccessManager>
 #include "libraries/networking/src/RequestCancellation.h"
+#include "libraries/networking/src/OAuthTokenValidation.h"
 #include "security/redaction/SafeDiagnostics.h"
 #include <cassert>
 #include <cstring>
