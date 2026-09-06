@@ -1,4 +1,5 @@
 import QtQuick 2.5
+import QtQuick.Window 2.2
 
 Item {
     id: root
@@ -12,6 +13,12 @@ Item {
     property alias status: image.status
     property alias progress: image.progress
     onRadiusChanged: drawing.requestPaint()
+    readonly property var captureWindow: root.Window.window
+    onCaptureWindowChanged: synchronizeImage()
+    Connections {
+        target: root.captureWindow
+        function onVisibleChanged() { root.synchronizeImage() }
+    }
     property int captureGeneration: 0
     property bool captureBusy: false
     property bool captureAgain: false
@@ -29,13 +36,13 @@ Item {
     }
     Timer { id: refresh; interval: 0; onTriggered: root.refreshImage() }
     function refreshImage() {
-        if (captureBusy || !drawing.available || !visible || image.status !== Image.Ready || image.width <= 0 || image.height <= 0) return
+        if (captureBusy || !captureWindow || !captureWindow.visible || !drawing.available || !visible || image.status !== Image.Ready || image.width <= 0 || image.height <= 0) return
         captureAgain = false
         captureBusy = true
         var ticket = captureGeneration
         var started = image.grabToImage(function(result) {
             captureBusy = false
-            if (ticket === captureGeneration && image.status === Image.Ready && root.visible) {
+            if (ticket === captureGeneration && image.status === Image.Ready && root.visible && captureWindow && captureWindow.visible) {
                 drawing.snapshot = result
                 drawing.cachedSource = result.url
                 drawing.loadImage(result.url)

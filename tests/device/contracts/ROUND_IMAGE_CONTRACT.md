@@ -23,3 +23,13 @@ Native Qt5/Qt6, DPR, filtering equivalence, large-image capture memory/cadence a
 full resource lifetime remain open. The snapshot adds a render/capture step; no
 performance budget is claimed. Existing interpolation differences and explicit
 CPU tile loops remain, with native/avatar journey and original39 acceptance open.
+
+The public capture path also observes its QQuickWindow visibility. A ready image
+loaded before the window is shown remains pending until the window is visible;
+hiding the window invalidates an in-flight capture and showing it requests the
+current source. The real Qt fixture now deliberately waits for Image.Ready before
+showing the window: the prior source fails its first blue pixel comparison.
+The same fixture checks zero-size geometry recovery and a requested sourceSize
+change while the window is hidden. All seven fill modes and prior provider/error,
+clip, border and visibility checks remain. No additional repaint workaround was
+needed in this path; native Qt5 and full device timing remain unaccepted.
