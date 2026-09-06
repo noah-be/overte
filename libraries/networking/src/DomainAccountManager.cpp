@@ -213,11 +213,13 @@ void DomainAccountManager::requestAccessTokenFinished() {
     const auto rootObject = jsonResponse.object();
     const auto accessToken = rootObject.value("access_token");
     const auto refreshToken = rootObject.value("refresh_token");
+    const auto expiresIn = rootObject.value("expires_in");
     const bool validResponse = requestReply->error() == QNetworkReply::NoError &&
         payload.size() <= MAX_DOMAIN_AUTH_RESPONSE_BYTES && requestReply->bytesAvailable() == 0 &&
         parseError.error == QJsonParseError::NoError && jsonResponse.isObject() &&
         accessToken.isString() && !accessToken.toString().trimmed().isEmpty() &&
-        (refreshToken.isUndefined() || refreshToken.isString());
+        (refreshToken.isUndefined() || refreshToken.isString()) &&
+        (expiresIn.isUndefined() || (expiresIn.isDouble() && expiresIn.toInt(-1) > 0));
     if (200 <= httpStatus && httpStatus < 300 && validResponse) {
 
         // miniOrange plugin provides no scope.
@@ -256,18 +258,20 @@ void DomainAccountManager::sendInterfaceAccessTokenToServer() {
 }
 
 bool DomainAccountManager::accessTokenIsExpired() {
-    // ####### TODO: accessTokenIsExpired()
-    return true;
+    return _currentAuth.accessTokenDeadline.hasExpired();
 }
 
+const QString& DomainAccountManager::getAccessToken() {
+    // NodeList consumes this getter directly when constructing its auth packet.
+    // Checking only isLoggedIn would still allow an expired cached token out.
+    static const QString empty;
+    return accessTokenIsExpired() ? empty : _currentAuth.accessToken;
+}
 
 bool DomainAccountManager::hasValidAccessToken() {
-    // ###### TODO: wire this up to actually retrieve a token (based on session or storage) and confirm that it is in fact valid and relevant to the current domain.
-    // QString currentDomainAccessToken = domainAccessToken.get();
-    QString currentDomainAccessToken = _currentAuth.accessToken;
-
-    // if (currentDomainAccessToken.isEmpty() || accessTokenIsExpired()) {
-    if (currentDomainAccessToken.isEmpty()) {
+    // Current auth is selected with the domain and invalidated on auth/client
+    // changes. A restored cached record retains its original monotonic deadline.
+    if (_currentAuth.accessToken.isEmpty() || accessTokenIsExpired()) {
         if (VERBOSE_HTTP_REQUEST_DEBUGGING) {
             qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::AuthRequired);
         }
@@ -287,6 +291,10 @@ bool DomainAccountManager::hasValidAccessToken() {
 void DomainAccountManager::setTokensFromJSON(const QJsonObject& jsonObject, const QUrl& url) {
     _currentAuth.accessToken = jsonObject["access_token"].toString();
     _currentAuth.refreshToken = jsonObject["refresh_token"].toString();
+    const auto lifetime = jsonObject.value("expires_in");
+    // The only caller validates positive integral, bounded seconds first.
+    _currentAuth.accessTokenDeadline = lifetime.isUndefined() ? QDeadlineTimer(QDeadlineTimer::Forever) :
+        QDeadlineTimer(qint64(lifetime.toInt()) * 1000, Qt::PreciseTimer);
 }
 
 bool DomainAccountManager::checkAndSignalForAccessToken() {

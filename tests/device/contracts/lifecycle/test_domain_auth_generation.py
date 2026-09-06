@@ -37,6 +37,7 @@ struct DependencyManager { template<class T> static T* get() { static T instance
                             str(pathlib.Path(__file__).with_name('domain-auth-generation-test.cpp')),
                             '-o', str(binary), *flags], check=True, timeout=45)
             subprocess.run(['unshare', '--user', '--map-root-user', '--net', str(binary)], check=True, timeout=5)
+            subprocess.run(['unshare', '--user', '--map-root-user', '--net', str(binary), 'expiry'], check=True, timeout=5)
             subprocess.run(['unshare', '--user', '--map-root-user', '--net', str(binary), 'timeout'], check=True, timeout=20)
 
 
