@@ -802,9 +802,17 @@ void AccountManager::requestAccessTokenFinished() {
     if (!rootObject.contains("error")) {
         // construct an OAuthAccessToken from the json object
 
-        if (!rootObject.contains("access_token") || !rootObject.contains("expires_in")
-            || !rootObject.contains("token_type")) {
-            // TODO: error handling - malformed token response
+        // QJsonValue::toInt rejects fractions and values outside signed 32-bit
+        // seconds. This also bounds the downstream seconds-to-milliseconds
+        // conversion; presence alone must not turn an invalid token into login.
+        const auto accessToken = rootObject.value("access_token");
+        const auto tokenType = rootObject.value("token_type");
+        const auto expiresIn = rootObject.value("expires_in");
+        const auto refreshToken = rootObject.value("refresh_token");
+        if (!accessToken.isString() || accessToken.toString().isEmpty() ||
+                !tokenType.isString() || tokenType.toString().isEmpty() ||
+                !expiresIn.isDouble() || expiresIn.toInt(-1) <= 0 ||
+                (!refreshToken.isUndefined() && !refreshToken.isString())) {
             qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             emit loginFailed();

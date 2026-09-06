@@ -1,4 +1,15 @@
-# Account credential finished-response boundary — SH-005
+# Account credential finished-response boundary — SH-005 v002
+
+Additive v002 requires nonempty string access_token/token_type, numeric whole
+expires_in in [1, 2147483647] seconds, and a string refresh_token if present.
+The optional refresh token may be absent or empty. The integer bound is the
+signed-32-bit seconds representation accepted by QJsonValue::toInt, not a
+recommended credential lifetime or server-expiry policy. It prevents malformed
+types and enormous/fractional lifetimes reaching OAuthAccessToken's unchecked
+double-seconds conversion. Invalid responses emit the existing failure outcome
+without replacing/persisting the previous account or requesting a profile.
+String token grammar, supported token-type semantics and refresh callback
+validation are NOT established by these checks.
 
 The actual requestAccessTokenFinished callback now emits loginFailed for its
 existing missing-field case instead of only logging and leaving UI pending.
@@ -19,5 +30,5 @@ the existing block extractor test_login_dialog_domain_receiver.py. Separate Appl
 export preserves its extra error callback and Qt6 guards. Its errorOccurred path
 may independently signal loginFailed; per-finished de-duplication is NOT a claim
 of exactly-once outcomes across all signals. Other live reply buffering/TLS/JSON
-allocation, token field types/expiry/refresh validity, redirects, target generation,
+allocation, token grammar/server expiry/refresh callback validity, redirects, target generation,
 foreground/consent, complete UI/privacy and artifact/native acceptance remain.
