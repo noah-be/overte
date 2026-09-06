@@ -348,15 +348,7 @@ ScriptManager::ScriptManager(Context context, const QString& scriptContents, con
 
     if (_type == Type::ENTITY_CLIENT || _type == Type::ENTITY_SERVER) {
         QObject::connect(this, &ScriptManager::update, this, [this]() {
-            // process pending entity script content
-            if (!_contentAvailableQueue.empty() && !(_isFinished || _isStopping)) {
-                EntityScriptContentAvailableMap pending;
-                std::swap(_contentAvailableQueue, pending);
-                for (auto& pair : pending) {
-                    auto& args = pair.second;
-                    entityScriptContentAvailable(args.entityID, args.scriptOrURL, args.contents, args.isURL, args.success, args.status);
-                }
-            }
+            processEntityScriptContents();
         });
     }
 
@@ -2165,6 +2157,41 @@ bool ScriptManager::hasEntityScriptDetails(const EntityItemID& entityID, const Q
     return it.value().contains(scriptURL);
 }
 
+bool ScriptManager::isCurrentEntityScriptLoad(const EntityItemID& entityID, const QString& script,
+                                             const std::shared_ptr<EntityScriptLoadRequest>& request) const {
+    return request && !isStopping() && !_isFinished &&
+        _entityScriptLoads.value(entityID).value(script) == request;
+}
+
+void ScriptManager::cancelEntityScriptLoad(const EntityItemID& entityID, const QString& script) {
+    auto loads = _entityScriptLoads.find(entityID);
+    if (loads != _entityScriptLoads.end()) {
+        loads->remove(script);
+        if (loads->isEmpty()) { _entityScriptLoads.erase(loads); }
+    }
+    auto queued = _contentAvailableQueue.find(entityID);
+    if (queued != _contentAvailableQueue.end()) {
+        queued->remove(script);
+        if (queued->isEmpty()) { _contentAvailableQueue.erase(queued); }
+    }
+}
+
+void ScriptManager::processEntityScriptContents() {
+    EntityScriptContentAvailableMap pending;
+    std::swap(_contentAvailableQueue, pending);
+    for (const auto& scripts : pending) {
+        for (const auto& args : scripts) {
+            if (!isCurrentEntityScriptLoad(args.entityID, args.requestedScript, args.request)) {
+                continue;
+            }
+            // Consume before entering code which can reenter unload/load/update.
+            cancelEntityScriptLoad(args.entityID, args.requestedScript);
+            entityScriptContentAvailable(args.entityID, args.scriptOrURL, args.contents,
+                                         args.isURL, args.success, args.status);
+        }
+    }
+}
+
 bool ScriptManager::rejectEntityScriptWithoutConsent(const EntityItemID& entityID, const QString& scriptURL) {
     // Client entity code is untrusted even when embedded, cached or file-backed.
     // No informed-consent + lifetime-safe finite-revoke backend is bound yet.
@@ -2201,6 +2228,10 @@ void ScriptManager::loadEntityScript(const EntityItemID& entityID, const QString
         return;
     }
 
+    cancelEntityScriptLoad(entityID, entityScript);
+    const auto request = std::make_shared<EntityScriptLoadRequest>();
+    _entityScriptLoads[entityID][entityScript] = request;
+
     if (!hasEntityScriptDetails(entityID, entityScript)) {
         // make sure EntityScriptDetails has an entry for this UUID right away
         // (which allows bailing from the loading/provisioning process early if the Entity gets deleted mid-flight)
@@ -2216,17 +2247,20 @@ void ScriptManager::loadEntityScript(const EntityItemID& entityID, const QString
     }
 #endif
 
+    if (!isCurrentEntityScriptLoad(entityID, entityScript, request)) { return; }
+
     EntityScriptDetails newDetails;
     newDetails.scriptText = entityScript;
     newDetails.status = EntityScriptStatus::LOADING;
     newDetails.definingSandboxURL = currentSandboxURL;
     setEntityScriptDetails(entityID, entityScript, newDetails);
+    if (!isCurrentEntityScriptLoad(entityID, entityScript, request)) { return; }
 
     auto scriptCache = DependencyManager::get<ScriptCache>();
     // note: see EntityTreeRenderer.cpp for shared pointer lifecycle management
     std::weak_ptr<ScriptManager> weakRef(shared_from_this());
     scriptCache->getScriptContents(entityScript,
-        [this, weakRef, entityScript, entityID](const QString& url, const QString& contents, bool isURL, bool success, const QString& status) {
+        [this, weakRef, entityScript, entityID, request](const QString& url, const QString& contents, bool isURL, bool success, const QString& status) {
             std::shared_ptr<ScriptManager> strongRef = weakRef.lock();
             if (!strongRef) {
                 qCWarning(scriptengine) << "loadEntityScript.contentAvailable -- ScriptManager was deleted during getScriptContents!!";
@@ -2242,8 +2276,11 @@ void ScriptManager::loadEntityScript(const EntityItemID& entityID, const QString
 #ifdef DEBUG_ENTITY_STATES
                 qCDebug(scriptengine) << "loadEntityScript.contentAvailable" << status << entityID.toString();
 #endif
-                if (!isStopping() && hasEntityScriptDetails(entityID, entityScript)) {
-                    _contentAvailableQueue[entityID] = { entityID, url, contents, isURL, success, status };
+                if (isCurrentEntityScriptLoad(entityID, entityScript, request) && !request->queued) {
+                    request->queued = true;
+                    _contentAvailableQueue[entityID][entityScript] = {
+                        entityID, url, contents, isURL, success, status, entityScript, request
+                    };
                 } else {
 #ifdef DEBUG_ENTITY_STATES
                     qCDebug(scriptengine) << "loadEntityScript.contentAvailable -- aborting";
@@ -2636,6 +2673,8 @@ void ScriptManager::unloadEntityScript(const EntityItemID& entityID, const QStri
         "entityID:" << entityID;
 #endif
 
+    cancelEntityScriptLoad(entityID, scriptURL);
+
     EntityScriptDetails oldDetails;
     if (getEntityScriptDetails(entityID, scriptURL, oldDetails)) {
         const auto& scriptText = oldDetails.scriptText;
@@ -2695,6 +2734,9 @@ void ScriptManager::unloadAllEntityScriptsForEntity(const EntityItemID& entityID
                           << entityID;
 #endif
 
+    _entityScriptLoads.remove(entityID);
+    _contentAvailableQueue.remove(entityID);
+
     std::vector<EntityScriptDetails> scriptDetails;
     {
         QWriteLocker locker { &_entityScriptsLock };
@@ -2752,6 +2794,9 @@ void ScriptManager::unloadAllEntityScripts(bool blockingCall) {
 #ifdef THREAD_DEBUGGING
     qCDebug(scriptengine) << "ScriptManager::unloadAllEntityScripts() called on correct thread [" << thread() << "]";
 #endif
+
+    _entityScriptLoads.clear();
+    _contentAvailableQueue.clear();
 
     std::vector<std::pair<EntityItemID, EntityScriptDetails>> scripts;
     {

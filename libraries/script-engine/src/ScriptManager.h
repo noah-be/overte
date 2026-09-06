@@ -114,6 +114,12 @@ public:
  * @brief Entity with available script contents
  *
  */
+// Identity is per load attempt, never per URL or entity lifetime. Access is on the
+// owning ScriptManager thread; asynchronous callbacks only carry the identity.
+struct EntityScriptLoadRequest {
+    bool queued { false };
+};
+
 struct EntityScriptContentAvailable {
     /**
      * @brief Entity ID
@@ -150,9 +156,11 @@ struct EntityScriptContentAvailable {
      *
      */
     QString status;
+    QString requestedScript;
+    std::shared_ptr<EntityScriptLoadRequest> request;
 };
 
-typedef std::unordered_map<EntityItemID, EntityScriptContentAvailable> EntityScriptContentAvailableMap;
+typedef QHash<EntityItemID, QHash<QString, EntityScriptContentAvailable>> EntityScriptContentAvailableMap;
 
 typedef QList<CallbackData> CallbackList;
 typedef QHash<QString, CallbackList> RegisteredEventHandlers;
@@ -1669,6 +1677,11 @@ protected:
     mutable QReadWriteLock _entityScriptsLock { QReadWriteLock::Recursive };
     QHash<EntityItemID, QHash<QString, EntityScriptDetails>> _entityScripts;
     EntityScriptContentAvailableMap _contentAvailableQueue;
+    QHash<EntityItemID, QHash<QString, std::shared_ptr<EntityScriptLoadRequest>>> _entityScriptLoads;
+    bool isCurrentEntityScriptLoad(const EntityItemID& entityID, const QString& script,
+                                  const std::shared_ptr<EntityScriptLoadRequest>& request) const;
+    void cancelEntityScriptLoad(const EntityItemID& entityID, const QString& script);
+    void processEntityScriptContents();
     ScriptValue _returnValue;
 
     bool _isThreaded { false };
