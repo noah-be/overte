@@ -32,10 +32,15 @@ class ModalCompletionTest(unittest.TestCase):
             'void OffscreenUi::removeModalDialog(', 'void OffscreenUi::registerModalDialog(',
             'ModalDialogListener::ModalDialogListener(', 'ModalDialogListener::~ModalDialogListener(',
             'QVariant ModalDialogListener::waitForResult(', 'void ModalDialogListener::finish(',
-            'void ModalDialogListener::onDestroyed(')
+            'void ModalDialogListener::onDestroyed(', 'QString OffscreenUi::getText(const Icon',
+            'ModalDialogListener* OffscreenUi::getItemAsync(const Icon')
             if signature in cpp)
         harness = (Path(__file__).with_name('modal-dialog-completion-test.cpp')).read_text()
         source = harness.replace('// ACTUAL_BASE', base).replace('// ACTUAL_CLASSES', classes).replace('// ACTUAL_FUNCTIONS', functions)
+        if os.environ.get('OVERTE_MODAL_EARLY_TEXT_CONVERSION'):
+            source = source.replace('inputDialog(icon, title, label, text);', 'inputDialog(icon, title, label, text).toString();')
+        if os.environ.get('OVERTE_MODAL_CANCEL_AS_TEXT'):
+            source = source.replace('void onCanceled() {\n        finish(QVariant());', 'void onCanceled() {\n        finish(QString());')
         if os.environ.get('OVERTE_MODAL_DUPLICATE_RESPONSE'):
             source = source.replace('if (_finished) { return; }', '')
             source = source.replace('disconnect(_dialog, nullptr, this, nullptr);', '')
