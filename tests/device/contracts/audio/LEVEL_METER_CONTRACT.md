@@ -37,3 +37,11 @@ pixels, and source clearing are checked in memory. A source-over mutation loses
 the transparent silhouette and fails. The MicBar state bindings are source-
 reviewed; their entire application context and native microphone are not supplied
 by this fixture. This does not close all retained QML effects or native UI gates.
+
+The simplified UI InputPeak also consumes SharedAudio.LevelMeter. Its existing
+showMuted alias remains independent of AudioScriptingInterface.muted. The real
+software-pixel harness now loads both complete InputPeak variants and checks
+level/NaN/color/visibility changes in each, then the shared vertical meter.
+TabletMenu's backward glyph now uses its native text color property and the
+existing hover color assignments, removing its redundant shader overlay; this
+small caller change is source-reviewed, not a full tablet navigation test.

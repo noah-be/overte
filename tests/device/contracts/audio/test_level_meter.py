@@ -13,5 +13,10 @@ class Meter(unittest.TestCase):
     for name in ['InputPeak.qml','LevelMeter.qml']:
      shutil.copy2(ROOT/'interface/resources/qml/hifi/audio'/name,qml/name)
     meter=qml/'LevelMeter.qml';meter.write_text(meter.read_text().replace('ctx.fillStyle = gradient','ctx.fillStyle = "white"'))
-   subprocess.run(['unshare' ,'--user','--map-root-user','--net',str(binary),str(qml)],env=dict(os.environ,QT_QPA_PLATFORM='offscreen',QT_QUICK_BACKEND='software'),check=True,timeout=15)
+   sources=[qml]
+   if os.environ.get('OVERTE_METER_MUTATION')!='1':
+    sources.append(ROOT/'interface/resources/qml/hifi/simplifiedUI/simplifiedControls')
+   for source in sources:
+    with self.subTest(source=source.name):
+     subprocess.run(['unshare','--user','--map-root-user','--net',str(binary),str(source),str(qml)],env=dict(os.environ,QT_QPA_PLATFORM='offscreen',QT_QUICK_BACKEND='software'),check=True,timeout=15)
 if __name__=='__main__':unittest.main()
