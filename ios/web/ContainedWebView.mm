@@ -47,23 +47,28 @@ void boundedContentRules(void (^completion)(WKContentRuleList*, NSError*)) {
 
 UIViewController* foregroundPresenter(UIWindow** selectedWindow) {
     if (!NSThread.isMainThread) { return nil; }
+    *selectedWindow = nil;
+    UIWindow* candidate = nil;
     for (UIScene* scene in UIApplication.sharedApplication.connectedScenes) {
         if (![scene isKindOfClass:UIWindowScene.class] ||
                 scene.activationState != UISceneActivationStateForegroundActive) { continue; }
         for (UIWindow* window in ((UIWindowScene*)scene).windows) {
             if (!window.isKeyWindow || window.hidden) { continue; }
-            UIViewController* presenter = window.rootViewController;
-            while (presenter.presentedViewController != nil) {
-                presenter = presenter.presentedViewController;
-            }
-            if (!presenter || [presenter isKindOfClass:UIAlertController.class] ||
-                    presenter.isBeingDismissed || presenter.isBeingPresented ||
-                    presenter.viewIfLoaded.window != window) { return nil; }
-            *selectedWindow = window;
-            return presenter;
+            // The Shared request carries no originating scene/window identity.
+            // Never choose an arbitrary scene for a security confirmation.
+            if (candidate) { return nil; }
+            candidate = window;
         }
     }
-    return nil;
+    UIViewController* presenter = candidate.rootViewController;
+    while (presenter.presentedViewController != nil) {
+        presenter = presenter.presentedViewController;
+    }
+    if (!presenter || [presenter isKindOfClass:UIAlertController.class] ||
+            presenter.isBeingDismissed || presenter.isBeingPresented ||
+            presenter.viewIfLoaded.window != candidate) { return nil; }
+    *selectedWindow = candidate;
+    return presenter;
 }
 }
 
@@ -254,7 +259,7 @@ UIViewController* foregroundPresenter(UIWindow** selectedWindow) {
     preferences.allowsContentJavaScript = NO;
     const BOOL safeMethod = [action.request.HTTPMethod isEqualToString:@"GET"] ||
         [action.request.HTTPMethod isEqualToString:@"HEAD"];
-    const BOOL allowed = view == self.webView && action.targetFrame != nil &&
+    const BOOL allowed = view == self.webView && action.targetFrame.mainFrame &&
         !action.shouldPerformDownload && safeMethod && [self allows:action.request.URL];
     if (allowed && action.targetFrame.mainFrame) { [self startDeadline]; }
     decisionHandler(allowed ? WKNavigationActionPolicyAllow : WKNavigationActionPolicyCancel, preferences);

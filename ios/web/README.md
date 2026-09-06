@@ -14,6 +14,9 @@ CSS hiding is defense in depth, not an input/autofill security boundary.
 
 The optional view requires an iOS 18.4+ SDK and runtime for the public file-panel
 denial delegate; older systems return unavailable without changing the app floor.
+Multiple active key windows also return unavailable: the published request has
+no originating scene identity, so an arbitrary confirmation target is unsafe.
+Only main-frame navigation is admitted; subframes cannot expand this text mode.
 The origin confirmation precedes native view creation and loading. Navigation,
 redirect, response, history and reload check the current original Shared ticket.
 There is no JavaScript, script injection, bridge, shared account-cookie injection,

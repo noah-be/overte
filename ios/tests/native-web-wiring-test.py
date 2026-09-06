@@ -41,6 +41,14 @@ class Wiring(unittest.TestCase):
                           "NSLog(", "localizedDescription", "addScriptMessageHandler:"):
             self.assertNotIn(forbidden, self.source)
 
+    def test_ambiguous_scene_and_subframe_rejection(self):
+        selector = self.source.split("UIViewController* foregroundPresenter(", 1)[1].split("\n}\n}", 1)[0]
+        self.assertIn("*selectedWindow = nil;", selector)
+        self.assertIn("if (candidate) { return nil; }", selector)
+        self.assertEqual(selector.count("return presenter;"), 1)
+        self.assertLess(selector.index("candidate = window;"), selector.index("candidate.rootViewController"))
+        self.assertIn("view == self.webView && action.targetFrame.mainFrame", self.source)
+
 
 if __name__ == "__main__":
     unittest.main()
