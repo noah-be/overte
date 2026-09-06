@@ -12,7 +12,7 @@ class ScriptLoadDiagnostics(unittest.TestCase):
     def test_load_outcomes_preserve_internal_state_without_public_urls(self):
         source = (ROOT / 'libraries/script-engine/src/ScriptManager.cpp').read_text()
         methods = ''
-        for signature in ('bool ScriptManager::hasValidScriptSuffix(', 'void ScriptManager::loadURL('):
+        for signature in ('bool ScriptManager::hasValidScriptSuffix(', 'void ScriptManager::loadURL(', 'void ScriptManager::stop('):
             start = source.index(signature)
             methods += source[start:source.index('\n}', start) + 2] + '\n'
         driver = r'''
@@ -42,8 +42,12 @@ struct ScriptCache {
 } cache;
 struct DependencyManager { template<class T> static T* get() { return &cache; } };
 QUrl expandScriptUrl(const QUrl& value) { return value; }
-struct ScriptManager : std::enable_shared_from_this<ScriptManager> {
+struct ScriptManager : QObject, std::enable_shared_from_this<ScriptManager> {
     bool _isRunning = false, _isReloading = false;
+    std::atomic<bool> _isStopping {false}, _isFinished {false};
+    int runningSignals = 0;
+    void stop(bool);
+    void runningStateChanged() { ++runningSignals; }
     overte::network::RequestScope _scriptLoadContext;
     QString _fileNameString, _scriptContents = "existing-script";
     QStringList errors, failed, loaded;
@@ -157,6 +161,20 @@ int main(int argc, char** argv) {
     cache.callback(callbackUrl, "after-log-replacement", true, true, status);
     assert(ordered->_scriptContents == "after-log-replacement");
     assert(ordered->loaded.size() == loadedBefore + 1);
+    auto stopping = std::make_shared<ScriptManager>();
+    stopping->loadURL(url, false);
+    auto stoppedCompletion = cache.callback;
+    stopping->stop(true);
+    assert(stopping->_isStopping && stopping->_isFinished && stopping->runningSignals == 1);
+    logs.clear();
+    stoppedCompletion(callbackUrl, "stopped-source", true, true, status);
+    stoppedCompletion(callbackUrl, "", true, false, status);
+    assert(stopping->_scriptContents == "existing-script");
+    assert(stopping->loaded.isEmpty() && stopping->failed.isEmpty() && logs.isEmpty());
+    const auto callsBeforeStoppedLoad = cache.calls;
+    stopping->loadURL(url, true);
+    stopping->stop(false);
+    assert(cache.calls == callsBeforeStoppedLoad && stopping->runningSignals == 1);
 }
 '''
         header = (ROOT / 'libraries/script-engine/src/ScriptManager.h').read_text()

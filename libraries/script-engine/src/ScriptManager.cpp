@@ -1245,6 +1245,7 @@ void ScriptManager::stopAllTimersForEntityScript(const EntityItemID& entityID) {
 
 void ScriptManager::stop(bool marshal) {
     _isStopping = true; // this can be done on any thread
+    _scriptLoadContext.setActive(false);
 
     if (marshal) {
         // Lambda is necessary there to keep shared_ptr counter above zero if this gets called from different thread
