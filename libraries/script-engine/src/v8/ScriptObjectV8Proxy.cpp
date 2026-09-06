@@ -1321,6 +1321,7 @@ int ScriptSignalV8Proxy::qt_metacall(QMetaObject::Call call, int id, void** argu
             return -1;
         }
         for (int arg = 0; arg < numArgs; ++arg) {
+            if (_engine->isEvaluationAborted()) { return -1; }
             int methodArgTypeId = _meta.parameterType(arg);
             if (methodArgTypeId == QMetaType::UnknownType || !arguments[arg + 1]) { return -1; }
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
@@ -1329,7 +1330,7 @@ int ScriptSignalV8Proxy::qt_metacall(QMetaObject::Call call, int id, void** argu
             QVariant argValue(methodArgTypeId, arguments[arg + 1]);
 #endif
             args[arg] = _engine->castVariantToValue(argValue).get();
-            if (isolate->IsExecutionTerminating() || args[arg].IsEmpty()) { return -1; }
+            if (_engine->isEvaluationAborted() || isolate->IsExecutionTerminating() || args[arg].IsEmpty()) { return -1; }
         }
         for (ConnectionList::iterator iter = connections.begin(); iter != connections.end(); ++iter) {
             if (_engine->isEvaluationAborted()) { return -1; }
