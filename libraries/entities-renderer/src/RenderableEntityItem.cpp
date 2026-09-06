@@ -556,14 +556,19 @@ void EntityRenderer::updateInScene(const ScenePointer& scene, Transaction& trans
     _updateTime = usecTimestampNow();
 
     doRenderUpdateSynchronous(scene, transaction, _entity);
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+    const auto evidenceGeneration = iosRuntimeEntityEvidenceGeneration();
+    transaction.updateItem<PayloadProxyInterface>(_renderItemID, [this, evidenceGeneration](PayloadProxyInterface& self) {
+#else
     transaction.updateItem<PayloadProxyInterface>(_renderItemID, [this](PayloadProxyInterface& self) {
+#endif
         if (!isValidRenderItem()) {
             return;
         }
         // Happens on the render thread.  Classes should use
         doRenderUpdateAsynchronous(_entity);
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
-        if (recordIOSRuntimeSceneEntity(_entity->getID().toString()) &&
+        if (recordIOSRuntimeSceneEntity(_entity->getID().toString(), evidenceGeneration) &&
                 iosRuntimeRenderDiagnosticsEnabled()) {
             const auto evidence = iosRuntimeEntityEvidenceSnapshot();
             if (evidence.scene == 1) {

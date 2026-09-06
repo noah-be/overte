@@ -9,6 +9,8 @@
 
 #include <mutex>
 #include <utility>
+#include <cstdint>
+#include <limits>
 
 #include <QtCore/QByteArray>
 #include <QtCore/QDateTime>
@@ -52,6 +54,7 @@ inline void logIOSRuntimeMarker(Args&&...) {
 // on another thread, so retain one bounded UUID until both sides complete.
 struct IOSRuntimeEntityEvidenceState {
     std::mutex mutex;
+    std::uint64_t generation { 0 };
     bool armed { false };
     bool committed { false };
     bool emitted { false };
@@ -78,13 +81,23 @@ inline IOSRuntimeEntityEvidenceState& iosRuntimeEntityEvidenceState() {
 inline void beginIOSRuntimeEntityEvidence() {
     auto& state = iosRuntimeEntityEvidenceState();
     std::lock_guard<std::mutex> lock(state.mutex);
-    state.armed = true;
+    // Never reuse a generation, including the overflow case.
+    state.armed = state.generation != std::numeric_limits<std::uint64_t>::max();
+    if (state.armed) {
+        ++state.generation;
+    }
     state.committed = false;
     state.emitted = false;
     state.expectedEntities.clear();
     state.renderedEntities.clear();
     state.sceneEntities.clear();
     state.drawnEntities.clear();
+}
+
+inline std::uint64_t iosRuntimeEntityEvidenceGeneration() {
+    auto& state = iosRuntimeEntityEvidenceState();
+    std::lock_guard<std::mutex> lock(state.mutex);
+    return state.armed ? state.generation : 0;
 }
 
 // Physical iOS devices cannot receive simulator-style launch environment
@@ -288,10 +301,10 @@ inline QString recordIOSRuntimeRenderableEntity(const QString& entity) {
     return takeIOSRuntimeEntityEvidenceIfReady(state);
 }
 
-inline bool recordIOSRuntimeSceneEntity(const QString& entity) {
+inline bool recordIOSRuntimeSceneEntity(const QString& entity, std::uint64_t generation) {
     auto& state = iosRuntimeEntityEvidenceState();
     std::lock_guard<std::mutex> lock(state.mutex);
-    if (!state.armed || state.sceneEntities.contains(entity)) {
+    if (!state.armed || generation == 0 || generation != state.generation || state.sceneEntities.contains(entity)) {
         return false;
     }
     state.sceneEntities.insert(entity);
