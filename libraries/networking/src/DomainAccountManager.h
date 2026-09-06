@@ -15,6 +15,7 @@
 #include <QtCore/QObject>
 #include <QtCore/QUrl>
 #include <QtCore/QPointer>
+#include <QtCore/QDeadlineTimer>
 #include "RequestCancellation.h"
 
 #include <DependencyManager.h>
@@ -28,6 +29,9 @@ struct DomainAccountDetails {
     QString accessToken;
     QString refreshToken;
     QString authedDomainName;
+    // A missing server lifetime retains the existing session-only semantics.
+    // A supplied lifetime uses a monotonic deadline, copied with cached auth.
+    QDeadlineTimer accessTokenDeadline { QDeadlineTimer::Forever };
 };
 
 
@@ -45,7 +49,7 @@ public:
     void setClientAuthVisibility(bool foreground);
 
     const QString& getUsername() { return _currentAuth.username; }
-    const QString& getAccessToken() { return _currentAuth.accessToken; }
+    const QString& getAccessToken();
     const QString& getRefreshToken() { return _currentAuth.refreshToken; }
     const QString& getAuthedDomainName() { return _currentAuth.authedDomainName; }
 

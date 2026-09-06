@@ -60,6 +60,32 @@ int main(int argc, char** argv) {
         [&](overte::network::RequestTicket ticket, overte::network::RequestTicket context, int outcome) {
             outcomes.push_back({ ticket, context, outcome });
         });
+    if (argc > 1 && QByteArray(argv[1]) == "expiry") {
+        const QUrl domain("hifi://expiry-private.invalid");
+        manager.setDomainURL(domain);
+        manager.setAuthURL(QUrl("https://expiry-auth.invalid/token"));
+        const QJsonObject good {{"access_token", "expiry-token-canary"}, {"expires_in", 1}};
+        for (const auto& invalid : {QJsonValue(), QJsonValue(true), QJsonValue("1"),
+                                   QJsonValue(0), QJsonValue(-1), QJsonValue(0.5),
+                                   QJsonValue(2147483648.0), QJsonValue(1e100)}) {
+            auto object = good; object.insert("expires_in", invalid);
+            manager.requestAccessToken("u", "p");
+            network.latest->finish(200, QJsonDocument(object).toJson());
+            assert(!manager.isLoggedIn() && manager.getAccessToken().isEmpty());
+        }
+        manager.requestAccessToken("u", "p");
+        network.latest->finish(200, QJsonDocument(good).toJson());
+        assert(manager.isLoggedIn() && manager.getAccessToken() == "expiry-token-canary");
+        manager.setDomainURL(QUrl("hifi://other-expiry-private.invalid"));
+        QEventLoop loop; QTimer::singleShot(1100, &loop, &QEventLoop::quit); loop.exec();
+        manager.setDomainURL(domain); // Restoring cached auth must retain its original deadline.
+        assert(!manager.isLoggedIn() && manager.getAccessToken().isEmpty());
+        manager.requestAccessToken("u", "p");
+        network.latest->finish(200, "{\"access_token\":\"legacy-session-token\"}");
+        assert(manager.isLoggedIn() && manager.getAccessToken() == "legacy-session-token");
+        qInstallMessageHandler(nullptr);
+        return 0;
+    }
     if (argc > 1 && QByteArray(argv[1]) == "timeout") {
         int failures = 0, successes = 0;
         QObject::connect(&manager, &DomainAccountManager::loginFailed, [&] { ++failures; });
