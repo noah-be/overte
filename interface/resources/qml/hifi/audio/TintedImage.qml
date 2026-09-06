@@ -13,6 +13,13 @@ Canvas {
         if (source.toString() !== "") loadImage(source)
         requestPaint()
     }
+    onAvailableChanged: {
+        if (available) {
+            if (source.toString() !== "" && !isImageLoaded(source)) loadImage(source)
+            requestPaint()
+        }
+    }
+    onVisibleChanged: if (visible) requestPaint()
     onImageLoaded: requestPaint()
     onColorChanged: requestPaint()
     onWidthChanged: requestPaint()
