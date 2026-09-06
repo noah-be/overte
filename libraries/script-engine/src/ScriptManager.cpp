@@ -12,6 +12,7 @@
 //
 
 #include "ScriptManager.h"
+#include <Finally.h>
 #include "../../../security/redaction/SafeDiagnostics.h"
 
 #include <chrono>
@@ -421,14 +422,16 @@ ScriptManager::~ScriptManager() {
 void ScriptManager::disconnectNonEssentialSignals() {
     disconnect();
     QThread* workerThread;
-    // Ensure the thread should be running, and does exist
-    if (_isRunning && _isThreaded && (workerThread = thread())) {
-        connect(this, &QObject::destroyed, workerThread, &QThread::quit);
+    // Keep destruction-to-quit wiring even before run starts or after it ends.
+    // The worker event loop can still be alive while _isRunning is false.
+    if (_isThreaded && (workerThread = thread())) {
+        connect(this, &QObject::destroyed, workerThread, &QThread::quit, Qt::DirectConnection);
         connect(workerThread, &QThread::finished, workerThread, &QObject::deleteLater);
     }
 }
 
 void ScriptManager::runInThread() {
+    if (_hasRunStarted.load()) { return; }
     Q_ASSERT_X(!_isThreaded, "ScriptManager::runInThread()", "runInThread should not be called more than once");
 
     if (_isThreaded) {
@@ -453,7 +456,9 @@ void ScriptManager::runInThread() {
         setThreadName(name.toStdString());
         run();
     });
-    connect(this, &QObject::destroyed, workerThread, &QThread::quit);
+    // QThread::quit is thread-safe. Do not queue it to the creator thread,
+    // which may be waiting for this worker to finish after manager deletion.
+    connect(this, &QObject::destroyed, workerThread, &QThread::quit, Qt::DirectConnection);
     connect(workerThread, &QThread::finished, workerThread, &QObject::deleteLater);
 
     workerThread->start();
@@ -1022,7 +1027,37 @@ bool ScriptManager::isStopped() const {
 }
 
 void ScriptManager::run() {
+    // The engine abort latch is permanent; neither repeated nor reentrant run
+    // may initialize or publish a second terminal lifecycle for this manager.
+    if (_hasRunStarted.exchange(true)) { return; }
+    const auto runOwner = shared_from_this();
     auto scopeGuard = _engine->getScopeGuard();
+    const bool previousLocalAccess = hifi::scripting::isLocalAccessSafeThread();
+    Finally finishRun([this, previousLocalAccess] {
+        stop(false);
+        scriptInfoMessage("Script Engine stopping:" + getFilename(), getFilename(), -1);
+
+        stopAllTimers(); // make sure all our timers are stopped if the script is ending
+        if (_isInitialized) { emit scriptEnding(); }
+
+        emit releaseEntityPacketSenderMessages(true);
+
+        emit finished(_fileNameString, shared_from_this());
+
+        // Restore the caller's thread-local state, including a cancelled start.
+        hifi::scripting::setLocalAccessSafeThread(previousLocalAccess);
+        _isRunning = false;
+        emit runningStateChanged();
+        emit doneRunning();
+        _engine->disconnectSignalProxies();
+        // Process all remaining events
+        {
+            QEventLoop loop;
+            loop.processEvents();
+        }
+        _isDoneRunning = true;
+    });
+    if (isStopping() || isStopped()) { return; }
     if (QThread::currentThread() != qApp->thread() && _context == Context::CLIENT_SCRIPT) {
         // Flag that we're allowed to access local HTML files on UI created from C++ calls on this thread
         // (because we're a client script)
@@ -1037,19 +1072,17 @@ void ScriptManager::run() {
     auto name = filenameParts.size() > 0 ? filenameParts[filenameParts.size() - 1] : "unknown";
     PROFILE_SET_THREAD_NAME("Script: " + name);
 
-    if (isStopped()) {
-        qCCritical(scriptengine) << "ScriptManager is stopped or ScriptEngines is not available, refusing to run script";
-        return; // bail early - avoid setting state in init(), as evaluate() will bail too
-    }
-
     scriptInfoMessage("Script Engine starting:" + getFilename(), getFilename(), -1);
 
     if (!_isInitialized) {
         init();
     }
 
+    if (isStopping() || isStopped()) { return; }
+
     _isRunning = true;
     emit runningStateChanged();
+    if (isStopping() || isStopped()) { return; }
 
     {
         PROFILE_RANGE(script, _fileNameString);
@@ -1221,28 +1254,6 @@ void ScriptManager::run() {
             _engine->clearExceptions();
         }
     }
-    scriptInfoMessage("Script Engine stopping:" + getFilename(), getFilename(), -1);
-
-    stopAllTimers(); // make sure all our timers are stopped if the script is ending
-    emit scriptEnding();
-
-    emit releaseEntityPacketSenderMessages(true);
-
-    emit finished(_fileNameString, shared_from_this());
-
-    // Don't leave our local-file-access flag laying around, reset it to false when the scriptengine
-    // thread is finished
-    hifi::scripting::setLocalAccessSafeThread(false);
-    _isRunning = false;
-    emit runningStateChanged();
-    emit doneRunning();
-    _engine->disconnectSignalProxies();
-    // Process all remaining events
-    {
-        QEventLoop loop;
-        loop.processEvents();
-    }
-    _isDoneRunning = true;
 }
 
 // NOTE: This is private because it must be called on the same thread that created the timers, which is why

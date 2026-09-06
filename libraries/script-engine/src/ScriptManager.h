@@ -418,7 +418,7 @@ public:
     void runInThread();
 
     /**
-     * @brief Run the script in the caller's thread, exit when Script.stop() is called.
+     * @brief Run the script once in the caller's thread, exit when Script.stop() is called.
      *
      * Most scripts never stop running, so this function will never return for them.
      */
@@ -1660,6 +1660,7 @@ protected:
     std::atomic<bool> _isRunning { false };
     std::atomic<bool> _isStopping { false };
     std::atomic<bool> _isDoneRunning { false };
+    std::atomic<bool> _hasRunStarted { false };
     bool _areMetaTypesInitialized { false };
     bool _isInitialized { false };
     std::map<int, std::pair<std::unique_ptr<QTimer>, CallbackData>> _timerFunctionMap;
