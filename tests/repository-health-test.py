@@ -509,6 +509,19 @@ class QuiescenceTests(unittest.TestCase):
         self.assertEqual(report['status'], 'DEFERRED_REPOSITORY_CHANGED')
         self.assertFalse(report['admission']['accepted'])
 
+    def test_legacy_live_cli_cannot_bypass_admission(self):
+        report = doctor().report('live')
+        with tempfile.TemporaryDirectory(prefix='overte-health-cli-') as directory:
+            output = Path(directory) / 'report.json'
+            with mock.patch.object(sys, 'argv', [str(CHECKER), '--report', str(output)]), \
+                 mock.patch.object(HEALTH, 'GitHubApi', return_value=self.Api()), \
+                 mock.patch.object(HEALTH.Doctor, 'live_when_idle', return_value=report) as admitted, \
+                 mock.patch.object(HEALTH.Doctor, 'live', side_effect=AssertionError('admission bypass')), \
+                 mock.patch('builtins.print'), mock.patch.dict(os.environ, {'GITHUB_STEP_SUMMARY': ''}):
+                self.assertEqual(HEALTH.main(), 0)
+                admitted.assert_called_once_with('workflow_dispatch')
+                self.assertEqual(json.loads(output.read_text())['status'], 'PASS')
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

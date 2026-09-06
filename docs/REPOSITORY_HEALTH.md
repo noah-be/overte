@@ -28,6 +28,8 @@ All checks continue where safely possible so a run reports every finding at once
 
 ## Quiet admission and propagation
 
+All live CLI invocations use propagation admission by default; the explicit
+`--when-idle` flag is a compatible alias, not an opt-in security boundary.
 Automatic live audits use `--when-idle --event schedule`. A delayed scheduled
 invocation outside00:00–06:00 Europe/Berlin is recorded as
 `DEFERRED_OUTSIDE_NIGHT_WINDOW` without executing the audit. Timezone-aware cron

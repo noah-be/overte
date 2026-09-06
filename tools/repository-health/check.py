@@ -684,7 +684,7 @@ def main() -> int:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--report", type=Path, default=DEFAULT_REPORT)
     parser.add_argument("--local", action="store_true", help="validate versioned contracts only")
-    parser.add_argument("--when-idle", action="store_true", help="defer during propagation; bind audit to stable heads")
+    parser.add_argument("--when-idle", action="store_true", help="explicit alias for default live propagation admission")
     parser.add_argument("--event", choices=('schedule', 'workflow_dispatch'), default='workflow_dispatch')
     args = parser.parse_args()
     try:
@@ -692,7 +692,8 @@ def main() -> int:
         doctor = Doctor(ROOT, config, None if args.local else GitHubApi(os.environ.get("GITHUB_TOKEN", "")))
         if args.local and args.when_idle:
             raise AuditError("local tests cannot claim live quiescence")
-        report = doctor.local() if args.local else (doctor.live_when_idle(args.event) if args.when_idle else doctor.live())
+        # Legacy direct CLI invocations must not bypass the new live admission.
+        report = doctor.local() if args.local else doctor.live_when_idle(args.event)
     except (AuditError, KeyError, TypeError, ValueError) as error:
         report = {"schema": 1, "mode": "local" if args.local else "live", "repository": "UNKNOWN", "status": "FAIL", "exit_code": 2, "results": {area: {"status": "FAIL" if area == "repository_contracts" else "PASS", "findings": [{"code": "STARTUP_ERROR", "message": redact(str(error))}] if area == "repository_contracts" else [], "data": {}} for area in AREAS}}
     args.report.parent.mkdir(parents=True, exist_ok=True)
