@@ -1467,7 +1467,7 @@ bool AudioClient::switchAudioDevice(HifiAudioDeviceMode mode, const HifiAudioDev
         Lock lock(_deviceMutex);
         _inputDeviceInfo = deviceInfo;
         emit deviceChanged(HifiAudioDeviceMode::Input, _inputDeviceInfo);
-        qInfo() << "PICO_MIC_INPUT_REUSED" << _inputDeviceInfo.deviceName()
+        qInfo() << "PICO_MIC_INPUT_REUSED" << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted)
             << "backend AudioRecord state ActiveState";
         return true;
     }
@@ -1483,7 +1483,7 @@ bool AudioClient::switchAudioDevice(HifiAudioDeviceMode mode, const HifiAudioDev
         Lock lock(_deviceMutex);
         _inputDeviceInfo = deviceInfo;
         emit deviceChanged(HifiAudioDeviceMode::Input, _inputDeviceInfo);
-        qInfo() << "PICO_MIC_INPUT_REUSED" << _inputDeviceInfo.deviceName()
+        qInfo() << "PICO_MIC_INPUT_REUSED" << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted)
             << "state" << _audioInput->state();
         return true;
     }
@@ -1893,7 +1893,7 @@ void AudioClient::handleAudioInput(QByteArray& audioBuffer) {
             const quint64 now = usecTimestampNow();
             if (now - gateTraceStart >= USECS_PER_SECOND) {
                 qInfo() << "PICO_MIC_GATE"
-                    << "device" << _inputDeviceInfo.deviceName()
+                    << "device" << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted)
                     << "blocks" << gateTraceBlocks
                     << "openBlocks" << gateTraceOpenBlocks
                     << "openRatio" << (gateTraceBlocks > 0
@@ -2018,10 +2018,10 @@ void AudioClient::processMicAudioInput(QByteArray& inputByteArray) {
             _picoMicCaptureActive = _picoMicCaptureFile.create(_inputFormat, path);
             if (_picoMicCaptureActive) {
                 _picoMicCaptureEnd = now + captureSeconds * USECS_PER_SECOND;
-                qInfo() << "PICO_MIC_CAPTURE_STARTED" << path << "seconds" << captureSeconds;
+                qInfo() << "PICO_MIC_CAPTURE_STARTED" << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted) << "seconds" << captureSeconds;
             } else {
                 _picoMicCaptureComplete = true;
-                qWarning() << "PICO_MIC_CAPTURE_FAILED" << path;
+                qWarning() << "PICO_MIC_CAPTURE_FAILED" << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             }
         }
         if (_picoMicCaptureActive) {
@@ -2031,7 +2031,7 @@ void AudioClient::processMicAudioInput(QByteArray& inputByteArray) {
                 _picoMicCaptureFile.close();
                 _picoMicCaptureActive = false;
                 _picoMicCaptureComplete = true;
-                qInfo() << "PICO_MIC_CAPTURE_COMPLETE" << picoMicCapturePath();
+                qInfo() << "PICO_MIC_CAPTURE_COMPLETE" << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             }
         }
     }
@@ -2089,7 +2089,7 @@ void AudioClient::processMicAudioInput(QByteArray& inputByteArray) {
             const quint64 now = usecTimestampNow();
             if (now - traceStart >= USECS_PER_SECOND) {
                 qInfo() << "PICO_MIC_LEVEL"
-                    << "device" << _inputDeviceInfo.deviceName()
+                    << "device" << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted)
                     << "frames" << traceFrames
                     << "mean" << (traceFrames > 0 ? traceLoudnessTotal / traceFrames : 0.0)
                     << "peak" << traceLoudnessPeak
@@ -2609,7 +2609,7 @@ bool AudioClient::switchInputToAudioDevice(const HifiAudioDeviceInfo inputDevice
             qCDebug(audioclient) << "The format to be used for audio input is" << _inputFormat;
 #if defined(Q_OS_ANDROID)
             qInfo() << "PICO_MIC_INPUT"
-                << "device" << _inputDeviceInfo.deviceName()
+                << "device" << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted)
                 << "rate" << _inputFormat.sampleRate()
                 << "channels" << _inputFormat.channelCount()
                 << "sampleBits" << hifiAudioSampleSize(_inputFormat);
@@ -2720,7 +2720,7 @@ void AudioClient::audioInputStateChanged(QAudio::State state) {
             // Stopped on purpose
             if (_shouldRestartInputSetup) {
                 if (picoMicTraceEnabled()) {
-                    qInfo() << "PICO_MIC_STATE_RESTART" << _inputDeviceInfo.deviceName()
+                    qInfo() << "PICO_MIC_STATE_RESTART" << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted)
                         << "error" << _audioInput->error();
                 }
                 Lock lock(_deviceMutex);
@@ -2747,7 +2747,7 @@ void AudioClient::checkInputTimeout() {
 #endif
     if (picoMicTraceEnabled()) {
         qInfo() << "PICO_MIC_WATCHDOG"
-            << "device" << _inputDeviceInfo.deviceName()
+            << "device" << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted)
             << "reads" << _inputReadsSinceLastCheck
             << "backend"
 #if defined(ANDROID_APP_PICO_INTERFACE)
@@ -2771,7 +2771,7 @@ void AudioClient::checkInputTimeout() {
 #endif
     if (_audioInput && _inputReadsSinceLastCheck < MIN_READS_TO_CONSIDER_INPUT_ALIVE) {
         if (picoMicTraceEnabled()) {
-            qInfo() << "PICO_MIC_WATCHDOG_RESTART" << _inputDeviceInfo.deviceName()
+            qInfo() << "PICO_MIC_WATCHDOG_RESTART" << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted)
                 << "reads" << _inputReadsSinceLastCheck;
         }
         _audioInput->stop();
