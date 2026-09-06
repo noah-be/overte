@@ -10,7 +10,6 @@
 //
 
 import QtQuick 2.5
-import Qt5Compat.GraphicalEffects
 import stylesUit 1.0
 
 import TabletScriptingInterface 1.0
@@ -128,7 +127,7 @@ Rectangle {
         height: 40;
 
         Item {
-            Image {
+            TintedImage {
                 readonly property string unmutedIcon: "../../../icons/tablet-icons/mic-unmute-i.svg";
                 readonly property string mutedIcon: "../../../icons/tablet-icons/mic-mute-i.svg";
                 readonly property string pushToTalkIcon: "../../../icons/tablet-icons/mic-ptt-i.svg";
@@ -136,6 +135,7 @@ Rectangle {
                 readonly property string gatedIcon: "../../../icons/tablet-icons/mic-gate-i.svg";
 
                 id: image;
+                color: colors.icon;
                 source: (pushToTalk && !pushingToTalk) ? pushToTalkIcon : muted ? mutedIcon :
                     clipping ? clippingIcon : gated ? gatedIcon : unmutedIcon;
 
@@ -149,11 +149,7 @@ Rectangle {
                 }
             }
 
-            ColorOverlay {
-                anchors { fill: image }
-                source: image;
-                color: colors.icon;
-            }
+
         }
     }
 

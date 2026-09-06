@@ -10,7 +10,6 @@
 //
 
 import QtQuick 2.5
-import Qt5Compat.GraphicalEffects
 
 import stylesUit 1.0
 import TabletScriptingInterface 1.0
@@ -176,8 +175,9 @@ Rectangle {
         height: 40;
 
         Item {
-            Image {
+            TintedImage {
                 id: image;
+                color: pushToTalk ? (pushingToTalk ? colors.unmutedColor : colors.mutedColor) : colors.icon;
                 source: (pushToTalk) ? pushToTalkIcon : muted ? mutedIcon :
                     clipping ? clippingIcon : micBar.gated ? gatedIcon : unmutedIcon;
                 width: 29;
@@ -189,12 +189,7 @@ Rectangle {
                 }
             }
 
-            ColorOverlay {
-                id: imageOverlay
-                anchors { fill: image }
-                source: image;
-                color: pushToTalk ? (pushingToTalk ? colors.unmutedColor : colors.mutedColor) : colors.icon;
-            }
+
         }
     }
 
