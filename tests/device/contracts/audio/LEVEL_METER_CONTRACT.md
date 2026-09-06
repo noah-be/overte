@@ -21,3 +21,19 @@ the complete audio application and microphone native operations are not emulated
 Other uses of GraphicalEffects (including microphone icon overlays), all retained
 QML import/effect closure, full native rendering and original SH003/SH006/SH007
 acceptance remain open. This change does not certify every audio control.
+
+## Microphone state icon tinting
+
+Both MicBar variants now use TintedImage with their original SVG choices and
+state-color bindings. The Canvas.Image implementation colors the image through
+source-in compositing, retaining its alpha silhouette on the software backend.
+Source changes unload the prior image; a late load notification paints only the
+current source. Empty/unavailable sources clear the drawing. This removes the
+remaining GraphicalEffects dependency from both microphone-bar QML files.
+
+`test_tinted_image.py` loads the actual mic-mute SVG and actual TintedImage on
+real Qt Quick software rendering. Red/blue color changes, opaque and transparent
+pixels, and source clearing are checked in memory. A source-over mutation loses
+the transparent silhouette and fails. The MicBar state bindings are source-
+reviewed; their entire application context and native microphone are not supplied
+by this fixture. This does not close all retained QML effects or native UI gates.
