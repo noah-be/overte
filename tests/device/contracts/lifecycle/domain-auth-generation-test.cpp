@@ -6,6 +6,7 @@
 #include <cstring>
 #include <memory>
 #include <vector>
+#include <thread>
 #include "libraries/networking/src/DomainAccountManager.h"
 #include "security/redaction/SafeDiagnostics.h"
 Q_LOGGING_CATEGORY(networking, "overte.test.domain-auth")
@@ -83,6 +84,39 @@ int main(int argc, char** argv) {
         assert(!pending);
         qInstallMessageHandler(nullptr);
         return 0;
+    }
+    {
+        DomainAccountManager visible;
+        visible.setAuthURL(QUrl("https://visibility.invalid/token"));
+        int completions = 0;
+        overte::network::RequestTicket cancelledTicket;
+        QObject::connect(&visible, &DomainAccountManager::loginRequestFinished,
+            [&](overte::network::RequestTicket ticket, overte::network::RequestTicket, int outcome) {
+                ++completions;
+                if (outcome == static_cast<int>(DomainAccountManager::LoginOutcome::Cancelled)) cancelledTicket = ticket;
+            });
+        const auto ticket = visible.requestAccessToken("u", "p");
+        auto* pending = network.latest;
+        visible.setClientAuthVisibility(false);
+        assert(!ticket.current() && !visible.isAccessTokenRequestPending());
+        assert(cancelledTicket.sameRequest(ticket) && completions == 1 && pending->aborts == 1);
+        assert(visible.getAccessToken().isEmpty());
+        pending->finish(200, "{\"access_token\":\"late-hidden-token\"}");
+        assert(visible.getAccessToken().isEmpty() && completions == 1);
+        const int posts = network.posts;
+        visible.requestAccessToken("hidden-u", "hidden-p");
+        assert(network.posts == posts && !visible.isAccessTokenRequestPending());
+        visible.setClientAuthVisibility(false); // Duplicate loss is harmless.
+        visible.setClientAuthVisibility(true);
+        assert(network.posts == posts); // No automatic resume/replay.
+        const auto resumed = visible.requestAccessToken("new-u", "new-p");
+        assert(resumed.current() && !ticket.current() && network.posts == posts + 1);
+        std::thread pause([&] { visible.setClientAuthVisibility(false); });
+        pause.join();
+        assert(resumed.current()); // Cross-thread handoff is explicitly queued.
+        QCoreApplication::processEvents();
+        assert(!resumed.current() && !visible.isAccessTokenRequestPending());
+        assert(cancelledTicket.sameRequest(resumed));
     }
     // Actual session-cache entry must not revive after an auth context change
     // or failed replacement sign-in. Unchanged context still reuses its token.

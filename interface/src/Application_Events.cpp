@@ -19,6 +19,7 @@
 #include <QtCore/QMimeData>
 #include <QtCore/QCoreApplication>
 #include <QtCore/QThread>
+#include <DomainAccountManager.h>
 
 #include <controllers/InputRecorder.h>
 #include <display-plugins/CompositorHelper.h>
@@ -368,6 +369,9 @@ void publishClientVisibility(bool native, bool foreground) {
     }
     if (DependencyManager::isSet<NodeList>()) {
         DependencyManager::get<NodeList>()->setClientTransportVisibility(effective);
+    }
+    if (DependencyManager::isSet<DomainAccountManager>()) {
+        DependencyManager::get<DomainAccountManager>()->setClientAuthVisibility(effective);
     }
 }
 } // namespace
