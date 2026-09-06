@@ -1,3 +1,4 @@
+import json
 import re
 import subprocess
 import unittest
@@ -44,6 +45,25 @@ class ColdBuildExecutorTest(unittest.TestCase):
         self.assertIn("source_closure_store.py\" verify", self.outer)
         self.assertIn("12884901888", self.outer)
         self.assertIn("--offline", self.outer)
+
+    def test_user_authorized_decimal_start_floor_at_exact_boundaries(self):
+        manifest = json.loads((ROOT / "android/phone/fdroid/manifests/recipe-source.lock.json").read_text())
+        # Locate the actual original admission expressions, not a replacement
+        # arithmetic implementation. No executor, container or build is launched.
+        inner = next(line.strip() for line in self.inner.splitlines()
+                     if line.strip().startswith('[ "$available" -ge '))
+        outer = next(line.strip() for line in self.outer.splitlines()
+                     if line.strip().startswith('(( available >= '))
+        self.assertEqual(60000000000, manifest["cold_build"]["minimum_free_bytes"])
+        for shell, expression in (("sh", inner), ("bash", outer)):
+            for available in (0, 59999999999, 60000000000, 60000000001, 85899345920):
+                with self.subTest(shell=shell, available=available):
+                    result = subprocess.run(
+                        [shell, "-c", 'available="$1"\n' + expression, "floor-test", str(available)],
+                        capture_output=True, text=True, timeout=5)
+                    self.assertEqual(0 if available >= 60000000000 else 1, result.returncode)
+                    if available < 60000000000:
+                        self.assertIn("less than 60 GB free", result.stderr)
 
     def test_resume_is_bound_to_the_same_protected_attempt(self):
         for binding in (
