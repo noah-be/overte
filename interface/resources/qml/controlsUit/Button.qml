@@ -34,6 +34,8 @@ Original.Button {
     // guaranteed action route it through the handler that actually receives
     // the signal.
     property var androidClickAction: null
+    // Keep Apple's existing callback route; derived handlers read this binding.
+    readonly property bool usesAndroidClickAction: Qt.platform.os === "android" || Qt.platform.os === "ios"
 
     width: hifi.dimensions.buttonWidth
     height: Math.max(hifi.dimensions.controlLineHeight,
@@ -66,7 +68,7 @@ Original.Button {
 
     onClicked: {
         if (!control.visible || !control.enabled) { return; }
-        if (Qt.platform.os === "android" || Qt.platform.os === "ios") {
+        if (control.usesAndroidClickAction) {
             if (typeof control.androidClickAction === "function") {
                 control.androidClickAction();
             }

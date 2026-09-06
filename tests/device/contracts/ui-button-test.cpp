@@ -15,7 +15,9 @@ static std::vector<QString> messages;
 static void capture(QtMsgType, const QMessageLogContext&, const QString& text) { messages.push_back(text); }
 int main(int argc, char** argv) {
     QGuiApplication app(argc, argv);
-    assert(argc == 3);
+    assert(argc == 4);
+    const QString variant = QString::fromLocal8Bit(argv[3]);
+    assert(variant == "main" || variant == "phone" || variant == "apple");
     qmlRegisterUncreatableType<TabletBoundary>("TabletScriptingInterface", 1, 0, "TabletEnums", "test enum boundary");
     TabletBoundary tablet;
     QQmlEngine::setObjectOwnership(&tablet, QQmlEngine::CppOwnership);
@@ -55,7 +57,13 @@ int main(int argc, char** argv) {
     const QPoint inside(80,40), outside(400,200);
     QTest::mouseClick(&window, Qt::LeftButton, Qt::NoModifier, inside);
     assert(clicked.count() == 1 && tablet.clicks == 1);
-    assert(tablet.actions == (hasAndroidAction && QString::fromLocal8Bit(argv[2]) == "android" ? 1 : 0));
+    const bool baseCallback = QString::fromLocal8Bit(argv[2]) == "android"
+        || (variant == "apple" && QString::fromLocal8Bit(argv[2]) == "ios");
+    if (hasAndroidAction) {
+        assert(button->property("usesAndroidClickAction").isValid());
+        assert(button->property("usesAndroidClickAction").toBool() == baseCallback);
+    }
+    assert(tablet.actions == (hasAndroidAction && baseCallback ? 1 : 0));
     if (toggle) { assert(button->property("checked").toBool()); }
     QTest::mousePress(&window, Qt::LeftButton, Qt::NoModifier, inside);
     QTest::mouseMove(&window, outside);
