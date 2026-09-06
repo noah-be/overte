@@ -11,7 +11,7 @@ class AnimatedTint(unittest.TestCase):
    for left in [True,False]:
     f=Image.new('RGBA',(32,32),(0,0,0,0));ImageDraw.Draw(f).rectangle((0 if left else 16,0,15 if left else 31,31),fill='red');frames.append(f)
    frames[0].save(d/'frames.gif',save_all=True,append_images=frames[1:],duration=80,loop=0,disposal=2)
-   Image.new('RGBA',(32,32),'green').save(d/'other.png')
+   Image.new('RGBA',(64,48),'green').save(d/'other.png')
    binary=d/'test';subprocess.run(['c++','-std=c++17','-fPIC',str(pathlib.Path(__file__).with_name('animated-overlay-tint-test.cpp')),'-o',str(binary),*flags],check=True,timeout=30)
    source=ROOT/'interface/resources/qml/hifi/overlays/ImageOverlay.qml'
    if os.environ.get('OVERTE_ANIMATED_TINT_FREEZE_FRAMES'):
