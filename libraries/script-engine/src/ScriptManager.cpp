@@ -12,6 +12,7 @@
 //
 
 #include "ScriptManager.h"
+#include "../../../security/redaction/SafeDiagnostics.h"
 
 #include <chrono>
 #include <memory>
@@ -477,7 +478,7 @@ void ScriptManager::waitTillDoneRunning(bool shutdown) {
     auto workerThread = thread();
 
     if (workerThread == QThread::currentThread()) {
-        qCWarning(scriptengine) << "ScriptManager::waitTillDoneRunning called, but the script is on the same thread:" << getFilename();
+        qCWarning(scriptengine) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         return;
     }
 
@@ -654,7 +655,7 @@ void ScriptManager::scriptWarningMessage(const QString& message, const QString& 
 }
 
 void ScriptManager::scriptInfoMessage(const QString& message, const QString& fileName, int lineNumber) {
-    qCInfo(scriptengine, "[%s] %s", qUtf8Printable(getFilename()), qUtf8Printable(message));
+    qCInfo(scriptengine) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     emit infoMessage(message, getFilename());
     if (!currentEntityIdentifier.isInvalidID()) {
         emit infoEntityMessage(message, fileName, lineNumber, currentEntityIdentifier, isEntityServerScript());
