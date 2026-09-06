@@ -28,12 +28,19 @@ struct AccountManager {
         ++signups; receiver = callbacks.callbackReceiver; signup = payload;
     }
 };
-struct DomainAccountManager : AccountManager {};
+struct DomainAccountManager : AccountManager {
+    bool pending {};
+    bool isAccessTokenRequestPending() const { return pending; }
+    void requestAccessToken(const QString& u, const QString& p) {
+        AccountManager::requestAccessToken(u, p); pending = true;
+    }
+};
 struct DependencyManager { template<class T> static T* get() { static T instance; return &instance; } };
 struct LoginDialog : QObject {
     void login(const QString&, const QString&) const;
     void loginDomain(const QString&, const QString&) const;
     void signup(const QString&, const QString&, const QString&);
+    bool isPhoneLoginRequestPending() const;
 };
 #include "login-methods.inc"
 static std::vector<QString> logs;
@@ -61,18 +68,34 @@ int main(int argc, char** argv) {
     dialog.loginDomain(user, password);
     dialog.loginDomain("blocked-or-current-domain-user", password);
 #if TEST_EXPECT_GUARD
-    assert(domain->calls == 1 && domain->user == user && phoneLoginState.requestPending());
+    assert(domain->calls == 1 && domain->user == user && domain->isAccessTokenRequestPending());
+    assert(!phoneLoginState.requestPending());
 #else
     assert(domain->calls == 2 && domain->user == "blocked-or-current-domain-user");
 #endif
     assert(domain->password == password);
+    assert(dialog.isPhoneLoginRequestPending());
+    const int previousAccountCalls = account->calls;
+    dialog.login(user, password);
+#if TEST_EXPECT_GUARD
+    assert(account->calls == previousAccountCalls); // Live domain prevents account dispatch.
+#else
+    assert(account->calls == previousAccountCalls + 1);
+#endif
+    // Exact manager owns cancellation/completion, not a dialog-owned static flag.
+    // Actual manager context/cancellation cases are covered in its whole-method test.
+    domain->pending = false;
+    assert(!dialog.isPhoneLoginRequestPending());
+    const int previousDomainCalls = domain->calls;
+    dialog.loginDomain(user, password);
+    assert(domain->calls == previousDomainCalls + 1 && dialog.isPhoneLoginRequestPending());
     dialog.signup(email, user, password);
     assert(account->signups == 1 && account->receiver == &dialog);
     const auto root = QJsonDocument::fromJson(account->signup).object();
     assert(root.size() == 1);
     const auto object = root.value("user").toObject();
     assert(object.size() == 3 && object.value("email") == email && object.value("username") == user && object.value("password") == password);
-    assert(logs.size() == 5);
+    assert(logs.size() == 7);
     for (const auto& text : logs) { assert(text == "OVT_REDACTED"); }
     qInstallMessageHandler(nullptr);
 }
