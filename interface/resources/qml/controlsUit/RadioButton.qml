@@ -22,6 +22,9 @@ Original.RadioButton {
     HifiControls.TouchUiMetrics { id: touchMetrics }
 
     hoverEnabled: touchMetrics.hoverSupported
+    focusPolicy: visible && enabled ? Qt.StrongFocus : Qt.NoFocus
+    onVisibleChanged: { if (!visible) { focus = false; } }
+    onEnabledChanged: { if (!enabled) { focus = false; } }
     implicitWidth: Math.max(contentItem ? contentItem.implicitWidth : 0,
         indicator ? indicator.implicitWidth : 0,
         touchMetrics.adaptiveMinimumControlHeight) + leftPadding + rightPadding
@@ -45,11 +48,12 @@ Original.RadioButton {
     readonly property int indicatorRadius: 7 * scaleFactor
 
     onClicked: {
+        if (!visible || !enabled) { return; }
         Tablet.playSound(TabletEnums.ButtonClick);
     }
 
     onHoveredChanged: {
-        if (hovered) {
+        if (hovered && visible && enabled) {
             Tablet.playSound(TabletEnums.ButtonHover);
         }
     }

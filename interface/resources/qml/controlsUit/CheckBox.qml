@@ -17,6 +17,7 @@ import TabletScriptingInterface 1.0
 
 Original.CheckBox {
     id: checkBox
+    HifiConstants { id: hifi }
 
     property int colorScheme: hifi.colorSchemes.light
     property string color: hifi.colors.lightGrayText
@@ -30,7 +31,9 @@ Original.CheckBox {
     property string labelFontFamily: "Raleway"
     property int labelFontSize: Math.round(14 * touchMetrics.textScale);
     property int labelFontWeight: Font.DemiBold;
-    focusPolicy: Qt.ClickFocus
+    focusPolicy: visible && enabled ? Qt.StrongFocus : Qt.NoFocus
+    onVisibleChanged: { if (!visible) { focus = false; } }
+    onEnabledChanged: { if (!enabled) { focus = false; } }
     hoverEnabled: touchMetrics.hoverSupported
     implicitWidth: Math.max(contentItem ? contentItem.implicitWidth : 0,
         indicator ? indicator.implicitWidth : 0,
@@ -42,11 +45,12 @@ Original.CheckBox {
     TouchUiMetrics { id: touchMetrics }
 
     onClicked: {
+        if (!visible || !enabled) { return; }
         Tablet.playSound(TabletEnums.ButtonClick);
     }
 
     onHoveredChanged: {
-        if (hovered) {
+        if (hovered && visible && enabled) {
             Tablet.playSound(TabletEnums.ButtonHover);
         }
     }
