@@ -13,6 +13,7 @@
 #include <QLoggingCategory>
 #include <cassert>
 #include <cstring>
+#include <cmath>
 #include "libraries/networking/src/RequestCancellation.h"
 #include "security/redaction/SafeDiagnostics.h"
 Q_LOGGING_CATEGORY(networking,"address-lifetime-test")
@@ -32,8 +33,9 @@ class QRegExp:public QRegularExpression {
 public:
  QRegExp(const QString& p,Qt::CaseSensitivity cs=Qt::CaseSensitive):QRegularExpression(p,cs==Qt::CaseInsensitive?CaseInsensitiveOption:NoPatternOption){}
  bool exactMatch(const QString& s)const{return QRegularExpression(anchoredPattern(pattern()),patternOptions()).match(s).hasMatch();}
- int indexIn(const QString& s)const{last=match(s);return last.hasMatch()?last.capturedStart():-1;}
+ int indexIn(const QString& s,int offset=0)const{last=match(s,offset);return last.hasMatch()?last.capturedStart():-1;}
  QString cap(int n)const{return last.captured(n);}
+ int matchedLength()const{return last.capturedLength();}
 };
 #endif
 const QString HIFI_URL_SCHEME_FILE="file",HIFI_URL_SCHEME_HTTPS="https",HIFI_URL_SCHEME_HTTP="http",DOMAIN_SPAWNING_POINT="/spawn",DEFAULT_NAMED_PATH="/";
@@ -42,6 +44,14 @@ struct UserActivityLogger {
  static UserActivityLogger& getInstance(){static UserActivityLogger logger;return logger;}
  void wentTo(int,const QString&,const QString&){if(hook){auto f=std::move(hook);hook={};f();}}
 };
+// Value-only GLM boundary for this host fixture: production parses and normalizes
+// numerically; no test normalization implementation or native GLM ABI claim.
+namespace glm {
+struct vec3 {float x,y,z;vec3(float a=0,float b=0,float c=0):x(a),y(b),z(c){}};
+struct quat {float w,x,y,z;quat(float a=1,float b=0,float c=0,float d=0):w(a),x(b),y(c),z(d){}};
+}
+static int yawCalls=0;
+glm::quat cancelOutRollAndPitch(const glm::quat& q){++yawCalls;return q;}
 class Reply:public QNetworkReply {
  QByteArray bytes;
 public:
@@ -70,9 +80,16 @@ public:
  QUrl currentAddress()const{return _domainURL;}
  void handleAPIResponse(QNetworkReply*);void goToAddressFromObject(const QVariantMap&,const QNetworkReply*);void handleAPIError(QNetworkReply*);
  bool setHost(const QString&,LookupTrigger,quint16=0);bool setDomainInfo(const QUrl&,LookupTrigger);void addCurrentAddressToHistory(LookupTrigger);
+#ifdef OVERTE_ADDRESS_DEEP_TEST
+ AddressManager(){QObject::connect(this,&AddressManager::pathChangeRequired,[this]{++paths;if(pathHook){auto f=std::move(pathHook);pathHook={};f();}});}
+ void handlePath(const QString&,LookupTrigger,bool=false);
+ bool handleViewpoint(const QString&,bool,LookupTrigger,bool=false,const QString& =QString());
+#else
  void handlePath(const QString&,LookupTrigger,bool=false){++paths;if(pathHook){auto f=std::move(pathHook);pathHook={};f();}}
  bool handleViewpoint(const QString&,bool,LookupTrigger){++paths;return true;}
+#endif
 signals:
+ void locationChangeRequired(const glm::vec3&,bool,const glm::quat&,bool);
  void possibleDomainChangeRequired(const QUrl&,const QUuid&);
  void possibleDomainChangeRequiredViaICEForID(const QString&,const QUuid&);
  void hostChanged(const QString&);void lookupResultsFinished();void lookupResultIsOffline();void lookupResultIsNotFound();void pathChangeRequired(const QString&);void goForwardPossible(bool);void goBackPossible(bool);
@@ -105,6 +122,14 @@ int main(int argc,char**argv){
  {AddressManager m;assert(m.handleUrl(QUrl("hifi://11111111-1111-1111-1111-111111111111"),AddressManager::UserInput));assert(m.domains==1);}
  {AddressManager m;assert(m.handleUrl(QUrl("hifi://placename"),AddressManager::UserInput));assert(m.places==1);}
  {AddressManager m;m._clientLookupPolicy=true;m._lookupForeground=false;assert(!m.handleUrl(QUrl("https://normal.test/world"),AddressManager::UserInput));m._lookupForeground=true;m._lookupNeedsExplicitIntent=true;assert(!m.handleUrl(QUrl("https://normal.test/world"),AddressManager::AttemptedRefresh));assert(m.handleUrl(QUrl("https://normal.test/world"),AddressManager::UserInput));assert(!m._lookupNeedsExplicitIntent&&m.paths==1);}
+#endif
+
+#ifdef OVERTE_ADDRESS_DEEP_TEST
+ for(QString invalid:{"/1e999,2,3","/1,1e999,3","/1,2,1e999"}){AddressManager m;int locations=0;QObject::connect(&m,&AddressManager::locationChangeRequired,[&]{++locations;});m.handlePath(invalid,AddressManager::UserInput,true);assert(locations==0&&m.paths==0&&m._backStack.isEmpty());}
+ for(QString path:{"/1,2,3","/1,2,3/0,0,0,0","/1,2,3/1e999,0,0,1"}){AddressManager m;int locations=0;yawCalls=0;QObject::connect(&m,&AddressManager::locationChangeRequired,[&](const glm::vec3& p,bool changed,const glm::quat& q,bool){++locations;assert(p.x==1&&p.y==2&&p.z==3&&!changed);assert(q.w==1&&q.x==0&&q.y==0&&q.z==0);});assert(m.handleViewpoint(path,false,AddressManager::VisitUserFromPAL));assert(locations==1&&yawCalls==0);}
+ for(QString path:{"/1,2,3/0,0,0,2","/1,2,3/0,0,0,3e38","/1,2,3/0,0,0,1e-30"}){AddressManager m;int locations=0;yawCalls=0;QObject::connect(&m,&AddressManager::locationChangeRequired,[&](const glm::vec3&,bool changed,const glm::quat& q,bool){++locations;assert(changed&&q.w==1&&q.x==0&&q.y==0&&q.z==0);});assert(m.handleViewpoint(path,false,AddressManager::VisitUserFromPAL));assert(locations==1&&yawCalls==1);}
+ {AddressManager m;int locations=0;QObject::connect(&m,&AddressManager::goForwardPossible,[&]{m._lookupRequests.next();});QObject::connect(&m,&AddressManager::locationChangeRequired,[&]{++locations;});m.handlePath("/1,2,3",AddressManager::UserInput,true);assert(locations==0&&m.paths==0&&m._backStack.isEmpty());}
+ {AddressManager m;m._lookupRequests.setActive(false);m.handlePath("/named/path",AddressManager::UserInput);assert(m.paths==0&&m._newHostLookupPath.isEmpty());}
 #endif
 
 }

@@ -45,3 +45,22 @@ The unchanged Main QRegExp expressions use a named Qt6 test adapter in this host
 fixture; Apple runs its actual QRegularExpression implementation. Neither this
 adapter nor these route cases prove native Qt5 parser equivalence, complete URL
 security policy, all deep path/history callbacks or cross-thread ownership.
+
+The viewpoint batch includes complete actual handlePath and handleViewpoint
+(OVERTE_ADDRESS_INCLUDE_VIEWPOINT=1), for eleven production functions total.
+Float conversion success and finite positions are checked before history or
+movement. Recognized invalid coordinates are consumed without named-path fallback.
+Orientation starts as explicit identity; invalid/zero/overflowing components keep
+orientationChanged=false while the valid position remains usable. Double length
+intermediates normalize the complete finite float range without float-square
+underflow/overflow. PAL yaw adjustment runs only for a valid supplied orientation.
+History and named-path continuations recheck the lookup snapshot.
+
+Cases include each overflowing position coordinate, absent/zero/overflowing
+orientation, ordinary/large/small normalized orientation, inactive named paths
+and a superseding history notification before movement. Removing the position
+validation fails the invalid-coordinate assertion. The fixture's GLM boundary is
+value-only vec3/quat constructors and a counted PAL-yaw seam: all conversion and
+normalization arithmetic comes from production. Host GLM headers are unavailable;
+this does not prove native GLM ABI, configured default-constructor behavior, PAL
+rotation math, physical world-coordinate limits or complete native URL parsing.
