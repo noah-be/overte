@@ -42,6 +42,7 @@ public:
     void setDomainURL(const QUrl& domainURL);
     void setAuthURL(const QUrl& authURL);
     void setClientID(const QString& clientID);
+    void setClientAuthVisibility(bool foreground);
 
     const QString& getUsername() { return _currentAuth.username; }
     const QString& getAccessToken() { return _currentAuth.accessToken; }
@@ -72,7 +73,7 @@ signals:
     void newTokens();
 
 private:
-    void invalidatePendingAccessToken(LoginOutcome outcome = LoginOutcome::Cancelled);
+    void invalidatePendingAccessToken(LoginOutcome outcome = LoginOutcome::Cancelled, bool suspend = false);
     bool hasValidAccessToken();
     bool accessTokenIsExpired();
     void setTokensFromJSON(const QJsonObject&, const QUrl& url);

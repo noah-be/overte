@@ -13,6 +13,7 @@
 #include "DomainAccountManager.h"
 
 #include <QTimer>
+#include <QThread>
 #include <QtCore/QJsonObject>
 #include <QtCore/QJsonDocument>
 #include <QtNetwork/QNetworkRequest>
@@ -43,9 +44,13 @@ DomainAccountManager::~DomainAccountManager() {
     invalidatePendingAccessToken();
 }
 
-void DomainAccountManager::invalidatePendingAccessToken(LoginOutcome outcome) {
+void DomainAccountManager::invalidatePendingAccessToken(LoginOutcome outcome, bool suspend) {
     const auto ticket = _accessTokenRequests.snapshot();
-    _accessTokenRequests.next(); // Invalidate BEFORE abort can emit finished.
+    if (suspend) {
+        _accessTokenRequests.setActive(false);
+    } else {
+        _accessTokenRequests.next();
+    } // Invalidate BEFORE abort can emit finished, retaining the ORIGINAL ticket.
     const auto context = _accessTokenRequests.snapshot(); // Capture before abort's external callbacks too.
     const auto pending = _pendingAccessTokenReply;
     _pendingAccessTokenReply.clear();
@@ -53,6 +58,21 @@ void DomainAccountManager::invalidatePendingAccessToken(LoginOutcome outcome) {
         pending->abort();
         pending->deleteLater();
         emit loginRequestFinished(ticket, context, static_cast<int>(outcome));
+    }
+}
+
+void DomainAccountManager::setClientAuthVisibility(bool foreground) {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, [this, foreground] {
+            setClientAuthVisibility(foreground);
+        }, Qt::QueuedConnection);
+        return;
+    }
+    if (!foreground) {
+        invalidatePendingAccessToken(LoginOutcome::Cancelled, true);
+    } else {
+        // Resume admits a NEW explicit request only; never retry credentials.
+        _accessTokenRequests.setActive(true);
     }
 }
 

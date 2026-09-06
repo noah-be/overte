@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import pathlib
+import os
 import shlex
 import subprocess
 import tempfile
@@ -10,7 +11,13 @@ ROOT = pathlib.Path(__file__).resolve().parents[4]
 
 class VisibilityInputs(unittest.TestCase):
     def test_original_qt_publication_and_both_observer_orders(self):
-        source = (ROOT / "interface/src/Application_Events.cpp").read_text()
+        baseline = os.environ.get('OVERTE_VISIBILITY_PUBLICATION_BASELINE')
+        source = (subprocess.check_output(['git', '-C', str(ROOT), 'show',
+                  baseline + ':interface/src/Application_Events.cpp'], text=True)
+                  if baseline else (ROOT / "interface/src/Application_Events.cpp").read_text())
+        setup = (ROOT / "interface/src/Application_Setup.cpp").read_text()
+        self.assertLess(setup.index('DependencyManager::set<DomainAccountManager>();'),
+                        setup.index('overte::lifecycle::observeQtVisibility('))
         publication = "namespace {\nvoid publishClientVisibility(" + source.split(
             "namespace {\nvoid publishClientVisibility(", 1)[1].split(
             "\nvoid Application::activeChanged(", 1)[0]
