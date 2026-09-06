@@ -19,6 +19,7 @@ class PersistenceContext(unittest.TestCase):
         account = source('libraries/networking/src/AccountManager.cpp')
         methods = block(account, 'void AccountManager::persistAccountToFile(')
         methods += '\n' + block(account, 'bool AccountManager::setAccessTokens(')
+        methods += '\n' + block(account, 'void AccountManager::requestAccessTokenFinished(')
         methods += '\n' + block(source('interface/src/Application.cpp'), 'void Application::forceLoginWithTokens(')
         flags = shlex.split(subprocess.check_output(['pkg-config', '--cflags', '--libs', 'Qt6Core', 'Qt6Network'], text=True))
         moc = Path(subprocess.check_output(['pkg-config', '--variable=libexecdir', 'Qt6Core'], text=True).strip()) / 'moc'

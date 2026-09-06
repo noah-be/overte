@@ -22,8 +22,10 @@ loginFailed and return false before modifying account/persistence/profile state.
 Empty optional refresh tokens are supported. Limits constrain this parser, not
 the memory allocated by the producer of the already supplied QString.
 
-Successful login still assigns tokens, emits loginComplete, invokes persistence,
-saveLoginStatus and requestProfile in that order. Original RequestScope ticket
+With account-persistence-context/v002, successful login assigns tokens, invokes
+protected persistence, emits loginComplete, invokes saveLoginStatus and
+requestProfile in that order. A reported store failure invalidates the context
+and requests re-auth before any loginComplete. Original RequestScope ticket
 and QPointer guard between every reentrant boundary stop subsequent work after
 context invalidation or destruction. The final guard also stops the Application
 preference write if profile startup invalidates/destroys the manager. Already

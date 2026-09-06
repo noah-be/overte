@@ -147,7 +147,9 @@ int main(int argc, char** argv) {
         });
         reentrant.requestAccessToken("user", "password");
         network.last->finish();
-        assert(success == 1 && reentrant.persisted == 0 && reentrant.profiles == 0);
+        // Successful persistence now precedes the outward login signal. A
+        // listener's logout/server change must still prevent profile startup.
+        assert(success == 1 && reentrant.persisted == 1 && reentrant.profiles == 0);
         assert(reentrant._accountInfo.token.token.isEmpty());
     }
     QPointer<AccountManager> destroyed = new AccountManager;
