@@ -137,6 +137,8 @@ static void observeAccountTokenDeadline(QNetworkReply* reply) {
 }
 
 void AccountManager::logout() {
+    _credentialContext.next();
+    _isWaitingForTokenRefresh = false;
     postAccountSettings();
     _numPullRetries = 0;
 
@@ -228,6 +230,8 @@ QVariantMap accountMapFromFile(bool& success) {
 
 void AccountManager::setAuthURL(const QUrl& authURL) {
     if (_authURL != authURL) {
+        _credentialContext.next();
+        _isWaitingForTokenRefresh = false;
         _authURL = authURL;
 
         qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
@@ -644,7 +648,9 @@ void AccountManager::requestAccessToken(const QString& login, const QString& pas
     request.setUrl(grantURL);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 
+    const auto requestContext = _credentialContext.snapshot();
     QNetworkReply* requestReply = networkAccessManager.post(request, postData);
+    overte::network::watchRequest(requestReply, requestContext);
     observeAccountTokenDeadline(requestReply);
     connect(requestReply, &QNetworkReply::finished, this, &AccountManager::requestAccessTokenFinished);
 }
@@ -669,7 +675,9 @@ void AccountManager::requestAccessTokenWithAuthCode(const QString& authCode, con
     request.setUrl(grantURL);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 
+    const auto requestContext = _credentialContext.snapshot();
     QNetworkReply* requestReply = networkAccessManager.post(request, postData);
+    overte::network::watchRequest(requestReply, requestContext);
     observeAccountTokenDeadline(requestReply);
     connect(requestReply, &QNetworkReply::finished, this, &AccountManager::requestAccessTokenFinished);
 }
@@ -692,7 +700,9 @@ void AccountManager::requestAccessTokenWithSteam(QByteArray authSessionTicket) {
     request.setUrl(grantURL);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 
+    const auto requestContext = _credentialContext.snapshot();
     QNetworkReply* requestReply = networkAccessManager.post(request, postData);
+    overte::network::watchRequest(requestReply, requestContext);
     observeAccountTokenDeadline(requestReply);
     connect(requestReply, &QNetworkReply::finished, this, &AccountManager::requestAccessTokenFinished);
 #if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
@@ -721,7 +731,9 @@ void AccountManager::requestAccessTokenWithOculus(const QString& nonce, const QS
     request.setUrl(grantURL);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 
+    const auto requestContext = _credentialContext.snapshot();
     QNetworkReply* requestReply = networkAccessManager.post(request, postData);
+    overte::network::watchRequest(requestReply, requestContext);
     observeAccountTokenDeadline(requestReply);
     connect(requestReply, &QNetworkReply::finished, this, &AccountManager::requestAccessTokenFinished);
 #if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
@@ -756,7 +768,9 @@ void AccountManager::refreshAccessToken() {
         request.setUrl(grantURL);
         request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 
+        const auto requestContext = _credentialContext.snapshot();
         QNetworkReply* requestReply = networkAccessManager.post(request, postData);
+        overte::network::watchRequest(requestReply, requestContext);
         observeAccountTokenDeadline(requestReply);
         connect(requestReply, &QNetworkReply::finished, this, &AccountManager::refreshAccessTokenFinished);
 #if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
@@ -810,6 +824,9 @@ void AccountManager::requestAccessTokenFinished() {
     }
     requestReply->setProperty("_overte_account_auth_finished", true);
     requestReply->deleteLater();
+    if (!overte::network::replyCurrent(requestReply)) {
+        return;
+    }
 
     constexpr qint64 MAX_RESPONSE_BYTES = 1024 * 1024;
     const auto payload = requestReply->read(MAX_RESPONSE_BYTES + 1);
@@ -877,6 +894,9 @@ void AccountManager::refreshAccessTokenFinished() {
     }
     requestReply->setProperty("_overte_account_refresh_finished", true);
     requestReply->deleteLater();
+    if (!overte::network::replyCurrent(requestReply)) {
+        return;
+    }
     _isWaitingForTokenRefresh = false;
 
     constexpr qint64 MAX_RESPONSE_BYTES = 1024 * 1024;
@@ -922,6 +942,10 @@ void AccountManager::refreshAccessTokenFinished() {
 }
 
 void AccountManager::refreshAccessTokenError(QNetworkReply::NetworkError error) {
+    const auto* reply = qobject_cast<QNetworkReply*>(sender());
+    if (!reply || !overte::network::replyCurrent(reply)) {
+        return;
+    }
     // TODO: error handling
     qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     _isWaitingForTokenRefresh = false;

@@ -182,6 +182,7 @@ private:
     UserAgentGetter _userAgentGetter;
 
     QUrl _authURL;
+    overte::network::RequestScope _credentialContext;
 
     DataServerAccountInfo _accountInfo;
     bool _isWaitingForTokenRefresh { false };
