@@ -610,8 +610,15 @@ void ScriptManager::loadURL(const QUrl& scriptURL, bool reload) {
     }
 
     const auto maxRetries = 0; // for consistency with previous scriptCache->getScript() behavior
+    std::weak_ptr<ScriptManager> weakRef(shared_from_this());
     auto scriptCache = DependencyManager::get<ScriptCache>();
-    scriptCache->getScriptContents(url.toString(), [this](const QString& url, const QString& scriptContents, bool isURL, bool success, const QString&status) {
+    scriptCache->getScriptContents(url.toString(), [this, weakRef](const QString& url, const QString& scriptContents, bool isURL, bool success, const QString&status) {
+        // Cache requests do not own the manager. Retain it only while delivering
+        // a live completion, including reentrant error/loaded signal receivers.
+        auto strongRef = weakRef.lock();
+        if (!strongRef) {
+            return;
+        }
         qCDebug(scriptengine) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         if (!success) {
             scriptErrorMessage("ERROR Loading file (" + status + "):" + url, url, -1);
