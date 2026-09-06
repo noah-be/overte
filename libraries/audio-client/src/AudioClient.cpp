@@ -13,6 +13,7 @@
 //
 
 #include "AudioClient.h"
+#include "../../../security/redaction/SafeDiagnostics.h"
 
 #include <atomic>
 #include <cmath>
@@ -508,8 +509,7 @@ QList<HifiAudioDeviceInfo> getAvailableDevices(HifiAudioDeviceMode mode, const Q
 
     if (defaultDesktopDevice.getDevice().isNull()) {
         if (devices.size() > 0) {
-            qCDebug(audioclient) << __FUNCTION__ << "Default device not found in list:" << defDeviceName
-                << "Setting Default to: " << hifiAudioDeviceName(devices.first());
+            qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             newDevices.push_front(HifiAudioDeviceInfo(devices.first(), true, mode, HifiAudioDeviceInfo::both));
         } else {
             //current audio list is empty for some reason.
@@ -734,7 +734,7 @@ AudioClient::AudioClient() {
     connect(&_receivedAudioStream, &MixedProcessedAudioStream::processSamples,
 	    this, &AudioClient::processReceivedSamples, Qt::DirectConnection);
     connect(this, &AudioClient::changeDevice, this, [=, this](const HifiAudioDeviceInfo& outputDeviceInfo) {
-        qCDebug(audioclient)<< "got AudioClient::changeDevice signal, about to call switchOutputToAudioDevice() outputDeviceInfo: ["<< outputDeviceInfo.deviceName() << "]";
+        qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         switchOutputToAudioDevice(outputDeviceInfo);
     });
 
@@ -987,7 +987,7 @@ QString defaultAudioDeviceName(HifiAudioDeviceMode mode) {
             //Use the received manufacturer id to get the device's real name
             waveInGetDevCaps(wic.wMid, &wic, sizeof(wic));
 #if !defined(NDEBUG) 
-            qCDebug(audioclient) << "input device:" << wic.szPname;
+            qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 #endif
             deviceName = wic.szPname;
         } else {
@@ -997,7 +997,7 @@ QString defaultAudioDeviceName(HifiAudioDeviceMode mode) {
             //Use the received manufacturer id to get the device's real name
             waveOutGetDevCaps(woc.wMid, &woc, sizeof(woc));
 #if !defined(NDEBUG) 
-            qCDebug(audioclient) << "output device:" << woc.szPname;
+            qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 #endif
             deviceName = woc.szPname;
         }
@@ -1022,8 +1022,7 @@ QString defaultAudioDeviceName(HifiAudioDeviceMode mode) {
     }
 
 #if !defined(NDEBUG)
-    qCDebug(audioclient) << "defaultAudioDeviceForMode mode: " << (mode == HifiAudioDeviceMode::Output ? "Output" : "Input")
-	<< " [" << deviceName << "] [" << "]";
+    qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 #endif
 
 #endif
@@ -1456,8 +1455,7 @@ void AudioClient::selectAudioFormat(const QString& selectedCodecName) {
 bool AudioClient::switchAudioDevice(HifiAudioDeviceMode mode, const HifiAudioDeviceInfo& deviceInfo) {
     auto device = deviceInfo;
     if (deviceInfo.getDevice().isNull()) {
-        qCDebug(audioclient) << __FUNCTION__ << " switching to null device :" 
-            << deviceInfo.deviceName() << " : " << hifiAudioDeviceName(deviceInfo.getDevice());
+        qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 
 #if defined(ANDROID_APP_PICO_INTERFACE)
@@ -2531,8 +2529,7 @@ void AudioClient::refreshIOSAudioInput() {
 bool AudioClient::switchInputToAudioDevice(const HifiAudioDeviceInfo inputDeviceInfo, bool isShutdownRequest) {
     Q_ASSERT_X(QThread::currentThread() == thread(), Q_FUNC_INFO, "Function invoked on wrong thread");
 
-    qCDebug(audioclient) << __FUNCTION__ << "_inputDeviceInfo: [" << _inputDeviceInfo.deviceName() << ":" << hifiAudioDeviceName(_inputDeviceInfo.getDevice())
-        << "-- inputDeviceInfo:" << inputDeviceInfo.deviceName() << ":" << hifiAudioDeviceName(inputDeviceInfo.getDevice()) << "]";
+    qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     bool supportedFormat = false;
 
     // NOTE: device start() uses the Qt internal device list
@@ -2602,7 +2599,7 @@ bool AudioClient::switchInputToAudioDevice(const HifiAudioDeviceInfo inputDevice
 #endif
 
     if (microphonePermissionGranted && !inputDeviceInfo.getDevice().isNull()) {
-        qCDebug(audioclient) << "The audio input device" << inputDeviceInfo.deviceName() << ":" << hifiAudioDeviceName(inputDeviceInfo.getDevice()) << "is available.";
+        qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
       
         //do not update UI that we're changing devices if default or same device
         _inputDeviceInfo = inputDeviceInfo;
@@ -2846,8 +2843,7 @@ void AudioClient::noteAwakening() {
 bool AudioClient::switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDeviceInfo, bool isShutdownRequest) {
     Q_ASSERT_X(QThread::currentThread() == thread(), Q_FUNC_INFO, "Function invoked on wrong thread");
     
-    qCDebug(audioclient) << __FUNCTION__ << "_outputdeviceInfo: [" << _outputDeviceInfo.deviceName() << ":" << hifiAudioDeviceName(_outputDeviceInfo.getDevice())
-        << "-- outputDeviceInfo:" << outputDeviceInfo.deviceName() << ":" << hifiAudioDeviceName(outputDeviceInfo.getDevice()) << "]";
+    qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     bool supportedFormat = false;
 
     // NOTE: device start() uses the Qt internal device list
@@ -2912,7 +2908,7 @@ bool AudioClient::switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDevi
     }
 
     if (!outputDeviceInfo.getDevice().isNull()) {
-        qCDebug(audioclient) << "The audio output device" << outputDeviceInfo.deviceName() << ":" << hifiAudioDeviceName(outputDeviceInfo.getDevice()) << "is available.";
+        qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         
         //do not update UI that we're changing devices if default or same device
         _outputDeviceInfo = outputDeviceInfo;
