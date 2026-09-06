@@ -53,12 +53,18 @@ int main(int argc, char** argv) {
     qInstallMessageHandler(capture);
     auto& network = NetworkAccessManager::getInstance();
     DomainAccountManager manager;
+    struct OutcomeRecord { overte::network::RequestTicket ticket, context; int outcome; };
+    std::vector<OutcomeRecord> outcomes;
+    QObject::connect(&manager, &DomainAccountManager::loginRequestFinished,
+        [&](overte::network::RequestTicket ticket, overte::network::RequestTicket context, int outcome) {
+            outcomes.push_back({ ticket, context, outcome });
+        });
     if (argc > 1 && QByteArray(argv[1]) == "timeout") {
         int failures = 0, successes = 0;
         QObject::connect(&manager, &DomainAccountManager::loginFailed, [&] { ++failures; });
         QObject::connect(&manager, &DomainAccountManager::loginComplete, [&] { ++successes; });
         manager.setAuthURL(QUrl("https://timeout.invalid/token"));
-        manager.requestAccessToken("u", "p");
+        const auto timeoutTicket = manager.requestAccessToken("u", "p");
         QPointer<FakeReply> pending = network.latest;
         QElapsedTimer elapsed; elapsed.start();
         QEventLoop loop;
@@ -66,6 +72,9 @@ int main(int argc, char** argv) {
         QTimer::singleShot(17000, &loop, &QEventLoop::quit);
         loop.exec();
         assert(failures == 1 && successes == 0 && manager.getAccessToken().isEmpty());
+        assert(outcomes.size() == 1 && outcomes.back().ticket.sameRequest(timeoutTicket));
+        assert(outcomes.back().outcome == static_cast<int>(DomainAccountManager::LoginOutcome::TimedOut));
+        assert(!timeoutTicket.current() && outcomes.back().context.current());
         // Actual production 15s timer, not a rewritten interval or synthetic timeout.
         // Coarse Qt timers may fire slightly early; OS scheduling is not a hard bound.
         assert(elapsed.elapsed() >= 14000 && elapsed.elapsed() < 17000);
@@ -85,13 +94,18 @@ int main(int argc, char** argv) {
     manager.setDomainURL(QUrl("hifi://private-a.invalid"));
     manager.setAuthURL(QUrl("https://auth-a.invalid/token"));
     manager.setClientID("client-a");
-    manager.requestAccessToken("user-private-canary", "password-private-canary");
+    const auto firstTicket = manager.requestAccessToken("user-private-canary", "password-private-canary");
+    assert(firstTicket.sameRequest(manager.accessTokenRequestTicket()));
     assert(manager.isAccessTokenRequestPending());
     auto* old = network.latest;
     manager.setDomainURL(QUrl("hifi://private-b.invalid"));
     assert(!manager.isAccessTokenRequestPending());
+    assert(outcomes.size() == 1 && outcomes.back().ticket.sameRequest(firstTicket));
+    assert(outcomes.back().outcome == static_cast<int>(DomainAccountManager::LoginOutcome::Cancelled));
+    assert(!firstTicket.current() && outcomes.back().context.current());
     assert(old->aborts == 1 && manager.getAccessToken().isEmpty() && success == 0 && tokens == 0);
     old->finish(200, "{\"access_token\":\"late-domain-private-canary\"}");
+    assert(outcomes.size() == 1);
     assert(!manager.isAccessTokenRequestPending());
     assert(manager.getAccessToken().isEmpty() && success == 0);
     manager.setAuthURL(QUrl("https://auth-b.invalid/token"));
@@ -104,16 +118,20 @@ int main(int argc, char** argv) {
     assert(!manager.isAccessTokenRequestPending());
     assert(old->aborts == 1 && success == 0);
     manager.requestAccessToken("u", "p"); old = network.latest;
-    manager.requestAccessToken("current-user", "current-password");
+    const auto currentTicket = manager.requestAccessToken("current-user", "current-password");
     assert(manager.isAccessTokenRequestPending());
     assert(old->aborts == 1 && success == 0);
     assert(network.body.contains("username=current-user&password=current-password&client_id=client-b"));
     network.latest->finish(200, "{\"access_token\":\"current-token\",\"refresh_token\":\"current-refresh\"}");
     assert(!manager.isAccessTokenRequestPending());
+    assert(outcomes.back().ticket.sameRequest(currentTicket) && outcomes.back().context.current());
+    assert(outcomes.back().outcome == static_cast<int>(DomainAccountManager::LoginOutcome::Succeeded));
+    const auto beforeDuplicate = outcomes.size();
     assert(manager.getAccessToken() == "current-token" && manager.getRefreshToken() == "current-refresh");
     assert(manager.getUsername() == "current-user" && success == 1 && tokens == 1);
     network.latest->finish(200, "{\"access_token\":\"duplicate-private-canary\"}");
     manager.requestAccessTokenFinished(); // Direct/no-sender call must be harmless.
+    assert(outcomes.size() == beforeDuplicate);
     assert(manager.getAccessToken() == "current-token" && success == 1);
     manager.requestAccessToken("u", "p");
     network.latest->finish(401, "{\"error\":\"error-private-canary\",\"error_description\":\"private-target-canary\"}");
@@ -157,6 +175,8 @@ int main(int argc, char** argv) {
     auto streaming = network.latest;
     streaming->stream(QByteArray(1024 * 1024 + 1, 'x'));
     assert(streaming->aborts == 1 && failure == before + 1 && success == 1);
+    assert(outcomes.back().outcome == static_cast<int>(DomainAccountManager::LoginOutcome::ResponseRejected));
+    assert(!outcomes.back().ticket.current() && outcomes.back().context.current());
     streaming->stream(QByteArray(1024 * 1024 + 1, 'x'));
     assert(streaming->aborts == 1 && failure == before + 1);
     // Inclusive boundary succeeds; optional absent/empty refresh token remains supported.

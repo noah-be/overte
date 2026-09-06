@@ -29,10 +29,10 @@ class DomainReceiver(unittest.TestCase):
         qml = (ROOT / 'interface/resources/qml/LoginDialog/LoggingInBody.qml').read_text()
         self.assertIn('Connections {\n        target: loginDialog', qml)
         functions = '\n'.join(block(qml, 'function ' + name + '(') for name in
-                              ('onHandleLoginCompleted', 'onHandleLoginFailed'))
+                              ('onHandleLoginCompleted', 'onHandleLoginFailed', 'onHandleDomainLoginFailed'))
         success = block(qml, 'function loadingSuccess(')
         flags = shlex.split(subprocess.check_output(
-            ['pkg-config', '--cflags', '--libs', 'Qt6Core', 'Qt6Qml'], text=True))
+            ['pkg-config', '--cflags', '--libs', 'Qt6Core', 'Qt6Qml', 'Qt6Network'], text=True))
         moc = pathlib.Path(subprocess.check_output(
             ['pkg-config', '--variable=libexecdir', 'Qt6Core'], text=True).strip()) / 'moc'
         here = pathlib.Path(__file__).parent
@@ -40,7 +40,8 @@ class DomainReceiver(unittest.TestCase):
         self.assertIn(variant, ('main', 'apple'))
         with tempfile.TemporaryDirectory(prefix='overte-domain-receiver-') as temporary:
             directory = pathlib.Path(temporary)
-            (directory / 'constructor.inc').write_text(block(source, 'LoginDialog::LoginDialog('))
+            (directory / 'constructor.inc').write_text(block(source, 'LoginDialog::LoginDialog(') + '\n' +
+                                                      block(source, 'void LoginDialog::loginDomain('))
             fixture = (here / 'login-dialog-domain-receiver.qml').read_text()
             (directory / 'receiver.qml').write_text(fixture.replace('/* ORIGINAL_HANDLERS */', functions)
                                                    .replace('/* ORIGINAL_SUCCESS */', success))

@@ -13,6 +13,11 @@ class RequestTicket {
 public:
     // Other AccountManager requests remain explicitly unscoped.
     bool scoped() const { return bool(_state); }
+    // Correlate terminal cancellation after invalidation without treating an
+    // old ticket as current or exposing an identifier to QML/logging.
+    bool sameRequest(const RequestTicket& other) const {
+        return _state && _value != 0 && _state == other._state && _value == other._value;
+    }
     bool matchesSnapshot() const {
         return _state && _state->load(std::memory_order_acquire) == _value;
     }

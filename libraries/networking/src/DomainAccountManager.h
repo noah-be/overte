@@ -34,6 +34,8 @@ struct DomainAccountDetails {
 class DomainAccountManager : public QObject, public Dependency {
     Q_OBJECT
 public:
+    enum class LoginOutcome { Succeeded, Failed, Cancelled, TimedOut, ResponseRejected };
+    Q_ENUM(LoginOutcome)
     DomainAccountManager();
     ~DomainAccountManager() override;
 
@@ -49,11 +51,14 @@ public:
     bool hasLogIn();
     bool isLoggedIn();
     bool isAccessTokenRequestPending() const { return !_pendingAccessTokenReply.isNull(); }
+    overte::network::RequestTicket accessTokenRequestTicket() const {
+        return isAccessTokenRequestPending() ? _accessTokenRequests.snapshot() : overte::network::RequestTicket();
+    }
 
     Q_INVOKABLE bool checkAndSignalForAccessToken();
 
 public slots:
-    void requestAccessToken(const QString& username, const QString& password);
+    overte::network::RequestTicket requestAccessToken(const QString& username, const QString& password);
     void requestAccessTokenFinished();
 
 signals:
@@ -61,11 +66,13 @@ signals:
     void authRequired(const QString& domain);
     void loginComplete();
     void loginFailed();
+    void loginRequestFinished(overte::network::RequestTicket ticket,
+                              overte::network::RequestTicket context, int outcome);
     void logoutComplete();
     void newTokens();
 
 private:
-    void invalidatePendingAccessToken();
+    void invalidatePendingAccessToken(LoginOutcome outcome = LoginOutcome::Cancelled);
     bool hasValidAccessToken();
     bool accessTokenIsExpired();
     void setTokensFromJSON(const QJsonObject&, const QUrl& url);
