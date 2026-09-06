@@ -31,6 +31,7 @@ public:
     void loggedOut();
     void startedLoading();
     bool beginDownload(quint64& requestedTimestamp);
+    void downloadFailed(quint64 requestedTimestamp);
     void acknowledgeSnapshot(quint64 timestamp);
     quint64 lastChangeTimestamp() const { QReadLocker lock(&_settingsLock); return _lastChangeTimestamp; }
 
@@ -56,6 +57,7 @@ private:
     bool _hasLocalChanges { false };
 
     State _homeLocationState { LoggedOut };
+    State _stateBeforeDownload { LoggedOut };
     QString _homeLocation;
 };
 

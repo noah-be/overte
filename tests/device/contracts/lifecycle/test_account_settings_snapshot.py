@@ -119,6 +119,25 @@ int main() {
     assert(!pending.beginDownload(requestStamp));
     pending.loggedOut();
     assert(pending.beginDownload(requestStamp));
+    for (auto state : {AccountSettings::LoggedOut, AccountSettings::NotPresent, AccountSettings::Loaded}) {
+        AccountSettings recovery;
+        if (state == AccountSettings::NotPresent) recovery.unpack({});
+        if (state == AccountSettings::Loaded) recovery.unpack({{"home_location", "retained"}});
+        const auto beforeFailure = recovery.snapshot();
+        assert(recovery.beginDownload(requestStamp));
+        assert(recovery.beginDownload(requestStamp)); // Retry preserves original state.
+        recovery.downloadFailed(requestStamp + 1);
+        assert(recovery.homeLocationState() == AccountSettings::Loading);
+        recovery.downloadFailed(requestStamp);
+        assert(recovery.homeLocationState() == state);
+        assert(recovery.snapshot().data == beforeFailure.data);
+        assert(recovery.snapshot().timestamp == beforeFailure.timestamp);
+        assert(recovery.beginDownload(requestStamp));
+        recovery.setHomeLocation("local-after-request");
+        recovery.downloadFailed(requestStamp);
+        assert(recovery.homeLocationState() == AccountSettings::Loaded);
+        assert(recovery.getHomeLocation() == "local-after-request");
+    }
     ticks = std::numeric_limits<quint64>::max() - 1;
     settings.setHomeLocation("last-revision");
     try {
