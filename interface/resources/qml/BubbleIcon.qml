@@ -8,7 +8,7 @@
 
 import Hifi 1.0 as Hifi
 import QtQuick 2.5
-import Qt5Compat.GraphicalEffects
+import "hifi/overlays" as SharedOverlays
 
 import "./hifi/audio" as HifiAudio
 
@@ -91,7 +91,7 @@ Rectangle {
         anchors.left: parent.left
         anchors.leftMargin: (parent.width - bubbleIcon.width) / 2
     }
-    ColorOverlay {
+    SharedOverlays.ItemTint {
         id: bubbleIconOverlay
         anchors.fill: bubbleIcon
         source: bubbleIcon

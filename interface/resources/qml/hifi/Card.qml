@@ -17,6 +17,7 @@ import Qt5Compat.GraphicalEffects
 import TabletScriptingInterface 1.0
 
 import "toolbars"
+import "overlays" as SharedOverlays
 import stylesUit 1.0
 
 Item {
@@ -290,7 +291,7 @@ Item {
         fillMode: Image.PreserveAspectFit
         source: "../../icons/standalone-optimized.svg"
     }
-    ColorOverlay {
+    SharedOverlays.ItemTint {
         anchors.fill: standaloneOptomizedBadge
         source: standaloneOptomizedBadge
         color: hifi.colors.blueHighlight
