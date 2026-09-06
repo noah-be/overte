@@ -18,7 +18,7 @@ class LifecycleTests(unittest.TestCase):
     def test_actual_qt_lifecycle_caller_is_bound(self):
         source = (ROOT / 'interface/src/Application_Events.cpp').read_text()
         body = source.split('void Application::activeChanged(Qt::ApplicationState state) {', 1)[1].split('\n}', 1)[0]
-        self.assertIn('applicationGate().visible(state == Qt::ApplicationActive)', body)
+        self.assertIn('observeQtVisibility(state == Qt::ApplicationActive)', body)
         definition = (ROOT / 'interface/src/Application.cpp').read_text()
         self.assertIn('Gate& overte::lifecycle::applicationGate()', definition)
 
@@ -45,6 +45,12 @@ struct RefreshRateManager {
 };
 overte::lifecycle::Gate gate;
 overte::lifecycle::Gate& overte::lifecycle::applicationGate() { return gate; }
+// The real publication bridge is separately compiled/executed with Qt by
+// test_visibility_inputs.py; this small event-body test substitutes that edge.
+void overte::lifecycle::observeQtVisibility(bool value) {
+    gate.visible(value);
+    addresses.setClientLookupVisibility(value);
+}
 struct Application {
     bool _isForeground = false, _aboutToQuit = false, _startUpFinished = true;
     RefreshRateManager rates;
