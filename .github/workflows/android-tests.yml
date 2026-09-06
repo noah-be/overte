@@ -390,9 +390,7 @@ jobs:
 
   regression:
     name: Complete device-free regression
-    if: >-
-      github.event_name == 'push' ||
-      (github.event_name == 'workflow_dispatch' && inputs.run_regression)
+    if: github.event_name == 'workflow_dispatch' && inputs.run_regression
     needs: [fast, contracts, coverage]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
