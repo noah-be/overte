@@ -26,6 +26,8 @@ if(PICO_QT_UIC)
 endif()
 target_openxr()
 target_link_libraries(${TARGET_NAME} android log)
+target_sources(picoOpenXR PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/security/PicoAccountStore.cpp")
+target_sources(picoOpenXR PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/audio/PicoAudioLifecycle.cpp")
 
 set(TARGET_NAME picoInterface)
 setup_hifi_library()
@@ -96,6 +98,7 @@ list(FILTER PICO_INTERFACE_SOURCES EXCLUDE REGEX "Application_Setup\\.cpp$")
 set_property(TARGET interface PROPERTY SOURCES "${PICO_INTERFACE_SOURCES}")
 target_sources(interface PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/overrides/Application_Setup.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/lifecycle/PicoClientVisibility.cpp"
 )
 if(OVERTE_PICO_E2E_OPENXR_INPUT)
     target_compile_definitions(interface PRIVATE OVERTE_E2E_OPENXR_INPUT_V1=1)

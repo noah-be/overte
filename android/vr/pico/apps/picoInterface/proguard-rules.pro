@@ -2,4 +2,5 @@
 -keepclasseswithmembers class * {
     native <methods>;
 }
-
+-keep class org.overte.pico.PicoAccountStoreBridge { *; }
+-keep class org.overte.pico.PicoAccountStoreBridge$ReadResult { *; }

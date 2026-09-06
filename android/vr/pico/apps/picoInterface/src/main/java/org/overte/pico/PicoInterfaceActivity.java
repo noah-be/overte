@@ -9,17 +9,18 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Process;
 import android.os.SystemClock;
-import android.util.Log;
+import org.overte.security.SafeDiagnostics.Event;
 import android.view.KeyEvent;
+import android.view.InputDevice;
 
 import org.qtproject.qt5.android.bindings.QtActivity;
 
 import io.highfidelity.utils.HifiUtils;
 
 public final class PicoInterfaceActivity extends QtActivity {
-    private static final String TAG = "OvertePico";
     private static final PicoActivityInstancePolicy<PicoInterfaceActivity> INSTANCE =
         new PicoActivityInstancePolicy<>();
+    private boolean resumed;
 
     static {
         // Qt 5 resolves OpenSSL dynamically.  Android packages the libraries
@@ -31,6 +32,7 @@ public final class PicoInterfaceActivity extends QtActivity {
     }
 
     private native boolean initializeOpenXRLoader();
+    private native boolean prepareProtectedAccountStore(PicoAccountStoreBridge peer);
     private native void releaseOpenXRActivity();
 
     static PicoInterfaceActivity getInstance() {
@@ -40,15 +42,24 @@ public final class PicoInterfaceActivity extends QtActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         INSTANCE.register(this);
+        runShutdownStep("Web input", () -> OffscreenWebView.setInputForeground(this, false));
+        PicoClientVisibility.attach(this);
         APPLICATION_PARAMETERS = PicoInterfaceActivityPolicy.applicationParameters(
             getCacheDir().getAbsolutePath());
 
         HifiUtils.upackAssets(getAssets(), getCacheDir().getAbsolutePath());
 
         if (!initializeOpenXRLoader()) {
-            Log.e(TAG, "The Android OpenXR loader could not be initialized");
+            RedactingDiagnostics.e(Event.REDACTED);
         }
 
+        try {
+            if (!prepareProtectedAccountStore(new PicoAccountStoreBridge(this))) {
+                RedactingDiagnostics.e(Event.STORAGE_UNAVAILABLE);
+            }
+        } catch (RuntimeException error) {
+            RedactingDiagnostics.e(Event.STORAGE_UNAVAILABLE);
+        }
         super.onCreate(savedInstanceState);
         OffscreenWebView.initializeNativeBridge();
         AndroidAudioInput.initializeNativeBridge();
@@ -57,14 +68,14 @@ public final class PicoInterfaceActivity extends QtActivity {
     public static void scheduleRestart(String applicationArguments) {
         final PicoInterfaceActivity activity = INSTANCE.current();
         if (activity == null) {
-            Log.e(TAG, "Cannot restart: activity is unavailable");
+            RedactingDiagnostics.e(Event.REDACTED);
             return;
         }
         if (!RestartArguments.store(activity, applicationArguments)) {
-            Log.e(TAG, "Cannot restart: arguments could not be stored privately");
+            RedactingDiagnostics.e(Event.CALLBACK_DISCARDED);
             return;
         }
-        Log.i(TAG, "Scheduling application restart");
+        RedactingDiagnostics.i(Event.REDACTED);
 
         try {
             Intent restartIntent = new Intent(activity, RestartActivity.class);
@@ -79,7 +90,7 @@ public final class PicoInterfaceActivity extends QtActivity {
             AlarmManager alarmManager =
                 (AlarmManager) activity.getSystemService(Context.ALARM_SERVICE);
             if (alarmManager == null) {
-                Log.e(TAG, "Cannot restart: AlarmManager is unavailable");
+                RedactingDiagnostics.e(Event.REDACTED);
                 RestartArguments.clear(activity);
                 return;
             }
@@ -98,24 +109,31 @@ public final class PicoInterfaceActivity extends QtActivity {
                     pendingIntent);
             }
         } catch (RuntimeException exception) {
-            Log.e(TAG, "Cannot restart: scheduling failed", exception);
+            RedactingDiagnostics.e(Event.REDACTED);
             RestartArguments.clear(activity);
             return;
         }
 
         activity.finishAffinity();
         new android.os.Handler(activity.getMainLooper()).postDelayed(() -> {
-            Log.i(TAG, "Terminating old application process for restart");
+            RedactingDiagnostics.i(Event.REDACTED);
             Process.killProcess(Process.myPid());
         }, 750);
     }
 
     @Override
     protected void onDestroy() {
+        final boolean ownsLifecycle = INSTANCE.current() == this;
+        if (ownsLifecycle) {
+            runShutdownStep("Web input", () -> OffscreenWebView.setInputForeground(this, false));
+        }
+        PicoClientVisibility.detach(this);
         INSTANCE.clear(this);
         try {
-            runShutdownStep("WebViews", OffscreenWebView::destroyAll);
-            runShutdownStep("microphone", AndroidAudioInput::stop);
+            if (ownsLifecycle) {
+                runShutdownStep("WebViews", OffscreenWebView::destroyAll);
+                runShutdownStep("microphone", () -> AndroidAudioInput.setForeground(false));
+            }
             runShutdownStep("OpenXR Activity", this::releaseOpenXRActivity);
         } finally {
             super.onDestroy();
@@ -126,7 +144,7 @@ public final class PicoInterfaceActivity extends QtActivity {
         try {
             cleanup.run();
         } catch (RuntimeException | OutOfMemoryError exception) {
-            Log.e(TAG, "Failed to clean up " + name, exception);
+            RedactingDiagnostics.e(Event.REDACTED);
         }
     }
 
@@ -147,6 +165,49 @@ public final class PicoInterfaceActivity extends QtActivity {
         // Pico controller input is handled through OpenXR. Pico OS also sends
         // some controller buttons through Android, which can otherwise queue
         // indefinitely behind Qt's native event loop and trigger an input ANR.
+        InputDevice device = event.getDevice();
+        if (PicoKeyboardPolicy.forwardToQt(hasWindowFocus(),
+                device != null && device.isExternal(),
+                device != null && device.getKeyboardType() == InputDevice.KEYBOARD_TYPE_ALPHABETIC,
+                event.isFromSource(InputDevice.SOURCE_KEYBOARD),
+                event.isFromSource(InputDevice.SOURCE_GAMEPAD)
+                    || event.isFromSource(InputDevice.SOURCE_JOYSTICK))) {
+            return super.dispatchKeyEvent(event);
+        }
         return true;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        resumed = true;
+        runShutdownStep("Web input", () -> OffscreenWebView.setInputForeground(this, hasWindowFocus()));
+        if (INSTANCE.current() == this) PicoClientVisibility.foreground(this, true);
+        if (INSTANCE.current() == this) AndroidAudioInput.setForeground(hasWindowFocus());
+    }
+
+    @Override
+    public void onPause() {
+        resumed = false;
+        runShutdownStep("Web input", () -> OffscreenWebView.setInputForeground(this, false));
+        if (INSTANCE.current() == this) PicoClientVisibility.foreground(this, false);
+        if (INSTANCE.current() == this) AndroidAudioInput.setForeground(false);
+        super.onPause();
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean focused) {
+        super.onWindowFocusChanged(focused);
+        if (INSTANCE.current() == this) {
+            runShutdownStep("Web input", () -> OffscreenWebView.setInputForeground(this, resumed && focused));
+            AndroidAudioInput.setForeground(resumed && focused);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        // Re-read the OS decision; do not trust a stale grantResults payload.
+        if (INSTANCE.current() == this) AndroidAudioInput.permissionChanged();
     }
 }

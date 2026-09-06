@@ -56,21 +56,28 @@ def describe(target: str) -> dict:
 
 
 def xr_focus(target: str) -> dict:
+    boundary = ADB.prop(target, "sys.pxr.boundary.ready")
+    seethrough = ADB.prop(target, "sys.guardian.vst.status")
     return {"focused": ADB.foreground_package(target) == PACKAGE,
-            "boundaryReady": ADB.prop(target, "sys.pxr.boundary.ready") != "0",
-            "seethroughActive": ADB.prop(target, "sys.guardian.vst.status") == "1"}
+            "boundaryReady": boundary == "1",
+            "seethroughActive": seethrough != "0"}
 
 
 def world_status(target: str) -> dict:
     raw = ADB.shell(target, "run-as", PACKAGE, "cat", "cache/world-status", check=False).strip()
     fields = raw.split("|")
-    fresh = bool(fields and fields[0].isdigit() and abs(int(time.time()) - int(fields[0])) <= 5)
-    return {"available": len(fields) >= 4, "fresh": fresh,
-            "connected": len(fields) >= 2 and fields[1] == "1",
-            "place": fields[2] if len(fields) >= 3 else None}
+    valid = (len(raw) <= 4096 and len(fields) >= 4 and len(fields[0]) <= 12
+             and fields[0].isascii() and fields[0].isdigit() and fields[1] in {"0", "1"})
+    fresh = bool(valid and 0 <= int(time.time()) - int(fields[0]) <= 5)
+    return {"available": valid, "fresh": fresh,
+            "connected": fresh and fields[1] == "1",
+            "place": None}
 
 
 def invoke(target: str, operation: str) -> dict:
+    if operation not in CAPABILITIES:
+        raise RuntimeError("unsupported adapter operation")
+    require_pico(target)
     ADB.require_connected(target)
     if operation == "app.launch":
         ADB.shell(target, "am", "start", "-W", "-n", LAUNCHER)
@@ -92,6 +99,7 @@ def invoke(target: str, operation: str) -> dict:
 
 
 def cleanup(target: str) -> dict:
+    require_pico(target)
     ADB.require_connected(target)
     ADB.shell(target, "am", "force-stop", PACKAGE, check=False)
     return {"cleaned": True}
@@ -121,5 +129,5 @@ if __name__ == "__main__":
     try: raise SystemExit(main())
     except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired,
             json.JSONDecodeError) as error:
-        print(f"error: {error}", file=sys.stderr)
+        print("error: Pico adapter operation failed", file=sys.stderr)
         raise SystemExit(2)

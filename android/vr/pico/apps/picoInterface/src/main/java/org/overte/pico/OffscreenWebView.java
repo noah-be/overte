@@ -6,28 +6,44 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
+import org.overte.security.SafeDiagnostics.Event;
 import android.view.InputDevice;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputConnection;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
+import android.webkit.WebChromeClient;
+import android.webkit.PermissionRequest;
+import android.webkit.GeolocationPermissions;
+import android.webkit.RenderProcessGoneDetail;
+import android.webkit.SslErrorHandler;
+import android.net.http.SslError;
+import android.webkit.CookieManager;
 
 import java.nio.ByteBuffer;
+import java.io.ByteArrayInputStream;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** Renders Android WebViews into buffers consumed by PicoWebViewItem. */
 public final class OffscreenWebView {
     private static final String TAG = "OverteWebEntity";
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
-    private static final Map<Long, Instance> INSTANCES = new HashMap<>();
+    // Main-thread writes; input admission also reads from native/Qt threads.
+    private static final Map<Long, Instance> INSTANCES = new ConcurrentHashMap<>();
+    private static final PicoWebInputGate INPUT_GATE = new PicoWebInputGate();
     private static final int FRAME_INTERVAL_MS = 100;
     private static final int MAX_TEXTURE_EDGE = 2048;
     private static boolean wholeDocumentDrawEnabled;
+    private static Instance textFocus;
 
     private OffscreenWebView() { }
 
@@ -57,14 +73,39 @@ public final class OffscreenWebView {
             }
         });
         if (!posted) {
-            Log.e(TAG, "Cannot schedule offscreen WebView " + name);
+            RedactingDiagnostics.e(Event.REDACTED);
             nativeCreationFinished(nativeHandle, false);
         }
     }
 
+    static void setInputForeground(PicoInterfaceActivity owner, boolean active) {
+        if (PicoInterfaceActivity.getInstance() != owner) return;
+        INPUT_GATE.update(owner, active);
+        // No gate monitor is held across Android cleanup.
+        if (!active) cancelAllInput();
+    }
+
+    private static void postInputCommand(long handle, String name, InstanceCommand command) {
+        final PicoWebInputGate.Ticket ticket = INPUT_GATE.capture();
+        if (ticket == null) return;
+        final Instance expected = INSTANCES.get(handle);
+        if (expected == null) return;
+        // A native handle can be reused within the same Activity generation.
+        // Queued input belongs only to the instance present at admission; avoid
+        // retaining a destroyed View/Activity merely because a callback is queued.
+        final WeakReference<Instance> target = new WeakReference<>(expected);
+        postCommand(handle, name, instance -> {
+            if (instance != target.get()) return;
+            PicoInterfaceActivity owner = PicoInterfaceActivity.getInstance();
+            if (!INPUT_GATE.permits(ticket, owner) || !instance.active
+                    || !owner.hasWindowFocus() || instance.view.getContext() != owner) return;
+            command.run(instance);
+        });
+    }
+
     private static void failCurrentInstance(
             long nativeHandle, Instance instance, String operation, Throwable failure) {
-        Log.e(TAG, "Offscreen WebView " + operation + " failed", failure);
+        RedactingDiagnostics.e(Event.REDACTED);
         if (!instance.active || INSTANCES.get(nativeHandle) != instance) {
             return;
         }
@@ -75,13 +116,18 @@ public final class OffscreenWebView {
     @SuppressLint("SetJavaScriptEnabled")
     public static void create(long nativeHandle, int width, int height, String url,
                               String userAgent, boolean useBackground) {
+        final String safeUrl = PicoWebUrlPolicy.navigation(url);
+        if (safeUrl == null) {
+            nativeCreationFinished(nativeHandle, false);
+            return;
+        }
         boolean posted = MAIN.post(() -> {
             WebView view = null;
             try {
                 destroyOnMain(nativeHandle);
                 PicoInterfaceActivity activity = PicoInterfaceActivity.getInstance();
                 if (activity == null) {
-                    Log.e(TAG, "Cannot create offscreen WebView: Activity is unavailable");
+                    RedactingDiagnostics.e(Event.REDACTED);
                     nativeCreationFinished(nativeHandle, false);
                     return;
                 }
@@ -100,18 +146,57 @@ public final class OffscreenWebView {
                 view.setBackgroundColor(useBackground ? Color.WHITE : Color.TRANSPARENT);
                 view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
                 view.setWebViewClient(new WebViewClient() {
+                    @Override public boolean shouldOverrideUrlLoading(WebView source, WebResourceRequest request) {
+                        return PicoWebUrlPolicy.navigation(request.getUrl().toString()) == null;
+                    }
+                    @Override public boolean shouldOverrideUrlLoading(WebView source, String target) {
+                        return PicoWebUrlPolicy.navigation(target) == null;
+                    }
+                    @Override public WebResourceResponse shouldInterceptRequest(WebView source, WebResourceRequest request) {
+                        return PicoWebUrlPolicy.resource(request.getUrl().toString()) ? null
+                            : new WebResourceResponse("text/plain", "UTF-8", 403, "Forbidden",
+                                java.util.Collections.emptyMap(), new ByteArrayInputStream(new byte[0]));
+                    }
+                    @Override public void onReceivedSslError(WebView source, SslErrorHandler handler, SslError error) {
+                        handler.cancel();
+                    }
+                    @Override public boolean onRenderProcessGone(WebView source, RenderProcessGoneDetail detail) {
+                        Instance current = INSTANCES.get(nativeHandle);
+                        if (current != null && current.view == source) {
+                            destroyOnMain(nativeHandle);
+                            nativeCreationFinished(nativeHandle, false);
+                        }
+                        return true;
+                    }
                     @Override public void onPageFinished(WebView finishedView, String finishedUrl) {
                         finishedView.scrollTo(0, 0);
-                        Log.i(TAG, "Finished WebView page (URL length "
-                            + (finishedUrl == null ? 0 : finishedUrl.length()) + ")");
+                        RedactingDiagnostics.i(Event.REDACTED);
+                    }
+                });
+                view.setWebChromeClient(new WebChromeClient() {
+                    @Override public void onPermissionRequest(PermissionRequest request) {
+                        request.deny();
+                    }
+                    @Override public void onGeolocationPermissionsShowPrompt(
+                            String origin, GeolocationPermissions.Callback callback) {
+                        callback.invoke(origin, false, false);
                     }
                 });
                 WebSettings settings = view.getSettings();
                 settings.setJavaScriptEnabled(true);
                 settings.setDomStorageEnabled(true);
                 settings.setUseWideViewPort(true);
-                settings.setAllowFileAccess(true);
-                settings.setAllowContentAccess(true);
+                settings.setAllowFileAccess(false);
+                settings.setAllowContentAccess(false);
+                settings.setAllowFileAccessFromFileURLs(false);
+                settings.setAllowUniversalAccessFromFileURLs(false);
+                settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+                settings.setJavaScriptCanOpenWindowsAutomatically(false);
+                settings.setSupportMultipleWindows(false);
+                settings.setGeolocationEnabled(false);
+                settings.setMediaPlaybackRequiresUserGesture(true);
+                settings.setSafeBrowsingEnabled(true);
+                CookieManager.getInstance().setAcceptThirdPartyCookies(view, false);
                 if (userAgent != null && !userAgent.isEmpty()) {
                     settings.setUserAgentString(userAgent);
                 }
@@ -119,36 +204,36 @@ public final class OffscreenWebView {
                 Instance instance = new Instance(nativeHandle, view, displayDensity);
                 if (!instance.resize(width, height)) {
                     view.destroy();
-                    Log.e(TAG, "Cannot allocate offscreen WebView frame buffer");
+                    RedactingDiagnostics.e(Event.REDACTED);
                     nativeCreationFinished(nativeHandle, false);
                     return;
                 }
                 INSTANCES.put(nativeHandle, instance);
-                view.loadUrl(url == null || url.isEmpty() ? "about:blank" : url);
-                Log.i(TAG, "Created offscreen WebView " + width + "x" + height);
+                view.loadUrl(safeUrl);
+                RedactingDiagnostics.i(Event.REDACTED);
                 if (!MAIN.post(instance.renderFrame)) {
-                    Log.e(TAG, "Cannot schedule first offscreen WebView frame");
+                    RedactingDiagnostics.e(Event.REDACTED);
                     destroyOnMain(nativeHandle);
                     nativeCreationFinished(nativeHandle, false);
                     return;
                 }
                 nativeCreationFinished(nativeHandle, true);
             } catch (RuntimeException | OutOfMemoryError exception) {
-                Log.e(TAG, "Cannot configure offscreen WebView", exception);
+                RedactingDiagnostics.e(Event.REDACTED);
                 try {
                     if (INSTANCES.containsKey(nativeHandle)) {
                         destroyOnMain(nativeHandle);
                     } else if (view != null) {
                         view.destroy();
                     }
-                } catch (RuntimeException cleanupException) {
-                    Log.e(TAG, "Cannot clean up failed offscreen WebView", cleanupException);
+                } catch (RuntimeException | OutOfMemoryError cleanupException) {
+                    RedactingDiagnostics.e(Event.REDACTED);
                 }
                 nativeCreationFinished(nativeHandle, false);
             }
         });
         if (!posted) {
-            Log.e(TAG, "Cannot schedule offscreen WebView creation");
+            RedactingDiagnostics.e(Event.REDACTED);
             nativeCreationFinished(nativeHandle, false);
         }
     }
@@ -170,33 +255,51 @@ public final class OffscreenWebView {
         }
     }
 
+    /** Android window focus loss must release DOM gestures even without Qt mouse-ungrab. */
+    public static void cancelAllInput() {
+        Runnable cancel = () -> {
+            for (Instance instance : new ArrayList<>(INSTANCES.values())) {
+                runCleanupStep("cancel unfocused input", instance::cancelActiveTouch);
+                runCleanupStep("release editor focus", () -> releaseTextFocus(instance));
+                instance.pendingScroll = 0.0f;
+                runCleanupStep("clear view focus", instance.view::clearFocus);
+            }
+        };
+        if (Looper.myLooper() == Looper.getMainLooper()) cancel.run();
+        else MAIN.post(cancel);
+    }
+
     private static void destroyOnMain(long nativeHandle) {
         Instance old = INSTANCES.remove(nativeHandle);
         if (old != null) {
             old.active = false;
-            MAIN.removeCallbacks(old.renderFrame);
+            runCleanupStep("release editor focus", () -> releaseTextFocus(old));
+            runCleanupStep("remove frame callback", () -> MAIN.removeCallbacks(old.renderFrame));
             runCleanupStep("cancel touch", old::cancelActiveTouch);
             runCleanupStep("dispose frame buffer", old::disposeGraphics);
             runCleanupStep("stop loading", old.view::stopLoading);
             runCleanupStep("clear page", () -> old.view.loadUrl("about:blank"));
             runCleanupStep("destroy view", old.view::destroy);
-            Log.i(TAG, "Destroyed offscreen WebView");
+            RedactingDiagnostics.i(Event.REDACTED);
         }
     }
 
     private static void runCleanupStep(String step, Runnable cleanup) {
         try {
             cleanup.run();
-        } catch (RuntimeException exception) {
-            Log.w(TAG, "Offscreen WebView cleanup failed during " + step, exception);
+        } catch (RuntimeException | OutOfMemoryError exception) {
+            RedactingDiagnostics.w(Event.REDACTED);
         }
     }
 
     public static void load(long nativeHandle, String url) {
+        final String safeUrl = PicoWebUrlPolicy.navigation(url);
         postCommand(nativeHandle, "navigation", instance -> {
+            releaseTextFocus(instance);
             instance.cancelActiveTouch();
             instance.pendingScroll = 0.0f;
-            instance.view.loadUrl(url == null || url.isEmpty() ? "about:blank" : url);
+            // Invalid replacement content must not leave the previous page interactive.
+            instance.view.loadUrl(safeUrl == null ? "about:blank" : safeUrl);
         });
     }
 
@@ -218,19 +321,61 @@ public final class OffscreenWebView {
     public static void resize(long nativeHandle, int width, int height) {
         postCommand(nativeHandle, "resize", instance -> {
             if (!instance.resize(width, height)) {
-                Log.e(TAG, "Cannot resize offscreen WebView frame buffer");
+                RedactingDiagnostics.e(Event.REDACTED);
             }
         });
     }
 
     public static void pointer(long nativeHandle, int action, float x, float y) {
-        postCommand(nativeHandle, "pointer dispatch", instance -> {
+        postInputCommand(nativeHandle, "pointer dispatch", instance -> {
             instance.dispatchPointer(action, x, y);
         });
     }
 
+    private static void releaseTextFocus(Instance instance) {
+        if (textFocus != instance) return;
+        textFocus = null;
+        InputConnection input = instance.view.onCreateInputConnection(new EditorInfo());
+        if (input != null) {
+            input.finishComposingText();
+        }
+        instance.view.clearFocus();
+    }
+
+    public static void focus(long nativeHandle, boolean focused) {
+        postInputCommand(nativeHandle, "editor focus", instance -> {
+            if (!focused) { releaseTextFocus(instance); return; }
+            if (textFocus != null && textFocus != instance) releaseTextFocus(textFocus);
+            if (instance.view.requestFocus()) textFocus = instance;
+        });
+    }
+
+    private static InputConnection focusedEditor(Instance instance) {
+        PicoInterfaceActivity activity = PicoInterfaceActivity.getInstance();
+        if (textFocus != instance || !instance.active || !instance.view.hasFocus()
+                || activity == null || !activity.hasWindowFocus()) return null;
+        return instance.view.onCreateInputConnection(new EditorInfo());
+    }
+
+    public static void editText(long nativeHandle, String text, boolean composing) {
+        if (!PicoTextInput.valid(text)) return;
+        postInputCommand(nativeHandle, "editor text", instance -> {
+            if (!PicoTextInput.text(focusedEditor(instance), text, composing)) {
+                RedactingDiagnostics.w(Event.CALLBACK_DISCARDED);
+            }
+        });
+    }
+
+    public static void editKey(long nativeHandle, int key) {
+        postInputCommand(nativeHandle, "editor key", instance -> {
+            if (!PicoTextInput.key(focusedEditor(instance), key)) {
+                RedactingDiagnostics.w(Event.CALLBACK_DISCARDED);
+            }
+        });
+    }
+
     public static void scroll(long nativeHandle, float x, float y, float delta) {
-        postCommand(nativeHandle, "scroll dispatch", instance -> {
+        postInputCommand(nativeHandle, "scroll dispatch", instance -> {
             // Pico's analogue thumbstick supplies small wheel fractions every input
             // frame. Android WebView ignores those fractions individually, while
             // forwarding a full wheel unit every frame scrolls far too quickly.
@@ -304,22 +449,21 @@ public final class OffscreenWebView {
                     nativeFrame(nativeHandle, pixels, bitmap.getWidth(), bitmap.getHeight());
                     if (!reportedFirstFrame) {
                         reportedFirstFrame = true;
-                        Log.i(TAG, "Delivered first WebView frame "
-                            + bitmap.getWidth() + "x" + bitmap.getHeight());
+                        RedactingDiagnostics.i(Event.REDACTED);
                     }
                 } catch (RuntimeException | OutOfMemoryError exception) {
-                    Log.e(TAG, "Offscreen WebView frame rendering failed", exception);
+                    RedactingDiagnostics.e(Event.REDACTED);
                     try {
                         destroyOnMain(nativeHandle);
-                    } catch (RuntimeException cleanupException) {
-                        Log.e(TAG, "Cannot clean up failed WebView renderer", cleanupException);
+                    } catch (RuntimeException | OutOfMemoryError cleanupException) {
+                        RedactingDiagnostics.e(Event.REDACTED);
                     }
                     nativeCreationFinished(nativeHandle, false);
                     return;
                 }
                 if (active && INSTANCES.get(nativeHandle) == Instance.this) {
                     if (!MAIN.postDelayed(this, FRAME_INTERVAL_MS)) {
-                        Log.e(TAG, "Cannot schedule next offscreen WebView frame");
+                        RedactingDiagnostics.e(Event.REDACTED);
                         destroyOnMain(nativeHandle);
                         nativeCreationFinished(nativeHandle, false);
                     }
@@ -404,8 +548,7 @@ public final class OffscreenWebView {
                 if (newBitmap != null && !newBitmap.isRecycled()) {
                     newBitmap.recycle();
                 }
-                Log.e(TAG, "Could not allocate WebView frame buffer "
-                    + width + "x" + height, exception);
+                RedactingDiagnostics.e(Event.REDACTED);
                 return false;
             }
             Bitmap oldBitmap = bitmap;

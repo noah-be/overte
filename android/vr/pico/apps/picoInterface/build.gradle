@@ -203,6 +203,8 @@ android {
 
     sourceSets {
         main {
+            // PX-16 v001: compile the published Shared source, never a platform fork.
+            java.srcDir '../../../../../security/redaction/java'
             java.srcDir '../../../../common/libraries/qt/src/main/java'
             jniLibs.srcDirs '../../../../common/libraries/qt/libs', 'src/main/jniLibs',
                 picoQtRuntimeDir

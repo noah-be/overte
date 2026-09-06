@@ -14,6 +14,7 @@
 //
 
 #include "Application.h"
+#include "ApplicationLifecycle.h"
 
 #include <functional>
 
@@ -25,6 +26,7 @@
 #include <QtQuick/QQuickWindow>
 
 #include <AccountManager.h>
+#include "../security/PicoAccountStore.h"
 #include <AddressManager.h>
 #include <AnimationCacheScriptingInterface.h>
 #include <AvatarBookmarks.h>
@@ -359,6 +361,9 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     DependencyManager::set<VirtualPad::Manager>();
     DependencyManager::set<DesktopPreviewProvider>();
 #if defined(Q_OS_ANDROID)
+    if (!AccountManager::installProtectedAccountStore(overte::pico::protectedAccountStore())) {
+        qWarning("OVT_STORAGE_UNAVAILABLE");
+    }
     DependencyManager::set<AccountManager>(true); // use the default user agent getter
 #else
     DependencyManager::set<AccountManager>(true, std::bind(&Application::getUserAgent, qApp));
@@ -371,6 +376,7 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     DependencyManager::set<recording::Recorder>();
     DependencyManager::set<AddressManager>();
     DependencyManager::set<NodeList>(NodeType::Agent, listenPort);
+    overte::lifecycle::observeQtVisibility(QGuiApplication::applicationState() == Qt::ApplicationActive);
     DependencyManager::set<recording::ClipCache>();
     DependencyManager::set<GeometryCache>();
     DependencyManager::set<ModelFormatRegistry>(); // ModelFormatRegistry must be defined before ModelCache. See the ModelCache constructor.
@@ -1490,6 +1496,7 @@ void Application::setupSignalsAndOperators() {
     {
         connect(this, SIGNAL(aboutToQuit()), this, SLOT(onAboutToQuit()));
         connect(this, &Application::applicationStateChanged, this, &Application::activeChanged);
+        activeChanged(applicationState());
         connect(_window, SIGNAL(windowMinimizedChanged(bool)), this, SLOT(windowMinimizedChanged(bool)));
 
         auto discoverabilityManager = DependencyManager::get<DiscoverabilityManager>();

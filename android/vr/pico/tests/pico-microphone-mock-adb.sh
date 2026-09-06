@@ -56,16 +56,20 @@ if [[ "${1:-}" == logcat ]]; then
         exit 0
     fi
     if [[ " $* " == *' -t 250 '* && " $* " != *' OverteMicTest '* ]]; then
-        printf 'I/Interface: PICO_MIC_INPUT device "%s" rate 48000 channels 1 sampleBits 16\n' \
-            "$source_name"
-        printf 'I/Interface: PICO_MIC_CAPTURE_COMPLETE mock-cache/pico-mic-input.wav\n'
+        printf 'I/Interface: PICO_MIC_INPUT device OVT_REDACTED rate 48000 channels 1 sampleBits 16\n'
+        printf 'I/Interface: PICO_MIC_CAPTURE_COMPLETE OVT_REDACTED\n'
         exit 0
     fi
     start_marker="PICO_MIC_MEASUREMENT_START_${source_name}"
     end_marker="PICO_MIC_MEASUREMENT_END_${source_name}"
     printf 'I/OverteMicTest: %s\n' "$start_marker"
-    printf 'I/Interface: PICO_MIC_LEVEL device "%s" frames 48000 mean 2 peak 5\n' "$source_name"
-    printf 'I/Interface: PICO_MIC_GATE device "%s" blocks 100 openBlocks 30\n' "$source_name"
+    if [[ "${MOCK_RAW_LEVEL:-0}" == 1 ]]; then
+        # Deliberately obsolete negative fixture, never positive evidence.
+        printf 'I/Interface: PICO_MIC_LEVEL device "raw-negative-canary" frames 48000 mean 2 peak 5\n'
+    else
+        printf 'I/Interface: PICO_MIC_LEVEL device OVT_REDACTED frames 48000 mean 2 peak 5\n'
+    fi
+    printf 'I/Interface: PICO_MIC_GATE device OVT_REDACTED blocks 100 openBlocks 30\n'
     printf 'I/Interface: PICO_MIC_TRANSPORT capturedFrames 48000 processedFrames 48000 droppedFrames 0 backlogFrames 0 peakBacklogFrames 960 drains 100\n'
     printf 'I/OverteMicTest: %s\n' "$end_marker"
     exit 0
