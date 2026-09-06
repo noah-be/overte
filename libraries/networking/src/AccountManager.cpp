@@ -11,6 +11,7 @@
 //
 
 #include "AccountManager.h"
+#include "OAuthTokenValidation.h"
 
 #include <memory>
 
@@ -884,14 +885,7 @@ bool AccountManager::setAccessTokens(const QString& response) {
     if (!rootObject.contains("error")) {
         // construct an OAuthAccessToken from the json object
 
-        const auto accessToken = rootObject.value("access_token");
-        const auto tokenType = rootObject.value("token_type");
-        const auto expiresIn = rootObject.value("expires_in");
-        const auto refreshToken = rootObject.value("refresh_token");
-        if (!accessToken.isString() || accessToken.toString().isEmpty() ||
-                !tokenType.isString() || tokenType.toString().isEmpty() ||
-                !expiresIn.isDouble() || expiresIn.toInt(-1) <= 0 ||
-                (!refreshToken.isUndefined() && !refreshToken.isString())) {
+        if (!overte::network::validOAuthTokenResponse(rootObject)) {
             qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             emit loginFailed();
@@ -966,14 +960,7 @@ void AccountManager::requestAccessTokenFinished() {
         // QJsonValue::toInt rejects fractions and values outside signed 32-bit
         // seconds. This also bounds the downstream seconds-to-milliseconds
         // conversion; presence alone must not turn an invalid token into login.
-        const auto accessToken = rootObject.value("access_token");
-        const auto tokenType = rootObject.value("token_type");
-        const auto expiresIn = rootObject.value("expires_in");
-        const auto refreshToken = rootObject.value("refresh_token");
-        if (!accessToken.isString() || accessToken.toString().isEmpty() ||
-                !tokenType.isString() || tokenType.toString().isEmpty() ||
-                !expiresIn.isDouble() || expiresIn.toInt(-1) <= 0 ||
-                (!refreshToken.isUndefined() && !refreshToken.isString())) {
+        if (!overte::network::validOAuthTokenResponse(rootObject)) {
             qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             emit loginFailed();
@@ -1049,14 +1036,7 @@ void AccountManager::refreshAccessTokenFinished() {
     if (!rootObject.contains("error")) {
         // construct an OAuthAccessToken from the json object
 
-        const auto accessToken = rootObject.value("access_token");
-        const auto tokenType = rootObject.value("token_type");
-        const auto expiresIn = rootObject.value("expires_in");
-        const auto refreshToken = rootObject.value("refresh_token");
-        if (!accessToken.isString() || accessToken.toString().isEmpty() ||
-                !tokenType.isString() || tokenType.toString().isEmpty() ||
-                !expiresIn.isDouble() || expiresIn.toInt(-1) <= 0 ||
-                (!refreshToken.isUndefined() && !refreshToken.isString())) {
+        if (!overte::network::validOAuthTokenResponse(rootObject)) {
             qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         } else {
             // clear the path from the response URL so we have the right root URL for this access token

@@ -6,6 +6,7 @@
 #include <QtNetwork/QNetworkReply>
 #include "security/redaction/SafeDiagnostics.h"
 #include "libraries/networking/src/RequestCancellation.h"
+#include "libraries/networking/src/OAuthTokenValidation.h"
 #include <cassert>
 #include <cstring>
 
@@ -92,6 +93,7 @@ int main(int argc, char** argv) {
             ++success; assert(root.path() == "/api");
         });
         QObject::connect(&manager, &AccountManager::loginFailed, [&] { ++failure; });
+        const auto expectedToken = QJsonDocument::fromJson(payload).object().value("access_token");
         QPointer<Reply> reply = new Reply(std::move(payload), status, error);
         reply->setProperty("_overte_account_auth_timed_out", timedOut);
         QObject::connect(reply.data(), &QNetworkReply::finished, &manager,
@@ -100,7 +102,7 @@ int main(int argc, char** argv) {
         assert(success == int(accepted && !refreshing) && failure == int(!accepted && !refreshing));
         assert(manager.persisted == int(accepted) && manager.profiles == int(accepted && !refreshing));
         if (refreshing) assert(!manager._isWaitingForTokenRefresh);
-        if (accepted) assert(manager._accountInfo.tokens.value("access_token") == "token-canary");
+        if (accepted) assert(manager._accountInfo.tokens.value("access_token") == expectedToken);
         else assert(manager._accountInfo.tokens.value("prior").toBool());
         reply->finish();
         assert(success == int(accepted && !refreshing) && failure == int(!accepted && !refreshing));
@@ -120,6 +122,22 @@ int main(int argc, char** argv) {
     check(good, 200, false, true);
     check(good, 200, false, false, true); // Abort with NoError cannot revive a timeout.
     const auto goodObject = QJsonDocument::fromJson(good).object();
+    for (const QString& invalid : {QString(" "), QString("a\r\nInjected: value"), QString("a b"),
+                                  QString("a=b"), QString("="), QString("a:b"), QString::fromUtf8("t\xc3\xa9")}) {
+        auto object = goodObject; object.insert("access_token", invalid);
+        check(QJsonDocument(object).toJson(), 200, false, false);
+    }
+    for (const QString& invalid : {QString("Basic"), QString(" Bearer"), QString("Bearer\n")}) {
+        auto object = goodObject; object.insert("token_type", invalid);
+        check(QJsonDocument(object).toJson(), 200, false, false);
+    }
+    {
+        auto object = goodObject; object.insert("access_token", "azAZ09-._~+/==");
+        object.insert("token_type", "bEaReR");
+        check(QJsonDocument(object).toJson(), 200, false, true);
+        object.insert("refresh_token", "refresh\ncanary");
+        check(QJsonDocument(object).toJson(), 200, false, false);
+    }
     for (const auto& key : {QString("access_token"), QString("token_type")}) {
         for (const QJsonValue& invalid : {QJsonValue(), QJsonValue(false), QJsonValue(12),
                                        QJsonValue(QJsonObject()), QJsonValue("")}) {
