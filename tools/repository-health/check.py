@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -16,6 +17,7 @@ import json
 import os
 import re
 import sys
+from zoneinfo import ZoneInfo
 
 try:
     import yaml
@@ -175,6 +177,114 @@ class Doctor:
     def local(self) -> dict[str, Any]:
         self._guard("repository_contracts", self.check_contracts)
         return self.report("local")
+
+    def propagation_state(self, now: datetime) -> dict[str, Any]:
+        """Read-only admission, not a successful repository-health result."""
+        policy = self.policy()
+        repository = self.config['repository']
+        prefix = f"repos/{repository}"
+
+        def age(value: Any) -> float:
+            if not isinstance(value, str):
+                raise AuditError("propagation timestamp missing")
+            moment = datetime.fromisoformat(value.replace('Z', '+00:00'))
+            if moment.tzinfo is None:
+                raise AuditError("propagation timestamp has no timezone")
+            elapsed = (now - moment).total_seconds()
+            if elapsed < -300:
+                raise AuditError("propagation timestamp is in the future")
+            return max(0, elapsed)
+
+        heads = {}
+        recent = False
+        for name in policy:
+            ref = self.api.get(f"{prefix}/git/ref/heads/{quote(name, safe='')}")
+            sha = ref['object']['sha']
+            if not isinstance(sha, str) or not re.fullmatch('[0-9a-f]{40}', sha):
+                raise AuditError("invalid permanent head during admission")
+            heads[name] = sha
+            commit = self.api.get(f"{prefix}/commits/{sha}")
+            if commit['sha'] != sha:
+                raise AuditError("commit identity changed during admission")
+            recent |= age(commit['commit']['committer']['date']) < 1800
+
+        reasons = []
+        for pr in self.api.pages(f"{prefix}/pulls?state=open"):
+            base, head = pr['base'], pr['head']
+            target = policy.get(base['ref'])
+            if (target is None or target.parent is None or
+                    base['repo']['full_name'] != repository or
+                    not head.get('repo') or head['repo']['full_name'] != repository):
+                continue
+            reconciliation = re.fullmatch(
+                rf"reconcile/{re.escape(target.scope)}/[a-z0-9]+(?:-[a-z0-9]+)*", head['ref'])
+            if head['ref'] == target.parent or reconciliation:
+                if age(pr['created_at']) > 7200:
+                    raise AuditError("propagation PR exceeds two-hour admission lease; inspect it")
+                reasons.append('OPEN_PROPAGATION_PR')
+
+        for status in ('queued', 'in_progress', 'waiting', 'pending', 'requested'):
+            document = self.api.get(
+                f"{prefix}/actions/workflows/parent-qualification.yml/runs?status={status}&per_page=100")
+            if not isinstance(document, dict):
+                raise AuditError("qualification activity response is not an object")
+            runs, count = document.get('workflow_runs'), document.get('total_count')
+            if (not isinstance(runs, list) or type(count) is not int or
+                    count != len(runs) or count > 100):
+                raise AuditError("qualification activity response incomplete")
+            for run in runs:
+                if run['status'] != status:
+                    raise AuditError("qualification activity status mismatch")
+                branch = policy.get(run['head_branch'])
+                if branch is not None and branch.children:
+                    if age(run['created_at']) > 7200:
+                        raise AuditError("qualification exceeds two-hour admission lease; inspect it")
+                    reasons.append('PARENT_QUALIFICATION_ACTIVE')
+
+        synchronized = True
+        for branch in policy.values():
+            if branch.parent:
+                comparison = self.api.get(
+                    f"{prefix}/compare/{heads[branch.parent]}...{heads[branch.name]}")
+                behind, status = comparison.get('behind_by'), comparison.get('status')
+                if type(behind) is not int or behind < 0 or status not in ('ahead', 'behind', 'diverged', 'identical'):
+                    raise AuditError("invalid hierarchy response during admission")
+                synchronized &= behind == 0 and status in ('ahead', 'identical')
+        # Bridges the gap between a parent merge and the next PR/qualification.
+        # An abandoned drift is NOT hidden indefinitely: after30min it is audited.
+        if recent and not synchronized:
+            reasons.append('RECENT_UNFINISHED_PROPAGATION')
+        return {'status': 'DEFERRED_PROPAGATION' if reasons else 'READY',
+                'heads': heads, 'reasons': sorted(set(reasons)),
+                'hierarchy_synchronized': synchronized}
+
+    def live_when_idle(self, event: str, clock: Any = None) -> dict[str, Any]:
+        clock = clock or (lambda: datetime.now(timezone.utc))
+        now = clock()
+
+        def deferred(reason: str, admission: dict[str, Any]) -> dict[str, Any]:
+            return {'schema': 1, 'mode': 'live', 'repository': self.config['repository'],
+                    'status': reason, 'exit_code': 0, 'audit_executed': False,
+                    'admission': admission,
+                    'results': {area: {'status': 'NOT_RUN', 'findings': [], 'data': {}} for area in AREAS}}
+
+        if event == 'schedule' and not 0 <= now.astimezone(ZoneInfo('Europe/Berlin')).hour < 6:
+            return deferred('DEFERRED_OUTSIDE_NIGHT_WINDOW', {'timezone': 'Europe/Berlin'})
+        before = self.propagation_state(now)
+        if before['status'] != 'READY':
+            return deferred(before['status'], before)
+        report = self.live()
+        after = self.propagation_state(clock())
+        report.update(audit_executed=True, admission={'before': before, 'after': after})
+        if after['status'] != 'READY' or before['heads'] != after['heads']:
+            # Withdraw unstable branch proof, but never suppress independent
+            # security/permission/contract failures found by the real audit.
+            report['admission']['accepted'] = False
+            if all(not result['findings'] for area, result in report['results'].items() if area != 'branches'):
+                report.update(status='DEFERRED_REPOSITORY_CHANGED', exit_code=0)
+        else:
+            report['admission']['accepted'] = True
+        return report
 
     def report(self, mode: str) -> dict[str, Any]:
         results = {}
@@ -574,12 +684,17 @@ def main() -> int:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--report", type=Path, default=DEFAULT_REPORT)
     parser.add_argument("--local", action="store_true", help="validate versioned contracts only")
+    parser.add_argument("--when-idle", action="store_true", help="explicit alias for default live propagation admission")
+    parser.add_argument("--event", choices=('schedule', 'workflow_dispatch'), default='workflow_dispatch')
     args = parser.parse_args()
     try:
         config = load_config(args.config)
         doctor = Doctor(ROOT, config, None if args.local else GitHubApi(os.environ.get("GITHUB_TOKEN", "")))
-        report = doctor.local() if args.local else doctor.live()
-    except AuditError as error:
+        if args.local and args.when_idle:
+            raise AuditError("local tests cannot claim live quiescence")
+        # Legacy direct CLI invocations must not bypass the new live admission.
+        report = doctor.local() if args.local else doctor.live_when_idle(args.event)
+    except (AuditError, KeyError, TypeError, ValueError) as error:
         report = {"schema": 1, "mode": "local" if args.local else "live", "repository": "UNKNOWN", "status": "FAIL", "exit_code": 2, "results": {area: {"status": "FAIL" if area == "repository_contracts" else "PASS", "findings": [{"code": "STARTUP_ERROR", "message": redact(str(error))}] if area == "repository_contracts" else [], "data": {}} for area in AREAS}}
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
