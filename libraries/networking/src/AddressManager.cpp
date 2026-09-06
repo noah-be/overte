@@ -19,6 +19,7 @@
 #include <QDebug>
 #include <QJsonDocument>
 #include <QPointer>
+#include <cmath>
 #include <QRegExp>
 #include <QStringList>
 #include <QThread>
@@ -798,9 +799,13 @@ bool AddressManager::handleDomainID(const QString& host) {
 }
 
 void AddressManager::handlePath(const QString& path, LookupTrigger trigger, bool wasPathOnly) {
+    const auto lookup = _lookupRequests.snapshot();
+    if (!lookup.current()) { return; }
     if (!handleViewpoint(path, false, trigger, wasPathOnly)) {
+        if (!lookup.current()) { return; }
         qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
+        if (!lookup.current()) { return; }
         if (!wasPathOnly) {
             // if we received a path with a host then we need to remember what it was here so we can not
             // double set add to the history stack once handle viewpoint is called with the result
@@ -816,6 +821,8 @@ void AddressManager::handlePath(const QString& path, LookupTrigger trigger, bool
 
 bool AddressManager::handleViewpoint(const QString& viewpointString, bool shouldFace, LookupTrigger trigger,
                                      bool definitelyPathOnly, const QString& pathString) {
+    const auto lookup = _lookupRequests.snapshot();
+    if (!lookup.current()) { return true; }
     const QString FLOAT_REGEX_STRING = "([-+]?[0-9]*\\.?[0-9]+(?:[eE][-+]?[0-9]+)?)";
     const QString SPACED_COMMA_REGEX_STRING = "\\s*,\\s*";
     const QString POSITION_REGEX_STRING = QString("\\/") + FLOAT_REGEX_STRING + SPACED_COMMA_REGEX_STRING +
@@ -828,9 +835,15 @@ bool AddressManager::handleViewpoint(const QString& viewpointString, bool should
 
     if (positionRegex.indexIn(viewpointString) != -1) {
         // we have at least a position, so emit our signal to say we need to change position
-        glm::vec3 newPosition(positionRegex.cap(1).toFloat(),
-                              positionRegex.cap(2).toFloat(),
-                              positionRegex.cap(3).toFloat());
+        bool positionOK[3] { false, false, false };
+        glm::vec3 newPosition(positionRegex.cap(1).toFloat(&positionOK[0]),
+                              positionRegex.cap(2).toFloat(&positionOK[1]),
+                              positionRegex.cap(3).toFloat(&positionOK[2]));
+        if (!positionOK[0] || !positionOK[1] || !positionOK[2] ||
+            !std::isfinite(newPosition.x) || !std::isfinite(newPosition.y) || !std::isfinite(newPosition.z)) {
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::UrlRejected);
+            return true; // Recognized invalid coordinates must not become a named-path request.
+        }
 
         // We need to use definitelyPathOnly, pathString and _newHostLookupPath to determine if the current address
         // should be stored in the history before we ask for a position/orientation change. A relative path that was
@@ -846,8 +859,9 @@ bool AddressManager::handleViewpoint(const QString& viewpointString, bool should
             addCurrentAddressToHistory(trigger);
         }
 
-        if (!isNaN(newPosition)) {
-            glm::quat newOrientation;
+        if (!lookup.current()) { return true; }
+        {
+            glm::quat newOrientation(1.0f, 0.0f, 0.0f, 0.0f);
 
             QRegExp orientationRegex(QUAT_REGEX_STRING);
 
@@ -857,26 +871,29 @@ bool AddressManager::handleViewpoint(const QString& viewpointString, bool should
             if (viewpointString[positionRegex.matchedLength() - 1] == QChar('/')
                 && orientationRegex.indexIn(viewpointString, positionRegex.matchedLength() - 1) != -1) {
 
-                newOrientation = glm::normalize(glm::quat(orientationRegex.cap(4).toFloat(),
-                                                          orientationRegex.cap(1).toFloat(),
-                                                          orientationRegex.cap(2).toFloat(),
-                                                          orientationRegex.cap(3).toFloat()));
-
-                if (!isNaN(newOrientation.x) && !isNaN(newOrientation.y) && !isNaN(newOrientation.z)
-                    && !isNaN(newOrientation.w)) {
+                bool orientationOK[4] { false, false, false, false };
+                const float x = orientationRegex.cap(1).toFloat(&orientationOK[0]);
+                const float y = orientationRegex.cap(2).toFloat(&orientationOK[1]);
+                const float z = orientationRegex.cap(3).toFloat(&orientationOK[2]);
+                const float w = orientationRegex.cap(4).toFloat(&orientationOK[3]);
+                // Float products can overflow or underflow for otherwise valid
+                // components. Double intermediates keep their full finite range.
+                const double length = std::sqrt(double(x) * x + double(y) * y + double(z) * z + double(w) * w);
+                if (orientationOK[0] && orientationOK[1] && orientationOK[2] && orientationOK[3] &&
+                    std::isfinite(length) && length > 0.0) {
+                    newOrientation = glm::quat(float(w / length), float(x / length), float(y / length), float(z / length));
                     orientationChanged = true;
                 } else {
                     qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::UrlRejected);
                 }
             }
 
+            if (!lookup.current()) { return true; }
             emit locationChangeRequired(newPosition, orientationChanged,
-                trigger == LookupTrigger::VisitUserFromPAL ? cancelOutRollAndPitch(newOrientation): newOrientation,
+                orientationChanged && trigger == LookupTrigger::VisitUserFromPAL ? cancelOutRollAndPitch(newOrientation): newOrientation,
                 shouldFace
             );
 
-        } else {
-            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::UrlRejected);
         }
 
         return true;
