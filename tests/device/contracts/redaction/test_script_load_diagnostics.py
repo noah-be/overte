@@ -23,6 +23,7 @@ class ScriptLoadDiagnostics(unittest.TestCase):
 #include <QtCore/QThread>
 #include <QtCore/QStringList>
 #include <functional>
+#include <memory>
 #include <cassert>
 #include "security/redaction/SafeDiagnostics.h"
 Q_LOGGING_CATEGORY(scriptengine, "overte.test.script-load")
@@ -39,13 +40,15 @@ struct ScriptCache {
 } cache;
 struct DependencyManager { template<class T> static T* get() { return &cache; } };
 QUrl expandScriptUrl(const QUrl& value) { return value; }
-struct ScriptManager {
+struct ScriptManager : std::enable_shared_from_this<ScriptManager> {
     bool _isRunning = false, _isReloading = false;
     QString _fileNameString, _scriptContents = "existing-script";
     QStringList errors, failed, loaded;
+    std::function<void()> onError;
     bool hasValidScriptSuffix(const QString&);
     void loadURL(const QUrl&, bool);
     void scriptErrorMessage(const QString& message, const QString& file, int line) {
+        if (onError) { auto action = onError; action(); }
         assert(line == -1); errors.append(message); errors.append(file);
     }
     void errorLoadingScript(const QString& file) { failed.append(file); }
@@ -71,7 +74,8 @@ int main(int argc, char** argv) {
     assert(invalid.loaded.isEmpty() && logs.isEmpty());
     for (bool success : {false, true}) {
         for (bool isUrl : {false, true}) {
-            ScriptManager manager; logs.clear();
+            auto ownedManager = std::make_shared<ScriptManager>();
+            auto& manager = *ownedManager; logs.clear();
             manager.loadURL(url, success);
             assert(manager._fileNameString == url.toString());
             assert(manager._isReloading == success && cache.reload == success);
@@ -92,6 +96,26 @@ int main(int argc, char** argv) {
             }
         }
     }
+    auto owner = std::make_shared<ScriptManager>();
+    std::weak_ptr<ScriptManager> weak = owner;
+    owner->onError = [&] {
+        owner.reset();
+        // Callback must retain the real shared owner through reentrant signals.
+        assert(!weak.expired());
+    };
+    owner->loadURL(url, false);
+    cache.callback(callbackUrl, "", true, false, status);
+    assert(weak.expired());
+    // The cache retains only a weak reference, not an indefinitely live manager.
+    owner = std::make_shared<ScriptManager>();
+    weak = owner;
+    owner->loadURL(url, false);
+    owner.reset();
+    assert(weak.expired());
+    logs.clear();
+    cache.callback(callbackUrl, "private-late-source", true, true, status);
+    cache.callback(callbackUrl, "", true, false, status);
+    assert(logs.isEmpty());
 }
 '''
         flags = shlex.split(subprocess.check_output(['pkg-config', '--cflags', '--libs', 'Qt6Core'], text=True))

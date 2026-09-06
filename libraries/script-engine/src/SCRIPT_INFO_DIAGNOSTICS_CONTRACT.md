@@ -1,5 +1,19 @@
 # Script info and same-thread shutdown public diagnostics
 
+v005 additionally protects the actual loadURL cache completion lifetime using
+the manager's existing shared ownership model: cache storage holds a weak_ptr,
+and a live callback locks one strong reference before accessing this. Expired
+callbacks return without logging, writing contents or emitting signals. The
+strong reference spans reentrant error/loaded delivery without keeping abandoned
+managers alive until network completion. Actual loadScript creates shared-owned
+managers; direct unmanaged valid-load callers are not supported by this contract.
+The actual-method fixture reproduces owner destruction in an error receiver
+before the fix, then asserts retained ownership during delivery and destruction
+after return, plus ignored success/error callbacks after prior destruction.
+Original load outcomes and closed public logs remain tested. Request ordering,
+thread-affinity/cancellation, direct QObject deletion and native integration are
+not proved. This does not implement informed consent or finite script revoke.
+
 v004 closes the loadURL cache-completion public sink: URL, server status and
 thread identity are not logged. Actual loadURL and suffix methods execute with
 real Qt and explicit cache/expansion/signal boundaries. Running-script rejection,
