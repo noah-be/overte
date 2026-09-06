@@ -82,6 +82,22 @@ int main() {
     settings.setHomeLocation("clock-rollback");
     assert(settings.snapshot().timestamp > beforeRollback.timestamp);
     assert(!settings.unpackIfUnchanged({{"home_location", "stale"}}, beforeRollback.timestamp, applied));
+    AccountSettings intent;
+    intent.unpack({{"home_location", "same-home"}});
+    const auto requested = intent.snapshot();
+    intent.startedLoading();
+    intent.setHomeLocation("same-home");
+    assert(intent.lastChangeTimestamp() > requested.timestamp);
+    assert(!intent.unpackIfUnchanged({{"home_location", "remote-change"}}, requested.timestamp, applied));
+    assert(intent.getHomeLocation() == "same-home");
+    const auto loadedIntent = intent.snapshot();
+    intent.setHomeLocation("same-home");
+    assert(intent.lastChangeTimestamp() == loadedIntent.timestamp);
+    intent.unpack({});
+    const auto absentIntent = intent.snapshot();
+    intent.setHomeLocation("");
+    assert(intent.lastChangeTimestamp() > absentIntent.timestamp);
+    assert(intent.homeLocationState() == AccountSettings::Loaded);
     ticks = std::numeric_limits<quint64>::max() - 1;
     settings.setHomeLocation("last-revision");
     try {
