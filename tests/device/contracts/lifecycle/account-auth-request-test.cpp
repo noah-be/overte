@@ -8,6 +8,7 @@
 #include <QtNetwork/QNetworkAccessManager>
 #include <QtNetwork/QNetworkReply>
 #include "security/redaction/SafeDiagnostics.h"
+#include "libraries/networking/src/RequestCancellation.h"
 #include <cassert>
 
 Q_LOGGING_CATEGORY(networking, "overte.test.account-request")
@@ -51,6 +52,7 @@ class AccountManager : public QObject {
     Q_OBJECT
 public:
     AccountInfo _accountInfo;
+    overte::network::RequestScope _credentialContext;
     QUrl _authURL { "https://auth-private.invalid" };
     bool _isWaitingForTokenRefresh = false;
     int loginFinished = 0, refreshFinished = 0;
@@ -76,6 +78,9 @@ int main(int argc, char** argv) {
     AccountManager manager;
     const QString seed = QString::fromUtf8("secret&scope=foreign+%#= \r\nümlaut");
     auto check = [&](const QMap<QString, QString>& expected, bool refresh = false) {
+        const auto ticket = network.reply->property("_overte_request_ticket");
+        assert(ticket.canConvert<overte::network::RequestTicket>());
+        assert(ticket.value<overte::network::RequestTicket>().sameRequest(manager._credentialContext.snapshot()));
         assert(network.observed.url() == QUrl("https://auth-private.invalid/api/oauth/token"));
         assert(network.observed.header(QNetworkRequest::ContentTypeHeader) == "application/x-www-form-urlencoded");
         const auto pairs = QUrlQuery(QString::fromUtf8(network.body)).queryItems(QUrl::FullyDecoded);

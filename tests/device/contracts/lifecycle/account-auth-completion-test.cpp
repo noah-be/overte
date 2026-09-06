@@ -5,6 +5,7 @@
 #include <QtCore/QLoggingCategory>
 #include <QtNetwork/QNetworkReply>
 #include "security/redaction/SafeDiagnostics.h"
+#include "libraries/networking/src/RequestCancellation.h"
 #include <cassert>
 #include <cstring>
 
