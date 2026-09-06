@@ -177,6 +177,22 @@ Item {
 
     Connections {
         target: loginDialog
+        function onHandleDomainLoginFailed(reason) {
+            if (phoneLogin.closing || !phoneLogin.domainLogin) {
+                return
+            }
+            phoneLogin.waiting = false
+            phoneLogin.requestSubmitted = false
+            if (reason === "cancelled") {
+                phoneLogin.dismiss()
+                return
+            }
+            errorText.text = reason === "timeout"
+                ? qsTr("Domain sign-in timed out. Check your connection and try again.")
+                : qsTr("Domain sign-in failed. Check your connection and credentials, then try again.")
+            password.selectAll()
+            password.forceActiveFocus()
+        }
         function onHandleLoginCompleted() {
             if (phoneLogin.closing) {
                 return
