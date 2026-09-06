@@ -61,7 +61,9 @@ void AccountSettings::unpackLocked(const QJsonObject& data) {
 
 void AccountSettings::setHomeLocation(QString homeLocation) {
     QWriteLocker lock(&_settingsLock);
-    if (homeLocation != _homeLocation) {
+    if (homeLocation != _homeLocation || _homeLocationState != Loaded) {
+        // Explicit local intent while loading (or choosing an absent value)
+        // supersedes the pending server snapshot, even for equal text.
         advanceTimestampLocked();
     }
     _homeLocation = homeLocation;
