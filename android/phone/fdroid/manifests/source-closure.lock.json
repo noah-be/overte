@@ -10,7 +10,7 @@
     },
     "target": {
       "path": "android/phone/fdroid/locks/android-arm64-v8a-api26-16k.lock",
-      "sha256": "1fb03b2b98778826630741f329c29b879562cfba7ba2aa7e11af383903948c6d"
+      "sha256": "beb6c8f35e30f2b7a2b5ba8eca2e503ad2c1ff2f078bdc01d98e234279ed8def"
     }
   },
   "node": "SH-001",
@@ -1858,13 +1858,13 @@
       "recipe": {
         "exported_files": {
           "android/phone/fdroid/manifests/recipe-exports/openssl/3.5.8@overte/stable/export/conandata.yml": "8fb30a2f8a338a50831774f9cd5f64a8b156a2d2f3252b22b0d27ed05298d620",
-          "android/phone/fdroid/manifests/recipe-exports/openssl/3.5.8@overte/stable/export/conanfile.py": "b657dc7a45695d17d41406bb53ec1d755e4039f67065748a86ea1bb94d6c6cba",
-          "android/phone/fdroid/manifests/recipe-exports/openssl/3.5.8@overte/stable/export/conanmanifest.txt": "3fd57121ab941cec87d2c1ec0d6b332663263dfaa1f61ff699fe24376ca80869"
+          "android/phone/fdroid/manifests/recipe-exports/openssl/3.5.8@overte/stable/export/conanfile.py": "de95073a9f06075650b8f3fd20000c6b7ab4a384beefae656f1bf63cc2cc8478",
+          "android/phone/fdroid/manifests/recipe-exports/openssl/3.5.8@overte/stable/export/conanmanifest.txt": "836c6903dd335f8399b300e9dd3902695146ffbe030baed2060e8076a061a3ae"
         },
         "path": "android/phone/fdroid/manifests/recipe-exports/openssl/3.5.8@overte/stable/export/conanfile.py",
-        "sha256": "b657dc7a45695d17d41406bb53ec1d755e4039f67065748a86ea1bb94d6c6cba"
+        "sha256": "de95073a9f06075650b8f3fd20000c6b7ab4a384beefae656f1bf63cc2cc8478"
       },
-      "recipe_revision": "33b2f0ee1a4417ab2c5429ae844d0ea5",
+      "recipe_revision": "d98b923ce574f06e672c00c17e63ac9c",
       "reference": "openssl/3.5.8@overte/stable",
       "sources": [
         {
@@ -3254,8 +3254,8 @@
   "recipe_export_index": {
     "path": "android/phone/fdroid/manifests/recipe-exports/index.json",
     "pkglist_path": "android/phone/fdroid/manifests/recipe-exports/pkglist.json",
-    "pkglist_sha256": "5296f057dda56cbe5422dd9bd3523c42c7234f55f6a1c7f13598501eabbb485c",
-    "sha256": "22ca3968a1604524d425dc779290b69589078c725ee37b440640cd60d6ef96ab"
+    "pkglist_sha256": "839a20596bac6f1112ee28b70b5711125ae93b48d303b7fb8833295037cc131b",
+    "sha256": "8d4bfb8f5768d3574176d972c9a8b9ae8f53c25a968453c07a5f000538a95d46"
   },
   "schema_version": 1,
   "status": "SOURCE_CLOSURE_GATE_PASS",
