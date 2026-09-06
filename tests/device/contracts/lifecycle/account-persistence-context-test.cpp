@@ -28,6 +28,10 @@ bool writeAccountMapToFile(const QVariantMap& map) {
 class AccountManager : public QObject {
     Q_OBJECT
 public:
+    // Settings reset is an explicit boundary here; its original implementation
+    // is exercised by account-settings-upload-test.cpp.
+    int settingsResets = 0;
+    void resetAccountSettings() { ++settingsResets; }
     overte::network::RequestScope _credentialContext;
     DataServerAccountInfo _accountInfo;
     QUrl _authURL { "https://private-test.invalid" };

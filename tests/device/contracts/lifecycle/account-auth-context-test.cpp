@@ -66,6 +66,7 @@ public:
     bool _isWaitingForTokenRefresh = false, _isWaitingForAccessToken = false, _isAgent = false;
     int _numPullRetries = 3, persisted = 0, profiles = 0, removed = 0, saved = 0;
     struct Settings { int calls = 0; void loggedOut() { ++calls; } } _settings;
+    void resetAccountSettings() { _numPullRetries = 0; _settings.loggedOut(); }
     std::function<void()> onUserAgent;
     QString _userAgentGetter() {
         if (onUserAgent) { auto action = std::move(onUserAgent); onUserAgent = {}; action(); }
@@ -78,7 +79,10 @@ public:
         if (onPersist) { auto action = std::move(onPersist); onPersist = {}; action(); }
     }
     void requestProfile() { ++profiles; }
-    void postAccountSettings() {}
+    std::function<void()> onSettingsPost;
+    void postAccountSettings() {
+        if (onSettingsPost) { auto action = std::move(onSettingsPost); onSettingsPost = {}; action(); }
+    }
     void removeAccountFromFile() { ++removed; }
     bool savedValue = true;
     void saveLoginStatus(bool value) { savedValue = value; ++saved; }
@@ -114,6 +118,24 @@ signals:
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     auto& network = NetworkAccessManager::getInstance();
+    {
+        AccountManager refreshing;
+        refreshing._accountInfo.token.refreshToken = "refresh";
+        refreshing.refreshAccessToken();
+        network.last->finish();
+        assert(refreshing._settings.calls == 0);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    }
+    for (bool destroy : {false, true}) {
+        QPointer<AccountManager> target = new AccountManager;
+        target->onSettingsPost = [&] {
+            if (destroy) delete target.data();
+            else target->_credentialContext.next();
+        };
+        target->logout();
+        if (target) assert(target->removed == 0 && target->saved == 0 && target->_settings.calls == 0);
+        delete target.data();
+    }
     auto start = [](AccountManager& target, int provider) {
         switch (provider) {
             case 0: target.requestAccessToken("user", "password"); break;

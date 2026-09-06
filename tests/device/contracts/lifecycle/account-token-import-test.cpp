@@ -19,6 +19,10 @@ static int persisted = 0, saved = 0, profiles = 0, kept = 0;
 class AccountManager : public QObject {
     Q_OBJECT
 public:
+    // Settings reset is an explicit boundary here; its original implementation
+    // is exercised by account-settings-upload-test.cpp.
+    int settingsResets = 0;
+    void resetAccountSettings() { ++settingsResets; }
     overte::network::RequestScope _credentialContext;
     bool _isWaitingForTokenRefresh = false, _isWaitingForAccessToken = false;
     DataServerAccountInfo _accountInfo;
@@ -59,6 +63,7 @@ int main(int argc, char** argv) {
         caller.forceLoginWithTokens(input);
         assert(success == int(accepted) && failure == int(!accepted));
         assert(persisted == int(accepted) && saved == int(accepted) && profiles == int(accepted) && kept == int(accepted));
+        assert(manager.settingsResets == int(accepted));
         assert(accepted ? manager._accountInfo.tokens.value("access_token") == "token-canary" : manager._accountInfo.tokens.value("prior").toBool());
     };
     for (const auto& input : {QString("{}"), QString("{"), QString("[]"), QString("null"),
