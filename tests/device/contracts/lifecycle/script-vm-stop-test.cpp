@@ -17,6 +17,7 @@
 struct ScriptEngineV8 {
     v8::Isolate* _v8Isolate;
     void abortEvaluation();
+#include "abort-state.inc"
 };
 struct ScriptManager : QObject, std::enable_shared_from_this<ScriptManager> {
     std::shared_ptr<ScriptEngineV8> _engine;
@@ -49,7 +50,8 @@ int main(int argc, char** argv) {
     params.array_buffer_allocator = allocator.get();
     auto isolate = v8::Isolate::New(params);
     auto manager = std::make_shared<ScriptManager>();
-    manager->_engine = std::make_shared<ScriptEngineV8>(ScriptEngineV8 { isolate });
+    manager->_engine = std::make_shared<ScriptEngineV8>();
+    manager->_engine->_v8Isolate = isolate;
     EntrySignal signal;
     QThread heldTarget;
     // No target event loop starts until after JS returns. stop(true) therefore

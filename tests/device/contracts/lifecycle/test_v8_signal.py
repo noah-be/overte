@@ -14,6 +14,10 @@ class V8Signal(unittest.TestCase):
     def test_original_signal_dispatch(self):
         prefix = pathlib.Path(os.environ["V8_TEST_ROOT"]).resolve(strict=True)
         source = (ROOT / "libraries/script-engine/src/v8/ScriptObjectV8Proxy.cpp").read_text()
+        admission_baseline = os.environ.get('OVERTE_ABORT_ADMISSION_BASELINE')
+        if admission_baseline:
+            source = subprocess.check_output(['git', '-C', str(ROOT), 'show',
+                admission_baseline + ':libraries/script-engine/src/v8/ScriptObjectV8Proxy.cpp'], text=True)
         body = "int ScriptSignalV8Proxy::qt_metacall(" + source.split(
             "int ScriptSignalV8Proxy::qt_metacall(", 1)[1].split(
             "int ScriptSignalV8Proxy::discoverMetaCallIdx()", 1)[0]
@@ -31,6 +35,13 @@ class V8Signal(unittest.TestCase):
                 "void zero(); void ping(int); void ten(int,int,int,int,int,int,int,int,int,int);\n"
                 "void huge(int,int,int,int,int,int,int,int,int,int,int);\n};\n")
             subprocess.run([str(moc), str(temporary / "signal-meta.h"), "-o", str(temporary / "signal-moc.inc")], check=True, timeout=10)
+            engine_header = (ROOT / 'libraries/script-engine/src/v8/ScriptEngineV8.h').read_text()
+            state = next(line for line in engine_header.splitlines() if 'std::atomic<bool> _abortRequested' in line)
+            state += '\n' + next(line for line in engine_header.splitlines() if 'bool isEvaluationAborted() const' in line)
+            engine_source = (ROOT / 'libraries/script-engine/src/v8/ScriptEngineV8.cpp').read_text()
+            abort = 'void ScriptEngineV8::abortEvaluation(' + engine_source.split('void ScriptEngineV8::abortEvaluation(', 1)[1].split('\n}', 1)[0] + '\n}\n'
+            (temporary / 'abort-state.inc').write_text(state)
+            (temporary / 'abort-method.inc').write_text(abort)
             binary = temporary / "test"
             library = prefix / "usr/lib64"
             subprocess.run(["c++", "-std=c++17", "-fPIC", "-pthread", "-DQT_NO_DEBUG", "-I", str(temporary),
@@ -40,7 +51,7 @@ class V8Signal(unittest.TestCase):
                             "-L", str(library), "-Wl,-rpath," + str(library), "-lnode", "-o", str(binary), *flags],
                            check=True, timeout=40)
             for mode in ("zero", "one", "ten", "over", "empty-callback", "null-callback", "object-callback",
-                         "undefined-callback", "empty-conversion", "null-arguments", "null-argument", "throw", "terminate"):
+                         "undefined-callback", "empty-conversion", "null-arguments", "null-argument", "throw", "terminate", "stopped"):
                 with self.subTest(mode=mode):
                     result = subprocess.run(["unshare", "--user", "--map-root-user", "--net", str(binary), mode],
                                             text=True, capture_output=True, timeout=5)
