@@ -12,7 +12,7 @@ APP = ROOT / 'android/vr/pico/apps/picoInterface'
 
 class SharedLifecycleBindingTest(unittest.TestCase):
     def test_account_settings_and_script_diagnostics_use_original_consumers(self):
-        setup = (APP / 'overrides/Application_Setup.cpp').read_text()
+        setup = (ROOT / 'interface/src/Application_Setup.cpp').read_text()
         self.assertIn('DependencyManager::set<AccountManager>(true);', setup)
         account = (ROOT / 'libraries/networking/src/AccountManager.cpp').read_text()
         self.assertIn('connect(this, &AccountManager::loginComplete, this, &AccountManager::requestAccountSettings);', account)
@@ -28,7 +28,7 @@ class SharedLifecycleBindingTest(unittest.TestCase):
         # diagnostic delivery execute in the separate released focused tests.
 
     def test_direct_token_import_uses_coupled_original_application_and_store(self):
-        setup = (APP / 'overrides/Application_Setup.cpp').read_text()
+        setup = (ROOT / 'interface/src/Application_Setup.cpp').read_text()
         self.assertLess(setup.index('AccountManager::installProtectedAccountStore('),
                         setup.index('DependencyManager::set<AccountManager>(true);'))
         source = (ROOT / 'interface/src/Application.cpp').read_text()
@@ -44,7 +44,7 @@ class SharedLifecycleBindingTest(unittest.TestCase):
         # Pico's real caller/store selection, not native storage durability.
 
     def test_domain_login_uses_original_generation_owned_account_manager(self):
-        setup = (APP / 'overrides/Application_Setup.cpp').read_text()
+        setup = (ROOT / 'interface/src/Application_Setup.cpp').read_text()
         self.assertIn('DependencyManager::set<DomainAccountManager>();', setup)
         self.assertIn('connect(domainAccountManager.data(), &DomainAccountManager::authRequired, '
                       'dialogsManager.data(),\n                &DialogsManager::showDomainLoginDialog);', setup)
@@ -85,7 +85,7 @@ class SharedLifecycleBindingTest(unittest.TestCase):
         # not imply LoginDialog privacy, TLS, global visibility or full auth proof.
 
     def test_string_factories_retain_original_shared_engine_callers(self):
-        setup = (APP / 'overrides/Application_Setup.cpp').read_text()
+        setup = (ROOT / 'interface/src/Application_Setup.cpp').read_text()
         self.assertIn('DependencyManager::set<ScriptEngines>', setup)
         engine = ROOT / 'libraries/script-engine'
         self.assertIn('return std::make_shared<ScriptEngineV8>(manager);',
@@ -106,7 +106,7 @@ class SharedLifecycleBindingTest(unittest.TestCase):
         # bodies with real Qt/V8, but substitutes engine/value ownership storage.
 
     def test_account_http_session_retains_original_uuid_owner(self):
-        setup = (APP / 'overrides/Application_Setup.cpp').read_text()
+        setup = (ROOT / 'interface/src/Application_Setup.cpp').read_text()
         self.assertIn('AccountManager::installProtectedAccountStore(overte::pico::protectedAccountStore())', setup)
         self.assertIn('DependencyManager::set<AccountManager>(true);', setup)
         networking = ROOT / 'libraries/networking/src'
@@ -142,7 +142,7 @@ class SharedLifecycleBindingTest(unittest.TestCase):
             self.assertNotIn('ScriptSignalV8Proxy::qt_metacall(', path.read_text())
 
     def test_entity_script_callers_use_denied_immutable_client_contexts(self):
-        setup = (APP / 'overrides/Application_Setup.cpp').read_text()
+        setup = (ROOT / 'interface/src/Application_Setup.cpp').read_text()
         self.assertIn('DependencyManager::set<ScriptEngines>(ScriptManager::CLIENT_SCRIPT,', setup)
         renderer = (ROOT / 'libraries/entities-renderer/src/EntityTreeRenderer.cpp').read_text()
         for owner in ('_persistentEntitiesScriptManager', '_nonPersistentEntitiesScriptManager'):
@@ -156,7 +156,7 @@ class SharedLifecycleBindingTest(unittest.TestCase):
             self.assertNotIn('ScriptManager::rejectEntityScriptWithoutConsent(', path.read_text())
 
     def test_v8_diagnostics_remain_in_original_shared_engine(self):
-        setup = (APP / 'overrides/Application_Setup.cpp').read_text()
+        setup = (ROOT / 'interface/src/Application_Setup.cpp').read_text()
         self.assertIn('DependencyManager::set<ScriptEngines>', setup)
         engine = ROOT / 'libraries/script-engine'
         self.assertIn('return std::make_shared<ScriptEngineV8>(manager);',
@@ -186,7 +186,7 @@ class SharedLifecycleBindingTest(unittest.TestCase):
                       (networking / 'CMakeLists.txt').read_text())
         node = (networking / 'src/NodeList.h').read_text()
         self.assertIn('DomainHandler& getDomainHandler() { return _domainHandler; }', node)
-        setup = (APP / 'overrides/Application_Setup.cpp').read_text()
+        setup = (ROOT / 'interface/src/Application_Setup.cpp').read_text()
         self.assertIn('const DomainHandler& domainHandler = nodeList->getDomainHandler();', setup)
         header = (networking / 'src/DomainHandler.h').read_text()
         self.assertIn('overte::network::ScopedHostnameLookup _hostnameLookup;', header)
@@ -225,7 +225,7 @@ class SharedLifecycleBindingTest(unittest.TestCase):
             self.assertNotIn('void DomainHandler::setIceServerHostnameAndID(', path.read_text())
 
     def test_released_http_hook_compiles_in_actual_free_function_scope(self):
-        setup = (APP / 'overrides/Application_Setup.cpp').read_text()
+        setup = (ROOT / 'interface/src/Application_Setup.cpp').read_text()
         # setupEssentials is a FREE function, not an Application member.
         body = setup.split('bool setupEssentials(', 1)[1]
         hook = next(line.strip() for line in body.splitlines()
@@ -242,7 +242,7 @@ class SharedLifecycleBindingTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr[-4000:])
 
     def test_http_visibility_hook_precedes_dependent_startup(self):
-        setup = (APP / 'overrides/Application_Setup.cpp').read_text()
+        setup = (ROOT / 'interface/src/Application_Setup.cpp').read_text()
         hook = ('overte::lifecycle::observeQtVisibility'
                 '(QGuiApplication::applicationState() == Qt::ApplicationActive);')
         self.assertIn('#include "ApplicationLifecycle.h"', setup)
@@ -265,7 +265,7 @@ class SharedLifecycleBindingTest(unittest.TestCase):
             self.assertNotIn('void AddressManager::setClientLookupVisibility(', path.read_text())
 
     def test_real_pico_override_retains_qt_visibility_connection(self):
-        setup = (APP / 'overrides/Application_Setup.cpp').read_text()
+        setup = (ROOT / 'interface/src/Application_Setup.cpp').read_text()
         signals = setup.split('void Application::setupSignalsAndOperators()', 1)[1]
         self.assertIn('connect(this, &Application::applicationStateChanged, this, &Application::activeChanged)', signals)
         connected = signals.split('connect(this, &Application::applicationStateChanged, this, &Application::activeChanged);', 1)[1]

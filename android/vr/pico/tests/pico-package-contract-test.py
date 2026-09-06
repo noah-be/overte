@@ -120,7 +120,6 @@ class PicoPackageContractTests(unittest.TestCase):
         self.assertIn("file.commit()", save_object)
         for relative in (
             "interface/src/Application_Setup.cpp",
-            "android/vr/pico/apps/picoInterface/overrides/Application_Setup.cpp",
         ):
             source = (ROOT / relative).read_text(encoding="utf-8")
             self.assertIn("FileUtils::computeDocumentPath(path)", source)
@@ -128,7 +127,7 @@ class PicoPackageContractTests(unittest.TestCase):
 
     def test_movement_override_is_native_runtime_only_and_nonpersistent(self):
         pico_setup = (
-            APP / "overrides/Application_Setup.cpp"
+            ROOT / "interface/src/Application_Setup.cpp"
         ).read_text(encoding="utf-8")
         self.assertIn("picoE2eInputMappingOverrideActive", pico_setup)
         self.assertIn(
@@ -199,7 +198,6 @@ class PicoPackageContractTests(unittest.TestCase):
     def test_hmd_tablet_blocks_standard_world_locomotion_routes(self):
         for relative in (
             "interface/src/Application_Setup.cpp",
-            "android/vr/pico/apps/picoInterface/overrides/Application_Setup.cpp",
         ):
             source = (ROOT / relative).read_text(encoding="utf-8")
             self.assertIn('STATE_TABLET_SHOWN = "TabletShown"', source)

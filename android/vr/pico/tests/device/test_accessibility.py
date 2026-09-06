@@ -9,7 +9,7 @@ PICO = ROOT / 'android/vr/pico'
 NS = '{http://schemas.android.com/apk/res/android}'
 class AccessibilityTest(unittest.TestCase):
     def test_tablet_preferences_retain_original_shared_button(self):
-        setup = (PICO / 'apps/picoInterface/overrides/Application_Setup.cpp').read_text()
+        setup = (ROOT / 'interface/src/Application_Setup.cpp').read_text()
         self.assertIn('DependencyManager::set<TabletScriptingInterface>();', setup)
         qml = ROOT / 'interface/resources/qml'
         general = (qml / 'hifi/tablet/TabletGeneralPreferences.qml').read_text()
@@ -52,7 +52,7 @@ class AccessibilityTest(unittest.TestCase):
         # effects/persistence/ordering are not replaced or proved by this pin.
 
     def test_audio_switch_reaches_existing_pico_audio_service(self):
-        setup = (PICO / 'apps/picoInterface/overrides/Application_Setup.cpp').read_text()
+        setup = (ROOT / 'interface/src/Application_Setup.cpp').read_text()
         self.assertIn('DependencyManager::set<AudioScriptingInterface, scripting::Audio>();', setup)
         ui = (ROOT / 'interface/src/Application_UI.cpp').read_text()
         self.assertIn('surfaceContext->setContextProperty("AudioScriptingInterface", '

@@ -20,7 +20,7 @@ class AccountJniTest(unittest.TestCase):
         cmake = (PICO / 'apps/picoInterface/CMakeLists.txt').read_text()
         self.assertEqual(cmake.count('security/PicoAccountStore.cpp'), 1)
         self.assertIn('target_sources(picoOpenXR PRIVATE', cmake)
-        setup = (PICO / 'apps/picoInterface/overrides/Application_Setup.cpp').read_text()
+        setup = (ROOT / 'interface/src/Application_Setup.cpp').read_text()
         registration = 'AccountManager::installProtectedAccountStore(overte::pico::protectedAccountStore())'
         self.assertEqual(setup.count(registration), 1)
         self.assertLess(setup.index(registration), setup.index('DependencyManager::set<AccountManager>'))
