@@ -18,6 +18,14 @@ association exists. The real v003 runner rejects missing identity; archive hashe
 bundle identifiers, expected flags and the old preinstalled receipt cannot fill
 that gap. No form-factor/PID/telemetry evidence is fabricated.
 
+The required `--sbom-contract-root` pins `sh009-sbom-pair/v001`. Run this
+consumer with a separate validation Python environment containing that release's
+exact `tools/sbom/requirements-validation.txt` dependencies. Its unchanged
+offline CLI checks private snapshots of the already hash-bound SPDX/CycloneDX
+bytes before candidate preflight or simulator staging can succeed. Missing tools,
+changed releases, foreign bytes and invalid content fail closed. The result stays
+`SBOM_PAIR_VALID_CONTENT_VERIFICATION_PENDING`, not complete package/binary proof.
+
 Cleanup remains available without candidate arguments or after candidate files
 change/disappear, using the original canonical termination implementation. The
 unbound `ios.json` diagnostic mode is unchanged. Source provenance for future

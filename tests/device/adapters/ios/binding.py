@@ -14,7 +14,7 @@ VERIFIER = ROOT / "ios/tools/candidate/verify_candidate_handoff.py"
 # Forward the existing iOS consumer's CLI; do not parse Common evidence here.
 INPUT_FLAGS = (
     "artifact-root", "repository", "expected-source-sha", "shared-contract-root",
-    "identity-contract-root", "identity-record", "expected-inputs", "minimum-version",
+    "identity-contract-root", "sbom-contract-root", "identity-record", "expected-inputs", "minimum-version",
     "expected-channel", "bootstrapPackages", "hostPackages", "targetPackages",
     "generatedOutputs", "spdx", "cyclonedx",
 )
@@ -65,6 +65,10 @@ def candidate_preflight(args):
             result.get("status") != "IOS_CANDIDATE_BYTES_BOUND_VERIFICATION_PENDING" or
             result.get("sharedBuildInputJoin") != "BOUND_TO_INDEPENDENT_INPUTS" or
             result.get("simulator") != "NOT_EXECUTED" or
+            not isinstance(result.get("sbomPair"), dict) or
+            result["sbomPair"].get("status") != "SBOM_PAIR_VALID_CONTENT_VERIFICATION_PENDING" or
+            result["sbomPair"].get("sourceRevision") != args.expected_source_sha or
+            result["sbomPair"].get("artifactSha256") != args.expected_artifact_sha256 or
             not isinstance(result.get("artifactIdentity"), dict) or
             result["artifactIdentity"].get("artifactSha256") != args.expected_artifact_sha256):
         raise ValueError("OVT_IOS_CANDIDATE_PREFLIGHT_REJECTED")

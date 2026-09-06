@@ -20,6 +20,7 @@ import types
 import zipfile
 
 import verify_io001_candidate as candidate
+from sbom_pair import verify_pair
 from verify_io001_release import pinned_adapter
 from shared_release import verify_release
 
@@ -55,6 +56,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--expected-source-sha", required=True)
     parser.add_argument("--shared-contract-root", type=Path, required=True)
     parser.add_argument("--identity-record", type=Path, required=True)
+    parser.add_argument("--sbom-contract-root", type=Path, required=True)
     parser.add_argument("--expected-inputs", type=Path, required=True)
     parser.add_argument("--minimum-version", type=int, required=True)
     parser.add_argument("--expected-channel", choices=("source-proof", "internal-candidate"), required=True)
@@ -85,6 +87,9 @@ def main(argv: list[str]) -> int:
             expected_toolchain_sha256=inputs["toolchain"])
         if result["artifactSha256"] != binding["artifactSha256"]:
             raise ValueError("IOS_IDENTITY_ARTIFACT_CHANGED")
+        sbom = verify_pair(args.sbom_contract_root, args.identity_contract_root,
+            args.spdx, args.cyclonedx, args.expected_source_sha,
+            result["artifactSha256"], record["evidence"])
         candidate._verify_repository_head(args.repository, args.expected_source_sha)
         simulator_state = "NOT_EXECUTED"
         if args.stage_simulator or args.execute_simulator:
@@ -105,7 +110,8 @@ def main(argv: list[str]) -> int:
         return 1
     print(json.dumps({"status": "IOS_CANDIDATE_BYTES_BOUND_VERIFICATION_PENDING",
         "sharedEvidence": binding["sharedEvidence"], "artifactIdentity": result,
-        "sharedBuildInputJoin": "BOUND_TO_INDEPENDENT_INPUTS", "simulator": simulator_state}, sort_keys=True))
+        "sharedBuildInputJoin": "BOUND_TO_INDEPENDENT_INPUTS", "sbomPair": sbom,
+        "simulator": simulator_state}, sort_keys=True))
     return 0
 
 
