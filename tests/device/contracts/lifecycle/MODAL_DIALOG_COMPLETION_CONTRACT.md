@@ -29,3 +29,17 @@ full QML/native widget integration, Qt5/native platform compilation or original
 39-node acceptance. The entity-script default-deny fence remains in place. A
 response receiver must still validate its own live request before acting; ordinary
 modal responses are not an authorization token.
+
+## Input facade correction
+
+The public getItemAsync facade now routes its complete configuration through the
+existing customInputDialogAsync factory, including that factory's UI-thread
+marshalling, ownership and deferred failed-creation response. It previously wrote
+the registry directly and returned a null listener on failed creation.
+
+Input cancellation now carries an invalid QVariant; explicitly accepting an empty
+string remains a valid result. The actual getText facade preserves that distinction
+until it sets its ok output. Host tests compile both actual facade functions; the
+inputDialog result and customInputDialogAsync creation are explicit seams. Item
+configuration forwarding is tested, not the complete QML item's selected index or
+editable behavior. Native thread/visual selection acceptance remains open.
