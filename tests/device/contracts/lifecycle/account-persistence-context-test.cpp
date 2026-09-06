@@ -32,6 +32,7 @@ public:
     DataServerAccountInfo _accountInfo;
     QUrl _authURL { "https://private-test.invalid" };
     bool _isWaitingForTokenRefresh = false;
+    bool _isWaitingForAccessToken = false;
     QString getMetaverseServerURLPath() { return "/api"; }
     void persistAccountToFile();
     bool setAccessTokens(const QString& response);
@@ -105,7 +106,9 @@ int main(int argc, char** argv) {
         assert(required == int(failure != 0));
         assert(success == int(failure == 0));
         assert(saved == int(!network && failure == 0) && profiles == int(failure == 0) && kept == int(!network && failure == 0));
-        assert(old.current() == (failure == 0));
+        // A valid direct import is itself a new credential intent; network
+        // completion retains the already established request's context.
+        assert(old.current() == (network && failure == 0));
         if (failure) {
             readable = writable = true;
             assert(manager.setAccessTokens(good)); // Recovery is not permanently disabled.

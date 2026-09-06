@@ -18,7 +18,8 @@ This does not roll back persistence already entered before a callback invalidate
 the context. Logout's original erase operation remains responsible for its own
 storage semantics. It does not cancel a profile request that already started.
 `setAccessTokens` is covered separately by token-import and persistence-context/v002.
-Concurrent latest-request ordering in one unchanged context is still unresolved.
+Account-login-order/v001 adds same-endpoint credential-intent supersession and
+refresh admission; see ACCOUNT_LOGIN_ORDER_CONTRACT.md for its exact scope.
 
 The original context fixture executes complete real logout, auth-server change,
 password POST and finished methods with real Qt signals/RequestScope. Added tests
@@ -29,6 +30,6 @@ retained. Completion payload/refresh/bounds/cleanup tests still run unchanged,
 apart from adding the real context field to their declared owner boundary.
 
 Pending: full storage/native/provider and thread/lifecycle integration, actual
-foreground UI cancellation, same-context ordering, initial origin/token policy,
+foreground UI cancellation, profile response ownership, initial origin/token policy,
 streaming memory and original node/artifact acceptance. This
 later source is not qualified by the separate frozen cold-build SHA.

@@ -29,6 +29,11 @@ public:
         open(QIODevice::ReadOnly | QIODevice::Unbuffered);
     }
     void finish() { setFinished(true); emit finished(); }
+    void token(const QString& value) {
+        payload = QJsonDocument(QJsonObject {{"access_token", value}, {"expires_in", 3600},
+                                            {"token_type", "Bearer"}}).toJson();
+    }
+    void reject() { payload = "{}"; }
     void abort() override { finish(); } // NoError success from stale abort must still be rejected.
     qint64 bytesAvailable() const override { return payload.size() - offset + QNetworkReply::bytesAvailable(); }
     qint64 readData(char* destination, qint64 size) override {
@@ -44,9 +49,10 @@ public:
     static NetworkAccessManager& getInstance() { static NetworkAccessManager instance; return instance; }
 protected:
     QNetworkReply* createRequest(Operation, const QNetworkRequest& request, QIODevice*) override {
-        last = new Reply(request, this);
+        auto* reply = new Reply(request, this);
+        last = reply;
         if (onPost) { auto action = std::move(onPost); onPost = {}; action(); }
-        return last;
+        return reply;
     }
 };
 class AccountManager : public QObject {
@@ -55,10 +61,14 @@ public:
     overte::network::RequestScope _credentialContext;
     DataServerAccountInfo _accountInfo;
     QUrl _authURL { "https://first-private.invalid" };
-    bool _isWaitingForTokenRefresh = false, _isAgent = false;
+    bool _isWaitingForTokenRefresh = false, _isWaitingForAccessToken = false, _isAgent = false;
     int _numPullRetries = 3, persisted = 0, profiles = 0, removed = 0, saved = 0;
     struct Settings { int calls = 0; void loggedOut() { ++calls; } } _settings;
-    QString _userAgentGetter() { return "context-test"; }
+    std::function<void()> onUserAgent;
+    QString _userAgentGetter() {
+        if (onUserAgent) { auto action = std::move(onUserAgent); onUserAgent = {}; action(); }
+        return "context-test";
+    }
     QString getMetaverseServerURLPath() { return "/api"; }
     std::function<void()> onPersist;
     void persistAccountToFile() {
@@ -68,18 +78,26 @@ public:
     void requestProfile() { ++profiles; }
     void postAccountSettings() {}
     void removeAccountFromFile() { ++removed; }
-    void saveLoginStatus(bool value) { assert(!value); ++saved; }
+    bool savedValue = true;
+    void saveLoginStatus(bool value) { savedValue = value; ++saved; }
     QMap<QString, QVariant> accountMapFromFile(bool& loaded) { loaded = false; return {}; }
     bool needsToRefreshToken() { return false; }
     bool isLoggedIn() { return false; }
     void logout();
     void setAuthURL(const QUrl&);
     void requestAccessToken(const QString&, const QString&);
+    void requestAccessTokenWithAuthCode(const QString&, const QString&, const QString&, const QString&);
+    void requestAccessTokenWithSteam(QByteArray);
+    void requestAccessTokenWithOculus(const QString&, const QString&);
+    bool setAccessTokens(const QString&);
     void refreshAccessToken();
 public slots:
     void requestAccessTokenFinished();
     void refreshAccessTokenFinished();
     void refreshAccessTokenError(QNetworkReply::NetworkError);
+#ifdef OVERTE_ACCOUNT_HAS_ERROR_SLOT
+    void requestAccessTokenError(QNetworkReply::NetworkError);
+#endif
 signals:
     void loginComplete(QUrl);
     void loginFailed();
@@ -94,6 +112,129 @@ signals:
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     auto& network = NetworkAccessManager::getInstance();
+    auto start = [](AccountManager& target, int provider) {
+        switch (provider) {
+            case 0: target.requestAccessToken("user", "password"); break;
+            case 1: target.requestAccessTokenWithAuthCode("code", "client", "secret", "callback"); break;
+            case 2: target.requestAccessTokenWithSteam("ticket"); break;
+            case 3: target.requestAccessTokenWithOculus("nonce", "id"); break;
+        }
+    };
+    // A newer login intent on the SAME endpoint supersedes an older reply,
+    // even when the older transport completes last with valid credentials.
+    for (int firstProvider = 0; firstProvider < 4; ++firstProvider) {
+    for (int nextProvider = 0; nextProvider < 4; ++nextProvider) {
+    for (bool olderFirst : {false, true}) {
+        AccountManager overlapping;
+        int success = 0, failure = 0;
+        QObject::connect(&overlapping, &AccountManager::loginComplete, [&] { ++success; });
+        QObject::connect(&overlapping, &AccountManager::loginFailed, [&] { ++failure; });
+        start(overlapping, firstProvider);
+        QPointer<Reply> older(network.last);
+        older->token("older-token");
+        start(overlapping, nextProvider);
+        QPointer<Reply> newer(network.last);
+        newer->token("newer-token");
+        overlapping._accountInfo.token.refreshToken = "previous-refresh";
+        overlapping.refreshAccessToken();
+        assert(network.last == newer && overlapping._isWaitingForAccessToken);
+        if (olderFirst) older->finish();
+        newer->finish();
+        if (!olderFirst) older->finish();
+        assert(success == 1 && failure == 0);
+        assert(overlapping.persisted == 1 && overlapping.profiles == 1);
+        assert(overlapping._accountInfo.token.token == "newer-token");
+        assert(!overlapping._isWaitingForAccessToken);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        assert(!older && !newer);
+    }
+    }
+    }
+    const QString direct = "{\"access_token\":\"direct-token\",\"expires_in\":3600,\"token_type\":\"Bearer\"}";
+    for (int provider = 0; provider < 4; ++provider) {
+        AccountManager target;
+        int success = 0, failure = 0;
+        QObject::connect(&target, &AccountManager::loginComplete, [&] { ++success; });
+        QObject::connect(&target, &AccountManager::loginFailed, [&] { ++failure; });
+        target._accountInfo.token.refreshToken = "refresh";
+        target.refreshAccessToken();
+        QPointer<Reply> oldRefresh(network.last);
+        target.refreshAccessToken(); // No parallel duplicate refresh.
+        assert(network.last == oldRefresh);
+        start(target, provider);
+        QPointer<Reply> oldLogin(network.last);
+        assert(target.setAccessTokens(direct));
+        oldRefresh->finish(); oldLogin->finish();
+        assert(success == 1 && failure == 0 && target.persisted == 1 && target.profiles == 1);
+        assert(target._accountInfo.token.token == "direct-token");
+        assert(!target._isWaitingForAccessToken && !target._isWaitingForTokenRefresh);
+        start(target, provider);
+        QPointer<Reply> rejected(network.last);
+        rejected->reject(); rejected->finish();
+        assert(success == 1 && failure == 1 && !target._isWaitingForAccessToken);
+        assert(target._accountInfo.token.token == "direct-token");
+        // The current failure frees admission, but cannot revive a stale reply.
+        start(target, provider); network.last->token("recovery"); network.last->finish();
+        assert(success == 2 && target._accountInfo.token.token == "recovery");
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        assert(!oldRefresh && !oldLogin && !rejected);
+    }
+    for (bool postBoundary : {false, true}) {
+        // Current reply destruction frees admission; destroying an old reply
+        // must not clear the newer owner's pending state.
+        AccountManager lifetime;
+        start(lifetime, 0); QPointer<Reply> old(network.last);
+        start(lifetime, 1); QPointer<Reply> current(network.last);
+        delete old.data();
+        assert(lifetime._isWaitingForAccessToken);
+        delete current.data();
+        assert(!lifetime._isWaitingForAccessToken);
+        lifetime._accountInfo.token.refreshToken = "refresh";
+        lifetime.refreshAccessToken();
+        delete network.last;
+        assert(!lifetime._isWaitingForTokenRefresh);
+        AccountManager target;
+        auto replacement = [&] { start(target, 1); };
+        if (postBoundary) network.onPost = replacement;
+        else target.onUserAgent = replacement;
+        start(target, 0);
+        network.last->token("reentrant-new"); network.last->finish();
+        assert(target.persisted == 1 && target._accountInfo.token.token == "reentrant-new");
+        QPointer<AccountManager> deleted = new AccountManager;
+        auto destroy = [&] { delete deleted.data(); };
+        if (postBoundary) network.onPost = destroy;
+        else deleted->onUserAgent = destroy;
+        start(*deleted, 0);
+        assert(!deleted);
+    }
+    for (bool imported : {false, true}) {
+        AccountManager target;
+        bool replace = true;
+        QObject::connect(&target, &AccountManager::loginComplete, [&] {
+            if (replace) { replace = false; start(target, 2); }
+        });
+        if (imported) assert(!target.setAccessTokens(direct));
+        else { start(target, 0); network.last->finish(); }
+        assert(target.persisted == 1 && target.profiles == 0 && target.saved == 0);
+        network.last->token("replacement"); network.last->finish();
+        assert(target.persisted == 2 && target.profiles == 1);
+        assert(target._accountInfo.token.token == "replacement");
+    }
+    {
+        AccountManager target;
+        target._accountInfo.token.refreshToken = "refresh";
+        target.refreshAccessToken();
+        QPointer<Reply> old(network.last);
+        QObject::connect(old.data(), &QNetworkReply::errorOccurred, &target, &AccountManager::refreshAccessTokenError);
+        emit old->errorOccurred(QNetworkReply::OperationCanceledError);
+        assert(!target._isWaitingForTokenRefresh);
+        target.refreshAccessToken();
+        QPointer<Reply> current(network.last);
+        old->finish();
+        assert(target._isWaitingForTokenRefresh && target.persisted == 0);
+        current->finish();
+        assert(!target._isWaitingForTokenRefresh && target.persisted == 1);
+    }
     for (int transition = 0; transition < 3; ++transition) {
         AccountManager manager;
         int success = 0, failure = 0;
@@ -109,7 +250,7 @@ int main(int argc, char** argv) {
         stale->finish();
         assert(success == 0 && failure == 0 && manager.persisted == 0 && manager.profiles == 0);
         assert(manager._accountInfo.token.token.isEmpty());
-        if (transition == 0) assert(manager.removed == 1 && manager.saved == 1 && manager._settings.calls == 1);
+        if (transition == 0) assert(manager.removed == 1 && manager.saved == 1 && !manager.savedValue && manager._settings.calls == 1);
         manager.requestAccessToken("user", "password");
         manager.setAuthURL(manager._authURL); // Same URL is not a context transition.
         network.last->finish();

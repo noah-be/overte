@@ -135,6 +135,7 @@ static void observeAccountTokenDeadline(QNetworkReply* reply) {
 void AccountManager::logout() {
     _credentialContext.next();
     _isWaitingForTokenRefresh = false;
+    _isWaitingForAccessToken = false;
     postAccountSettings();
     _numPullRetries = 0;
 
@@ -228,6 +229,7 @@ void AccountManager::setAuthURL(const QUrl& authURL) {
     if (_authURL != authURL) {
         _credentialContext.next();
         _isWaitingForTokenRefresh = false;
+        _isWaitingForAccessToken = false;
         _authURL = authURL;
 
         qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
@@ -629,12 +631,17 @@ void AccountManager::setTemporaryDomain(const QUuid& domainID, const QString& ke
 }
 
 void AccountManager::requestAccessToken(const QString& login, const QString& password) {
+    const auto requestContext = _credentialContext.next();
+    QPointer<AccountManager> requestOwner(this);
+    _isWaitingForAccessToken = true;
+    _isWaitingForTokenRefresh = false;
 
     QNetworkAccessManager& networkAccessManager = NetworkAccessManager::getInstance();
 
     QNetworkRequest request;
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
     request.setHeader(QNetworkRequest::UserAgentHeader, _userAgentGetter());
+    if (!requestOwner || !requestContext.current()) { return; }
 
     QUrl grantURL = _authURL;
     grantURL.setPath(getMetaverseServerURLPath() + "/oauth/token");
@@ -648,19 +655,28 @@ void AccountManager::requestAccessToken(const QString& login, const QString& pas
     request.setUrl(grantURL);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 
-    const auto requestContext = _credentialContext.snapshot();
+    if (!requestOwner || !requestContext.current()) { return; }
     QNetworkReply* requestReply = networkAccessManager.post(request, postData);
     overte::network::watchRequest(requestReply, requestContext);
     observeAccountTokenDeadline(requestReply);
+    if (!requestOwner || !requestContext.current()) { return; }
     connect(requestReply, &QNetworkReply::finished, this, &AccountManager::requestAccessTokenFinished);
+    connect(requestReply, &QObject::destroyed, this, [this, requestContext] {
+        if (requestContext.current()) { _isWaitingForAccessToken = false; }
+    });
 }
 
 void AccountManager::requestAccessTokenWithAuthCode(const QString& authCode, const QString& clientId, const QString& clientSecret, const QString& redirectUri) {
+    const auto requestContext = _credentialContext.next();
+    QPointer<AccountManager> requestOwner(this);
+    _isWaitingForAccessToken = true;
+    _isWaitingForTokenRefresh = false;
     QNetworkAccessManager& networkAccessManager = NetworkAccessManager::getInstance();
 
     QNetworkRequest request;
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
     request.setHeader(QNetworkRequest::UserAgentHeader, _userAgentGetter());
+    if (!requestOwner || !requestContext.current()) { return; }
 
     QUrl grantURL = _authURL;
     grantURL.setPath(getMetaverseServerURLPath() + "/oauth/token");
@@ -675,19 +691,28 @@ void AccountManager::requestAccessTokenWithAuthCode(const QString& authCode, con
     request.setUrl(grantURL);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 
-    const auto requestContext = _credentialContext.snapshot();
+    if (!requestOwner || !requestContext.current()) { return; }
     QNetworkReply* requestReply = networkAccessManager.post(request, postData);
     overte::network::watchRequest(requestReply, requestContext);
     observeAccountTokenDeadline(requestReply);
+    if (!requestOwner || !requestContext.current()) { return; }
     connect(requestReply, &QNetworkReply::finished, this, &AccountManager::requestAccessTokenFinished);
+    connect(requestReply, &QObject::destroyed, this, [this, requestContext] {
+        if (requestContext.current()) { _isWaitingForAccessToken = false; }
+    });
 }
 
 void AccountManager::requestAccessTokenWithSteam(QByteArray authSessionTicket) {
+    const auto requestContext = _credentialContext.next();
+    QPointer<AccountManager> requestOwner(this);
+    _isWaitingForAccessToken = true;
+    _isWaitingForTokenRefresh = false;
     QNetworkAccessManager& networkAccessManager = NetworkAccessManager::getInstance();
 
     QNetworkRequest request;
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
     request.setHeader(QNetworkRequest::UserAgentHeader, _userAgentGetter());
+    if (!requestOwner || !requestContext.current()) { return; }
 
     QUrl grantURL = _authURL;
     grantURL.setPath(getMetaverseServerURLPath() + "/oauth/token");
@@ -700,19 +725,28 @@ void AccountManager::requestAccessTokenWithSteam(QByteArray authSessionTicket) {
     request.setUrl(grantURL);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 
-    const auto requestContext = _credentialContext.snapshot();
+    if (!requestOwner || !requestContext.current()) { return; }
     QNetworkReply* requestReply = networkAccessManager.post(request, postData);
     overte::network::watchRequest(requestReply, requestContext);
     observeAccountTokenDeadline(requestReply);
+    if (!requestOwner || !requestContext.current()) { return; }
     connect(requestReply, &QNetworkReply::finished, this, &AccountManager::requestAccessTokenFinished);
+    connect(requestReply, &QObject::destroyed, this, [this, requestContext] {
+        if (requestContext.current()) { _isWaitingForAccessToken = false; }
+    });
 }
 
 void AccountManager::requestAccessTokenWithOculus(const QString& nonce, const QString &oculusID) {
+    const auto requestContext = _credentialContext.next();
+    QPointer<AccountManager> requestOwner(this);
+    _isWaitingForAccessToken = true;
+    _isWaitingForTokenRefresh = false;
     QNetworkAccessManager& networkAccessManager = NetworkAccessManager::getInstance();
 
     QNetworkRequest request;
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
     request.setHeader(QNetworkRequest::UserAgentHeader, _userAgentGetter());
+    if (!requestOwner || !requestContext.current()) { return; }
 
     QUrl grantURL = _authURL;
     grantURL.setPath(getMetaverseServerURLPath() + "/oauth/token");
@@ -726,26 +760,36 @@ void AccountManager::requestAccessTokenWithOculus(const QString& nonce, const QS
     request.setUrl(grantURL);
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 
-    const auto requestContext = _credentialContext.snapshot();
+    if (!requestOwner || !requestContext.current()) { return; }
     QNetworkReply* requestReply = networkAccessManager.post(request, postData);
     overte::network::watchRequest(requestReply, requestContext);
     observeAccountTokenDeadline(requestReply);
+    if (!requestOwner || !requestContext.current()) { return; }
     connect(requestReply, &QNetworkReply::finished, this, &AccountManager::requestAccessTokenFinished);
+    connect(requestReply, &QObject::destroyed, this, [this, requestContext] {
+        if (requestContext.current()) { _isWaitingForAccessToken = false; }
+    });
 }
 
 void AccountManager::refreshAccessToken() {
+    // Background refresh cannot overtake an explicit login intent or enqueue
+    // another refresh against the same installed credentials.
+    if (_isWaitingForAccessToken || _isWaitingForTokenRefresh) { return; }
 
     // we can't refresh our access token if we don't have a refresh token, so check for that first
     if (!_accountInfo.getAccessToken().refreshToken.isEmpty()) {
         qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
         _isWaitingForTokenRefresh = true;
+        const auto requestContext = _credentialContext.next();
+        QPointer<AccountManager> requestOwner(this);
 
         QNetworkAccessManager& networkAccessManager = NetworkAccessManager::getInstance();
 
         QNetworkRequest request;
         request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
         request.setHeader(QNetworkRequest::UserAgentHeader, _userAgentGetter());
+        if (!requestOwner || !requestContext.current()) { return; }
 
         QUrl grantURL = _authURL;
         grantURL.setPath(getMetaverseServerURLPath() + "/oauth/token");
@@ -758,11 +802,14 @@ void AccountManager::refreshAccessToken() {
         request.setUrl(grantURL);
         request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 
-        const auto requestContext = _credentialContext.snapshot();
         QNetworkReply* requestReply = networkAccessManager.post(request, postData);
         overte::network::watchRequest(requestReply, requestContext);
         observeAccountTokenDeadline(requestReply);
+        if (!requestOwner || !requestContext.current()) { return; }
         connect(requestReply, &QNetworkReply::finished, this, &AccountManager::refreshAccessTokenFinished);
+        connect(requestReply, &QObject::destroyed, this, [this, requestContext] {
+            if (requestContext.current()) { _isWaitingForTokenRefresh = false; }
+        });
         connect(requestReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(refreshAccessTokenError(QNetworkReply::NetworkError)));
     } else {
         qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
@@ -810,9 +857,11 @@ bool AccountManager::setAccessTokens(const QString& response) {
 
             qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
+            const auto completionContext = _credentialContext.next();
+            _isWaitingForAccessToken = false;
+            _isWaitingForTokenRefresh = false;
             _accountInfo = DataServerAccountInfo();
             _accountInfo.setAccessTokenFromJSON(rootObject);
-            const auto completionContext = _credentialContext.snapshot();
             QPointer<AccountManager> completionOwner(this);
             // Do not publish successful login before protected persistence.
             persistAccountToFile();
@@ -849,6 +898,7 @@ void AccountManager::requestAccessTokenFinished() {
     if (!overte::network::replyCurrent(requestReply)) {
         return;
     }
+    _isWaitingForAccessToken = false;
 
     constexpr qint64 MAX_RESPONSE_BYTES = 1024 * 1024;
     const auto payload = requestReply->read(MAX_RESPONSE_BYTES + 1);
