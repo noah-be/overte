@@ -11,7 +11,6 @@
 
 import QtQuick 2.5
 import QtQuick.Controls 2.2
-import QtGraphicalEffects 1.0
 
 import "." as Windows
 import stylesUit 1.0
@@ -59,19 +58,16 @@ Windows.Window {
             visible: !window.hideBackground && modality != Qt.ApplicationModal
         }
 
-        LinearGradient {
+        Rectangle {
             visible: !window.hideBackground && gradientsSupported && modality != Qt.ApplicationModal
             anchors.top: contentBackground.bottom
             anchors.left: contentBackground.left
             width: contentBackground.width - 1
             height: 4
-            start: Qt.point(0, 0)
-            end: Qt.point(0, 4)
             gradient: Gradient {
                 GradientStop { position: 0.0; color: hifi.colors.darkGray }
                 GradientStop { position: 1.0; color: hifi.colors.darkGray0 }
             }
-            cached: true
         }
 
         Flickable {
