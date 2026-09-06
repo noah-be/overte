@@ -869,9 +869,17 @@ void AccountManager::requestAccessTokenFinished() {
             _accountInfo = DataServerAccountInfo();
             _accountInfo.setAccessTokenFromJSON(rootObject);
 
+            const auto completionContext = _credentialContext.snapshot();
+            QPointer<AccountManager> completionOwner(this);
             emit loginComplete(rootURL);
+            if (!completionOwner || !completionContext.current()) {
+                return;
+            }
 
             persistAccountToFile();
+            if (!completionOwner || !completionContext.current()) {
+                return;
+            }
 
             requestProfile();
         }

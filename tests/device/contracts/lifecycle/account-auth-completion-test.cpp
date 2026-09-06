@@ -18,6 +18,7 @@ struct DataServerAccountInfo {
 class AccountManager : public QObject {
     Q_OBJECT
 public:
+    overte::network::RequestScope _credentialContext;
     DataServerAccountInfo _accountInfo;
     int persisted = 0, profiles = 0;
     bool _isWaitingForTokenRefresh = true;

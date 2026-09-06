@@ -60,7 +60,11 @@ public:
     struct Settings { int calls = 0; void loggedOut() { ++calls; } } _settings;
     QString _userAgentGetter() { return "context-test"; }
     QString getMetaverseServerURLPath() { return "/api"; }
-    void persistAccountToFile() { ++persisted; }
+    std::function<void()> onPersist;
+    void persistAccountToFile() {
+        ++persisted;
+        if (onPersist) { auto action = std::move(onPersist); onPersist = {}; action(); }
+    }
     void requestProfile() { ++profiles; }
     void postAccountSettings() {}
     void removeAccountFromFile() { ++removed; }
@@ -133,4 +137,38 @@ int main(int argc, char** argv) {
     manager.requestAccessToken("user", "password");
     network.last->finish();
     assert(manager.persisted == 1 && manager._accountInfo.token.token.isEmpty());
+    for (bool changeServer : {false, true}) {
+        AccountManager reentrant;
+        int success = 0;
+        QObject::connect(&reentrant, &AccountManager::loginComplete, [&] {
+            ++success;
+            if (changeServer) reentrant.setAuthURL(QUrl("https://replacement-private.invalid"));
+            else reentrant.logout();
+        });
+        reentrant.requestAccessToken("user", "password");
+        network.last->finish();
+        assert(success == 1 && reentrant.persisted == 0 && reentrant.profiles == 0);
+        assert(reentrant._accountInfo.token.token.isEmpty());
+    }
+    QPointer<AccountManager> destroyed = new AccountManager;
+    QObject::connect(destroyed.data(), &AccountManager::loginComplete, [&] { delete destroyed.data(); });
+    destroyed->requestAccessToken("user", "password");
+    network.last->finish();
+    assert(!destroyed);
+    for (bool changeServer : {false, true}) {
+        AccountManager reentrant;
+        reentrant.onPersist = [&] {
+            if (changeServer) reentrant.setAuthURL(QUrl("https://replacement-private.invalid"));
+            else reentrant.logout();
+        };
+        reentrant.requestAccessToken("user", "password");
+        network.last->finish();
+        assert(reentrant.persisted == 1 && reentrant.profiles == 0);
+        assert(reentrant._accountInfo.token.token.isEmpty());
+    }
+    destroyed = new AccountManager;
+    destroyed->onPersist = [&] { delete destroyed.data(); };
+    destroyed->requestAccessToken("user", "password");
+    network.last->finish();
+    assert(!destroyed);
 }
