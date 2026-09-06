@@ -329,7 +329,7 @@ Item {
                     UserActivityLogger.logAction("encourageLoginDialog", data);
                 }
                 bodyLoader.setSource("CompleteProfileBody.qml", { "loginDialog": loginDialog, "root": root, "bodyLoader": bodyLoader, "withSteam": loggingInBody.withSteam,
-                    "withOculus": loggingInBody.withOculus, "errorString": error });
+                    "withOculus": loggingInBody.withOculus, "errorString": qsTr("Account creation failed. Check your connection and try again.") });
             }
         }
         function onHandleLinkCompleted() {
@@ -374,7 +374,7 @@ Item {
                 }
             } else {
                 bodyLoader.setSource("LinkAccountBody.qml", { "loginDialog": loginDialog, "root": root, "bodyLoader": bodyLoader, "linkSteam": loggingInBody.linkSteam,
-                    "linkOculus": loggingInBody.linkOculus, "errorString": error });
+                    "linkOculus": loggingInBody.linkOculus, "errorString": qsTr("Account linking failed. Check your connection and try again.") });
             }
         }
 
