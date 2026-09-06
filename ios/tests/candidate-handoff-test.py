@@ -81,6 +81,24 @@ with tempfile.TemporaryDirectory(prefix="ios-handoff-test-") as scratch:
         result = json.loads(success.stdout)
         assert result["status"] == "IOS_CANDIDATE_BYTES_BOUND_VERIFICATION_PENDING"
         assert result["sharedBuildInputJoin"] == "BOUND_TO_INDEPENDENT_INPUTS"
+        # Execute the owned canonical-binding preflight against the SAME actual
+        # original consumer and synthetic evidence, not a success-output mock.
+        binding_spec = importlib.util.spec_from_file_location("ios_binding_test",
+            ios.parent / "tests/device/adapters/ios/binding.py")
+        native_binding = importlib.util.module_from_spec(binding_spec)
+        binding_spec.loader.exec_module(native_binding)
+        native_parser = argparse.ArgumentParser()
+        native_binding.configure_parser(native_parser)
+        native_args = native_parser.parse_args([
+            "--candidate-manifest", command[2], "--expected-artifact-sha256",
+            identity.digest_file(artifact), *command[3:]])
+        native_binding.candidate_preflight(native_args)
+        native_args.expected_artifact_sha256 = "0" * 64
+        try:
+            native_binding.candidate_preflight(native_args)
+            raise AssertionError("foreign independent artifact expectation accepted")
+        except ValueError:
+            pass
         stage_command = command.copy()
         stage_command[1] = str(ios / "tools/candidate/run_simulator_candidate.py")
         staged = subprocess.run(stage_command, capture_output=True, text=True, timeout=45)
