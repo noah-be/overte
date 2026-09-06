@@ -11,13 +11,13 @@
 //
 
 #include "NodeList.h"
+#include "../../../security/redaction/SafeDiagnostics.h"
 
 #include <chrono>
 
 #include <QtCore/QDataStream>
 #include <QtCore/QDebug>
 #include <QtCore/QJsonDocument>
-#include <QtCore/QMetaEnum>
 #include <QtCore/QUrl>
 #include <QtCore/QThread>
 #include <QtNetwork/QHostInfo>
@@ -231,16 +231,7 @@ void NodeList::timePingReply(ReceivedMessage& message, const SharedNodePointer& 
     const bool wantDebug = false;
 
     if (wantDebug) {
-        auto averageClockSkew = sendingNode->getClockSkewUsec();
-        qCDebug(networking) << "PING_REPLY from node " << *sendingNode << "\n" <<
-        "                     now: " << now << "\n" <<
-        "                 ourTime: " << ourOriginalTime << "\n" <<
-        "                pingTime: " << pingTime << "\n" <<
-        "        oneWayFlightTime: " << oneWayFlightTime << "\n" <<
-        "         othersReplyTime: " << othersReplyTime << "\n" <<
-        "    othersExprectedReply: " << othersExpectedReply << "\n" <<
-        "               clockSkew: " << clockSkew << "[" << formatUsecTime(clockSkew) << "]" << "\n" <<
-        "       average clockSkew: " << averageClockSkew << "[" << formatUsecTime(averageClockSkew) << "]";
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 }
 
@@ -266,8 +257,7 @@ void NodeList::processPingPacket(QSharedPointer<ReceivedMessage> message, Shared
     auto it = _connectionIDs.find(sendingNode->getUUID());
     if (it != _connectionIDs.end()) {
         if (connectionID > it->second) {
-            qDebug() << "Received a ping packet with a larger connection id (" << connectionID << ">" << it->second << ") from "
-                     << sendingNode->getUUID();
+            qDebug() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             killNodeWithUUID(sendingNode->getUUID(), connectionID);
         }
     }
@@ -344,13 +334,13 @@ void NodeList::sendDomainServerCheckIn() {
     // may be called by multiple threads.
 
     if (!_sendDomainServerCheckInEnabled) {
-        static const QString DISABLED_CHECKIN_DEBUG{ "Refusing to send a domain-server check in while it is disabled." };
+        static const QString DISABLED_CHECKIN_DEBUG{ QString::fromLatin1(overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted)) };
         HIFI_FCDEBUG(networking_ice(), DISABLED_CHECKIN_DEBUG);
         return;
     }
 
     if (_isShuttingDown) {
-        qCDebug(networking_ice) << "Refusing to send a domain-server check in while shutting down.";
+        qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         return;
     }
 
@@ -359,9 +349,9 @@ void NodeList::sendDomainServerCheckIn() {
 
     if (publicSockAddr.isNull()) {
         // we don't know our public socket and we need to send it to the domain server
-        qCDebug(networking_ice) << "Waiting for initial public socket from STUN. Will not send domain-server check in.";
+        qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     } else if (domainHandlerIp.isNull() && _domainHandler.requiresICE()) {
-        qCDebug(networking_ice) << "Waiting for ICE discovered domain-server socket. Will not send domain-server check in.";
+        qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         handleICEConnectionToDomainServer();
         // let the domain handler know we are due to send a checkin packet
     } else if (!domainHandlerIp.isNull() && !_domainHandler.checkInPacketTimeout()) {
@@ -372,8 +362,7 @@ void NodeList::sendDomainServerCheckIn() {
 
         if (!domainIsConnected) {
             auto hostname = _domainHandler.getHostname();
-            QMetaEnum metaEnum = QMetaEnum::fromType<LimitedNodeList::ConnectReason>();
-            qCDebug(networking_ice) << "Sending connect request ( REASON:" << QString(metaEnum.valueToKey(_connectReason)) << ") to domain-server at" << hostname;
+            qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
             // is this our localhost domain-server?
             // if so we need to make sure we have an up-to-date local port in case it restarted
@@ -383,7 +372,7 @@ void NodeList::sendDomainServerCheckIn() {
 
                 quint16 domainPort = DEFAULT_DOMAIN_SERVER_PORT;
                 getLocalServerPortFromSharedMemory(DOMAIN_SERVER_LOCAL_PORT_SMEM_KEY, domainPort);
-                qCDebug(networking_ice) << "Local domain-server port read from shared memory (or default) is" << domainPort;
+                qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
                 _domainHandler.setPort(domainPort);
             }
         }
@@ -395,8 +384,7 @@ void NodeList::sendDomainServerCheckIn() {
         bool requiresUsernameSignature = !domainIsConnected && !connectionToken.isNull();
 
         if (requiresUsernameSignature && !accountManager->getAccountInfo().hasPrivateKey()) {
-            qCWarning(networking_ice) << "A keypair is required to present a username signature to the domain-server"
-                << "but no keypair is present. Waiting for keypair generation to complete.";
+            qCWarning(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             accountManager->generateNewUserKeypair();
 
             // don't send the check in packet - wait for the new public key to be available to the domain-server first
@@ -546,7 +534,7 @@ void NodeList::sendPendingDSPathQuery() {
                 DependencyManager::get<AddressManager>()->goToViewpointForPath(viewpoint, pendingPath);
             }
         } else {
-            qCDebug(networking) << "Attempting to send pending query to DS for path" << pendingPath;
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             // this is a slot triggered if we just established a network link with a DS and want to send a path query
             sendDSPathQuery(_domainHandler.getPendingPath());
         }
@@ -575,14 +563,12 @@ void NodeList::sendDSPathQuery(const QString& newPath) {
             // append the path itself to the query packet
             pathQueryPacket->write(pathQueryUTF8);
 
-            qCDebug(networking) << "Sending a path query packet for path" << newPath << "to domain-server at"
-                << _domainHandler.getSockAddr();
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
             // send off the path query
             sendPacket(std::move(pathQueryPacket), _domainHandler.getSockAddr());
         } else {
-            qCDebug(networking) << "Path" << newPath << "would make PacketType::DomainServerPathQuery packet > MAX_PACKET_SIZE." <<
-                "Will not send query.";
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         }
     }
 }
@@ -597,7 +583,7 @@ void NodeList::processDomainServerPathResponse(QSharedPointer<ReceivedMessage> m
 
     // pull the path from the packet
     if (message->getBytesLeftToRead() < numPathBytes) {
-        qCDebug(networking) << "Could not read query path from DomainServerPathQueryResponse. Bailing.";
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         return;
     }
 
@@ -609,7 +595,7 @@ void NodeList::processDomainServerPathResponse(QSharedPointer<ReceivedMessage> m
     message->readPrimitive(&numViewpointBytes);
 
     if (message->getBytesLeftToRead() < numViewpointBytes) {
-        qCDebug(networking) << "Could not read resulting viewpoint from DomainServerPathQueryReponse. Bailing";
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         return;
     }
 
@@ -618,10 +604,9 @@ void NodeList::processDomainServerPathResponse(QSharedPointer<ReceivedMessage> m
 
     // Hand it off to the AddressManager so it can handle it as a relative viewpoint
     if (!pathQuery.isEmpty() && DependencyManager::get<AddressManager>()->goToViewpointForPath(viewpoint, pathQuery)) {
-        qCDebug(networking) << "Going to viewpoint" << viewpoint << "which was the lookup result for path" << pathQuery;
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     } else {
-        qCDebug(networking) << "Could not go to viewpoint" << viewpoint
-            << "which was the lookup result for path" << pathQuery;
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 }
 
@@ -648,13 +633,11 @@ void NodeList::pingPunchForDomainServer() {
         const int NUM_DOMAIN_SERVER_PINGS_BEFORE_RESET = 2000 / UDP_PUNCH_PING_INTERVAL_MS;
 
         if (_domainHandler.getICEPeer().getConnectionAttempts() == 0) {
-            qCDebug(networking_ice) << "Sending ping packets to establish connectivity with domain-server with ID"
-                << uuidStringWithoutCurlyBraces(_domainHandler.getPendingDomainID());
+            qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         } else {
             if (_domainHandler.getICEPeer().getConnectionAttempts() % NUM_DOMAIN_SERVER_PINGS_BEFORE_RESET == 0) {
                 // if we have then nullify the domain handler's network peer and send a fresh ICE heartbeat
-                qCDebug(networking_ice) << "No ping replies received from domain-server with ID"
-                    << uuidStringWithoutCurlyBraces(_domainHandler.getICEClientID()) << "-" << "re-sending ICE query.";
+                qCDebug(networking_ice) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
                 _domainHandler.getICEPeer().softReset();
                 handleICEConnectionToDomainServer();
@@ -742,24 +725,21 @@ void NodeList::processDomainList(QSharedPointer<ReceivedMessage> message) {
 
     qint64 pingLagTime = (now - qint64(connectRequestTimestamp)) / qint64(USECS_PER_MSEC);
 
-    qint64 domainServerRequestLag = (qint64(domainServerPingSendTime - domainServerCheckinProcessingTime) - qint64(connectRequestTimestamp)) / qint64(USECS_PER_MSEC);;
-    qint64 domainServerResponseLag = (now - qint64(domainServerPingSendTime)) / qint64(USECS_PER_MSEC);
-
     if (_domainHandler.getSockAddr().isNull()) {
-        qWarning(networking) << "IGNORING DomainList packet while not connected to a Domain Server: sent " << pingLagTime << " msec ago.";
-        qWarning(networking) << "DomainList request lag (interface->ds): " << domainServerRequestLag << "msec";
-        qWarning(networking) << "DomainList server processing time: " << domainServerCheckinProcessingTime << "usec";
-        qWarning(networking) << "DomainList response lag (ds->interface): " << domainServerResponseLag << "msec";
+        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
+        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
+        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
+        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         // refuse to process this packet if we aren't currently connected to the DS
         return;
     }
 
     // warn if ping lag is getting long
     if (pingLagTime > qint64(MSECS_PER_SECOND)) {
-        qCDebug(networking) << "DomainList ping is lagging: " << pingLagTime << "msec";
-        qCDebug(networking) << "DomainList request lag (interface->ds): " << domainServerRequestLag << "msec";
-        qCDebug(networking) << "DomainList server processing time: " << domainServerCheckinProcessingTime << "usec";
-        qCDebug(networking) << "DomainList response lag (ds->interface): " << domainServerResponseLag << "msec";
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 
     // this is a packet from the domain server, reset the count of un-replied check-ins
@@ -773,11 +753,10 @@ void NodeList::processDomainList(QSharedPointer<ReceivedMessage> message) {
 
     if (_domainHandler.isConnected() && _domainHandler.getUUID() != domainUUID) {
         // Received packet from different domain.
-        qWarning() << "IGNORING DomainList packet from" << domainUUID << "while connected to"
-                   << _domainHandler.getUUID() << ": sent " << pingLagTime << " msec ago.";
-        qWarning(networking) << "DomainList request lag (interface->ds): " << domainServerRequestLag << "msec";
-        qWarning(networking) << "DomainList server processing time: " << domainServerCheckinProcessingTime << "usec";
-        qWarning(networking) << "DomainList response lag (ds->interface): " << domainServerResponseLag << "msec";
+        qWarning() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
+        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
+        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
+        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         return;
     }
 
@@ -858,7 +837,7 @@ void NodeList::processDomainServerAddedNode(QSharedPointer<ReceivedMessage> mess
 void NodeList::processDomainServerRemovedNode(QSharedPointer<ReceivedMessage> message) {
     // read the UUID from the packet, remove it if it exists
     QUuid nodeUUID = QUuid::fromRfc4122(message->readWithoutCopy(NUM_BYTES_RFC4122_UUID));
-    qCDebug(networking) << "Received packet from domain-server to remove node with UUID" << uuidStringWithoutCurlyBraces(nodeUUID);
+    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     killNodeWithUUID(nodeUUID);
     removeDelayedAdd(nodeUUID);
 }
@@ -912,7 +891,7 @@ void NodeList::pingPunchForInactiveNode(const SharedNodePointer& node) {
     const int NUM_DEBUG_CONNECTION_ATTEMPTS = 2000 / (UDP_PUNCH_PING_INTERVAL_MS);
 
     if (node->getConnectionAttempts() > 0 && node->getConnectionAttempts() % NUM_DEBUG_CONNECTION_ATTEMPTS == 0) {
-        qCDebug(networking) << "No response to UDP hole punch pings for node" << node->getUUID() << "in last 2 s.";
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 
     auto nodeID = node->getUUID();
@@ -1047,8 +1026,7 @@ void NodeList::ignoreNodeBySessionID(const QUuid& nodeID, bool ignoreEnabled) {
             // write the node ID to the packet
             ignorePacket->write(nodeID.toRfc4122());
 
-            qCDebug(networking) << "Sending packet to" << (destinationNode->getType() == NodeType::AudioMixer ? "AudioMixer" : "AvatarMixer") << "to"
-                << (ignoreEnabled ? "ignore" : "unignore") << "node" << uuidStringWithoutCurlyBraces(nodeID);
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
             // send off this ignore packet reliably to the matching node
             sendPacket(std::move(ignorePacket), *destinationNode);
@@ -1079,7 +1057,7 @@ void NodeList::ignoreNodeBySessionID(const QUuid& nodeID, bool ignoreEnabled) {
         }
 
     } else {
-        qWarning() << "NodeList::ignoreNodeBySessionID called with an invalid ID or an ID which matches the current session ID.";
+        qWarning() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 }
 
@@ -1108,7 +1086,7 @@ void NodeList::personalMuteNodeBySessionID(const QUuid& nodeID, bool muteEnabled
         auto audioMixer = soloNodeOfType(NodeType::AudioMixer);
         if (audioMixer) {
             if (isIgnoringNode(nodeID)) {
-                qCDebug(networking) << "You can't personally mute or unmute a node you're already ignoring.";
+                qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             }
             else {
                 // setup the packet
@@ -1118,7 +1096,7 @@ void NodeList::personalMuteNodeBySessionID(const QUuid& nodeID, bool muteEnabled
                 // write the node ID to the packet
                 personalMutePacket->write(nodeID.toRfc4122());
 
-                qCDebug(networking) << "Sending Personal Mute Packet to" << (muteEnabled ? "mute" : "unmute") << "node" << uuidStringWithoutCurlyBraces(nodeID);
+                qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
                 sendPacket(std::move(personalMutePacket), *audioMixer);
 
@@ -1133,10 +1111,10 @@ void NodeList::personalMuteNodeBySessionID(const QUuid& nodeID, bool muteEnabled
                 }
             }
         } else {
-            qWarning() << "Couldn't find audio mixer to send node personal mute request";
+            qWarning() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         }
     } else {
-        qWarning() << "NodeList::personalMuteNodeBySessionID called with an invalid ID or an ID which matches the current session ID.";
+        qWarning() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 }
 
@@ -1229,12 +1207,12 @@ void NodeList::setAvatarGain(const QUuid& nodeID, float gain) {
             setAvatarGainPacket->writePrimitive(packFloatGainToByte(fastExp2f(gain / 6.02059991f)));
 
             if (nodeID.isNull()) {
-                qCDebug(networking) << "Sending Set PRIMARY Avatar Gain packet with Gain:" << gain;
+                qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
                 sendPacket(std::move(setAvatarGainPacket), *audioMixer);
 
             } else {
-                qCDebug(networking) << "Sending Set Avatar Gain packet with UUID:" << uuidStringWithoutCurlyBraces(nodeID) << "Gain:" << gain;
+                qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
                 sendPacket(std::move(setAvatarGainPacket), *audioMixer);
                 QWriteLocker lock{ &_avatarGainMapLock };
@@ -1242,10 +1220,10 @@ void NodeList::setAvatarGain(const QUuid& nodeID, float gain) {
             }
 
         } else {
-            qWarning() << "Couldn't find audio mixer to send set gain request";
+            qWarning() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         }
     } else {
-        qWarning() << "NodeList::setAvatarGain called with an ID which matches the current session ID:" << nodeID;
+        qWarning() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 }
 
@@ -1273,12 +1251,12 @@ void NodeList::setInjectorGain(float gain) {
         // We need to convert the gain in dB (from the script) to an amplitude before packing it.
         setInjectorGainPacket->writePrimitive(packFloatGainToByte(fastExp2f(gain / 6.02059991f)));
 
-        qCDebug(networking) << "Sending Set Injector Gain packet with Gain:" << gain;
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
         sendPacket(std::move(setInjectorGainPacket), *audioMixer);
 
     } else {
-        qWarning() << "Couldn't find audio mixer to send set gain request";
+        qWarning() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 }
 
@@ -1300,15 +1278,14 @@ void NodeList::kickNodeBySessionID(const QUuid& nodeID, unsigned int banFlags) {
             // write the ban parameters to the packet
             kickPacket->writePrimitive(banFlags);
 
-            qCDebug(networking) << "Sending packet to kick node" << uuidStringWithoutCurlyBraces(nodeID);
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
             sendPacket(std::move(kickPacket), _domainHandler.getSockAddr());
         } else {
-            qWarning() << "You do not have permissions to kick in this domain."
-                << "Request to kick node" << uuidStringWithoutCurlyBraces(nodeID) << "will not be sent";
+            qWarning() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         }
     } else {
-        qWarning() << "NodeList::kickNodeBySessionID called with an invalid ID or an ID which matches the current session ID.";
+        qWarning() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     }
 }
@@ -1325,18 +1302,17 @@ void NodeList::muteNodeBySessionID(const QUuid& nodeID) {
                 // write the node ID to the packet
                 mutePacket->write(nodeID.toRfc4122());
 
-                qCDebug(networking) << "Sending packet to mute node" << uuidStringWithoutCurlyBraces(nodeID);
+                qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
                 sendPacket(std::move(mutePacket), *audioMixer);
             } else {
-                qWarning() << "Couldn't find audio mixer to send node mute request";
+                qWarning() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             }
         } else {
-            qWarning() << "You do not have permissions to mute in this domain."
-                << "Request to mute node" << uuidStringWithoutCurlyBraces(nodeID) << "will not be sent";
+            qWarning() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         }
     } else {
-        qWarning() << "NodeList::muteNodeBySessionID called with an invalid ID or an ID which matches the current session ID.";
+        qWarning() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     }
 }
@@ -1353,7 +1329,7 @@ void NodeList::requestUsernameFromSessionID(const QUuid& nodeID) {
         usernameFromIDRequestPacket->write(nodeID.toRfc4122());
     }
 
-    qCDebug(networking) << "Sending packet to get username/fingerprint/admin status of node" << uuidStringWithoutCurlyBraces(nodeID);
+    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     sendPacket(std::move(usernameFromIDRequestPacket), _domainHandler.getSockAddr());
 }
@@ -1368,8 +1344,7 @@ void NodeList::processUsernameFromIDReply(QSharedPointer<ReceivedMessage> messag
     bool isAdmin;
     message->readPrimitive(&isAdmin);
 
-    qCDebug(networking) << "Got username" << username << "and machine fingerprint"
-        << machineFingerprintString << "for node" << nodeUUIDString << ". isAdmin:" << isAdmin;
+    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     emit usernameFromIDReply(nodeUUIDString, username, machineFingerprintString, isAdmin);
 }
