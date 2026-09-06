@@ -253,14 +253,12 @@ tasks.register('preparePhoneQtRuntime', Sync) {
     from(new File(qtPackageDir, 'plugins/audio')) {
         include "libplugins_audio_qtaudio_opensles_${qtAbiSuffix}.so"
     }
-    // QtActivity preloads these Android-safe names before libphoneInterface.
+    // Stage the canonical OpenSSL 3 pair unchanged; Java and Qt use these names.
     from(androidOpenSslDir) {
-        include 'libcrypto.so.3'
-        rename { 'libcrypto_3.so' }
+        include 'libcrypto_3.so'
     }
     from(androidOpenSslDir) {
-        include 'libssl.so.3'
-        rename { 'libssl_3.so' }
+        include 'libssl_3.so'
     }
     def qmlPluginPaths = [
         'Qt/labs/settings', 'QtQml', 'QtQml/Models.2',
@@ -403,6 +401,10 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging true
+            // Development linker aliases must never become a second APK provider.
+            ['libcrypto.so', 'libssl.so', 'libcrypto.so.3', 'libssl.so.3'].each { libraryName ->
+                excludes += "lib/${phoneTargetAbi}/${libraryName}"
+            }
             unusedPhoneQtRuntimeLibraries.each { libraryName ->
                 excludes += "lib/${phoneTargetAbi}/${libraryName}"
             }
