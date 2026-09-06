@@ -1176,6 +1176,7 @@ void AccountManager::requestAccountSettings() {
          !_settingsRetryRequest.current() || !_settingsRetryRequest.sameRequest(_settingsGetContext.snapshot()))) {
         return;
     }
+    if (sender() != _pullSettingsRetryTimer) { _numPullRetries = 0; }
     _pullSettingsRetryTimer->stop();
     const auto download = _settingsGetContext.next();
     QPointer<AccountManager> owner(this);
@@ -1262,23 +1263,22 @@ void AccountManager::requestAccountSettingsFinished() {
             qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
             emit accountSettingsLoaded();
-        } else {
-            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
-            if (!_pullSettingsRetryTimer->isActive() && _numPullRetries < MAX_PULL_RETRIES) {
-                _settingsRetryCredentials = credentials;
-                _settingsRetryRequest = download;
-                ++_numPullRetries;
-                _pullSettingsRetryTimer->start();
-            }
+            return;
         }
+    }
+    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
+    if (_numPullRetries < MAX_PULL_RETRIES) {
+        _settingsRetryCredentials = credentials;
+        _settingsRetryRequest = download;
+        ++_numPullRetries;
+        _pullSettingsRetryTimer->start();
     } else {
-        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
-        if (!_pullSettingsRetryTimer->isActive() && _numPullRetries < MAX_PULL_RETRIES) {
-            _settingsRetryCredentials = credentials;
-            _settingsRetryRequest = download;
-            ++_numPullRetries;
-            _pullSettingsRetryTimer->start();
-        }
+        _pullSettingsRetryTimer->stop();
+        _settingsRetryCredentials = {};
+        _settingsRetryRequest = {};
+        _settings.downloadFailed(requestedTimestamp);
+        // Future explicit edits may upload; failure itself emits no loaded signal.
+        _postSettingsTimer->start();
     }
 }
 

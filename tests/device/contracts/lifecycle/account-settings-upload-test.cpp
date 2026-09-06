@@ -76,6 +76,8 @@ public:
     }
     struct Settings {
         bool dirty = false;
+        int failedDownloads = 0;
+        void downloadFailed(quint64 expected) { if (stamp == expected && !dirty) ++failedDownloads; }
         quint64 stamp = 10;
         AccountSettings::State state = AccountSettings::Loaded;
         AccountSettings::State homeLocationState() const { return state; }
@@ -293,6 +295,24 @@ int main(int argc, char** argv) {
     assert(network.created.size() == beforeValidRetry + 1);
     network.last->finish();
     assert(retrying._settings.stamp == 30 && retrying._numPullRetries == 0 && !retrying.pullTimer.isActive());
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    AccountManager exhausted;
+    int falseSuccess = 0;
+    QObject::connect(&exhausted, &AccountManager::accountSettingsLoaded, [&] { ++falseSuccess; });
+    exhausted.requestAccountSettings();
+    for (int attempt = 0; attempt <= MAX_PULL_RETRIES; ++attempt) {
+        network.last->fail(); network.last->finish();
+        if (attempt < MAX_PULL_RETRIES) {
+            assert(exhausted.pullTimer.isActive());
+            QMetaObject::invokeMethod(&exhausted.pullTimer, "timeout", Qt::DirectConnection);
+        }
+    }
+    assert(exhausted._settings.failedDownloads == 1 && falseSuccess == 0);
+    assert(!exhausted.pullTimer.isActive() && exhausted.postTimer.isActive());
+    exhausted.requestAccountSettings(); // An explicit fresh request gets a fresh retry budget.
+    assert(exhausted._numPullRetries == 0);
+    network.last->fail(); network.last->finish();
+    assert(exhausted._numPullRetries == 1 && exhausted.pullTimer.isActive());
     QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     AccountManager current;
     current.requestAccountSettings(); auto* staleGet = network.last;

@@ -57,10 +57,21 @@ by changing error assertions or inventing platform acceptance.
 
 ## Acceptance still open
 
+Retry-exhaustion follow-up: after the initial request and bounded retry budget
+fail, the current receiver clears retry tickets and restores the prior settings
+state only if revision/dirty/Loading checks still match. Payload and revision
+remain unchanged, and no accountSettingsLoaded signal is emitted. The upload
+timer permits future explicit local edits; LoggedOut still cannot upload an
+uninitialized value. A new explicit GET has a fresh bounded retry budget.
+Actual class tests cover retained Loaded/NotPresent/LoggedOut, repeated loading,
+stale failures and newer edits. Original receiver tests cover exhausted retries,
+no false success, stopped retry timer and later explicit retry admission.
+
 These are source/host Qt tests, not full native clients, device UI, server or
 per-node acceptance. Client single-flight does not establish server-side write
-ordering after an uncertain timeout/abort. Exhausted GET retries can leave
-Loading; retry-exhaustion presentation/recovery remains open. No general cross-thread manager,
+ordering after an uncertain timeout/abort. No new UI presentation is claimed:
+current application setup enables settings but no direct UI state consumer was
+found. No general cross-thread manager,
 total streaming allocation, initial auth-origin/HTTPS, or complete cancellation/
 foreground guarantee is made. Platform consumption, build/artifact/runtime
 checks and original feature criteria remain independently required.

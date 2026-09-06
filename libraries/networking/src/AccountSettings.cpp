@@ -74,6 +74,7 @@ void AccountSettings::setHomeLocation(QString homeLocation) {
 
 void AccountSettings::startedLoading() {
     QWriteLocker lock(&_settingsLock);
+    if (_homeLocationState != Loading) { _stateBeforeDownload = _homeLocationState; }
     _homeLocationState = Loading;
 }
 
@@ -81,6 +82,7 @@ bool AccountSettings::beginDownload(quint64& requestedTimestamp) {
     QWriteLocker lock(&_settingsLock);
     if (_hasLocalChanges) { return false; }
     requestedTimestamp = _lastChangeTimestamp;
+    if (_homeLocationState != Loading) { _stateBeforeDownload = _homeLocationState; }
     _homeLocationState = Loading;
     return true;
 }
@@ -88,6 +90,13 @@ bool AccountSettings::beginDownload(quint64& requestedTimestamp) {
 void AccountSettings::acknowledgeSnapshot(quint64 timestamp) {
     QWriteLocker lock(&_settingsLock);
     if (timestamp == _lastChangeTimestamp) { _hasLocalChanges = false; }
+}
+
+void AccountSettings::downloadFailed(quint64 requestedTimestamp) {
+    QWriteLocker lock(&_settingsLock);
+    if (!_hasLocalChanges && _lastChangeTimestamp == requestedTimestamp && _homeLocationState == Loading) {
+        _homeLocationState = _stateBeforeDownload;
+    }
 }
 
 void AccountSettings::loggedOut() {
