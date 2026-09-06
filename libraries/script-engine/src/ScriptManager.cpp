@@ -631,7 +631,7 @@ void ScriptManager::loadURL(const QUrl& scriptURL, bool reload) {
 }
 
 void ScriptManager::scriptErrorMessage(const QString& message, const QString& fileName, int lineNumber) {
-    qCCritical(scriptengine, "[%s] %s", qUtf8Printable(getFilename()), qUtf8Printable(message));
+    qCCritical(scriptengine) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     emit errorMessage(message, getFilename());
     if (!currentEntityIdentifier.isInvalidID()) {
         emit errorEntityMessage(message, fileName, lineNumber, currentEntityIdentifier, isEntityServerScript());
@@ -643,7 +643,7 @@ void ScriptManager::scriptErrorMessage(const QString& message, const QString& fi
 }
 
 void ScriptManager::scriptWarningMessage(const QString& message, const QString& fileName, int lineNumber) {
-    qCWarning(scriptengine, "[%s] %s", qUtf8Printable(getFilename()), qUtf8Printable(message));
+    qCWarning(scriptengine) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     emit warningMessage(message, getFilename());
     if (!currentEntityIdentifier.isInvalidID()) {
         emit warningEntityMessage(message, fileName, lineNumber, currentEntityIdentifier, isEntityServerScript());
@@ -667,7 +667,7 @@ void ScriptManager::scriptInfoMessage(const QString& message, const QString& fil
 }
 
 void ScriptManager::scriptPrintedMessage(const QString& message, const QString& fileName, int lineNumber) {
-    qCDebug(scriptengine, "[%s] %s", qUtf8Printable(getFilename()), qUtf8Printable(message));
+    qCDebug(scriptengine) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     emit printedMessage(message, getFilename());
     if (!currentEntityIdentifier.isInvalidID()) {
         emit printedEntityMessage(message, fileName, lineNumber, currentEntityIdentifier, isEntityServerScript());

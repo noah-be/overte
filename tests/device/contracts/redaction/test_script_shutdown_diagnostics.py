@@ -15,6 +15,9 @@ class ScriptShutdownDiagnostics(unittest.TestCase):
         method = source[start:source.index('\n}', start) + 2]
         start = source.index('void ScriptManager::scriptInfoMessage(')
         method += '\n' + source[start:source.index('\n}', start) + 2]
+        for name in ('scriptErrorMessage', 'scriptWarningMessage', 'scriptPrintedMessage'):
+            start = source.index('void ScriptManager::' + name + '(')
+            method += '\n' + source[start:source.index('\n}', start) + 2]
         driver = r'''
 #include <QtCore/QCoreApplication>
 #include <QtCore/QLoggingCategory>
@@ -39,6 +42,7 @@ public:
     EntityItemID currentEntityIdentifier;
     bool server = false;
     int entitySignals = 0;
+    int errorSignals = 0, warningSignals = 0, printSignals = 0;
     bool isEntityServerScript() const { return server; }
     void infoMessage(const QString& message, const QString& filename) { console.append(message + filename); }
     void infoEntityMessage(const QString& message, const QString& filename, int line, EntityItemID entity, bool isServer) {
@@ -47,12 +51,28 @@ public:
         assert(entity.invalid == currentEntityIdentifier.invalid && isServer == server);
     }
     void scriptInfoMessage(const QString& message, const QString&, int);
+    void scriptErrorMessage(const QString&, const QString&, int);
+    void scriptWarningMessage(const QString&, const QString&, int);
+    void scriptPrintedMessage(const QString&, const QString&, int);
+    void errorMessage(const QString& msg, const QString& file) { ++errorSignals; infoMessage(msg, file); }
+    void warningMessage(const QString& msg, const QString& file) { ++warningSignals; infoMessage(msg, file); }
+    void printedMessage(const QString& msg, const QString& file) { ++printSignals; infoMessage(msg, file); }
+    void errorEntityMessage(const QString& msg, const QString& file, int line, EntityItemID id, bool server) {
+        infoEntityMessage(msg, file, line, id, server);
+    }
+    void warningEntityMessage(const QString& msg, const QString& file, int line, EntityItemID id, bool server) {
+        infoEntityMessage(msg, file, line, id, server);
+    }
+    void printedEntityMessage(const QString& msg, const QString& file, int line, EntityItemID id, bool server) {
+        infoEntityMessage(msg, file, line, id, server);
+    }
     void waitTillDoneRunning(bool shutdown);
 };
 '''
         checks = r'''
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
+    QLoggingCategory::setFilterRules("overte.test.script-shutdown.debug=true");
     qInstallMessageHandler([](QtMsgType, const QMessageLogContext&, const QString& msg) { output.append(msg); });
     ScriptManager sameThread;
     sameThread.waitTillDoneRunning(false);
@@ -78,6 +98,20 @@ int main(int argc, char** argv) {
         assert(!output.last().contains("canary") && !output.last().contains("private-entity"));
     }
     assert(stopped.entitySignals == 2);
+    for (auto method : {&ScriptManager::scriptErrorMessage, &ScriptManager::scriptWarningMessage,
+                        &ScriptManager::scriptPrintedMessage}) {
+        for (int route = 0; route < 3; ++route) {
+            stopped.server = route == 2;
+            stopped.currentEntityIdentifier.invalid = route != 1;
+            const auto before = output.size();
+            (stopped.*method)("entity-canary", "private-entity-file", 9);
+            assert(output.size() == before + 1);
+            assert(!output.last().contains("canary") && !output.last().contains("private-entity"));
+            assert(console.last().contains("entity-canary") && console.last().contains("private-world"));
+        }
+    }
+    assert(stopped.errorSignals == 3 && stopped.warningSignals == 3 && stopped.printSignals == 3);
+    assert(stopped.entitySignals == 8);
 }
 '''
         flags = shlex.split(subprocess.check_output(['pkg-config', '--cflags', '--libs', 'Qt6Core'], text=True))
