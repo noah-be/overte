@@ -10,10 +10,10 @@
 //
 
 import "avatarapp" as AvatarImages
+import "audio" as AudioMeters
 import QtQuick 2.5
 import QtQuick.Controls 1.4
 import QtQuick.Controls.Styles 1.4
-import Qt5Compat.GraphicalEffects
 import stylesUit 1.0
 import controlsUit 1.0 as HifiControls
 import "toolbars"
@@ -485,32 +485,19 @@ Item {
             color: parent.color
             radius: parent.radius
         }
-        // Rectangle for the VU meter audio level
-        Rectangle {
+        // Keep the gradient relative to the full gain-adjusted meter, not the
+        // current audio fraction. The red threshold remains at 91 percent.
+        AudioMeters.LevelMeter {
             id: vuMeterLevel
+            anchors.fill: parent
             visible: !isMyCard && selected
-            // Size
-            width: (thisNameCard.audioLevel) * parent.width
-            // Style
-            color: parent.color
-            radius: parent.radius
-            // Anchors
-            anchors.bottom: parent.bottom
-            anchors.top: parent.top
-            anchors.left: parent.left
-        }
-        // Gradient for the VU meter audio level
-        LinearGradient {
-            anchors.fill: vuMeterLevel
-            source: vuMeterLevel
-            start: Qt.point(0, 0)
-            end: Qt.point(parent.width, 0)
-            gradient: Gradient {
-                GradientStop { position: 0.0; color: "#2c8e72" }
-                GradientStop { position: 0.9; color: "#1fc6a6" }
-                GradientStop { position: 0.91; color: "#ea4c5f" }
-                GradientStop { position: 1.0; color: "#ea4c5f" }
-            }
+            level: thisNameCard.audioLevel
+            gutter: "transparent"
+            low: "#2c8e72"
+            middle: "#1fc6a6"
+            high: "#ea4c5f"
+            middlePosition: 0.9
+            highPosition: 0.91
         }
     }
 

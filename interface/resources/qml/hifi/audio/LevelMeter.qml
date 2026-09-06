@@ -10,6 +10,8 @@ Canvas {
     property color low: "#39A38F"
     property color middle: "#1FC6A6"
     property color high: "#C0C000"
+    property real middlePosition: 0.5
+    property real highPosition: 1.0
     renderTarget: Canvas.Image
     onLevelChanged: requestPaint()
     onVerticalChanged: requestPaint()
@@ -17,6 +19,8 @@ Canvas {
     onLowChanged: requestPaint()
     onMiddleChanged: requestPaint()
     onHighChanged: requestPaint()
+    onMiddlePositionChanged: requestPaint()
+    onHighPositionChanged: requestPaint()
     onWidthChanged: requestPaint()
     onHeightChanged: requestPaint()
     onPaint: {
@@ -37,8 +41,10 @@ Canvas {
         var gradient = vertical ? ctx.createLinearGradient(0, height, 0, 0)
                                 : ctx.createLinearGradient(0, 0, width, 0)
         gradient.addColorStop(0, low)
-        gradient.addColorStop(0.5, middle)
-        gradient.addColorStop(1, high)
+        var middleStop = isFinite(middlePosition) ? Math.max(0, Math.min(1, middlePosition)) : 0.5
+        var highStop = isFinite(highPosition) ? Math.max(middleStop, Math.min(1, highPosition)) : 1
+        gradient.addColorStop(middleStop, middle)
+        gradient.addColorStop(highStop, high)
         ctx.beginPath()
         ctx.roundedRect(0, y, filledWidth, filledHeight, fillRadius, fillRadius)
         ctx.fillStyle = gradient
