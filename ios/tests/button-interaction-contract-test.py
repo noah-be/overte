@@ -26,8 +26,8 @@ def main():
     assert 'if (Qt.platform.os === "android" || Qt.platform.os === "ios")' in production, \
         "Reconcile the fixture if the original mobile action route changes"
     source = DRIVER.read_text()
-    old = 'tablet.actions == (QString::fromLocal8Bit(argv[2]) == "android" ? 1 : 0)'
-    new = ('tablet.actions == ((QString::fromLocal8Bit(argv[2]) == "android" || '
+    old = 'tablet.actions == (hasAndroidAction && QString::fromLocal8Bit(argv[2]) == "android" ? 1 : 0)'
+    new = ('tablet.actions == (hasAndroidAction && (QString::fromLocal8Bit(argv[2]) == "android" || '
            'QString::fromLocal8Bit(argv[2]) == "ios") ? 1 : 0)')
     assert source.count(old) == 1, "Reconcile a changed General fixture explicitly"
     source = source.replace(old, new)
