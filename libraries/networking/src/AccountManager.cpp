@@ -883,8 +883,14 @@ void AccountManager::requestAccessTokenFinished() {
 }
 
 void AccountManager::requestAccessTokenError(QNetworkReply::NetworkError error) {
+    auto* requestReply = qobject_cast<QNetworkReply*>(sender());
+    if (!requestReply || !overte::network::replyCurrent(requestReply) ||
+            requestReply->property("_overte_account_auth_finished").toBool()) {
+        return;
+    }
+    // errorOccurred is not a second terminal UI result. The finished handler
+    // validates the actual reply error, consumes once and owns cleanup/failure.
     qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
-    emit loginFailed();
 }
 
 void AccountManager::refreshAccessTokenFinished() {

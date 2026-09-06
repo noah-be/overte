@@ -4,19 +4,21 @@
 #include <QtCore/QUuid>
 #include <QtCore/QStringList>
 #include "security/redaction/SafeDiagnostics.h"
+#include "libraries/networking/src/RequestCancellation.h"
 #include <cassert>
 
 Q_LOGGING_CATEGORY(networking, "overte.test.account-diagnostics")
 static QStringList messages;
 static void capture(QtMsgType, const QMessageLogContext&, const QString& value) { messages.append(value); }
 // Transport boundary: the complete failure method must not access its raw data.
-struct QNetworkReply {
-    enum NetworkError { UnknownNetworkError = 99 };
+struct Reply : QNetworkReply {
+    void abort() override {}
+    qint64 readData(char*, qint64) override { return -1; }
     int urlReads = 0, errorReads = 0;
     QString url() { ++urlReads; return "https://private-account-canary.invalid"; }
     QString errorString() { ++errorReads; return "token-secret-canary"; }
 };
-struct AccountManager {
+struct AccountManager : QObject {
     QUuid _sessionID;
     bool _isWaitingForKeypairResponse = true;
     int requestFailures = 0;
@@ -45,7 +47,7 @@ int main(int argc, char** argv) {
     assert(manager._sessionID == session && messages.size() == 55);
     manager.setSessionID(session);
     assert(messages.size() == 55); // Same-ID no-op preserved.
-    QNetworkReply reply;
+    Reply reply;
     manager.publicKeyUploadFailed(&reply);
     assert(!manager._isWaitingForKeypairResponse && messages.size() == 56);
     assert(reply.urlReads == 0 && reply.errorReads == 0);
@@ -53,7 +55,15 @@ int main(int argc, char** argv) {
     manager.handleKeypairGenerationError();
     assert(!manager._isWaitingForKeypairResponse && messages.size() == 57);
     manager.requestAccessTokenError(QNetworkReply::UnknownNetworkError);
-    assert(manager.requestFailures == 1 && messages.size() == 58);
+    assert(manager.requestFailures == 0 && messages.size() == 57); // No sender.
+    QObject::connect(&reply, &QNetworkReply::errorOccurred, &manager, &AccountManager::requestAccessTokenError);
+    emit reply.errorOccurred(QNetworkReply::UnknownNetworkError);
+    assert(manager.requestFailures == 0 && messages.size() == 58); // Closed diagnostic, no duplicate UI result.
+    overte::network::RequestScope scope;
+    overte::network::watchRequest(&reply, scope.snapshot());
+    scope.next();
+    emit reply.errorOccurred(QNetworkReply::UnknownNetworkError);
+    assert(manager.requestFailures == 0 && messages.size() == 58); // Stale callback has no sink.
     for (const auto& message : messages) {
         assert(message == "OVT_REDACTED" || message == "OVT_AUTH_READY");
         assert(!message.contains(canary) && !message.contains(session.toString()));

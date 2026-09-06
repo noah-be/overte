@@ -28,7 +28,7 @@ class AccountDiagnostics(unittest.TestCase):
             end = source.index('\n}', start) + 2
             methods.append(source[start:end])
         flags = shlex.split(subprocess.check_output(
-            ['pkg-config', '--cflags', '--libs', 'Qt6Core'], text=True))
+            ['pkg-config', '--cflags', '--libs', 'Qt6Core', 'Qt6Network'], text=True))
         with tempfile.TemporaryDirectory(prefix='overte-account-diagnostics-') as temporary:
             scratch = Path(temporary)
             (scratch / 'sinks.inc').write_text('\n'.join(calls))

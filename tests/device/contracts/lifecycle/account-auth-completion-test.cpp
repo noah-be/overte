@@ -25,6 +25,7 @@ public:
     void persistAccountToFile() { ++persisted; }
     void requestProfile() { ++profiles; }
     void requestAccessTokenFinished();
+    void requestAccessTokenError(QNetworkReply::NetworkError);
     void refreshAccessTokenFinished();
 signals:
     void loginComplete(QUrl);
@@ -39,6 +40,7 @@ struct Reply : QNetworkReply {
         open(QIODevice::ReadOnly | QIODevice::Unbuffered);
     }
     void finish() { setFinished(true); emit finished(); }
+    void fail() { setError(QNetworkReply::RemoteHostClosedError, "error-private-canary"); emit errorOccurred(error()); }
     void abort() override {}
     qint64 bytesAvailable() const override { return payload.size() - offset + QNetworkReply::bytesAvailable(); }
     qint64 readData(char* output, qint64 maximum) override {
@@ -54,6 +56,27 @@ struct Reply : QNetworkReply {
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     const QByteArray good("{\"access_token\":\"token-canary\",\"expires_in\":3600,\"token_type\":\"Bearer\"}");
+    for (bool stale : {false, true}) {
+        AccountManager manager;
+        overte::network::RequestScope scope;
+        int success = 0, failure = 0;
+        QObject::connect(&manager, &AccountManager::loginComplete, [&] { ++success; });
+        QObject::connect(&manager, &AccountManager::loginFailed, [&] { ++failure; });
+        QPointer<Reply> reply = new Reply(good, 200, false);
+        overte::network::watchRequest(reply, scope.snapshot());
+        QObject::connect(reply.data(), &QNetworkReply::errorOccurred, &manager, &AccountManager::requestAccessTokenError);
+        QObject::connect(reply.data(), &QNetworkReply::finished, &manager, &AccountManager::requestAccessTokenFinished);
+        if (stale) scope.next();
+        manager.requestAccessTokenError(QNetworkReply::UnknownNetworkError); // No sender has no UI authority.
+        assert(failure == 0);
+        reply->fail(); reply->fail();
+        assert(success == 0 && failure == 0); // Only finished owns terminal presentation.
+        reply->finish(); reply->finish(); reply->fail();
+        assert(success == 0 && failure == int(!stale));
+        assert(manager.persisted == 0 && manager.profiles == 0);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        assert(!reply);
+    }
     for (bool refreshing : {false, true}) {
     auto check = [&](QByteArray payload, int status, bool error, bool accepted, bool timedOut = false) {
         AccountManager manager;
