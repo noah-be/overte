@@ -34,12 +34,18 @@ public:
 class NetworkAccessManager : public QNetworkAccessManager {
 public:
     Reply* last = nullptr;
+    QList<QPointer<Reply>> created;
+    std::function<void()> onGet;
     QNetworkRequest observed;
     static NetworkAccessManager& getInstance() { static NetworkAccessManager instance; return instance; }
 protected:
     QNetworkReply* createRequest(Operation operation, const QNetworkRequest& request, QIODevice*) override {
         assert(operation == GetOperation);
-        observed = request; last = new Reply(request, this); return last;
+        observed = request;
+        auto* reply = new Reply(request, this);
+        last = reply; created.append(reply);
+        if (onGet) { auto action = std::move(onGet); onGet = {}; action(); }
+        return reply;
     }
 };
 // Account data and persistence are explicit boundaries; real transport/request,
@@ -79,6 +85,28 @@ signals:
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     auto& network = NetworkAccessManager::getInstance();
+    // Reentrancy before get() returns leaves no finished receiver on the
+    // obsolete reply. It must still be destroyed, without publishing anything.
+    for (int transition = 0; transition < 3; ++transition) {
+        QPointer<AccountManager> target = new AccountManager;
+        int published = 0;
+        QObject::connect(target.data(), &AccountManager::profileChanged, [&] { ++published; });
+        const auto before = network.created.size();
+        network.onGet = [&] {
+            if (transition == 0) target->_credentialContext.next();
+            else if (transition == 1) target->requestProfile();
+            else delete target.data();
+        };
+        target->requestProfile();
+        assert(published == 0);
+        if (transition == 1) {
+            network.last->finish();
+            assert(published == 1 && target->persisted == 1);
+        }
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        assert(!network.created[before]);
+        delete target.data();
+    }
     AccountManager manager;
     int profile = 0, username = 0;
     QObject::connect(&manager, &AccountManager::profileChanged, [&] { ++profile; });
