@@ -51,13 +51,15 @@ inline void logIOSRuntimeMarker(Args&&...) {
 // World evidence is armed only after a serverless scene has parsed or a valid
 // entity packet is about to be decoded. This prevents startup/UI entities from
 // satisfying the world-rendering gates. A render handoff can race the commit
-// on another thread, so retain one bounded UUID until both sides complete.
+// on another thread. Correlation storage is bounded independently of world size;
+// exhaustion invalidates observation, never application rendering.
 struct IOSRuntimeEntityEvidenceState {
     std::mutex mutex;
     std::uint64_t generation { 0 };
     bool armed { false };
     bool committed { false };
     bool emitted { false };
+    bool capacityExceeded { false };
     QSet<QString> expectedEntities;
     QSet<QString> renderedEntities;
     QSet<QString> sceneEntities;
@@ -71,7 +73,36 @@ struct IOSRuntimeEntityEvidenceSnapshot {
     int renderables { 0 };
     int scene { 0 };
     int drawn { 0 };
+    bool capacityExceeded { false };
 };
+
+// Internal diagnostic storage limits, not accepted performance/scene budgets.
+constexpr int IOS_RUNTIME_MAX_OBSERVED_ENTITIES { 4096 };
+constexpr int IOS_RUNTIME_MAX_ENTITY_KEY_CHARACTERS { 128 };
+
+// Caller holds state.mutex. Preserve generation so a subsequent begin advances
+// it; no partial subset may look like complete observation after overflow.
+inline void invalidateIOSRuntimeEntityCapacity(IOSRuntimeEntityEvidenceState& state) {
+    state.armed = false;
+    state.committed = false;
+    state.emitted = false;
+    state.capacityExceeded = true;
+    state.expectedEntities.clear();
+    state.renderedEntities.clear();
+    state.sceneEntities.clear();
+    state.drawnEntities.clear();
+}
+
+inline bool insertIOSRuntimeEntityBounded(IOSRuntimeEntityEvidenceState& state,
+                                        QSet<QString>& entities, const QString& entity) {
+    if (entity.size() > IOS_RUNTIME_MAX_ENTITY_KEY_CHARACTERS ||
+            (!entities.contains(entity) && entities.size() >= IOS_RUNTIME_MAX_OBSERVED_ENTITIES)) {
+        invalidateIOSRuntimeEntityCapacity(state);
+        return false;
+    }
+    entities.insert(entity);
+    return true;
+}
 
 inline IOSRuntimeEntityEvidenceState& iosRuntimeEntityEvidenceState() {
     static IOSRuntimeEntityEvidenceState state;
@@ -88,6 +119,7 @@ inline void beginIOSRuntimeEntityEvidence() {
     }
     state.committed = false;
     state.emitted = false;
+    state.capacityExceeded = false;
     state.expectedEntities.clear();
     state.renderedEntities.clear();
     state.sceneEntities.clear();
@@ -251,7 +283,8 @@ inline IOSRuntimeEntityEvidenceSnapshot iosRuntimeEntityEvidenceSnapshot() {
         static_cast<int>(state.expectedEntities.size()),
         static_cast<int>(state.renderedEntities.size()),
         static_cast<int>(state.sceneEntities.size()),
-        static_cast<int>(state.drawnEntities.size())
+        static_cast<int>(state.drawnEntities.size()),
+        state.capacityExceeded
     };
 }
 
@@ -274,7 +307,9 @@ inline QString recordIOSRuntimeTreeEntity(const QString& entity) {
     if (!state.armed || state.emitted) {
         return {};
     }
-    state.expectedEntities.insert(entity);
+    if (!insertIOSRuntimeEntityBounded(state, state.expectedEntities, entity)) {
+        return {};
+    }
     return takeIOSRuntimeEntityEvidenceIfReady(state);
 }
 
@@ -284,9 +319,15 @@ inline QString setExpectedIOSRuntimeEntities(const QStringList& entities) {
     if (!state.armed || state.emitted) {
         return {};
     }
+    if (entities.size() > IOS_RUNTIME_MAX_OBSERVED_ENTITIES) {
+        invalidateIOSRuntimeEntityCapacity(state);
+        return {};
+    }
     state.expectedEntities.clear();
     for (const auto& entity : entities) {
-        state.expectedEntities.insert(entity);
+        if (!insertIOSRuntimeEntityBounded(state, state.expectedEntities, entity)) {
+            return {};
+        }
     }
     return takeIOSRuntimeEntityEvidenceIfReady(state);
 }
@@ -297,7 +338,9 @@ inline QString recordIOSRuntimeRenderableEntity(const QString& entity) {
     if (!state.armed || state.emitted) {
         return {};
     }
-    state.renderedEntities.insert(entity);
+    if (!insertIOSRuntimeEntityBounded(state, state.renderedEntities, entity)) {
+        return {};
+    }
     return takeIOSRuntimeEntityEvidenceIfReady(state);
 }
 
@@ -307,8 +350,7 @@ inline bool recordIOSRuntimeSceneEntity(const QString& entity, std::uint64_t gen
     if (!state.armed || generation == 0 || generation != state.generation || state.sceneEntities.contains(entity)) {
         return false;
     }
-    state.sceneEntities.insert(entity);
-    return true;
+    return insertIOSRuntimeEntityBounded(state, state.sceneEntities, entity);
 }
 
 inline bool recordIOSRuntimeDrawnEntity(const QString& entity) {
@@ -317,8 +359,7 @@ inline bool recordIOSRuntimeDrawnEntity(const QString& entity) {
     if (!state.armed || state.drawnEntities.contains(entity)) {
         return false;
     }
-    state.drawnEntities.insert(entity);
-    return true;
+    return insertIOSRuntimeEntityBounded(state, state.drawnEntities, entity);
 }
 
 inline QString commitIOSRuntimeEntityEvidence() {
