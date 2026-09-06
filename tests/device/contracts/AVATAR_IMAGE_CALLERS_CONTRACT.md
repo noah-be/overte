@@ -11,8 +11,7 @@ RoundImage schedules a public grabToImage capture of its transparent, naturally
 sized Qt Image after bindings settle. Canvas consumes the retained in-memory
 result URL; sourceSize stays with Qt Image. The real counted provider returns
 different pixels for requested sizes and proves one new request after changing
-size, including while hidden. The current negative makes the capture source
-invisible and fails pixels. The earlier cache-size negative belongs to sealed
+size, including while hidden. The current negative omits loading the captured pixels and fails pixels. The earlier cache-size negative belongs to sealed
 v017 evidence. Qt5/native and asynchronous lifetime acceptance remain open.
 
 The caller fixture extracts each complete actual image subtree and uses the
