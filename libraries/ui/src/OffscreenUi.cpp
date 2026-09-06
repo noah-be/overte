@@ -11,6 +11,7 @@
 #include "OffscreenUi.h"
 
 #include <QtCore/QVariant>
+#include <QtCore/QTimer>
 #include <QtGui/QGuiApplication>
 #include <QtQuick/QQuickWindow>
 #include <QtQml/QtQml>
@@ -156,10 +157,19 @@ QObject* OffscreenUi::getFlags() {
 }
 
 void OffscreenUi::removeModalDialog(QObject* modal) {
-    if (modal) {
-        _modalDialogListeners.removeOne(modal);
+    // Synchronous listeners live on the stack and must never be scheduled
+    // for deletion by this asynchronous-owner path.
+    if (modal && _modalDialogListeners.removeOne(modal)) {
         modal->deleteLater();
     }
+}
+
+void OffscreenUi::registerModalDialog(ModalDialogListener* listener) {
+    listener->setParent(this);
+    _modalDialogListeners.push_back(listener);
+    connect(listener, &QObject::destroyed, this, [this](QObject* object) {
+        _modalDialogListeners.removeOne(object);
+    });
 }
 
 void OffscreenUi::onRootContextCreated(QQmlContext* qmlContext) {
@@ -247,33 +257,25 @@ class MessageBoxListener : public ModalDialogListener {
 
     friend class OffscreenUi;
     MessageBoxListener(QQuickItem* messageBox) : ModalDialogListener(messageBox) {
-        if (_finished) {
+        if (!_dialog) {
             return;
         }
         connect(_dialog, SIGNAL(selected(int)), this, SLOT(onSelected(int)));
     }
 
     virtual QMessageBox::StandardButton waitForButtonResult() {
-        ModalDialogListener::waitForResult();
-        return static_cast<QMessageBox::StandardButton>(_result.toInt());
+        return static_cast<QMessageBox::StandardButton>(ModalDialogListener::waitForResult().toInt());
     }
 
 protected slots:
     virtual void onDestroyed() override {
-        ModalDialogListener::onDestroyed();
-        onSelected(QMessageBox::NoButton);
+        _dialog = nullptr;
+        finish(QMessageBox::NoButton);
     }
 
 private slots:
     void onSelected(int button) {
-        _result = button;
-        _finished = true;
-        auto offscreenUi = DependencyManager::get<OffscreenUi>();
-        emit response(_result);
-        if (!offscreenUi.isNull()) {
-            offscreenUi->removeModalDialog(qobject_cast<QObject*>(this));
-        }
-        disconnect(_dialog);
+        finish(button);
     }
 };
 
@@ -346,7 +348,7 @@ ModalDialogListener* OffscreenUi::asyncMessageBox(Icon icon, const QString& titl
 
     MessageBoxListener* messageBoxListener = new MessageBoxListener(createMessageBox(icon, title, text, buttons, defaultButton));
     QObject* modalDialog = qobject_cast<QObject*>(messageBoxListener);
-    _modalDialogListeners.push_back(modalDialog);
+    registerModalDialog(qobject_cast<ModalDialogListener*>(modalDialog));
     return messageBoxListener;
 }
 
@@ -395,7 +397,7 @@ class InputDialogListener : public ModalDialogListener {
 
     friend class OffscreenUi;
     InputDialogListener(QQuickItem* queryBox) : ModalDialogListener(queryBox) {
-        if (_finished) {
+        if (!_dialog) {
             return;
         }
         connect(_dialog, SIGNAL(selected(QVariant)), this, SLOT(onSelected(const QVariant&)));
@@ -404,12 +406,7 @@ class InputDialogListener : public ModalDialogListener {
 
 private slots:
     void onSelected(const QVariant& result = "") {
-        _result = result;
-        auto offscreenUi = DependencyManager::get<OffscreenUi>();
-        emit response(_result);
-        offscreenUi->removeModalDialog(qobject_cast<QObject*>(this));
-        _finished = true;
-        disconnect(_dialog);
+        finish(result);
     }
 };
 
@@ -498,7 +495,7 @@ ModalDialogListener* OffscreenUi::inputDialogAsync(const Icon icon, const QStrin
 
     InputDialogListener* inputDialogListener = new InputDialogListener(createInputDialog(icon, title, label, current));
     QObject* inputDialog = qobject_cast<QObject*>(inputDialogListener);
-    _modalDialogListeners.push_back(inputDialog);
+    registerModalDialog(qobject_cast<ModalDialogListener*>(inputDialog));
     return inputDialogListener;
 }
 
@@ -535,7 +532,7 @@ ModalDialogListener* OffscreenUi::customInputDialogAsync(const Icon icon, const 
 
     InputDialogListener* inputDialogListener = new InputDialogListener(createCustomInputDialog(icon, title, config));
     QObject* inputDialog = qobject_cast<QObject*>(inputDialogListener);
-    _modalDialogListeners.push_back(inputDialog);
+    registerModalDialog(qobject_cast<ModalDialogListener*>(inputDialog));
     return inputDialogListener;
 }
 
@@ -734,7 +731,7 @@ class FileDialogListener : public ModalDialogListener {
 
     friend class OffscreenUi;
     FileDialogListener(QQuickItem* messageBox) : ModalDialogListener(messageBox) {
-        if (_finished) {
+        if (!_dialog) {
             return;
         }
         connect(_dialog, SIGNAL(selectedFile(QVariant)), this, SLOT(onSelectedFile(QVariant)));
@@ -743,12 +740,7 @@ class FileDialogListener : public ModalDialogListener {
 
 private slots:
     void onSelectedFile(QVariant file = "") {
-        _result = file.toUrl().toLocalFile();
-        _finished = true;
-        auto offscreenUi = DependencyManager::get<OffscreenUi>();
-        emit response(_result);
-        offscreenUi->removeModalDialog(qobject_cast<QObject*>(this));
-        disconnect(_dialog);
+        finish(file.toUrl().toLocalFile());
     }
 };
 
@@ -805,7 +797,7 @@ ModalDialogListener* OffscreenUi::fileDialogAsync(const QVariantMap& properties)
 
     FileDialogListener* fileDialogListener = new FileDialogListener(qvariant_cast<QQuickItem*>(buildDialogResult));
     QObject* fileModalDialog = qobject_cast<QObject*>(fileDialogListener);
-    _modalDialogListeners.push_back(fileModalDialog);
+    registerModalDialog(qobject_cast<ModalDialogListener*>(fileModalDialog));
 
     return fileDialogListener;
 }
@@ -982,7 +974,7 @@ class AssetDialogListener : public ModalDialogListener {
 
     friend class OffscreenUi;
     AssetDialogListener(QQuickItem* messageBox) : ModalDialogListener(messageBox) {
-        if (_finished) {
+        if (!_dialog) {
             return;
         }
         connect(_dialog, SIGNAL(selectedAsset(QVariant)), this, SLOT(onSelectedAsset(QVariant)));
@@ -991,12 +983,7 @@ class AssetDialogListener : public ModalDialogListener {
 
     private slots:
     void onSelectedAsset(QVariant asset = "") {
-        _result = asset;
-        auto offscreenUi = DependencyManager::get<OffscreenUi>();
-        emit response(_result);
-        offscreenUi->removeModalDialog(qobject_cast<QObject*>(this));
-        _finished = true;
-        disconnect(_dialog);
+        finish(asset);
     }
 };
 
@@ -1055,7 +1042,7 @@ ModalDialogListener *OffscreenUi::assetDialogAsync(const QVariantMap& properties
 
     AssetDialogListener* assetDialogListener = new AssetDialogListener(qvariant_cast<QQuickItem*>(buildDialogResult));
     QObject* assetModalDialog = qobject_cast<QObject*>(assetDialogListener);
-    _modalDialogListeners.push_back(assetModalDialog);
+    registerModalDialog(qobject_cast<ModalDialogListener*>(assetModalDialog));
     return assetDialogListener;
 }
 
@@ -1184,7 +1171,9 @@ bool OffscreenUi::eventFilter(QObject* originalDestination, QEvent* event) {
 
 ModalDialogListener::ModalDialogListener(QQuickItem *dialog) : _dialog(dialog) {
     if (!dialog) {
-        _finished = true;
+        // Let asynchronous callers connect their response before reporting a
+        // failed creation. Dispatch after the derived listener is constructed.
+        QTimer::singleShot(0, this, [this] { onDestroyed(); });
         return;
     }
     connect(_dialog, SIGNAL(destroyed()), this, SLOT(onDestroyed()));
@@ -1192,21 +1181,37 @@ ModalDialogListener::ModalDialogListener(QQuickItem *dialog) : _dialog(dialog) {
 
 ModalDialogListener::~ModalDialogListener() {
     if (_dialog) {
-        disconnect(_dialog);
+        disconnect(_dialog, nullptr, this, nullptr);
     }
 }
 
 QVariant ModalDialogListener::waitForResult() {
-    while (!_finished) {
+    QPointer<ModalDialogListener> guard(this);
+    while (guard && !guard->_finished) {
         QCoreApplication::processEvents();
     }
-    return _result;
+    return guard ? guard->_result : QVariant();
+}
+
+void ModalDialogListener::finish(QVariant result) {
+    if (_finished) { return; }
+    _finished = true;
+    _result = result;
+    if (_dialog) {
+        disconnect(_dialog, nullptr, this, nullptr);
+    }
+    auto offscreenUi = DependencyManager::get<OffscreenUi>();
+    if (offscreenUi) {
+        offscreenUi->removeModalDialog(this);
+    }
+    // A direct response receiver can destroy this listener or its dialog.
+    // Publish a local value and never access members after emitting it.
+    emit response(result);
 }
 
 void ModalDialogListener::onDestroyed() {
-    _finished = true;
-    disconnect(_dialog);
     _dialog = nullptr;
+    finish(QVariant());
 }
 
 #include "OffscreenUi.moc"
