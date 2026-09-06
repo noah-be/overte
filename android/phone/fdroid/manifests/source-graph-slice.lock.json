@@ -13,7 +13,7 @@
   },
   "exported_recipe_revisions": {
     "libnode/22.22.3@overte/stable": "3fd33b0199406fa08037c90d5dd1a635",
-    "openssl/3.5.8@overte/stable": "33b2f0ee1a4417ab2c5429ae844d0ea5"
+    "openssl/3.5.8@overte/stable": "d98b923ce574f06e672c00c17e63ac9c"
   },
   "bound_files": {
     "android/common/cmake/overte-android-toolchain.cmake": "14f30644a18223aec071f5f43069c7af46294a9d2007d3accfb35a04771fbe2e",
@@ -21,7 +21,7 @@
     "android/common/conan/recipes/libnode/conandata.yml": "388a498501a3efdb3142363dd89220780beb66600f449c912a9a1965a7c2fadf",
     "android/common/conan/recipes/libnode/conanfile.py": "b51db7ad522d3e66d4e5682ad56410fad15465269b9a1e9b86643e734d71a960",
     "android/common/conan/recipes/openssl/conandata.yml": "8fb30a2f8a338a50831774f9cd5f64a8b156a2d2f3252b22b0d27ed05298d620",
-    "android/common/conan/recipes/openssl/conanfile.py": "b657dc7a45695d17d41406bb53ec1d755e4039f67065748a86ea1bb94d6c6cba",
+    "android/common/conan/recipes/openssl/conanfile.py": "de95073a9f06075650b8f3fd20000c6b7ab4a384beefae656f1bf63cc2cc8478",
     "android/phone/fdroid/profiles/android-arm64-v8a-api26-16k": "11d9bc7d719ed73a9e6e3b6d7dda34340b2964a3bce76357da84c0698a3b3a99"
   },
   "consumer_contract": {
