@@ -15,16 +15,16 @@
     },
     "host-tools-linux-x86_64": {
       "lock": "android/phone/fdroid/locks/host-tools-linux-x86_64.lock",
-      "lock_sha256": "9c1cec67c5bad712912183fafa795ef4266ccbfc8a8caea57a15cf704cbdbff7",
-      "identity_sha256": "e4abe0cf7460dacbb890f1efc65770f549b1b1364318c17084f9885bd28f55c2",
+      "lock_sha256": "f95112cb85fe24bd44d5b90d96b05ce3536f05a21074c15caf73874bf4b21f55",
+      "identity_sha256": "1720113e13c4b0ea3a53290370c013efb1b2ef2231cbdcd20526032508abd30c",
       "profile": "android/phone/fdroid/conan/profiles/linux-x86_64-hosttools",
-      "profile_sha256": "2e8111cfd525db2a74138edfac4f2743cf5ec6a5900e2b7c9e164ab972dad088",
+      "profile_sha256": "42b957d58c67488f99618cf350fcd726290deccbd40716cd4435b4e3458ce2c9",
       "package_revision": "NOT_GENERATED_COLD_BUILD_NOT_STARTED"
     },
     "android-arm64-v8a-api26-16k": {
       "lock": "android/phone/fdroid/locks/android-arm64-v8a-api26-16k.lock",
-      "lock_sha256": "dfd8a86a314916cbc01875bb8f8d0511c66d25891ebbf84604eea1a58ea3e95f",
-      "identity_sha256": "dd61cf8c4ee68127293cae1dce51b579dc39cc3467c5c65ad7049b648597e0df",
+      "lock_sha256": "1fb03b2b98778826630741f329c29b879562cfba7ba2aa7e11af383903948c6d",
+      "identity_sha256": "9c82b80156d869fa0c76b2be9b465e70c5012b4b4a94b4e79c953ecf2cb78797",
       "profile": "android/phone/fdroid/conan/profiles/android-arm64-v8a-api26-16k",
       "profile_sha256": "95f1e0d838599ae76185bb724ce92fd4011a5709308d45c3ed7793ddb1a4e385",
       "package_revision": "NOT_GENERATED_COLD_BUILD_NOT_STARTED"
@@ -105,7 +105,7 @@
     "android/phone/fdroid/container/Containerfile": "4c5a1203ba2d125664428a98a03aa028a06805d5548948b2cbf7566719f8224b",
     "android/phone/fdroid/gradle-acquisition/build.gradle": "8ce8344cd6c88b3d7c911c34f2484ea7596d6217418d0acc6dfe6d941290518c",
     "android/phone/fdroid/gradle-acquisition/settings.gradle": "347d3c618cd6441bd70ecfad7c83bd645702c5bf864526899e1e7e9c4ca9e071",
-    "android/phone/fdroid/manifests/source-closure.lock.json": "6d9bad4a817df7deb93e16b30f5513fa433d3719f22c6f1b5188ccd031d1c382",
+    "android/phone/fdroid/manifests/source-closure.lock.json": "993222f36fc6e1e20e0d0e8b9672f4f7eb61adff8aea3ed929b0c9d0e765af61",
     "android/phone/fdroid/manifests/toolchain-provisioning.lock.json": "745d07971763a32e6fa629da93bcd1f09efbbf067ceb3333aba441439ab72563",
     "android/phone/fdroid/scripts/build-dependencies.sh": "a5d343ea3f6622610f89fed80a69b047f8c4cff68c57a5d3bf3d48329b75b55c",
     "android/phone/fdroid/scripts/cold-build.sh": "db1e1add03e10abfc09be8da7bd500b3d20d6b0226274fe84b6512e9e55f4dfc",
