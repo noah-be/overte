@@ -68,15 +68,18 @@ void releasePhoneLoginUiFocus() {
 LoginDialog::LoginDialog(QQuickItem *parent) : OffscreenQmlDialog(parent) {
     auto accountManager = DependencyManager::get<AccountManager>();
     auto domainAccountManager = DependencyManager::get<DomainAccountManager>();
+    // Domain authentication uses this QML dialog on every platform, including
+    // Android VR. Its terminal result must reach the existing QML handlers;
+    // the native Android account-login and focus routes remain separate below.
+    connect(domainAccountManager.data(), &DomainAccountManager::loginComplete,
+        this, &LoginDialog::handleLoginCompleted);
+    connect(domainAccountManager.data(), &DomainAccountManager::loginFailed,
+        this, &LoginDialog::handleLoginFailed);
     // the login hasn't been dismissed yet if the user isn't logged in and is encouraged to login.
 #if !defined(Q_OS_ANDROID) || defined(ANDROID_APP_PHONE_INTERFACE)
     connect(accountManager.data(), &AccountManager::loginComplete,
         this, &LoginDialog::handleLoginCompleted);
     connect(accountManager.data(), &AccountManager::loginFailed,
-            this, &LoginDialog::handleLoginFailed);
-    connect(domainAccountManager.data(), &DomainAccountManager::loginComplete,
-        this, &LoginDialog::handleLoginCompleted);
-    connect(domainAccountManager.data(), &DomainAccountManager::loginFailed,
             this, &LoginDialog::handleLoginFailed);
 #if defined(ANDROID_APP_PHONE_INTERFACE) || defined(Q_OS_IOS)
     connect(this, &LoginDialog::handleLoginCompleted, this, [] {
