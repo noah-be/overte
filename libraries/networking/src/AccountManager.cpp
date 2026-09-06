@@ -136,25 +136,40 @@ static void observeAccountTokenDeadline(QNetworkReply* reply) {
     });
 }
 
+void AccountManager::resetAccountSettings() {
+    _settingsGetContext.next();
+    if (_pullSettingsRetryTimer) { _pullSettingsRetryTimer->stop(); }
+    if (_postSettingsTimer) { _postSettingsTimer->stop(); }
+    _settingsRetryCredentials = {};
+    _settingsRetryRequest = {};
+    _settingsSyncCredentials = {};
+    _numPullRetries = 0;
+    _lastSuccessfulSyncTimestamp = 0;
+    _settings.loggedOut();
+}
+
 void AccountManager::logout() {
-    _credentialContext.next();
+    const auto logoutContext = _credentialContext.next();
+    QPointer<AccountManager> logoutOwner(this);
     _isWaitingForTokenRefresh = false;
     _isWaitingForAccessToken = false;
     postAccountSettings();
-    _numPullRetries = 0;
+    if (!logoutOwner || !logoutContext.current()) { return; }
+    resetAccountSettings();
 
     // a logout means we want to delete the DataServerAccountInfo we currently have for this URL, in-memory and in file
     _accountInfo = DataServerAccountInfo();
 
     // remove this account from the account settings file
     removeAccountFromFile();
+    if (!logoutOwner || !logoutContext.current()) { return; }
     saveLoginStatus(false);
+    if (!logoutOwner || !logoutContext.current()) { return; }
 
     emit logoutComplete();
+    if (!logoutOwner || !logoutContext.current()) { return; }
     // the username has changed to blank
     emit usernameChanged(QString());
-
-    _settings.loggedOut();
 }
 
 QString accountFileDir() {
@@ -232,6 +247,7 @@ QVariantMap accountMapFromFile(bool& success) {
 void AccountManager::setAuthURL(const QUrl& authURL) {
     if (_authURL != authURL) {
         _credentialContext.next();
+        resetAccountSettings();
         _isWaitingForTokenRefresh = false;
         _isWaitingForAccessToken = false;
         _authURL = authURL;
@@ -542,6 +558,7 @@ void AccountManager::persistAccountToFile() {
     // can reenter. Existing completion guards must not continue as a success.
     _credentialContext.next();
     _isWaitingForTokenRefresh = false;
+    resetAccountSettings();
     _accountInfo = DataServerAccountInfo();
     emit authRequired();
 }
@@ -558,6 +575,10 @@ void AccountManager::removeAccountFromFile() {
 }
 
 void AccountManager::setAccountInfo(const DataServerAccountInfo &newAccountInfo) {
+    _credentialContext.next();
+    _isWaitingForAccessToken = false;
+    _isWaitingForTokenRefresh = false;
+    resetAccountSettings();
     _accountInfo = newAccountInfo;
     _pendingPrivateKey.clear();
     if (_isAgent && !_accountInfo.getAccessToken().token.isEmpty() && !_accountInfo.hasProfile()) {
@@ -614,6 +635,12 @@ bool AccountManager::needsToRefreshToken() {
 }
 
 void AccountManager::setAccessTokenForCurrentAuthURL(const QString& accessToken) {
+    if (_accountInfo.getAccessToken().token != accessToken) {
+        _credentialContext.next();
+        _isWaitingForAccessToken = false;
+        _isWaitingForTokenRefresh = false;
+        resetAccountSettings();
+    }
     // replace the account info access token with a new OAuthAccessToken
     OAuthAccessToken newOAuthToken;
     newOAuthToken.token = accessToken;
@@ -878,6 +905,7 @@ bool AccountManager::setAccessTokens(const QString& response) {
             const auto completionContext = _credentialContext.next();
             _isWaitingForAccessToken = false;
             _isWaitingForTokenRefresh = false;
+            resetAccountSettings();
             _accountInfo = DataServerAccountInfo();
             _accountInfo.setAccessTokenFromJSON(rootObject);
             QPointer<AccountManager> completionOwner(this);
@@ -956,6 +984,7 @@ void AccountManager::requestAccessTokenFinished() {
 
             qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
+            resetAccountSettings();
             _accountInfo = DataServerAccountInfo();
             _accountInfo.setAccessTokenFromJSON(rootObject);
 
@@ -1138,9 +1167,20 @@ void AccountManager::requestProfileError(QNetworkReply::NetworkError error) {
 }
 
 void AccountManager::requestAccountSettings() {
-    if (!_accountSettingsEnabled) {
+    if (!_accountSettingsEnabled || _isPostingAccountSettings || _isWaitingForAccessToken || !isLoggedIn()) {
         return;
     }
+    const auto credentials = _credentialContext.snapshot();
+    if (sender() == _pullSettingsRetryTimer &&
+        (!_settingsRetryCredentials.current() || !_settingsRetryCredentials.sameRequest(credentials) ||
+         !_settingsRetryRequest.current() || !_settingsRetryRequest.sameRequest(_settingsGetContext.snapshot()))) {
+        return;
+    }
+    _pullSettingsRetryTimer->stop();
+    const auto download = _settingsGetContext.next();
+    QPointer<AccountManager> owner(this);
+    const auto requestedTimestamp = _settings.lastChangeTimestamp();
+    _settings.startedLoading();
 
     qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
@@ -1150,31 +1190,70 @@ void AccountManager::requestAccountSettings() {
     lockerURL.setPath(getMetaverseServerURLPath() + "/api/v1/user/locker");
 
     QNetworkRequest lockerRequest(lockerURL);
-    lockerRequest.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    lockerRequest.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
     lockerRequest.setHeader(QNetworkRequest::UserAgentHeader, _userAgentGetter());
+    if (!owner || !credentials.current() || !download.current()) { return; }
     lockerRequest.setRawHeader(ACCESS_TOKEN_AUTHORIZATION_HEADER, _accountInfo.getAccessToken().authorizationHeaderValue());
 
     QNetworkReply* lockerReply = networkAccessManager.get(lockerRequest);
+    lockerReply->setProperty("_overte_settings_requested_timestamp", QVariant::fromValue(requestedTimestamp));
+    lockerReply->setProperty("_overte_settings_credentials", QVariant::fromValue(credentials));
+    overte::network::watchRequest(lockerReply, credentials);
+    overte::network::watchRequest(lockerReply, download);
+    observeAccountTokenDeadline(lockerReply);
+    if (!owner || !credentials.current() || !download.current()) { lockerReply->deleteLater(); return; }
     connect(lockerReply, &QNetworkReply::finished, this, &AccountManager::requestAccountSettingsFinished);
 #if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
     connect(lockerReply, &QNetworkReply::errorOccurred, this, &AccountManager::requestAccountSettingsError);
 #else
     connect(lockerReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(requestAccountSettingsError(QNetworkReply::NetworkError)));
 #endif
-
-    _settings.startedLoading();
 }
 
 void AccountManager::requestAccountSettingsFinished() {
-    QNetworkReply* lockerReply = reinterpret_cast<QNetworkReply*>(sender());
-
-    QJsonDocument jsonResponse = QJsonDocument::fromJson(lockerReply->readAll());
+    auto* lockerReply = qobject_cast<QNetworkReply*>(sender());
+    if (!lockerReply || lockerReply->property("_overte_settings_get_finished").toBool()) { return; }
+    lockerReply->setProperty("_overte_settings_get_finished", true);
+    lockerReply->deleteLater();
+    const auto download = lockerReply->property("_overte_request_ticket").value<overte::network::RequestTicket>();
+    const auto credentials = lockerReply->property("_overte_settings_credentials").value<overte::network::RequestTicket>();
+    if (!download.current() || !download.sameRequest(_settingsGetContext.snapshot()) ||
+        !credentials.current() || !credentials.sameRequest(_credentialContext.snapshot())) { return; }
+    QPointer<AccountManager> owner(this);
+    QPointer<QNetworkReply> replyOwner(lockerReply);
+    const auto response = lockerReply->read(1024 * 1024 + 1);
+    if (!owner || !replyOwner || !download.current() || !credentials.current()) { return; }
+    bool timestampValid = false;
+    const auto requestedTimestamp = lockerReply->property("_overte_settings_requested_timestamp").toULongLong(&timestampValid);
+    if (!timestampValid) { return; }
+    if (_settings.lastChangeTimestamp() != requestedTimestamp) {
+        // A local edit wins even over a failed GET. Retrying that GET would
+        // capture the newer stamp and could overwrite the retained local value.
+        _pullSettingsRetryTimer->stop();
+        _numPullRetries = 0;
+        if (_settings.homeLocationState() == AccountSettings::Loaded) { _postSettingsTimer->start(); }
+        return;
+    }
+    const int status = lockerReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    QJsonParseError parseError;
+    QJsonDocument jsonResponse = QJsonDocument::fromJson(response, &parseError);
+    const bool valid = !lockerReply->property("_overte_account_auth_timed_out").toBool() &&
+        lockerReply->error() == QNetworkReply::NoError && status >= 200 && status < 300 &&
+        response.size() <= 1024 * 1024 && lockerReply->bytesAvailable() == 0 &&
+        parseError.error == QJsonParseError::NoError && jsonResponse.isObject();
     const QJsonObject& rootObject = jsonResponse.object();
 
-    if (rootObject.contains("status") && rootObject["status"].toString() == "success") {
+    if (valid && rootObject.contains("status") && rootObject["status"].toString() == "success") {
         if (rootObject.contains("data") && rootObject["data"].isObject()) {
-            _settings.unpack(rootObject["data"].toObject());
-            _lastSuccessfulSyncTimestamp = _settings.lastChangeTimestamp();
+            quint64 appliedTimestamp = 0;
+            if (!_settings.unpackIfUnchanged(rootObject["data"].toObject(), requestedTimestamp, appliedTimestamp)) {
+                if (_settings.homeLocationState() == AccountSettings::Loaded) { _postSettingsTimer->start(); }
+                return;
+            }
+            _lastSuccessfulSyncTimestamp = appliedTimestamp;
+            _settingsSyncCredentials = credentials;
+            _pullSettingsRetryTimer->stop();
+            _numPullRetries = 0;
 
             qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
@@ -1182,6 +1261,8 @@ void AccountManager::requestAccountSettingsFinished() {
         } else {
             qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             if (!_pullSettingsRetryTimer->isActive() && _numPullRetries < MAX_PULL_RETRIES) {
+                _settingsRetryCredentials = credentials;
+                _settingsRetryRequest = download;
                 ++_numPullRetries;
                 _pullSettingsRetryTimer->start();
             }
@@ -1189,6 +1270,8 @@ void AccountManager::requestAccountSettingsFinished() {
     } else {
         qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         if (!_pullSettingsRetryTimer->isActive() && _numPullRetries < MAX_PULL_RETRIES) {
+            _settingsRetryCredentials = credentials;
+            _settingsRetryRequest = download;
             ++_numPullRetries;
             _pullSettingsRetryTimer->start();
         }
@@ -1197,17 +1280,21 @@ void AccountManager::requestAccountSettingsFinished() {
 
 void AccountManager::requestAccountSettingsError(QNetworkReply::NetworkError error) {
     qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
-    if (!_pullSettingsRetryTimer->isActive() && _numPullRetries < MAX_PULL_RETRIES) {
-        ++_numPullRetries;
-        _pullSettingsRetryTimer->start();
-    }
+    // The scoped finished receiver alone schedules retries, once per reply.
 }
 
 void AccountManager::postAccountSettings() {
-    if (!_accountSettingsEnabled) {
+    if (!_accountSettingsEnabled || _isPostingAccountSettings || _isWaitingForAccessToken) {
         return;
     }
+    const auto settingsState = _settings.homeLocationState();
+    if (settingsState == AccountSettings::LoggedOut || settingsState == AccountSettings::Loading) { return; }
 
+    const auto credentials = _credentialContext.snapshot();
+    if (!_settingsSyncCredentials.sameRequest(credentials)) {
+        _lastSuccessfulSyncTimestamp = 0;
+        _settingsSyncCredentials = credentials;
+    }
     if (_settings.lastChangeTimestamp() <= _lastSuccessfulSyncTimestamp && _lastSuccessfulSyncTimestamp != 0) {
         // Nothing changed, skipping settings post
         return;
@@ -1225,18 +1312,34 @@ void AccountManager::postAccountSettings() {
     lockerURL.setPath(getMetaverseServerURLPath() + "/api/v1/user/locker");
 
     QNetworkRequest lockerRequest(lockerURL);
-    lockerRequest.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    const auto upload = _settingsPostContext.next();
+    _settingsGetContext.next();
+    _pullSettingsRetryTimer->stop();
+    QPointer<AccountManager> owner(this);
+    _isPostingAccountSettings = true;
+    lockerRequest.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
     lockerRequest.setHeader(QNetworkRequest::UserAgentHeader, _userAgentGetter());
+    if (!owner) { return; }
+    if (!credentials.current()) { _isPostingAccountSettings = false; return; }
     lockerRequest.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     lockerRequest.setRawHeader(ACCESS_TOKEN_AUTHORIZATION_HEADER, _accountInfo.getAccessToken().authorizationHeaderValue());
 
-    _currentSyncTimestamp = _settings.lastChangeTimestamp();
+    const auto snapshot = _settings.snapshot();
     QJsonObject dataObj;
-    dataObj.insert("locker", _settings.pack());
+    dataObj.insert("locker", snapshot.data);
 
     auto postData = QJsonDocument(dataObj).toJson(QJsonDocument::Compact);
 
     QNetworkReply* lockerReply = networkAccessManager.put(lockerRequest, postData);
+    lockerReply->setProperty("_overte_settings_credentials", QVariant::fromValue(credentials));
+    lockerReply->setProperty("_overte_settings_timestamp", QVariant::fromValue(snapshot.timestamp));
+    overte::network::watchRequest(lockerReply, upload);
+    observeAccountTokenDeadline(lockerReply);
+    if (!owner) { lockerReply->deleteLater(); return; }
+    connect(lockerReply, &QObject::destroyed, this, [this, upload] {
+        if (upload.current()) { _isPostingAccountSettings = false; }
+    });
+    if (!credentials.current()) { lockerReply->deleteLater(); return; }
     connect(lockerReply, &QNetworkReply::finished, this, &AccountManager::postAccountSettingsFinished);
 #if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
     connect(lockerReply, &QNetworkReply::errorOccurred, this, &AccountManager::postAccountSettingsError);
@@ -1246,13 +1349,30 @@ void AccountManager::postAccountSettings() {
 }
 
 void AccountManager::postAccountSettingsFinished() {
-    QNetworkReply* lockerReply = reinterpret_cast<QNetworkReply*>(sender());
-
-    QJsonDocument jsonResponse = QJsonDocument::fromJson(lockerReply->readAll());
+    auto* lockerReply = qobject_cast<QNetworkReply*>(sender());
+    if (!lockerReply || lockerReply->property("_overte_settings_finished").toBool()) { return; }
+    lockerReply->setProperty("_overte_settings_finished", true);
+    lockerReply->deleteLater();
+    const auto upload = lockerReply->property("_overte_request_ticket").value<overte::network::RequestTicket>();
+    if (!upload.current() || !upload.sameRequest(_settingsPostContext.snapshot())) { return; }
+    _isPostingAccountSettings = false;
+    const auto credentials = lockerReply->property("_overte_settings_credentials").value<overte::network::RequestTicket>();
+    if (!credentials.current() || !credentials.sameRequest(_credentialContext.snapshot())) { return; }
+    const int status = lockerReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    if (lockerReply->error() != QNetworkReply::NoError || status < 200 || status >= 300 ||
+        lockerReply->property("_overte_account_auth_timed_out").toBool()) { return; }
+    QPointer<AccountManager> owner(this);
+    QPointer<QNetworkReply> replyOwner(lockerReply);
+    const auto response = lockerReply->read(1024 * 1024 + 1);
+    if (!owner || !replyOwner || !credentials.current() || !upload.current()) { return; }
+    if (response.size() > 1024 * 1024 || lockerReply->bytesAvailable() != 0) { return; }
+    QJsonParseError parseError;
+    QJsonDocument jsonResponse = QJsonDocument::fromJson(response, &parseError);
+    if (parseError.error != QJsonParseError::NoError || !jsonResponse.isObject()) { return; }
     const QJsonObject& rootObject = jsonResponse.object();
 
     if (rootObject.contains("status") && rootObject["status"].toString() == "success") {
-        _lastSuccessfulSyncTimestamp = _currentSyncTimestamp;
+        _lastSuccessfulSyncTimestamp = lockerReply->property("_overte_settings_timestamp").toULongLong();
     } else {
         qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }

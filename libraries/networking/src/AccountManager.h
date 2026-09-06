@@ -175,6 +175,7 @@ private:
     Q_DISABLE_COPY(AccountManager);
 
     void persistAccountToFile();
+    void resetAccountSettings();
 
     void passSuccessToCallback(QNetworkReply* reply);
     void passErrorToCallback(QNetworkReply* reply);
@@ -201,7 +202,12 @@ private:
 
     bool _accountSettingsEnabled { false };
     AccountSettings _settings;
-    quint64 _currentSyncTimestamp { 0 };
+    bool _isPostingAccountSettings { false };
+    overte::network::RequestScope _settingsPostContext;
+    overte::network::RequestScope _settingsGetContext;
+    overte::network::RequestTicket _settingsRetryCredentials;
+    overte::network::RequestTicket _settingsRetryRequest;
+    overte::network::RequestTicket _settingsSyncCredentials;
     quint64 _lastSuccessfulSyncTimestamp { 0 };
     int _numPullRetries { 0 };
     QTimer* _pullSettingsRetryTimer { nullptr };

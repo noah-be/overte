@@ -18,6 +18,10 @@ struct DataServerAccountInfo {
 class AccountManager : public QObject {
     Q_OBJECT
 public:
+    // Settings reset is an explicit boundary here; its original implementation
+    // is exercised by account-settings-upload-test.cpp.
+    int settingsResets = 0;
+    void resetAccountSettings() { ++settingsResets; }
     overte::network::RequestScope _credentialContext;
     DataServerAccountInfo _accountInfo;
     int persisted = 0, profiles = 0;

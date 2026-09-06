@@ -20,18 +20,39 @@
 static QString HOME_LOCATION_KEY { "home_location" };
 
 QJsonObject AccountSettings::pack() {
-    QJsonObject data;
+    return snapshot().data;
+}
 
+AccountSettings::Snapshot AccountSettings::snapshot() const {
     QReadLocker lock(&_settingsLock);
-    data.insert(HOME_LOCATION_KEY, _homeLocation);
-
-    return data;
+    return { QJsonObject { { HOME_LOCATION_KEY, _homeLocation } }, _lastChangeTimestamp };
 }
 
 void AccountSettings::unpack(QJsonObject data) {
     QWriteLocker lock(&_settingsLock);
+    unpackLocked(data);
+}
 
-    _lastChangeTimestamp = usecTimestampNow();
+bool AccountSettings::unpackIfUnchanged(const QJsonObject& data, quint64 expectedTimestamp,
+                                      quint64& appliedTimestamp) {
+    QWriteLocker lock(&_settingsLock);
+    if (_lastChangeTimestamp != expectedTimestamp) { return false; }
+    unpackLocked(data);
+    appliedTimestamp = _lastChangeTimestamp;
+    return true;
+}
+
+void AccountSettings::advanceTimestampLocked() {
+    // Clock resolution/adjustments must not make different snapshots identical.
+    // Never wrap and accidentally accept a previously issued snapshot.
+    if (_lastChangeTimestamp == std::numeric_limits<quint64>::max()) {
+        throw std::overflow_error("Account settings revision exhausted");
+    }
+    _lastChangeTimestamp = std::max(_lastChangeTimestamp + 1, usecTimestampNow());
+}
+
+void AccountSettings::unpackLocked(const QJsonObject& data) {
+    advanceTimestampLocked();
 
     auto it = data.find(HOME_LOCATION_KEY);
     _homeLocationState = it != data.end() && it->isString() ? Loaded : NotPresent;
@@ -41,15 +62,20 @@ void AccountSettings::unpack(QJsonObject data) {
 void AccountSettings::setHomeLocation(QString homeLocation) {
     QWriteLocker lock(&_settingsLock);
     if (homeLocation != _homeLocation) {
-        _lastChangeTimestamp = usecTimestampNow();
+        advanceTimestampLocked();
     }
     _homeLocation = homeLocation;
+    _homeLocationState = Loaded;
 }
 
 void AccountSettings::startedLoading() {
+    QWriteLocker lock(&_settingsLock);
     _homeLocationState = Loading;
 }
 
 void AccountSettings::loggedOut() {
+    QWriteLocker lock(&_settingsLock);
+    advanceTimestampLocked();
+    _homeLocation.clear();
     _homeLocationState = LoggedOut;
 }
