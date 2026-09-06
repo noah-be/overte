@@ -84,6 +84,32 @@ int main(int argc, char** argv) {
         qInstallMessageHandler(nullptr);
         return 0;
     }
+    // Actual session-cache entry must not revive after an auth context change
+    // or failed replacement sign-in. Unchanged context still reuses its token.
+    for (int change = 0; change < 3; ++change) {
+        DomainAccountManager cached;
+        const QUrl domain("hifi://cached-private.invalid");
+        const QUrl auth("https://cached-auth.invalid/token");
+        cached.setDomainURL(domain); cached.setAuthURL(auth); cached.setClientID("old-client");
+        cached.requestAccessToken("cached-user", "cached-password");
+        network.latest->finish(200, "{\"access_token\":\"cached-token\",\"refresh_token\":\"cached-refresh\"}");
+        assert(cached.isLoggedIn());
+        cached.setClientID("old-client"); cached.setAuthURL(auth);
+        assert(cached.getAccessToken() == "cached-token");
+        cached.setDomainURL(QUrl("hifi://other-private.invalid")); cached.setDomainURL(domain);
+        assert(cached.getAccessToken() == "cached-token" && cached.getRefreshToken() == "cached-refresh");
+        if (change == 0) cached.setClientID("new-client");
+        else if (change == 1) cached.setAuthURL(QUrl("https://new-auth.invalid/token"));
+        else {
+            cached.requestAccessToken("new-user", "new-password");
+            network.latest->finish(401, "{}");
+        }
+        assert(!cached.isLoggedIn() && cached.getAccessToken().isEmpty());
+        assert(cached.getRefreshToken().isEmpty() && cached.getAuthedDomainName().isEmpty());
+        cached.setDomainURL(QUrl("hifi://other-private.invalid")); cached.setDomainURL(domain);
+        assert(cached.getAccessToken().isEmpty() && cached.getRefreshToken().isEmpty());
+        assert(!cached.isLoggedIn());
+    }
     int success = 0, failure = 0, tokens = 0, prompts = 0;
     QObject::connect(&manager, &DomainAccountManager::loginComplete, [&] { ++success; });
     QObject::connect(&manager, &DomainAccountManager::loginFailed, [&] { ++failure; });

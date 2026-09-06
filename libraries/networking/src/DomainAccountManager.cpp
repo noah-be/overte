@@ -62,6 +62,10 @@ void DomainAccountManager::setClientID(const QString& clientID) {
     }
     invalidatePendingAccessToken();
     _currentAuth.clientID = clientID;
+    _currentAuth.accessToken.clear();
+    _currentAuth.refreshToken.clear();
+    _currentAuth.authedDomainName.clear();
+    _knownAuths.remove(_currentAuth.domainURL);
 }
 
 void DomainAccountManager::setDomainURL(const QUrl& domainURL) {
@@ -94,6 +98,8 @@ void DomainAccountManager::setAuthURL(const QUrl& authURL) {
 
     _currentAuth.accessToken = "";
     _currentAuth.refreshToken = "";
+    _currentAuth.authedDomainName.clear();
+    _knownAuths.remove(_currentAuth.domainURL);
 
     emit hasLogInChanged(hasLogIn());
 }
@@ -109,6 +115,12 @@ bool DomainAccountManager::isLoggedIn() {
 overte::network::RequestTicket DomainAccountManager::requestAccessToken(const QString& username, const QString& password) {
 
     invalidatePendingAccessToken();
+    // A replacement sign-in discards the prior session entry even when this
+    // request cannot start. Returning to the domain must not revive old tokens.
+    _currentAuth.accessToken.clear();
+    _currentAuth.refreshToken.clear();
+    _currentAuth.authedDomainName.clear();
+    _knownAuths.remove(_currentAuth.domainURL);
     const auto ticket = _accessTokenRequests.snapshot();
     if (!ticket.current()) {
         emit loginFailed();
@@ -117,9 +129,6 @@ overte::network::RequestTicket DomainAccountManager::requestAccessToken(const QS
     }
 
     _currentAuth.username = username;
-    _currentAuth.accessToken = "";
-    _currentAuth.refreshToken = "";
-
     QNetworkRequest request;
 
     request.setHeader(QNetworkRequest::UserAgentHeader, NetworkingConstants::OVERTE_USER_AGENT);
