@@ -659,7 +659,7 @@ void AccountManager::requestAccessToken(const QString& login, const QString& pas
     QNetworkReply* requestReply = networkAccessManager.post(request, postData);
     overte::network::watchRequest(requestReply, requestContext);
     observeAccountTokenDeadline(requestReply);
-    if (!requestOwner || !requestContext.current()) { return; }
+    if (!requestOwner || !requestContext.current()) { requestReply->deleteLater(); return; }
     connect(requestReply, &QNetworkReply::finished, this, &AccountManager::requestAccessTokenFinished);
     connect(requestReply, &QObject::destroyed, this, [this, requestContext] {
         if (requestContext.current()) { _isWaitingForAccessToken = false; }
@@ -695,7 +695,7 @@ void AccountManager::requestAccessTokenWithAuthCode(const QString& authCode, con
     QNetworkReply* requestReply = networkAccessManager.post(request, postData);
     overte::network::watchRequest(requestReply, requestContext);
     observeAccountTokenDeadline(requestReply);
-    if (!requestOwner || !requestContext.current()) { return; }
+    if (!requestOwner || !requestContext.current()) { requestReply->deleteLater(); return; }
     connect(requestReply, &QNetworkReply::finished, this, &AccountManager::requestAccessTokenFinished);
     connect(requestReply, &QObject::destroyed, this, [this, requestContext] {
         if (requestContext.current()) { _isWaitingForAccessToken = false; }
@@ -729,7 +729,7 @@ void AccountManager::requestAccessTokenWithSteam(QByteArray authSessionTicket) {
     QNetworkReply* requestReply = networkAccessManager.post(request, postData);
     overte::network::watchRequest(requestReply, requestContext);
     observeAccountTokenDeadline(requestReply);
-    if (!requestOwner || !requestContext.current()) { return; }
+    if (!requestOwner || !requestContext.current()) { requestReply->deleteLater(); return; }
     connect(requestReply, &QNetworkReply::finished, this, &AccountManager::requestAccessTokenFinished);
     connect(requestReply, &QObject::destroyed, this, [this, requestContext] {
         if (requestContext.current()) { _isWaitingForAccessToken = false; }
@@ -764,7 +764,7 @@ void AccountManager::requestAccessTokenWithOculus(const QString& nonce, const QS
     QNetworkReply* requestReply = networkAccessManager.post(request, postData);
     overte::network::watchRequest(requestReply, requestContext);
     observeAccountTokenDeadline(requestReply);
-    if (!requestOwner || !requestContext.current()) { return; }
+    if (!requestOwner || !requestContext.current()) { requestReply->deleteLater(); return; }
     connect(requestReply, &QNetworkReply::finished, this, &AccountManager::requestAccessTokenFinished);
     connect(requestReply, &QObject::destroyed, this, [this, requestContext] {
         if (requestContext.current()) { _isWaitingForAccessToken = false; }
@@ -805,7 +805,7 @@ void AccountManager::refreshAccessToken() {
         QNetworkReply* requestReply = networkAccessManager.post(request, postData);
         overte::network::watchRequest(requestReply, requestContext);
         observeAccountTokenDeadline(requestReply);
-        if (!requestOwner || !requestContext.current()) { return; }
+        if (!requestOwner || !requestContext.current()) { requestReply->deleteLater(); return; }
         connect(requestReply, &QNetworkReply::finished, this, &AccountManager::refreshAccessTokenFinished);
         connect(requestReply, &QObject::destroyed, this, [this, requestContext] {
             if (requestContext.current()) { _isWaitingForTokenRefresh = false; }
@@ -1050,7 +1050,7 @@ void AccountManager::requestProfile() {
     overte::network::watchRequest(profileReply, credentials);
     overte::network::watchRequest(profileReply, profileContext);
     observeAccountTokenDeadline(profileReply);
-    if (!owner || !credentials.current() || !profileContext.current()) { return; }
+    if (!owner || !credentials.current() || !profileContext.current()) { profileReply->deleteLater(); return; }
     connect(profileReply, &QNetworkReply::finished, this, &AccountManager::requestProfileFinished);
     connect(profileReply, SIGNAL(error(QNetworkReply::NetworkError)), this, SLOT(requestProfileError(QNetworkReply::NetworkError)));
 }

@@ -45,11 +45,13 @@ public:
 class NetworkAccessManager : public QNetworkAccessManager {
 public:
     Reply* last = nullptr;
+    QList<QPointer<Reply>> created;
     std::function<void()> onPost;
     static NetworkAccessManager& getInstance() { static NetworkAccessManager instance; return instance; }
 protected:
     QNetworkReply* createRequest(Operation, const QNetworkRequest& request, QIODevice*) override {
         auto* reply = new Reply(request, this);
+        created.append(reply);
         last = reply;
         if (onPost) { auto action = std::move(onPost); onPost = {}; action(); }
         return reply;
@@ -118,6 +120,10 @@ int main(int argc, char** argv) {
             case 1: target.requestAccessTokenWithAuthCode("code", "client", "secret", "callback"); break;
             case 2: target.requestAccessTokenWithSteam("ticket"); break;
             case 3: target.requestAccessTokenWithOculus("nonce", "id"); break;
+            case 4:
+                target._accountInfo.token.refreshToken = "refresh";
+                target.refreshAccessToken();
+                break;
         }
     };
     // A newer login intent on the SAME endpoint supersedes an older reply,
@@ -180,6 +186,7 @@ int main(int argc, char** argv) {
         assert(!oldRefresh && !oldLogin && !rejected);
     }
     for (bool postBoundary : {false, true}) {
+    for (int provider = 0; provider < 5; ++provider) {
         // Current reply destruction frees admission; destroying an old reply
         // must not clear the newer owner's pending state.
         AccountManager lifetime;
@@ -197,15 +204,22 @@ int main(int argc, char** argv) {
         auto replacement = [&] { start(target, 1); };
         if (postBoundary) network.onPost = replacement;
         else target.onUserAgent = replacement;
-        start(target, 0);
+        const auto beforeReplacement = network.created.size();
+        start(target, provider);
         network.last->token("reentrant-new"); network.last->finish();
         assert(target.persisted == 1 && target._accountInfo.token.token == "reentrant-new");
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        if (postBoundary) assert(!network.created[beforeReplacement]);
         QPointer<AccountManager> deleted = new AccountManager;
         auto destroy = [&] { delete deleted.data(); };
         if (postBoundary) network.onPost = destroy;
         else deleted->onUserAgent = destroy;
-        start(*deleted, 0);
+        const auto beforeDestruction = network.created.size();
+        start(*deleted, provider);
         assert(!deleted);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        if (postBoundary) assert(!network.created[beforeDestruction]);
+    }
     }
     for (bool imported : {false, true}) {
         AccountManager target;
