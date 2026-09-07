@@ -2183,11 +2183,10 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
     QString addressLookupString;
 
 #if defined(ANDROID_APP_PICO_INTERFACE)
-    // Keep the Pico development client independent of a remembered or LAN-only
-    // domain. Use the bundled, spawn-aligned Hub fixture for every ordinary
-    // launch (explicit command-line URLs still take precedence).
+    // Ordinary Pico launches use the bundled tutorial. Explicit startup URLs
+    // still take precedence, as on the other Android targets.
     static const QString PICO_DEFAULT_STARTUP_ADDRESS =
-        QStringLiteral("file:///~/serverless/overte-hub-pico4-optimized-spawn.json");
+        QStringLiteral("file:///~/serverless/tutorial.json");
 #endif
 
     // When --url is present on the command line, navigate to that location.
@@ -2219,15 +2218,6 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
 #if defined(ANDROID_APP_PICO_INTERFACE)
     if (!hasExplicitAndroidStartupUrl) {
         addressLookupString = PICO_DEFAULT_STARTUP_ADDRESS;
-        // Apply the packaged world's fixed spawn exactly once. Encoding this
-        // as an AddressManager location query replays it during later
-        // serverless handoffs and teleports a moving avatar back to spawn.
-        // The bridge static mesh resolves y=1.0 to y=1.097 after it loads.
-        // Start just above that surface so physics never has to push the
-        // avatar visibly out of the deck on the first simulated frame.
-        getMyAvatar()->goToLocation(glm::vec3(0.0f, 1.10f, 0.0f),
-            false, glm::quat(), false, false);
-        qCInfo(interfaceapp) << "Pico startup: initialized avatar at deck spawn";
     }
 #endif
 
@@ -2259,7 +2249,7 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
             // entry-point setting yet (or retain an empty one from an older
             // install). Always choose the packaged, known-good location.
 #if defined(ANDROID_APP_PICO_INTERFACE)
-            qCInfo(interfaceapp) << "Pico startup: loading bundled serverless test world"
+            qCInfo(interfaceapp) << "Pico startup: loading bundled tutorial"
                 << PICO_DEFAULT_STARTUP_ADDRESS;
             DependencyManager::get<AddressManager>()->handleLookupString(
                 PICO_DEFAULT_STARTUP_ADDRESS);
@@ -2293,7 +2283,7 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
         }
         qCDebug(interfaceapp) << "Not first run... going to" << qPrintable(!goingTo.isEmpty() ? goingTo : addressLookupString);
 #if defined(ANDROID_APP_PICO_INTERFACE)
-        qCInfo(interfaceapp) << "Pico startup: navigating to bundled serverless test world"
+        qCInfo(interfaceapp) << "Pico startup: navigating to startup world"
             << addressLookupString;
         DependencyManager::get<AddressManager>()->handleLookupString(addressLookupString);
 #else
