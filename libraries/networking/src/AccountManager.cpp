@@ -199,7 +199,13 @@ bool validAccountMapBytes(const overte::security::AccountBytes& bytes) {
     stream >> checked;
     const bool valid = stream.status() == QDataStream::Ok && stream.atEnd();
     serialized.fill('\0');
-    return valid;
+    if (!valid) { return false; }
+    // The account map is a typed record, not an arbitrary QVariant container.
+    // Reject wrong types before migration can discard recoverable legacy data.
+    for (auto it = checked.cbegin(); it != checked.cend(); ++it) {
+        if (it.value().userType() != qMetaTypeId<DataServerAccountInfo>()) { return false; }
+    }
+    return true;
 }
 
 overte::security::LegacyAccountInput legacyAccountInput() {
