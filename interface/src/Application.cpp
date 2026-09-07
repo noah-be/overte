@@ -220,13 +220,19 @@ void messageHandler(QtMsgType type, const QMessageLogContext& context, const QSt
     }
     // Closed classifications only: never disclose QML text, URLs or user data.
     if (type == QtWarningMsg || type == QtCriticalMsg) {
-        const auto localLocation = QRegularExpression("qrc:/(qml/[A-Za-z0-9_./-]+\\.qml):([0-9]+)").match(message);
+        if (message.contains("Unauthorized QML")) {
+            __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=url_rejected");
+        }
+        if (message.contains("Cannot override FINAL property")) {
+            __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=final_property_override");
+        }
+        const auto localLocation = QRegularExpression("qrc:/+(qml/[A-Za-z0-9_./-]+\\.qml):([0-9]+)").match(message);
         if (localLocation.hasMatch() && QFile::exists(":" + QString("/") + localLocation.captured(1))) {
             __android_log_print(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_local_warning file=%s line=%d", localLocation.captured(1).toLatin1().constData(), localLocation.captured(2).toInt());
         }
         if (message.contains("Cannot assign")) {
             __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=cannot_assign");
-            const auto location = QRegularExpression("qrc:/(qml/[A-Za-z0-9_./-]+\\.qml):([0-9]+)").match(message);
+            const auto location = QRegularExpression("qrc:/+(qml/[A-Za-z0-9_./-]+\\.qml):([0-9]+)").match(message);
             if (location.hasMatch() && QFile::exists(":/" + location.captured(1))) {
                 __android_log_print(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_local_error file=%s line=%d", location.captured(1).toLatin1().constData(), location.captured(2).toInt());
             }
@@ -240,13 +246,13 @@ void messageHandler(QtMsgType type, const QMessageLogContext& context, const QSt
             __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=reference_error");
         } else if (message.contains("TypeError")) {
             __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=type_error");
-        } else if (message.contains("No such file")) {
+        } else if ((message.contains("No such file") || message.contains("File not found"))) {
             __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=file_missing");
         } else if (message.contains("is not installed")) {
             __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=module_not_installed");
         } else if (message.contains("is not a type")) {
             __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=unknown_type");
-        } else if (message.contains("is unavailable")) {
+        } else if (message.contains("unavailable")) {
             __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=type_unavailable");
         }
     }
