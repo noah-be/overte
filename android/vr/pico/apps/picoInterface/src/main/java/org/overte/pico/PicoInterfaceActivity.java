@@ -162,6 +162,12 @@ public final class PicoInterfaceActivity extends QtActivity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        // Window focus can remain true after pause, and an obsolete Activity
+        // can receive late input after a replacement registered. Neither may
+        // enqueue keyboard edits in the current client's Qt UI.
+        if (!resumed || INSTANCE.current() != this) {
+            return true;
+        }
         // Pico controller input is handled through OpenXR. Pico OS also sends
         // some controller buttons through Android, which can otherwise queue
         // indefinitely behind Qt's native event loop and trigger an input ANR.
