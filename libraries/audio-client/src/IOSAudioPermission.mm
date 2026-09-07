@@ -44,3 +44,8 @@ bool overteIOSDeactivateAudioSession() {
     auto value = std::atomic_load(&adapter);
     return value && value->deactivate();
 }
+
+void overteIOSSetAudioMuted(bool muted) {
+    auto value = std::atomic_load(&adapter);
+    if (value) { value->muted(muted); }
+}

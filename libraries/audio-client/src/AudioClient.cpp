@@ -1209,6 +1209,7 @@ void AudioClient::start() {
     overte::audio::setIOSAudioStateCallback([this] {
         QMetaObject::invokeMethod(this, [this] { refreshIOSAudioInput(); }, Qt::QueuedConnection);
     });
+    overteIOSSetAudioMuted(_isMuted);
     if (!overteIOSActivateAudioSession()) {
         qCWarning(audioclient) << "iOS audio session activation failed; Qt audio startup remains unverified";
     }
@@ -2388,6 +2389,9 @@ void AudioClient::setMuted(bool muted, bool emitSignal) {
 #endif
     if (_isMuted != muted) {
         _isMuted = muted;
+#if defined(Q_OS_IOS)
+        overteIOSSetAudioMuted(muted);
+#endif
 #if defined(Q_OS_IOS)
         refreshIOSAudioInput();
 #endif
