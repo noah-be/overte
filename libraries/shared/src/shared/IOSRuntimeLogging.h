@@ -11,6 +11,7 @@
 #include <utility>
 #include <cstdint>
 #include <limits>
+#include "IOSRenderObservations.h"
 
 #include <QtCore/QByteArray>
 #include <QtCore/QDateTime>
@@ -269,6 +270,7 @@ inline QJsonObject iosRuntimeDiagnosticConfig() {
     cache.loadedExists = true;
     cache.loadedSize = size;
     cache.loadedModifiedMs = modifiedMs;
+    overte::ios::observeRender(overte::ios::RenderMetric::configReloads);
     logIOSRuntimeEvent(overte::security::DiagnosticEvent::Redacted);
     return cache.config;
 }
@@ -448,6 +450,8 @@ inline void logIOSRuntimeEntityEvidence(const QString& entity) {
     if (entity.isEmpty()) {
         return;
     }
+    overte::ios::observeRender(overte::ios::RenderMetric::entityCommits);
+    overte::ios::observeRender(overte::ios::RenderMetric::renderHandoffs);
     logIOSRuntimeMarker("OVERTE_IOS_ENTITY_GATE entity_tree_nonempty",
                         "entity=", entity);
     logIOSRuntimeMarker("OVERTE_IOS_ENTITY_GATE render_handoff",

@@ -116,6 +116,7 @@ void OctreePacketProcessor::processPacket(QSharedPointer<ReceivedMessage> messag
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
     std::uint64_t entityEvidenceGeneration { 0 };
     if (packetType == PacketType::EntityData) {
+        overte::ios::observeRender(overte::ios::RenderMetric::entityPackets);
         if (!iosRuntimeEntityEvidenceGeneration()) {
             beginIOSRuntimeEntityEvidence();
             logIOSRuntimeMarker("OVERTE_IOS_ENTITY_GATE entity_data_received",

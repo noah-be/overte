@@ -529,6 +529,7 @@ void Application::queryOctree(NodeType_t serverType, PacketType packetType) {
 #endif
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
         if (packetType == PacketType::EntityQuery) {
+            overte::ios::observeRender(overte::ios::RenderMetric::entityQueries);
             logIOSRuntimeMarker("OVERTE_IOS_ENTITY_GATE entity_query_sent",
                                 "node=", node->getUUID().toString(QUuid::WithoutBraces),
                                 "bytes=", packetSize);

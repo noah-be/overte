@@ -89,6 +89,17 @@ static void reportDescriptorCoverage(const char* kind,
         return;
     }
     const auto missing = missingDescriptorBindings(required, writes);
+    const auto missingCount = std::count_if(required.begin(), required.end(), [&](const auto& binding) {
+        return std::none_of(writes.begin(), writes.end(), [&](const VkWriteDescriptorSet& write) {
+            return write.dstBinding == binding.first && write.descriptorCount > 0;
+        });
+    });
+    overte::ios::observeRender(overte::ios::RenderMetric::descriptorChecks, {
+        {overte::ios::RenderMetric::descriptorExpected, required.size()},
+        {overte::ios::RenderMetric::descriptorWritten, writes.size()},
+        {overte::ios::RenderMetric::descriptorMissing, static_cast<uint64_t>(missingCount)},
+        {overte::ios::RenderMetric::descriptorInvalid, invalid}
+    });
     os_log_info(OS_LOG_DEFAULT, "%{public}s",
                 overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
 }
@@ -251,6 +262,7 @@ VKBackend::VKBackend() {
     insertQStringList(_iosQuarantinedPipelines, quarantined);
     insertQStringList(_iosQuarantinedPipelines, pending);
     if (!pending.isEmpty() && !clearPersistedQuarantine) {
+        overte::ios::observeRender(overte::ios::RenderMetric::recoveredSubmits);
         settings.remove("ios/vulkanPendingPipelines");
         settings.setValue("ios/vulkanQuarantinedPipelines", toQStringList(_iosQuarantinedPipelines));
         settings.sync();
@@ -539,6 +551,7 @@ void VKBackend::render(const Batch& batch) {
     const bool quarantineBatch = _iosQuarantinedPipelines.contains(batchDiagnosticId) ||
         _iosQuarantinedBatchNames.contains(batch.getName());
     if (quarantineBatch) {
+        overte::ios::observeRender(overte::ios::RenderMetric::quarantinedDraws);
         os_log_fault(OS_LOG_DEFAULT, "%{public}s",
                     overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         return;
@@ -1166,6 +1179,7 @@ void VKBackend::updateVkDescriptorWriteSetsUniform(const Cache::PipelineLayout &
         descriptorWriteSet.pBufferInfo = &bufferInfos.back();
         sets.push_back(descriptorWriteSet);
 #if defined(Q_OS_IOS)
+        if (!validRange) { overte::ios::observeRender(overte::ios::RenderMetric::uniformFallbacks); }
         if (iosRuntimeRenderDiagnosticsEnabled() &&
                 !validRange && (hasPipelineChanged || _iosTraceCurrentDraw || forcedFallback)) {
             os_log_info(OS_LOG_DEFAULT, "%{public}s",
@@ -1329,6 +1343,7 @@ void VKBackend::updateVkDescriptorWriteSetsTexture(const Cache::PipelineLayout &
             os_log_info(OS_LOG_DEFAULT, "%{public}s",
                         overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         }
+        if (!validTexture) { overte::ios::observeRender(overte::ios::RenderMetric::textureFallbacks); }
         if (texturePointer && !validTexture && !forcedFallback) {
 #if defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)
             const bool expectedExternalFallback = source == "WebEntityRenderer";
@@ -1445,6 +1460,7 @@ void VKBackend::updateVkDescriptorWriteSetsStorage(const Cache::PipelineLayout &
         descriptorWriteSet.pBufferInfo = &bufferInfos.back();
         sets.push_back(descriptorWriteSet);
 #if defined(Q_OS_IOS)
+        if (!validRange) { overte::ios::observeRender(overte::ios::RenderMetric::storageFallbacks); }
         if (iosRuntimeRenderDiagnosticsEnabled() &&
                 !validRange && (hasPipelineChanged || _iosTraceCurrentDraw || forcedFallback)) {
             os_log_info(OS_LOG_DEFAULT, "%{public}s",
@@ -2094,6 +2110,7 @@ void VKBackend::renderPassDraw(const Batch& batch) {
             if (!quarantinePipeline) {
                 (this->*(call))(batch, *offset);
             } else {
+                overte::ios::observeRender(overte::ios::RenderMetric::quarantinedDraws);
                 os_log_fault(OS_LOG_DEFAULT, "%{public}s",
                             overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
             }
@@ -3419,15 +3436,18 @@ void VKBackend::updateTransform(const gpu::Batch& batch) {
         }
         const bool objectRangeValid = validatedObjectIndexes > 0 &&
             invalidObjectIndexes == 0;
+        overte::ios::observeRender(overte::ios::RenderMetric::drawChecks);
         if (_iosTraceCurrentDraw) {
             os_log_info(OS_LOG_DEFAULT, "%{public}s",
                         overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         }
         if (!drawInfoRangeValid) {
+            overte::ios::observeRender(overte::ios::RenderMetric::invalidDrawRanges);
             os_log_fault(OS_LOG_DEFAULT, "%{public}s",
                         overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         }
         if (!objectRangeValid) {
+            overte::ios::observeRender(overte::ios::RenderMetric::invalidObjectRanges);
             os_log_fault(OS_LOG_DEFAULT, "%{public}s",
                         overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
         }

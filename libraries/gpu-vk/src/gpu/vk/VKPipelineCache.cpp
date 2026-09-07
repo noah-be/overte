@@ -905,12 +905,20 @@ const Cache::PipelineLayout& Cache::getPipeline(const vks::Context& context) {
         return details.str();
     };
     const auto createDetails = makePipelineDetails("OVERTE_IOS_VULKAN_PIPELINE_CREATE", nullptr);
+    overte::ios::observeRender(overte::ios::RenderMetric::pipelineAttempts, {
+        {overte::ios::RenderMetric::pipelineTopology, static_cast<uint64_t>(builder.inputAssemblyState.topology)},
+        {overte::ios::RenderMetric::pipelineVertexBindings, builder.vertexInputState.bindingDescriptions.size()},
+        {overte::ios::RenderMetric::pipelineVertexAttributes, builder.vertexInputState.attributeDescriptions.size()},
+        {overte::ios::RenderMetric::pipelineVertexDescriptors, pipelineLayout.vertexReflection.descriptorCount()},
+        {overte::ios::RenderMetric::pipelineFragmentDescriptors, pipelineLayout.fragmentReflection.descriptorCount()}
+    });
     os_log_info(OS_LOG_DEFAULT, "%{public}s",
                 overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
 #endif
     try {
         result = builder.create();
 #if defined(Q_OS_IOS)
+        overte::ios::observeRender(overte::ios::RenderMetric::pipelineCreated);
         const auto createdDetails =
             makePipelineDetails("OVERTE_IOS_VULKAN_PIPELINE_CREATED", nullptr);
         os_log_info(OS_LOG_DEFAULT, "%{public}s",
@@ -918,6 +926,7 @@ const Cache::PipelineLayout& Cache::getPipeline(const vks::Context& context) {
 #endif
     } catch (const std::exception& error) {
 #if defined(Q_OS_IOS)
+        overte::ios::observeRender(overte::ios::RenderMetric::pipelineFailed);
         const auto failureDetails =
             makePipelineDetails("OVERTE_IOS_VULKAN_PIPELINE_CONTEXT", error.what());
         os_log_fault(OS_LOG_DEFAULT, "%{public}s",

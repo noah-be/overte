@@ -806,6 +806,9 @@ void NodeList::processDomainList(QSharedPointer<ReceivedMessage> message) {
         _domainHandler.setLocalID(domainLocalID);
         _domainHandler.setUUID(domainUUID);
         _domainHandler.setIsConnected(true);
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+        overte::ios::observeRender(overte::ios::RenderMetric::domainConnections);
+#endif
 #if defined(Q_OS_MAC) || defined(Q_OS_IOS) || defined(OVERTE_IOS)
         logIOSRuntimeEvent(overte::security::DiagnosticEvent::ConnectionReady);
 #endif

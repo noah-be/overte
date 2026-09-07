@@ -2276,6 +2276,7 @@ void Application::nodeActivated(SharedNodePointer node) {
                           << "node=" << node->getUUID().toString(QUuid::WithoutBraces);
 #endif
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+        overte::ios::observeRender(overte::ios::RenderMetric::entityServers);
         logIOSRuntimeMarker("OVERTE_IOS_ENTITY_GATE entity_server_active",
                             "node=", node->getUUID().toString(QUuid::WithoutBraces));
 #endif

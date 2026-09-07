@@ -557,7 +557,8 @@ void WebEntityRenderer::doRender(RenderArgs* args) {
             quint64 sampledPixels = 0;
             const quint64 totalPixels = static_cast<quint64>(uploadImage.width()) * uploadImage.height();
             constexpr quint64 MAX_DIAGNOSTIC_SAMPLES = 65536;
-            const quint64 sampleStride = std::max<quint64>(1, totalPixels / MAX_DIAGNOSTIC_SAMPLES);
+            const quint64 sampleStride = std::max<quint64>(1,
+                (totalPixels + MAX_DIAGNOSTIC_SAMPLES - 1) / MAX_DIAGNOSTIC_SAMPLES);
             for (quint64 offset = 0; offset < totalPixels; offset += sampleStride) {
                 const int y = static_cast<int>(offset / uploadImage.width());
                 const int x = static_cast<int>(offset % uploadImage.width());
@@ -568,6 +569,13 @@ void WebEntityRenderer::doRender(RenderArgs* args) {
                 nonBlackPixels += pixel.alpha() != 0 &&
                     (pixel.red() != 0 || pixel.green() != 0 || pixel.blue() != 0);
             }
+            overte::ios::observeRender(overte::ios::RenderMetric::qmlUploads, {
+                {overte::ios::RenderMetric::qmlWidth, static_cast<uint64_t>(uploadImage.width())},
+                {overte::ios::RenderMetric::qmlHeight, static_cast<uint64_t>(uploadImage.height())},
+                {overte::ios::RenderMetric::qmlSamples, sampledPixels},
+                {overte::ios::RenderMetric::qmlAlphaSamples, alphaNonzeroPixels},
+                {overte::ios::RenderMetric::qmlNonBlackSamples, nonBlackPixels}
+            });
             QString capturePath;
             const bool captureSaved = false;
             // Raw QML pixels can contain account or private-world content.
