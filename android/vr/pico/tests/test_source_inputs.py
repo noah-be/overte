@@ -170,6 +170,16 @@ class SourceInputs(unittest.TestCase):
         self.f.graph('target'); self.f.seal()
         self.assertIn('libssl_3.so', self.f.resolve()['runtime'])
 
+    def test_real_qt_source_data_names_keep_hash_and_runtime_path_gates(self):
+        file = self.f.write('qt-source/tests/specialchar$file.txt', 'actual source data')
+        self.f.seal(); self.f.resolve()
+        file.write_text('changed bytes')
+        with self.assertRaisesRegex(ADAPTER.IdentityError, 'PICO_PAYLOAD_HASH'): self.f.resolve()
+        self.f.seal()
+        self.f.write('packages/target/qt/specialchar$file.txt', 'not a source inventory path')
+        self.f.seal()
+        with self.assertRaisesRegex(ADAPTER.IdentityError, 'PICO_RELATIVE_PATH'): self.f.resolve()
+
     def test_actual_shell_entrypoints_consume_without_legacy_staging(self):
         for command in ([str(PICO / 'build.sh'), 'deps', '--source-graph'],
                         [str(PICO / 'build.sh'), 'prepare'], [str(PICO / 'prepare-deps.sh')]):

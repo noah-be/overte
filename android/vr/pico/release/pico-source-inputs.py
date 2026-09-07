@@ -45,8 +45,15 @@ def resolve(root, binding_path, expected_binding, expected_source):
     files = spec.get('files')
     require(type(files) is dict and 0 < len(files) <= 100000, 'PICO_PAYLOAD_INVENTORY')
 
-    def path(value):
-        require(type(value) is str and value and not any(c in value for c in '\\";$\n\r') and
+    def path(value, source_inventory=False):
+        # Qt's actual source tree contains an RCC test named specialchar$file.txt.
+        # Source inventory names are hashed data, never emitted as CMake paths.
+        # Keep the original expansion guard for every emitted/runtime path,
+        # and retain traversal, containment and byte checks for all source data.
+        source_data = (source_inventory and type(value) is str and
+                       value.startswith(spec.get('qtSourceDirectory', '') + '/'))
+        require(type(value) is str and value and not any(c in value for c in '\0\\";\n\r') and
+                (source_data or '$' not in value) and
                 all(part not in ('', '.', '..') for part in value.split('/')) and
                 not Path(value).is_absolute(), 'PICO_RELATIVE_PATH')
         result = root / value
@@ -56,7 +63,7 @@ def resolve(root, binding_path, expected_binding, expected_source):
     def checked(file):
         file = Path(file)
         relative = file.relative_to(root).as_posix()
-        path(relative)
+        path(relative, source_inventory=True)
         require(file.is_file() and hex_digest(files.get(relative)), 'PICO_PAYLOAD_HASH')
         value = hashlib.sha256()
         with file.open('rb') as stream:
@@ -67,7 +74,7 @@ def resolve(root, binding_path, expected_binding, expected_source):
     def directory(folder):
         require(folder.is_dir(), 'PICO_INPUT_DIRECTORY')
         for entry in folder.rglob('*'):
-            path(entry.relative_to(root).as_posix())
+            path(entry.relative_to(root).as_posix(), source_inventory=True)
             if entry.is_file(): checked(entry)
         return folder
 
@@ -129,6 +136,7 @@ def resolve(root, binding_path, expected_binding, expected_source):
     require(result.returncode == 0, 'PICO_QT_RUNTIME_PATCH_MISSING')
 
     def elf(file, machine, executable=False):
+        path(file.relative_to(root).as_posix())
         checked(file)
         with file.open('rb') as stream: header = stream.read(20)
         require(len(header) == 20 and header[:6] == b'\x7fELF\x02\x01' and
@@ -173,7 +181,7 @@ def resolve(root, binding_path, expected_binding, expected_source):
     checked(draco / 'include/draco/compression/decode.h')
     checked(draco / 'lib/libdraco.a')
     # Recheck the frozen binding and all supplied bytes after resolution.
-    for relative in files: checked(path(relative))
+    for relative in files: checked(path(relative, source_inventory=True))
     require(digest_file(binding_path) == expected_binding, 'PICO_INPUT_CHANGED')
     return {'status': 'PICO_INPUT_BYTES_BOUND_NATIVE_VERIFICATION_PENDING',
         'sourceRevision': expected_source, 'bindingSha256': expected_binding,
