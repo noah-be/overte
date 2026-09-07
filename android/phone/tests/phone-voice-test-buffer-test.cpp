@@ -27,7 +27,7 @@ int main() {
     assert(silent == std::vector<char>(sizeof(quiet), 0));
     auto amplified = b.process(reinterpret_cast<const char*>(quiet), sizeof(quiet), sizeof(quiet), true);
     int16_t result[4]; std::memcpy(result, amplified.data(), sizeof(result));
-    assert(result[0] == 1600 && result[1] == -1600 && result[2] == 0 && result[3] == 800);
+    assert(result[0] == 3200 && result[1] == -3200 && result[2] == 0 && result[3] == 1600);
     b.reset();
     const int16_t loud[] = { 32767, -32768 };
     b.process(reinterpret_cast<const char*>(loud), sizeof(loud), sizeof(loud), true);

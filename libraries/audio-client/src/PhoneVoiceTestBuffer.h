@@ -30,9 +30,9 @@ public:
                     std::memcpy(&value, _recording.data() + i, sizeof(value));
                     peak = std::max(peak, value < 0 ? -static_cast<int>(value) : static_cast<int>(value));
                 }
-                // Preview gain only: bounded to +24 dB, never amplify exact
+                // Preview gain only: bounded to +30 dB, never amplify exact
                 // silence, and never boost already loud input into clipping.
-                const double gain = peak > 0 ? std::min(16.0, std::max(1.0, 8192.0 / peak)) : 1.0;
+                const double gain = peak > 0 ? std::min(32.0, std::max(1.0, 16384.0 / peak)) : 1.0;
                 for (std::size_t i = 0; i + sizeof(int16_t) <= _recording.size(); i += sizeof(int16_t)) {
                     int16_t value;
                     std::memcpy(&value, _recording.data() + i, sizeof(value));
