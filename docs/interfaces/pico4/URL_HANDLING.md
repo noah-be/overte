@@ -1,53 +1,42 @@
-# Pico 4 URL handling preparation contract
+# Pico 4 URL handling and remaining acceptance
 
-Status: pre-admission Pico-local contract slice. PI-003 is not admitted or complete.
+The production Java policy is
+`android/vr/pico/apps/picoInterface/src/main/java/org/overte/pico/PicoRestartUrlPolicy.java`.
+`RestartArguments.store` validates the exact private argument prefix and world
+URL before persistence. `RestartArguments.consume` validates the recovered
+arguments again before `RestartActivity` supplies them to Qt.
 
-Revision 09 adds the production Java `PicoRestartUrlPolicy` at the private
-`RestartArguments.store` and `consume` boundaries. Both paths validate the exact
-restart argument prefix and supported world scheme before Qt receives arguments.
-The native policy additionally rejects decoded controls and local-file traversal,
-and caps the encoded URL at 4096 bytes. Its JVM tests execute the actual class
-used by the app. The older Python module below remains a preparation fixture;
-it is not a native keyboard implementation. External Android deep links remain
-unsupported; no receiver is added. General's shared focus/UI and auth bindings
-remain pending.
+The policy accepts the base `--display=OpenXR` argument or that prefix followed
+by one `--url` value. Supported world schemes are `hifi`, `http`, `https` and
+`file`. It normalizes Unicode to NFC, rejects invalid surrogate sequences,
+controls, bidi overrides, backslashes, credentials and malformed URI syntax,
+and caps the final encoded URL at 4096 UTF-8 bytes. Network URLs require an
+authority; Unicode DNS names use Java IDN validation. Local file URLs require
+an absolute path, reject traversal after URI decoding, and permit no authority
+except `localhost`. `hifiapp` is not a world URL scheme.
 
-## Existing behavior retained
+The exported Pico activity remains a `MAIN`/`LAUNCHER`/Pico-VR entry point. It
+has no `BROWSABLE` category or URL data filter and does not forward arbitrary
+caller-provided arguments to the private Qt activity. External Android deep
+links are unsupported and must not be advertised as a Pico capability.
 
-The exported Pico activity is a `MAIN`/`LAUNCHER`/Pico-VR entry point. It has no
-`BROWSABLE` category or URL data filter and does not forward caller-provided
-arguments to the private Qt activity. Consequently, arbitrary external deep
-links are unsupported and must not be represented as a Pico capability.
+## Local verification
 
-Trusted in-process restart handling fully percent-encodes its URL before adding
-the private `--url` argument. Existing Android world startup accepts only
-`hifi`, `http`, `https`, and `file` URLs. The prepared Pico-local policy mirrors
-that list; `hifiapp` remains an app-start route rather than a world URL.
+`android/vr/pico/tests/device/test_native_url.py` compiles and runs the actual
+Java policy with host JVM cases. It also checks the production restart call
+sites as source. These checks establish neither Android storage durability
+nor device keyboard behavior.
 
-## Prepared device-free boundary
+The earlier Python URL-entry model was a preparation fixture without a
+production caller. It is not part of this integrated source tree. Its simulated
+focus, cancel and submit state transitions are not evidence for a real Pico
+input surface; the sealed platform history retains that earlier model.
 
-`android/vr/pico/src/contracts/pico_url_contract.py` provides a small local
-decision boundary for a future Pico URL-entry adapter:
+## Remaining original acceptance
 
-- input is NFC-normalized and capped at 4096 UTF-8 bytes;
-- controls, bidi overrides, malformed escapes, credentials and unsupported
-  schemes fail closed without returning the supplied target;
-- network world URLs require a host;
-- `file` accepts only an absolute local path without traversal or remote
-  authority;
-- Unicode paths, query text and internationalized hosts are deterministically
-  encoded;
-- cancel or focus loss clears the pending text and terminates the entry session;
-- a rejected submit retains focus for correction, while an accepted submit
-  closes it.
-
-Decision objects intentionally hide accepted targets from their representation,
-so ordinary assertion or diagnostic output does not expose a private location.
-
-## Deferred dependencies
-
-This slice does not expose a new Android intent receiver, wire a production UI,
-choose account/domain-auth behavior, define a Shared device/evidence schema, or
-claim physical keyboard behavior. Production binding remains deferred to the
-real PI-003 admission and accepted `SH-003`, `SH-004`, `SH-005`, PI-002,
-`PX-15`, and `PX-16` handoffs.
+PI-003 and the complete URL/input scope remain unaccepted. Actual native URL
+entry, keyboard focus and cancellation, shared UI/auth integration, protected
+restart persistence, foreground transitions and exact artifact/device evidence
+must be verified through their original SH-003, SH-004, SH-005, PI-002, PX-15
+and PX-16 dependencies. The Java validation boundary does not establish these
+other requirements or authorize a new exported receiver.
