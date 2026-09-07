@@ -887,7 +887,7 @@ jobs:
           grep -F 'COMPILER_INDEX_STORE_ENABLE = NO' <<< "$build_settings"
           grep -F 'CLANG_USE_RESPONSE_FILE = NO' <<< "$build_settings"
 
-      - name: Verify Qt5Compat QML imports before full build
+      - name: Verify required Interface QML imports before full build
         run: |
           shopt -s nullglob
           imports=(build-ios/device/interface/.qt/qml_imports/overte-ios-qml-plugin-imports_conf.cmake)
@@ -895,6 +895,7 @@ jobs:
             echo "expected exactly one iOS QML import scan result" >&2
             exit 1
           fi
+          cp "${imports[0]}" build-ios/ci-raw-diagnostics/qml-imports.log
           python3 ios/ci/verify-static-qml-plugin-link.py --imports "${imports[0]}"
 
       - name: Verify Xcode compiler checkpoint before full build
@@ -999,7 +1000,7 @@ jobs:
               )
           PY
 
-      - name: Verify Qt5Compat QML plugins in full-client link
+      - name: Verify required Interface QML plugins in full-client link
         run: |
           python3 ios/ci/verify-static-qml-plugin-link.py --link-log \
             build-ios/ci-raw-diagnostics/xcode-build.log

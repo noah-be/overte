@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for fail-closed static Qt5Compat QML plugin verification."""
+"""Tests for fail-closed static Interface QML plugin verification."""
 
 # Copyright 2026 Overte e.V.
 # SPDX-License-Identifier: Apache-2.0
@@ -34,16 +34,22 @@ with tempfile.TemporaryDirectory() as temporary:
     imports = root / "imports.cmake"
     imports.write_text("\n".join(module.IMPORT_MARKERS), encoding="utf-8")
     module.require_markers(imports, module.IMPORT_MARKERS, "imports")
-    imports.write_text("\n".join(module.IMPORT_MARKERS[:-1]), encoding="utf-8")
-    expect_failure(imports, module.IMPORT_MARKERS, "imports")
+    for missing in module.IMPORT_MARKERS:
+        imports.write_text("\n".join(marker for marker in module.IMPORT_MARKERS if marker != missing), encoding="utf-8")
+        expect_failure(imports, module.IMPORT_MARKERS, "imports")
 
     link_log = root / "xcode-build.log"
     link_log.write_text(" ".join(module.LINK_MARKERS), encoding="utf-8")
     module.require_markers(link_log, module.LINK_MARKERS, "link")
-    link_log.write_text(" ".join(module.LINK_MARKERS[1:]), encoding="utf-8")
-    expect_failure(link_log, module.LINK_MARKERS, "link")
+    for missing in module.LINK_MARKERS:
+        link_log.write_text(" ".join(marker for marker in module.LINK_MARKERS if marker != missing), encoding="utf-8")
+        expect_failure(link_log, module.LINK_MARKERS, "link")
+
+    # The old effects-only receipt must not qualify the current UI plugins.
+    imports.write_text("CLASSNAME;QtGraphicalEffectsPlugin;LINKTARGET;Qt6::qtgraphicaleffectsplugin;", encoding="utf-8")
+    expect_failure(imports, module.IMPORT_MARKERS, "imports")
 
 workflow = WORKFLOW.read_text(encoding="utf-8")
 assert "verify-static-qml-plugin-link.py --imports" in workflow
 assert "verify-static-qml-plugin-link.py --link-log" in workflow
-print("PASS fail-closed static Qt5Compat QML plugin scan/link verification")
+print("PASS fail-closed static Interface QML plugin scan/link verification")
