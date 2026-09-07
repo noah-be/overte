@@ -218,6 +218,9 @@ Windows.ScrollingWindow {
         }
         
         function load(newSource, callback) {
+            if (tabletRoot.screenSpaceMode) {
+                console.warn("OVT_PHONE_TABLET_LOAD " + (newSource === "hifi/tablet/TabletGeneralPreferences.qml" ? 1 : newSource === "" ? 2 : 0));
+            }
             if (loader.item) {
                 loader.item.destroy();
                 loader.item = null;
