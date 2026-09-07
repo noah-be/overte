@@ -90,3 +90,25 @@ Full Qt AccountManager compilation/integration, desktop protected adapters,
 SH-003/SH-005 acceptance, platform builds and downstream login/upgrade/locked-
 store checkpoints remain pending. Do not merge an unbound product or label a
 node PASS on the basis of this contract. PX-16 is a separate pinned release.
+
+## Shared serialized-map validation
+
+LegacyAccountInput additionally accepts an optional Shared-owned `validate`
+callback. Existing two-callback consumers remain source-compatible and keep the
+opaque nonempty/1-MiB bound. AccountManager supplies its real QDataStream map
+validator for protected reads, migration and writes. Protected bytes must decode
+as a complete QVariantMap with no trailing data before the coordinator deletes
+legacy data or exposes the record. Invalid protected serialization quarantines
+the process and preserves legacy; it never falls back to those credentials.
+Explicit logout/erase remains the recovery operation. Native adapter interfaces
+and protected record key/format are unchanged. The validator executes under the
+coordinator lock and, like the other Shared callbacks, must not reenter it.
+
+The actual AccountManager file/map functions, actual QDataStream and coordinator
+run together in `test_account_map.py` with temporary files and an opaque memory
+store. Tests cover valid migration/write/read, truncated/trailing protected data,
+legacy retention and quarantine, corrupt legacy, mismatched readback and explicit
+erase recovery. This joins serialization to migration; QVariantMap values are
+fixtures, not the complete DataServerAccountInfo metatype field corpus. Native
+OS durability, parser resource limits beyond input size, every field/version,
+real AccountManager startup and restart recovery remain unqualified.
