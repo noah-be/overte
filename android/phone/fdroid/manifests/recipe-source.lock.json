@@ -101,7 +101,7 @@
     "android/phone/fdroid/conan/recipe_export_store.py": "6b101350c01eb42211f924c4cc1bd050b1f1676c0d833eca7b9068fbe300f60c",
     "android/phone/fdroid/conan/source_closure_store.py": "5eb6f4d861a0fc6bec6c07aaa6890a7defb2665ba47ed65296a9cf9daa991157",
     "android/phone/fdroid/conan/toolchain_probe.py": "a302223442602e16804b7f2f9072d61a9989765bf20242705d05dbb30910f439",
-    "android/phone/apps/phoneInterface/build.gradle": "fd1c1cb76ed56faf4d09385af1f8b3a5a85e8482a7e98e4084ca95cd51db87a5",
+    "android/phone/apps/phoneInterface/build.gradle": "72bb9bb552af07618d3273644948ad9a09f78d46e56a7fc6a0429d43a259db83",
     "android/phone/fdroid/container/Containerfile": "4c5a1203ba2d125664428a98a03aa028a06805d5548948b2cbf7566719f8224b",
     "android/phone/fdroid/gradle-acquisition/build.gradle": "643ccc9c5264b7c46b4e90e4c2d3d67db41f0584c7da0fd66d23b2fa753bf7c9",
     "android/phone/fdroid/gradle-acquisition/settings.gradle": "347d3c618cd6441bd70ecfad7c83bd645702c5bf864526899e1e7e9c4ca9e071",
@@ -114,10 +114,16 @@
     "android/phone/tests/check-phone-apk-contents.py": "8ae762fc01a6e702f70a702ee2ee4e518309f03069ea5ac8f94e2a9eac9975a4",
     "android/phone/tests/verify-phone-16k-dependencies.sh": "5b6929f255fe1e01d1681d427c6b9893f9ecf5f5116e1ef3e33120f2151dbc90",
     "android/phone/fdroid/conan/stage_host_tools.py": "a7a3b16a8a9a9de20846d1eefa555ed7ee1bc26a0db9c957566943242285c6fb",
-    "android/common/cmake/pico-bootstrap.cmake": "d3a9b019ec4b1024d380e9f34889c7b8cbdec9507ef08e59398293b4ce3873c7",
+    "android/common/cmake/pico-bootstrap.cmake": "1d1539a2c844c08bee96b02335e3ae9fc9074bdd1972aad0835c0b57a9956aee",
     "cmake/macros/TargetOpenSSL.cmake": "59400a0f5f81ca99746a2231bd5ec7b4cc7162b1ff05c350a437314c12b105a4",
     "android/phone/apps/phoneInterface/CMakeLists.txt": "ab6e1d842767fc38efc57f3d49f1497e96da828ba169adbe7a20baa9b61b0bd1",
-    "android/phone/fdroid/gradle-acquisition/gradle.lockfile": "a80f8d4069f823f15de7b053af803fd6236914bc2bb2df27ff66fc4e4312c1ab"
+    "android/phone/fdroid/gradle-acquisition/gradle.lockfile": "a80f8d4069f823f15de7b053af803fd6236914bc2bb2df27ff66fc4e4312c1ab",
+    "android/common/cmake/overte-android-bootstrap.cmake": "2e22e4c6997121c09ed510a71113755f075cabf7f7adbcbfdce335de6b161f0b",
+    "android/common/cmake/android-compat/QWebEngineProfile": "20ff1fce0b7b77e9bd7737b7b8af377d8d56f6608a6e8bfbcdc4879ec9a97d47",
+    "android/common/cmake/android-compat/QtAndroidExtras/QAndroidJniObject": "e7339220bec3fabf5a1b72bbe579dd81a260bc63315536e0fdc19d96ef0b3e25",
+    "android/common/cmake/android-compat/qtwebenginecoreversion.h": "537f02d3e61fcefb779f13d31f1e1f8895b89e42fb893d4bae4548ffbf9fc725",
+    "android/common/cmake/android-modules/Finddiscord-rpc.cmake": "0435f68d31d5f044c80f80a2fc1869c3aa17a0c1b8f803e31d66bb4c3c9ac7da",
+    "android/common/cmake/android-modules/discord_rpc.h": "50c209cb7c37a48ecf54dee831f0099ffb80a449b7361aa13fef55d093b39dd5"
   },
   "cold_build": {
     "status": "NOT_STARTED_CLEAN_ROOM_READINESS_PENDING",

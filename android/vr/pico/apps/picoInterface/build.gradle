@@ -149,18 +149,20 @@ android {
                 arguments '-DHIFI_ANDROID=1',
                     '-DHIFI_ANDROID_APP=picoInterface',
                     '-DHIFI_ANDROID_PRECOMPILED=' + file('../../pico-precompiled-compat').absolutePath,
+                    '-DHIFI_ANDROID_HOST_TOOLS=' + (System.getenv('HIFI_ANDROID_HOST_TOOLS') ?: file('../../pico-host-tools').absolutePath),
                     '-DANDROID_STL=c++_shared',
                     '-DCMAKE_C_FLAGS=-O2 -falign-functions=32 -fPIC',
                     '-DCMAKE_CXX_FLAGS=-O2 -falign-functions=32 -fPIC',
                     '-DCMAKE_CXX_SCAN_FOR_MODULES=OFF',
-                    '-DCMAKE_PROJECT_INCLUDE_BEFORE=' + file('../../../../common/cmake/pico-bootstrap.cmake').absolutePath,
+                    '-DCMAKE_PROJECT_INCLUDE_BEFORE=' + file('../../../../common/cmake/overte-android-bootstrap.cmake').absolutePath,
+                    '-DHIFI_ANDROID_CONAN_GENERATORS=' + file('../../../../common/conan/pico4-debug/generators').absolutePath,
                     '-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON',
                     // The checksum-pinned Pico bundle contains Conan Debug
                     // imports. Release APKs compile Overte as RelWithDebInfo
                     // while deliberately reusing those verified dependencies.
                     '-DCMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO=Debug',
                     '-DCMAKE_PREFIX_PATH=' + file('../../../../common/conan/pico4-debug/generators').absolutePath,
-                    '-DCMAKE_MODULE_PATH=' + file('../../../../common/cmake/pico-modules').absolutePath + ';' +
+                    '-DCMAKE_MODULE_PATH=' + file('../../../../common/cmake/android-modules').absolutePath + ';' +
                         file('../../../../common/conan/pico4-debug/generators').absolutePath,
                     '-DRELEASE_NUMBER=' + rootProject.ext.appVersionName,
                     '-DRELEASE_TYPE=' + rootProject.ext.releaseType,

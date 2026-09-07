@@ -24,6 +24,13 @@ class DoctorContractTest(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.fixture = Path(self.temporary.name)
         for relative in (
+            "android/common/cmake/overte-android-bootstrap.cmake",
+            "android/common/cmake/android-compat/QWebEngineProfile",
+            "android/common/cmake/android-compat/QtAndroidExtras/QAndroidJniObject",
+            "android/common/cmake/android-compat/qtwebenginecoreversion.h",
+            "android/common/cmake/android-modules/Finddiscord-rpc.cmake",
+            "android/common/cmake/android-modules/discord_rpc.h",
+
             "android/common/cmake/overte-android-toolchain.cmake",
             "android/phone/fdroid/conan/bootstrap.conanfile.py",
             "android/phone/fdroid/manifests/base-toolchain.lock.json",

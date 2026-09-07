@@ -1,0 +1,15 @@
+#pragma once
+
+#include <QString>
+
+class QWebEngineProfile {
+public:
+    static QWebEngineProfile* defaultProfile() {
+        static QWebEngineProfile profile;
+        return &profile;
+    }
+
+    QString httpUserAgent() const {
+        return {};
+    }
+};

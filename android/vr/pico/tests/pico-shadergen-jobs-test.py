@@ -12,7 +12,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[4]
 SHADERGEN = ROOT / "tools/shadergen.py"
 BUILD_SCRIPT = (ROOT / "android/vr/pico/build.sh").read_text(encoding="utf-8")
-CMAKE_BOOTSTRAP = (ROOT / "android/common/cmake/pico-bootstrap.cmake").read_text(encoding="utf-8")
+CMAKE_BOOTSTRAP = (ROOT / "android/common/cmake/overte-android-bootstrap.cmake").read_text(encoding="utf-8")
 PICO_CONAN_PROFILE = (ROOT / "android/common/conan/profiles/pico4-arm64").read_text(encoding="utf-8")
 PICO_CONAN_RECIPE = (ROOT / "android/common/conan/conanfile-pico.py").read_text(encoding="utf-8")
 
