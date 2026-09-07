@@ -1,6 +1,7 @@
 import QtQuick 2.7
+import controlsUit 1.0 as HifiControls
 
-QtObject {
+HifiControls.TouchUiMetrics {
     // The Phone package has no complete user-managed scripting-plugin flow.
     readonly property bool showScriptingPlugins: false
     // WindowRoot supplies the physical 250% scale; keep logical layouts compact
