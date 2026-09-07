@@ -1,9 +1,14 @@
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/cmake")
-set(_android_host_tools_dir "${CMAKE_CURRENT_LIST_DIR}/../../vr/pico/pico-host-tools")
-set(ENV{SCRIBE_DIR} "${_android_host_tools_dir}")
-set(ENV{GLSLANG_DIR} "${_android_host_tools_dir}")
-set(ENV{SPIRV_CROSS_DIR} "${_android_host_tools_dir}")
-set(ENV{SPIRV_TOOLS_DIR} "${_android_host_tools_dir}")
+if(DEFINED ENV{OVERTE_FDROID_CONAN_DIR})
+    # Bind the completed source-built Linux host-tools graph for F-Droid.
+    include("$ENV{OVERTE_FDROID_CONAN_DIR}/fdroid-host-tools.cmake")
+else()
+    set(_android_host_tools_dir "${CMAKE_CURRENT_LIST_DIR}/../../vr/pico/pico-host-tools")
+    set(ENV{SCRIBE_DIR} "${_android_host_tools_dir}")
+    set(ENV{GLSLANG_DIR} "${_android_host_tools_dir}")
+    set(ENV{SPIRV_CROSS_DIR} "${_android_host_tools_dir}")
+    set(ENV{SPIRV_TOOLS_DIR} "${_android_host_tools_dir}")
+endif()
 
 # Gradle invokes Ninja directly, so CMAKE_BUILD_PARALLEL_LEVEL alone does not
 # limit native compilation. A CMake job pool carries the Pico host limit into
