@@ -42,6 +42,11 @@ def verify_producer_files(repo, spec):
         require(set(origin.get('toolchainFiles', {})) == set(required) and
                 all(origin['toolchainFiles'][p] == spec['producerSourceFiles'][p] for p in required),
                 'PICO_REUSE_TOOLCHAIN_CHANGED')
+    for configuration in spec.get('buildConfigurations', {}).values():
+        require(hex_digest(configuration.get('sourceRevision'), 40) and
+                configuration.get('sourcePath') == 'android/vr/pico/conan/openxr-16k' and
+                digest_file(repo/configuration['sourcePath']) == configuration.get('sha256'),
+                'PICO_REUSE_BUILD_CONFIGURATION_SOURCE')
 
 def key(node):
     return tuple(node.get(k) for k in ('ref', 'package_id', 'prev'))
@@ -80,7 +85,8 @@ def verify(spec, checked_path, phase, expected_source, closure, index):
         for row in joined['packages']:
             origins.setdefault(key(row), []).append((nodes, row['nodeId'], origin['sourceRevision']))
 
-    def validate_graph(actual_path, expected_path, checkpoint_path, source, receipt=None, permit_skip=False):
+    def validate_graph(actual_path, expected_path, checkpoint_path, source, receipt=None, permit_skip=False,
+                       configuration_ids=()):
         actual = read_sbom(actual_path)['graph']['nodes']
         pinned = read_sbom(expected_path)['graph']['nodes']
         cp = read_checkpoint(checkpoint_path)
@@ -96,6 +102,14 @@ def verify(spec, checked_path, phase, expected_source, closure, index):
                     receipt.get('expectedGraphSha256') == digest_file(expected_path) and
                     receipt.get('network') == 'none' and
                     receipt.get('producerSourceFiles') == spec['producerSourceFiles'], 'PICO_REUSE_WORKER_RECEIPT')
+        require(list(configuration_ids) == (receipt or {}).get('buildConfigurationIds', []),
+                'PICO_REUSE_BUILD_CONFIGURATION_RECEIPT')
+        for name in configuration_ids:
+            configuration = spec.get('buildConfigurations', {}).get(name)
+            require(type(configuration) is dict and
+                    (receipt or {}).get('buildConfigurations', {}).get(name) == configuration and
+                    digest_file(checked_path(configuration['stagedPath'])) == configuration['sha256'],
+                    'PICO_REUSE_BUILD_CONFIGURATION_BYTES')
         rows = []
         for node_id, node in actual.items():
             n = pinned[node_id]
@@ -142,11 +156,13 @@ def verify(spec, checked_path, phase, expected_source, closure, index):
     for invocation in spec.get('localBuilds', []):
         actual, expected, cp, receipt = [checked_path(invocation[k]) for k in
                                         ('actualGraph','expectedGraph','checkpoint','receipt')]
-        validate_graph(actual, expected, cp, producer_source, read_sbom(receipt), permit_skip=True)
+        validate_graph(actual, expected, cp, producer_source, read_sbom(receipt), permit_skip=True,
+                       configuration_ids=invocation.get('buildConfigurationIds', []))
     item = spec['phases'][phase]
     actual, expected, checkpoint = [checked_path(item[k]) for k in ('actualGraph','expectedGraph','checkpoint')]
     final_receipt = read_sbom(checked_path(item['receipt'])) if item.get('receipt') else None
-    raw, cp, rows = validate_graph(actual,expected,checkpoint,producer_source,final_receipt)
+    raw, cp, rows = validate_graph(actual,expected,checkpoint,producer_source,final_receipt,
+                                   configuration_ids=item.get('buildConfigurationIds', []))
     require(cp['name'] == phase and cp['attempt_root'] == spec['attemptRoot'], 'PICO_REUSE_PHASE')
     inventory = dict(contract='overte-sh009-conan-inventory-v1',
                      status='CONAN_PHASE_BOUND_CONTENT_VERIFICATION_PENDING', phase=phase,

@@ -68,6 +68,17 @@ class QualifiedReuse(unittest.TestCase):
         (self.root/'receipt.json').write_text(json.dumps(receipt))
         self.spec['localBuilds']=[dict(actualGraph='fresh-target.json',expectedGraph='fresh-target-expected.json',
                                       checkpoint='fresh-target.COMPLETE',receipt='receipt.json')]
+        configuration = dict(sourceRevision=SOURCE,sourcePath='android/vr/pico/conan/openxr-16k',
+                             stagedPath='openxr-profile',sha256='a'*64)
+        self.spec['buildConfigurations']={'openxr-16k':configuration}
+        self.spec['localBuilds'][0]['buildConfigurationIds']=['openxr-16k']
+        with self.assertRaisesRegex(IdentityError,'CONFIGURATION_RECEIPT'):self.run_phase()
+        receipt.update(buildConfigurationIds=['openxr-16k'],buildConfigurations={'openxr-16k':configuration})
+        (self.root/'receipt.json').write_text(json.dumps(receipt))
+        (self.root/'openxr-profile').write_text('actual scoped profile')
+        with self.assertRaisesRegex(IdentityError,'CONFIGURATION_BYTES'):self.run_phase()
+        configuration['sha256']=sha(self.root/'openxr-profile')
+        (self.root/'receipt.json').write_text(json.dumps(receipt))
         node['binary']='Cache';self.f.graph('target',False)
         self.assertEqual(self.run_phase()['packages'][0]['prev'],'2'*32)
         receipt['exitCode']=1;(self.root/'receipt.json').write_text(json.dumps(receipt))
