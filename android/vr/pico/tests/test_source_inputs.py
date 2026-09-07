@@ -35,7 +35,7 @@ class Fixture:
         file.write_bytes(value if isinstance(value, bytes) else value.encode())
         return file
 
-    def __init__(self, root):
+    def __init__(self, root, host_qt_version=None):
         self.root = root
         self.packages = {}
         self.graphs = {}
@@ -45,6 +45,8 @@ class Fixture:
             nodes = {'0': {'id': '0', 'dependencies': {}}}
             for i, name in enumerate(names, 1):
                 reference = name + '/' + ('3.5.8' if name == 'openssl' else '5.15.18-2026.01.04' if name == 'qt' else '1.0') + '@overte/stable'
+                if name == 'qt' and phase == 'host-tools' and host_qt_version:
+                    reference = 'qt/' + host_qt_version + '@overte/stable'
                 folder = root / 'packages' / phase / name
                 folder.mkdir(parents=True)
                 self.packages[phase, name] = folder
@@ -218,6 +220,11 @@ class SourceInputs(unittest.TestCase):
         plugin = next(self.f.packages['target', 'qt'].rglob('libplugins_platforms_qtforandroid_arm64-v8a.so'))
         plugin.unlink(); self.f.seal()
         with self.assertRaisesRegex(ValueError, 'PICO_QT_RUNTIME_BINDING'): self.f.resolve()
+
+    def test_independently_valid_host_graph_cannot_supply_other_qt_version(self):
+        other = self.f.root / 'other-attempt'; other.mkdir()
+        fixture = Fixture(other, host_qt_version='6.8.0')
+        with self.assertRaisesRegex(ValueError, 'PICO_QT_HOST_RECIPE_MISMATCH'): fixture.resolve()
 
     def test_actual_groovy_consumer_positive_and_negative(self):
         # Explicit host-tool input; never discover or run a Gradle installation.

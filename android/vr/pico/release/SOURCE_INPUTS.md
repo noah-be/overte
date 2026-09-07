@@ -70,6 +70,8 @@ bytes are pinned. Generation provenance must still be supplied by the owner.
 
 Host qt, scribe, glslang, spirv-cross and spirv-tools are selected separately
 from host-context Linux x86_64 packages. Qt moc/rcc/uic/qmake and the four shader
+executables use the selected packages; host Qt must match the target Qt recipe
+reference and revision, while retaining its distinct host package identity. All
 executables require executable x86_64 ELF headers. The Pico bootstrap passes
 their distinct directories through the existing Shared bootstrap; Qt5 imported
 tools and AUTOMOC/AUTORCC/AUTOUIC receive explicit host paths across Debug and
