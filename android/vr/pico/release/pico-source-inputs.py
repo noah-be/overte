@@ -144,7 +144,13 @@ def resolve(root, binding_path, expected_binding, expected_source):
                 (not executable or os.access(file, os.X_OK)), 'PICO_ELF_ARCH')
         return str(file)
 
-    tools = {name: elf(host_qt / 'bin' / name, 62, True) for name in ('moc', 'rcc', 'uic', 'qmake')}
+    tools = {name: elf(host_qt / 'bin' / name, 62, True) for name in ('moc', 'rcc', 'qmake')}
+    # The bound host profile disables Widgets, so it does not produce uic.
+    # Qt's cross build installs its actually built x86_64 uic in the target
+    # package. V2 can use that graph/receipt-bound executable explicitly;
+    # legacy V1 keeps its original host-package contract.
+    uic_package = qt if spec['contract'] == 'overte-pico-qualified-inputs-v2' else host_qt
+    tools['uic'] = elf(uic_package / 'bin/uic', 62, True)
     for name, relative in SHADER_TOOLS.items():
         _, folder = package('host-tools', name)
         tools[Path(relative).name] = elf(folder / relative, 62, True)

@@ -76,6 +76,11 @@ executables require executable x86_64 ELF headers. The Pico bootstrap passes
 their distinct directories through the existing Shared bootstrap; Qt5 imported
 tools and AUTOMOC/AUTORCC/AUTOUIC receive explicit host paths across Debug and
 RelWithDebInfo. `OVERTE_FDROID_CONAN_DIR` must be unset for this Pico consumer.
+For the V2 qualified contract, `uic` is explicitly selected from the target Qt
+package: Qt's cross build installs a host x86_64 executable there, while the
+headless host profile disables Widgets and does not build `uic`. Its complete
+target-package bytes and real producer receipt are bound, and the same executable
+x86_64 ELF check applies. V1 retains its original host-package selection.
 Conan targets for draco/glad/etc2comp/nvidia-texture-tools must exist; missing
 targets cannot fall back to legacy compatibility archives. OpenXR remains an
 explicit CMake/AGP target, emits `libplugins_libopenxr.so` directly, and preserves
