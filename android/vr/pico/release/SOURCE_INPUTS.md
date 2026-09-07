@@ -103,3 +103,30 @@ real Python/shell/Java/CMake consumers with explicitly synthetic graph and ELF
 fixtures. CMake uses LANGUAGES NONE or script mode, never a native build. Set
 `PICO_TEST_GROOVY_CLASSPATH` to explicit Groovy and groovy-json jars and use JDK21
 to execute the real Gradle input-resolution Groovy closure without Gradle.
+
+## Qualified local reuse (explicit v2 contract)
+
+`overte-pico-qualified-inputs-v2` retains the v1 payload inventory and consumer
+checks and adds original cold phase/source receipts, ordered successful local
+build receipts and a separately named `dependencySourceRevision`. It never
+rewrites raw Conan Cache/Build/Skip strings. Original cold inputs pass the
+unchanged SH009 validator; every reused RREV/package-ID/PREV, recipe/source
+identity and transitive dependency identity must match a proven Build origin.
+A successful local producer receipt pins its zero exit, network isolation,
+readiness, result and complete producer source file map. Later application
+commits must retain every producer file byte, including profiles/toolchain,
+recipes/exports, source/license locks and composition helpers. The actual
+current application SHA remains separately bound by the consumer.
+
+Conan's output-only dependency `skip` flags can differ after a package is
+available. All other edge fields and every dependency identity remain checked.
+Intermediate unused Skip nodes establish no package origin; final consumed
+phases reject Skip. Host/build role changes for identical Linux packages keep
+the current graph context and platform checks while matching their actual
+producer by package/settings/options identity. No Android package becomes a
+Linux host tool through that mapping. Final graph/checkpoint inputs remain
+independently pinned; a graph-info result is not a completed build receipt.
+
+This is qualified warm reuse, not a fresh cold build or authenticated external
+attestation. Actual immutable payload SHA256, ELF/SONAME/NEEDED/provider/16KiB,
+SBOM and runtime acceptance remain mandatory and distinct.
