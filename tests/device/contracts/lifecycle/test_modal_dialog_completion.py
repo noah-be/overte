@@ -33,6 +33,7 @@ class ModalCompletionTest(unittest.TestCase):
             'ModalDialogListener::ModalDialogListener(', 'ModalDialogListener::~ModalDialogListener(',
             'QVariant ModalDialogListener::waitForResult(', 'void ModalDialogListener::finish(',
             'void ModalDialogListener::onDestroyed(', 'QString OffscreenUi::getText(const Icon',
+            'QString OffscreenUi::getItem(const Icon', 'QVariant OffscreenUi::waitForInputDialogResult(',
             'ModalDialogListener* OffscreenUi::getItemAsync(const Icon')
             if signature in cpp)
         harness = (Path(__file__).with_name('modal-dialog-completion-test.cpp')).read_text()
