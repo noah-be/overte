@@ -1,28 +1,26 @@
-# Client entity-script default-deny fence (SH-005)
+# Client entity-script consent — working integration
 
-The actual ScriptManager load entry and content-available callback deny client
-entity scripts before ScriptCache fetch, compilation, evaluation and preload.
-Both CLIENT_SCRIPT and ENTITY_CLIENT_SCRIPT contexts deny; immutable constructor
-context is the authority, not mutable Script.type. Embedded code, cache/ATP/file
-and network URLs cannot bypass the fence. Force-redownload, unsafe environment
-flags and historical allowlists cannot enable it. Late callbacks deny again.
+Client entity code remains denied by default. The local working source adds
+native `Entity Scripts: Review` and `Entity Scripts: Revoke` actions, also reached
+from the shared security panel. Review creates a new session and presents queued
+source decisions; No is the default. Allowlist settings remain an additional
+restriction and cannot grant this consent by themselves.
 
-This release intentionally has **no grant path**: the required informed-consent
-UI and lifetime-safe finite-revoke backend are not bound. Client entity scripts,
-including local/avatar entity scripts, are therefore unavailable. Existing
-detail observers receive ERROR_LOADING_SCRIPT with the fixed code
-ENTITY_SCRIPT_CONSENT_UNAVAILABLE, rather than remaining LOADING. No URL, entity
-ID or code appears in the new denial diagnostic. Server/agent/test contexts
-retain their existing loader behavior; this is not a general trusted-script ban.
+Requests are bound to the actual renderer manager, entity, source string and
+session identity. Renderer and Application recheck a live request before acting.
+Closing a session invokes weak-manager stop hooks directly; it does not wait for
+a renderer event loop to request VM interruption. Domain/reset/disconnection,
+account, background and shutdown paths are being integrated with invalidation.
+The displayed source fingerprint identifies the source string, not downloaded
+code bytes. Permissions encompass the trusted script and code it loads, as the
+prompt states; there is no claim of a general script sandbox.
 
-The fence runs on the manager thread using the existing queued shared ownership.
-It is not a hot-reload revocation mechanism or a deadline for a previously
-running native/VM callback. No UI/native "allow" button may bypass it. Replace
-it only with a versioned, source/origin/epoch-bound consent backend plus verified
-in-flight cancellation and independent informed user confirmation.
-
-Focused host test compiles the original denial/status functions, enum and the
-actual two entry prefixes with real Qt dispatch/locks. The post-fence network/
-engine operations and signal receiver are explicit test boundaries; no full
-ScriptManager/engine/device compilation or functional allow/revoke acceptance
-is claimed. Full entity-script consent functionality remains pending.
+This is unsealed work in the General Main integration tree. It is not a qualified
+platform release or proof of informed human input on native devices. Native
+headers/platform rendering, all lifecycle/duplicate-event ordering, physical
+resource cancellation and finite already-entered native callback cleanup remain
+unaccepted. Strict ScriptCache entries and pending requests now carry a unique
+consent-session identity, including domain-relative ATP sources. Focused Qt
+fixtures cover session isolation, revocation and Pico redundant domain/reset
+branches; actual world mutation and native UI remain explicit seams. The
+surrounding 39-node acceptance scope is unchanged.

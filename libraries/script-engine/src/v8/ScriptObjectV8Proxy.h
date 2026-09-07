@@ -18,6 +18,7 @@
 #ifndef hifi_ScriptObjectV8Proxy_h
 #define hifi_ScriptObjectV8Proxy_h
 
+#include <functional>
 #include <QtCore/QHash>
 #include <QtCore/QList>
 #include <QtCore/QPointer>
@@ -249,6 +250,7 @@ private:  // storage
     public:
         V8ScriptValue thisValue;
         V8ScriptValue callback;
+        std::function<void(std::function<void()>)> invokeInEnvironment;
         Connection(const V8ScriptValue &v8ThisValue, const V8ScriptValue &v8Callback) : 
             thisValue(v8ThisValue), callback(v8Callback) {};
     };
