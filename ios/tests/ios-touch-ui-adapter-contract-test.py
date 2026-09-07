@@ -88,7 +88,9 @@ for app_property in (
 ):
     assert f'qApp->setProperty("{app_property}"' in GRAPHICS
 assert "OVERTE_IOS_TOUCH_UI_GATE stage=native-metrics-published" in GRAPHICS
-assert "product = Product::IOS" in SELECTORS
+assert "const Product product = configuredProduct();" in SELECTORS
+CONFIGURED = (ROOT / "libraries/ui/src/ConfiguredCapabilityProfile.h").read_text()
+assert "#elif defined(Q_OS_IOS)\n    return Product::IOS;" in CONFIGURED
 assert "profileSelectors(product, gles)" in SELECTORS
 PROFILE_IMPLEMENTATION = (ROOT / "libraries/ui/src/CapabilityProfile.h").read_text()
 assert 'case Product::IOS: result = {"ios", "mobile", "touch",' in PROFILE_IMPLEMENTATION
