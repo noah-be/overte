@@ -29,7 +29,7 @@
     {
       "role": "cmake-bootstrap",
       "path": "android/common/cmake/overte-android-bootstrap.cmake",
-      "sha256": "d3f47e68470d12e2a7b787ca10e243b5e8c0cd6ead41508a1c7457650a921a09"
+      "sha256": "2e22e4c6997121c09ed510a71113755f075cabf7f7adbcbfdce335de6b161f0b"
     },
     {
       "role": "android-web-profile",

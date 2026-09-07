@@ -118,7 +118,7 @@
     "cmake/macros/TargetOpenSSL.cmake": "59400a0f5f81ca99746a2231bd5ec7b4cc7162b1ff05c350a437314c12b105a4",
     "android/phone/apps/phoneInterface/CMakeLists.txt": "fc73287e85c9a0b10447cc74652749fd8cacdafe7878daa63ad4e171afd42f3d",
     "android/phone/fdroid/gradle-acquisition/gradle.lockfile": "a80f8d4069f823f15de7b053af803fd6236914bc2bb2df27ff66fc4e4312c1ab",
-    "android/common/cmake/overte-android-bootstrap.cmake": "d3f47e68470d12e2a7b787ca10e243b5e8c0cd6ead41508a1c7457650a921a09",
+    "android/common/cmake/overte-android-bootstrap.cmake": "2e22e4c6997121c09ed510a71113755f075cabf7f7adbcbfdce335de6b161f0b",
     "android/common/cmake/android-compat/QWebEngineProfile": "20ff1fce0b7b77e9bd7737b7b8af377d8d56f6608a6e8bfbcdc4879ec9a97d47",
     "android/common/cmake/android-compat/QtAndroidExtras/QAndroidJniObject": "e7339220bec3fabf5a1b72bbe579dd81a260bc63315536e0fdc19d96ef0b3e25",
     "android/common/cmake/android-compat/qtwebenginecoreversion.h": "537f02d3e61fcefb779f13d31f1e1f8895b89e42fb893d4bae4548ffbf9fc725",

@@ -34,7 +34,6 @@ set(SCRIBE_DIR "$ENV{SCRIBE_DIR}")
 set(SPIRV_CROSS_DIR "$ENV{SPIRV_CROSS_DIR}")
 set(SPIRV_TOOLS_DIR "$ENV{SPIRV_TOOLS_DIR}")
 ]=])
-unset(_android_host_tools_dir)
 
 # The legacy Android CMake path expects desktop OpenGL and Qt modules which are
 # either named differently or no longer shipped in our minimal Qt Android build.
