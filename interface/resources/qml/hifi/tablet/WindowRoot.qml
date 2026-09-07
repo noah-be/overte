@@ -235,6 +235,17 @@ Windows.ScrollingWindow {
                     loader.item.setRootMenu(tabletRoot.rootMenu, tabletRoot.subMenu);
                 }
                 loader.item.forceActiveFocus();
+                if (tabletRoot.screenSpaceMode) {
+                    Qt.callLater(function() {
+                        var item = loader.item;
+                        if (!item) { return; }
+                        console.warn("OVT_PHONE_TABLET_PAGE " + Math.round(item.width) + " " + Math.round(item.height) + " " + (item.visible ? 1 : 0) + " " + (typeof item.depth === "number" ? item.depth : -1));
+                        for (var i = 0; i < item.children.length; ++i) {
+                            var child = item.children[i];
+                            console.warn("OVT_PHONE_TABLET_CHILD " + i + " " + Math.round(child.width) + " " + Math.round(child.height) + " " + (child.visible ? 1 : 0));
+                        }
+                    });
+                }
                 
                 if (callback) {
                     callback();
