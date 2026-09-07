@@ -32,6 +32,9 @@ inline void clearAccountBytes(AccountBytes& bytes) {
 struct LegacyAccountInput {
     std::function<StoreResult(AccountBytes&)> read;
     std::function<bool()> erase;
+    // Optional Shared format validation before exposing or deleting payloads.
+    // Native adapters remain opaque; legacy two-callback users retain bounds checks.
+    std::function<bool(const AccountBytes&)> validate {};
 };
 
 class AccountStoreCoordinator {
@@ -53,7 +56,7 @@ public:
         AccountBytes protectedBytes;
         auto result = _adapter->read(protectedBytes);
         if (result == StoreResult::Ok) {
-            if (!valid(protectedBytes)) { clearAccountBytes(protectedBytes); return quarantine(); }
+            if (!valid(protectedBytes, legacy)) { clearAccountBytes(protectedBytes); return quarantine(); }
             // Protected data is authoritative after interrupted migration. The
             // legacy copy must be gone before credentials become available.
             if (!legacy.erase()) { clearAccountBytes(protectedBytes); return quarantine(); }
@@ -65,7 +68,7 @@ public:
         AccountBytes old;
         result = legacy.read(old);
         if (result != StoreResult::Ok) { clearAccountBytes(old); return result; }
-        if (!valid(old)) { clearAccountBytes(old); return quarantine(); }
+        if (!valid(old, legacy)) { clearAccountBytes(old); return quarantine(); }
         result = writeVerified(old);
         if (result == StoreResult::Ok && !legacy.erase()) { result = quarantine(); }
         if (result == StoreResult::Ok) { output.swap(old); }
@@ -77,7 +80,7 @@ public:
         std::lock_guard<std::mutex> lock(_mutex);
         if (!_adapter) { return StoreResult::Unavailable; }
         if (_quarantined) { return StoreResult::ReauthRequired; }
-        if (!valid(input)) { return StoreResult::Corrupt; }
+        if (!valid(input, legacy)) { return StoreResult::Corrupt; }
         auto result = writeVerified(input);
         if (result == StoreResult::Ok && !legacy.erase()) { return quarantine(); }
         return result;
@@ -96,7 +99,9 @@ public:
     }
 
 private:
-    static bool valid(const AccountBytes& bytes) { return !bytes.empty() && bytes.size() <= MAX_ACCOUNT_BYTES; }
+    static bool valid(const AccountBytes& bytes, const LegacyAccountInput& legacy) {
+        return !bytes.empty() && bytes.size() <= MAX_ACCOUNT_BYTES && (!legacy.validate || legacy.validate(bytes));
+    }
     StoreResult quarantine() { _quarantined = true; return StoreResult::ReauthRequired; }
     StoreResult writeVerified(const AccountBytes& bytes) {
         auto result = _adapter->write(bytes);

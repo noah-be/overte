@@ -191,6 +191,17 @@ overte::security::AccountStoreCoordinator& protectedAccountCoordinator() {
     return coordinator;
 }
 
+bool validAccountMapBytes(const overte::security::AccountBytes& bytes) {
+    if (bytes.empty() || bytes.size() > overte::security::MAX_ACCOUNT_BYTES) { return false; }
+    QByteArray serialized(reinterpret_cast<const char*>(bytes.data()), static_cast<int>(bytes.size()));
+    QDataStream stream(serialized);
+    QVariantMap checked;
+    stream >> checked;
+    const bool valid = stream.status() == QDataStream::Ok && stream.atEnd();
+    serialized.fill('\0');
+    return valid;
+}
+
 overte::security::LegacyAccountInput legacyAccountInput() {
     using namespace overte::security;
     return {
@@ -220,7 +231,8 @@ overte::security::LegacyAccountInput legacyAccountInput() {
             QFileInfo info(accountFilePath());
             if (info.isSymLink()) { return false; }
             return !info.exists() || QFile::remove(accountFilePath());
-        }
+        },
+        validAccountMapBytes
     };
 }
 }
