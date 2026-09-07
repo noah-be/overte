@@ -36,7 +36,8 @@ TestCase {
         verify(policy !== null)
         compare(policy.allowedCategories.length, 2)
         verify(policy.admits("Navigation"))
-        verify(policy.admits("Mouse Sensitivity"))
+        verify(policy.admits("Touch Camera Sensitivity"))
+        verify(!policy.admits("Mouse Sensitivity"))
         verify(!policy.admits("User Interface"))
         verify(!policy.admits("Snapshots"))
         verify(!policy.admits("HMD"))
@@ -44,6 +45,21 @@ TestCase {
         policy.destroy()
         layout.destroy()
         phoneProfile.destroy()
+    }
+
+    function test_defaultProfileRetainsDesktopCameraCategory() {
+        var profileComponent = createProductionComponent(
+            "interface/resources/qml/controlsUit/TouchUiProfileBase.qml")
+        var profile = profileComponent.createObject(null)
+        verify(profile !== null)
+        var policyComponent = createProductionComponent(
+            "interface/resources/qml/hifi/tablet/TabletGeneralPreferencesPolicy.qml")
+        var policy = policyComponent.createObject(null, { profile: profile })
+        verify(policy !== null)
+        verify(policy.admits("Mouse Sensitivity"))
+        verify(!policy.admits("Touch Camera Sensitivity"))
+        policy.destroy()
+        profile.destroy()
     }
 
     function test_navigationConfigurationHandlesLandscapeAndLifecycleResize() {
