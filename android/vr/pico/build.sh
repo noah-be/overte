@@ -73,6 +73,8 @@ Usage: ./build-pico.sh [doctor|bootstrap|deps|prepare|build|install|all|deploy|s
   prepare  Verify and resolve explicit source inputs without modifying them
   build [--stacktrace]
            Build the Pico debug APK; optionally include Gradle failure details
+  unsigned [--stacktrace]
+           Build an unsigned release APK for offline static verification
   release [--stacktrace]
            Build a signed Pico release APK (requires protected Gradle properties)
   install  Install the existing APK on a connected Pico via ADB
@@ -750,7 +752,11 @@ build() {
     # discover android/common/gradle.properties and otherwise falls back to a
     # 512 MiB daemon, which cannot package the large native Pico debug APK.
     gradle_jvm_args="${PICO_GRADLE_JVM_ARGS:--Xms2g -Xmx4g}"
-    if [[ "$variant" == "release" ]]; then
+    if [[ "$variant" == "unsigned" ]]; then
+        task=assembleRelease
+        output="$script_dir/apps/picoInterface/build/outputs/apk/release/picoInterface-release-unsigned.apk"
+        gradle_diagnostics+=(-PPICO_UNSIGNED=1)
+    elif [[ "$variant" == "release" ]]; then
         task=assembleRelease
         output="$script_dir/apps/picoInterface/build/outputs/apk/release/picoInterface-release.apk"
     else
@@ -839,6 +845,7 @@ case "$command_name" in
     prepare) prepare ;;
     build) build "$command_option" debug ;;
     release) build "$command_option" release ;;
+    unsigned) build "$command_option" unsigned ;;
     install) install_apk ;;
     all) prepare; build ;;
     deploy) prepare; build; install_apk ;;
