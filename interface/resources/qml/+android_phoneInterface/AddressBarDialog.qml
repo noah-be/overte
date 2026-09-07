@@ -75,7 +75,10 @@ FocusScope {
             Math.min(viewport.width - 2 * touchMetrics.spacingLarge, 720))
         height: content.implicitHeight + 48
         x: Math.max(touchMetrics.spacingLarge, (viewport.width - width) / 2)
-        y: Math.max(touchMetrics.spacingLarge, (viewport.height - height) / 2)
+        // Start above the keyboard from the first frame. The IME may shrink
+        // the scrollable viewport, but must not move the focused editor.
+        y: Math.max(2 * touchMetrics.spacingLarge,
+                    touchMetrics.profile.safeInsetTop + touchMetrics.spacingLarge)
         radius: 18
         color: "#e6282d33"
         border.color: "#6679858e"

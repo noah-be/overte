@@ -15,7 +15,8 @@ TestCase {
     function createPhoneProfile() {
         var component = createProductionComponent(
             "interface/resources/qml/controlsUit/+android_phoneInterface/TouchUiProfile.qml")
-        var profile = component.createObject(null)
+        // Exercise the Android capability while running on the Qt host.
+        var profile = component.createObject(null, { touchCameraPreferencesAvailable: true })
         verify(profile !== null, component.errorString())
         return profile
     }

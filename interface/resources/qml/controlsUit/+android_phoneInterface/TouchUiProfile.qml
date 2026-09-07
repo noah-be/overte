@@ -54,7 +54,9 @@ SharedControls.TouchUiProfileBase {
     controllerSettingsAvailable: false
     picoResolutionSettingsAvailable: false
 
-    touchCameraPreferencesAvailable: true
+    // iOS intentionally reuses this presentation selector; its native
+    // preferences registry remains separate until its target audit.
+    touchCameraPreferencesAvailable: Qt.platform.os === "android"
     navigationPreferencesAvailable: true
     userInterfacePreferencesAvailable: false
     hmdPreferencesAvailable: false
