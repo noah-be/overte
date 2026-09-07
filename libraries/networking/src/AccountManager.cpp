@@ -247,17 +247,21 @@ QVariantMap accountMapFromFile(bool& success) {
 
 void AccountManager::setAuthURL(const QUrl& authURL) {
     if (_authURL != authURL) {
-        _credentialContext.next();
+        const auto context = _credentialContext.next();
+        const QPointer<AccountManager> owner(this);
         resetAccountSettings();
+        if (!owner || !context.current()) { return; }
         _isWaitingForTokenRefresh = false;
         _isWaitingForAccessToken = false;
         _authURL = authURL;
 
         qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
+        if (!owner || !context.current()) { return; }
         // check if there are existing access tokens to load from settings
         bool loadedMap = false;
         auto accountsMap = accountMapFromFile(loadedMap);
+        if (!owner || !context.current()) { return; }
 
         _accountInfo = DataServerAccountInfo();
         if (loadedMap) {
@@ -267,25 +271,32 @@ void AccountManager::setAuthURL(const QUrl& authURL) {
             qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         } else {
             qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
+            if (!owner || !context.current()) { return; }
             emit authRequired();
         }
 
+        if (!owner || !context.current()) { return; }
+        // Publish the loaded endpoint before starting requests, which acquire
+        // their own credential generation. Reentrant listeners may supersede it.
+        emit authEndpointChanged();
+        if (!owner || !context.current()) { return; }
         if (_isAgent && !_accountInfo.getAccessToken().token.isEmpty() && !_accountInfo.hasProfile()) {
             // we are missing profile information, request it now
             requestProfile();
+            if (!owner || !context.current()) { return; }
         }
 
         // prepare to refresh our token if it is about to expire
         if (needsToRefreshToken()) {
             refreshAccessToken();
+            if (!owner || !context.current()) { return; }
         }
 
         if (isLoggedIn()) {
             emit loginComplete(_authURL);
+            if (!owner || !context.current()) { return; }
         }
 
-        // tell listeners that the auth endpoint has changed
-        emit authEndpointChanged();
     }
 }
 
@@ -576,15 +587,18 @@ void AccountManager::removeAccountFromFile() {
 }
 
 void AccountManager::setAccountInfo(const DataServerAccountInfo &newAccountInfo) {
-    _credentialContext.next();
+    const auto context = _credentialContext.next();
+    const QPointer<AccountManager> owner(this);
     _isWaitingForAccessToken = false;
     _isWaitingForTokenRefresh = false;
     resetAccountSettings();
+    if (!owner || !context.current()) { return; }
     _accountInfo = newAccountInfo;
     _pendingPrivateKey.clear();
     if (_isAgent && !_accountInfo.getAccessToken().token.isEmpty() && !_accountInfo.hasProfile()) {
         // we are missing profile information, request it now
         requestProfile();
+        if (!owner || !context.current()) { return; }
     }
 
     // prepare to refresh our token if it is about to expire
