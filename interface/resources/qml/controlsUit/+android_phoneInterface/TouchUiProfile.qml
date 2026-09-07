@@ -41,6 +41,7 @@ SharedControls.TouchUiProfileBase {
     pushToTalkAvailable: false
     avatarAudioToolsAvailable: false
     systemManagedAudioInput: true
+    systemManagedAudioOutput: true
     recordedVoiceTest: true
 
     dominantHandSettingsAvailable: false

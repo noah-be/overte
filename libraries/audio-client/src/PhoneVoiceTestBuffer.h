@@ -8,6 +8,8 @@
 // microphone samples to the speaker while capturing on a handset.
 class PhoneVoiceTestBuffer {
 public:
+    std::size_t capturedBytes() const { return _recording.size(); }
+    std::size_t playedBytes() const { return _position; }
     void reset() { _recording.clear(); _limit = 0; _position = 0; _playing = false; }
 
     std::vector<char> process(const char* input, std::size_t size, std::size_t limit) {

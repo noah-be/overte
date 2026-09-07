@@ -913,7 +913,8 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter;
                 size: Math.round(22 * touchConfiguration.textScale);
                 color: hifi.colors.white;
-                text: qsTr("Choose output device");
+                text: touchConfiguration.systemManagedAudioOutput
+                    ? qsTr("Audio output") : qsTr("Choose output device");
             }
         }
 
@@ -929,11 +930,20 @@ Rectangle {
             width: parent.width - margins.paddings*2
             x: margins.paddings;
             interactive: false;
-            height: contentHeight + 10;
+            height: touchConfiguration.systemManagedAudioOutput ? 60 : contentHeight + 10;
             anchors.top: playSampleSound.bottom;
             anchors.topMargin: 10;
             clip: true;
-            model: AudioScriptingInterface.devices.output;
+            model: touchConfiguration.systemManagedAudioOutput ? null : AudioScriptingInterface.devices.output;
+            RalewayRegular {
+                anchors.fill: parent
+                visible: touchConfiguration.systemManagedAudioOutput
+                text: qsTr("Android plays sound through your phone speaker or connected audio device.")
+                color: hifi.colors.white
+                size: Math.round(16 * touchConfiguration.textScale)
+                wrapMode: Text.WordWrap
+                verticalAlignment: Text.AlignVCenter
+            }
             delegate: Item {
                 width: rightMostInputLevelPos
                 height: ((type != "hmd" && bar.currentIndex === 0) || (type != "desktop" && bar.currentIndex === 1)) ?

@@ -1802,6 +1802,28 @@ void AudioClient::handleLocalEchoAndReverb(QByteArray& inputByteArray) {
 
     loopBackByteArray.resize(numLoopbackSamples * AudioConstants::SAMPLE_SIZE);
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (_shouldEchoLocally) {
+        static quint64 lastVoiceDiagnostic { 0 };
+        const auto now = usecTimestampNow();
+        if (now - lastVoiceDiagnostic >= USECS_PER_SECOND) {
+            lastVoiceDiagnostic = now;
+            int peak = 0;
+            for (int i = 0; i < numLoopbackSamples; ++i) {
+                peak = std::max(peak, std::abs(static_cast<int>(loopbackSamples[i])));
+            }
+            // Closed numeric diagnostics only; no audio, names or routes.
+            qCWarning(audioclient) << "OVT_PHONE_TABLET_VOICE"
+                << static_cast<int>(_isMuted) << static_cast<int>(_audioGateOpen)
+                << peak << static_cast<int>(_phoneVoiceTest.capturedBytes())
+                << static_cast<int>(_phoneVoiceTest.playedBytes())
+                << _inputFormat.sampleRate() << _outputFormat.sampleRate()
+                << static_cast<int>(_loopbackAudioOutput->state())
+                << static_cast<int>(_loopbackAudioOutput->error());
+        }
+    }
+#endif
+
     // Keep the loopback output active while the noise gate is closed. Starting
     // and starving a push-mode QAudioOutput at every speech boundary produces
     // audible clicks on Android. Silence preserves the gate behavior without
