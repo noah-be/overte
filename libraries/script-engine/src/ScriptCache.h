@@ -19,6 +19,7 @@
 
 #include <mutex>
 #include <QSet>
+#include <QUrl>
 #include "EntityScriptConsent.h"
 #include <DependencyManager.h>
 
