@@ -1,6 +1,10 @@
 #include "GLHelpers.h"
 
 #include <mutex>
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include <atomic>
+#include <sys/system_properties.h>
+#endif
 
 #include "Config.h"
 
@@ -331,6 +335,12 @@ namespace gl {
         if (!error) {
             return false;
         } 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        static std::atomic<unsigned> reported { 0 };
+        if (reported.fetch_add(1) < 128) {
+            qWarning("OVT_PHONE_GL_ERROR %u %s", unsigned(error), name);
+        }
+#endif
         switch (error) {
             case GL_INVALID_ENUM:
                 qCWarning(glLogging) << "GLBackend" << name << ": An unacceptable value is specified for an enumerated argument.The offending command is ignored and has no other side effect than to set the error flag.";
@@ -362,7 +372,13 @@ namespace gl {
         // Disabling error checking macro on Android debug builds for now, 
         // as it throws off performance testing, which must be done on 
         // Debug builds
-#if defined(DEBUG) && !defined(Q_OS_ANDROID)
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        static const bool enabled = [] {
+            char value[PROP_VALUE_MAX] {};
+            return __system_property_get("debug.overte.phone_gl_diagnostics", value) > 0 && value[0] == '1';
+        }();
+        return enabled && checkGLError(name);
+#elif defined(DEBUG) && !defined(Q_OS_ANDROID)
         return checkGLError(name);
 #else
         Q_UNUSED(name);

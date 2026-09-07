@@ -214,6 +214,10 @@ void messageHandler(QtMsgType type, const QMessageLogContext& context, const QSt
         QRegularExpression("^OVT_PHONE_TABLET_[A-Z_]+( -?[0-9]+)*$").match(message).hasMatch()) {
         __android_log_write(ANDROID_LOG_INFO, "OvertePhoneRuntime", message.toLatin1().constData());
     }
+    if (message.startsWith("OVT_PHONE_GL_ERROR ") && message.size() < 100 &&
+        QRegularExpression("^OVT_PHONE_GL_ERROR [0-9]+ [A-Za-z0-9_:]+$").match(message).hasMatch()) {
+        __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", message.toLatin1().constData());
+    }
     // Closed classifications only: never disclose QML text, URLs or user data.
     if (type == QtWarningMsg || type == QtCriticalMsg) {
         if (message.contains("Cannot assign")) {
