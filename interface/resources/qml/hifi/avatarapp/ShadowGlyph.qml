@@ -1,6 +1,6 @@
 import stylesUit 1.0
 import QtQuick 2.9
-import Qt5Compat.GraphicalEffects
+import "../../controls" as CpuControls
 
 Item {
     property alias text: glyph.text
@@ -11,13 +11,7 @@ Item {
     property alias dropShadowHorizontalOffset: shadow.horizontalOffset
     property alias dropShadowVerticalOffset: shadow.verticalOffset
 
-    HiFiGlyphs {
-        id: glyph
-        width: parent.width
-        height: parent.height
-    }
-
-    DropShadow {
+    CpuControls.CpuDropShadow {
         id: shadow
         anchors.fill: glyph
         radius: 4
@@ -26,4 +20,12 @@ Item {
         color: Qt.rgba(0, 0, 0, 0.25)
         source: glyph
     }
+
+    HiFiGlyphs {
+        id: glyph
+        width: parent.width
+        height: parent.height
+    }
+
+
 }
