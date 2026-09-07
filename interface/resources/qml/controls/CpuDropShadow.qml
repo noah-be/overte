@@ -16,6 +16,7 @@ Item {
         return source
     }
     property color color: "black"
+    property real spread: 0
     property real radius: 4
     property real horizontalOffset: 0
     property real verticalOffset: 0
@@ -105,6 +106,7 @@ Item {
     onHeightChanged: refresh(false)
     onColorChanged: drawing.requestPaint()
     onRadiusChanged: drawing.requestPaint()
+    onSpreadChanged: drawing.requestPaint()
     onHorizontalOffsetChanged: drawing.requestPaint()
     onVerticalOffsetChanged: drawing.requestPaint()
     Canvas {
@@ -126,7 +128,7 @@ Item {
             ctx.drawImage(root.captured, root.padding, root.padding, root.width, root.height)
             var pixels = ctx.getImageData(0, 0, width, height)
             ctx.clearRect(0, 0, width, height)
-            ShadowPixels.paintShadow(ctx, pixels, root.blur, root.offsetX, root.offsetY, root.color)
+            ShadowPixels.paintShadow(ctx, pixels, root.blur, root.offsetX, root.offsetY, root.color, root.spread)
         }
     }
 }

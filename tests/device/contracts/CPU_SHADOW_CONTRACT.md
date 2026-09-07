@@ -1,11 +1,12 @@
 # CPU shadows for retained QML sources
 
-Eight production callers use CpuDropShadow: DefaultFrameDecoration, FilterBar,
+Nine production callers use CpuDropShadow: DefaultFrameDecoration, FilterBar,
 TabletButton, SquareLabel, ShadowRectangle, ShadowGlyph, ShadowImage and
-AvatarProjectCard. Each effect is placed before its visible source in sibling
+AvatarProjectCard, plus all three Card effects. Each effect is placed before its visible source in sibling
 paint order, preserving explicit z values. The component draws only the shadow;
 it does not overlay an older captured foreground on live text or images.
-The existing Card effects, including spread, remain on the legacy implementation.
+Card retains its legacy dropSamples property for caller compatibility; it no longer
+tunes the CPU kernel. dropSpread is real-valued and binds to the CPU spread.
 Keyboard's unused graphical-effects import is removed.
 
 The source tree is observed through item/image/text/Canvas changes and descendant
@@ -22,6 +23,11 @@ sampling for offsets. Canvas.Image retains the output. putImageData uses its ful
 seven-argument area form, verified on the local Qt software renderer. Nonfinite
 radius/offset values map to zero; negative radius maps to zero. This does not
 assert equivalence to the old shader's kernel, samples, cached or spread API.
+The explicit local spread contract maps finite values to [0,1], nonfinite values
+to zero, and transforms blurred alpha a to min(255,a/(1-spread)). At one,
+positive coverage becomes 255 while zero coverage stays zero. Shadow color
+opacity is applied afterward. Spread changes repaint the retained capture.
+This is a documented CPU replacement, not a verified old-shader transfer curve.
 No general maximum-size or native frame/memory budget is qualified here.
 
 Qt's Rectangle.gradient and GradientStop fields in the tested runtime lack
@@ -39,8 +45,8 @@ is an explicit fixture override and PNGs are generated fixtures. It covers sourc
 replacement/clearing, gradient replacement and stop transparency, size/visibility,
 window reappearance, and a continuously painted Canvas. That live check requires
 visible shadow frames and verifies that current source pixels are not overwritten.
-Five other exact production effect items execute with source/window/style seams;
-the complete five surrounding controls are not instantiated by that test.
+Eight other exact production effect items (including Card's three) execute with source/window/style seams;
+the complete six surrounding controls are not instantiated by that test.
 
 Short putImageData, omitted descendant painted notification and invalidated live
 frames each fail meaningful pixel assertions. Additional local lifecycle evidence
