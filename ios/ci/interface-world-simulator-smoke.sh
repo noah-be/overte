@@ -931,10 +931,21 @@ fail_stopped_log_stream() {
     return "$status"
 }
 
+preserve_world_observation() {
+    # Supplementary, unaccepted observation stays outside the strict world
+    # evidence directory. Missing E2E exporter never turns a failed gate green.
+    [[ -n "$diagnostics_dir" && -n "${data_container:-}" ]] || return 0
+    local observation="$data_container/Documents/overte-world-observation.json"
+    [[ -f "$observation" && ! -L "$observation" ]] || return 0
+    python3 "$script_dir/../tools/inspect-world-observation.py" "$observation" \
+        --output "$diagnostics_dir/${stem}-world-observation.json" >/dev/null || true
+}
+
 finish() {
     local status=$? report_wait=0
     trap - EXIT
     live_log "phase=cleanup result_status=$status"
+    preserve_world_observation
     resume_application_after_screenshot
     stop_log_stream
     if ((status != 0)); then
@@ -1339,6 +1350,7 @@ while :; do
     }
 done
 assemble_runtime_log
+preserve_world_observation
 if [[ "$capture_only" == 0 ]]; then
     validator_arguments=(
         "$runtime_log" --scenario "$scenario" --destination "$destination"

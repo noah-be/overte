@@ -36,6 +36,8 @@ target_sources(Overte PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/../audio/AVAudioSessionAdapter.mm"
     "${CMAKE_CURRENT_LIST_DIR}/../web/NativeWebAdapter.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/../web/ContainedWebView.mm"
+    "${CMAKE_CURRENT_LIST_DIR}/../render/WorldObservation.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../render/InstallWorldObservation.cpp"
 )
 set_source_files_properties(
     "${CMAKE_CURRENT_LIST_DIR}/../src/SecureAccountStore.mm"
