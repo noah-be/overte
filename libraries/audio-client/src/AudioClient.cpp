@@ -1746,6 +1746,13 @@ void AudioClient::processWebrtcNearEnd(int16_t* samples, int numFrames, int numC
 #endif // WEBRTC_AUDIO
 
 void AudioClient::handleLocalEchoAndReverb(QByteArray& inputByteArray) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    const auto voiceTestGeneration = _phoneVoiceTestGeneration.load();
+    if (voiceTestGeneration != _phoneVoiceTestObservedGeneration || !_shouldEchoLocally) {
+        _phoneVoiceTest.reset();
+        _phoneVoiceTestObservedGeneration = voiceTestGeneration;
+    }
+#endif
     // If there is server echo, reverb will be applied to the recieved audio stream so no need to have it here.
     bool hasReverb = _reverb || _receivedAudioStream.hasReverb();
     if ((_isMuted && !_shouldEchoLocally) || !_audioOutput ||
@@ -1833,7 +1840,17 @@ void AudioClient::handleLocalEchoAndReverb(QByteArray& inputByteArray) {
     // Android capture delivery can be batched when the main thread is busy.
     // QAudioOutput may then accept only part of a push-mode write. Retain the
     // remainder instead of dropping it and introducing a discontinuity.
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (_shouldEchoLocally) {
+        const auto testOutput = _phoneVoiceTest.process(outputBytes->constData(),
+            outputBytes->size(), _outputFormat.bytesForDuration(3 * USECS_PER_SECOND));
+        _loopbackPendingAudio.append(testOutput.data(), static_cast<int>(testOutput.size()));
+    } else {
+        _loopbackPendingAudio.append(*outputBytes);
+    }
+#else
     _loopbackPendingAudio.append(*outputBytes);
+#endif
 
     const int frameBytes = deviceChannelCount * AudioConstants::SAMPLE_SIZE;
     const int maxPendingBytes = static_cast<int>(_outputFormat.bytesForDuration(250 * USECS_PER_MSEC));

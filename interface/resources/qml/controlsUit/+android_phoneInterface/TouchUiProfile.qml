@@ -40,6 +40,8 @@ SharedControls.TouchUiProfileBase {
     vrAudioAvailable: false
     pushToTalkAvailable: false
     avatarAudioToolsAvailable: false
+    systemManagedAudioInput: true
+    recordedVoiceTest: true
 
     dominantHandSettingsAvailable: false
     hmdAlignmentAvailable: false

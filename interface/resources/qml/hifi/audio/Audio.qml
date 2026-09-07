@@ -809,7 +809,8 @@ Rectangle {
                 anchors.leftMargin: margins.sizeCheckBox;
                 size: Math.round(22 * touchConfiguration.textScale);
                 color: hifi.colors.white;
-                text: qsTr("Choose input device");
+                text: touchConfiguration.systemManagedAudioInput
+                    ? qsTr("Microphone") : qsTr("Choose input device");
             }
         }
 
@@ -830,10 +831,19 @@ Rectangle {
             anchors.topMargin: 10;
             x: margins.paddings
             interactive: false;
-            height: contentHeight;
+            height: touchConfiguration.systemManagedAudioInput ? 60 : contentHeight;
 
             clip: true;
-            model: AudioScriptingInterface.devices.input;
+            model: touchConfiguration.systemManagedAudioInput ? null : AudioScriptingInterface.devices.input;
+            RalewayRegular {
+                anchors.fill: parent
+                visible: touchConfiguration.systemManagedAudioInput
+                text: qsTr("Android uses the active microphone on your phone or connected headset.")
+                color: hifi.colors.white
+                size: Math.round(16 * touchConfiguration.textScale)
+                wrapMode: Text.WordWrap
+                verticalAlignment: Text.AlignVCenter
+            }
             delegate: Item {
                 width: rightMostInputLevelPos - margins.paddings*2
                 height: ((type != "hmd" && bar.currentIndex === 0) || (type != "desktop" && bar.currentIndex === 1)) ?

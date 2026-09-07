@@ -26,6 +26,8 @@ QtObject {
     property bool vrAudioAvailable: true
     property bool pushToTalkAvailable: true
     property bool avatarAudioToolsAvailable: true
+    property bool systemManagedAudioInput: false
+    property bool recordedVoiceTest: false
 
     property bool dominantHandSettingsAvailable: true
     property bool hmdAlignmentAvailable: true
