@@ -48,10 +48,8 @@ android {
                     '-DCMAKE_PROJECT_INCLUDE_BEFORE=' + file('../../cmake/pico-source-bootstrap.cmake').absolutePath,
                     '-DHIFI_ANDROID_CONAN_GENERATORS=' + picoInputs.generators,
                     '-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=ON',
-                    // The explicitly bound target graph contains Conan Debug
-                    // imports. Release APKs compile Overte as RelWithDebInfo
-                    // while deliberately reusing those verified dependencies.
-                    '-DCMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO=Debug',
+                    // The bound producer emits Debug and RelWithDebInfo
+                    // CMakeDeps imports for the same verified packages.
                     '-DCMAKE_PREFIX_PATH=' + picoInputs.generators,
                     '-DCMAKE_MODULE_PATH=' + file('../../../../common/cmake/android-modules').absolutePath + ';' +
                         picoInputs.generators,
