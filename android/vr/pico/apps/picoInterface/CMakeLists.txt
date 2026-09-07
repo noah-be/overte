@@ -12,6 +12,9 @@ setup_hifi_library()
 pico_bind_qt_host_tools(picoInterface)
 get_target_property(PICO_INTERFACE_SOURCES picoInterface SOURCES)
 list(FILTER PICO_INTERFACE_SOURCES EXCLUDE REGEX "PicoWebViewItem\\.(cpp|h)$")
+# The Activity loads picoOpenXR before invoking these JNI methods. Keep its
+# OpenXR VM/Activity state and JNI exports in that single owning library.
+list(FILTER PICO_INTERFACE_SOURCES EXCLUDE REGEX "OpenXRLoader\\.(cpp|h)$")
 set_property(TARGET picoInterface PROPERTY SOURCES "${PICO_INTERFACE_SOURCES}")
 target_sources(picoInterface PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../../../../common/src/QtInputConnectionCompat.cpp"
