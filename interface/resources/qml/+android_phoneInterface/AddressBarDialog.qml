@@ -18,8 +18,15 @@ FocusScope {
         availableHeight: root.height
     }
 
-    function closeDialog() {
+    function releaseEditor() {
+        addressField.deselect()
+        addressField.focus = false
+        Qt.inputMethod.reset()
         Qt.inputMethod.hide()
+    }
+
+    function closeDialog() {
+        releaseEditor()
         DialogsManager.hideAddressBar()
     }
 
@@ -216,7 +223,7 @@ FocusScope {
             addressField.selectAll()
             addressField.forceActiveFocus()
         } else {
-            Qt.inputMethod.hide()
+            releaseEditor()
         }
     }
 
