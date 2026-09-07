@@ -549,12 +549,23 @@ QString OffscreenUi::getItem(const Icon icon, const QString& title, const QStrin
     }
 
     auto offscreenUi = DependencyManager::get<OffscreenUi>();
-    auto inputDialog = offscreenUi->createInputDialog(icon, title, label, current);
+    if (QThread::currentThread() != offscreenUi->thread()) {
+        QString selected;
+        QMetaObject::invokeMethod(offscreenUi.data(), [&] {
+            selected = getItem(icon, title, label, items, current, editable, ok);
+        }, Qt::BlockingQueuedConnection);
+        return selected;
+    }
+    QVariantMap config;
+    config.insert("label", label);
+    config.insert("current", current);
+    config.insert("items", items);
+    config.insert("editable", editable);
+    // QML completion must see the selection mode and initial index together.
+    auto inputDialog = offscreenUi->createCustomInputDialog(icon, title, config);
     if (!inputDialog) {
         return QString();
     }
-    inputDialog->setProperty("items", items);
-    inputDialog->setProperty("editable", editable);
 
     QVariant result = offscreenUi->waitForInputDialogResult(inputDialog);
     if (!result.isValid()) {
