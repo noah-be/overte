@@ -22,6 +22,8 @@ import android.window.OnBackInvokedCallback;
 import android.window.OnBackInvokedDispatcher;
 
 import org.qtproject.qt5.android.bindings.QtActivity;
+import org.qtproject.qt5.android.QtNative;
+import org.qtproject.qt5.android.QtActivityDelegate;
 
 import io.highfidelity.utils.HifiUtils;
 
@@ -133,6 +135,13 @@ public final class PhoneInterfaceActivity extends QtActivity
             // lifecycle event after Qt finishes loading.
         }
         if (accepted) {
+            // The legacy binding infers delegate names from a cached stack
+            // depth. Subclass callbacks can therefore leave Qt inactive.
+            // Publish the same actual Activity state through Qt's Android
+            // adapter after native startup is ready; retain both gate inputs.
+            QtNative.setApplicationState(pending
+                    ? QtActivityDelegate.ApplicationActive
+                    : QtActivityDelegate.ApplicationInactive);
             foregroundDelivery.accepted(pending);
         } else if (foregroundDelivery.failedAttempt()) {
             mainHandler.postDelayed(drainForegroundTask, 250);
