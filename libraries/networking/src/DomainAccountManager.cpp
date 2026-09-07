@@ -203,6 +203,7 @@ void DomainAccountManager::requestAccessTokenFinished() {
     if (!requestReply || requestReply != _pendingAccessTokenReply || !overte::network::replyCurrent(requestReply)) {
         return;
     }
+    QPointer<DomainAccountManager> completionOwner(this);
     _pendingAccessTokenReply.clear(); // One terminal reply; reject duplicates.
     const auto ticket = requestReply->property("_overte_request_ticket").value<overte::network::RequestTicket>();
 
@@ -237,11 +238,19 @@ void DomainAccountManager::requestAccessTokenFinished() {
             // ####### TODO: Handle "keep me logged in".
 
             emit loginComplete();
+            // Legacy listeners may delete this owner or replace the login context.
+            if (!completionOwner || !ticket.current()) {
+                return;
+            }
             emit loginRequestFinished(ticket, ticket, static_cast<int>(LoginOutcome::Succeeded));
         } else {
             // Failure.
             qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::AuthFailed);
             emit loginFailed();
+            // Legacy listeners may delete this owner or replace the login context.
+            if (!completionOwner || !ticket.current()) {
+                return;
+            }
             emit loginRequestFinished(ticket, ticket, static_cast<int>(LoginOutcome::Failed));
         }
 
@@ -249,6 +258,10 @@ void DomainAccountManager::requestAccessTokenFinished() {
         // Failure.
         qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::AuthFailed);
         emit loginFailed();
+        // Legacy listeners may delete this owner or replace the login context.
+        if (!completionOwner || !ticket.current()) {
+            return;
+        }
         emit loginRequestFinished(ticket, ticket, static_cast<int>(LoginOutcome::Failed));
     }
 }
