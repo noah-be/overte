@@ -113,11 +113,10 @@
     }
 
     function onScreenChanged(type, source) {
-        var wasOpen = appOpen;
         appOpen = type === "QML" && source === APP_SOURCE;
-        if (wasOpen && !appOpen) {
-            stopActive(false);
-        }
+        // A selected one-shot belongs to the avatar, not the visibility of
+        // its chooser. Its timer (or script shutdown) restores the rig.
+
     }
 
     function fromQml(message) {

@@ -313,6 +313,12 @@ Item {
                                 anchors.centerIn: parent
                                 width: gridView.buttonExtent
                                 height: gridView.buttonExtent
+                                iconExtent: presentation.profile.stackedTabletHeader
+                                    ? Math.min(50, height * 0.42) : 50
+                                captionPixelSize: presentation.profile.stackedTabletHeader
+                                    ? Math.min(18, width / 7.5) : 18
+                                captionBottomMargin: presentation.profile.stackedTabletHeader
+                                    ? Math.min(20, height * 0.12) : 20
                                 hoverEnabled: !presentation.touchOptimized
                                 prioritizeTap: presentation.touchOptimized
                                 gridView: wrapper.GridView.view
