@@ -44,7 +44,8 @@ DomainAccountManager::~DomainAccountManager() {
     invalidatePendingAccessToken();
 }
 
-void DomainAccountManager::invalidatePendingAccessToken(LoginOutcome outcome, bool suspend) {
+overte::network::RequestTicket DomainAccountManager::invalidatePendingAccessToken(LoginOutcome outcome, bool suspend) {
+    QPointer<DomainAccountManager> owner(this);
     const auto ticket = _accessTokenRequests.snapshot();
     if (suspend) {
         _accessTokenRequests.setActive(false);
@@ -56,9 +57,12 @@ void DomainAccountManager::invalidatePendingAccessToken(LoginOutcome outcome, bo
     _pendingAccessTokenReply.clear();
     if (pending) {
         pending->abort();
-        pending->deleteLater();
-        emit loginRequestFinished(ticket, context, static_cast<int>(outcome));
+        if (pending) { pending->deleteLater(); }
+        if (owner && context.matchesSnapshot()) {
+            emit loginRequestFinished(ticket, context, static_cast<int>(outcome));
+        }
     }
+    return context;
 }
 
 void DomainAccountManager::setClientAuthVisibility(bool foreground) {
@@ -80,7 +84,9 @@ void DomainAccountManager::setClientID(const QString& clientID) {
     if (_currentAuth.clientID == clientID) {
         return;
     }
-    invalidatePendingAccessToken();
+    QPointer<DomainAccountManager> owner(this);
+    const auto context = invalidatePendingAccessToken();
+    if (!owner || !context.matchesSnapshot()) { return; }
     _currentAuth.clientID = clientID;
     _currentAuth.accessToken.clear();
     _currentAuth.refreshToken.clear();
@@ -93,7 +99,9 @@ void DomainAccountManager::setDomainURL(const QUrl& domainURL) {
         return;
     }
 
-    invalidatePendingAccessToken();
+    QPointer<DomainAccountManager> owner(this);
+    const auto context = invalidatePendingAccessToken();
+    if (!owner || !context.matchesSnapshot()) { return; }
     qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     // Restore OAuth2 authorization if have it for this domain.
@@ -112,7 +120,9 @@ void DomainAccountManager::setAuthURL(const QUrl& authURL) {
         return;
     }
 
-    invalidatePendingAccessToken();
+    QPointer<DomainAccountManager> owner(this);
+    const auto context = invalidatePendingAccessToken();
+    if (!owner || !context.matchesSnapshot()) { return; }
     _currentAuth.authURL = authURL;
     qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
@@ -134,7 +144,9 @@ bool DomainAccountManager::isLoggedIn() {
 
 overte::network::RequestTicket DomainAccountManager::requestAccessToken(const QString& username, const QString& password) {
 
-    invalidatePendingAccessToken();
+    QPointer<DomainAccountManager> owner(this);
+    const auto context = invalidatePendingAccessToken();
+    if (!owner || !context.matchesSnapshot()) { return context; }
     // A replacement sign-in discards the prior session entry even when this
     // request cannot start. Returning to the domain must not revive old tokens.
     _currentAuth.accessToken.clear();
@@ -144,7 +156,8 @@ overte::network::RequestTicket DomainAccountManager::requestAccessToken(const QS
     const auto ticket = _accessTokenRequests.snapshot();
     if (!ticket.current()) {
         emit loginFailed();
-        emit loginRequestFinished(ticket, _accessTokenRequests.snapshot(), static_cast<int>(LoginOutcome::Failed));
+        if (!owner || !ticket.matchesSnapshot()) { return ticket; }
+        emit loginRequestFinished(ticket, ticket, static_cast<int>(LoginOutcome::Failed));
         return ticket;
     }
 
@@ -176,8 +189,9 @@ overte::network::RequestTicket DomainAccountManager::requestAccessToken(const QS
     connect(requestReply, &QNetworkReply::readyRead, this, [this, requestReply, ticket] {
         if (requestReply == _pendingAccessTokenReply && ticket.current() &&
                 requestReply->bytesAvailable() > MAX_DOMAIN_AUTH_RESPONSE_BYTES) {
-            invalidatePendingAccessToken(LoginOutcome::ResponseRejected);
-            emit loginFailed();
+            QPointer<DomainAccountManager> owner(this);
+            const auto context = invalidatePendingAccessToken(LoginOutcome::ResponseRejected);
+            if (owner && context.matchesSnapshot()) { emit loginFailed(); }
         }
     });
     connect(requestReply, &QNetworkReply::finished, this, &DomainAccountManager::requestAccessTokenFinished);
@@ -190,8 +204,9 @@ overte::network::RequestTicket DomainAccountManager::requestAccessToken(const QS
         if (requestReply != _pendingAccessTokenReply || !ticket.current()) {
             return;
         }
-        invalidatePendingAccessToken(LoginOutcome::TimedOut);
-        emit loginFailed();
+        QPointer<DomainAccountManager> owner(this);
+        const auto context = invalidatePendingAccessToken(LoginOutcome::TimedOut);
+        if (owner && context.matchesSnapshot()) { emit loginFailed(); }
     });
     deadline->start();
     return ticket;
