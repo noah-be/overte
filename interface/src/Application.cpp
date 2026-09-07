@@ -1888,16 +1888,6 @@ void Application::domainURLChanged(QUrl domainURL) {
             updateWindowTitle();
             return;
         }
-        if (!_picoInitialServerlessHandoffComplete) {
-            // Startup always belongs to the bundled serverless test scene.
-            // Ignore a remembered/late online destination until that scene's
-            // render handoff is complete; later user navigation remains valid.
-            qCWarning(interfaceapp) << "Pico ignored competing startup domain"
-                << domainURL;
-            setIsServerlessMode(true);
-            updateWindowTitle();
-            return;
-        }
         // resettingDomain() deliberately preserved the committed local scene.
         // A genuinely different URL now owns the transition and clears it.
         invalidateEntityScriptConsent();
@@ -3081,30 +3071,8 @@ void Application::update(float deltaTime) {
         bool serverlessImportReady { true };
 #if defined(ANDROID_APP_PICO_INTERFACE)
         physicsServerless = _picoServerlessSceneImportCommitted || physicsServerless;
-        static bool picoStartupImportRequested { false };
-        if (physicsDomainHandler.isServerless() &&
-                !_picoServerlessSceneImportCommitted &&
-                !picoStartupImportRequested && getEntities()->getTree()) {
-            picoStartupImportRequested = true;
-            const auto explicitStartupScheme = _urlParam.scheme();
-            const bool hasExplicitServerlessStartupUrl =
-                !_urlParam.isEmpty() && _urlParam.isValid() &&
-                (explicitStartupScheme == HIFI_URL_SCHEME_FILE ||
-                 explicitStartupScheme == HIFI_URL_SCHEME_HTTP ||
-                 explicitStartupScheme == HIFI_URL_SCHEME_HTTPS);
-            // AddressManager owns the NodeList thread, so its startup URL can
-            // still be queued when Pico's first update needs to begin the
-            // synchronous serverless import. Preserve that explicit URL here;
-            // otherwise the fallback imports the bundled Hub and the initial
-            // handoff rejects the requested world as a competing destination.
-            const QUrl startupWorld = hasExplicitServerlessStartupUrl
-                ? _urlParam
-                : QUrl(QStringLiteral(
-                    "file:///~/serverless/overte-hub-pico4-optimized-spawn.json"));
-            qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE updateStartupImport"
-                << startupWorld << "explicit" << hasExplicitServerlessStartupUrl;
-            loadServerlessDomain(startupWorld);
-        }
+        // Import begins only through the destination selected by normal
+        // navigation; physics must not inject an independent startup world.
         serverlessImportReady = _picoServerlessSceneImportCommitted;
         static int picoPhysicsBranchTraceCount { 0 };
         if (picoPhysicsBranchTraceCount < 20) {
