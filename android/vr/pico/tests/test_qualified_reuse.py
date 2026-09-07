@@ -73,6 +73,11 @@ class QualifiedReuse(unittest.TestCase):
         receipt['exitCode']=1;(self.root/'receipt.json').write_text(json.dumps(receipt))
         with self.assertRaisesRegex(IdentityError,'WORKER_RECEIPT'):self.run_phase()
 
+    def test_reject_short_application_source(self):
+        from artifact_identity import IdentityError
+        with self.assertRaisesRegex(IdentityError,'APPLICATION_SOURCE'):
+            Q.verify(self.spec,lambda p:self.root/p,'target','1234567',self.root/'closure.json',self.root/'index.json')
+
     def test_reject_unknown_prev_remote_and_skipped_final_node(self):
         from artifact_identity import IdentityError
         for field,value in [('prev','1'*32),('remote','untrusted'),('binary','Skip')]:

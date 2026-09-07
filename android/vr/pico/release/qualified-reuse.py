@@ -63,6 +63,7 @@ def semantic_node(nodes, node_id, active=()):
 
 
 def verify(spec, checked_path, phase, expected_source, closure, index):
+    require(hex_digest(expected_source, 40), 'PICO_REUSE_APPLICATION_SOURCE')
     producer_source = spec.get('dependencySourceRevision')
     require(hex_digest(producer_source, 40), 'PICO_REUSE_PRODUCER_SOURCE')
     # A later application commit can consume the same dependency production
@@ -144,7 +145,8 @@ def verify(spec, checked_path, phase, expected_source, closure, index):
         validate_graph(actual, expected, cp, producer_source, read_sbom(receipt), permit_skip=True)
     item = spec['phases'][phase]
     actual, expected, checkpoint = [checked_path(item[k]) for k in ('actualGraph','expectedGraph','checkpoint')]
-    raw, cp, rows = validate_graph(actual,expected,checkpoint,producer_source)
+    final_receipt = read_sbom(checked_path(item['receipt'])) if item.get('receipt') else None
+    raw, cp, rows = validate_graph(actual,expected,checkpoint,producer_source,final_receipt)
     require(cp['name'] == phase and cp['attempt_root'] == spec['attemptRoot'], 'PICO_REUSE_PHASE')
     inventory = dict(contract='overte-sh009-conan-inventory-v1',
                      status='CONAN_PHASE_BOUND_CONTENT_VERIFICATION_PENDING', phase=phase,
