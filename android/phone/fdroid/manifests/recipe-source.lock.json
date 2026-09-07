@@ -107,8 +107,8 @@
     "android/phone/fdroid/gradle-acquisition/settings.gradle": "347d3c618cd6441bd70ecfad7c83bd645702c5bf864526899e1e7e9c4ca9e071",
     "android/phone/fdroid/manifests/source-closure.lock.json": "5f4bad881f209f3ea00635a72a3d161a4b2457dd230b6b54d9293bc781f92167",
     "android/phone/fdroid/manifests/toolchain-provisioning.lock.json": "0a5631cfd0e705fd325816e3313828cb83229e153ac79cd5d981cf41b8868bf2",
-    "android/phone/fdroid/scripts/build-dependencies.sh": "67543842de37b7f98fb121730f20379ae8919da88196a68a6d443d86ea48ec6f",
-    "android/phone/fdroid/scripts/cold-build.sh": "f1a9426cae2cfc23001d06847e375d2fa601e24d5ba1befb1d0b7e39af836b67",
+    "android/phone/fdroid/scripts/build-dependencies.sh": "b13e1ebe6eacb975a091f26f6e9bb47a410969881327d6936ad31b567f655873",
+    "android/phone/fdroid/scripts/cold-build.sh": "7bcaa4b1eb2e35f5f444434388f5a6b69d0d15e768d93795f9f9a302fb90a246",
     "android/phone/fdroid/scripts/prepare-gradle-store.sh": "4e4c43889893cfa4a5ce51ec77af054f991a4181f18840b9aed93919d9e982c2",
     "android/phone/fdroid/scripts/prepare-sources.sh": "89c3a2739d00d3e24ed644c92628f5245d9af9ead3bdae8a4c42324fd3c2276a",
     "android/phone/tests/check-phone-apk-contents.py": "8ae762fc01a6e702f70a702ee2ee4e518309f03069ea5ac8f94e2a9eac9975a4",
@@ -131,11 +131,12 @@
     "measured_at": "2026-09-05T11:09:58+02:00",
     "available_bytes": 170000000000,
     "cached_source_bytes": 707788800,
-    "minimum_free_bytes": 60000000000,
+    "minimum_free_bytes": 0,
     "recommended_free_bytes": 214748364800,
     "network_isolation": "BWRAP_UNSHARE_NET_AVAILABLE",
     "required_mode": "EMPTY_CACHE_SOURCE_ONLY_NO_REMOTE_NETWORK_OFF",
-    "remaining_action": "Merge the three-gate repair, pass the independent clean-room audit, then run the single qualified cold build."
+    "remaining_action": "Merge the three-gate repair, pass the independent clean-room audit, then run the single qualified cold build.",
+    "start_reserve_policy": "USER_AUTHORIZED_NO_ADDITIONAL_START_RESERVE"
   },
   "pass_prohibited_until": [
     "The single qualified cold build completes successfully",
