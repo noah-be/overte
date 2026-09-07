@@ -1,8 +1,14 @@
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/cmake")
-set(ENV{SCRIBE_DIR} "${CMAKE_CURRENT_LIST_DIR}/pico-host-tools")
-set(ENV{GLSLANG_DIR} "${CMAKE_CURRENT_LIST_DIR}/pico-host-tools")
-set(ENV{SPIRV_CROSS_DIR} "${CMAKE_CURRENT_LIST_DIR}/pico-host-tools")
-set(ENV{SPIRV_TOOLS_DIR} "${CMAKE_CURRENT_LIST_DIR}/pico-host-tools")
+if(DEFINED ENV{OVERTE_FDROID_CONAN_DIR})
+    # Produced from the completed, source-built Linux host-tools graph.
+    # Never select an Android executable from the target dependency graph.
+    include("$ENV{OVERTE_FDROID_CONAN_DIR}/fdroid-host-tools.cmake")
+else()
+    set(ENV{SCRIBE_DIR} "${CMAKE_CURRENT_LIST_DIR}/../../vr/pico/pico-host-tools")
+    set(ENV{GLSLANG_DIR} "$ENV{SCRIBE_DIR}")
+    set(ENV{SPIRV_CROSS_DIR} "$ENV{SCRIBE_DIR}")
+    set(ENV{SPIRV_TOOLS_DIR} "$ENV{SCRIBE_DIR}")
+endif()
 
 # Gradle invokes Ninja directly, so CMAKE_BUILD_PARALLEL_LEVEL alone does not
 # limit native compilation. A CMake job pool carries the Pico host limit into
@@ -38,7 +44,7 @@ if(ANDROID)
         set_property(
             TARGET Qt5::AndroidExtras
             PROPERTY INTERFACE_INCLUDE_DIRECTORIES
-            "${CMAKE_CURRENT_LIST_DIR}/cmake-pico-compat"
+            "${CMAKE_CURRENT_LIST_DIR}/pico-compat"
         )
     endif()
 
@@ -52,7 +58,7 @@ if(ANDROID)
             set_property(
                 TARGET Qt5::${_pico_qt_web_target}
                 PROPERTY INTERFACE_INCLUDE_DIRECTORIES
-                "${CMAKE_CURRENT_LIST_DIR}/cmake-pico-compat"
+                "${CMAKE_CURRENT_LIST_DIR}/pico-compat"
             )
         endif()
     endforeach()
