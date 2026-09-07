@@ -2425,7 +2425,7 @@ void AudioClient::sendMuteEnvironmentPacket() {
 }
 
 void AudioClient::setMuted(bool muted, bool emitSignal) {
-#if defined(ANDROID_APP_PICO_INTERFACE)
+#if defined(ANDROID_APP_PICO_INTERFACE) || defined(Q_OS_IOS)
     if (QThread::currentThread() != thread()) {
         QMetaObject::invokeMethod(this, [this, muted, emitSignal] { setMuted(muted, emitSignal); }, Qt::QueuedConnection);
         return;
@@ -2433,6 +2433,9 @@ void AudioClient::setMuted(bool muted, bool emitSignal) {
 #endif
     if (_isMuted != muted) {
         _isMuted = muted;
+#if defined(Q_OS_IOS)
+        overteIOSSetAudioMuted(muted);
+#endif
 #if defined(ANDROID_APP_PICO_INTERFACE)
         if (muted) { picoCapturePolicy.change(false); }
         setAndroidAudioMuted(muted);
