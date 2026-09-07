@@ -649,6 +649,14 @@ public final class PhoneInterfaceActivity extends QtActivity
     }
 
     private void replacePendingUrl(String destination) {
+        // A previous URL may already belong to Qt's startup buffer or event
+        // queue. Every new intent and suspension revokes that ownership, even
+        // when the new destination is invalid or must wait for onResume.
+        try {
+            nativeProcessUrl(null);
+        } catch (UnsatisfiedLinkError nativeLibraryNotReady) {
+            // Before the library exists there can be no native URL owner.
+        }
         pendingUrl = destination;
         pendingUrlRetryAttempts = 0;
     }

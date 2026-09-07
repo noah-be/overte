@@ -19,6 +19,7 @@
 #include "PhonePendingHandoff.h"
 #include "PhonePendingNavigation.h"
 #include "PhoneTouchUiMetrics.h"
+#include "RequestCancellation.h"
 #include "ui/PhoneDialogRouter.h"
 
 namespace {
@@ -46,6 +47,11 @@ QString fromJavaString(JNIEnv* env, jstring value) {
 // native startup is incomplete. AndroidHelper's load-complete notification is
 // emitted only after Application has installed its Android connections and
 // startup services, making it a stronger boundary than dependency existence.
+overte::network::RequestScope& urlRequests() {
+    static overte::network::RequestScope requests;
+    return requests;
+}
+
 class PendingUrlDelivery final : public QObject {
 public:
     explicit PendingUrlDelivery(QCoreApplication* application)
@@ -55,7 +61,9 @@ public:
                 this, [this]() { deliverIfReady(); });
     }
 
-    void submit(QString url) {
+    void submit(QString url, const overte::network::RequestTicket& request) {
+        if (!request.current()) { return; }
+        _request = request;
         const bool valid = !url.isEmpty();
         _pending.replace(std::move(url), valid);
         deliverIfReady();
@@ -65,6 +73,12 @@ public:
 
 private:
     void deliverIfReady() {
+        // A newer Android intent can invalidate this buffered delivery before
+        // Qt processes its queued replacement/cancellation.
+        if (!_request.current()) {
+            _pending.clear();
+            return;
+        }
         QString url;
         if (!_pending.takeIfReady(AndroidHelper::instance().isLoadComplete(), url)) {
             return;
@@ -76,6 +90,7 @@ private:
     }
 
     phone::PendingNavigation<QString> _pending;
+    overte::network::RequestTicket _request;
 };
 
 PendingUrlDelivery* urlDelivery(QCoreApplication* application) {
@@ -238,8 +253,17 @@ extern "C" JNIEXPORT jboolean JNICALL
 Java_org_overte_phone_PhoneInterfaceActivity_nativeProcessUrl(
         JNIEnv* env, jclass /* activityClass */, jstring value) {
     const QString url = fromJavaString(env, value).trimmed();
+    // Supersede ownership on the Android ingress thread, not only when Qt
+    // eventually dispatches the callback. Empty input is cancellation only.
+    const auto request = urlRequests().next();
     auto* application = QCoreApplication::instance();
-    if (url.isEmpty() || !application) {
+    if (!application) {
+        return JNI_FALSE;
+    }
+    if (url.isEmpty()) {
+        QMetaObject::invokeMethod(application, [application, request]() {
+            if (request.current()) { urlDelivery(application)->cancel(); }
+        }, Qt::QueuedConnection);
         return JNI_FALSE;
     }
 
@@ -257,12 +281,12 @@ Java_org_overte_phone_PhoneInterfaceActivity_nativeProcessUrl(
     // waits for Application's established load-complete boundary.
     const bool ownedByNative = QMetaObject::invokeMethod(
         application,
-        [application, url, generation]() {
+        [application, url, generation, request]() {
             const auto current = overte::lifecycle::applicationGate().snapshot();
-            if (!current.foreground || current.generation != generation) {
+            if (!request.current() || !current.foreground || current.generation != generation) {
                 return;
             }
-            urlDelivery(application)->submit(url);
+            urlDelivery(application)->submit(url, request);
         },
         Qt::QueuedConnection);
     return ownedByNative ? JNI_TRUE : JNI_FALSE;

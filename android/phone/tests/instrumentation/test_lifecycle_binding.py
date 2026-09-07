@@ -104,7 +104,7 @@ struct UrlDelivery {
     unsigned cancels = 0;
     unsigned submissions = 0;
     void cancel() { ++cancels; pending.clear(); }
-    void submit(const QString& value) {
+    void submit(const QString& value, const overte::network::RequestTicket&) {
         ++submissions; pending.replace(value.toStdString(), !value.isEmpty());
     }
 } urls;
@@ -119,6 +119,7 @@ struct JNIEnv {};
 #define JNI_FALSE false
 #define JNI_TRUE true
 QString fromJavaString(JNIEnv*, jstring value) { return QString::fromUtf8(value); }
+#include "phone-url-requests.inc"
 #include "phone-url-entry.inc"
 struct PhoneDelivery {
     phone::LifecycleHandoff _handoff;
@@ -143,6 +144,8 @@ int main(int argc, char** argv) {
     assert(nodes.foreground());
     QCoreApplication::processEvents();
     assert(urls.submissions == 0);
+    assert(urls.cancels == 1); // The empty newer ingress revoked native ownership.
+    urls.cancels = 0;
     assert(send("early explicit URL")); // Retry after effective Qt visibility.
     assert(urls.submissions == 0); // Queue ownership only, not applied receipt.
     QCoreApplication::processEvents();
@@ -191,6 +194,10 @@ int main(int argc, char** argv) {
             (directory / "publication.inc").write_text(publication)
             (directory / "phone-submit.inc").write_text(submit)
             (directory / "phone-url-entry.inc").write_text(url_entry)
+            (directory / "phone-url-requests.inc").write_text(
+                'overte::network::RequestScope& urlRequests()' + native.split(
+                    'overte::network::RequestScope& urlRequests()', 1)[1].split(
+                    'class PendingUrlDelivery', 1)[0])
             (directory / "node-visibility-state.inc").write_text(node_setter + "\n" + node_field)
             binary = directory / "test"
             subprocess.run(["c++", "-std=c++17", "-fPIC", "-pthread", "-I", str(ROOT),
