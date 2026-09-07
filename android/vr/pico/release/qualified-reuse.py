@@ -35,7 +35,8 @@ def verify_producer_files(repo, spec):
     require(set(spec.get('producerSourceFiles', {})) == set(paths), 'PICO_REUSE_SOURCE_SET')
     require(all(digest_file(repo/p) == spec['producerSourceFiles'][p] for p in paths),
             'PICO_REUSE_PRODUCER_SOURCE_CHANGED')
-    required = [p for p in paths if '/profiles/' in p or
+    required = [p for p in paths if ('/profiles/' in p and p.rsplit('/',1)[1] in
+                ('android-arm64-v8a-api26-16k','linux-x86_64-bootstrap','linux-x86_64-hosttools')) or
                 p.endswith(('base-toolchain.lock.json','toolchain-provisioning.lock.json'))]
     for origin in spec.get('coldOrigins', []):
         require(set(origin.get('toolchainFiles', {})) == set(required) and
