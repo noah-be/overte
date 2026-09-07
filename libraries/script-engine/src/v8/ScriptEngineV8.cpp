@@ -17,6 +17,7 @@
 #include "V8PropertyCopy.h"
 
 #include <chrono>
+#include <cstring>
 #include <mutex>
 #include <thread>
 
@@ -1115,7 +1116,12 @@ ScriptValue ScriptEngineV8::newValue(const QString& value) {
     Q_ASSERT(_v8Isolate->IsCurrent());
     v8::HandleScope handleScope(_v8Isolate);
     v8::Context::Scope contextScope(getContext());
-    v8::Local<v8::String> valueV8 = v8::String::NewFromUtf8(_v8Isolate, value.toStdString().c_str(), v8::NewStringType::kNormal).ToLocalChecked();
+    if (value.size() > v8::String::kMaxLength) { return ScriptValue(); }
+    v8::Local<v8::String> valueV8;
+    if (!v8::String::NewFromTwoByte(_v8Isolate, reinterpret_cast<const uint16_t*>(value.utf16()),
+            v8::NewStringType::kNormal, static_cast<int>(value.size())).ToLocal(&valueV8)) {
+        return ScriptValue();
+    }
     V8ScriptValue result(this, valueV8);
     return ScriptValue(new ScriptValueV8Wrapper(this, std::move(result)));
 }
@@ -1124,7 +1130,13 @@ ScriptValue ScriptEngineV8::newValue(const QLatin1String& value) {
     Q_ASSERT(_v8Isolate->IsCurrent());
     v8::HandleScope handleScope(_v8Isolate);
     v8::Context::Scope contextScope(getContext());
-    v8::Local<v8::String> valueV8 = v8::String::NewFromUtf8(_v8Isolate, value.latin1(), v8::NewStringType::kNormal).ToLocalChecked();
+    if (value.size() > v8::String::kMaxLength) { return ScriptValue(); }
+    const auto* bytes = reinterpret_cast<const uint8_t*>(value.latin1() ? value.latin1() : "");
+    v8::Local<v8::String> valueV8;
+    if (!v8::String::NewFromOneByte(_v8Isolate, bytes, v8::NewStringType::kNormal,
+            static_cast<int>(value.size())).ToLocal(&valueV8)) {
+        return ScriptValue();
+    }
     V8ScriptValue result(this, valueV8);
     return ScriptValue(new ScriptValueV8Wrapper(this, std::move(result)));
 }
@@ -1133,7 +1145,14 @@ ScriptValue ScriptEngineV8::newValue(const char* value) {
     Q_ASSERT(_v8Isolate->IsCurrent());
     v8::HandleScope handleScope(_v8Isolate);
     v8::Context::Scope contextScope(getContext());
-    v8::Local<v8::String> valueV8 = v8::String::NewFromUtf8(_v8Isolate, value, v8::NewStringType::kNormal).ToLocalChecked();
+    if (!value) { return ScriptValue(); }
+    const auto length = std::strlen(value);
+    if (length > static_cast<size_t>(v8::String::kMaxLength)) { return ScriptValue(); }
+    v8::Local<v8::String> valueV8;
+    if (!v8::String::NewFromUtf8(_v8Isolate, value, v8::NewStringType::kNormal,
+            static_cast<int>(length)).ToLocal(&valueV8)) {
+        return ScriptValue();
+    }
     V8ScriptValue result(this, valueV8);
     return ScriptValue(new ScriptValueV8Wrapper(this, std::move(result)));
 }
