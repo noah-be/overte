@@ -35,6 +35,9 @@ def verify_producer_files(repo, spec):
     require(set(spec.get('producerSourceFiles', {})) == set(paths), 'PICO_REUSE_SOURCE_SET')
     require(all(digest_file(repo/p) == spec['producerSourceFiles'][p] for p in paths),
             'PICO_REUSE_PRODUCER_SOURCE_CHANGED')
+    require(digest_file(repo/'android/common/conan/patches/qt-pico-android-runtime.patch') ==
+            spec['producerSourceFiles'].get('android/phone/fdroid/recipes/qt/patches/qt-pico-android-runtime.patch'),
+            'PICO_REUSE_RUNTIME_PATCH_PRODUCER')
     required = [p for p in paths if ('/profiles/' in p and p.rsplit('/',1)[1] in
                 ('android-arm64-v8a-api26-16k','linux-x86_64-bootstrap','linux-x86_64-hosttools')) or
                 p.endswith(('base-toolchain.lock.json','toolchain-provisioning.lock.json'))]
