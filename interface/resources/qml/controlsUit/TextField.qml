@@ -195,6 +195,11 @@ TextField {
         var pattern = prohibitedCharacters.join('');
         var regex = new RegExp('[' + pattern + ']', 'g');
 
-        text = text.replace(regex, '');
+        var filteredText = text.replace(regex, '');
+        // Reassigning identical text can commit an Android IME preedit.
+        // Preserve composition when sanitization has nothing to remove.
+        if (!touchMetrics.profile.preserveImeComposition || filteredText !== text) {
+            text = filteredText;
+        }
     }
 }
