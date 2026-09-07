@@ -39,6 +39,14 @@ QJsonObject worldObservation(bool foreground) {
     // Keep that limitation explicit until General integrates the proposal.
     result["producer"] = "entity-counts-only";
 #endif
+    // These are process counters / last observed values, deliberately separate
+    // from the current-world generation. They cannot identify an entity or run.
+    QJsonObject renderProcess;
+    const auto renderSnapshot = renderObservations();
+    for (std::size_t i = 0; i < renderMetricCount; ++i) {
+        renderProcess[QString::fromLatin1(renderMetricNames[i])] = QString::number(renderSnapshot[i]);
+    }
+    result["renderProcess"] = renderProcess;
     return result;
 }
 

@@ -84,10 +84,12 @@ for fragment in (
     '<< " vertex_descriptors=" << pipelineLayout.vertexReflection.descriptorCount()',
     "binding.binding < MAX_NUM_INPUT_BUFFERS",
     '<< "/set=" << strideWasSet',
-    'os_log_info(OS_LOG_DEFAULT, "%{public}s", createDetails.c_str())',
+    'observeRender(overte::ios::RenderMetric::pipelineAttempts, {',
     'makePipelineDetails("OVERTE_IOS_VULKAN_PIPELINE_CREATED", nullptr)',
-    'os_log_info(OS_LOG_DEFAULT, "%{public}s", createdDetails.c_str())',
-    'os_log_fault(OS_LOG_DEFAULT, "%{public}s", failureDetails.c_str())',
+    'observeRender(overte::ios::RenderMetric::pipelineCreated)',
+    'observeRender(overte::ios::RenderMetric::pipelineFailed)',
+    'RenderMetric::pipelineVertexBindings, builder.vertexInputState.bindingDescriptions.size()',
+    'RenderMetric::pipelineVertexAttributes, builder.vertexInputState.attributeDescriptions.size()',
 ):
     if fragment not in pipeline_cache:
         raise SystemExit(

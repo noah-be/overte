@@ -13,6 +13,12 @@ BASE = {"schemaVersion", "status", "sourceBinding", "artifactBinding", "foregrou
         "sceneEntities", "drawnEntities", "producer", "elapsedMs", "expired"}
 FRAME = {"generation", "acceptedPresentCalls", "rejectedPresentCalls",
          "lastPresentedFrame", "softwareQmlImagesProduced"}
+RENDER = set("""sequence domainConnections entityServers entityQueries entityPackets entityCommits renderHandoffs
+qmlUploads qmlWidth qmlHeight qmlSamples qmlAlphaSamples qmlNonBlackSamples
+pipelineAttempts pipelineCreated pipelineFailed pipelineTopology pipelineVertexBindings pipelineVertexAttributes
+pipelineVertexDescriptors pipelineFragmentDescriptors uniformFallbacks storageFallbacks textureFallbacks
+descriptorChecks descriptorExpected descriptorWritten descriptorMissing descriptorInvalid
+drawChecks invalidDrawRanges invalidObjectRanges recoveredSubmits quarantinedDraws configReloads""".split())
 
 
 def unique(pairs):
@@ -37,6 +43,8 @@ def inspect(path):
         raise ValueError("observation object")
     producer = sample.get("producer")
     fields = BASE | FRAME if producer == "generation-present-v1" else BASE
+    if "renderProcess" in sample:
+        fields = fields | {"renderProcess"}
     if producer not in {"generation-present-v1", "entity-counts-only"} or set(sample) != fields:
         raise ValueError("observation fields")
     if type(sample["schemaVersion"]) is not int or sample["schemaVersion"] != 1 or \
@@ -55,6 +63,16 @@ def inspect(path):
         if type(value) is not str or re.fullmatch(r"0|[1-9][0-9]{0,19}", value) is None or \
                 int(value) > 2**64 - 1:
             raise ValueError("observation integer")
+    if "renderProcess" in sample:
+        render = sample["renderProcess"]
+        if type(render) is not dict or set(render) != RENDER:
+            raise ValueError("render observation fields")
+        for value in render.values():
+            if type(value) is not str or re.fullmatch(r"0|[1-9][0-9]{0,19}", value) is None or int(value) > 2**64 - 1:
+                raise ValueError("render observation integer")
+        if not (int(render["qmlNonBlackSamples"]) <= int(render["qmlAlphaSamples"]) <=
+                int(render["qmlSamples"]) <= 65536):
+            raise ValueError("render pixel sample bounds")
     # Retained bytes are an untrusted local observation. Even plausible positive
     # values do not establish source, installed binary, run, scene or pixel identity.
     return sample

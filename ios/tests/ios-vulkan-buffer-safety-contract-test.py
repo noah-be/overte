@@ -30,8 +30,8 @@ for token in (
     "copiesPerInstance",
     "firstInstance + drawCommandInstanceCount",
     "firstInstance + effectiveInstances <= availableDrawCallInfoElements",
-    "invalid=draw_call_info",
-    "invalid=object_index",
+    "RenderMetric::invalidDrawRanges",
+    "RenderMetric::invalidObjectRanges",
 ):
     assert token in backend or token in backend_header, f"DrawCallInfo safety missing {token}"
 
@@ -64,8 +64,8 @@ for token in (
     assert token in uniform_setter, f"uniform BufferView cache fix missing {token}"
 for token in (
     "for (const auto& binding : bindingMap)",
-    "fallback=uniform",
-    "fallback=storage",
+    "RenderMetric::uniformFallbacks",
+    "RenderMetric::storageFallbacks",
     "sourceRange <= sourceBytes - sourceOffset",
     "initDefaultBuffer",
 ):

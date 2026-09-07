@@ -28,6 +28,14 @@ struct TestPaths {
 
 int main(int argc, char** argv) {
     QGuiApplication app(argc, argv);
+    overte::ios::observeRender(overte::ios::RenderMetric::qmlUploads, {
+        {overte::ios::RenderMetric::qmlSamples, 100},
+        {overte::ios::RenderMetric::qmlAlphaSamples, 70},
+        {overte::ios::RenderMetric::qmlNonBlackSamples, 40}
+    });
+    const auto process = overte::ios::worldObservation(true)["renderProcess"].toObject();
+    assert(process["qmlUploads"] == "1" && process["qmlSamples"] == "100");
+    assert(process["qmlAlphaSamples"] == "70" && process["qmlNonBlackSamples"] == "40");
     beginIOSRuntimeEntityEvidence();
     const auto generation = iosRuntimeEntityEvidenceGeneration();
     setExpectedIOSRuntimeEntities({ "private-test-entity" });

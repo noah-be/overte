@@ -23,7 +23,8 @@ with tempfile.TemporaryDirectory(prefix="ios-world-observation-") as temporary:
     overlay = scratch / "source"
     files = ["ios/render/WorldObservation.h", "ios/render/WorldObservation.cpp",
              "ios/render/InstallWorldObservation.cpp", "ios/tests/world-observation-test.cpp",
-             "libraries/shared/src/shared/IOSRuntimeLogging.h", "security/redaction/SafeDiagnostics.h"]
+             "libraries/shared/src/shared/IOSRuntimeLogging.h", "libraries/shared/src/shared/IOSRenderObservations.h",
+             "security/redaction/SafeDiagnostics.h"]
     for path in files:
         source = ROOT / path
         if args.proposal_root and (args.proposal_root / path).is_file():
@@ -68,6 +69,17 @@ with tempfile.TemporaryDirectory(prefix="ios-world-observation-") as temporary:
         assert json.loads((diagnostics / "fixture-world-observation.json").read_text()) == sample
         assert observation.stat().st_mode & 0o777 == 0o600
         assert sample["producer"] == ("generation-present-v1" if args.proposal_root else "entity-counts-only")
+        assert set(sample["renderProcess"]) == inspector.RENDER
+        for name, value in (("qmlSamples", "65537"), ("qmlAlphaSamples", "101"),
+                            ("qmlNonBlackSamples", "71"), ("privateUrl", "https://private.invalid")):
+            malformed = dict(sample, renderProcess=dict(sample["renderProcess"], **{name: value}))
+            observation.write_text(json.dumps(malformed))
+            try:
+                inspector.inspect(observation)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("invalid render observation admitted: " + name)
         rejected = dict(sample, status="ACCEPTED")
         observation.write_text(json.dumps(rejected))
         try:

@@ -72,9 +72,13 @@ require("Keep the transparent overlay" not in APPLICATION_OVERLAY and
         "iOS must not skip screen-space QML composition")
 require("OVERTE_IOS_QML_FRAME_GATE stage=cpu-frame-uploaded" in WEB,
         "device logs cannot prove that a QML frame reached Vulkan")
-require("alpha_nonzero_pixels=" in WEB and "non_black_pixels=" in WEB and
-        "Overte-iOS-QML-FirstFrame-" in WEB,
-        "device diagnostics cannot distinguish a transparent QML frame from a Vulkan upload failure")
+require("RenderMetric::qmlUploads" in WEB and "RenderMetric::qmlAlphaSamples, alphaNonzeroPixels" in WEB and
+        "RenderMetric::qmlNonBlackSamples, nonBlackPixels" in WEB and "RenderMetric::qmlSamples, sampledPixels" in WEB,
+        "bounded observations must distinguish sampled transparent/black QML uploads")
+require("(totalPixels + MAX_DIAGNOSTIC_SAMPLES - 1) / MAX_DIAGNOSTIC_SAMPLES" in WEB,
+        "QML diagnostic sampling must not exceed its fixed budget")
+require("const bool captureSaved = false;" in WEB,
+        "diagnostic selectors must not implicitly export private QML images")
 require("iosRuntimeDiagnosticConfigPath()" in WEB and
         "iosRuntimeDiagnosticConfig()" in WEB and
         "overte-ios-render-diagnostics.json" in IOS_LOGGING and
@@ -82,7 +86,7 @@ require("iosRuntimeDiagnosticConfigPath()" in WEB and
         'QStringLiteral("rgba-from-bgra")' in WEB,
         "iOS Web frame upload variants cannot be selected without rebuilding")
 require("RELOAD_INTERVAL_MS" in IOS_LOGGING and
-        "OVERTE_IOS_DIAGNOSTIC_CONFIG stage=reloaded" in IOS_LOGGING and
+        "observeRender(overte::ios::RenderMetric::configReloads)" in IOS_LOGGING and
         "captureLatestFrameSequence" in WEB and
         "qmlSoftwareDiagnosticContinuousFps" in SHARED_SOURCE,
         "physical-device QML diagnostics cannot be hot-reloaded without rebuilding")

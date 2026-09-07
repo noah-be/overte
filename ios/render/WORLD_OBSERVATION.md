@@ -1,5 +1,21 @@
 # Full Client world observation
 
+The optional `renderProcess` extension contains a closed set of decimal uint64
+process counters and last sampled values from `IOSRenderObservations.h`. Real
+entity callbacks, QML CPU upload sampling, descriptor writes, draw-buffer checks
+and Vulkan pipeline allocation update it. Each producer update and reader
+snapshot holds the same mutex; counters saturate. The sequence identifies an
+update in this process, not an independently bound run or world generation.
+These values remain distinct from the world-generation/present fields.
+
+QML reports at most 65536 sampled pixels and their nonzero-alpha/nonblack counts,
+without exporting pixel bytes or URLs. `qmlUploads` counts sampled CPU upload
+observations; it is not a GPU-completion counter. Descriptor counts describe the
+last checked set, fallback counters retain resource substitution, and pipeline
+counters distinguish attempted/successful/failed allocations. Buffer checks and
+quarantine counters report the actual corresponding branches. None proves GPU
+visibility or makes the legacy raw-marker runtime validators accept a sample.
+
 The actual Overte target links `WorldObservation.cpp` and
 `InstallWorldObservation.cpp`. An iOS Full Client configured with
 `configure --client-graph --world-observations` (simulator or device), or an
