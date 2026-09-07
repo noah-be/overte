@@ -11,10 +11,12 @@ public:
         if (!_vm) { return; }
         const jint status = _vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
         if (status == JNI_EDETACHED) {
-            // Use the ABI-level function table: Android/JDK C++ wrappers differ
-            // in whether their first argument is JNIEnv** or void**.
-            _attached = _vm->functions->AttachCurrentThread(
-                    _vm, reinterpret_cast<void**>(&env), nullptr) == JNI_OK;
+            // Android and host JDK headers declare different environment types.
+#if defined(__ANDROID__)
+            _attached = _vm->AttachCurrentThread(&env, nullptr) == JNI_OK;
+#else
+            _attached = _vm->AttachCurrentThread(reinterpret_cast<void**>(&env), nullptr) == JNI_OK;
+#endif
             if (!_attached) { env = nullptr; }
         } else if (status != JNI_OK) {
             env = nullptr;
