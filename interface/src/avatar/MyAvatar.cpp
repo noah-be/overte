@@ -956,7 +956,13 @@ void MyAvatar::simulate(float deltaTime, bool inView) {
     // must still complete its initial load/simulation because other startup
     // state depends on hasSkeleton(), but after that there is no reason to run
     // the expensive local rig, animation and IK every world update.
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Phone supports a visible body and publishes animated joints even when
+    // its local camera hides the body. Do not inherit Pico's rig suppression.
+    const bool updateLocalSkeleton = true;
+#else
     const bool updateLocalSkeleton = _shouldRender || !_skeletonModel->hasSkeleton();
+#endif
     if (updateLocalSkeleton) {
         PerformanceTimer perfTimer("skeleton");
 
