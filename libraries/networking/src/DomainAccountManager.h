@@ -77,7 +77,7 @@ signals:
     void newTokens();
 
 private:
-    void invalidatePendingAccessToken(LoginOutcome outcome = LoginOutcome::Cancelled, bool suspend = false);
+    overte::network::RequestTicket invalidatePendingAccessToken(LoginOutcome outcome = LoginOutcome::Cancelled, bool suspend = false);
     bool hasValidAccessToken();
     bool accessTokenIsExpired();
     void setTokensFromJSON(const QJsonObject&, const QUrl& url);
