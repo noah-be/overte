@@ -99,6 +99,9 @@
             activeName = "";
             sendState("Choose an emote");
         }, MSEC_PER_SEC * frames.length / FPS);
+        // Show the actual avatar performing the selected one-shot animation.
+        // Hiding the tablet preserves this app and its completion timer.
+        tablet.hideAndroidTablet();
     }
 
     function onClicked() {

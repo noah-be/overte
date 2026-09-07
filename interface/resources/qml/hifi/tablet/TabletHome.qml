@@ -127,7 +127,7 @@ Item {
                 height: clockTimeTextMetrics.height
                 anchors {
                     top: parent.top
-                    topMargin: -10
+                    topMargin: presentation.profile.stackedTabletHeader ? 0 : -10
                     right: clockAmPmItem.left
                     rightMargin: 5
                 }
