@@ -1,6 +1,7 @@
 import QtQuick 2.15
+import controlsUit 1.0 as HifiControls
 
-QtObject {
+HifiControls.TouchUiMetrics {
     // This selector is derived from the compiled HIFI_ANDROID_APP target and
     // cannot be changed through persisted Settings values.
     readonly property real contentScale: 1.0
