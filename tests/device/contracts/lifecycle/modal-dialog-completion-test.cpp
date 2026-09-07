@@ -7,6 +7,9 @@
 #include <QSharedPointer>
 #include <QUrl>
 #include <cassert>
+#include <QThread>
+#include <QEventLoop>
+#include <functional>
 
 // ACTUAL_BASE
 class OffscreenUi : public QObject {
@@ -23,6 +26,15 @@ public:
         lastItemConfig = config; lastItemTitle = title;
         return make(1, nextItemDialog);
     }
+    std::function<void()> onItemCreated;
+    QQuickItem* createCustomInputDialog(Icon, const QString& title, const QVariantMap& config) {
+        assert(QThread::currentThread()==thread());
+        lastItemConfig=config;lastItemTitle=title;
+        if(onItemCreated){onItemCreated();}
+        return nextItemDialog;
+    }
+    QVariant waitForInputDialogResult(QQuickItem*);
+    static QString getItem(Icon,const QString&,const QString&,const QStringList&,int,bool,bool*);
     static QString getText(Icon, const QString&, const QString&, const QString&, bool*);
     static ModalDialogListener* getItemAsync(Icon, const QString&, const QString&, const QStringList&, int, bool);
     void removeModalDialog(QObject*);
@@ -167,6 +179,24 @@ int main(int argc, char** argv) {
         QObject::connect(listener, &ModalDialogListener::response, &app, [&](const QVariant& value) { assert(!value.isValid()); ++canceled; });
         QCoreApplication::processEvents(); assert(canceled == 1);
         flush(); assert(!listener);
+    }
+    {
+        Dialog item;owner->nextItemDialog=&item;
+        owner->onItemCreated=[&]{
+            assert(owner->lastItemConfig.value("current").toInt()==1);
+            assert(!owner->lastItemConfig.value("editable").toBool());
+            assert(owner->lastItemConfig.value("items").toStringList()==QStringList({"first","second"}));
+            QTimer::singleShot(0,&item,[&]{emit item.selected(QString("second"));});
+        };
+        bool ok=false;
+        assert(OffscreenUi::getItem(OffscreenUi::ICON_NONE,"Item","Choose",{"first","second"},1,false,&ok)=="second" && ok);
+        QEventLoop loop;QString selected;ok=false;
+        auto* worker=QThread::create([&]{selected=OffscreenUi::getItem(OffscreenUi::ICON_NONE,"Item","Choose",{"first","second"},1,false,&ok);});
+        QObject::connect(worker,&QThread::finished,&loop,&QEventLoop::quit);
+        QTimer::singleShot(3000,&loop,&QEventLoop::quit);worker->start();loop.exec();
+        assert(worker->wait(100) && selected=="second" && ok);delete worker;
+        owner->onItemCreated={};owner->nextItemDialog=nullptr;ok=true;
+        assert(OffscreenUi::getItem(OffscreenUi::ICON_NONE,"Item","Choose",{},0,true,&ok).isEmpty() && !ok);
     }
     {
         Dialog pendingDialog;
