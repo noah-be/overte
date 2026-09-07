@@ -218,6 +218,14 @@ void messageHandler(QtMsgType type, const QMessageLogContext& context, const QSt
     if (type == QtWarningMsg || type == QtCriticalMsg) {
         if (message.contains("Cannot assign")) {
             __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=cannot_assign");
+            const auto location = QRegularExpression("qrc:/(qml/[A-Za-z0-9_./-]+\\.qml):([0-9]+)").match(message);
+            if (location.hasMatch() && QFile::exists(":/" + location.captured(1))) {
+                __android_log_print(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_local_error file=%s line=%d", location.captured(1).toLatin1().constData(), location.captured(2).toInt());
+            }
+            const auto property = QRegularExpression("Cannot assign to non-existent property \"([A-Za-z_][A-Za-z0-9_]*)\"").match(message);
+            if (property.hasMatch()) {
+                __android_log_print(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_missing_property=%s", property.captured(1).toLatin1().constData());
+            }
         } else if (message.contains("is not a function")) {
             __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=not_function");
         } else if (message.contains("ReferenceError")) {
