@@ -211,7 +211,13 @@ void messageHandler(QtMsgType type, const QMessageLogContext& context, const QSt
 #if defined(ANDROID_APP_PHONE_INTERFACE)
     // Closed classifications only: never disclose QML text, URLs or user data.
     if (type == QtWarningMsg || type == QtCriticalMsg) {
-        if (message.contains("is not installed")) {
+        if (message.contains("ReferenceError")) {
+            __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=reference_error");
+        } else if (message.contains("TypeError")) {
+            __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=type_error");
+        } else if (message.contains("No such file")) {
+            __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=file_missing");
+        } else if (message.contains("is not installed")) {
             __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=module_not_installed");
         } else if (message.contains("is not a type")) {
             __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=unknown_type");

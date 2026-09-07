@@ -15,6 +15,9 @@
 
 #include "Application.h"
 #include "ApplicationLifecycle.h"
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include <android/log.h>
+#endif
 
 #include <QtCore/QMimeData>
 #include <QtCore/QCoreApplication>
@@ -318,6 +321,9 @@ void publishClientVisibility(bool native, bool foreground) {
     static overte::lifecycle::VisibilityInputs inputs;
     const bool requested = native ? inputs.observeNative(foreground) : inputs.observeQt(foreground);
     const bool effective = overte::lifecycle::applicationGate().visible(requested).snapshot.foreground;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    __android_log_print(ANDROID_LOG_INFO, "OvertePhoneRuntime", "visibility native=%d foreground=%d requested=%d effective=%d qt_state=%d", native, foreground, requested, effective, int(QGuiApplication::applicationState()));
+#endif
     // Native callbacks may precede setupEssentials. Do not create dependencies
     // early; the real startup observation republishes the retained inputs.
     if (DependencyManager::isSet<AddressManager>()) {
