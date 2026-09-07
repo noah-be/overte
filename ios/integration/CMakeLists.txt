@@ -46,11 +46,16 @@ target_sources(Overte PRIVATE
 set_source_files_properties(
     "${CMAKE_CURRENT_LIST_DIR}/../src/SecureAccountStore.mm"
     "${CMAKE_CURRENT_LIST_DIR}/../src/RedactingDiagnostics.mm"
+    TARGET_DIRECTORY Overte
     PROPERTIES COMPILE_OPTIONS "-fobjc-arc"
 )
+# Source properties are scoped to the directory that created the consuming
+# target (interface), not this later integration directory. Apply ARC there.
 set_source_files_properties("${CMAKE_CURRENT_LIST_DIR}/../audio/AVAudioSessionAdapter.mm"
+    TARGET_DIRECTORY Overte
     PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
 set_source_files_properties("${CMAKE_CURRENT_LIST_DIR}/../web/ContainedWebView.mm"
+    TARGET_DIRECTORY Overte
     PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
 target_link_libraries(Overte "-framework WebKit")
 target_link_libraries(Overte "-framework Security" "-framework LocalAuthentication")

@@ -3,6 +3,8 @@
 import json
 from pathlib import Path
 import re
+import subprocess
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -19,6 +21,35 @@ class Wiring(unittest.TestCase):
         self.assertIn('target_link_libraries(Overte "-framework WebKit")', cmake)
         self.assertIn("Q_COREAPP_STARTUP_FUNCTION(installContainedWeb)", self.source)
         self.assertIn("overte::web::installNativeWebAdapter(&nativeAdapter())", self.source)
+
+    def test_arc_reaches_target_in_other_cmake_directory(self):
+        source = (ROOT / "ios/integration/CMakeLists.txt").read_text()
+        properties = "\n".join(re.findall(r'set_source_files_properties\([\s\S]*?\)', source))
+        properties = properties.replace("${CMAKE_CURRENT_LIST_DIR}", str(ROOT / "ios/integration"))
+        checks = "\n".join(
+            f'get_source_file_property(arc "{ROOT / "ios" / name}" TARGET_DIRECTORY Overte COMPILE_OPTIONS)\n'
+            'if(NOT arc STREQUAL "-fobjc-arc")\nmessage(FATAL_ERROR "ARC not visible to Overte")\nendif()'
+            for name in ("src/SecureAccountStore.mm", "src/RedactingDiagnostics.mm",
+                         "audio/AVAudioSessionAdapter.mm", "web/ContainedWebView.mm"))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "interface").mkdir()
+            (root / "integration").mkdir()
+            (root / "interface/CMakeLists.txt").write_text('add_library(Overte INTERFACE)\n')
+            (root / "integration/CMakeLists.txt").write_text(properties + "\n")
+            (root / "CMakeLists.txt").write_text(
+                'cmake_minimum_required(VERSION 3.24)\nproject(ArcScope LANGUAGES NONE)\n'
+                'add_subdirectory(interface)\nadd_subdirectory(integration)\n' + checks)
+            result = subprocess.run(["cmake", "-S", str(root), "-B", str(root / "build")],
+                                    text=True, capture_output=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            # Reproduce the real failure: the same properties set only in the
+            # integration directory must not satisfy the consuming target.
+            (root / "integration/CMakeLists.txt").write_text(properties.replace("TARGET_DIRECTORY Overte", "") + "\n")
+            result = subprocess.run(["cmake", "-S", str(root), "-B", str(root / "before-build")],
+                                    text=True, capture_output=True, timeout=30)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("ARC not visible to Overte", result.stdout + result.stderr)
 
     def test_constant_rules(self):
         definition = self.source.split("NSString* const CONTENT_RULES =", 1)[1].split(";", 1)[0]
