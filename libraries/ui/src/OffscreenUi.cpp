@@ -1125,6 +1125,14 @@ bool OffscreenUi::eventFilter(QObject* originalDestination, QEvent* event) {
 
     // let the parent class do it's work
     bool result = OffscreenQmlSurface::eventFilter(originalDestination, event);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // OffscreenSurface already delivered this transaction to the focused
+    // QML item. A second delivery commits the preedit a second time.
+    if (event->type() == QEvent::InputMethod || event->type() == QEvent::InputMethodQuery) {
+        return result;
+    }
+#endif
+
 
     switch (event->type()) {
         // Fall through
@@ -1145,15 +1153,6 @@ bool OffscreenUi::eventFilter(QObject* originalDestination, QEvent* event) {
         }
         case QEvent::InputMethod:
         case QEvent::InputMethodQuery:
-#if defined(ANDROID_APP_PHONE_INTERFACE)
-            if (isFocusText()) {
-                // The offscreen QML field owns the IME transaction. Letting
-                // the host widget process it again can overwrite cursor and
-                // surrounding-text queries or duplicate composing input.
-                QCoreApplication::sendEvent(getWindow(), event);
-                return true;
-            }
-#endif
             if (QCoreApplication::sendEvent(getWindow(), event)) {
                 return result;
             }

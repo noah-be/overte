@@ -243,9 +243,15 @@ bool OffscreenSurface::eventFilter(QObject* originalDestination, QEvent* event) 
                         QInputMethodQueryEvent *imqEvent = static_cast<QInputMethodQueryEvent *>(event);
                         // this block disables the selection cursor in android which appears in
                         // the top-left corner of the screen
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
                         if (imqEvent->queries() & Qt::ImEnabled) {
                             imqEvent->setValue(Qt::ImEnabled, QVariant(false));
                         }
+#else
+                        // Phone focus is gated by the real QML text field.
+                        // Preserve its editor capability for the system IME.
+                        Q_UNUSED(imqEvent);
+#endif
                     }
                     return eventAccepted;
                 }
