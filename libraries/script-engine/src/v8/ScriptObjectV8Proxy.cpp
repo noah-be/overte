@@ -1386,8 +1386,11 @@ int ScriptSignalV8Proxy::qt_metacall(QMetaObject::Call call, int id, void** argu
                 }
 
                 v8::TryCatch tryCatch(isolate);
-                auto maybeResult = callback->Call(functionContext, v8This, numArgs, args);
-                Q_UNUSED(maybeResult); // Signals don't have return values
+                auto invoke = [&] {
+                    auto maybeResult = callback->Call(functionContext, v8This, numArgs, args);
+                    Q_UNUSED(maybeResult); // Signals don't have return values
+                };
+                if (conn.invokeInEnvironment) { conn.invokeInEnvironment(invoke); } else { invoke(); }
                 if (tryCatch.HasTerminated() || isolate->IsExecutionTerminating()) {
                     return -1; // No diagnostic reentry or later signal callback.
                 }
@@ -1551,6 +1554,9 @@ void ScriptSignalV8Proxy::connect(ScriptValue arg0, ScriptValue arg1) {
 
     // add this to our internal list of connections
     Connection newConnection(callbackThis, callback);
+    if (const auto manager = _engine->manager()) {
+        newConnection.invokeInEnvironment = manager->captureScriptEnvironment();
+    }
 
     withWriteLock([&]{
         _connections.append(newConnection);

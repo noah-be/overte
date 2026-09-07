@@ -1622,12 +1622,20 @@ void Application::setupSignalsAndOperators() {
         connect(accountManager.data(), &AccountManager::authRequired, dialogsManager.data(), &DialogsManager::showLoginDialog);
 #endif
         connect(accountManager.data(), &AccountManager::usernameChanged, this, &Application::updateWindowTitle);
+        connect(accountManager.data(), &AccountManager::authEndpointChanged, this, &Application::invalidateEntityScriptConsent);
+        connect(accountManager.data(), &AccountManager::usernameChanged, this, &Application::invalidateEntityScriptConsent);
+        connect(accountManager.data(), &AccountManager::loginComplete, this, &Application::invalidateEntityScriptConsent);
+        connect(accountManager.data(), &AccountManager::logoutComplete, this, &Application::invalidateEntityScriptConsent);
 
         auto domainAccountManager = DependencyManager::get<DomainAccountManager>();
         connect(domainAccountManager.data(), &DomainAccountManager::authRequired, dialogsManager.data(),
                 &DialogsManager::showDomainLoginDialog);
         connect(domainAccountManager.data(), &DomainAccountManager::authRequired, this, &Application::updateWindowTitle);
         connect(domainAccountManager.data(), &DomainAccountManager::loginComplete, this, &Application::updateWindowTitle);
+        connect(domainAccountManager.data(), &DomainAccountManager::authRequired, this, &Application::invalidateEntityScriptConsent);
+        connect(domainAccountManager.data(), &DomainAccountManager::loginComplete, this, &Application::invalidateEntityScriptConsent);
+        connect(domainAccountManager.data(), &DomainAccountManager::logoutComplete, this, &Application::invalidateEntityScriptConsent);
+        connect(&domainHandler, &DomainHandler::disconnectedFromDomain, this, &Application::invalidateEntityScriptConsent);
         // ####### TODO: Connect any other signals from domainAccountManager.
 
         auto addressManager = DependencyManager::get<AddressManager>();

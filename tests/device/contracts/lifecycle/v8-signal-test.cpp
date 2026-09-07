@@ -7,6 +7,7 @@
 #include <libplatform/libplatform.h>
 #include <atomic>
 #include <cassert>
+#include <functional>
 #include <memory>
 #include <thread>
 #include "ReadWriteLockable.h"
@@ -47,7 +48,7 @@ struct ScriptEngineV8 {
 QString getFileNameFromTryCatch(const v8::TryCatch&, v8::Isolate*, v8::Local<v8::Context>) { return {}; }
 class ScriptSignalV8Proxy final : public ScriptSignalV8ProxyBase, public ReadWriteLockable {
 public:
-    struct Connection { V8ScriptValue thisValue, callback; };
+    struct Connection { V8ScriptValue thisValue, callback; std::function<void(std::function<void()>)> invokeInEnvironment; };
     using ConnectionList = QList<Connection>;
     ScriptEngineV8* _engine;
     QMetaMethod _meta;
@@ -107,6 +108,11 @@ int main(int argc, char** argv) {
         }
         proxy._connections.append({ V8ScriptValue(isolate, {}), V8ScriptValue(isolate, callback) });
         proxy._connections.append({ V8ScriptValue(isolate, {}), V8ScriptValue(isolate, v8::Function::New(context, next).ToLocalChecked()) });
+        if (mode == "consent-denied") {
+            proxy._connections[0].invokeInEnvironment = [](std::function<void()>) {};
+        } else if (mode == "consent-allowed") {
+            proxy._connections[0].invokeInEnvironment = [](std::function<void()> invoke) { invoke(); };
+        }
         assert(QMetaObject::connect(&emitter, meta.methodIndex(), &proxy, proxy.metaObject()->methodCount()));
         engine.emptyConversion = mode == "empty-conversion";
         engine.stopConversion = mode == "conversion-stop";
@@ -138,7 +144,7 @@ int main(int argc, char** argv) {
         assert(second == (rejected ? 0 : 1));
         assert(manager.notifications == (mode == "throw" ? 1 : 0));
         assert(engine.uncaught == (mode == "throw" ? 1 : 0));
-        const bool normal = mode == "zero" || mode == "one" || mode == "ten";
+        const bool normal = mode == "zero" || mode == "one" || mode == "ten" || mode == "consent-allowed";
         assert(first == (normal ? 1 : 0));
         if (normal) { assert(observedArguments == (mode == "zero" ? 0 : mode == "ten" ? 10 : 1)); }
         if (mode == "conversion-stop") { assert(engine.conversions == 1 && engine.isEvaluationAborted()); }

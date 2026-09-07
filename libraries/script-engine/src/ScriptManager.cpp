@@ -1009,7 +1009,7 @@ void ScriptManager::addEventHandler(const EntityItemID& entityID, const QString&
         _registeredHandlers[entityID] = RegisteredEventHandlers();
     }
     CallbackList& handlersForEvent = _registeredHandlers[entityID][eventName];
-    CallbackData handlerData = { handler, currentEntityIdentifier, currentSandboxURL };
+    CallbackData handlerData = { handler, currentEntityIdentifier, currentSandboxURL, _currentEntityScriptConsentRequest };
     handlersForEvent << handlerData; // Note that the same handler can be added many times. See removeEntityEventHandler().
 }
 
@@ -1334,7 +1334,7 @@ void ScriptManager::timerFired(int handle) {
     if (data.function.isValid()) {
         PROFILE_RANGE(script, __FUNCTION__);
         auto preTimer = p_high_resolution_clock::now();
-        callWithEnvironment(data.definingEntityIdentifier, data.definingSandboxURL, data.function, data.function, ScriptValueList());
+        callWithEnvironment(data.definingEntityIdentifier, data.definingSandboxURL, data.function, data.function, ScriptValueList(), data.consentRequest);
         auto postTimer = p_high_resolution_clock::now();
         auto elapsed = (postTimer - preTimer);
         _totalTimerExecution += std::chrono::duration_cast<std::chrono::microseconds>(elapsed);
@@ -1351,7 +1351,7 @@ int ScriptManager::setupTimerWithInterval(const ScriptValue& function, int inter
     int handle = _timerHandleCounter++;
 
     // create the timer, add it to the map, and start it
-    CallbackData timerData = { function, currentEntityIdentifier, currentSandboxURL };
+    CallbackData timerData = { function, currentEntityIdentifier, currentSandboxURL, _currentEntityScriptConsentRequest };
     auto& newTimer =
         _timerFunctionMap.emplace(handle, std::make_pair(std::make_unique<QTimer>(), timerData)).first->second.first;
     newTimer->setSingleShot(isSingleShot);
@@ -1908,10 +1908,16 @@ void ScriptManager::include(const QStringList& includeFiles, const ScriptValue& 
     BatchLoader* loader = new BatchLoader(urls);
     EntityItemID capturedEntityIdentifier = currentEntityIdentifier;
     QUrl capturedSandboxURL = currentSandboxURL;
+    const auto capturedConsent = _currentEntityScriptConsentRequest;
 
     auto evaluateScripts = [=, this](const QMap<QUrl, QString>& data, const QMap<QUrl, QString>& status) {
+        if (!entityScriptInvocationAllowed(capturedEntityIdentifier, capturedConsent)) {
+            loader->deleteLater();
+            return;
+        }
         auto parentURL = _parentURL;
         for (QUrl url : urls) {
+            if (!entityScriptInvocationAllowed(capturedEntityIdentifier, capturedConsent)) { break; }
             QString contents = data[url];
             if (contents.isNull()) {
                 int lineNumber = -1;
@@ -1933,7 +1939,7 @@ void ScriptManager::include(const QStringList& includeFiles, const ScriptValue& 
                         _engine->evaluate(contents, url.toString());
                     };
 
-                    doWithEnvironment(capturedEntityIdentifier, capturedSandboxURL, operation);
+                    doWithEnvironment(capturedEntityIdentifier, capturedSandboxURL, operation, capturedConsent);
                     if(_engine->hasUncaughtException()) {
                         auto ex = _engine->uncaughtException();
                         ex->additionalInfo += "; evaluateInClosure";
@@ -1955,7 +1961,7 @@ void ScriptManager::include(const QStringList& includeFiles, const ScriptValue& 
         _parentURL = parentURL;
 
         if (callback.isFunction()) {
-            callWithEnvironment(capturedEntityIdentifier, capturedSandboxURL, callback, ScriptValue(), ScriptValueList());
+            callWithEnvironment(capturedEntityIdentifier, capturedSandboxURL, callback, ScriptValue(), ScriptValueList(), capturedConsent);
         }
 
         loader->deleteLater();
@@ -2050,7 +2056,7 @@ void ScriptManager::forwardHandlerCall(const EntityItemID& entityID, const QStri
             // and the entity scripts may be for entities other than the one this is a handler for.
             // Fortunately, the definingEntityIdentifier captured the entity script id (if any) when the handler was added.
             CallbackData& handler = handlersForEvent[i];
-            callWithEnvironment(handler.definingEntityIdentifier, handler.definingSandboxURL, handler.function, ScriptValue(), eventHandlerArgs);
+            callWithEnvironment(handler.definingEntityIdentifier, handler.definingSandboxURL, handler.function, ScriptValue(), eventHandlerArgs, handler.consentRequest);
         }
     }
 }
@@ -2192,21 +2198,83 @@ void ScriptManager::processEntityScriptContents() {
     }
 }
 
-bool ScriptManager::rejectEntityScriptWithoutConsent(const EntityItemID& entityID, const QString& scriptURL) {
-    // Client entity code is untrusted even when embedded, cached or file-backed.
-    // No informed-consent + lifetime-safe finite-revoke backend is bound yet.
-    // Fail closed until that complete backend replaces this fence; mutable
-    // Script.type, URL schemes, settings and environment cannot grant consent.
+bool ScriptManager::bindEntityScriptConsent(std::shared_ptr<EntityScriptConsentScope> scope,
+                                           EntityScriptConsentPrompt prompt) {
+    if (_context != ENTITY_CLIENT_SCRIPT || QThread::currentThread() != thread() ||
+        _hasRunStarted.load() || _entityScriptConsentScope || !scope || !scope->active() || scope->origin().isEmpty() || !prompt) {
+        return false;
+    }
+    _entityScriptConsentScope = std::move(scope);
+    _entityScriptConsentPrompt = std::move(prompt);
+    const auto weakManager = weak_from_this();
+    _entityScriptConsentScope->onInvalidated([weakManager] {
+        if (const auto manager = weakManager.lock()) { manager->stop(); }
+    });
+    return true;
+}
+
+bool ScriptManager::rejectEntityScriptWithoutConsent(const EntityItemID& entityID, const QString& scriptURL,
+                                                     bool requestConsent, bool forceRedownload) {
     switch (_context) {
         case ENTITY_SERVER_SCRIPT:
         case AGENT_SCRIPT:
         case NETWORKLESS_TEST_SCRIPT:
             return false;
         default:
-            updateEntityScriptStatus(entityID, scriptURL, EntityScriptStatus::ERROR_LOADING_SCRIPT,
-                                     QStringLiteral("ENTITY_SCRIPT_CONSENT_UNAVAILABLE"));
-            return true;
+            break;
     }
+    if (_context != ENTITY_CLIENT_SCRIPT || !_entityScriptConsentScope ||
+        !_entityScriptConsentScope->active() || !_entityScriptConsentPrompt || isStopping() || _isFinished) {
+        updateEntityScriptStatus(entityID, scriptURL, EntityScriptStatus::ERROR_LOADING_SCRIPT,
+                                 QStringLiteral("ENTITY_SCRIPT_CONSENT_UNAVAILABLE"));
+        return true;
+    }
+    auto existing = _entityScriptConsentRequests.value(entityID).value(scriptURL);
+    if (existing) {
+        if (existing->allowed()) { return false; }
+        existing->_forceRedownload = existing->_forceRedownload || forceRedownload;
+        updateEntityScriptStatus(entityID, scriptURL, EntityScriptStatus::ERROR_LOADING_SCRIPT,
+            existing->decision() == EntityScriptConsentRequest::Decision::Declined ?
+                QStringLiteral("ENTITY_SCRIPT_CONSENT_DECLINED") : QStringLiteral("ENTITY_SCRIPT_CONSENT_REQUIRED"));
+        return true;
+    }
+    // A late/cache callback cannot manufacture a new consent prompt.
+    if (!requestConsent) { return true; }
+    int pending = 0;
+    for (const auto& scripts : _entityScriptConsentRequests) {
+        for (const auto& request : scripts) {
+            if (request->decision() == EntityScriptConsentRequest::Decision::Pending) { ++pending; }
+        }
+    }
+    if (pending >= 64) {
+        updateEntityScriptStatus(entityID, scriptURL, EntityScriptStatus::ERROR_LOADING_SCRIPT,
+                                 QStringLiteral("ENTITY_SCRIPT_CONSENT_QUEUE_FULL"));
+        return true;
+    }
+    const auto request = std::make_shared<EntityScriptConsentRequest>(_entityScriptConsentScope, scriptURL, forceRedownload);
+    _entityScriptConsentRequests[entityID][scriptURL] = request;
+    updateEntityScriptStatus(entityID, scriptURL, EntityScriptStatus::ERROR_LOADING_SCRIPT,
+                             QStringLiteral("ENTITY_SCRIPT_CONSENT_REQUIRED"));
+    if (isStopping() || !request->active() ||
+        _entityScriptConsentRequests.value(entityID).value(scriptURL) != request) { return true; }
+    const auto weakManager = weak_from_this();
+    _entityScriptConsentPrompt(entityID, request, [weakManager, entityID, scriptURL, request](bool allow) {
+        if (auto manager = weakManager.lock()) {
+            QMetaObject::invokeMethod(manager.get(), [weakManager, entityID, scriptURL, request, allow] {
+                const auto manager = weakManager.lock();
+                if (!manager || manager->isStopping() || manager->_isFinished ||
+                    manager->_entityScriptConsentRequests.value(entityID).value(scriptURL) != request ||
+                    !request->resolve(allow)) { return; }
+                if (allow) {
+                    manager->loadEntityScript(entityID, scriptURL, request->_forceRedownload);
+                } else {
+                    manager->updateEntityScriptStatus(entityID, scriptURL, EntityScriptStatus::ERROR_LOADING_SCRIPT,
+                                                     QStringLiteral("ENTITY_SCRIPT_CONSENT_DECLINED"));
+                }
+            }, Qt::QueuedConnection);
+        }
+    });
+    return true;
 }
 
 void ScriptManager::loadEntityScript(const EntityItemID& entityID, const QString& entityScript, bool forceRedownload) {
@@ -2217,7 +2285,7 @@ void ScriptManager::loadEntityScript(const EntityItemID& entityID, const QString
         });
         return;
     }
-    if (rejectEntityScriptWithoutConsent(entityID, entityScript)) {
+    if (rejectEntityScriptWithoutConsent(entityID, entityScript, true, forceRedownload)) {
         return;
     }
     PROFILE_RANGE(script, __FUNCTION__);
@@ -2279,7 +2347,7 @@ void ScriptManager::loadEntityScript(const EntityItemID& entityID, const QString
                 if (isCurrentEntityScriptLoad(entityID, entityScript, request) && !request->queued) {
                     request->queued = true;
                     _contentAvailableQueue[entityID][entityScript] = {
-                        entityID, url, contents, isURL, success, status, entityScript, request
+                        entityID, _context == ENTITY_CLIENT_SCRIPT ? entityScript : url, contents, isURL, success, status, entityScript, request
                     };
                 } else {
 #ifdef DEBUG_ENTITY_STATES
@@ -2287,7 +2355,7 @@ void ScriptManager::loadEntityScript(const EntityItemID& entityID, const QString
 #endif
                 }
             });
-    }, forceRedownload);
+    }, forceRedownload, ScriptRequest::MAX_RETRIES, _context == ENTITY_CLIENT_SCRIPT, _entityScriptConsentScope);
 }
 
 // The JSDoc is for the callEntityScriptMethod() call in this method.
@@ -2310,6 +2378,12 @@ void ScriptManager::entityScriptContentAvailable(const EntityItemID& entityID, c
         return;
     }
 
+    const auto consent = _entityScriptConsentRequests.value(entityID).value(scriptOrURL);
+    const auto consentCurrent = [&] {
+        return _context != ENTITY_CLIENT_SCRIPT ||
+            (consent && consent->allowed() && !isStopping() && !_isFinished &&
+             _entityScriptConsentRequests.value(entityID).value(scriptOrURL) == consent);
+    };
     auto scriptCache = DependencyManager::get<ScriptCache>();
     bool isFileUrl = isURL && scriptOrURL.startsWith("file://");
     auto fileName = isURL ? scriptOrURL : "about:EmbeddedEntityScript";
@@ -2340,9 +2414,17 @@ void ScriptManager::entityScriptContentAvailable(const EntityItemID& entityID, c
     // SYNTAX ERRORS
     //auto syntaxError = _engine->lintScript(contents, fileName);
     auto program = _engine->newProgram( contents, fileName );
+    if (!program) {
+        setError("Bad program (isNull)", EntityScriptStatus::ERROR_RUNNING_SCRIPT);
+        std::shared_ptr<ScriptException> ex = std::make_shared<ScriptEngineException>("Program is Null", "Bad program in entityScriptContentAvailable");
+        emit unhandledException(ex);
+
+        return; // done processing script
+    }
+
     auto syntaxCheck = program->checkSyntax();
-    if (syntaxCheck->state() != ScriptSyntaxCheckResult::Valid) {
-        auto message = syntaxCheck->errorMessage();
+    if (!syntaxCheck || syntaxCheck->state() != ScriptSyntaxCheckResult::Valid) {
+        auto message = syntaxCheck ? syntaxCheck->errorMessage() : QStringLiteral("Syntax check unavailable");
         //syntaxError.property("formatted").toString();
         //if (message.isEmpty()) {
         //    message = syntaxError.toString();
@@ -2353,13 +2435,6 @@ void ScriptManager::entityScriptContentAvailable(const EntityItemID& entityID, c
         //emit unhandledException(syntaxError);
 
         return;
-    }
-    if (!program) {
-        setError("Bad program (isNull)", EntityScriptStatus::ERROR_RUNNING_SCRIPT);
-        std::shared_ptr<ScriptException> ex = std::make_shared<ScriptEngineException>("Program is Null", "Bad program in entityScriptContentAvailable");
-        emit unhandledException(ex);
-
-        return; // done processing script
     }
 
     if (isURL) {
@@ -2593,9 +2668,13 @@ void ScriptManager::entityScriptContentAvailable(const EntityItemID& entityID, c
     ScriptValue entityScriptConstructor, entityScriptObject;
     QUrl sandboxURL = currentSandboxURL.isEmpty() ? scriptOrURL : currentSandboxURL;
     auto initialization = [&]{
+        if (!consentCurrent()) { return; }
         entityScriptConstructor = _engine->evaluate(contents, fileName);
-        //V8TODO: check if entityScriptConstructor is a function or not
-        //Throw V8 exception if it's not?
+        if (!consentCurrent()) { return; }
+        if (!entityScriptConstructor.isFunction()) {
+            setError(QStringLiteral("Entity script must evaluate to a constructor"), EntityScriptStatus::ERROR_RUNNING_SCRIPT);
+            return;
+        }
         entityScriptObject = entityScriptConstructor.construct();
 
         if (_engine->hasUncaughtException()) {
@@ -2607,9 +2686,10 @@ void ScriptManager::entityScriptContentAvailable(const EntityItemID& entityID, c
         }
     };
 
-    doWithEnvironment(entityID, sandboxURL, initialization);
+    doWithEnvironment(entityID, sandboxURL, initialization, consent);
+    if (!consentCurrent()) { return; }
 
-    if (entityScriptObject.isError()) {
+    if (!entityScriptObject.isObject() || entityScriptObject.isError()) {
        // auto exception = entityScriptObject;
        // setError(formatException(exception, _enableExtendedJSExceptions.get()), EntityScriptStatus::ERROR_RUNNING_SCRIPT);
        // emit unhandledException(exception);
@@ -2620,6 +2700,7 @@ void ScriptManager::entityScriptContentAvailable(const EntityItemID& entityID, c
     // ... AND WE HAVE LIFTOFF
     newDetails.status = EntityScriptStatus::RUNNING;
     newDetails.scriptObject = entityScriptObject;
+    newDetails.consentRequest = consent;
     newDetails.lastModified = lastModified;
     newDetails.definingSandboxURL = sandboxURL;
     setEntityScriptDetails(entityID, scriptOrURL, newDetails);
@@ -2673,6 +2754,12 @@ void ScriptManager::unloadEntityScript(const EntityItemID& entityID, const QStri
         "entityID:" << entityID;
 #endif
 
+    auto consent = _entityScriptConsentRequests.find(entityID);
+    if (consent != _entityScriptConsentRequests.end()) {
+        if (auto request = consent->value(scriptURL)) { request->invalidate(); }
+        consent->remove(scriptURL);
+        if (consent->isEmpty()) { _entityScriptConsentRequests.erase(consent); }
+    }
     cancelEntityScriptLoad(entityID, scriptURL);
 
     EntityScriptDetails oldDetails;
@@ -2734,6 +2821,8 @@ void ScriptManager::unloadAllEntityScriptsForEntity(const EntityItemID& entityID
                           << entityID;
 #endif
 
+    for (const auto& request : _entityScriptConsentRequests.value(entityID)) { request->invalidate(); }
+    _entityScriptConsentRequests.remove(entityID);
     _entityScriptLoads.remove(entityID);
     _contentAvailableQueue.remove(entityID);
 
@@ -2795,6 +2884,10 @@ void ScriptManager::unloadAllEntityScripts(bool blockingCall) {
     qCDebug(scriptengine) << "ScriptManager::unloadAllEntityScripts() called on correct thread [" << thread() << "]";
 #endif
 
+    for (const auto& scripts : _entityScriptConsentRequests) {
+        for (const auto& request : scripts) { request->invalidate(); }
+    }
+    _entityScriptConsentRequests.clear();
     _entityScriptLoads.clear();
     _contentAvailableQueue.clear();
 
@@ -2857,7 +2950,30 @@ void ScriptManager::refreshFileScript(const EntityItemID& entityID, const QStrin
 // Even if entityID is supplied as currentEntityIdentifier, this still documents the source
 // of the code being executed (e.g., if we ever sandbox different entity scripts, or provide different
 // global values for different entity scripts).
-void ScriptManager::doWithEnvironment(const EntityItemID& entityID, const QUrl& sandboxURL, std::function<void()> operation) {
+std::function<void(std::function<void()>)> ScriptManager::captureScriptEnvironment() {
+    const auto weakManager = weak_from_this();
+    const auto entity = currentEntityIdentifier;
+    const auto sandbox = currentSandboxURL;
+    const auto consent = _currentEntityScriptConsentRequest;
+    return [weakManager, entity, sandbox, consent](std::function<void()> operation) {
+        if (const auto manager = weakManager.lock()) {
+            manager->doWithEnvironment(entity, sandbox, std::move(operation), consent);
+        }
+    };
+}
+
+bool ScriptManager::entityScriptInvocationAllowed(const EntityItemID& entityID,
+    const std::shared_ptr<EntityScriptConsentRequest>& consent) const {
+    return _context != ENTITY_CLIENT_SCRIPT ||
+        (consent && consent->allowed() && consent->belongsTo(_entityScriptConsentScope) &&
+         !isStopping() && !_isFinished &&
+         _entityScriptConsentRequests.value(entityID).value(consent->source()) == consent);
+}
+
+void ScriptManager::doWithEnvironment(const EntityItemID& entityID, const QUrl& sandboxURL, std::function<void()> operation, const std::shared_ptr<EntityScriptConsentRequest>& consent) {
+    if (!entityScriptInvocationAllowed(entityID, consent)) { return; }
+    const auto oldConsent = _currentEntityScriptConsentRequest;
+    _currentEntityScriptConsentRequest = consent;
     EntityItemID oldIdentifier = currentEntityIdentifier;
     QUrl oldSandboxURL = currentSandboxURL;
     currentEntityIdentifier = entityID;
@@ -2873,13 +2989,14 @@ void ScriptManager::doWithEnvironment(const EntityItemID& entityID, const QUrl& 
 #endif
     currentEntityIdentifier = oldIdentifier;
     currentSandboxURL = oldSandboxURL;
+    _currentEntityScriptConsentRequest = oldConsent;
 }
 
-void ScriptManager::callWithEnvironment(const EntityItemID& entityID, const QUrl& sandboxURL, const ScriptValue& function, const ScriptValue& thisObject, const ScriptValueList& args) {
+void ScriptManager::callWithEnvironment(const EntityItemID& entityID, const QUrl& sandboxURL, const ScriptValue& function, const ScriptValue& thisObject, const ScriptValueList& args, const std::shared_ptr<EntityScriptConsentRequest>& consent) {
     auto operation = [&]() {
         function.call(thisObject, args);
     };
-    doWithEnvironment(entityID, sandboxURL, operation);
+    doWithEnvironment(entityID, sandboxURL, operation, consent);
 }
 
 void ScriptManager::callEntityScriptMethod(const EntityItemID& entityID, const QString& methodName, const QStringList& params, const QUuid& remoteCallerID) {
@@ -2910,7 +3027,8 @@ void ScriptManager::callEntityScriptMethod(const EntityItemID& entityID, const Q
         if (HIFI_AUTOREFRESH_FILE_SCRIPTS && methodName != "unload") {
             refreshFileScript(entityID, details.scriptText);
         }
-        if (isEntityScriptRunning(entityID, details.scriptText)) {
+        if (entityScriptInvocationAllowed(entityID, details.consentRequest) &&
+            isEntityScriptRunning(entityID, details.scriptText)) {
             ScriptValue entityScript = details.scriptObject;  // previously loaded
 
             // If this is a remote call, we need to check to see if the function is remotely callable
@@ -2950,7 +3068,7 @@ void ScriptManager::callEntityScriptMethod(const EntityItemID& entityID, const Q
                     .setProperty("remoteCallerID",
                                  remoteCallerID.toString());  // Make the remoteCallerID available to javascript as a global.
                 callWithEnvironment(entityID, details.definingSandboxURL, entityScript.property(methodName), entityScript,
-                                    args);
+                                    args, details.consentRequest);
                 scriptEngine->globalObject().property("Script").setProperty("remoteCallerID", oldData);
             }
         }
@@ -2986,7 +3104,8 @@ void ScriptManager::callEntityScriptMethodForScript(const EntityItemID& entityID
     if (HIFI_AUTOREFRESH_FILE_SCRIPTS && methodName != "unload") {
         refreshFileScript(entityID, scriptURL);
     }
-    if (isEntityScriptRunning(entityID, scriptURL)) {
+    if (entityScriptInvocationAllowed(entityID, details.consentRequest) &&
+        isEntityScriptRunning(entityID, scriptURL)) {
         ScriptValue entityScript = details.scriptObject;  // previously loaded
 
         // If this is a remote call, we need to check to see if the function is remotely callable
@@ -3026,7 +3145,7 @@ void ScriptManager::callEntityScriptMethodForScript(const EntityItemID& entityID
                 .setProperty("remoteCallerID",
                                 remoteCallerID.toString());  // Make the remoteCallerID available to javascript as a global.
             callWithEnvironment(entityID, details.definingSandboxURL, entityScript.property(methodName), entityScript,
-                                args);
+                                args, details.consentRequest);
             scriptEngine->globalObject().property("Script").setProperty("remoteCallerID", oldData);
         }
     }
@@ -3060,7 +3179,8 @@ void ScriptManager::callEntityScriptMethodForScript(const EntityItemID& entityID
     if (HIFI_AUTOREFRESH_FILE_SCRIPTS && methodName != "unload") {
         refreshFileScript(entityID, scriptURL);
     }
-    if (isEntityScriptRunning(entityID, scriptURL)) {
+    if (entityScriptInvocationAllowed(entityID, details.consentRequest) &&
+        isEntityScriptRunning(entityID, scriptURL)) {
         ScriptValue entityScript = details.scriptObject;  // previously loaded
 
         if (entityScript.property(methodName).isFunction()) {
@@ -3070,7 +3190,7 @@ void ScriptManager::callEntityScriptMethodForScript(const EntityItemID& entityID
             args << EntityItemIDtoScriptValue(scriptEngine, entityID);
             args << scriptValueFromValue(scriptEngine, param);
             callWithEnvironment(entityID, details.definingSandboxURL, entityScript.property(methodName), entityScript,
-                                args);
+                                args, details.consentRequest);
         }
     }
 }
@@ -3104,7 +3224,8 @@ void ScriptManager::callEntityScriptMethod(const EntityItemID& entityID, const Q
         if (HIFI_AUTOREFRESH_FILE_SCRIPTS) {
             refreshFileScript(entityID, details.scriptText);
         }
-        if (isEntityScriptRunning(entityID, details.scriptText)) {
+        if (entityScriptInvocationAllowed(entityID, details.consentRequest) &&
+            isEntityScriptRunning(entityID, details.scriptText)) {
             ScriptValue entityScript = details.scriptObject;  // previously loaded
             if (entityScript.property(methodName).isFunction()) {
                 auto scriptEngine = engine().get();
@@ -3112,7 +3233,7 @@ void ScriptManager::callEntityScriptMethod(const EntityItemID& entityID, const Q
                 ScriptValueList args;
                 args << EntityItemIDtoScriptValue(scriptEngine, entityID);
                 args << event.toScriptValue(scriptEngine);
-                callWithEnvironment(entityID, details.definingSandboxURL, entityScript.property(methodName), entityScript, args);
+                callWithEnvironment(entityID, details.definingSandboxURL, entityScript.property(methodName), entityScript, args, details.consentRequest);
             }
         }
     }
@@ -3147,7 +3268,8 @@ void ScriptManager::callEntityScriptMethod(const EntityItemID& entityID, const Q
         if (HIFI_AUTOREFRESH_FILE_SCRIPTS) {
             refreshFileScript(entityID, details.scriptText);
         }
-        if (isEntityScriptRunning(entityID, details.scriptText)) {
+        if (entityScriptInvocationAllowed(entityID, details.consentRequest) &&
+            isEntityScriptRunning(entityID, details.scriptText)) {
             ScriptValue entityScript = details.scriptObject;  // previously loaded
             if (entityScript.property(methodName).isFunction()) {
                 auto scriptEngine = engine().get();
@@ -3157,7 +3279,7 @@ void ScriptManager::callEntityScriptMethod(const EntityItemID& entityID, const Q
                 args << EntityItemIDtoScriptValue(scriptEngine, otherID);
                 args << collisionToScriptValue(scriptEngine, collision);
                 callWithEnvironment(entityID, details.definingSandboxURL, entityScript.property(methodName), entityScript,
-                                    args);
+                                    args, details.consentRequest);
             }
         }
     }

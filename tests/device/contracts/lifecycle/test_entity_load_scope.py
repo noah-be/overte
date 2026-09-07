@@ -23,6 +23,8 @@ class EntityLoads(unittest.TestCase):
   flags=shlex.split(subprocess.check_output(['pkg-config','--cflags','--libs','Qt6Core'],text=True))
   with tempfile.TemporaryDirectory(prefix='entity-load-scope-') as d:
    d=pathlib.Path(d);(d/'structs.inc').write_text(structs);(d/'production.inc').write_text(extracted)
-   binary=d/'test';subprocess.run(['c++','-std=c++17','-fPIC','-pthread','-I',str(d),str(pathlib.Path(__file__).with_name('entity-load-scope-test.cpp')),'-o',str(binary),*flags],check=True,timeout=30)
+   if os.environ.get('OVERTE_CONSENT_IGNORE_REQUEST_INVALIDATION'):
+    consent=(ROOT/'libraries/script-engine/src/EntityScriptConsent.h').read_text();needle='_active.load(std::memory_order_acquire) && ';assert needle in consent;(d/'EntityScriptConsent.h').write_text(consent.replace(needle,''))
+   binary=d/'test';subprocess.run(['c++','-std=c++17','-fPIC','-pthread','-I',str(d),'-I',str(ROOT/'libraries/script-engine/src'),str(pathlib.Path(__file__).with_name('entity-load-scope-test.cpp')),'-o',str(binary),*flags],check=True,timeout=30)
    subprocess.run(['unshare','--user','--map-root-user','--net',str(binary)],check=True,timeout=5)
 if __name__=='__main__':unittest.main()

@@ -385,6 +385,7 @@ void overte::lifecycle::observeNativeVisibility(bool foreground) {
 }
 
 void Application::activeChanged(Qt::ApplicationState state) {
+    if (state != Qt::ApplicationActive) { invalidateEntityScriptConsent(); }
     overte::lifecycle::observeQtVisibility(state == Qt::ApplicationActive);
     switch (state) {
         case Qt::ApplicationActive:

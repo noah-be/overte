@@ -311,6 +311,73 @@ static void retireEntityScriptManager(ScriptManagerPointer manager) {
     });
 }
 
+void EntityTreeRenderer::endEntityScriptConsent() {
+    ++_entityScriptConsentGeneration;
+    const auto scope = std::move(_entityScriptConsentScope);
+    _entityScriptConsentPrompt = {};
+    if (scope) { scope->invalidate(); }
+}
+
+void EntityTreeRenderer::beginEntityScriptConsent(std::shared_ptr<EntityScriptConsentScope> scope,
+                                                 EntityScriptConsentPrompt prompt) {
+    if (_shuttingDown || !_tree || !_wantScripts || !scope || !scope->active() || !prompt ||
+        !_persistentEntitiesScriptManager || !_nonPersistentEntitiesScriptManager) { return; }
+    const auto expectedGeneration = _entityScriptConsentGeneration + 1;
+    endEntityScriptConsent();
+    if (_entityScriptConsentGeneration != expectedGeneration || !scope->active() || _shuttingDown) { return; }
+    _entityScriptConsentScope = std::move(scope);
+    _entityScriptConsentPrompt = std::move(prompt);
+    const auto installedScope = _entityScriptConsentScope;
+    resetPersistentEntitiesScriptEngine();
+    if (_entityScriptConsentScope != installedScope || !installedScope->active()) { return; }
+    resetNonPersistentEntitiesScriptEngine();
+    if (_entityScriptConsentScope != installedScope || !installedScope->active()) { return; }
+    reloadEntityScripts();
+}
+
+bool EntityTreeRenderer::isCurrentEntityScriptConsentRequest(const ScriptManagerPointer& manager,
+        const EntityItemID& entityID, const std::shared_ptr<EntityScriptConsentRequest>& request) {
+    if (_shuttingDown || !_tree || !manager || manager->isStopping() || !request || !request->active() ||
+        !request->belongsTo(_entityScriptConsentScope)) { return false; }
+    const auto entity = getTree()->findEntityByEntityItemID(entityID);
+    if (!entity || resolveScriptURL(entity->getScript()) != request->source()) { return false; }
+    const auto& expected = (entity->isLocalEntity() || entity->isMyAvatarEntity()) ?
+        _persistentEntitiesScriptManager : _nonPersistentEntitiesScriptManager;
+    return expected == manager;
+}
+
+void EntityTreeRenderer::bindEntityScriptConsent(const ScriptManagerPointer& manager) {
+    if (!manager || !_entityScriptConsentScope || !_entityScriptConsentScope->active() ||
+        !_entityScriptConsentPrompt) { return; }
+    const auto weakRenderer = getSharedFromThis().toWeakRef();
+    const std::weak_ptr<ScriptManager> weakManager = manager;
+    manager->bindEntityScriptConsent(_entityScriptConsentScope,
+        [weakRenderer, weakManager](const EntityItemID& entityID,
+            const std::shared_ptr<EntityScriptConsentRequest>& request, std::function<void(bool)> decide) {
+            const auto renderer = weakRenderer.toStrongRef();
+            if (!renderer) { decide(false); return; }
+            QMetaObject::invokeMethod(renderer.data(), [weakRenderer, weakManager, entityID, request, decide] {
+                const auto renderer = weakRenderer.toStrongRef();
+                const auto manager = weakManager.lock();
+                if (!renderer || !renderer->isCurrentEntityScriptConsentRequest(manager, entityID, request) ||
+                    !renderer->_entityScriptConsentPrompt) { decide(false); return; }
+                // Presentation and resolution both validate ownership/source.
+                // The UI receives no raw ScriptManager or grant method.
+                renderer->_entityScriptConsentPrompt(entityID, request,
+                    [weakRenderer, weakManager, entityID, request, decide](bool allow) {
+                        const auto renderer = weakRenderer.toStrongRef();
+                        if (!renderer) { decide(false); return; }
+                        QMetaObject::invokeMethod(renderer.data(), [weakRenderer, weakManager, entityID, request, decide, allow] {
+                            const auto renderer = weakRenderer.toStrongRef();
+                            const auto manager = weakManager.lock();
+                            decide(allow && renderer &&
+                                renderer->isCurrentEntityScriptConsentRequest(manager, entityID, request));
+                        }, Qt::QueuedConnection);
+                    });
+            }, Qt::QueuedConnection);
+        });
+}
+
 void EntityTreeRenderer::resetPersistentEntitiesScriptEngine() {
     // This runs script engine shutdown procedure in a separate thread, avoiding a deadlock when script engine is doing
     // a blocking call to main thread
@@ -320,6 +387,7 @@ void EntityTreeRenderer::resetPersistentEntitiesScriptEngine() {
     retireEntityScriptManager(std::move(scriptManager));
     _persistentEntitiesScriptManager = scriptManagerFactory(ScriptManager::ENTITY_CLIENT_SCRIPT, NO_SCRIPT,
                                                 QString("about:Entities %1").arg(++_entitiesScriptEngineCount));
+    bindEntityScriptConsent(_persistentEntitiesScriptManager);
     DependencyManager::get<ScriptEngines>()->runScriptInitializers(_persistentEntitiesScriptManager);
 
     // Make script engine messages available through ScriptDiscoveryService
@@ -346,6 +414,7 @@ void EntityTreeRenderer::resetNonPersistentEntitiesScriptEngine() {
     retireEntityScriptManager(std::move(scriptManager));
     _nonPersistentEntitiesScriptManager = scriptManagerFactory(ScriptManager::ENTITY_CLIENT_SCRIPT, NO_SCRIPT,
                                                 QString("about:Entities %1").arg(++_entitiesScriptEngineCount));
+    bindEntityScriptConsent(_nonPersistentEntitiesScriptManager);
     DependencyManager::get<ScriptEngines>()->runScriptInitializers(_nonPersistentEntitiesScriptManager);
 
     // Make script engine messages available through ScriptDiscoveryService
@@ -496,6 +565,7 @@ void EntityTreeRenderer::init() {
 }
 
 void EntityTreeRenderer::shutdown() {
+    endEntityScriptConsent();
     if (_persistentEntitiesScriptManager) {
         _persistentEntitiesScriptManager->disconnectNonEssentialSignals(); // disconnect all slots/signals from the script engine, except essential
     }
