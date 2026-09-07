@@ -41,7 +41,9 @@ FocusScope {
 
     signal accepted();
 
-    function showList() { comboBox.popup.open(); }
+    function showList() { if (visible && enabled) { comboBox.popup.open(); } }
+    onVisibleChanged: { if (!visible) { comboBox.popup.close(); } }
+    onEnabledChanged: { if (!enabled) { comboBox.popup.close(); } }
 
     implicitHeight: comboBox.height;
     focus: true
@@ -54,10 +56,27 @@ FocusScope {
         height: Math.max(hifi.fontSizes.textFieldInput + 13,
             touchMetrics.adaptiveMinimumControlHeight)
 
-        function previousItem() { root.currentHighLightedIndex = comboBox.count > 0 ? (root.currentHighLightedIndex + comboBox.count - 1) % comboBox.count : -1; }
-        function nextItem() { root.currentHighLightedIndex = comboBox.count > 0 ? (root.currentHighLightedIndex + comboBox.count + 1) % comboBox.count : -1; }
-        function selectCurrentItem() { root.currentIndex = root.currentHighLightedIndex; /*hideList();*/ }
-        function selectSpecificItem(index) { root.currentIndex = index; /*hideList();*/ }
+        function previousItem() {
+            root.currentHighLightedIndex = count <= 0 ? -1 :
+                (root.currentHighLightedIndex <= 0 || root.currentHighLightedIndex >= count ? count - 1 : root.currentHighLightedIndex - 1);
+        }
+        function nextItem() {
+            root.currentHighLightedIndex = count <= 0 ? -1 :
+                (root.currentHighLightedIndex < 0 || root.currentHighLightedIndex >= count - 1 ? 0 : root.currentHighLightedIndex + 1);
+        }
+        function selectCurrentItem() { selectSpecificItem(root.currentHighLightedIndex); }
+        function selectSpecificItem(index) {
+            if (index < 0 || index >= count || Math.floor(index) !== index) { return; }
+            root.currentIndex = index;
+            comboBox.popup.close();
+            root.accepted();
+        }
+        // Native delegate activation and editable Return are commits; closing
+        // a popup (Escape/outside click/visibility teardown) is not a commit.
+        onActivated: root.accepted()
+        onAccepted: root.accepted()
+        onCurrentIndexChanged: root.currentHighLightedIndex = currentIndex
+
 
         Keys.onUpPressed: previousItem();
         Keys.onDownPressed: nextItem();
@@ -173,6 +192,7 @@ FocusScope {
             }
         }
         popup: Popup {
+            focus: true
             y: comboBox.height - 1
             width: comboBox.width
             implicitHeight: listView.contentHeight > dropdownHeight ? dropdownHeight
@@ -180,12 +200,18 @@ FocusScope {
             padding: 0
             topPadding: 1
 
-            onClosed: {
-                root.accepted()
-            }
+            onAboutToShow: root.currentHighLightedIndex = comboBox.currentIndex
+            onClosed: root.currentHighLightedIndex = comboBox.currentIndex
 
             contentItem: ListView {
                 id: listView
+                focus: true
+                Keys.onUpPressed: comboBox.previousItem()
+                Keys.onDownPressed: comboBox.nextItem()
+                Keys.onReturnPressed: comboBox.selectCurrentItem()
+                Keys.onEnterPressed: comboBox.selectCurrentItem()
+                Keys.onSpacePressed: comboBox.selectCurrentItem()
+                Keys.onEscapePressed: comboBox.popup.close()
                 clip: true
                 model: comboBox.popup.visible ? comboBox.delegateModel : null
                 currentIndex: root.currentHighLightedIndex

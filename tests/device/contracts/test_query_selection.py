@@ -5,6 +5,14 @@ ROOT=Path(__file__).resolve().parents[3]
 class QuerySelection(unittest.TestCase):
     def test_actual_combo(self):
         source=(ROOT/'interface/resources/qml/controlsUit/ComboBox.qml').read_text()
+        if os.environ.get('OVERTE_QUERY_BASELINE_REF'):
+            source=subprocess.check_output(['git','-C',str(ROOT),'show',os.environ['OVERTE_QUERY_BASELINE_REF']+':interface/resources/qml/controlsUit/ComboBox.qml'],text=True)
+        if os.environ.get('OVERTE_QUERY_ACCEPT_CANCEL'):
+            source=source.replace('onClosed: root.currentHighLightedIndex = comboBox.currentIndex',
+                'onClosed: { root.currentHighLightedIndex = comboBox.currentIndex; root.accepted(); }')
+        if os.environ.get('OVERTE_QUERY_OLD_PREVIOUS'):
+            source=source.replace('(root.currentHighLightedIndex <= 0 || root.currentHighLightedIndex >= count ? count - 1 : root.currentHighLightedIndex - 1)',
+                '(root.currentHighLightedIndex + count - 1) % count')
         if os.environ.get('OVERTE_QUERY_SWALLOW_SPACE'):
             source=source.replace('Keys.onSpacePressed: {\n            if (comboBox.editable) { event.accepted = false; } else { selectCurrentItem(); }\n        }','Keys.onSpacePressed: selectCurrentItem();')
         with tempfile.TemporaryDirectory(prefix='query-selection-') as directory:
@@ -31,8 +39,9 @@ class QuerySelection(unittest.TestCase):
 import QtTest 1.2
 import "controls" as Shared
 TestCase {
- name: "SharedQuerySelection"; when: windowShown; width:400; height:300
+ name: "SharedQuerySelection"; visible:true; when: windowShown; width:400; height:300
  Shared.ComboBox {id:combo; width:240; model:["first","second"];currentIndex:1}
+ SignalSpy {id: acceptedSpy; target:combo; signalName:"accepted"}
  Component{id:desktopBinding;QueryDialogBindings{}}
  Component{id:tabletBinding;TabletQueryDialogBindings{}}
  function test_actual_dialog_bindings(){
@@ -43,6 +52,33 @@ TestCase {
    var textDialog=component.createObject(this,{current:"Unicode ä漢"});
    compare(textDialog.selectedValue(),"Unicode ä漢");verify(textDialog.input.activeFocus);textDialog.input.text="";compare(textDialog.selectedValue(),"");textDialog.destroy();
   }
+ }
+ function test_cancel_and_commit(){
+  combo.model=["first","second","third"];combo.editable=false;combo.currentIndex=1;
+  acceptedSpy.clear();combo.showList();tryCompare(combo.popup,"visible",true);
+  combo.currentHighLightedIndex=2;keyClick(Qt.Key_Escape);tryCompare(combo.popup,"visible",false);
+  compare(acceptedSpy.count,0);compare(combo.currentIndex,1);
+  combo.showList();tryCompare(combo.popup,"visible",true);compare(combo.currentHighLightedIndex,1);
+  combo.control.selectSpecificItem(2);tryCompare(combo.popup,"visible",false);
+  compare(combo.currentIndex,2);compare(acceptedSpy.count,1);
+  acceptedSpy.clear();combo.showList();tryCompare(combo.popup,"visible",true);
+  var list=combo.popup.contentItem;tryVerify(function(){return list.itemAtIndex(0)!==null;});
+  var delegate=list.itemAtIndex(0);mouseClick(delegate,delegate.width/2,delegate.height/2);
+  tryCompare(combo.popup,"visible",false);compare(combo.currentIndex,0);compare(acceptedSpy.count,1);
+  acceptedSpy.clear();combo.currentIndex=0;combo.showList();tryCompare(combo.popup,"visible",true);
+  keyClick(Qt.Key_Down);keyClick(Qt.Key_Return);tryCompare(combo.popup,"visible",false);
+  compare(combo.currentIndex,1);compare(acceptedSpy.count,1);
+  acceptedSpy.clear();combo.editable=true;combo.control.contentItem.forceActiveFocus();
+  combo.editText="first";keyClick(Qt.Key_Return);compare(acceptedSpy.count,1);
+  combo.editable=false;
+  acceptedSpy.clear();combo.showList();tryCompare(combo.popup,"visible",true);
+  combo.visible=false;tryCompare(combo.popup,"visible",false);compare(acceptedSpy.count,0);combo.visible=true;
+  combo.showList();tryCompare(combo.popup,"visible",true);
+  combo.enabled=false;tryCompare(combo.popup,"visible",false);compare(acceptedSpy.count,0);combo.enabled=true;
+  combo.currentIndex=-1;combo.currentHighLightedIndex=-1;combo.control.previousItem();compare(combo.currentHighLightedIndex,2);
+  combo.currentHighLightedIndex=-1;combo.control.nextItem();compare(combo.currentHighLightedIndex,0);
+  combo.currentIndex=1;combo.control.selectSpecificItem(99);compare(combo.currentIndex,1);compare(acceptedSpy.count,0);
+  combo.model=["first","second"];combo.currentIndex=1;
  }
  function test_editing_and_selection(){
   compare(combo.currentText,"second");combo.editable=true;
@@ -57,5 +93,6 @@ TestCase {
 }''')
             env=dict(os.environ,QT_QPA_PLATFORM='offscreen',QT_QUICK_BACKEND='software',QSG_RHI_BACKEND='software')
             result=subprocess.run(['unshare','--user','--map-root-user','--net','qmltestrunner-qt6','-input',str(d)],env=env,capture_output=True,text=True,timeout=20)
+            print(result.stdout)
             self.assertEqual(result.returncode,0,result.stdout+result.stderr)
 if __name__=='__main__':unittest.main()
