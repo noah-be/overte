@@ -54,6 +54,13 @@ EXPECTED_BASELINE = {
 EXPECTED_ROLES = {
     "base-toolchain", "cmake-toolchain", "bootstrap-graph",
     "bootstrap-profile", "hosttools-profile", "target-profile",
+    "cmake-bootstrap",
+    "android-web-profile",
+    "android-jni-compat",
+    "android-web-version",
+    "android-discord-module",
+    "android-discord-compat",
+
 }
 FORBIDDEN_TEXT = re.compile(
     r"(?i)(--build[= ]missing|--build[= ]never|profile\s+detect|"
@@ -125,7 +132,10 @@ def validate_map(root: Path) -> tuple[dict[str, Any], list[dict[str, str]]]:
         actual = file_digest(target)
         if entry.get("sha256") != actual:
             raise ContractError(f"input digest mismatch: {relative}")
-        if target.suffix in {"", ".cmake", ".py"}:
+        # C++ compatibility headers are hash-bound inputs, not profile scripts.
+        # Their default constructors do not select a default Conan profile.
+        if entry["role"] not in {"base-toolchain", "android-web-profile", "android-jni-compat",
+                                  "android-web-version", "android-discord-compat"}:
             text = target.read_text(encoding="utf-8")
             match = FORBIDDEN_TEXT.search(text)
             if match:
