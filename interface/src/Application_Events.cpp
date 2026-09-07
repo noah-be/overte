@@ -19,7 +19,9 @@
 #include <QtCore/QMimeData>
 #include <QtCore/QCoreApplication>
 #include <QtCore/QThread>
+#include <AddressManager.h>
 #include <DomainAccountManager.h>
+#include <NodeList.h>
 
 #include <controllers/InputRecorder.h>
 #include <display-plugins/CompositorHelper.h>
