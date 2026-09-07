@@ -163,6 +163,13 @@ class SourceInputs(unittest.TestCase):
         self.assertEqual(result['provenance']['target']['packages'][0]['prev'], 'f'*32)
         self.assertIn('No graph equivalence', result['acceptance'])
 
+    def test_named_conan_consumer_is_not_a_runtime_package(self):
+        self.f.graphs['target']['graph']['nodes']['0'].update(
+            ref='OverteAndroidSourceTarget/None', context='host',
+            settings={'os':'Android','arch':'armv8'}, package_folder=None)
+        self.f.graph('target'); self.f.seal()
+        self.assertIn('libssl_3.so', self.f.resolve()['runtime'])
+
     def test_actual_shell_entrypoints_consume_without_legacy_staging(self):
         for command in ([str(PICO / 'build.sh'), 'deps', '--source-graph'],
                         [str(PICO / 'build.sh'), 'prepare'], [str(PICO / 'prepare-deps.sh')]):

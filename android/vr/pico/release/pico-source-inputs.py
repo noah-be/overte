@@ -144,7 +144,7 @@ def resolve(root, binding_path, expected_binding, expected_source):
     # Only host-context Android packages enter the APK. Development OpenSSL
     # symlinks are intentionally not payloads; no duplicate renamed providers.
     for node in raw['target'].values():
-        if node.get('context') != 'host' or node.get('settings', {}).get('os') != 'Android' or not node.get('ref'):
+        if node.get('id') == '0' or node.get('context') != 'host' or node.get('settings', {}).get('os') != 'Android' or not node.get('ref'):
             continue
         _, folder = package('target', node['ref'].split('/')[0])
         for file in folder.rglob('*'):
