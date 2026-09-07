@@ -43,6 +43,7 @@ QtObject {
     property bool picoResolutionSettingsAvailable: true
     readonly property bool vrRenderResolutionAvailable: picoResolutionSettingsAvailable
 
+    property bool touchCameraPreferencesAvailable: false
     property bool navigationPreferencesAvailable: false
     property bool userInterfacePreferencesAvailable: true
     property bool hmdPreferencesAvailable: true

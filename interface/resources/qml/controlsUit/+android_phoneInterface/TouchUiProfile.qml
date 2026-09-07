@@ -54,6 +54,7 @@ SharedControls.TouchUiProfileBase {
     controllerSettingsAvailable: false
     picoResolutionSettingsAvailable: false
 
+    touchCameraPreferencesAvailable: true
     navigationPreferencesAvailable: true
     userInterfacePreferencesAvailable: false
     hmdPreferencesAvailable: false

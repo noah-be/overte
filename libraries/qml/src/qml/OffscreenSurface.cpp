@@ -248,9 +248,18 @@ bool OffscreenSurface::eventFilter(QObject* originalDestination, QEvent* event) 
                             imqEvent->setValue(Qt::ImEnabled, QVariant(false));
                         }
 #else
-                        // Phone focus is gated by the real QML text field.
-                        // Preserve its editor capability for the system IME.
-                        Q_UNUSED(imqEvent);
+                        // Queries sent directly to the editor return item-local
+                        // rectangles. Android needs their position in the GL
+                        // viewport, which shares the Phone QML scene coordinates.
+                        auto focusItem = window->activeFocusItem();
+                        for (auto query : { Qt::ImCursorRectangle, Qt::ImAnchorRectangle }) {
+                            if (imqEvent->queries() & query) {
+                                const auto value = imqEvent->value(query);
+                                if (value.canConvert<QRectF>()) {
+                                    imqEvent->setValue(query, focusItem->mapRectToScene(value.toRectF()));
+                                }
+                            }
+                        }
 #endif
                     }
                     return eventAccepted;
