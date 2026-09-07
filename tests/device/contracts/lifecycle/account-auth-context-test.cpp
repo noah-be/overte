@@ -79,7 +79,8 @@ public:
         ++persisted;
         if (onPersist) { auto action = std::move(onPersist); onPersist = {}; action(); }
     }
-    void requestProfile() { ++profiles; }
+    std::function<void()> onProfile;
+    void requestProfile() { ++profiles; if (onProfile) { auto action=std::move(onProfile); onProfile={}; action(); } }
     std::function<void()> onSettingsPost;
     void postAccountSettings() {
         if (onSettingsPost) { auto action = std::move(onSettingsPost); onSettingsPost = {}; action(); }
@@ -88,10 +89,14 @@ public:
     bool savedValue = true;
     void saveLoginStatus(bool value) { savedValue = value; ++saved; }
     QMap<QString, QVariant> accountMapFromFile(bool& loaded) { loaded = false; return {}; }
-    bool needsToRefreshToken() { return false; }
+    bool refreshNeeded=false;
+    int refreshQueries=0;
+    bool needsToRefreshToken() { ++refreshQueries; return refreshNeeded; }
     bool isLoggedIn() { return false; }
     void logout();
     void setAuthURL(const QUrl&);
+    QByteArray _pendingPrivateKey;
+    void setAccountInfo(const DataServerAccountInfo&);
     void requestAccessToken(const QString&, const QString&);
     void requestAccessTokenWithAuthCode(const QString&, const QString&, const QString&, const QString&);
     void requestAccessTokenWithSteam(QByteArray);
@@ -135,6 +140,48 @@ int main(int argc, char** argv) {
         };
         target->logout();
         if (target) assert(target->removed == 0 && target->saved == 0 && target->_settings.calls == 0);
+        delete target.data();
+    }
+    {
+        AccountManager target;target.refreshNeeded=true;int endpoints=0;
+        QObject::connect(&target,&AccountManager::authEndpointChanged,[&]{++endpoints;});
+        target.setAuthURL(QUrl("https://normal-refresh.invalid"));
+        assert(endpoints==1);
+    }
+    for(bool destroy : {false,true}) {
+        QPointer<AccountManager> target=new AccountManager;
+        QObject::connect(target.data(),&AccountManager::authEndpointChanged,[&]{
+            if(destroy) delete target.data(); else target->logout();
+        });
+        target->setAuthURL(QUrl("https://endpoint-listener.invalid"));
+        if(target) assert(target->refreshQueries==0);
+        delete target.data();
+    }
+    for (bool replace : {false,true}) {
+        AccountManager target;
+        int endpoints=0; bool first=true;
+        QObject::connect(&target,&AccountManager::authEndpointChanged,[&]{++endpoints;});
+        QObject::connect(&target,&AccountManager::authRequired,[&]{
+            if (!first) return; first=false;
+            if (replace) target.setAuthURL(QUrl("https://replacement.invalid"));
+            else target.logout();
+        });
+        target.setAuthURL(QUrl("https://initial-change.invalid"));
+        assert(endpoints==(replace ? 1 : 0));
+    }
+    {
+        QPointer<AccountManager> target=new AccountManager;
+        QObject::connect(target.data(),&AccountManager::authRequired,[&]{delete target.data();});
+        target->setAuthURL(QUrl("https://destruction.invalid"));
+        assert(!target);
+    }
+    for (bool destroy : {false,true}) {
+        QPointer<AccountManager> target=new AccountManager;
+        target->_isAgent=true;
+        target->onProfile=[&]{if(destroy) delete target.data(); else target->logout();};
+        DataServerAccountInfo account;account.token.token="profile-fixture";
+        target->setAccountInfo(account);
+        if(target) assert(target->_accountInfo.token.token.isEmpty());
         delete target.data();
     }
     auto start = [](AccountManager& target, int provider) {
