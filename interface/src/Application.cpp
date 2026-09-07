@@ -220,6 +220,10 @@ void messageHandler(QtMsgType type, const QMessageLogContext& context, const QSt
     }
     // Closed classifications only: never disclose QML text, URLs or user data.
     if (type == QtWarningMsg || type == QtCriticalMsg) {
+        const auto localLocation = QRegularExpression("qrc:/(qml/[A-Za-z0-9_./-]+\\.qml):([0-9]+)").match(message);
+        if (localLocation.hasMatch() && QFile::exists(":" + QString("/") + localLocation.captured(1))) {
+            __android_log_print(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_local_warning file=%s line=%d", localLocation.captured(1).toLatin1().constData(), localLocation.captured(2).toInt());
+        }
         if (message.contains("Cannot assign")) {
             __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=cannot_assign");
             const auto location = QRegularExpression("qrc:/(qml/[A-Za-z0-9_./-]+\\.qml):([0-9]+)").match(message);
