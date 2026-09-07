@@ -62,6 +62,9 @@ target_sources(interface PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/overrides/Application_Setup.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/lifecycle/PicoClientVisibility.cpp"
 )
+# Application setup consumes the single account-store instance in picoOpenXR.
+# Link its owning library directly so libinterface resolves that symbol.
+target_link_libraries(interface picoOpenXR)
 if(OVERTE_PICO_E2E_OPENXR_INPUT)
     target_compile_definitions(interface PRIVATE OVERTE_E2E_OPENXR_INPUT_V1=1)
     target_sources(interface PRIVATE
