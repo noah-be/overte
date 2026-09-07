@@ -7,6 +7,11 @@
 
 set(TARGET_NAME openxr)
 setup_hifi_plugin(Gui Qml Multimedia)
+# Emit the PluginManager discovery name at link time; never rename a stale
+# output selected from a different .cxx configuration.
+if(ANDROID)
+    set_target_properties(openxr PROPERTIES OUTPUT_NAME "plugins_libopenxr")
+endif()
 link_hifi_libraries(shared task gl qml networking controllers ui
     plugins display-plugins ui-plugins input-plugins
     audio-client render-utils graphics shaders gpu render

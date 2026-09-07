@@ -220,33 +220,11 @@ with open(os.environ["PICO_TEST_RECORD"], "w", encoding="utf-8") as stream:
             text=True, capture_output=True, env=environment, check=False,
         )
 
-    def test_explicit_safe_graph_uses_only_the_supplied_adapter(self):
-        record = self.directory / "adapter-result.json"
+    def test_external_adapter_cannot_replace_the_bound_consumer(self):
         result = self.run_build_boundary()
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertIn("PICO_SOURCE_GRAPH_COMPATIBILITY=PASS", result.stdout)
-        self.assertIn("Consumed explicitly supplied Pico source graph", result.stdout)
-        data = json.loads(record.read_text(encoding="utf-8"))
-        self.assertEqual(str(self.graph), data["graph_root"])
-        self.assertNotEqual(os.path.expanduser("~/.conan2"), data["isolated_home"])
-        self.assertFalse(Path(data["isolated_home"]).exists())
-
-    def test_failed_adapter_propagates_status_and_cleans_isolated_home(self):
-        adapter = self.adapter("""#!/usr/bin/env python3
-from pathlib import Path
-import os
-
-Path(os.environ["PICO_TEST_RECORD"]).write_text(
-    os.environ["CONAN_HOME"], encoding="utf-8"
-)
-raise SystemExit(17)
-""")
-        result = self.run_build_boundary(adapter=adapter)
-        self.assertEqual(17, result.returncode)
-        isolated_home = Path(
-            (self.directory / "adapter-result.json").read_text(encoding="utf-8")
-        )
-        self.assertFalse(isolated_home.exists())
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn("Use the in-tree Pico source-input adapter", result.stderr)
+        self.assertFalse((self.directory / "adapter-result.json").exists())
 
     def test_source_graph_mode_requires_both_explicit_inputs(self):
         environment = os.environ.copy()
@@ -257,14 +235,14 @@ raise SystemExit(17)
             capture_output=True, env=environment, check=False,
         )
         self.assertEqual(2, missing_root.returncode)
-        self.assertIn("PICO_SOURCE_GRAPH_ROOT is required", missing_root.stderr)
+        self.assertIn("PICO_SOURCE_INPUTS_REJECTED", missing_root.stderr)
         environment["PICO_SOURCE_GRAPH_ROOT"] = str(self.graph)
         missing_adapter = subprocess.run(
             [str(BUILD), "deps", "--source-graph"], text=True,
             capture_output=True, env=environment, check=False,
         )
         self.assertEqual(2, missing_adapter.returncode)
-        self.assertIn("PICO_SHARED_GRAPH_ADAPTER is not bound", missing_adapter.stderr)
+        self.assertIn("PICO_SOURCE_INPUTS_REJECTED", missing_adapter.stderr)
 
     def test_historical_prebuilt_and_openssl_11_payloads_fail_closed(self):
         fixtures = (
@@ -316,15 +294,11 @@ raise SystemExit(17)
         self.assertEqual(2, escaping.returncode)
         self.assertIn("escapes its root", escaping.stderr)
 
-    def test_prepare_path_requires_verified_explicit_graph_inputs(self):
+    def test_prepare_defaults_to_read_only_in_tree_consumer(self):
         source = PREPARE.read_text(encoding="utf-8")
-        self.assertIn('PICO_SOURCE_GRAPH_VERIFIED:-0', source)
-        self.assertIn('--graph-root "$source_graph_root" --adapter "$source_graph_adapter"', source)
-        self.assertIn("historical prebuilt runtime is forbidden", source)
-        self.assertIn("must be explicit in source-graph mode", source)
-        self.assertIn("escapes PICO_SOURCE_GRAPH_ROOT", source)
-        self.assertIn("source graph Qt input lacks the required Pico patch", source)
-        self.assertIn("OpenSSL 1.1 runtime payload is forbidden", source)
+        self.assertIn('exec python3 "$script_dir/release/pico-source-inputs.py"', source)
+        self.assertNotIn('runtime_dir=', source)
+        self.assertNotIn('make ', source)
 
 
 if __name__ == "__main__":

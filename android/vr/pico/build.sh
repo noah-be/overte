@@ -70,7 +70,7 @@ Usage: ./build-pico.sh [doctor|bootstrap|deps|prepare|build|install|all|deploy|s
            Install as many missing build requirements as possible
   deps     Install dependencies; use --download for legacy prebuilt Qt and Node
            or --source-graph for an explicitly supplied source-only graph
-  prepare  Locate and stage the existing Conan/Qt dependencies
+  prepare  Verify and resolve explicit source inputs without modifying them
   build [--stacktrace]
            Build the Pico debug APK; optionally include Gradle failure details
   release [--stacktrace]
@@ -80,9 +80,9 @@ Usage: ./build-pico.sh [doctor|bootstrap|deps|prepare|build|install|all|deploy|s
   deploy   Prepare, build, and install the APK
   setup    Install dependencies, prepare them, and build the APK
 
-Detected paths can be overridden with ANDROID_SDK_ROOT, JAVA_HOME,
-PICO_QT_SOURCE_DIR, PICO_QT_BUILD_DIR, PICO_TBB_PACKAGE_DIR,
-PICO_DRACO_PACKAGE_DIR, PICO_CONAN, and the PICO_* host-tool variables.
+Source preparation and builds require PICO_SOURCE_GRAPH_ROOT, PICO_SOURCE_INPUTS,
+PICO_SOURCE_INPUTS_SHA256 and PICO_EXPECTED_SOURCE_SHA. See
+release/SOURCE_INPUTS.md. SDK/JDK paths use ANDROID_SDK_ROOT and JAVA_HOME.
 EOF
 }
 
@@ -666,37 +666,13 @@ install_dependencies() {
 }
 
 consume_source_graph_dependencies() {
-    local graph_root="${PICO_SOURCE_GRAPH_ROOT:-}"
-    local adapter="${PICO_SHARED_GRAPH_ADAPTER:-}"
-    local isolated_home
+    # Only the in-tree adapter consumes the explicitly pinned source inputs.
+    if [[ -n "${PICO_SHARED_GRAPH_ADAPTER:-}" &&
+          "$(readlink -f -- "$PICO_SHARED_GRAPH_ADAPTER")" != "$script_dir/release/pico-source-inputs.py" ]]; then
+        fail "Use the in-tree Pico source-input adapter"
+    fi
+    python3 "$script_dir/release/pico-source-inputs.py" --pico-root "$script_dir"
 
-    [[ -n "$graph_root" ]] \
-        || fail "PICO_SOURCE_GRAPH_ROOT is required for deps --source-graph"
-    [[ -n "$adapter" ]] \
-        || fail "PICO_SHARED_GRAPH_ADAPTER is not bound; defer until the accepted Shared handoff"
-    [[ -x "$source_graph_compatibility" ]] \
-        || fail "Pico source-graph compatibility verifier is missing or not executable"
-
-    "$source_graph_compatibility" --graph-root "$graph_root" --adapter "$adapter"
-    graph_root="$(readlink -f -- "$graph_root")"
-    adapter="$(readlink -f -- "$adapter")"
-    isolated_home="$(mktemp -d)"
-    trap 'rm -rf -- "$isolated_home"' RETURN
-
-    env -u CONAN_USER_HOME -u PICO_PREBUILT_RESTORE_ONLY -u PICO_QT_FALLBACK_PATCH \
-        CONAN_HOME="$isolated_home/conan" \
-        PICO_SOURCE_GRAPH_MODE=1 \
-        PICO_SOURCE_GRAPH_VERIFIED=1 \
-        PICO_SOURCE_GRAPH_ROOT="$graph_root" \
-        PICO_LEGACY_DEPENDENCY_PATHS=forbidden \
-        PICO_CONAN_REMOTE_POLICY=forbid \
-        PICO_CONAN_BUILD_POLICY=source-only \
-        PICO_OPENSSL_POLICY=3-only \
-        "$adapter" --graph-root "$graph_root" --pico-root "$script_dir"
-
-    rm -rf -- "$isolated_home"
-    trap - RETURN
-    echo "Consumed explicitly supplied Pico source graph"
 }
 
 download_prebuilt_dependencies() {
@@ -754,8 +730,7 @@ download_prebuilt_dependencies() {
 }
 
 prepare() {
-    detect_dependencies
-    PICO_BUILD_JOBS="$jobs" "$script_dir/prepare-deps.sh"
+    consume_source_graph_dependencies
 }
 
 build() {
@@ -767,6 +742,7 @@ build() {
     elif [[ -n "$option" ]]; then
         fail "unsupported build option: $option"
     fi
+    consume_source_graph_dependencies
     detect_sdk
     detect_jdk
     # The Gradle wrapper lives below android/common while the Pico settings

@@ -23,11 +23,10 @@ public final class PicoInterfaceActivity extends QtActivity {
     private boolean resumed;
 
     static {
-        // Qt 5 resolves OpenSSL dynamically.  Android packages the libraries
-        // without their 1.1 suffix, so preload them to make their SONAMEs
-        // available before QtNetwork initializes TLS.
-        System.loadLibrary("crypto");
-        System.loadLibrary("ssl");
+        // Shared emits canonical OpenSSL 3 filenames/SONAMEs. Preload crypto
+        // before ssl and before QtNetwork initializes TLS; no renamed aliases.
+        System.loadLibrary("crypto_3");
+        System.loadLibrary("ssl_3");
         System.loadLibrary("picoOpenXR");
     }
 
