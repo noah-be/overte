@@ -135,8 +135,8 @@ public final class PhoneInterfaceActivity extends QtActivity
             // lifecycle event after Qt finishes loading.
         }
         if (accepted) {
-            // The legacy binding infers delegate names from a cached stack
-            // depth. Subclass callbacks can therefore leave Qt inactive.
+            // The asynchronous legacy startup can leave Qt inactive even
+            // though this Activity has already resumed.
             // Publish the same actual Activity state through Qt's Android
             // adapter after native startup is ready; retain both gate inputs.
             QtNative.setApplicationState(pending

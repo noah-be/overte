@@ -13,6 +13,7 @@
 //
 
 #include "Application.h"
+#include <QRegularExpression>
 #include "ApplicationLifecycle.h"
 
 overte::lifecycle::Gate& overte::lifecycle::applicationGate() {
@@ -209,9 +210,17 @@ Setting::Handle<int> sessionRunTime { "sessionRunTime", 0 };
 void messageHandler(QtMsgType type, const QMessageLogContext& context, const QString& message) {
     Q_UNUSED(context);
 #if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (message.startsWith("OVT_PHONE_TABLET_") && message.size() < 100 &&
+        QRegularExpression("^OVT_PHONE_TABLET_[A-Z_]+( -?[0-9]+)*$").match(message).hasMatch()) {
+        __android_log_write(ANDROID_LOG_INFO, "OvertePhoneRuntime", message.toLatin1().constData());
+    }
     // Closed classifications only: never disclose QML text, URLs or user data.
     if (type == QtWarningMsg || type == QtCriticalMsg) {
-        if (message.contains("ReferenceError")) {
+        if (message.contains("Cannot assign")) {
+            __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=cannot_assign");
+        } else if (message.contains("is not a function")) {
+            __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=not_function");
+        } else if (message.contains("ReferenceError")) {
             __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=reference_error");
         } else if (message.contains("TypeError")) {
             __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=type_error");

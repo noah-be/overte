@@ -628,6 +628,9 @@ void TabletProxy::showAndroidTablet(int width, int height) {
         QMetaObject::invokeMethod(root, "setScreenSpaceMode", Q_ARG(const QVariant&, QVariant(true)));
         QMetaObject::invokeMethod(root, "loadSource", Q_ARG(const QVariant&, QVariant(TABLET_HOME_SOURCE_URL)));
         QMetaObject::invokeMethod(root, "setShown", Q_ARG(const QVariant&, QVariant(true)));
+        qWarning("OVT_PHONE_TABLET_ROOT %d %d %d", int(root->width()), int(root->height()), root->childItems().size());
+        auto loader = root->findChild<QQuickItem*>("loader");
+        qWarning("OVT_PHONE_TABLET_LOADER %d %d %d", loader ? int(loader->width()) : -1, loader ? int(loader->height()) : -1, loader ? loader->childItems().size() : -1);
         _state = State::Home;
         _currentPathLoaded = TABLET_HOME_SOURCE_URL;
         if (!_tabletShown) {
