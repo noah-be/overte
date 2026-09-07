@@ -272,6 +272,13 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
     static QString URL_TYPE_NETWORK_ADDRESS = "network_address";
 
     QUrl lookupUrl = lookupUrlIn;
+    // The native/network address format is still hifi://. Accept the public
+    // overte:// alias here too, so scripts, portals and direct lookups have
+    // the same compatibility as the Android intent adapter. Changing only
+    // the scheme preserves the authority and encoded path/query payload.
+    if (lookupUrl.scheme().compare(QStringLiteral("overte"), Qt::CaseInsensitive) == 0) {
+        lookupUrl.setScheme(URL_SCHEME_OVERTE);
+    }
 
     if (!lookupUrl.host().isEmpty() && !lookupUrl.path().isEmpty()) {
         // Assignment clients ping for empty url until assigned. Don't spam.
