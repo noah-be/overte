@@ -3,7 +3,9 @@
 
 // Explicit finite separable Gaussian alpha filter. Input/output are public
 // Canvas ImageData; image RGB never influences the shadow mask.
-function paintShadow(context, image, radius, offsetX, offsetY, color) {
+function paintShadow(context, image, radius, offsetX, offsetY, color, spread) {
+    // Local spread contract: saturate blurred coverage; preserve transparent support.
+    var strength = isFinite(spread) ? Math.max(0, Math.min(1, spread)) : 0;
     var width = image.width, height = image.height;
     var reach = Math.ceil(radius);
     var weights = [];
@@ -49,6 +51,7 @@ function paintShadow(context, image, radius, offsetX, offsetY, color) {
             var fx = sx - left, fy = sy - top;
             var alpha = (at(left, top) * (1 - fx) + at(left + 1, top) * fx) * (1 - fy)
                 + (at(left, top + 1) * (1 - fx) + at(left + 1, top + 1) * fx) * fy;
+            alpha = strength === 1 ? (alpha > 0 ? 255 : 0) : Math.min(255, alpha / (1 - strength));
             var index = 4 * (y * width + x);
             image.data[index] = Math.round(color.r * 255);
             image.data[index + 1] = Math.round(color.g * 255);
