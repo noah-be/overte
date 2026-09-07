@@ -14,6 +14,8 @@ public:
     virtual void requestMicrophonePermission() = 0;
     virtual bool activate() = 0;
     virtual bool deactivate() = 0;
+    // Legacy adapters stop conservatively; native implementations retain mute state.
+    virtual void muted(bool value) { if (value) { deactivate(); } }
 };
 bool installIOSAudioSessionAdapter(std::shared_ptr<IOSAudioSessionAdapter> adapter);
 }}
@@ -23,3 +25,5 @@ bool overteIOSMicrophonePermissionGranted();
 void overteIOSRequestMicrophonePermission();
 bool overteIOSActivateAudioSession();
 bool overteIOSDeactivateAudioSession();
+
+void overteIOSSetAudioMuted(bool muted);
