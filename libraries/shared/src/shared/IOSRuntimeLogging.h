@@ -48,6 +48,7 @@ inline void logIOSRuntimeMarker(Args&&...) {
 }
 
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+#define OVERTE_IOS_WORLD_OBSERVATION_VERSION 1
 // World evidence is armed only after a serverless scene has parsed or a valid
 // entity packet is about to be decoded. This prevents startup/UI entities from
 // satisfying the world-rendering gates. A render handoff can race the commit
@@ -60,6 +61,10 @@ struct IOSRuntimeEntityEvidenceState {
     bool committed { false };
     bool emitted { false };
     bool capacityExceeded { false };
+    std::uint64_t acceptedPresentCalls { 0 };
+    std::uint64_t rejectedPresentCalls { 0 };
+    std::uint32_t lastPresentedFrame { 0 };
+    std::uint64_t softwareQmlImagesProduced { 0 };
     QSet<QString> expectedEntities;
     QSet<QString> renderedEntities;
     QSet<QString> sceneEntities;
@@ -75,6 +80,11 @@ struct IOSRuntimeEntityEvidenceSnapshot {
     int scene { 0 };
     int drawn { 0 };
     bool capacityExceeded { false };
+    std::uint64_t generation { 0 };
+    std::uint64_t acceptedPresentCalls { 0 };
+    std::uint64_t rejectedPresentCalls { 0 };
+    std::uint32_t lastPresentedFrame { 0 };
+    std::uint64_t softwareQmlImagesProduced { 0 };
 };
 
 // Internal diagnostic storage limits, not accepted performance/scene budgets.
@@ -88,6 +98,9 @@ inline void invalidateIOSRuntimeEntityCapacity(IOSRuntimeEntityEvidenceState& st
     state.committed = false;
     state.emitted = false;
     state.capacityExceeded = true;
+    state.softwareQmlImagesProduced = 0;
+    state.acceptedPresentCalls = state.rejectedPresentCalls = 0;
+    state.lastPresentedFrame = 0;
     state.expectedEntities.clear();
     state.renderedEntities.clear();
     state.sceneEntities.clear();
@@ -121,6 +134,9 @@ inline void beginIOSRuntimeEntityEvidence() {
     state.committed = false;
     state.emitted = false;
     state.capacityExceeded = false;
+    state.softwareQmlImagesProduced = 0;
+    state.acceptedPresentCalls = state.rejectedPresentCalls = 0;
+    state.lastPresentedFrame = 0;
     state.expectedEntities.clear();
     state.renderedEntities.clear();
     state.sceneEntities.clear();
@@ -131,6 +147,47 @@ inline std::uint64_t iosRuntimeEntityEvidenceGeneration() {
     auto& state = iosRuntimeEntityEvidenceState();
     std::lock_guard<std::mutex> lock(state.mutex);
     return state.armed ? state.generation : 0;
+}
+
+// Retire observations when the actual world is cleared, not just when another
+// successful import happens. Old queued frames must not keep looking current.
+inline void invalidateIOSRuntimeEntityEvidence() {
+    auto& state = iosRuntimeEntityEvidenceState();
+    std::lock_guard<std::mutex> lock(state.mutex);
+    state.armed = state.committed = state.emitted = state.capacityExceeded = false;
+    state.softwareQmlImagesProduced = 0;
+    state.acceptedPresentCalls = state.rejectedPresentCalls = 0;
+    state.lastPresentedFrame = 0;
+    state.expectedEntities.clear();
+    state.renderedEntities.clear();
+    state.sceneEntities.clear();
+    state.drawnEntities.clear();
+}
+
+// WSI queue acceptance is an observation, not displayed pixels or proof that
+// a particular entity was visible. The frame carries its recording generation
+// across the real GPU/display queue; never sample a new generation at present.
+inline bool recordIOSRuntimePresentedFrame(std::uint64_t generation,
+                                          std::uint32_t frame, bool accepted) {
+    auto& state = iosRuntimeEntityEvidenceState();
+    std::lock_guard<std::mutex> lock(state.mutex);
+    if (!generation || generation != state.generation || !state.armed ||
+            !state.committed || state.capacityExceeded || state.expectedEntities.isEmpty()) {
+        return false;
+    }
+    auto& count = accepted ? state.acceptedPresentCalls : state.rejectedPresentCalls;
+    if (count != std::numeric_limits<std::uint64_t>::max()) { ++count; }
+    if (accepted) { state.lastPresentedFrame = frame; }
+    return true;
+}
+
+inline void recordIOSRuntimeSoftwareQmlImage(std::uint64_t generation) {
+    auto& state = iosRuntimeEntityEvidenceState();
+    std::lock_guard<std::mutex> lock(state.mutex);
+    if (generation && state.armed && generation == state.generation &&
+            state.softwareQmlImagesProduced != std::numeric_limits<std::uint64_t>::max()) {
+        ++state.softwareQmlImagesProduced;
+    }
 }
 
 // Physical iOS devices cannot receive simulator-style launch environment
@@ -294,7 +351,12 @@ inline IOSRuntimeEntityEvidenceSnapshot iosRuntimeEntityEvidenceSnapshot() {
         expectedCount(state.renderedEntities),
         expectedCount(state.sceneEntities),
         expectedCount(state.drawnEntities),
-        state.capacityExceeded
+        state.capacityExceeded,
+        state.armed ? state.generation : 0,
+        state.acceptedPresentCalls,
+        state.rejectedPresentCalls,
+        state.lastPresentedFrame,
+        state.softwareQmlImagesProduced
     };
 }
 
@@ -372,10 +434,10 @@ inline bool recordIOSRuntimeDrawnEntity(const QString& entity) {
     return insertIOSRuntimeEntityBounded(state, state.drawnEntities, entity);
 }
 
-inline QString commitIOSRuntimeEntityEvidence() {
+inline QString commitIOSRuntimeEntityEvidence(std::uint64_t generation = 0) {
     auto& state = iosRuntimeEntityEvidenceState();
     std::lock_guard<std::mutex> lock(state.mutex);
-    if (!state.armed || state.emitted) {
+    if (!state.armed || state.emitted || (generation && generation != state.generation)) {
         return {};
     }
     state.committed = true;

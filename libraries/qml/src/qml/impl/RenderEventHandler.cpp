@@ -172,6 +172,9 @@ void RenderEventHandler::qmlRender(bool sceneGraphSync) {
         }
 
         if (!_softwareImage.isNull()) {
+#if defined(Q_OS_IOS)
+            const auto observationGeneration = iosRuntimeEntityEvidenceGeneration();
+#endif
             // QQuick's software renderer updates only the dirty regions of the
             // paint device.  Keep the previous pixels between renders; clearing
             // the entire image here made unchanged QML items disappear for one
@@ -181,6 +184,9 @@ void RenderEventHandler::qmlRender(bool sceneGraphSync) {
             _shared->_renderControl->render();
             _shared->_lastRenderTime = usecTimestampNow();
             _shared->updateImage(_softwareImage);
+#if defined(Q_OS_IOS)
+            recordIOSRuntimeSoftwareQmlImage(observationGeneration);
+#endif
         }
 #endif
         return;

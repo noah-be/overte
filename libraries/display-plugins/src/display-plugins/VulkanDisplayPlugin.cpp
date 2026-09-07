@@ -29,6 +29,7 @@
 #include <QtCore/QFileInfo>
 
 #include <QtGui/QImage>
+#include <shared/IOSRuntimeLogging.h>
 #include <QtGui/QImageWriter>
 #if !defined(OVERTE_IOS_VULKAN_DISABLE_QUICK_GL_COPY)
 #include <QtGui/QOpenGLFramebufferObject>
@@ -1274,6 +1275,11 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
         const auto presentResult = _vkWindow->_swapchain.queuePresent(
             _vkWindow->_context.graphicsQueue, currentImageIndex,
             _vkWindow->_renderCompleteSemaphore);
+#if defined(Q_OS_IOS)
+        recordIOSRuntimePresentedFrame(_currentFrame->worldObservationGeneration,
+            _currentFrame->frameIndex,
+            presentResult == VK_SUCCESS || presentResult == VK_SUBOPTIMAL_KHR);
+#endif
         _vkWindow->_previousAcquireCompleteSemaphore = _vkWindow->_acquireCompleteSemaphore;
         _vkWindow->_previousRenderCompleteSemaphore = _vkWindow->_renderCompleteSemaphore;
         _vkWindow->_acquireCompleteSemaphore = VK_NULL_HANDLE;

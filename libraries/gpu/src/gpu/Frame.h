@@ -9,6 +9,7 @@
 #define hifi_gpu_Frame_h
 
 #include <functional>
+#include <cstdint>
 #include <queue>
 
 #include "Forward.h"
@@ -30,6 +31,9 @@ namespace gpu {
 
         StereoState stereoState;
         uint32_t frameIndex{ 0 };
+        // Optional observation stamp, set on the recording thread. Zero means
+        // unavailable; retained with the actual frame through display queues.
+        uint64_t worldObservationGeneration { 0 };
         // TODO: view doesn't seem to be used anywhere?
         /// The view matrix used for rendering the frame, only applicable for HMDs.
         Mat4 view;

@@ -1163,7 +1163,7 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         return;
     }
 #if defined(Q_OS_IOS)
-    const auto scheduleServerlessViewpoint = [this, domainURL](
+    const auto scheduleServerlessViewpoint = [this, domainURL, requestGeneration](
             const std::map<QString, QString>& namedPaths) {
         // AddressManager asks for the root path immediately after changing the
         // domain URL. Both synchronous and asynchronous imports can complete
@@ -1191,7 +1191,13 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         if (viewpoint.isEmpty()) {
             return;
         }
-        QTimer::singleShot(0, this, [viewpoint, path] {
+        const auto evidenceGeneration = iosRuntimeEntityEvidenceGeneration();
+        QTimer::singleShot(0, this, [this, viewpoint, path, requestGeneration, evidenceGeneration] {
+            if (requestGeneration != _serverlessDomainRequestGeneration ||
+                    !evidenceGeneration ||
+                    evidenceGeneration != iosRuntimeEntityEvidenceGeneration()) {
+                return;
+            }
             const bool applied = DependencyManager::get<AddressManager>()->goToViewpointForPath(
                 viewpoint, path);
             if (QCoreApplication::arguments().contains(QStringLiteral("--ios-world-evidence"))) {

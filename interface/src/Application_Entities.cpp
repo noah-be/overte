@@ -353,6 +353,9 @@ void Application::clearDomainOctreeDetails(bool clearAll) {
 #endif
 
     _waitForServerlessToBeSet = true;
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+    invalidateIOSRuntimeEntityEvidence();
+#endif
     resetPhysicsReadyInformation();
 #if defined(ANDROID_APP_PICO_INTERFACE)
     const auto domainHandler = &DependencyManager::get<NodeList>()->getDomainHandler();

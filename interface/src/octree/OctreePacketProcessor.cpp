@@ -114,17 +114,15 @@ void OctreePacketProcessor::processPacket(QSharedPointer<ReceivedMessage> messag
     }
 
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
-    bool commitEntityEvidenceAfterDecode { false };
+    std::uint64_t entityEvidenceGeneration { 0 };
     if (packetType == PacketType::EntityData) {
-        static bool loggedFirstEntityData { false };
-        if (!loggedFirstEntityData) {
-            loggedFirstEntityData = true;
+        if (!iosRuntimeEntityEvidenceGeneration()) {
             beginIOSRuntimeEntityEvidence();
-            commitEntityEvidenceAfterDecode = true;
             logIOSRuntimeMarker("OVERTE_IOS_ENTITY_GATE entity_data_received",
                                 "node=", sendingNode->getUUID().toString(QUuid::WithoutBraces),
                                 "bytes=", message->getSize());
         }
+        entityEvidenceGeneration = iosRuntimeEntityEvidenceGeneration();
     }
 #endif
 
@@ -157,6 +155,9 @@ void OctreePacketProcessor::processPacket(QSharedPointer<ReceivedMessage> messag
                 auto renderer = qApp->getEntities();
                 if (renderer) {
                     renderer->processDatagram(*message, sendingNode);
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+                    logIOSRuntimeEntityEvidence(commitIOSRuntimeEntityEvidence(entityEvidenceGeneration));
+#endif
                     if (_safeLanding && _safeLanding->isTracking()) {
                         OCTREE_PACKET_SEQUENCE thisSequence = renderer->getLastOctreeMessageSequence();
                         _safeLanding->addToSequence(thisSequence);
@@ -166,11 +167,6 @@ void OctreePacketProcessor::processPacket(QSharedPointer<ReceivedMessage> messag
                     }
                 }
             }
-#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
-            if (commitEntityEvidenceAfterDecode) {
-                logIOSRuntimeEntityEvidence(commitIOSRuntimeEntityEvidence());
-            }
-#endif
         } break;
 
         case PacketType::EntityQueryInitialResultsComplete: {
