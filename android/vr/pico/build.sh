@@ -5,6 +5,7 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 android_root="$(cd -- "$script_dir/../.." && pwd)"
 source "$android_root/common/scripts/with-temporary-git-patch.sh"
 conan_home="${CONAN_HOME:-${HOME}/.conan2}"
+source_graph_compatibility="$script_dir/release/pico-source-graph-compatibility.py"
 jobs="${PICO_BUILD_JOBS:-$(nproc)}"
 command_name="${1:-all}"
 command_option="${2:-}"
@@ -67,7 +68,8 @@ Usage: ./build-pico.sh [doctor|bootstrap|deps|prepare|build|install|all|deploy|s
   doctor   Check the development environment and print installation help
   bootstrap [--check|--system-packages|--with-deps]
            Install as many missing build requirements as possible
-  deps     Install dependencies; use --download for prebuilt Qt and Node
+  deps     Install dependencies; use --download for legacy prebuilt Qt and Node
+           or --source-graph for an explicitly supplied source-only graph
   prepare  Locate and stage the existing Conan/Qt dependencies
   build [--stacktrace]
            Build the Pico debug APK; optionally include Gradle failure details
@@ -663,6 +665,40 @@ install_dependencies() {
     echo "Installed Pico dependencies"
 }
 
+consume_source_graph_dependencies() {
+    local graph_root="${PICO_SOURCE_GRAPH_ROOT:-}"
+    local adapter="${PICO_SHARED_GRAPH_ADAPTER:-}"
+    local isolated_home
+
+    [[ -n "$graph_root" ]] \
+        || fail "PICO_SOURCE_GRAPH_ROOT is required for deps --source-graph"
+    [[ -n "$adapter" ]] \
+        || fail "PICO_SHARED_GRAPH_ADAPTER is not bound; defer until the accepted Shared handoff"
+    [[ -x "$source_graph_compatibility" ]] \
+        || fail "Pico source-graph compatibility verifier is missing or not executable"
+
+    "$source_graph_compatibility" --graph-root "$graph_root" --adapter "$adapter"
+    graph_root="$(readlink -f -- "$graph_root")"
+    adapter="$(readlink -f -- "$adapter")"
+    isolated_home="$(mktemp -d)"
+    trap 'rm -rf -- "$isolated_home"' RETURN
+
+    env -u CONAN_USER_HOME -u PICO_PREBUILT_RESTORE_ONLY -u PICO_QT_FALLBACK_PATCH \
+        CONAN_HOME="$isolated_home/conan" \
+        PICO_SOURCE_GRAPH_MODE=1 \
+        PICO_SOURCE_GRAPH_VERIFIED=1 \
+        PICO_SOURCE_GRAPH_ROOT="$graph_root" \
+        PICO_LEGACY_DEPENDENCY_PATHS=forbidden \
+        PICO_CONAN_REMOTE_POLICY=forbid \
+        PICO_CONAN_BUILD_POLICY=source-only \
+        PICO_OPENSSL_POLICY=3-only \
+        "$adapter" --graph-root "$graph_root" --pico-root "$script_dir"
+
+    rm -rf -- "$isolated_home"
+    trap - RETURN
+    echo "Consumed explicitly supplied Pico source graph"
+}
+
 download_prebuilt_dependencies() {
     local checksums="$android_root/common/conan/prebuilt/${prebuilt_tag}.sha256"
     local base_url="https://github.com/noah-be/overte/releases/download/${prebuilt_tag}"
@@ -816,6 +852,8 @@ case "$command_name" in
     deps)
         if [[ "$command_option" == "--download" ]]; then
             download_prebuilt_dependencies
+        elif [[ "$command_option" == "--source-graph" ]]; then
+            consume_source_graph_dependencies
         elif [[ -z "$command_option" ]]; then
             install_dependencies
         else
