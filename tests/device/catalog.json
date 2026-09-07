@@ -142,7 +142,7 @@
       "description": "Install a supplied candidate over a source build and verify version plus safe-setting continuity.",
       "command": ["modules/update_upgrade.py"],
       "suites": ["update-upgrade"],
-      "requires": ["app.foreground", "app.launch", "app.process", "app.upgrade", "app.version", "probe.snapshot", "setting.set"],
+      "requires": ["app.foreground", "app.install", "app.launch", "app.process", "app.stop", "app.upgrade", "app.version", "probe.snapshot", "setting.set"],
       "timeoutSeconds": 600
     },
     {
