@@ -8,6 +8,9 @@
 #include <cassert>
 #include <iostream>
 #include "security/storage/ProtectedAccountStore.h"
+#include "libraries/networking/src/DataServerAccountInfo.h"
+Q_DECLARE_METATYPE(DataServerAccountInfo)
+#include "account-types.inc"
 using namespace overte::security;
 static QString location;
 QString accountFilePath(){return location;}
@@ -23,13 +26,22 @@ void legacy(const QByteArray& bytes){QFile file(location);assert(file.open(QIODe
 int main(int argc,char**argv){
  QCoreApplication app(argc,argv);QTemporaryDir temp;assert(temp.isValid());location=temp.path()+"/AccountInfo.bin";
  auto store=std::make_shared<Store>();assert(protectedAccountCoordinator().install(store));
- QVariantMap expected{{"fixture",QString("opaque-value")}};auto encoded=encode(expected);
+ OAuthAccessToken token;token.token="token-fixture";token.refreshToken="refresh-fixture";token.expiryTimestamp=123456789;token.tokenType="Bearer";
+ QByteArray fields;QDataStream fieldWriter(&fields,QIODevice::WriteOnly);
+ fieldWriter<<token<<QString("username-fixture")<<QString("xmpp-fixture")<<QString("discourse-fixture")
+  <<QUuid()<<QByteArray("private-key-fixture")<<QUuid("{11111111-1111-1111-1111-111111111111}")
+  <<QUuid("{22222222-2222-2222-2222-222222222222}")<<QString("temporary-key-fixture");
+ DataServerAccountInfo account;QDataStream fieldReader(fields);fieldReader>>account;assert(fieldReader.status()==QDataStream::Ok&&fieldReader.atEnd());
+ QByteArray roundtrip;QDataStream fieldRoundtrip(&roundtrip,QIODevice::WriteOnly);fieldRoundtrip<<account;assert(fields==roundtrip);
+ QVariantMap expected{{"https://fixture.invalid",QVariant::fromValue(account)}};auto encoded=encode(expected);
  bool ok=false;
- legacy(encoded);auto map=accountMapFromFile(ok);assert(ok&&map==expected&&!QFileInfo::exists(location)&&store->writes==1);
- assert(writeAccountMapToFile({{"replacement",42}}));map=accountMapFromFile(ok);assert(ok&&map.value("replacement").toInt()==42);
+ legacy(encoded);auto map=accountMapFromFile(ok);assert(ok&&encode(map)==encoded&&!QFileInfo::exists(location)&&store->writes==1);
+ assert(writeAccountMapToFile(expected));map=accountMapFromFile(ok);assert(ok&&encode(map)==encoded);
  assert(protectedAccountCoordinator().erase(legacyAccountInput())==StoreResult::Ok);
  // Native read succeeds but protected serialization is truncated or has trailing junk.
- for(auto broken:{QByteArray(1,'x'),encoded+QByteArray("junk")}){
+ QList<QByteArray> invalidRecords{encoded+QByteArray("junk"),encode({{"https://fixture.invalid",42}})};
+ for(int length=0;length<encoded.size();++length) invalidRecords.append(encoded.left(length));
+ for(const auto& broken:invalidRecords){
   legacy(encoded);store->bytes.assign(broken.begin(),broken.end());store->status=StoreResult::Ok;
   map=accountMapFromFile(ok);assert(!ok&&map.isEmpty());
   assert(QFileInfo::exists(location)&&"invalid protected map must not delete recoverable legacy data");

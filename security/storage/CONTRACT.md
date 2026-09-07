@@ -108,7 +108,24 @@ The actual AccountManager file/map functions, actual QDataStream and coordinator
 run together in `test_account_map.py` with temporary files and an opaque memory
 store. Tests cover valid migration/write/read, truncated/trailing protected data,
 legacy retention and quarantine, corrupt legacy, mismatched readback and explicit
-erase recovery. This joins serialization to migration; QVariantMap values are
-fixtures, not the complete DataServerAccountInfo metatype field corpus. Native
+erase recovery. This joins serialization to migration; Field values are synthetic; the actual metatype/field coverage is described below. Native
 OS durability, parser resource limits beyond input size, every field/version,
 real AccountManager startup and restart recovery remain unqualified.
+
+## Typed account fields
+
+The production map validator requires every value to have the exact registered
+DataServerAccountInfo metatype; arbitrary QVariant values are not account records.
+Empty maps remain valid. The joined host fixture now compiles the real account
+and OAuth headers/moc, complete OAuthAccessToken.cpp, and actual account copy,
+assignment, swap and stream operators. It roundtrips all serialized fields:
+access/refresh tokens, expiry/type, username, XMPP/Discourse secrets, placeholder
+UUID, private key, domain and temporary-domain UUID/key. Every truncated prefix
+of that encoded map, trailing bytes and a wrong QVariant value are rejected with
+legacy retention/quarantine. Ignoring the exact-type check fails the wrong-value
+case. The field values are synthetic; no real credential is read or emitted.
+
+This verifies the local Qt6 metatype/stream encoding, not a cross-Qt-version
+migration corpus or semantic cryptographic validity of a private key/token.
+Qt5/native registration, untrusted-parser allocation behavior, native persistence
+and the complete platform/account lifecycle remain separate acceptance gates.
