@@ -636,15 +636,19 @@ jobs:
         env:
           QT_HOST_CACHE_HIT: ${{ steps.qt-host-cache.outputs.cache-hit }}
           QT_HOST_ARTIFACT_RESTORED: ${{ steps.qt-host-artifact.outputs.restored }}
+          QT_HOST_TRUSTED_ARTIFACT_RESTORED: ${{ steps.qt-host-apple-ios-artifact.outputs.restored }}
           QT_IOS_CACHE_HIT: ${{ steps.qt-ios-cache.outputs.cache-hit }}
           QT_IOS_ARTIFACT_RESTORED: ${{ steps.qt-ios-artifact.outputs.restored }}
+          QT_IOS_TRUSTED_ARTIFACT_RESTORED: ${{ steps.qt-ios-apple-ios-artifact.outputs.restored }}
           V8_CACHE_HIT: ${{ steps.integrated-v8-cache.outputs.cache-hit }}
           V8_ARTIFACT_RESTORED: ${{ steps.integrated-v8-artifact.outputs.restored }}
         run: |
           test "$QT_HOST_CACHE_HIT" = true \
-            || test "$QT_HOST_ARTIFACT_RESTORED" = true
+            || test "$QT_HOST_ARTIFACT_RESTORED" = true \
+            || test "$QT_HOST_TRUSTED_ARTIFACT_RESTORED" = true
           test "$QT_IOS_CACHE_HIT" = true \
-            || test "$QT_IOS_ARTIFACT_RESTORED" = true
+            || test "$QT_IOS_ARTIFACT_RESTORED" = true \
+            || test "$QT_IOS_TRUSTED_ARTIFACT_RESTORED" = true
           test "$V8_CACHE_HIT" = true \
             || test "$V8_ARTIFACT_RESTORED" = true
           ios/tools/prepare-qt-ios.sh validate
@@ -794,10 +798,14 @@ jobs:
 
       - name: Validate and compact audited device dependencies
         id: conan-integrity
+        env:
+          PRESERVE_REUSABLE_DATA: ${{ inputs.preserve_reusable_data }}
         run: |
           source build-ios/tooling-venv/bin/activate
           conan cache check-integrity "*"
-          conan cache clean "*" --build --temp
+          if [ "$PRESERVE_REUSABLE_DATA" = false ]; then
+            conan cache clean "*" --build --temp
+          fi
           conan cache check-integrity "*"
 
       - name: Create durable Conan package checkpoint
