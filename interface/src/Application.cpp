@@ -208,6 +208,18 @@ Setting::Handle<int> sessionRunTime { "sessionRunTime", 0 };
 
 void messageHandler(QtMsgType type, const QMessageLogContext& context, const QString& message) {
     Q_UNUSED(context);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Closed classifications only: never disclose QML text, URLs or user data.
+    if (type == QtWarningMsg || type == QtCriticalMsg) {
+        if (message.contains("is not installed")) {
+            __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=module_not_installed");
+        } else if (message.contains("is not a type")) {
+            __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=unknown_type");
+        } else if (message.contains("is unavailable")) {
+            __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=type_unavailable");
+        }
+    }
+#endif
     // Never forward dynamic Qt context, source path, category or arbitrary text.
     // Closed event constants carry useful outcomes without reversible fragments.
     const QByteArray input = message.size() <= 32 ? message.toUtf8() : QByteArray();
@@ -1103,6 +1115,10 @@ void Application::loadServerlessDomain(QUrl domainURL) {
     // tree, session, permissions, or DomainHandler state. An empty destination
     // is also a navigation/reset boundary and must retire an in-flight request.
     const quint64 requestGeneration = ++_serverlessDomainRequestGeneration;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    __android_log_print(ANDROID_LOG_INFO, "OvertePhoneRuntime",
+        "world_request local=%d empty=%d", domainURL.isLocalFile(), domainURL.isEmpty());
+#endif
     if (domainURL.isEmpty()) {
         return;
     }
@@ -1187,6 +1203,11 @@ void Application::loadServerlessDomain(QUrl domainURL) {
     }
 
     connect(request, &ResourceRequest::finished, this, [=, this]() {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        __android_log_print(ANDROID_LOG_INFO, "OvertePhoneRuntime",
+            "world_result code=%d bytes=%d current=%d", static_cast<int>(request->getResult()),
+            request->getData().size(), requestGeneration == _serverlessDomainRequestGeneration);
+#endif
         if (requestGeneration != _serverlessDomainRequestGeneration) {
             qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE staleRequestIgnored"
                 << domainURL;
@@ -1203,6 +1224,9 @@ void Application::loadServerlessDomain(QUrl domainURL) {
             _picoServerlessSceneImportInProgress = true;
 #endif
             if (!prepareServerlessDomainContents(domainURL, request->getData(), namedPaths)) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+                __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "world_parse_ok=0");
+#endif
 #if defined(ANDROID_APP_PICO_INTERFACE)
                 _picoServerlessSceneURL = QUrl();
                 finishPicoServerlessImport();
@@ -1213,6 +1237,9 @@ void Application::loadServerlessDomain(QUrl domainURL) {
                 request->deleteLater();
                 return;
             }
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+            __android_log_write(ANDROID_LOG_INFO, "OvertePhoneRuntime", "world_parse_ok=1");
+#endif
             auto nodeList = DependencyManager::get<NodeList>();
             nodeList->getDomainHandler().connectedToServerless(namedPaths);
             // connectedToServerless() emits the domain transition that clears

@@ -402,6 +402,17 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
         }
 #endif
 #else
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        // The custom Phone packaging creates this bundle instead of running
+        // androiddeployqt. Register its QML modules before constructing engines.
+        const QString androidQmlResources =
+            qApp->property(hifi::properties::APP_LOCAL_DATA_PATH).toString() +
+            "/android_rcc_bundle.rcc";
+        if (!QResource::registerResource(androidQmlResources)) {
+            throw std::runtime_error("Unable to load packaged Phone QML resources");
+        }
+        __android_log_write(ANDROID_LOG_INFO, "OvertePhoneRuntime", "qml_bundle_registered=1");
+#endif
 #endif
     }
 

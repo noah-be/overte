@@ -13,6 +13,9 @@
 //
 
 #include "AddressManager.h"
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include <android/log.h>
+#endif
 
 #include <QGuiApplication>
 #include <QClipboard>
@@ -250,6 +253,12 @@ JSONCallbackParameters AddressManager::apiCallbackParameters() {
 }
 
 bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, const QString& lookupUrlInString) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    __android_log_print(ANDROID_LOG_INFO, "OvertePhoneRuntime",
+        "lookup local=%d trigger=%d policy=%d foreground=%d explicit=%d current=%d",
+        lookupUrlIn.isLocalFile(), static_cast<int>(trigger), _clientLookupPolicy,
+        _lookupForeground, _lookupNeedsExplicitIntent, _lookupRequests.snapshot().current());
+#endif
     if (_clientLookupPolicy) {
         if (!_lookupForeground) { return false; }
         if (_lookupNeedsExplicitIntent) {
