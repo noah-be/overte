@@ -139,7 +139,8 @@ Rectangle {
         anchors.bottom: parent.bottom;
         width: parent.width;
         contentWidth: parent.width;
-        contentHeight: contentItem.childrenRect.height;
+        // The last content row defines the extent; exclude scrollbar geometry.
+        contentHeight: outputView.y + outputView.height;
         boundsBehavior: Flickable.DragOverBounds;
         flickableDirection: Flickable.VerticalFlick;
         pressDelay: touchConfiguration.pressDelay
@@ -749,7 +750,6 @@ Rectangle {
                         anchors.fill: parent
                         level: noiseBar.level
                         vertical: false
-                        gutter: colors.gutter
                         low: noiseBar.gated ? "#E2334D" : "#39A38F"
                         middle: low
                         high: low
