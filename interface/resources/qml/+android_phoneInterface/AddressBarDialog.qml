@@ -50,6 +50,16 @@ FocusScope {
     Flickable {
         id: viewport
         anchors.fill: parent
+        // This dialog lives on the full offscreen surface. Android's IME does
+        // not resize that surface, so reserve its real occluded area here.
+        anchors.bottomMargin: touchMetrics.keyboardVisible
+            ? Math.min(Math.max(0, touchMetrics.keyboardInsetBottom), Math.max(0, root.height - 1))
+            : 0
+        onHeightChanged: Qt.callLater(function() {
+            if (addressField.activeFocus) {
+                touchMetrics.ensureVisible(viewport, addressField)
+            }
+        })
         contentWidth: width
         contentHeight: Math.max(height, panel.height + 2 * touchMetrics.spacingLarge)
         clip: true
