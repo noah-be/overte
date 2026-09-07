@@ -20,4 +20,22 @@ int main() {
     assert(step(b,"ZZZ",3)=="123");
     assert(step(b,"x",0)==std::string(1,0));
     assert(step(b,"x",17*1024*1024)==std::string(1,0));
+    // Low-level PCM receives bounded gain without changing capture isolation.
+    b.reset();
+    const int16_t quiet[] = { 100, -100, 0, 50 };
+    auto silent = b.process(reinterpret_cast<const char*>(quiet), sizeof(quiet), sizeof(quiet), true);
+    assert(silent == std::vector<char>(sizeof(quiet), 0));
+    auto amplified = b.process(reinterpret_cast<const char*>(quiet), sizeof(quiet), sizeof(quiet), true);
+    int16_t result[4]; std::memcpy(result, amplified.data(), sizeof(result));
+    assert(result[0] == 1600 && result[1] == -1600 && result[2] == 0 && result[3] == 800);
+    b.reset();
+    const int16_t loud[] = { 32767, -32768 };
+    b.process(reinterpret_cast<const char*>(loud), sizeof(loud), sizeof(loud), true);
+    auto unchanged = b.process(reinterpret_cast<const char*>(loud), sizeof(loud), sizeof(loud), true);
+    assert(std::memcmp(unchanged.data(), loud, sizeof(loud)) == 0);
+    b.reset();
+    const int16_t zero[] = { 0, 0 };
+    b.process(reinterpret_cast<const char*>(zero), sizeof(zero), sizeof(zero), true);
+    assert(b.process(reinterpret_cast<const char*>(zero), sizeof(zero), sizeof(zero), true)
+        == std::vector<char>(sizeof(zero), 0));
 }

@@ -1828,9 +1828,11 @@ void AudioClient::handleLocalEchoAndReverb(QByteArray& inputByteArray) {
     // and starving a push-mode QAudioOutput at every speech boundary produces
     // audible clicks on Android. Silence preserves the gate behavior without
     // repeatedly underrunning the output device.
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
     if (_shouldEchoLocally && !_audioGateOpen) {
         loopBackByteArray.fill(0);
     }
+#endif
 
     // apply stereo reverb at the source, to the loopback audio
     if (!_shouldEchoLocally && hasReverb) {
@@ -1865,7 +1867,7 @@ void AudioClient::handleLocalEchoAndReverb(QByteArray& inputByteArray) {
 #if defined(ANDROID_APP_PHONE_INTERFACE)
     if (_shouldEchoLocally) {
         const auto testOutput = _phoneVoiceTest.process(outputBytes->constData(),
-            outputBytes->size(), _outputFormat.bytesForDuration(3 * USECS_PER_SECOND));
+            outputBytes->size(), _outputFormat.bytesForDuration(3 * USECS_PER_SECOND), true);
         _loopbackPendingAudio.append(testOutput.data(), static_cast<int>(testOutput.size()));
     } else {
         _loopbackPendingAudio.append(*outputBytes);
