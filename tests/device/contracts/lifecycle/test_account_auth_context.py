@@ -18,7 +18,7 @@ class AccountContext(unittest.TestCase):
                   text=True) if baseline else (ROOT / relative).read_text())
         methods = block(source, 'static void observeAccountTokenDeadline(') + '\n'
         methods += '\n'.join(block(source, 'void AccountManager::' + name + '(') for name in
-                             ('logout', 'setAuthURL', 'requestAccessToken', 'requestAccessTokenWithAuthCode',
+                             ('logout', 'setAuthURL', 'setAccountInfo', 'requestAccessToken', 'requestAccessTokenWithAuthCode',
                               'requestAccessTokenWithSteam', 'requestAccessTokenWithOculus', 'refreshAccessToken',
                               'requestAccessTokenFinished', 'refreshAccessTokenFinished', 'refreshAccessTokenError'))
         methods += '\n' + block(source, 'bool AccountManager::setAccessTokens(')
