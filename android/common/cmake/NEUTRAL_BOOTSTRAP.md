@@ -34,3 +34,10 @@ source-graph precedence, the unchanged governor, old entry-point forwarding and
 missing/empty-input failures. No compiler, SDK, Gradle, Conan or native build runs.
 Existing caller/package/parallelism and profile contract checks cover affected
 source bindings; native JNI/WebEngine/Discord behavior is not newly qualified.
+
+The profile doctor validates this declared map but does not infer consumer
+selection from it. Its report separately hashes the actual Phone/Pico Gradle
+sources and leaves resolved consumer identities and equivalence unknown. Until
+independent resolved inputs exist, CLI status is INCOMPLETE with exit code 2;
+a valid intended profile alone cannot qualify SH-010. Runtime preflight does
+not change that distinction. Missing or invalid input remains FAIL/exit code 1.
