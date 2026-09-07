@@ -1145,6 +1145,15 @@ bool OffscreenUi::eventFilter(QObject* originalDestination, QEvent* event) {
         }
         case QEvent::InputMethod:
         case QEvent::InputMethodQuery:
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+            if (isFocusText()) {
+                // The offscreen QML field owns the IME transaction. Letting
+                // the host widget process it again can overwrite cursor and
+                // surrounding-text queries or duplicate composing input.
+                QCoreApplication::sendEvent(getWindow(), event);
+                return true;
+            }
+#endif
             if (QCoreApplication::sendEvent(getWindow(), event)) {
                 return result;
             }

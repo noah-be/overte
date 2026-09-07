@@ -7,7 +7,6 @@ QtObject {
     property bool hoverSupported: !directTouch
     property bool hapticsSupported: false
     property bool hardwareKeyboardSupported: true
-    property bool preserveImeComposition: false
     property bool systemImeAvailable: false
     property bool screenSpacePresentation: false
 

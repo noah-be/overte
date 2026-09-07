@@ -18,7 +18,6 @@ SharedControls.TouchUiProfileBase {
     hardwareKeyboardSupported: runtimeMetricsAvailable
         ? runtimeMetrics.hardwareKeyboardSupported === true : false
     systemImeAvailable: true
-    preserveImeComposition: true
     screenSpacePresentation: true
 
     // Live Android measurements replace these conservative startup defaults
