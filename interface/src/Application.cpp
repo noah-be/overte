@@ -1857,6 +1857,7 @@ void Application::domainURLChanged(QUrl domainURL) {
             // A real local navigation may arrive while sendEntities() is
             // pumping nested events. Replace the scene after the current
             // synchronous import unwinds so two trees never mutate together.
+            invalidateEntityScriptConsent();
             _picoDeferredServerlessSceneURL = domainURL;
         }
         return;
@@ -1897,11 +1898,13 @@ void Application::domainURLChanged(QUrl domainURL) {
         }
         // resettingDomain() deliberately preserved the committed local scene.
         // A genuinely different URL now owns the transition and clears it.
+        invalidateEntityScriptConsent();
         _picoServerlessSceneImportCommitted = false;
         _picoServerlessSceneURL = QUrl();
         clearDomainOctreeDetails(false);
     }
 #endif
+    invalidateEntityScriptConsent();
     // disable physics until we have enough information about our new location to not cause craziness.
     setIsServerlessMode(domainURL.scheme() != URL_SCHEME_OVERTE);
     if (isServerlessMode()) {
@@ -2311,6 +2314,7 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
 }
 
 void Application::cleanupBeforeQuit() {
+    invalidateEntityScriptConsent();
     // add a logline indicating if QTWEBENGINE_REMOTE_DEBUGGING is set or not
     QString webengineRemoteDebugging = QProcessEnvironment::systemEnvironment().value("QTWEBENGINE_REMOTE_DEBUGGING", "false");
     qCDebug(interfaceapp) << "QTWEBENGINE_REMOTE_DEBUGGING =" << webengineRemoteDebugging;

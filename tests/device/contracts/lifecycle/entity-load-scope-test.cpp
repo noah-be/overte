@@ -10,6 +10,7 @@
 #include <cassert>
 #include <atomic>
 #include <thread>
+#include "EntityScriptConsent.h"
 #define PROFILE_RANGE(...)
 #define qCDebug(...) qDebug()
 #define qCWarning(...) qWarning()
@@ -18,26 +19,32 @@ using EntityItemID=QString;
 struct ScriptEngines { bool isStopped() const {return false;} };
 struct EntityScriptDetails {QString scriptText,definingSandboxURL;int status;};
 struct EntityScriptStatus {enum {PENDING,LOADING};};
+struct ScriptRequest { static const int MAX_RETRIES=5; };
 struct ScriptCache {
  using Callback=std::function<void(const QString&,const QString&,bool,bool,const QString&)>;
- QVector<Callback> pending;
- void getScriptContents(const QString&,Callback cb,bool){pending.push_back(cb);}
+ QVector<Callback> pending;QVector<bool> policies; std::shared_ptr<EntityScriptConsentScope> lastScope;
+ void getScriptContents(const QString&,Callback cb,bool,int,bool strict,std::shared_ptr<EntityScriptConsentScope> scope){pending.push_back(cb);policies.push_back(strict);lastScope=scope;}
  void deliver(int n,QString text){pending[n]("resolved-url",text,true,true,"OK");}
 };
 static QSharedPointer<ScriptCache> cache=QSharedPointer<ScriptCache>::create();
 struct DependencyManager {template<class T>static QSharedPointer<T> get(){return cache;}};
 struct ScriptManager:QObject,std::enable_shared_from_this<ScriptManager>{
  QSharedPointer<ScriptEngines> _scriptEngines=QSharedPointer<ScriptEngines>::create();
+ enum Context { ENTITY_CLIENT_SCRIPT, ENTITY_SERVER_SCRIPT };
+ const Context _context;
+ std::shared_ptr<EntityScriptConsentScope> _entityScriptConsentScope;
+ explicit ScriptManager(Context context=ENTITY_SERVER_SCRIPT):_context(context){}
  bool _isFinished=false,stopping=false,deny=false;QString currentSandboxURL;
  EntityScriptContentAvailableMap _contentAvailableQueue;
  QHash<EntityItemID,QHash<QString,std::shared_ptr<EntityScriptLoadRequest>>> _entityScriptLoads;
- QStringList consumed;std::function<void()> onDetails,onConsume;
+ QHash<EntityItemID,QHash<QString,std::shared_ptr<EntityScriptConsentRequest>>> _entityScriptConsentRequests;
+ QString lastSource;QStringList consumed;std::function<void()> onDetails,onConsume;
  bool isStopping()const{return stopping;}
  bool hasEntityScriptDetails(const EntityItemID&,const QString&)const{return false;}
- bool rejectEntityScriptWithoutConsent(const EntityItemID&,const QString&){return deny;}
+ bool rejectEntityScriptWithoutConsent(const EntityItemID&,const QString&,bool=false,bool=false){return deny;}
  void updateEntityScriptStatus(const EntityItemID&,const QString&,int,const QString&){if(onDetails){auto f=std::move(onDetails);onDetails={};f();}}
  void setEntityScriptDetails(const EntityItemID&,const QString&,const EntityScriptDetails&){}
- void entityScriptContentAvailable(const EntityItemID&,const QString&,const QString& contents,bool,bool,const QString&){consumed<<contents;if(onConsume){auto f=std::move(onConsume);onConsume={};f();}}
+ void entityScriptContentAvailable(const EntityItemID&,const QString& source,const QString& contents,bool,bool,const QString&){lastSource=source;consumed<<contents;if(onConsume){auto f=std::move(onConsume);onConsume={};f();}}
  bool isCurrentEntityScriptLoad(const EntityItemID&,const QString&,const std::shared_ptr<EntityScriptLoadRequest>&)const;
  void cancelEntityScriptLoad(const EntityItemID&,const QString&);
  void processEntityScriptContents();
@@ -61,5 +68,21 @@ int main(int argc,char**argv){
  m->loadEntityScript("entity","one");int held=cache->pending.size()-1;std::thread worker([&]{deliver(held,"cross-thread-stale");});worker.join();m->unloadEntityScript("entity","one");QCoreApplication::processEvents();m->processEntityScriptContents();assert(m->consumed.last()=="reentrant-new");
  m->loadEntityScript("entity","one");deliver(cache->pending.size()-1,"stopping");m->stopping=true;m->processEntityScriptContents();assert(m->consumed.last()=="reentrant-new");
  m->stopping=false;m->deny=true;before=cache->pending.size();m->loadEntityScript("entity","one");assert(cache->pending.size()==before);
+ auto scope=std::make_shared<EntityScriptConsentScope>("origin");
+ auto one=std::make_shared<EntityScriptConsentRequest>(scope,"one",false);
+ auto two=std::make_shared<EntityScriptConsentRequest>(scope,"two",false);
+ auto other=std::make_shared<EntityScriptConsentRequest>(scope,"other",false);
+ m->_entityScriptConsentRequests["entity"]["one"]=one;
+ m->_entityScriptConsentRequests["entity"]["two"]=two;
+ m->_entityScriptConsentRequests["other"]["other"]=other;
+ m->unloadEntityScript("entity","one");assert(!one->active()&&two->active()&&other->active());
+ m->unloadAllEntityScriptsForEntity("entity");assert(!two->active()&&other->active());
+ m->unloadAllEntityScripts();assert(!other->active()&&m->_entityScriptConsentRequests.isEmpty());
+ assert(!cache->policies.contains(true));
  m->deny=false;m->loadEntityScript("entity","one");held=cache->pending.size()-1;m.reset();deliver(held,"destroyed");
+ auto client=std::make_shared<ScriptManager>(ScriptManager::ENTITY_CLIENT_SCRIPT);
+ client->_entityScriptConsentScope=std::make_shared<EntityScriptConsentScope>("client-world");
+ client->loadEntityScript("entity","approved-source");assert(cache->policies.last() && cache->lastScope==client->_entityScriptConsentScope);
+ deliver(cache->pending.size()-1,"approved-body");client->processEntityScriptContents();
+ assert(client->lastSource=="approved-source"&&client->consumed==QStringList{"approved-body"});
 }
