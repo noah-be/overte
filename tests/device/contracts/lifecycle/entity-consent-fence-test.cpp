@@ -109,6 +109,16 @@ int main(int argc, char** argv) {
     }
     {
         auto manager = std::make_shared<ScriptManager>(ScriptManager::ENTITY_CLIENT_SCRIPT);
+        const QString bundled = QStringLiteral("qrc:///serverless/Scripts/portal.js");
+        manager->loadEntityScript(entity, bundled, false);
+        auto approval = manager->_entityScriptConsentRequests.value(entity).value(bundled);
+        assert(approval && approval->allowed() && approval->origin() == "qrc:///");
+        assert(manager->afterLoadFence == 1);
+        manager->entityScriptContentAvailable(entity, bundled, "", true, true, "");
+        assert(manager->afterCallbackFence == 1);
+    }
+    {
+        auto manager = std::make_shared<ScriptManager>(ScriptManager::ENTITY_CLIENT_SCRIPT);
         auto scope = std::make_shared<EntityScriptConsentScope>("fixture-origin");
         std::vector<std::function<void(bool)>> decisions;
         assert(manager->bindEntityScriptConsent(scope, [&](const EntityItemID& id,
