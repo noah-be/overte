@@ -336,6 +336,11 @@ Rig::~Rig() {
 }
 
 void Rig::overrideAnimation(const QString& url, float fps, bool loop, float firstFrame, float lastFrame) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    qWarning() << "OVT_PHONE_TABLET_ANIM" << static_cast<int>(!!_animNode)
+        << static_cast<int>(_enabledAnimations) << static_cast<int>(!!_animSkeleton)
+        << static_cast<int>(fps) << static_cast<int>(lastFrame - firstFrame);
+#endif
 
     UserAnimState::ClipNodeEnum clipNodeEnum;
     if (_userAnimState.clipNodeEnum == UserAnimState::None || _userAnimState.clipNodeEnum == UserAnimState::B) {
