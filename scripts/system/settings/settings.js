@@ -16,6 +16,7 @@
 	var tablet;
 	var appButton;
 	var active = false;
+	var pendingPage = "";
 	const url = Script.resolvePath("./Settings.qml")
 
 	tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
@@ -49,16 +50,20 @@
 
 	function onMenuItemEvent(menuItem) {
 		if (menuItem === 'Graphics...') {
-			toolbarButtonClicked();
-			toQML({ type: 'loadPage', page: 'Graphics' })
+			if (active) {
+				toQML({ type: 'loadPage', page: 'Graphics' });
+			} else {
+				pendingPage = 'Graphics';
+				tablet.loadQMLSource(url);
+			}
 		}
 	}
 
 	function toolbarButtonClicked() {
-		if (active) tablet.gotoHomeScreen();
-		else tablet.loadQMLSource(url);
-
+		pendingPage = "";
 		active = !active;
+		if (active) tablet.loadQMLSource(url);
+		else tablet.gotoHomeScreen();
 		appButton.editProperties({
 			isActive: active,
 		});
@@ -68,6 +73,12 @@
 		if (url == newUrl) active = true;
 		else active = false;
 
+		if (active && pendingPage) {
+			var page = pendingPage;
+			pendingPage = "";
+			toQML({ type: "loadPage", page: page });
+		}
+
 		appButton.editProperties({
 			isActive: active,
 		});
@@ -75,7 +86,8 @@
 
 	// Communication
 	function fromQML(event) {
-		console.log(`New QML event:\n${JSON.stringify(event)}`);
+		// This signal is shared with other tablet pages; never log its payload.
+		if (!event || typeof event !== "object") { return; }
 
 		if (event.type === "switchApp") {
 			if (event.appUrl == "hifi/dialogs/GeneralPreferencesDialog.qml") {
