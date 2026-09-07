@@ -18,7 +18,11 @@ struct TestPaths {
 };
 #define QStandardPaths TestPaths
 #define Q_OS_IOS
+#if defined(OVERTE_TEST_SIMULATOR_OBSERVATION)
+#define OVERTE_IOS_WORLD_OBSERVATION_BUILD
+#else
 #define OVERTE_IOS_E2E_TEST_BUILD
+#endif
 #include "../render/InstallWorldObservation.cpp"
 #undef QStandardPaths
 

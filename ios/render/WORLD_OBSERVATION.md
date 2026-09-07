@@ -1,7 +1,9 @@
 # Full Client world observation
 
 The actual Overte target links `WorldObservation.cpp` and
-`InstallWorldObservation.cpp`. Only an iOS E2E build launched with the existing
+`InstallWorldObservation.cpp`. An iOS Full Client configured with
+`configure --client-graph --world-observations` (simulator or device), or an
+existing device E2E build, must also be launched with the existing
 `--ios-world-evidence` option installs the exporter. It samples once per second
 for at most ten minutes, stops on write failure, and publishes an inactive
 snapshot when the application leaves the foreground. It atomically replaces
@@ -31,7 +33,9 @@ shape. The real simulator smoke caller invokes it for supplementary diagnostics,
 including failure cleanup, outside the strict world evidence directory. It
 does not bypass or replace the legacy world validator, its waits, screenshots,
 candidate identity checks or five unaccepted migration guards. Ordinary
-non-E2E candidates have no exporter and remain explicitly unavailable.
+candidates without either build opt-in have no exporter and remain explicitly unavailable.
+The observation build switch defaults to OFF on every configure, including a
+reconfigure. It does not enable or relax the separate device-only E2E contract.
 
 Every sample says `OBSERVATION_NOT_ACCEPTANCE`,
 `EXTERNAL_CANDIDATE_REQUIRED` and `EXTERNAL_INSTALLED_CODE_REQUIRED`. The file

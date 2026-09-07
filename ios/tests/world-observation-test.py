@@ -13,6 +13,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 parser = argparse.ArgumentParser()
 parser.add_argument("--proposal-root", type=Path)
+parser.add_argument("--simulator-opt-in", action="store_true")
 args = parser.parse_args()
 spec = importlib.util.spec_from_file_location("inspect_world", ROOT / "ios/tools/inspect-world-observation.py")
 inspector = importlib.util.module_from_spec(spec)
@@ -35,7 +36,8 @@ with tempfile.TemporaryDirectory(prefix="ios-world-observation-") as temporary:
     # Keep system Qt/GCC warnings visible (GCC16 diagnoses Qt's incomplete QChar
     # SFINAE). They are not an iOS compiler result or an assertion exemption.
     subprocess.run(["c++", "-std=c++17", "-Wall", "-Wextra", "-fPIC",
-                    "-DOVERTE_IOS", "-I" + str(overlay / "libraries/shared/src"),
+                    "-DOVERTE_IOS", *(["-DOVERTE_TEST_SIMULATOR_OBSERVATION"] if args.simulator_opt_in else []),
+                    "-I" + str(overlay / "libraries/shared/src"),
                     str(overlay / "ios/render/WorldObservation.cpp"),
                     str(overlay / "ios/tests/world-observation-test.cpp"), *flags,
                     "-o", str(binary)], check=True, timeout=60)

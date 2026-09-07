@@ -4,7 +4,7 @@
 
 // No exporter in ordinary applications. The already supported explicit world
 // evidence launch flag additionally opts this E2E build into bounded recording.
-#if defined(Q_OS_IOS) && defined(OVERTE_IOS_E2E_TEST_BUILD)
+#if defined(Q_OS_IOS) && (defined(OVERTE_IOS_E2E_TEST_BUILD) || defined(OVERTE_IOS_WORLD_OBSERVATION_BUILD))
 #include <QCoreApplication>
 #include <QElapsedTimer>
 #include <QGuiApplication>
