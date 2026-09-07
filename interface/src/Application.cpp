@@ -1194,8 +1194,7 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         const auto evidenceGeneration = iosRuntimeEntityEvidenceGeneration();
         QTimer::singleShot(0, this, [this, viewpoint, path, requestGeneration, evidenceGeneration] {
             if (requestGeneration != _serverlessDomainRequestGeneration ||
-                    !evidenceGeneration ||
-                    evidenceGeneration != iosRuntimeEntityEvidenceGeneration()) {
+                    (evidenceGeneration && evidenceGeneration != iosRuntimeEntityEvidenceGeneration())) {
                 return;
             }
             const bool applied = DependencyManager::get<AddressManager>()->goToViewpointForPath(
