@@ -4,6 +4,7 @@
 #include "../../libraries/audio-client/src/IOSAudioPermission.h"
 #include <atomic>
 #include <functional>
+#include <mutex>
 
 namespace overte::ios {
 // Local native execution seam. Production uses AVAudioSession; tests substitute
@@ -14,7 +15,10 @@ public:
     virtual bool activate(bool capture, std::function<bool()> stillCurrent) = 0;
     virtual bool deactivate() = 0;
     virtual audio::Permission permission() = 0;
-    virtual void requestPermission(std::function<void(audio::Permission)> completion) = 0;
+    // Recheck on the native presentation queue before asking the OS. A skipped
+    // request must still complete (Unknown) to release the single pending slot.
+    virtual void requestPermission(std::function<bool()> stillCurrent,
+                                   std::function<void(audio::Permission)> completion) = 0;
 };
 
 class IOSAudioAdapter final : public audio::IOSAudioSessionAdapter,
@@ -34,11 +38,14 @@ public:
 private:
     bool apply(bool notify = true);
     void promptIfNeeded();
+    void invalidatePermissionRequest();
     std::shared_ptr<NativeAudioOperations> _native;
     audio::AudioLifecycleGate _gate;
     std::atomic<bool> _capture { false }, _promptRequested { false };
     std::atomic<bool> _permissionQueryFailed { false };
     std::atomic<audio::Permission> _permission { audio::Permission::Unknown };
     std::atomic<std::uint64_t> _revision { 0 };
+    std::mutex _permissionMutex;
+    std::uint64_t _pendingPermission { 0 }, _permissionEpoch { 0 };
 };
 } // namespace overte::ios

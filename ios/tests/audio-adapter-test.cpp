@@ -22,7 +22,9 @@ struct Native final : NativeAudioOperations {
         if (throwPermission) { throw std::runtime_error("synthetic permission fault"); }
         return granted;
     }
-    void requestPermission(std::function<void(Permission)> callback) override { completion = callback; }
+    void requestPermission(std::function<bool()>, std::function<void(Permission)> callback) override {
+        completion = callback;
+    }
 };
 int main() {
     auto native = std::make_shared<Native>();

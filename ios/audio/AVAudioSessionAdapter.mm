@@ -45,9 +45,15 @@ public:
         } @catch (NSException*) { return audio::Permission::Revoked; }
     }
 
-    void requestPermission(std::function<void(audio::Permission)> completion) override {
+    void requestPermission(std::function<bool()> stillCurrent,
+                           std::function<void(audio::Permission)> completion) override {
         dispatch_async(dispatch_get_main_queue(), ^{
             @try {
+                if (!stillCurrent() ||
+                        UIApplication.sharedApplication.applicationState != UIApplicationStateActive) {
+                    completion(audio::Permission::Unknown);
+                    return;
+                }
                 [AVAudioSession.sharedInstance requestRecordPermission:^(BOOL granted) {
                     logSharedDiagnostic(granted ? security::DiagnosticEvent::PermissionGranted
                                                 : security::DiagnosticEvent::PermissionDenied);

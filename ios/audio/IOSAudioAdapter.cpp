@@ -8,6 +8,7 @@ bool IOSAudioAdapter::apply(bool notify) {
     _capture = false;
     const auto failed = [this, notify, revision] {
         if (_revision != revision) { return false; } // superseded operation
+        invalidatePermissionRequest();
         _capture = false;
         _gate.fail();
         // v003: Failed is an observation requiring Qt containment, not a
@@ -52,6 +53,7 @@ void IOSAudioAdapter::refreshPermission() {
         const auto permission = _native->permission();
         _permissionQueryFailed = false;
         if (_permission.exchange(permission) != permission) {
+            invalidatePermissionRequest();
             _capture = false;
             _gate.permission(permission);
             apply();
@@ -63,6 +65,7 @@ void IOSAudioAdapter::refreshPermission() {
         // Gate reports Stopped before Failed when no start is requested, so
         // notification suppression cannot depend on its Outcome alone.
         if (!_permissionQueryFailed.exchange(true)) {
+            invalidatePermissionRequest();
             _gate.fail();
             apply(); // attempt bounded native stop before failure notification
         }
@@ -78,17 +81,52 @@ void IOSAudioAdapter::promptIfNeeded() {
     if (!_native || !_promptRequested || !_gate.mayActivate()) { return; }
     refreshPermission();
     if (_permission != audio::Permission::Unknown) { _promptRequested = false; return; }
-    const auto ticket = _gate.beginPermissionRequest();
-    if (!ticket || !_promptRequested.exchange(false)) { return; }
+    std::uint64_t ticket, epoch;
+    {
+        std::lock_guard<std::mutex> lock(_permissionMutex);
+        // Keep the slot until the native completion, even after cancellation:
+        // an already presented OS permission dialog cannot be dismissed here.
+        if (_pendingPermission || !_promptRequested.exchange(false)) { return; }
+        ticket = _gate.beginPermissionRequest();
+        if (!ticket) { return; }
+        _pendingPermission = ticket;
+        epoch = _permissionEpoch;
+    }
     std::weak_ptr<IOSAudioAdapter> weak = shared_from_this();
-    try {
-        _native->requestPermission([weak, ticket](audio::Permission permission) {
-            auto self = weak.lock();
-            if (!self || !self->_gate.completePermission(ticket, permission)) { return; }
+    auto completion = [weak, ticket, epoch](audio::Permission permission) {
+        auto self = weak.lock();
+        if (!self) { return; }
+        {
+            std::lock_guard<std::mutex> lock(self->_permissionMutex);
+            if (self->_pendingPermission != ticket) { return; }
+            self->_pendingPermission = 0;
+            if (self->_permissionEpoch != epoch ||
+                    !self->_gate.completePermission(ticket, permission)) { return; }
+            // A native queue cancellation is not a permission observation and
+            // must not activate audio while UIKit is becoming inactive.
+            if (permission == audio::Permission::Unknown) { return; }
             self->_permission = permission;
-            self->apply();
-        });
-    } catch (...) { _gate.fail(); _capture = false; apply(); }
+        }
+        self->apply();
+    };
+    try {
+        _native->requestPermission([weak, ticket, epoch] {
+            auto self = weak.lock();
+            if (!self) { return false; }
+            std::lock_guard<std::mutex> lock(self->_permissionMutex);
+            return self->_pendingPermission == ticket && self->_permissionEpoch == epoch &&
+                self->_permission == audio::Permission::Unknown && self->_gate.mayActivate();
+        }, completion);
+    } catch (...) {
+        invalidatePermissionRequest();
+        completion(audio::Permission::Unknown);
+        _gate.fail(); _capture = false; apply();
+    }
+}
+
+void IOSAudioAdapter::invalidatePermissionRequest() {
+    std::lock_guard<std::mutex> lock(_permissionMutex);
+    ++_permissionEpoch;
 }
 
 bool IOSAudioAdapter::activate() {
@@ -99,6 +137,7 @@ bool IOSAudioAdapter::activate() {
     return success && allowed;
 }
 bool IOSAudioAdapter::deactivate() {
+    invalidatePermissionRequest();
     _capture = false;
     _promptRequested = false;
     ++_revision;
@@ -121,6 +160,7 @@ void IOSAudioAdapter::routeChanged() {
     }
 }
 void IOSAudioAdapter::foreground(bool active) {
+    if (!active) { invalidatePermissionRequest(); }
     _capture = false;
     _gate.foreground(active);
     if (active) { refreshPermission(); }
@@ -128,6 +168,7 @@ void IOSAudioAdapter::foreground(bool active) {
     if (active) { promptIfNeeded(); }
 }
 void IOSAudioAdapter::interruption(bool began, bool shouldResume) {
+    if (began || !shouldResume) { invalidatePermissionRequest(); }
     _capture = false;
     _gate.interruption(began);
     if (!began && !shouldResume) { _gate.stop(); }
