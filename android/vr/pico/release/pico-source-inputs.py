@@ -109,7 +109,10 @@ def resolve(root, binding_path, expected_binding, expected_source):
         require((settings.get('os'), settings.get('arch')) ==
                 (('Android', 'armv8') if phase == 'target' else ('Linux', 'x86_64')), 'PICO_PACKAGE_ARCH')
         if phase == 'target':
-            require(settings.get('build_type') == 'Debug' and str(settings.get('os.api_level')) == '26', 'PICO_TARGET_PROFILE')
+            # Match the pinned profile's explicit WebRTC override and the
+            # bound GifCreator header-only recipe, which has no build_type.
+            build_type = {'webrtc-audio-processing': 'Release', 'gifcreator': None}.get(name, 'Debug')
+            require(settings.get('build_type') == build_type and str(settings.get('os.api_level')) == '26', 'PICO_TARGET_PROFILE')
         folder = Path(node['package_folder'])
         require(folder.is_absolute() and folder.is_relative_to(root), 'PICO_PACKAGE_PATH')
         return node, directory(path(folder.relative_to(root).as_posix()))
