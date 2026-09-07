@@ -167,7 +167,7 @@ jobs:
       qt_ios_artifact_prefix: ${{ inputs.qt_ios_artifact_prefix }}
       macos_runner: macos-26
       preserve_reusable_data: true
-      e2e_test_build: false
+      e2e_test_build: true
 
   fedora-e2e-producer:
     if: >-
