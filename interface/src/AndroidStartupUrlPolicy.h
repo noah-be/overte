@@ -23,11 +23,11 @@ enum class Destination {
 // This policy deliberately does not mutate first-run state. An explicit URL
 // selects only this launch; a later launch without one still gets the normal
 // first-run target.
-constexpr Destination selectDestination(bool firstRun, bool hasExplicitUrl,
-                                        bool hasFallbackAddress) {
+// AddressManager loads the saved address and supplies its default when unset.
+constexpr Destination selectDestination(bool firstRun, bool hasExplicitUrl) {
     return hasExplicitUrl
         ? Destination::ExplicitUrl
-        : (firstRun || !hasFallbackAddress
+        : (firstRun
             ? Destination::FirstRunOrDefault
             : Destination::SavedAddress);
 }

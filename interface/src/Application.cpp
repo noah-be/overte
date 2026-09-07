@@ -2182,13 +2182,6 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
 
     QString addressLookupString;
 
-#if defined(ANDROID_APP_PICO_INTERFACE)
-    // Ordinary Pico launches use the bundled tutorial. Explicit startup URLs
-    // still take precedence, as on the other Android targets.
-    static const QString PICO_DEFAULT_STARTUP_ADDRESS =
-        QStringLiteral("file:///~/serverless/tutorial.json");
-#endif
-
     // When --url is present on the command line, navigate to that location.
 #ifdef Q_OS_ANDROID
     const auto startupUrlScheme = _urlParam.scheme();
@@ -2215,12 +2208,6 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
         }
     }
 
-#if defined(ANDROID_APP_PICO_INTERFACE)
-    if (!hasExplicitAndroidStartupUrl) {
-        addressLookupString = PICO_DEFAULT_STARTUP_ADDRESS;
-    }
-#endif
-
     static const QString SENT_TO_PREVIOUS_LOCATION = "previous_location";
     static const QString SENT_TO_ENTRY = "entry";
 
@@ -2228,8 +2215,7 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
 
 #ifdef Q_OS_ANDROID
     const auto startupDestination = android::startup::selectDestination(
-        _firstRun.get(), hasExplicitAndroidStartupUrl,
-        !addressLookupString.isEmpty());
+        _firstRun.get(), hasExplicitAndroidStartupUrl);
     const bool useFirstRunOrDefaultAddress =
         startupDestination == android::startup::Destination::FirstRunOrDefault;
 #else
@@ -2248,25 +2234,14 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
             // Mobile builds ship a self-contained tutorial and may have no
             // entry-point setting yet (or retain an empty one from an older
             // install). Always choose the packaged, known-good location.
-#if defined(ANDROID_APP_PICO_INTERFACE)
-            qCInfo(interfaceapp) << "Pico startup: loading bundled tutorial"
-                << PICO_DEFAULT_STARTUP_ADDRESS;
-            DependencyManager::get<AddressManager>()->handleLookupString(
-                PICO_DEFAULT_STARTUP_ADDRESS);
-#else
             DependencyManager::get<AddressManager>()->handleLookupString(
                 NetworkingConstants::DEFAULT_OVERTE_ADDRESS);
-#endif
 #else
             DependencyManager::get<AddressManager>()->goToEntry();
 #endif
             sentTo = SENT_TO_ENTRY;
         } else {
-#if defined(ANDROID_APP_PICO_INTERFACE)
-            DependencyManager::get<AddressManager>()->handleLookupString(addressLookupString);
-#else
             DependencyManager::get<AddressManager>()->loadSettings(addressLookupString);
-#endif
             sentTo = SENT_TO_PREVIOUS_LOCATION;
         }
        _firstRun.set(false);
@@ -2282,13 +2257,7 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
             }
         }
         qCDebug(interfaceapp) << "Not first run... going to" << qPrintable(!goingTo.isEmpty() ? goingTo : addressLookupString);
-#if defined(ANDROID_APP_PICO_INTERFACE)
-        qCInfo(interfaceapp) << "Pico startup: navigating to startup world"
-            << addressLookupString;
-        DependencyManager::get<AddressManager>()->handleLookupString(addressLookupString);
-#else
         DependencyManager::get<AddressManager>()->loadSettings(addressLookupString);
-#endif
         sentTo = SENT_TO_PREVIOUS_LOCATION;
     }
 
