@@ -202,16 +202,17 @@ Windows.ScrollingWindow {
     // Flat-touch iOS keeps navigation visible on every Settings screen. These
     // are production controls; the E2E-only native bridge merely projects the
     // same frames and Accessible press actions into XCUITest.
-    Row {
+    footer: Row {
         id: semanticNavigation
+        // ScrollingWindow has a singular default `content` property, occupied
+        // by loader below. Its dedicated footer slot both parents navigation
+        // visibly and reserves space so it cannot cover the page's controls.
         z: 100000
         visible: Qt.platform.os === "ios" && tabletRoot.screenSpaceMode
             && tabletRoot.semanticSettingsScreen
         spacing: 12
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: 8
-        height: 56
+        height: visible ? 56 : 0
         property real buttonWidth: Math.max(80, Math.min(112,
             (tabletRoot.width - 2 * spacing - 16) / 3))
 
