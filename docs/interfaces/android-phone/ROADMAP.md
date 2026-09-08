@@ -1,6 +1,6 @@
 # Android Phone roadmap
 
-- **Priority:** NEXT, after `PICO-P1`
+- **Priority:** NOW; first product milestone
 - **Maturity:** Emulator-verified and build-ready; physical-device acceptance
   incomplete
 - **Last verified:** Host and x86_64 emulator evidence at `d22f491e9c`,
@@ -33,14 +33,12 @@ failure.
 
 ## Single next action
 
-After `PICO-P1` is complete or explicitly paused, name one available ARM64
-Android phone and run the physical-device baseline from an exact
-`android-phone` candidate revision, recording the first blocking failure.
+Resolve and recheck the remaining Phone acceptance blockers on an identified
+physical-device candidate, recording candidate-bound core-journey, text-input,
+and remote-audio evidence before final acceptance.
 
 ## Blockers
 
-- `PICO-P1` is the active product milestone and must complete or be explicitly
-  paused before Android Phone becomes the primary track.
 - Runtime evidence requires an authorized physical ARM64 Android phone; emulator
   evidence cannot satisfy `PHONE-P1`.
 
