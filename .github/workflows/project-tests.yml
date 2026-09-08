@@ -16,6 +16,8 @@ on:
       - android-vr-pico
       - "ci/**"
       - "test/**"
+    paths-ignore:
+      - "**/*.md"
   workflow_dispatch:
 
 permissions:
