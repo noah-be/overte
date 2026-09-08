@@ -16,6 +16,9 @@
 #include <CharacterController.h>
 //#include <SharedUtil.h>
 #include <PhysicsEngine.h>
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include "PhoneSpawnGate.h"
+#endif
 
 class btCollisionShape;
 class MyAvatar;
@@ -72,6 +75,18 @@ public:
     void setCollideWithOtherAvatars(bool collideWithOtherAvatars) { _collideWithOtherAvatars = collideWithOtherAvatars; }
 
     bool needsSafeLandingSupport() const;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    void beginSpawnHold();
+    bool isSpawnHeld() const { return _spawnGate.held(); }
+    // Called after preSimulation, on the physics thread, after entity transactions.
+    bool updateSpawnHold(bool physicsReady);
+    void playerStep(btCollisionWorld* world, btScalar dt) override;
+private:
+    bool hasSpawnSupport() const;
+    PhoneSpawnGate _spawnGate;
+    bool _spawnBodyHeld { false };
+    btVector3 _spawnLinearFactor { 1, 1, 1 };
+#endif
 
 protected:
     void initRayShotgun(const btCollisionWorld* world);

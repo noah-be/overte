@@ -1462,6 +1462,9 @@ void Application::resetPhysicsReadyInformation() {
     _gpuTextureMemSizeStabilityCount = 0;
     _gpuTextureMemSizeAtLastCheck = 0;
     _physicsEnabled = false;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    getMyAvatar()->getCharacterController()->beginSpawnHold();
+#endif
     _octreeProcessor->stopSafeLanding();
 }
 
@@ -3975,6 +3978,13 @@ void Application::update(float deltaTime) {
 
                 myAvatar->prepareForPhysicsSimulation();
                 myAvatar->getCharacterController()->preSimulation();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+                if (myAvatar->getCharacterController()->updateSpawnHold(_physicsEnabled)) {
+                    OffscreenUi::asyncWarning(tr("World entry paused"),
+                        tr("The ground at your destination is not ready. You are being held safely in place. "
+                           "Use Go To to retry or choose another destination."));
+                }
+#endif
             }
         }
         if (_physicsEnabled) {

@@ -760,6 +760,10 @@ void MyAvatar::update(float deltaTime) {
     if (_goToPending) {
         setWorldPosition(_goToPosition);
         setWorldOrientation(_goToOrientation);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        _characterController.beginSpawnHold();
+        setWorldVelocity(glm::vec3(0.0f));
+#endif
         _headControllerFacingMovingAverage = _headControllerFacing; // reset moving average
         _goToPending = false;
         // updateFromHMDSensorMatrix (called from paintGL) expects that the sensorToWorldMatrix is updated for any position changes
@@ -778,7 +782,11 @@ void MyAvatar::update(float deltaTime) {
         setWorldPosition(_goToPosition);
         _goToFeetAjustment = false;
     }
-    if (_physicsSafetyPending && qApp->isPhysicsEnabled() && _characterController.isEnabledAndReady()) {
+    if (_physicsSafetyPending && qApp->isPhysicsEnabled() && _characterController.isEnabledAndReady()
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+            && !_characterController.isSpawnHeld()
+#endif
+            ) {
         // When needed and ready, arrange to check and fix.
         _physicsSafetyPending = false;
         if (_goToSafe) {
@@ -2859,6 +2867,14 @@ void MyAvatar::nextAttitude(glm::vec3 position, glm::quat orientation) {
 }
 
 void MyAvatar::harvestResultsFromPhysicsSimulation(float deltaTime) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (_characterController.isSpawnHeld()) {
+        // Keep the requested transform authoritative, including while the
+        // normal safe-landing path and asynchronous collision shapes catch up.
+        setWorldVelocity(glm::vec3(0.0f));
+        return;
+    }
+#endif
     glm::vec3 position;
     glm::quat orientation;
     if (_characterController.isEnabledAndReady() && !(_characterController.needsSafeLandingSupport() || _goToPending)) {
