@@ -853,7 +853,13 @@ void Application::initialize(const QCommandLineParser &parser) {
     _window->setCentralWidget(_primaryWidget);
 #else
     _primaryWidget = new VKCanvas();
+#if defined(Q_OS_IOS)
+    // Parent before creating/showing native views: only MainWindow is a
+    // top-level window; the Vulkan surface remains its embedded child.
+    _vkWindowWrapper = QWidget::createWindowContainer(_vkWindow, _window);
+#else
     _vkWindowWrapper = QWidget::createWindowContainer(_vkWindow);
+#endif
     _vkWindowWrapper->setFocusProxy(_primaryWidget);
     _vkWindowWrapper->setFocusPolicy(Qt::StrongFocus);
     getApplicationCompositor().setRenderingWidget(_primaryWidget);

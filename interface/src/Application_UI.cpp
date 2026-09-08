@@ -1398,10 +1398,13 @@ void Application::pauseUntilLoginDetermined() {
     menu->setIsOptionChecked(MenuOption::Stats, picoStatsEnabled);
     qInfo() << "PICO_STATS_OVERLAY" << picoStatsEnabled;
 #elif defined(Q_OS_IOS)
-    const bool statsVisible = iosRuntimeDiagnosticBool("statsOverlay", true);
-    const bool statsExpanded = iosRuntimeDiagnosticBool("statsOverlayExpanded", true);
+    // Preserve the menu's build/user default unless diagnostics explicitly opt
+    // in or out. An absent diagnostic file must not enable Release overlays.
+    const bool statsVisible = iosRuntimeDiagnosticBool(
+        "statsOverlay", menu->isOptionChecked(MenuOption::Stats));
+    const bool statsExpanded = iosRuntimeDiagnosticBool("statsOverlayExpanded", false);
     menu->setIsOptionChecked(MenuOption::Stats, statsVisible);
-    // Show the useful compact panel immediately, but do not enter its broad
+    // When requested, show the compact panel without entering its broad
     // dependency walk while the renderer, picks, audio and world are still
     // being assembled.  Re-fetch the QML-owned singleton in the callback so a
     // temporary pre-QML Stats item can never be mutated after replacement.
@@ -1413,7 +1416,8 @@ void Application::pauseUntilLoginDetermined() {
     if (statsVisible && statsExpanded) {
         QTimer::singleShot(statsExpandDelayMs, this, [statsExpandDelayMs] {
             auto stats = Stats::getInstance();
-            if (!stats || !stats->parentItem()) {
+            if (!stats || !stats->parentItem() ||
+                    !Menu::getInstance()->isOptionChecked(MenuOption::Stats)) {
                 logIOSRuntimeMarker(
                     "OVERTE_IOS_STATS_GATE stage=expand-skipped",
                     "reason=stats-qml-not-ready",

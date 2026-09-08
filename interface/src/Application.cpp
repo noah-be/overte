@@ -276,8 +276,16 @@ Application::Application(
 #endif
 #else
     _vkWindow(new VKWindow()),
+#if defined(Q_OS_IOS)
+    // The render container is attached once, in Application::initialize.
+    // A parent container here leaves an extra native top-level window behind
+    // when setup reparents the Vulkan window into the central widget.
+    _vkWindowWrapper(nullptr),
+    _window(new MainWindow()),
+#else
     _vkWindowWrapper(QWidget::createWindowContainer(_vkWindow)),
     _window(new MainWindow(_vkWindowWrapper)),
+#endif
 #endif
     // Menu needs to be initialized before other initializers. Otherwise deadlock happens on qApp->getWindow()->menuBar().
     _isMenuInitialized(initMenu()),

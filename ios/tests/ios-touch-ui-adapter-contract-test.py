@@ -125,8 +125,8 @@ assert "Position:" in IOS_STATS
 assert "Present:" in IOS_STATS
 assert "Entities local/server:" in IOS_STATS
 assert "GPU memory tex/buf:" in IOS_STATS
-assert 'iosRuntimeDiagnosticBool("statsOverlay", true)' in APPLICATION_UI
-assert 'iosRuntimeDiagnosticBool("statsOverlayExpanded", true)' in APPLICATION_UI
+assert '"statsOverlay", menu->isOptionChecked(MenuOption::Stats)' in APPLICATION_UI
+assert 'iosRuntimeDiagnosticBool("statsOverlayExpanded", false)' in APPLICATION_UI
 assert '"statsOverlayExpandDelayMs", 5000, 0, 30000' in APPLICATION_UI
 assert "stage=expanded" in APPLICATION_UI
 assert "if (!nodeList || !avatarManager || !avatarManager->getMyAvatar())" in STATS_SOURCE
