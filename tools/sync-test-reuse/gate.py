@@ -258,7 +258,11 @@ def classify_event(event: dict, config: dict, api: GitHubApi) -> SyncRequest | N
         raise GateError("sync changes paths absent from the exact parent delta: " + ", ".join(unexpected[:10]))
     if branch_sha(api, repository, base) != current_base or branch_sha(api, repository, parent) != current_parent:
         raise GateError("target or parent head moved during topology validation")
-    doc_only = bool(changed) and all(path.endswith(".md") or path.startswith("docs/") for path in changed)
+    doc_only = bool(changed) and all(
+        item["filename"].endswith(".md")
+        and item.get("previous_filename", item["filename"]).endswith(".md")
+        for item in changed_documents
+    )
     return SyncRequest(
         repository=repository, repository_id=repository_id, number=number,
         base=base, base_sha=current_base, head=head, head_sha=head_sha,
@@ -426,11 +430,14 @@ def inspect(args: argparse.Namespace) -> int:
         write_outputs(args.output, {"classification": "ordinary", "mode": "ordinary"})
         return 0
     mode, reason, evidence_run = "reuse", "exact qualification accepted", ""
-    try:
-        evidence = verify_evidence(api, config, request)
-        evidence_run = str(evidence["workflow"]["run_id"])
-    except EvidenceError as error:
-        mode, reason = "fallback", str(error).replace("\n", " ")
+    if request.profile == "documentation":
+        reason = "documentation-only delta; no executable inputs require qualification"
+    else:
+        try:
+            evidence = verify_evidence(api, config, request)
+            evidence_run = str(evidence["workflow"]["run_id"])
+        except EvidenceError as error:
+            mode, reason = "fallback", str(error).replace("\n", " ")
     values = {
         "classification": request.classification,
         "mode": mode,
