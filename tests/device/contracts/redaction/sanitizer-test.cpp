@@ -23,7 +23,7 @@ int main() {
     }
     assert(std::string(sanitizeDiagnostic(nullptr,100))=="OVT_REDACTED");
     assert(std::string(diagnosticEvent(static_cast<DiagnosticEvent>(-1)))=="OVT_REDACTED");
-    for (int i=0;i<=static_cast<int>(DiagnosticEvent::WorldEmptyImported);++i) {
+    for (int i=0;i<=static_cast<int>(DiagnosticEvent::NativePaused);++i) {
         const char* safe=diagnosticEvent(static_cast<DiagnosticEvent>(i));
         assert(std::strlen(safe) <= 32);
         assert(std::string(sanitizeDiagnostic(safe,std::strlen(safe)))==safe);
