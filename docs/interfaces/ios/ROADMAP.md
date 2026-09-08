@@ -1,6 +1,6 @@
 # iPad and iOS roadmap
 
-- **Priority:** NEXT, after `PHONE-P1`
+- **Priority:** NEXT 2, after `PICO-P1`
 - **Maturity:** Simulator-verified bootstrap; integrated client experimental;
   physical-device acceptance incomplete
 - **Last verified:** Bootstrap and simulator evidence at `92c21c3b13`,
@@ -33,13 +33,13 @@ without a critical failure.
 
 ## Single next action
 
-After `PHONE-P1` is complete or explicitly paused, name one available iPad and
+After `PICO-P1` is complete or explicitly paused, name one available iPad and
 attempt a signed integrated-client build, installation, and launch from an
 exact `apple-ios` revision, recording the first blocking failure.
 
 ## Blockers
 
-- `PICO-P1` and then `PHONE-P1` have priority before iPad becomes the primary
+- `PHONE-P1` and then `PICO-P1` have priority before iPad becomes the primary
   product track.
 - The integrated client still has open Qt, V8, MoltenVK, rendering, multimedia,
   and native-dependency gates.
