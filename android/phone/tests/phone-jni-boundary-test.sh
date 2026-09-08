@@ -61,18 +61,14 @@ if awk '/PhoneInterfaceActivity_nativeSetE2eFlyingOverride/ { inside = 1 } insid
 fi
 printf 'PASS: E2E flying setup never blocks Android Activity startup\n'
 readonly phone_activity="$android_root/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java"
-if ! awk '
-        /setRequestedOrientation\(PhoneE2eLaunchState\.isActive\(\)/ { inside = 1 }
-        inside && /SCREEN_ORIENTATION_LANDSCAPE/ { found = 1; exit }
-        END { exit !found }
-    ' "$phone_activity"; then
-    printf 'FAIL: E2E Phone startup must hold the production virtual pad in landscape\n' >&2
+require "$phone_activity" \
+    'setRequestedOrientation\(ActivityInfo\.SCREEN_ORIENTATION_LANDSCAPE\)' \
+    'Production and E2E Phone startup use the same landscape orientation'
+if grep -q 'SCREEN_ORIENTATION_FULL_SENSOR' "$phone_activity"; then
+    printf 'FAIL: E2E cleanup must not re-enable unsupported Phone sensor rotation\n' >&2
     exit 1
 fi
-printf 'PASS: E2E Phone startup holds the production virtual pad in landscape\n'
-require "$phone_activity" \
-    'setRequestedOrientation\(ActivityInfo\.SCREEN_ORIENTATION_FULL_SENSOR\)' \
-    'E2E cleanup restores the normal adaptive Phone orientation'
+printf 'PASS: E2E cleanup preserves the landscape Phone policy\n'
 require "$my_avatar" \
     'phoneE2eFlyingEnabledOverrideActive\(\) \? false : _hoverWhenUnsupported' \
     'Phone E2E suppresses automatic hover without changing the stored preference'

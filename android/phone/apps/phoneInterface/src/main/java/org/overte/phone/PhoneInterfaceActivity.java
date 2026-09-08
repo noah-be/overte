@@ -189,12 +189,10 @@ public final class PhoneInterfaceActivity extends QtActivity
         // Prepare the framework-owned root path only. Keystore and credential
         // operations execute later through Shared, after JNI registration.
         SecureAccountStore.prepare(getApplicationContext());
-        // Establish adaptive sensor rotation before Qt creates its surface.
-        // Otherwise Qt 5 can retain the previous orientation's launch geometry
-        // after Android rotates the Activity.
-        setRequestedOrientation(PhoneE2eLaunchState.isActive()
-                ? ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                : ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR);
+        // Phone currently supports a fixed landscape viewport. Apply the same
+        // policy before Qt creates its surface in production and device tests.
+        // Sensor-driven portrait transitions can abort the native renderer.
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
 
         // QtActivityLoader appends its trusted applicationArguments extra. Do
         // not copy it into APPLICATION_PARAMETERS as that duplicates argv.
@@ -564,7 +562,6 @@ public final class PhoneInterfaceActivity extends QtActivity
             e2eFlyingOverrideRetryAttempts = 0;
             if (mode == PhoneE2eLaunchState.RESTORE_STORED_PREFERENCE) {
                 PhoneE2eLaunchState.finishRestore();
-                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR);
             }
             return;
         }
