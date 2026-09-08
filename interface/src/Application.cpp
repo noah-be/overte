@@ -1088,12 +1088,12 @@ bool Application::prepareServerlessDomainContents(const QUrl& domainURL, const Q
 #if defined(ANDROID_APP_PICO_INTERFACE)
     const auto importedEntities = tmpTree->sendEntities(
         _entityEditSender.get(), getEntities()->getTree(), "domain", 0, 0, 0);
-    // Temporary device diagnosis: fixed scene labels avoid logging private URLs;
-    // warning severity remains visible when verbose informational logs are off.
+    Q_UNUSED(importedEntities);
     const bool isTutorial = PathUtils::expandToLocalDataAbsolutePath(domainURL) ==
         PathUtils::expandToLocalDataAbsolutePath(QUrl(NetworkingConstants::DEFAULT_OVERTE_ADDRESS));
-    qWarning() << "PICO_WORLD_DIAGNOSTIC imported"
-        << "tutorial" << isTutorial << "entities" << importedEntities.size();
+    qWarning("%s", overte::security::diagnosticEvent(isTutorial
+        ? overte::security::DiagnosticEvent::WorldTutorialImported
+        : overte::security::DiagnosticEvent::WorldOtherImported));
 #else
     tmpTree->sendEntities(_entityEditSender.get(), getEntities()->getTree(), "domain", 0, 0, 0);
 #endif
@@ -1144,6 +1144,8 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         QFile domainFile(localDomainURL.toLocalFile());
         if (!domainFile.open(QIODevice::ReadOnly)) {
             _picoServerlessLoadFailed = true;
+            qWarning("%s", overte::security::diagnosticEvent(
+                overte::security::DiagnosticEvent::WorldImportFailed));
             qCWarning(interfaceapp) << "PICO_SERVERLESS_TRACE localOpenFailed"
                 << localDomainURL << domainFile.errorString();
             return;
@@ -1158,6 +1160,8 @@ void Application::loadServerlessDomain(QUrl domainURL) {
             _picoServerlessSceneURL = QUrl();
             finishPicoServerlessImport();
             _picoServerlessLoadFailed = true;
+            qWarning("%s", overte::security::diagnosticEvent(
+                overte::security::DiagnosticEvent::WorldImportFailed));
             qCWarning(interfaceapp) << "PICO_SERVERLESS_TRACE localParseFailed"
                 << localDomainURL;
             return;
@@ -1220,6 +1224,8 @@ void Application::loadServerlessDomain(QUrl domainURL) {
                 _picoServerlessSceneURL = QUrl();
                 finishPicoServerlessImport();
                 _picoServerlessLoadFailed = true;
+            qWarning("%s", overte::security::diagnosticEvent(
+                overte::security::DiagnosticEvent::WorldImportFailed));
 #endif
                 qCWarning(interfaceapp) << "PICO_SERVERLESS_TRACE requestParseFailed"
                     << domainURL;
@@ -1256,6 +1262,8 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         } else {
 #if defined(ANDROID_APP_PICO_INTERFACE)
             _picoServerlessLoadFailed = true;
+            qWarning("%s", overte::security::diagnosticEvent(
+                overte::security::DiagnosticEvent::WorldImportFailed));
 #endif
         }
         request->deleteLater();
@@ -2140,6 +2148,10 @@ void Application::nodeKilled(SharedNodePointer node) {
 }
 
 void Application::handleSandboxStatus(QNetworkReply* reply) {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    qWarning("%s", overte::security::diagnosticEvent(
+        overte::security::DiagnosticEvent::WorldStartup));
+#endif
     PROFILE_RANGE(render, __FUNCTION__);
 
     bool sandboxIsRunning = SandboxUtils::readStatus(reply->readAll());
@@ -4331,10 +4343,8 @@ void Application::tryToEnablePhysics() {
             _octreeProcessor->resetSafeLanding();
             _physicsEnabled = true;
 #if defined(ANDROID_APP_PICO_INTERFACE)
-            // Position is sampled at actual physics activation, not inferred
-            // from the startup URL or an elapsed loading-screen timeout.
-            qWarning() << "PICO_WORLD_DIAGNOSTIC physics_enabled"
-                << "position" << myAvatar->getWorldPosition();
+            qWarning("%s", overte::security::diagnosticEvent(
+                overte::security::DiagnosticEvent::WorldPhysicsReady));
 #endif
 #if defined(ANDROID_APP_PICO_INTERFACE)
             if (enableInterstitial && _graphicsEngine) {
