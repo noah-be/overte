@@ -6,6 +6,11 @@ import "./qml/pages"
 
 Rectangle {
     signal sendToScript(var message);
+    function handleTabletBack() {
+        if (currentPage === "Settings") { return false; }
+        currentPage = "Settings";
+        return true;
+    }
 	readonly property string semanticScreenId: currentPage === "Settings"
 		? "settings.home" : currentPage === "Graphics" ? "settings.graphics" : ""
 	objectName: semanticScreenId

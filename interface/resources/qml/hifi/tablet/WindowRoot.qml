@@ -28,6 +28,7 @@ Windows.ScrollingWindow {
     property string subMenu: ""
     property var tabletProxy: Tablet.getTablet("com.highfidelity.interface.tablet.system")
     property var semanticSourceHistory: []
+    property string semanticBackTarget: ""
     HifiControls.TouchUiProfile { id: touchUiProfile }
     property bool screenSpaceMode: false
     property real screenSpaceContentScale: touchUiProfile.screenSpaceContentScale
@@ -129,22 +130,41 @@ Windows.ScrollingWindow {
     }
 
     function loadSource(url) {
+        var restoringPrevious = semanticBackTarget !== "" && semanticBackTarget === url
+        semanticBackTarget = ""
         if (url === "hifi/tablet/TabletHome.qml") {
             semanticSourceHistory = []
-        } else if (loader.source !== "" && loader.source !== url) {
+        } else if (!restoringPrevious && loader.source !== "" && loader.source !== url) {
             semanticSourceHistory = semanticSourceHistory.concat([loader.source])
         }
         loader.load(url)
     }
 
     function returnToPreviousSemanticScreen() {
+        if (semanticBackTarget !== "") { return true }
+        if (loader.item && typeof loader.item.handleTabletBack === "function"
+                && loader.item.handleTabletBack() === true) {
+            return true
+        }
+        if (loader.source === "hifi/tablet/TabletHome.qml") {
+            tabletProxy.hideAndroidTablet()
+            return true
+        }
         if (semanticSourceHistory.length === 0) {
             tabletProxy.gotoHomeScreen()
-            return
+            return true
         }
         var previous = semanticSourceHistory[semanticSourceHistory.length - 1]
         semanticSourceHistory = semanticSourceHistory.slice(0, -1)
-        loader.load(previous)
+        semanticBackTarget = previous
+        // Use the proxy so its current source/state and screenChanged clients
+        // agree with the page shown by the loader after Back.
+        if (previous === "hifi/tablet/TabletHome.qml") {
+            tabletProxy.gotoHomeScreen()
+        } else {
+            tabletProxy.loadQMLSource(previous)
+        }
+        return true
     }
 
     function loadWebContent(source, url, injectJavaScriptUrl) {
@@ -199,7 +219,7 @@ Windows.ScrollingWindow {
     readonly property bool semanticBackUsesSettingsHeader:
         loader.source.indexOf("scripts/system/settings/Settings.qml") !== -1
 
-    // Flat-touch iOS keeps navigation visible on every Settings screen. These
+    // Flat-touch iOS keeps navigation visible on every non-home QML screen. These
     // are production controls; the E2E-only native bridge merely projects the
     // same frames and Accessible press actions into XCUITest.
     footer: Row {
@@ -209,7 +229,7 @@ Windows.ScrollingWindow {
         // visibly and reserves space so it cannot cover the page's controls.
         z: 100000
         visible: Qt.platform.os === "ios" && tabletRoot.screenSpaceMode
-            && tabletRoot.semanticSettingsScreen
+            && loader.source !== "" && loader.source !== "hifi/tablet/TabletHome.qml"
         spacing: 12
         anchors.horizontalCenter: parent.horizontalCenter
         height: visible ? 56 : 0
@@ -230,7 +250,7 @@ Windows.ScrollingWindow {
             Accessible.role: Accessible.Button
             Accessible.name: qsTr("Back")
             Accessible.onPressAction: activate()
-            function activate() { tabletRoot.returnToPreviousSemanticScreen() }
+            function activate() { tabletProxy.handleAndroidTabletBack() }
             Text {
                 anchors.centerIn: parent
                 text: qsTr("BACK")

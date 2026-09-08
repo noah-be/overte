@@ -31,6 +31,11 @@ Rectangle {
     color: hifi.colors.baseGray;
     
     property string title: "Security Settings";
+    function handleTabletBack() {
+        if (!helpDialog.visible) { return false; }
+        helpDialog.close();
+        return true;
+    }
 
     QuickControls.Dialog {
         id: helpDialog

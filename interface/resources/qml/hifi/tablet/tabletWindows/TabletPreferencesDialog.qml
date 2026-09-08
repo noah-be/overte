@@ -92,6 +92,16 @@ Item {
         tablet.gotoHomeScreen();
     }
 
+    function handleTabletBack() {
+        // Match Cancel's restoration before the host returns to the previous
+        // page; navigating back must not silently retain unsaved preferences.
+        for (var i = 0; i < sections.length; ++i) {
+            sections[i].restoreAll();
+        }
+        keyboard.raised = false;
+        return false;
+    }
+
     function closeDialog() {
         var tablet = Tablet.getTablet("com.highfidelity.interface.tablet.system");
 

@@ -771,7 +771,16 @@ bool TabletProxy::handleAndroidTabletBack() {
     }
     if (isMessageDialogOpen()) {
         closeDialog();
-    } else if (_state != State::Home) {
+        return true;
+    }
+    if (_desktopWindow && _desktopWindow->asQuickItem()) {
+        QVariant handled;
+        if (QMetaObject::invokeMethod(_desktopWindow->asQuickItem(), "returnToPreviousSemanticScreen",
+                Q_RETURN_ARG(QVariant, handled)) && handled.toBool()) {
+            return true;
+        }
+    }
+    if (_state != State::Home) {
         // The screen-space host is already visible and correctly inset. Only
         // replace its content; passing its reduced size back through
         // the presenter entry point would apply the safety inset a second time and

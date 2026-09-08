@@ -83,6 +83,10 @@ FocusScope {
         menuPopperUpper.closeLastMenu();
     }
 
+    function handleTabletBack() {
+        return menuPopperUpper.closeLastMenu();
+    }
+
     function setRootMenu(rootMenu, subMenu) {
         tabletMenu.subMenu = subMenu;
         tabletMenu.rootMenu = rootMenu;
