@@ -1,3 +1,6 @@
+#if defined(ANDROID_APP_PICO_INTERFACE)
+#include "PicoQtVisibility.h"
+#endif
 //
 //  Application_Setup.cpp
 //  interface/src
@@ -464,7 +467,11 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     DependencyManager::set<recording::Recorder>();
     DependencyManager::set<AddressManager>();
     DependencyManager::set<NodeList>(NodeType::Agent, listenPort);
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    overte::lifecycle::observeQtVisibility(overte::pico::qtVisible(QGuiApplication::applicationState()));
+#else
     overte::lifecycle::observeQtVisibility(QGuiApplication::applicationState() == Qt::ApplicationActive);
+#endif
     DependencyManager::set<recording::ClipCache>();
     DependencyManager::set<GeometryCache>();
     DependencyManager::set<ModelFormatRegistry>(); // ModelFormatRegistry must be defined before ModelCache. See the ModelCache constructor.

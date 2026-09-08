@@ -15,6 +15,9 @@
 
 #include "Application.h"
 #include "ApplicationLifecycle.h"
+#if defined(ANDROID_APP_PICO_INTERFACE)
+#include "PicoQtVisibility.h"
+#endif
 #include "../../security/redaction/SafeDiagnostics.h"
 
 #include <QtCore/QMimeData>
@@ -316,7 +319,11 @@ void publishClientVisibility(bool native, bool foreground) {
         }, Qt::QueuedConnection);
         return;
     }
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    static overte::pico::VisibilityInputs inputs;
+#else
     static overte::lifecycle::VisibilityInputs inputs;
+#endif
     const bool requested = native ? inputs.observeNative(foreground) : inputs.observeQt(foreground);
     const bool effective = overte::lifecycle::applicationGate().visible(requested).snapshot.foreground;
     // Native callbacks may precede setupEssentials. Do not create dependencies
@@ -354,16 +361,28 @@ void publishClientVisibility(bool native, bool foreground) {
 } // namespace
 
 void overte::lifecycle::observeQtVisibility(bool foreground) {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    qWarning("%s", overte::security::diagnosticEvent(foreground
+        ? overte::security::DiagnosticEvent::QtVisible : overte::security::DiagnosticEvent::QtHidden));
+#endif
     publishClientVisibility(false, foreground);
 }
 
 void overte::lifecycle::observeNativeVisibility(bool foreground) {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    qWarning("%s", overte::security::diagnosticEvent(foreground
+        ? overte::security::DiagnosticEvent::NativeResumed : overte::security::DiagnosticEvent::NativePaused));
+#endif
     publishClientVisibility(true, foreground);
 }
 
 void Application::activeChanged(Qt::ApplicationState state) {
     if (state != Qt::ApplicationActive) { invalidateEntityScriptConsent(); }
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    overte::lifecycle::observeQtVisibility(overte::pico::qtVisible(state));
+#else
     overte::lifecycle::observeQtVisibility(state == Qt::ApplicationActive);
+#endif
     switch (state) {
         case Qt::ApplicationActive:
             _isForeground = true;
