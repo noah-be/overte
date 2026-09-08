@@ -19,6 +19,17 @@ def preprocess(source, *defines):
         input=source, text=True, capture_output=True, check=True, timeout=15).stdout
 
 
+# Compile the production iOS readiness dispatch, retaining the old non-iOS
+# workaround branch. The Qt callback must be deferred and lifetime-bound.
+offscreen = read('libraries/ui/src/OffscreenUi.cpp')
+focus_start = offscreen.index('#if !defined(Q_OS_IOS)\n        auto keyboardFocus')
+focus_end = offscreen.index('\n    });', focus_start)
+focus = offscreen[focus_start:focus_end]
+ios_focus = preprocess(focus, 'Q_OS_IOS')
+assert 'KeyboardFocusHack' not in ios_focus
+assert 'new KeyboardFocusHack()' in preprocess(focus)
+assert ios_focus.index('emit desktopReady();') < ios_focus.index('QTimer::singleShot')
+ready_dispatch = ios_focus.split('emit desktopReady();', 1)[1]
 app = read('interface/src/Application.cpp')
 setup = read('interface/src/Application_Setup.cpp')
 ui = read('interface/src/Application_UI.cpp')
@@ -47,9 +58,16 @@ cpp = r'''
 #include <QMainWindow>
 #include <QWindow>
 #include <QJsonObject>
+#include <QTimer>
 #include <cassert>
 #include <iostream>
 using MainWindow = QMainWindow;
+struct Ready : QObject {
+    int& count;
+    Ready(int& value) : count(value) {}
+    void keyboardFocusActive() { ++count; }
+    void dispatch() { READY_DISPATCH }
+};
 struct Host {
     QWindow* _vkWindow;
     QWidget* _vkWindowWrapper;
@@ -80,6 +98,14 @@ void check(bool checked, bool expectedVisible, bool expectedExpanded) {
 }
 int main(int argc, char** argv) {
     QApplication application(argc, argv);
+    int readyCount = 0;
+    const auto windowCount = QGuiApplication::allWindows().size();
+    { Ready ready(readyCount); ready.dispatch(); assert(readyCount == 0);
+      application.processEvents(); assert(readyCount == 1);
+      application.processEvents(); assert(readyCount == 1); }
+    auto cancelled = new Ready(readyCount); cancelled->dispatch(); delete cancelled;
+    application.processEvents(); assert(readyCount == 1);
+    assert(QGuiApplication::allWindows().size() == windowCount);
     assert(!releaseDefault() && debugDefault() && !picoDefault() && desktopDefault());
     check(releaseDefault(), false, false);
     check(debugDefault(), true, false);
@@ -114,10 +140,10 @@ int main(int argc, char** argv) {
         assert(host._vkWindowWrapper->isVisible());
     }
     assert(QApplication::topLevelWidgets().isEmpty());
-    std::cout << "PASS: production stats defaults/overrides; old extra window reproduced; single owned visible container and cleanup\n";
+    std::cout << "PASS: production stats defaults/overrides; old extra window reproduced; single owned visible container and cleanup; deferred/lifetime-bound iOS focus readiness without extra window\n";
 }
 '''
-for key, value in {'INITIALIZERS': init, 'CONTAINER': container, 'GETTER': getter,
+for key, value in {'READY_DISPATCH': ready_dispatch, 'INITIALIZERS': init, 'CONTAINER': container, 'GETTER': getter,
                    'POLICY': policy, 'RELEASE': defaults['release'],
                    'DEBUG_DEFAULT': defaults['debug'], 'PICO': defaults['pico'],
                    'DESKTOP': defaults['desktop']}.items():

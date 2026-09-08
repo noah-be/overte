@@ -784,6 +784,7 @@ void OffscreenUi::setNavigationFocused(bool focused) {
 // during the process of the main window losing and then gaining focus, but failing that, here's a
 // brute force way of triggering that state change at application start in a way that should be nearly
 // imperceptible to the user.
+#if !defined(Q_OS_IOS)
 class KeyboardFocusHack : public QObject {
     Q_OBJECT
 public:
@@ -813,6 +814,7 @@ private:
     QWindow* const _mainWindow { MainWindow::findMainWindow() };
     QWindow* _window { nullptr };
 };
+#endif
 
 void OffscreenUi::createDesktop(const QUrl& url) {
     if (_desktop) {
@@ -834,10 +836,20 @@ void OffscreenUi::createDesktop(const QUrl& url) {
         auto toolbarScriptingInterface = DependencyManager::get<ToolbarScriptingInterface>();
         connect(_desktop, SIGNAL(toolbarVisibleChanged(bool, QString)), toolbarScriptingInterface.data(), SIGNAL(toolbarVisibleChanged(bool, QString)));
 
+#if !defined(Q_OS_IOS)
         auto keyboardFocus = new KeyboardFocusHack();
+#endif
         connect(_desktop, SIGNAL(showDesktop()), this, SIGNAL(showDesktop()));
         emit desktopReady();
+#if defined(Q_OS_IOS)
+        // iOS routes native editor focus through focusTextChanged. Opening a
+        // temporary top-level window steals UIKit focus and flashes at startup.
+        // Keep the asynchronous readiness signal for existing consumers without
+        // activating another window or changing keyboard/settings policy.
+        QTimer::singleShot(0, this, [this] { emit keyboardFocusActive(); });
+#else
         connect(keyboardFocus, SIGNAL(keyboardFocusActive()), this, SIGNAL(keyboardFocusActive()));
+#endif
     });
 }
 
