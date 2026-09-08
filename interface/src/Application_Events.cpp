@@ -15,6 +15,7 @@
 
 #include "Application.h"
 #include "ApplicationLifecycle.h"
+#include "../../security/redaction/SafeDiagnostics.h"
 
 #include <QtCore/QMimeData>
 #include <QtCore/QCoreApplication>
@@ -329,6 +330,26 @@ void publishClientVisibility(bool native, bool foreground) {
     if (DependencyManager::isSet<DomainAccountManager>()) {
         DependencyManager::get<DomainAccountManager>()->setClientAuthVisibility(effective);
     }
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    static int lastReportedVisibility = -1;
+    if (lastReportedVisibility != static_cast<int>(effective)) {
+        lastReportedVisibility = static_cast<int>(effective);
+        qWarning("%s", overte::security::diagnosticEvent(effective
+            ? overte::security::DiagnosticEvent::LifecycleResumed
+            : overte::security::DiagnosticEvent::LifecycleSuspended));
+    }
+    if (effective && app->property("picoPendingStartupNavigation").toBool()) {
+        // Queue after all visibility consumers have observed the new state.
+        // QObject context cancels this continuation on application destruction.
+        QMetaObject::invokeMethod(app, [app] {
+            if (app->property("picoPendingStartupNavigation").toBool() &&
+                    overte::lifecycle::applicationGate().snapshot().foreground) {
+                QMetaObject::invokeMethod(app, "handleSandboxStatus", Qt::DirectConnection,
+                    Q_ARG(QNetworkReply*, nullptr));
+            }
+        }, Qt::QueuedConnection);
+    }
+#endif
 }
 } // namespace
 

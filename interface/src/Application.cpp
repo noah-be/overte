@@ -2164,7 +2164,22 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
 #endif
     PROFILE_RANGE(render, __FUNCTION__);
 
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    // The first native/Qt foreground observations can arrive after startup UI
+    // completion. Do not consume firstRun or lose the selected address while
+    // AddressManager still rejects navigation. Replay this one initial decision
+    // only after the existing combined visibility gate admits it.
+    const bool sandboxIsRunning = reply ? SandboxUtils::readStatus(reply->readAll())
+        : property("picoPendingStartupSandboxRunning").toBool();
+    if (!overte::lifecycle::applicationGate().snapshot().foreground) {
+        setProperty("picoPendingStartupSandboxRunning", sandboxIsRunning);
+        setProperty("picoPendingStartupNavigation", true);
+        return;
+    }
+    setProperty("picoPendingStartupNavigation", false);
+#else
     bool sandboxIsRunning = SandboxUtils::readStatus(reply->readAll());
+#endif
 
     enum HandControllerType {
         Vive,
