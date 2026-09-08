@@ -4,10 +4,10 @@
 > This roadmap describes an unofficial, AI-assisted hobby fork. It is not an
 > Overte project commitment or a statement of official platform support.
 
-- **Updated:** 2026-09-03
+- **Updated:** 2026-09-08
 - **Repository baseline:** Session 53X final-state documentation and mandatory
   4 + 3 + 1 forward propagation
-- **Current primary milestone:** `PICO-P1`
+- **Current primary milestone:** `PHONE-P1`
 - **Current maintenance milestone:** `R0`
 
 ## North star
@@ -42,28 +42,31 @@ complete desktop parity, or a promise of support to other users.
 
 ## NOW
 
-### PICO-P1 — Pico 4 personal alpha
+### PHONE-P1 — Android Phone personal alpha
 
 **Goal:** Meet the common personal-alpha definition on one explicitly named
-Pico 4, including worn-headset rendering, controllers, interaction, audio,
-lifecycle, and thermal behavior.
+physical Android phone, including touch navigation, tablet and text input,
+audio, lifecycle, and thermal behavior before expanding the hardware matrix.
 
 The detailed exit criteria and evidence boundary are authoritative on the
-`android-vr-pico` product branch.
+`android-phone` product branch and the
+[PHONE-P1 milestone](https://github.com/noah-be/overte/milestone/2).
 
-**Single next action:** Install the APK from the current candidate revision on
-one explicitly selected Pico 4 and run the documented core-journey baseline,
-recording the first blocking failure.
+**Single next action:** Resolve and recheck the remaining Phone acceptance
+blockers on an identified physical-device candidate, recording candidate-bound
+core-journey, text-input, and remote-audio evidence before final acceptance.
 
 ## NEXT
 
-1. **PHONE-P1 — Android Phone personal alpha.** After `PICO-P1`, meet the
-   common definition on one explicitly named physical Android phone before
-   expanding the hardware matrix.
-2. **IOS-P1 — iPad personal alpha.** After `PHONE-P1`, reconcile the documented
+1. **PICO-P1 — Pico 4 personal alpha.** After `PHONE-P1`, meet the common
+   definition on one explicitly named Pico 4, including worn-headset rendering,
+   controllers, interaction, audio, lifecycle, and thermal behavior. See the
+   [PICO-P1 milestone](https://github.com/noah-be/overte/milestone/1) and the
+   detailed exit criteria on `android-vr-pico`.
+2. **IOS-P1 — iPad personal alpha.** After `PICO-P1`, reconcile the documented
    bootstrap boundary with the integrated client, then meet the common
    definition on one explicitly named physical iPad. iPhone coverage follows
-   later.
+   later. See the [IOS-P1 milestone](https://github.com/noah-be/overte/milestone/3).
 
 ## MAINTENANCE
 
@@ -116,9 +119,9 @@ does not imply that a target is actively being developed.
 | Interface or area | Priority | Current maturity | Development branch | Last reviewed evidence | Next gate |
 | --- | --- | --- | --- | --- | --- |
 | Repository baseline | MAINTENANCE | Structurally verified; remote cleanup complete | `main` | Session 53X: 9 branches, 143 tags, policy/security audits and device-free checks | Preserve the verified baseline |
-| Pico 4 | NOW | Host-verified and build-ready; device acceptance incomplete | `android-vr-pico` | Session 53X device-free contracts and selective fixes | `PICO-P1` |
-| Android phones | NEXT 1 | Host-verified and build-ready; physical-device coverage incomplete | `android-phone` | Session 53X device-free contracts and selective fixes | `PHONE-P1` after Pico |
-| iPhone and iPad | NEXT 2 | Host-verified bootstrap; integrated client experimental | `apple-ios` | Session 53X device-free contracts and selective fixes | `IOS-P1` after Android Phone |
+| Android phones | NOW | Host-verified and build-ready; physical-device coverage incomplete | `android-phone` | Session 53X device-free contracts and selective fixes | `PHONE-P1` |
+| Pico 4 | NEXT 1 | Host-verified and build-ready; device acceptance incomplete | `android-vr-pico` | Session 53X device-free contracts and selective fixes | `PICO-P1` after Android Phone |
+| iPhone and iPad | NEXT 2 | Host-verified bootstrap; integrated client experimental | `apple-ios` | Session 53X device-free contracts and selective fixes | `IOS-P1` after Pico |
 | macOS | ARCHIVED | Historical hosted Intel evidence; never accepted on owned physical hardware | `archive/apple-macos-2026-08-28` | Protected archival tag verified 2026-09-03 | None; not a project target |
 | Meta Quest | ARCHIVED | Historical experimental code; never accepted on physical hardware | `archive/android-vr-quest-2026-08-28` | Protected archival tag verified 2026-09-03 | None; not a project target |
 | Linux desktop | OUT OF SCOPE product; E2E MAINTENANCE | Inherited client baseline; dedicated adapter branch retained | `linux-main` | Session 53X policy and topology checks | Repeatable Linux `e2e-core` target evidence |
