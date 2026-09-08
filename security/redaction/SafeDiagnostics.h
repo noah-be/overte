@@ -9,7 +9,7 @@ enum class DiagnosticEvent {
     StorageCorrupt, StorageCleared, PermissionDenied, PermissionGranted,
     AudioStopped, AudioInterrupted, LifecycleSuspended, LifecycleResumed,
     ConnectionFailed, ConnectionReady, UrlRejected, CallbackDiscarded,
-    WorldStartup, WorldTutorialImported, WorldOtherImported, WorldImportFailed, WorldPhysicsReady, WorldFrameSubmitted
+    WorldStartup, WorldTutorialImported, WorldOtherImported, WorldImportFailed, WorldPhysicsReady, WorldFrameSubmitted, WorldTutorialSelected, WorldRedirectImported, WorldNavigationBlocked, WorldEmptyImported
 };
 
 inline const char* diagnosticEvent(DiagnosticEvent event) noexcept {
@@ -37,6 +37,10 @@ inline const char* diagnosticEvent(DiagnosticEvent event) noexcept {
         case DiagnosticEvent::WorldImportFailed: return "OVT_WORLD_IMPORT_FAILED";
         case DiagnosticEvent::WorldPhysicsReady: return "OVT_WORLD_PHYSICS_READY";
         case DiagnosticEvent::WorldFrameSubmitted: return "OVT_WORLD_FRAME_SUBMITTED";
+        case DiagnosticEvent::WorldTutorialSelected: return "OVT_WORLD_TUTORIAL_SELECTED";
+        case DiagnosticEvent::WorldRedirectImported: return "OVT_WORLD_REDIRECT_IMPORTED";
+        case DiagnosticEvent::WorldNavigationBlocked: return "OVT_WORLD_NAVIGATION_BLOCKED";
+        case DiagnosticEvent::WorldEmptyImported: return "OVT_WORLD_EMPTY_IMPORTED";
         default: return "OVT_REDACTED";
     }
 }
@@ -45,7 +49,7 @@ inline const char* diagnosticEvent(DiagnosticEvent event) noexcept {
 // is a static constant, independent of input lifetime. No dynamic configuration.
 inline const char* sanitizeDiagnostic(const char* bytes, std::size_t size) noexcept {
     if (!bytes || size > 32) { return diagnosticEvent(DiagnosticEvent::Redacted); }
-    for (int i = 0; i <= static_cast<int>(DiagnosticEvent::WorldFrameSubmitted); ++i) {
+    for (int i = 0; i <= static_cast<int>(DiagnosticEvent::WorldEmptyImported); ++i) {
         const char* safe = diagnosticEvent(static_cast<DiagnosticEvent>(i));
         if (std::strlen(safe) == size && std::memcmp(bytes, safe, size) == 0) { return safe; }
     }
