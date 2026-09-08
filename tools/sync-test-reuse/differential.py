@@ -61,7 +61,7 @@ def required_roots(root: Path, profile: str, changed: list[str]) -> None:
     if profile not in PROFILES:
         raise ValueError(f"unknown differential profile: {profile}")
     if profile == "documentation":
-        if any(not (path.endswith(".md") or path.startswith("docs/")) for path in changed):
+        if any(not path.endswith(".md") for path in changed):
             raise ValueError("documentation profile received a non-documentation change")
         return
     for relative in PROFILES[profile]:
