@@ -251,7 +251,13 @@ JSONCallbackParameters AddressManager::apiCallbackParameters() {
 
 bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, const QString& lookupUrlInString) {
     if (_clientLookupPolicy) {
-        if (!_lookupForeground) { return false; }
+        if (!_lookupForeground) {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+            qWarning("%s", overte::security::diagnosticEvent(
+                overte::security::DiagnosticEvent::WorldNavigationBlocked));
+#endif
+            return false;
+        }
         if (_lookupNeedsExplicitIntent) {
             if (trigger != UserInput && trigger != Back && trigger != Forward && trigger != Suggestions) { return false; }
         }

@@ -1088,12 +1088,22 @@ bool Application::prepareServerlessDomainContents(const QUrl& domainURL, const Q
 #if defined(ANDROID_APP_PICO_INTERFACE)
     const auto importedEntities = tmpTree->sendEntities(
         _entityEditSender.get(), getEntities()->getTree(), "domain", 0, 0, 0);
-    Q_UNUSED(importedEntities);
-    const bool isTutorial = PathUtils::expandToLocalDataAbsolutePath(domainURL) ==
-        PathUtils::expandToLocalDataAbsolutePath(QUrl(NetworkingConstants::DEFAULT_OVERTE_ADDRESS));
+    // Compare packaged scene bytes, not URL spelling: Android cache aliases
+    // must not misclassify a successfully imported tutorial.
+    const auto matchesBundledScene = [&data](const QString& address) {
+        QFile file(PathUtils::expandToLocalDataAbsolutePath(QUrl(address)).toLocalFile());
+        return file.open(QIODevice::ReadOnly) && file.readAll() == data;
+    };
+    const bool isTutorial = matchesBundledScene(NetworkingConstants::DEFAULT_OVERTE_ADDRESS);
+    const bool isRedirect = !isTutorial && matchesBundledScene(NetworkingConstants::REDIRECT_HIFI_ADDRESS);
     qWarning("%s", overte::security::diagnosticEvent(isTutorial
         ? overte::security::DiagnosticEvent::WorldTutorialImported
-        : overte::security::DiagnosticEvent::WorldOtherImported));
+        : (isRedirect ? overte::security::DiagnosticEvent::WorldRedirectImported
+                      : overte::security::DiagnosticEvent::WorldOtherImported)));
+    if (importedEntities.isEmpty()) {
+        qWarning("%s", overte::security::diagnosticEvent(
+            overte::security::DiagnosticEvent::WorldEmptyImported));
+    }
 #else
     tmpTree->sendEntities(_entityEditSender.get(), getEntities()->getTree(), "domain", 0, 0, 0);
 #endif
@@ -2247,6 +2257,10 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
             // Mobile builds ship a self-contained tutorial and may have no
             // entry-point setting yet (or retain an empty one from an older
             // install). Always choose the packaged, known-good location.
+#if defined(ANDROID_APP_PICO_INTERFACE)
+            qWarning("%s", overte::security::diagnosticEvent(
+                overte::security::DiagnosticEvent::WorldTutorialSelected));
+#endif
             DependencyManager::get<AddressManager>()->handleLookupString(
                 NetworkingConstants::DEFAULT_OVERTE_ADDRESS);
 #else
