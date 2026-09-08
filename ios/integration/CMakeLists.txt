@@ -19,6 +19,11 @@ if(NOT TARGET Overte)
         "iOS full-client entity integration requires the Overte application target")
 endif()
 target_link_libraries(Overte overte-ios-entity-integration)
+option(OVERTE_IOS_DEBUG_STATS "Show statistics by default in iOS Debug builds" ON)
+# Configuration-specific: neither Release nor RelWithDebInfo/E2E packaging
+# inherits developer overlays, even when the option is enabled in the cache.
+target_compile_definitions(Overte PRIVATE
+    "$<$<AND:$<CONFIG:Debug>,$<BOOL:${OVERTE_IOS_DEBUG_STATS}>>:OVERTE_IOS_DEBUG_STATS>")
 option(OVERTE_IOS_WORLD_OBSERVATION_BUILD "Enable opt-in bounded world observations" OFF)
 if(OVERTE_IOS_WORLD_OBSERVATION_BUILD)
     target_compile_definitions(Overte PRIVATE OVERTE_IOS_WORLD_OBSERVATION_BUILD=1)

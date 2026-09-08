@@ -895,7 +895,13 @@ void Application::onDesktopRootItemCreated(QQuickItem* rootItem) {
             Menu::getInstance()->isOptionChecked(MenuOption::Stats));
         surfaceContext->setContextProperty("Stats", Stats::getInstance());
     });
-    AnimStats::show([surfaceContext](QQmlContext*, QObject*) {
+    AnimStats::show([surfaceContext](QQmlContext*, QObject* statsObject) {
+#if defined(Q_OS_IOS)
+        // Do not flash the console-like animation panel during startup while
+        // waiting for the first AnimStats::updateStats() visibility update.
+        statsObject->setProperty("visible",
+            Menu::getInstance()->isOptionChecked(MenuOption::AnimStats));
+#endif
         surfaceContext->setContextProperty("AnimStats", AnimStats::getInstance());
     });
 
