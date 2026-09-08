@@ -46,6 +46,16 @@ class LightweightWorkflowContracts(unittest.TestCase):
         self.assertIn("timeout-minutes: 5", documentation)
         self.assertIn("persist-credentials: false", documentation)
 
+    def test_markdown_pushes_skip_expensive_shared_checks(self):
+        for path in (WORKFLOW, PARENT_QUALIFICATION_WORKFLOW, CODEQL_WORKFLOW):
+            source = path.read_text(encoding="utf-8")
+            push = source.split("  push:\n", 1)[1]
+            push = re.split(r"(?m)^  [a-z_]+:", push, maxsplit=1)[0]
+            self.assertIn('    paths-ignore:\n      - "**/*.md"', push)
+        source = CODEQL_WORKFLOW.read_text(encoding="utf-8")
+        pull_request = source.split("  pull_request:\n", 1)[1].split("  schedule:", 1)[0]
+        self.assertIn('    paths-ignore:\n      - "**/*.md"', pull_request)
+
     def test_app_test_workflows_exclude_markdown(self):
         for workflow in (ANDROID_TESTS_WORKFLOW, WORKFLOW):
             self.assertIn('"!**/*.md"', workflow.read_text(encoding="utf-8"))
@@ -253,7 +263,8 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
             self.assertIn("SAME_REPOSITORY", source)
             self.assertIn("run_full=true", source)
             self.assertIn("needs.route.outputs.run_full == 'true'", source)
-            self.assertNotIn("paths-ignore:", source)
+            pull_request = source.split("  pull_request:", 1)[1].split("  push:", 1)[0]
+            self.assertNotIn("paths-ignore:", pull_request)
         android = (ROOT / ".github/workflows/android-tests.yml").read_text(
             encoding="utf-8"
         )

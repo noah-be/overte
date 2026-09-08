@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from dataclasses import replace
+from types import SimpleNamespace
 from pathlib import Path
 from unittest import mock
 import hashlib
@@ -268,6 +270,19 @@ class TopologyContracts(unittest.TestCase):
                 self.assertEqual(result.parent, edge["parent"])
                 self.assertEqual(result.profile, "documentation")
 
+    def test_executable_docs_and_code_renames_keep_full_qualification(self):
+        for change in ({"filename": "docs/helper.py"},
+                       {"filename": "docs/helper.md", "previous_filename": "tools/helper.py"}):
+            with self.subTest(change=change), \
+                 mock.patch.object(gate, "branch_sha", side_effect=[BASE, PARENT, BASE, PARENT]), \
+                 mock.patch.object(gate, "commit", side_effect=[{"sha": PARENT}, {"sha": MERGE, "parents": [{"sha": BASE}, {"sha": PARENT}]}]), \
+                 mock.patch.object(gate, "compare_merge_base", return_value=HEAD), \
+                 mock.patch.object(gate, "compare_files", return_value=(HEAD, {change["filename"]})), \
+                 mock.patch.object(gate, "paginate_pull_files", return_value=[change]):
+                api = MappingApi({f"repos/{REPOSITORY}/pulls/610": {"state": "open", "mergeable": True, "merge_commit_sha": MERGE}})
+                result = gate.classify_event(self.event("android-main", "main"), config(), api)
+                self.assertEqual(result.profile, "android-family")
+
     def test_merge_base_lookup_ignores_only_the_unneeded_capped_file_list(self):
         endpoint = f"repos/{REPOSITORY}/compare/{PARENT}...{BASE}"
         document = {
@@ -294,11 +309,38 @@ class TopologyContracts(unittest.TestCase):
             gate.classify_event(self.event("android-main", "main", repo_id=44), config(), MappingApi())
 
 
+class InspectionContracts(unittest.TestCase):
+    def inspect_request(self, sync_request, evidence_error=None):
+        with mock.patch.object(gate, "load_config", return_value=config()), \
+             mock.patch.object(gate, "GitHubApi"), \
+             mock.patch.object(gate, "classify_event", return_value=sync_request), \
+             mock.patch.object(gate, "verify_evidence", side_effect=evidence_error) as verify, \
+             mock.patch.object(gate, "write_outputs") as output:
+            event = mock.Mock()
+            event.read_text.return_value = "{}"
+            self.assertEqual(gate.inspect(SimpleNamespace(config=None, event=event, output=None)), 0)
+            return verify.call_count, output.call_args.args[1]
+
+    def test_markdown_sync_needs_no_parent_evidence(self):
+        calls, result = self.inspect_request(replace(request(), profile="documentation", changed_paths=("docs/ROADMAP.md",)))
+        self.assertEqual(calls, 0)
+        self.assertEqual(result["mode"], "reuse")
+        self.assertEqual(result["profile"], "documentation")
+        self.assertEqual(result["evidence_run_id"], "")
+
+    def test_code_sync_still_falls_back_without_evidence(self):
+        calls, result = self.inspect_request(request(), gate.EvidenceError("missing evidence"))
+        self.assertEqual(calls, 1)
+        self.assertEqual(result["mode"], "fallback")
+
+
 class DifferentialContracts(unittest.TestCase):
     def test_documentation_never_selects_an_android_suite(self):
         self.assertEqual(differential.PROFILES["documentation"], ())
         with self.assertRaises(ValueError):
             differential.required_roots(Path("."), "documentation", ["android/source.cpp"])
+        with self.assertRaises(ValueError):
+            differential.required_roots(Path("."), "documentation", ["docs/helper.py"])
 
     def test_each_non_documentation_profile_has_a_minimal_owned_root(self):
         self.assertEqual(set(differential.PROFILES) - {"documentation"}, {

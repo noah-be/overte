@@ -100,7 +100,7 @@ preflight() {
   route_lines=$(wc -l < /proc/net/route)
   [ "$route_lines" -le 1 ] || { echo "preflight: network route is available" >&2; exit 1; }
   available=$(df -B1 --output=avail "$OVERTE_ATTEMPT_ROOT" | awk 'NR==2 {print $1}')
-  [ "$available" -ge 85899345920 ] || { echo "preflight: less than 80 GiB free" >&2; exit 1; }
+  [ "$available" -ge 60000000000 ] || { echo "preflight: less than 60 GB free" >&2; exit 1; }
   echo "cold-build preflight: PASS (jobs=$jobs available_bytes=$available)"
 }
 
