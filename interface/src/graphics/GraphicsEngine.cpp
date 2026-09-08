@@ -344,6 +344,13 @@ void GraphicsEngine::render_performFrame() {
         });
         viewFrustum = _appRenderArgs._renderArgs.getViewFrustum();
         view = _appRenderArgs._view;
+#if defined(Q_OS_IOS)
+        // updateRenderArgs publishes the camera and scene frame under this
+        // mutex. Consume both before releasing it; SceneTask must not drain
+        // the next simulation update after we have captured this camera.
+        _renderScene->processTransactionQueue();
+        renderArgs._sceneTransactionsProcessed = true;
+#endif
     }
 
     {

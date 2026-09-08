@@ -4423,10 +4423,12 @@ void Application::update(float deltaTime) {
         AnimDebugDraw::getInstance().update();
     }
 
-    { // Game loop is done, mark the end of the frame for the scene transactions and the render loop to take over
+#if !defined(Q_OS_IOS)
+    { // iOS publishes this frame with its camera in updateRenderArgs().
         PerformanceTimer perfTimer("enqueueFrame");
         getMain3DScene()->enqueueFrame();
     }
+#endif
 
     // If the display plugin is inactive then the frames won't be processed so process them here.
     if (!getActiveDisplayPlugin()->isActive()) {

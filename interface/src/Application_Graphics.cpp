@@ -771,5 +771,11 @@ void Application::updateRenderArgs(float deltaTime) {
         // FIXME: This preDisplayRender call is temporary until we create a separate render::scene for the mirror rendering.
         // Then we can move this logic into the Avatar::simulate call.
         myAvatar->preDisplaySide(&appRenderArgs._renderArgs);
+#if defined(Q_OS_IOS)
+        // Publish the completed avatar/model transactions under the same lock
+        // as their camera. The render thread must not pair either half with a
+        // different update when simulation and rendering run at different rates.
+        getMain3DScene()->enqueueFrame();
+#endif
     });
 }
