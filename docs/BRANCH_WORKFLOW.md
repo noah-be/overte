@@ -144,7 +144,8 @@ branch unless a later reviewed propagation deliberately changes that scope.
 ## Exact-parent test reuse
 
 The four permanent branches that have children (`main`, `android-main`,
-`android-vr`, and `apple-main`) qualify each exact pushed commit once. The
+`android-vr`, and `apple-main`) qualify each exact pushed commit once, except
+for Markdown-only pushes. The
 qualification runs the shared project and complete device-control-plane suites,
 then uploads a short-lived machine-readable artifact. The artifact binds the
 repository numeric ID and name, parent commit and tree, qualification workflow
@@ -164,8 +165,12 @@ When all bindings match, a separate read-only validation workflow runs only the
 edge-specific hardware-free differential profile. The redundant Android and
 project-wide suites delegate to this required check, while topology, policy,
 workflow-security, documentation, and relevant Android VR or iOS checks remain
-independent. A documentation-only sync selects only documentation and contract
-validation.
+independent. A Markdown-only sync selects only documentation and contract
+validation after the same topology and identity checks, without requiring
+parent qualification evidence or selecting the full fallback. Rename sources
+must also be Markdown; executable files under `docs/` are not exempt.
+Markdown-only pushes skip parent qualification and the project-wide suite.
+CodeQL also skips Markdown-only pushes and pull requests; scheduled scans remain.
 
 Missing, stale, duplicated, incomplete, foreign, or otherwise mismatched
 evidence selects the complete shared fallback in the isolated read-only
