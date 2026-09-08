@@ -17,5 +17,9 @@ void PerformSceneTransaction::configure(const Config& config) {
 }
 
 void PerformSceneTransaction::run(const RenderContextPointer& renderContext) {
+    if (renderContext->args && renderContext->args->_sceneTransactionsProcessed &&
+            renderContext->args->_scene == renderContext->_scene) {
+        return;
+    }
     renderContext->_scene->processTransactionQueue();
 }

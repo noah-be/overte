@@ -318,6 +318,7 @@ void GraphicsEngine::render_performFrame() {
     glm::mat4  HMDSensorPose;
     glm::mat4  eyeToWorld;
     glm::mat4  sensorToWorld;
+    glm::mat4  view;
     ViewFrustum viewFrustum;
 
     bool isStereo;
@@ -342,11 +343,12 @@ void GraphicsEngine::render_performFrame() {
             stereoEyeProjections[eye] = _appRenderArgs._eyeProjections[eye];
         });
         viewFrustum = _appRenderArgs._renderArgs.getViewFrustum();
+        view = _appRenderArgs._view;
     }
 
     {
         PROFILE_RANGE(render, "/gpuContextReset");
-        getGPUContext()->beginFrame(_appRenderArgs._view, HMDSensorPose);
+        getGPUContext()->beginFrame(view, HMDSensorPose);
         // Reset the gpu::Context Stages
         // Back to the default framebuffer;
         gpu::doInBatch("Application_render::gpuContextReset", getGPUContext(), [&](gpu::Batch& batch) {

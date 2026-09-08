@@ -298,6 +298,9 @@ namespace render {
 
         /// Pointer to the main 3D scene.
         render::ScenePointer _scene;
+        // A caller may apply scene transactions while capturing its camera
+        // snapshot. Do not consume a newer transaction frame in SceneTask.
+        bool _sceneTransactionsProcessed { false };
 
         /// Current camera mode for the primary camera.
         /// It's set once before command generation for a given frame starts.
