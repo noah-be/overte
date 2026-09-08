@@ -157,6 +157,7 @@ validation after the same topology and identity checks, without requiring
 parent qualification evidence or selecting the full fallback. Rename sources
 must also be Markdown; executable files under `docs/` are not exempt.
 Markdown-only pushes skip parent qualification and the project-wide suite.
+CodeQL also skips Markdown-only pushes and pull requests; scheduled scans remain.
 
 Missing, stale, duplicated, incomplete, foreign, or otherwise mismatched
 evidence selects the complete shared fallback in the isolated read-only
