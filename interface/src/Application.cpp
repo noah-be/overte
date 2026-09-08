@@ -1085,7 +1085,18 @@ bool Application::prepareServerlessDomainContents(const QUrl& domainURL, const Q
     nodeList->setPermissions(permissions);
 
     tmpTree->reaverageOctreeElements();
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    const auto importedEntities = tmpTree->sendEntities(
+        _entityEditSender.get(), getEntities()->getTree(), "domain", 0, 0, 0);
+    // Temporary device diagnosis: fixed scene labels avoid logging private URLs;
+    // warning severity remains visible when verbose informational logs are off.
+    const bool isTutorial = PathUtils::expandToLocalDataAbsolutePath(domainURL) ==
+        PathUtils::expandToLocalDataAbsolutePath(QUrl(NetworkingConstants::DEFAULT_OVERTE_ADDRESS));
+    qWarning() << "PICO_WORLD_DIAGNOSTIC imported"
+        << "tutorial" << isTutorial << "entities" << importedEntities.size();
+#else
     tmpTree->sendEntities(_entityEditSender.get(), getEntities()->getTree(), "domain", 0, 0, 0);
+#endif
     namedPaths = tmpTree->getNamedPaths();
 
     // we must manually eraseAllOctreeElements(false) else the tmpTree will mem-leak
@@ -3536,7 +3547,10 @@ void Application::update(float deltaTime) {
     // not instrumentation. Start them after the local scene is playable so
     // their avatar-relative positions survive the startup spawn handoff.
     static bool picoInteractionTestStationRequested { false };
+    // Device fixtures must be explicitly requested; ordinary startup must show
+    // only the selected world's authored content during tutorial acceptance.
     if (!picoInteractionTestStationRequested &&
+            QCoreApplication::arguments().contains(QStringLiteral("--pico-interaction-test-station")) &&
             _picoServerlessSceneImportCommitted && _physicsEnabled) {
         picoInteractionTestStationRequested = true;
         QUrl testStationURL = PathUtils::defaultScriptsLocation();
@@ -4316,6 +4330,12 @@ void Application::tryToEnablePhysics() {
 #endif
             _octreeProcessor->resetSafeLanding();
             _physicsEnabled = true;
+#if defined(ANDROID_APP_PICO_INTERFACE)
+            // Position is sampled at actual physics activation, not inferred
+            // from the startup URL or an elapsed loading-screen timeout.
+            qWarning() << "PICO_WORLD_DIAGNOSTIC physics_enabled"
+                << "position" << myAvatar->getWorldPosition();
+#endif
 #if defined(ANDROID_APP_PICO_INTERFACE)
             if (enableInterstitial && _graphicsEngine) {
                 _picoLoadingPhysicsEnabledAt = physicsNow;
