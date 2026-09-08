@@ -1,6 +1,6 @@
 # Pico 4 roadmap
 
-- **Priority:** NOW
+- **Priority:** NEXT 1, after `PHONE-P1`
 - **Maturity:** Experimental
 - **Last verified:** Host and device-free evidence at `3ba6df421f`,
   2026-08-24, Linux; physical-device evidence is still required
@@ -30,13 +30,16 @@ core Overte journey on one named Pico 4 without a critical failure.
 
 ## Single next action
 
-Install the APK built from the current `android-vr-pico` candidate on one
-explicitly selected Pico 4 and run the documented core-journey baseline,
+After `PHONE-P1` is complete or explicitly paused, install the APK built from
+the current `android-vr-pico` candidate on one explicitly selected Pico 4 and
+run the documented core-journey baseline,
 recording the source revision, device identity, result, and first blocking
 failure.
 
 ## Blockers
 
+- `PHONE-P1` is the active product milestone and must complete or be explicitly
+  paused before Pico becomes the primary track.
 - Physical-device evidence requires an authorized, USB-connected Pico 4 and a
   person able to wear and operate it.
 - The device run must name the exact source revision; host and device-free
@@ -47,8 +50,7 @@ failure.
 - Meta Quest support or validation;
 - store submission, public release, or broad hardware compatibility;
 - optional trackers, accessories, and full desktop-interface parity; and
-- iPad, macOS, or Android phone work before `PICO-P1` is closed or explicitly
-  paused.
+- iPad or macOS work while `PICO-P1` is the primary product track.
 
 ## Evidence
 
