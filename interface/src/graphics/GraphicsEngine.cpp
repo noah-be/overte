@@ -404,7 +404,13 @@ void GraphicsEngine::render_performFrame() {
     }
 
 #if defined(ANDROID_APP_PICO_INTERFACE)
-    if (_loadingVisible.load(std::memory_order_acquire)) {
+    // Temporarily disable the Pico loading-screen presentation while world loading
+    // is investigated. Re-evaluate this feature for iOS, Phone and Pico in
+    // https://github.com/overte-org/overte/issues/2391 before enabling it again.
+    // Gate drawing here, including the initial _loadingVisible=true state; keep
+    // world-import, collision readiness and input/audio lifecycle checks intact.
+    constexpr bool PICO_LOADING_SCREEN_ENABLED = false;
+    if (PICO_LOADING_SCREEN_ENABLED && _loadingVisible.load(std::memory_order_acquire)) {
         renderLoadingFrame(finalFramebuffer, isStereo);
     }
 #endif
