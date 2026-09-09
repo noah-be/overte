@@ -261,6 +261,8 @@ def main() -> None:
         assert "<-DOVERTE_IOS_BOOTSTRAP_ONLY=OFF>" in invocation
         assert "<-DOVERTE_IOS_BUNDLE_IDENTIFIER=org.overte.interface.dev>" in invocation
         assert f"<-DQT_CHAINLOAD_TOOLCHAIN_FILE={client_build}/conan/conan_toolchain.cmake>" in invocation
+        assert "<-DCMAKE_XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS=YES>" in invocation
+        assert "<-DCMAKE_XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT=dwarf-with-dsym>" in invocation
         assert "<-DCMAKE_TOOLCHAIN_FILE=" not in invocation
         assert "<-DCMAKE_PREFIX_PATH=" not in invocation
         assert invocation.count("TOOLCHAIN_FILE=") == 1, invocation

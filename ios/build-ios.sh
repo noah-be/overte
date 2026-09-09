@@ -428,7 +428,11 @@ configure_project() {
         cmake_frontend="$qt_root/bin/qt-cmake"
         configure_arguments+=(
             "-DQT_CHAINLOAD_TOOLCHAIN_FILE=$conan_toolchain"
+            -DCMAKE_XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS=YES
+            -DCMAKE_XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT=dwarf-with-dsym
         )
+        # Emit the dSYM while Xcode still has the linked objects/debug map.
+        # Running dsymutil on an already stripped Release IPA cannot recover it.
         note "Configuring the experimental full iOS client graph through Qt with Conan chainloaded."
     fi
 
