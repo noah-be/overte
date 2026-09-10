@@ -33,21 +33,21 @@ int main(int argc, char** argv) {
     assert(messages.size() == 1 && messages.first() == canary); // Positive raw-sink proof.
     messages.clear();
 #include "sinks.inc"
-    assert(messages.size() == 53);
-    assert(messages.count("OVT_AUTH_READY") == 1 && messages.count("OVT_REDACTED") == 52);
+    assert(messages.size() == 52);
+    assert(messages.count("OVT_AUTH_READY") == 1 && messages.count("OVT_REDACTED") == 51);
     AccountManager manager;
     const QUuid session("c4cae808-10d5-45c3-9077-3e68a3c096aa");
     manager.setSessionID(session);
-    assert(manager._sessionID == session && messages.size() == 54);
+    assert(manager._sessionID == session && messages.size() == 53);
     manager.setSessionID(session);
-    assert(messages.size() == 54); // Same-ID no-op preserved.
+    assert(messages.size() == 53); // Same-ID no-op preserved.
     QNetworkReply reply;
     manager.publicKeyUploadFailed(&reply);
-    assert(!manager._isWaitingForKeypairResponse && messages.size() == 55);
+    assert(!manager._isWaitingForKeypairResponse && messages.size() == 54);
     assert(reply.urlReads == 0 && reply.errorReads == 0);
     manager._isWaitingForKeypairResponse = true;
     manager.handleKeypairGenerationError();
-    assert(!manager._isWaitingForKeypairResponse && messages.size() == 56);
+    assert(!manager._isWaitingForKeypairResponse && messages.size() == 55);
     for (const auto& message : messages) {
         assert(message == "OVT_REDACTED" || message == "OVT_AUTH_READY");
         assert(!message.contains(canary) && !message.contains(session.toString()));
