@@ -1,65 +1,11 @@
 {
   "schema": 1,
   "neutral_inputs": [
-    {
-      "role": "base-toolchain",
-      "path": "android/phone/fdroid/manifests/base-toolchain.lock.json",
-      "sha256": "074ea62862cd07e8b7b354437ad7ede9f892b4bfd52d13c88b65f68fd6e6dc2b"
-    },
-    {
-      "role": "cmake-toolchain",
-      "path": "android/common/cmake/overte-android-toolchain.cmake",
-      "sha256": "14f30644a18223aec071f5f43069c7af46294a9d2007d3accfb35a04771fbe2e"
-    },
-    {
-      "role": "bootstrap-graph",
-      "path": "android/phone/fdroid/conan/bootstrap.conanfile.py",
-      "sha256": "20fef41ccc7451561045ddf970c61f40c07f941158954268aebd05d533da9c91"
-    },
-    {
-      "role": "bootstrap-profile",
-      "path": "android/phone/fdroid/profiles/linux-x86_64-bootstrap",
-      "sha256": "f68314ac8936299f2c09988553010b7bb2b4e724c29689c9c223d226ade8f31a"
-    },
-    {
-      "role": "hosttools-profile",
-      "path": "android/phone/fdroid/profiles/linux-x86_64-hosttools",
-      "sha256": "f68314ac8936299f2c09988553010b7bb2b4e724c29689c9c223d226ade8f31a"
-    },
-    {
-      "role": "cmake-bootstrap",
-      "path": "android/common/cmake/overte-android-bootstrap.cmake",
-      "sha256": "2e22e4c6997121c09ed510a71113755f075cabf7f7adbcbfdce335de6b161f0b"
-    },
-    {
-      "role": "android-web-profile",
-      "path": "android/common/cmake/android-compat/QWebEngineProfile",
-      "sha256": "20ff1fce0b7b77e9bd7737b7b8af377d8d56f6608a6e8bfbcdc4879ec9a97d47"
-    },
-    {
-      "role": "android-jni-compat",
-      "path": "android/common/cmake/android-compat/QtAndroidExtras/QAndroidJniObject",
-      "sha256": "e7339220bec3fabf5a1b72bbe579dd81a260bc63315536e0fdc19d96ef0b3e25"
-    },
-    {
-      "role": "android-web-version",
-      "path": "android/common/cmake/android-compat/qtwebenginecoreversion.h",
-      "sha256": "537f02d3e61fcefb779f13d31f1e1f8895b89e42fb893d4bae4548ffbf9fc725"
-    },
-    {
-      "role": "android-discord-module",
-      "path": "android/common/cmake/android-modules/Finddiscord-rpc.cmake",
-      "sha256": "0435f68d31d5f044c80f80a2fc1869c3aa17a0c1b8f803e31d66bb4c3c9ac7da"
-    },
-    {
-      "role": "android-discord-compat",
-      "path": "android/common/cmake/android-modules/discord_rpc.h",
-      "sha256": "50c209cb7c37a48ecf54dee831f0099ffb80a449b7361aa13fef55d093b39dd5"
-    },
-    {
-      "role": "target-profile",
-      "path": "android/phone/fdroid/profiles/android-arm64-v8a-api26-16k",
-      "sha256": "11d9bc7d719ed73a9e6e3b6d7dda34340b2964a3bce76357da84c0698a3b3a99"
-    }
+    {"role": "base-toolchain", "path": "android/phone/fdroid/manifests/base-toolchain.lock.json", "sha256": "074ea62862cd07e8b7b354437ad7ede9f892b4bfd52d13c88b65f68fd6e6dc2b"},
+    {"role": "cmake-toolchain", "path": "android/common/cmake/overte-android-toolchain.cmake", "sha256": "14f30644a18223aec071f5f43069c7af46294a9d2007d3accfb35a04771fbe2e"},
+    {"role": "bootstrap-graph", "path": "android/phone/fdroid/conan/bootstrap.conanfile.py", "sha256": "20fef41ccc7451561045ddf970c61f40c07f941158954268aebd05d533da9c91"},
+    {"role": "bootstrap-profile", "path": "android/phone/fdroid/profiles/linux-x86_64-bootstrap", "sha256": "f68314ac8936299f2c09988553010b7bb2b4e724c29689c9c223d226ade8f31a"},
+    {"role": "hosttools-profile", "path": "android/phone/fdroid/profiles/linux-x86_64-hosttools", "sha256": "f68314ac8936299f2c09988553010b7bb2b4e724c29689c9c223d226ade8f31a"},
+    {"role": "target-profile", "path": "android/phone/fdroid/profiles/android-arm64-v8a-api26-16k", "sha256": "11d9bc7d719ed73a9e6e3b6d7dda34340b2964a3bce76357da84c0698a3b3a99"}
   ]
 }

@@ -1,2 +1,3 @@
 #pragma once
-#include "../android-compat/qtwebenginecoreversion.h"
+
+#define QTWEBENGINECORE_VERSION_STR "not available on Pico"

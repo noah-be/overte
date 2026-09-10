@@ -1,2 +1,15 @@
 #pragma once
-#include "../android-compat/QWebEngineProfile"
+
+#include <QString>
+
+class QWebEngineProfile {
+public:
+    static QWebEngineProfile* defaultProfile() {
+        static QWebEngineProfile profile;
+        return &profile;
+    }
+
+    QString httpUserAgent() const {
+        return {};
+    }
+};

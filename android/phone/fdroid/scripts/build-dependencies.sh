@@ -166,9 +166,6 @@ if ! valid_checkpoint target "$OVERTE_ATTEMPT_ROOT/target-result.json"; then
   checkpoint target "$OVERTE_ATTEMPT_ROOT/target-result.json"
 fi
 
-python3 "$repo_root/android/phone/fdroid/conan/stage_host_tools.py" \
-  --attempt-root "$OVERTE_ATTEMPT_ROOT" --source-commit "$OVERTE_SOURCE_COMMIT"
-
 "$repo_root/android/phone/tests/verify-phone-16k-dependencies.sh" --write-sentinel \
   "$OVERTE_ATTEMPT_ROOT/target" "$OVERTE_ATTEMPT_ROOT/target" "$OVERTE_ATTEMPT_ROOT/target/.phone-16k-dependencies.ready"
 echo "source-only dependency build: PASS"

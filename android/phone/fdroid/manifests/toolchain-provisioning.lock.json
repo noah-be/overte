@@ -31,8 +31,7 @@
     "build-tools/36.0.0/package.xml": "737904dbcee0845bc18385d3627cd6238bf5f1395f07c7300f88db717b7303b7",
     "cmake/3.31.6/package.xml": "71303bb0b5fbf8762e96d171df1e80de5f7843a98de032c602f27ba5070986da",
     "ndk/27.3.13750724/source.properties": "fb5eec1ca5dac09442109cf79e9ce49faecd8b312dbc997e88903a394e14994a",
-    "platforms/android-36/package.xml": "0dc071809e3df6e8a1a98bbda66753722804737105f20cd75d1f3c33c4d772b9",
-    "build-tools/36.0.0/aapt2": "1a6a396b9cd071f7040071fdd108718cb98c3c9f4960044f373b288993d19eb7"
+    "platforms/android-36/package.xml": "0dc071809e3df6e8a1a98bbda66753722804737105f20cd75d1f3c33c4d772b9"
   },
   "gradle_bindings": {
     "android/common/gradle/wrapper/gradle-wrapper.jar": "381dff8aa434499aa93bc25572b049c8c586a67faff2c02f375e4f23e17e49de",

@@ -227,10 +227,10 @@ class LegacyGradleDependencyTest(unittest.TestCase):
     def test_legacy_interface_accepts_an_explicit_conan_generator_bridge(self):
         source = (ANDROID_ROOT / "phone/apps/interface/build.gradle").read_text(
             encoding="utf-8")
-        bootstrap = (ANDROID_ROOT / "common/cmake/overte-android-bootstrap.cmake").read_text(
+        bootstrap = (ANDROID_ROOT / "common/cmake/pico-bootstrap.cmake").read_text(
             encoding="utf-8")
         android_extras = (ANDROID_ROOT /
-                          "common/cmake/android-compat/QtAndroidExtras/QAndroidJniObject").read_text(
+                          "common/cmake/pico-compat/QtAndroidExtras/QAndroidJniObject").read_text(
             encoding="utf-8")
         documentation = (REPOSITORY_ROOT / "BUILD_ANDROID.md").read_text(
             encoding="utf-8")

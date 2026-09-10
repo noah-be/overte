@@ -12,7 +12,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[3]
 SHADERGEN = ROOT / "tools/shadergen.py"
 BUILD = (ROOT / "android/phone/build.sh").read_text(encoding="utf-8")
-BOOTSTRAP = (ROOT / "android/common/cmake/overte-android-bootstrap.cmake").read_text(encoding="utf-8")
+BOOTSTRAP = (ROOT / "android/common/cmake/pico-bootstrap.cmake").read_text(encoding="utf-8")
 
 
 class PhoneBuildParallelismTests(unittest.TestCase):

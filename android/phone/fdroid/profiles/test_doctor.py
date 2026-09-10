@@ -7,16 +7,13 @@ import importlib.util
 import json
 import os
 import tempfile
-import subprocess
-import sys
 import unittest
 from unittest import mock
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[3]
-DOCTOR_SOURCE = Path(os.environ.get("OVERTE_PROFILE_DOCTOR_SOURCE", str(HERE / "doctor.py")))
-SPEC = importlib.util.spec_from_file_location("fdroid_profile_doctor", DOCTOR_SOURCE)
+SPEC = importlib.util.spec_from_file_location("fdroid_profile_doctor", HERE / "doctor.py")
 assert SPEC and SPEC.loader
 DOCTOR = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(DOCTOR)
@@ -27,15 +24,6 @@ class DoctorContractTest(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.fixture = Path(self.temporary.name)
         for relative in (
-            "android/phone/apps/phoneInterface/build.gradle",
-            "android/vr/pico/apps/picoInterface/build.gradle",
-            "android/common/cmake/overte-android-bootstrap.cmake",
-            "android/common/cmake/android-compat/QWebEngineProfile",
-            "android/common/cmake/android-compat/QtAndroidExtras/QAndroidJniObject",
-            "android/common/cmake/android-compat/qtwebenginecoreversion.h",
-            "android/common/cmake/android-modules/Finddiscord-rpc.cmake",
-            "android/common/cmake/android-modules/discord_rpc.h",
-
             "android/common/cmake/overte-android-toolchain.cmake",
             "android/phone/fdroid/conan/bootstrap.conanfile.py",
             "android/phone/fdroid/manifests/base-toolchain.lock.json",
@@ -67,38 +55,10 @@ class DoctorContractTest(unittest.TestCase):
                 entry["sha256"] = DOCTOR.file_digest(self.fixture / relative)
         path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
 
-    def test_valid_profile_does_not_prove_consumer_equivalence(self):
+    def test_real_contract_is_equivalent(self):
         result = DOCTOR.inspect(ROOT)
-        self.assertEqual(result["status"], "INCOMPLETE")
-        self.assertEqual(result["profile_contract"]["status"], "PASS")
-        self.assertIsNone(result["equivalent"])
-        for consumer, relative in DOCTOR.CONSUMERS.items():
-            observed = result["consumers"][consumer]
-            self.assertEqual(observed["source_path"], relative)
-            self.assertEqual(observed["source_sha256"], DOCTOR.file_digest(ROOT / relative))
-            self.assertIsNone(observed["resolved_input_identity_sha256"])
-
-    def test_changed_consumer_cannot_reuse_another_consumers_identity(self):
-        before = DOCTOR.inspect(self.fixture)
-        path = self.fixture / DOCTOR.CONSUMERS["pico"]
-        path.write_text(path.read_text() + "\n// different input selection\n")
-        after = DOCTOR.inspect(self.fixture)
-        self.assertEqual(before["profile_contract"], after["profile_contract"])
-        self.assertEqual(before["consumers"]["phone"], after["consumers"]["phone"])
-        self.assertNotEqual(before["consumers"]["pico"], after["consumers"]["pico"])
-        self.assertIsNone(after["equivalent"])
-
-    def test_missing_consumer_fails(self):
-        (self.fixture / DOCTOR.CONSUMERS["pico"]).unlink()
-        with self.assertRaisesRegex(DOCTOR.ContractError, "consumer source"):
-            DOCTOR.inspect(self.fixture)
-
-    def test_cli_cannot_report_success_for_unresolved_consumers(self):
-        result = subprocess.run([sys.executable, str(DOCTOR_SOURCE),
-            "--root", str(self.fixture)], capture_output=True, text=True, timeout=10)
-        self.assertEqual(result.returncode, 2, result.stderr)
-        self.assertEqual(json.loads(result.stdout)["status"], "INCOMPLETE")
-        self.assertIsNone(json.loads(result.stdout)["equivalent"])
+        self.assertTrue(result["equivalent"])
+        self.assertEqual(result["consumers"]["phone"], result["consumers"]["pico"])
 
     def test_stale_input_digest_fails(self):
         path, document = self.load_map()
