@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "repository": "noah-be/overte",
+  "repository_id": 1319052603,
+  "permanent_branches": [
+    "main",
+    "android-main",
+    "android-phone",
+    "android-vr",
+    "android-vr-pico",
+    "apple-main",
+    "apple-ios",
+    "linux-main",
+    "windows-main"
+  ],
+  "holds": {
+    "reconcile/ios/610-sync-reuse-e08-final": "ongoing_local_work_review",
+    "fix/main/589-task-namespace-bridge": "ongoing_local_work_review",
+    "task/main/685-ci-propagation-health": "ongoing_local_work_review",
+    "task/main/657-openssl-system-libs": "ongoing_local_work_review",
+    "fix/apple/pr798-parent-contracts": "ongoing_local_work_review",
+    "fix/main/pr798-shared-integration": "ongoing_local_work_review",
+    "fix/ios/pr798-reviewed-client": "ongoing_local_work_review",
+    "ci/ios/parity-runner-v003": "ongoing_local_work_review",
+    "build/ios-parity-runner-v003": "ongoing_local_work_review"
+  },
+  "keep_label": "keep-branch",
+  "archive_tag_prefix": "archive/merged/",
+  "artifact_retention_days": 30
+}
