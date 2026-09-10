@@ -1,8 +1,7 @@
 import QtQuick 2.7
-import controlsUit 1.0 as HifiControls
 
 // Phone presentation is screen-space and has no HMD or tracked-hand input.
-HifiControls.TouchUiMetrics {
+QtObject {
     readonly property bool favoritesFillBelowHeader: true
     readonly property bool showDominantHand: false
     readonly property bool showHmdAlignment: false

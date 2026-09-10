@@ -1,7 +1,6 @@
 import QtQuick 2.15
-import controlsUit 1.0 as HifiControls
 
-HifiControls.TouchUiMetrics {
+QtObject {
     // WindowRoot applies the shared Android tablet-app scale. Keeping Settings
     // neutral here prevents the two presentation layers compounding.
     readonly property real contentScale: 1.0
@@ -13,7 +12,6 @@ HifiControls.TouchUiMetrics {
     readonly property bool showControllerSettings: false
     // Pico render scale changes are specific to the separate VR client.
     readonly property bool showPicoResolutionSettings: false
-    readonly property bool showPicoInteractionSettings: false
 
     function admitsSemanticControl(controlId) {
         return controlId === "settings.general" || controlId === "settings.audio"

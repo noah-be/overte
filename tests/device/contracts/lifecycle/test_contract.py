@@ -29,7 +29,7 @@ class LifecycleTests(unittest.TestCase):
         self.assertIn('activeChanged(applicationState());', tail.split('connect(', 1)[0])
         source = (ROOT / 'interface/src/Application_Events.cpp').read_text()
         body = source.split('void Application::activeChanged(Qt::ApplicationState state) {', 1)[1].split('\n}', 1)[0]
-        # Execute the original production body; only Qt/rate owner boundaries
+        # Execute the original production body; only Qt/rate/consent boundaries
         # are test substitutes. Never substitute a second lifecycle engine.
         harness = '''
 #include "interface/src/ApplicationLifecycle.h"
@@ -53,6 +53,8 @@ void overte::lifecycle::observeQtVisibility(bool value) {
 }
 struct Application {
     bool _isForeground = false, _aboutToQuit = false, _startUpFinished = true;
+    int consentInvalidations = 0;
+    void invalidateEntityScriptConsent() { ++consentInvalidations; }
     RefreshRateManager rates;
     RefreshRateManager& getRefreshRateManager() { return rates; }
     void activeChanged(Qt::ApplicationState state) { BODY }
@@ -60,13 +62,17 @@ struct Application {
 int main() {
     Application app;
     for (auto hidden : {Qt::ApplicationInactive, Qt::ApplicationSuspended, Qt::ApplicationHidden}) {
+        auto invalidations = app.consentInvalidations;
         app.activeChanged(Qt::ApplicationActive);
+        assert(app.consentInvalidations == invalidations);
         assert(app._isForeground && gate.snapshot().foreground);
         assert(addresses.foreground);
         auto generation = gate.snapshot().generation;
         app.activeChanged(Qt::ApplicationActive);
+        assert(app.consentInvalidations == invalidations);
         assert(gate.snapshot().generation == generation);
         app.activeChanged(hidden);
+        assert(app.consentInvalidations == invalidations + 1);
         assert(!app._isForeground && !gate.snapshot().foreground);
         assert(!addresses.foreground);
         assert(gate.snapshot().state == overte::lifecycle::State::Suspended);

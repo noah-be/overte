@@ -1,7 +1,6 @@
 import QtQuick 2.7
-import controlsUit 1.0 as HifiControls
 
-HifiControls.TouchUiMetrics {
+QtObject {
     // WindowRoot already scales this complete surface by 2.5. Normal logical
     // dimensions avoid applying the generic Android 3x constants underneath
     // that host scale and overflowing the lower-right footer.

@@ -1,9 +1,8 @@
 import QtQuick 2.7
-import controlsUit 1.0 as HifiControls
 
 // The touchscreen phone client has one native Android audio context. HMD
 // controls configure a separate VR path which is unavailable in this build.
-HifiControls.TouchUiMetrics {
+QtObject {
     // A single "Desktop" tab has no navigation value and wastes scarce height.
     property bool showModeTabs: false
     property bool showVrMode: false
