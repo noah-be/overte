@@ -1,112 +1,51 @@
-// Copyright 2026 Overte e.V.
 // SPDX-License-Identifier: Apache-2.0
-
 #include "IOSAudioPermission.h"
-
-#import <AVFoundation/AVFoundation.h>
-#import <os/log.h>
-#import <pthread.h>
+#include <atomic>
+#include <mutex>
 
 namespace {
-
-void runOnMainQueue(dispatch_block_t block) {
-    if (pthread_main_np() != 0) {
-        block();
-    } else {
-        dispatch_sync(dispatch_get_main_queue(), block);
-    }
+std::shared_ptr<overte::audio::IOSAudioSessionAdapter> adapter;
+std::mutex installationMutex;
+std::mutex callbackMutex;
+std::function<void()> stateCallback;
 }
 
-void installInterruptionTelemetry(AVAudioSession* session) {
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        [NSNotificationCenter.defaultCenter
-            addObserverForName:AVAudioSessionInterruptionNotification
-                        object:session
-                         queue:NSOperationQueue.mainQueue
-                    usingBlock:^(NSNotification* notification) {
-            NSNumber* typeValue = notification.userInfo[AVAudioSessionInterruptionTypeKey];
-            if (typeValue.unsignedIntegerValue == AVAudioSessionInterruptionTypeBegan) {
-                os_log_info(OS_LOG_DEFAULT, "Overte full-client audio session interruption began");
-                return;
-            }
-            NSNumber* optionValue = notification.userInfo[AVAudioSessionInterruptionOptionKey];
-            const bool shouldResume =
-                (optionValue.unsignedIntegerValue & AVAudioSessionInterruptionOptionShouldResume) != 0;
-            os_log_info(OS_LOG_DEFAULT,
-                        "Overte full-client audio session interruption ended; should-resume=%{public}s",
-                        shouldResume ? "true" : "false");
-            if (shouldResume) {
-                NSError* error = nil;
-                const BOOL active = [session setActive:YES error:&error];
-                os_log_info(OS_LOG_DEFAULT,
-                            "Overte full-client audio session interruption reactivation=%{public}s code=%{public}ld",
-                            active ? "ok" : "failed", (long)(error ? error.code : 0));
-            }
-        }];
-    });
+void overte::audio::setIOSAudioStateCallback(std::function<void()> callback) {
+    std::lock_guard<std::mutex> lock(callbackMutex);
+    stateCallback = std::move(callback);
+}
+void overte::audio::notifyIOSAudioStateChanged() {
+    // Unregistration waits for in-flight enqueue to finish before AudioClient
+    // teardown. The callback itself must not call back into this registry.
+    std::lock_guard<std::mutex> lock(callbackMutex);
+    if (stateCallback) { stateCallback(); }
 }
 
-} // namespace
+bool overte::audio::installIOSAudioSessionAdapter(std::shared_ptr<IOSAudioSessionAdapter> value) {
+    std::lock_guard<std::mutex> lock(installationMutex);
+    if (!value || std::atomic_load(&adapter)) { return false; }
+    std::atomic_store(&adapter, std::move(value));
+    return true;
+}
 
 bool overteIOSMicrophonePermissionGranted() {
-    return AVAudioSession.sharedInstance.recordPermission == AVAudioSessionRecordPermissionGranted;
+    auto value = std::atomic_load(&adapter);
+    return value && value->microphonePermissionGranted();
 }
-
 void overteIOSRequestMicrophonePermission() {
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        dispatch_async(dispatch_get_main_queue(), ^{
-            AVAudioSession* session = AVAudioSession.sharedInstance;
-            if (session.recordPermission != AVAudioSessionRecordPermissionUndetermined) {
-                return;
-            }
-            [session requestRecordPermission:^(BOOL granted) {
-                os_log_info(OS_LOG_DEFAULT, "Overte microphone permission resolved: %{public}s",
-                            granted ? "granted" : "denied");
-            }];
-        });
-    });
+    auto value = std::atomic_load(&adapter);
+    if (value) { value->requestMicrophonePermission(); }
 }
-
 bool overteIOSActivateAudioSession() {
-    __block BOOL activated = NO;
-    runOnMainQueue(^{
-        AVAudioSession* session = AVAudioSession.sharedInstance;
-        installInterruptionTelemetry(session);
-        NSError* error = nil;
-        const AVAudioSessionCategoryOptions options =
-            AVAudioSessionCategoryOptionDefaultToSpeaker |
-            AVAudioSessionCategoryOptionAllowBluetoothHFP;
-        if (![session setCategory:AVAudioSessionCategoryPlayAndRecord
-                              mode:AVAudioSessionModeGameChat
-                           options:options
-                             error:&error]) {
-            os_log_error(OS_LOG_DEFAULT,
-                         "Overte full-client audio session configuration failed; code=%{public}ld",
-                         (long)(error ? error.code : 0));
-            return;
-        }
-        error = nil;
-        activated = [session setActive:YES error:&error];
-        os_log_info(OS_LOG_DEFAULT,
-                    "Overte full-client audio session activation=%{public}s code=%{public}ld",
-                    activated ? "ok" : "failed", (long)(error ? error.code : 0));
-    });
-    return activated == YES;
+    auto value = std::atomic_load(&adapter);
+    return value && value->activate();
+}
+bool overteIOSDeactivateAudioSession() {
+    auto value = std::atomic_load(&adapter);
+    return value && value->deactivate();
 }
 
-bool overteIOSDeactivateAudioSession() {
-    __block BOOL deactivated = NO;
-    runOnMainQueue(^{
-        NSError* error = nil;
-        deactivated = [AVAudioSession.sharedInstance
-            setActive:NO
-            withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
-            error:&error];
-        os_log_info(OS_LOG_DEFAULT,
-                    "Overte full-client audio session deactivation=%{public}s code=%{public}ld",
-                    deactivated ? "ok" : "failed", (long)(error ? error.code : 0));
-    });
-    return deactivated == YES;
+void overteIOSSetAudioMuted(bool muted) {
+    auto value = std::atomic_load(&adapter);
+    if (value) { value->muted(muted); }
 }

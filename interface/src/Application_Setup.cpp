@@ -14,6 +14,7 @@
 //
 
 #include "Application.h"
+#include "ApplicationLifecycle.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -373,6 +374,7 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     DependencyManager::set<recording::Recorder>();
     DependencyManager::set<AddressManager>();
     DependencyManager::set<NodeList>(NodeType::Agent, listenPort);
+    overte::lifecycle::observeQtVisibility(QGuiApplication::applicationState() == Qt::ApplicationActive);
     DependencyManager::set<recording::ClipCache>();
     DependencyManager::set<GeometryCache>();
     DependencyManager::set<ModelFormatRegistry>(); // ModelFormatRegistry must be defined before ModelCache. See the ModelCache constructor.
@@ -1480,6 +1482,9 @@ void Application::setupSignalsAndOperators() {
     {
         connect(this, SIGNAL(aboutToQuit()), this, SLOT(onAboutToQuit()));
         connect(this, &Application::applicationStateChanged, this, &Application::activeChanged);
+        // Seed the same full-client gate: an already active Qt application may
+        // not emit another state change after this connection is installed.
+        activeChanged(applicationState());
         connect(_window, SIGNAL(windowMinimizedChanged(bool)), this, SLOT(windowMinimizedChanged(bool)));
 
         auto discoverabilityManager = DependencyManager::get<DiscoverabilityManager>();
@@ -1565,12 +1570,20 @@ void Application::setupSignalsAndOperators() {
         connect(accountManager.data(), &AccountManager::authRequired, dialogsManager.data(), &DialogsManager::showLoginDialog);
 #endif
         connect(accountManager.data(), &AccountManager::usernameChanged, this, &Application::updateWindowTitle);
+        connect(accountManager.data(), &AccountManager::authEndpointChanged, this, &Application::invalidateEntityScriptConsent);
+        connect(accountManager.data(), &AccountManager::usernameChanged, this, &Application::invalidateEntityScriptConsent);
+        connect(accountManager.data(), &AccountManager::loginComplete, this, &Application::invalidateEntityScriptConsent);
+        connect(accountManager.data(), &AccountManager::logoutComplete, this, &Application::invalidateEntityScriptConsent);
 
         auto domainAccountManager = DependencyManager::get<DomainAccountManager>();
         connect(domainAccountManager.data(), &DomainAccountManager::authRequired, dialogsManager.data(),
                 &DialogsManager::showDomainLoginDialog);
         connect(domainAccountManager.data(), &DomainAccountManager::authRequired, this, &Application::updateWindowTitle);
         connect(domainAccountManager.data(), &DomainAccountManager::loginComplete, this, &Application::updateWindowTitle);
+        connect(domainAccountManager.data(), &DomainAccountManager::authRequired, this, &Application::invalidateEntityScriptConsent);
+        connect(domainAccountManager.data(), &DomainAccountManager::loginComplete, this, &Application::invalidateEntityScriptConsent);
+        connect(domainAccountManager.data(), &DomainAccountManager::logoutComplete, this, &Application::invalidateEntityScriptConsent);
+        connect(&domainHandler, &DomainHandler::disconnectedFromDomain, this, &Application::invalidateEntityScriptConsent);
         // ####### TODO: Connect any other signals from domainAccountManager.
 
         auto addressManager = DependencyManager::get<AddressManager>();

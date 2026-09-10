@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import hashlib
+import io
+import wave
 import json
 import os
 from pathlib import Path
@@ -68,7 +70,7 @@ class SoundPlaybackTest(unittest.TestCase):
             environment["OVERTE_MOCK_SOUND_FAILURE"] = failure
         else:
             environment.pop("OVERTE_MOCK_SOUND_FAILURE", None)
-            environment["OVERTE_E2E_SOUND_TIMEOUT_SECONDS"] = "5"
+            environment["OVERTE_E2E_SOUND_TIMEOUT_SECONDS"] = "12"
         output = root / "results"
         result = subprocess.run([
             sys.executable, str(ROOT / "run.py"),
@@ -110,7 +112,12 @@ class SoundPlaybackTest(unittest.TestCase):
             sound = response.read()
             self.assertEqual("audio/wav", response.headers.get_content_type())
             self.assertEqual("no-store", response.headers["Cache-Control"])
-        self.assertEqual(32044, len(sound))
+        self.assertEqual(128044, len(sound))
+        with wave.open(io.BytesIO(sound), "rb") as decoded:
+            self.assertEqual(8.0, decoded.getnframes() / decoded.getframerate())
+            self.assertEqual(8000, decoded.getframerate())
+            self.assertEqual(1, decoded.getnchannels())
+            self.assertEqual(2, decoded.getsampwidth())
         self.assertEqual(self.ready["sound"]["sha256"], hashlib.sha256(sound).hexdigest())
         with self.assertRaises(HTTPError) as missing:
             urlopen(self.ready["baseUrl"] + "/audio/missing.wav", timeout=2)
@@ -190,7 +197,7 @@ class SoundPlaybackTest(unittest.TestCase):
             module = output / "modules" / "sound-playback"
             metrics = json.loads((module / "metrics.json").read_text(encoding="utf-8"))
             self.assertEqual(2, metrics["activeFreshSamples"])
-            self.assertEqual(32044, metrics["requestedBytes"])
+            self.assertEqual(128044, metrics["requestedBytes"])
             self.assertEqual("natural", metrics["finishReason"])
             active = json.loads((module / "sound-active-samples.json")
                                 .read_text(encoding="utf-8"))

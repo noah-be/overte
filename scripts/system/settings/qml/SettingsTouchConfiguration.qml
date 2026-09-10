@@ -9,6 +9,8 @@ HifiControls.TouchUiMetrics {
     // Compatibility projection for existing selector-backed Settings QML.
     readonly property bool showPicoResolutionSettings: profile.picoResolutionSettingsAvailable
 
+    readonly property bool showPicoInteractionSettings: false
+
     function admitsSemanticControl(controlId) {
         if (controlId === "settings.general" || controlId === "settings.audio"
                 || controlId === "settings.security") {

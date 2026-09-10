@@ -55,10 +55,15 @@ void HTTPResourceRequest::doSend() {
     DependencyManager::get<StatTracker>()->incrementStat(STAT_HTTP_REQUEST_STARTED);
 
     QNetworkRequest networkRequest(_url);
-    networkRequest.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    networkRequest.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+        _failOnRedirect ? QNetworkRequest::ManualRedirectPolicy : QNetworkRequest::NoLessSafeRedirectPolicy);
+    if (_failOnRedirect) {
+        // A shared HTTP cache entry has no per-request redirect provenance.
+        networkRequest.setAttribute(QNetworkRequest::CacheSaveControlAttribute, false);
+    }
     networkRequest.setHeader(QNetworkRequest::UserAgentHeader, NetworkingConstants::OVERTE_USER_AGENT);
 
-    if (_cacheEnabled) {
+    if (_cacheEnabled && !_failOnRedirect) {
         networkRequest.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
     } else {
         networkRequest.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
@@ -127,7 +132,15 @@ void HTTPResourceRequest::onRequestFinished() {
     };
 
     switch(_reply->error()) {
-        case QNetworkReply::NoError:
+        case QNetworkReply::NoError: {
+            const auto status = _reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (_failOnRedirect && (_reply->attribute(QNetworkRequest::RedirectionTargetAttribute).isValid() ||
+                (status >= 300 && status < 400) || _reply->url() != _url ||
+                _reply->attribute(QNetworkRequest::SourceIsFromCacheAttribute).toBool())) {
+                _data.clear();
+                _result = RedirectFail;
+                break;
+            }
             _data = _reply->readAll();
             _loadedFromCache = _reply->attribute(QNetworkRequest::SourceIsFromCacheAttribute).toBool();
             _result = Success;
@@ -165,6 +178,8 @@ void HTTPResourceRequest::onRequestFinished() {
             recordBytesDownloadedInStats(STAT_HTTP_RESOURCE_TOTAL_BYTES, _data.size());
 
             break;
+
+        }
 
         case QNetworkReply::TimeoutError:
             _result = Timeout;
