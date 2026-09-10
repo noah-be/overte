@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
@@ -162,7 +163,9 @@ def main() -> None:
         fail("sound resource did not take the WAV format path")
     try:
         expected_duration = float(os.environ.get(
-            "OVERTE_E2E_SOUND_DURATION_SECONDS", "2.0"))
+            "OVERTE_E2E_SOUND_DURATION_SECONDS", str(json.loads(
+                (Path(__file__).resolve().parents[1] / "fixture" / "fixture-manifest.json")
+                .read_text(encoding="utf-8"))["sound"]["durationSeconds"])))
     except ValueError:
         fail("OVERTE_E2E_SOUND_DURATION_SECONDS must be numeric")
     if not 0.1 <= expected_duration <= 120.0:

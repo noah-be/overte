@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 
 
 DEVICE_ROOT = Path(__file__).resolve().parents[1]
@@ -202,12 +203,18 @@ class TabletE2EFlowTest(unittest.TestCase):
                     temporary.cleanup()
 
     def test_missing_required_operation_is_completeness_error(self):
-        output, _, _, temporary = self.assert_flow(
+        output, _, summary, temporary = self.assert_flow(
             "flat", "mock-flat-touch.json", "error",
             missing_capability="tablet.activate")
         try:
             junit = (output / "junit.xml").read_text(encoding="utf-8")
-            self.assertIn("Missing capabilities: tablet.activate", junit)
+            error = ET.fromstring(junit).find("./testcase[@name='tablet-e2e']/error")
+            self.assertIsNotNone(error)
+            self.assertEqual("OVT_TEST_INFRASTRUCTURE_ERROR", error.get("message"))
+            self.assertEqual("OVT_REDACTED", error.text)
+            self.assertNotIn("Missing capabilities:", junit)
+            self.assertIn("Missing capabilities: tablet.activate",
+                          self.tablet_result(summary)["output"])
         finally:
             temporary.cleanup()
 
