@@ -16,6 +16,9 @@
 #define hifi_Application_h
 
 #include <QtWidgets/QApplication>
+#include <deque>
+#include <functional>
+#include <memory>
 
 #include <AbstractScriptingServicesInterface.h>
 #include <AbstractUriHandler.h>
@@ -60,6 +63,8 @@ class KeyboardMouseDevice;
 class LogDialog;
 class MainWindow;
 class ModalDialogListener;
+class EntityScriptConsentScope;
+class EntityScriptConsentRequest;
 class OffscreenUi;
 class TouchscreenDevice;
 class TouchscreenVirtualPadDevice;
@@ -604,6 +609,23 @@ private slots:
     void setShowTrackedObjects(bool value) { _showTrackedObjects = value; }
 
 private:
+    friend class Menu;
+    void beginEntityScriptConsentReview();
+    void invalidateEntityScriptConsent();
+    void enqueueEntityScriptConsent(const std::shared_ptr<EntityScriptConsentRequest>& request,
+        std::function<void(bool)> decide);
+    void showNextEntityScriptConsent();
+    struct PendingEntityScriptConsent {
+        std::shared_ptr<EntityScriptConsentRequest> request;
+        std::function<void(bool)> decide;
+    };
+    std::shared_ptr<EntityScriptConsentScope> _entityScriptConsentScope;
+    QSharedPointer<QObject> _entityScriptConsentDispatch;
+    std::deque<PendingEntityScriptConsent> _pendingEntityScriptConsents;
+    QPointer<ModalDialogListener> _entityScriptConsentDialog;
+    std::function<void(bool)> _activeEntityScriptConsentDecision;
+    std::shared_ptr<EntityScriptConsentRequest> _activeEntityScriptConsentRequest;
+    quint64 _entityScriptConsentUiGeneration { 0 };
     void cleanupBeforeQuit();
 
     void idle();

@@ -34,7 +34,7 @@ ModalWindow {
     property var items;
     property string label
     property var result;
-    property alias current: textResult.text
+    property var current: ""
 
     // For text boxes
     property alias placeholderText: textResult.placeholderText
@@ -68,14 +68,14 @@ ModalWindow {
         QtObject {
             id: d
             readonly property int minWidth: 480
-            readonly property int maxWdith: 1280
+            readonly property int maxWidth: 1280
             readonly property int minHeight: 120
             readonly property int maxHeight: 720
 
             function resize() {
                 var targetWidth = Math.max(titleWidth, pane.width)
                 var targetHeight = (items ? comboBox.controlHeight : textResult.controlHeight) + 5 * hifi.dimensions.contentSpacing.y + buttons.height
-                root.width = (targetWidth < d.minWidth) ? d.minWidth : ((targetWidth > d.maxWdith) ? d.maxWidth : targetWidth);
+                root.width = (targetWidth < d.minWidth) ? d.minWidth : ((targetWidth > d.maxWidth) ? d.maxWidth : targetWidth);
                 root.height = ((targetHeight < d.minHeight) ? d.minHeight : ((targetHeight > d.maxHeight) ? d.maxHeight : targetHeight)) + ((keyboardEnabled && keyboardRaised) ? (keyboard.raisedHeight + 2 * hifi.dimensions.contentSpacing.y) : 0)
             }
         }
@@ -93,6 +93,7 @@ ModalWindow {
             // FIXME make a text field type that can be bound to a history for autocompletion
             TextField {
                 id: textResult
+                text: root.items ? "" : (root.current === undefined || root.current === null ? "" : String(root.current))
                 label: root.label
                 visible: items ? false : true
                 anchors {
@@ -114,6 +115,8 @@ ModalWindow {
                     bottom: parent.bottom
                 }
                 model: items ? items : []
+                editable: root.editable
+                currentIndex: typeof root.current === "number" ? root.current : 0
                 KeyNavigation.down: acceptButton
                 KeyNavigation.tab: acceptButton
             }
@@ -177,7 +180,7 @@ ModalWindow {
             text: qsTr("OK");
             shortcut: "Return"
             onTriggered: {
-                root.result = items ? comboBox.currentText : textResult.text
+                root.result = items ? (comboBox.editable ? comboBox.editText : comboBox.currentText) : textResult.text
                 root.selected(root.result);
                 root.destroy();
             }

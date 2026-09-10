@@ -27,6 +27,8 @@
 #include "MetaverseAPI.h"
 #include "NetworkAccessManager.h"
 #include <SharedUtil.h>
+#include "../../../security/storage/ProtectedAccountStore.h"
+#include "RequestCancellation.h"
 
 class JSONCallbackParameters {
 public:
@@ -41,6 +43,7 @@ public:
     QString jsonCallbackMethod;
     QString errorCallbackMethod;
     QJsonObject callbackData;
+    overte::network::RequestTicket requestTicket;
 };
 
 namespace AccountManagerAuth {
@@ -64,6 +67,10 @@ class AccountManager : public QObject, public Dependency {
     Q_OBJECT
 public:
     AccountManager(bool accountSettingsEnabled = false, UserAgentGetter userAgentGetter = DEFAULT_USER_AGENT_GETTER);
+
+    // Native owners register once before loading account state. No adapter means
+    // no persistent credentials; there is no plaintext fallback.
+    static bool installProtectedAccountStore(std::shared_ptr<overte::security::ProtectedAccountStore> adapter);
 
     QNetworkRequest createRequest(QString path, AccountManagerAuth::Type authType);
     Q_INVOKABLE void sendRequest(const QString& path,
@@ -111,7 +118,7 @@ public:
     bool getLimitedCommerce() { return _limitedCommerce; }
     void setLimitedCommerce(bool isLimited);
 
-    void setAccessTokens(const QString& response);
+    bool setAccessTokens(const QString& response);
     void setConfigFileURL(const QString& fileURL) { _configFileURL = fileURL; }
     void saveLoginStatus(bool isLoggedIn);
 
@@ -167,6 +174,7 @@ private:
     Q_DISABLE_COPY(AccountManager);
 
     void persistAccountToFile();
+    void resetAccountSettings();
 
     void passSuccessToCallback(QNetworkReply* reply);
     void passErrorToCallback(QNetworkReply* reply);
@@ -174,9 +182,12 @@ private:
     UserAgentGetter _userAgentGetter;
 
     QUrl _authURL;
+    overte::network::RequestScope _credentialContext;
+    overte::network::RequestScope _profileContext;
 
     DataServerAccountInfo _accountInfo;
     bool _isWaitingForTokenRefresh { false };
+    bool _isWaitingForAccessToken { false };
     bool _isAgent { false };
 
     bool _isWaitingForKeypairResponse { false };
@@ -190,7 +201,12 @@ private:
 
     bool _accountSettingsEnabled { false };
     AccountSettings _settings;
-    quint64 _currentSyncTimestamp { 0 };
+    bool _isPostingAccountSettings { false };
+    overte::network::RequestScope _settingsPostContext;
+    overte::network::RequestScope _settingsGetContext;
+    overte::network::RequestTicket _settingsRetryCredentials;
+    overte::network::RequestTicket _settingsRetryRequest;
+    overte::network::RequestTicket _settingsSyncCredentials;
     quint64 _lastSuccessfulSyncTimestamp { 0 };
     int _numPullRetries { 0 };
     QTimer* _pullSettingsRetryTimer { nullptr };

@@ -36,8 +36,8 @@ private:
     v8::UniquePersistent<v8::Array> _propertyNames;
     v8::UniquePersistent<v8::Object> _object;
     v8::UniquePersistent<v8::Context> _context;
-    int _length;
-    int _currentIndex;
+    int _length { 0 };
+    int _currentIndex { -1 };
     ScriptEngineV8 *_engine;
     Q_DISABLE_COPY(V8ScriptValueIterator)
 };
