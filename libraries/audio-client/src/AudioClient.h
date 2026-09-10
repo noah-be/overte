@@ -213,7 +213,6 @@ public slots:
     void handleMicAudioInput();
 #if defined(ANDROID_APP_PICO_INTERFACE)
     void drainAndroidAudioInput();
-    void refreshAndroidAudioInput();
 #endif
     void audioInputStateChanged(QAudio::State state);
     void checkInputTimeout();
@@ -339,7 +338,7 @@ private:
 
     void outputFormatChanged();
     void handleAudioInput(QByteArray& audioBuffer);
-    void processMicAudioInput(QByteArray& inputByteArray, quint64 policyTicket = 0);
+    void processMicAudioInput(QByteArray& inputByteArray);
     void prepareLocalAudioInjectors(std::unique_ptr<Lock> localAudioLock = nullptr);
     bool mixLocalAudioInjectors(float* mixBuffer);
     float azimuthForSource(const glm::vec3& relativePosition);
@@ -351,7 +350,6 @@ private:
     bool _isHeadsetPluggedIn { false };
 #if defined(ANDROID_APP_PICO_INTERFACE)
     bool _androidAudioInputActive { false };
-    quint64 _picoInputPolicyTicket { 0 };
     float _androidAudioInputVolume { 1.0f };
 #endif
 #endif
@@ -486,6 +484,9 @@ private:
 #endif
 
     bool switchInputToAudioDevice(const HifiAudioDeviceInfo inputDeviceInfo, bool isShutdownRequest = false);
+#if defined(Q_OS_IOS)
+    void refreshIOSAudioInput();
+#endif
     bool switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDeviceInfo, bool isShutdownRequest = false);
 
     // Callback acceleration dependent calculations
