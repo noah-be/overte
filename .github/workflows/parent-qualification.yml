@@ -3,6 +3,8 @@ name: Parent qualification
 on:
   push:
     branches: [main, android-main, android-vr, apple-main]
+    paths-ignore:
+      - "**/*.md"
 
 permissions:
   contents: read
