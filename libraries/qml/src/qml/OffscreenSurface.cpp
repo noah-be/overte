@@ -201,15 +201,25 @@ size_t OffscreenSurface::getUsedTextureMemory() {
 
 bool OffscreenSurface::configureSharedGraphicsContext(const SharedGraphicsContext& context) {
     if (context.backend == SharedGraphicsContext::Backend::Software) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
         SharedObject::setSoftwareRendering();
         return true;
+#else
+        return false; // This implementation has no Qt 5 paint-device producer.
+#endif
     }
+#if defined(Q_OS_IOS)
+    // MoltenVK cannot consume our external GL texture/fence ABI. Never switch
+    // the process-global scene graph away from its selected CPU producer.
+    return false;
+#else
     if (context.backend != SharedGraphicsContext::Backend::OpenGL || !context.handle) {
         return false;
     }
 
     setSharedContext(static_cast<QOpenGLContext*>(context.handle));
     return true;
+#endif
 }
 
 void OffscreenSurface::setSharedContext(QOpenGLContext* sharedContext) {

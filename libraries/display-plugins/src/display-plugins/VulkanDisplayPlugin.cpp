@@ -29,6 +29,7 @@
 #include <QtCore/QFileInfo>
 
 #include <QtGui/QImage>
+#include <shared/IOSRuntimeLogging.h>
 #include <QtGui/QImageWriter>
 #if !defined(OVERTE_IOS_VULKAN_DISABLE_QUICK_GL_COPY)
 #include <QtGui/QOpenGLFramebufferObject>
@@ -880,7 +881,9 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
             _vkWindow->_previousFrameFence = VK_NULL_HANDLE;
             VK_CHECK_RESULT(vkResetCommandBuffer(_vkWindow->_previousCommandBuffer, 0));
             _vkWindow->_previousCommandBuffer = VK_NULL_HANDLE;
+#if !defined(Q_OS_IOS)
             vkBackend->recyclePreviousFrame();
+#endif
 #if defined(Q_OS_IOS)
             if (!_iosPresentFenceReported) {
                 os_log_info(OS_LOG_DEFAULT,
@@ -889,6 +892,15 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
             }
 #endif
         }
+
+#if defined(Q_OS_IOS)
+        // A GUI-thread resize waits for device idle and clears the old fence
+        // before presentation resumes. Its completed FrameData still needs to
+        // return to the backend pool even when that fence is already gone.
+        // Otherwise executeFrame overwrites _previouslyRenderedFrame and each
+        // resize can permanently consume one of the three reusable frames.
+        vkBackend->recyclePreviousFrame();
+#endif
 
         VkCommandBufferBeginInfo commandBufferBeginInfo = vks::initializers::commandBufferBeginInfo();
         commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -1274,6 +1286,11 @@ void VulkanDisplayPlugin::present(const std::shared_ptr<RefreshRateController>& 
         const auto presentResult = _vkWindow->_swapchain.queuePresent(
             _vkWindow->_context.graphicsQueue, currentImageIndex,
             _vkWindow->_renderCompleteSemaphore);
+#if defined(Q_OS_IOS)
+        recordIOSRuntimePresentedFrame(_currentFrame->worldObservationGeneration,
+            _currentFrame->frameIndex,
+            presentResult == VK_SUCCESS || presentResult == VK_SUBOPTIMAL_KHR);
+#endif
         _vkWindow->_previousAcquireCompleteSemaphore = _vkWindow->_acquireCompleteSemaphore;
         _vkWindow->_previousRenderCompleteSemaphore = _vkWindow->_renderCompleteSemaphore;
         _vkWindow->_acquireCompleteSemaphore = VK_NULL_HANDLE;

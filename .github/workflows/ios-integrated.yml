@@ -3,6 +3,11 @@ name: iOS experimental integrated client gate
 on:
   workflow_dispatch:
     inputs:
+      preserve_reusable_data:
+        description: Preserve every reusable compiler checkpoint
+        required: false
+        default: true
+        type: boolean
       qt_host_cache_key:
         description: Existing GitHub Actions cache key containing audited Qt 6 host tools
         required: true
@@ -36,6 +41,11 @@ on:
         type: string
   workflow_call:
     inputs:
+      preserve_reusable_data:
+        description: Preserve every reusable compiler checkpoint
+        required: false
+        default: true
+        type: boolean
       qt_host_cache_key:
         description: Existing GitHub Actions cache key containing audited Qt 6 host tools
         required: true
@@ -493,8 +503,24 @@ jobs:
             --install-root "${{ github.workspace }}/build-ios/qt-install/qt" \
             --github-output "$GITHUB_OUTPUT"
 
+      - name: Restore trusted apple-ios Qt host checkpoint for build branches
+        id: qt-host-apple-ios-artifact
+        if: steps.qt-host-cache.outputs.cache-hit != 'true' && steps.qt-host-artifact.outputs.restored != 'true' && github.ref_name != 'apple-ios'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QT_HOST_ARTIFACT_PREFIX: ${{ inputs.qt_host_artifact_prefix }}
+          QT_HOST_CACHE_KEY: ${{ inputs.qt_host_cache_key }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py restore \
+            --artifact-prefix "$QT_HOST_ARTIFACT_PREFIX" --kind host \
+            --cache-key "$QT_HOST_CACHE_KEY" \
+            --expected-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --expected-branch apple-ios \
+            --install-root "${{ github.workspace }}/build-ios/qt-install/qt" \
+            --github-output "$GITHUB_OUTPUT"
+
       - name: Fail closed without validated Qt host tools
-        if: steps.qt-host-cache.outputs.cache-hit != 'true' && steps.qt-host-artifact.outputs.restored != 'true'
+        if: steps.qt-host-cache.outputs.cache-hit != 'true' && steps.qt-host-artifact.outputs.restored != 'true' && steps.qt-host-apple-ios-artifact.outputs.restored != 'true'
         run: |
           echo "neither the exact Qt host cache nor its validated artifact fallback was available" >&2
           exit 1
@@ -523,8 +549,24 @@ jobs:
             --install-root "${{ github.workspace }}/build-ios/qt-install/qt" \
             --github-output "$GITHUB_OUTPUT"
 
+      - name: Restore trusted apple-ios Qt target checkpoint for build branches
+        id: qt-ios-apple-ios-artifact
+        if: steps.qt-ios-cache.outputs.cache-hit != 'true' && steps.qt-ios-artifact.outputs.restored != 'true' && github.ref_name != 'apple-ios'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QT_IOS_ARTIFACT_PREFIX: ${{ inputs.qt_ios_artifact_prefix }}
+          QT_IOS_CACHE_KEY: ${{ inputs.qt_ios_cache_key }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py restore \
+            --artifact-prefix "$QT_IOS_ARTIFACT_PREFIX" --kind ios \
+            --cache-key "$QT_IOS_CACHE_KEY" \
+            --expected-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --expected-branch apple-ios \
+            --install-root "${{ github.workspace }}/build-ios/qt-install/qt" \
+            --github-output "$GITHUB_OUTPUT"
+
       - name: Fail closed without validated Qt iOS target
-        if: steps.qt-ios-cache.outputs.cache-hit != 'true' && steps.qt-ios-artifact.outputs.restored != 'true'
+        if: steps.qt-ios-cache.outputs.cache-hit != 'true' && steps.qt-ios-artifact.outputs.restored != 'true' && steps.qt-ios-apple-ios-artifact.outputs.restored != 'true'
         run: |
           echo "neither the exact Qt iOS cache nor its validated artifact fallback was available" >&2
           exit 1
@@ -594,15 +636,19 @@ jobs:
         env:
           QT_HOST_CACHE_HIT: ${{ steps.qt-host-cache.outputs.cache-hit }}
           QT_HOST_ARTIFACT_RESTORED: ${{ steps.qt-host-artifact.outputs.restored }}
+          QT_HOST_TRUSTED_ARTIFACT_RESTORED: ${{ steps.qt-host-apple-ios-artifact.outputs.restored }}
           QT_IOS_CACHE_HIT: ${{ steps.qt-ios-cache.outputs.cache-hit }}
           QT_IOS_ARTIFACT_RESTORED: ${{ steps.qt-ios-artifact.outputs.restored }}
+          QT_IOS_TRUSTED_ARTIFACT_RESTORED: ${{ steps.qt-ios-apple-ios-artifact.outputs.restored }}
           V8_CACHE_HIT: ${{ steps.integrated-v8-cache.outputs.cache-hit }}
           V8_ARTIFACT_RESTORED: ${{ steps.integrated-v8-artifact.outputs.restored }}
         run: |
           test "$QT_HOST_CACHE_HIT" = true \
-            || test "$QT_HOST_ARTIFACT_RESTORED" = true
+            || test "$QT_HOST_ARTIFACT_RESTORED" = true \
+            || test "$QT_HOST_TRUSTED_ARTIFACT_RESTORED" = true
           test "$QT_IOS_CACHE_HIT" = true \
-            || test "$QT_IOS_ARTIFACT_RESTORED" = true
+            || test "$QT_IOS_ARTIFACT_RESTORED" = true \
+            || test "$QT_IOS_TRUSTED_ARTIFACT_RESTORED" = true
           test "$V8_CACHE_HIT" = true \
             || test "$V8_ARTIFACT_RESTORED" = true
           ios/tools/prepare-qt-ios.sh validate
@@ -752,10 +798,14 @@ jobs:
 
       - name: Validate and compact audited device dependencies
         id: conan-integrity
+        env:
+          PRESERVE_REUSABLE_DATA: ${{ inputs.preserve_reusable_data }}
         run: |
           source build-ios/tooling-venv/bin/activate
           conan cache check-integrity "*"
-          conan cache clean "*" --build --temp
+          if [ "$PRESERVE_REUSABLE_DATA" = false ]; then
+            conan cache clean "*" --build --temp
+          fi
           conan cache check-integrity "*"
 
       - name: Create durable Conan package checkpoint
@@ -813,7 +863,7 @@ jobs:
           mkdir -p build-ios/ci-raw-diagnostics
           source build-ios/tooling-venv/bin/activate
           compiler_launcher="$GITHUB_WORKSPACE/ios/ci/xcode-compiler-launcher.sh"
-          configure_args=(configure --platform device --client-graph)
+          configure_args=(configure --platform device --client-graph --world-observations)
           if [[ "$E2E_TEST_BUILD" == "true" ]]; then
             [[ "$E2E_BUNDLE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*[.]e2e$ ]]
             configure_args+=(--e2e-test-build --bundle-id "$E2E_BUNDLE_ID")
@@ -837,7 +887,7 @@ jobs:
           grep -F 'COMPILER_INDEX_STORE_ENABLE = NO' <<< "$build_settings"
           grep -F 'CLANG_USE_RESPONSE_FILE = NO' <<< "$build_settings"
 
-      - name: Verify Qt5Compat QML imports before full build
+      - name: Verify required Interface QML imports before full build
         run: |
           shopt -s nullglob
           imports=(build-ios/device/interface/.qt/qml_imports/overte-ios-qml-plugin-imports_conf.cmake)
@@ -845,6 +895,7 @@ jobs:
             echo "expected exactly one iOS QML import scan result" >&2
             exit 1
           fi
+          cp "${imports[0]}" build-ios/ci-raw-diagnostics/qml-imports.log
           python3 ios/ci/verify-static-qml-plugin-link.py --imports "${imports[0]}"
 
       - name: Verify Xcode compiler checkpoint before full build
@@ -949,7 +1000,7 @@ jobs:
               )
           PY
 
-      - name: Verify Qt5Compat QML plugins in full-client link
+      - name: Verify required Interface QML plugins in full-client link
         run: |
           python3 ios/ci/verify-static-qml-plugin-link.py --link-log \
             build-ios/ci-raw-diagnostics/xcode-build.log
@@ -961,7 +1012,7 @@ jobs:
         run: sccache --stop-server || true
 
       - name: Free space for the next compiler checkpoint
-        if: ${{ !cancelled() && steps.full-client-build.outcome != 'skipped' }}
+        if: ${{ !inputs.preserve_reusable_data && !cancelled() && steps.full-client-build.outcome != 'skipped' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -985,7 +1036,7 @@ jobs:
           key: ${{ steps.client-sccache-key.outputs.key }}
 
       - name: Prune superseded full-client compiler checkpoints
-        if: ${{ !cancelled() && steps.client-sccache-save.outcome == 'success' }}
+        if: ${{ !inputs.preserve_reusable_data && !cancelled() && steps.client-sccache-save.outcome == 'success' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}

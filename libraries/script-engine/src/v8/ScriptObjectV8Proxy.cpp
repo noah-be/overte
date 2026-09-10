@@ -1022,6 +1022,7 @@ void ScriptMethodV8Proxy::callback(const v8::FunctionCallbackInfo<v8::Value>& ar
 }
 
 void ScriptMethodV8Proxy::call(const v8::FunctionCallbackInfo<v8::Value>& arguments) {
+    if (_engine->isEvaluationAborted()) { return; }
     v8::Isolate *isolate = arguments.GetIsolate();
     Q_ASSERT(isolate == _engine->getIsolate());
     Q_ASSERT(isolate->IsCurrent());
@@ -1029,14 +1030,29 @@ void ScriptMethodV8Proxy::call(const v8::FunctionCallbackInfo<v8::Value>& argume
     ContextScopeV8 contextScopeV8(_engine);
     auto context = _engine->getContext();
     v8::Context::Scope contextScope(context);
-    QObject* qobject = _object;
+    QPointer<QObject> qobject = _object;
     if (!qobject) {
         isolate->ThrowError("Referencing deleted native object");
         return;
     }
 
+    // Converters can reenter script lifecycle code or delete the target.
+    // Revalidate before any further conversion or native dispatch.
+    const auto canContinue = [&] {
+        if (_engine->isEvaluationAborted()) { return false; }
+        if (!qobject) {
+            isolate->ThrowError("Referencing deleted native object");
+            return false;
+        }
+        return true;
+    };
+
     int scriptNumArgs = arguments.Length();
     int numArgs = std::min(scriptNumArgs, _numMaxParams);
+    if (numArgs < 0 || numArgs > 10) {
+        isolate->ThrowError("Native method exceeds supported argument count");
+        return;
+    }
 
     const int scriptValueTypeId = qMetaTypeId<ScriptValue>();
 
@@ -1057,6 +1073,7 @@ void ScriptMethodV8Proxy::call(const v8::FunctionCallbackInfo<v8::Value>& argume
     int bestConversionPenaltyScore = 0;
 
     for (int i = 0; i < num_metas; i++) {
+        if (!canContinue()) { return; }
         const QMetaMethod& meta = _metas[i];
         int methodNumArgs = meta.parameterCount();
         if (methodNumArgs != numArgs) {
@@ -1071,6 +1088,7 @@ void ScriptMethodV8Proxy::call(const v8::FunctionCallbackInfo<v8::Value>& argume
         int conversionFailures = 0;
 
         for (int arg = 0; arg < numArgs; ++arg) {
+            if (!canContinue()) { return; }
             int methodArgTypeId = meta.parameterType(arg);
             if (methodArgTypeId == QMetaType::UnknownType) {
                 QString methodName = fullName();
@@ -1083,7 +1101,9 @@ void ScriptMethodV8Proxy::call(const v8::FunctionCallbackInfo<v8::Value>& argume
                 qGenArgsVectors[i][arg] = QGenericArgument("ScriptValue", &qScriptArgLists[i].back());
             } else if (methodArgTypeId == QMetaType::QVariant) {
                 qVarArgLists[i].emplace_back();
-                if (!_engine->castValueToVariant(V8ScriptValue(_engine, argVal), qVarArgLists[i].back(), methodArgTypeId)) {
+                const bool convertedArgument = _engine->castValueToVariant(V8ScriptValue(_engine, argVal), qVarArgLists[i].back(), methodArgTypeId);
+                if (!canContinue()) { return; }
+                if (!convertedArgument) {
                     conversionFailures++;
                     qVarArgLists[i].pop_back();
                 } else {
@@ -1091,7 +1111,9 @@ void ScriptMethodV8Proxy::call(const v8::FunctionCallbackInfo<v8::Value>& argume
                 }
             } else {
                 qVarArgLists[i].emplace_back();
-                if (!_engine->castValueToVariant(V8ScriptValue(_engine, argVal), qVarArgLists[i].back(), methodArgTypeId)) {
+                const bool convertedArgument = _engine->castValueToVariant(V8ScriptValue(_engine, argVal), qVarArgLists[i].back(), methodArgTypeId);
+                if (!canContinue()) { return; }
+                if (!convertedArgument) {
                     conversionFailures++;
                     qVarArgLists[i].pop_back();
                 } else {
@@ -1123,6 +1145,7 @@ void ScriptMethodV8Proxy::call(const v8::FunctionCallbackInfo<v8::Value>& argume
                 }
             }
         }
+        if (!canContinue()) { return; }
         if (conversionFailures) {
             if (conversionFailures < parameterConversionFailureCount || !parameterConversionFailureCount) {
                 parameterConversionFailureCount = conversionFailures;
@@ -1142,6 +1165,7 @@ void ScriptMethodV8Proxy::call(const v8::FunctionCallbackInfo<v8::Value>& argume
         }
     }
 
+    if (!canContinue()) { return; }
     if (isValidMetaSelected) {
         // V8TODO: is this the correct wrapper?
         ScriptContextV8Wrapper ourContext(_engine, &arguments, context,
@@ -1163,20 +1187,25 @@ void ScriptMethodV8Proxy::call(const v8::FunctionCallbackInfo<v8::Value>& argume
             isolate->ThrowError(v8::String::NewFromUtf8(isolate, QString("Cannot call native function %1, its return value has not been registered with Qt").arg(fullName()).toStdString().c_str()).ToLocalChecked());
             return;
         } else if (returnTypeId == QMetaType::Void) {
+            if (!canContinue()) { return; }
             bool success = invokeWithGenericArguments(meta, qobject, QGenericReturnArgument(), qGenArgs);
+            if (_engine->isEvaluationAborted()) { return; }
             if (!success) {
                 isolate->ThrowError(v8::String::NewFromUtf8(isolate, QString("Unexpected: Native call of %1 failed").arg(fullName()).toStdString().c_str()).ToLocalChecked());
             }
             return;
         } else if (returnTypeId == scriptValueTypeId) {
             ScriptValue result;
+            if (!canContinue()) { return; }
             bool success = invokeWithGenericArguments(
                 meta, qobject, QGenericReturnArgument(meta.typeName(), &result), qGenArgs);
+            if (_engine->isEvaluationAborted()) { return; }
             if (!success) {
                 isolate->ThrowError(v8::String::NewFromUtf8(isolate, QString("Unexpected: Native call of %1 failed").arg(fullName()).toStdString().c_str()).ToLocalChecked());
                 return;
             }
             V8ScriptValue v8Result = ScriptValueV8Wrapper::fullUnwrap(_engine, result);
+            if (_engine->isEvaluationAborted()) { return; }
             arguments.GetReturnValue().Set(v8Result.get());
             return;
         } else {
@@ -1185,12 +1214,15 @@ void ScriptMethodV8Proxy::call(const v8::FunctionCallbackInfo<v8::Value>& argume
             QVariant qRetVal = variantFromMetaTypeId(returnTypeId);
             QGenericReturnArgument sRetVal(typeName, const_cast<void*>(qRetVal.constData()));
 
+            if (!canContinue()) { return; }
             bool success = invokeWithGenericArguments(meta, qobject, sRetVal, qGenArgs);
+            if (_engine->isEvaluationAborted()) { return; }
             if (!success) {
                 isolate->ThrowError(v8::String::NewFromUtf8(isolate, QString("Unexpected: Native call of %1 failed").arg(fullName()).toStdString().c_str()).ToLocalChecked());
                 return;
             }
             V8ScriptValue v8Result = _engine->castVariantToValue(qRetVal);
+            if (_engine->isEvaluationAborted()) { return; }
             arguments.GetReturnValue().Set(v8Result.get());
             return;
         }
@@ -1207,12 +1239,15 @@ void ScriptMethodV8Proxy::call(const v8::FunctionCallbackInfo<v8::Value>& argume
     Q_ASSERT(methodNumArgs == numArgs);
 
     for (int arg = 0; arg < numArgs; ++arg) {
+        if (!canContinue()) { return; }
         int methodArgTypeId = meta.parameterType(arg);
         Q_ASSERT(methodArgTypeId != QMetaType::UnknownType);
         v8::Local<v8::Value> argVal = arguments[arg];
         if (methodArgTypeId != scriptValueTypeId) {
             QVariant varArgVal;
-            if (!_engine->castValueToVariant(V8ScriptValue(_engine, argVal), varArgVal, methodArgTypeId)) {
+            const bool convertedArgument = _engine->castValueToVariant(V8ScriptValue(_engine, argVal), varArgVal, methodArgTypeId);
+            if (!canContinue()) { return; }
+            if (!convertedArgument) {
                 QByteArray methodTypeName = QMetaType(methodArgTypeId).name();
                 QByteArray argTypeName = _engine->valueType(V8ScriptValue(_engine, argVal)).toLatin1();
                 QString errorMessage = QString("Native call of %1 failed: Cannot convert parameter %2 from %3 to %4")
@@ -1288,6 +1323,8 @@ int ScriptSignalV8Proxy::qt_metacall(QMetaObject::Call call, int id, void** argu
         return id;
     }
 
+    if (_engine->isEvaluationAborted()) { return -1; }
+
 #ifdef SCRIPT_EVENT_PERFORMANCE_STATISTICS
     _callCounter++;
     if (_callCounter % 1000 == 0) {
@@ -1315,50 +1352,56 @@ int ScriptSignalV8Proxy::qt_metacall(QMetaObject::Call call, int id, void** argu
         v8::Context::Scope contextScope(context);
         v8::Local<v8::Value> args[Q_METAMETHOD_INVOKE_MAX_ARGS];
         int numArgs = _meta.parameterCount();
+        if (numArgs < 0 || numArgs > Q_METAMETHOD_INVOKE_MAX_ARGS || (numArgs > 0 && !arguments)) {
+            return -1;
+        }
         for (int arg = 0; arg < numArgs; ++arg) {
+            if (_engine->isEvaluationAborted()) { return -1; }
             int methodArgTypeId = _meta.parameterType(arg);
-            Q_ASSERT(methodArgTypeId != QMetaType::UnknownType);
-            QVariant argValue = variantFromMetaTypeId(methodArgTypeId, arguments[arg + 1]);
+            if (methodArgTypeId == QMetaType::UnknownType || !arguments[arg + 1]) { return -1; }
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+            QVariant argValue(QMetaType(methodArgTypeId), arguments[arg + 1]);
+#else
+            QVariant argValue(methodArgTypeId, arguments[arg + 1]);
+#endif
             args[arg] = _engine->castVariantToValue(argValue).get();
+            if (_engine->isEvaluationAborted() || isolate->IsExecutionTerminating() || args[arg].IsEmpty()) { return -1; }
         }
         for (ConnectionList::iterator iter = connections.begin(); iter != connections.end(); ++iter) {
+            if (_engine->isEvaluationAborted()) { return -1; }
             Connection& conn = *iter;
             {
                 auto functionContext = context;
 
-                Q_ASSERT(!conn.callback.get().IsEmpty());
-                Q_ASSERT(!conn.callback.get()->IsUndefined());
-                if (conn.callback.get()->IsNull()) {
-                    qCDebug(scriptengine_v8) << "ScriptSignalV8Proxy::qt_metacall: Connection callback is Null";
-                    _engine->popContext();
-                    continue;
-                }
-                if (!conn.callback.get()->IsFunction()) {
-                    auto stringV8 = conn.callback.get()->ToDetailString(functionContext).ToLocalChecked();
-                    QString error = *v8::String::Utf8Value(_engine->getIsolate(), stringV8);
-                    qCDebug(scriptengine_v8) << error;
-                    Q_ASSERT(false);
-                }
-                v8::Local<v8::Function> callback = v8::Local<v8::Function>::Cast(conn.callback.get());
+                const auto callbackValue = conn.callback.get();
+                if (callbackValue.IsEmpty() || !callbackValue->IsFunction()) { continue; }
+                v8::Local<v8::Function> callback = callbackValue.As<v8::Function>();
 
                 v8::Local<v8::Value> v8This;
-                if (conn.thisValue.get()->IsObject()) {
-                    v8This = conn.thisValue.get();
+                const auto receiver = conn.thisValue.get();
+                if (!receiver.IsEmpty() && receiver->IsObject()) {
+                    v8This = receiver;
                 } else {
                     v8This = functionContext->Global();
                 }
 
                 v8::TryCatch tryCatch(isolate);
-                auto maybeResult = callback->Call(functionContext, v8This, numArgs, args);
-                Q_UNUSED(maybeResult); // Signals don't have return values
+                auto invoke = [&] {
+                    auto maybeResult = callback->Call(functionContext, v8This, numArgs, args);
+                    Q_UNUSED(maybeResult); // Signals don't have return values
+                };
+                if (conn.invokeInEnvironment) { conn.invokeInEnvironment(invoke); } else { invoke(); }
+                if (tryCatch.HasTerminated() || isolate->IsExecutionTerminating()) {
+                    return -1; // No diagnostic reentry or later signal callback.
+                }
                 if (tryCatch.HasCaught()) {
                     QString errorMessage(QString("Signal proxy ") + fullName() + " connection call failed: \""
                                           + _engine->formatErrorMessageFromTryCatch(tryCatch)
-                                          + "\nThis provided: " + QString::number(conn.thisValue.get()->IsObject()));
+                                          + "\nThis provided: " + QString::number(!receiver.IsEmpty() && receiver->IsObject()));
                     v8::Local<v8::Message> exceptionMessage = tryCatch.Message();
                     int errorLineNumber = -1;
                     if (!exceptionMessage.IsEmpty()) {
-                        errorLineNumber = exceptionMessage->GetLineNumber(context).FromJust();
+                        errorLineNumber = exceptionMessage->GetLineNumber(context).FromMaybe(-1);
                     }
                     if (_engine->_manager) {
                         _engine->_manager->scriptErrorMessage(errorMessage, getFileNameFromTryCatch(tryCatch, isolate, context),
@@ -1511,6 +1554,9 @@ void ScriptSignalV8Proxy::connect(ScriptValue arg0, ScriptValue arg1) {
 
     // add this to our internal list of connections
     Connection newConnection(callbackThis, callback);
+    if (const auto manager = _engine->manager()) {
+        newConnection.invokeInEnvironment = manager->captureScriptEnvironment();
+    }
 
     withWriteLock([&]{
         _connections.append(newConnection);

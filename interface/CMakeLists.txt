@@ -163,8 +163,11 @@ if (APPLE)
     # The UIKit metrics bridge owns notification tokens and accessibility
     # activation blocks with ARC transfer/weak semantics. Keep ARC local to
     # this iOS source instead of changing legacy Objective-C++ ownership.
+    get_filename_component(IOS_TOUCH_UI_METRICS_MM
+      "${CMAKE_CURRENT_SOURCE_DIR}/../ios/ui/IOSTouchUiMetrics.mm" ABSOLUTE)
+    list(APPEND INTERFACE_OBJCPP_SRCS "${IOS_TOUCH_UI_METRICS_MM}")
     set_source_files_properties(
-      "${CMAKE_CURRENT_SOURCE_DIR}/src/IOSTouchUiMetrics.mm"
+      "${IOS_TOUCH_UI_METRICS_MM}"
       PROPERTIES COMPILE_OPTIONS "-fobjc-arc"
     )
   endif()

@@ -8,7 +8,6 @@
 
 import Hifi 1.0 as Hifi
 import QtQuick 2.5
-import Qt5Compat.GraphicalEffects
 
 import "./hifi/audio" as HifiAudio
 

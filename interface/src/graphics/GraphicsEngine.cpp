@@ -12,6 +12,7 @@
 #include "GraphicsEngine.h"
 
 #include <shared/GlobalAppProperties.h>
+#include <shared/IOSRuntimeLogging.h>
 
 #include "WorldBox.h"
 #include "LODManager.h"
@@ -310,9 +311,14 @@ void GraphicsEngine::render_performFrame() {
     }
 
     RenderArgs renderArgs;
+#if defined(Q_OS_IOS)
+    const auto worldObservationGeneration = iosRuntimeEntityEvidenceGeneration();
+    bool worldCommandsRecorded { false };
+#endif
     glm::mat4  HMDSensorPose;
     glm::mat4  eyeToWorld;
     glm::mat4  sensorToWorld;
+    glm::mat4  view;
     ViewFrustum viewFrustum;
 
     bool isStereo;
@@ -337,11 +343,19 @@ void GraphicsEngine::render_performFrame() {
             stereoEyeProjections[eye] = _appRenderArgs._eyeProjections[eye];
         });
         viewFrustum = _appRenderArgs._renderArgs.getViewFrustum();
+        view = _appRenderArgs._view;
+#if defined(Q_OS_IOS)
+        // updateRenderArgs publishes the camera and scene frame under this
+        // mutex. Consume both before releasing it; SceneTask must not drain
+        // the next simulation update after we have captured this camera.
+        _renderScene->processTransactionQueue();
+        renderArgs._sceneTransactionsProcessed = true;
+#endif
     }
 
     {
         PROFILE_RANGE(render, "/gpuContextReset");
-        getGPUContext()->beginFrame(_appRenderArgs._view, HMDSensorPose);
+        getGPUContext()->beginFrame(view, HMDSensorPose);
         // Reset the gpu::Context Stages
         // Back to the default framebuffer;
         gpu::doInBatch("Application_render::gpuContextReset", getGPUContext(), [&](gpu::Batch& batch) {
@@ -401,6 +415,9 @@ void GraphicsEngine::render_performFrame() {
             renderArgs._takingSnapshot = qApp->takeSnapshotOperators(snapshotOperators);
             renderArgs._blitFramebuffer = finalFramebuffer;
             render_runRenderFrame(&renderArgs);
+#if defined(Q_OS_IOS)
+            worldCommandsRecorded = true;
+#endif
         }
     }
 
@@ -411,6 +428,13 @@ void GraphicsEngine::render_performFrame() {
 #endif
 
     auto frame = getGPUContext()->endFrame();
+#if defined(Q_OS_IOS)
+    // Exclude splash-only frames and generations changed during recording.
+    if (worldCommandsRecorded && worldObservationGeneration != 0 &&
+            worldObservationGeneration == iosRuntimeEntityEvidenceGeneration()) {
+        frame->worldObservationGeneration = worldObservationGeneration;
+    }
+#endif
     frame->frameIndex = _renderFrameCount;
     frame->framebuffer = finalFramebuffer;
     frame->framebufferRecycler = [](const gpu::FramebufferPointer& framebuffer) {

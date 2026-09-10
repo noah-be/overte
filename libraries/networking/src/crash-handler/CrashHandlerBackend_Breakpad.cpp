@@ -24,7 +24,6 @@
 #include <QtAndroidExtras/QAndroidJniObject>
 
 #include <BuildInfo.h>
-#include <FingerprintUtils.h>
 #include <SettingHelpers.h>
 #include <UUID.h>
 
@@ -62,8 +61,6 @@ bool startCrashHandler(std::string appPath, std::string crashURL, std::string cr
     annotations["build_number"] = BuildInfo::BUILD_NUMBER;
     annotations["build_type"] = BuildInfo::BUILD_TYPE_STRING;
 
-    auto machineFingerPrint = uuidStringWithoutCurlyBraces(FingerprintUtils::getMachineFingerprint());
-    annotations["machine_fingerprint"] = machineFingerPrint;
 
     flushAnnotations();
 

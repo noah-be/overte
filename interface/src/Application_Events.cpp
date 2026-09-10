@@ -14,8 +14,14 @@
 //
 
 #include "Application.h"
+#include "ApplicationLifecycle.h"
 
 #include <QtCore/QMimeData>
+#include <QtCore/QCoreApplication>
+#include <QtCore/QThread>
+#include <AddressManager.h>
+#include <DomainAccountManager.h>
+#include <NodeList.h>
 
 #include <controllers/InputRecorder.h>
 #include <display-plugins/CompositorHelper.h>
@@ -345,7 +351,44 @@ void Application::onPresent(quint32 frameCount) {
     }
 }
 
+namespace {
+void publishClientVisibility(bool native, bool foreground) {
+    auto app = QCoreApplication::instance();
+    if (!app) { return; }
+    if (QThread::currentThread() != app->thread()) {
+        QMetaObject::invokeMethod(app, [native, foreground] {
+            publishClientVisibility(native, foreground);
+        }, Qt::QueuedConnection);
+        return;
+    }
+    static overte::lifecycle::VisibilityInputs inputs;
+    const bool requested = native ? inputs.observeNative(foreground) : inputs.observeQt(foreground);
+    const bool effective = overte::lifecycle::applicationGate().visible(requested).snapshot.foreground;
+    // Native callbacks may precede setupEssentials. Do not create dependencies
+    // early; the real startup observation republishes the retained inputs.
+    if (DependencyManager::isSet<AddressManager>()) {
+        DependencyManager::get<AddressManager>()->setClientLookupVisibility(effective);
+    }
+    if (DependencyManager::isSet<NodeList>()) {
+        DependencyManager::get<NodeList>()->setClientTransportVisibility(effective);
+    }
+    if (DependencyManager::isSet<DomainAccountManager>()) {
+        DependencyManager::get<DomainAccountManager>()->setClientAuthVisibility(effective);
+    }
+}
+} // namespace
+
+void overte::lifecycle::observeQtVisibility(bool foreground) {
+    publishClientVisibility(false, foreground);
+}
+
+void overte::lifecycle::observeNativeVisibility(bool foreground) {
+    publishClientVisibility(true, foreground);
+}
+
 void Application::activeChanged(Qt::ApplicationState state) {
+    if (state != Qt::ApplicationActive) { invalidateEntityScriptConsent(); }
+    overte::lifecycle::observeQtVisibility(state == Qt::ApplicationActive);
     switch (state) {
         case Qt::ApplicationActive:
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
@@ -373,6 +416,7 @@ void Application::activeChanged(Qt::ApplicationState state) {
             _isForeground = false;
             break;
         case Qt::ApplicationInactive:
+            _isForeground = false;
             if (!_aboutToQuit && _startUpFinished) {
                 getRefreshRateManager().setRefreshRateRegime(RefreshRateManager::RefreshRateRegime::UNFOCUS);
             }

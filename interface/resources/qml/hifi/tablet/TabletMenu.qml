@@ -1,5 +1,4 @@
 import QtQuick 2.5
-import Qt5Compat.GraphicalEffects
 import QtQuick.Controls 2.3
 import QtQml 2.2
 
@@ -47,6 +46,7 @@ FocusScope {
 
         HiFiGlyphs {
             id: menuRootIcon
+            color: "#34a2c7"
             text: breadcrumbText.text !== "Menu" ? hifi.glyphs.backward : ""
             size: 72
             anchors.verticalCenter: parent.verticalCenter
@@ -57,8 +57,8 @@ FocusScope {
             MouseArea {
                 anchors.fill: parent
                 hoverEnabled: true
-                onEntered: iconColorOverlay.color = "#1fc6a6";
-                onExited: iconColorOverlay.color = "#34a2c7";
+                onEntered: menuRootIcon.color = "#1fc6a6";
+                onExited: menuRootIcon.color = "#34a2c7";
                 onClicked: {
                     menuPopperUpper.closeLastMenu();
                     tabletRoot.playButtonClickSound();
@@ -66,12 +66,7 @@ FocusScope {
             }
         }
 
-        ColorOverlay {
-            id: iconColorOverlay
-            anchors.fill: menuRootIcon
-            source: menuRootIcon
-            color: "#34a2c7"
-        }
+
 
         RalewayBold {
             id: breadcrumbText
@@ -86,6 +81,10 @@ FocusScope {
 
     function pop() {
         menuPopperUpper.closeLastMenu();
+    }
+
+    function handleTabletBack() {
+        return menuPopperUpper.closeLastMenu();
     }
 
     function setRootMenu(rootMenu, subMenu) {

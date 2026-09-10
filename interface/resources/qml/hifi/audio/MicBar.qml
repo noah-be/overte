@@ -10,7 +10,6 @@
 //
 
 import QtQuick 2.5
-import Qt5Compat.GraphicalEffects
 import stylesUit 1.0
 
 import TabletScriptingInterface 1.0
@@ -128,7 +127,7 @@ Rectangle {
         height: 40;
 
         Item {
-            Image {
+            TintedImage {
                 readonly property string unmutedIcon: "../../../icons/tablet-icons/mic-unmute-i.svg";
                 readonly property string mutedIcon: "../../../icons/tablet-icons/mic-mute-i.svg";
                 readonly property string pushToTalkIcon: "../../../icons/tablet-icons/mic-ptt-i.svg";
@@ -136,6 +135,7 @@ Rectangle {
                 readonly property string gatedIcon: "../../../icons/tablet-icons/mic-gate-i.svg";
 
                 id: image;
+                color: colors.icon;
                 source: (pushToTalk && !pushingToTalk) ? pushToTalkIcon : muted ? mutedIcon :
                     clipping ? clippingIcon : gated ? gatedIcon : unmutedIcon;
 
@@ -149,11 +149,7 @@ Rectangle {
                 }
             }
 
-            ColorOverlay {
-                anchors { fill: image }
-                source: image;
-                color: colors.icon;
-            }
+
         }
     }
 
@@ -215,45 +211,14 @@ Rectangle {
 
         width: status.width;
 
-        Rectangle { // base
-            radius: 4;
-            anchors { fill: parent }
-            color: colors.gutter;
-        }
-
-        Rectangle { // mask
-            id: mask;
-            width: gated ? 0 : parent.width * level;
-            radius: 5;
-            anchors {
-                bottom: parent.bottom;
-                bottomMargin: 0;
-                top: parent.top;
-                topMargin: 0;
-                left: parent.left;
-                leftMargin: 0;
-            }
-        }
-
-        LinearGradient {
-            anchors { fill: mask }
-            source: mask
-            start: Qt.point(0, 0);
-            end: Qt.point(170, 0);
-            gradient: Gradient {
-                GradientStop {
-                    position: 0;
-                    color: colors.greenStart;
-                }
-                GradientStop {
-                    position: 0.5;
-                    color: colors.greenEnd;
-                }
-                GradientStop {
-                    position: 1;
-                    color: colors.yellow;
-                }
-            }
+        LevelMeter {
+            anchors.fill: parent
+            level: gated ? 0 : micBar.level
+            vertical: false
+            gutter: colors.gutter
+            low: colors.greenStart
+            middle: colors.greenEnd
+            high: colors.yellow
         }
 
         Rectangle {

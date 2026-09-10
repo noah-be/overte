@@ -3,6 +3,9 @@
 
 from pathlib import Path
 import re
+import os
+import subprocess
+import textwrap
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/ios-integrated.yml"
@@ -13,6 +16,28 @@ def require(pattern: str, text: str, message: str) -> None:
 
 def main() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
+    preflight = workflow.split("      - name: Toolchain preflight\n", 1)[1].split("\n      - name:", 1)[0]
+    for component in ("HOST", "IOS"):
+        producer = "host" if component == "HOST" else "ios"
+        assert f"QT_{component}_TRUSTED_ARTIFACT_RESTORED: ${{{{ steps.qt-{producer}-apple-ios-artifact.outputs.restored }}}}" in preflight
+    # Execute the real shell admission checks, before native validation, with
+    # cache, same-branch artifact and validated trusted-branch restore outcomes.
+    admission = textwrap.dedent(preflight.split("        run: |\n", 1)[1]).split("ios/tools/prepare-qt-ios.sh validate", 1)[0]
+    groups = [
+        ["QT_HOST_CACHE_HIT", "QT_HOST_ARTIFACT_RESTORED", "QT_HOST_TRUSTED_ARTIFACT_RESTORED"],
+        ["QT_IOS_CACHE_HIT", "QT_IOS_ARTIFACT_RESTORED", "QT_IOS_TRUSTED_ARTIFACT_RESTORED"],
+        ["V8_CACHE_HIT", "V8_ARTIFACT_RESTORED"],
+    ]
+    import itertools
+    for choices in itertools.product(*[range(-1, len(group)) for group in groups]):
+        env = dict(os.environ, **{key: "false" for group in groups for key in group})
+        for group, choice in zip(groups, choices):
+            if choice >= 0:
+                env[group[choice]] = "true"
+        result = subprocess.run(["bash", "-e", "-c", admission], env=env, timeout=5)
+        assert (result.returncode == 0) == all(choice >= 0 for choice in choices), choices
+    assert 'if [ "$PRESERVE_REUSABLE_DATA" = false ]; then\n            conan cache clean "*" --build --temp\n          fi' in workflow
+    assert "PRESERVE_REUSABLE_DATA: ${{ inputs.preserve_reusable_data }}" in workflow
     integrated = workflow[workflow.index("  integrated-configure:"):]
     names = [
         "Restore validated Conan package cache",

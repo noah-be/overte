@@ -17,6 +17,7 @@
 
 #include <QtCore/QVariant>
 #include <QtCore/QQueue>
+#include <QtCore/QPointer>
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QInputDialog>
@@ -41,6 +42,7 @@ protected:
     ModalDialogListener(QQuickItem* dialog);
     virtual ~ModalDialogListener();
     virtual QVariant waitForResult();
+    void finish(QVariant result);
 
 signals:
     void response(const QVariant& value);
@@ -49,7 +51,7 @@ protected slots:
     virtual void onDestroyed();
 
 protected:
-    QQuickItem* _dialog;
+    QPointer<QQuickItem> _dialog;
     bool _finished { false };
     QVariant _result;
 };
@@ -267,6 +269,7 @@ private:
     ModalDialogListener* assetDialogAsync(const QVariantMap& properties);
 
     QQuickItem* _desktop { nullptr };
+    void registerModalDialog(ModalDialogListener* listener);
     QList<QObject*> _modalDialogListeners;
     std::unordered_map<int, bool> _pressedKeys;
     VrMenu* _vrMenu { nullptr };

@@ -13,7 +13,7 @@
 
 import Hifi 1.0 as Hifi
 import QtQuick 2.5
-import Qt5Compat.GraphicalEffects
+import QtQuick.Controls 2.3 as QuickControls
 import stylesUit 1.0 as HifiStylesUit
 import controlsUit 1.0 as HifiControlsUit
 import "qrc:/qml/controls" as HifiControls
@@ -31,6 +31,32 @@ Rectangle {
     color: hifi.colors.baseGray;
     
     property string title: "Security Settings";
+    function handleTabletBack() {
+        if (!helpDialog.visible) { return false; }
+        helpDialog.close();
+        return true;
+    }
+
+    QuickControls.Dialog {
+        id: helpDialog
+        objectName: "settings.security.help"
+        property string helpText: ""
+        modal: true
+        focus: true
+        width: Math.min(420, Math.max(0, root.width - 32))
+        x: (root.width - width) / 2
+        y: Math.max(0, (root.height - height) / 2)
+        standardButtons: QuickControls.Dialog.Ok
+        closePolicy: QuickControls.Popup.CloseOnEscape
+        contentItem: Text {
+            text: helpDialog.helpText
+            wrapMode: Text.WordWrap
+            font.pixelSize: Math.round(16 * touchConfiguration.textScale)
+            Accessible.role: Accessible.StaticText
+            Accessible.name: text
+        }
+    }
+
     
     QtObject {
         id: margins
@@ -163,14 +189,10 @@ Rectangle {
                 HifiStylesUit.RalewaySemiBold {
                     id: autoLogoutHelp;
                     function showHelp() {
-                        lightboxPopup.titleText = "Keep Me Logged In";
-                        lightboxPopup.bodyText = "If you choose to stay logged in, ensure that this is a trusted device.\n\n" +
+                        helpDialog.title = "Keep Me Logged In";
+                        helpDialog.helpText = "If you choose to stay logged in, ensure that this is a trusted device.\n\n" +
                             "Also, remember that logging out may not disconnect you from a domain.";
-                        lightboxPopup.button1text = "OK";
-                        lightboxPopup.button1method = function() {
-                            lightboxPopup.visible = false;
-                        }
-                        lightboxPopup.visible = true;
+                        helpDialog.open();
                     }
                     text: '[?]';
                     // Anchors
@@ -264,14 +286,10 @@ Rectangle {
                 HifiStylesUit.RalewaySemiBold {
                     id: kpiScriptHelp;
                     function showHelp() {
-                        lightboxPopup.titleText = "Script Plugin Infrastructure";
-                        lightboxPopup.bodyText = "Toggles the activation of scripting plugins in the 'plugins/scripting' folder. \n\n"
+                        helpDialog.title = "Script Plugin Infrastructure";
+                        helpDialog.helpText = "Toggles the activation of scripting plugins in the 'plugins/scripting' folder. \n\n"
                           + "Created by:\n    humbletim@gmail.com\n    somnilibertas@gmail.com";
-                        lightboxPopup.button1text = "OK";
-                        lightboxPopup.button1method = function() {
-                            lightboxPopup.visible = false;
-                        }
-                        lightboxPopup.visible = true;
+                        helpDialog.open();
                     }
                     text: '[?]';
                     // Anchors

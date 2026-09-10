@@ -556,14 +556,28 @@ void EntityRenderer::updateInScene(const ScenePointer& scene, Transaction& trans
     _updateTime = usecTimestampNow();
 
     doRenderUpdateSynchronous(scene, transaction, _entity);
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+    const auto evidenceGeneration = iosRuntimeEntityEvidenceGeneration();
+    const std::weak_ptr<EntityRenderer> evidenceOwner = shared_from_this();
+    transaction.updateItem<PayloadProxyInterface>(_renderItemID, [this, evidenceGeneration, evidenceOwner](PayloadProxyInterface& self) {
+#else
     transaction.updateItem<PayloadProxyInterface>(_renderItemID, [this](PayloadProxyInterface& self) {
+#endif
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+        // Lock before the first dereference of this. Keep the real renderer
+        // alive for the callback without extending it merely while queued.
+        const auto owner = evidenceOwner.lock();
+        if (!owner) {
+            return;
+        }
+#endif
         if (!isValidRenderItem()) {
             return;
         }
         // Happens on the render thread.  Classes should use
         doRenderUpdateAsynchronous(_entity);
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
-        if (recordIOSRuntimeSceneEntity(_entity->getID().toString()) &&
+        if (recordIOSRuntimeSceneEntity(_entity->getID().toString(), evidenceGeneration) &&
                 iosRuntimeRenderDiagnosticsEnabled()) {
             const auto evidence = iosRuntimeEntityEvidenceSnapshot();
             if (evidence.scene == 1) {

@@ -287,13 +287,9 @@ bool ApplicationOverlay::updateIOSQmlTexture() {
         }
 
         QString capturePath;
-        bool captureSaved { false };
-        if (selectedFrame || selectedSequence ||
-                iosRuntimeDiagnosticBool("captureFirstScreenQmlFrame", false)) {
-            capturePath = QDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation))
-                .filePath(QStringLiteral("Overte-iOS-Screen-QML-%1.png").arg(_iosQmlFrameOrdinal));
-            captureSaved = uploadImage.save(capturePath, "PNG");
-        }
+        const bool captureSaved = false;
+        // Raw QML pixels can contain account or private-world content.
+        // Diagnostic selectors do not authorize exporting them to Documents.
         if (captureSequence >= 0) {
             _lastIOSQmlCaptureSequence = captureSequence;
         }

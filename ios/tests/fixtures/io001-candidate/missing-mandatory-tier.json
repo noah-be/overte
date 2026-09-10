@@ -1,0 +1,23 @@
+{
+  "contract": "overte-ios-io001-candidate-v1",
+  "source": {
+    "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "artifact": {
+    "relativePath": "0001-OverteIOSClient-Release-simulator.zip",
+    "sha256": "dba9841f9e69c9d2013baf77a4010e8f576d1fbc256a22baa2b0f8f015c57a36",
+    "sizeBytes": 39,
+    "kind": "full-client-simulator"
+  },
+  "producer": {
+    "configuration": "Release",
+    "sdk": "iphonesimulator",
+    "architecture": "arm64",
+    "credentialsUsed": false
+  },
+  "tiers": [
+    { "id": "host-contracts", "status": "PASS" },
+    { "id": "cold-full-client-build", "status": "PASS" },
+    { "id": "warm-full-client-build", "status": "PASS" }
+  ]
+}

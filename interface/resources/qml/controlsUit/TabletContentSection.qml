@@ -9,7 +9,6 @@
 //
 
 import QtQuick 2.5
-import Qt5Compat.GraphicalEffects
 
 import "../stylesUit"
 
@@ -119,20 +118,17 @@ Column {
             }
         }
 
-        LinearGradient {
+        Rectangle {
             id: bottomBar
             visible: false
             width: 480
             height: visible ? 4 : 0
             x: -hifi.dimensions.contentMargin.x
             anchors.top: heading.bottom
-            start: Qt.point(0, 0)
-            end: Qt.point(0, 4)
             gradient: Gradient {
                 GradientStop { position: 0.0; color: hifi.colors.darkGray }
                 GradientStop { position: 1.0; color: hifi.colors.baseGray }  // Equivalent of darkGray0 over baseGray background.
             }
-            cached: true
         }
     }
 }

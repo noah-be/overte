@@ -10,7 +10,7 @@
 
 import QtQuick 2.9
 import QtQuick.Controls 2.2
-import Qt5Compat.GraphicalEffects
+import "../controls" as CpuControls
 
 import "../stylesUit"
 import "." as HifiControls
@@ -241,6 +241,16 @@ Item {
         rightPadding: 44;
     }
 
+    CpuControls.CpuDropShadow {
+        anchors.fill: dropdownContainer;
+        horizontalOffset: 0;
+        verticalOffset: 4;
+        radius: 4.0;
+        color: Qt.rgba(0, 0, 0, 0.25);
+        source: dropdownContainer;
+        visible: dropdownContainer.visible;
+    }
+
     Rectangle {
         id: dropdownContainer;
         visible: false;
@@ -309,16 +319,7 @@ Item {
         }
     }
 
-    DropShadow {
-        anchors.fill: dropdownContainer;
-        horizontalOffset: 0;
-        verticalOffset: 4;
-        radius: 4.0;
-        samples: 9
-        color: Qt.rgba(0, 0, 0, 0.25);
-        source: dropdownContainer;
-        visible: dropdownContainer.visible;
-    }
+
 
     function changeFilterByDisplayName(name) {
         for (var i = 0; i < filterBarModel.count; i++) {

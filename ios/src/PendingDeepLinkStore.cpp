@@ -43,6 +43,16 @@ DeepLinkEnqueueResult PendingDeepLinkStore::enqueue(std::string_view url) {
     if (scheme != "overte" && scheme != "hifi") {
         return DeepLinkEnqueueResult::UnsupportedScheme;
     }
+    if (url.substr(separator, 3) != "://") {
+        return DeepLinkEnqueueResult::Invalid;
+    }
+    const auto remainder = url.substr(separator + 3);
+    const auto authority = remainder.substr(0, remainder.find_first_of("/?#"));
+    if (authority.empty() || std::any_of(authority.begin(), authority.end(), [](unsigned char c) {
+        return std::isspace(c) != 0 || c == '\\';
+    })) {
+        return DeepLinkEnqueueResult::Invalid;
+    }
 
     std::lock_guard guard(_mutex);
     if (std::find(_pending.begin(), _pending.end(), url) != _pending.end()) {

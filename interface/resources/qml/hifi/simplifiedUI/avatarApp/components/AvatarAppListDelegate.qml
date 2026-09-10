@@ -8,11 +8,11 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
+import "../../../avatarapp" as AvatarImages
 import QtQuick 2.10
 import "../../simplifiedConstants" as SimplifiedConstants
 import "../../simplifiedControls" as SimplifiedControls
 import stylesUit 1.0 as HifiStylesUit
-import Qt5Compat.GraphicalEffects
 
 Rectangle {
     id: root
@@ -49,9 +49,11 @@ Rectangle {
         }
     }
 
-    Image {
+    AvatarImages.RoundImage {
+        border.width: 0
+        radius: width / 2
         id: itemPreviewImage
-        source: root.itemPreviewImageUrl.indexOf("missing.png") > -1 ? "../../images/defaultAvatar.svg" : root.itemPreviewImageUrl
+        source: root.itemPreviewImageUrl ? Qt.resolvedUrl(root.itemPreviewImageUrl.indexOf("missing.png") > -1 ? "../../images/defaultAvatar.svg" : root.itemPreviewImageUrl) : ""
         anchors.left: parent.left
         anchors.leftMargin: 20
         anchors.verticalCenter: parent.verticalCenter
@@ -61,18 +63,7 @@ Rectangle {
         sourceSize.height: height
         fillMode: Image.PreserveAspectCrop
         mipmap: true
-        layer.enabled: true
-        layer.effect: OpacityMask {
-            maskSource: mask
-        }
 
-        Rectangle {
-            id: mask
-            width: itemPreviewImage.width
-            height: itemPreviewImage.height
-            radius: itemPreviewImage.width / 2
-            visible: false
-        }
     }
 
     HifiStylesUit.FiraSansRegular {

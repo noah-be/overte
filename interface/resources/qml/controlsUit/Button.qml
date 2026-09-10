@@ -34,11 +34,16 @@ Original.Button {
     // guaranteed action route it through the handler that actually receives
     // the signal.
     property var androidClickAction: null
+    // Keep Apple's existing callback route; derived handlers read this binding.
+    readonly property bool usesAndroidClickAction: Qt.platform.os === "android" || Qt.platform.os === "ios"
 
     width: hifi.dimensions.buttonWidth
     height: Math.max(hifi.dimensions.controlLineHeight,
         touchMetrics.adaptiveMinimumControlHeight, implicitHeight)
     hoverEnabled: touchMetrics.hoverSupported
+    focusPolicy: visible && enabled ? Qt.StrongFocus : Qt.NoFocus
+    onVisibleChanged: { if (!visible) { focus = false; } }
+    onEnabledChanged: { if (!enabled) { focus = false; } }
 
     property size implicitPadding: Qt.size(20, 16)
     property int implicitWidth: buttonContentItem.implicitWidth + implicitPadding.width
@@ -48,7 +53,7 @@ Original.Button {
     TouchUiMetrics { id: touchMetrics }
 
     onHoveredChanged: {
-        if (hovered) {
+        if (hovered && visible && enabled) {
             Tablet.playSound(TabletEnums.ButtonHover);
         }
     }
@@ -62,25 +67,17 @@ Original.Button {
     }
 
     onClicked: {
-        if (Qt.platform.os === "android" || Qt.platform.os === "ios") {
-            console.info("OVERTE_MOBILE_QML_BUTTON clicked text=" + control.text);
-            if (control.androidClickAction) {
+        if (!control.visible || !control.enabled) { return; }
+        if (control.usesAndroidClickAction) {
+            if (typeof control.androidClickAction === "function") {
                 control.androidClickAction();
             }
         }
         Tablet.playSound(TabletEnums.ButtonClick);
     }
 
-    // On mobile VR the controller pose can advance noticeably between the
-    // trigger press and release frames. Qt then cancels an AbstractButton
-    // press even though the user began the click on the button. Treat that
-    // cancellation as activation on mobile so tablet buttons remain usable.
-    onCanceled: {
-        if (Qt.platform.os === "android" || Qt.platform.os === "ios") {
-            console.info("OVERTE_MOBILE_QML_BUTTON canceled->clicked text=" + control.text);
-            control.clicked();
-        }
-    }
+    // Qt cancellation (pointer leaving, hide/disable or lost grab) is never
+    // activation. Native pointer stability must not turn cancel into consent.
 
     background: Rectangle {
         radius: control.radius

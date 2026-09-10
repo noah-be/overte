@@ -6,24 +6,22 @@
 #import "AppDelegate.h"
 
 #import <AVFoundation/AVFoundation.h>
-#import <os/log.h>
 
 #import "SceneDelegate.h"
 
 #include "LifecycleStateMachine.h"
+#include "RedactingDiagnostics.h"
 
 namespace {
-os_log_t lifecycleLog() {
-    static os_log_t log = os_log_create("org.overte.interface", "lifecycle");
-    return log;
-}
+using Event = overte::security::DiagnosticEvent;
+using overte::ios::logSharedDiagnostic;
 
 bool setAudioSessionActive(bool active, AVAudioSessionSetActiveOptions options = 0) {
     NSError* error = nil;
     BOOL changed = [AVAudioSession.sharedInstance setActive:active withOptions:options error:&error];
     if (!changed) {
-        os_log_error(lifecycleLog(), "Audio session %{public}s failed: %{public}@",
-                     active ? "activation" : "deactivation", error);
+        overte::ios::logDiagnostic(active ? overte::ios::DiagnosticEvent::AudioActivationFailed
+                                         : overte::ios::DiagnosticEvent::AudioDeactivationFailed);
     }
     return changed;
 }
@@ -32,6 +30,10 @@ bool setAudioSessionActive(bool active, AVAudioSessionSetActiveOptions options =
 @interface AppDelegate ()
 @property(nonatomic, strong) id audioInterruptionObserver;
 @property(nonatomic, strong) id audioRouteObserver;
+@property(nonatomic) BOOL audioForeground;
+@property(nonatomic) BOOL audioConfigured;
+@property(nonatomic) BOOL audioInterrupted;
+@property(nonatomic) BOOL audioResumeAllowed;
 @end
 
 @implementation AppDelegate
@@ -43,45 +45,39 @@ bool setAudioSessionActive(bool active, AVAudioSessionSetActiveOptions options =
 
     AVAudioSession* audioSession = AVAudioSession.sharedInstance;
     NSError* error = nil;
-    BOOL configured = [audioSession setCategory:AVAudioSessionCategoryPlayAndRecord
-                                           mode:AVAudioSessionModeGameChat
-                                        options:(AVAudioSessionCategoryOptionDefaultToSpeaker |
-                                                 AVAudioSessionCategoryOptionAllowBluetoothHFP)
+    // The preview has no voice-input caller. Do not prompt for a microphone or
+    // configure recording merely to display its native scene.
+    BOOL configured = [audioSession setCategory:AVAudioSessionCategoryPlayback
+                                           mode:AVAudioSessionModeDefault
+                                        options:0
                                           error:&error];
     if (!configured) {
-        os_log_error(lifecycleLog(), "Audio session configuration failed: %{public}@", error);
+        overte::ios::logDiagnostic(overte::ios::DiagnosticEvent::AudioConfigurationFailed);
     }
 
-    AVAudioSessionRecordPermission permission = audioSession.recordPermission;
-    if (permission == AVAudioSessionRecordPermissionUndetermined) {
-        os_log_info(lifecycleLog(), "Microphone permission request started");
-        [audioSession requestRecordPermission:^(BOOL granted) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                os_log_info(lifecycleLog(), "Microphone permission resolved: %{public}s",
-                            granted ? "granted" : "denied");
-            });
-        }];
-    } else {
-        os_log_info(lifecycleLog(), "Microphone permission at launch: %{public}s",
-                    permission == AVAudioSessionRecordPermissionGranted ? "granted" : "denied");
-    }
-
+    self.audioConfigured = configured;
+    self.audioResumeAllowed = YES;
+    __weak AppDelegate* weakSelf = self;
     self.audioInterruptionObserver = [NSNotificationCenter.defaultCenter
         addObserverForName:AVAudioSessionInterruptionNotification
                     object:audioSession
                      queue:NSOperationQueue.mainQueue
                 usingBlock:^(NSNotification* notification) {
         NSNumber* typeValue = notification.userInfo[AVAudioSessionInterruptionTypeKey];
+        AppDelegate* strongSelf = weakSelf;
+        if (strongSelf == nil || ![typeValue isKindOfClass:NSNumber.class]) { return; }
         AVAudioSessionInterruptionType type = (AVAudioSessionInterruptionType)typeValue.unsignedIntegerValue;
         if (type == AVAudioSessionInterruptionTypeBegan) {
-            os_log_info(lifecycleLog(), "Audio interruption began");
+            strongSelf.audioInterrupted = YES;
+            logSharedDiagnostic(Event::AudioInterrupted);
         } else {
             NSNumber* optionValue = notification.userInfo[AVAudioSessionInterruptionOptionKey];
-            BOOL shouldResume = (optionValue.unsignedIntegerValue &
+            BOOL shouldResume = [optionValue isKindOfClass:NSNumber.class] && (optionValue.unsignedIntegerValue &
                                  AVAudioSessionInterruptionOptionShouldResume) != 0;
-            os_log_info(lifecycleLog(), "Audio interruption ended; should resume: %{public}s",
-                        shouldResume ? "yes" : "no");
-            if (shouldResume) {
+            strongSelf.audioInterrupted = NO;
+            strongSelf.audioResumeAllowed = shouldResume;
+            logSharedDiagnostic(Event::AudioStopped);
+            if (shouldResume && strongSelf.audioForeground && strongSelf.audioConfigured) {
                 setAudioSessionActive(true);
             }
         }
@@ -91,12 +87,11 @@ bool setAudioSessionActive(bool active, AVAudioSessionSetActiveOptions options =
                     object:audioSession
                      queue:NSOperationQueue.mainQueue
                 usingBlock:^(NSNotification* notification) {
-        NSNumber* reasonValue = notification.userInfo[AVAudioSessionRouteChangeReasonKey];
-        os_log_info(lifecycleLog(), "Audio route changed; reason: %lu",
-                    (unsigned long)reasonValue.unsignedIntegerValue);
+        (void)notification;
+        logSharedDiagnostic(Event::AudioStopped);
     }];
 
-    os_log_info(lifecycleLog(), "Overte iOS bootstrap launched");
+    logSharedDiagnostic(Event::LifecycleResumed);
     overte::ios::LifecycleStateMachine::instance().apply(
         overte::ios::LifecycleEvent::DidFinishLaunching);
     return YES;
@@ -117,31 +112,42 @@ bool setAudioSessionActive(bool active, AVAudioSessionSetActiveOptions options =
 
 - (void)applicationDidBecomeActive:(UIApplication*)application {
     (void)application;
-    setAudioSessionActive(true);
-    os_log_info(lifecycleLog(), "Application became active");
+    [self setAudioForeground:YES];
+    logSharedDiagnostic(Event::LifecycleResumed);
 }
 
 - (void)applicationWillResignActive:(UIApplication*)application {
     (void)application;
-    os_log_info(lifecycleLog(), "Application will resign active");
+    [self setAudioForeground:NO];
+    logSharedDiagnostic(Event::LifecycleSuspended);
 }
 
 - (void)applicationDidEnterBackground:(UIApplication*)application {
     (void)application;
-    setAudioSessionActive(false, AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation);
-    os_log_info(lifecycleLog(), "Application entered background");
+    [self setAudioForeground:NO];
+    logSharedDiagnostic(Event::LifecycleSuspended);
 }
 
 - (void)applicationWillEnterForeground:(UIApplication*)application {
     (void)application;
-    os_log_info(lifecycleLog(), "Application will enter foreground");
+    logSharedDiagnostic(Event::LifecycleResumed);
+}
+
+- (void)setAudioForeground:(BOOL)foreground {
+    if (self.audioForeground == foreground) { return; }
+    _audioForeground = foreground;
+    if (!foreground) {
+        setAudioSessionActive(false, AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation);
+    } else if (self.audioConfigured && !self.audioInterrupted && self.audioResumeAllowed) {
+        setAudioSessionActive(true);
+    }
 }
 
 - (void)applicationDidReceiveMemoryWarning:(UIApplication*)application {
     (void)application;
     overte::ios::LifecycleStateMachine::instance().apply(
         overte::ios::LifecycleEvent::DidReceiveMemoryWarning);
-    os_log_error(lifecycleLog(), "Application received a memory warning");
+    logSharedDiagnostic(Event::Redacted);
 }
 
 - (void)applicationWillTerminate:(UIApplication*)application {
@@ -155,7 +161,7 @@ bool setAudioSessionActive(bool active, AVAudioSessionSetActiveOptions options =
     if (self.audioRouteObserver != nil) {
         [center removeObserver:self.audioRouteObserver];
     }
-    os_log_info(lifecycleLog(), "Application will terminate");
+    logSharedDiagnostic(Event::LifecycleSuspended);
 }
 
 @end

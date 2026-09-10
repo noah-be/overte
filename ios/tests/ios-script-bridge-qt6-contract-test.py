@@ -104,7 +104,11 @@ def test_device_observed_startup_qml_is_ported_to_qt6() -> None:
     assert "qt5compat" in qt_source_build
     assert "import QtGraphicalEffects" not in keyboard
     assert "import Qt5Compat.GraphicalEffects" not in keyboard
-    assert "import Qt5Compat.GraphicalEffects" in scrolling_window
+    assert "import Qt5Compat.GraphicalEffects" not in scrolling_window
+    assert "import QtGraphicalEffects" not in scrolling_window
+    assert "gradient: Gradient {" in scrolling_window
+    assert "GradientStop { position: 0.0;" in scrolling_window
+    assert "GradientStop { position: 1.0;" in scrolling_window
     for path in WINDOWS_QML.glob("*.qml"):
         assert "import QtGraphicalEffects" not in path.read_text(encoding="utf-8")
     assert 'property string scriptUrl: ""' in web3d_surface

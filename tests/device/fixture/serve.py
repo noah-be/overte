@@ -162,11 +162,13 @@ def validate_fixture() -> dict:
         raise ValueError("fixture sound metadata is incomplete")
     sound_path = ROOT / sound["path"]
     sound_bytes = sound_path.read_bytes()
-    if (sound["mimeType"] != "audio/wav" or sound["sampleRate"] != 8000
-            or sound["channels"] != 1 or sound["bitsPerSample"] != 16
-            or sound["durationSeconds"] != 2.0 or sound["frequencyHz"] != 440.0
+    from generate_sound_fixture import SAMPLE_RATE, CHANNELS, SAMPLE_WIDTH_BYTES, DURATION_SECONDS, FREQUENCY_HZ
+    expected_size = 44 + int(SAMPLE_RATE * DURATION_SECONDS) * CHANNELS * SAMPLE_WIDTH_BYTES
+    if (sound["mimeType"] != "audio/wav" or sound["sampleRate"] != SAMPLE_RATE
+            or sound["channels"] != CHANNELS or sound["bitsPerSample"] != SAMPLE_WIDTH_BYTES * 8
+            or sound["durationSeconds"] != DURATION_SECONDS or sound["frequencyHz"] != FREQUENCY_HZ
             or hashlib.sha256(sound_bytes).hexdigest() != sound["sha256"]
-            or len(sound_bytes) != 32044):
+            or len(sound_bytes) != expected_size):
         raise ValueError("fixture sound does not match its deterministic PCM WAV contract")
     probe = PROBE.read_text(encoding="utf-8")
     if "Test.saveObject" not in probe or '"overte-probe.json"' not in probe:

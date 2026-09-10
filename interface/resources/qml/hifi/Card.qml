@@ -13,10 +13,11 @@
 
 import Hifi 1.0
 import QtQuick 2.5
-import Qt5Compat.GraphicalEffects
+import "../controls" as CpuControls
 import TabletScriptingInterface 1.0
 
 import "toolbars"
+import "overlays" as SharedOverlays
 import stylesUit 1.0
 
 Item {
@@ -82,13 +83,12 @@ Item {
         return (count === 1) ? singular : (optionalPlural || (singular + "s"));
     }
 
-    DropShadow {
+    CpuControls.CpuDropShadow {
         visible: isStacked;
         anchors.fill: shadow1;
         source: shadow1;
         verticalOffset: 2;
         radius: 4;
-        samples: 9;
         color: hifi.colors.baseGrayShadow;
     }
     Rectangle {
@@ -101,12 +101,11 @@ Item {
             horizontalCenter: parent.horizontalCenter;
         }
     }
-    DropShadow {
+    CpuControls.CpuDropShadow {
         anchors.fill: base;
         source: base;
         verticalOffset: 2;
         radius: 4;
-        samples: 9;
         color: hifi.colors.baseGrayShadow;
     }
     Rectangle {
@@ -136,7 +135,7 @@ Item {
         }
         onStatusChanged: {
             if (status == Image.Error) {
-                console.log("source: " + source + ": failed to load");
+                console.log("Card thumbnail failed to load.");
                 source = defaultThumbnail;
             }
         }
@@ -144,16 +143,16 @@ Item {
     property int dropHorizontalOffset: 0;
     property int dropVerticalOffset: 1;
     property int dropRadius: 2;
+    // Legacy tuning property retained for callers; CPU kernel is radius-defined.
     property int dropSamples: 9;
-    property int dropSpread: 0;
-    DropShadow {
-        visible: showPlace; // Do we have to check for whatever the modern equivalent is for desktop.gradientsSupported?
+    property real dropSpread: 0;
+    CpuControls.CpuDropShadow {
+        visible: showPlace;
         source: place;
         anchors.fill: place;
         horizontalOffset: dropHorizontalOffset;
         verticalOffset: dropVerticalOffset;
         radius: dropRadius;
-        samples: dropSamples;
         color: hifi.colors.black;
         spread: dropSpread;
     }
@@ -290,7 +289,7 @@ Item {
         fillMode: Image.PreserveAspectFit
         source: "../../icons/standalone-optimized.svg"
     }
-    ColorOverlay {
+    SharedOverlays.ItemTint {
         anchors.fill: standaloneOptomizedBadge
         source: standaloneOptomizedBadge
         color: hifi.colors.blueHighlight

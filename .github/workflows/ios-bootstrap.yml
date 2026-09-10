@@ -131,7 +131,7 @@ concurrency:
 
 jobs:
   provision-qt-ios:
-    if: github.event_name == 'workflow_dispatch' && inputs.integrated
+    if: github.event_name == 'workflow_dispatch' && inputs.integrated && inputs.qt_host_cache_key == ''
     needs: host-contracts
     uses: ./.github/workflows/ios-qt-source.yml
     permissions:
@@ -139,7 +139,7 @@ jobs:
       contents: read
 
   integrated-ios-after-qt:
-    if: github.event_name == 'workflow_dispatch' && inputs.integrated
+    if: github.event_name == 'workflow_dispatch' && inputs.integrated && inputs.qt_host_cache_key == ''
     needs: provision-qt-ios
     permissions:
       actions: write
@@ -152,6 +152,22 @@ jobs:
       qt_ios_artifact_prefix: ${{ needs.provision-qt-ios.outputs.qt_ios_artifact_prefix }}
       e2e_test_build: ${{ github.event_name == 'workflow_dispatch' && inputs.integrated }}
       e2e_bundle_id: org.overte.interface.e2e
+
+  integrated-ios-from-checkpoints:
+    if: github.event_name == 'workflow_dispatch' && inputs.integrated && inputs.qt_host_cache_key != ''
+    needs: host-contracts
+    permissions:
+      actions: write
+      contents: read
+    uses: ./.github/workflows/ios-integrated.yml
+    with:
+      qt_host_cache_key: ${{ inputs.qt_host_cache_key }}
+      qt_ios_cache_key: ${{ inputs.qt_ios_cache_key }}
+      qt_host_artifact_prefix: ${{ inputs.qt_host_artifact_prefix }}
+      qt_ios_artifact_prefix: ${{ inputs.qt_ios_artifact_prefix }}
+      macos_runner: macos-26
+      preserve_reusable_data: true
+      e2e_test_build: true
 
   fedora-e2e-producer:
     if: >-
@@ -219,6 +235,10 @@ jobs:
           RUN_FEDORA_E2E: ${{ inputs.fedora_e2e_producer || false }}
           RUN_PERSONAL_TEAM_E2E: ${{ inputs.personal_team_e2e_kit || false }}
           OVERTE_REUSE_RUN_ID: ${{ inputs.personal_team_overte_reuse_run_id || 0 }}
+          QT_HOST_KEY: ${{ inputs.qt_host_cache_key }}
+          QT_IOS_KEY: ${{ inputs.qt_ios_cache_key }}
+          QT_HOST_PREFIX: ${{ inputs.qt_host_artifact_prefix }}
+          QT_IOS_PREFIX: ${{ inputs.qt_ios_artifact_prefix }}
         run: |
           set -euo pipefail
           if [[ "$EVENT_NAME" != workflow_dispatch ]]; then
@@ -234,6 +254,16 @@ jobs:
           if (( selected > 1 )); then
             echo "select at most one manual iOS workflow mode" >&2
             exit 1
+          fi
+          if [[ "$RUN_INTEGRATED" == true ]]; then
+            supplied=0
+            for value in "$QT_HOST_KEY" "$QT_IOS_KEY" "$QT_HOST_PREFIX" "$QT_IOS_PREFIX"; do
+              if [[ -n "$value" ]]; then supplied=$((supplied + 1)); fi
+            done
+            if (( supplied != 0 && supplied != 4 )); then
+              echo "integrated checkpoint reuse requires all four Qt bindings" >&2
+              exit 1
+            fi
           fi
           [[ "$OVERTE_REUSE_RUN_ID" =~ ^[0-9]+$ ]]
           if (( OVERTE_REUSE_RUN_ID > 0 )); then

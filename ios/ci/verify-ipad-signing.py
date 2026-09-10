@@ -14,6 +14,7 @@ import re
 import stat
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -26,12 +27,21 @@ def require_device_identifier() -> str:
     if not path_text:
         raise ValueError("OVERTE_IOS_IPAD_DEVICE_ID_FILE is required")
     path = Path(path_text)
-    metadata = path.lstat()
-    if not stat.S_ISREG(metadata.st_mode) or path.is_symlink():
-        raise ValueError("the iPad identity file must be a regular file")
-    if stat.S_IMODE(metadata.st_mode) != 0o600:
-        raise ValueError("the iPad identity file must have mode 0600")
-    lines = path.read_text(encoding="utf-8").splitlines()
+    # Validate the opened inode, not a pathname that can be replaced after lstat.
+    # NONBLOCK prevents a malicious FIFO from hanging before the regular check.
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, "rb") as stream:
+        metadata = os.fstat(stream.fileno())
+        if not stat.S_ISREG(metadata.st_mode):
+            raise ValueError("the iPad identity file must be a regular file")
+        if stat.S_IMODE(metadata.st_mode) != 0o600 or metadata.st_uid != os.getuid():
+            raise ValueError("the iPad identity file must be private to its owner")
+        if metadata.st_size > 130:
+            raise ValueError("the iPad identity file is too large")
+        raw = stream.read(131)
+    if len(raw) > 130:
+        raise ValueError("the iPad identity file is too large")
+    lines = raw.decode("ascii").splitlines()
     if len(lines) != 1 or not re.fullmatch(r"[A-Za-z0-9.-]{8,128}", lines[0]):
         raise ValueError("the iPad identity file is invalid")
     return lines[0]
@@ -70,7 +80,7 @@ def validate_metadata(
 
     signature_debug = signature.get("get-task-allow", False)
     profile_debug = profile_entitlements.get("get-task-allow", False)
-    if not isinstance(signature_debug, bool) or signature_debug != profile_debug:
+    if not isinstance(signature_debug, bool) or not isinstance(profile_debug, bool) or signature_debug != profile_debug:
         raise ValueError("get-task-allow differs between signature and profile")
 
     expiration = profile.get("ExpirationDate")
@@ -93,15 +103,23 @@ def validate_metadata(
 
 
 def run(command: list[str], description: str) -> bytes:
-    completed = subprocess.run(
-        command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
+    # Native tool output contains signing identity material. Keep it out of logs
+    # and bound both execution time and the data subsequently parsed in memory.
+    with tempfile.TemporaryFile() as output:
+        try:
+            completed = subprocess.run(command, stdout=output, stderr=subprocess.DEVNULL,
+                                       check=False, timeout=30)
+        except subprocess.TimeoutExpired:
+            raise ValueError(f"{description} timed out") from None
+        if output.tell() > 8 * 1024 * 1024:
+            raise ValueError(f"{description} output exceeds limit")
+        output.seek(0)
+        data = output.read(8 * 1024 * 1024 + 1)
     if completed.returncode != 0:
         raise ValueError(f"{description} failed")
-    return completed.stdout
+    if len(data) > 8 * 1024 * 1024:
+        raise ValueError(f"{description} output exceeds limit")
+    return data
 
 
 def main() -> int:
@@ -134,8 +152,9 @@ def main() -> int:
             args.expected_application_identifier,
             device_identifier,
         )
-    except (OSError, ValueError, plistlib.InvalidFileException) as error:
-        print(f"error: signed iPad candidate rejected: {error}", file=sys.stderr)
+    except (OSError, ValueError, plistlib.InvalidFileException):
+        # OS/decoder errors may include the private selector path or metadata.
+        print("error: signed iPad candidate rejected (offline verification failed)", file=sys.stderr)
         return 1
     print("PASS signed iPad candidate provenance")
     return 0

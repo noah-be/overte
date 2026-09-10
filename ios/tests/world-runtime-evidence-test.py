@@ -265,6 +265,9 @@ with tempfile.TemporaryDirectory(prefix="overte-ios-world-evidence-test-") as di
     for label, content in (
         ("wrong-scene", serverless_log("different_scene")),
         ("wrong-order", serverless_log(reverse=True)),
+        # Current public sinks emit only closed diagnostic events. Even with
+        # an otherwise valid screenshot, these must never become world proof.
+        ("redacted-diagnostics", "OVT_CONNECTION_READY\n" + "OVT_REDACTED\n" * 12),
     ):
         invalid_log = root / f"{label}.log"
         invalid_log.write_text(content, encoding="utf-8")
@@ -545,6 +548,11 @@ assert "OVERTE_IOS_WORLD_DIAGNOSTIC audio_suppressed=evidence_mode" in applicati
 for source in (main_source, application_source, application_setup_source):
     assert 'qInfo().noquote() << "OVERTE_IOS_WORLD_' not in source
     assert "logIOSRuntimeMarker(" in source
-assert 'os_log_info(OS_LOG_DEFAULT, "%{public}s", utf8.constData())' in ios_runtime_logging
+assert 'const char* message = overte::security::diagnosticEvent(event);' in ios_runtime_logging
+assert 'qInfo().noquote() << message;' in ios_runtime_logging
+assert 'os_log_info(OS_LOG_DEFAULT, "%{public}s", message);' in ios_runtime_logging
+marker_body = ios_runtime_logging.split('inline void logIOSRuntimeMarker(Args&&...) {', 1)[1].split('}', 1)[0]
+assert 'logIOSRuntimeEvent(overte::security::DiagnosticEvent::Redacted);' in marker_body
+assert 'utf8.constData()' not in marker_body
 
 print("PASS fail-closed iOS serverless/online world and screenshot evidence validators")

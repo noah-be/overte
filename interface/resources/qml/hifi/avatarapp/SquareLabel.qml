@@ -1,13 +1,23 @@
 import stylesUit 1.0
 import controlsUit 1.0 as HifiControlsUit
 import QtQuick 2.9
-import Qt5Compat.GraphicalEffects
+import "../../controls" as CpuControls
 
 Item {
     id: root
     width: 44
     height: 28
     signal clicked();
+
+    CpuControls.CpuDropShadow {
+        id: shadow
+        anchors.fill: button
+        radius: 6
+        horizontalOffset: 0
+        verticalOffset: 3
+        color: Qt.rgba(0, 0, 0, 0.25)
+        source: button
+    }
 
     HifiControlsUit.Button {
         id: button
@@ -23,15 +33,7 @@ Item {
         onClicked: root.clicked();
     }
 
-    DropShadow {
-        id: shadow
-        anchors.fill: button
-        radius: 6
-        horizontalOffset: 0
-        verticalOffset: 3
-        color: Qt.rgba(0, 0, 0, 0.25)
-        source: button
-    }
+
 
     property alias glyphText: glyph.text
     property alias glyphRotation: glyph.rotation

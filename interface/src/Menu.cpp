@@ -310,6 +310,11 @@ Menu::Menu() {
 		}
     });
 
+    action = addActionToQMenuAndActionHash(settingsMenu, "Entity Scripts: Review");
+    connect(action, &QAction::triggered, qApp, &Application::beginEntityScriptConsentReview);
+    action = addActionToQMenuAndActionHash(settingsMenu, "Entity Scripts: Revoke");
+    connect(action, &QAction::triggered, qApp, &Application::invalidateEntityScriptConsent);
+
     // Settings > Entity Script / QML Allowlist
     action = addActionToQMenuAndActionHash(settingsMenu, "Entity Script / QML Allowlist");
     connect(action, &QAction::triggered, [] {
@@ -834,6 +839,14 @@ Menu::Menu() {
     // Developer > Show Statistics
 #if defined(ANDROID_APP_PICO_INTERFACE)
     addCheckableActionToQMenuAndActionHash(developerMenu, MenuOption::Stats, 0, false);
+#elif defined(Q_OS_IOS)
+    // Only the explicit Debug-build option enables statistics on a fresh iOS
+    // profile. Release/E2E candidates use the normal, unobstructed client UI.
+#if defined(OVERTE_IOS_DEBUG_STATS)
+    addCheckableActionToQMenuAndActionHash(developerMenu, MenuOption::Stats, 0, true);
+#else
+    addCheckableActionToQMenuAndActionHash(developerMenu, MenuOption::Stats, 0, false);
+#endif
 #else
     addCheckableActionToQMenuAndActionHash(developerMenu, MenuOption::Stats, 0, true);
 #endif

@@ -13,17 +13,32 @@ from pathlib import Path
 MAX_INPUT_BYTES = 512 * 1024 * 1024
 
 IMPORT_MARKERS = (
-    "CLASSNAME;QtGraphicalEffectsPlugin;",
-    "LINKTARGET;Qt6::qtgraphicaleffectsplugin;",
-    "CLASSNAME;QtGraphicalEffectsPrivatePlugin;",
-    "LINKTARGET;Qt6::qtgraphicaleffectsprivate;",
+    "CLASSNAME;QtQuick2Plugin;",
+    "LINKTARGET;Qt6::qtquick2plugin;",
+    "CLASSNAME;QtQuickControls2Plugin;",
+    "LINKTARGET;Qt6::qtquickcontrols2plugin;",
+    "CLASSNAME;QtQuickTemplates2Plugin;",
+    "LINKTARGET;Qt6::qtquicktemplates2plugin;",
+    "CLASSNAME;QtQuickLayoutsPlugin;",
+    "LINKTARGET;Qt6::qquicklayoutsplugin;",
+    "CLASSNAME;QtQmlModelsPlugin;",
+    "LINKTARGET;Qt6::modelsplugin;",
 )
 
+# These are the modules used by the current Interface QML tree. The Shared
+# CPU shadow migration removed its GraphicalEffects imports; requiring those
+# obsolete imports rejects a valid scan without checking the actual UI plugins.
 LINK_MARKERS = (
-    "/qml/Qt5Compat/GraphicalEffects/libqtgraphicaleffectsplugin.a",
-    "/qml/Qt5Compat/GraphicalEffects/private/libqtgraphicaleffectsprivateplugin.a",
-    "qtgraphicaleffectsplugin_init.cpp.o",
-    "qtgraphicaleffectsprivate_init.cpp.o",
+    "/qml/QtQuick/libqtquick2plugin.a",
+    "/qml/QtQuick/Controls/libqtquickcontrols2plugin.a",
+    "/qml/QtQuick/Templates/libqtquicktemplates2plugin.a",
+    "/qml/QtQuick/Layouts/libqquicklayoutsplugin.a",
+    "/qml/QtQml/Models/libmodelsplugin.a",
+    "qtquick2plugin_init.cpp.o",
+    "qtquickcontrols2plugin_init.cpp.o",
+    "qtquicktemplates2plugin_init.cpp.o",
+    "qquicklayoutsplugin_init.cpp.o",
+    "modelsplugin_init.cpp.o",
 )
 
 
@@ -54,10 +69,10 @@ def main() -> int:
     try:
         if args.imports is not None:
             require_markers(args.imports, IMPORT_MARKERS, "QML import scan")
-            print("PASS Qt5Compat GraphicalEffects public/private QML import scan")
+            print("PASS required Interface static QML import scan")
         else:
             require_markers(args.link_log, LINK_MARKERS, "full-client link")
-            print("PASS Qt5Compat GraphicalEffects public/private static link")
+            print("PASS required Interface QML plugin static link")
     except ValueError as error:
         parser.exit(1, f"error: {error}\n")
     return 0

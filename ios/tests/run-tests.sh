@@ -6,6 +6,7 @@ set -euo pipefail
 
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 python3 "$script_dir/port-contract-test.py"
+python3 "$script_dir/render-observations-test.py"
 python3 "$script_dir/build-cli-test.py"
 python3 "$script_dir/command-timeout-test.py"
 python3 "$script_dir/e2e-test-build-contract-test.py"
@@ -14,6 +15,8 @@ python3 "$script_dir/fedora-e2e-producer-contract-test.py"
 python3 "$script_dir/personal-team-e2e-kit-contract-test.py"
 python3 "$script_dir/simulator-smoke-contract-test.py"
 python3 "$script_dir/runtime-candidate-verifier-test.py"
+python3 "$script_dir/io001-candidate-verifier-test.py"
+python3 "$script_dir/io001-simulator-plan-test.py"
 python3 "$script_dir/sideload-ipa-normalizer-test.py"
 python3 "$script_dir/sideload-repackage-workflow-contract-test.py"
 python3 "$script_dir/interface-simulator-smoke-test.py"
@@ -103,6 +106,7 @@ readonly rendering_contracts=(
     vulkan-display-ios-ktx-capture-gate-test.py
     vulkan-display-ios-main-thread-resize-test.py
     vulkan-display-ios-output-pending-test.py
+    vulkan-ios-frame-recycling-test.py
     vulkan-ios-surface-contract-test.py
 )
 for contract in "${rendering_contracts[@]}"; do

@@ -19,5 +19,57 @@ if(NOT TARGET Overte)
         "iOS full-client entity integration requires the Overte application target")
 endif()
 target_link_libraries(Overte overte-ios-entity-integration)
+option(OVERTE_IOS_DEBUG_STATS "Show statistics by default in iOS Debug builds" ON)
+# Configuration-specific: neither Release nor RelWithDebInfo/E2E packaging
+# inherits developer overlays, even when the option is enabled in the cache.
+target_compile_definitions(Overte PRIVATE
+    "$<$<AND:$<CONFIG:Debug>,$<BOOL:${OVERTE_IOS_DEBUG_STATS}>>:OVERTE_IOS_DEBUG_STATS>")
+option(OVERTE_IOS_WORLD_OBSERVATION_BUILD "Enable opt-in bounded world observations" OFF)
+if(OVERTE_IOS_WORLD_OBSERVATION_BUILD)
+    target_compile_definitions(Overte PRIVATE OVERTE_IOS_WORLD_OBSERVATION_BUILD=1)
+endif()
 target_link_libraries(Overte overte-ios-rendering-compatibility)
 add_dependencies(Overte overte-ios-entity-integration)
+
+# iOS-owned native storage/sink implementation. Shared registers its AccountManager
+# consumer against the published PX-15 interface; the native primitive never
+# falls back to AccountInfo.bin or defines account serialization itself.
+target_sources(Overte PRIVATE
+    "${CMAKE_CURRENT_LIST_DIR}/../src/SecureAccountStore.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../src/SecureAccountStore.mm"
+    "${CMAKE_CURRENT_LIST_DIR}/../src/RedactingDiagnostics.mm"
+    "${CMAKE_CURRENT_LIST_DIR}/../auth/KeychainAccountAdapter.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../auth/RegisterKeychainAccountStore.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../diagnostics/InstallSafeQtLogging.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../audio/IOSAudioAdapter.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../audio/AVAudioSessionAdapter.mm"
+    "${CMAKE_CURRENT_LIST_DIR}/../web/NativeWebAdapter.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../web/ContainedWebView.mm"
+    "${CMAKE_CURRENT_LIST_DIR}/../render/WorldObservation.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../render/InstallWorldObservation.cpp"
+)
+set_source_files_properties(
+    "${CMAKE_CURRENT_LIST_DIR}/../src/SecureAccountStore.mm"
+    "${CMAKE_CURRENT_LIST_DIR}/../src/RedactingDiagnostics.mm"
+    TARGET_DIRECTORY Overte
+    PROPERTIES COMPILE_OPTIONS "-fobjc-arc"
+)
+# Source properties are scoped to the directory that created the consuming
+# target (interface), not this later integration directory. Apply ARC there.
+set_source_files_properties("${CMAKE_CURRENT_LIST_DIR}/../audio/AVAudioSessionAdapter.mm"
+    TARGET_DIRECTORY Overte
+    PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+set_source_files_properties("${CMAKE_CURRENT_LIST_DIR}/../web/ContainedWebView.mm"
+    TARGET_DIRECTORY Overte
+    PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+target_link_libraries(Overte "-framework WebKit")
+target_link_libraries(Overte "-framework Security" "-framework LocalAuthentication")
+
+# Real Full Client caller: a foreground-only, 30-second native metrics sampler.
+# Render-budget adaptation remains the Shared renderer's responsibility.
+target_sources(Overte PRIVATE
+    "${CMAKE_CURRENT_LIST_DIR}/../performance/NativeMetrics.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../performance/NativeMetrics.mm"
+    "${CMAKE_CURRENT_LIST_DIR}/../performance/FullClientMetrics.mm"
+    "${CMAKE_CURRENT_LIST_DIR}/../performance/SharedMetricsPublisher.cpp"
+)

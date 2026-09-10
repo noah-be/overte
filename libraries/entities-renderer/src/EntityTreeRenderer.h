@@ -41,6 +41,8 @@ class ZoneEntityItem;
 class EntityItem;
 class ScriptEngine;
 class ScriptManager;
+class EntityScriptConsentScope;
+class EntityScriptConsentRequest;
 using ScriptEnginePointer = std::shared_ptr<ScriptEngine>;
 using ScriptManagerPointer = std::shared_ptr<ScriptManager>;
 
@@ -187,6 +189,17 @@ protected:
     }
 
 private:
+    friend class Application;
+    using EntityScriptConsentPrompt = std::function<void(const EntityItemID&,
+        const std::shared_ptr<EntityScriptConsentRequest>&, std::function<void(bool)>)>;
+    void beginEntityScriptConsent(std::shared_ptr<EntityScriptConsentScope> scope, EntityScriptConsentPrompt prompt);
+    void endEntityScriptConsent();
+    void bindEntityScriptConsent(const ScriptManagerPointer& manager);
+    bool isCurrentEntityScriptConsentRequest(const ScriptManagerPointer& manager, const EntityItemID& entityID,
+        const std::shared_ptr<EntityScriptConsentRequest>& request);
+    std::shared_ptr<EntityScriptConsentScope> _entityScriptConsentScope;
+    EntityScriptConsentPrompt _entityScriptConsentPrompt;
+    quint64 _entityScriptConsentGeneration { 0 };
     void addPendingEntities(const render::ScenePointer& scene, render::Transaction& transaction);
     void updateChangedEntities(const render::ScenePointer& scene, render::Transaction& transaction);
     EntityRendererPointer renderableForEntity(const EntityItemPointer& entity) const { return renderableForEntityId(entity->getID()); }

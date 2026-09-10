@@ -75,19 +75,29 @@ Preference {
 
     QtObject {
         id: d
-        property var editableBuilder: Component { EditablePreference { } }
-        property var browsableBuilder: Component { TabletBrowsablePreference { } }
-        property var spinnerBuilder: Component { SpinBoxPreference { } }
-        property var checkboxBuilder: Component { CheckBoxPreference { } }
-        property var sliderBuilder: Component { SliderPreference { } }
-        property var avatarBuilder: Component { AvatarPreference { } }
-        property var buttonBuilder: Component { ButtonPreference { } }
-        property var comboBoxBuilder: Component { ComboBoxPreference { } }
-        property var spinnerSliderBuilder: Component { SpinnerSliderPreference { } }
-        property var primaryHandBuilder: Component { PrimaryHandPreference { } }
-        property var radioButtonsBuilder: Component { RadioButtonsPreference { } }
+        property var editableBuilder: null
+        property var browsableBuilder: null
+        property var spinnerBuilder: null
+        property var checkboxBuilder: null
+        property var sliderBuilder: null
+        property var avatarBuilder: null
+        property var buttonBuilder: null
+        property var comboBoxBuilder: null
+        property var spinnerSliderBuilder: null
+        property var primaryHandBuilder: null
+        property var radioButtonsBuilder: null
         property var preferences: []
         property int checkBoxCount: 0
+
+        // Compile only editors requested by the native profile-filtered model.
+        // An unused desktop editor must not prevent retained mobile settings loading.
+        function loadEditor(fileName) {
+            var component = Qt.createComponent(Qt.resolvedUrl(fileName));
+            if (component.status !== Component.Ready) {
+                throw new Error("Preference editor unavailable");
+            }
+            return component;
+        }
 
         function buildPreferences() {
             var categoryPreferences = Preferences.preferencesByCategory[root.name];
@@ -108,42 +118,42 @@ Preference {
             switch (preference.type) {
                 case Preference.Editable:
                     checkBoxCount = 0;
-                    builder = editableBuilder;
+                    builder = editableBuilder || (editableBuilder = loadEditor("../../../../dialogs/preferences/EditablePreference.qml"));
                     break;
 
                 case Preference.Browsable:
                     checkBoxCount = 0;
-                    builder = browsableBuilder;
+                    builder = browsableBuilder || (browsableBuilder = loadEditor("TabletBrowsablePreference.qml"));
                     break;
 
                 case Preference.Spinner:
                     checkBoxCount = 0;
-                    builder = spinnerBuilder;
+                    builder = spinnerBuilder || (spinnerBuilder = loadEditor("../../../../dialogs/preferences/SpinBoxPreference.qml"));
                     break;
 
                 case Preference.Slider:
                     checkBoxCount = 0;
-                    builder = sliderBuilder;
+                    builder = sliderBuilder || (sliderBuilder = loadEditor("../../../../dialogs/preferences/SliderPreference.qml"));
                     break;
 
                 case Preference.Checkbox:
                     checkBoxCount++;
-                    builder = checkboxBuilder;
+                    builder = checkboxBuilder || (checkboxBuilder = loadEditor("../../../../dialogs/preferences/CheckBoxPreference.qml"));
                     break;
 
                 case Preference.Avatar:
                     checkBoxCount = 0;
-                    builder = avatarBuilder;
+                    builder = avatarBuilder || (avatarBuilder = loadEditor("../../../../dialogs/preferences/AvatarPreference.qml"));
                     break;
 
                 case Preference.Button:
                     checkBoxCount = 0;
-                    builder = buttonBuilder;
+                    builder = buttonBuilder || (buttonBuilder = loadEditor("../../../../dialogs/preferences/ButtonPreference.qml"));
                     break;
 
                 case Preference.ComboBox:
                     checkBoxCount = 0;
-                    builder = comboBoxBuilder;
+                    builder = comboBoxBuilder || (comboBoxBuilder = loadEditor("../../../../dialogs/preferences/ComboBoxPreference.qml"));
                     //make sure that combo boxes sitting higher will have higher z coordinate
                     //to be not overlapped when drop down is active
                     zpos = root.z + 1000 - itemNum
@@ -151,17 +161,17 @@ Preference {
 
                 case Preference.SpinnerSlider:
                     checkBoxCount = 0;
-                    builder = spinnerSliderBuilder;
+                    builder = spinnerSliderBuilder || (spinnerSliderBuilder = loadEditor("../../../../dialogs/preferences/SpinnerSliderPreference.qml"));
                     break;
 
                 case Preference.PrimaryHand:
                     checkBoxCount = 0;
-                    builder = primaryHandBuilder;
+                    builder = primaryHandBuilder || (primaryHandBuilder = loadEditor("../../../../dialogs/preferences/PrimaryHandPreference.qml"));
                     break;
 
                 case Preference.RadioButtons:
                     checkBoxCount = 0;
-                    builder = radioButtonsBuilder;
+                    builder = radioButtonsBuilder || (radioButtonsBuilder = loadEditor("../../../../dialogs/preferences/RadioButtonsPreference.qml"));
                     break;
             };
 

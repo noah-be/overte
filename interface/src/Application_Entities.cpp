@@ -353,6 +353,9 @@ void Application::clearDomainOctreeDetails(bool clearAll) {
 #endif
 
     _waitForServerlessToBeSet = true;
+#if defined(Q_OS_IOS) || defined(OVERTE_IOS)
+    invalidateIOSRuntimeEntityEvidence();
+#endif
     resetPhysicsReadyInformation();
 #if defined(ANDROID_APP_PICO_INTERFACE)
     const auto domainHandler = &DependencyManager::get<NodeList>()->getDomainHandler();
@@ -444,6 +447,7 @@ void Application::resettingDomain() {
         return;
     }
 #endif
+    invalidateEntityScriptConsent();
     clearDomainOctreeDetails(false);
 }
 
@@ -525,6 +529,7 @@ void Application::queryOctree(NodeType_t serverType, PacketType packetType) {
 #endif
 #if defined(Q_OS_IOS) || defined(OVERTE_IOS)
         if (packetType == PacketType::EntityQuery) {
+            overte::ios::observeRender(overte::ios::RenderMetric::entityQueries);
             logIOSRuntimeMarker("OVERTE_IOS_ENTITY_GATE entity_query_sent",
                                 "node=", node->getUUID().toString(QUuid::WithoutBraces),
                                 "bytes=", packetSize);

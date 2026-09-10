@@ -261,9 +261,32 @@ def main() -> None:
         assert "<-DOVERTE_IOS_BOOTSTRAP_ONLY=OFF>" in invocation
         assert "<-DOVERTE_IOS_BUNDLE_IDENTIFIER=org.overte.interface.dev>" in invocation
         assert f"<-DQT_CHAINLOAD_TOOLCHAIN_FILE={client_build}/conan/conan_toolchain.cmake>" in invocation
+        assert "<-DCMAKE_XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS=YES>" in invocation
+        assert "<-DCMAKE_XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT=dwarf-with-dsym>" in invocation
         assert "<-DCMAKE_TOOLCHAIN_FILE=" not in invocation
         assert "<-DCMAKE_PREFIX_PATH=" not in invocation
         assert invocation.count("TOOLCHAIN_FILE=") == 1, invocation
+        assert "<-DOVERTE_IOS_WORLD_OBSERVATION_BUILD=OFF>" in invocation
+
+        log.write_text("", encoding="utf-8")
+        observed_client = run_cli(environment, "configure", "--platform", "simulator",
+                                  "--build-dir", str(client_build), "--client-graph",
+                                  "--world-observations")
+        assert observed_client.returncode == 0, observed_client.stderr
+        invocation = log.read_text(encoding="utf-8")
+        assert "<-DOVERTE_IOS_WORLD_OBSERVATION_BUILD=ON>" in invocation
+        assert "<-DOVERTE_IOS_E2E_TEST_BUILD=OFF>" in invocation
+        for arguments in (("configure",), ("build",), ("package-client",)):
+            log.write_text("", encoding="utf-8")
+            invalid_observation = run_cli(environment, *arguments, "--world-observations")
+            assert invalid_observation.returncode == 1
+            assert "requires configure --client-graph" in invalid_observation.stderr
+            assert log.read_text(encoding="utf-8") == ""
+        still_device_only = run_cli(environment, "configure", "--client-graph",
+                                    "--platform", "simulator", "--world-observations",
+                                    "--e2e-test-build")
+        assert still_device_only.returncode == 1
+        assert "requires --platform device" in still_device_only.stderr
 
         compiler_launcher = shims / "sccache"
         make_executable(compiler_launcher, "exit 0\n")

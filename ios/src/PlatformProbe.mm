@@ -8,13 +8,8 @@
 #import <CoreMotion/CoreMotion.h>
 #import <Network/Network.h>
 #import <os/log.h>
-
-namespace {
-os_log_t platformLog() {
-    static os_log_t log = os_log_create("org.overte.interface", "platform");
-    return log;
-}
-}
+#include "RedactingDiagnostics.h"
+#include "../networking/CallbackEpoch.h"
 
 @interface PlatformProbe ()
 @property(nonatomic, strong) CMMotionManager* motionManager;
@@ -22,7 +17,9 @@ os_log_t platformLog() {
 @property(nonatomic, strong) dispatch_queue_t networkQueue;
 @end
 
-@implementation PlatformProbe
+@implementation PlatformProbe {
+    overte::ios::CallbackEpoch _networkEpoch;
+}
 
 - (instancetype)init {
     self = [super init];
@@ -45,18 +42,20 @@ os_log_t platformLog() {
                                                         create:YES
                                                          error:&error];
     if (url == nil) {
-        os_log_error(platformLog(), "Could not create application support directory: %{public}@", error);
+        overte::ios::logDiagnostic(overte::ios::DiagnosticEvent::ApplicationSupportUnavailable);
     }
     return url.path ?: @"";
 }
 
 - (void)startNetworkMonitoringWithHandler:(void (^)(BOOL reachable))handler {
+    NSAssert(NSThread.isMainThread, @"Network monitoring requires the main queue");
     [self stop];
+    auto epoch = _networkEpoch.begin();
     self.networkMonitor = nw_path_monitor_create();
     nw_path_monitor_set_update_handler(self.networkMonitor, ^(nw_path_t path) {
         BOOL reachable = nw_path_get_status(path) == nw_path_status_satisfied;
         dispatch_async(dispatch_get_main_queue(), ^{
-            handler(reachable);
+            if (epoch.current()) { handler(reachable); }
         });
     });
     nw_path_monitor_set_queue(self.networkMonitor, self.networkQueue);
@@ -64,6 +63,7 @@ os_log_t platformLog() {
 }
 
 - (void)stop {
+    _networkEpoch.cancel();
     if (self.networkMonitor != nil) {
         nw_path_monitor_cancel(self.networkMonitor);
         self.networkMonitor = nil;

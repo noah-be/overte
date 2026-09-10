@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 HEADER = (ROOT / "interface/src/IOSTouchUiMetrics.h").read_text()
-SOURCE = (ROOT / "interface/src/IOSTouchUiMetrics.mm").read_text()
+SOURCE = (ROOT / "ios/ui/IOSTouchUiMetrics.mm").read_text()
 PROFILE = (ROOT / "interface/resources/qml/controlsUit/+ios/TouchUiProfile.qml").read_text()
 GRAPHICS = (ROOT / "interface/src/Application_Graphics.cpp").read_text()
 APPLICATION = (ROOT / "interface/src/Application.cpp").read_text()
@@ -88,8 +88,13 @@ for app_property in (
 ):
     assert f'qApp->setProperty("{app_property}"' in GRAPHICS
 assert "OVERTE_IOS_TOUCH_UI_GATE stage=native-metrics-published" in GRAPHICS
-assert 'extraSelectors << "ios" << "mobile" << "touch"' in SELECTORS
-assert "android_phoneInterface" in SELECTORS
+assert "const Product product = configuredProduct();" in SELECTORS
+CONFIGURED = (ROOT / "libraries/ui/src/ConfiguredCapabilityProfile.h").read_text()
+assert "#elif defined(Q_OS_IOS)\n    return Product::IOS;" in CONFIGURED
+assert "profileSelectors(product, gles)" in SELECTORS
+PROFILE_IMPLEMENTATION = (ROOT / "libraries/ui/src/CapabilityProfile.h").read_text()
+assert 'case Product::IOS: result = {"ios", "mobile", "touch",' in PROFILE_IMPLEMENTATION
+assert "android_phoneInterface" in PROFILE_IMPLEMENTATION
 assert 'import ".." as SharedControls' in PROFILE
 assert "SharedControls.TouchUiProfileBase" in PROFILE
 assert "graphicsSettingsAvailable: true" in PROFILE
@@ -120,8 +125,8 @@ assert "Position:" in IOS_STATS
 assert "Present:" in IOS_STATS
 assert "Entities local/server:" in IOS_STATS
 assert "GPU memory tex/buf:" in IOS_STATS
-assert 'iosRuntimeDiagnosticBool("statsOverlay", true)' in APPLICATION_UI
-assert 'iosRuntimeDiagnosticBool("statsOverlayExpanded", true)' in APPLICATION_UI
+assert '"statsOverlay", menu->isOptionChecked(MenuOption::Stats)' in APPLICATION_UI
+assert 'iosRuntimeDiagnosticBool("statsOverlayExpanded", false)' in APPLICATION_UI
 assert '"statsOverlayExpandDelayMs", 5000, 0, 30000' in APPLICATION_UI
 assert "stage=expanded" in APPLICATION_UI
 assert "if (!nodeList || !avatarManager || !avatarManager->getMyAvatar())" in STATS_SOURCE

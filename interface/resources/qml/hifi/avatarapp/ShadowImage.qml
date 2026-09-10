@@ -1,6 +1,6 @@
 import stylesUit 1.0
 import QtQuick 2.9
-import Qt5Compat.GraphicalEffects
+import "../../controls" as CpuControls
 
 Item {
     property alias source: image.source
@@ -13,14 +13,7 @@ Item {
     property alias progress: image.progress
     property alias fillMode: image.fillMode
 
-    RoundImage {
-        id: image
-        width: parent.width
-        height: parent.height
-        radius: 6
-    }
-
-    DropShadow {
+    CpuControls.CpuDropShadow {
         id: shadow
         anchors.fill: image
         radius: 6
@@ -29,4 +22,13 @@ Item {
         color: Qt.rgba(0, 0, 0, 0.25)
         source: image
     }
+
+    RoundImage {
+        id: image
+        width: parent.width
+        height: parent.height
+        radius: 6
+    }
+
+
 }

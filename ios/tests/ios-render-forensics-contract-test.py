@@ -49,12 +49,12 @@ for token in (
     '== "full-scissor"',
     "for (const auto& binding : bindingMap)",
     "sets.reserve(bindingMap.size())",
-    "OVERTE_IOS_VULKAN_DESCRIPTOR fallback=texture",
-    "OVERTE_IOS_VULKAN_DESCRIPTOR coverage=",
+    "RenderMetric::textureFallbacks",
+    "RenderMetric::descriptorChecks",
     "missingDescriptorBindings",
-    "OVERTE_IOS_VULKAN_DRAW_BUFFER",
-    "range_valid=",
-    "object_valid=",
+    "RenderMetric::drawChecks",
+    "RenderMetric::invalidDrawRanges",
+    "RenderMetric::invalidObjectRanges",
 ):
     assert token in backend, f"Vulkan draw diagnostic missing {token}"
 
@@ -65,11 +65,10 @@ assert "for (size_t i = 0; i < _resource._textures.size(); i++)" not in backend,
 for token in (
     "ios/vulkanPendingPipelines",
     "ios/vulkanQuarantinedPipelines",
-    "OVERTE_IOS_VULKAN_ISOLATION recovered_unretired_submit",
-    "OVERTE_IOS_VULKAN_PIPELINE_USE",
-    "OVERTE_IOS_VULKAN_BATCH_USE",
-    "action=skip_pipeline",
-    "action=skip_batch",
+    "RenderMetric::recoveredSubmits",
+    "RenderMetric::quarantinedDraws",
+    "if (quarantineBatch)",
+    "if (!quarantinePipeline)",
     "persistIOSDiagnosticSubmit",
     "retireIOSDiagnosticSubmit",
 ):

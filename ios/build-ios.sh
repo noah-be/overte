@@ -46,6 +46,7 @@ Options:
   --require-moltenvk            Make doctor validate the MoltenVK XCFramework.
   --client-graph                Configure the experimental full client dependency graph.
   --e2e-test-build              Enable the physical-device E2E contract for the Full Client.
+  --world-observations          Enable bounded Full Client observations (configure only).
   --confirm                     Confirm clean removal of the resolved build directory.
   -h, --help                    Show this help.
 
@@ -81,6 +82,7 @@ with_graphics_toolchain=False
 require_moltenvk=0
 client_graph=0
 e2e_test_build=0
+world_observations=0
 compiler_launcher="${OVERTE_IOS_COMPILER_LAUNCHER:-}"
 build_jobs="$(sysctl -n hw.logicalcpu 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 [[ "$build_jobs" =~ ^[1-9][0-9]*$ ]] || build_jobs=4
@@ -141,6 +143,10 @@ while (($#)); do
             e2e_test_build=1
             shift
             ;;
+        --world-observations)
+            world_observations=1
+            shift
+            ;;
         -h|--help)
             usage
             exit 0
@@ -153,6 +159,11 @@ done
 
 if ((client_graph)) && [[ "$command_name" != "configure" ]]; then
     fail "--client-graph is only valid with the configure command"
+fi
+
+if ((world_observations)); then
+    [[ "$command_name" == "configure" ]] && ((client_graph)) \
+        || fail "--world-observations requires configure --client-graph"
 fi
 
 if ((e2e_test_build)); then
@@ -417,7 +428,11 @@ configure_project() {
         cmake_frontend="$qt_root/bin/qt-cmake"
         configure_arguments+=(
             "-DQT_CHAINLOAD_TOOLCHAIN_FILE=$conan_toolchain"
+            -DCMAKE_XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS=YES
+            -DCMAKE_XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT=dwarf-with-dsym
         )
+        # Emit the dSYM while Xcode still has the linked objects/debug map.
+        # Running dsymutil on an already stripped Release IPA cannot recover it.
         note "Configuring the experimental full iOS client graph through Qt with Conan chainloaded."
     fi
 
@@ -437,6 +452,7 @@ configure_project() {
         "-DOVERTE_IOS_ENABLE_SIGNING=$signing"
         "-DOVERTE_IOS_BOOTSTRAP_ONLY=$bootstrap_only"
         "-DOVERTE_IOS_E2E_TEST_BUILD=$([[ $e2e_test_build -eq 1 ]] && echo ON || echo OFF)"
+        "-DOVERTE_IOS_WORLD_OBSERVATION_BUILD=$([[ $world_observations -eq 1 ]] && echo ON || echo OFF)"
     )
     if [[ -n "$compiler_launcher" ]]; then
         local compiler_launcher_path

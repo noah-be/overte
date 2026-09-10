@@ -6,6 +6,16 @@
     "renderer_reimplementation_allowed": false,
     "bootstrap_geometry_is_evidence": false
   },
+  "qml_producer": {
+    "implementation": "SOFTWARE_QML_CPU_UPLOAD_TO_VULKAN",
+    "contract": "sh007-ios-qml/v001",
+    "source_status": "implemented",
+    "native_execution_status": "unverified",
+    "native_rhi_qml": false,
+    "gpu_accelerated_qml": false,
+    "webview_composition_verified": false,
+    "limitations": "Retained QML ShaderEffect/particle closure and native WebView composition/navigation remain pending. Upload diagnostics are not pixels, black-frame measurements or present evidence."
+  },
   "required_path": [
     "entities-renderer",
     "render",
@@ -22,7 +32,7 @@
       "status": "blocked",
       "source": "libraries/qml/src/qml/impl/RenderEventHandler.cpp",
       "anchor": "glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0)",
-      "reason": "The existing Offscreen QML producer still owns an OpenGL context, FBO, texture ID, and GLsync fence contract."
+      "reason": "The target still links gl and retains desktop GL source/ABI. The selected iOS/Qt6 producer instead renders software QImage frames and uploads ordinary texture bytes; residual linkage is not an active iOS external-GL producer claim."
     },
     {
       "target": "vk",
@@ -47,7 +57,7 @@
     {
       "id": "ipad-entity-render-handoff",
       "status": "unverified",
-      "evidence": "Device logs must reach OVERTE_IOS_ENTITY_GATE stage=render_handoff after a Metal-backed present."
+      "evidence": "Device logs must reach OVERTE_IOS_ENTITY_GATE stage=render_handoff after a Metal-backed present, with exact-candidate real entity/world and screen-QML visual evidence. A marker or CPU upload alone is not acceptance."
     }
   ],
   "checks": [
@@ -174,8 +184,8 @@
       "status": "blocked",
       "source": "libraries/plugins/src/plugins/DisplayPlugin.h",
       "anchors": ["struct QuickTextureCopyTarget", "void* framebuffer", "void** completionToken"],
-      "barrier": "Both direct iOS Vulkan gl links are removed. Offscreen QML remains fail-closed until a native-RHI producer replaces its GL context/texture/fence implementation; vk and qml still own their internal compatibility GL dependencies.",
-      "acceptance": "A native-RHI Offscreen QML producer replaces the GL context/texture/fence contract and the iOS full graph compiles, links, presents, and renders entities on device.",
+      "barrier": "Both direct iOS Vulkan gl links are removed and software QML has actual screen/world CPU-image consumers. Retained QML effect coverage and native WebView composition are not established; vk and qml still own internal compatibility GL links. Exact-head full graph/present/device evidence remains unavailable.",
+      "acceptance": "The selected software-QML CPU-upload path must pass retained required surfaces (unsupported effects explicitly replaced/rejected), full graph compile/link and exact-candidate world/screen presentation on simulator and device. No native-RHI or GPU-QML implementation is claimed or required by this source inventory.",
       "subtasks": [
         {
           "id": "replace-display-plugin-quick-copy-abi",
@@ -244,10 +254,28 @@
           "anchor": "iOS does not link Qt WebEngine"
         },
         {
-          "id": "migrate-offscreen-qml-to-native-rhi",
-          "status": "pending",
+          "id": "select-ios-software-qml-producer",
+          "status": "implemented",
           "source": "libraries/qml/src/qml/impl/SharedObject.cpp",
-          "anchor": "void SharedObject::initializeRenderControl(QOpenGLContext* context)"
+          "anchor": "QQuickWindow::setGraphicsApi(QSGRendererInterface::Software)"
+        },
+        {
+          "id": "render-qml-to-cpu-image",
+          "status": "implemented",
+          "source": "libraries/qml/src/qml/impl/RenderEventHandler.cpp",
+          "anchor": "QQuickRenderTarget::fromPaintDevice(&_softwareImage)"
+        },
+        {
+          "id": "consume-screen-qml-cpu-image",
+          "status": "implemented",
+          "source": "interface/src/ui/ApplicationOverlay.cpp",
+          "anchor": "offscreenUI->fetchImage(sourceImage)"
+        },
+        {
+          "id": "consume-world-qml-cpu-image",
+          "status": "implemented",
+          "source": "libraries/entities-renderer/src/RenderableWebEntityItem.cpp",
+          "anchor": "_webSurface->fetchImage(newImage)"
         },
         {
           "id": "add-offscreen-qml-backend-neutral-context-contract",

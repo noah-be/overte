@@ -8,13 +8,14 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
+import "../../avatarapp" as AvatarImages
+import "../../audio" as SharedAudio
 import QtQuick 2.10
 import hifi.simplifiedUI.simplifiedControls 1.0 as SimplifiedControls
 import "../simplifiedConstants" as SimplifiedConstants
 import "../inputDeviceButton" as InputDeviceButton
 import stylesUit 1.0 as HifiStylesUit
 import TabletScriptingInterface 1.0
-import Qt5Compat.GraphicalEffects
 import "qrc:/qml/hifi/models" as HifiModels  // Absolute path so the same code works everywhere.
 
 Rectangle {
@@ -95,9 +96,11 @@ Rectangle {
         width: 48
         height: width
 
-        Image {
+        AvatarImages.RoundImage {
+            border.width: 0
+            radius: width / 2
             id: avatarButtonImage
-            source: "../images/defaultAvatar.svg"
+            source: Qt.resolvedUrl("../images/defaultAvatar.svg")
             anchors.centerIn: parent
             width: 32
             height: width
@@ -105,10 +108,6 @@ Rectangle {
             sourceSize.height: height
             mipmap: true
             fillMode: Image.PreserveAspectCrop
-            layer.enabled: true
-            layer.effect: OpacityMask {
-                maskSource: mask
-            }
 
             MouseArea {
                 id: avatarButtonImageMouseArea
@@ -147,12 +146,6 @@ Rectangle {
             }
         }
 
-        Rectangle {
-            id: mask
-            anchors.fill: avatarButtonImage
-            radius: avatarButtonImage.width
-            visible: false
-        }
     }
 
 
@@ -189,10 +182,10 @@ Rectangle {
             mipmap: true
         }
 
-        ColorOverlay {
+        SharedAudio.TintedImage {
             anchors.fill: outputDeviceButton
             opacity: outputDeviceButtonMouseArea.containsMouse ? 1.0 : 0.7
-            source: outputDeviceButton
+            source: outputDeviceButton.source
             color: (outputDeviceButton.outputMuted ? simplifiedUI.colors.controls.outputVolumeButton.text.muted : simplifiedUI.colors.controls.outputVolumeButton.text.noisy)
         }
 
@@ -238,13 +231,7 @@ Rectangle {
             width: 22
             height: width
             radius: width/2
-            visible: false
-        }
-
-        ColorOverlay {
-            anchors.fill: statusButton
             opacity: statusButton.currentStatus ? (statusButtonMouseArea.containsMouse ? 1.0 : 0.7) : 0.7
-            source: statusButton
             color: if (statusButton.currentStatus === "busy") {
                 "#ff001a"
             } else if (statusButton.currentStatus === "available") {
@@ -256,6 +243,8 @@ Rectangle {
             }
         }
 
+
+
         Image {
             id: statusIcon
             source: statusButton.currentStatus === "available" ? "images/statusPresent.svg" : "images/statusAway.svg"
@@ -265,10 +254,10 @@ Rectangle {
             mipmap: true
         }
 
-        ColorOverlay {
+        SharedAudio.TintedImage {
             anchors.fill: statusIcon
             opacity: statusButton.currentStatus ? (statusButtonMouseArea.containsMouse ? 1.0 : 0.7) : 0.7
-            source: statusIcon
+            source: statusIcon.source
             color: "#ffffff"
         }
 
@@ -357,10 +346,10 @@ Rectangle {
             mipmap: true
         }
 
-        ColorOverlay {
+        SharedAudio.TintedImage {
             anchors.fill: displayModeImage
             opacity: displayModeMouseArea.containsMouse ? 1.0 : 0.7
-            source: displayModeImage
+            source: displayModeImage.source
             color: simplifiedUI.colors.text.white
         }
 
@@ -425,10 +414,10 @@ Rectangle {
             mipmap: true
         }
 
-        ColorOverlay {
+        SharedAudio.TintedImage {
             opacity: helpButtonMouseArea.containsMouse ? 1.0 : 0.7
             anchors.fill: helpButtonImage
-            source: helpButtonImage
+            source: helpButtonImage.source
             color: simplifiedUI.colors.text.white
         }
 
@@ -469,10 +458,10 @@ Rectangle {
             mipmap: true
         }
 
-        ColorOverlay {
+        SharedAudio.TintedImage {
             opacity: settingsButtonMouseArea.containsMouse ? 1.0 : 0.7
             anchors.fill: settingsButtonImage
-            source: settingsButtonImage
+            source: settingsButtonImage.source
             color: simplifiedUI.colors.text.white
         }
 
@@ -504,12 +493,12 @@ Rectangle {
                 if (previewUrl.indexOf("missing.png") > -1) {
                     previewUrl = "../images/defaultAvatar.svg";
                 }
-                avatarButtonImage.source = previewUrl;
+                avatarButtonImage.source = previewUrl ? Qt.resolvedUrl(previewUrl) : "";
                 return;
             }
         }
-        
-        avatarButtonImage.source = "../images/defaultAvatar.svg";
+
+        avatarButtonImage.source = Qt.resolvedUrl("../images/defaultAvatar.svg");
     }
 
 
@@ -521,9 +510,9 @@ Rectangle {
         switch (message.method) {
             case "updateAvatarThumbnailURL":
                 if (message.data.avatarThumbnailURL.indexOf("defaultAvatar.svg") > -1) {
-                    avatarButtonImage.source = "../images/defaultAvatar.svg";
+                    avatarButtonImage.source = Qt.resolvedUrl("../images/defaultAvatar.svg");
                 } else {
-                    avatarButtonImage.source = message.data.avatarThumbnailURL;
+                    avatarButtonImage.source = message.data.avatarThumbnailURL ? Qt.resolvedUrl(message.data.avatarThumbnailURL) : "";
                 }
                 break;
 

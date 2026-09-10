@@ -40,6 +40,13 @@ add_executable(OverteIOSBootstrap MACOSX_BUNDLE
     src/SceneDelegate.mm
     src/PlatformProbe.h
     src/PlatformProbe.mm
+    src/SecureAccountStore.cpp
+    src/SecureAccountStore.mm
+    src/RedactingDiagnostics.mm
+    networking/BoundedDirectoryRequest.mm
+    performance/NativeMetrics.cpp
+    performance/NativeMetrics.mm
+    ui/PreviewInputLayout.mm
     src/PendingDeepLinkStore.h
     src/PendingDeepLinkStore.cpp
     src/OverteAddress.h
@@ -96,6 +103,8 @@ target_link_libraries(OverteIOSBootstrap PRIVATE
     "-framework CoreGraphics"
     "-framework CoreMotion"
     "-framework Foundation"
+    "-framework Security"
+    "-framework LocalAuthentication"
     "-framework Metal"
     "-framework MetalKit"
     "-framework Network"

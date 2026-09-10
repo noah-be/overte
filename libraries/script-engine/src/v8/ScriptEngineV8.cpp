@@ -13,8 +13,11 @@
 //
 
 #include "ScriptEngineV8.h"
+#include "V8ExceptionDiagnostics.h"
+#include "V8PropertyCopy.h"
 
 #include <chrono>
+#include <cstring>
 #include <mutex>
 #include <thread>
 
@@ -83,14 +86,7 @@ std::unique_ptr<ScriptEngine::ScriptEngineScopeGuard> ScriptEngineV8::getScopeGu
 }
 
 QString getFileNameFromTryCatch(v8::TryCatch &tryCatch, v8::Isolate *isolate, v8::Local<v8::Context> &context ) {
-    v8::Local<v8::Message> exceptionMessage = tryCatch.Message();
-    QString errorFileName;
-    auto resource = exceptionMessage->GetScriptResourceName();
-    v8::Local<v8::String> v8resourceString;
-    if (resource->ToString(context).ToLocal(&v8resourceString)) {
-        errorFileName = QString(*v8::String::Utf8Value(isolate, v8resourceString));
-    }
-    return errorFileName;
+    return overte::scripting::exceptionDiagnostics(isolate, context, tryCatch).file;
 }
 
 ScriptValue ScriptEngineV8::makeError(const ScriptValue& _other, const QString& type) {
@@ -502,9 +498,9 @@ const v8::Local<v8::Context> ScriptEngineV8::getConstContext() const {
 }
 
 // Stored objects are used to create global objects for evaluateInClosure
-void ScriptEngineV8::storeGlobalObjectContents() {
+bool ScriptEngineV8::storeGlobalObjectContents() {
     if (areGlobalObjectContentsStored) {
-        return;
+        return true;
     }
     Q_ASSERT(_v8Isolate->IsCurrent());
     v8::HandleScope handleScope(_v8Isolate);
@@ -512,21 +508,24 @@ void ScriptEngineV8::storeGlobalObjectContents() {
     v8::Context::Scope contextScope(context);
     v8::Local<v8::Object> globalMemberObjects = v8::Object::New(_v8Isolate);
 
-    auto globalMemberNames = context->Global()->GetPropertyNames(context).ToLocalChecked();
-    for (uint32_t i = 0; i < globalMemberNames->Length(); i++) {
-        auto name = globalMemberNames->Get(context, i).ToLocalChecked();
-        if(!globalMemberObjects->Set(context, name, context->Global()->Get(context, name).ToLocalChecked()).FromMaybe(false)) {
-            Q_ASSERT(false);
+    v8::TryCatch caught(_v8Isolate);
+    if (!overte::scripting::copyEnumerableProperties(context, context, context->Global(), globalMemberObjects)) {
+        if (caught.HasCaught()) {
+            setUncaughtException(caught, "global snapshot failed");
+        } else {
+            setUncaughtEngineException("Global snapshot failed");
         }
+        return false;
     }
 
     _globalObjectContents.Reset(_v8Isolate, globalMemberObjects);
-    qCDebug(scriptengine_v8) << "ScriptEngineV8::storeGlobalObjectContents: " << globalMemberNames->Length() << " objects stored";
     areGlobalObjectContentsStored = true;
+    return true;
 }
 
 ScriptValue ScriptEngineV8::evaluateInClosure(const ScriptValue& _closure,
                                                            const ScriptProgramPointer& _program) {
+    if (isEvaluationAborted()) { return ScriptValue(); }
     PROFILE_RANGE(script, "evaluateInClosure");
     if (!IS_THREADSAFE_INVOCATION(thread(), __FUNCTION__)) {
         return nullValue();
@@ -534,10 +533,12 @@ ScriptValue ScriptEngineV8::evaluateInClosure(const ScriptValue& _closure,
     _evaluatingCounter++;
     Q_ASSERT(_v8Isolate->IsCurrent());
     v8::HandleScope handleScope(_v8Isolate);
-    storeGlobalObjectContents();
+    if (!storeGlobalObjectContents()) {
+        _evaluatingCounter--;
+        return ScriptValue();
+    }
 
     v8::Local<v8::Object> closureObject;
-    v8::Local<v8::Value> closureGlobal;
     ScriptValueV8Wrapper* unwrappedClosure;
     ScriptProgramV8Wrapper* unwrappedProgram;
 
@@ -551,9 +552,6 @@ ScriptValue ScriptEngineV8::evaluateInClosure(const ScriptValue& _closure,
             Q_ASSERT(false);
             return nullValue();
         }
-
-        const auto fileName = unwrappedProgram->fileName();
-        const auto shortName = QUrl(fileName).fileName();
 
         unwrappedClosure = ScriptValueV8Wrapper::unwrap(_closure);
         if (unwrappedClosure == nullptr) {
@@ -572,21 +570,10 @@ ScriptValue ScriptEngineV8::evaluateInClosure(const ScriptValue& _closure,
         }
         Q_ASSERT(closure.constGet()->IsObject());
         closureObject = v8::Local<v8::Object>::Cast(closure.constGet());
-        qCDebug(scriptengine_v8) << "Closure object members:" << scriptValueDebugListMembersV8(closure);
-        v8::Local<v8::Object> testObject = v8::Object::New(_v8Isolate);
-        if(!testObject->Set(context, v8::String::NewFromUtf8(_v8Isolate, "test_value").ToLocalChecked(), closureObject).FromMaybe(false)) {
-            Q_ASSERT(false);
-        }
-        qCDebug(scriptengine_v8) << "Test object members:" << scriptValueDebugListMembersV8(V8ScriptValue(this, testObject));
-
-        if (!closureObject->Get(closure.constGetContext(), v8::String::NewFromUtf8(_v8Isolate, "global").ToLocalChecked())
-                 .ToLocal(&closureGlobal)) {
-            _evaluatingCounter--;
-            qCDebug(scriptengine_v8) << "Cannot get global from unwrapped closure";
-            Q_ASSERT(false);
-            return nullValue();
-        }
     }
+#ifdef DEBUG_JS
+    const auto shortName = QUrl(unwrappedProgram->fileName()).fileName();
+#endif
     v8::Local<v8::Context> closureContext;
 
     closureContext = v8::Context::New(_v8Isolate);
@@ -608,6 +595,7 @@ ScriptValue ScriptEngineV8::evaluateInClosure(const ScriptValue& _closure,
             }
             qCCritical(scriptengine_v8) << errorMessage << _program->fileName() << ":" << compileResult->errorLineNumber();
             popContext();
+            _evaluatingCounter--;
             return nullValue();
         }
         const V8ScriptProgram& program = unwrappedProgram->toV8Value();
@@ -623,23 +611,20 @@ ScriptValue ScriptEngineV8::evaluateInClosure(const ScriptValue& _closure,
             v8::TryCatch tryCatch(getIsolate());
             // Since V8 cannot use arbitrary object as global object, objects from main global need to be copied to closure's global object
             auto globalObjectContents = _globalObjectContents.Get(_v8Isolate);
-            auto globalMemberNames = globalObjectContents->GetPropertyNames(globalObjectContents->GetCreationContextChecked()).ToLocalChecked();
-            for (uint32_t i = 0; i < globalMemberNames->Length(); i++) {
-                auto name = globalMemberNames->Get(closureContext, i).ToLocalChecked();
-                if(!closureContext->Global()->Set(closureContext, name, globalObjectContents->Get(globalObjectContents->GetCreationContextChecked(), name).ToLocalChecked()).FromMaybe(false)) {
-                    Q_ASSERT(false);
+            v8::Local<v8::Context> globalSourceContext;
+            if (!globalObjectContents->GetCreationContext().ToLocal(&globalSourceContext) ||
+                    !overte::scripting::copyEnumerableProperties(globalSourceContext, closureContext,
+                        globalObjectContents, closureContext->Global()) ||
+                    !overte::scripting::copyEnumerableProperties(closureContext, closureContext,
+                        closureObject, closureContext->Global())) {
+                if (tryCatch.HasCaught()) {
+                    setUncaughtException(tryCatch, "closure property copy failed");
+                } else {
+                    setUncaughtEngineException("Closure property copy failed");
                 }
-            }
-            qCDebug(scriptengine_v8) << "ScriptEngineV8::evaluateInClosure: " << globalMemberNames->Length() << " objects added to global";
-
-            // Objects from closure need to be copied to global object too
-            // V8TODO: I'm not sure which context to use with Get
-            auto closureMemberNames = closureObject->GetPropertyNames(closureContext).ToLocalChecked();
-            for (uint32_t i = 0; i < closureMemberNames->Length(); i++) {
-                auto name = closureMemberNames->Get(closureContext, i).ToLocalChecked();
-                if(!closureContext->Global()->Set(closureContext, name, closureObject->Get(closureContext, name).ToLocalChecked()).FromMaybe(false)) {
-                    Q_ASSERT(false);
-                }
+                popContext();
+                _evaluatingCounter--;
+                return ScriptValue();
             }
             // "Script" API is context-dependent, so it needs to be recreated for each new context
             {
@@ -653,82 +638,37 @@ ScriptValue ScriptEngineV8::evaluateInClosure(const ScriptValue& _closure,
             require.setProperty("resolve", resolve, ScriptValue::ReadOnly | ScriptValue::Undeletable);
             globalObject().setProperty("require", require, ScriptValue::ReadOnly | ScriptValue::Undeletable);
 
-            // Script.require properties need to be copied, since that's where the Script.require cache is
-            // Get source and destination Script.require objects
-            try {
-                v8::Local<v8::Value> oldScriptObjectValue;
-                if (!globalObjectContents
-                         ->Get(closureContext, v8::String::NewFromUtf8(_v8Isolate, "Script").ToLocalChecked())
-                         .ToLocal(&oldScriptObjectValue)) {
-                    throw(QString("evaluateInClosure: Script API object does not exist in calling script"));
+            // Transfer the original Script.require cache without unchecked
+            // getter results or debug-only type validation.
+            if (!overte::scripting::copyRequireProperties(closureContext,
+                    globalObjectContents, closureContext->Global())) {
+                if (tryCatch.HasCaught()) {
+                    setUncaughtException(tryCatch, "Script.require copy failed");
+                } else {
+                    setUncaughtEngineException("Script.require copy failed");
                 }
-                if (!oldScriptObjectValue->IsObject()) {
-                    throw(QString("evaluateInClosure: Script API object invalid in calling script"));
-                }
-                v8::Local<v8::Object> oldScriptObject = v8::Local<v8::Object>::Cast(oldScriptObjectValue);
-
-                v8::Local<v8::Value> oldRequireObjectValue;
-                if (!oldScriptObject->Get(closureContext, v8::String::NewFromUtf8(_v8Isolate, "require").ToLocalChecked())
-                         .ToLocal(&oldRequireObjectValue)) {
-                    throw(QString("evaluateInClosure: Script.require API object does not exist in calling script"));
-                }
-                if (!oldRequireObjectValue->IsObject()) {
-                    throw(QString("evaluateInClosure: Script.require API object invalid in calling script"));
-                }
-                v8::Local<v8::Object> oldRequireObject = v8::Local<v8::Object>::Cast(oldRequireObjectValue);
-
-                v8::Local<v8::Value> newScriptObjectValue;
-                if (!closureContext->Global()
-                         ->Get(closureContext, v8::String::NewFromUtf8(_v8Isolate, "Script").ToLocalChecked())
-                         .ToLocal(&newScriptObjectValue)) {
-                    Q_ASSERT(false);  // This should never happen
-                }
-                if (!newScriptObjectValue->IsObject()) {
-                    Q_ASSERT(false);  // This should never happen
-                }
-                v8::Local<v8::Object> newScriptObject = v8::Local<v8::Object>::Cast(newScriptObjectValue);
-
-                v8::Local<v8::Value> newRequireObjectValue;
-                if (!newScriptObject->Get(closureContext, v8::String::NewFromUtf8(_v8Isolate, "require").ToLocalChecked())
-                         .ToLocal(&newRequireObjectValue)) {
-                    Q_ASSERT(false);  // This should never happen
-                }
-                if (!newRequireObjectValue->IsObject()) {
-                    Q_ASSERT(false);  // This should never happen
-                }
-                v8::Local<v8::Object> newRequireObject = v8::Local<v8::Object>::Cast(newRequireObjectValue);
-
-                auto requireMemberNames =
-                    oldRequireObject->GetPropertyNames(oldRequireObject->GetCreationContextChecked()).ToLocalChecked();
-                for (uint32_t i = 0; i < requireMemberNames->Length(); i++) {
-                    auto name = requireMemberNames->Get(closureContext, i).ToLocalChecked();
-                    v8::Local<v8::Value> oldObject;
-                    if (!oldRequireObject->Get(oldRequireObject->GetCreationContextChecked(), name).ToLocal(&oldObject)) {
-                        Q_ASSERT(false);  // This should never happen, the property has been reported as existing
-                    }
-                    if (!newRequireObject->Set(closureContext, name,oldObject).FromMaybe(false)) {
-                        Q_ASSERT(false);
-                    }
-                }
-            } catch (QString exception) {
-                raiseException(exception);
                 popContext();
                 _evaluatingCounter--;
-                return nullValue();
+                return ScriptValue();
             }
 
             auto maybeResult = program.constGet()->GetUnboundScript()->BindToCurrentContext()->Run(closureContext);
             v8::Local<v8::Value> v8Result;
             if (!maybeResult.ToLocal(&v8Result)) {
-                v8::String::Utf8Value utf8Value(getIsolate(), tryCatch.Exception());
-                QString errorMessage = QString(__FUNCTION__) + " hasCaught:" + QString(*utf8Value) + "\n"
-                    + "tryCatch details:" + formatErrorMessageFromTryCatch(tryCatch);
+                if (tryCatch.HasTerminated() || _v8Isolate->IsExecutionTerminating()) {
+                    setUncaughtException(tryCatch, "closure evaluation terminated");
+                    popContext();
+                    _evaluatingCounter--;
+                    return ScriptValue();
+                }
+                QString errorMessage = QString(__FUNCTION__) + " tryCatch details:"
+                    + formatErrorMessageFromTryCatch(tryCatch);
                 v8Result = v8::Null(_v8Isolate);
                 if (_manager) {
                     v8::Local<v8::Message> exceptionMessage = tryCatch.Message();
                     int errorLineNumber = -1;
                     if (!exceptionMessage.IsEmpty()) {
-                        errorLineNumber = exceptionMessage->GetLineNumber(closureContext).FromJust();
+                        errorLineNumber = exceptionMessage->GetLineNumber(closureContext).FromMaybe(-1);
                     }
                     _manager->scriptErrorMessage(errorMessage, getFileNameFromTryCatch(tryCatch, _v8Isolate, closureContext),
                                                           errorLineNumber);
@@ -758,6 +698,7 @@ ScriptValue ScriptEngineV8::evaluateInClosure(const ScriptValue& _closure,
 }
 
 ScriptValue ScriptEngineV8::evaluate(const QString& sourceCode, const QString& fileName) {
+    if (isEvaluationAborted()) { return ScriptValue(); }
 
     // V8TODO: Is this ever used on another thread with script engine in a script manager?
     // It's the only case where invoke would be needed.
@@ -785,12 +726,17 @@ ScriptValue ScriptEngineV8::evaluate(const QString& sourceCode, const QString& f
     {
         v8::TryCatch tryCatch(getIsolate());
         if (!v8::Script::Compile(context, v8::String::NewFromUtf8(getIsolate(), sourceCode.toStdString().c_str()).ToLocalChecked(), &scriptOrigin).ToLocal(&script)) {
+            if (tryCatch.HasTerminated() || _v8Isolate->IsExecutionTerminating()) {
+                setUncaughtException(tryCatch, "script compilation terminated");
+                _evaluatingCounter--;
+                return ScriptValue();
+            }
             QString errorMessage(QString("Error while compiling script: \"") + fileName + QString("\" ") + formatErrorMessageFromTryCatch(tryCatch));
             if (_manager) {
                 v8::Local<v8::Message> exceptionMessage = tryCatch.Message();
                 int errorLineNumber = -1;
                 if (!exceptionMessage.IsEmpty()) {
-                    errorLineNumber = exceptionMessage->GetLineNumber(context).FromJust();
+                    errorLineNumber = exceptionMessage->GetLineNumber(context).FromMaybe(-1);
                 }
                 _manager->scriptErrorMessage(errorMessage, getFileNameFromTryCatch(tryCatch, _v8Isolate, context),
                                                       errorLineNumber);
@@ -807,14 +753,22 @@ ScriptValue ScriptEngineV8::evaluate(const QString& sourceCode, const QString& f
     v8::TryCatch tryCatchRun(getIsolate());
     if (!script->Run(context).ToLocal(&result)) {
         Q_ASSERT(tryCatchRun.HasCaught());
+        if (tryCatchRun.HasTerminated() || _v8Isolate->IsExecutionTerminating()) {
+            setUncaughtException(tryCatchRun, "script evaluation terminated");
+            _evaluatingCounter--;
+            return ScriptValue();
+        }
         auto runError = tryCatchRun.Message();
-        ScriptValue errorValue(new ScriptValueV8Wrapper(this, V8ScriptValue(this, runError->Get())));
+        ScriptValue errorValue;
+        if (!runError.IsEmpty()) {
+            errorValue = ScriptValue(new ScriptValueV8Wrapper(this, V8ScriptValue(this, runError->Get())));
+        }
         QString errorMessage(QString("Running script: \"") + fileName + QString("\" ") + formatErrorMessageFromTryCatch(tryCatchRun));
         if (_manager) {
             v8::Local<v8::Message> exceptionMessage = tryCatchRun.Message();
             int errorLineNumber = -1;
             if (!exceptionMessage.IsEmpty()) {
-                errorLineNumber = exceptionMessage->GetLineNumber(context).FromJust();
+                errorLineNumber = exceptionMessage->GetLineNumber(context).FromMaybe(-1);
             }
             _manager->scriptErrorMessage(errorMessage, getFileNameFromTryCatch(tryCatchRun, _v8Isolate, context),
                                                   errorLineNumber);
@@ -851,33 +805,19 @@ void ScriptEngineV8::setUncaughtException(const v8::TryCatch &tryCatch, const QS
     v8::HandleScope handleScope(_v8Isolate);
     v8::Local<v8::Context> context = getContext();
     v8::Context::Scope contextScope(context);
-    QString result("");
-
-    QString errorMessage = "";
-    QString errorBacktrace = "";
-    v8::String::Utf8Value utf8Value(getIsolate(), tryCatch.Message()->Get());
-
-    ex->errorMessage = QString(*utf8Value);
-
-    auto exceptionValue = tryCatch.Exception();
-    ex->thrownValue =  ScriptValue(new ScriptValueV8Wrapper(this, V8ScriptValue(this, exceptionValue)));
-
-
-    v8::Local<v8::Message> exceptionMessage = tryCatch.Message();
-    if (!exceptionMessage.IsEmpty()) {
-        ex->errorLine = exceptionMessage->GetLineNumber(context).FromJust();
-        ex->errorColumn = exceptionMessage->GetStartColumn(context).FromJust();
-        v8::Local<v8::Value> backtraceV8String;
-        if (tryCatch.StackTrace(context).ToLocal(&backtraceV8String)) {
-            if (backtraceV8String->IsString()) {
-                if (v8::Local<v8::String>::Cast(backtraceV8String)->Length() > 0) {
-                    v8::String::Utf8Value backtraceUtf8Value(getIsolate(), backtraceV8String);
-                    QString errorBacktrace = QString(*backtraceUtf8Value).replace("\\n","\n");
-                    ex->backtrace = errorBacktrace.split("\n");
-
-                }
-            }
-        }
+    const auto diagnostic = overte::scripting::exceptionDiagnostics(_v8Isolate, context, tryCatch);
+    ex->errorMessage = diagnostic.message;
+    ex->errorLine = diagnostic.line;
+    ex->errorColumn = diagnostic.column;
+    ex->backtrace = diagnostic.backtrace;
+    const auto exceptionValue = tryCatch.Exception();
+    if (!diagnostic.terminated && !exceptionValue.IsEmpty()) {
+        ex->thrownValue = ScriptValue(new ScriptValueV8Wrapper(this, V8ScriptValue(this, exceptionValue)));
+    }
+    if (diagnostic.terminated) {
+        // Do not emit a callback which could re-enter JS during termination.
+        _uncaughtException = ex;
+        return;
     }
 
     setUncaughtException(ex);
@@ -897,30 +837,13 @@ QString ScriptEngineV8::formatErrorMessageFromTryCatch(v8::TryCatch &tryCatch) {
     v8::HandleScope handleScope(_v8Isolate);
     auto context = getContext();
     v8::Context::Scope contextScope(context);
-    QString result("");
-    int errorColumnNumber = 0;
-    int errorLineNumber = 0;
-    QString errorMessage = "";
-    QString errorBacktrace = "";
-    v8::String::Utf8Value utf8Value(getIsolate(), tryCatch.Message()->Get());
-    errorMessage = QString(*utf8Value);
-    v8::Local<v8::Message> exceptionMessage = tryCatch.Message();
-    if (!exceptionMessage.IsEmpty()) {
-        errorLineNumber = exceptionMessage->GetLineNumber(context).FromJust();
-        errorColumnNumber = exceptionMessage->GetStartColumn(context).FromJust();
-        v8::Local<v8::Value> backtraceV8String;
-        if (tryCatch.StackTrace(context).ToLocal(&backtraceV8String)) {
-            if (backtraceV8String->IsString()) {
-                if (v8::Local<v8::String>::Cast(backtraceV8String)->Length() > 0) {
-                    v8::String::Utf8Value backtraceUtf8Value(getIsolate(), backtraceV8String);
-                    errorBacktrace = QString(*backtraceUtf8Value).replace("\\n","\n");
-                }
-            }
-        }
-        QTextStream resultStream(&result);
-        resultStream << "failed on line " << errorLineNumber << " column " << errorColumnNumber << " with message: \"" << errorMessage <<"\" backtrace: " << errorBacktrace;
+    const auto diagnostic = overte::scripting::exceptionDiagnostics(_v8Isolate, context, tryCatch);
+    if (diagnostic.terminated) {
+        return diagnostic.message;
     }
-    return result.replace("\\n", "\n");
+    return QStringLiteral("failed on line %1 column %2 with message: \"%3\" backtrace: %4")
+        .arg(diagnostic.line).arg(diagnostic.column).arg(diagnostic.message)
+        .arg(diagnostic.backtrace.join(QStringLiteral("\n")));
 }
 
 v8::Local<v8::ObjectTemplate> ScriptEngineV8::getObjectProxyTemplate() {
@@ -1001,6 +924,7 @@ void ScriptEngineV8::popContext() {
 }
 
 Q_INVOKABLE ScriptValue ScriptEngineV8::evaluate(const ScriptProgramPointer& program) {
+    if (isEvaluationAborted()) { return ScriptValue(); }
 
     if (QThread::currentThread() != thread()) {
         ScriptValue result;
@@ -1044,8 +968,12 @@ Q_INVOKABLE ScriptValue ScriptEngineV8::evaluate(const ScriptProgramPointer& pro
             if (!v8Program.constGet()->Run(context).ToLocal(&result)) {
                 Q_ASSERT(tryCatchRun.HasCaught());
                 auto runError = tryCatchRun.Message();
-                errorValue = ScriptValue(new ScriptValueV8Wrapper(this, V8ScriptValue(this, runError->Get())));
-                raiseException(errorValue, "evaluation error");
+                if (tryCatchRun.HasTerminated() || _v8Isolate->IsExecutionTerminating() || runError.IsEmpty()) {
+                    setUncaughtException(tryCatchRun, "script evaluation");
+                } else {
+                    errorValue = ScriptValue(new ScriptValueV8Wrapper(this, V8ScriptValue(this, runError->Get())));
+                    raiseException(errorValue, "evaluation error");
+                }
                 hasFailed = true;
             } else {
                 // V8TODO this is just to check if run will always return false for uncaught exception
@@ -1188,7 +1116,12 @@ ScriptValue ScriptEngineV8::newValue(const QString& value) {
     Q_ASSERT(_v8Isolate->IsCurrent());
     v8::HandleScope handleScope(_v8Isolate);
     v8::Context::Scope contextScope(getContext());
-    v8::Local<v8::String> valueV8 = v8::String::NewFromUtf8(_v8Isolate, value.toStdString().c_str(), v8::NewStringType::kNormal).ToLocalChecked();
+    if (value.size() > v8::String::kMaxLength) { return ScriptValue(); }
+    v8::Local<v8::String> valueV8;
+    if (!v8::String::NewFromTwoByte(_v8Isolate, reinterpret_cast<const uint16_t*>(value.utf16()),
+            v8::NewStringType::kNormal, static_cast<int>(value.size())).ToLocal(&valueV8)) {
+        return ScriptValue();
+    }
     V8ScriptValue result(this, valueV8);
     return ScriptValue(new ScriptValueV8Wrapper(this, std::move(result)));
 }
@@ -1197,7 +1130,13 @@ ScriptValue ScriptEngineV8::newValue(const QLatin1String& value) {
     Q_ASSERT(_v8Isolate->IsCurrent());
     v8::HandleScope handleScope(_v8Isolate);
     v8::Context::Scope contextScope(getContext());
-    v8::Local<v8::String> valueV8 = v8::String::NewFromUtf8(_v8Isolate, value.latin1(), v8::NewStringType::kNormal).ToLocalChecked();
+    if (value.size() > v8::String::kMaxLength) { return ScriptValue(); }
+    const auto* bytes = reinterpret_cast<const uint8_t*>(value.latin1() ? value.latin1() : "");
+    v8::Local<v8::String> valueV8;
+    if (!v8::String::NewFromOneByte(_v8Isolate, bytes, v8::NewStringType::kNormal,
+            static_cast<int>(value.size())).ToLocal(&valueV8)) {
+        return ScriptValue();
+    }
     V8ScriptValue result(this, valueV8);
     return ScriptValue(new ScriptValueV8Wrapper(this, std::move(result)));
 }
@@ -1206,7 +1145,14 @@ ScriptValue ScriptEngineV8::newValue(const char* value) {
     Q_ASSERT(_v8Isolate->IsCurrent());
     v8::HandleScope handleScope(_v8Isolate);
     v8::Context::Scope contextScope(getContext());
-    v8::Local<v8::String> valueV8 = v8::String::NewFromUtf8(_v8Isolate, value, v8::NewStringType::kNormal).ToLocalChecked();
+    if (!value) { return ScriptValue(); }
+    const auto length = std::strlen(value);
+    if (length > static_cast<size_t>(v8::String::kMaxLength)) { return ScriptValue(); }
+    v8::Local<v8::String> valueV8;
+    if (!v8::String::NewFromUtf8(_v8Isolate, value, v8::NewStringType::kNormal,
+            static_cast<int>(length)).ToLocal(&valueV8)) {
+        return ScriptValue();
+    }
     V8ScriptValue result(this, valueV8);
     return ScriptValue(new ScriptValueV8Wrapper(this, std::move(result)));
 }
@@ -1228,8 +1174,12 @@ ScriptValue ScriptEngineV8::undefinedValue() {
 }
 
 void ScriptEngineV8::abortEvaluation() {
-    //V8TODO
-    //QScriptEngine::abortEvaluation();
+    _abortRequested.store(true);
+    // V8 permits termination from another thread without acquiring its Locker.
+    // Taking a scope/Locker here would wait for the very script being stopped.
+    // The engine owns this isolate for its lifetime; this does not interrupt a
+    // blocking native callback or prove that manager teardown has completed.
+    _v8Isolate->TerminateExecution();
 }
 
 void ScriptEngineV8::clearExceptions() {
