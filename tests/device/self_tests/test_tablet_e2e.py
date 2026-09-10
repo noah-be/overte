@@ -213,8 +213,8 @@ class TabletE2EFlowTest(unittest.TestCase):
             self.assertEqual("OVT_TEST_INFRASTRUCTURE_ERROR", error.get("message"))
             self.assertEqual("OVT_REDACTED", error.text)
             self.assertNotIn("Missing capabilities:", junit)
-            self.assertIn("Missing capabilities: tablet.activate",
-                          self.tablet_result(summary)["output"])
+            self.assertEqual(75, self.tablet_result(summary)["returncode"])
+            self.assertFalse((output / "modules/tablet-e2e").exists())
         finally:
             temporary.cleanup()
 
