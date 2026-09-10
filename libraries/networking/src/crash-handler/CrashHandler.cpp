@@ -11,6 +11,7 @@
 
 #include "CrashHandler.h"
 #include "CrashHandlerBackend.h"
+#include "../../../../security/redaction/CrashAnnotations.h"
 #include <QFileInfo>
 #include <QCoreApplication>
 
@@ -92,7 +93,7 @@ void CrashHandler::setUrl(const QString &url) {
     // argument causes the domain setting to be ignored.
 
     if (isStarted() && url != _crashUrl) {
-        qCWarning(crash_handler) << "Setting crash reporting URL to " << url << "after the crash handler is already running has no effect";
+        qCWarning(crash_handler) << "Changing the crash reporting URL after startup has no effect";
     } else {
         _crashUrl = url;
     }
@@ -100,14 +101,14 @@ void CrashHandler::setUrl(const QString &url) {
 
 void CrashHandler::setToken(const QString &token) {
     if (isStarted() && token != _crashToken) {
-        qCWarning(crash_handler) << "Setting crash reporting token to " << token << "after the crash handler is already running has no effect";
+        qCWarning(crash_handler) << "Changing the crash reporting token after startup has no effect";
     } else {
         _crashToken = token;
     }
 }
 
 void CrashHandler::setAnnotation(const std::string &key, const char *value) {
-    setAnnotation(key, std::string(value));
+    setAnnotation(key, value ? std::string(value) : std::string());
 }
 
 void CrashHandler::setAnnotation(const std::string &key, const QString &value) {
@@ -115,6 +116,7 @@ void CrashHandler::setAnnotation(const std::string &key, const QString &value) {
 }
 
 void CrashHandler::setAnnotation(const std::string &key, const std::string &value) {
+    if (!overte::security::allowedCrashAnnotation(key, value)) { return; }
     if (!isStarted()) {
         std::lock_guard<std::mutex> lock(_annotationsMutex);
         _annotations[key] = value;

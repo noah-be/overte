@@ -20,6 +20,7 @@ EXPECTED = {
     "tools/nitpick/src/AWSInterface.cpp",
     "tools/nitpick/src/TestRunnerMobile.cpp",
 }
+TEST_ADAPTER = "tests/device/contracts/lifecycle/address-reentrancy-test.cpp"
 
 def require(condition: bool, message: str) -> None:
     if not condition:
@@ -39,6 +40,16 @@ def scan() -> set[str]:
     return matches
 
 actual = scan()
+# This explicit fixture defines its own Qt6 QRegularExpression-based shim; it
+# is not a production Core5Compat consumer. Keep it in the exact inventory so
+# another compatibility use cannot silently escape the scan.
+adapter_source = (ROOT / TEST_ADAPTER).read_text(encoding="utf-8")
+require(re.search(r"#ifdef OVERTE_ADDRESS_QREGEXP_ADAPTER\s+//[^\n]*\n//[^\n]*\nclass QRegExp:public QRegularExpression", adapter_source),
+        "address fixture lost its explicit Qt6 test-adapter boundary")
+require(not re.search(r"#\s*include\s*[<\"][^>\"]*QRegExp", adapter_source),
+        "address fixture now imports a real Core5Compat dependency")
+require(TEST_ADAPTER in actual, "address fixture disappeared from the compatibility inventory")
+actual.remove(TEST_ADAPTER)
 require(actual == EXPECTED,
         f"Core5Compat consumers changed; added={sorted(actual - EXPECTED)}, removed={sorted(EXPECTED - actual)}")
 for macro in ("SetupHifiLibrary.cmake", "SetupHifiProject.cmake", "SetupHifiTestCase.cmake"):

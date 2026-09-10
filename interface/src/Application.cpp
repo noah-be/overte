@@ -13,6 +13,12 @@
 //
 
 #include "Application.h"
+#include "ApplicationLifecycle.h"
+
+overte::lifecycle::Gate& overte::lifecycle::applicationGate() {
+    static Gate gate;
+    return gate;
+}
 
 #include <cmath>
 
@@ -69,6 +75,7 @@
 #include <input-plugins/KeyboardMouseDevice.h>
 #include <LocationScriptingInterface.h>
 #include <LogHandler.h>
+#include "../../security/redaction/SafeDiagnostics.h"
 #include <MainWindow.h>
 #include <MessagesClient.h>
 #include <material-networking/TextureCacheScriptingInterface.h>
@@ -207,7 +214,13 @@ const QString DEFAULT_CURSOR_NAME = "SYSTEM";
 Setting::Handle<int> sessionRunTime { "sessionRunTime", 0 };
 
 void messageHandler(QtMsgType type, const QMessageLogContext& context, const QString& message) {
-    QString logMessage = LogHandler::getInstance().printMessage((LogMsgType) type, context, message);
+    Q_UNUSED(context);
+    // Never forward dynamic Qt context, source path, category or arbitrary text.
+    // Closed event constants carry useful outcomes without reversible fragments.
+    const QByteArray input = message.size() <= 32 ? message.toUtf8() : QByteArray();
+    const char* safe = overte::security::sanitizeDiagnostic(input.constData(), static_cast<std::size_t>(input.size()));
+    const QString logMessage = QString::fromLatin1(safe) + QLatin1Char('\n');
+    fprintf(stdout, "%s\n", safe);
 
     if (!logMessage.isEmpty()) {
 #ifdef Q_OS_ANDROID
@@ -237,6 +250,12 @@ void messageHandler(QtMsgType type, const QMessageLogContext& context, const QSt
         qApp->getLogger()->addMessage(qPrintable(logMessage));
 #endif
     }
+}
+
+void privacySafeShutdownMessageHandler(QtMsgType type, const QMessageLogContext&, const QString& message) {
+    const QByteArray input = message.size() <= 32 ? message.toUtf8() : QByteArray();
+    fprintf(stderr, "%s\n", overte::security::sanitizeDiagnostic(input.constData(), static_cast<std::size_t>(input.size())));
+    if (type == QtFatalMsg) { abort(); }
 }
 
 Application::Application(
@@ -425,7 +444,7 @@ Application::~Application() {
     }
 
     // Can't log to file past this point, FileLogger about to be deleted
-    qInstallMessageHandler(LogHandler::verboseMessageHandler);
+    qInstallMessageHandler(privacySafeShutdownMessageHandler);
 
 #ifdef Q_OS_MAC
     // 26 Feb 2021 - Tried re-enabling this call but OSX still crashes on exit.
@@ -548,8 +567,9 @@ void Application::openDirectory(const QString& path) {
 }
 
 void Application::forceLoginWithTokens(const QString& tokens) {
-    DependencyManager::get<AccountManager>()->setAccessTokens(tokens);
-    Setting::Handle<bool>(KEEP_ME_LOGGED_IN_SETTING_NAME, true).set(true);
+    if (DependencyManager::get<AccountManager>()->setAccessTokens(tokens)) {
+        Setting::Handle<bool>(KEEP_ME_LOGGED_IN_SETTING_NAME, true).set(true);
+    }
 }
 
 void Application::setConfigFileURL(const QString& fileUrl) {
@@ -1855,6 +1875,7 @@ void Application::domainURLChanged(QUrl domainURL) {
             // A real local navigation may arrive while sendEntities() is
             // pumping nested events. Replace the scene after the current
             // synchronous import unwinds so two trees never mutate together.
+            invalidateEntityScriptConsent();
             _picoDeferredServerlessSceneURL = domainURL;
         }
         return;
@@ -1895,11 +1916,13 @@ void Application::domainURLChanged(QUrl domainURL) {
         }
         // resettingDomain() deliberately preserved the committed local scene.
         // A genuinely different URL now owns the transition and clears it.
+        invalidateEntityScriptConsent();
         _picoServerlessSceneImportCommitted = false;
         _picoServerlessSceneURL = QUrl();
         clearDomainOctreeDetails(false);
     }
 #endif
+    invalidateEntityScriptConsent();
     // disable physics until we have enough information about our new location to not cause craziness.
     setIsServerlessMode(domainURL.scheme() != URL_SCHEME_OVERTE);
     if (isServerlessMode()) {
@@ -2294,6 +2317,7 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
 }
 
 void Application::cleanupBeforeQuit() {
+    invalidateEntityScriptConsent();
     // add a logline indicating if QTWEBENGINE_REMOTE_DEBUGGING is set or not
     QString webengineRemoteDebugging = QProcessEnvironment::systemEnvironment().value("QTWEBENGINE_REMOTE_DEBUGGING", "false");
     qCDebug(interfaceapp) << "QTWEBENGINE_REMOTE_DEBUGGING =" << webengineRemoteDebugging;
@@ -3097,7 +3121,10 @@ void Application::update(float deltaTime) {
         // The committed local import is authoritative. Domain/EntityTree
         // serverless flags can be reset by a delayed disconnect from the
         // previously configured online startup domain.
-        const bool physicsServerless = _picoServerlessSceneImportCommitted ||
+        const bool physicsServerless =
+#if defined(ANDROID_APP_PICO_INTERFACE)
+            _picoServerlessSceneImportCommitted ||
+#endif
             isServerlessMode() || physicsDomainHandler.isServerless();
         bool serverlessImportReady { true };
 #if defined(ANDROID_APP_PICO_INTERFACE)

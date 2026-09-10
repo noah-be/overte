@@ -471,8 +471,17 @@ require_text "$url_handler" \
     'QMetaObject::invokeMethod\([[:space:]]*$' \
     'native deep links are queued through a Qt-owned receiver'
 
-if grep -Eq -- 'extraSelectors[[:space:]]*<<[[:space:]]*"android_interface"' \
-        "$repo_root/libraries/shared/src/shared/FileUtils.cpp"; then
+if (
+    profile_test_dir="$(mktemp -d "${TMPDIR:-/tmp}/overte-profile-contract.XXXXXXXX")"
+    trap 'rm -rf -- "$profile_test_dir"' EXIT
+    grep -Eq 'const Product product = configuredProduct\(\)' \
+        "$repo_root/libraries/shared/src/shared/FileUtils.cpp" &&
+    grep -Eq 'profileSelectors\(product, gles\)' \
+        "$repo_root/libraries/shared/src/shared/FileUtils.cpp" &&
+    "${CXX:-c++}" -std=c++17 -Wall -Wextra -Werror \
+        "$repo_root/tests/device/contracts/profile-test.cpp" -o "$profile_test_dir/profile" &&
+    "$profile_test_dir/profile"
+); then
     pass 'phone file selector falls back to the existing Android touch scripts'
 else
     fail 'phone file selector falls back to the existing Android touch scripts'

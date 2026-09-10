@@ -38,6 +38,7 @@
 #include "EntityScriptUtils.h"
 #include <ExternalResource.h>
 #include <SettingHandle.h>
+#include <RequestCancellation.h>
 
 #include "AssetScriptingInterface.h"
 #include "ConsoleScriptingInterface.h"
@@ -49,6 +50,7 @@
 #include "ScriptException.h"
 #include "Vec3.h"
 #include "ScriptEngine.h"
+#include "EntityScriptConsent.h"
 
 static const QString NO_SCRIPT("");
 
@@ -94,6 +96,7 @@ public:
      *
      */
     QUrl definingSandboxURL;
+    std::shared_ptr<EntityScriptConsentRequest> consentRequest;
 };
 
 
@@ -113,6 +116,12 @@ public:
  * @brief Entity with available script contents
  *
  */
+// Identity is per load attempt, never per URL or entity lifetime. Access is on the
+// owning ScriptManager thread; asynchronous callbacks only carry the identity.
+struct EntityScriptLoadRequest {
+    bool queued { false };
+};
+
 struct EntityScriptContentAvailable {
     /**
      * @brief Entity ID
@@ -149,9 +158,11 @@ struct EntityScriptContentAvailable {
      *
      */
     QString status;
+    QString requestedScript;
+    std::shared_ptr<EntityScriptLoadRequest> request;
 };
 
-typedef std::unordered_map<EntityItemID, EntityScriptContentAvailable> EntityScriptContentAvailableMap;
+typedef QHash<EntityItemID, QHash<QString, EntityScriptContentAvailable>> EntityScriptContentAvailableMap;
 
 typedef QList<CallbackData> CallbackList;
 typedef QHash<QString, CallbackList> RegisteredEventHandlers;
@@ -163,6 +174,7 @@ typedef QHash<QString, CallbackList> RegisteredEventHandlers;
  */
 class EntityScriptDetails {
 public:
+    std::shared_ptr<EntityScriptConsentRequest> consentRequest;
 
     /**
      * @brief Current status
@@ -417,7 +429,7 @@ public:
     void runInThread();
 
     /**
-     * @brief Run the script in the caller's thread, exit when Script.stop() is called.
+     * @brief Run the script once in the caller's thread, exit when Script.stop() is called.
      *
      * Most scripts never stop running, so this function will never return for them.
      */
@@ -1560,6 +1572,13 @@ protected:
      * @param errorInfo Description of the error, if any
      */
     void updateEntityScriptStatus(const EntityItemID& entityID, const QString& scriptURL, const EntityScriptStatus& status, const QString& errorInfo = QString());
+    friend class EntityTreeRenderer;
+    friend class ScriptSignalV8Proxy;
+    std::function<void(std::function<void()>)> captureScriptEnvironment();
+    using EntityScriptConsentPrompt = std::function<void(const EntityItemID&,
+        const std::shared_ptr<EntityScriptConsentRequest>&, std::function<void(bool)>)>;
+    bool bindEntityScriptConsent(std::shared_ptr<EntityScriptConsentScope> scope, EntityScriptConsentPrompt prompt);
+    bool rejectEntityScriptWithoutConsent(const EntityItemID& entityID, const QString& scriptURL, bool request = false, bool forceRedownload = false);
 
 
     /**
@@ -1612,6 +1631,7 @@ protected:
      */
     Q_INVOKABLE void entityScriptContentAvailable(const EntityItemID& entityID, const QString& scriptOrURL, const QString& contents, bool isURL, bool success, const QString& status);
 
+    std::shared_ptr<EntityScriptConsentRequest> _currentEntityScriptConsentRequest;
     EntityItemID currentEntityIdentifier; // Contains the defining entity script entity id during execution, if any. Empty for interface script execution.
     QUrl currentSandboxURL; // The toplevel url string for the entity script that loaded the code being executed, else empty.
 
@@ -1625,7 +1645,8 @@ protected:
      * @param sandboxURL Sandbox URL
      * @param operation Operation to call
      */
-    void doWithEnvironment(const EntityItemID& entityID, const QUrl& sandboxURL, std::function<void()> operation);
+    bool entityScriptInvocationAllowed(const EntityItemID&, const std::shared_ptr<EntityScriptConsentRequest>&) const;
+    void doWithEnvironment(const EntityItemID& entityID, const QUrl& sandboxURL, std::function<void()> operation, const std::shared_ptr<EntityScriptConsentRequest>& consent = {});
 
     /**
      * @brief Execute operation in the appropriate context for (the possibly empty) entityID.
@@ -1647,9 +1668,9 @@ protected:
      * @param thisObject "this" object to use for the call
      * @param args Arguments
      */
-    void callWithEnvironment(const EntityItemID& entityID, const QUrl& sandboxURL, const ScriptValue& function, const ScriptValue& thisObject, const ScriptValueList& args);
+    void callWithEnvironment(const EntityItemID& entityID, const QUrl& sandboxURL, const ScriptValue& function, const ScriptValue& thisObject, const ScriptValueList& args, const std::shared_ptr<EntityScriptConsentRequest>& consent = {});
 
-    Context _context;
+    const Context _context;
     Type _type;
     ScriptEnginePointer _engine;
     QString _scriptContents;
@@ -1658,6 +1679,7 @@ protected:
     std::atomic<bool> _isRunning { false };
     std::atomic<bool> _isStopping { false };
     std::atomic<bool> _isDoneRunning { false };
+    std::atomic<bool> _hasRunStarted { false };
     bool _areMetaTypesInitialized { false };
     bool _isInitialized { false };
     std::map<int, std::pair<std::unique_ptr<QTimer>, CallbackData>> _timerFunctionMap;
@@ -1666,12 +1688,23 @@ protected:
     mutable QReadWriteLock _entityScriptsLock { QReadWriteLock::Recursive };
     QHash<EntityItemID, QHash<QString, EntityScriptDetails>> _entityScripts;
     EntityScriptContentAvailableMap _contentAvailableQueue;
+    QHash<EntityItemID, QHash<QString, std::shared_ptr<EntityScriptLoadRequest>>> _entityScriptLoads;
+    // Bound once by the native renderer before starting the worker. Never
+    // exposed through the script interface, Q_INVOKABLE or a QML property.
+    std::shared_ptr<EntityScriptConsentScope> _entityScriptConsentScope;
+    EntityScriptConsentPrompt _entityScriptConsentPrompt;
+    QHash<EntityItemID, QHash<QString, std::shared_ptr<EntityScriptConsentRequest>>> _entityScriptConsentRequests;
+    bool isCurrentEntityScriptLoad(const EntityItemID& entityID, const QString& script,
+                                  const std::shared_ptr<EntityScriptLoadRequest>& request) const;
+    void cancelEntityScriptLoad(const EntityItemID& entityID, const QString& script);
+    void processEntityScriptContents();
     ScriptValue _returnValue;
 
     bool _isThreaded { false };
     qint64 _lastUpdate;
 
     QString _fileNameString;
+    overte::network::RequestScope _scriptLoadContext;
     std::shared_ptr<Quat> _quatLibrary;
     std::shared_ptr<Vec3> _vec3Library;
     std::shared_ptr<Mat4> _mat4Library;

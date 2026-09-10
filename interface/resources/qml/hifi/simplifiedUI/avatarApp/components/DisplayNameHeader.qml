@@ -8,12 +8,12 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
+import "../../../avatarapp" as AvatarImages
 import QtQuick 2.10
 import "../../simplifiedConstants" as SimplifiedConstants
 import "../../simplifiedControls" as SimplifiedControls
 import stylesUit 1.0 as HifiStylesUit
 import controlsUit 1.0 as HifiControlsUit
-import QtGraphicalEffects 1.0
 
 Item {
     id: root
@@ -35,10 +35,12 @@ Item {
         source: "../../images/loading.gif"
     }
 
-    Image {
+    AvatarImages.RoundImage {
+        border.width: 0
+        radius: width / 2
         id: itemPreviewImage
         visible: !root.loading
-        source: root.previewUrl
+        source: root.previewUrl ? Qt.resolvedUrl(root.previewUrl) : ""
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
         height: 100
@@ -46,19 +48,9 @@ Item {
         sourceSize.width: width
         sourceSize.height: height
         fillMode: Image.PreserveAspectCrop
-        layer.enabled: true
-        layer.effect: OpacityMask {
-            maskSource: mask
-        }
+
         mipmap: true
 
-        Rectangle {
-            id: mask
-            width: itemPreviewImage.width
-            height: width
-            radius: width / 2
-            visible: false
-        }
     }
 
     Item {

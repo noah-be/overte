@@ -211,8 +211,18 @@ class ProjectHealthTests(unittest.TestCase):
         seen_allowlist = set()
         for source in tracked("*.js"):
             relative = source.relative_to(ROOT)
-            result = subprocess.run(["node", "--check", str(source)], text=True,
-                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            if relative == Path("interface/resources/qml/controls/CpuShadowPixels.js"):
+                # QML's module directive is not JavaScript syntax. Retain line
+                # numbers and check the complete JS body rather than exempting
+                # this production pixel algorithm from syntax validation.
+                contents = source.read_text(encoding="utf-8")
+                self.assertEqual(contents.splitlines().count(".pragma library"), 1)
+                contents = "\n".join("" if line == ".pragma library" else line for line in contents.splitlines())
+                result = subprocess.run(["node", "--check", "-"], input=contents, text=True,
+                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            else:
+                result = subprocess.run(["node", "--check", str(source)], text=True,
+                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             if result.returncode:
                 if relative in allowlist:
                     seen_allowlist.add(relative)
