@@ -12,6 +12,7 @@ import plistlib
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -768,6 +769,16 @@ def test_cmake_boundary() -> None:
     require_text(full_client_audio, r"AVAudioSessionModeGameChat", "capture must select game-chat processing")
     require_text(full_client_audio, r"AVAudioSessionInterruptionOptionShouldResume", "interruption recovery must obey ShouldResume")
     require_text(full_client_audio, r"AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation", "shutdown must release the session")
+    with tempfile.TemporaryDirectory(prefix="apple-shared-audio-") as directory:
+        binary = Path(directory) / "ios-shim-test"
+        subprocess.run(["c++", "-std=c++17", "-pthread", "-x", "c++",
+                        str(permission_bridge),
+                        str(SOURCE_ROOT / "tests/device/contracts/audio/ios-shim-test.cpp"),
+                        "-o", str(binary)], check=True, timeout=30)
+        subprocess.run([str(binary)], check=True, timeout=10)
+    subprocess.run([sys.executable,
+                    str(SOURCE_ROOT / "tests/device/contracts/audio/test_ios_audio_caller.py")],
+                   check=True, timeout=30)
     require_text(audio_client_source, r"overteIOSMicrophonePermissionGranted", "AudioClient input must enforce iOS permission")
     require_text(audio_client_source, r"void AudioClient::start\(\)[\s\S]*overteIOSActivateAudioSession", "AudioClient start must activate the native session")
     require_text(audio_client_source, r"void AudioClient::stop\(\)[\s\S]*overteIOSDeactivateAudioSession", "AudioClient stop must deactivate the native session")
