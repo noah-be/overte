@@ -209,9 +209,22 @@ class Github:
             require(page.get("total_count", 0) == len(page.get("workflow_runs", [])), "active_run_listing_incomplete")
             active += [r for r in page["workflow_runs"] if r["id"] != own_run
                        and r.get("path", "").split("@", 1)[0] != WORKFLOW]
-        if active:
-            for name in names:
-                held.setdefault(name, []).append("github_actions_still_active")
+        for row in candidates:
+            refs = {row["branch"], row.get("base")}
+            commits = {row["sha"], row.get("base_sha")}
+            refs.discard(None)
+            commits.discard(None)
+            for workflow_run in active:
+                branch, sha = workflow_run.get("head_branch"), workflow_run.get("head_sha")
+                require(isinstance(branch, str) and branch and isinstance(sha, str)
+                        and SHA.fullmatch(sha), "active_run_reference_unknown")
+                related = branch in refs or sha in commits
+                for pr in workflow_run.get("pull_requests", []):
+                    related |= any(pr.get(side, {}).get("ref") in refs
+                                   or pr.get(side, {}).get("sha") in commits for side in ["head", "base"])
+                if related:
+                    held.setdefault(row["branch"], []).append("github_actions_still_active")
+                    break
         for row in candidates:
             head = urllib.parse.quote("noah-be:" + row["branch"], safe="")
             prs = self.get("pulls?state=all&head=" + head + "&per_page=100", paginate=True)

@@ -338,6 +338,77 @@ class GithubActivityTests(unittest.TestCase):
             return {"total_count": 0, "workflow_runs": []}
         return []
 
+    def active_run(self, **changes):
+        return {
+            "id": 987,
+            "path": ".github/workflows/ios-bootstrap.yml",
+            "head_branch": "ci/ios/999-unrelated",
+            "head_sha": "c" * 40,
+            "pull_requests": [],
+            **changes,
+        }
+
+    def holds_with_runs(self, runs, candidates=None):
+        def response(suffix="", paginate=False):
+            if suffix.startswith("actions/runs?status=queued&"):
+                return {"total_count": len(runs), "workflow_runs": runs}
+            return self.inactive_responses(suffix, paginate)
+        with mock.patch.dict(os.environ, {"GITHUB_RUN_ID": "1234"}):
+            with mock.patch.object(self.github, "get", side_effect=response):
+                return self.github.activity_holds(candidates or [self.candidate], self.policy)
+
+    def test_active_run_on_candidate_or_intended_base_reserves_the_candidate(self):
+        matches = (
+            {"head_branch": self.candidate["branch"]},
+            {"head_sha": self.candidate["sha"]},
+            {"head_branch": self.candidate["base"]},
+            {"head_sha": self.candidate["base_sha"]},
+        )
+        for change in matches:
+            with self.subTest(change=change):
+                holds = self.holds_with_runs([self.active_run(**change)])
+                self.assertIn(self.candidate["branch"], holds)
+
+    def test_unrelated_queued_ios_run_does_not_block_main_branch_cleanup(self):
+        run = self.active_run(pull_requests=[{
+            "head": {"ref": "ci/ios/999-unrelated", "sha": "c" * 40},
+            "base": {"ref": "apple-ios", "sha": "d" * 40},
+        }])
+        self.assertEqual(self.holds_with_runs([run]), {})
+
+    def test_active_pull_request_run_matches_candidate_and_base_refs_or_shas(self):
+        selectors = (
+            {"ref": self.candidate["branch"]}, {"sha": self.candidate["sha"]},
+            {"ref": self.candidate["base"]}, {"sha": self.candidate["base_sha"]},
+        )
+        for side in ("head", "base"):
+            for selector in selectors:
+                with self.subTest(side=side, selector=selector):
+                    pr = {
+                        "head": {"ref": "ci/ios/999-unrelated", "sha": "c" * 40},
+                        "base": {"ref": "apple-ios", "sha": "d" * 40},
+                    }
+                    pr[side].update(selector)
+                    holds = self.holds_with_runs([self.active_run(pull_requests=[pr])])
+                    self.assertIn(self.candidate["branch"], holds)
+
+    def test_missing_or_invalid_run_identity_stops_all_cleanup(self):
+        other = {"branch": "task/android-phone/999-work", "sha": "e" * 40,
+                 "base": "android-phone", "base_sha": "f" * 40}
+        variants = (
+            ("head_branch", None), ("head_sha", None),
+            ("head_branch", ""), ("head_branch", 123), ("head_sha", "not-a-sha"),
+        )
+        for key, value in variants:
+            with self.subTest(key=key, value=value):
+                run = self.active_run()
+                if value is None:
+                    del run[key]
+                else:
+                    run[key] = value
+                with self.assertRaises(self.module.CleanupError):
+                    self.holds_with_runs([run], [self.candidate, other])
+
     def test_keep_label_on_a_closed_or_merged_pr_still_reserves_the_branch(self):
         def response(suffix="", paginate=False):
             if suffix.startswith("pulls?state=all&head="):

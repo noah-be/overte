@@ -27,13 +27,15 @@ are always excluded:
 A working branch must be fully contained in a permanent branch. A merged PR by
 itself is insufficient: later commits on its source branch must also be
 integrated. Protected branches, configuration holds, PR keep requests, open PR
-relationships, active GitHub Actions runs, and deployment or release references
+relationships, active GitHub Actions runs on the candidate or its target, and deployment or release references
 prevent deletion. The cleanup also checks open issue descriptions, comments on
 explicitly active issues, and the GitHub workflow YAML files at the nine permanent
 branch commits for branch references. Workflow reads use those exact commits;
 plain and URL-encoded branch names are recognized. Even a historical mention in a
 workflow may conservatively keep a branch. This does not inspect every source
-file or external service configuration. Unavailable or ambiguous evidence stops
+file or external service configuration. Dynamically selected cross-branch consumers
+must reserve their source branches with a policy hold or `keep-branch` label.
+Unavailable or ambiguous evidence stops
 the affected cleanup instead of being interpreted as inactivity.
 
 Immediately before deletion, the implementation rechecks the current evidence
