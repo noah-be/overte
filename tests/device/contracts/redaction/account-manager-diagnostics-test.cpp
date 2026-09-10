@@ -39,31 +39,31 @@ int main(int argc, char** argv) {
     assert(messages.size() == 1 && messages.first() == canary); // Positive raw-sink proof.
     messages.clear();
 #include "sinks.inc"
-    assert(messages.size() == 54);
-    assert(messages.count("OVT_AUTH_READY") == 1 && messages.count("OVT_REDACTED") == 53);
+    assert(messages.size() == 53);
+    assert(messages.count("OVT_AUTH_READY") == 1 && messages.count("OVT_REDACTED") == 52);
     AccountManager manager;
     const QUuid session("c4cae808-10d5-45c3-9077-3e68a3c096aa");
     manager.setSessionID(session);
-    assert(manager._sessionID == session && messages.size() == 55);
+    assert(manager._sessionID == session && messages.size() == 54);
     manager.setSessionID(session);
-    assert(messages.size() == 55); // Same-ID no-op preserved.
+    assert(messages.size() == 54); // Same-ID no-op preserved.
     Reply reply;
     manager.publicKeyUploadFailed(&reply);
-    assert(!manager._isWaitingForKeypairResponse && messages.size() == 56);
+    assert(!manager._isWaitingForKeypairResponse && messages.size() == 55);
     assert(reply.urlReads == 0 && reply.errorReads == 0);
     manager._isWaitingForKeypairResponse = true;
     manager.handleKeypairGenerationError();
-    assert(!manager._isWaitingForKeypairResponse && messages.size() == 57);
+    assert(!manager._isWaitingForKeypairResponse && messages.size() == 56);
     manager.requestAccessTokenError(QNetworkReply::UnknownNetworkError);
-    assert(manager.requestFailures == 0 && messages.size() == 57); // No sender.
+    assert(manager.requestFailures == 0 && messages.size() == 56); // No sender.
     QObject::connect(&reply, &QNetworkReply::errorOccurred, &manager, &AccountManager::requestAccessTokenError);
     emit reply.errorOccurred(QNetworkReply::UnknownNetworkError);
-    assert(manager.requestFailures == 0 && messages.size() == 58); // Closed diagnostic, no duplicate UI result.
+    assert(manager.requestFailures == 0 && messages.size() == 57); // Closed diagnostic, no duplicate UI result.
     overte::network::RequestScope scope;
     overte::network::watchRequest(&reply, scope.snapshot());
     scope.next();
     emit reply.errorOccurred(QNetworkReply::UnknownNetworkError);
-    assert(manager.requestFailures == 0 && messages.size() == 58); // Stale callback has no sink.
+    assert(manager.requestFailures == 0 && messages.size() == 57); // Stale callback has no sink.
     for (const auto& message : messages) {
         assert(message == "OVT_REDACTED" || message == "OVT_AUTH_READY");
         assert(!message.contains(canary) && !message.contains(session.toString()));
