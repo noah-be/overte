@@ -6,16 +6,24 @@ on:
       - ".github/actions/**"
       - ".github/workflows/**"
       - ".github/actionlint.yaml"
+      - ".github/branch-cleanup.json"
+      - "tools/branch-cleanup/**"
+      - "tests/branch-cleanup-test.py"
       - "tools/workflow-security/**"
       - "tests/workflow-action-pin-test.py"
+      - "tests/workflow-contract-test.py"
   push:
     branches: [main]
     paths:
       - ".github/actions/**"
       - ".github/workflows/**"
       - ".github/actionlint.yaml"
+      - ".github/branch-cleanup.json"
+      - "tools/branch-cleanup/**"
+      - "tests/branch-cleanup-test.py"
       - "tools/workflow-security/**"
       - "tests/workflow-action-pin-test.py"
+      - "tests/workflow-contract-test.py"
 
 permissions:
   contents: read

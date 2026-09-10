@@ -1,0 +1,126 @@
+name: Automatic branch cleanup
+
+# Only the trusted main checkout supplies executable code. The PR event is a
+# wake-up signal; candidate trees and downloaded artifacts are never executed.
+on: # zizmor: ignore[dangerous-triggers] Merged-PR notification runs only trusted main cleanup code.
+  pull_request_target:
+    types: [closed]
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Report eligible branches or archive and delete them
+        type: choice
+        required: true
+        default: report
+        options: [report, apply]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: branch-cleanup-noah-be-overte
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Verify, archive, and retire integrated branches
+    if: >-
+      github.repository == 'noah-be/overte' &&
+      github.repository_id == '1319052603' &&
+      (github.event_name != 'pull_request_target' || github.event.pull_request.merged == true)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      actions: read
+      deployments: read
+      pull-requests: read
+      issues: read
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out trusted fork main without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: noah-be/overte
+          ref: main
+          persist-credentials: false
+          fetch-depth: 1
+          filter: blob:none
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /tools/branch-cleanup/
+            /.github/branch-cleanup.json
+            /.github/branch-policy.json
+
+      - name: Plan from current GitHub state
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/branch-cleanup"
+          python3 tools/branch-cleanup/cleanup.py plan \
+            --output "$RUNNER_TEMP/branch-cleanup/plan.json" \
+            --report "$RUNNER_TEMP/branch-cleanup/report.json"
+
+      - name: Build and verify a self-contained Git backup
+        if: >-
+          fromJSON(steps.plan.outputs.candidate_count || '0') > 0 &&
+          (github.event_name != 'workflow_dispatch' || inputs.mode == 'apply')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 tools/branch-cleanup/cleanup.py archive \
+            --plan "$RUNNER_TEMP/branch-cleanup/plan.json" \
+            --output-dir "$RUNNER_TEMP/branch-cleanup/backup"
+
+      - name: Persist verified backup before any branch deletion
+        id: backup
+        if: >-
+          fromJSON(steps.plan.outputs.candidate_count || '0') > 0 &&
+          (github.event_name != 'workflow_dispatch' || inputs.mode == 'apply')
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: branch-cleanup-backup-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/branch-cleanup/backup/recovery.bundle
+            ${{ runner.temp }}/branch-cleanup/backup/manifest.json
+            ${{ runner.temp }}/branch-cleanup/backup/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Recheck, create protected archive tags, and delete exact branch heads
+        if: >-
+          fromJSON(steps.plan.outputs.candidate_count || '0') > 0 &&
+          (github.event_name != 'workflow_dispatch' || inputs.mode == 'apply')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BACKUP_ARTIFACT_ID: ${{ steps.backup.outputs.artifact-id }}
+          BACKUP_ARTIFACT_DIGEST: ${{ steps.backup.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          [[ "$BACKUP_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$BACKUP_ARTIFACT_DIGEST" =~ ^[0-9a-f]{64}$ ]]
+          python3 tools/branch-cleanup/cleanup.py apply \
+            --plan "$RUNNER_TEMP/branch-cleanup/plan.json" \
+            --report "$RUNNER_TEMP/branch-cleanup/report.json" \
+            --backup-artifact-id "$BACKUP_ARTIFACT_ID" \
+            --backup-artifact-digest "$BACKUP_ARTIFACT_DIGEST" \
+            --backup-dir "$RUNNER_TEMP/branch-cleanup/backup"
+
+      - name: Retain plan and outcome
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: branch-cleanup-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/branch-cleanup/plan.json
+            ${{ runner.temp }}/branch-cleanup/report.json
+          if-no-files-found: warn
+          retention-days: 14

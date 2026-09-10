@@ -9,6 +9,9 @@ on:
       - "scripts/**"
       - "tests/**"
       - "tools/release/**"
+      - "tools/branch-cleanup/**"
+      - ".github/branch-cleanup.json"
+      - ".github/workflows/branch-cleanup.yml"
       - ".github/workflows/project-tests.yml"
       - "!**/*.md"
   push:
