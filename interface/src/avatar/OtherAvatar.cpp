@@ -304,18 +304,22 @@ void OtherAvatar::interpolateJoints() {
         // Retrieve previous and current joint data.
         Q_ASSERT(history.size() > 0);
         if (history.size() == 0) continue;
-        size_t oldKeyframeIndex = history.size() - 1;
-        size_t newKeyframeIndex = history.size() - 1;
+        // If every retained sample is in the future, hold the oldest sample
+        // in the look-back window instead of extrapolating from the newest.
+        size_t oldKeyframeIndex = historyStart;
+        size_t newKeyframeIndex = historyStart;
         // Find the first keyframe that's in the "future".
         // Searching backwards is more efficient here.
-        for (size_t historyIndex = history.size() - 1; historyIndex >= historyStart; historyIndex--) {
-            if (timePoint > history[historyIndex].first) {
+        // Test before decrementing: an unsigned index must never wrap below zero.
+        for (size_t historyIndex = history.size(); historyIndex > historyStart;) {
+            --historyIndex;
+            if (timePoint >= history[historyIndex].first) {
                 if (historyIndex < history.size() - 1) {
                     oldKeyframeIndex = historyIndex;
                     newKeyframeIndex = historyIndex + 1;
                     break;
                 } else {
-                    // There are no past entries yet.
+                    // The time point is at or beyond the newest sample.
                     oldKeyframeIndex = historyIndex;
                     newKeyframeIndex = historyIndex;
                     break;
