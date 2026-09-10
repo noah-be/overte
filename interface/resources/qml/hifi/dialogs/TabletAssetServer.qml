@@ -81,16 +81,16 @@ Rectangle {
     }
 
     function doDeleteFile(paths) {
-        console.log("Deleting " + paths);
+        console.log("Asset browser - deleting mappings.");
 
         Assets.deleteMappings(paths, function(err) {
             if (err) {
-                console.log("Asset browser - error deleting paths: ", paths, err);
+                console.log("Asset browser - deleting mappings failed.");
 
-                box = errorMessageBox("There was an error deleting:\n" + paths + "\n" + err);
+                var box = errorMessageBox("There was an error deleting:\n" + paths + "\n" + err);
                 box.selected.connect(reload);
             } else {
-                console.log("Asset browser - finished deleting paths: ", paths);
+                console.log("Asset browser - deleting mappings completed.");
                 reload();
             }
         });
@@ -109,19 +109,20 @@ Rectangle {
         }
 
         if (Assets.isKnownFolder(newPath)) {
-            box = errorMessageBox("Cannot overwrite existing directory.");
+            var box = errorMessageBox("Cannot overwrite existing directory.");
             box.selected.connect(reload);
+            return;
         }
 
-        console.log("Asset browser - renaming " + oldPath + " to " + newPath);
+        console.log("Asset browser - renaming mapping.");
 
         Assets.renameMapping(oldPath, newPath, function(err) {
             if (err) {
-                console.log("Asset browser - error renaming: ", oldPath, "=>", newPath, " - error ", err);
-                box = errorMessageBox("There was an error renaming:\n" + oldPath + " to " + newPath + "\n" + err);
+                console.log("Asset browser - renaming mapping failed.");
+                var box = errorMessageBox("There was an error renaming:\n" + oldPath + " to " + newPath + "\n" + err);
                 box.selected.connect(reload);
             } else {
-                console.log("Asset browser - finished rename: ", oldPath, "=>", newPath);
+                console.log("Asset browser - renaming mapping completed.");
             }
 
             reload();
@@ -282,7 +283,7 @@ Rectangle {
                             gravity = Vec3.multiply(Vec3.fromPolar(Math.PI / 2, 0), 0);
                         }
 
-                        print("Asset browser - adding asset " + url + " (" + name + ") to world.");
+                        print("Asset browser - adding asset to world.");
 
                         // Entities.addEntity doesn't work from QML, so we use this.
                         Entities.addModelEntity(name, url, "", shapeType, dynamic, collisionless, grabbable, addPosition, gravity);
@@ -428,7 +429,6 @@ Rectangle {
                     uploadProgressLabel.text = "In progress...";
                 },
                 function(err, path) {
-                    print(err, path);
                     if (err === "") {
                         uploadProgressLabel.text = "Upload Complete";
                         timer.interval = 1000;
@@ -439,7 +439,7 @@ Rectangle {
                             uploadOpen = false;
                         });
                         timer.start();
-                        console.log("Asset Browser - finished uploading: ", fileUrl);
+                        console.log("Asset browser - upload completed.");
                         reload();
                     } else {
                         uploadSpinner.visible = false;
@@ -447,7 +447,7 @@ Rectangle {
                         uploadOpen = false;
 
                         if (err !== -1) {
-                            console.log("Asset Browser - error uploading: ", fileUrl, " - error ", err);
+                            console.log("Asset browser - upload failed.");
                             var box = errorMessageBox("There was an error uploading:\n" + fileUrl + "\n" + err);
                             box.selected.connect(reload);
                         }
@@ -850,7 +850,7 @@ Rectangle {
                         var path = assetProxyModel.data(index, 0x100);
                         mappings.push(path);
                     }
-                    print("Setting baking enabled:" + mappings + " " + checked);
+                    print("Asset browser - updating baking selection.");
                     Assets.setBakingEnabled(mappings, checked, function() {
                         reload();
                     });

@@ -18,6 +18,9 @@
 #define hifi_ScriptCache_h
 
 #include <mutex>
+#include <QSet>
+#include <QUrl>
+#include "EntityScriptConsent.h"
 #include <DependencyManager.h>
 
 using contentAvailableCallback = std::function<void(const QString& scriptOrURL, const QString& contents, bool isURL, bool contentAvailable, const QString& status)>;
@@ -55,18 +58,29 @@ public:
 
     void clearCache();
     Q_INVOKABLE void clearATPScriptsFromCache();
-    void getScriptContents(const QString& scriptOrURL, contentAvailableCallback contentAvailable, bool forceDownload = false, int maxRetries = ScriptRequest::MAX_RETRIES);
+    void getScriptContents(const QString& scriptOrURL, contentAvailableCallback contentAvailable, bool forceDownload = false, int maxRetries = ScriptRequest::MAX_RETRIES, bool failOnRedirect = false, std::shared_ptr<EntityScriptConsentScope> consentScope = {});
 
     void deleteScript(const QUrl& unnormalizedURL);
 
 private:
-    void scriptContentAvailable(int maxRetries); // new version
+    bool observeConsentScope(const std::shared_ptr<EntityScriptConsentScope>& scope);
+    void purgeConsentScope(const QUuid& identity);
+    void failScriptRequest(const QUrl& url, bool failOnRedirect,
+        const std::shared_ptr<EntityScriptConsentScope>& scope, const QString& status = QStringLiteral("InvalidURL"));
+    void scriptContentAvailable(int maxRetries, bool failOnRedirect, std::shared_ptr<EntityScriptConsentScope> consentScope); // new version
     ScriptCache(QObject* parent = NULL);
     
     Mutex _containerLock;
-    QMap<QUrl, ScriptRequest> _activeScriptRequests;
+    // Strict and ordinary requests must never share an in-flight request or
+    // a memory-cache result. The flag also reaches every resource retry.
+    using ScriptCacheKey = QPair<QUrl, QPair<bool, QUuid>>;
+    static ScriptCacheKey cacheKey(const QUrl& url, bool strict, const std::shared_ptr<EntityScriptConsentScope>& scope) {
+        return qMakePair(url, qMakePair(strict, strict && scope ? scope->identity() : QUuid()));
+    }
+    QSet<QUuid> _observedConsentScopes;
+    QMap<ScriptCacheKey, ScriptRequest> _activeScriptRequests;
     
-    QHash<QUrl, QVariantMap> _scriptCache;
+    QHash<ScriptCacheKey, QVariantMap> _scriptCache;
     QMultiMap<QUrl, ScriptUser*> _scriptUsers;
 };
 

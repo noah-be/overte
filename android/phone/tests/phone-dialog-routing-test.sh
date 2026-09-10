@@ -141,8 +141,13 @@ require "$body" 'username[.]text[[:space:]]*=[[:space:]]*""' \
     'phone login clears username text during destruction fallback'
 require "$login" 'phoneLoginState[.]beginRequest\(\)' \
     'phone login rejects a competing request at the C++ boundary'
-require "$login" 'phoneLoginState[.]finishRequest\(\)' \
-    'terminal authentication responses release the C++ request guard'
+require "$login" 'bindAccountLoginState\(phoneLoginState, phoneAccountLoginBinding, accountManager[.]data\(\), qApp\)' \
+    'terminal authentication responses use the application-owned request guard binding'
+binding="$repo_root/interface/src/ui/AccountLoginStateBinding.h"
+for terminal in loginComplete loginFailed destroyed; do
+    require "$binding" "connect\\(manager, &[^:]+::$terminal, this,.*state[.]finishRequest\\(\\)" \
+        "application-owned $terminal handler releases the request guard"
+done
 require "$body" 'waiting:[[:space:]]*loginDialog[.]isPhoneLoginRequestPending\(\)' \
     'a reopened login waits for an older in-flight request'
 require "$body" 'if[[:space:]]*\(!phoneLogin[.]requestSubmitted\)' \

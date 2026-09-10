@@ -13,6 +13,7 @@
 //
 
 #include "ScriptProgramV8Wrapper.h"
+#include "V8ExceptionDiagnostics.h"
 
 #include "ScriptEngineV8.h"
 #include "ScriptValueV8Wrapper.h"
@@ -42,10 +43,6 @@ bool ScriptProgramV8Wrapper::compile() {
     v8::HandleScope handleScope(isolate);
     auto context = _engine->getContext();
     v8::Context::Scope contextScope(context);
-    int errorColumnNumber = 0;
-    int errorLineNumber = 0;
-    QString errorMessage = "";
-    QString errorBacktrace = "";
     v8::TryCatch tryCatch(isolate);
     v8::ScriptOrigin scriptOrigin(v8::String::NewFromUtf8(isolate, _url.toStdString().c_str()).ToLocalChecked());
     v8::Local<v8::Script> script;
@@ -57,22 +54,9 @@ bool ScriptProgramV8Wrapper::compile() {
         return true;
     }
     qCDebug(scriptengine_v8) << "Script compilation failed: " << _url;
-    v8::String::Utf8Value utf8Value(isolate, tryCatch.Exception());
-    errorMessage = QString(*utf8Value);
-    v8::Local<v8::Message> exceptionMessage = tryCatch.Message();
-    if (!exceptionMessage.IsEmpty()) {
-        errorLineNumber = exceptionMessage->GetLineNumber(context).FromJust();
-        errorColumnNumber = exceptionMessage->GetStartColumn(context).FromJust();
-        v8::Local<v8::Value> backtraceV8String;
-        if (tryCatch.StackTrace(context).ToLocal(&backtraceV8String)) {
-            if (backtraceV8String->IsString()) {
-                if (v8::Local<v8::String>::Cast(backtraceV8String)->Length() > 0) {
-                    v8::String::Utf8Value backtraceUtf8Value(isolate, backtraceV8String);
-                    errorBacktrace = QString(*backtraceUtf8Value).replace("\\n","\n");
-                }
-            }
-        }
-    }
-    _compileResult = ScriptSyntaxCheckResultV8Wrapper(ScriptSyntaxCheckResult::Error, errorColumnNumber, errorLineNumber, errorMessage, errorBacktrace);
+    const auto diagnostic = overte::scripting::exceptionDiagnostics(isolate, context, tryCatch);
+    _compileResult = ScriptSyntaxCheckResultV8Wrapper(ScriptSyntaxCheckResult::Error,
+        diagnostic.column, diagnostic.line, diagnostic.message,
+        diagnostic.backtrace.join(QStringLiteral("\n")));
     return false;
 }

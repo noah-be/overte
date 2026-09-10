@@ -26,6 +26,11 @@
 #endif
 
 #include <AddressManager.h>
+#include <EntityScriptConsent.h>
+#include <EntityTreeRenderer.h>
+#include <NodeList.h>
+#include <QCryptographicHash>
+#include <QQuickItem>
 #include <AnimationCacheScriptingInterface.h>
 #include <audio/AudioScope.h>
 #include <AudioScriptingInterface.h>
@@ -1049,6 +1054,149 @@ bool Application::askToSetAvatarUrl(const QString& url) {
     }
 
     return true;
+}
+
+void Application::invalidateEntityScriptConsent() {
+    ++_entityScriptConsentUiGeneration;
+    const auto scope = std::move(_entityScriptConsentScope);
+    const auto dialog = _entityScriptConsentDialog;
+    _entityScriptConsentDialog.clear();
+    auto decision = std::move(_activeEntityScriptConsentDecision);
+    _activeEntityScriptConsentDecision = {};
+    _activeEntityScriptConsentRequest.reset();
+    std::deque<PendingEntityScriptConsent> pending;
+    pending.swap(_pendingEntityScriptConsents);
+    _entityScriptConsentDispatch.reset();
+    if (scope) { scope->invalidate(); }
+    if (decision) { decision(false); }
+    for (auto& item : pending) { item.decide(false); }
+    if (dialog) {
+        if (auto item = dialog->getDialogItem()) { item->setVisible(false); item->deleteLater(); }
+        dialog->deleteLater();
+    }
+    if (scope) {
+        const auto renderer = getEntities();
+        const auto weakRenderer = renderer.toWeakRef();
+        QMetaObject::invokeMethod(renderer.data(), [weakRenderer, scope] {
+            if (const auto renderer = weakRenderer.toStrongRef()) {
+                if (renderer->_entityScriptConsentScope == scope) { renderer->endEntityScriptConsent(); }
+            }
+        }, Qt::QueuedConnection);
+    }
+}
+
+void Application::beginEntityScriptConsentReview() {
+    const auto expectedGeneration = _entityScriptConsentUiGeneration + 1;
+    invalidateEntityScriptConsent();
+    if (_entityScriptConsentUiGeneration != expectedGeneration) { return; }
+    if (_aboutToQuit || !_startUpFinished || !_isForeground) { return; }
+    const auto nodes = DependencyManager::get<NodeList>();
+    if (!nodes->getDomainHandler().isConnected() && !isServerlessMode()) {
+        OffscreenUi::asyncInformation(tr("Entity scripts"), tr("Finish connecting to a world before reviewing its scripts."));
+        return;
+    }
+    const QUrl origin(DependencyManager::get<AddressManager>()->currentAddress(true));
+    if (!origin.isValid() || origin.isEmpty()) { return; }
+    const auto scope = std::make_shared<EntityScriptConsentScope>(origin.toString(QUrl::FullyEncoded));
+    _entityScriptConsentScope = scope;
+    // A weakly referenced dispatcher keeps cross-thread posts independent of
+    // Application destruction. Application is inspected only on its UI thread.
+    _entityScriptConsentDispatch = QSharedPointer<QObject>(new QObject, [](QObject* object) { object->deleteLater(); });
+    const auto weakDispatch = _entityScriptConsentDispatch.toWeakRef();
+    const QPointer<Application> application(this);
+    const auto renderer = getEntities();
+    const auto weakRenderer = renderer.toWeakRef();
+    QMetaObject::invokeMethod(renderer.data(), [weakRenderer, weakDispatch, application, scope] {
+        const auto renderer = weakRenderer.toStrongRef();
+        if (!renderer || !scope->active()) { return; }
+        renderer->beginEntityScriptConsent(scope,
+            [weakDispatch, application, scope](const EntityItemID&,
+                const std::shared_ptr<EntityScriptConsentRequest>& request, std::function<void(bool)> decide) {
+                const auto dispatch = weakDispatch.toStrongRef();
+                if (!dispatch || !request->active()) { decide(false); return; }
+                QMetaObject::invokeMethod(dispatch.data(), [application, scope, request, decide] {
+                    if (!application || application->_entityScriptConsentScope != scope || !scope->active()) {
+                        decide(false); return;
+                    }
+                    application->enqueueEntityScriptConsent(request, decide);
+                }, Qt::QueuedConnection);
+            });
+    }, Qt::QueuedConnection);
+}
+
+void Application::enqueueEntityScriptConsent(const std::shared_ptr<EntityScriptConsentRequest>& request,
+                                            std::function<void(bool)> complete) {
+    const auto completed = std::make_shared<std::atomic<bool>>(false);
+    const auto decide = [completed, complete = std::move(complete)](bool allow) {
+        if (!completed->exchange(true)) { complete(allow); }
+    };
+    if (_aboutToQuit || !_isForeground || !request || !request->active() ||
+        !request->belongsTo(_entityScriptConsentScope) || _pendingEntityScriptConsents.size() >= 64) {
+        decide(false); return;
+    }
+    _pendingEntityScriptConsents.push_back({ request, std::move(decide) });
+    showNextEntityScriptConsent();
+}
+
+void Application::showNextEntityScriptConsent() {
+    if (_entityScriptConsentDialog || _activeEntityScriptConsentRequest || _aboutToQuit || !_isForeground) { return; }
+    while (!_pendingEntityScriptConsents.empty()) {
+        auto pending = std::move(_pendingEntityScriptConsents.front());
+        _pendingEntityScriptConsents.pop_front();
+        const auto request = pending.request;
+        if (!request->active() || !request->belongsTo(_entityScriptConsentScope)) {
+            pending.decide(false); continue;
+        }
+        const auto displaySource = [](const QString& value) {
+            const QUrl url(value);
+            if (url.isValid() && !url.scheme().isEmpty() && url.scheme() != QStringLiteral("javascript")) {
+                return url.adjusted(QUrl::RemoveUserInfo | QUrl::RemoveQuery | QUrl::RemoveFragment)
+                    .toDisplayString().left(512).toHtmlEscaped();
+            }
+            return QStringLiteral("Embedded script");
+        };
+        const QString fingerprint = QString::fromLatin1(QCryptographicHash::hash(request->source().toUtf8(),
+            QCryptographicHash::Sha256).toHex());
+        const QString message = tr("<p>Allow this entity script to run in the current world?</p>"
+            "<p>World: %1<br>Source: %2<br>Source reference: %3</p>"
+            "<p>Scripts can interact with your avatar and world and use the client APIs, including loading more code. "
+            "Only allow sources you trust. URL credentials and parameters are hidden above.</p>"
+            "<p>This permission ends when you leave the world, change accounts, put the app in the background, "
+            "or choose Entity Scripts: Revoke. Already completed actions cannot be undone.</p>")
+            .arg(displaySource(request->origin()), displaySource(request->source()), fingerprint);
+        const auto decide = pending.decide;
+        _activeEntityScriptConsentDecision = decide;
+        _activeEntityScriptConsentRequest = request;
+        auto* dialog = OffscreenUi::asyncQuestion(tr("Allow entity script"), message,
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        if (!dialog || _activeEntityScriptConsentRequest != request || !request->active() ||
+            !request->belongsTo(_entityScriptConsentScope) || _aboutToQuit || !_isForeground) {
+            if (_activeEntityScriptConsentRequest == request) {
+                _activeEntityScriptConsentDecision = {};
+                _activeEntityScriptConsentRequest.reset();
+            }
+            if (dialog) {
+                if (auto item = dialog->getDialogItem()) { item->setVisible(false); item->deleteLater(); }
+                dialog->deleteLater();
+            }
+            decide(false); continue;
+        }
+        _entityScriptConsentDialog = dialog;
+        const QPointer<ModalDialogListener> heldDialog(dialog);
+        connect(dialog, &ModalDialogListener::response, this, [this, request, decide, heldDialog](const QVariant& answer) {
+            if (_entityScriptConsentDialog != heldDialog || _activeEntityScriptConsentRequest != request) { return; }
+            const bool allow = !_aboutToQuit && _isForeground && request->active() && request->belongsTo(_entityScriptConsentScope) &&
+                answer.toInt() == int(QMessageBox::Yes);
+            if (_entityScriptConsentDialog == heldDialog && _activeEntityScriptConsentRequest == request) {
+                _entityScriptConsentDialog.clear();
+                _activeEntityScriptConsentDecision = {};
+                _activeEntityScriptConsentRequest.reset();
+            }
+            decide(allow);
+            QMetaObject::invokeMethod(this, [this] { showNextEntityScriptConsent(); }, Qt::QueuedConnection);
+        });
+        return;
+    }
 }
 
 bool Application::askToLoadScript(const QString& scriptFilenameOrURL) {

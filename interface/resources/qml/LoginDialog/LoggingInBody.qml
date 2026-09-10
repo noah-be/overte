@@ -320,7 +320,7 @@ Item {
             }
         }
         function onHandleCreateFailed() {
-            console.log("Create Failed: " + error);
+            console.log("Create Failed");
             if (loggingInBody.withOculus) {
                 if (loggingInBody.loginDialogPoppedUp) {
                     var data = {
@@ -329,7 +329,7 @@ Item {
                     UserActivityLogger.logAction("encourageLoginDialog", data);
                 }
                 bodyLoader.setSource("CompleteProfileBody.qml", { "loginDialog": loginDialog, "root": root, "bodyLoader": bodyLoader, "withSteam": loggingInBody.withSteam,
-                    "withOculus": loggingInBody.withOculus, "errorString": error });
+                    "withOculus": loggingInBody.withOculus, "errorString": qsTr("Account creation failed. Check your connection and try again.") });
             }
         }
         function onHandleLinkCompleted() {
@@ -354,7 +354,7 @@ Item {
             loggingInBody.loadingSuccess();
         }
         function onHandleLinkFailed() {
-            console.log("Link Failed: " + error);
+            console.log("Link Failed");
             loggingInSpinner.visible = false;
             if (loggingInBody.linkOculus) {
                 loggingInText.text = "Oculus failed to link";
@@ -374,13 +374,32 @@ Item {
                 }
             } else {
                 bodyLoader.setSource("LinkAccountBody.qml", { "loginDialog": loginDialog, "root": root, "bodyLoader": bodyLoader, "linkSteam": loggingInBody.linkSteam,
-                    "linkOculus": loggingInBody.linkOculus, "errorString": error });
+                    "linkOculus": loggingInBody.linkOculus, "errorString": qsTr("Account linking failed. Check your connection and try again.") });
             }
         }
 
         function onHandleLoginCompleted() {
             console.log("Login Succeeded");
             loggingInBody.loadingSuccess();
+        }
+
+        function onHandleDomainLoginFailed(reason) {
+            loggingInSpinner.visible = false;
+            loggingInGlyph.visible = false;
+            if (reason === "cancelled") {
+                // The old context is gone. Close this view rather than offer
+                // its credentials against a newly selected domain.
+                loginDialog.dismissLoginDialog();
+                root.tryDestroy();
+                return;
+            }
+            var message = reason === "timeout"
+                ? qsTr("Domain sign-in timed out. Check your connection and try again.")
+                : qsTr("Domain sign-in failed. Check your connection and credentials, then try again.");
+            bodyLoader.setSource("LinkAccountBody.qml", {
+                "loginDialog": loginDialog, "root": root,
+                "bodyLoader": bodyLoader, "errorString": message
+            });
         }
 
         function onHandleLoginFailed() {
