@@ -12,6 +12,7 @@ import plistlib
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -314,8 +315,12 @@ def test_cmake_boundary() -> None:
         raise AssertionError("InfoView must not depend on removed Qt XmlPatterns APIs")
 
     file_utils = SOURCE_ROOT / "libraries" / "shared" / "src" / "shared" / "FileUtils.cpp"
-    require_text(file_utils, r'extraSelectors << "ios" << "mobile" << "touch"', "iOS selectors must include mobile touch variants")
-    require_text(file_utils, r'<< "android_phoneInterface" << "android_interface"', "iOS must inherit the tested Phone presentation")
+    require_text(file_utils, r'const Product product = configuredProduct\(\)', "selector caller must use the configured product")
+    require_text(file_utils, r'profileSelectors\(product, gles\)', "selector caller must consume the shared profile")
+    configured = SOURCE_ROOT / "libraries/ui/src/ConfiguredCapabilityProfile.h"
+    require_text(configured, r'#elif defined\(Q_OS_IOS\)\s+return Product::IOS;', "iOS must select its own profile")
+    profile = SOURCE_ROOT / "libraries/ui/src/CapabilityProfile.h"
+    require_text(profile, r'case Product::IOS: result = \{"ios", "mobile", "touch", "android_phoneInterface", "android_interface", "webview"\}', "iOS selector order must retain mobile touch and Phone presentation")
 
     ios_webview = SOURCE_ROOT / "interface" / "resources" / "qml" / "controls" / "+ios" / "FlickableWebViewCore.qml"
     require_text(ios_webview, r"import QtWebView 1\.1", "iOS web surfaces must use Qt WebView")
@@ -500,15 +505,21 @@ def test_cmake_boundary() -> None:
     require_text(audio_client_cmake, r"src/IOSAudioPermission\.mm", "full client must compile the iOS permission bridge")
     require_text(audio_client_cmake, r"enable_language\(OBJCXX\)", "full client must enable Objective-C++ before compiling the permission bridge")
     permission_bridge = SOURCE_ROOT / "libraries" / "audio-client" / "src" / "IOSAudioPermission.mm"
-    require_text(permission_bridge, r"AVAudioSessionRecordPermissionGranted", "microphone permission must fail closed unless granted")
-    require_text(permission_bridge, r"requestRecordPermission", "full client must be able to request microphone permission")
-    require_text(permission_bridge, r"dispatch_get_main_queue", "permission UI must be requested on the main queue")
-    require_text(permission_bridge, r"dispatch_once", "permission requests must be coalesced per process")
-    require_text(permission_bridge, r"pthread_main_np[\s\S]*dispatch_sync\(dispatch_get_main_queue", "full-client AVAudioSession mutations must run on the main queue")
-    require_text(permission_bridge, r"AVAudioSessionCategoryPlayAndRecord", "full client must configure a duplex audio session")
-    require_text(permission_bridge, r"AVAudioSessionModeGameChat", "full client must select game-chat audio processing")
-    require_text(permission_bridge, r"AVAudioSessionInterruptionOptionShouldResume", "interruption recovery must obey ShouldResume")
-    require_text(permission_bridge, r"AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation", "full-client shutdown must release the audio session")
+    # apple-main owns the fail-closed Shared shim. Native AVAudioSession
+    # operations moved to the product adapter and remain covered by apple-ios
+    # audio-permission-request, audio-adapter and native port contracts.
+    require_text(permission_bridge, r"value && value->microphonePermissionGranted\(\)", "permission bridge must fail closed without an adapter")
+    require_text(permission_bridge, r"value->requestMicrophonePermission\(\)", "permission requests must reach the installed adapter")
+    with tempfile.TemporaryDirectory(prefix="apple-shared-audio-") as directory:
+        binary = Path(directory) / "ios-shim-test"
+        subprocess.run(["c++", "-std=c++17", "-pthread", "-x", "c++",
+                        str(permission_bridge),
+                        str(SOURCE_ROOT / "tests/device/contracts/audio/ios-shim-test.cpp"),
+                        "-o", str(binary)], check=True, timeout=30)
+        subprocess.run([str(binary)], check=True, timeout=10)
+    subprocess.run([sys.executable,
+                    str(SOURCE_ROOT / "tests/device/contracts/audio/test_ios_audio_caller.py")],
+                   check=True, timeout=30)
     require_text(audio_client_source, r"overteIOSMicrophonePermissionGranted", "AudioClient input must enforce iOS permission")
     require_text(audio_client_source, r"void AudioClient::start\(\)[\s\S]*overteIOSActivateAudioSession", "AudioClient start must activate the native session")
     require_text(audio_client_source, r"void AudioClient::stop\(\)[\s\S]*overteIOSDeactivateAudioSession", "AudioClient stop must deactivate the native session")
@@ -806,8 +817,8 @@ def test_scope_contract() -> None:
     domain_handler = SOURCE_ROOT / "libraries" / "networking" / "src" / "DomainHandler.cpp"
     require_text(
         domain_handler,
-        r"QHostInfo::lookupHost\(domainURL\.host\(\), this, &DomainHandler::completedHostnameLookup\)",
-        "domain DNS completion must use the typed Qt 6 context overload",
+        r"_hostnameLookup.start\(domainURL\.host\(\), this, \[this, discoveryTicket\]\(const QHostInfo& info\) \{\s+if \(!discoveryTicket.current\(\)\) \{ return; \}\s+completedHostnameLookup\(info\);",
+        "domain DNS completion must retain the context and reject a retired discovery ticket",
     )
     if re.search(r"QHostInfo::lookupHost\([^;]*\bSLOT\s*\(", domain_handler.read_text(encoding="utf-8")):
         raise AssertionError("domain DNS lookup must not depend on string-normalized Qt slot signatures")
