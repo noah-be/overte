@@ -203,7 +203,7 @@ class TabletE2EFlowTest(unittest.TestCase):
                     temporary.cleanup()
 
     def test_missing_required_operation_is_completeness_error(self):
-        output, _, _, temporary = self.assert_flow(
+        output, _, summary, temporary = self.assert_flow(
             "flat", "mock-flat-touch.json", "error",
             missing_capability="tablet.activate")
         try:
@@ -213,8 +213,8 @@ class TabletE2EFlowTest(unittest.TestCase):
             self.assertEqual("OVT_TEST_INFRASTRUCTURE_ERROR", error.get("message"))
             self.assertEqual("OVT_REDACTED", error.text)
             self.assertNotIn("Missing capabilities:", junit)
-            log = (output / "modules/tablet-e2e/module.log").read_text(encoding="utf-8")
-            self.assertIn("Missing capabilities: tablet.activate", log)
+            self.assertIn("Missing capabilities: tablet.activate",
+                          self.tablet_result(summary)["output"])
         finally:
             temporary.cleanup()
 
