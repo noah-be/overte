@@ -62,6 +62,7 @@
 #include "AudioHelpers.h"
 #if defined(Q_OS_IOS)
 #include "IOSAudioPermission.h"
+#include <shared/IOSRuntimeLogging.h>
 #endif
 
 #if defined(Q_OS_ANDROID)
@@ -2965,6 +2966,16 @@ bool AudioClient::switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDevi
             // start the output device
             _audioOutputIODevice.start();
             _audioOutput->start(&_audioOutputIODevice);
+#if defined(Q_OS_IOS)
+            logIOSRuntimeMarker("OVERTE_IOS_AUDIO_OUTPUT stage=sink-start",
+                "state=", static_cast<int>(_audioOutput->state()),
+                "error=", static_cast<int>(_audioOutput->error()),
+                "buffer_bytes=", _audioOutput->bufferSize(),
+                "sample_rate=", _outputFormat.sampleRate(),
+                "channels=", _outputFormat.channelCount(),
+                "gain=", _outputGain.load(std::memory_order_acquire),
+                "system_gain=", _systemInjectorGain.load(std::memory_order_acquire));
+#endif
 
             // initialize mix buffers
 
@@ -3014,6 +3025,12 @@ bool AudioClient::switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDevi
         }
     }
 
+#if defined(Q_OS_IOS)
+    logIOSRuntimeMarker("OVERTE_IOS_AUDIO_OUTPUT stage=selection-result",
+        "device_present=", !outputDeviceInfo.getDevice().isNull(),
+        "supported_format=", supportedFormat,
+        "initialized=", _audioOutputInitialized.load(std::memory_order_acquire));
+#endif
     return supportedFormat;
 }
 
