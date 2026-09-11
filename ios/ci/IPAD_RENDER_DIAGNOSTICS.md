@@ -13,6 +13,11 @@ must be visible before treating a run as valid.
 
 ## Tablet QML without rebuilding
 
+For complete QML/client-script revisions on the next E2E foundation IPA, use
+[the development sync protocol](../development/README.md). It includes dependent
+QML, JS imports, restart selection and rollback. The individual-file mechanism
+below remains available on older IPAs.
+
 A reviewed top-level `qrc:/...` QML file can be replaced temporarily through
 the app container at `Documents/OverteQmlOverrides/<qrc path>`. Overrides are
 disabled unless the regular file `Documents/OverteQmlOverrides/.enabled`

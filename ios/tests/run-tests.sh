@@ -56,6 +56,13 @@ python3 "$script_dir/runner-telemetry-test.py"
 python3 "$script_dir/ios-integrated-recovery-contract-test.py"
 python3 "$script_dir/qt-checkpoint-artifact-test.py"
 python3 "$script_dir/qt-source-recovery-contract-test.py"
+# Execute the real QML loader where host Qt is available. The preparation-only
+# Linux image need not install a second Qt toolchain just to run source checks.
+if command -v pkg-config >/dev/null && pkg-config --exists Qt6Qml; then
+    python3 "$script_dir/development-reload-test.py"
+else
+    echo "SKIP executable development reload test: host Qt6Qml unavailable"
+fi
 python3 "$script_dir/interface-ios-macos-source-isolation-test.py"
 python3 "$script_dir/interface-ios-input-platform-test.py"
 python3 "$script_dir/interface-ios-platform-reporting-test.py"

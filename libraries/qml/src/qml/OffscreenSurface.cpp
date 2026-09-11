@@ -22,6 +22,9 @@
 #include <QtQml/QQmlEngine>
 #include <QtQml/QQmlComponent>
 #include <QtQml/QQmlFileSelector>
+#if defined(Q_OS_IOS) && QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include "../../../../ios/development/QmlOverrideInterceptor.h"
+#endif
 #include <QtGui/QInputMethodQueryEvent>
 #include <QtQuick/QQuickItem>
 #include <QtQuick/QQuickWindow>
@@ -72,6 +75,9 @@ static QSize clampSize(const QSize& qsize, uint32_t maxDimension) {
 
 #if defined(Q_OS_IOS)
 static QUrl resolveIOSQmlOverride(const QUrl& source) {
+    if (qApp->property("overte.ios.development.ownsOverrides").toBool()) {
+        return source; // Revision interceptor preserves logical qrc URLs.
+    }
     if (source.scheme() != URL_SCHEME_QRC) {
         return source;
     }
@@ -190,6 +196,12 @@ QQmlFileSelector* OffscreenSurface::getFileSelector() {
 }
 
 void OffscreenSurface::initializeEngine(QQmlEngine* engine) {
+#if defined(Q_OS_IOS) && QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    const auto root = qApp->property(overte::ios::development::RESOURCE_PROPERTY).toString();
+    if (!root.isEmpty()) {
+        engine->addUrlInterceptor(new overte::ios::development::QmlOverrideInterceptor(engine, root));
+    }
+#endif
     new QQmlFileSelector(engine);
 }
 
