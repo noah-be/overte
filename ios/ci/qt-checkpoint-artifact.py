@@ -34,6 +34,7 @@ DOWNLOAD_LIMITS = {
     "ios": 512 * 1024 * 1024,
     "v8": 512 * 1024 * 1024,
     "conan": 2 * 1024 * 1024 * 1024,
+    "client-sccache": 6 * 1024 * 1024 * 1024,
 }
 MANIFEST_LIMIT = 64 * 1024
 ARCHIVE_LIMITS = {
@@ -41,13 +42,15 @@ ARCHIVE_LIMITS = {
     "ios": 384 * 1024 * 1024,
     "v8": 384 * 1024 * 1024,
     "conan": 1536 * 1024 * 1024,
+    "client-sccache": 5 * 1024 * 1024 * 1024,
 }
-MEMBER_LIMITS = {"host": 100_000, "ios": 100_000, "v8": 100_000, "conan": 500_000}
+MEMBER_LIMITS = {"host": 100_000, "ios": 100_000, "v8": 100_000, "conan": 500_000, "client-sccache": 100_000}
 EXPANDED_LIMITS = {
     "host": 2 * 1024 * 1024 * 1024,
     "ios": 2 * 1024 * 1024 * 1024,
     "v8": 2 * 1024 * 1024 * 1024,
     "conan": 10 * 1024 * 1024 * 1024,
+    "client-sccache": 5 * 1024 * 1024 * 1024,
 }
 
 
@@ -87,7 +90,10 @@ def create_archive(prefix: Path, archive: Path, kind: str) -> None:
     archive.parent.mkdir(parents=True, exist_ok=True)
     temporary = archive.with_suffix(archive.suffix + ".tmp")
     with temporary.open("wb") as raw:
-        with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as compressed:
+        # Compiler objects are already compressed by sccache. Avoid spending
+        # macOS runner CPU recompressing them at gzip's default maximum level.
+        with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0,
+                           compresslevel=1 if kind == "client-sccache" else 9) as compressed:
             with tarfile.open(fileobj=compressed, mode="w") as output:
                 paths = sorted(prefix.rglob("*"), key=lambda item: item.relative_to(prefix).as_posix())
                 if len(paths) > MEMBER_LIMITS[kind]:
@@ -381,7 +387,8 @@ def restore(args: argparse.Namespace) -> None:
     output = Path(args.github_output)
     install_root = Path(args.install_root)
     target_name = {
-        "host": "macos", "ios": "ios", "v8": "v8-ios", "conan": "conan-home"
+        "host": "macos", "ios": "ios", "v8": "v8-ios", "conan": "conan-home",
+        "client-sccache": "client-sccache",
     }[args.kind]
     target_root = install_root / target_name
     with tempfile.TemporaryDirectory(prefix="overte-qt-checkpoint-") as temporary_name:
@@ -429,7 +436,7 @@ def parser() -> argparse.ArgumentParser:
     commands = result.add_subparsers(dest="command", required=True)
     create_parser = commands.add_parser("create")
     create_parser.add_argument("--prefix", required=True)
-    create_parser.add_argument("--kind", choices=("host", "ios", "v8", "conan"), required=True)
+    create_parser.add_argument("--kind", choices=tuple(DOWNLOAD_LIMITS), required=True)
     create_parser.add_argument("--cache-key", required=True)
     create_parser.add_argument("--producer-repository-id", required=True)
     create_parser.add_argument("--producer-branch", required=True)
@@ -437,7 +444,7 @@ def parser() -> argparse.ArgumentParser:
     create_parser.set_defaults(handler=create)
     restore_parser = commands.add_parser("restore")
     restore_parser.add_argument("--artifact-prefix", required=True)
-    restore_parser.add_argument("--kind", choices=("host", "ios", "v8", "conan"), required=True)
+    restore_parser.add_argument("--kind", choices=tuple(DOWNLOAD_LIMITS), required=True)
     restore_parser.add_argument("--cache-key", required=True)
     restore_parser.add_argument("--expected-repository-id", required=True, type=int)
     restore_parser.add_argument("--expected-branch", required=True)

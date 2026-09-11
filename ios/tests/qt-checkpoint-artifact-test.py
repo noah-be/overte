@@ -189,6 +189,33 @@ with tempfile.TemporaryDirectory(prefix="qt-checkpoint-test-") as temporary_name
         assert conan_output.read_text() == "available=true\nfresh=true\nrestored=true\n"
         assert (conan_install / "conan-home/.qt-hidden").read_text() == "hidden"
 
+        compiler_payload = temporary / "compiler-payload"
+        run("create", "--prefix", prefix, "--kind", "client-sccache", "--cache-key", "compiler-key",
+            "--producer-repository-id", "42", "--producer-branch", "apple-ios", "--output-dir", compiler_payload)
+        compiler_zip = temporary / "compiler.zip"
+        artifact_zip(compiler_payload, compiler_zip)
+        module.download_latest = lambda artifact_prefix, repository_id, branch, destination, kind: (
+            destination.write_bytes(compiler_zip.read_bytes()) and selected)
+        compiler_args = type("Args", (), dict(
+            artifact_prefix="compiler", kind="client-sccache", cache_key="compiler-key",
+            install_root=str(temporary / "compiler-restored"), github_output=str(temporary / "compiler-output"),
+            expected_repository_id=42, expected_branch="apple-ios", max_age_days=21))()
+        module.restore(compiler_args)
+        assert (temporary / "compiler-restored/client-sccache/.qt-hidden").read_text() == "hidden"
+        # The new object kind must retain the exact same provenance/key gates.
+        for field, value in (("expected_repository_id", 43), ("expected_branch", "other"), ("cache_key", "other")):
+            bad_args = type("Args", (), {})()
+            for key in ("artifact_prefix", "kind", "cache_key", "install_root", "github_output",
+                        "expected_repository_id", "expected_branch", "max_age_days"):
+                setattr(bad_args, key, getattr(compiler_args, key))
+            setattr(bad_args, field, value)
+            bad_args.install_root = str(temporary / ("bad-compiler-" + field))
+            try:
+                module.restore(bad_args)
+                raise AssertionError("compiler checkpoint accepted mismatching " + field)
+            except SystemExit:
+                pass
+
         for bad_name in ("nested/manifest.json", "extra"):
             invalid_zip = temporary / (bad_name.replace("/", "-") + ".zip")
             with zipfile.ZipFile(invalid_zip, "w") as archive:

@@ -55,6 +55,7 @@ python3 "$script_dir/build-heartbeat-test.py"
 python3 "$script_dir/runner-telemetry-test.py"
 python3 "$script_dir/ios-integrated-recovery-contract-test.py"
 python3 "$script_dir/qt-checkpoint-artifact-test.py"
+python3 "$script_dir/merge-compiler-checkpoint-test.py"
 python3 "$script_dir/qt-source-recovery-contract-test.py"
 # Execute the real QML loader where host Qt is available. The preparation-only
 # Linux image need not install a second Qt toolchain just to run source checks.

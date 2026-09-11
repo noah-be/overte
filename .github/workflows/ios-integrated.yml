@@ -433,7 +433,10 @@ jobs:
       OVERTE_IOS_MOLTENVK_ROOT: ${{ github.workspace }}/build-ios/external/MoltenVK
       OVERTE_IOS_V8_ROOT: ${{ github.workspace }}/build-ios/external/v8-ios
       SCCACHE_DIR: ${{ github.workspace }}/build-ios/client-sccache
-      SCCACHE_CACHE_SIZE: 512M
+      # Build 654 restored its 512 MiB cache but had 0 hits / 984 misses and
+      # filled it again. Keep the working set; use artifacts for persistence
+      # so enlarged objects do not evict Qt/Conan from the shared Actions cache.
+      SCCACHE_CACHE_SIZE: 4G
       # Xcode can spend a long time in serial generation/link phases after the
       # last compiler request. Keep the statistics server alive until the
       # explicit snapshot step so a successful object cache is not mistaken
@@ -706,14 +709,38 @@ jobs:
           prune_prefix="overte-ios-client-sccache-v2-${RUNNER_ARCH}-"
           {
             echo "namespace=$namespace"
+            echo "artifact-prefix=overte-ios-client-objects-v1-${RUNNER_ARCH}-${namespace}"
             echo "prefix=$prefix"
             echo "prune_prefix=$prune_prefix"
             echo "key=${prefix}${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           } >> "$GITHUB_OUTPUT"
           echo "SCCACHE_C_CUSTOM_CACHE_BUSTER=$namespace" >> "$GITHUB_ENV"
 
+      - name: Restore durable full-client compiler checkpoint
+        id: client-sccache-artifact
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py restore \
+            --artifact-prefix "${{ steps.client-sccache-key.outputs.artifact-prefix }}" \
+            --kind client-sccache \
+            --cache-key "${{ steps.client-sccache-key.outputs.namespace }}" \
+            --expected-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --expected-branch "$OVERTE_CHECKPOINT_BRANCH" \
+            --install-root "build-ios/client-checkpoint-restore/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Merge validated compiler objects without deleting existing entries
+        if: steps.client-sccache-artifact.outputs.restored == 'true'
+        run: |
+          python3 ios/ci/merge-compiler-checkpoint.py \
+            "build-ios/client-checkpoint-restore/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/client-sccache" \
+            "$SCCACHE_DIR"
+
       - name: Restore compatible full-client compiler checkpoint
         id: client-sccache-cache
+        if: steps.client-sccache-artifact.outputs.restored != 'true'
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ${{ github.workspace }}/build-ios/client-sccache
@@ -852,6 +879,17 @@ jobs:
         run: |
           sccache --stop-server || true
           sccache --start-server
+          python3 - <<'PY'
+          import json, os, pathlib
+          root = pathlib.Path(os.environ['SCCACHE_DIR'])
+          files = [p for p in root.rglob('*') if p.is_file()]
+          summary = {'files': len(files), 'bytes': sum(p.stat().st_size for p in files),
+                     'capacity': os.environ['SCCACHE_CACHE_SIZE']}
+          output = pathlib.Path('build-ios/runner-telemetry/compiler-cache-before.json')
+          output.parent.mkdir(parents=True, exist_ok=True)
+          output.write_text(json.dumps(summary) + '\n')
+          print('Compiler objects before build:', json.dumps(summary))
+          PY
           sccache --zero-stats
 
       - name: Configure experimental full client graph
@@ -986,6 +1024,17 @@ jobs:
           cache_root = pathlib.Path("build-ios/client-sccache")
           cache_files = [path for path in cache_root.rglob("*") if path.is_file()]
           cache_bytes = sum(path.stat().st_size for path in cache_files)
+          hits, misses = total(stats.get("cache_hits", {})), total(stats.get("cache_misses", {}))
+          report = {"requests": requests, "hits": hits, "misses": misses,
+                    "hitRatePercent": round(100 * hits / max(1, hits + misses), 2),
+                    "files": len(cache_files), "bytes": cache_bytes, "writeErrors": write_errors}
+          pathlib.Path("build-ios/runner-telemetry/compiler-cache-after.json").write_text(json.dumps(report) + "\n")
+          import os
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+              summary.write(f"\nCompiler cache: {hits} hits, {misses} misses, {report['hitRatePercent']}% hit rate; {cache_bytes} bytes retained.\n")
+          before = json.loads(pathlib.Path("build-ios/runner-telemetry/compiler-cache-before.json").read_text())
+          if before["files"] and misses and not hits:
+              print("::warning::Restored compiler objects produced zero hits; inspect capacity and compilation key inputs before claiming a warm build")
           if requests < 1:
               if not cache_files or cache_bytes < 4096:
                   raise SystemExit("Xcode produced neither live sccache statistics nor a reusable on-disk checkpoint")
@@ -1027,13 +1076,31 @@ jobs:
           done
 
       - name: Save reusable full-client compiler checkpoint
-        id: client-sccache-save
-        if: ${{ !cancelled() && steps.full-client-build.outcome != 'skipped' && steps.client-sccache-verify.outcome == 'success' && steps.client-sccache-cache.outputs.cache-hit != 'true' }}
+        id: client-sccache-create
+        if: ${{ !cancelled() && steps.full-client-build.outcome != 'skipped' && steps.client-sccache-verify.outcome == 'success' }}
         continue-on-error: true
-        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py create \
+            --prefix "$SCCACHE_DIR" \
+            --kind client-sccache \
+            --cache-key "${{ steps.client-sccache-key.outputs.namespace }}" \
+            --producer-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --producer-branch "$OVERTE_CHECKPOINT_BRANCH" \
+            --output-dir build-ios/client-compiler-checkpoint
+
+      - name: Upload durable full-client compiler checkpoint
+        id: client-sccache-save
+        if: ${{ !cancelled() && steps.client-sccache-create.outcome == 'success' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          path: ${{ github.workspace }}/build-ios/client-sccache
-          key: ${{ steps.client-sccache-key.outputs.key }}
+          name: ${{ steps.client-sccache-key.outputs.artifact-prefix }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build-ios/client-compiler-checkpoint/checkpoint.tar.gz
+            build-ios/client-compiler-checkpoint/manifest.json
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Prune superseded full-client compiler checkpoints
         if: ${{ !inputs.preserve_reusable_data && !cancelled() && steps.client-sccache-save.outcome == 'success' }}
