@@ -427,7 +427,18 @@ bool OffscreenSurface::eventFilter(QObject* originalDestination, QEvent* event) 
         case QEvent::InputMethodQuery: {
             auto window = getWindow();
             if (window && window->activeFocusItem()) {
+#if defined(Q_OS_IOS)
+                // QQuickTextInput may commit text without changing acceptance.
+                // Preserve QInputMethodEvent's accepted-by-default contract so
+                // OffscreenUi does not replay the edit through QQuickWindow.
+                if (event->type() == QEvent::InputMethod) {
+                    event->accept();
+                } else {
+                    event->ignore();
+                }
+#else
                 event->ignore();
+#endif
                 if (QCoreApplication::sendEvent(window->activeFocusItem(), event)) {
                     bool eventAccepted = event->isAccepted();
                     if (event->type() == QEvent::InputMethodQuery) {
