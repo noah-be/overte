@@ -1990,10 +1990,11 @@ def test_ci_contract() -> None:
         raise AssertionError("every Qt source stage must receive the safely exported target SDK")
     require_text(qt_source, r"--stage ios", "Qt provisioning must build the iOS target independently")
     require_text(qt_source, r"Save compiler recovery cache after a build failure", "failed compiles must retain reusable compiler outputs without duplicating every successful run")
-    require_text(qt_source, r"if: failure\(\) && steps\.sccache\.outcome == 'success'", "compiler recovery must only create a new generation after a failed build")
+    require_text(qt_source, r"Save compiler recovery cache after a build failure[\s\S]*?if: >-\s+failure\(\) && steps\.sccache\.outcome == 'success'", "compiler recovery must only create a new generation after a failed build")
+    require_text(qt_source, r"Prune superseded Qt compiler recovery caches\s+if: \$\{\{ !inputs\.preserve_reusable_data && failure\(\)", "Qt pruning must honor explicit preservation, including failures")
     require_text(qt_source, r"restore-keys:[\s\S]*?sccache_prefix", "the next run must restore the latest compatible compiler cache")
     require_text(qt_source, r"sccache_prune_prefix=overte-qt-sccache-v2-\$\{RUNNER_ARCH\}-", "Qt recovery pruning must cover obsolete toolchain namespaces")
-    require_text(qt_source, r"Prune superseded Qt compiler recovery caches[\s\S]*?sort_by\(\.createdAt\)[\s\S]*?\.\[1:\]", "only the newest Qt compiler recovery generation may remain")
+    require_text(qt_source, r"Prune superseded Qt compiler recovery caches[\s\S]*?sort_by\(\.createdAt\)[\s\S]*?\.\[1:\]", "when explicitly enabled, pruning must retain the newest Qt compiler recovery generation")
 
     bootstrap_workflow = SOURCE_ROOT / ".github" / "workflows" / "ios-bootstrap.yml"
     require_text(bootstrap_workflow, r"provision-qt-ios:[\s\S]*?permissions:[\s\S]*?actions: write[\s\S]*?contents: read", "the reusable Qt caller must pass checkpoint permissions")

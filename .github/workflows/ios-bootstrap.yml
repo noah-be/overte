@@ -134,6 +134,8 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.integrated && inputs.qt_host_cache_key == ''
     needs: host-contracts
     uses: ./.github/workflows/ios-qt-source.yml
+    with:
+      preserve_reusable_data: true
     permissions:
       actions: write
       contents: read
@@ -146,6 +148,8 @@ jobs:
       contents: read
     uses: ./.github/workflows/ios-integrated.yml
     with:
+      macos_runner: macos-26
+      preserve_reusable_data: true
       qt_host_cache_key: ${{ needs.provision-qt-ios.outputs.qt_host_cache_key }}
       qt_ios_cache_key: ${{ needs.provision-qt-ios.outputs.qt_ios_cache_key }}
       qt_host_artifact_prefix: ${{ needs.provision-qt-ios.outputs.qt_host_artifact_prefix }}

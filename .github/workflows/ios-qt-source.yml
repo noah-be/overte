@@ -6,6 +6,11 @@ name: Provision Qt iOS source cache
 on:
   workflow_dispatch:
     inputs:
+      preserve_reusable_data:
+        description: Preserve every reusable compiler checkpoint
+        required: false
+        default: true
+        type: boolean
       target_sdk:
         description: Build the Qt target for a physical device or Apple Silicon simulator
         required: true
@@ -16,6 +21,11 @@ on:
           - iphonesimulator
   workflow_call:
     inputs:
+      preserve_reusable_data:
+        description: Preserve every reusable compiler checkpoint
+        required: false
+        default: true
+        type: boolean
       target_sdk:
         description: Exact Xcode SDK for the Qt target tree
         required: false
@@ -226,24 +236,69 @@ jobs:
             --install-root "$QT_INSTALL_ROOT" \
             --github-output "$GITHUB_OUTPUT"
 
+      - name: Restore trusted apple-ios Qt host checkpoint for build branches
+        id: host-apple-ios-artifact
+        if: >-
+          steps.host-cache.outputs.cache-hit != 'true' &&
+          steps.host-artifact.outputs.restored != 'true' &&
+          github.ref_name != 'apple-ios'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py restore \
+            --artifact-prefix "${{ steps.cache-key.outputs.host_artifact_prefix }}" \
+            --kind host \
+            --cache-key "${{ steps.cache-key.outputs.host }}" \
+            --expected-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --expected-branch apple-ios \
+            --install-root "$QT_INSTALL_ROOT" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Restore trusted apple-ios Qt ios checkpoint for build branches
+        id: ios-apple-ios-artifact
+        if: >-
+          steps.ios-cache.outputs.cache-hit != 'true' &&
+          steps.ios-artifact.outputs.restored != 'true' &&
+          github.ref_name != 'apple-ios'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 ios/ci/qt-checkpoint-artifact.py restore \
+            --artifact-prefix "${{ steps.cache-key.outputs.ios_artifact_prefix }}" \
+            --kind ios \
+            --cache-key "${{ steps.cache-key.outputs.ios }}" \
+            --expected-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID" \
+            --expected-branch apple-ios \
+            --install-root "$QT_INSTALL_ROOT" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Select validated restored components
+        id: restored-components
+        env:
+          HOST_RESTORED: ${{ steps.host-artifact.outputs.restored == 'true' || steps.host-apple-ios-artifact.outputs.restored == 'true' }}
+          IOS_RESTORED: ${{ steps.ios-artifact.outputs.restored == 'true' || steps.ios-apple-ios-artifact.outputs.restored == 'true' }}
+        run: |
+          echo "host=$HOST_RESTORED" >> "$GITHUB_OUTPUT"
+          echo "ios=$IOS_RESTORED" >> "$GITHUB_OUTPUT"
+
       - name: Validate exact restored components
         if: >-
-          (steps.host-cache.outputs.cache-hit == 'true' || steps.host-artifact.outputs.restored == 'true') &&
-          (steps.ios-cache.outputs.cache-hit == 'true' || steps.ios-artifact.outputs.restored == 'true')
+          (steps.host-cache.outputs.cache-hit == 'true' || steps.restored-components.outputs.host == 'true') &&
+          (steps.ios-cache.outputs.cache-hit == 'true' || steps.restored-components.outputs.ios == 'true')
         run: |
           ios/tools/prepare-qt-ios.sh validate \
             "$QT_INSTALL_ROOT/ios" "$QT_INSTALL_ROOT/macos"
 
       - name: Install source-build prerequisites
         if: >-
-          (steps.host-cache.outputs.cache-hit != 'true' && steps.host-artifact.outputs.restored != 'true') ||
-          (steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true')
+          (steps.host-cache.outputs.cache-hit != 'true' && steps.restored-components.outputs.host != 'true') ||
+          (steps.ios-cache.outputs.cache-hit != 'true' && steps.restored-components.outputs.ios != 'true')
         run: brew install cmake ninja
 
       - name: Verify or download pinned Qt source archive
         if: >-
-          (steps.host-cache.outputs.cache-hit != 'true' && steps.host-artifact.outputs.restored != 'true') ||
-          (steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true')
+          (steps.host-cache.outputs.cache-hit != 'true' && steps.restored-components.outputs.host != 'true') ||
+          (steps.ios-cache.outputs.cache-hit != 'true' && steps.restored-components.outputs.ios != 'true')
         run: |
           ios/tools/build-qt-ios-from-source.sh \
             --work-root "$QT_WORK_ROOT" \
@@ -253,8 +308,8 @@ jobs:
 
       - name: Restore compiler recovery cache
         if: >-
-          (steps.host-cache.outputs.cache-hit != 'true' && steps.host-artifact.outputs.restored != 'true') ||
-          (steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true')
+          (steps.host-cache.outputs.cache-hit != 'true' && steps.restored-components.outputs.host != 'true') ||
+          (steps.ios-cache.outputs.cache-hit != 'true' && steps.restored-components.outputs.ios != 'true')
         id: sccache
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
@@ -264,7 +319,7 @@ jobs:
             ${{ steps.cache-key.outputs.sccache_prefix }}
 
       - name: Build Qt host tools
-        if: steps.host-cache.outputs.cache-hit != 'true' && steps.host-artifact.outputs.restored != 'true'
+        if: steps.host-cache.outputs.cache-hit != 'true' && steps.restored-components.outputs.host != 'true'
         run: |
           ios/tools/build-qt-ios-from-source.sh \
             --work-root "$QT_WORK_ROOT" \
@@ -307,7 +362,7 @@ jobs:
 
       - name: Build Qt iOS target
         id: qt-ios-build
-        if: steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true'
+        if: steps.ios-cache.outputs.cache-hit != 'true' && steps.restored-components.outputs.ios != 'true'
         run: |
           ios/tools/build-qt-ios-from-source.sh \
             --work-root "$QT_WORK_ROOT" \
@@ -353,8 +408,8 @@ jobs:
       - name: Report compiler-cache statistics
         if: >-
           always() &&
-          ((steps.host-cache.outputs.cache-hit != 'true' && steps.host-artifact.outputs.restored != 'true') ||
-           (steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true'))
+          ((steps.host-cache.outputs.cache-hit != 'true' && steps.restored-components.outputs.host != 'true') ||
+           (steps.ios-cache.outputs.cache-hit != 'true' && steps.restored-components.outputs.ios != 'true'))
         run: |
           mkdir -p build-ios/compiler-watchdog-diagnostics
           sccache --show-stats --stats-format=json \
@@ -364,7 +419,7 @@ jobs:
       - name: Verify successful Qt build used the local compiler cache
         if: >-
           success() && steps.qt-ios-build.outcome == 'success' &&
-          steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true'
+          steps.ios-cache.outputs.cache-hit != 'true' && steps.restored-components.outputs.ios != 'true'
         run: |
           python3 ios/ci/report-sccache-stats.py \
             build-ios/compiler-watchdog-diagnostics/sccache-stats.json \
@@ -384,22 +439,22 @@ jobs:
       - name: Stop compiler-cache server before recovery snapshot
         if: >-
           failure() && steps.sccache.outcome == 'success' &&
-          ((steps.host-cache.outputs.cache-hit != 'true' && steps.host-artifact.outputs.restored != 'true') ||
-           (steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true'))
+          ((steps.host-cache.outputs.cache-hit != 'true' && steps.restored-components.outputs.host != 'true') ||
+           (steps.ios-cache.outputs.cache-hit != 'true' && steps.restored-components.outputs.ios != 'true'))
         run: sccache --stop-server || true
 
       - name: Save compiler recovery cache after a build failure
         if: >-
           failure() && steps.sccache.outcome == 'success' && steps.sccache.outputs.cache-hit != 'true' &&
-          ((steps.host-cache.outputs.cache-hit != 'true' && steps.host-artifact.outputs.restored != 'true') ||
-           (steps.ios-cache.outputs.cache-hit != 'true' && steps.ios-artifact.outputs.restored != 'true'))
+          ((steps.host-cache.outputs.cache-hit != 'true' && steps.restored-components.outputs.host != 'true') ||
+           (steps.ios-cache.outputs.cache-hit != 'true' && steps.restored-components.outputs.ios != 'true'))
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ${{ env.SCCACHE_DIR }}
           key: ${{ steps.cache-key.outputs.sccache_prefix }}${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Prune superseded Qt compiler recovery caches
-        if: failure() && steps.sccache.outcome == 'success'
+        if: ${{ !inputs.preserve_reusable_data && failure() && steps.sccache.outcome == 'success' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
