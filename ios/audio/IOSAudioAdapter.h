@@ -29,6 +29,8 @@ public:
     void requestMicrophonePermission() override;
     bool activate() override;
     bool deactivate() override;
+    bool playbackAllowed() const override { return _playback && _gate.mayActivate(); }
+    std::uint64_t outputRevision() const override { return _outputRevision; }
     void foreground(bool active);
     void interruption(bool began, bool shouldResume = false);
     void muted(bool value);
@@ -41,10 +43,16 @@ private:
     void invalidatePermissionRequest();
     std::shared_ptr<NativeAudioOperations> _native;
     audio::AudioLifecycleGate _gate;
+    std::atomic<bool> _playback { false };
+    std::atomic<std::uint64_t> _outputRevision { 0 };
     std::atomic<bool> _capture { false }, _promptRequested { false };
     std::atomic<bool> _permissionQueryFailed { false };
     std::atomic<audio::Permission> _permission { audio::Permission::Unknown };
     std::atomic<std::uint64_t> _revision { 0 };
+    // Serialize native operations, but invalidate an in-flight operation before
+    // waiting for it. Concurrent foreground/permission changes must not turn a
+    // merely busy executor into a permanent Failed state.
+    std::recursive_mutex _applyMutex;
     std::mutex _permissionMutex;
     std::uint64_t _pendingPermission { 0 }, _permissionEpoch { 0 };
 };

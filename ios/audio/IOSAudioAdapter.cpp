@@ -5,6 +5,9 @@
 namespace overte::ios {
 bool IOSAudioAdapter::apply(bool notify) {
     const auto revision = ++_revision;
+    std::lock_guard<std::recursive_mutex> operationLock(_applyMutex);
+    if (_revision != revision) { return false; }
+    _playback = false;
     _capture = false;
     const auto failed = [this, notify, revision] {
         if (_revision != revision) { return false; } // superseded operation
@@ -34,6 +37,8 @@ bool IOSAudioAdapter::apply(bool notify) {
             return failed();
         }
         _capture = capture && _gate.outcome() == audio::Outcome::Capturing;
+        _playback = true;
+        ++_outputRevision;
         if (notify) { audio::notifyIOSAudioStateChanged(); }
         return true;
     } catch (...) {
@@ -156,6 +161,7 @@ void IOSAudioAdapter::routeChanged() {
     // Route changes do not reconfigure AVAudioSession themselves: that could
     // produce another route notification. Shared reopens its current Qt input.
     if (_gate.outcome() != audio::Outcome::Failed) {
+        ++_outputRevision;
         audio::notifyIOSAudioStateChanged();
     }
 }

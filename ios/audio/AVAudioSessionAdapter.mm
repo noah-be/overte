@@ -30,8 +30,14 @@ public:
     bool deactivate() override {
         return perform([] {
             NSError* error = nil;
-            return [AVAudioSession.sharedInstance setActive:NO
-                withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation error:&error] == YES;
+            const BOOL stopped = [AVAudioSession.sharedInstance setActive:NO
+                withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation error:&error];
+            // Apple documents that isBusy on this deactivation call still stops
+            // running audio objects and deactivates the session. Other errors do
+            // not establish that postcondition and remain failures.
+            return stopped == YES ||
+                ([error.domain isEqualToString:NSOSStatusErrorDomain] &&
+                 error.code == AVAudioSessionErrorCodeIsBusy);
         }, [] { return true; });
     }
 

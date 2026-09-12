@@ -71,10 +71,21 @@ python3 "$script_dir/interface-ios-window-platform-test.py"
 python3 "$script_dir/ios-avatar-viewpoint-physics-contract-test.py"
 python3 "$script_dir/ios-touch-ui-adapter-contract-test.py"
 python3 "$script_dir/shared-ios-desktop-api-isolation-test.py"
+python3 "$script_dir/audio-adapter-test.py"
+python3 "$script_dir/audio-permission-request-test.py"
+python3 "$script_dir/../../tests/device/contracts/audio/test_ios_audio_caller.py"
 if command -v pkg-config >/dev/null && pkg-config --exists Qt6Core; then
     python3 "$script_dir/../../tests/device/contracts/lifecycle/test_v8_wrapper_teardown.py"
+    python3 "$script_dir/../../tests/device/contracts/audio/test_ios_output_recovery.py"
+    python3 "$script_dir/../../tests/device/contracts/audio/test_mute_caller.py"
 else
     echo "SKIP executable wrapper teardown test: host Qt6Core unavailable"
+fi
+
+if command -v pkg-config >/dev/null && pkg-config --exists Qt6Concurrent; then
+    python3 "$script_dir/../../tests/device/contracts/audio/test_injector_preparation_lifetime.py"
+else
+    echo "SKIP executable injector lifetime test: host Qt6Concurrent unavailable"
 fi
 
 # Native renderer source/CMake contracts. Keep this list alphabetical so graph
