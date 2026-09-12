@@ -35,6 +35,7 @@ class QtSourceBuildTest(unittest.TestCase):
         )
         self.assertIn("QT_SOURCE_SHA256=252acef8", result.stdout)
         self.assertIn("IOS_PLAN_ID=", result.stdout)
+        self.assertIn("-mutex-", result.stdout)
         self.assertIn("TARGET_SDK=iphoneos", result.stdout)
         self.assertIn("skip-qtwebengine", result.stdout)
         self.assertNotIn("accept-license", result.stdout.lower())

@@ -116,6 +116,10 @@ jobs:
             ios_plan_hash="$(shasum -a 256 ios/versions.env ios/tools/build-qt-ios-from-source.sh | shasum -a 256 | awk '{print $1}')"
             ios_validator_hash="$(shasum -a 256 ios/tools/prepare-qt-ios.sh | awk '{print $1}')"
           fi
+          legacy_ios_plan_hash="$ios_plan_hash"
+          # Target source and provenance changes must never reuse an unpatched SDK.
+          ios_plan_hash="$(printf '%s\n' "$ios_plan_hash"; shasum -a 256 ios/patches/qtbase-qmutex-freelist-serialization.patch ios/tools/qt-mutex-patch.py ios/tools/build-qt-ios-from-source.sh)"
+          ios_plan_hash="$(printf '%s' "$ios_plan_hash" | shasum -a 256 | awk '{print $1}')"
           host_base="${RUNNER_ARCH}-xcode-${xcode_build}-iphoneos-${device_sdk_version}-${host_plan_hash}"
           ios_base="${RUNNER_ARCH}-xcode-${xcode_build}-${target_sdk}-${sdk_version}-${ios_plan_hash}"
           host_key="overte-qt-host-v2-${host_base}-contract-${host_validator_hash}"
@@ -128,6 +132,7 @@ jobs:
             echo "host_artifact_prefix=overte-qt-host-checkpoint-v1-${host_artifact_hash}"
             echo "ios_artifact_prefix=overte-qt-ios-checkpoint-v1-${ios_artifact_hash}"
             echo "sccache_prefix=overte-qt-sccache-v2-${ios_base}-"
+            echo "sccache_legacy_prefix=overte-qt-sccache-v2-${RUNNER_ARCH}-xcode-${xcode_build}-${target_sdk}-${sdk_version}-${legacy_ios_plan_hash}-"
             echo "sccache_prune_prefix=overte-qt-sccache-v2-${RUNNER_ARCH}-"
           } >> "$GITHUB_OUTPUT"
 
@@ -317,6 +322,7 @@ jobs:
           key: ${{ steps.cache-key.outputs.sccache_prefix }}${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             ${{ steps.cache-key.outputs.sccache_prefix }}
+            ${{ steps.cache-key.outputs.sccache_legacy_prefix }}
 
       - name: Build Qt host tools
         if: steps.host-cache.outputs.cache-hit != 'true' && steps.restored-components.outputs.host != 'true'
@@ -374,6 +380,9 @@ jobs:
         run: |
           ios/tools/prepare-qt-ios.sh validate \
             "$QT_INSTALL_ROOT/ios" "$QT_INSTALL_ROOT/macos"
+
+      - name: Verify patched QtCore build provenance
+        run: python3 ios/tools/qt-mutex-patch.py verify --prefix "$QT_INSTALL_ROOT/ios"
 
       - name: Create validated Qt iOS artifact checkpoint
         if: steps.ios-artifact-probe.outputs.fresh != 'true'

@@ -646,6 +646,7 @@ jobs:
           V8_CACHE_HIT: ${{ steps.integrated-v8-cache.outputs.cache-hit }}
           V8_ARTIFACT_RESTORED: ${{ steps.integrated-v8-artifact.outputs.restored }}
         run: |
+          set -euo pipefail
           test "$QT_HOST_CACHE_HIT" = true \
             || test "$QT_HOST_ARTIFACT_RESTORED" = true \
             || test "$QT_HOST_TRUSTED_ARTIFACT_RESTORED" = true
@@ -655,6 +656,9 @@ jobs:
           test "$V8_CACHE_HIT" = true \
             || test "$V8_ARTIFACT_RESTORED" = true
           ios/tools/prepare-qt-ios.sh validate
+          mkdir -p build-ios/artifacts
+          python3 ios/tools/qt-mutex-patch.py verify --prefix "$OVERTE_IOS_QT_ROOT" \
+            | tee build-ios/artifacts/qt-mutex-patch.json
           ios/build-ios.sh doctor --platform device --require-qt --require-moltenvk
 
       - name: Bootstrap pinned Conan tooling
@@ -1183,6 +1187,7 @@ jobs:
         with:
           name: ${{ github.run_number }}-overte-ios-integrated-device-${{ github.run_id }}
           path: |
+            build-ios/artifacts/qt-mutex-patch.json
             build-ios/artifacts/*-OverteIOSClient-Release-device-unsigned.ipa
             build-ios/artifacts/*-OverteIOSClient-Release-device-unsigned.json
             build-ios/artifacts/*-OverteIOSClient-Release-device-unsigned-readiness.json
@@ -1197,6 +1202,7 @@ jobs:
         with:
           name: ${{ github.run_number }}-overte-ios-integrated-e2e-unsigned-${{ github.run_id }}
           path: |
+            build-ios/artifacts/qt-mutex-patch.json
             build-ios/artifacts/*-OverteIOSClient-Release-device-unsigned.ipa
             build-ios/artifacts/*-OverteIOSClient-Release-device-unsigned.json
           if-no-files-found: error
