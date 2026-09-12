@@ -280,6 +280,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends qt6-base-dev pkg-config
 
       - name: Run Linux preparation contracts
+        env:
+          OVERTE_HOST_TEST_NETWORK_RUNNER: ${{ github.workspace }}/ios/ci/host-test-network.sh
         run: ios/tests/run-tests.sh
 
   simulator:

@@ -22,5 +22,7 @@ class MuteCaller(unittest.TestCase):
    else:(d/'startup.inc').write_text('void initialAudio(bool muted) { overteIOSSetAudioMuted(muted); overteIOSActivateAudioSession(); }')
    extra=['-DACTUAL_IOS_ADAPTER=1',str(ROOT/'ios/audio/IOSAudioAdapter.cpp')] if actual else []
    subprocess.run(['c++','-std=c++17','-fPIC','-pthread','-I'+str(ROOT),'-I'+str(d),*extra,str(Path(__file__).with_name('mute-caller-test.cpp')),'-x','c++',str(ROOT/'libraries/audio-client/src/IOSAudioPermission.mm'),'-o',str(d/'test'),*flags],check=True,timeout=30)
-   subprocess.run(['unshare','--user','--map-root-user','--net',str(d/'test')],check=True,timeout=10)
+   runner=os.environ.get('OVERTE_HOST_TEST_NETWORK_RUNNER')
+   isolation=[runner] if runner else ['unshare','--user','--map-root-user','--net']
+   subprocess.run([*isolation,str(d/'test')],check=True,timeout=10)
 if __name__=='__main__':unittest.main()
