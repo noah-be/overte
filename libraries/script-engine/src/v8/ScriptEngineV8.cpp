@@ -277,11 +277,15 @@ ScriptEngineV8::~ScriptEngineV8() {
     _nullValue = ScriptValue();
     _undefinedValue = ScriptValue();
     _customPrototypes.clear();
+    // Proxy destruction can delete an owned QObject. Its destroyed callback
+    // reacquires _qobjectWrapperMapProtect, so release proxies outside the lock.
+    decltype(_qobjectWrapperMapV8) retiringWrappers;
     {
         QMutexLocker guard(&_qobjectWrapperMapProtect);
         _qobjectWrapperMap.clear();
-        _qobjectWrapperMapV8.clear();
+        retiringWrappers.swap(_qobjectWrapperMapV8);
     }
+    retiringWrappers.clear();
     // Events need to be processed one more time for processing any remaining deleteLater calls:
     {
         QEventLoop loop;
