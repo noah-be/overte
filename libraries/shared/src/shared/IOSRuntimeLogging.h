@@ -317,7 +317,10 @@ inline QSet<int> iosRuntimeDiagnosticIntSet(const char* key,
 }
 
 inline QByteArray iosRuntimeRenderDiagnosticMode() {
-    const auto environmentMode = qgetenv("OVERTE_IOS_RENDER_DIAGNOSTIC").trimmed().toLower();
+    // Launch overrides are fixed for this process. Reading them on every draw
+    // takes Qt's global environment mutex on the presentation thread. Live
+    // changes continue through the reloadable JSON configuration below.
+    static const auto environmentMode = qgetenv("OVERTE_IOS_RENDER_DIAGNOSTIC").trimmed().toLower();
     if (!environmentMode.isEmpty()) {
         return environmentMode;
     }
