@@ -6,6 +6,7 @@
 Host Qt is used for atomic primitives, not as proof of native iOS acceptance.
 """
 import importlib.util
+import os
 from pathlib import Path
 import shlex
 import subprocess
@@ -126,8 +127,15 @@ class PatchTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); source = self.source_tree(root)
             (root / 'QtCore/private').mkdir(parents=True)
+            # Ubuntu's Qt 6.4 has the same atomic API but predates this
+            # unreachable-return convenience macro. Keep the pinned algorithm
+            # unchanged; provide the equivalent in the private-header seam.
+            old_macro_test = '#undef Q_UNREACHABLE_RETURN\n' if os.environ.get('OVERTE_TEST_OLD_QT_MACROS') else ''
             (root / 'QtCore/private/qglobal_p.h').write_text(
-                '#include <QtCore/qglobal.h>\n#define Q_AUTOTEST_EXPORT\n')
+                '#include <QtCore/qglobal.h>\n#define Q_AUTOTEST_EXPORT\n' + old_macro_test +
+                '#ifndef Q_UNREACHABLE_RETURN\n'
+                '#define Q_UNREACHABLE_RETURN(...) do { Q_UNREACHABLE(); return __VA_ARGS__; } while (false)\n'
+                '#endif\n')
             header = (FIXTURES / 'qfreelist_p.h').read_text()
             anchor = '        newid = v[at].next.loadRelaxed() | (id & ~ConstantsType::IndexMask);'
             self.assertEqual(header.count(anchor), 1)
