@@ -11,8 +11,14 @@ from test_login_dialog_domain_receiver import block
 
 source = (ROOT / 'libraries/audio-client/src/AudioClient.cpp').read_text()
 method = block(source, 'void AudioClient::refreshIOSAudioOutput()')
+# Execute the original loopback entry up to the native/mixer seam. Failed sink
+# startup leaves a sink object but no loopback backend; that must return early.
+echo = block(source, 'void AudioClient::handleLocalEchoAndReverb(')
+echo = echo[:echo.index('    // if this person wants local loopback')] + '    ++echoCalls;\n}'
+
 fixture = r'''
 #include <QObject>
+#include <QByteArray>
 #include <QThread>
 #include <QString>
 #include <atomic>
@@ -46,6 +52,13 @@ struct AudioClient : QObject {
     unsigned _iosOutputRecoveryAttempts = 0;
     unsigned starts = 0, stops = 0;
     bool fail = false;
+    bool _isMuted = false, _shouldEchoLocally = true, _reverb = false, _audioGateOpen = true;
+    Sink* _loopbackAudioOutput = nullptr;
+    QByteArray _loopbackPendingAudio;
+    struct { bool hasReverb() const { return false; } } _receivedAudioStream;
+    int echoCalls = 0;
+    void handleLocalEchoAndReverb(QByteArray&);
+
     HifiAudioDeviceInfo defaultAudioDeviceForMode(HifiAudioDeviceMode, QString) { return {}; }
     bool switchOutputToAudioDevice(HifiAudioDeviceInfo, bool stop = false) {
         if (stop) { ++stops; _audioOutput = nullptr; _audioOutputInitialized = false; return true; }
@@ -59,8 +72,23 @@ struct AudioClient : QObject {
     void refreshIOSAudioOutput();
 };
 /* METHOD */
+/* ECHO */
 int main() {
     AudioClient a;
+    QByteArray input;
+    a._audioOutput = &a.sink;
+    a._loopbackPendingAudio = "pending";
+    a.handleLocalEchoAndReverb(input);
+    assert(a.echoCalls == 0 && a._loopbackPendingAudio.isEmpty());
+    a._loopbackAudioOutput = &a.sink;
+    a.handleLocalEchoAndReverb(input);
+    assert(a.echoCalls == 0); // a partially initialized output is not usable
+    a._audioOutputInitialized = true;
+    a.handleLocalEchoAndReverb(input);
+    assert(a.echoCalls == 1); // healthy echo still reaches the mixer
+    a._audioOutput = nullptr;
+    a._audioOutputInitialized = false;
+
     a.refreshIOSAudioOutput();
     assert(a.starts == 0);
     allowed = true;
@@ -102,8 +130,8 @@ int main() {
 flags = shlex.split(subprocess.check_output(['pkg-config', '--cflags', '--libs', 'Qt6Core'], text=True))
 with tempfile.TemporaryDirectory(prefix='overte-ios-output-') as scratch:
     path = Path(scratch)
-    (path / 'test.cpp').write_text(fixture.replace('/* METHOD */', method))
-    subprocess.run(['c++', '-std=c++17', '-Wall', '-Wextra', '-Werror', '-fPIC', '-pthread',
+    (path / 'test.cpp').write_text(fixture.replace('/* METHOD */', method).replace('/* ECHO */', echo))
+    subprocess.run(['c++', '-std=c++17', '-Wall', '-Wextra', '-Werror', '-Wno-unused-parameter', '-fPIC', '-pthread',
                     str(path / 'test.cpp'), '-o', str(path / 'test'), *flags], check=True, timeout=40)
     subprocess.run([str(path / 'test')], check=True, timeout=5)
 print('PASS actual AudioClient output recovery: resume, route, idle, failure limit, shutdown')
