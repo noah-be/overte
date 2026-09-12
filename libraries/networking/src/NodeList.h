@@ -35,6 +35,7 @@
 #include <SettingHandle.h>
 
 #include "DomainHandler.h"
+#include "DomainListRequestHistory.h"
 #include "LimitedNodeList.h"
 #include "Node.h"
 
@@ -185,6 +186,7 @@ private:
     std::atomic<NodeType_t> _ownerType;
     NodeSet _nodeTypesOfInterest;
     DomainHandler _domainHandler;
+    DomainListRequestHistory _domainListRequests;
     SockAddr _assignmentServerSocket;
     bool _isShuttingDown { false };
     QTimer _keepAlivePingTimer;

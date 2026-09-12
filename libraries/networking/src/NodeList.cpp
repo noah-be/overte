@@ -87,6 +87,7 @@ NodeList::NodeList(char newOwnerType, int socketListenPort, int dtlsListenPort) 
 
     // clear our NodeList when the domain changes
     connect(&_domainHandler, SIGNAL(disconnectedFromDomain()), this, SLOT(resetFromDomainHandler()));
+    connect(&_domainHandler, &DomainHandler::resetting, this, [this] { _domainListRequests.clear(); });
 
     // send an ICE heartbeat as soon as we get ice server information
     connect(&_domainHandler, &DomainHandler::iceSocketAndIDReceived, this, &NodeList::handleICEConnectionToDomainServer);
@@ -302,6 +303,7 @@ void NodeList::reset(QString reason, bool skipDomainHandlerReset) {
     _avatarGainMapLock.unlock();
 
     if (!skipDomainHandlerReset) {
+        _domainListRequests.clear();
         // clear the domain connection information, unless they're the ones that asked us to reset
         _domainHandler.softReset(reason);
     }
@@ -455,7 +457,8 @@ void NodeList::sendDomainServerCheckIn() {
 
         }
 
-        packetStream << quint64(duration_cast<microseconds>(system_clock::now().time_since_epoch()).count());
+        packetStream << _domainListRequests.issued(
+            quint64(duration_cast<microseconds>(system_clock::now().time_since_epoch()).count()));
 
         // pack our data to send to the domain-server including
         // the hostname information (so the domain-server can see which place name we came in on)
@@ -728,7 +731,8 @@ void NodeList::processDomainList(QSharedPointer<ReceivedMessage> message) {
 
     // Do not acknowledge a partial header or mutate connection state with it.
     if (packetStream.status() != QDataStream::Ok ||
-        (_domainHandler.isConnected() && _domainHandler.getUUID() != domainUUID)) {
+        (_domainHandler.isConnected() && _domainHandler.getUUID() != domainUUID) ||
+        !_domainListRequests.accept(connectRequestTimestamp, &connectRequestTimestamp)) {
         return;
     }
 

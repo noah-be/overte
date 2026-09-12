@@ -23,6 +23,7 @@ fixture=r'''
 #include <chrono>
 #include <cassert>
 #include <iostream>
+#include "libraries/networking/src/DomainListRequestHistory.h"
 using namespace std::chrono;
 using p_high_resolution_clock=steady_clock;
 constexpr int USECS_PER_MSEC=1000,MSECS_PER_SECOND=1000;
@@ -44,6 +45,8 @@ struct NodeList;
 NodeList* current;
 struct DependencyManager {template<class T>static T* get(){return current;}};
 struct NodeList {
+ DomainListRequestHistory _domainListRequests;
+ NodeList(){_domainListRequests.issued(456);_domainListRequests.issued(457);}
  struct Socket {void clearConnections(){}} _nodeSocket;
  Domain _domainHandler;QUuid session;Node::LocalID local=0;quint64 _nodeConnectTimestamp=0;
  enum Reason {Old,Connect};Reason _connectReason=Old;int receipts=0,adjustments=0,resets=0;bool drop=true;
@@ -56,10 +59,10 @@ struct NodeList {
 };
 /* METHOD */
 struct ServerIdentity {QUuid uuid;QUuid getSessionUUID(){return uuid;}quint16 getSessionLocalID(){return 2;}bool getAuthenticatePackets(){return true;}};
-struct ServerNodeData {quint64 getLastDomainCheckinTimestamp(){return 456;}};
-QByteArray packet(QUuid domain,QUuid session) {
+struct ServerNodeData {quint64 token;quint64 getLastDomainCheckinTimestamp(){return token;}};
+QByteArray packet(QUuid domain,QUuid session,quint64 token=456) {
  QByteArray extendedHeader;QDataStream extendedHeaderStream(&extendedHeader,QIODevice::WriteOnly);
- ServerIdentity identity{domain};auto limitedNodeList=&identity;Node n{session};auto node=&n;ServerNodeData data;auto nodeData=&data;quint64 requestPacketReceiveTime=0;bool newConnection=true;
+ ServerIdentity identity{domain};auto limitedNodeList=&identity;Node n{session};auto node=&n;ServerNodeData data{token};auto nodeData=&data;quint64 requestPacketReceiveTime=0;bool newConnection=true;
  /* PRODUCER */
  return extendedHeader;
 }
@@ -72,7 +75,14 @@ int main(int argc,char**argv){
   NodeList list;deliver(list,bytes);assert(list.session==session&&list.local==9&&list.receipts==1&&list._domainHandler.acknowledgements==1&&!list.drop);
   list._domainHandler.connected=true;list._domainHandler.uuid=domain;
   deliver(list,bytes);assert(list.resets==0&&list.receipts==2); // packet-list sibling/duplicate is valid
-  deliver(list,packet(domain,other));assert(list.resets==1&&list.session==other); // genuine server reassignment still works
+  deliver(list,packet(domain,other,457));assert(list.resets==1&&list.session==other); // genuine server reassignment still works
+ }else if(mode=="reordered") {
+  NodeList list;list._domainHandler.connected=true;list._domainHandler.uuid=domain;list.session=session;list.local=9;
+  deliver(list,packet(domain,other,457));assert(list.session==other&&list.resets==1);
+  list._domainHandler.connected=true;deliver(list,bytes);
+  assert(list.session==other&&list.resets==1&&list.receipts==1);
+ }else if(mode=="unknown") {
+  NodeList list;deliver(list,packet(domain,session,100));assert(list.receipts==0);
  }else if(mode=="sender") {
   NodeList list;deliver(list,bytes,2);assert(list.receipts==0&&list.session.isNull()&&list.adjustments==0);
  }else if(mode=="domain") {
@@ -88,9 +98,9 @@ int main(int argc,char**argv){
 flags=shlex.split(subprocess.check_output(['pkg-config','--cflags','--libs','Qt6Core'],text=True))
 with tempfile.TemporaryDirectory(prefix='overte-domain-list-') as directory:
  p=Path(directory);(p/'test.cpp').write_text(fixture.replace('/* METHOD */',method).replace('/* PRODUCER */',producer).replace('/* OPERATORS */',operators))
- subprocess.run(['c++','-std=c++17','-fPIC',str(p/'test.cpp'),'-o',str(p/'test'),*flags],check=True,timeout=30)
- for mode in ('positive','sender','domain','truncated','disconnected'):
+ subprocess.run(['c++','-std=c++17','-fPIC','-I'+str(ROOT),str(p/'test.cpp'),'-o',str(p/'test'),*flags],check=True,timeout=30)
+ for mode in ('positive','sender','domain','truncated','disconnected','reordered','unknown'):
   result=subprocess.run([str(p/'test'),mode],capture_output=True,text=True,timeout=5)
-  expected_failure=bool(baseline and mode!='positive')
+  expected_failure=bool(baseline and ((mode in ('reordered','unknown') and '_domainListRequests.accept(' not in method) or (mode in ('sender','domain','truncated','disconnected') and 'packetStream.status() != QDataStream::Ok' not in method)))
   assert (result.returncode!=0)==expected_failure,(mode,result.stderr)
   print(('EXPECTED BASELINE FAILURE' if expected_failure else 'PASS')+': '+mode)
