@@ -998,7 +998,9 @@ jobs:
             --watch build=build-ios/device \
             --watch conan="$CONAN_HOME" \
             --watch sccache="$SCCACHE_DIR" -- \
-            cmake --build build-ios/device --config Release --parallel "$(sysctl -n hw.logicalcpu)" --target Overte
+            cmake --build build-ios/device --config Release --parallel "$(sysctl -n hw.logicalcpu)" --target Overte -- \
+              DEPLOYMENT_POSTPROCESSING=NO STRIP_INSTALLED_PRODUCT=NO \
+              GCC_GENERATE_DEBUGGING_SYMBOLS=YES DEBUG_INFORMATION_FORMAT=dwarf-with-dsym
 
       - name: Verify full-client compiler checkpoint activity
         id: client-sccache-verify
