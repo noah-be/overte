@@ -15,7 +15,9 @@ struct Native:overte::ios::NativeAudioOperations {
  bool activate(bool capture,std::function<bool()> current)override{++starts;captures=capture&&current();return current();}
  bool deactivate()override{captures=false;return true;}
  overte::audio::Permission permission()override{return overte::audio::Permission::Granted;}
- void requestPermission(std::function<void(overte::audio::Permission)> done)override{done(permission());}
+ void requestPermission(std::function<bool()> current, std::function<void(overte::audio::Permission)> done)override{
+  done(current() ? permission() : overte::audio::Permission::Unknown);
+ }
 };
 #else
 struct Adapter:overte::audio::IOSAudioSessionAdapter {

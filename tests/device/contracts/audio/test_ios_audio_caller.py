@@ -10,7 +10,7 @@ class CallerTests(unittest.TestCase):
         start=self.source.split('void AudioClient::start() {',1)[1].split('void AudioClient::stop()',1)[0]
         self.assertLess(start.index('overteIOSActivateAudioSession()'),start.index('overteIOSRequestMicrophonePermission()'))
     def test_callback_queued_and_cleared_before_stop(self):
-        self.assertIn('refreshIOSAudioInput(); }, Qt::QueuedConnection)',self.source)
+        self.assertIn('refreshIOSAudioOutput();\n        }, Qt::QueuedConnection)',self.source)
         stop=self.source.split('void AudioClient::stop() {',1)[1].split('void AudioClient::handleAudioEnvironmentDataPacket',1)[0]
         self.assertLess(stop.index('setIOSAudioStateCallback({})'),stop.index('if (!_audioLifecycleRunning)'))
     def test_mute_closes_and_grant_reopens_actual_input(self):
@@ -18,6 +18,6 @@ class CallerTests(unittest.TestCase):
         self.assertIn('_isMuted || !overteIOSMicrophonePermissionGranted()',refresh)
         self.assertIn('switchInputToAudioDevice(HifiAudioDeviceInfo(), true)',refresh)
         self.assertIn('_inputRingBuffer.clear()',refresh)
-        self.assertIn('switchInputToAudioDevice(defaultAudioDeviceForMode',refresh)
+        self.assertIn('switchInputToAudioDevice(device)',refresh)
         self.assertIn('microphonePermissionGranted = !_isMuted && overteIOSMicrophonePermissionGranted()',self.source)
 if __name__ == '__main__': unittest.main()

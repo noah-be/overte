@@ -15,6 +15,10 @@ public:
     virtual void requestMicrophonePermission() = 0;
     virtual bool activate() = 0;
     virtual bool deactivate() = 0;
+    // Playback permission is independent of microphone permission/mute. A native
+    // lifecycle generation invalidates Qt devices after activation/route changes.
+    virtual bool playbackAllowed() const { return false; }
+    virtual std::uint64_t outputRevision() const { return 0; }
     // Legacy adapters stop conservatively; native implementations retain mute state.
     virtual void muted(bool value) { if (value) { deactivate(); } }
 };
@@ -32,3 +36,6 @@ bool overteIOSActivateAudioSession();
 bool overteIOSDeactivateAudioSession();
 
 void overteIOSSetAudioMuted(bool muted);
+
+bool overteIOSAudioPlaybackAllowed();
+std::uint64_t overteIOSAudioOutputRevision();

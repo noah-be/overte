@@ -496,6 +496,9 @@ private:
     bool switchInputToAudioDevice(const HifiAudioDeviceInfo inputDeviceInfo, bool isShutdownRequest = false);
 #if defined(Q_OS_IOS)
     void refreshIOSAudioInput();
+    void refreshIOSAudioOutput();
+    std::uint64_t _iosInputRevision { 0 }, _iosOutputRevision { 0 };
+    unsigned _iosOutputRecoveryAttempts { 0 };
 #endif
     bool switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDeviceInfo, bool isShutdownRequest = false);
 
