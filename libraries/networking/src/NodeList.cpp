@@ -678,6 +678,13 @@ void NodeList::processDomainServerConnectionTokenPacket(QSharedPointer<ReceivedM
 
 void NodeList::processDomainList(QSharedPointer<ReceivedMessage> message) {
 
+    // DomainList is non-sourced in the packet layer. A queued reply from a
+    // previous domain must not install its session on the current connection.
+    if (_domainHandler.getSockAddr().isNull() ||
+        message->getSenderSockAddr() != _domainHandler.getSockAddr()) {
+        return;
+    }
+
     // WEBRTC TODO: Move code into packet library.  And update reference in DomainServerList.js.
 
     // parse header information
@@ -700,10 +707,6 @@ void NodeList::processDomainList(QSharedPointer<ReceivedMessage> message) {
     // pull the permissions/right/privileges for this node out of the stream
     NodePermissions newPermissions;
     packetStream >> newPermissions;
-    // FIXME: Can remove this temporary work-around in version 2021.2.0. (New protocol version implies a domain server upgrade.)
-    // Adjust our canRezAvatarEntities permissions on older domains that do not have this setting.
-    // DomainServerList and DomainSettings packets can come in either order so need to adjust with both occurrences.
-    bool adjustedPermissions = adjustCanRezAvatarEntitiesPermissions(_domainHandler.getSettingsObject(), newPermissions, false);
 
     // Is packet authentication enabled?
     bool isAuthenticated;
@@ -723,21 +726,24 @@ void NodeList::processDomainList(QSharedPointer<ReceivedMessage> message) {
     bool newConnection;
     packetStream >> newConnection;
 
+    // Do not acknowledge a partial header or mutate connection state with it.
+    if (packetStream.status() != QDataStream::Ok ||
+        (_domainHandler.isConnected() && _domainHandler.getUUID() != domainUUID)) {
+        return;
+    }
+
+    // FIXME: Can remove this temporary work-around in version 2021.2.0. (New protocol version implies a domain server upgrade.)
+    // Adjust our canRezAvatarEntities permissions on older domains that do not have this setting.
+    // DomainServerList and DomainSettings packets can come in either order so need to adjust with both occurrences.
+    bool adjustedPermissions = adjustCanRezAvatarEntitiesPermissions(
+        _domainHandler.getSettingsObject(), newPermissions, false);
+
     if (newConnection) {
         _nodeConnectTimestamp = usecTimestampNow();
         _connectReason = Connect;
     }
 
     qint64 pingLagTime = (now - qint64(connectRequestTimestamp)) / qint64(USECS_PER_MSEC);
-
-    if (_domainHandler.getSockAddr().isNull()) {
-        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
-        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
-        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
-        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
-        // refuse to process this packet if we aren't currently connected to the DS
-        return;
-    }
 
     // warn if ping lag is getting long
     if (pingLagTime > qint64(MSECS_PER_SECOND)) {
@@ -755,15 +761,6 @@ void NodeList::processDomainList(QSharedPointer<ReceivedMessage> message) {
     emit receivedDomainServerList();
 
     DependencyManager::get<NodeList>()->flagTimeForConnectionStep(LimitedNodeList::ConnectionStep::ReceiveDSList);
-
-    if (_domainHandler.isConnected() && _domainHandler.getUUID() != domainUUID) {
-        // Received packet from different domain.
-        qWarning() << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
-        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
-        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
-        qCWarning(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
-        return;
-    }
 
     // when connected, if the session ID or local ID were not null and changed, we should reset
     auto currentLocalID = getSessionLocalID();
