@@ -87,6 +87,11 @@ void AudioInjector::finishNetworkInjection() {
 void AudioInjector::finishLocalInjection() {
     if (QThread::currentThread() != thread()) {
         QMetaObject::invokeMethod(this, "finishLocalInjection");
+        // This thread uses a condition-variable scheduler, not QThread::exec().
+        // Posting the Qt completion alone cannot wake an idle local-only mixer.
+        if (auto manager = DependencyManager::get<AudioInjectorManager>()) {
+            manager->notifyInjectorReadyCondition();
+        }
         return;
     }
 
@@ -102,13 +107,16 @@ void AudioInjector::finishLocalInjection() {
 }
 
 void AudioInjector::finish() {
+    QSharedPointer<AudioInjectorLocalBuffer> retiredBuffer;
     withWriteLock([&] {
         _state |= AudioInjectorState::LocalInjectionFinished;
         _state |= AudioInjectorState::NetworkInjectionFinished;
         _state |= AudioInjectorState::Finished;
+        retiredBuffer.swap(_localBuffer);
     });
+    // A finished receiver can restart immediately. Retire the old buffer before
+    // notifying it, without clearing the newly published buffer afterwards.
     emit finished();
-    _localBuffer = nullptr;
 }
 
 void AudioInjector::restart() {
@@ -168,14 +176,16 @@ bool AudioInjector::injectLocally() {
     if (_localAudioInterface) {
         if (_audioData->getNumBytes() > 0) {
 
-            _localBuffer = QSharedPointer<AudioInjectorLocalBuffer>(new AudioInjectorLocalBuffer(_audioData), &AudioInjectorLocalBuffer::deleteLater);
-            _localBuffer->moveToThread(thread());
+            auto buffer = QSharedPointer<AudioInjectorLocalBuffer>(new AudioInjectorLocalBuffer(_audioData), &AudioInjectorLocalBuffer::deleteLater);
+            buffer->moveToThread(thread());
 
-            _localBuffer->open(QIODevice::ReadOnly);
-            _localBuffer->setShouldLoop(_options.loop);
+            buffer->open(QIODevice::ReadOnly);
+            buffer->setShouldLoop(getOptions().loop);
 
-            // give our current send position to the local buffer
-            _localBuffer->setCurrentOffset(_currentSendOffset);
+            // Publish only a fully initialized buffer. The mixer copies the
+            // same shared pointer under the injector's read lock.
+            buffer->setCurrentOffset(_currentSendOffset);
+            withWriteLock([&] { buffer.swap(_localBuffer); });
 
             // call this function on the AudioClient's thread
             // this will move the local buffer's thread to the LocalInjectorThread

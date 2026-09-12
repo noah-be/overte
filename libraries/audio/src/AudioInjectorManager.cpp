@@ -27,21 +27,18 @@
 AudioInjectorManager::~AudioInjectorManager() {
     _shouldStop = true;
 
-    Lock lock(_injectorsMutex);
-
-    // make sure any still living injectors are stopped and deleted
-    while (!_injectors.empty()) {
-        // grab the injector at the front
-        auto& timePointerPair = _injectors.top();
-
-        // ask it to stop and be deleted
-        timePointerPair.second->finish();
-
-        _injectors.pop();
+    InjectorQueue retired;
+    {
+        Lock lock(_injectorsMutex);
+        retired.swap(_injectors);
     }
-
-    // get rid of the lock now that we've stopped all living injectors
-    lock.unlock();
+    // finished receivers can enqueue controls and take _injectorsMutex. Do not
+    // emit them while holding the scheduler lock during teardown.
+    while (!retired.empty()) {
+        auto injector = retired.top().second;
+        retired.pop();
+        injector->finish();
+    }
 
     // in case the thread is waiting for injectors wake it up now
     _injectorReady.notify_one();
@@ -85,7 +82,7 @@ void AudioInjectorManager::run() {
             auto nextTimestamp = timeInjectorPair.first;
             int64_t difference = int64_t(nextTimestamp - usecTimestampNow());
 
-            if (difference > 0) {
+            if (difference > 0 && !_pendingEvents && !_shouldStop) {
                 _injectorReady.wait_for(lock, std::chrono::microseconds(difference));
             }
 
@@ -131,15 +128,29 @@ void AudioInjectorManager::run() {
             }
 
         } else {
-            // we have no current injectors, wait until we get at least one before we do anything
-            _injectorReady.wait(lock);
+            // Qt control/completion events also require service when there are
+            // no network injectors. Remember notifications that precede wait().
+            _injectorReady.wait(lock, [this] {
+                return _shouldStop || _pendingEvents || !_injectors.empty();
+            });
         }
 
+        // Clear under the same lock used by producers. A later posted event
+        // leaves the flag set for the next turn even if its notify arrives early.
+        _pendingEvents = false;
         // unlock the lock in case something in process events needs to modify the queue
         lock.unlock();
 
         QCoreApplication::processEvents();
     }
+}
+
+void AudioInjectorManager::notifyInjectorReadyCondition() {
+    {
+        Lock lock(_injectorsMutex);
+        _pendingEvents = true;
+    }
+    _injectorReady.notify_one();
 }
 
 static const int MAX_INJECTORS_PER_THREAD = 40; // calculated based on AudioInjector time to send frame, with sufficient padding
@@ -284,7 +295,7 @@ void AudioInjectorManager::setOptionsAndRestart(const AudioInjectorPointer& inje
 
     if (QThread::currentThread() != _thread) {
         QMetaObject::invokeMethod(this, "setOptionsAndRestart", Q_ARG(const AudioInjectorPointer&, injector), Q_ARG(const AudioInjectorOptions&, options));
-        _injectorReady.notify_one();
+        notifyInjectorReadyCondition();
         return;
     }
 
@@ -299,7 +310,7 @@ void AudioInjectorManager::restart(const AudioInjectorPointer& injector) {
 
     if (QThread::currentThread() != _thread) {
         QMetaObject::invokeMethod(this, "restart", Q_ARG(const AudioInjectorPointer&, injector));
-        _injectorReady.notify_one();
+        notifyInjectorReadyCondition();
         return;
     }
 
@@ -313,7 +324,7 @@ void AudioInjectorManager::setOptions(const AudioInjectorPointer& injector, cons
 
     if (QThread::currentThread() != _thread) {
         QMetaObject::invokeMethod(this, "setOptions", Q_ARG(const AudioInjectorPointer&, injector), Q_ARG(const AudioInjectorOptions&, options));
-        _injectorReady.notify_one();
+        notifyInjectorReadyCondition();
         return;
     }
 
@@ -351,7 +362,7 @@ void AudioInjectorManager::stop(const AudioInjectorPointer& injector) {
 
     if (QThread::currentThread() != _thread) {
         QMetaObject::invokeMethod(this, "stop", Q_ARG(const AudioInjectorPointer&, injector));
-        _injectorReady.notify_one();
+        notifyInjectorReadyCondition();
         return;
     }
 
