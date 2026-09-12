@@ -121,6 +121,37 @@ class PatchTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 patch.verify(prefix)
 
+    def test_framework_binary_is_distinct_from_umbrella_header(self):
+        for versioned in (False, True):
+            with self.subTest(versioned=versioned), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory); self.source_tree(root); patch.apply(root)
+                prefix = root / 'sdk'
+                framework = prefix / 'lib/QtCore.framework'
+                installed = framework / 'Versions/A' if versioned else framework
+                (installed / 'Headers').mkdir(parents=True)
+                (installed / 'Headers/QtCore').write_text('#include <QtCore/QtCoreDepends>\n')
+                archive = installed / 'QtCore'; archive.write_bytes(b'!<arch>\nfixture')
+                if versioned:
+                    (framework / 'Versions/Current').symlink_to('A')
+                    (framework / 'QtCore').symlink_to('Versions/Current/QtCore')
+                    (framework / 'Headers').symlink_to('Versions/Current/Headers')
+                (prefix / '.overte-qt-ios-plan-id').write_text(
+                    'qt-6.11.1-mutex-' + patch.digest(patch.PATCH))
+                receipt = patch.seal(root, prefix)
+                self.assertEqual(receipt['qtCore'], {
+                    str(archive.relative_to(prefix)): patch.digest(archive)})
+                patch.verify(prefix)
+                archive.write_bytes(b'not a static archive')
+                with self.assertRaises(ValueError):
+                    patch.verify(prefix)
+                archive.unlink()
+                with self.assertRaisesRegex(ValueError, 'missing'):
+                    patch.seal(root, prefix)
+                outside = root / 'outside.a'; outside.write_bytes(b'!<arch>\nfixture')
+                archive.symlink_to(outside)
+                with self.assertRaises(ValueError):
+                    patch.seal(root, prefix)
+
     def test_actual_pool_interleaving_and_stress(self):
         flags = shlex.split(subprocess.check_output(
             ['pkg-config', '--cflags', '--libs', 'Qt6Core'], text=True))

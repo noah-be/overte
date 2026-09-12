@@ -132,6 +132,9 @@ jobs:
             echo "host_artifact_prefix=overte-qt-host-checkpoint-v1-${host_artifact_hash}"
             echo "ios_artifact_prefix=overte-qt-ios-checkpoint-v1-${ios_artifact_hash}"
             echo "sccache_prefix=overte-qt-sccache-v2-${ios_base}-"
+            # Compiler entries validate their own source/flags hashes. A receipt
+            # checker change must not strand compatible compiled objects.
+            echo "sccache_toolchain_prefix=overte-qt-sccache-v2-${RUNNER_ARCH}-xcode-${xcode_build}-${target_sdk}-${sdk_version}-"
             echo "sccache_legacy_prefix=overte-qt-sccache-v2-${RUNNER_ARCH}-xcode-${xcode_build}-${target_sdk}-${sdk_version}-${legacy_ios_plan_hash}-"
             echo "sccache_prune_prefix=overte-qt-sccache-v2-${RUNNER_ARCH}-"
           } >> "$GITHUB_OUTPUT"
@@ -322,6 +325,7 @@ jobs:
           key: ${{ steps.cache-key.outputs.sccache_prefix }}${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             ${{ steps.cache-key.outputs.sccache_prefix }}
+            ${{ steps.cache-key.outputs.sccache_toolchain_prefix }}
             ${{ steps.cache-key.outputs.sccache_legacy_prefix }}
 
       - name: Build Qt host tools

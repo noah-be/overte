@@ -39,9 +39,16 @@ def apply(root):
 
 def core_binaries(prefix):
     # Qt static builds can install either a library or a framework archive.
+    # Headers/QtCore is an umbrella header, not the framework executable.
+    def is_archive_path(path):
+        return path.name == 'libQt6Core.a' or (
+            path.name == 'QtCore' and (
+                path.parent.name == 'QtCore.framework' or
+                (path.parent.parent.name == 'Versions' and
+                 path.parent.parent.parent.name == 'QtCore.framework')))
+
     candidates = sorted({p.resolve() for p in (prefix / 'lib').rglob('*')
-                         if p.is_file() and (p.name == 'libQt6Core.a' or
-                            (p.name == 'QtCore' and '.framework' in str(p)))})
+                         if p.is_file() and is_archive_path(p)})
     if not candidates:
         raise ValueError('Installed QtCore archive is missing')
     result = {}
