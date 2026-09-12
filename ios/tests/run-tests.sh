@@ -71,6 +71,11 @@ python3 "$script_dir/interface-ios-window-platform-test.py"
 python3 "$script_dir/ios-avatar-viewpoint-physics-contract-test.py"
 python3 "$script_dir/ios-touch-ui-adapter-contract-test.py"
 python3 "$script_dir/shared-ios-desktop-api-isolation-test.py"
+if command -v pkg-config >/dev/null && pkg-config --exists Qt6Core; then
+    python3 "$script_dir/../../tests/device/contracts/lifecycle/test_v8_wrapper_teardown.py"
+else
+    echo "SKIP executable wrapper teardown test: host Qt6Core unavailable"
+fi
 
 # Native renderer source/CMake contracts. Keep this list alphabetical so graph
 # drift is reviewable and every contract runs exactly once in the host suite.
