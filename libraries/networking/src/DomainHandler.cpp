@@ -170,6 +170,9 @@ void DomainHandler::resolveIceHostname() {
 }
 
 void DomainHandler::hardReset(QString reason) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    _navigationScope.next();
+#endif
     _discoveryScope.next(); // Domain changes also invalidate queued visibility work.
     _hostnameLookup.cancel();
     _iceHostnameLookup.cancel();

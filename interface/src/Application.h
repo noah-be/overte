@@ -19,6 +19,9 @@
 #include <deque>
 #include <functional>
 #include <memory>
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include <RequestCancellation.h>
+#endif
 
 #include <AbstractScriptingServicesInterface.h>
 #include <AbstractUriHandler.h>
@@ -609,6 +612,14 @@ private slots:
     void setShowTrackedObjects(bool value) { _showTrackedObjects = value; }
 
 private:
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    void domainURLChangedWithTicket(QUrl domainURL, const overte::network::RequestTicket& navigationTicket);
+    void loadServerlessDomainWithTicket(QUrl domainURL, const overte::network::RequestTicket& navigationTicket);
+    bool prepareServerlessDomainContentsWithTicket(const QUrl& domainURL, const QByteArray& data,
+        std::map<QString, QString>& namedPaths, const overte::network::RequestTicket& navigationTicket,
+        const overte::network::RequestTicket& loadTicket);
+    overte::network::RequestScope _phoneServerlessLoadRequests;
+#endif
     friend class Menu;
     void beginEntityScriptConsentReview();
     void invalidateEntityScriptConsent();

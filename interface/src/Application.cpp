@@ -177,6 +177,9 @@ static AppNapDisabler appNapDisabler;   // disabled, while in scope
 #endif
 
 #include <PhoneLoadingDiagnostics.h>
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include <QPointer>
+#endif
 #if defined(Q_OS_ANDROID)
 #include "AndroidStartupUrlPolicy.h"
 #include "AndroidHelper.h"
@@ -1120,6 +1123,20 @@ void Application::setIsServerlessMode(bool serverlessDomain) {
 
 bool Application::prepareServerlessDomainContents(const QUrl& domainURL, const QByteArray& data,
                                                    std::map<QString, QString>& namedPaths) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    return prepareServerlessDomainContentsWithTicket(domainURL, data, namedPaths,
+        DependencyManager::get<NodeList>()->getDomainHandler().snapshotNavigationTicket(),
+        _phoneServerlessLoadRequests.snapshot());
+}
+
+bool Application::prepareServerlessDomainContentsWithTicket(const QUrl& domainURL, const QByteArray& data,
+        std::map<QString, QString>& namedPaths, const overte::network::RequestTicket& navigationTicket,
+        const overte::network::RequestTicket& loadTicket) {
+    if (!navigationTicket.scoped() || !navigationTicket.current() || !loadTicket.scoped() || !loadTicket.current()) {
+        PHONE_LOADING("phase=serverless_stale stage=prepare");
+        return false;
+    }
+#endif
     // FIXME: Lock the main tree and import directly into it.
     EntityTreePointer tmpTree(std::make_shared<EntityTree>());
     tmpTree->setIsServerlessMode(true);
@@ -1132,6 +1149,16 @@ bool Application::prepareServerlessDomainContents(const QUrl& domainURL, const Q
         return false;
     }
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Parsing can overlap a domain reset on the networking thread. Reject the
+    // old scene before it changes the session, permissions or live entity tree.
+    if (!navigationTicket.current() || !loadTicket.current()) {
+        tmpTree->eraseAllOctreeElements(false);
+        namedPaths.clear();
+        PHONE_LOADING("phase=serverless_stale stage=parsed");
+        return false;
+    }
+#endif
     const QUuid serverlessSessionID = QUuid::createUuid();
     myAvatar->setSessionUUID(serverlessSessionID);
     auto nodeList = DependencyManager::get<NodeList>();
@@ -1155,15 +1182,42 @@ bool Application::prepareServerlessDomainContents(const QUrl& domainURL, const Q
 }
 
 void Application::loadServerlessDomain(QUrl domainURL) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Direct callers represent a new load now; signal deliveries instead pass
+    // the ticket captured at their original emission into the overload below.
+    loadServerlessDomainWithTicket(domainURL,
+        DependencyManager::get<NodeList>()->getDomainHandler().snapshotNavigationTicket());
+}
+
+void Application::loadServerlessDomainWithTicket(QUrl domainURL,
+        const overte::network::RequestTicket& navigationTicket) {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, [this, domainURL, navigationTicket] {
+            loadServerlessDomainWithTicket(domainURL, navigationTicket);
+        }, Qt::QueuedConnection);
+        return;
+    }
+    if (!navigationTicket.scoped() || !navigationTicket.current() ||
+            !_phoneServerlessLoadRequests.snapshot().current()) {
+        PHONE_LOADING("phase=serverless_stale stage=request");
+        return;
+    }
+#else
     if (QThread::currentThread() != thread()) {
         QMetaObject::invokeMethod(this, "loadServerlessDomain", Q_ARG(QUrl, domainURL));
         return;
     }
+#endif
 
     // Resource requests may complete out of order when navigation changes
     // quickly. Only the newest requested destination may mutate the entity
     // tree, session, permissions, or DomainHandler state. An empty destination
     // is also a navigation/reset boundary and must retire an in-flight request.
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Also retire a pending owner-thread handoff when a direct local reload
+    // replaces this request without changing the DomainHandler destination.
+    const auto loadTicket = _phoneServerlessLoadRequests.next();
+#endif
     const quint64 requestGeneration = ++_serverlessDomainRequestGeneration;
 #if defined(ANDROID_APP_PHONE_INTERFACE)
     __android_log_print(ANDROID_LOG_INFO, "OvertePhoneRuntime",
@@ -1254,6 +1308,11 @@ void Application::loadServerlessDomain(QUrl domainURL) {
 
     connect(request, &ResourceRequest::finished, this, [=, this]() {
 #if defined(ANDROID_APP_PHONE_INTERFACE)
+        if (!navigationTicket.current() || !loadTicket.current()) {
+            PHONE_LOADING("phase=serverless_stale stage=result");
+            request->deleteLater();
+            return;
+        }
         __android_log_print(ANDROID_LOG_INFO, "OvertePhoneRuntime",
             "world_result code=%d bytes=%d current=%d", static_cast<int>(request->getResult()),
             request->getData().size(), requestGeneration == _serverlessDomainRequestGeneration);
@@ -1273,9 +1332,16 @@ void Application::loadServerlessDomain(QUrl domainURL) {
             _picoServerlessSceneURL = domainURL;
             _picoServerlessSceneImportInProgress = true;
 #endif
-            if (!prepareServerlessDomainContents(domainURL, request->getData(), namedPaths)) {
 #if defined(ANDROID_APP_PHONE_INTERFACE)
-                __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "world_parse_ok=0");
+            const bool prepared = prepareServerlessDomainContentsWithTicket(domainURL, request->getData(), namedPaths, navigationTicket, loadTicket);
+#else
+            const bool prepared = prepareServerlessDomainContents(domainURL, request->getData(), namedPaths);
+#endif
+            if (!prepared) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+                if (navigationTicket.current() && loadTicket.current()) {
+                    __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "world_parse_ok=0");
+                }
 #endif
 #if defined(ANDROID_APP_PICO_INTERFACE)
                 _picoServerlessSceneURL = QUrl();
@@ -1291,6 +1357,35 @@ void Application::loadServerlessDomain(QUrl domainURL) {
             __android_log_write(ANDROID_LOG_INFO, "OvertePhoneRuntime", "world_parse_ok=1");
 #endif
             auto nodeList = DependencyManager::get<NodeList>();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+            // Serialize the final connected flag with hardReset on its owner
+            // thread. A check on this thread alone would leave a check/use race.
+            QPointer<Application> application(this);
+            QMetaObject::invokeMethod(&nodeList->getDomainHandler(),
+                [application, nodeList, namedPaths, navigationTicket, loadTicket, requestGeneration] {
+                    if (!navigationTicket.current() || !loadTicket.current()) {
+                        PHONE_LOADING("phase=serverless_stale stage=handoff");
+                        return;
+                    }
+                    if (!application) { return; }
+                    auto& handler = nodeList->getDomainHandler();
+                    PHONE_LOADING("phase=serverless_handoff online=%d serverless=%d uuid_present=%d",
+                        handler.getScheme() == URL_SCHEME_OVERTE ? 1 : 0,
+                        handler.isServerless() ? 1 : 0, handler.getUUID().isNull() ? 0 : 1);
+                    handler.connectedToServerless(namedPaths);
+                    QMetaObject::invokeMethod(application.data(), [application, navigationTicket, loadTicket, requestGeneration] {
+                        if (!application) { return; }
+                        if (!navigationTicket.current() || !loadTicket.current() ||
+                                requestGeneration != application->_serverlessDomainRequestGeneration) {
+                            PHONE_LOADING("phase=serverless_stale stage=ack");
+                            return;
+                        }
+                        application->setIsServerlessMode(true);
+                        application->_octreeProcessor->getFullSceneReceivedCounter()++;
+                        PHONE_LOADING("phase=serverless_committed");
+                    }, Qt::QueuedConnection);
+                }, Qt::QueuedConnection);
+#else
             nodeList->getDomainHandler().connectedToServerless(namedPaths);
             // connectedToServerless() emits the domain transition that clears
             // the old Octree and marks it as waiting for its new serverless
@@ -1299,6 +1394,7 @@ void Application::loadServerlessDomain(QUrl domainURL) {
             // RECEIVING_WORLD indefinitely.
             setIsServerlessMode(true);
             _octreeProcessor->getFullSceneReceivedCounter()++;
+#endif
 #if defined(ANDROID_APP_PICO_INTERFACE)
             _picoServerlessSceneURL = domainURL;
             _picoServerlessSceneImportCommitted = true;
@@ -1907,6 +2003,19 @@ void Application::setSessionUUID(const QUuid& sessionUUID) const {
 }
 
 void Application::domainURLChanged(QUrl domainURL) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    domainURLChangedWithTicket(domainURL,
+        DependencyManager::get<NodeList>()->getDomainHandler().snapshotNavigationTicket());
+}
+
+void Application::domainURLChangedWithTicket(QUrl domainURL,
+        const overte::network::RequestTicket& navigationTicket) {
+    if (!navigationTicket.scoped() || !navigationTicket.current() ||
+            !_phoneServerlessLoadRequests.snapshot().current()) {
+        PHONE_LOADING("phase=serverless_stale stage=delivery");
+        return;
+    }
+#endif
     // An online navigation does not call loadServerlessDomain(), so it must
     // explicitly invalidate any older local/HTTP/ATP scene request.
     if (domainURL.scheme() == URL_SCHEME_OVERTE) {
@@ -1988,7 +2097,11 @@ void Application::domainURLChanged(QUrl domainURL) {
     // disable physics until we have enough information about our new location to not cause craziness.
     setIsServerlessMode(domainURL.scheme() != URL_SCHEME_OVERTE);
     if (isServerlessMode()) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        loadServerlessDomainWithTicket(domainURL, navigationTicket);
+#else
         loadServerlessDomain(domainURL);
+#endif
     }
     updateWindowTitle();
 }
@@ -2399,6 +2512,10 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
 }
 
 void Application::cleanupBeforeQuit() {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Retire queued scene commits before disconnecting and tearing down the UI.
+    _phoneServerlessLoadRequests.setActive(false);
+#endif
     invalidateEntityScriptConsent();
     // add a logline indicating if QTWEBENGINE_REMOTE_DEBUGGING is set or not
     QString webengineRemoteDebugging = QProcessEnvironment::systemEnvironment().value("QTWEBENGINE_REMOTE_DEBUGGING", "false");

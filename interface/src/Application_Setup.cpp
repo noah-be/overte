@@ -1845,7 +1845,19 @@ void Application::setupSignalsAndOperators() {
             domainCheckInTimer->deleteLater();
         });
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        connect(&domainHandler, &DomainHandler::domainURLChanged, this, [this, &domainHandler](QUrl domainURL) {
+            const auto navigationTicket = domainHandler.snapshotNavigationTicket();
+            PHONE_LOADING("phase=domain_navigation online=%d serverless=%d uuid_present=%d",
+                domainURL.scheme() == URL_SCHEME_OVERTE ? 1 : 0,
+                domainHandler.isServerless() ? 1 : 0, domainHandler.getUUID().isNull() ? 0 : 1);
+            QMetaObject::invokeMethod(this, [this, domainURL, navigationTicket] {
+                domainURLChangedWithTicket(domainURL, navigationTicket);
+            }, Qt::QueuedConnection);
+        }, Qt::DirectConnection);
+#else
         connect(&domainHandler, SIGNAL(domainURLChanged(QUrl)), SLOT(domainURLChanged(QUrl)));
+#endif
         connect(&domainHandler, SIGNAL(redirectToErrorDomainURL(QUrl)), SLOT(goToErrorDomainURL(QUrl)));
         connect(&domainHandler, &DomainHandler::domainURLChanged, [](QUrl domainURL){
             auto &ch = CrashHandler::getInstance();
