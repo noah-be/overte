@@ -351,6 +351,7 @@ Application::Application(
     _cameraClippingEnabled("cameraClippingEnabled", false)
 {
 #ifdef Q_OS_ANDROID
+    PHONE_LOADING("phase=startup_step step=constructor_body elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
     // Queued networking signals use the standard-library spelling. Qt knows
     // quint64, but requires this exact name when resolving uint64_t signals.
     qRegisterMetaType<uint64_t>("uint64_t");
@@ -372,6 +373,7 @@ Application::Application(
     qInfo() << "Loaded Android system CA certificates:" << androidSystemCAs.size();
 #endif
 
+    PHONE_LOADING("phase=startup_step step=certificates_done elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
     setProperty(hifi::properties::CRASHED, _previousSessionCrashed);
 
     LogHandler::getInstance().moveToThread(thread());

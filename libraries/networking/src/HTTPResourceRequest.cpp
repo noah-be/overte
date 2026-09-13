@@ -19,6 +19,10 @@
 
 #include <SharedUtil.h>
 #include <StatTracker.h>
+#include <PhoneLoadingDiagnostics.h>
+#include <QElapsedTimer>
+#include <QCryptographicHash>
+#include <atomic>
 
 #include "NetworkAccessManager.h"
 #include "NetworkLogging.h"
@@ -82,6 +86,28 @@ void HTTPResourceRequest::doSend() {
     networkRequest.setAttribute(QNetworkRequest::HttpPipeliningAllowedAttribute, false);
 
     _reply = NetworkAccessManager::getInstance().get(networkRequest);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (phoneLoadingDiagnosticsEnabled()) {
+        static std::atomic<quint64> nextId { 0 };
+        const auto id = ++nextId;
+        const auto hash = QCryptographicHash::hash(_url.toEncoded(), QCryptographicHash::Md5).toHex();
+        QElapsedTimer elapsed;
+        elapsed.start();
+        PHONE_LOADING("phase=http_start id=%llu url_hash=%s range=%d from=%lld to=%lld cache_allowed=%d",
+            (unsigned long long)id, hash.constData(), _byteRange.isSet() ? 1 : 0,
+            (long long)_byteRange.fromInclusive, (long long)_byteRange.toExclusive, _cacheEnabled ? 1 : 0);
+        // Observe before onRequestFinished consumes/deletes the reply. No URL,
+        // response body, credentials or endpoint selector is logged.
+        connect(_reply, &QNetworkReply::finished, this, [reply = _reply, elapsed, id] {
+            PHONE_LOADING("phase=http_end id=%llu ms=%lld cached=%d status=%d error=%d bytes=%lld",
+                (unsigned long long)id, (long long)elapsed.elapsed(),
+                reply->attribute(QNetworkRequest::SourceIsFromCacheAttribute).toBool() ? 1 : 0,
+                reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt(),
+                (int)reply->error(), (long long)reply->bytesAvailable());
+        });
+    }
+#endif
+
     
     connect(_reply, &QNetworkReply::finished, this, &HTTPResourceRequest::onRequestFinished);
     connect(_reply, &QNetworkReply::downloadProgress, this, &HTTPResourceRequest::onDownloadProgress);

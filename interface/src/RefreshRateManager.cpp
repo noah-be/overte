@@ -16,6 +16,8 @@
 #include "metrics/NativeMetrics.h"
 
 #include <array>
+#include <algorithm>
+#include <PhoneLoadingDiagnostics.h>
 #include <ScriptEngineCast.h>
 #include <ScriptManager.h>
 
@@ -261,12 +263,21 @@ int RefreshRateManager::queryRefreshRateTarget(RefreshRateProfile profile, Refre
         targetRefreshRate = overte::metrics::iosFrameLimit(targetRefreshRate, overte::metrics::latestNativeSample());
 #endif
     }
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (uxMode == RefreshRateManager::UXMode::DESKTOP && phoneLoadingDiagnosticsEnabled()) {
+        char limit[PROP_VALUE_MAX] {};
+        if (__system_property_get("debug.overte.loading.fps", limit) == 2 && limit[0] == '3' && limit[1] == '0') {
+            targetRefreshRate = std::min(targetRefreshRate, 30);
+        }
+    }
+#endif
     return targetRefreshRate;
 }
 
 void RefreshRateManager::updateRefreshRateController() const {
     if (_refreshRateOperator) {
         int targetRefreshRate = queryRefreshRateTarget(_refreshRateProfile, _refreshRateRegime, _uxMode);
+        PHONE_LOADING("phase=frame_limit effective=%d profile=%d regime=%d", targetRefreshRate, (int)_refreshRateProfile, (int)_refreshRateRegime);
         _refreshRateOperator(targetRefreshRate);
         _activeRefreshRate = targetRefreshRate;
     }

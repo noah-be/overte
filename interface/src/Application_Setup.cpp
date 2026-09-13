@@ -314,6 +314,10 @@ static bool picoE2eInputMappingOverrideActive() {
 #else
 #endif
 bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted) {
+    QElapsedTimer essentialsTimer; essentialsTimer.start();
+    auto markEssential = [&](const char* name) {
+        PHONE_LOADING("phase=essential_step step=%s elapsed_ms=%lld", name, (long long)essentialsTimer.elapsed());
+    };
     const int listenPort = parser.isSet("listenPort") ? parser.value("listenPort").toInt() : INVALID_PORT;
 
     bool suppressPrompt = parser.isSet("suppress-settings-reset");
@@ -418,6 +422,7 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     }
 
     DependencyManager::set<ScriptInitializers>();
+    markEssential("scriptinitializers");
 
     // Tell the plugin manager about our statically linked plugins
     auto pluginManager = PluginManager::getInstance();
@@ -439,87 +444,151 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
 
     // Set dependencies
     DependencyManager::set<PickManager>();
+    markEssential("pickmanager");
     DependencyManager::set<PointerManager>();
+    markEssential("pointermanager");
     DependencyManager::set<RayPickScriptingInterface>();
+    markEssential("raypickscriptinginterface");
     DependencyManager::set<PointerScriptingInterface>();
+    markEssential("pointerscriptinginterface");
     DependencyManager::set<PickScriptingInterface>();
+    markEssential("pickscriptinginterface");
     DependencyManager::set<Cursor::Manager>();
+    markEssential("cursor__manager");
     DependencyManager::set<VirtualPad::Manager>();
+    markEssential("virtualpad__manager");
     DependencyManager::set<DesktopPreviewProvider>();
+    markEssential("desktoppreviewprovider");
 #if defined(OVERTE_PICO_SETUP)
 #if defined(Q_OS_ANDROID)
     if (!AccountManager::installProtectedAccountStore(overte::pico::protectedAccountStore())) {
         qWarning("OVT_STORAGE_UNAVAILABLE");
     }
     DependencyManager::set<AccountManager>(true); // use the default user agent getter
+    markEssential("accountmanager");
 #else
     DependencyManager::set<AccountManager>(true, std::bind(&Application::getUserAgent, qApp));
+    markEssential("accountmanager");
 #endif
 #else
 #if defined(Q_OS_ANDROID)
     DependencyManager::set<AccountManager>(true); // use the default user agent getter
+    markEssential("accountmanager");
 #else
     DependencyManager::set<AccountManager>(true, std::bind(&Application::getUserAgent, qApp));
+    markEssential("accountmanager");
 #endif
 #endif
     DependencyManager::set<DomainAccountManager>();
+    markEssential("domainaccountmanager");
     DependencyManager::set<StatTracker>();
+    markEssential("stattracker");
     DependencyManager::set<ScriptEngines>(ScriptManager::CLIENT_SCRIPT, defaultScriptsOverrideOption);
+    markEssential("scriptengines");
     DependencyManager::set<Preferences>();
+    markEssential("preferences");
     DependencyManager::set<recording::Deck>();
+    markEssential("recording__deck");
     DependencyManager::set<recording::Recorder>();
+    markEssential("recording__recorder");
     DependencyManager::set<AddressManager>();
+    markEssential("addressmanager");
     DependencyManager::set<NodeList>(NodeType::Agent, listenPort);
+    markEssential("nodelist");
     overte::lifecycle::observeQtVisibility(QGuiApplication::applicationState() == Qt::ApplicationActive);
     DependencyManager::set<recording::ClipCache>();
+    markEssential("recording__clipcache");
     DependencyManager::set<GeometryCache>();
+    markEssential("geometrycache");
     DependencyManager::set<ModelFormatRegistry>(); // ModelFormatRegistry must be defined before ModelCache. See the ModelCache constructor.
+    markEssential("modelformatregistry");
     DependencyManager::set<ModelCache>();
+    markEssential("modelcache");
     DependencyManager::set<ModelCacheScriptingInterface>();
+    markEssential("modelcachescriptinginterface");
     DependencyManager::set<ScriptCache>();
+    markEssential("scriptcache");
     DependencyManager::set<SoundCache>();
+    markEssential("soundcache");
     DependencyManager::set<SoundCacheScriptingInterface>();
+    markEssential("soundcachescriptinginterface");
     DependencyManager::set<AudioClient>();
+    markEssential("audioclient");
     DependencyManager::set<AudioScope>();
+    markEssential("audioscope");
     DependencyManager::set<DeferredLightingEffect>();
+    markEssential("deferredlightingeffect");
     DependencyManager::set<TextureCache>();
+    markEssential("texturecache");
     DependencyManager::set<MaterialCache>();
+    markEssential("materialcache");
     DependencyManager::set<TextureCacheScriptingInterface>();
+    markEssential("texturecachescriptinginterface");
     DependencyManager::set<MaterialCacheScriptingInterface>();
+    markEssential("materialcachescriptinginterface");
     DependencyManager::set<FramebufferCache>();
+    markEssential("framebuffercache");
     DependencyManager::set<AnimationCache>();
+    markEssential("animationcache");
     DependencyManager::set<AnimationCacheScriptingInterface>();
+    markEssential("animationcachescriptinginterface");
     DependencyManager::set<ModelBlender>();
+    markEssential("modelblender");
     DependencyManager::set<UsersScriptingInterface>();
+    markEssential("usersscriptinginterface");
     DependencyManager::set<AvatarManager>();
+    markEssential("avatarmanager");
     DependencyManager::set<LODManager>();
+    markEssential("lodmanager");
     DependencyManager::set<StandAloneJSConsole>();
+    markEssential("standalonejsconsole");
     DependencyManager::set<DialogsManager>();
+    markEssential("dialogsmanager");
     DependencyManager::set<ResourceCacheSharedItems>();
+    markEssential("resourcecacheshareditems");
     DependencyManager::set<DesktopScriptingInterface>();
+    markEssential("desktopscriptinginterface");
     DependencyManager::set<EntityScriptingInterface>(true);
+    markEssential("entityscriptinginterface");
     DependencyManager::set<GraphicsScriptingInterface>();
+    markEssential("graphicsscriptinginterface");
     DependencyManager::set<OSCScriptingInterface>();
+    markEssential("oscscriptinginterface");
     DependencyManager::registerInheritance<scriptable::ModelProviderFactory, ApplicationMeshProvider>();
     DependencyManager::set<ApplicationMeshProvider>();
+    markEssential("applicationmeshprovider");
     DependencyManager::set<RecordingScriptingInterface>();
+    markEssential("recordingscriptinginterface");
     DependencyManager::set<WindowScriptingInterface>();
+    markEssential("windowscriptinginterface");
     DependencyManager::set<HMDScriptingInterface>();
+    markEssential("hmdscriptinginterface");
     DependencyManager::set<ResourceScriptingInterface>();
+    markEssential("resourcescriptinginterface");
     DependencyManager::set<TabletScriptingInterface>();
+    markEssential("tabletscriptinginterface");
     DependencyManager::set<InputConfiguration>();
+    markEssential("inputconfiguration");
     DependencyManager::set<ToolbarScriptingInterface>();
+    markEssential("toolbarscriptinginterface");
     DependencyManager::set<UserActivityLoggerScriptingInterface>();
+    markEssential("useractivityloggerscriptinginterface");
     DependencyManager::set<AssetMappingsScriptingInterface>();
+    markEssential("assetmappingsscriptinginterface");
     DependencyManager::set<DomainConnectionModel>();
+    markEssential("domainconnectionmodel");
 
 #if defined(Q_OS_MAC) || defined(Q_OS_WIN)
     DependencyManager::set<SpeechRecognizer>();
+    markEssential("speechrecognizer");
 #endif
     DependencyManager::set<DiscoverabilityManager>();
+    markEssential("discoverabilitymanager");
     DependencyManager::set<SceneScriptingInterface>();
+    markEssential("scenescriptinginterface");
 #if !defined(DISABLE_QML)
     DependencyManager::set<OffscreenUi>();
+    markEssential("offscreenui");
     {
         auto window = DependencyManager::get<OffscreenUi>()->getWindow();
         auto desktopScriptingInterface = DependencyManager::get<DesktopScriptingInterface>();
@@ -538,39 +607,65 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     }
 #endif
     DependencyManager::set<Midi>();
+    markEssential("midi");
     DependencyManager::set<PathUtils>();
+    markEssential("pathutils");
     DependencyManager::set<InterfaceDynamicFactory>();
+    markEssential("interfacedynamicfactory");
     DependencyManager::set<AudioInjectorManager>();
+    markEssential("audioinjectormanager");
     DependencyManager::set<MessagesClient>();
+    markEssential("messagesclient");
     controller::StateController::setStateVariables({ { STATE_IN_HMD, STATE_CAMERA_FULL_SCREEN_MIRROR,
                     STATE_CAMERA_FIRST_PERSON, STATE_CAMERA_FIRST_PERSON_LOOK_AT, STATE_CAMERA_THIRD_PERSON,
                     STATE_CAMERA_ENTITY, STATE_CAMERA_INDEPENDENT, STATE_CAMERA_LOOK_AT, STATE_CAMERA_SELFIE, STATE_CAPTURE_MOUSE,
                     STATE_SNAP_TURN, STATE_ADVANCED_MOVEMENT_CONTROLS, STATE_GROUNDED, STATE_NAV_FOCUSED,
                     STATE_PLATFORM_WINDOWS, STATE_PLATFORM_MAC, STATE_PLATFORM_ANDROID, STATE_LEFT_HAND_DOMINANT, STATE_RIGHT_HAND_DOMINANT, STATE_STRAFE_ENABLED } });
     DependencyManager::set<UserInputMapper>();
+    markEssential("userinputmapper");
     DependencyManager::set<controller::ScriptingInterface, ControllerScriptingInterface>();
+    markEssential("controller__scriptinginterface__controllerscriptinginterface");
     DependencyManager::set<InterfaceParentFinder>();
+    markEssential("interfaceparentfinder");
     DependencyManager::set<EntityTreeRenderer>(true, qApp, qApp);
+    markEssential("entitytreerenderer");
     DependencyManager::set<CompositorHelper>();
+    markEssential("compositorhelper");
     DependencyManager::set<OffscreenQmlSurfaceCache>();
+    markEssential("offscreenqmlsurfacecache");
     DependencyManager::set<EntityScriptClient>();
+    markEssential("entityscriptclient");
 
     DependencyManager::set<EntityScriptServerLogClient>();
+    markEssential("entityscriptserverlogclient");
 
     DependencyManager::set<OctreeStatsProvider>(nullptr);
+    markEssential("octreestatsprovider");
     DependencyManager::set<AvatarBookmarks>();
+    markEssential("avatarbookmarks");
     DependencyManager::set<LocationBookmarks>();
+    markEssential("locationbookmarks");
     DependencyManager::set<Snapshot>();
+    markEssential("snapshot");
     DependencyManager::set<CloseEventSender>();
+    markEssential("closeeventsender");
     DependencyManager::set<ResourceManager>();
+    markEssential("resourcemanager");
     DependencyManager::set<SelectionScriptingInterface>();
+    markEssential("selectionscriptinginterface");
     DependencyManager::set<TTSScriptingInterface>();
+    markEssential("ttsscriptinginterface");
 
     DependencyManager::set<ResourceRequestObserver>();
+    markEssential("resourcerequestobserver");
     DependencyManager::set<Keyboard>();
+    markEssential("keyboard");
     DependencyManager::set<KeyboardScriptingInterface>();
+    markEssential("keyboardscriptinginterface");
     DependencyManager::set<GrabManager>();
+    markEssential("grabmanager");
     DependencyManager::set<AvatarPackager>();
+    markEssential("avatarpackager");
     PlatformHelper::setup();
 
     QObject::connect(PlatformHelper::instance(), &PlatformHelper::systemWillWake, [] {
@@ -595,8 +690,10 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
 }
 
 void Application::initialize(const QCommandLineParser &parser) {
+    PHONE_LOADING("phase=startup_step step=initialize_enter elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
     //qCDebug(interfaceapp) << "Setting up essentials";
     setupEssentials(parser, _previousSessionCrashed);
+    PHONE_LOADING("phase=startup_step step=essentials_done elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
     qCDebug(interfaceapp) << "Initializing application";
 
     _entitySimulation = std::make_shared<PhysicalEntitySimulation>();
@@ -1044,6 +1141,7 @@ void Application::initialize(const QCommandLineParser &parser) {
 
     // Initialize the display plugin architecture
     initializeDisplayPlugins();
+    PHONE_LOADING("phase=startup_step step=display_done elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
     qCDebug(interfaceapp, "Initialized Display");
 #if defined(OVERTE_PICO_SETUP)
 
@@ -1077,6 +1175,7 @@ void Application::initialize(const QCommandLineParser &parser) {
     // Create the rendering engine.  This can be slow on some machines due to lots of
     // GPU pipeline creation.
     initializeRenderEngine();
+    PHONE_LOADING("phase=startup_step step=render_engine_done elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
     qCDebug(interfaceapp, "Initialized Render Engine.");
 
     _overlays.init(); // do this before scripts load
@@ -1084,9 +1183,12 @@ void Application::initialize(const QCommandLineParser &parser) {
     // Initialize the user interface and menu system
     // Needs to happen AFTER the render engine initialization to access its configuration
     initializeUi();
+    PHONE_LOADING("phase=startup_step step=ui_done elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
 
     setupSignalsAndOperators();
+    PHONE_LOADING("phase=startup_step step=signals_done elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
     init();
+    PHONE_LOADING("phase=startup_step step=init_done elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
     qCDebug(interfaceapp, "init() complete.");
 
     // create thread for parsing of octree data independent of the main network and rendering threads
@@ -1653,10 +1755,12 @@ void Application::initialize(const QCommandLineParser &parser) {
 
     _pendingIdleEvent = false;
     _graphicsEngine->startup();
+    PHONE_LOADING("phase=startup_step step=graphics_startup_done elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
 
     qCDebug(interfaceapp) << "Directory Service session ID is" << uuidStringWithoutCurlyBraces(accountManager->getSessionID());
 
     pauseUntilLoginDetermined();
+    PHONE_LOADING("phase=startup_step step=initialize_done elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
 }
 
 void Application::init() {
