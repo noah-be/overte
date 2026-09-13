@@ -1316,6 +1316,7 @@ void ImageReader::read() {
             auto ktxFile = textureCache->_ktxCache->getFile(hash);
             if (ktxFile) {
                 textureAndSize = gpu::Texture::unserialize(ktxFile, _url.toString().toStdString());
+                PHONE_LOADING("phase=ktx_cache_read id=%s valid=%d", hash.c_str(), textureAndSize.first ? 1 : 0);
                 if (textureAndSize.first) {
                     textureAndSize = textureCache->cacheTextureByHash(hash, textureAndSize);
                     loadingCacheHit = 2;
@@ -1373,6 +1374,8 @@ void ImageReader::read() {
             size_t length = memKtx->_storage->size();
             auto& ktxCache = textureCache->_ktxCache;
             auto file = ktxCache->writeFile(data, KTXCache::Metadata(hash, length));
+            PHONE_LOADING("phase=ktx_cache_write id=%s ok=%d bytes=%llu", hash.c_str(),
+                file ? 1 : 0, (unsigned long long)length);
             if (file) {
                 textureAndSize.first->setKtxBacking(file);
             }
