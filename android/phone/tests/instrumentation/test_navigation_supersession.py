@@ -17,6 +17,7 @@ class NavigationSupersessionTest(unittest.TestCase):
             'extern "C" JNIEXPORT jboolean JNICALL\nJava_org_overte_phone_PhoneInterfaceActivity_nativeHandleBack')]
         driver = r'''
 #include <cassert>
+#include "libraries/shared/src/PhoneLoadingDiagnostics.h"
 #include <QCoreApplication>
 #include <QPointer>
 #include <QStringList>
@@ -26,13 +27,17 @@ class AndroidHelper : public QObject {
     Q_OBJECT
 public:
     bool ready = false;
+    bool destinationReady = true;
     QStringList navigated;
     static AndroidHelper& instance() { static AndroidHelper helper; return helper; }
     bool isLoadComplete() const { return ready; }
-    void processURL(const QString& url) { navigated.append(url); }
+    bool isStartupNavigationReady() const { return destinationReady; }
+    bool processURL(const QString& url) { navigated.append(url); return true; }
+    void destinationSelected() { destinationReady = true; emit startupNavigationReady(); }
     void loaded() { ready = true; emit qtAppLoadComplete(); }
 signals:
     void qtAppLoadComplete();
+    void startupNavigationReady();
 };
 overte::lifecycle::Gate gate;
 overte::lifecycle::Gate& overte::lifecycle::applicationGate() { return gate; }
@@ -53,6 +58,27 @@ int main(int argc, char** argv) {
     auto send = [](const char* url) {
         return Java_org_overte_phone_PhoneInterfaceActivity_nativeProcessUrl(nullptr, nullptr, url);
     };
+    // Reproduce the actual startup ordering: Qt is ready, but the delayed
+    // default destination has not been selected. An accepted link must wait.
+    helper.loaded();
+    helper.destinationReady = false;
+    assert(send("hifi://startup"));
+    QCoreApplication::processEvents();
+    assert(helper.navigated.empty());
+    helper.navigated.append("tutorial");
+    helper.destinationSelected();
+    assert((helper.navigated == QStringList{"tutorial", "hifi://startup"}));
+    helper.destinationSelected();
+    assert(helper.navigated.size() == 2); // no duplicate delivery
+    helper.navigated.clear();
+    // Cancellation still applies while waiting at the later startup gate.
+    helper.destinationReady = false;
+    assert(send("hifi://obsolete"));
+    QCoreApplication::processEvents();
+    assert(!send(nullptr));
+    helper.destinationSelected();
+    QCoreApplication::processEvents();
+    assert(helper.navigated.empty());
     // Both JNI calls return before Qt processes either. Only B may navigate.
     helper.ready = true;
     assert(send("hifi://a") && send("hifi://b"));

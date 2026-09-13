@@ -59,6 +59,7 @@ class PhoneLifecycleBindingTests(unittest.TestCase):
 #include <string>
 #include <type_traits>
 #include <QtCore/QCoreApplication>
+#include "libraries/shared/src/PhoneLoadingDiagnostics.h"
 #include <QtCore/QThread>
 #include <QtCore/QString>
 #include "android/phone/apps/phoneInterface/src/PhonePendingNavigation.h"

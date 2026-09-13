@@ -15,6 +15,7 @@
 #include <QVariantMap>
 
 #include "AndroidHelper.h"
+#include <PhoneLoadingDiagnostics.h>
 #include "PhoneLifecycleHandoff.h"
 #include "PhonePendingHandoff.h"
 #include "PhonePendingNavigation.h"
@@ -45,8 +46,8 @@ QString fromJavaString(JNIEnv* env, jstring value) {
 
 // One application-owned delivery object preserves "latest pending URL" while
 // native startup is incomplete. AndroidHelper's load-complete notification is
-// emitted only after Application has installed its Android connections and
-// startup services, making it a stronger boundary than dependency existence.
+// emitted after Android connections exist. Navigation also waits for the later
+// asynchronous default-destination selection so it cannot overwrite a deep link.
 overte::network::RequestScope& urlRequests() {
     static overte::network::RequestScope requests;
     return requests;
@@ -59,17 +60,20 @@ public:
         auto& helper = AndroidHelper::instance();
         connect(&helper, &AndroidHelper::qtAppLoadComplete,
                 this, [this]() { deliverIfReady(); });
+        connect(&helper, &AndroidHelper::startupNavigationReady,
+                this, [this]() { deliverIfReady(); });
     }
 
     void submit(QString url, const overte::network::RequestTicket& request) {
         if (!request.current()) { return; }
+        PHONE_LOADING("phase=url_submit ready=%d", AndroidHelper::instance().isLoadComplete() ? 1 : 0);
         _request = request;
         const bool valid = !url.isEmpty();
         _pending.replace(std::move(url), valid);
         deliverIfReady();
     }
 
-    void cancel() { _pending.clear(); }
+    void cancel() { PHONE_LOADING("phase=url_cancel"); _pending.clear(); }
 
 private:
     void deliverIfReady() {
@@ -80,13 +84,15 @@ private:
             return;
         }
         QString url;
-        if (!_pending.takeIfReady(AndroidHelper::instance().isLoadComplete(), url)) {
+        auto& helper = AndroidHelper::instance();
+        if (!_pending.takeIfReady(helper.isLoadComplete() && helper.isStartupNavigationReady(), url)) {
             return;
         }
         // Keep the established Application canAcceptURL/acceptURL policy as
         // the sole navigation boundary. Supported phone links have already
         // been normalized to the native hifi scheme by Java.
-        AndroidHelper::instance().processURL(url);
+        const bool accepted = AndroidHelper::instance().processURL(url);
+        PHONE_LOADING("phase=url_deliver accepted=%d", accepted ? 1 : 0);
     }
 
     phone::PendingNavigation<QString> _pending;
@@ -214,6 +220,7 @@ public:
         // Publish native input to Shared's single Qt/native arbiter, even
         // before AndroidHelper is ready. Native true cannot override Qt false.
         // Local URL cancellation below is separate from Shared HTTP policy.
+        PHONE_LOADING("phase=url_visibility foreground=%d", foreground ? 1 : 0);
         overte::lifecycle::observeNativeVisibility(foreground);
         if (!foreground) {
             urlDelivery(QCoreApplication::instance())->cancel();
@@ -275,6 +282,7 @@ Java_org_overte_phone_PhoneInterfaceActivity_nativeProcessUrl(
         return JNI_FALSE;
     }
     const auto generation = snapshot.generation;
+    PHONE_LOADING("phase=url_queue generation=%llu", (unsigned long long)generation);
 
     // Transfer ownership to Qt instead of blocking Android's UI thread during
     // native startup. The native owner retains only the latest pending URL and
@@ -284,6 +292,7 @@ Java_org_overte_phone_PhoneInterfaceActivity_nativeProcessUrl(
         [application, url, generation, request]() {
             const auto current = overte::lifecycle::applicationGate().snapshot();
             if (!request.current() || !current.foreground || current.generation != generation) {
+                PHONE_LOADING("phase=url_drop current=%d foreground=%d same_generation=%d", request.current() ? 1 : 0, current.foreground ? 1 : 0, current.generation == generation ? 1 : 0);
                 return;
             }
             urlDelivery(application)->submit(url, request);

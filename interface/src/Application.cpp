@@ -176,8 +176,10 @@ extern "C" {
 static AppNapDisabler appNapDisabler;   // disabled, while in scope
 #endif
 
+#include <PhoneLoadingDiagnostics.h>
 #if defined(Q_OS_ANDROID)
 #include "AndroidStartupUrlPolicy.h"
+#include "AndroidHelper.h"
 #include "ui/PhoneGraphicsPolicy.h"
 #include <android/log.h>
 #endif
@@ -2208,6 +2210,7 @@ void Application::nodeKilled(SharedNodePointer node) {
 }
 
 void Application::handleSandboxStatus(QNetworkReply* reply) {
+    PHONE_LOADING("phase=startup_destination_begin");
     PROFILE_RANGE(render, __FUNCTION__);
 
     bool sandboxIsRunning = SandboxUtils::readStatus(reply->readAll());
@@ -2382,6 +2385,10 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
     });
 
     _connectionMonitor.init();
+    PHONE_LOADING("phase=startup_destination_end");
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    AndroidHelper::instance().notifyStartupNavigationReady();
+#endif
 }
 
 void Application::cleanupBeforeQuit() {

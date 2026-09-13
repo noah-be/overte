@@ -29,6 +29,10 @@ public:
     void requestActivity(const QString &activityName, const bool backToScene, QMap<QString, QString> args = QMap<QString, QString>());
     void notifyLoadComplete();
     bool isLoadComplete() const { return _loadComplete; }
+    // Phone links must outlive the asynchronous initial destination selection,
+    // which runs after the general Qt load-complete notification.
+    void notifyStartupNavigationReady();
+    bool isStartupNavigationReady() const { return _startupNavigationReady; }
     void notifyEnterForeground();
     void notifyBeforeEnterBackground();
     void notifyEnterBackground();
@@ -57,6 +61,7 @@ public slots:
 signals:
     void androidActivityRequested(const QString &activityName, const bool backToScene, QMap<QString, QString> args = QMap<QString, QString>());
     void qtAppLoadComplete();
+    void startupNavigationReady();
     void enterForeground();
     void beforeEnterBackground();
     void enterBackground();
@@ -72,6 +77,7 @@ private:
 
     QString errorStringFromAPIObject(const QJsonValue& apiObject);
     bool _loadComplete { false };
+    bool _startupNavigationReady { false };
 };
 
 #endif

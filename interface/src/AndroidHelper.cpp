@@ -9,6 +9,7 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 #include "AndroidHelper.h"
+#include <PhoneLoadingDiagnostics.h>
 #include <QDebug>
 #include <AccountManager.h>
 #include <AudioClient.h>
@@ -34,8 +35,15 @@ void AndroidHelper::requestActivity(const QString &activityName, const bool back
 }
 
 void AndroidHelper::notifyLoadComplete() {
+    PHONE_LOADING("phase=url_load_complete");
     _loadComplete = true;
     emit qtAppLoadComplete();
+}
+
+void AndroidHelper::notifyStartupNavigationReady() {
+    if (_startupNavigationReady) { return; }
+    _startupNavigationReady = true;
+    emit startupNavigationReady();
 }
 
 void AndroidHelper::notifyEnterForeground() {
