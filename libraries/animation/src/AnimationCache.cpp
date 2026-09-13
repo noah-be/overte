@@ -13,6 +13,10 @@
 
 #include <QRunnable>
 #include <QThreadPool>
+#include <QElapsedTimer>
+#include <QCryptographicHash>
+#include <Finally.h>
+#include <PhoneLoadingDiagnostics.h>
 
 #include <shared/QtHelpers.h>
 #include <Trace.h>
@@ -55,6 +59,12 @@ AnimationReader::AnimationReader(const QUrl& url, const QByteArray& data) :
 }
 
 void AnimationReader::run() {
+    QElapsedTimer loadingTimer; loadingTimer.start();
+    const auto loadingHash = QCryptographicHash::hash(_url.toEncoded(), QCryptographicHash::Md5).toHex();
+    PHONE_LOADING("phase=animation_start url_hash=%s bytes=%d", loadingHash.constData(), _data.size());
+    Finally loadingRecord([&] {
+        PHONE_LOADING("phase=animation_end url_hash=%s ms=%lld", loadingHash.constData(), (long long)loadingTimer.elapsed());
+    });
     DependencyManager::get<StatTracker>()->decrementStat("PendingProcessing");
     CounterStat counter("Processing");
 
@@ -78,6 +88,8 @@ void AnimationReader::run() {
             HFMModel::Pointer hfmModel;
             if (_url.path().toLower().endsWith(".fbx")) {
                 hfmModel = FBXSerializer().read(_data, QVariantHash(), _url.path());
+                PHONE_LOADING("phase=animation_parsed url_hash=%s frames=%d joints=%d ok=%d", loadingHash.constData(),
+                    hfmModel ? hfmModel->animationFrames.size() : 0, hfmModel ? hfmModel->joints.size() : 0, hfmModel ? 1 : 0);
             } else {
                 QString errorStr("usupported format");
                 emit onError(299, errorStr);
@@ -132,6 +144,7 @@ const QVector<HFMAnimationFrame>& Animation::getFramesReference() const {
 }
 
 void Animation::downloadFinished(const QByteArray& data) {
+    PHONE_LOADING("phase=animation_queue url_hash=%s bytes=%d", QCryptographicHash::hash(_url.toEncoded(), QCryptographicHash::Md5).toHex().constData(), data.size());
     // parse the animation/fbx file on a background thread.
     AnimationReader* animationReader = new AnimationReader(_url, data);
     connect(animationReader, SIGNAL(onSuccess(HFMModel::Pointer)), SLOT(animationParseSuccess(HFMModel::Pointer)));
