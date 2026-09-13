@@ -237,7 +237,7 @@ jobs:
           sccache --show-stats
           python3 ios/ci/report-sccache-stats.py \
             "$IOS_RUNNER_TELEMETRY_DIR/sccache-stats.json" \
-            --cache-dir "$SCCACHE_DIR" --phase after --require-activity
+            --cache-dir "$SCCACHE_DIR" --phase after --require-activity --cache-mode disk
           sccache --stop-server
 
       - name: Save simulator V8 compiler recovery checkpoint
@@ -710,7 +710,7 @@ jobs:
           sccache --stop-server
           python3 ios/ci/report-sccache-stats.py \
             build-ios/world-raw-diagnostics/sccache-stats.json \
-            --cache-dir "$SCCACHE_DIR" --phase after --require-activity
+            --cache-dir "$SCCACHE_DIR" --phase after --require-activity --cache-mode disk
 
       - name: Save local Full Client compiler fallback
         if: ${{ always() && !cancelled() && steps.client-build.outcome != 'skipped' }}

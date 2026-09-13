@@ -148,6 +148,7 @@ jobs:
       contents: read
     uses: ./.github/workflows/ios-integrated.yml
     with:
+      validated_host_contracts_sha: ${{ github.sha }}
       macos_runner: macos-26
       preserve_reusable_data: true
       qt_host_cache_key: ${{ needs.provision-qt-ios.outputs.qt_host_cache_key }}
@@ -165,6 +166,7 @@ jobs:
       contents: read
     uses: ./.github/workflows/ios-integrated.yml
     with:
+      validated_host_contracts_sha: ${{ github.sha }}
       qt_host_cache_key: ${{ inputs.qt_host_cache_key }}
       qt_ios_cache_key: ${{ inputs.qt_ios_cache_key }}
       qt_host_artifact_prefix: ${{ inputs.qt_host_artifact_prefix }}

@@ -1966,7 +1966,7 @@ def test_ci_contract() -> None:
     require_text(qt_source, r"qt_host_cache_key:.*steps\.cache-key\.outputs\.host", "host output must originate from the deterministic key step")
     require_text(qt_source, r"qt_ios_cache_key:.*steps\.cache-key\.outputs\.ios", "iOS output must originate from the deterministic key step")
     require_text(qt_source, r"--stage source", "Qt provisioning must verify or download the pinned source archive")
-    require_text(qt_source, r"SCCACHE_CACHE_SIZE:\s*256M", "Qt failure recovery must leave room for validated component caches")
+    require_text(qt_source, r"SCCACHE_CACHE_SIZE:\s*2G", "Qt local working set must not cycle through the exhausted 256 MiB limit")
     qt_source_text = qt_source.read_text(encoding="utf-8")
     if re.search(r"actions/cache/(?:restore|save)@[0-9a-f]+[\s\S]{0,500}QT_WORK_ROOT.*/downloads", qt_source_text):
         raise AssertionError("the disposable Qt source archive must not compete with validated component caches")
@@ -1989,8 +1989,8 @@ def test_ci_contract() -> None:
     if qt_source_text.count('--target-sdk "$OVERTE_TARGET_SDK"') != 3:
         raise AssertionError("every Qt source stage must receive the safely exported target SDK")
     require_text(qt_source, r"--stage ios", "Qt provisioning must build the iOS target independently")
-    require_text(qt_source, r"Save compiler recovery cache after a build failure", "failed compiles must retain reusable compiler outputs without duplicating every successful run")
-    require_text(qt_source, r"Save compiler recovery cache after a build failure[\s\S]*?if: >-\s+failure\(\) && steps\.sccache\.outcome == 'success'", "compiler recovery must only create a new generation after a failed build")
+    require_text(qt_source, r"Save durable Qt compiler recovery checkpoint[\s\S]*?--kind qt-sccache[\s\S]*?--producer-repository-id[\s\S]*?--producer-branch", "successful and failed compiles must preserve provenance-bound objects outside the shared cache quota")
+    require_text(qt_source, r"Upload durable Qt compiler recovery checkpoint[\s\S]*?steps\.qt-compiler-create\.outcome == 'success'[\s\S]*?actions/upload-artifact@[0-9a-f]{40}", "compiler recovery must upload only a successfully created durable checkpoint")
     require_text(qt_source, r"Prune superseded Qt compiler recovery caches\s+if: \$\{\{ !inputs\.preserve_reusable_data && failure\(\)", "Qt pruning must honor explicit preservation, including failures")
     require_text(qt_source, r"restore-keys:[\s\S]*?sccache_prefix", "the next run must restore the latest compatible compiler cache")
     require_text(qt_source, r"sccache_prune_prefix=overte-qt-sccache-v2-\$\{RUNNER_ARCH\}-", "Qt recovery pruning must cover obsolete toolchain namespaces")
