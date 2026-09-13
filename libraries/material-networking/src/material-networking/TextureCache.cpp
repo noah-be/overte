@@ -105,6 +105,16 @@ TextureCache::TextureCache() {
         KTX_DIRNAME = "ktx_cache_gles";
     }
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Separate derived-cache namespaces for controlled cold/warm comparisons.
+    // Never delete or replace the user's normal cache. Only active with diagnostics.
+    if (phoneLoadingDiagnosticsEnabled()) {
+        char run[PROP_VALUE_MAX] {};
+        if (__system_property_get("debug.overte.loading.cache_run", run) == 1 && run[0] >= '1' && run[0] <= '9') {
+            KTX_DIRNAME += std::string("_loading_") + run[0];
+        }
+    }
+#endif
     _ktxCache = std::make_shared<KTXCache>(KTX_DIRNAME, KTX_EXT);
     _ktxCache->initialize();
 #if defined(DISABLE_KTX_CACHE)
@@ -1222,8 +1232,9 @@ void ImageReader::read() {
     QElapsedTimer loadingTimer;
     loadingTimer.start();
     int loadingCacheHit = 0;
+    std::string loadingId { "0" };
     Finally loadingRecord([&] {
-        PHONE_LOADING("phase=image total_ms=%lld cache_hit=%d", (long long)loadingTimer.elapsed(), loadingCacheHit);
+        PHONE_LOADING("phase=image id=%s total_ms=%lld cache_hit=%d", loadingId.c_str(), (long long)loadingTimer.elapsed(), loadingCacheHit);
     });
     auto resource = _resource.lock(); // to ensure the resource is still needed
     if (!resource) {
@@ -1238,6 +1249,7 @@ void ImageReader::read() {
         hasher.addData(_content);
         hasher.addData(std::to_string(_extraHash).c_str());
         hash = hasher.result().toHex().toStdString();
+        loadingId = hash;
     }
 
     // Maybe load from cache
