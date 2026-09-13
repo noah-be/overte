@@ -695,10 +695,20 @@ void Application::initialize(const QCommandLineParser &parser) {
 #if defined(OVERTE_PICO_SETUP)
 #else
 #if defined(ANDROID_APP_PHONE_INTERFACE)
-        // ResourceCacheSharedItems defaults to the desktop request count. Set
-        // the phone baseline explicitly; --concurrent-downloads below remains
-        // the intentional escape hatch for profiling and troubleshooting.
-        ResourceCache::setRequestLimit(MAX_CONCURRENT_RESOURCE_DOWNLOADS);
+        // Keep the bounded Phone baseline until repeated device measurements
+        // establish a consistent benefit from increasing request concurrency.
+        uint32_t phoneConcurrentDownloads = MAX_CONCURRENT_RESOURCE_DOWNLOADS;
+        // Keep the existing CLI override below authoritative. The restricted
+        // diagnostic switch allows matched device trials without clearing data.
+        if (phoneLoadingDiagnosticsEnabled()) {
+            char value[PROP_VALUE_MAX] {};
+            if (__system_property_get("debug.overte.loading.downloads", value) == 1 &&
+                    (value[0] == '2' || value[0] == '4')) {
+                phoneConcurrentDownloads = value[0] - '0';
+            }
+        }
+        ResourceCache::setRequestLimit(phoneConcurrentDownloads);
+        PHONE_LOADING("phase=download_limit count=%u", phoneConcurrentDownloads);
 #endif
 #endif
         if (parser.isSet("concurrent-downloads")) {

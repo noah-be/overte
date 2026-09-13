@@ -62,6 +62,48 @@ Q_LOGGING_CATEGORY(trace_resource_parse_image_raw, "trace.resource.parse.image.r
 Q_LOGGING_CATEGORY(trace_resource_parse_image_ktx, "trace.resource.parse.image.ktx")
 
 const std::string TextureCache::KTX_EXT { "ktx" };
+// Already-compressed texture uploads must not sit behind minutes of raw-image
+// encoding on Phone's shared pool. Keep the worker count and OS priority intact.
+static void queueKtxTask(std::function<void()> work, const QUrl& url, int kind) {
+    int priority = 0;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    priority = 1;
+    // Opt-in A/B control; a normal session always uses the production priority.
+    if (phoneLoadingDiagnosticsEnabled()) {
+        char value[PROP_VALUE_MAX] {};
+        if (__system_property_get("debug.overte.loading.ktx_priority", value) == 1 && value[0] == '0') {
+            priority = 0;
+        }
+    }
+#endif
+    QElapsedTimer queued;
+    queued.start();
+    auto task = [work = std::move(work), queued, url, kind, priority]() {
+        const auto wait = queued.elapsed();
+        QElapsedTimer running;
+        running.start();
+        PHONE_LOADING("phase=ktx_start url_hash=%s kind=%d priority=%d queue_ms=%lld",
+            QCryptographicHash::hash(url.toEncoded(), QCryptographicHash::Md5).toHex().constData(),
+            kind, priority, (long long)wait);
+        // Match the old ignored QtConcurrent future: isolate a malformed
+        // task's exception instead of unwinding through QThreadPool.
+        try {
+            work();
+        } catch (...) {
+            qWarning("Texture streaming task failed");
+            PHONE_LOADING("phase=ktx_exception kind=%d", kind);
+        }
+        PHONE_LOADING("phase=ktx_end url_hash=%s kind=%d work_ms=%lld",
+            QCryptographicHash::hash(url.toEncoded(), QCryptographicHash::Md5).toHex().constData(),
+            kind, (long long)running.elapsed());
+    };
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    QThreadPool::globalInstance()->start(QRunnable::create(std::move(task)), priority);
+#else
+    QtConcurrent::run(QThreadPool::globalInstance(), std::move(task));
+#endif
+}
+
 
 /*@jsdoc
  * <p>The views that may be visible on the PC display.</p>
@@ -480,6 +522,12 @@ void NetworkTexture::setExtra(void* extra) {
 void NetworkTexture::setImage(gpu::TexturePointer texture, int originalWidth,
                               int originalHeight) {
 
+    PHONE_LOADING("phase=texture_set url_hash=%s ok=%d type=%d format=%d width=%d height=%d min_mip=%d mips=%d",
+        QCryptographicHash::hash(_url.toEncoded(), QCryptographicHash::Md5).toHex().constData(),
+        texture ? 1 : 0, (int)_currentlyLoadingResourceType,
+        texture ? (int)texture->getTexelFormat().getSemantic() : -1,
+        texture ? texture->getWidth() : 0, texture ? texture->getHeight() : 0,
+        texture ? texture->minAvailableMipLevel() : -1, texture ? texture->getNumMips() : 0);
     // Passing ownership
     _textureSource->resetTexture(texture);
 
@@ -551,7 +599,7 @@ void NetworkTexture::makeRequest() {
 
     if (isLocalUrl(_activeUrl)) {
         auto self = _self;
-        QtConcurrent::run(QThreadPool::globalInstance(), [self] {
+        queueKtxTask([self] {
             auto resource = self.lock();
             if (!resource) {
                 return;
@@ -559,7 +607,7 @@ void NetworkTexture::makeRequest() {
 
             NetworkTexture* networkTexture = static_cast<NetworkTexture*>(resource.data());
             networkTexture->makeLocalRequest();
-        });
+        }, _url, 0);
         return;
     }
 
@@ -846,7 +894,7 @@ void NetworkTexture::ktxMipRequestFinished() {
             auto mipLevel = _ktxMipLevelRangeInFlight.first;
             auto texture = _textureSource->getGPUTexture();
             DependencyManager::get<StatTracker>()->incrementStat("PendingProcessing");
-            QtConcurrent::run(QThreadPool::globalInstance(), [self, data, mipLevel, url, texture] {
+            queueKtxTask([self, data, mipLevel, url, texture] {
                 PROFILE_RANGE_EX(resource_parse_image, "NetworkTexture - Processing Mip Data", 0xffff0000, 0, { { "url", url.toString() } });
                 DependencyManager::get<StatTracker>()->decrementStat("PendingProcessing");
                 CounterStat counter("Processing");
@@ -880,7 +928,7 @@ void NetworkTexture::ktxMipRequestFinished() {
                     Q_ARG(int, texture->getHeight()));
 
                 QMetaObject::invokeMethod(resource.data(), "startRequestForNextMipLevel");
-            });
+            }, url, 1);
         } else {
             qWarning(networking) << "Mip request finished in an unexpected state: " << _ktxResourceState;
             finishedLoading(false);
@@ -914,7 +962,7 @@ void NetworkTexture::handleFinishedInitialLoad() {
     auto self = _self;
     auto url = _url;
     DependencyManager::get<StatTracker>()->incrementStat("PendingProcessing");
-    QtConcurrent::run(QThreadPool::globalInstance(), [self, ktxHeaderData, ktxHighMipData, url] {
+    queueKtxTask([self, ktxHeaderData, ktxHighMipData, url] {
         PROFILE_RANGE_EX(resource_parse_image, "NetworkTexture - Processing Initial Data", 0xffff0000, 0, { { "url", url.toString() } });
         DependencyManager::get<StatTracker>()->decrementStat("PendingProcessing");
         CounterStat counter("Processing");
@@ -1061,7 +1109,7 @@ void NetworkTexture::handleFinishedInitialLoad() {
             Q_ARG(int, textureAndSize.second.y));
 
         QMetaObject::invokeMethod(resource.data(), "startRequestForNextMipLevel");
-    });
+    }, url, 2);
 }
 
 void NetworkTexture::downloadFinished(const QByteArray& data) {
@@ -1250,6 +1298,9 @@ void ImageReader::read() {
         hasher.addData(std::to_string(_extraHash).c_str());
         hash = hasher.result().toHex().toStdString();
         loadingId = hash;
+        PHONE_LOADING("phase=image_source id=%s url_hash=%s bytes=%d type=%d", hash.c_str(),
+            QCryptographicHash::hash(_url.toEncoded(), QCryptographicHash::Md5).toHex().constData(),
+            _content.size(), (int)networkTexture->getTextureType());
     }
 
     // Maybe load from cache
