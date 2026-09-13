@@ -4,6 +4,9 @@ include(../../profiles/android-arm64-v8a-api26-16k)
 
 [settings]
 webrtc-audio-processing/*:build_type=Release
+# ETC encoding dominates first-load CPU time on Phone. Keep debug symbols but
+# optimize this CPU codec even when the application dependency cohort is Debug.
+etc2comp/*:build_type=RelWithDebInfo
 
 [options]
 qt/*:android_sdk={{ android_sdk }}
