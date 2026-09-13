@@ -550,7 +550,7 @@ Rectangle {
     Rectangle {
         id: favoritesBlock
         height: touchConfiguration.favoritesFillBelowHeader
-            ? Math.max(0, root.height - header.height)
+            ? Math.max(0, root.height - header.height - 270)
             : 407
 
         anchors.left: parent.left
