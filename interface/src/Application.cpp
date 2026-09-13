@@ -209,9 +209,14 @@ const QString DEFAULT_CURSOR_NAME = "SYSTEM";
 
 Setting::Handle<int> sessionRunTime { "sessionRunTime", 0 };
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+extern "C" void overtePhoneQmlFatalSnapshot() noexcept;
+#endif
+
 void messageHandler(QtMsgType type, const QMessageLogContext& context, const QString& message) {
     Q_UNUSED(context);
 #if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (type == QtFatalMsg) overtePhoneQmlFatalSnapshot();
     if (message.size() < 1024 && message.startsWith("OVT_PHONE_LOADING ") &&
         QRegularExpression("^OVT_PHONE_LOADING [a-z0-9_= .-]+$").match(message).hasMatch()) {
         __android_log_write(ANDROID_LOG_INFO, "OvertePhoneLoading", message.toLatin1().constData());
