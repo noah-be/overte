@@ -7,6 +7,8 @@ the regression. OVERTE_RENDER_CHANGE_TSAN=1 adds ThreadSanitizer.
 import os
 from pathlib import Path
 import shlex
+import re
+import sys
 import subprocess
 import tempfile
 
@@ -27,6 +29,16 @@ def body(source, signature):
 tree = (SRC / 'EntityTreeRenderer.cpp').read_text()
 header = (SRC / 'EntityTreeRenderer.h').read_text()
 callback_source = (SRC / 'RenderableEntityItem.cpp').read_text()
+renderer_header = (SRC / 'RenderableEntityItem.h').read_text()
+header_baseline = os.environ.get('OVERTE_RENDER_HEADER_BASELINE')
+if header_baseline:
+    renderer_header = subprocess.check_output([
+        'git', 'show', header_baseline + ':libraries/entities-renderer/src/RenderableEntityItem.h'
+    ], cwd=ROOT, text=True)
+# Preserve actual C++ access control in the fixture, not an always-public mock.
+needs_declaration = renderer_header.index('virtual bool needsRenderUpdate() const;')
+renderer_access = re.findall(r'^\s*(public|protected|private):',
+                            renderer_header[:needs_declaration], re.MULTILINE)[-1]
 baseline = os.environ.get('OVERTE_RENDER_CALLBACK_BASELINE')
 if baseline:
     callback_source = subprocess.check_output([
@@ -62,6 +74,7 @@ struct Renderable {
     bool dirty = false;
     int checks = 0;
     std::function<void()> duringCheck;
+RENDERER_ACCESS:
     bool needsRenderUpdate() {
         requireOwner(); ++checks;
         if (duringCheck) { auto callback = std::move(duringCheck); duringCheck = {}; callback(); }
@@ -141,6 +154,7 @@ int main() {
 }
 '''
 for token, value in {
+    'RENDERER_ACCESS': renderer_access,
     'MEMBERS': members,
     'LOOKUP': body(tree, 'EntityRendererPointer EntityTreeRenderer::renderableForEntityId('),
     'ENQUEUE': body(tree, 'void EntityTreeRenderer::onEntityChanged('),
@@ -154,8 +168,13 @@ with tempfile.TemporaryDirectory(prefix='overte-entity-change-') as scratch:
     source.write_text(program)
     sanitizer = ['-fsanitize=thread'] if os.environ.get('OVERTE_RENDER_CHANGE_TSAN') == '1' else []
     compiler = shlex.split(os.environ.get('CXX', 'c++'))
-    subprocess.run([*compiler, '-std=c++17', '-O1', '-g', '-pthread', *sanitizer,
-                    str(source), '-o', str(binary)], check=True, timeout=40)
+    compiled = subprocess.run([*compiler, '-std=c++17', '-O1', '-g', '-pthread', *sanitizer,
+                    str(source), '-o', str(binary)], capture_output=True, text=True, timeout=40)
+    if header_baseline:
+        assert compiled.returncode != 0 and 'protected' in compiled.stderr, compiled.stderr
+        print('EXPECTED BASELINE FAILURE: actual renderer access control rejects scene-owner caller')
+        sys.exit(0)
+    assert compiled.returncode == 0, compiled.stderr
     result = subprocess.run([str(binary)], capture_output=True, text=True, timeout=30)
     if baseline:
         assert result.returncode != 0 and 'off-owner scene access' in result.stderr, result.stderr
