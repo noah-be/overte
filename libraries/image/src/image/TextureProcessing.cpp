@@ -23,6 +23,8 @@
 #include <Finally.h>
 #include <Profile.h>
 #include <StatTracker.h>
+#include <PhoneLoadingDiagnostics.h>
+#include <QElapsedTimer>
 #include <GLMHelpers.h>
 
 #include "TGAReader.h"
@@ -816,6 +818,7 @@ void convertImageToLDRTexture(gpu::Texture* texture, Image&& image, BackendTarge
             localCopy = localCopy.getConvertedToFormat(Image::Format_RGBAF);
         }
 
+        QElapsedTimer encodeTimer; encodeTimer.start();
         Etc::EncodeMipmaps(
             (float *)localCopy.editBits(), width, height,
             etcFormat, errorMetric, effort,
@@ -823,6 +826,7 @@ void convertImageToLDRTexture(gpu::Texture* texture, Image&& image, BackendTarge
             numMips, Etc::FILTER_WRAP_NONE,
             mipMaps, &encodingTime
         );
+        PHONE_LOADING("phase=etc_encode ms=%lld width=%d height=%d mips=%d threads=%d", (long long)encodeTimer.elapsed(), width, height, numMips, numEncodeThreads);
 
         for (int i = 0; i < numMips; i++) {
             if (mipMaps[i].paucEncodingBits.get()) {

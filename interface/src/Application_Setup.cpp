@@ -130,6 +130,7 @@
 #include <shared/PlatformHelper.h>
 #include <SoundCacheScriptingInterface.h>
 #include <StatTracker.h>
+#include <PhoneLoadingDiagnostics.h>
 #include <StencilMaskPass.h>
 #include <ThreadHelpers.h>
 #include <ui/DialogsManager.h>
@@ -1420,6 +1421,25 @@ void Application::initialize(const QCommandLineParser &parser) {
         properties["active_downloads_details"] = loadingRequestsStats;
 
         auto statTracker = DependencyManager::get<StatTracker>();
+
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        const auto loadingTree = getEntities()->getTree();
+        const auto loadingLanding = _octreeProcessor->safeLandingLoadingStatus();
+        PHONE_LOADING("phase=state connected=%d hub=%d elements=%lld downloads=%d pending=%u processing=%d processing_pending=%d pool_active=%d pool_max=%d http_started=%d http_success=%d http_cached=%d http_failed=%d http_bytes=%lld gpu_pending_bytes=%lld sequence_done=%d sequence_received=%u sequence_expected=%u avatar_ok=%d name_ok=%d",
+            addressManager->isConnected() ? 1 : 0,
+            addressManager->getPlaceName().compare("overte_hub", Qt::CaseInsensitive) == 0 ? 1 : 0,
+            (long long)(loadingTree ? loadingTree->getOctreeElementsCount() : 0), loadingRequests.size(), ResourceCache::getPendingRequestCount(),
+            statTracker->getStat("Processing").toInt(), statTracker->getStat("PendingProcessing").toInt(),
+            QThreadPool::globalInstance()->activeThreadCount(), QThreadPool::globalInstance()->maxThreadCount(),
+            statTracker->getStat(STAT_HTTP_REQUEST_STARTED).toInt(), statTracker->getStat(STAT_HTTP_REQUEST_SUCCESS).toInt(),
+            statTracker->getStat(STAT_HTTP_REQUEST_CACHE).toInt(), statTracker->getStat(STAT_HTTP_REQUEST_FAILED).toInt(),
+            (long long)statTracker->getStat(STAT_HTTP_RESOURCE_TOTAL_BYTES).toLongLong(),
+            (long long)gpu::Context::getTexturePendingGPUTransferMemSize(),
+            loadingLanding.completionReceived ? 1 : 0, (unsigned)loadingLanding.receivedSequenceCount, (unsigned)loadingLanding.expectedSequenceCount,
+            getMyAvatar()->getFullAvatarURLFromPreferences().toString() == "https://files.noah-frank.de/avatar/Android-Robot-Static.fst" ? 1 : 0,
+            getMyAvatar()->getDisplayName() == "Overte Android Phone Test Client" ? 1 : 0);
+#endif
 
         properties["processing_resources"] = statTracker->getStat("Processing").toInt();
         properties["pending_processing_resources"] = statTracker->getStat("PendingProcessing").toInt();

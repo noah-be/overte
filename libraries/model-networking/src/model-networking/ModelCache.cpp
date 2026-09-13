@@ -23,6 +23,8 @@
 #include "ModelNetworkingLogging.h"
 #include <Trace.h>
 #include <StatTracker.h>
+#include <PhoneLoadingDiagnostics.h>
+#include <QElapsedTimer>
 #include <hfm/ModelFormatRegistry.h>
 #include <FBXSerializer.h>
 #include <OBJSerializer.h>
@@ -103,6 +105,8 @@ private:
 };
 
 void GeometryReader::run() {
+    QElapsedTimer loadingTimer; loadingTimer.start();
+    Finally loadingRecord([&] { PHONE_LOADING("phase=model ms=%lld", (long long)loadingTimer.elapsed()); });
     DependencyManager::get<StatTracker>()->decrementStat("PendingProcessing");
     CounterStat counter("Processing");
     PROFILE_RANGE_EX(resource_parse_geometry, "GeometryReader::run", 0xFF00FF00, 0, { { "url", _url.toString() } });

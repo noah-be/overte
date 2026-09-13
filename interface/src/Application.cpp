@@ -210,6 +210,10 @@ Setting::Handle<int> sessionRunTime { "sessionRunTime", 0 };
 void messageHandler(QtMsgType type, const QMessageLogContext& context, const QString& message) {
     Q_UNUSED(context);
 #if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (message.size() < 1024 && message.startsWith("OVT_PHONE_LOADING ") &&
+        QRegularExpression("^OVT_PHONE_LOADING [a-z0-9_= .-]+$").match(message).hasMatch()) {
+        __android_log_write(ANDROID_LOG_INFO, "OvertePhoneLoading", message.toLatin1().constData());
+    }
     if (message.startsWith("OVT_PHONE_TABLET_") && message.size() < 100 &&
         QRegularExpression("^OVT_PHONE_TABLET_[A-Z_]+( -?[0-9]+)*$").match(message).hasMatch()) {
         __android_log_write(ANDROID_LOG_INFO, "OvertePhoneRuntime", message.toLatin1().constData());

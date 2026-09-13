@@ -50,6 +50,8 @@
 #include <MetaverseAPI.h>
 #include <Trace.h>
 #include <StatTracker.h>
+#include <PhoneLoadingDiagnostics.h>
+#include <QElapsedTimer>
 
 #include <TextureMeta.h>
 
@@ -1217,6 +1219,12 @@ void ImageReader::run() {
 }
 
 void ImageReader::read() {
+    QElapsedTimer loadingTimer;
+    loadingTimer.start();
+    int loadingCacheHit = 0;
+    Finally loadingRecord([&] {
+        PHONE_LOADING("phase=image total_ms=%lld cache_hit=%d", (long long)loadingTimer.elapsed(), loadingCacheHit);
+    });
     auto resource = _resource.lock(); // to ensure the resource is still needed
     if (!resource) {
         return;
@@ -1238,6 +1246,8 @@ void ImageReader::read() {
         // If we already have a live texture with the same hash, use it
         auto textureAndSize = textureCache->getTextureByHash(hash);
 
+        loadingCacheHit = textureAndSize.first ? 1 : 0;
+
         // If there is no live texture, check if there's an existing KTX file
         if (!textureAndSize.first) {
             auto ktxFile = textureCache->_ktxCache->getFile(hash);
@@ -1245,6 +1255,7 @@ void ImageReader::read() {
                 textureAndSize = gpu::Texture::unserialize(ktxFile, _url.toString().toStdString());
                 if (textureAndSize.first) {
                     textureAndSize = textureCache->cacheTextureByHash(hash, textureAndSize);
+                    loadingCacheHit = 2;
                 } else {
                     qCWarning(materialnetworking) << "Invalid cached KTX " << _url << " under hash " << hash.c_str() << ", recreating...";
                 }
@@ -1273,7 +1284,9 @@ void ImageReader::read() {
         const bool shouldCompress = hifi::properties::getGraphicsAPI() ==
                                         hifi::properties::GraphicsAPI::GLES32;
         auto target = getBackendTarget();
+        QElapsedTimer processTimer; processTimer.start();
         textureAndSize = image::processImage(std::move(buffer), _url.toString().toStdString(), _sourceChannel, _maxNumPixels, networkTexture->getTextureType(), shouldCompress, target);
+        PHONE_LOADING("phase=image_process ms=%lld width=%d height=%d ok=%d", (long long)processTimer.elapsed(), textureAndSize.second.x, textureAndSize.second.y, textureAndSize.first ? 1 : 0);
 
         if (!textureAndSize.first) {
             QMetaObject::invokeMethod(resource.data(), "setImage",
