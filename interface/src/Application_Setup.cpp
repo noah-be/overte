@@ -2382,6 +2382,22 @@ void Application::setupSignalsAndOperators() {
             _controllerScriptingInterface, &controller::ScriptingInterface::updateRunningInputDevices);
 
         connect(this, &Application::activeDisplayPluginChanged, this, &Application::updateThreadPoolCount);
+        // Phone worker experiment: retain the existing startup minimum unless
+        // diagnostics explicitly select 2 or 4. The initial display change was
+        // emitted before this connection; later changes use the same override.
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        if (_displayPlugin && phoneLoadingDiagnosticsEnabled()) {
+            char value[PROP_VALUE_MAX] {};
+            if (__system_property_get("debug.overte.loading.workers", value) == 1 &&
+                    (value[0] == '2' || value[0] == '4')) {
+                updateThreadPoolCount();
+            } else {
+                PHONE_LOADING("phase=worker_pool ideal=%d reserved=%d requested=0 actual=%d",
+                    QThread::idealThreadCount(), 2 + _displayPlugin->getRequiredThreadCount(),
+                    QThreadPool::globalInstance()->maxThreadCount());
+            }
+        }
+#endif
         if (_useSystemCursor) {
             connect(this, &Application::activeDisplayPluginChanged, this, [=, this](){
                 qApp->setProperty(hifi::properties::HMD, qApp->isHMDMode());

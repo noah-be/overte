@@ -944,10 +944,26 @@ void Application::updateThreadPoolCount() const {
     auto reservedThreads = UI_RESERVED_THREADS + OS_RESERVED_THREADS + _displayPlugin->getRequiredThreadCount();
     auto availableThreads = QThread::idealThreadCount() - reservedThreads;
     auto threadPoolSize = std::max(MIN_PROCESSING_THREAD_POOL_SIZE, availableThreads);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    int requestedThreads = 0;
+    if (phoneLoadingDiagnosticsEnabled()) {
+        char value[PROP_VALUE_MAX] {};
+        if (__system_property_get("debug.overte.loading.workers", value) == 1 &&
+                (value[0] == '2' || value[0] == '4')) {
+            requestedThreads = value[0] - '0';
+            threadPoolSize = requestedThreads;
+        }
+    }
+#endif
     qCDebug(interfaceapp) << "Ideal Thread Count " << QThread::idealThreadCount();
     qCDebug(interfaceapp) << "Reserved threads " << reservedThreads;
     qCDebug(interfaceapp) << "Setting thread pool size to " << threadPoolSize;
     QThreadPool::globalInstance()->setMaxThreadCount(threadPoolSize);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    PHONE_LOADING("phase=worker_pool ideal=%d reserved=%d requested=%d actual=%d",
+        QThread::idealThreadCount(), reservedThreads, requestedThreads,
+        QThreadPool::globalInstance()->maxThreadCount());
+#endif
 }
 
 void Application::gotoTutorial() {
