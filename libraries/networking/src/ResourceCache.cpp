@@ -25,6 +25,23 @@
 #include <Trace.h>
 #include <Profile.h>
 #include <QUrlQuery>
+#include <QCryptographicHash>
+#include <PhoneLoadingDiagnostics.h>
+
+// Restrict this probe to OBJ resources: demand, admission and dispatch can be
+// correlated with the existing HTTP/model hash markers without flooding the
+// log with every texture/animation lookup. No extra per-resource state or timers.
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#define PHONE_OBJ_RESOURCE_LOADING(url, ...) do { \
+    if (phoneLoadingDiagnosticsEnabled() && \
+            ((url).path().endsWith(".obj", Qt::CaseInsensitive) || \
+             (url).path().endsWith(".obj.gz", Qt::CaseInsensitive))) { \
+        PHONE_LOADING(__VA_ARGS__); \
+    } \
+} while (false)
+#else
+#define PHONE_OBJ_RESOURCE_LOADING(url, ...) do {} while (false)
+#endif
 
 #include "NetworkAccessManager.h"
 #include "NetworkLogging.h"
@@ -358,6 +375,8 @@ void ResourceCache::setRequestLimit(uint32_t limit) {
 }
 
 QSharedPointer<Resource> ResourceCache::getResource(const QUrl& url, const QUrl& fallback, void* extra, size_t extraHash) {
+    PHONE_OBJ_RESOURCE_LOADING(url, "phase=resource_demand url_hash=%s",
+        QCryptographicHash::hash(url.toEncoded(), QCryptographicHash::Md5).toHex().constData());
     QSharedPointer<Resource> resource;
     {
         QWriteLocker locker(&_resourcesLock);
@@ -406,6 +425,10 @@ QSharedPointer<Resource> ResourceCache::getResource(const QUrl& url, const QUrl&
         resource->ensureLoading();
     }
 
+    PHONE_OBJ_RESOURCE_LOADING(resource->getURL(), "phase=resource_resolved resource_id=%d url_hash=%s started=%d loaded=%d failed=%d",
+        resource->_requestID,
+        QCryptographicHash::hash(resource->getURL().toEncoded(), QCryptographicHash::Md5).toHex().constData(),
+        int(resource->_startedLoading), int(resource->_loaded), int(resource->_failedToLoad));
     DependencyManager::get<ResourceRequestObserver>()->update(resource->getURL(), -1, "ResourceCache::getResource");
     return resource;
 }
@@ -541,7 +564,13 @@ bool ResourceCache::attemptRequest(QSharedPointer<Resource> resource, float prio
     Q_ASSERT(!resource.isNull());
 
     auto sharedItems = DependencyManager::get<ResourceCacheSharedItems>();
-    if (sharedItems->appendRequest(resource, priority)) {
+    const bool admitted = sharedItems->appendRequest(resource, priority);
+    PHONE_OBJ_RESOURCE_LOADING(resource->getURL(), "phase=resource_admission resource_id=%d url_hash=%s admitted=%d priority_known=%d priority=%.3f pending=%u active=%u limit=%u",
+        resource->_requestID,
+        QCryptographicHash::hash(resource->getURL().toEncoded(), QCryptographicHash::Md5).toHex().constData(),
+        int(admitted), int(std::isfinite(priority)), std::isfinite(priority) ? double(priority) : 0.0,
+        sharedItems->getPendingRequestsCount(), sharedItems->getLoadingRequestsCount(), sharedItems->getRequestLimit());
+    if (admitted) {
         resource->makeRequest();
         return true;
     }
@@ -752,6 +781,9 @@ void Resource::reinsert() {
 
 
 void Resource::makeRequest() {
+    PHONE_OBJ_RESOURCE_LOADING(_url, "phase=resource_dispatch resource_id=%d url_hash=%s active_url_hash=%s attempt=%u",
+        _requestID, QCryptographicHash::hash(_url.toEncoded(), QCryptographicHash::Md5).toHex().constData(),
+        QCryptographicHash::hash(_activeUrl.toEncoded(), QCryptographicHash::Md5).toHex().constData(), _attempts);
     if (_request) {
         PROFILE_ASYNC_END(resource, "Resource:" + getType(), QString::number(_requestID));
         _request->disconnect();
@@ -810,6 +842,9 @@ void Resource::handleReplyFinished() {
 
     // Make sure we keep the Resource alive here
     auto self = _self.lock();
+    PHONE_OBJ_RESOURCE_LOADING(_url, "phase=resource_reply resource_id=%d url_hash=%s result=%d cached=%d",
+        _requestID, QCryptographicHash::hash(_url.toEncoded(), QCryptographicHash::Md5).toHex().constData(),
+        int(_request->getResult()), int(_request->loadedFromCache()));
     ResourceCache::requestCompleted(_self);
 
     auto result = _request->getResult();
