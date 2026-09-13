@@ -370,7 +370,9 @@ private:
     void renderPassDraw(const Batch& batch);
     void transferGlUniforms();
     void updateInput();
-    void updateTransform(const Batch& batch);
+    bool validateInputDraw(bool indexed, uint32_t count, uint32_t first,
+                           uint32_t instances, uint32_t firstInstance) const;
+    bool updateTransform(const Batch& batch);
     void updatePipeline();
 
     vk::VKFramebuffer* syncGPUObject(const Framebuffer *framebuffer);

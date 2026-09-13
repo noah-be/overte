@@ -636,20 +636,28 @@ void VKStrictResourceTexture::transfer(VKBackend &backend) {
         bufferCopyRegions.data()
     );
 
-    // Change texture image layout to shader read after all mip levels have been copied
-    // The barrier command needs to be run on both transfer and graphics queues. Only then image layout changes.
-    _vkImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    vks::tools::setImageLayout(
-        copyCmd,
-        _vkImage,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        subresourceRange,
-        device->queueFamilyIndices.transfer,
-        device->queueFamilyIndices.graphics,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
-        VK_PIPELINE_STAGE_TRANSFER_BIT); // VKTODO: should be VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT but validation layers complain so I'm not sure
+    // Shared family means the same queue: Context requests queue index zero for
+    // both roles. Transition once, with shader visibility on that graphics queue.
+    // A dedicated transfer queue instead releases ownership; it cannot execute
+    // shader stages. postTransfer records the matching graphics acquire only.
+    const bool separateFamilies = device->queueFamilyIndices.transfer != device->queueFamilyIndices.graphics;
+    VkImageMemoryBarrier uploadBarrier {};
+    uploadBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    uploadBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    uploadBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    uploadBarrier.image = _vkImage;
+    uploadBarrier.subresourceRange = subresourceRange;
+    uploadBarrier.srcQueueFamilyIndex = separateFamilies ? device->queueFamilyIndices.transfer : VK_QUEUE_FAMILY_IGNORED;
+    uploadBarrier.dstQueueFamilyIndex = separateFamilies ? device->queueFamilyIndices.graphics : VK_QUEUE_FAMILY_IGNORED;
+    uploadBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    uploadBarrier.dstAccessMask = separateFamilies ? 0 : VK_ACCESS_SHADER_READ_BIT;
+    vkCmdPipelineBarrier(copyCmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         separateFamilies ? VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT : VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                         0, 0, nullptr, 0, nullptr, 1, &uploadBarrier);
+    _vkImageLayout = separateFamilies ? VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
+    // This waits for the upload fence, completing release before a later acquire
+    // and keeping the staging allocation alive until the copy has finished.
     device->flushCommandBuffer(copyCmd, backend.getContext().transferQueue, device->transferCommandPool);
 
     // Clean up staging resources
@@ -659,30 +667,26 @@ void VKStrictResourceTexture::transfer(VKBackend &backend) {
 
 void VKStrictResourceTexture::postTransfer(VKBackend &backend) {
     auto device = backend.getContext().device;
-    // VKTODO: in the future this needs to be streamlined as a part of frame command buffer.
-    VkCommandBuffer graphicsCmd = device->createCommandBuffer(device->graphicsCommandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
-
-    VkImageSubresourceRange subresourceRange = {};
-    subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    subresourceRange.baseMipLevel = 0;
-    subresourceRange.levelCount = _transferData.mips.size();
-    if (_gpuObject.getType() == Texture::TEX_CUBE) {
-        subresourceRange.layerCount = 6;
-    }else{
-        subresourceRange.layerCount = 1;
+    if (device->queueFamilyIndices.transfer != device->queueFamilyIndices.graphics) {
+        VkCommandBuffer graphicsCmd = device->createCommandBuffer(device->graphicsCommandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+        VkImageMemoryBarrier acquireBarrier {};
+        acquireBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        acquireBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        acquireBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        acquireBarrier.image = _vkImage;
+        acquireBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        acquireBarrier.subresourceRange.levelCount = _transferData.mips.size();
+        acquireBarrier.subresourceRange.layerCount = _gpuObject.getType() == Texture::TEX_CUBE ? 6 : 1;
+        acquireBarrier.srcQueueFamilyIndex = device->queueFamilyIndices.transfer;
+        acquireBarrier.dstQueueFamilyIndex = device->queueFamilyIndices.graphics;
+        acquireBarrier.srcAccessMask = 0;
+        acquireBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        // The release is complete: transfer() synchronously waited its fence.
+        // Both barriers retain identical layouts, families and subresources.
+        vkCmdPipelineBarrier(graphicsCmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                             0, 0, nullptr, 0, nullptr, 1, &acquireBarrier);
+        device->flushCommandBuffer(graphicsCmd, backend.getContext().graphicsQueue, device->graphicsCommandPool);
     }
-    vks::tools::setImageLayout(
-        graphicsCmd,
-        _vkImage,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        subresourceRange,
-        device->queueFamilyIndices.transfer,
-        device->queueFamilyIndices.graphics,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
-        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-
-    device->flushCommandBuffer(graphicsCmd, backend.getContext().graphicsQueue, device->graphicsCommandPool);
     // Image is ready to use now.
     _vkImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 

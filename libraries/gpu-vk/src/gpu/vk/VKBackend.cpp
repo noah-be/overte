@@ -1152,11 +1152,17 @@ void VKBackend::updateVkDescriptorWriteSetsUniform(const Cache::PipelineLayout &
             sourceRange = bufferState.size;
             if (bufferState.buffer) {
                 hadSourceBuffer = true;
-                sourceBytes = bufferState.buffer->getSize();
+                // CPU producers may already be preparing the next frame. Only
+                // the applied render snapshot and its actual VkBuffer allocation
+                // describe the bytes available to this command buffer.
+                const auto renderBytes = bufferState.buffer->_renderSysmem.getSize();
+                VKBuffer* buffer = renderBytes > 0 ? syncGPUObject(bufferState.buffer) : nullptr;
+                if (buffer && buffer->buffer != VK_NULL_HANDLE) {
+                    sourceBytes = std::min<size_t>(renderBytes, buffer->allocation.size);
+                }
                 validRange = sourceRange > 0 && sourceOffset <= sourceBytes &&
                     sourceRange <= sourceBytes - sourceOffset;
                 if (validRange) {
-                    VKBuffer* buffer = syncGPUObject(bufferState.buffer);
                     if (buffer && buffer->buffer != VK_NULL_HANDLE) {
                         bufferInfo.buffer = buffer->buffer;
                         bufferInfo.offset = sourceOffset;
@@ -1192,8 +1198,12 @@ void VKBackend::updateVkDescriptorWriteSetsUniform(const Cache::PipelineLayout &
         if (hadSourceBuffer && !validRange && !forcedFallback) {
             static size_t invalidUniformReports { 0 };
             if (invalidUniformReports++ < 32) {
-                os_log_fault(OS_LOG_DEFAULT, "%{public}s",
-                            overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
+                // Fixed schema, numeric bounds only: no entity names, URLs or contents.
+                os_log_fault(OS_LOG_DEFAULT,
+                    "OVERTE_IOS_VULKAN_DESCRIPTOR_REJECTED kind=uniform binding=%{public}zu "
+                    "offset=%{public}llu range=%{public}llu available=%{public}zu",
+                    i, static_cast<unsigned long long>(sourceOffset),
+                    static_cast<unsigned long long>(sourceRange), sourceBytes);
             }
         }
 #endif
@@ -1437,11 +1447,15 @@ void VKBackend::updateVkDescriptorWriteSetsStorage(const Cache::PipelineLayout &
         bool hadSourceBuffer { false };
         if (!forcedFallback && i < _resource._buffers.size() && _resource._buffers[i].buffer) {
             hadSourceBuffer = true;
-            sourceBytes = _resource._buffers[i].buffer->getSize();
-            VKBuffer* buffer = sourceBytes > 0
-                ? syncGPUObject(_resource._buffers[i].buffer)
-                : nullptr;
+            const auto& source = _resource._buffers[i].buffer;
+            const auto renderBytes = source->_renderSysmem.getSize();
+            VKBuffer* buffer = renderBytes > 0 ? syncGPUObject(source) : nullptr;
             if (buffer && buffer->buffer != VK_NULL_HANDLE) {
+                // Match the applied GPU snapshot, not the concurrently mutable
+                // producer size. Never advertise bytes beyond the allocation.
+                sourceBytes = std::min<size_t>(renderBytes, buffer->allocation.size);
+            }
+            if (sourceBytes > 0) {
                 bufferInfo.buffer = buffer->buffer;
                 bufferInfo.offset = 0;
                 bufferInfo.range = sourceBytes;
@@ -1473,8 +1487,9 @@ void VKBackend::updateVkDescriptorWriteSetsStorage(const Cache::PipelineLayout &
         if (hadSourceBuffer && !validRange && !forcedFallback) {
             static size_t invalidStorageReports { 0 };
             if (invalidStorageReports++ < 32) {
-                os_log_fault(OS_LOG_DEFAULT, "%{public}s",
-                            overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
+                os_log_fault(OS_LOG_DEFAULT,
+                    "OVERTE_IOS_VULKAN_DESCRIPTOR_REJECTED kind=storage binding=%{public}zu available=%{public}zu",
+                    i, sourceBytes);
             }
         }
 #endif
@@ -1915,7 +1930,9 @@ void VKBackend::renderPassDraw(const Batch& batch) {
                 _iosTracedNamedCalls.contains(namedCall);
 #endif
             updateInput();
-            updateTransform(batch);
+            if (!updateTransform(batch)) {
+                break;
+            }
             updatePipeline();
             updateRenderPass();
 
@@ -2178,7 +2195,75 @@ void VKBackend::renderPassDraw(const Batch& batch) {
     }
 }
 
+bool VKBackend::validateInputDraw(bool indexed, uint32_t count, uint32_t first,
+                                  uint32_t instances, uint32_t firstInstance) const {
+    if (count == 0 || instances == 0) {
+        return false; // A no-op draw has no input accesses to validate or submit.
+    }
+    unsigned reason = 0;
+    if (indexed) {
+        const auto buffer = _input._indexBuffer;
+        const size_t bytes = _input._indexBufferType == gpu::UINT32 ? 4 :
+            _input._indexBufferType == gpu::UINT16 ? 2 : 0;
+        const auto size = buffer ? buffer->_renderSysmem.getSize() : 0;
+        const auto offset = _input._indexBufferOffset;
+        if (!buffer || !bytes || offset % bytes != 0 || offset > size ||
+                first > (size - offset) / bytes || count > (size - offset) / bytes - first) {
+            reason = 1;
+        }
+    }
+    const auto format = gpu::acquire(_input._format);
+    if (!reason && format) {
+        const auto& attributes = format->getAttributes();
+        for (const auto& entry : format->getChannels()) {
+            const size_t binding = entry.first;
+            if (binding >= _input._buffers.size() || !_input._buffers[binding] ||
+                    _input._bufferVBOs[binding] == VK_NULL_HANDLE) {
+                reason = 2;
+                break;
+            }
+            const auto size = _input._buffers[binding]->_renderSysmem.getSize();
+            const auto offset = _input._bufferOffsets[binding];
+            const auto stride = _input._bufferStrides[binding];
+            size_t extent = 0;
+            for (const auto slot : entry.second._slots) {
+                const auto attribute = attributes.find(slot);
+                if (attribute != attributes.end()) {
+                    extent = std::max(extent, static_cast<size_t>(attribute->second._offset) +
+                        static_cast<size_t>(attribute->second.getSize()));
+                }
+            }
+            const bool perInstance = entry.second._frequency == gpu::Stream::PER_INSTANCE;
+            // Indexed vertex values are not scanned here; this checks the bound
+            // range itself, plus exact non-indexed and per-instance fetch ranges.
+            const uint64_t last = perInstance ? uint64_t(firstInstance) + instances - 1 :
+                indexed ? 0 : uint64_t(first) + count - 1;
+            if (offset > size || extent > size - offset ||
+                    (stride != 0 && last > (size - offset - extent) / stride)) {
+                reason = 3;
+                break;
+            }
+        }
+    }
+    if (reason) {
+#if defined(Q_OS_IOS)
+        static unsigned reports = 0;
+        if (reports < 16) {
+            ++reports;
+            os_log_fault(OS_LOG_DEFAULT,
+                "OVERTE_IOS_VULKAN_INPUT_REJECT reason=%u indexed=%u count=%u first=%u instances=%u first_instance=%u",
+                reason, static_cast<unsigned>(indexed), count, first, instances, firstInstance);
+        }
+#endif
+        return false;
+    }
+    return true;
+}
+
 void VKBackend::draw(VkPrimitiveTopology mode, uint32 numVertices, uint32 startVertex) {
+    if (!validateInputDraw(false, numVertices, startVertex, isStereo() ? 2 : 1, 0)) {
+        return;
+    }
     // VKTODO: no stereo for now
     if (isStereo()) {
 #ifdef GPU_STEREO_DRAWCALL_INSTANCED
@@ -2644,7 +2729,15 @@ void VKBackend::updateInput() {
                 if (backendBuffer) {
                     vkBuffer = backendBuffer->buffer;
                 }
-                Q_ASSERT(vkBuffer != VK_NULL_HANDLE);
+                _input._bufferVBOs[buffer_index] = vkBuffer;
+                if (vkBuffer == VK_NULL_HANDLE ||
+                        _input._bufferOffsets[buffer_index] >=
+                            _input._buffers[buffer_index]->_renderSysmem.getSize()) {
+                    // Clearing an optional channel needs no Vulkan null binding.
+                    // Required channels are checked before a draw is submitted.
+                    _input._bufferVBOs[buffer_index] = VK_NULL_HANDLE;
+                    continue;
+                }
 
                 //auto vkBuffer = VKBuffer::getBuffer(*this, *_input._buffers[buffer]);
                 VkDeviceSize vkOffset = _input._bufferOffsets[buffer_index];
@@ -2824,8 +2917,26 @@ void VKBackend::persistIOSDiagnosticSubmit(uint64_t submitId) {
         now - lastProgressReport >= std::chrono::seconds(5);
     if (reportProgress) {
         const auto evidence = iosRuntimeEntityEvidenceSnapshot();
-        os_log_info(OS_LOG_DEFAULT, "%{public}s",
-                    overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted));
+        // Fixed numeric telemetry only: no entity IDs, pipeline names, paths or
+        // user/content strings. Submit is recorded before queue submission, not
+        // proof of GPU completion; present counters retain their own meaning.
+        os_log_info(OS_LOG_DEFAULT,
+                    "OVT_IOS_RENDER_SUBMIT_V1 submit=%{public}llu frame=%{public}llu "
+                    "presentAccepted=%{public}llu presentRejected=%{public}llu lastPresentedFrame=%{public}llu "
+                    "scissorEnabled=%{public}llu scissorDisabled=%{public}llu scissorInvalid=%{public}llu "
+                    "evidenceArmed=%{public}d evidenceCommitted=%{public}d expected=%{public}d "
+                    "renderables=%{public}d scene=%{public}d drawn=%{public}d capacityExceeded=%{public}d",
+                    static_cast<unsigned long long>(submitId),
+                    static_cast<unsigned long long>(_frameCounter),
+                    static_cast<unsigned long long>(evidence.acceptedPresentCalls),
+                    static_cast<unsigned long long>(evidence.rejectedPresentCalls),
+                    static_cast<unsigned long long>(evidence.lastPresentedFrame),
+                    static_cast<unsigned long long>(_iosScissorEnabledDraws),
+                    static_cast<unsigned long long>(_iosScissorDisabledDraws),
+                    static_cast<unsigned long long>(_iosScissorInvalidDraws),
+                    static_cast<int>(evidence.armed), static_cast<int>(evidence.committed),
+                    evidence.expected, evidence.renderables, evidence.scene, evidence.drawn,
+                    static_cast<int>(evidence.capacityExceeded));
         lastProgressReport = now;
     }
     _iosScissorEnabledDraws = 0;
@@ -3327,64 +3438,84 @@ uint32_t VKBackend::getDrawCallInfoBinding() const {
     return drawCallInfoBinding;
 }
 
-void VKBackend::updateTransform(const gpu::Batch& batch) {
-    _transform.update(_commandIndex, _stereo, _uniform, *_currentFrame);
-
-    const auto drawCallInfoBinding = getDrawCallInfoBinding();
+bool VKBackend::updateTransform(const gpu::Batch& batch) {
+    const auto reject = [](unsigned reason) {
+#if defined(Q_OS_IOS)
+        static unsigned reports = 0;
+        if (reports < 16) {
+            ++reports;
+            os_log_fault(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_DRAW_INFO_REJECT reason=%u", reason);
+        }
+#endif
+        return false;
+    };
+    if (!_currentFrame || !_currentFrame->_drawCallInfoBuffer || _commandIndex < 0 ||
+            static_cast<size_t>(_commandIndex) >= batch.getCommands().size() ||
+            static_cast<size_t>(_commandIndex) >= batch.getCommandOffsets().size()) {
+        return reject(1);
+    }
+    const auto command = batch.getCommands()[_commandIndex];
+    const bool instanced = command == Batch::COMMAND_drawInstanced ||
+        command == Batch::COMMAND_drawIndexedInstanced;
+    const auto paramOffset = batch.getCommandOffsets()[_commandIndex];
+    const bool indirect = command == Batch::COMMAND_multiDrawIndirect ||
+        command == Batch::COMMAND_multiDrawIndexedIndirect;
+    const size_t requiredParams = instanced ? 5 : indirect ? 2 : 3;
+    if (paramOffset > batch._params.size() || requiredParams > batch._params.size() - paramOffset) {
+        return reject(2);
+    }
+    const auto encodedInstances = instanced ? static_cast<size_t>(batch._params[paramOffset + 4]._uint) : 1U;
+    const auto firstInstance = instanced ? static_cast<size_t>(batch._params[paramOffset]._uint) : 0U;
+    const auto effectiveInstances = drawCommandInstanceCount(command, encodedInstances, isStereo());
     VkDeviceSize diagnosticDrawCallOffset { 0 };
     size_t availableDrawCallInfoElements { 0 };
-
     if (batch._currentNamedCall.empty()) {
-        if (_transform._enabledDrawcallInfoBuffer) {
-            _transform._enabledDrawcallInfoBuffer = false;
+        if (_currentDraw < 0 ||
+                static_cast<size_t>(_currentDraw) >= _transform._unnamedDrawCallInfoOffsets.size() ||
+                static_cast<size_t>(_currentDraw) >= _transform._unnamedDrawCallInfoElementCounts.size()) {
+            return reject(3);
         }
-        // Since Vulkan has no glVertexAttrib equivalent we need to pass a buffer pointer here
-        Q_ASSERT(_currentDraw >= 0 &&
-                 static_cast<size_t>(_currentDraw) < _transform._unnamedDrawCallInfoOffsets.size());
-        // Each ordinary draw owns a replicated constant-value span. This
-        // emulates glVertexAttribI* for instanced draws without an OOB read.
-        VkDeviceSize vkOffset = _transform._unnamedDrawCallInfoOffsets[_currentDraw];
-        Q_ASSERT(vkOffset != VK_WHOLE_SIZE);
-        availableDrawCallInfoElements =
-            _transform._unnamedDrawCallInfoElementCounts[_currentDraw];
-        diagnosticDrawCallOffset = vkOffset;
-        Q_ASSERT(_currentFrame->_drawCallInfoBuffer);
-        auto gpuBuffer = syncGPUObject(_currentFrame->_drawCallInfoBuffer.get());
-        vkCmdBindVertexBuffers(_currentCommandBuffer, drawCallInfoBinding, 1, &gpuBuffer->buffer, &vkOffset);
+        diagnosticDrawCallOffset = _transform._unnamedDrawCallInfoOffsets[_currentDraw];
+        availableDrawCallInfoElements = _transform._unnamedDrawCallInfoElementCounts[_currentDraw];
     } else {
-        if (!_transform._enabledDrawcallInfoBuffer) {
-            // VKTODO: I'm not sure what to do here, I will figure it out when we get to stereo rendering.
-#ifdef GPU_STEREO_DRAWCALL_INSTANCED
-            //glVertexBindingDivisor(gpu::Stream::DRAW_CALL_INFO, (isStereo() ? 2 : 1));
-#else
-            //glVertexBindingDivisor(gpu::Stream::DRAW_CALL_INFO, 1);
-#endif
-            // Make sure attrib array is enabled
-            _transform._enabledDrawcallInfoBuffer = true;
+        const auto found = _transform._drawCallInfoOffsets.find(batch._currentNamedCall);
+        if (found == _transform._drawCallInfoOffsets.end() ||
+                batch._namedData.find(batch._currentNamedCall) == batch._namedData.end()) {
+            return reject(4); // Never insert a missing name with a misleading zero offset.
         }
-        // NOTE: A stride of zero in BindVertexBuffer signifies that all elements are sourced from the same location,
-        //       so we must provide a stride.
-        //       This is in contrast to VertexAttrib*Pointer, where a zero signifies tightly-packed elements.
-        VkDeviceSize vkOffset = _transform._drawCallInfoOffsets[batch._currentNamedCall];
-        diagnosticDrawCallOffset = vkOffset;
+        diagnosticDrawCallOffset = found->second;
         availableDrawCallInfoElements = batch.getDrawCallInfoBuffer().size();
 #ifdef GPU_STEREO_DRAWCALL_INSTANCED
         if (isStereo()) {
             availableDrawCallInfoElements *= 2;
         }
 #endif
-        Q_ASSERT(_currentFrame->_drawCallInfoBuffer);
-        auto gpuBuffer = syncGPUObject(_currentFrame->_drawCallInfoBuffer.get());
-        vkCmdBindVertexBuffers(_currentCommandBuffer, drawCallInfoBinding, 1, &gpuBuffer->buffer, &vkOffset);
     }
+    const auto drawInfoBytes = _currentFrame->_drawCallInfoBuffer->_renderSysmem.getSize();
+    if (diagnosticDrawCallOffset == VK_WHOLE_SIZE || firstInstance > availableDrawCallInfoElements ||
+            effectiveInstances > availableDrawCallInfoElements - firstInstance ||
+            diagnosticDrawCallOffset >= drawInfoBytes ||
+            firstInstance > (drawInfoBytes - diagnosticDrawCallOffset) / sizeof(gpu::Batch::DrawCallInfo) ||
+            effectiveInstances > (drawInfoBytes - diagnosticDrawCallOffset) / sizeof(gpu::Batch::DrawCallInfo) - firstInstance) {
+        return reject(5);
+    }
+    const auto gpuBuffer = syncGPUObject(_currentFrame->_drawCallInfoBuffer.get());
+    if (!gpuBuffer || gpuBuffer->buffer == VK_NULL_HANDLE) {
+        return reject(6);
+    }
+    _transform.update(_commandIndex, _stereo, _uniform, *_currentFrame);
+    _transform._enabledDrawcallInfoBuffer = !batch._currentNamedCall.empty();
+    const auto drawCallInfoBinding = getDrawCallInfoBinding();
+    vkCmdBindVertexBuffers(_currentCommandBuffer, drawCallInfoBinding, 1,
+        &gpuBuffer->buffer, &diagnosticDrawCallOffset);
 
 #if defined(Q_OS_IOS)
     if (iosRuntimeRenderDiagnosticsEnabled()) {
         const auto& drawInfos = batch.getDrawCallInfoBuffer();
         const auto drawInfoBytes = _currentFrame->_drawCallInfoBuffer
-            ? _currentFrame->_drawCallInfoBuffer->getSize() : 0;
+            ? _currentFrame->_drawCallInfoBuffer->_renderSysmem.getSize() : 0;
         const auto objectBytes = _currentFrame->_objectBuffer
-            ? _currentFrame->_objectBuffer->getSize() : 0;
+            ? _currentFrame->_objectBuffer->_renderSysmem.getSize() : 0;
         const auto command = batch.getCommands()[_commandIndex];
         const auto paramOffset = batch.getCommandOffsets()[_commandIndex];
         const auto encodedInstances = command == Batch::COMMAND_drawInstanced ||
@@ -3549,6 +3680,7 @@ void VKBackend::updateTransform(const gpu::Batch& batch) {
     _uniform._buffers[gpu::slot::buffer::CameraCorrection].buffer = _currentFrame->_cameraCorrectionBuffer._buffer.get();
     _uniform._buffers[gpu::slot::buffer::CameraCorrection].offset = _currentFrame->_cameraCorrectionBuffer._offset;
     _uniform._buffers[gpu::slot::buffer::CameraCorrection].size = _currentFrame->_cameraCorrectionBuffer._size;*/
+    return true;
 }
 
 void VKBackend::updatePipeline() {
@@ -3666,8 +3798,38 @@ void VKBackend::transferTransformState(const Batch& batch) {
                 continue;
             }
 
-            Q_ASSERT(sourceDrawInfoIndex < batch._drawCallInfos.size());
+            const auto rejectUnnamed = [&](unsigned reason) {
+                _transform._unnamedDrawCallInfoOffsets.push_back(VK_WHOLE_SIZE);
+                _transform._unnamedDrawCallInfoElementCounts.push_back(0);
+                _transform._unnamedDrawCallInfoSourceIndices.push_back(-1);
+                // A malformed draw still consumes its logical source entry.
+                // Later valid draws must not inherit the rejected draw's object.
+                ++sourceDrawInfoIndex;
+#if defined(Q_OS_IOS)
+                static unsigned reports = 0;
+                if (reports < 16) {
+                    ++reports;
+                    os_log_fault(OS_LOG_DEFAULT,
+                        "OVERTE_IOS_VULKAN_DRAW_INFO_SOURCE_REJECT reason=%u", reason);
+                }
+#endif
+            };
+            if (sourceDrawInfoIndex >= batch._drawCallInfos.size() ||
+                    commandIndex >= commandOffsets.size()) {
+                rejectUnnamed(1);
+                continue;
+            }
             const auto paramOffset = commandOffsets[commandIndex];
+            const bool instanced = command == Batch::COMMAND_drawInstanced ||
+                command == Batch::COMMAND_drawIndexedInstanced;
+            const bool indirect = command == Batch::COMMAND_multiDrawIndirect ||
+                command == Batch::COMMAND_multiDrawIndexedIndirect;
+            const size_t requiredParams = instanced ? 5 : indirect ? 2 : 3;
+            if (paramOffset > batch._params.size() ||
+                    requiredParams > batch._params.size() - paramOffset) {
+                rejectUnnamed(2);
+                continue;
+            }
             const auto encodedInstances = command == Batch::COMMAND_drawInstanced ||
                     command == Batch::COMMAND_drawIndexedInstanced
                 ? static_cast<size_t>(batch._params[paramOffset + 4]._uint)
@@ -3691,7 +3853,8 @@ void VKBackend::transferTransformState(const Batch& batch) {
                 static_cast<int>(sourceDrawInfoIndex));
             ++sourceDrawInfoIndex;
         }
-        Q_ASSERT(sourceDrawInfoIndex == batch._drawCallInfos.size());
+        // Malformed command streams are represented by invalid table entries;
+        // release and debug builds both defer their rejection to updateTransform.
 
         for (auto& data : batch._namedData) {
             auto currentSize = bufferData.size();
@@ -3778,6 +3941,8 @@ void VKBackend::do_drawIndexed(const Batch& batch, size_t paramOffset) {
     uint32 numIndices = batch._params[paramOffset + 1]._uint;
     uint32 startIndex = batch._params[paramOffset + 0]._uint;
 
+    if (!validateInputDraw(true, numIndices, startIndex, isStereo() ? 2 : 1, 0)) { return; }
+
     if (isStereo()) {
 #ifdef GPU_STEREO_DRAWCALL_INSTANCED
         vkCmdDrawIndexed(_currentCommandBuffer, numIndices, 2, startIndex, 0, 0);
@@ -3801,18 +3966,24 @@ void VKBackend::do_drawIndexed(const Batch& batch, size_t paramOffset) {
 }
 
 void VKBackend::do_drawInstanced(const Batch& batch, size_t paramOffset) {
-    int numInstances = batch._params[paramOffset + 4]._uint;
+    uint32_t numInstances = batch._params[paramOffset + 4]._uint;
     // Do not remove, it's here for readability
     //Primitive primitiveType = (Primitive)batch._params[paramOffset + 3]._uint;
     uint32 numVertices = batch._params[paramOffset + 2]._uint;
     uint32 startVertex = batch._params[paramOffset + 1]._uint;
 
 
+    const uint32_t startInstance = batch._params[paramOffset + 0]._uint;
+
+    if ((isStereo() && numInstances > UINT32_MAX / 2) ||
+            !validateInputDraw(false, numVertices, startVertex,
+                isStereo() ? 2 * numInstances : numInstances, startInstance)) { return; }
+
     if (isStereo()) {
-        int trueNumInstances = 2 * numInstances;
+        uint32_t trueNumInstances = 2 * numInstances;
 
 #ifdef GPU_STEREO_DRAWCALL_INSTANCED
-        vkCmdDraw(_currentCommandBuffer, numVertices, trueNumInstances, startVertex, 0);
+        vkCmdDraw(_currentCommandBuffer, numVertices, trueNumInstances, startVertex, startInstance);
 #else
         // VKTODO:
         setupStereoSide(0);
@@ -3825,7 +3996,7 @@ void VKBackend::do_drawInstanced(const Batch& batch, size_t paramOffset) {
         // VKTODO: should that count as 2 draw calls for whole set of instances?
         _stats._DSNumDrawcalls += trueNumInstances;
     } else {
-        vkCmdDraw(_currentCommandBuffer, numVertices, numInstances, startVertex, 0);
+        vkCmdDraw(_currentCommandBuffer, numVertices, numInstances, startVertex, startInstance);
         _stats._DSNumTriangles += (numInstances * numVertices) / 3;
         // VKTODO: should that count as 1 draw call for whole set of instances?
         _stats._DSNumDrawcalls += numInstances;
@@ -3834,15 +4005,19 @@ void VKBackend::do_drawInstanced(const Batch& batch, size_t paramOffset) {
 }
 
 void VKBackend::do_drawIndexedInstanced(const Batch& batch, size_t paramOffset) {
-    int numInstances = batch._params[paramOffset + 4]._uint;
+    uint32_t numInstances = batch._params[paramOffset + 4]._uint;
     // Do not remove, it's here for readability
     //Primitive primitiveType = (Primitive)batch._params[paramOffset + 3]._uint;
     uint32 numIndices = batch._params[paramOffset + 2]._uint;
     uint32 startIndex = batch._params[paramOffset + 1]._uint;
     uint32 startInstance = batch._params[paramOffset + 0]._uint;
 
+    if ((isStereo() && numInstances > UINT32_MAX / 2) ||
+            !validateInputDraw(true, numIndices, startIndex,
+                isStereo() ? 2 * numInstances : numInstances, startInstance)) { return; }
+
     if (isStereo()) {
-        int trueNumInstances = 2 * numInstances;
+        uint32_t trueNumInstances = 2 * numInstances;
 
 #ifdef GPU_STEREO_DRAWCALL_INSTANCED
         // VKTODO: Shouldn't it be startInstance * 2? Although on OpenGL it's just startInstance.
@@ -4195,8 +4370,8 @@ void VKBackend::do_setInputBuffer(const Batch& batch, size_t paramOffset) {
     BufferPointer buffer = batch._buffers.get(batch._params[paramOffset + 2]._uint);
     uint32 channel = batch._params[paramOffset + 3]._uint;
 
-    if (_inRenderTransferPass && buffer) {
-        syncGPUObject(buffer.get());
+    if (_inRenderTransferPass) {
+        if (buffer) { syncGPUObject(buffer.get()); }
         return;
     }
 
@@ -4235,40 +4410,34 @@ void VKBackend::do_setInputBuffer(const Batch& batch, size_t paramOffset) {
 }
 
 void VKBackend::do_setIndexBuffer(const Batch& batch, size_t paramOffset) {
-    _input._indexBufferType = (Type)batch._params[paramOffset + 2]._uint;
-    gpu::Offset newOffset = batch._params[paramOffset + 0]._uint;
-    BufferPointer indexBuffer = batch._buffers.get(batch._params[paramOffset + 1]._uint);
-
-    if (_inRenderTransferPass && indexBuffer) {
-        syncGPUObject(indexBuffer.get());
+    const auto indexBufferType = static_cast<Type>(batch._params[paramOffset + 2]._uint);
+    const gpu::Offset newOffset = batch._params[paramOffset + 0]._uint;
+    const BufferPointer indexBuffer = batch._buffers.get(batch._params[paramOffset + 1]._uint);
+    if (_inRenderTransferPass) {
+        if (indexBuffer) {
+            syncGPUObject(indexBuffer.get());
+        }
         return;
     }
 
-    if (indexBuffer.get() != _input._indexBuffer || newOffset != _input._indexBufferOffset) {
-        _input._indexBuffer = indexBuffer.get();
-        _input._indexBufferOffset = batch._params[paramOffset + 0]._uint;
-        if (indexBuffer) {
-            VkIndexType indexType = VK_INDEX_TYPE_NONE_KHR;
-            if (_input._indexBufferType == gpu::UINT32) {
-                indexType = VK_INDEX_TYPE_UINT32;
-            } else if (_input._indexBufferType == gpu::UINT16) {
-                indexType = VK_INDEX_TYPE_UINT16;
-            } else {
-                Q_ASSERT(false);
-            }
-            auto backendBuffer = syncGPUObject(indexBuffer.get());
-            VkBuffer vkBuffer = VK_NULL_HANDLE;
-            if (backendBuffer) {
-                vkBuffer = backendBuffer->buffer;
-            }
-            Q_ASSERT(vkBuffer != VK_NULL_HANDLE);
-            vkCmdBindIndexBuffer(_currentCommandBuffer, vkBuffer, _input._indexBufferOffset, indexType);
-        } else {
-            // FIXME do we really need this?  Is there ever a draw call where we care that the element buffer is null?
-            Q_ASSERT(false);
-            //glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-        }
+    // Bind on every explicit command: the type and native allocation can change
+    // even when the frontend buffer and offset are unchanged.
+    _input._indexBuffer = nullptr;
+    _input._indexBufferType = indexBufferType;
+    _input._indexBufferOffset = newOffset;
+    const size_t elementBytes = indexBufferType == gpu::UINT32 ? 4 :
+        indexBufferType == gpu::UINT16 ? 2 : 0;
+    if (!indexBuffer || !elementBytes || newOffset % elementBytes != 0 ||
+            newOffset >= indexBuffer->_renderSysmem.getSize()) {
+        return; // The draw boundary rejects indexed draws with no valid binding.
     }
+    const auto backendBuffer = syncGPUObject(indexBuffer.get());
+    if (!backendBuffer || backendBuffer->buffer == VK_NULL_HANDLE) {
+        return;
+    }
+    _input._indexBuffer = indexBuffer.get();
+    vkCmdBindIndexBuffer(_currentCommandBuffer, backendBuffer->buffer, newOffset,
+        indexBufferType == gpu::UINT32 ? VK_INDEX_TYPE_UINT32 : VK_INDEX_TYPE_UINT16);
 }
 
 void VKBackend::do_setIndirectBuffer(const Batch& batch, size_t paramOffset) {
