@@ -646,18 +646,21 @@ void EntityTreeRenderer::addPendingEntities(const render::ScenePointer& scene, r
 }
 
 void EntityTreeRenderer::updateChangedEntities(const render::ScenePointer& scene, render::Transaction& transaction) {
-    PROFILE_RANGE_EX(simulation_physics, "ChangeInScene", 0xffff00ff, (uint64_t)_changedEntities.size());
     PerformanceTimer pt("change");
-    std::unordered_set<EntityItemID> changedEntities;
+    std::unordered_map<EntityItemID, bool> changedEntities;
     _changedEntitiesGuard.withWriteLock([&] {
         changedEntities.swap(_changedEntities);
     });
+    PROFILE_RANGE_EX(simulation_physics, "ChangeInScene", 0xffff00ff, (uint64_t)changedEntities.size());
 
     {
         PROFILE_RANGE_EX(simulation_physics, "CopyRenderables", 0xffff00ff, (uint64_t)changedEntities.size());
-        for (const auto& entityId : changedEntities) {
-            auto renderable = renderableForEntityId(entityId);
-            if (renderable) {
+        for (const auto& change : changedEntities) {
+            auto renderable = renderableForEntityId(change.first);
+            // Entity callbacks can run on the render thread. Resolve the renderer
+            // and inspect its state here, alongside scene-map mutations, and never
+            // while holding the notification lock (the check can notify again).
+            if (renderable && (change.second || renderable->needsRenderUpdate())) {
                 // only add valid renderables _renderablesToUpdate
                 _renderablesToUpdate.insert(renderable);
             }
@@ -1878,9 +1881,10 @@ void EntityTreeRenderer::deleteEntity(const EntityItemID& id) const {
     DependencyManager::get<EntityScriptingInterface>()->deleteEntity(id);
 }
 
-void EntityTreeRenderer::onEntityChanged(const EntityItemID& id) {
+void EntityTreeRenderer::onEntityChanged(const EntityItemID& id, bool forceRenderUpdate) {
     _changedEntitiesGuard.withWriteLock([&] {
-        _changedEntities.insert(id);
+        auto result = _changedEntities.emplace(id, forceRenderUpdate);
+        result.first->second = result.first->second || forceRenderUpdate;
     });
 }
 
