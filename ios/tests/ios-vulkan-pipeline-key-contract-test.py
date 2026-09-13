@@ -311,7 +311,7 @@ if "{ drawCallInfo, drawCallInfoBinding, VK_FORMAT_R16G16_SINT, 0 }" not in pipe
     raise SystemExit("DrawCallInfo shader location must remain stable while only its binding is compacted")
 
 binding_start = backend.index("uint32_t VKBackend::getDrawCallInfoBinding() const")
-transform_start = backend.index("void VKBackend::updateTransform", binding_start)
+transform_start = backend.index("bool VKBackend::updateTransform", binding_start)
 transform_end = backend.index("void VKBackend::updatePipeline", transform_start)
 binding_body = backend[binding_start:transform_start]
 transform_body = backend[transform_start:transform_end]
@@ -341,8 +341,8 @@ if "const auto drawCallInfoBinding = getDrawCallInfoBinding();" not in transform
     raise SystemExit("DrawCallInfo uploads no longer use the shared physical binding selection")
 if transform_body.count(
     "vkCmdBindVertexBuffers(_currentCommandBuffer, drawCallInfoBinding, 1,"
-) != 2:
-    raise SystemExit("both DrawCallInfo upload paths must use the compact iOS binding")
+) != 1:
+    raise SystemExit("validated DrawCallInfo upload must use the compact iOS binding")
 
 render_start = backend.index("void VKBackend::renderPassDraw")
 render_end = backend.index("void VKBackend::recycle", render_start)

@@ -144,13 +144,19 @@ readonly rendering_contracts=(
     resource-image-item-ios-contract-test.py
     vk-ios-gl-interop-helper-contract-test.py
     vk-qt-public-api-contract-test.py
+    vulkan-descriptor-snapshot-test.py
     vulkan-display-ios-context-restore-test.py
     vulkan-display-ios-gl-helper-isolation-test.py
     vulkan-display-ios-ktx-capture-gate-test.py
     vulkan-display-ios-main-thread-resize-test.py
     vulkan-display-ios-output-pending-test.py
+    vulkan-draw-info-binding-test.py
+    vulkan-framebuffer-lifetime-test.py
+    vulkan-input-binding-test.py
     vulkan-ios-frame-recycling-test.py
     vulkan-ios-surface-contract-test.py
+    vulkan-submit-progress-test.py
+    vulkan-texture-upload-sync-test.py
 )
 for contract in "${rendering_contracts[@]}"; do
     python3 "$script_dir/$contract"

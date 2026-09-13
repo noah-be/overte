@@ -116,7 +116,7 @@ jobs:
         if: inputs.validated_host_contracts_sha == ''
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends qt6-base-dev pkg-config
+          sudo apt-get install -y --no-install-recommends qt6-base-dev pkg-config libvulkan-dev
 
       - name: Run device-free contracts
         if: inputs.validated_host_contracts_sha == ''
