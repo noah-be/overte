@@ -14,6 +14,9 @@
 //
 
 #include "Application.h"
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include "AndroidHelper.h"
+#endif
 
 #include <QtQml/QQmlContext>
 #include <QStyle>
@@ -1462,6 +1465,7 @@ void Application::resumeAfterLoginDialogActionTaken() {
         const auto testScript = property(hifi::properties::TEST).toUrl();
         // Set last parameter to exit interface when the test script finishes, if so requested
         DependencyManager::get<ScriptEngines>()->loadScript(testScript, false, false, false, false, _quitWhenFinished);
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
         // This is done so we don't get a "connection time-out" message when we haven't passed in a URL.
         if (!_urlParam.isEmpty()) {
             PHONE_LOADING("phase=startup_sandbox_submit elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
@@ -1472,7 +1476,10 @@ void Application::resumeAfterLoginDialogActionTaken() {
                 PHONE_LOADING("phase=startup_sandbox_callback_return elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
             });
         }
-    } else {
+#endif
+    }
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
+    else {
         PHONE_LOADING("phase=startup_sandbox_submit elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
         auto reply = SandboxUtils::getStatus();
         connect(reply, &QNetworkReply::finished, this, [this, reply] {
@@ -1481,6 +1488,8 @@ void Application::resumeAfterLoginDialogActionTaken() {
             PHONE_LOADING("phase=startup_sandbox_callback_return elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
         });
     }
+
+#endif
 
     auto menu = Menu::getInstance();
     menu->getMenu("Edit")->setVisible(true);
@@ -1497,6 +1506,28 @@ void Application::resumeAfterLoginDialogActionTaken() {
     _startUpFinished = true;
     getRefreshRateManager().setRefreshRateRegime(RefreshRateManager::RefreshRateRegime::FOCUS_ACTIVE);
     PHONE_LOADING("phase=startup_resume_end elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Resume, avatar/settings restoration and DomainHandler::resetting are
+    // complete. Sandbox status is telemetry, not a prerequisite for an
+    // explicit Android destination. Keep test mode without a URL unchanged.
+    if (!testProperty.isValid() || !_urlParam.isEmpty()) {
+        _connectionMonitor.init();
+        const bool acceptedStartupUrl = AndroidHelper::instance().dispatchPendingStartupUrl();
+        PHONE_LOADING("phase=startup_early_dispatch accepted=%d", acceptedStartupUrl ? 1 : 0);
+        if (acceptedStartupUrl) {
+            AndroidHelper::instance().notifyStartupNavigationReady();
+        }
+        // Submit only after synchronous dispatch returns: even a reentrant
+        // URL handler cannot run this callback before its outcome is known.
+        PHONE_LOADING("phase=startup_sandbox_submit elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+        auto reply = SandboxUtils::getStatus();
+        connect(reply, &QNetworkReply::finished, this, [this, reply, acceptedStartupUrl] {
+            PHONE_LOADING("phase=startup_sandbox_callback elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+            handleSandboxStatus(reply, acceptedStartupUrl);
+            PHONE_LOADING("phase=startup_sandbox_callback_return elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+        });
+    }
+#endif
 }
 
 QSharedPointer<OffscreenUi> Application::getOffscreenUI() {

@@ -2345,7 +2345,11 @@ void Application::nodeKilled(SharedNodePointer node) {
     }
 }
 
-void Application::handleSandboxStatus(QNetworkReply* reply) {
+void Application::handleSandboxStatus(QNetworkReply* reply
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        , bool acceptedStartupUrl
+#endif
+        ) {
     PHONE_LOADING("phase=startup_destination_begin");
     PROFILE_RANGE(render, __FUNCTION__);
 
@@ -2445,10 +2449,11 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
     QString sentTo;
 
 #if defined(ANDROID_APP_PHONE_INTERFACE)
-    // Start observing before any accepted link can begin a connection. Keep
-    // the existing PendingUrlDelivery as the only Android intent owner.
-    _connectionMonitor.init();
-    const bool acceptedPendingStartupUrl = AndroidHelper::instance().dispatchPendingStartupUrl();
+    // An accepted early destination (or its subsequent replacement) must
+    // never be overwritten by this older sandbox callback. If startup had
+    // no accepted link, give the existing owner one final checkpoint.
+    const bool acceptedPendingStartupUrl = acceptedStartupUrl ||
+        AndroidHelper::instance().dispatchPendingStartupUrl();
     PHONE_LOADING("phase=startup_pending_dispatch accepted=%d", acceptedPendingStartupUrl ? 1 : 0);
     if (acceptedPendingStartupUrl) {
         sentTo = SENT_TO_PREVIOUS_LOCATION;

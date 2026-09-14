@@ -560,7 +560,11 @@ private slots:
     void nodeActivated(SharedNodePointer node);
     void nodeKilled(SharedNodePointer node);
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    void handleSandboxStatus(QNetworkReply* reply, bool acceptedStartupUrl = false);
+#else
     void handleSandboxStatus(QNetworkReply* reply);
+#endif
 
 
     // UI
