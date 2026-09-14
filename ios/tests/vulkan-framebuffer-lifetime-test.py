@@ -25,6 +25,19 @@ while depth:
     end += 1
 update = source[start:end]
 
+# Use the actual Recycler declaration and implementations, not permissive
+# by-value stand-ins. This preserves reference qualifiers and access control.
+context_header = (ROOT / 'libraries/vk/src/vk/Context.h').read_text()
+recycler_start = context_header.index('    class Recycler {')
+recycler_end = context_header.index('} recycler;', recycler_start) + len('} recycler;')
+recycler = context_header[recycler_start:recycler_end]
+context_source = (ROOT / 'libraries/vk/src/vk/Context.cpp').read_text()
+recycler_methods = []
+for name in ('trashVkFramebuffer', 'trashVkRenderPass', 'trashVkImageView'):
+    first = context_source.index('void Context::Recycler::' + name + '(')
+    last = context_source.index('\n}', first) + 2
+    recycler_methods.append(context_source[first:last])
+
 code = r'''
 #include <vulkan/vulkan.h>
 #include <algorithm>
@@ -32,9 +45,12 @@ code = r'''
 #include <cstdint>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <set>
 #include <string>
 #include <vector>
+struct VmaAllocation_T;
+using VmaAllocation = VmaAllocation_T*;
 #define Q_ASSERT(x) assert(x)
 #define VK_CHECK_RESULT(x) assert((x) == VK_SUCCESS)
 using Handle = uintptr_t;
@@ -69,24 +85,28 @@ struct Framebuffer {
     unsigned getDepthStamp() const { return depthStamp; }
 };
 namespace vk {
+struct VKFramebuffer;
+struct VKBuffer;
+struct VKQuery;
+struct VKBackend;
 struct VKTexture { Texture& _gpuObject; VkImageViewType _target; };
-struct Recycler {
-    std::vector<Handle> framebuffers, passes, views;
-    void trashVkFramebuffer(VkFramebuffer h) { framebuffers.push_back(number(h)); }
-    void trashVkRenderPass(VkRenderPass h) { passes.push_back(number(h)); }
-    void trashVkImageView(VkImageView h) { views.push_back(number(h)); }
-    void retire(bool fenceSignaled) {
-        assert(fenceSignaled);
-        for (auto h : framebuffers) destroy(h);
-        for (auto h : passes) destroy(h);
-        for (auto h : views) destroy(h);
-        framebuffers.clear(); passes.clear(); views.clear();
-    }
+struct Context {
+    struct Device { VkDevice logicalDevice {}; } dev;
+    Device* device = &dev;
+    PRODUCTION_RECYCLER
 };
-struct Context { struct Device { VkDevice logicalDevice {}; } dev; Device* device = &dev; Recycler recycler; };
+PRODUCTION_RECYCLER_METHODS
 VkFormat evalTexelFormatInternal(VkFormat f, Context&) { return f; }
 struct VKBackend {
     Context context;
+    void retire(bool fenceSignaled) {
+        assert(fenceSignaled);
+        auto& r = context.recycler;
+        for (auto h : r.vkFramebuffers) destroy(number(h));
+        for (auto h : r.vkRenderPasses) destroy(number(h));
+        for (auto h : r.vkImageViews) destroy(number(h));
+        r.vkFramebuffers.clear(); r.vkRenderPasses.clear(); r.vkImageViews.clear();
+    }
     struct Frame { std::vector<VkRenderPass> _renderPasses; } frame;
     Frame* _currentFrame = &frame;
     std::vector<std::unique_ptr<VKTexture>> textures;
@@ -154,13 +174,13 @@ int main(int argc, char** argv) {
         const auto secondGeneration = alive;
         f.depth = d2; ++f.depthStamp; vk.update();
         for (auto h : secondGeneration) assert(alive.count(h) == 1);
-        backend->context.recycler.retire(true);
+        backend->retire(true);
         for (auto h : secondGeneration) assert(alive.count(h) == 0);
         for (auto h : old) assert(alive.count(h) == 0);
         assert(alive.count(number(vk.vkFramebuffer)) == 1);
         assert(alive.count(number(vk.vkRenderPass)) == 1);
         for (const auto& a : vk.attachments) assert(alive.count(number(a.view)) == 1);
-        backend->context.recycler.retire(true); // No duplicate destruction.
+        backend->retire(true); // No duplicate destruction.
     } else {
         std::vector<unsigned> expected;
         for (const auto& c : f.colors) if (c._texture) expected.push_back(c._texture->id);
@@ -175,6 +195,8 @@ int main(int argc, char** argv) {
 }
 '''
 cases = ['color', 'depth', 'remove-depth', 'remove-color', 'remove-both-change-color', 'array', 'lifetime']
+code = code.replace('PRODUCTION_RECYCLER_METHODS', '\n'.join(recycler_methods))
+code = code.replace('PRODUCTION_RECYCLER', recycler)
 compiler = os.environ.get('CXX') or shutil.which('clang++') or shutil.which('g++')
 if not compiler:
     raise SystemExit('C++ compiler required')
@@ -183,6 +205,16 @@ with tempfile.TemporaryDirectory(prefix='overte-framebuffer-test-') as directory
     cpp, binary = temp/'test.cpp', temp/'test'
     cpp.write_text(code + '\n' + update + '\n' + main)
     subprocess.run([compiler, '-std=c++17', '-Wall', '-Wextra', str(cpp), '-o', str(binary)], check=True, timeout=60)
+    if not baseline:
+        broken = update.replace('for (auto& attachment : attachments)',
+                                'for (const auto& attachment : attachments)', 1)
+        assert broken != update, 'missing mutable attachment retirement loop'
+        negative_cpp = temp/'const-regression.cpp'
+        negative_cpp.write_text(code + '\n' + broken + '\n' + main)
+        negative = subprocess.run([compiler, '-std=c++17', '-fsyntax-only', str(negative_cpp)],
+                                  capture_output=True, text=True, timeout=60)
+        assert negative.returncode != 0 and 'const' in negative.stderr, negative.stderr
+        print('PASS: real Recycler API rejects the Build666 const-reference regression')
     failures = []
     for case in cases:
         result = subprocess.run([str(binary), case], capture_output=True, text=True, timeout=10)
