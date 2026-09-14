@@ -1358,10 +1358,14 @@ void Application::pauseUntilLoginDetermined() {
         menu->getMenu("Developer")->setVisible(false);
     }
     _previousCameraMode = _myCamera.getMode();
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
     _myCamera.setMode(CAMERA_MODE_FIRST_PERSON_LOOK_AT);
+    cameraModeChanged();
+#endif
+    // Phone resumes directly when its UI is ready; preserve its chosen camera
+    // instead of exposing the temporary desktop login view during startup.
     PHONE_LOADING("phase=startup_camera_pause elapsed_ms=%lld mode=%d previous_mode=%d",
         (long long)_sessionRunTimer.elapsed(), (int)_myCamera.getMode(), (int)_previousCameraMode);
-    cameraModeChanged();
 
     // disconnect domain handler.
     nodeList->getDomainHandler().disconnect("Pause until login determined");
@@ -1484,10 +1488,12 @@ void Application::resumeAfterLoginDialogActionTaken() {
     menu->getMenu("Navigate")->setVisible(true);
     menu->getMenu("Settings")->setVisible(true);
     menu->getMenu("Developer")->setVisible(_developerMenuVisible);
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
     _myCamera.setMode(_previousCameraMode);
+    cameraModeChanged();
+#endif
     PHONE_LOADING("phase=startup_camera_restore elapsed_ms=%lld mode=%d previous_mode=%d",
         (long long)_sessionRunTimer.elapsed(), (int)_myCamera.getMode(), (int)_previousCameraMode);
-    cameraModeChanged();
     _startUpFinished = true;
     getRefreshRateManager().setRefreshRateRegime(RefreshRateManager::RefreshRateRegime::FOCUS_ACTIVE);
     PHONE_LOADING("phase=startup_resume_end elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
