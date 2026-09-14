@@ -1538,7 +1538,7 @@ void Application::initialize(const QCommandLineParser &parser) {
 #if defined(ANDROID_APP_PHONE_INTERFACE)
         const auto loadingTree = getEntities()->getTree();
         const auto loadingLanding = _octreeProcessor->safeLandingLoadingStatus();
-        PHONE_LOADING("phase=state connected=%d hub=%d elements=%lld downloads=%d pending=%u processing=%d processing_pending=%d pool_active=%d pool_max=%d http_started=%d http_success=%d http_cached=%d http_failed=%d http_bytes=%lld gpu_pending_bytes=%lld sequence_done=%d sequence_received=%u sequence_expected=%u avatar_ok=%d name_ok=%d",
+        PHONE_LOADING("phase=state connected=%d hub=%d elements=%lld downloads=%d pending=%u processing=%d processing_pending=%d pool_active=%d pool_max=%d http_started=%d http_success=%d http_cached=%d http_failed=%d http_bytes=%lld gpu_pending_bytes=%lld sequence_done=%d sequence_received=%u sequence_expected=%u landing_active=%d landing_tracked=%d physics_blocked=%d visual_blocked=%d avatar_ok=%d name_ok=%d",
             addressManager->isConnected() ? 1 : 0,
             addressManager->getPlaceName().compare("overte_hub", Qt::CaseInsensitive) == 0 ? 1 : 0,
             (long long)(loadingTree ? loadingTree->getOctreeElementsCount() : 0), loadingRequests.size(), ResourceCache::getPendingRequestCount(),
@@ -1549,6 +1549,8 @@ void Application::initialize(const QCommandLineParser &parser) {
             (long long)statTracker->getStat(STAT_HTTP_RESOURCE_TOTAL_BYTES).toLongLong(),
             (long long)gpu::Context::getTexturePendingGPUTransferMemSize(),
             loadingLanding.completionReceived ? 1 : 0, (unsigned)loadingLanding.receivedSequenceCount, (unsigned)loadingLanding.expectedSequenceCount,
+            loadingLanding.trackingActive ? 1 : 0, int(loadingLanding.trackedEntityCount),
+            int(loadingLanding.physicsBlockedEntityCount), int(loadingLanding.visuallyBlockedEntityCount),
             getMyAvatar()->getFullAvatarURLFromPreferences().toString() == "https://files.noah-frank.de/avatar/Android-Robot-Static.fst" ? 1 : 0,
             getMyAvatar()->getDisplayName() == "Overte Android Phone Test Client" ? 1 : 0);
 #endif

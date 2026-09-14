@@ -151,6 +151,8 @@ void GeometryReader::run() {
         serializerMapping.replace("combineParts",_combineParts);
         serializerMapping.replace("deduplicateIndices", true);
 
+        QElapsedTimer deserializeTimer;
+        deserializeTimer.start();
         if (_url.path().toLower().endsWith(".gz")) {
             QByteArray uncompressedData;
             if (!gunzip(_data, uncompressedData)) {
@@ -164,6 +166,10 @@ void GeometryReader::run() {
         } else {
             hfmModel = _modelLoader.load(_data, serializerMapping, _url, _webMediaType.toStdString());
         }
+        PHONE_LOADING("phase=model_deserialize ms=%lld url_hash=%s ok=%d",
+            (long long)deserializeTimer.elapsed(),
+            QCryptographicHash::hash(_url.toEncoded(), QCryptographicHash::Md5).toHex().constData(),
+            int(bool(hfmModel)));
 
         if (!hfmModel) {
             throw QString("unsupported format");
@@ -182,8 +188,13 @@ void GeometryReader::run() {
         }
 
         // Do processing on the model
+        QElapsedTimer bakeTimer;
+        bakeTimer.start();
         baker::Baker modelBaker(hfmModel, _mapping.second, _mapping.first);
         modelBaker.run();
+        PHONE_LOADING("phase=model_bake ms=%lld url_hash=%s",
+            (long long)bakeTimer.elapsed(),
+            QCryptographicHash::hash(_url.toEncoded(), QCryptographicHash::Md5).toHex().constData());
 
         auto processedHFMModel = modelBaker.getHFMModel();
         auto materialMapping = modelBaker.getMaterialMapping();

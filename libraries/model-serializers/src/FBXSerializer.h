@@ -116,6 +116,7 @@ public:
 
     FBXNode _rootNode;
     static FBXNode parseFBX(QIODevice* device);
+    static FBXNode parseFBX(QIODevice* device, bool skipUnusedAnimationCurveData);
 
     HFMModel* extractHFMModel(const hifi::VariantHash& mapping, const QString& url);
 

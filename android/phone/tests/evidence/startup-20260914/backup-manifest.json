@@ -1,0 +1,32 @@
+{
+  "purpose": "Remote source checkpoint, including unfinished opt-in experiments. This does not enable or approve those experiments.",
+  "validated_change_commit": "c582528d3d",
+  "work_in_progress": [
+    "KTX header-first cache probing (disabled)",
+    "Collision download priority trial (disabled)",
+    "Animation curve parsing trial (disabled)",
+    "Additional readiness/model/animation diagnostics and host tests"
+  ],
+  "runtime_defaults": {
+    "ktx_header_first": 0,
+    "collision_priority": 0,
+    "animation_full": 1,
+    "cache_namespace": 0
+  },
+  "evidence_files_sha256": {
+    "etc-rgba-final-assessment-20260914.json": "c3045ed6a51f30918dd3623e4d4f39a93d05bfd09eece2bea5ea9c056de05b87",
+    "etc-rgba-world-comparison-20260914.json": "72634b6894e9ddcef087bcb63669039fd2ada3ab64266ac8ddfca8af62a01ad8",
+    "etc-rgba-pixel-speed-assessment-20260914.json": "87dad437c34144dbbcac24b626bd8f9aa8893fefa89d12976ec1fa95b44d17f3",
+    "etc-rgba-arm-identity-20260914.json": "2085c96e39a4c0b5371797924444f86dde3413f8f617daca8ca7986133e5c71e",
+    "etc-rgba-image-only-apk-delta-20260914.json": "5e2ac7b00cb1bec4a6b1a6027ddc0dcdb13cf59293c7ce9e7a3f69c850b26b52",
+    "etc-rgba-observed-stability-20260914.json": "af83a4b06f4b825288f3e18cc5906278247b698b4ca6e971b7d618eb95711350",
+    "etc-rgba-cmake-binding-validation-20260914.json": "59c2ad49ce3da9ece30ab4f771f46a16755c85c685495ed510dda0ac87640291",
+    "current-phone-source-binding-20260914.json": "016f234cbe0baeaf80d4b1163362a3a7f0ed4e32ead52cbf5bd07aebdd247ad9"
+  },
+  "excluded_local_artifacts": [
+    "Raw device logs, screenshots, device selectors and credentials",
+    "APKs and build directories",
+    "Other worktrees and unrelated local projects"
+  ],
+  "limits": "Only selected sanitized result summaries are included; full private measurement capture remains in the local investigation directory."
+}

@@ -13,6 +13,8 @@
 #include "FBXSerializer.h"
 
 #include <QBuffer>
+#include <QElapsedTimer>
+#include <PhoneLoadingDiagnostics.h>
 #include <QRegularExpression>
 
 #include <glm/gtc/quaternion.hpp>
@@ -1702,11 +1704,16 @@ HFMModel::Pointer FBXSerializer::read(const hifi::ByteArray& data, const hifi::V
     QBuffer buffer(const_cast<hifi::ByteArray*>(&data));
     buffer.open(QIODevice::ReadOnly);
 
-    _rootNode = parseFBX(&buffer);
+    QElapsedTimer loadingStage; loadingStage.start();
+    _rootNode = parseFBX(&buffer, mapping.value("_phoneSkipUnusedAnimationCurveData", false).toBool());
+    PHONE_LOADING("phase=fbx_tree ms=%lld bytes=%d binary=%d skip_curve=%d", (long long)loadingStage.elapsed(), data.size(), data.startsWith("Kaydara FBX Binary") ? 1 : 0, int(mapping.value("_phoneSkipUnusedAnimationCurveData", false).toBool()));
+    loadingStage.restart();
 
     // FBXSerializer's mapping parameter supports the bool "deduplicateIndices," which is passed into FBXSerializer::extractMesh as "deduplicate"
 
     auto hfmModel = extractHFMModel(mapping, url.toString());
+    PHONE_LOADING("phase=fbx_extract ms=%lld frames=%d joints=%d meshes=%d", (long long)loadingStage.elapsed(),
+        hfmModel ? hfmModel->animationFrames.size() : 0, hfmModel ? hfmModel->joints.size() : 0, hfmModel ? hfmModel->meshes.size() : 0);
 
     //hfmModel->debugDump();
 

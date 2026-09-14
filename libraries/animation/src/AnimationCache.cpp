@@ -26,6 +26,42 @@
 #include "AnimationLogging.h"
 #include <FBXSerializer.h>
 
+// Diagnostic equivalence check of the data consumed by animation retargeting.
+static QByteArray animationPoseDigest(const HFMModel& model) {
+    static_assert(sizeof(glm::quat) == 4 * sizeof(float), "packed quaternion required");
+    static_assert(sizeof(glm::vec3) == 3 * sizeof(float), "packed vector required");
+    QCryptographicHash digest(QCryptographicHash::Sha256);
+    auto bytes = [&](const auto& value) { digest.addData(reinterpret_cast<const char*>(&value), sizeof(value)); };
+    bytes(model.offset);
+    for (const auto& joint : model.joints) {
+        auto name = joint.name.toUtf8();
+        const int length = name.size(); bytes(length); digest.addData(name);
+        bytes(joint.parentIndex); bytes(joint.translation); bytes(joint.preTransform);
+        bytes(joint.preRotation); bytes(joint.rotation); bytes(joint.postRotation); bytes(joint.postTransform);
+        bytes(joint.transform); bytes(joint.rotationMin); bytes(joint.rotationMax);
+        bytes(joint.inverseDefaultRotation); bytes(joint.inverseBindRotation); bytes(joint.distanceToParent);
+        bytes(joint.isSkeletonJoint); bytes(joint.bindTransformFoundInCluster);
+        if (joint.bindTransformFoundInCluster) { bytes(joint.bindTransform); }
+        bytes(joint.hasGeometricOffset);
+        if (joint.hasGeometricOffset) {
+            bytes(joint.geometricTranslation); bytes(joint.geometricRotation); bytes(joint.geometricScaling);
+        }
+    }
+    for (auto it = model.jointRotationOffsets.constBegin(); it != model.jointRotationOffsets.constEnd(); ++it) {
+        const int index = it.key(); bytes(index); bytes(it.value());
+    }
+    for (const auto& mesh : model.meshes) {
+        for (const auto& cluster : mesh.clusters) { bytes(cluster.jointIndex); bytes(cluster.inverseBindMatrix); }
+    }
+    for (const auto& frame : model.animationFrames) {
+        const int rotations = frame.rotations.size(), translations = frame.translations.size();
+        bytes(rotations); bytes(translations);
+        digest.addData(reinterpret_cast<const char*>(frame.rotations.constData()), rotations * sizeof(glm::quat));
+        digest.addData(reinterpret_cast<const char*>(frame.translations.constData()), translations * sizeof(glm::vec3));
+    }
+    return digest.result().toHex();
+}
+
 int animationPointerMetaTypeId = qRegisterMetaType<AnimationPointer>();
 
 AnimationCache::AnimationCache(QObject* parent) :
@@ -87,7 +123,22 @@ void AnimationReader::run() {
             // Parse the FBX directly from the QNetworkReply
             HFMModel::Pointer hfmModel;
             if (_url.path().toLower().endsWith(".fbx")) {
-                hfmModel = FBXSerializer().read(_data, QVariantHash(), _url.path());
+                QVariantHash animationMapping;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+                // Keep the unaccepted parser experiment opt-in, including
+                // when diagnostics are disabled or Android properties reset.
+                bool skipUnusedCurveData = false;
+                if (phoneLoadingDiagnosticsEnabled() && _url.scheme() == "qrc") {
+                    char value[PROP_VALUE_MAX] {};
+                    skipUnusedCurveData =
+                        __system_property_get("debug.overte.loading.animation_full", value) == 1 && value[0] == '0';
+                }
+                animationMapping.insert("_phoneSkipUnusedAnimationCurveData", skipUnusedCurveData);
+#endif
+                hfmModel = FBXSerializer().read(_data, animationMapping, _url.path());
+                if (phoneLoadingDiagnosticsEnabled() && hfmModel) {
+                    PHONE_LOADING("phase=animation_digest url_hash=%s sha256=%s", loadingHash.constData(), animationPoseDigest(*hfmModel).constData());
+                }
                 PHONE_LOADING("phase=animation_parsed url_hash=%s frames=%d joints=%d ok=%d", loadingHash.constData(),
                     hfmModel ? hfmModel->animationFrames.size() : 0, hfmModel ? hfmModel->joints.size() : 0, hfmModel ? 1 : 0);
             } else {

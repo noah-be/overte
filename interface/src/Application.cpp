@@ -13,6 +13,9 @@
 //
 
 #include "Application.h"
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include <material-networking/PhoneKtxProbePool.h>
+#endif
 #include <QRegularExpression>
 #include "ApplicationLifecycle.h"
 
@@ -2552,6 +2555,7 @@ void Application::cleanupBeforeQuit() {
 #if defined(ANDROID_APP_PHONE_INTERFACE)
     // Retire queued scene commits before disconnecting and tearing down the UI.
     _phoneServerlessLoadRequests.setActive(false);
+    stopPhoneKtxHeaderProbes();
 #endif
     invalidateEntityScriptConsent();
     // add a logline indicating if QTWEBENGINE_REMOTE_DEBUGGING is set or not
