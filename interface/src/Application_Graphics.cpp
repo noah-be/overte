@@ -14,6 +14,7 @@
 //
 
 #include "Application.h"
+#include <PhoneLoadingDiagnostics.h>
 
 #include <memory>
 
@@ -236,6 +237,7 @@ static void addDisplayPluginToMenu(const DisplayPluginPointer& displayPlugin, in
 #endif
 
 void Application::initializeUi() {
+    PHONE_LOADING("phase=ui_step step=enter");
 
     // Allow remote QML content from trusted sources ONLY
     {
@@ -318,7 +320,9 @@ void Application::initializeUi() {
     // OffscreenUi is a subclass of OffscreenQmlSurface specifically designed to
     // support the window management and scripting proxies for VR use
     DeadlockWatchdogThread::withPause([&] {
+        PHONE_LOADING("phase=ui_step step=desktop_begin");
         offscreenUi->createDesktop(PathUtils::qmlUrl("hifi/Desktop.qml"));
+        PHONE_LOADING("phase=ui_step step=desktop_end");
     });
     // FIXME either expose so that dialogs can set this themselves or
     // do better detection in the offscreen UI of what has focus
@@ -327,7 +331,9 @@ void Application::initializeUi() {
     _window->setMenuBar(new Menu());
 #endif
 
+    PHONE_LOADING("phase=ui_step step=preferences_begin");
     setupPreferences();
+    PHONE_LOADING("phase=ui_step step=preferences_end");
 
 #if !defined(DISABLE_QML)
 #ifdef USE_GL
@@ -408,8 +414,11 @@ void Application::initializeUi() {
         }
     });
 
+    PHONE_LOADING("phase=ui_step step=tablet_reserve_begin");
     offscreenSurfaceCache->reserve(TabletScriptingInterface::QML, 1);
+    PHONE_LOADING("phase=ui_step step=tablet_reserve_end");
     offscreenSurfaceCache->reserve(render::entities::WebEntityRenderer::QML, 2);
+    PHONE_LOADING("phase=ui_step step=web_reserve_end");
 #endif
 
     flushMenuUpdates();
