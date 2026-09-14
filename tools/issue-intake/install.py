@@ -20,7 +20,8 @@ def install(home, codex_home):
         raise RuntimeError("A global AGENTS.override.md exists; review its instruction precedence before installation")
     for directory in (tool / "tools/issue-intake", tool / ".github", skill / "agents", binary.parent):
         directory.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(ROOT / "tools/issue-intake/intake.py", tool / "tools/issue-intake/intake.py")
+    for module in ("intake.py", "acceptance.py", "guard.py"):
+        shutil.copy2(ROOT / "tools/issue-intake" / module, tool / "tools/issue-intake" / module)
     shutil.copy2(ROOT / ".github/issue-policy.json", tool / ".github/issue-policy.json")
     for relative in ("SKILL.md", "agents/openai.yaml"):
         shutil.copy2(ROOT / "tools/issue-intake/skill" / relative, skill / relative)

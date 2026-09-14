@@ -10,6 +10,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools/issue-intake"))
 SPEC = importlib.util.spec_from_file_location("intake", ROOT / "tools/issue-intake/intake.py")
 intake = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(intake)
@@ -32,6 +33,7 @@ def draft(kind="bug"):
         value["fields"]["benefit"] = "Reduce confusing startup transitions."
     if kind == "acceptance":
         value["milestone"] = 2
+        value["fields"].update(acceptance_status="No full acceptance recorded", candidate="No milestone candidate selected", remaining="Verify the complete criterion on the pinned candidate")
     return value
 
 
@@ -50,6 +52,8 @@ class FakeGitHub:
         self.writes = []
         self.owner = intake.REPOSITORY
         self.available_labels = set(POLICY["kinds"].values()) | set(POLICY["platforms"]) | set(POLICY["validation_labels"].values()) | {"workflow: " + x for x in POLICY["states"]} | {"help wanted", "enhancement"}
+        self.available_labels |= {POLICY["history_label"]} | set(POLICY["acceptance_labels"].values())
+        self.milestones = {2: {"number": 2, "title": "PHONE-P1", "state": "open", "description": "Original milestone requirements", "url": "https://api.github.com/" + intake.API + "/milestones/2"}}
         self.corrupt_readback = False
         self.comments = {}
         self.client = intake.Client(self.call)
@@ -64,8 +68,13 @@ class FakeGitHub:
         if path.startswith(intake.API + "/issues?"):
             rows = self.rows.values()
             return copy.deepcopy([x for x in rows if "state=all" in path or x["state"] == "open"])
+        if path.startswith(intake.API + "/milestones?"):
+            return copy.deepcopy(list(self.milestones.values()))
         if path.startswith(intake.API + "/milestones/"):
-            return {"state": "open", "url": "https://api.github.com/" + path}
+            row = self.milestones[int(path.rsplit("/", 1)[1])]
+            if data:
+                row.update(data)
+            return copy.deepcopy(row)
         if "/comments" in path:
             if "/issues/comments/" in path:
                 comment_id = int(path.rsplit("/", 1)[1])
@@ -91,7 +100,8 @@ class FakeGitHub:
         if data:
             row.update(copy.deepcopy(data))
             row["labels"] = [{"name": x} for x in data.get("labels", intake.labels(row))]
-            row["milestone"] = {"number": data["milestone"]} if data.get("milestone") else None
+            if "milestone" in data:
+                row["milestone"] = {"number": data["milestone"]} if data.get("milestone") else None
             if self.corrupt_readback:
                 row["labels"] = []
         return copy.deepcopy(row)
@@ -363,6 +373,142 @@ class GuardTests(unittest.TestCase):
         rows = [issue(value, n, "active") for n in range(100, 104)]
         self.assertEqual(guard.plan(rows[0], POLICY, rows)["patch"], {})
         self.assertIn("workflow: inbox", guard.plan(rows[-1], POLICY, rows)["patch"]["labels"])
+
+
+
+class MigrationTests(unittest.TestCase):
+    def setUp(self):
+        self.api = FakeGitHub()
+        self.original = issue()
+        self.original.update(body="Original **details**\n\n## Nested heading\n- [ ] unfinished historical checklist\n  trailing spaces  \n", labels=[{"name": "bug"}, {"name": "android phone"}, {"name": "help wanted"}], assignees=[{"login": "owner"}], closed_at=None)
+        self.api.rows[100] = copy.deepcopy(self.original)
+
+    def migrate(self, value=None, apply=True):
+        return intake.migrate(self.api.client, 100, value or draft(), POLICY, intake.snapshot(self.original), apply)
+
+    def test_original_description_exact_roundtrip_and_preview_no_write(self):
+        preview = self.migrate(apply=False)
+        self.assertEqual(self.api.writes, [])
+        self.assertIn("Original description", preview["body"])
+        result = self.migrate()
+        row = self.api.rows[100]
+        self.assertTrue(result["state_preserved"])
+        self.assertEqual(intake.parse(row, POLICY)["legacy"]["body"], self.original["body"])
+        self.assertTrue(intake.labels(self.original) <= intake.labels(row))
+        self.assertEqual(guard.plan(row, POLICY, [row])["patch"], {})
+
+    def test_closed_migration_keeps_disposition_assignment_and_milestone(self):
+        value = draft("acceptance")
+        value["fields"]["evidence"] = ["Historical completion in retained original evidence"]
+        self.original.update(state="closed", state_reason="completed", closed_at="2026-09-07T00:00:00Z", milestone={"number": 2}, labels=[{"name": "acceptance"}, {"name": "android phone"}])
+        self.api.rows[100] = copy.deepcopy(self.original)
+        self.migrate(value)
+        for field in ("state", "state_reason", "closed_at", "assignees", "milestone"):
+            self.assertEqual(self.api.rows[100][field], self.original[field])
+        self.assertEqual(guard.plan(self.api.rows[100], POLICY, [])["patch"], {})
+        self.assertNotIn("state", self.api.writes[-1][2])
+
+    def test_migration_rejects_stale_snapshot_title_and_platform_loss(self):
+        for change in ({"title": "Renamed"}, {"platforms": []}):
+            value = draft(); value.update(change)
+            with self.assertRaises(intake.IntakeError): self.migrate(value)
+        self.api.rows[100]["body"] += "Concurrent observation"
+        with self.assertRaises(intake.IntakeError): self.migrate()
+        self.assertEqual(self.api.writes, [])
+
+    def test_archive_tampering_is_quarantined_without_rewriting_it(self):
+        self.migrate()
+        row = self.api.rows[100]; row["body"] = row["body"].replace("Original **details**", "Altered original")
+        self.assertEqual(intake.inspect_issue(row, POLICY)["status"], "invalid")
+        self.assertIn("validation: needs-info", guard.plan(row, POLICY, [row])["patch"]["labels"])
+        self.assertNotIn("body", guard.plan(row, POLICY, [row])["patch"])
+
+    def test_archive_cannot_be_changed_or_dropped_by_update(self):
+        self.migrate(); row = self.api.rows[100]; value = intake.parse(row, POLICY)
+        del value["legacy"]
+        with self.assertRaises(intake.IntakeError): intake.update(self.api.client, 100, value, POLICY, intake.snapshot(row))
+        self.assertEqual(len(self.api.writes), 1)
+
+    def test_already_migrated_cannot_be_migrated_twice_or_cloned(self):
+        self.migrate(); row = self.api.rows[100]
+        with self.assertRaises(intake.IntakeError): intake.migrate(self.api.client, 100, draft(), POLICY, intake.snapshot(row), True)
+        with self.assertRaises(intake.IntakeError): intake.create(self.api.client, intake.parse(row, POLICY), POLICY)
+
+
+class CandidateTests(unittest.TestCase):
+    def setUp(self):
+        self.api = FakeGitHub(); self.value = draft("acceptance")
+        self.candidate = {"revision": "a" * 40, "artifact_sha256": "b" * 64, "platform": "android phone", "build_url": "https://example.test/build/1", "environment": "Test handset model; OS version; fixed landscape"}
+        self.run = {"id": "run-1", "candidate": self.candidate, "criterion_sha256": intake.acceptance.criterion_id(self.value), "tested_at": "2026-09-07T12:00:00Z", "result": "passed", "observations": "Fixture result only", "evidence": ["https://example.test/results/1"], "limitations": "Fixture; no real product acceptance"}
+        self.value["test_runs"] = [self.run]
+
+    def test_candidate_and_criterion_both_must_match(self):
+        self.assertEqual(intake.acceptance.status(self.value, self.candidate), "passed")
+        self.assertEqual(intake.acceptance.status(self.value, None), "no-candidate")
+        for key, value in (("revision", "c" * 40), ("artifact_sha256", "c" * 64), ("environment", "Different OS")):
+            candidate = {**self.candidate, key: value}
+            self.assertEqual(intake.acceptance.status(self.value, candidate), "needs-test")
+        self.value["fields"]["outcome"] += " Additional requirement"
+        self.assertEqual(intake.acceptance.status(self.value, self.candidate), "needs-test")
+
+    def test_latest_failure_overrides_previous_pass_on_same_candidate(self):
+        self.value["test_runs"].append({**self.run, "id": "run-2", "tested_at": "2026-09-08T12:00:00Z", "result": "failed"})
+        self.assertEqual(intake.acceptance.status(self.value, self.candidate), "failed")
+
+    def test_candidate_record_roundtrip(self):
+        self.assertEqual(intake.parse(issue(self.value), POLICY), self.value)
+
+    def test_incomplete_future_and_duplicate_records_rejected(self):
+        for patch in ({"tested_at": "2099-01-01T00:00:00Z"}, {"evidence": []}, {"result": "probably fine"}):
+            value = copy.deepcopy(self.value); value["test_runs"][0].update(patch)
+            self.assertTrue(intake.validate(value, POLICY))
+        self.value["test_runs"].append(copy.deepcopy(self.run))
+        self.assertTrue(intake.validate(self.value, POLICY))
+
+    def test_pinning_verifies_fork_preserves_description_and_updates_closed_labels(self):
+        value = self.value; value["fields"]["evidence"] = ["Retained result"]
+        row = issue(value); row.update(state="closed", state_reason="completed")
+        self.api.rows[100] = row
+        milestone = self.api.milestones[2]
+        result = intake.milestone_candidate(self.api.client, 2, POLICY, self.candidate, intake.digest(milestone), True)
+        self.assertTrue(result["verified"])
+        self.assertTrue(milestone["description"].startswith("Original milestone requirements"))
+        self.assertIn("acceptance: verified", intake.labels(self.api.rows[100]))
+        next_candidate = {**self.candidate, "artifact_sha256": "c" * 64}
+        intake.milestone_candidate(self.api.client, 2, POLICY, next_candidate, intake.digest(milestone), True)
+        self.assertIn("acceptance: needs-test", intake.labels(self.api.rows[100]))
+        self.assertEqual(self.api.rows[100]["state"], "closed")
+        self.assertEqual(intake.parse(self.api.rows[100], POLICY)["test_runs"], value["test_runs"])
+
+    def test_upstream_and_stale_candidate_pin_reject_without_writes(self):
+        self.api.rows[100] = issue(self.value)
+        with self.assertRaises(intake.IntakeError): intake.milestone_candidate(self.api.client, 2, POLICY, self.candidate, "stale", True)
+        self.api.owner = "overte-org/overte"
+        with self.assertRaises(intake.IntakeError): intake.milestone_candidate(self.api.client, 2, POLICY, self.candidate, intake.digest(self.api.milestones[2]), True)
+        self.assertEqual(self.api.writes, [])
+
+    def test_completion_cannot_use_unpinned_or_different_candidate(self):
+        self.value["fields"]["evidence"] = ["Historical result"]
+        row = issue(self.value); self.api.rows[100] = row
+        with self.assertRaises(intake.IntakeError): intake.update(self.api.client, 100, self.value, POLICY, intake.snapshot(row), close_reason="completed")
+        self.assertEqual(self.api.writes, [])
+
+    def test_normal_update_cannot_rewrite_old_test_record(self):
+        row = issue(self.value); self.api.rows[100] = row
+        value = copy.deepcopy(self.value); value["test_runs"][0]["result"] = "failed"
+        with self.assertRaises(intake.IntakeError): intake.update(self.api.client, 100, value, POLICY, intake.snapshot(row))
+        self.assertEqual(self.api.writes, [])
+
+    def test_overview_separates_historical_closure_candidate_results_and_bug_counts(self):
+        row = issue(self.value); row.update(state="closed", state_reason="completed")
+        self.api.rows[100] = row
+        bug = draft(); bug["milestone"] = 2
+        self.api.rows[101] = issue(bug, 101)
+        self.api.rows[102] = issue(draft("acceptance"), 102)
+        result = intake.overview(self.api.client, POLICY)
+        self.assertEqual([x["number"] for x in result["queues"]["inbox"]], [101])
+        milestone = result["milestones"][0]
+        self.assertEqual((milestone["criteria"], milestone["other_issues"], milestone["recorded_completed_criteria"], milestone["candidate_passed_criteria"]), (2, 1, 1, 0))
 
 
 class InstallationTests(unittest.TestCase):

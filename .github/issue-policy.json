@@ -1,16 +1,40 @@
 {
   "schema": 1,
-  "minimum_tool_revision": 1,
+  "minimum_tool_revision": 2,
   "repository": "noah-be/overte",
   "reference_issue": 599,
   "enforce_created_after": "2026-09-14T07:13:56Z",
-  "kinds": {"bug": "bug", "idea": "idea", "task": "type: task", "acceptance": "acceptance"},
-  "platforms": ["ios", "android phone", "pico"],
-  "states": ["inbox", "ready", "active", "blocked"],
-  "wip_limits": {"ready": 3, "active": 3},
-  "validation_labels": {"passed": "validation: passed", "needs_info": "validation: needs-info"},
+  "kinds": {
+    "bug": "bug",
+    "idea": "idea",
+    "task": "type: task",
+    "acceptance": "acceptance"
+  },
+  "platforms": [
+    "ios",
+    "android phone",
+    "pico"
+  ],
+  "states": [
+    "inbox",
+    "ready",
+    "active",
+    "blocked"
+  ],
+  "wip_limits": {
+    "ready": 3,
+    "active": 3
+  },
+  "validation_labels": {
+    "passed": "validation: passed",
+    "needs_info": "validation: needs-info"
+  },
+  "history_label": "history: preserved",
   "fields": {
     "summary": "Summary",
+    "acceptance_status": "Evidence assessment",
+    "candidate": "Candidate / evidence baseline",
+    "remaining": "Remaining verification",
     "scope": "Scope",
     "expected": "Expected behavior",
     "reproduction": "Reproduction",
@@ -26,15 +50,89 @@
     "unblock_condition": "Unblock condition"
   },
   "required": {
-    "bug": ["summary", "expected", "reproduction", "environment"],
-    "idea": ["summary", "benefit"],
-    "task": ["summary", "scope", "outcome", "done_criteria"],
-    "acceptance": ["summary", "scope", "outcome", "done_criteria", "required_checks"]
+    "bug": [
+      "summary",
+      "expected",
+      "reproduction",
+      "environment"
+    ],
+    "idea": [
+      "summary",
+      "benefit"
+    ],
+    "task": [
+      "summary",
+      "scope",
+      "outcome",
+      "done_criteria"
+    ],
+    "acceptance": [
+      "summary",
+      "scope",
+      "outcome",
+      "done_criteria",
+      "required_checks",
+      "acceptance_status",
+      "candidate",
+      "remaining"
+    ]
   },
-  "ready_fields": ["scope", "outcome", "done_criteria", "next_action", "dependencies", "required_checks"],
-  "list_fields": ["done_criteria", "dependencies", "required_checks", "evidence"],
-  "unknown_allowed_inbox": ["reproduction", "environment"],
+  "enum_fields": {
+    "acceptance_status": [
+      "No full acceptance recorded",
+      "Partial evidence / regression outstanding",
+      "Historical completion recorded"
+    ]
+  },
+  "kind_headings": {
+    "acceptance": {
+      "outcome": "Acceptance criterion",
+      "done_criteria": "Pass conditions",
+      "required_checks": "Verification method",
+      "evidence": "Evidence references"
+    }
+  },
+  "ready_fields": [
+    "scope",
+    "outcome",
+    "done_criteria",
+    "next_action",
+    "dependencies",
+    "required_checks"
+  ],
+  "list_fields": [
+    "done_criteria",
+    "dependencies",
+    "required_checks",
+    "evidence"
+  ],
+  "unknown_allowed_inbox": [
+    "reproduction",
+    "environment"
+  ],
   "title_max_length": 140,
   "summary_max_length": 1000,
-  "body_max_length": 30000
+  "body_max_length": 30000,
+  "acceptance_labels": {
+    "verified": "acceptance: verified",
+    "needs_test": "acceptance: needs-test",
+    "no_candidate": "acceptance: no-candidate"
+  },
+  "field_order": {
+    "acceptance": [
+      "summary",
+      "outcome",
+      "acceptance_status",
+      "candidate",
+      "remaining",
+      "scope",
+      "done_criteria",
+      "required_checks",
+      "evidence",
+      "next_action",
+      "dependencies",
+      "blocker",
+      "unblock_condition"
+    ]
+  }
 }
