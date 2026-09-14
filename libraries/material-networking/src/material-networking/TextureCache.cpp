@@ -140,6 +140,22 @@ static const float HIGH_MIPS_LOAD_PRIORITY { 9.0f }; // Make sure high mips load
 
 std::function<gpu::TexturePointer(const QUuid&)> Texture::_unboundTextureForUUIDOperator { nullptr };
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+static int phoneLoadingCacheNamespace(const char* value, int length) {
+    if ((length != 1 && length != 2) || value[0] < '1' || value[0] > '9') {
+        return 0;
+    }
+    int result = value[0] - '0';
+    if (length == 2) {
+        if (value[1] < '0' || value[1] > '9') {
+            return 0;
+        }
+        result = result * 10 + value[1] - '0';
+    }
+    return result;
+}
+#endif
+
 TextureCache::TextureCache() {
     std::string KTX_DIRNAME = "ktx_cache";
     auto backendApi = hifi::properties::getGraphicsAPI();
@@ -148,19 +164,22 @@ TextureCache::TextureCache() {
     }
 
 #if defined(ANDROID_APP_PHONE_INTERFACE)
+    int cacheNamespace = 0;
     // Separate derived-cache namespaces for controlled cold/warm comparisons.
     // Never delete or replace the user's normal cache. Only active with diagnostics.
     if (phoneLoadingDiagnosticsEnabled()) {
         char run[PROP_VALUE_MAX] {};
-        if (__system_property_get("debug.overte.loading.cache_run", run) == 1 && run[0] >= '1' && run[0] <= '9') {
-            KTX_DIRNAME += std::string("_loading_") + run[0];
+        const int length = __system_property_get("debug.overte.loading.cache_run", run);
+        cacheNamespace = phoneLoadingCacheNamespace(run, length);
+        if (cacheNamespace != 0) {
+            KTX_DIRNAME += std::string("_loading_") + std::to_string(cacheNamespace);
         }
     }
 #endif
     _ktxCache = std::make_shared<KTXCache>(KTX_DIRNAME, KTX_EXT);
     PHONE_LOADING("phase=ktx_cache_select gles=%d namespace=%d",
         int(backendApi == hifi::properties::GraphicsAPI::GLES32),
-        KTX_DIRNAME.back() >= '1' && KTX_DIRNAME.back() <= '9' ? KTX_DIRNAME.back() - '0' : 0);
+        cacheNamespace);
     _ktxCache->initialize();
 #if defined(DISABLE_KTX_CACHE)
     _ktxCache->wipe();
