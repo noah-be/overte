@@ -4614,6 +4614,11 @@ void Application::tryToEnablePhysics() {
 #endif
             _octreeProcessor->resetSafeLanding();
             _physicsEnabled = true;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+            // Authoritative movement gate; independent of background downloads
+            // and not a claim that every visible resource has finished loading.
+            PHONE_LOADING("phase=physics_enabled enabled=1");
+#endif
 #if defined(ANDROID_APP_PICO_INTERFACE)
             if (enableInterstitial && _graphicsEngine) {
                 _picoLoadingPhysicsEnabledAt = physicsNow;

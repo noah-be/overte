@@ -158,6 +158,9 @@ TextureCache::TextureCache() {
     }
 #endif
     _ktxCache = std::make_shared<KTXCache>(KTX_DIRNAME, KTX_EXT);
+    PHONE_LOADING("phase=ktx_cache_select gles=%d namespace=%d",
+        int(backendApi == hifi::properties::GraphicsAPI::GLES32),
+        KTX_DIRNAME.back() >= '1' && KTX_DIRNAME.back() <= '9' ? KTX_DIRNAME.back() - '0' : 0);
     _ktxCache->initialize();
 #if defined(DISABLE_KTX_CACHE)
     _ktxCache->wipe();
