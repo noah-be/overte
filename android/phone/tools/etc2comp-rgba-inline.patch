@@ -1,0 +1,57 @@
+--- baseline/src/EtcLib/EtcCodec/EtcBlock4x4Encoding.cpp
++++ candidate/src/EtcLib/EtcCodec/EtcBlock4x4Encoding.cpp
+@@ -116,7 +116,7 @@
+ 	// calculate the error between the source pixel and the decoded pixel
+ 	// the error amount is base on the error metric
+ 	//
+-	float Block4x4Encoding::CalcPixelError(ColorFloatRGBA a_frgbaDecodedColor, float a_fDecodedAlpha,
++	float Block4x4Encoding::CalcPixelErrorFallback(ColorFloatRGBA a_frgbaDecodedColor, float a_fDecodedAlpha,
+ 											ColorFloatRGBA a_frgbaSourcePixel)
+ 	{
+ 
+--- baseline/src/EtcLib/EtcCodec/EtcBlock4x4Encoding.h
++++ candidate/src/EtcLib/EtcCodec/EtcBlock4x4Encoding.h
+@@ -117,6 +117,8 @@
+ 
+ 		float CalcPixelError(ColorFloatRGBA a_frgbaDecodedColor, float a_fDecodedAlpha,
+ 								ColorFloatRGBA a_frgbaSourcePixel);
++		float CalcPixelErrorFallback(ColorFloatRGBA a_frgbaDecodedColor, float a_fDecodedAlpha,
++								ColorFloatRGBA a_frgbaSourcePixel);
+ 
+ 	protected:
+ 
+@@ -146,3 +148,34 @@
+ 	};
+ 
+ } // namespace Etc
++
++namespace Etc {
++	inline float Block4x4Encoding::CalcPixelError(ColorFloatRGBA a_frgbaDecodedColor, float a_fDecodedAlpha,
++											ColorFloatRGBA a_frgbaSourcePixel)
++	{
++
++		// if a border pixel
++		if (isnan(a_frgbaSourcePixel.fA))
++		{
++			return 0.0f;
++		}
++
++		if (m_errormetric == ErrorMetric::RGBA)
++		{
++			assert(a_fDecodedAlpha >= 0.0f);
++
++			float fDRed = (a_fDecodedAlpha * a_frgbaDecodedColor.fR) -
++							(a_frgbaSourcePixel.fA * a_frgbaSourcePixel.fR);
++			float fDGreen = (a_fDecodedAlpha * a_frgbaDecodedColor.fG) -
++							(a_frgbaSourcePixel.fA * a_frgbaSourcePixel.fG);
++			float fDBlue = (a_fDecodedAlpha * a_frgbaDecodedColor.fB) -
++							(a_frgbaSourcePixel.fA * a_frgbaSourcePixel.fB);
++
++			float fDAlpha = a_fDecodedAlpha - a_frgbaSourcePixel.fA;
++
++			return fDRed*fDRed + fDGreen*fDGreen + fDBlue*fDBlue + fDAlpha*fDAlpha;
++		}
++		return CalcPixelErrorFallback(a_frgbaDecodedColor, a_fDecodedAlpha, a_frgbaSourcePixel);
++	}
++
++}

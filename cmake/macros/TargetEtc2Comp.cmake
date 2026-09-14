@@ -24,5 +24,8 @@ macro(TARGET_ETC2COMP)
         endif()
 
         target_link_libraries(${TARGET_NAME} etc2comp::etc2comp)
+        if (ANDROID AND HIFI_ANDROID_APP STREQUAL "phoneInterface")
+            include("${CMAKE_SOURCE_DIR}/android/phone/cmake/PhoneEtcArchive.cmake")
+        endif()
     endif()
 endmacro()
