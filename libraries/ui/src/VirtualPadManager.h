@@ -11,6 +11,9 @@
 #include <DependencyManager.h>
 
 #include <GLMHelpers.h>
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include "PhoneVirtualPadLayout.h"
+#endif
 
 namespace VirtualPad {
     class Instance {
@@ -24,10 +27,17 @@ namespace VirtualPad {
         virtual bool isShown();
         virtual void setShown(bool show);
     private:
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        bool _isBeingTouched { false };
+        glm::vec2 _firstTouch { 0.0f };
+        glm::vec2 _currentTouch { 0.0f };
+        bool _shown { false };
+#else
         bool _isBeingTouched;
         glm::vec2 _firstTouch;
         glm::vec2 _currentTouch;
         bool _shown;
+#endif
     };
 
     class Manager : public QObject, public Dependency {
@@ -54,6 +64,10 @@ namespace VirtualPad {
         void setButtonPosition(Button button, glm::vec2 point);
 
         void requestHapticFeedback(int duration);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        void publishPhoneLayout(const PhoneLayout& layout) { _phoneLayout.publish(layout); }
+        PhoneLayout getPhoneLayout() const { return _phoneLayout.read(); }
+#endif
 
         static const float DPI;
         static const float BASE_DIAMETER_PIXELS;
@@ -73,7 +87,8 @@ namespace VirtualPad {
         bool _hidden;
         int _extraBottomMargin { 0 };
         std::map<Button, glm::vec2> _buttonsPositions;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        PhoneLayoutMailbox _phoneLayout;
+#endif
     };
 }
-
-
