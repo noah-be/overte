@@ -5,12 +5,13 @@ import json
 import os
 from pathlib import Path
 import sys
+import acceptance
 
 from intake import (API, REPOSITORY, COMMENT_MARKER, MARKER, Client, IntakeError,
-                    expected_labels, labels, load_policy, managed, parse, snapshot, validate, verify_saved)
+                    expected_labels, get_milestone, labels, load_policy, managed, parse, snapshot, validate, verify_saved)
 
 
-def plan(issue, policy, open_issues, event_number=None):
+def plan(issue, policy, open_issues, event_number=None, candidate=None):
     if not managed(issue, policy):
         return {"number": issue["number"], "managed": False, "errors": [], "patch": {}}
     names = labels(issue)
@@ -19,8 +20,10 @@ def plan(issue, policy, open_issues, event_number=None):
     completion = issue["state"] == "closed" and issue.get("state_reason") == "completed"
     try:
         draft = parse(issue, policy)
+        if policy.get("history_label") in names and not draft.get("legacy"):
+            raise IntakeError("Preserved original description is missing")
         errors = validate(draft, policy, state, completion, issue["state"] == "closed" and issue.get("state_reason") == "not_planned")
-    except (IntakeError, KeyError) as exc:
+    except (IntakeError, ValueError, TypeError, KeyError) as exc:
         draft = None
         errors = [str(exc)]
     if not errors and issue["state"] == "open" and state in policy["wip_limits"]:
@@ -32,6 +35,7 @@ def plan(issue, policy, open_issues, event_number=None):
     patch = {}
     if errors:
         desired = {x for x in names if not x.startswith("workflow:")} - set(policy["validation_labels"].values())
+        desired -= set(policy.get("acceptance_labels", {}).values())
         desired.add(policy["validation_labels"]["needs_info"])
         if issue["state"] == "open" or completion:
             desired.add("workflow: inbox")
@@ -39,6 +43,7 @@ def plan(issue, policy, open_issues, event_number=None):
             patch.update(state="open", state_reason=None)
     else:
         desired = set(expected_labels(draft, policy, state if issue["state"] == "open" else None, names))
+        desired = set(acceptance.apply_label(desired, draft, candidate, policy))
     if desired != names:
         patch["labels"] = sorted(desired)
     return {"number": issue["number"], "managed": True, "errors": errors, "patch": patch}
@@ -46,7 +51,8 @@ def plan(issue, policy, open_issues, event_number=None):
 
 def reconcile(client, number, policy, apply=False, event_number=None):
     issue = client.issue(number)
-    result = plan(issue, policy, client.issues(), event_number)
+    candidate = acceptance.pinned(get_milestone(client, issue["milestone"]["number"]), policy["platforms"]) if issue.get("milestone") else None
+    result = plan(issue, policy, client.issues(), event_number, candidate)
     if not apply or not result["managed"]:
         return result
     if result["patch"]:
@@ -105,7 +111,7 @@ def main():
     for item in candidates:
         try:
             results.append(reconcile(client, item, policy, args.apply, number))
-        except IntakeError as exc:
+        except (IntakeError, ValueError, TypeError, KeyError) as exc:
             failures.append({"number": item, "error": str(exc)})
     report = {"applied": args.apply, "results": results, "operational_errors": failures}
     print(json.dumps(report, indent=2))

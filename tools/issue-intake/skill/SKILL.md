@@ -70,12 +70,36 @@ policy's readiness fields. Blocked needs a real blocker and unblock condition.
 If a limit is full, keep existing active work; do not displace another issue.
 If the snapshot is stale, re-read and integrate the new information first.
 
-For an older, unstructured issue, `show` preserves its original body. Prepare a
-structured draft only within an authorized update/migration, preserve all useful
-information, and retain detailed history in the issue or a linked record before
-replacing its description. Do not rewrite the legacy backlog as a side effect of
-creating a new issue. A comment-only evidence update may use `gh` explicitly bound
-to `noah-be/overte`, after checking issue ownership and with read-back verification.
+For an authorized legacy migration, snapshot descriptions, comments and metadata,
+then use `migrate NUMBER DRAFT.json --snapshot TOKEN` to preview and add `--apply`
+to execute. It preserves title, native milestone, existing labels, assignment and
+closure while attaching the exact original body as a hash-verified archive.
+Keep that archive unchanged during updates. Historical text is evidence, not
+current authorization or a current next action. Do not migrate unrelated backlog
+as a side effect. `update` can edit closed history without reopening it.
+A comment-only evidence update may use fork-bound `gh`, with ownership and read-back
+checks; never mutate or delete existing comments during restructuring.
+
+Use `overte-issue overview` for the user's working view and separate milestone
+results. Inbox excludes dormant acceptance; Now still includes an actively run
+acceptance task. Native milestone percentages count historical closures, not
+acceptance of a common candidate.
+
+Acceptance is a stable criterion with dated, candidate-bound test records.
+`show` exposes `criterion_sha256`; append `test_runs` only from actual reviewed
+results, preserving all previous records. Each record needs ID, exact candidate,
+criterion hash, UTC date, pass/fail/blocked result, observations, evidence and
+limitations. Read `docs/ISSUE_WORKFLOW.md` for the schema. Missing historical
+identity stays explicit; never invent it to obtain a green result.
+
+Read the pin with `candidate MILESTONE`; deliberately set it using a five-field
+JSON (full revision, artifact_sha256, build_url, platform, environment), its
+snapshot and `--apply` only when candidate selection is in the authorized scope.
+Do not select the newest commit automatically. A changed candidate or criterion
+requires fresh evidence; old results remain historical. Use impact analysis for
+development regression selection, but do not carry a device PASS automatically
+across artifacts. The helper and guard derive freshness labels; keep candidate
+status separate from workflow status and historical closure.
 
 Use `--close completed` only after checking the actual done criteria, relevant
 checks, required merged PRs and evidence. A syntactically valid evidence list

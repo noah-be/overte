@@ -3,6 +3,8 @@ name: Issue intake
 on:
   issues:
     types: [opened, edited, reopened, closed, labeled, unlabeled, milestoned, demilestoned]
+  milestone:
+    types: [created, edited, opened, closed]
   schedule:
     - cron: "43 */6 * * *"
   workflow_dispatch:
