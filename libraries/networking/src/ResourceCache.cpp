@@ -28,6 +28,17 @@
 #include <QCryptographicHash>
 #include <PhoneLoadingDiagnostics.h>
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include "PhoneResourcePriorityMap.h"
+namespace {
+PhoneResourcePriorityMap& phoneResourcePriorityMaps() {
+    // Resources may outlive other globals during shutdown.
+    static auto* maps = new PhoneResourcePriorityMap;
+    return *maps;
+}
+}
+#endif
+
 // Restrict this probe to OBJ resources: demand, admission and dispatch can be
 // correlated with the existing HTTP/model hash markers without flooding the
 // log with every texture/animation lookup. No extra per-resource state or timers.
@@ -606,7 +617,11 @@ Resource::Resource(const Resource& other) :
     _startedLoading(other._startedLoading),
     _failedToLoad(other._failedToLoad),
     _loaded(other._loaded),
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    _loadPriorityOperators(phoneResourcePriorityMaps().snapshot(other._loadPriorityOperators)),
+#else
     _loadPriorityOperators(other._loadPriorityOperators),
+#endif
     _bytesReceived(other._bytesReceived),
     _bytesTotal(other._bytesTotal),
     _bytes(other._bytes),
@@ -642,11 +657,18 @@ void Resource::ensureLoading() {
 
 void Resource::setLoadPriorityOperator(const QPointer<QObject>& owner, std::function<float()> priorityOperator) {
     if (!_failedToLoad) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        phoneResourcePriorityMaps().set(_loadPriorityOperators, owner, priorityOperator);
+#else
         _loadPriorityOperators.insert(owner, priorityOperator);
+#endif
     }
 }
 
 float Resource::getLoadPriority() {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    return phoneResourcePriorityMaps().priority(_loadPriorityOperators);
+#else
     if (_loadPriorityOperators.size() == 0) {
         return 0;
     }
@@ -661,6 +683,7 @@ float Resource::getLoadPriority() {
         it++;
     }
     return highestPriority;
+#endif
 }
 
 void Resource::refresh() {
@@ -761,7 +784,11 @@ void Resource::attemptRequest() {
 
 void Resource::finishedLoading(bool success) {
     if (success) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        phoneResourcePriorityMaps().clear(_loadPriorityOperators);
+#else
         _loadPriorityOperators.clear();
+#endif
         _loaded = true;
     } else {
         _failedToLoad = true;
