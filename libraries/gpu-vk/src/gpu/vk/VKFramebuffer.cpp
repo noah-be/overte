@@ -28,7 +28,7 @@ void gpu::vk::VKFramebuffer::update() {
         recycler.trashVkRenderPass(vkRenderPass);
         vkRenderPass = VK_NULL_HANDLE;
     }
-    for (const auto& attachment : attachments) {
+    for (auto& attachment : attachments) {
         recycler.trashVkImageView(attachment.view);
     }
     attachments.clear();
