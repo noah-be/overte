@@ -53,6 +53,7 @@
 #include <raypick/PointerScriptingInterface.h>
 #include <recording/RecordingScriptingInterface.h>
 #include <SandboxUtils.h>
+#include <PhoneLoadingDiagnostics.h>
 #include <SceneScriptingInterface.h>
 #include <ScriptEngines.h>
 #include <scripting/AccountServicesScriptingInterface.h>
@@ -1358,6 +1359,8 @@ void Application::pauseUntilLoginDetermined() {
     }
     _previousCameraMode = _myCamera.getMode();
     _myCamera.setMode(CAMERA_MODE_FIRST_PERSON_LOOK_AT);
+    PHONE_LOADING("phase=startup_camera_pause elapsed_ms=%lld mode=%d previous_mode=%d",
+        (long long)_sessionRunTimer.elapsed(), (int)_myCamera.getMode(), (int)_previousCameraMode);
     cameraModeChanged();
 
     // disconnect domain handler.
@@ -1373,6 +1376,7 @@ void Application::pauseUntilLoginDetermined() {
 }
 
 void Application::resumeAfterLoginDialogActionTaken() {
+    PHONE_LOADING("phase=startup_resume_begin elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
     if (QThread::currentThread() != qApp->thread()) {
         QMetaObject::invokeMethod(this, "resumeAfterLoginDialogActionTaken");
         return;
@@ -1418,6 +1422,7 @@ void Application::resumeAfterLoginDialogActionTaken() {
 
     const auto& nodeList = DependencyManager::get<NodeList>();
     nodeList->getDomainHandler().setInterstitialModeEnabled(_interstitialModeEnabled);
+    PHONE_LOADING("phase=startup_scripts_begin elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
     {
         auto scriptEngines = DependencyManager::get<ScriptEngines>().data();
         // this will force the model the look at the correct directory (weird order of operations issue)
@@ -1439,6 +1444,9 @@ void Application::resumeAfterLoginDialogActionTaken() {
         }
     }
 
+    // The script-loading API has returned; this is not script execution completion.
+    PHONE_LOADING("phase=startup_scripts_api_return elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+
     auto accountManager = DependencyManager::get<AccountManager>();
     auto addressManager = DependencyManager::get<AddressManager>();
 
@@ -1452,12 +1460,22 @@ void Application::resumeAfterLoginDialogActionTaken() {
         DependencyManager::get<ScriptEngines>()->loadScript(testScript, false, false, false, false, _quitWhenFinished);
         // This is done so we don't get a "connection time-out" message when we haven't passed in a URL.
         if (!_urlParam.isEmpty()) {
+            PHONE_LOADING("phase=startup_sandbox_submit elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
             auto reply = SandboxUtils::getStatus();
-            connect(reply, &QNetworkReply::finished, this, [this, reply] { handleSandboxStatus(reply); });
+            connect(reply, &QNetworkReply::finished, this, [this, reply] {
+                PHONE_LOADING("phase=startup_sandbox_callback elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+                handleSandboxStatus(reply);
+                PHONE_LOADING("phase=startup_sandbox_callback_return elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+            });
         }
     } else {
+        PHONE_LOADING("phase=startup_sandbox_submit elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
         auto reply = SandboxUtils::getStatus();
-        connect(reply, &QNetworkReply::finished, this, [this, reply] { handleSandboxStatus(reply); });
+        connect(reply, &QNetworkReply::finished, this, [this, reply] {
+            PHONE_LOADING("phase=startup_sandbox_callback elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+            handleSandboxStatus(reply);
+            PHONE_LOADING("phase=startup_sandbox_callback_return elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+        });
     }
 
     auto menu = Menu::getInstance();
@@ -1467,9 +1485,12 @@ void Application::resumeAfterLoginDialogActionTaken() {
     menu->getMenu("Settings")->setVisible(true);
     menu->getMenu("Developer")->setVisible(_developerMenuVisible);
     _myCamera.setMode(_previousCameraMode);
+    PHONE_LOADING("phase=startup_camera_restore elapsed_ms=%lld mode=%d previous_mode=%d",
+        (long long)_sessionRunTimer.elapsed(), (int)_myCamera.getMode(), (int)_previousCameraMode);
     cameraModeChanged();
     _startUpFinished = true;
     getRefreshRateManager().setRefreshRateRegime(RefreshRateManager::RefreshRateRegime::FOCUS_ACTIVE);
+    PHONE_LOADING("phase=startup_resume_end elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
 }
 
 QSharedPointer<OffscreenUi> Application::getOffscreenUI() {

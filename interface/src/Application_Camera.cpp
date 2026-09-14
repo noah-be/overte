@@ -21,6 +21,10 @@
 #include <PickManager.h>
 #include <raypick/RayPick.h>
 #include <SecondaryCamera.h>
+#include <PhoneLoadingDiagnostics.h>
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include <cmath>
+#endif
 
 #include "avatar/MyAvatar.h"
 #include "avatar/MyHead.h"
@@ -51,6 +55,30 @@ void Application::updateCamera(RenderArgs& renderArgs, float deltaTime) {
     // Using the latter will cause the camera to wobble with idle animations,
     // or with changes from the face tracker
     CameraMode mode = _myCamera.getMode();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Observe startup camera changes without altering picking, camera modes or
+    // avatar geometry. Bound both the sampling lifetime and log volume.
+    struct CameraSample {
+        int mode { -1 }, hitType { 0 };
+        bool hmd { false }, clipping { false }, pickPresent { false }, hit { false };
+        bool modelLoaded { false }, startupFinished { false }, interstitial { false };
+        float configuredBoom { 0.0f }, effectiveBoom { 0.0f }, scale { 0.0f };
+        float hitDistance { -1.0f }, avatarDistance { 0.0f }, pivotDistance { 0.0f }, eyeDistance { 0.0f };
+    };
+    static thread_local CameraSample previousCameraSample;
+    static thread_local qint64 previousCameraSampleMs { -1 };
+    static thread_local unsigned cameraSampleCount { 0 };
+    const qint64 cameraSampleMs = _sessionRunTimer.elapsed();
+    const bool sampleCamera = phoneLoadingDiagnosticsEnabled() && cameraSampleMs <= 120000 && cameraSampleCount < 360;
+    CameraSample cameraSample;
+    if (sampleCamera) {
+        cameraSample.mode = static_cast<int>(mode);
+        cameraSample.hmd = isHMDMode();
+        cameraSample.clipping = getCameraClippingEnabled();
+        cameraSample.configuredBoom = cameraSample.effectiveBoom = myAvatar->getBoomLength();
+        cameraSample.scale = myAvatar->getModelScale();
+    }
+#endif
     if (mode == CAMERA_MODE_FIRST_PERSON || mode == CAMERA_MODE_FIRST_PERSON_LOOK_AT) {
         _thirdPersonHMDCameraBoomValid= false;
         if (isHMDMode()) {
@@ -85,11 +113,26 @@ void Application::updateCamera(RenderArgs& renderArgs, float deltaTime) {
             if (getCameraClippingEnabled()) {
                 auto result =
                     DependencyManager::get<PickManager>()->getPrevPickResultTyped<RayPickResult>(_cameraClippingRayPickID);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+                if (sampleCamera) {
+                    cameraSample.pickPresent = static_cast<bool>(result);
+                    cameraSample.hit = result && result->doesIntersect();
+                    if (cameraSample.hit) {
+                        cameraSample.hitType = static_cast<int>(result->type);
+                        cameraSample.hitDistance = result->distance;
+                    }
+                }
+#endif
                 if (result && result->doesIntersect()) {
                     const float CAMERA_CLIPPING_EPSILON = 0.1f;
                     boomLength = std::min(boomLength, result->distance - CAMERA_CLIPPING_EPSILON);
                 }
             }
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+            if (sampleCamera) {
+                cameraSample.effectiveBoom = boomLength;
+            }
+#endif
             glm::vec3 boomOffset = myAvatar->getModelScale() * boomLength * -IDENTITY_FORWARD;
             _thirdPersonHMDCameraBoomValid = false;
             if (mode == CAMERA_MODE_THIRD_PERSON) {
@@ -169,6 +212,44 @@ void Application::updateCamera(RenderArgs& renderArgs, float deltaTime) {
     }
 
     renderArgs._cameraMode = (int8_t)mode;
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (sampleCamera) {
+        const auto eye = myAvatar->getDefaultEyePosition();
+        const auto pivot = (mode == CAMERA_MODE_THIRD_PERSON || mode == CAMERA_MODE_FIRST_PERSON)
+            ? eye : myAvatar->getLookAtPivotPoint();
+        cameraSample.avatarDistance = glm::distance(_myCamera.getPosition(), myAvatar->getWorldPosition());
+        cameraSample.pivotDistance = glm::distance(_myCamera.getPosition(), pivot);
+        cameraSample.eyeDistance = glm::distance(eye, myAvatar->getWorldPosition());
+        cameraSample.modelLoaded = myAvatar->getSkeletonModel()->isLoaded();
+        cameraSample.startupFinished = _startUpFinished;
+        cameraSample.interstitial = isInterstitialMode();
+        const auto changedFloat = [](float current, float previous) {
+            if (!std::isfinite(current) || !std::isfinite(previous)) {
+                return std::isfinite(current) != std::isfinite(previous);
+            }
+            return std::abs(current - previous) > std::max(0.05f, std::abs(previous) * 0.1f);
+        };
+        const auto& p = previousCameraSample;
+        const auto& c = cameraSample;
+        const bool transition = c.mode != p.mode || c.hmd != p.hmd || c.clipping != p.clipping ||
+            c.pickPresent != p.pickPresent || c.hit != p.hit || c.hitType != p.hitType ||
+            c.modelLoaded != p.modelLoaded || c.startupFinished != p.startupFinished || c.interstitial != p.interstitial ||
+            changedFloat(c.configuredBoom, p.configuredBoom) || changedFloat(c.effectiveBoom, p.effectiveBoom) ||
+            changedFloat(c.scale, p.scale) || changedFloat(c.hitDistance, p.hitDistance) ||
+            changedFloat(c.avatarDistance, p.avatarDistance) || changedFloat(c.pivotDistance, p.pivotDistance) ||
+            changedFloat(c.eyeDistance, p.eyeDistance);
+        if (previousCameraSampleMs < 0 || transition || cameraSampleMs - previousCameraSampleMs >= 1000) {
+            ++cameraSampleCount;
+            PHONE_LOADING("phase=camera_state elapsed_ms=%lld sample=%u transition=%d mode=%d hmd=%d configured_boom=%.5f effective_boom=%.5f model_scale=%.5f clip_enabled=%d pick_present=%d hit=%d hit_type=%d hit_distance=%.5f camera_avatar_distance=%.5f camera_pivot_distance=%.5f eye_avatar_distance=%.5f skeleton_loaded=%d startup_finished=%d interstitial=%d cap_reached=%d",
+                (long long)cameraSampleMs, cameraSampleCount, transition, c.mode, c.hmd, c.configuredBoom, c.effectiveBoom,
+                c.scale, c.clipping, c.pickPresent, c.hit, c.hitType, c.hitDistance, c.avatarDistance, c.pivotDistance,
+                c.eyeDistance, c.modelLoaded, c.startupFinished, c.interstitial, cameraSampleCount == 360);
+            previousCameraSample = cameraSample;
+            previousCameraSampleMs = cameraSampleMs;
+        }
+    }
+#endif
 
     const bool shouldEnableCameraClipping =
         (mode == CAMERA_MODE_THIRD_PERSON || mode == CAMERA_MODE_LOOK_AT || mode == CAMERA_MODE_SELFIE) && !isHMDMode() &&
