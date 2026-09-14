@@ -59,6 +59,7 @@ Settings iosVulkanDiagnosticSettings() { return {}; }
 const std::set<std::string>& toQStringList(const std::set<std::string>& s) { return s; }
 struct QString { static std::string number(uint64_t n) { return std::to_string(n); } };
 struct VKBackend {
+    struct Breadcrumbs { void submit(uint64_t) {} } _iosDrawBreadcrumbs;
     uint64_t _frameCounter=55;
     uint64_t _iosScissorEnabledDraws=12,_iosScissorDisabledDraws=13,_iosScissorInvalidDraws=14;
     std::set<std::string> _iosCurrentUntrustedPipelines {"PRIVATE_PIPELINE:https://secret.invalid/private-content"};

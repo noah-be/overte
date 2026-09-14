@@ -150,8 +150,12 @@ readonly rendering_contracts=(
     vulkan-display-ios-ktx-capture-gate-test.py
     vulkan-display-ios-main-thread-resize-test.py
     vulkan-display-ios-output-pending-test.py
+    draw-info-object-index-test.py
+    gpu-draw-breadcrumbs-test.py
     vulkan-draw-info-binding-test.py
+    vulkan-framebuffer-blit-test.py
     vulkan-framebuffer-lifetime-test.py
+    vulkan-index-range-test.py
     vulkan-input-binding-test.py
     vulkan-ios-frame-recycling-test.py
     vulkan-ios-surface-contract-test.py
@@ -161,6 +165,9 @@ readonly rendering_contracts=(
 for contract in "${rendering_contracts[@]}"; do
     python3 "$script_dir/$contract"
 done
+
+python3 "$script_dir/vulkan-index-range-test.py" --mutation
+OVERTE_INDEX_RANGE_MUTATION=1 python3 "$script_dir/vulkan-input-binding-test.py"
 
 python3 "$script_dir/sbom-test.py"
 python3 "$script_dir/windows-handoff-test.py"

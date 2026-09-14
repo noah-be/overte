@@ -223,12 +223,18 @@ public:
                     os_log_fault(OS_LOG_DEFAULT,
                                  "OVERTE_IOS_VULKAN_FATAL present_exception=%{public}s",
                                  error.what());
+                    if (const auto backend = std::dynamic_pointer_cast<gpu::vk::VKBackend>(currentPlugin->getBackend())) {
+                        backend->reportIOSFailedSubmit();
+                    }
                     QMetaObject::invokeMethod(qApp, [] { QCoreApplication::exit(1); },
                                               Qt::QueuedConnection);
                     break;
                 } catch (...) {
                     os_log_fault(OS_LOG_DEFAULT,
                                  "OVERTE_IOS_VULKAN_FATAL present_exception=unknown");
+                    if (const auto backend = std::dynamic_pointer_cast<gpu::vk::VKBackend>(currentPlugin->getBackend())) {
+                        backend->reportIOSFailedSubmit();
+                    }
                     QMetaObject::invokeMethod(qApp, [] { QCoreApplication::exit(1); },
                                               Qt::QueuedConnection);
                     break;

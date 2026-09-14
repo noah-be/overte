@@ -547,6 +547,7 @@ void VKBackend::render(const Batch& batch) {
     using namespace vks::debugutils;
 
 #if defined(Q_OS_IOS)
+    ++_iosBatchOrdinal;
     const auto batchDiagnosticId = iosBatchDiagnosticId(batch);
     const bool quarantineBatch = _iosQuarantinedPipelines.contains(batchDiagnosticId) ||
         _iosQuarantinedBatchNames.contains(batch.getName());
@@ -2125,6 +2126,9 @@ void VKBackend::renderPassDraw(const Batch& batch) {
             CommandCall call = _commandCalls[(*command)];
 #if defined(Q_OS_IOS)
             if (!quarantinePipeline) {
+                _iosDrawBreadcrumbs.attempt({ _frameCounter, _iosBatchOrdinal, _iosDrawOrdinal,
+                    static_cast<uint32_t>(*command), static_cast<uint32_t>(vertexSource.id),
+                    static_cast<uint32_t>(fragmentSource.id) });
                 (this->*(call))(batch, *offset);
             } else {
                 overte::ios::observeRender(overte::ios::RenderMetric::quarantinedDraws);
@@ -2197,6 +2201,9 @@ void VKBackend::renderPassDraw(const Batch& batch) {
 
 bool VKBackend::validateInputDraw(bool indexed, uint32_t count, uint32_t first,
                                   uint32_t instances, uint32_t firstInstance) const {
+#if defined(Q_OS_IOS)
+    _iosDrawBreadcrumbs.input(indexed, first, count, instances, firstInstance, false, false, 0, 0);
+#endif
     if (count == 0 || instances == 0) {
         return false; // A no-op draw has no input accesses to validate or submit.
     }
@@ -2269,6 +2276,12 @@ bool VKBackend::validateInputDraw(bool indexed, uint32_t count, uint32_t first,
             }
         }
     }
+#if defined(Q_OS_IOS)
+    _iosDrawBreadcrumbs.input(indexed, first, count, instances, firstInstance, reason == 0,
+        indexed ? indexRange.hasVertices : true,
+        indexed ? (indexRange.hasVertices ? indexRange.minimum : 0) : first,
+        indexed ? indexRange.maximum : uint64_t(first) + count - 1);
+#endif
     if (reason) {
 #if defined(Q_OS_IOS)
         static unsigned reports = 0;
@@ -2979,6 +2992,7 @@ void VKBackend::recyclePreviousFrame() {
 
 #if defined(Q_OS_IOS)
 void VKBackend::persistIOSDiagnosticSubmit(uint64_t submitId) {
+    _iosDrawBreadcrumbs.submit(submitId);
     using SteadyClock = std::chrono::steady_clock;
     static auto lastProgressReport = SteadyClock::time_point {};
     const auto now = SteadyClock::now();
@@ -3037,7 +3051,32 @@ void VKBackend::persistIOSDiagnosticSubmit(uint64_t submitId) {
     }
 }
 
+void VKBackend::reportIOSFailedSubmit() const {
+    const auto& snapshot = _iosDrawBreadcrumbs.pending();
+    os_log_fault(OS_LOG_DEFAULT,
+        "OVT_IOS_GPU_FAILURE_V1 submit=%{public}llu attempts=%{public}llu retained=%{public}llu",
+        static_cast<unsigned long long>(snapshot.submit),
+        static_cast<unsigned long long>(snapshot.total),
+        static_cast<unsigned long long>(snapshot.size));
+    for (size_t i = 0; i < snapshot.size; ++i) {
+        const auto& draw = overte::ios::GpuDrawBreadcrumbs::at(snapshot, i);
+        os_log_fault(OS_LOG_DEFAULT,
+            "OVT_IOS_GPU_DRAW_V1 frame=%{public}llu batch=%{public}llu ordinal=%{public}llu "
+            "command=%{public}u vertex=%{public}u fragment=%{public}u "
+            "checked=%{public}d valid=%{public}d indexed=%{public}d first=%{public}llu count=%{public}llu "
+            "instances=%{public}llu firstInstance=%{public}llu hasVertices=%{public}d min=%{public}llu max=%{public}llu",
+            static_cast<unsigned long long>(draw.frame), static_cast<unsigned long long>(draw.batch),
+            static_cast<unsigned long long>(draw.ordinal), draw.command, draw.vertexShader, draw.fragmentShader,
+            int(draw.inputChecked), int(draw.inputValid), int(draw.indexed),
+            static_cast<unsigned long long>(draw.first), static_cast<unsigned long long>(draw.count),
+            static_cast<unsigned long long>(draw.instances), static_cast<unsigned long long>(draw.firstInstance),
+            int(draw.hasVertices), static_cast<unsigned long long>(draw.minimumIndex),
+            static_cast<unsigned long long>(draw.maximumIndex));
+    }
+}
+
 void VKBackend::retireIOSDiagnosticSubmit() {
+    _iosDrawBreadcrumbs.retire();
     _iosHealthyPipelines.insert(_iosSubmittedUntrustedPipelines.cbegin(),
                                 _iosSubmittedUntrustedPipelines.cend());
     if (_iosSubmittedUntrustedPipelines.empty()) {

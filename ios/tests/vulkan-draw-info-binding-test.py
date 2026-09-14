@@ -43,6 +43,7 @@ struct Batch {
  std::unordered_map<std::string,int> _namedData{{"valid",0}};
  std::vector<DrawCallInfo> infos{{},{},{},{}};
  std::vector<DrawCallInfo> _drawCallInfos{{},{}};
+ std::vector<int> _objects{0};
  const auto& getCommands() const{return commands;}
  const auto& getCommandOffsets() const{return offsets;}
  const auto& getDrawCallInfoBuffer() const{return infos;}

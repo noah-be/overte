@@ -23,6 +23,11 @@
 #include <set>
 #include <string>
 
+#include <QtCore/qglobal.h>
+#if defined(Q_OS_IOS)
+#include "../../../../../ios/render/GpuDrawBreadcrumbs.h"
+#endif
+
 #include <gpu/Forward.h>
 #include <gpu/Context.h>
 
@@ -536,6 +541,7 @@ public:
 #if defined(Q_OS_IOS)
     void persistIOSDiagnosticSubmit(uint64_t submitId);
     void retireIOSDiagnosticSubmit();
+    void reportIOSFailedSubmit() const;
 #endif
 
 #if !defined(OVERTE_IOS_VULKAN_DISABLE_EXTERNAL_GL_INTEROP)
@@ -578,6 +584,8 @@ public:
     size_t _iosPipelineTraceLimit { 8192 };
     size_t _iosDrawTraceLimit { 512 };
     uint64_t _iosDrawOrdinal { 0 };
+    uint64_t _iosBatchOrdinal { 0 };
+    mutable overte::ios::GpuDrawBreadcrumbs _iosDrawBreadcrumbs;
     uint64_t _iosExecuteDrawOrdinalLimit { 0 };
     uint64_t _iosScissorEnabledDraws { 0 };
     uint64_t _iosScissorDisabledDraws { 0 };
