@@ -2444,6 +2444,16 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
 
     QString sentTo;
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Start observing before any accepted link can begin a connection. Keep
+    // the existing PendingUrlDelivery as the only Android intent owner.
+    _connectionMonitor.init();
+    const bool acceptedPendingStartupUrl = AndroidHelper::instance().dispatchPendingStartupUrl();
+    PHONE_LOADING("phase=startup_pending_dispatch accepted=%d", acceptedPendingStartupUrl ? 1 : 0);
+    if (acceptedPendingStartupUrl) {
+        sentTo = SENT_TO_PREVIOUS_LOCATION;
+    } else {
+#endif
 #ifdef Q_OS_ANDROID
     const auto startupDestination = android::startup::selectDestination(
         _firstRun.get(), hasExplicitAndroidStartupUrl,
@@ -2510,6 +2520,10 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
         sentTo = SENT_TO_PREVIOUS_LOCATION;
     }
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    }
+#endif
+
     UserActivityLogger::getInstance().logAction("startup_sent_to", {
         { "sent_to", sentTo },
         { "sandbox_is_running", sandboxIsRunning },
@@ -2520,7 +2534,9 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
         { "content_version", contentVersion }
     });
 
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
     _connectionMonitor.init();
+#endif
     PHONE_LOADING("phase=startup_destination_end");
 #if defined(ANDROID_APP_PHONE_INTERFACE)
     AndroidHelper::instance().notifyStartupNavigationReady();

@@ -15,29 +15,52 @@ class NavigationSupersessionTest(unittest.TestCase):
         delivery = native[native.index('// One application-owned'):native.index('QVariantMap touchUiMetricsMap')]
         entry = native[native.index('extern "C" JNIEXPORT jboolean JNICALL'):native.index(
             'extern "C" JNIEXPORT jboolean JNICALL\nJava_org_overte_phone_PhoneInterfaceActivity_nativeHandleBack')]
+        helper_source = (ROOT / 'interface/src/AndroidHelper.cpp').read_text()
+        helper_methods = helper_source[helper_source.index('void AndroidHelper::notifyStartupNavigationReady()'):helper_source.index('void AndroidHelper::notifyEnterForeground()')]
+        application = (ROOT / 'interface/src/Application.cpp').read_text()
+        checkpoint = application[application.index('#if defined(ANDROID_APP_PHONE_INTERFACE)\n    // Start observing'):application.index('#ifdef Q_OS_ANDROID\n    const auto startupDestination')]
+        # Execute the real Application acceptance branch. The large existing
+        # default-navigation body is represented by a counted fallback seam.
+        checkpoint += '\n++fallback;\n#if defined(ANDROID_APP_PHONE_INTERFACE)\n}\n#endif\n'
         driver = r'''
 #include <cassert>
+#include <functional>
 #include "libraries/shared/src/PhoneLoadingDiagnostics.h"
 #include <QCoreApplication>
 #include <QPointer>
 #include <QStringList>
+#include <QScopedValueRollback>
+#include <QThread>
+#define ANDROID_APP_PHONE_INTERFACE
 #include "android/phone/apps/phoneInterface/src/PhonePendingNavigation.h"
 #include "libraries/networking/src/RequestCancellation.h"
 class AndroidHelper : public QObject {
     Q_OBJECT
 public:
-    bool ready = false;
-    bool destinationReady = true;
+    bool _loadComplete = false;
+    bool _startupNavigationReady = true;
+    bool _startupUrlDispatching = false;
+    bool reject = false;
+    bool reenter = false;
+    std::function<void()> onProcess;
     QStringList navigated;
     static AndroidHelper& instance() { static AndroidHelper helper; return helper; }
-    bool isLoadComplete() const { return ready; }
-    bool isStartupNavigationReady() const { return destinationReady; }
-    bool processURL(const QString& url) { navigated.append(url); return true; }
-    void destinationSelected() { destinationReady = true; emit startupNavigationReady(); }
-    void loaded() { ready = true; emit qtAppLoadComplete(); }
+    bool isLoadComplete() const { return _loadComplete; }
+    bool isStartupNavigationReady() const { return _startupNavigationReady; }
+    bool processURL(const QString& url) {
+        if (onProcess) { const auto callback = onProcess; callback(); }
+        if (reenter) { notifyStartupNavigationReady(); assert(!dispatchPendingStartupUrl()); }
+        if (reject) { return false; }
+        navigated.append(url); return true;
+    }
+    void notifyStartupNavigationReady();
+    bool dispatchPendingStartupUrl();
+    void destinationSelected() { notifyStartupNavigationReady(); }
+    void loaded() { _loadComplete = true; emit qtAppLoadComplete(); }
 signals:
     void qtAppLoadComplete();
     void startupNavigationReady();
+    void startupUrlDispatchRequested(bool& accepted);
 };
 overte::lifecycle::Gate gate;
 overte::lifecycle::Gate& overte::lifecycle::applicationGate() { return gate; }
@@ -50,7 +73,7 @@ struct JNIEnv {};
 #define JNI_TRUE true
 #define JNI_FALSE false
 QString fromJavaString(JNIEnv*, jstring text) { return QString::fromUtf8(text); }
-''' + delivery + entry + r'''
+''' + helper_methods + delivery + entry + r'''
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     gate.visible(true);
@@ -61,26 +84,62 @@ int main(int argc, char** argv) {
     // Reproduce the actual startup ordering: Qt is ready, but the delayed
     // default destination has not been selected. An accepted link must wait.
     helper.loaded();
-    helper.destinationReady = false;
+    helper._startupNavigationReady = false;
     assert(send("hifi://startup"));
     QCoreApplication::processEvents();
     assert(helper.navigated.empty());
-    helper.navigated.append("tutorial");
+    helper.reenter = true;
+    assert(helper.dispatchPendingStartupUrl());
+    assert(!helper._startupNavigationReady); // reentrant notification cannot drain
+    helper.reenter = false;
     helper.destinationSelected();
-    assert((helper.navigated == QStringList{"tutorial", "hifi://startup"}));
+    assert((helper.navigated == QStringList{"hifi://startup"}));
     helper.destinationSelected();
-    assert(helper.navigated.size() == 2); // no duplicate delivery
+    assert(helper.navigated.size() == 1); // no duplicate delivery
+    assert(!helper.dispatchPendingStartupUrl());
     helper.navigated.clear();
+    // Run the actual Application checkpoint: monitor initialization must
+    // precede delivery, and accepted navigation must bypass the fallback.
+    struct Monitor { int calls = 0; void init() { ++calls; } } _connectionMonitor;
+    int fallback = 0;
+    QString sentTo, SENT_TO_PREVIOUS_LOCATION = "previous_location";
+    auto checkpoint = [&]() {
+''' + checkpoint + r'''
+    };
+    helper._startupNavigationReady = false;
+    assert(send("hifi://checkpoint"));
+    QCoreApplication::processEvents();
+    helper.onProcess = [&]() { assert(_connectionMonitor.calls == 1); };
+    checkpoint();
+    helper.onProcess = {};
+    assert(_connectionMonitor.calls == 1 && fallback == 0);
+    assert(helper.navigated == QStringList{"hifi://checkpoint"});
+    helper.destinationSelected();
+    helper.navigated.clear();
+    // Empty and rejected checkpoints retain the caller's normal fallback.
+    helper._startupNavigationReady = false;
+    checkpoint();
+    assert(_connectionMonitor.calls == 2 && fallback == 1);
+    assert(!helper.dispatchPendingStartupUrl());
+    assert(send("hifi://rejected"));
+    QCoreApplication::processEvents();
+    helper.reject = true;
+    checkpoint();
+    assert(_connectionMonitor.calls == 3 && fallback == 2);
+    helper.reject = false;
+    helper.destinationSelected();
+    assert(helper.navigated.empty());
     // Cancellation still applies while waiting at the later startup gate.
-    helper.destinationReady = false;
+    helper._startupNavigationReady = false;
     assert(send("hifi://obsolete"));
     QCoreApplication::processEvents();
     assert(!send(nullptr));
+    assert(!helper.dispatchPendingStartupUrl());
     helper.destinationSelected();
     QCoreApplication::processEvents();
     assert(helper.navigated.empty());
     // Both JNI calls return before Qt processes either. Only B may navigate.
-    helper.ready = true;
+    helper._loadComplete = true;
     assert(send("hifi://a") && send("hifi://b"));
     QCoreApplication::processEvents();
     assert(helper.navigated == QStringList{"hifi://b"});
@@ -91,7 +150,8 @@ int main(int argc, char** argv) {
     QCoreApplication::processEvents();
     assert(helper.navigated.empty());
     // Startup-buffered A must also be invalidated before queued cleanup runs.
-    helper.ready = false;
+    helper._loadComplete = false;
+    assert(!helper.dispatchPendingStartupUrl());
     assert(send("hifi://buffered"));
     QCoreApplication::processEvents();
     assert(!send(""));
@@ -102,12 +162,24 @@ int main(int argc, char** argv) {
     assert(helper.navigated == QStringList{"hifi://fresh"});
     helper.navigated.clear();
     // A cancellation queued before a newer intent must not erase that intent.
-    helper.ready = false;
+    helper._loadComplete = false;
     assert(!send(""));
     assert(send("hifi://retained"));
     QCoreApplication::processEvents();
     helper.loaded();
     assert(helper.navigated == QStringList{"hifi://retained"});
+    helper.navigated.clear();
+    // A runtime reentrant submission remains deliverable after startup.
+    // There must be no guard that leaves B buffered without a future wakeup.
+    helper.onProcess = [&]() {
+        helper.onProcess = {};
+        urlDelivery(&app)->submit("hifi://runtime-b", urlRequests().next());
+    };
+    assert(send("hifi://runtime-a"));
+    QCoreApplication::processEvents();
+    assert(helper.navigated.contains("hifi://runtime-a"));
+    assert(helper.navigated.contains("hifi://runtime-b"));
+    assert(helper.navigated.size() == 2);
     helper.navigated.clear();
     // Shared visibility generation remains an independent cancellation fence.
     assert(send("hifi://suspended"));

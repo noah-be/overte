@@ -11,6 +11,8 @@
 #include "AndroidHelper.h"
 #include <PhoneLoadingDiagnostics.h>
 #include <QDebug>
+#include <QScopedValueRollback>
+#include <QThread>
 #include <AccountManager.h>
 #include <AudioClient.h>
 #include <src/ui/LoginDialog.h>
@@ -41,10 +43,24 @@ void AndroidHelper::notifyLoadComplete() {
 }
 
 void AndroidHelper::notifyStartupNavigationReady() {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (_startupUrlDispatching) { return; }
+#endif
     if (_startupNavigationReady) { return; }
     _startupNavigationReady = true;
     emit startupNavigationReady();
 }
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+bool AndroidHelper::dispatchPendingStartupUrl() {
+    Q_ASSERT(QThread::currentThread() == thread());
+    if (_startupNavigationReady || _startupUrlDispatching || !_loadComplete) { return false; }
+    QScopedValueRollback<bool> dispatching(_startupUrlDispatching, true);
+    bool accepted = false;
+    emit startupUrlDispatchRequested(accepted);
+    return accepted;
+}
+#endif
 
 void AndroidHelper::notifyEnterForeground() {
     emit enterForeground();

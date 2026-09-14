@@ -47,7 +47,7 @@ QString fromJavaString(JNIEnv* env, jstring value) {
 // One application-owned delivery object preserves "latest pending URL" while
 // native startup is incomplete. AndroidHelper's load-complete notification is
 // emitted after Android connections exist. Navigation also waits for the later
-// asynchronous default-destination selection so it cannot overwrite a deep link.
+// asynchronous destination checkpoint, which may accept the pending link first.
 overte::network::RequestScope& urlRequests() {
     static overte::network::RequestScope requests;
     return requests;
@@ -62,6 +62,14 @@ public:
                 this, [this]() { deliverIfReady(); });
         connect(&helper, &AndroidHelper::startupNavigationReady,
                 this, [this]() { deliverIfReady(); });
+        // Both objects live on the application thread. The reference is only
+        // valid during this synchronous checkpoint; never queue this signal.
+        connect(&helper, &AndroidHelper::startupUrlDispatchRequested,
+                this, [this](bool& accepted) {
+                    Q_ASSERT(QThread::currentThread() == thread());
+                    accepted = deliverIfReady(true);
+                },
+                Qt::DirectConnection);
     }
 
     void submit(QString url, const overte::network::RequestTicket& request) {
@@ -76,23 +84,28 @@ public:
     void cancel() { PHONE_LOADING("phase=url_cancel"); _pending.clear(); }
 
 private:
-    void deliverIfReady() {
+    bool deliverIfReady(bool startupCheckpoint = false) {
         // A newer Android intent can invalidate this buffered delivery before
         // Qt processes its queued replacement/cancellation.
         if (!_request.current()) {
             _pending.clear();
-            return;
+            return false;
         }
         QString url;
         auto& helper = AndroidHelper::instance();
-        if (!_pending.takeIfReady(helper.isLoadComplete() && helper.isStartupNavigationReady(), url)) {
-            return;
+        if (!_pending.takeIfReady(helper.isLoadComplete() &&
+                (startupCheckpoint || helper.isStartupNavigationReady()), url)) {
+            return false;
         }
+        // Recheck after the lifecycle owner handed off its value; JNI may
+        // have superseded this ticket concurrently with that operation.
+        if (!_request.current()) { return false; }
         // Keep the established Application canAcceptURL/acceptURL policy as
         // the sole navigation boundary. Supported phone links have already
         // been normalized to the native hifi scheme by Java.
         const bool accepted = AndroidHelper::instance().processURL(url);
         PHONE_LOADING("phase=url_deliver accepted=%d", accepted ? 1 : 0);
+        return accepted;
     }
 
     phone::PendingNavigation<QString> _pending;
