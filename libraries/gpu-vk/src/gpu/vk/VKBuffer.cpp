@@ -66,6 +66,7 @@ VkBuffer VKBuffer::getBuffer(VKBackend& backend, const gpu::Buffer& buffer) {
 }
 
 void VKBuffer::transferToStaging(VKBackend &backend) {
+    _indexRanges.invalidate();
     Size offset;
     Size blockSize;
     Size currentPage { 0 };

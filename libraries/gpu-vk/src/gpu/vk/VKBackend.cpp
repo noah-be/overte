@@ -2201,6 +2201,7 @@ bool VKBackend::validateInputDraw(bool indexed, uint32_t count, uint32_t first,
         return false; // A no-op draw has no input accesses to validate or submit.
     }
     unsigned reason = 0;
+    IndexRangeCache::Range indexRange;
     if (indexed) {
         const auto buffer = _input._indexBuffer;
         const size_t bytes = _input._indexBufferType == gpu::UINT32 ? 4 :
@@ -2210,6 +2211,20 @@ bool VKBackend::validateInputDraw(bool indexed, uint32_t count, uint32_t first,
         if (!buffer || !bytes || offset % bytes != 0 || offset > size ||
                 first > (size - offset) / bytes || count > (size - offset) / bytes - first) {
             reason = 1;
+        } else {
+            const auto native = Backend::getGPUObject<VKBuffer>(*buffer);
+            bool restart = false;
+#if defined(Q_OS_IOS)
+            // Keep in sync with VKPipelineCache: restart is enabled only for
+            // iOS strip pipelines, not lists or desktop strip pipelines.
+            restart = _cache.pipelineState.primitiveTopology == gpu::LINE_STRIP ||
+                _cache.pipelineState.primitiveTopology == gpu::TRIANGLE_STRIP;
+#endif
+            if (!native || native->buffer == VK_NULL_HANDLE ||
+                    !native->getIndexRange(std::min(size, static_cast<size_t>(native->allocation.size)),
+                        offset, first, count, bytes, restart, indexRange)) {
+                reason = 4;
+            }
         }
     }
     const auto format = gpu::acquire(_input._format);
@@ -2222,7 +2237,14 @@ bool VKBackend::validateInputDraw(bool indexed, uint32_t count, uint32_t first,
                 reason = 2;
                 break;
             }
-            const auto size = _input._buffers[binding]->_renderSysmem.getSize();
+            const auto vertexBuffer = _input._buffers[binding];
+            const auto native = Backend::getGPUObject<VKBuffer>(*vertexBuffer);
+            if (!native || native->buffer != _input._bufferVBOs[binding]) {
+                reason = 2;
+                break;
+            }
+            const auto size = std::min(vertexBuffer->_renderSysmem.getSize(),
+                static_cast<size_t>(native->allocation.size));
             const auto offset = _input._bufferOffsets[binding];
             const auto stride = _input._bufferStrides[binding];
             size_t extent = 0;
@@ -2234,10 +2256,12 @@ bool VKBackend::validateInputDraw(bool indexed, uint32_t count, uint32_t first,
                 }
             }
             const bool perInstance = entry.second._frequency == gpu::Stream::PER_INSTANCE;
-            // Indexed vertex values are not scanned here; this checks the bound
-            // range itself, plus exact non-indexed and per-instance fetch ranges.
+            // Both indexed callers submit baseVertex=0. Scan only the selected
+            // slice, ignoring restart markers only when the pipeline enables it.
+            // Instance fetches retain firstInstance and stereo-expanded count.
+            if (indexed && !indexRange.hasVertices) { continue; }
             const uint64_t last = perInstance ? uint64_t(firstInstance) + instances - 1 :
-                indexed ? 0 : uint64_t(first) + count - 1;
+                indexed ? indexRange.maximum : uint64_t(first) + count - 1;
             if (offset > size || extent > size - offset ||
                     (stride != 0 && last > (size - offset - extent) / stride)) {
                 reason = 3;
@@ -2552,6 +2576,28 @@ VKQuery* VKBackend::syncGPUObject(const Query *query) {
 }
 
 void VKBackend::blitToFramebuffer(VKAttachmentTexture &input, const Vec4i& srcViewport, VKAttachmentTexture &output, const Vec4i& dstViewport) {
+    // This path transfers between distinct initialized images. In-place blits
+    // need a different layout/overlap contract; never pretend to support them
+    // with two contradictory transitions of the same image. UNDEFINED and
+    // PREINITIALIZED cannot be restored as a barrier's new layout.
+    const unsigned rejection = input._vkImage == VK_NULL_HANDLE || output._vkImage == VK_NULL_HANDLE ? 1u :
+        input._vkImageLayout == VK_IMAGE_LAYOUT_UNDEFINED ||
+        input._vkImageLayout == VK_IMAGE_LAYOUT_PREINITIALIZED ? 2u :
+        input._vkImage == output._vkImage ? 3u :
+        output._vkImageLayout == VK_IMAGE_LAYOUT_PREINITIALIZED ? 4u : 0u;
+    if (rejection) {
+        static unsigned rejectionReports = 0;
+        if (rejectionReports < 8) {
+            ++rejectionReports;
+#if defined(Q_OS_IOS)
+            os_log_fault(OS_LOG_DEFAULT, "OVERTE_IOS_VULKAN_BLIT_REJECT reason=%u", rejection);
+#else
+            qWarning("Vulkan framebuffer blit rejected: reason=%u", rejection);
+#endif
+        }
+        return;
+    }
+
     VkImageBlit imageBlit{};
     // Do we ever want to blit multiple layers/mips?
     imageBlit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -2566,10 +2612,10 @@ void VKBackend::blitToFramebuffer(VKAttachmentTexture &input, const Vec4i& srcVi
     imageBlit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     imageBlit.dstSubresource.layerCount = 1;
     imageBlit.dstSubresource.mipLevel = 0;
-    imageBlit.dstOffsets[0].x = srcViewport.x;
-    imageBlit.dstOffsets[0].y = srcViewport.y;
-    imageBlit.dstOffsets[1].x = srcViewport.z;
-    imageBlit.dstOffsets[1].y = srcViewport.w;
+    imageBlit.dstOffsets[0].x = dstViewport.x;
+    imageBlit.dstOffsets[0].y = dstViewport.y;
+    imageBlit.dstOffsets[1].x = dstViewport.z;
+    imageBlit.dstOffsets[1].y = dstViewport.w;
     imageBlit.dstOffsets[1].z = 1;
 
     VkImageSubresourceRange mipSubRange = {};
@@ -2578,27 +2624,49 @@ void VKBackend::blitToFramebuffer(VKAttachmentTexture &input, const Vec4i& srcVi
     mipSubRange.levelCount = 1;
     mipSubRange.layerCount = 1;
 
-    vks::tools::insertImageMemoryBarrier(
-        _currentCommandBuffer,
-        input._vkImage,
-        VK_ACCESS_TRANSFER_READ_BIT,
-        0,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, // VKTODO:
-        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
-        mipSubRange);
+    // Preserve the renderer's tracked layouts, including shader-readable and
+    // GENERAL images. A blit is a temporary transfer use, not a permanent
+    // attachment-layout change. Discarding an initialized destination would
+    // also lose pixels outside a partial destination rectangle.
+    const auto sourceLayout = input._vkImageLayout;
+    const auto destinationLayout = output._vkImageLayout;
+    const auto restoredDestinationLayout = destinationLayout == VK_IMAGE_LAYOUT_UNDEFINED
+        ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : destinationLayout;
+
+    struct Scope { VkPipelineStageFlags stages; VkAccessFlags access; };
+    const auto scopeForLayout = [](VkImageLayout layout) -> Scope {
+        switch (layout) {
+            case VK_IMAGE_LAYOUT_UNDEFINED:
+                return { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0 };
+            case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+                return { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                         VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT };
+            case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+                return { VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT };
+            case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+                return { VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT };
+            case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
+                return { VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT };
+            default:
+                return { VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                         VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT };
+        }
+    };
+    const auto sourceScope = scopeForLayout(sourceLayout);
+    const auto destinationScope = scopeForLayout(destinationLayout);
+    const auto restoredDestinationScope = scopeForLayout(restoredDestinationLayout);
 
     vks::tools::insertImageMemoryBarrier(
-        _currentCommandBuffer,
-        output._vkImage,
-        0,
-        VK_ACCESS_TRANSFER_WRITE_BIT,
-        VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // VKTODO
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
-        mipSubRange);
+        _currentCommandBuffer, input._vkImage,
+        sourceScope.access, VK_ACCESS_TRANSFER_READ_BIT,
+        sourceLayout, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        sourceScope.stages, VK_PIPELINE_STAGE_TRANSFER_BIT, mipSubRange);
+    vks::tools::insertImageMemoryBarrier(
+        _currentCommandBuffer, output._vkImage,
+        destinationScope.access, VK_ACCESS_TRANSFER_WRITE_BIT,
+        destinationLayout, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        destinationScope.stages, VK_PIPELINE_STAGE_TRANSFER_BIT, mipSubRange);
 
     vkCmdBlitImage(
         _currentCommandBuffer,
@@ -2611,17 +2679,18 @@ void VKBackend::blitToFramebuffer(VKAttachmentTexture &input, const Vec4i& srcVi
         VK_FILTER_LINEAR);
 
     vks::tools::insertImageMemoryBarrier(
-        _currentCommandBuffer,
-        output._vkImage,
-        0,
-        VK_ACCESS_TRANSFER_WRITE_BIT,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, // VKTODO
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
-        mipSubRange);
+        _currentCommandBuffer, input._vkImage,
+        VK_ACCESS_TRANSFER_READ_BIT, sourceScope.access,
+        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, sourceLayout,
+        VK_PIPELINE_STAGE_TRANSFER_BIT, sourceScope.stages, mipSubRange);
+    vks::tools::insertImageMemoryBarrier(
+        _currentCommandBuffer, output._vkImage,
+        VK_ACCESS_TRANSFER_WRITE_BIT, restoredDestinationScope.access,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, restoredDestinationLayout,
+        VK_PIPELINE_STAGE_TRANSFER_BIT, restoredDestinationScope.stages, mipSubRange);
 
-    output._vkImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // VKTODO
+    input._vkImageLayout = sourceLayout;
+    output._vkImageLayout = restoredDestinationLayout;
 }
 
 void VKBackend::updateInput() {
@@ -3819,6 +3888,10 @@ void VKBackend::transferTransformState(const Batch& batch) {
                 rejectUnnamed(1);
                 continue;
             }
+            if (batch._drawCallInfos[sourceDrawInfoIndex].index >= batch._objects.size()) {
+                rejectUnnamed(3);
+                continue;
+            }
             const auto paramOffset = commandOffsets[commandIndex];
             const bool instanced = command == Batch::COMMAND_drawInstanced ||
                 command == Batch::COMMAND_drawIndexedInstanced;
@@ -3857,6 +3930,22 @@ void VKBackend::transferTransformState(const Batch& batch) {
         // release and debug builds both defer their rejection to updateTransform.
 
         for (auto& data : batch._namedData) {
+            // Validate the original table once before replication/upload. A
+            // missing map entry makes updateTransform reject the whole draw;
+            // removing one element would shift parallel per-instance inputs.
+            if (data.second.invalidTransformIndex ||
+                    std::any_of(data.second.drawCallInfos.begin(), data.second.drawCallInfos.end(),
+                        [&](const Batch::DrawCallInfo& info) { return info.index >= batch._objects.size(); })) {
+#if defined(Q_OS_IOS)
+                static unsigned reports = 0;
+                if (reports < 16) {
+                    ++reports;
+                    os_log_fault(OS_LOG_DEFAULT,
+                        "OVERTE_IOS_VULKAN_DRAW_INFO_SOURCE_REJECT reason=4");
+                }
+#endif
+                continue;
+            }
             auto currentSize = bufferData.size();
             size_t copiesPerInstance { 1 };
 #ifdef GPU_STEREO_DRAWCALL_INSTANCED
