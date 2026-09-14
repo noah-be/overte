@@ -727,6 +727,9 @@ void VKStrictResourceTexture::postTransfer(VKBackend &backend) {
     // for the entire lifetime of the Vulkan image.
     _transferData.mips.clear();
     _transferData.mips.shrink_to_fit();
+    // Strict uploads bypass the variable transfer queue that normally retires
+    // these mappings. The copied mip data is no longer in use after the fence.
+    Texture::KtxStorage::releaseOpenKtxFiles();
 };
 
 VKStrictResourceTexture::~VKStrictResourceTexture() {

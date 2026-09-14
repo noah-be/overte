@@ -31,6 +31,7 @@ transfer = function(source, "void VKStrictResourceTexture::transfer(")
 # preparation is replaced; sampler and view creation use the complete method.
 tail = transfer[transfer.index("    VkImageSubresourceRange subresourceRange"):]
 post = function(source, "void VKStrictResourceTexture::postTransfer(")
+ktx_release = function((ROOT / "libraries/gpu/src/gpu/Texture_ktx.cpp").read_text(), "void KtxStorage::releaseOpenKtxFiles(")
 layout_helper = function((ROOT / "libraries/vk/src/vk/VulkanTools.cpp").read_text(), "void setImageLayout(")
 # The recording boundary below models synchronous completion. Keep that model
 # tied to the real submission helper and the shared-family queue identity.
@@ -46,6 +47,8 @@ code = r'''
 #include <vector>
 #include <iostream>
 #include <cstring>
+#include <memory>
+#include <mutex>
 struct Barrier { VkCommandBuffer command; VkPipelineStageFlags src,dst; VkImageMemoryBarrier image; };
 std::vector<Barrier> barriers;
 unsigned uploads=0, flushes=0, destroyed=0, freed=0, samplers=0, views=0, graphicsCommands=0;
@@ -89,12 +92,22 @@ struct VKBackend {
     struct Context { Device* device; VkQueue transferQueue{},graphicsQueue{}; } context;
     Context& getContext() { return context; }
 };
+namespace storage { struct FileStorage { std::vector<char> mappedOrFallbackBytes = std::vector<char>(4096); }; }
 struct Texture {
+    struct KtxStorage {
+        static std::vector<std::pair<std::shared_ptr<storage::FileStorage>, std::shared_ptr<std::mutex>>> _cachedKtxFiles;
+        static std::mutex _cachedKtxFilesMutex;
+        static void releaseOpenKtxFiles();
+    };
     enum { TEX_2D, TEX_CUBE };
     int type=TEX_2D;
     int getType() const { return type; }
     int getTexelFormat() const { return 0; }
 };
+using KtxStorage = Texture::KtxStorage;
+std::vector<std::pair<std::shared_ptr<storage::FileStorage>, std::shared_ptr<std::mutex>>> KtxStorage::_cachedKtxFiles;
+std::mutex KtxStorage::_cachedKtxFilesMutex;
+KTX_RELEASE
 VkImageViewType getVKTextureType(const Texture& t) { return t.type==Texture::TEX_CUBE ? VK_IMAGE_VIEW_TYPE_CUBE : VK_IMAGE_VIEW_TYPE_2D; }
 VkFormat evalTexelFormatInternal(int,VKBackend::Context&) { return VK_FORMAT_R8G8B8A8_UNORM; }
 struct VKStrictResourceTexture {
@@ -125,7 +138,14 @@ int main() {
         texture.transfer(backend);
         assert(uploads==1 && destroyed==1 && freed==1 && flushes==1);
         assert(texture._transferData.mips.size()==mips);
+        auto mapped = std::make_shared<storage::FileStorage>();
+        std::weak_ptr<storage::FileStorage> lifetime = mapped;
+        // KtxStorage owns mappings globally, independently of copied transfer data.
+        KtxStorage::_cachedKtxFiles.emplace_back(mapped, std::make_shared<std::mutex>());
+        mapped.reset();
+        assert(!lifetime.expired());
         texture.postTransfer(backend);
+        assert(lifetime.expired() && KtxStorage::_cachedKtxFiles.empty());
         assert(samplers==1 && views==1 && texture._transferData.mips.empty());
         assert(texture._vkImageLayout==VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         for(const auto& b : barriers) {
@@ -156,7 +176,7 @@ int main() {
     std::cout << "PASS: production strict texture upload; shared queue; dedicated transfer release/acquire; 2D/cube; mip chains; staging/sampler/view lifetime\n";
 }
 '''
-code = code.replace("LAYOUT_HELPER", layout_helper).replace("TRANSFER_TAIL", tail).replace("POST_METHOD", post)
+code = code.replace("KTX_RELEASE", ktx_release).replace("LAYOUT_HELPER", layout_helper).replace("TRANSFER_TAIL", tail).replace("POST_METHOD", post)
 with tempfile.TemporaryDirectory(prefix="overte-texture-sync-") as temp:
     cpp = Path(temp) / "test.cpp"
     cpp.write_text(code)
@@ -169,3 +189,10 @@ with tempfile.TemporaryDirectory(prefix="overte-texture-sync-") as temp:
     else:
         assert result.returncode == 0, result.stderr
         print(result.stdout.strip())
+        mutant = code.replace("    Texture::KtxStorage::releaseOpenKtxFiles();", "    // missing strict-upload retirement")
+        assert mutant != code
+        cpp.write_text(mutant)
+        subprocess.run(["c++", "-std=c++17", "-O1", str(cpp), "-o", str(binary)], check=True, timeout=40)
+        rejected = subprocess.run([str(binary)], capture_output=True, text=True, timeout=20)
+        assert rejected.returncode != 0 and "lifetime.expired()" in rejected.stderr, rejected.stderr
+        print("PASS: missing strict KTX mapping retirement counterexample fails")
