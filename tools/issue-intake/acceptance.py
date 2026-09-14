@@ -22,6 +22,8 @@ def check_candidate(value, platforms):
     keys = {"revision", "artifact_sha256", "build_url", "platform", "environment"}
     if not isinstance(value, dict) or set(value) != keys:
         raise ValueError("Candidate needs revision, artifact_sha256, build_url, platform and environment")
+    if any(not isinstance(value[k], str) or "<!--" in value[k] or "-->" in value[k] for k in keys):
+        raise ValueError("Candidate fields must be text without reserved metadata syntax")
     if not re.fullmatch(r"[0-9a-f]{40}", value.get("revision", "")):
         raise ValueError("Candidate revision must be a full immutable Git commit")
     if not re.fullmatch(r"[0-9a-f]{64}", value.get("artifact_sha256", "")):
@@ -54,6 +56,8 @@ def check_runs(draft):
         required = {"id", "candidate", "criterion_sha256", "tested_at", "result", "observations", "evidence", "limitations"}
         if not isinstance(run, dict) or set(run) != required:
             raise ValueError("Each test record needs an ID, candidate, criterion hash, UTC date, result, observations, evidence and limitations")
+        if "<!-- overte-" in json.dumps(run) or "Prepared with AI assistance;" in json.dumps(run):
+            raise ValueError("Test record contains reserved issue metadata syntax")
         if not isinstance(run["id"], str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", run["id"]) or run["id"] in previous:
             raise ValueError("Test record IDs must be nonempty and unique")
         check_candidate(run["candidate"], draft["platforms"])
@@ -80,6 +84,9 @@ def status(draft, candidate):
     if candidate is None:
         return "no-candidate"
     check_candidate(candidate, draft["platforms"])
+    if set(draft["platforms"]) != {candidate["platform"]}:
+        # One platform's artifact cannot certify the other platforms in a broad criterion.
+        return "needs-test"
     applicable = [x for x in draft.get("test_runs", [])
                   if x["candidate"] == candidate and x["criterion_sha256"] == criterion_id(draft)]
     return applicable[-1]["result"] if applicable else "needs-test"

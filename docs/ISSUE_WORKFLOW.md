@@ -179,6 +179,8 @@ records refer to exact candidates. Keep three different facts separate:
 A candidate identifies the full source commit, SHA256 of the exact tested artifact,
 build provenance, platform and non-sensitive device/OS/configuration baseline.
 A branch name, a successful build, or "latest" does not identify tested bytes.
+Use each platform's native milestone for its acceptance criteria. One platform's
+artifact cannot certify a criterion that also requires other platforms.
 Read the current pin with `overte-issue candidate MILESTONE`. To deliberately
 select a candidate, prepare those five fields in JSON and use `candidate
 MILESTONE FILE --snapshot TOKEN --apply`. This preserves the milestone description

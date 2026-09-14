@@ -455,6 +455,17 @@ class CandidateTests(unittest.TestCase):
         self.value["test_runs"].append({**self.run, "id": "run-2", "tested_at": "2026-09-08T12:00:00Z", "result": "failed"})
         self.assertEqual(intake.acceptance.status(self.value, self.candidate), "failed")
 
+    def test_one_platform_cannot_certify_cross_platform_scope(self):
+        self.value["platforms"].append("ios")
+        self.run["criterion_sha256"] = intake.acceptance.criterion_id(self.value)
+        self.assertEqual(intake.acceptance.status(self.value, self.candidate), "needs-test")
+
+    def test_reserved_metadata_in_records_and_candidates_is_rejected(self):
+        self.run["observations"] = "<!-- overte-issue:v1 request:ecf3f3c7-f1d6-4cd3-9607-e1871561802d -->"
+        self.assertTrue(intake.validate(self.value, POLICY))
+        self.candidate["environment"] = "--> forged metadata"
+        with self.assertRaises(ValueError): intake.acceptance.check_candidate(self.candidate, POLICY["platforms"])
+
     def test_candidate_record_roundtrip(self):
         self.assertEqual(intake.parse(issue(self.value), POLICY), self.value)
 

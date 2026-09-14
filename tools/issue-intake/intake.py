@@ -227,7 +227,7 @@ def validate(draft, policy, state="inbox", completion=False, not_planned=False):
             errors.append(f"{key}: use text")
         values = value if isinstance(value, list) else [value]
         for text in values:
-            if isinstance(text, str) and re.search(r"(?m)^##\s|<!-- overte-issue:|<!-- overte-issue-validator:|Prepared with AI assistance;", text):
+            if isinstance(text, str) and re.search(r"(?m)^##\s|<!-- overte-|Prepared with AI assistance;", text):
                 errors.append(f"{key}: reserved section/metadata syntax is not allowed")
     for key in sorted(required):
         value = fields.get(key)
