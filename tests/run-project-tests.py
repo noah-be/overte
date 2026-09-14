@@ -34,6 +34,7 @@ SUITES = (
     Suite("desktop-topology", "quick", (sys.executable, "tests/desktop-branch-topology-test.py")),
     Suite("workflow-contracts", "quick", (sys.executable, "tests/workflow-contract-test.py")),
     Suite("repository-health", "quick", (sys.executable, "tests/project-health-test.py")),
+    Suite("issue-intake", "quick", (sys.executable, "tests/issue-intake-test.py")),
     Suite("project-coverage", "quick", (sys.executable, "tests/project-coverage-test.py")),
     Suite("codeql-remediation", "quick", ("node", "--test", "tests/codeql-remediation-test.js")),
     Suite("javascript-behavior", "quick", ("node", "tests/mocha/test/testVirtualBaton.js")),

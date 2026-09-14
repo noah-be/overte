@@ -11,8 +11,9 @@ This repository is an unofficial, AI-assisted personal fork of Overte. It is
 maintained as a hobby project and does not promise production support, review
 capacity, release schedules, or acceptance of external contributions.
 
-The issue tracker is intentionally disabled while this personal fork has no
-public triage commitment. Before investing substantial work, review the current
+The issue tracker is enabled for structured bug reports, ideas, tasks and
+acceptance criteria under [the issue workflow](docs/ISSUE_WORKFLOW.md). This
+personal fork makes no public triage commitment. Before investing substantial work, review the current
 milestone in [`docs/ROADMAP.md`](docs/ROADMAP.md). A contributor who is ready
 to propose a focused change may open a draft pull request describing the
 intended outcome and target branch. The maintainer may decline or defer work
@@ -87,15 +88,15 @@ physical-device evidence.
 
 ## Bugs and feature requests
 
-This fork does not currently provide a general issue-report intake. A
-contributor who is ready to provide a fix may open a draft pull request with a
-minimal reproduction, source revision, environment, observed result, and
-expected result. Remove credentials, private selectors, account data, and
-sensitive logs. Follow [`SECURITY.md`](SECURITY.md) instead for a suspected
-vulnerability.
+Record reports through the structured issue workflow. Codex can turn a natural
+description into the required fields and labels with the validated intake tool.
+Bug reports distinguish observations, expected behavior, reproduction and
+environment; unknown details may remain explicit in Inbox. Remove credentials,
+private selectors, account data and sensitive logs. Follow [`SECURITY.md`](SECURITY.md)
+instead for a suspected vulnerability.
 
-Proposed features belong in a draft pull request only when accompanied by a
-focused implementation and an explanation of which current or proposed roadmap
-milestone they support. Store publication, broad hardware coverage, and
+Proposed features begin as `idea` issues and are refined into concrete work
+before activation. A focused implementation should explain which current or
+proposed roadmap milestone it supports. Store publication, broad hardware coverage, and
 optional parity work may be deferred until the corresponding personal alpha is
 repeatable.
