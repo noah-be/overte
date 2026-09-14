@@ -6,6 +6,18 @@ set -euo pipefail
 
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 python3 "$script_dir/port-contract-test.py"
+python3 "$script_dir/performance/memory-pressure-policy-test.py"
+if pkg-config --exists Qt6Gui; then
+    python3 "$script_dir/performance/full-client-memory-guard-test.py"
+    python3 "$script_dir/image-decode-qt-codec-test.py"
+else
+    echo "SKIP executable memory guard test: host Qt6Gui unavailable"
+fi
+if pkg-config --exists Qt6Core || pkg-config --exists Qt5Core; then
+    python3 "$script_dir/ktx-allocation-budget-test.py"
+else
+    echo "SKIP executable KTX allocation test: host Qt Core unavailable"
+fi
 python3 "$script_dir/render-observations-test.py"
 python3 "$script_dir/build-cli-test.py"
 python3 "$script_dir/dsym-content-test.py"
@@ -160,6 +172,7 @@ readonly rendering_contracts=(
     vulkan-ios-frame-recycling-test.py
     vulkan-ios-surface-contract-test.py
     vulkan-submit-progress-test.py
+    image-decode-budget-test.py
     vulkan-texture-upload-sync-test.py
 )
 for contract in "${rendering_contracts[@]}"; do
