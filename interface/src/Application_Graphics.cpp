@@ -415,7 +415,11 @@ void Application::initializeUi() {
     });
 
     PHONE_LOADING("phase=ui_step step=tablet_reserve_begin");
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
+    // Phone's tablet path creates its own surface instead of acquiring this
+    // cache entry. Avoid building an unused QML engine during Phone startup.
     offscreenSurfaceCache->reserve(TabletScriptingInterface::QML, 1);
+#endif
     PHONE_LOADING("phase=ui_step step=tablet_reserve_end");
     offscreenSurfaceCache->reserve(render::entities::WebEntityRenderer::QML, 2);
     PHONE_LOADING("phase=ui_step step=web_reserve_end");
