@@ -1039,12 +1039,18 @@ void NetworkTexture::handleFinishedInitialLoad() {
         auto textureCache = DependencyManager::get<TextureCache>();
 
         std::pair<gpu::TexturePointer, glm::ivec2> textureAndSize = textureCache->getTextureByHash(hash);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        int initialCacheHit = textureAndSize.first ? 1 : 0;
+#endif
 
         if (!textureAndSize.first) {
             auto ktxFile = textureCache->_ktxCache->getFile(hash);
             if (ktxFile) {
                 textureAndSize = gpu::Texture::unserialize(ktxFile);
                 if (textureAndSize.first) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+                    initialCacheHit = 2;
+#endif
                     textureAndSize = textureCache->cacheTextureByHash(hash, textureAndSize);
                     if (textureAndSize.first->source().empty()) {
                         textureAndSize.first->setSource(url.toString().toStdString());
@@ -1052,6 +1058,19 @@ void NetworkTexture::handleFinishedInitialLoad() {
                 }
             }
         }
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        if (phoneLoadingDiagnosticsEnabled()) {
+            // A cache hit bypasses the tail-data import below, including for
+            // partial cached textures whose missing mips are requested later.
+            const auto loadingHash = QCryptographicHash::hash(url.toEncoded(), QCryptographicHash::Md5).toHex();
+            PHONE_LOADING("phase=ktx_initial_cache url_hash=%s hit=%d tail_bytes=%d source_mips=%u cached_min_mip=%d cached_mips=%d",
+                loadingHash.constData(), initialCacheHit, ktxHighMipData.size(),
+                (unsigned int)header->numberOfMipmapLevels,
+                textureAndSize.first ? int(textureAndSize.first->minAvailableMipLevel()) : -1,
+                textureAndSize.first ? int(textureAndSize.first->getNumMips()) : 0);
+        }
+#endif
 
         if (!textureAndSize.first) {
             auto memKtx = ktx::KTX::createBare(*header, keyValues);
