@@ -106,6 +106,13 @@ def labels(issue):
     return {x["name"] if isinstance(x, dict) else x for x in issue.get("labels", [])}
 
 
+def managed(issue, policy):
+    return ("system: reference" not in labels(issue) and "pull_request" not in issue and
+            (bool(MARKER.search(issue.get("body") or ""))
+             or bool(labels(issue) & set(policy["validation_labels"].values()))
+             or issue.get("created_at", "") >= policy["enforce_created_after"]))
+
+
 def snapshot(issue):
     return digest({k: issue.get(k) for k in
                    ("number", "title", "body", "labels", "milestone", "state", "state_reason", "updated_at")})
@@ -119,7 +126,7 @@ def validate(draft, policy, state="inbox", completion=False, not_planned=False):
     if set(draft) - allowed:
         errors.append("Unknown draft keys: " + ", ".join(sorted(set(draft) - allowed)))
     title = draft.get("title")
-    if not isinstance(title, str) or not title.strip() or "\n" in title or len(title) > policy["title_max_length"]:
+    if not isinstance(title, str) or title.strip().lower() in EMPTY or "\n" in title or "\r" in title or len(title) > policy["title_max_length"]:
         errors.append(f"title: use one nonempty line, at most {policy['title_max_length']} characters")
     if draft.get("kind") not in policy["kinds"]:
         errors.append("kind: choose bug, idea, task, or acceptance")
@@ -327,6 +334,8 @@ def inspect_issue(issue, policy):
     if "system: reference" in labels(issue):
         return {"number": issue["number"], "status": "reference", "errors": []}
     if not MARKER.search(issue.get("body") or ""):
+        if managed(issue, policy):
+            return {"number": issue["number"], "status": "invalid", "errors": ["Structured issue content is missing; preserve the report and prepare it through the intake tool"]}
         return {"number": issue["number"], "status": "legacy", "errors": []}
     try:
         draft = parse(issue, policy)

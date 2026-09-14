@@ -248,8 +248,12 @@ class IntakeTests(unittest.TestCase):
         self.assertEqual(intake.inspect_issue(original, POLICY)["status"], "invalid")
 
     def test_legacy_issue_is_reported_without_mutation(self):
-        original = issue(); original["body"] = "Old issue with valuable history"
+        original = issue(); original["body"] = "Old issue with valuable history"; original["labels"] = [{"name": "bug"}]
         self.assertEqual(intake.inspect_issue(original, POLICY)["status"], "legacy")
+
+    def test_removed_marker_still_fails_shared_health_validation(self):
+        original = issue(); original["body"] = "Structured marker was removed"
+        self.assertEqual(intake.inspect_issue(original, POLICY)["status"], "invalid")
 
     def test_empty_example_cannot_be_submitted(self):
         for kind in POLICY["kinds"]:

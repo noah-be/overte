@@ -7,14 +7,7 @@ from pathlib import Path
 import sys
 
 from intake import (API, REPOSITORY, COMMENT_MARKER, MARKER, Client, IntakeError,
-                    expected_labels, labels, load_policy, parse, snapshot, validate, verify_saved)
-
-
-def managed(issue, policy):
-    return ("system: reference" not in labels(issue) and "pull_request" not in issue and
-            (bool(MARKER.search(issue.get("body") or ""))
-             or bool(labels(issue) & set(policy["validation_labels"].values()))
-             or issue.get("created_at", "") >= policy["enforce_created_after"]))
+                    expected_labels, labels, load_policy, managed, parse, snapshot, validate, verify_saved)
 
 
 def plan(issue, policy, open_issues, event_number=None):
