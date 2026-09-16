@@ -735,7 +735,8 @@ class AppiumAdapter:
         value = client.call("POST", "/session", {
             "capabilities": {"alwaysMatch": target["capabilities"], "firstMatch": [{}]},
         })
-        if not isinstance(value, dict) or not isinstance(value.get("sessionId"), str):
+        if (not isinstance(value, dict) or not isinstance(value.get("sessionId"), str)
+                or not value["sessionId"]):
             fail("Appium did not create a WebDriver session")
         generation = previous_generation + 1
         state = {"sessionId": value["sessionId"], "generation": generation,
@@ -761,13 +762,22 @@ class AppiumAdapter:
             return [AppiumAdapter.expand(item, variables) for item in value]
         return value
 
+    @staticmethod
+    def window_rect(client: WebDriver, session: str) -> dict:
+        value = client.call("GET", f"/session/{session}/window/rect")
+        fields = ("x", "y", "width", "height")
+        if (not isinstance(value, dict)
+                or not all(isinstance(value.get(field), (int, float))
+                           and not isinstance(value[field], bool)
+                           and math.isfinite(float(value[field])) for field in fields)
+                or value["width"] <= 0 or value["height"] <= 0):
+            fail("Appium returned an invalid window size")
+        return value
+
     def gesture(self, client: WebDriver, session: str, definition: dict,
                 duration_override: float | None = None,
                 end_override: list[float] | None = None) -> None:
-        rect = client.call("GET", f"/session/{session}/window/rect")
-        if not isinstance(rect, dict) or not all(isinstance(rect.get(key), (int, float))
-                                                 for key in ("width", "height")):
-            fail("Appium window rectangle is invalid")
+        rect = self.window_rect(client, session)
         start, end = definition.get("start"), end_override or definition.get("end")
         if not (isinstance(start, list) and isinstance(end, list) and
                 len(start) == len(end) == 2 and all(isinstance(item, (int, float))
@@ -817,10 +827,7 @@ class AppiumAdapter:
     def tap_fractional_point(self, client: WebDriver, session: str,
                              value: object, label: str) -> None:
         point = self.validate_fractional_point(value, label)
-        rect = client.call("GET", f"/session/{session}/window/rect")
-        if not isinstance(rect, dict) or not all(isinstance(rect.get(key), (int, float))
-                                                 for key in ("width", "height")):
-            fail("Appium window rectangle is invalid")
+        rect = self.window_rect(client, session)
         x = int(rect.get("x", 0)) + int((rect["width"] - 1) * point[0])
         y = int(rect.get("y", 0)) + int((rect["height"] - 1) * point[1])
         if self.platform == "android":
@@ -844,7 +851,7 @@ class AppiumAdapter:
         if not isinstance(value, dict):
             fail("Appium did not return an element reference")
         element = value.get("element-6066-11e4-a52e-4f735466cecf") or value.get("ELEMENT")
-        if not isinstance(element, str):
+        if not isinstance(element, str) or not element:
             fail("Appium element reference is invalid")
         client.call("POST", f"/session/{session}/element/{element}/click", {})
 

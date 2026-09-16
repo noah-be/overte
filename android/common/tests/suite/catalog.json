@@ -2,6 +2,32 @@
   "schemaVersion": 1,
   "suites": [
     {
+      "id": "test-android-e2e-launcher",
+      "kind": "integration",
+      "tiers": [
+        "fast",
+        "host",
+        "contracts"
+      ],
+      "command": [
+        "common/tests/test_android_e2e_launcher.py"
+      ],
+      "description": "Android-family launcher/startup production wiring contract"
+    },
+    {
+      "id": "test-android-startup-url-path",
+      "kind": "integration",
+      "tiers": [
+        "fast",
+        "host",
+        "contracts"
+      ],
+      "command": [
+        "common/tests/test_android_startup_url_path.py"
+      ],
+      "description": "Android-family launcher/startup production wiring contract"
+    },
+    {
       "id": "android-vr-native-policies",
       "kind": "native",
       "tiers": ["android-vr"],
