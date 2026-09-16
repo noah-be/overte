@@ -107,7 +107,7 @@ require_text "$gradle" '../../../common/runtime-overrides/arm64-v8a' \
     'phone packaging uses shared Android runtime overrides'
 require_text "$gradle" 'HIFI_ANDROID_HOST_TOOLS=.*../../../vr/pico/pico-host-tools' \
     'phone native build selects the prepared shared host tools'
-require_text 'common/cmake/pico-bootstrap.cmake' 'HIFI_ANDROID_HOST_TOOLS must name' \
+require_text 'common/cmake/overte-android-bootstrap.cmake' 'HIFI_ANDROID_HOST_TOOLS must name' \
     'Android native bootstrap requires an explicit prepared host-tool directory'
 reject_text "$cmake" '(\.\./|apps/)picoInterface/' \
     'phone native build does not compile Pico-owned sources'
@@ -502,8 +502,10 @@ require_text "$url_handler" \
     'QMetaObject::invokeMethod\([[:space:]]*$' \
     'native deep links are queued through a Qt-owned receiver'
 
-if grep -Eq -- 'extraSelectors[[:space:]]*<<[[:space:]]*"android_interface"' \
-        "$repo_root/libraries/shared/src/shared/FileUtils.cpp"; then
+if grep -Eq -- 'profileSelectors\(product, gles\)' \
+        "$repo_root/libraries/shared/src/shared/FileUtils.cpp" &&
+        grep -Eq -- 'case Product::Phone: result = \{"android_phoneInterface", "android_interface"\}' \
+        "$repo_root/libraries/ui/src/CapabilityProfile.h"; then
     pass 'phone file selector falls back to the existing Android touch scripts'
 else
     fail 'phone file selector falls back to the existing Android touch scripts'
@@ -524,7 +526,8 @@ else
 fi
 if awk '
         /#if defined\(ANDROID_APP_PHONE_INTERFACE\)/ { phone_guard = NR }
-        /ResourceCache::setRequestLimit\(MAX_CONCURRENT_RESOURCE_DOWNLOADS\)/ && phone_guard { phone_default = NR }
+        /uint32_t phoneConcurrentDownloads = MAX_CONCURRENT_RESOURCE_DOWNLOADS/ && phone_guard { phone_baseline = NR }
+        /ResourceCache::setRequestLimit\(phoneConcurrentDownloads\)/ && phone_baseline { phone_default = NR }
         /if \(parser\.isSet\("concurrent-downloads"\)\)/ &&
                 phone_guard < phone_default && phone_default < NR { found = 1; exit }
         END { exit !found }
@@ -558,7 +561,7 @@ require_text '../interface/src/Application.cpp' \
     'phoneBoolOverride\("debug\.overte\.phone_local_lights",[[:space:]]*false\)' \
     'phone MVP profile keeps local lights off unless a bounded A/B test enables them'
 if awk '
-        /#if defined\(ANDROID_APP_PHONE_INTERFACE\)/ { phone_guard = NR }
+        /#if defined\(ANDROID_APP_PHONE_INTERFACE\)/ && !phone_log { phone_guard = NR }
         /qWarning\(\) << "Avatar bookmarks JSON could not be loaded"/ { phone_log = NR }
         /#else/ && phone_log && !desktop_branch { desktop_branch = NR }
         /OffscreenUi::asyncWarning\("Avatar Bookmarks Error"/ { desktop_dialog = NR }
