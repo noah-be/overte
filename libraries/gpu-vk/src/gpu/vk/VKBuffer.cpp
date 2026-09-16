@@ -14,7 +14,8 @@
 using namespace gpu::vk;
 
 VKBuffer* VKBuffer::sync(VKBackend& backend, const gpu::Buffer& buffer, bool transfer) {
-    if (buffer.getSysmem().getSize() != 0) {
+    // Only the applied snapshot belongs to this thread; CPU sysmem may be growing.
+    if (buffer._renderSysmem.getSize() != 0) {
         if (buffer._getUpdateCount == 0) {
             qWarning() << "Unsynced buffer";
         }
@@ -65,6 +66,7 @@ VkBuffer VKBuffer::getBuffer(VKBackend& backend, const gpu::Buffer& buffer) {
 }
 
 void VKBuffer::transferToStaging(VKBackend &backend) {
+    _indexRanges.invalidate();
     Size offset;
     Size blockSize;
     Size currentPage { 0 };

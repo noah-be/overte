@@ -12,10 +12,17 @@ struct NativeMetrics {
     ThermalState thermal { ThermalState::Unknown };
     bool lowPower { false };
     bool lowPowerAvailable { false };
+    // Advisory process headroom, not free device RAM or a guaranteed allocation
+    // allowance. Zero is a valid critical sample; unavailable is separate.
+    bool availableMemoryAvailable { false };
+    std::uint64_t availableMemoryBytes { 0 };
     // No public process-energy counter is sampled. Never substitute device
     // battery percentage, elapsed time, or CPU load for process joules.
 };
 NativeMetrics sampleNativeMetrics() noexcept;
+// Cheap pressure-loop input: no task_info, thermal or low-power queries.
+// Only availableMemoryAvailable/availableMemoryBytes are populated.
+NativeMetrics sampleAvailableMemory() noexcept;
 std::string formatNativeMetrics(const NativeMetrics& metrics);
 // Keep a single in-process sample. Export/renderer consumers require the Shared
 // metrics contract; PX-16 does not allow arbitrary numeric diagnostic strings.

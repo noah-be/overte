@@ -10,6 +10,10 @@
 //
 
 #include "TextureCache.h"
+#if defined(Q_OS_IOS)
+#include "KtxAllocationBudget.h"
+#include <os/proc.h>
+#endif
 
 #include <mutex>
 
@@ -949,7 +953,21 @@ void NetworkTexture::handleFinishedInitialLoad() {
             return;
         }
 
+        if (ktxHeaderData.size() < static_cast<int>(ktx::KTX_HEADER_SIZE)) {
+            QMetaObject::invokeMethod(resource.data(), "setImage",
+                Q_ARG(gpu::TexturePointer, nullptr), Q_ARG(int, 0), Q_ARG(int, 0));
+            return;
+        }
         auto header = reinterpret_cast<const ktx::Header*>(ktxHeaderData.data());
+#if defined(Q_OS_IOS)
+        const auto placeholderBytes = image::checkedKtxPlaceholderBytes(*header);
+        if (!placeholderBytes) {
+            qCWarning(materialnetworking) << "IOS_KTX_ALLOCATION_REJECT invalid_header";
+            QMetaObject::invokeMethod(resource.data(), "setImage",
+                Q_ARG(gpu::TexturePointer, nullptr), Q_ARG(int, 0), Q_ARG(int, 0));
+            return;
+        }
+#endif
 
         if (!ktx::checkIdentifier(header->identifier)) {
             QMetaObject::invokeMethod(resource.data(), "setImage",
@@ -1020,6 +1038,23 @@ void NetworkTexture::handleFinishedInitialLoad() {
         }
 
         if (!textureAndSize.first) {
+#if defined(Q_OS_IOS)
+            // Only one full-file placeholder can be in flight here. Sample
+            // headroom AFTER taking the lock; never reuse a stale measurement.
+            static std::mutex placeholderMutex;
+            std::unique_lock<std::mutex> placeholderLock(placeholderMutex);
+            std::uint64_t availableBytes = 0;
+            if (__builtin_available(iOS 13.0, *)) {
+                availableBytes = os_proc_available_memory();
+            }
+            if (!image::ktxPlaceholderFits(placeholderBytes, availableBytes)) {
+                qCWarning(materialnetworking) << "IOS_KTX_ALLOCATION_REJECT budget"
+                    << "requested" << placeholderBytes << "available" << availableBytes;
+                QMetaObject::invokeMethod(resource.data(), "setImage",
+                    Q_ARG(gpu::TexturePointer, nullptr), Q_ARG(int, 0), Q_ARG(int, 0));
+                return;
+            }
+#endif
             auto memKtx = ktx::KTX::createBare(*header, keyValues);
             if (!memKtx) {
                 qWarning() << " Ktx could not be created, bailing";
@@ -1257,6 +1292,10 @@ void ImageReader::read() {
     {
         QCryptographicHash hasher(QCryptographicHash::Md5);
         hasher.addData(_content);
+#if defined(Q_OS_IOS)
+        // Version the effective CPU processing policy, not only GPU residency.
+        hasher.addData("ios-image-1mp-decode16mp-v1");
+#endif
         hasher.addData(std::to_string(_extraHash).c_str());
         hash = hasher.result().toHex().toStdString();
     }
@@ -1302,7 +1341,15 @@ void ImageReader::read() {
         const bool shouldCompress = hifi::properties::getGraphicsAPI() ==
                                         hifi::properties::GraphicsAPI::GLES32;
         auto target = getBackendTarget();
-        textureAndSize = image::processImage(std::move(buffer), _url.toString().toStdString(), _sourceChannel, _maxNumPixels, networkTexture->getTextureType(), shouldCompress, target);
+        int processingPixels = _maxNumPixels;
+        std::uint64_t decodePixels = 0;
+#if defined(Q_OS_IOS)
+        // Bound the CPU image and mip-generation stages before Vulkan's later
+        // residency cap. Keep the image backend unchanged for Apple formats.
+        processingPixels = std::min(processingPixels, 1024 * 1024);
+        decodePixels = 4096ULL * 4096ULL;
+#endif
+        textureAndSize = image::processImage(std::move(buffer), _url.toString().toStdString(), _sourceChannel, processingPixels, networkTexture->getTextureType(), shouldCompress, target, false, decodePixels);
 
         if (!textureAndSize.first) {
             QMetaObject::invokeMethod(resource.data(), "setImage",

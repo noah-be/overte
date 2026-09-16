@@ -81,6 +81,9 @@ overte::lifecycle::Gate& overte::lifecycle::applicationGate() {
 #include <shared/IOSRuntimeLogging.h>
 #include <LogHandler.h>
 #include "../../security/redaction/SafeDiagnostics.h"
+#if defined(Q_OS_IOS)
+#include "../../ios/src/RedactingDiagnostics.h"
+#endif
 #include <MainWindow.h>
 #include <MessagesClient.h>
 #include <material-networking/TextureCacheScriptingInterface.h>
@@ -225,7 +228,13 @@ void messageHandler(QtMsgType type, const QMessageLogContext& context, const QSt
     const QByteArray input = message.size() <= 32 ? message.toUtf8() : QByteArray();
     const char* safe = overte::security::sanitizeDiagnostic(input.constData(), static_cast<std::size_t>(input.size()));
     const QString logMessage = QString::fromLatin1(safe) + QLatin1Char('\n');
+#if defined(Q_OS_IOS)
+    // An Instruments launch can leave stdout connected to an undrained pipe.
+    // Never block UI/presentation (or the watchdog) on that console transport.
+    overte::ios::logRedactedDiagnostic(safe, std::strlen(safe));
+#else
     fprintf(stdout, "%s\n", safe);
+#endif
 
     if (!logMessage.isEmpty()) {
 #ifdef Q_OS_ANDROID
@@ -259,7 +268,11 @@ void messageHandler(QtMsgType type, const QMessageLogContext& context, const QSt
 
 void privacySafeShutdownMessageHandler(QtMsgType type, const QMessageLogContext&, const QString& message) {
     const QByteArray input = message.size() <= 32 ? message.toUtf8() : QByteArray();
+#if defined(Q_OS_IOS)
+    overte::ios::logRedactedDiagnostic(input.constData(), static_cast<std::size_t>(input.size()));
+#else
     fprintf(stderr, "%s\n", overte::security::sanitizeDiagnostic(input.constData(), static_cast<std::size_t>(input.size())));
+#endif
     if (type == QtFatalMsg) { abort(); }
 }
 

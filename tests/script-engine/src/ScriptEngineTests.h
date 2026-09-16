@@ -55,6 +55,7 @@ class ScriptEngineTests : public QObject {
 private slots:
     void initTestCase();
     void testTrivial();
+    void testOwnedQObjectTeardown();
     void testSyntaxError();
     void testRuntimeError();
     void testJSThrow();

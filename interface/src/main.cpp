@@ -37,6 +37,9 @@
 #include <plugins/CodecPlugin.h>
 #include <shared/GlobalAppProperties.h>
 #include <shared/IOSRuntimeLogging.h>
+#if defined(Q_OS_IOS) && defined(OVERTE_IOS_E2E_TEST_BUILD) && QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include "../../ios/development/DevelopmentOverrides.h"
+#endif
 
 #ifdef Q_OS_IOS
 #include <QtCore/QPluginLoader>
@@ -798,6 +801,15 @@ int main(int argc, const char* argv[]) {
     // this needs to be done here in main, as the mechanism for setting the
     // scripts directory appears not to work.  See the bug report (dead link)
     // https://highfidelity.fogbugz.com/f/cases/5759/Issues-changing-scripts-directory-in-ScriptsEngine
+#if defined(Q_OS_IOS) && defined(OVERTE_IOS_E2E_TEST_BUILD) && QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    const auto developmentScripts = overte::ios::development::initialize(
+        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation),
+        QCoreApplication::applicationDirPath() + ':' + overte::ios::development::digest(
+            overte::ios::development::read(QCoreApplication::applicationDirPath() + "/Info.plist")));
+    if (!developmentScripts.isEmpty()) {
+        PathUtils::defaultScriptsLocation(developmentScripts);
+    }
+#endif
     if (parser.isSet(overrideScriptsPathOption)) {
         QDir scriptsPath(parser.value(overrideScriptsPathOption));
         if (scriptsPath.exists()) {

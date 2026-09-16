@@ -13,10 +13,11 @@
 #define hifi_image_TGAReader_h
 
 #include "Image.h"
+#include <cstdint>
 
 namespace image {
 
-    Image readTGA(QIODevice& contents);
+    Image readTGA(QIODevice& contents, std::uint64_t maxDecodedPixels = 0);
 
 }
 

@@ -130,7 +130,8 @@ public:
     void setCollisionSound(const EntityItemID& id, const SharedSoundPointer& sound);
     EntityItemPointer getEntity(const EntityItemID& id);
     void deleteEntity(const EntityItemID& id) const;
-    void onEntityChanged(const EntityItemID& id);
+    // Safe from entity/render threads; renderer lookup happens in updateChangedEntities.
+    void onEntityChanged(const EntityItemID& id, bool forceRenderUpdate = true);
 
     // Access the workload Space
     workload::SpacePointer getWorkloadSpace() const { return _space; }
@@ -297,7 +298,8 @@ private:
     float _avgRenderableUpdateCost { 0.0f };
 
     ReadWriteLockable _changedEntitiesGuard;
-    std::unordered_set<EntityItemID> _changedEntities;
+    // A forced request must survive coalescing with conditional entity notifications.
+    std::unordered_map<EntityItemID, bool> _changedEntities;
     size_t _prevNumEntityUpdates { 0 };
     size_t _prevTotalNeededEntityUpdates { 0 };
 

@@ -1,0 +1,20 @@
+--- a/qtbase/src/corelib/thread/qmutex.cpp
++++ b/qtbase/src/corelib/thread/qmutex.cpp
+@@ -14,0 +15,3 @@
++#if defined(Q_OS_IOS)
++#include <mutex>
++#endif
+@@ -902,0 +906,5 @@
++#if defined(Q_OS_IOS)
++// The seven-bit free-list ABA tag can wrap while an allocator is preempted.
++// Serialize pool operations, using a native mutex independent of this pool.
++Q_CONSTINIT static std::mutex freeListMutex;
++#endif
+@@ -910,0 +919,3 @@
++#if defined(Q_OS_IOS)
++    std::lock_guard<std::mutex> lock(freeListMutex);
++#endif
+@@ -922,0 +934,3 @@
++#if defined(Q_OS_IOS)
++    std::lock_guard<std::mutex> lock(freeListMutex);
++#endif

@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+from dsym_fixture import arm64_dsym
+
 import json
 import os
 import plistlib
@@ -84,7 +86,7 @@ def main() -> None:
             '    [[ "${FAKE_DSYMUTIL_FAIL:-0}" == "0" ]] || exit 65\n'
             '    [[ "${3:-}" == "-o" && -n "${4:-}" ]] || exit 64\n'
             '    mkdir -p "$4/Contents/Resources/DWARF"\n'
-            '    printf "generated fixture DWARF" > "$4/Contents/Resources/DWARF/Overte"\n'
+            '    cp "$FAKE_DSYM_IMAGE" "$4/Contents/Resources/DWARF/Overte"\n'
             '    printf "dsymutil <%s> <-o> <%s>\\n" "$2" "$4" >> "$FAKE_TOOL_LOG" ;;\n'
             '  *--show-sdk-version*) echo "${FAKE_SDK_VERSION:-26.1}" ;;\n'
             '  *--show-sdk-path*) echo "$FAKE_SDK_PATH" ;;\n'
@@ -149,6 +151,9 @@ def main() -> None:
             'printf "\\n" >> "$FAKE_TOOL_LOG"\n',
         )
         environment["OVERTE_IOS_QT_ROOT"] = str(qt_root)
+        dsym_fixture = root / "dsym-fixture"
+        dsym_fixture.write_bytes(arm64_dsym())
+        environment["FAKE_DSYM_IMAGE"] = str(dsym_fixture)
 
         moltenvk_root = root / "MoltenVK"
         (moltenvk_root / "MoltenVK/include/vulkan").mkdir(parents=True)
@@ -382,7 +387,7 @@ def main() -> None:
             / "interface/Release-iphonesimulator/Overte.app.dSYM/Contents/Resources/DWARF/Overte"
         )
         integrated_dwarf.parent.mkdir(parents=True)
-        integrated_dwarf.write_bytes(b"fixture DWARF")
+        integrated_dwarf.write_bytes(arm64_dsym())
         integrated_package = run_cli(
             environment | {"OVERTE_IOS_ARTIFACT_SEQUENCE": "42"},
             "package-client",
@@ -454,7 +459,7 @@ def main() -> None:
             str(integrated_build),
         )
         assert generated_symbols.returncode == 0, generated_symbols.stderr
-        assert integrated_dwarf.read_bytes() == b"generated fixture DWARF"
+        assert integrated_dwarf.read_bytes() == arm64_dsym()
         assert f"dsymutil <{integrated_app / 'Overte'}> <-o>" in log.read_text(encoding="utf-8")
         for generated in artifact_root.glob("0045-OverteIOSClient-*"):
             generated.unlink()
@@ -479,7 +484,7 @@ def main() -> None:
         assert failed_symbol_generation.returncode == 1
         assert "could not generate the Release integrated client dSYM" in failed_symbol_generation.stderr
         integrated_dwarf.parent.mkdir(parents=True, exist_ok=True)
-        integrated_dwarf.write_bytes(b"fixture DWARF")
+        integrated_dwarf.write_bytes(arm64_dsym())
 
         with (integrated_app / "PrivacyInfo.xcprivacy").open("wb") as stream:
             plistlib.dump({"NSPrivacyTracking": True}, stream)

@@ -14,7 +14,7 @@
 
 bool AudioFileWav::create(const QAudioFormat& audioFormat, const QString& filepath) {
     if (_file.isOpen()) {
-        _file.close();
+        close(); // finalize the previous recording before opening another
     }
     const int sampleSize = hifiAudioSampleSize(audioFormat);
     if (sampleSize <= 0) {
@@ -38,6 +38,7 @@ bool AudioFileWav::addRawAudioChunk(char* chunk, int size) {
 }
 
 void AudioFileWav::close() {
+    if (!_file.isOpen()) { return; }
     QDataStream stream(&_file);
     stream.setByteOrder(QDataStream::LittleEndian);
 

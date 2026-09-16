@@ -13,6 +13,7 @@
 
 #include "VKForward.h"
 #include "VKShared.h"
+#include "VKIndexRange.h"
 
 namespace gpu { namespace vk {
 
@@ -44,6 +45,14 @@ public:
     /// Can be used only during transfer pass.
     void transferWithDelayedBarrier(VKBackend &backend, VkCommandBuffer commandBuffer);
 
+    // Query the CPU snapshot actually copied to the staging allocation, never
+    // the concurrently mutable producer buffer. Same-size writes invalidate it.
+    bool getIndexRange(size_t appliedSize, size_t offset, uint32_t first, uint32_t count,
+                       size_t width, bool restart, IndexRangeCache::Range& range) {
+        return _indexRanges.get(_localData.data(), std::min(appliedSize, _localData.size()),
+                                offset, first, count, width, restart, range);
+    }
+
     ~VKBuffer() override;
 
     VkBuffer buffer{ VK_NULL_HANDLE };
@@ -65,6 +74,7 @@ protected:
 
     // Local copy of buffer data. Updates are copied into it before transfer.
     std::vector<uint8_t> _localData;
+    IndexRangeCache _indexRanges;
 };
 
 } }

@@ -84,6 +84,8 @@ ios_plan_id="${host_plan_id}-skip-qtwebengine"
 if [[ "$target_sdk" == "iphonesimulator" ]]; then
     ios_plan_id="${ios_plan_id}-arm64-iphonesimulator"
 fi
+readonly mutex_patch_sha256="$(shasum -a 256 "$repo_root/ios/patches/qtbase-qmutex-freelist-serialization.patch" | awk '{print $1}')"
+ios_plan_id="${ios_plan_id}-mutex-${mutex_patch_sha256}"
 readonly ios_plan_id
 
 print_build_plan() {
@@ -208,6 +210,7 @@ build_ios() {
         grep -Eq 'set\(QT_OSX_ARCHITECTURES "arm64"' \
             "$ios_prefix/lib/cmake/Qt6/qt.toolchain.cmake" ||
             die "validated iOS prefix was not built exclusively for arm64: $ios_prefix"
+        python3 "$script_dir/qt-mutex-patch.py" verify --prefix "$ios_prefix"
         printf 'Reusing validated Qt iOS installation: %s\n' "$ios_prefix"
         "$prepare" validate "$ios_prefix" "$host_prefix" >/dev/null
         return
@@ -240,9 +243,11 @@ build_ios() {
         "$ios_prefix/lib/cmake/Qt6/qt.toolchain.cmake" ||
         die "built iOS prefix did not record the required arm64 architecture: $ios_prefix"
     printf '%s\n' "$ios_plan_id" > "$ios_prefix/.overte-qt-ios-plan-id"
+    python3 "$script_dir/qt-mutex-patch.py" seal --source "$source_root" --prefix "$ios_prefix"
 }
 
 ensure_source
+python3 "$script_dir/qt-mutex-patch.py" apply --source "$source_root"
 case "$stage" in
     source) ;;
     host) build_host ;;
