@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import hashlib
+import io
+import wave
 import json
 import os
 from pathlib import Path
@@ -113,6 +115,11 @@ class SoundPlaybackTest(unittest.TestCase):
             self.assertEqual("audio/wav", response.headers.get_content_type())
             self.assertEqual("no-store", response.headers["Cache-Control"])
         self.assertEqual(128044, len(sound))
+        with wave.open(io.BytesIO(sound), "rb") as decoded:
+            self.assertEqual(8.0, decoded.getnframes() / decoded.getframerate())
+            self.assertEqual(8000, decoded.getframerate())
+            self.assertEqual(1, decoded.getnchannels())
+            self.assertEqual(2, decoded.getsampwidth())
         self.assertEqual(self.ready["sound"]["sha256"], hashlib.sha256(sound).hexdigest())
         with self.assertRaises(HTTPError) as missing:
             urlopen(self.ready["baseUrl"] + "/audio/missing.wav", timeout=2)

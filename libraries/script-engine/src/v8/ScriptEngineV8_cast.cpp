@@ -288,6 +288,10 @@ int ScriptEngineV8::computeCastPenalty(const V8ScriptValue& v8Val, int destTypeI
 }
 
 bool ScriptEngineV8::castValueToVariant(const V8ScriptValue& v8Val, QVariant& dest, int destTypeId) {
+    if (isEvaluationAborted()) {
+        dest.clear();
+        return false;
+    }
     Q_ASSERT(_v8Isolate->IsCurrent());
     v8::HandleScope handleScope(_v8Isolate);
     v8::Local<v8::Context> context = getContext();
@@ -659,6 +663,7 @@ V8ScriptValue ScriptEngineV8::castVariantToValue(const QVariant& val) {
     v8::HandleScope handleScope(_v8Isolate);
     v8::Local<v8::Context> context = getContext();
     v8::Context::Scope contextScope(context);
+    if (isEvaluationAborted()) { return V8ScriptValue(this, v8::Undefined(_v8Isolate)); }
 
     int valTypeId = val.userType();
 
@@ -679,8 +684,10 @@ V8ScriptValue ScriptEngineV8::castVariantToValue(const QVariant& val) {
         _customTypeProtect.unlock();
     }
     if (marshalFunc) {
+        if (isEvaluationAborted()) { return V8ScriptValue(this, v8::Undefined(_v8Isolate)); }
         Q_ASSERT(val.constData() != nullptr);
         ScriptValue wrappedVal = marshalFunc(this, val.constData());
+        if (isEvaluationAborted()) { return V8ScriptValue(this, v8::Undefined(_v8Isolate)); }
         return ScriptValueV8Wrapper::fullUnwrap(this, wrappedVal);
     }
 
@@ -739,12 +746,22 @@ V8ScriptValue ScriptEngineV8::castVariantToValue(const QVariant& val) {
             }
             // have we set a prototyped variant?
             {
-                _customTypeProtect.lockForRead();
-                CustomPrototypeMap::const_iterator lookup = _customPrototypes.find(valTypeId);
-                if (lookup != _customPrototypes.cend()) {
-                    return ScriptVariantV8Proxy::newVariant(this, val, lookup.value());
+                // Snapshot under the lock; creating a proxy must not retain the
+                // registry lock or prevent a reentrant registry update.
+                V8ScriptValue prototype(this);
+                bool hasPrototype = false;
+                {
+                    QReadLocker locker(&_customTypeProtect);
+                    CustomPrototypeMap::const_iterator lookup = _customPrototypes.find(valTypeId);
+                    if (lookup != _customPrototypes.cend()) {
+                        prototype = lookup.value();
+                        hasPrototype = true;
+                    }
                 }
-                _customTypeProtect.unlock();
+                if (hasPrototype) {
+                    if (isEvaluationAborted()) { return V8ScriptValue(this, v8::Undefined(_v8Isolate)); }
+                    return ScriptVariantV8Proxy::newVariant(this, val, prototype);
+                }
             }
             // just do a generic variant
             //V8TODO

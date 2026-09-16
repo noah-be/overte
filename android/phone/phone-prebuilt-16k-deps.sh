@@ -3,10 +3,11 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 android_root="$(cd -- "$script_dir/.." && pwd)"
-tag='android-phone-16k-deps-v3'
+dependency_policy="$android_root/../tools/dependency-releases/check.py"
+tag="$(python3 "$dependency_policy" get phone tag)"
 asset='android-phone-16k-conan.tgz'
-manifest="${PHONE_PREBUILT_MANIFEST:-$android_root/common/conan/prebuilt/${tag}.sha256}"
-base_url="${PHONE_PREBUILT_BASE_URL:-https://github.com/noah-be/overte/releases/download/$tag}"
+manifest="${PHONE_PREBUILT_MANIFEST:-}"
+base_url="${PHONE_PREBUILT_BASE_URL:-$(python3 "$dependency_policy" get phone base-url)}"
 qt_profile="$android_root/common/conan/profiles/phone-arm64-16k"
 nonqt_profile="$android_root/common/conan/profiles/phone-nonqt-arm64-16k"
 build_profile="$android_root/common/conan/profiles/phone-prebuilt-linux-x86_64"
@@ -82,7 +83,6 @@ download_artifact() {
     conan_bin="$(find_conan)" || fail "Conan 2 was not found"
     curl_bin="${PHONE_CURL:-$(command -v curl 2>/dev/null || true)}"
     [[ -n "$curl_bin" && -x "$curl_bin" ]] || fail "curl was not found"
-    validate_manifest
     temp_root="${PHONE_PREBUILT_TMPDIR:-$script_dir/build/prebuilt-tmp}"
     [[ ! -L "$temp_root" ]] || fail "Phone prebuilt temporary directory must not be a symlink"
     mkdir -p -- "$temp_root"
@@ -90,6 +90,11 @@ download_artifact() {
         || fail "Phone prebuilt temporary directory is not writable"
     download_dir="$(mktemp -d "$temp_root/overte-phone-16k-download.XXXXXXXX")"
     trap 'rm -rf -- "${download_dir:-}"' EXIT RETURN
+    if [[ -z "$manifest" ]]; then
+        manifest="$download_dir/dependencies.sha256"
+        python3 "$dependency_policy" checksums phone > "$manifest"
+    fi
+    validate_manifest
     echo "Downloading checksum-verified Phone 16 KiB dependency graph"
     "$curl_bin" --fail --location --retry 3 \
         --output "$download_dir/$asset" "$base_url/$asset"

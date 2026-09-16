@@ -13,6 +13,7 @@
 #include "DomainAccountManager.h"
 
 #include <QTimer>
+#include <QThread>
 #include <QtCore/QJsonObject>
 #include <QtCore/QJsonDocument>
 #include <QtNetwork/QNetworkRequest>
@@ -25,13 +26,72 @@
 #include "NetworkAccessManager.h"
 #include "NetworkLogging.h"
 #include "NodeList.h"
+#include "../../../security/redaction/SafeDiagnostics.h"
 
 // FIXME: Generalize to other OAuth2 sources for domain login.
 
 const bool VERBOSE_HTTP_REQUEST_DEBUGGING = false;
+namespace {
+constexpr qint64 MAX_DOMAIN_AUTH_RESPONSE_BYTES = 1024 * 1024;
+}
 
 DomainAccountManager::DomainAccountManager() {
+    qRegisterMetaType<overte::network::RequestTicket>();
     connect(this, &DomainAccountManager::loginComplete, this, &DomainAccountManager::sendInterfaceAccessTokenToServer);
+}
+
+DomainAccountManager::~DomainAccountManager() {
+    invalidatePendingAccessToken();
+}
+
+overte::network::RequestTicket DomainAccountManager::invalidatePendingAccessToken(LoginOutcome outcome, bool suspend) {
+    QPointer<DomainAccountManager> owner(this);
+    const auto ticket = _accessTokenRequests.snapshot();
+    if (suspend) {
+        _accessTokenRequests.setActive(false);
+    } else {
+        _accessTokenRequests.next();
+    } // Invalidate BEFORE abort can emit finished, retaining the ORIGINAL ticket.
+    const auto context = _accessTokenRequests.snapshot(); // Capture before abort's external callbacks too.
+    const auto pending = _pendingAccessTokenReply;
+    _pendingAccessTokenReply.clear();
+    if (pending) {
+        pending->abort();
+        if (pending) { pending->deleteLater(); }
+        if (owner && context.matchesSnapshot()) {
+            emit loginRequestFinished(ticket, context, static_cast<int>(outcome));
+        }
+    }
+    return context;
+}
+
+void DomainAccountManager::setClientAuthVisibility(bool foreground) {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, [this, foreground] {
+            setClientAuthVisibility(foreground);
+        }, Qt::QueuedConnection);
+        return;
+    }
+    if (!foreground) {
+        invalidatePendingAccessToken(LoginOutcome::Cancelled, true);
+    } else {
+        // Resume admits a NEW explicit request only; never retry credentials.
+        _accessTokenRequests.setActive(true);
+    }
+}
+
+void DomainAccountManager::setClientID(const QString& clientID) {
+    if (_currentAuth.clientID == clientID) {
+        return;
+    }
+    QPointer<DomainAccountManager> owner(this);
+    const auto context = invalidatePendingAccessToken();
+    if (!owner || !context.matchesSnapshot()) { return; }
+    _currentAuth.clientID = clientID;
+    _currentAuth.accessToken.clear();
+    _currentAuth.refreshToken.clear();
+    _currentAuth.authedDomainName.clear();
+    _knownAuths.remove(_currentAuth.domainURL);
 }
 
 void DomainAccountManager::setDomainURL(const QUrl& domainURL) {
@@ -39,7 +99,10 @@ void DomainAccountManager::setDomainURL(const QUrl& domainURL) {
         return;
     }
 
-    qCDebug(networking) << "DomainAccountManager domain URL has been changed to" << qPrintable(domainURL.toString());
+    QPointer<DomainAccountManager> owner(this);
+    const auto context = invalidatePendingAccessToken();
+    if (!owner || !context.matchesSnapshot()) { return; }
+    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     // Restore OAuth2 authorization if have it for this domain.
     if (_knownAuths.contains(domainURL)) {
@@ -57,12 +120,16 @@ void DomainAccountManager::setAuthURL(const QUrl& authURL) {
         return;
     }
 
+    QPointer<DomainAccountManager> owner(this);
+    const auto context = invalidatePendingAccessToken();
+    if (!owner || !context.matchesSnapshot()) { return; }
     _currentAuth.authURL = authURL;
-    qCDebug(networking) << "DomainAccountManager URL for authenticated requests has been changed to"
-        << qPrintable(_currentAuth.authURL.toString());
+    qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 
     _currentAuth.accessToken = "";
     _currentAuth.refreshToken = "";
+    _currentAuth.authedDomainName.clear();
+    _knownAuths.remove(_currentAuth.domainURL);
 
     emit hasLogInChanged(hasLogIn());
 }
@@ -75,12 +142,26 @@ bool DomainAccountManager::isLoggedIn() {
     return !_currentAuth.authURL.isEmpty() && hasValidAccessToken();
 }
 
-void DomainAccountManager::requestAccessToken(const QString& username, const QString& password) {
+overte::network::RequestTicket DomainAccountManager::requestAccessToken(const QString& username, const QString& password) {
+
+    QPointer<DomainAccountManager> owner(this);
+    const auto context = invalidatePendingAccessToken();
+    if (!owner || !context.matchesSnapshot()) { return context; }
+    // A replacement sign-in discards the prior session entry even when this
+    // request cannot start. Returning to the domain must not revive old tokens.
+    _currentAuth.accessToken.clear();
+    _currentAuth.refreshToken.clear();
+    _currentAuth.authedDomainName.clear();
+    _knownAuths.remove(_currentAuth.domainURL);
+    const auto ticket = _accessTokenRequests.snapshot();
+    if (!ticket.current()) {
+        emit loginFailed();
+        if (!owner || !ticket.matchesSnapshot()) { return ticket; }
+        emit loginRequestFinished(ticket, ticket, static_cast<int>(LoginOutcome::Failed));
+        return ticket;
+    }
 
     _currentAuth.username = username;
-    _currentAuth.accessToken = "";
-    _currentAuth.refreshToken = "";
-
     QNetworkRequest request;
 
     request.setHeader(QNetworkRequest::UserAgentHeader, NetworkingConstants::OVERTE_USER_AGENT);
@@ -93,26 +174,69 @@ void DomainAccountManager::requestAccessToken(const QString& username, const QSt
     formData.append("grant_type=password&");
     formData.append("username=" + QUrl::toPercentEncoding(username) + "&");
     formData.append("password=" + QUrl::toPercentEncoding(password) + "&");
-    formData.append("client_id=" + _currentAuth.clientID.toUtf8());
+    formData.append("client_id=" + QUrl::toPercentEncoding(_currentAuth.clientID));
 
     request.setUrl(_currentAuth.authURL);
 
-    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    // Never replay a credential-bearing POST to an unreviewed redirect target.
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
 
     QNetworkAccessManager& networkAccessManager = NetworkAccessManager::getInstance();
     QNetworkReply* requestReply = networkAccessManager.post(request, formData);
+    _pendingAccessTokenReply = requestReply;
+    overte::network::watchRequest(requestReply, ticket);
+    requestReply->setReadBufferSize(MAX_DOMAIN_AUTH_RESPONSE_BYTES + 1);
+    connect(requestReply, &QNetworkReply::readyRead, this, [this, requestReply, ticket] {
+        if (requestReply == _pendingAccessTokenReply && ticket.current() &&
+                requestReply->bytesAvailable() > MAX_DOMAIN_AUTH_RESPONSE_BYTES) {
+            QPointer<DomainAccountManager> owner(this);
+            const auto context = invalidatePendingAccessToken(LoginOutcome::ResponseRejected);
+            if (owner && context.matchesSnapshot()) { emit loginFailed(); }
+        }
+    });
     connect(requestReply, &QNetworkReply::finished, this, &DomainAccountManager::requestAccessTokenFinished);
+    connect(requestReply, &QNetworkReply::finished, requestReply, &QObject::deleteLater);
+    auto deadline = new QTimer(requestReply);
+    deadline->setSingleShot(true);
+    deadline->setInterval(15000);
+    connect(requestReply, &QNetworkReply::finished, deadline, &QTimer::stop);
+    connect(deadline, &QTimer::timeout, this, [this, requestReply, ticket] {
+        if (requestReply != _pendingAccessTokenReply || !ticket.current()) {
+            return;
+        }
+        QPointer<DomainAccountManager> owner(this);
+        const auto context = invalidatePendingAccessToken(LoginOutcome::TimedOut);
+        if (owner && context.matchesSnapshot()) { emit loginFailed(); }
+    });
+    deadline->start();
+    return ticket;
 }
 
 void DomainAccountManager::requestAccessTokenFinished() {
 
-    QNetworkReply* requestReply = reinterpret_cast<QNetworkReply*>(sender());
-
-    QJsonDocument jsonResponse = QJsonDocument::fromJson(requestReply->readAll());
-    const QJsonObject& rootObject = jsonResponse.object();
+    auto* requestReply = qobject_cast<QNetworkReply*>(sender());
+    if (!requestReply || requestReply != _pendingAccessTokenReply || !overte::network::replyCurrent(requestReply)) {
+        return;
+    }
+    QPointer<DomainAccountManager> completionOwner(this);
+    _pendingAccessTokenReply.clear(); // One terminal reply; reject duplicates.
+    const auto ticket = requestReply->property("_overte_request_ticket").value<overte::network::RequestTicket>();
 
     auto httpStatus = requestReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    if (200 <= httpStatus && httpStatus < 300) {
+    const auto payload = requestReply->read(MAX_DOMAIN_AUTH_RESPONSE_BYTES + 1);
+    QJsonParseError parseError;
+    const auto jsonResponse = QJsonDocument::fromJson(payload, &parseError);
+    const auto rootObject = jsonResponse.object();
+    const auto accessToken = rootObject.value("access_token");
+    const auto refreshToken = rootObject.value("refresh_token");
+    const auto expiresIn = rootObject.value("expires_in");
+    const bool validResponse = requestReply->error() == QNetworkReply::NoError &&
+        payload.size() <= MAX_DOMAIN_AUTH_RESPONSE_BYTES && requestReply->bytesAvailable() == 0 &&
+        parseError.error == QJsonParseError::NoError && jsonResponse.isObject() &&
+        accessToken.isString() && !accessToken.toString().trimmed().isEmpty() &&
+        (refreshToken.isUndefined() || refreshToken.isString()) &&
+        (expiresIn.isUndefined() || (expiresIn.isDouble() && expiresIn.toInt(-1) > 0));
+    if (200 <= httpStatus && httpStatus < 300 && validResponse) {
 
         // miniOrange plugin provides no scope.
         if (rootObject.contains("access_token")) {
@@ -129,17 +253,31 @@ void DomainAccountManager::requestAccessTokenFinished() {
             // ####### TODO: Handle "keep me logged in".
 
             emit loginComplete();
+            // Legacy listeners may delete this owner or replace the login context.
+            if (!completionOwner || !ticket.current()) {
+                return;
+            }
+            emit loginRequestFinished(ticket, ticket, static_cast<int>(LoginOutcome::Succeeded));
         } else {
             // Failure.
-            qCDebug(networking) << "Received a response for password grant that is missing one or more expected values.";
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::AuthFailed);
             emit loginFailed();
+            // Legacy listeners may delete this owner or replace the login context.
+            if (!completionOwner || !ticket.current()) {
+                return;
+            }
+            emit loginRequestFinished(ticket, ticket, static_cast<int>(LoginOutcome::Failed));
         }
 
     } else {
         // Failure.
-        qCDebug(networking) << "Error in response for password grant -" << httpStatus << requestReply->error()
-            << "-" << rootObject["error"].toString() << rootObject["error_description"].toString();
+        qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::AuthFailed);
         emit loginFailed();
+        // Legacy listeners may delete this owner or replace the login context.
+        if (!completionOwner || !ticket.current()) {
+            return;
+        }
+        emit loginRequestFinished(ticket, ticket, static_cast<int>(LoginOutcome::Failed));
     }
 }
 
@@ -148,21 +286,22 @@ void DomainAccountManager::sendInterfaceAccessTokenToServer() {
 }
 
 bool DomainAccountManager::accessTokenIsExpired() {
-    // ####### TODO: accessTokenIsExpired()
-    return true;
+    return _currentAuth.accessTokenDeadline.hasExpired();
 }
 
+const QString& DomainAccountManager::getAccessToken() {
+    // NodeList consumes this getter directly when constructing its auth packet.
+    // Checking only isLoggedIn would still allow an expired cached token out.
+    static const QString empty;
+    return accessTokenIsExpired() ? empty : _currentAuth.accessToken;
+}
 
 bool DomainAccountManager::hasValidAccessToken() {
-    // ###### TODO: wire this up to actually retrieve a token (based on session or storage) and confirm that it is in fact valid and relevant to the current domain.
-    // QString currentDomainAccessToken = domainAccessToken.get();
-    QString currentDomainAccessToken = _currentAuth.accessToken;
-
-    // if (currentDomainAccessToken.isEmpty() || accessTokenIsExpired()) {
-    if (currentDomainAccessToken.isEmpty()) {
+    // Current auth is selected with the domain and invalidated on auth/client
+    // changes. A restored cached record retains its original monotonic deadline.
+    if (_currentAuth.accessToken.isEmpty() || accessTokenIsExpired()) {
         if (VERBOSE_HTTP_REQUEST_DEBUGGING) {
-            qCDebug(networking) << "An access token is required for requests to"
-                                << qPrintable(_currentAuth.authURL.toString());
+            qCDebug(networking) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::AuthRequired);
         }
 
         return false;
@@ -180,6 +319,10 @@ bool DomainAccountManager::hasValidAccessToken() {
 void DomainAccountManager::setTokensFromJSON(const QJsonObject& jsonObject, const QUrl& url) {
     _currentAuth.accessToken = jsonObject["access_token"].toString();
     _currentAuth.refreshToken = jsonObject["refresh_token"].toString();
+    const auto lifetime = jsonObject.value("expires_in");
+    // The only caller validates positive integral, bounded seconds first.
+    _currentAuth.accessTokenDeadline = lifetime.isUndefined() ? QDeadlineTimer(QDeadlineTimer::Forever) :
+        QDeadlineTimer(qint64(lifetime.toInt()) * 1000, Qt::PreciseTimer);
 }
 
 bool DomainAccountManager::checkAndSignalForAccessToken() {
@@ -195,7 +338,11 @@ bool DomainAccountManager::checkAndSignalForAccessToken() {
 
         // Dialog can be hidden immediately after showing if we've just teleported to the domain, unless the signal is delayed.
         auto domain = _currentAuth.authURL.host();
-        QTimer::singleShot(500, this, [this, domain] {
+        const auto ticket = _accessTokenRequests.snapshot();
+        QTimer::singleShot(500, this, [this, domain, ticket] {
+            if (!ticket.current()) {
+                return;
+            }
             emit this->authRequired(domain);
         });
     }

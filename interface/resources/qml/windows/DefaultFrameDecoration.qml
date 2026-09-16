@@ -9,7 +9,7 @@
 //
 
 import QtQuick 2.5
-import QtGraphicalEffects 1.0
+import "../controls" as CpuControls
 
 import "."
 import stylesUit 1.0
@@ -86,6 +86,15 @@ Decoration {
         }
     }
 
+    CpuControls.CpuDropShadow {
+        source: titleText
+        anchors.fill: titleText
+        horizontalOffset: 2
+        verticalOffset: 2
+        color: hifi.colors.baseGrayShadow60
+        visible: (desktop.gradientsSupported && window && window.focus)
+    }
+
     RalewayRegular {
         // Title
         id: titleText
@@ -102,15 +111,6 @@ Decoration {
         size: hifi.fontSizes.overlayTitle
     }
 
-    DropShadow {
-        source: titleText
-        anchors.fill: titleText
-        horizontalOffset: 2
-        verticalOffset: 2
-        samples: 2
-        color: hifi.colors.baseGrayShadow60
-        visible: (desktop.gradientsSupported && window && window.focus)
-        cached: true
-    }
+
 }
 

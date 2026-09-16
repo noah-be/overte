@@ -13,17 +13,16 @@ main
 │   ├── android-phone
 │   └── android-vr
 │       └── android-vr-pico
-├── apple-main
-│   └── apple-ios
-├── linux-main
-└── windows-main
+└── apple-main
+    └── apple-ios
 ```
 
-`main` owns platform-neutral code. `android-main`, `apple-main`, `linux-main`,
-and `windows-main` own code shared by their operating-system families. Product
-branches own adapters, packaging, runtime integration and policy that apply
-only to that product. Linux distributions and Windows releases are CI and lab
-targets within their operating-system branch, not permanent child branches.
+`main` owns platform-neutral code and Linux and Windows support, including
+desktop adapters, packaging, tests, and lab integration. `android-main` and
+`apple-main` own code shared by their operating-system families. Product
+branches own adapters, packaging, runtime integration and policy specific to
+that product. Linux distributions and Windows releases are CI and lab targets
+maintained on `main`. There are seven permanent branches and six direct edges.
 
 ## Propagation order
 
@@ -35,21 +34,19 @@ After a reviewed change reaches `main`, synchronize it in this order:
 4. `android-vr` → `android-vr-pico`
 5. `main` → `apple-main`
 6. `apple-main` → `apple-ios`
-7. `main` → `linux-main`
-8. `main` → `windows-main`
 
-The Android, Apple, Linux, and Windows lines are independent after their
-respective `main` merge, but each parent must be merged before its children.
+The Android and Apple lines are independent after their respective `main`
+merge, but each parent must be merged before its children. Desktop changes
+are reviewed and tested on `main` without a separate desktop synchronization edge.
 Use normal pull requests so branch protection and target-specific CI run at
 every boundary. The synchronization bot reads these direct relationships from
 `.github/branch-policy.json`. The current synchronization workflow reports
 parent-to-child drift without writing to the repository; a maintainer opens or
 refreshes each required synchronization pull request manually.
 
-`android-vr-quest` and `apple-macos` are frozen archival branches, not children
+The retired Quest and macOS branches are historical records, not children
 in this hierarchy. They must not receive synchronization PRs or new product
-work. Their last commits are retained as historical evidence under the
-dedicated archived-branch ruleset.
+work.
 
 ## Reconciliation merges
 
@@ -89,23 +86,24 @@ executes code from the pull request. Other governance changes remain owned by
 ## Adapter ownership
 
 Universal touch layout and capability defaults belong on `main`. Native and
-selector-backed adapters remain in their product branch:
+selector-backed mobile adapters remain in their product branch; desktop
+adapters are maintained on `main`:
 
 - Android Phone adapter: `android-phone`
 - iPhone and iPad adapter: `apple-ios`
-- Linux desktop adapter: `linux-main`
-- Windows desktop adapter: `windows-main`
+- Linux desktop adapter: `main`
+- Windows desktop adapter: `main`
 
 VR branches do not inherit Phone touch adapters. A new adapter starts on its
 product branch and must not be promoted to a parent unless the implementation
 genuinely applies to every child of that parent.
 
-Desktop adapter implementations must not be owned by `main`, `android-main`,
-or an Android product branch. Only the portable adapter protocol, behavior
-modules, fixtures, and in-client probe remain on `main`. Fedora, Ubuntu,
+Desktop adapter implementations, the portable adapter protocol, behavior
+modules, fixtures, and in-client probe belong on `main`. Fedora, Ubuntu,
 openSUSE, display-server, desktop-environment, and Windows-version differences
-are expressed as private target configuration and CI matrices inside the
-owning operating-system branch.
+are expressed as private target configuration and CI matrices maintained from
+`main`. Retiring separate desktop branches does not remove desktop product
+support or tests.
 
 ## Verification
 
@@ -120,8 +118,6 @@ git merge-base --is-ancestor origin/android-main origin/android-vr
 git merge-base --is-ancestor origin/android-vr origin/android-vr-pico
 git merge-base --is-ancestor origin/main origin/apple-main
 git merge-base --is-ancestor origin/apple-main origin/apple-ios
-git merge-base --is-ancestor origin/main origin/linux-main
-git merge-base --is-ancestor origin/main origin/windows-main
 ```
 
 Each command must exit successfully. Also use `git branch -r --contains` for a
@@ -142,7 +138,7 @@ validity interval. Its canonical JSON digest makes accidental or malicious
 content changes detectable.
 
 The trusted `sync-test-reuse` check is loaded only from the default branch. For
-one of the eight direct edges it re-reads the current base and parent refs,
+one of the six direct edges it re-reads the current base and parent refs,
 validates the exact merge parents and merge tree, rejects paths outside the
 parent delta, and accepts exactly one matching non-expired qualification from a
 successful `push` run of the expected workflow. It re-reads both permanent refs
