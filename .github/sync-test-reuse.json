@@ -53,6 +53,7 @@
     "conanfile.txt"
   ],
   "required_qualified_inputs": [
+    ".github/platform-source-policy.json",
     ".github/workflows/parent-qualification.yml",
     ".github/workflows/sync-test-reuse.yml",
     ".github/workflows/sync-validation.yml",

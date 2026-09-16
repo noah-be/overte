@@ -3,6 +3,9 @@ name: Shared project CI
 on:
   pull_request:
     paths:
+      # A reintroduced product tree must run the shared source-boundary gate.
+      - "android/**"
+      - ".github/platform-source-policy.json"
       - "interface/**"
       - "libraries/**"
       - "scripts/**"

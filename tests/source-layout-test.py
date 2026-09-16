@@ -13,6 +13,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class SourceLayoutTests(unittest.TestCase):
+    def test_product_reintroduction_cannot_bypass_the_pull_request_gate(self):
+        workflow = (ROOT / ".github/workflows/project-tests.yml").read_text()
+        pull_request = workflow.split("  pull_request:\n", 1)[1].split("  push:\n", 1)[0]
+        self.assertIn('"android/**"', pull_request)
+        self.assertIn('".github/platform-source-policy.json"', pull_request)
+
     def test_branch_profile_matches_owned_sources(self):
         profile = json.loads((ROOT / "tests/platform-profile.json").read_text())
         policy = json.loads((ROOT / ".github/platform-source-policy.json").read_text())
