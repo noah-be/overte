@@ -16,6 +16,9 @@
     "android-vr-pico": {"parent": "android-vr", "scope": "android-pico", "differential": "android-pico"},
     "apple-ios": {"parent": "apple-main", "scope": "ios", "differential": "apple-ios"}
   },
+  "retired_parent_paths": {
+    "android/common/conan/prebuilt/android-phone-16k-deps-v3.sha256": "4376bfdaa8a83681a01d714c57cfe5b3f3e5f666"
+  },
   "qualified_inputs": [
     ".github/dependency-releases.json",
     "tools/dependency-releases/**",

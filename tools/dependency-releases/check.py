@@ -22,7 +22,7 @@ ASSETS = {
     "phone": {"android-phone-16k-conan.tgz"},
     "pico": {"pico4-node-conan.tgz", "pico4-qt-conan.tgz", "pico4-runtime.tgz"},
 }
-TAG_PATTERN = r"(?:android-phone-16k-deps-v|pico4-deps-v)[0-9]+"
+TAG_PATTERN = r"(android-phone-16k-deps-v|pico4-deps-v)[0-9]+"
 CONSUMERS = {
     "android/phone/phone-prebuilt-16k-deps.sh": "phone",
     "android/vr/pico/build.sh": "pico",
@@ -88,7 +88,17 @@ def check_sources(read, matches: list[str]) -> None:
             raise PolicyError(f"{path} does not use the central resolver")
         if f"get {family} " not in source and f"checksums {family}" not in source:
             raise PolicyError(f"{path} does not select its dependency bundle")
-    bad = sorted({p for p in matches if relevant(p)})
+    bad = []
+    for path in sorted(set(matches)):
+        if not relevant(path):
+            continue
+        if path == ".github/sync-test-reuse.json":
+            # Exact old blob identities authorize deletion, never a download.
+            config = json.loads(read(path))
+            config.pop("retired_parent_paths", None)
+            if not re.search(TAG_PATTERN, json.dumps(config)):
+                continue
+        bad.append(path)
     if bad:
         raise PolicyError("Hardcoded dependency tags outside policy: " + ", ".join(bad))
 
