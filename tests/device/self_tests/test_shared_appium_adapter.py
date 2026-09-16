@@ -19,7 +19,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ADAPTER = ROOT / "adapters" / "appium" / "adapter.py"
+ADAPTER = ROOT / "adapters" / "shared_appium" / "adapter.py"
 VERIFIER = ROOT / "verify_adapter.py"
 
 

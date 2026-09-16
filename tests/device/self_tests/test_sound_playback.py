@@ -179,6 +179,7 @@ class SoundPlaybackTest(unittest.TestCase):
     def test_only_target_owned_adapters_may_advertise_sound_play(self):
         android = ROOT / "adapters/android/adapter.py"
         appium = ROOT / "adapters/appium/adapter.py"
+        shared_appium = ROOT / "adapters/shared_appium/adapter.py"
         target_owned = {
             ROOT / "adapters/linux",
             ROOT / "adapters/windows",
@@ -186,11 +187,11 @@ class SoundPlaybackTest(unittest.TestCase):
         for path in (ROOT / "adapters").rglob("*"):
             if (not path.is_file() or path.suffix not in {".py", ".json"}
                     or "mock" in path.parts
-                    or path in {android, appium}
+                    or path in {android, appium, shared_appium}
                     or any(root in path.parents for root in target_owned)):
                 continue
             self.assertNotIn("sound.play", path.read_text(encoding="utf-8"), str(path))
-        for path in (android, appium):
+        for path in (android, shared_appium):
             self.assertIn("sound.play", path.read_text(encoding="utf-8"))
 
     def test_complete_sound_suite_passes_with_independent_evidence(self):
