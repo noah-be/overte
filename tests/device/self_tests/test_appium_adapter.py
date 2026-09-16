@@ -32,7 +32,7 @@ from contracts import validate_tablet_product_policy  # noqa: E402
 # Import the TestCase into discovery so the full control-plane gate retains
 # every native-binding positive/negative case after the ownership relocation.
 NATIVE_SPEC = importlib.util.spec_from_file_location(
-    "overte_ios_native_binding_contract", DEVICE_ROOT / "ios/test_native_binding.py")
+    "overte_ios_native_binding_contract", DEVICE_ROOT / "ios/test_ios_native_binding_contract.py")
 assert NATIVE_SPEC and NATIVE_SPEC.loader
 NATIVE_CONTRACT = importlib.util.module_from_spec(NATIVE_SPEC)
 NATIVE_SPEC.loader.exec_module(NATIVE_CONTRACT)
