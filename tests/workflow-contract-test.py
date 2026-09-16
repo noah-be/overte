@@ -20,7 +20,6 @@ BRANCH_SYNC_WORKFLOW = ROOT / ".github/workflows/branch-sync.yml"
 PARENT_QUALIFICATION_WORKFLOW = ROOT / ".github/workflows/parent-qualification.yml"
 SYNC_REUSE_WORKFLOW = ROOT / ".github/workflows/sync-test-reuse.yml"
 SYNC_VALIDATION_WORKFLOW = ROOT / ".github/workflows/sync-validation.yml"
-DESKTOP_TOPOLOGY_WORKFLOW = ROOT / ".github/workflows/desktop-branch-topology.yml"
 WORKFLOW_DIRECTORY = ROOT / ".github/workflows"
 CODEQL_WORKFLOW = ROOT / ".github/workflows/codeql.yml"
 IOS_WORKFLOW = ROOT / ".github/workflows/ios-bootstrap.yml"
@@ -29,7 +28,6 @@ RULESETS = ROOT / ".github/rulesets"
 RULESET_FILES = {
     "Android target branch topology": "android-target-branches.json",
     "Apple target branch topology": "apple-target-branches.json",
-    "Desktop branch topology": "desktop-branches.json",
     "Immutable Android, canonical, and archive tags": "android-release-tags.json",
     "Immutable Pico 4 release and dependency tags": "pico4-release-tags.json",
     "Permanent branch governance": "permanent-branches.json",
@@ -212,12 +210,17 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         for forbidden in ("create-github-app-token", "client-id", "private-key", "author", "login"):
             self.assertNotIn(forbidden, source)
 
-    def test_main_sync_policy_includes_linux_and_windows(self):
-        policy = (ROOT / ".github/branch-policy.json").read_text(encoding="utf-8")
-        self.assertRegex(
-            policy,
-            r'"children": \["android-main", "apple-main", "linux-main", "windows-main"\]',
-        )
+
+    def test_retired_desktop_branches_have_no_workflow_routes(self):
+        for path in WORKFLOW_DIRECTORY.glob("*.yml"):
+            source = path.read_text(encoding="utf-8")
+            with self.subTest(workflow=path.name):
+                self.assertNotIn("linux-main", source)
+                self.assertNotIn("windows-main", source)
+        policy = json.loads((ROOT / ".github/branch-policy.json").read_text())
+        self.assertEqual(policy["branches"]["main"]["children"], ["android-main", "apple-main"])
+        for platform in ("linux", "windows"):
+            self.assertTrue((ROOT / "tests/device/adapters/desktop_oculix" / f"{platform}.json").is_file())
 
     def test_sync_reuse_gate_is_trusted_terminal_and_fail_closed(self):
         source = SYNC_REUSE_WORKFLOW.read_text(encoding="utf-8")
@@ -271,25 +274,7 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         route = android.split("- id: route", 1)[1].split("\n\n  fast:", 1)[0]
         self.assertIn("working-directory: .", route)
 
-    def test_desktop_topology_uses_trusted_main_policy(self):
-        source = DESKTOP_TOPOLOGY_WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn("linux-main", source)
-        self.assertIn("windows-main", source)
-        self.assertIn("origin/main:tests/desktop-branch-topology-check.py", source)
-        self.assertIn("--main origin/main", source)
-        self.assertIn("persist-credentials: false", source)
-        self.assertRegex(source, r"(?m)^permissions:\n  contents: read$")
-        actions = ACTION_USE.findall(source)
-        self.assertGreaterEqual(len(actions), 1)
-        self.assertEqual(
-            [action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], []
-        )
 
-    def test_desktop_ruleset_requires_topology_check(self):
-        source = (RULESETS / "desktop-branches.json").read_text(encoding="utf-8")
-        for branch in ("refs/heads/linux-main", "refs/heads/windows-main"):
-            self.assertIn(branch, source)
-        self.assertIn('"context": "Enforce main desktop sync path"', source)
 
 
 class RulesetManifestContracts(unittest.TestCase):
@@ -304,7 +289,7 @@ class RulesetManifestContracts(unittest.TestCase):
     def rule(manifest, rule_type):
         return next(rule for rule in manifest["rules"] if rule["type"] == rule_type)
 
-    def test_all_six_persistent_rulesets_are_complete_and_versioned(self):
+    def test_all_five_persistent_rulesets_are_complete_and_versioned(self):
         versioned = []
         for path in RULESETS.glob("*.json"):
             candidate = json.loads(path.read_text(encoding="utf-8"))
@@ -326,7 +311,6 @@ class RulesetManifestContracts(unittest.TestCase):
         expected = {
             "Android target branch topology": "Enforce Android parent sync path",
             "Apple target branch topology": "Enforce apple-main sync path",
-            "Desktop branch topology": "Enforce main desktop sync path",
             "Permanent branch governance": "branch-policy",
         }
         for name, context in expected.items():
@@ -342,18 +326,6 @@ class RulesetManifestContracts(unittest.TestCase):
                 )
             self.assertEqual(parameters["required_status_checks"], expected_checks)
 
-    def test_desktop_workflow_and_manifest_use_identical_check_context(self):
-        workflow = DESKTOP_TOPOLOGY_WORKFLOW.read_text(encoding="utf-8")
-        actual = re.search(
-            r"(?m)^\s{4}name:\s*(Enforce main desktop sync path)\s*$", workflow
-        )
-        self.assertIsNotNone(actual)
-        parameters = self.rule(
-            self.manifests["Desktop branch topology"], "required_status_checks"
-        )["parameters"]
-        self.assertEqual(
-            parameters["required_status_checks"][0]["context"], actual.group(1)
-        )
 
     def test_solo_profile_is_active_without_locking_out_the_maintainer(self):
         solo = json.loads(

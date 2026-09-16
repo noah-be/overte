@@ -583,12 +583,12 @@ class Doctor:
 
     def check_contracts(self) -> None:
         policy = self.policy()
-        expected = {"main", "android-main", "apple-main", "linux-main", "windows-main", "android-phone", "android-vr", "android-vr-pico", "apple-ios"}
+        expected = {"main", "android-main", "apple-main", "android-phone", "android-vr", "android-vr-pico", "apple-ios"}
         if set(policy) != expected:
-            self.fail("repository_contracts", "PERMANENT_BRANCH_SET", "branch policy must contain exactly the nine permanent branches")
+            self.fail("repository_contracts", "PERMANENT_BRANCH_SET", "branch policy must contain exactly the seven permanent branches")
         edges = [(branch.parent, branch.name) for branch in policy.values() if branch.parent]
-        if len(edges) != 8 or len(edges) != len(set(edges)):
-            self.fail("repository_contracts", "DUPLICATE_BRANCH_EDGE", "branch policy must define eight unique edges")
+        if len(edges) != 6 or len(edges) != len(set(edges)):
+            self.fail("repository_contracts", "DUPLICATE_BRANCH_EDGE", "branch policy must define six unique edges")
         for json_path in (self.root / ".github/branch-policy.json", self.root / ".github/repository-health.json"):
             try:
                 load_json_strict(json_path)

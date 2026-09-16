@@ -31,7 +31,6 @@ SUITES = (
     Suite("sync-test-reuse", "quick", (sys.executable, "tools/sync-test-reuse/test.py")),
     Suite("workflow-action-pins", "quick", (sys.executable, "tests/workflow-action-pin-test.py")),
     Suite("release-bundle", "quick", (sys.executable, "tools/release/tests/release-bundle-test.py")),
-    Suite("desktop-topology", "quick", (sys.executable, "tests/desktop-branch-topology-test.py")),
     Suite("workflow-contracts", "quick", (sys.executable, "tests/workflow-contract-test.py")),
     Suite("repository-health", "quick", (sys.executable, "tests/project-health-test.py")),
     Suite("issue-intake", "quick", (sys.executable, "tests/issue-intake-test.py")),

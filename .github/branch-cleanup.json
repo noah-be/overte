@@ -9,9 +9,7 @@
     "android-vr",
     "android-vr-pico",
     "apple-main",
-    "apple-ios",
-    "linux-main",
-    "windows-main"
+    "apple-ios"
   ],
   "holds": {
     "ci/ios/parity-runner-v003": "ongoing_local_work_review"

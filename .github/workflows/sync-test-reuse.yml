@@ -12,8 +12,6 @@ on: # zizmor: ignore[dangerous-triggers] Default-branch data-only gate; candidat
       - android-vr-pico
       - apple-main
       - apple-ios
-      - linux-main
-      - windows-main
   workflow_dispatch:
 
 permissions:
