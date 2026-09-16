@@ -92,7 +92,10 @@ int main(int argc,char**argv){
  worker.start();
  const bool delivered=completed.wait_for(std::chrono::seconds(2))==std::future_status::ready;
  const bool networkDelivered=!network || networkDone.wait_for(std::chrono::seconds(2))==std::future_status::ready;
- manager._shouldStop=true;manager._injectorReady.notify_one();worker.quit();
+ // Match the destructor lock barrier: publish stop while holding the wait
+ // mutex so notification cannot land between its predicate and actual wait.
+ { AudioInjectorManager::Lock lock(manager._injectorsMutex); manager._shouldStop=true; }
+ manager._injectorReady.notify_one();worker.quit();
  assert(worker.wait(2000));
  std::cout<<(delivered?"completion-delivered":"completion-not-delivered")<<std::endl;
  return delivered&&networkDelivered?0:2;

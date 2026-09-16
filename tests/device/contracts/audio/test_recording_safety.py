@@ -74,7 +74,7 @@ with tempfile.TemporaryDirectory(prefix='overte-recording-') as scratch:
  # QDataStream. Only QAudioFormat/compatibility are replaced on this host.
  for name in ('AudioFileWav.h','AudioFileWav.cpp'):
   (p/name).write_text(read('libraries/audio-client/src/'+name))
- (p/'QAudioFormat').write_text('struct QAudioFormat { int channelCount()const{return 2;} int sampleRate()const{return 48000;} };\n')
+ (p/'QAudioFormat').write_text('struct QAudioFormat { int sampleSize()const{return 16;} int channelCount()const{return 2;} int sampleRate()const{return 48000;} };\n')
  (p/'AudioDeviceCompat.h').write_text('#pragma once\ninline int hifiAudioSampleSize(const QAudioFormat&){return 16;}\n')
  (p/'wav-test.cpp').write_text(r'''
 #include "AudioFileWav.h"

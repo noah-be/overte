@@ -23,5 +23,11 @@ int main() {
     assert(controlSupport(Product::IOS,"settings.hmd-preferences")==Support::Hidden);
     assert(controlSupport(Product::Pico,"settings.controllers")==Support::Supported);
     assert(controlSupport(Product::Unknown,"nav.back")==Support::Hidden);
+    assert(preferenceAllowed(Product::Phone,"Touch Camera Sensitivity","Vertical swipe:"));
+    assert(!preferenceAllowed(Product::Phone,"Mouse Sensitivity","Y input:"));
+    for (auto product : {Product::Pico,Product::IOS}) {
+        assert(preferenceAllowed(product,"Mouse Sensitivity","Y input:"));
+        assert(!preferenceAllowed(product,"Touch Camera Sensitivity","Vertical swipe:"));
+    }
     std::cout << "SH-003 pinned selector stacks and closed control classification PASS\n";
 }

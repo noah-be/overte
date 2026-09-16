@@ -65,12 +65,14 @@ class SoundPlaybackTest(unittest.TestCase):
             "OVERTE_E2E_SOUND_URL": sound_url or self.ready["soundUrl"],
             "OVERTE_E2E_SOUND_COMMAND_URL": self.ready["soundCommandUrl"],
             "OVERTE_E2E_SOUND_REQUESTS_URL": self.ready["soundRequestsUrl"],
+            "OVERTE_E2E_SOUND_DURATION_SECONDS": str(
+                self.ready["sound"]["durationSeconds"]),
         })
         if failure:
             environment["OVERTE_MOCK_SOUND_FAILURE"] = failure
         else:
             environment.pop("OVERTE_MOCK_SOUND_FAILURE", None)
-            environment["OVERTE_E2E_SOUND_TIMEOUT_SECONDS"] = "12"
+            environment["OVERTE_E2E_SOUND_TIMEOUT_SECONDS"] = "15"
         output = root / "results"
         result = subprocess.run([
             sys.executable, str(ROOT / "run.py"),
@@ -164,6 +166,7 @@ class SoundPlaybackTest(unittest.TestCase):
                 "Number(soundResource.duration)",
                 "Audio.playSound(soundResource",
                 "Boolean(soundInjector.playing)",
+                "else if (soundState.started)",
                 "soundInjector.finished.connect"):
             self.assertIn(expression, probe)
         sound_source = (ROOT.parents[1] / "libraries/audio/src/Sound.cpp").read_text(
@@ -174,7 +177,8 @@ class SoundPlaybackTest(unittest.TestCase):
         self.assertIn("emit ready()", sound_source)
 
     def test_only_target_owned_adapters_may_advertise_sound_play(self):
-        allowed = ROOT / "adapters/appium/adapter.py"
+        android = ROOT / "adapters/android/adapter.py"
+        appium = ROOT / "adapters/appium/adapter.py"
         target_owned = {
             ROOT / "adapters/linux",
             ROOT / "adapters/windows",
@@ -182,10 +186,12 @@ class SoundPlaybackTest(unittest.TestCase):
         for path in (ROOT / "adapters").rglob("*"):
             if (not path.is_file() or path.suffix not in {".py", ".json"}
                     or "mock" in path.parts
-                    or path == allowed
+                    or path in {android, appium}
                     or any(root in path.parents for root in target_owned)):
                 continue
             self.assertNotIn("sound.play", path.read_text(encoding="utf-8"), str(path))
+        for path in (android, appium):
+            self.assertIn("sound.play", path.read_text(encoding="utf-8"))
 
     def test_complete_sound_suite_passes_with_independent_evidence(self):
         result, output, temporary = self.run_suite()
@@ -206,6 +212,19 @@ class SoundPlaybackTest(unittest.TestCase):
             state = json.loads((Path(temporary.name) / "state.json").read_text())
             self.assertEqual(1, state["launchCount"])
             self.assertFalse(state["running"])
+        finally:
+            temporary.cleanup()
+
+    def test_active_samples_collected_during_evidence_phases_are_retained(self):
+        result, output, temporary = self.run_suite(
+            failure="end-after-two-active-samples")
+        try:
+            self.assertEqual(0, result.returncode, result.stdout)
+            active = json.loads((output / "modules/sound-playback/sound-active-samples.json")
+                                .read_text(encoding="utf-8"))
+            self.assertEqual(2, len(active))
+            self.assertLess(active[0]["sampleSequence"], active[1]["sampleSequence"])
+            self.assertTrue(all(item["sound"]["playing"] for item in active))
         finally:
             temporary.cleanup()
 

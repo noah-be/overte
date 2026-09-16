@@ -570,6 +570,19 @@ def validate_probe_snapshot(value: object) -> dict:
             or not isinstance(application.get("foreground"), bool)):
         raise ValueError("probe application requires running and foreground booleans")
 
+    control = value.get("control")
+    if control is not None:
+        if not isinstance(control, dict):
+            raise ValueError("probe control must be an object or null")
+        _require_exact_fields(control,
+                              {"channel", "lastCommandId", "probe", "schemaVersion"},
+                              "probe control")
+        if (control.get("schemaVersion") != 1
+                or control.get("channel") != "android-debug-file-v1"
+                or control.get("probe") != "overte_e2e_probe.js"
+                or not isinstance(control.get("lastCommandId"), str)):
+            raise ValueError("probe control has an invalid Android debug contract")
+
     domain = value["domain"]
     _require_exact_fields(
         domain, {"connected", "hostname", "id", "protocol", "serverless"},
@@ -581,6 +594,8 @@ def validate_probe_snapshot(value: object) -> dict:
         raise ValueError("probe domain requires connection, identity and protocol state")
     if domain["connected"] and (not domain["hostname"] or not domain["id"]):
         raise ValueError("connected probe domain requires hostname and id")
+    if domain["serverless"] and domain["protocol"] != "file":
+        raise ValueError("serverless probe domain requires file protocol")
 
     input_state = value["input"]
     _require_exact_fields(
@@ -588,7 +603,6 @@ def validate_probe_snapshot(value: object) -> dict:
     if (input_state.get("dominantHand") not in {"left", "right", "unknown"}
             or not isinstance(input_state.get("advancedMovementControls"), bool)):
         raise ValueError("probe input requires dominantHand and advancedMovementControls")
-
     scene = value["scene"]
     scene_fields = {
         "avatarAboveFloor", "collisionWall", "domainMarkerCount", "domainMarkers",
@@ -629,9 +643,11 @@ def validate_probe_snapshot(value: object) -> dict:
 
     avatar = value["avatar"]
     _require_exact_fields(avatar, {
-        "bodyYawDegrees", "flying", "flyingEnabled", "inAir", "position", "velocity",
+        "bodyYawDegrees", "feetPosition", "flying", "flyingEnabled", "inAir",
+        "position", "velocity",
     }, "probe avatar")
     _validate_vector(avatar.get("position"), "probe avatar.position")
+    _validate_vector(avatar.get("feetPosition"), "probe avatar.feetPosition")
     _validate_vector(avatar.get("velocity"), "probe avatar.velocity")
     _finite_number(avatar.get("bodyYawDegrees"), "probe avatar.bodyYawDegrees")
     for field in ("inAir", "flying", "flyingEnabled"):
