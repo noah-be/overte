@@ -17,6 +17,5 @@
     "ci/ios/parity-runner-v003": "ongoing_local_work_review"
   },
   "keep_label": "keep-branch",
-  "archive_tag_prefix": "archive/merged/",
   "artifact_retention_days": 30
 }

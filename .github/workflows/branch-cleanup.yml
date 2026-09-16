@@ -10,7 +10,7 @@ on: # zizmor: ignore[dangerous-triggers] Merged-PR notification runs only truste
   workflow_dispatch:
     inputs:
       mode:
-        description: Report eligible branches or archive and delete them
+        description: Report eligible branches or back up and delete them
         type: choice
         required: true
         default: report
@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   cleanup:
-    name: Verify, archive, and retire integrated branches
+    name: Verify, back up, and retire integrated branches
     if: >-
       github.repository == 'noah-be/overte' &&
       github.repository_id == '1319052603' &&
@@ -75,7 +75,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          python3 tools/branch-cleanup/cleanup.py archive \
+          python3 tools/branch-cleanup/cleanup.py backup \
             --plan "$RUNNER_TEMP/branch-cleanup/plan.json" \
             --output-dir "$RUNNER_TEMP/branch-cleanup/backup"
 
@@ -95,7 +95,7 @@ jobs:
           retention-days: 30
           compression-level: 0
 
-      - name: Recheck, create protected archive tags, and delete exact branch heads
+      - name: Recheck and delete exact branch heads
         if: >-
           fromJSON(steps.plan.outputs.candidate_count || '0') > 0 &&
           (github.event_name != 'workflow_dispatch' || inputs.mode == 'apply')

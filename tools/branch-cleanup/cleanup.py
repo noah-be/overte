@@ -22,7 +22,6 @@ REPOSITORY = "noah-be/overte"
 REPOSITORY_ID = 1319052603
 REMOTE = "https://github.com/noah-be/overte.git"
 WORKFLOW = ".github/workflows/branch-cleanup.yml"
-ARCHIVE_PREFIX = "archive/merged/"
 PERMANENT = {
     "main", "android-main", "android-phone", "android-vr", "android-vr-pico",
     "apple-main", "apple-ios", "linux-main", "windows-main",
@@ -81,7 +80,6 @@ def validate_policy(value):
     require(value.get("repository") == REPOSITORY and value.get("repository_id") == REPOSITORY_ID, "foreign_repository_policy")
     names = value.get("permanent_branches", [])
     require(isinstance(names, list) and len(names) == len(PERMANENT) and set(names) == PERMANENT, "permanent_branch_policy_changed")
-    require(value.get("archive_tag_prefix") == ARCHIVE_PREFIX, "unsafe_archive_prefix")
     require(value.get("artifact_retention_days") == 30, "unexpected_backup_retention")
     require(value.get("keep_label") == "keep-branch", "unexpected_keep_label")
     holds = value.get("holds")
@@ -157,27 +155,6 @@ class Github:
         require(value.get("default_branch") == "main", "default_branch_changed")
         require(value.get("delete_branch_on_merge") is False, "native_cleanup_would_bypass_guards")
         return value
-
-    def verify_archive_protection(self):
-        rulesets = self.get("rulesets?includes_parents=true&per_page=100", paginate=True)
-        for summary in rulesets:
-            if summary.get("target") != "tag" or summary.get("enforcement") != "active":
-                continue
-            ruleset = self.get("rulesets/" + str(int(summary["id"])))
-            if ruleset.get("target") != "tag" or ruleset.get("enforcement") != "active":
-                continue
-            conditions = ruleset.get("conditions", {}).get("ref_name", {})
-            # Require the reviewed broad archive rule, not a coincidental tag match.
-            if "refs/tags/archive/**" not in conditions.get("include", []):
-                continue
-            if conditions.get("exclude"):
-                continue
-            types = {rule.get("type") for rule in ruleset.get("rules", [])}
-            if {"deletion", "non_fast_forward"} <= types:
-                # Non-admin API callers cannot see bypass_actors. Do not invent an
-                # empty list: protection here means the active restriction rules.
-                return
-        raise CleanupError("archive_tag_protection_missing")
 
     def branches(self):
         rows = self.get("branches?per_page=100", paginate=True)
@@ -379,8 +356,6 @@ def make_plan(github, policy):
     for base in {r["base"] for r in candidates}:
         rules = github.get("rules/branches/" + urllib.parse.quote(base, safe=""))
         require({"deletion", "non_fast_forward"} <= {r["type"] for r in rules}, "target_history_not_protected")
-    if candidates:
-        github.verify_archive_protection()
     return {"schema": 1, "repository": REPOSITORY, "repository_id": REPOSITORY_ID,
             "source_sha": indexed["main"]["sha"], "policy_sha256": hashlib.sha256(json.dumps(policy, sort_keys=True).encode()).hexdigest(),
             "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
@@ -417,40 +392,6 @@ class GitStore:
         for row in candidates:
             require(self.git("rev-parse", "refs/heads/" + row["branch"]).strip() == row["sha"], "candidate_changed_during_fetch")
 
-    def remote_archive(self, sha):
-        tag = "refs/tags/" + ARCHIVE_PREFIX + sha
-        output = self.authenticated("ls-remote", "--tags", "cleanup", tag, tag + "^{}")
-        return {ref: oid for oid, ref in (line.split() for line in output.splitlines())}
-
-    def verify_archives(self, candidates):
-        for row in candidates:
-            name = "refs/tags/" + ARCHIVE_PREFIX + row["sha"]
-            remote = self.remote_archive(row["sha"])
-            require(name in remote and remote.get(name + "^{}") == row["sha"], "annotated_recovery_tag_missing_or_mismatched")
-
-    def backup_tags(self, candidates, github):
-        github.verify_archive_protection()
-        refs = []
-        seen = set()
-        for row in candidates:
-            sha = row["sha"]
-            if sha in seen:
-                continue
-            seen.add(sha)
-            name = ARCHIVE_PREFIX + sha
-            remote = self.remote_archive(sha)
-            if remote:
-                require(remote.get("refs/tags/" + name + "^{}") == sha, "recovery_tag_collision")
-                continue
-            self.git("-c", "user.name=Overte branch cleanup", "-c", "user.email=branch-cleanup@users.noreply.github.com",
-                     "tag", "-a", name, sha, "-m", "Verified integrated branch recovery\nRepository: " + REPOSITORY + "\nOriginal branch: " + row["branch"] + "\nCommit: " + sha)
-            refs.append("refs/tags/" + name + ":refs/tags/" + name)
-        if refs:
-            self.verify_destination()
-            github.verify_owner()
-            self.authenticated("push", "--atomic", "cleanup", *sorted(set(refs)))
-        self.verify_archives(candidates)
-
     def delete(self, candidates, github):
         if not candidates:
             return []
@@ -458,7 +399,6 @@ class GitStore:
                     and SHA.fullmatch(r["sha"]) for r in candidates), "invalid_delete_candidate")
         require(len({r["branch"] for r in candidates}) == len(candidates), "duplicate_delete_candidate")
         require(all(r["branch"] not in PERMANENT and scope_target(r["branch"]) for r in candidates), "protected_or_unmanaged_delete")
-        self.verify_archives(candidates)
         self.verify_destination()
         github.verify_owner()
         output = self.authenticated("push", "--porcelain", "--atomic",
@@ -542,9 +482,9 @@ def main():
     plan_parser = sub.add_parser("plan")
     plan_parser.add_argument("--output", type=Path, required=True)
     plan_parser.add_argument("--report", type=Path, required=True)
-    archive_parser = sub.add_parser("archive")
-    archive_parser.add_argument("--plan", type=Path, required=True)
-    archive_parser.add_argument("--output-dir", type=Path, required=True)
+    backup_parser = sub.add_parser("backup")
+    backup_parser.add_argument("--plan", type=Path, required=True)
+    backup_parser.add_argument("--output-dir", type=Path, required=True)
     apply_parser = sub.add_parser("apply")
     apply_parser.add_argument("--plan", type=Path, required=True)
     apply_parser.add_argument("--report", type=Path, required=True)
@@ -566,7 +506,7 @@ def main():
             if os.environ.get("GITHUB_OUTPUT"):
                 with Path(os.environ["GITHUB_OUTPUT"]).open("a") as out:
                     out.write("candidate_count=" + str(plan["candidate_count"]) + "\n")
-        elif args.command == "archive":
+        elif args.command == "backup":
             trusted_runtime()
             plan = load_plan(args.plan)
             verify_checkout(root, plan["source_sha"])
@@ -616,29 +556,13 @@ def main():
                     verify_bundle(bundle, plan["candidates"], restore)
                     store = GitStore(restore)
                     store.verify_destination()
-                    # Some historical commits need a permission that the
-                    # repository GITHUB_TOKEN intentionally does not have.
-                    # Keep only those branches; do not block unrelated archives
-                    # or introduce a personal-token fallback.
-                    archived = []
-                    for sha in sorted({r["sha"] for r in selected}):
-                        group = [r for r in selected if r["sha"] == sha]
-                        try:
-                            store.backup_tags(group, github)
-                        except CleanupError:
-                            for row in group:
-                                report["held"][row["branch"]] = ["recovery_tag_not_verified"]
-                        else:
-                            archived.extend(group)
-                    selected = archived
-                    # Recheck GitHub ownership/activity/protection after saving the
-                    # permanent tags; the SHA lease protects the final ref update.
+                    # Recheck activity, ancestry, and target protection after the
+                    # independent restore; exact SHA leases guard the ref update.
                     final = make_plan(github, policy)
                     final_candidates = {r["branch"]: r for r in final["candidates"]}
                     require(final["source_sha"] == plan["source_sha"], "trusted_main_changed_before_delete")
                     require(all(final_candidates.get(r["branch"]) == r for r in selected), "activity_changed_before_delete")
                     report["deleted"] = store.delete(selected, github)
-                    report["archive_tags"] = [ARCHIVE_PREFIX + r["sha"] for r in selected]
                     report["backup_artifact_id"] = args.backup_artifact_id
             report["status"] = "completed"
     except (CleanupError, OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
