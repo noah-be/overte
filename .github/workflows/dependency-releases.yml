@@ -1,0 +1,55 @@
+name: Dependency release policy
+
+on:
+  pull_request:
+  push:
+    branches: ['**']
+  release:
+    types: [published, edited, deleted]
+  schedule:
+    - cron: '43 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-releases-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    name: dependency-release-policy
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify the central policy and consumers
+        env:
+          TARGET_BRANCH: ${{ github.base_ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          python3 tools/dependency-releases/test.py
+          python3 tools/dependency-releases/check.py check
+          if [[ "$TARGET_BRANCH" != main && "$GITHUB_EVENT_NAME" == pull_request ]]; then
+            git fetch --no-tags https://github.com/noah-be/overte.git main
+            python3 tools/dependency-releases/check.py check --canonical-ref FETCH_HEAD
+          fi
+
+  inventory:
+    name: dependency-release-inventory
+    if: github.event_name != 'pull_request' && github.event_name != 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Audit every live branch, release, tag and archive digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/dependency-releases/check.py audit

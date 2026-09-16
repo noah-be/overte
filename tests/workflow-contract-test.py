@@ -321,6 +321,7 @@ class RulesetManifestContracts(unittest.TestCase):
             self.assertFalse(parameters["do_not_enforce_on_create"])
             expected_checks = [{"context": context, "integration_id": 15368}]
             if name == "Permanent branch governance":
+                expected_checks.insert(0, {"context": "dependency-release-policy", "integration_id": 15368})
                 expected_checks.append(
                     {"context": "sync-test-reuse", "integration_id": 15368}
                 )
