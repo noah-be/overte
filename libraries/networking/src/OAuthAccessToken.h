@@ -15,6 +15,7 @@
 #include <QtCore/QObject>
 #include <QtCore/QDateTime>
 #include <QtCore/QJsonObject>
+#include "OAuthTokenValidation.h"
 
 class OAuthAccessToken : public QObject {
     Q_OBJECT
@@ -24,9 +25,18 @@ public:
     OAuthAccessToken(const OAuthAccessToken& otherToken);
     OAuthAccessToken& operator=(const OAuthAccessToken& otherToken);
     
-    QByteArray authorizationHeaderValue() const { return QString("Bearer %1").arg(token).toUtf8(); }
+    QByteArray authorizationHeaderValue() const {
+        return isExpired() ? QByteArray() : QString("Bearer %1").arg(token).toUtf8();
+    }
      
-    bool isExpired() const { return expiryTimestamp != -1 && expiryTimestamp <= QDateTime::currentMSecsSinceEpoch(); }
+    bool isExpired() const {
+        // Preserve the existing explicit raw-token API's no-expiry sentinel.
+        // JSON responses always require a positive lifetime and Bearer type.
+        return !overte::network::validBearerCredential(token) ||
+            (tokenType.isEmpty() ? expiryTimestamp != -1 :
+                tokenType.compare(QStringLiteral("Bearer"), Qt::CaseInsensitive) != 0) ||
+            (expiryTimestamp != -1 && expiryTimestamp <= QDateTime::currentMSecsSinceEpoch());
+    }
     
     QString token;
     QString refreshToken;

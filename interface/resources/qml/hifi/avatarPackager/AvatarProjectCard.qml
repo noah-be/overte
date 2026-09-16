@@ -1,5 +1,5 @@
 import QtQuick 2.0
-import QtGraphicalEffects 1.0
+import "../../controls" as CpuControls
 
 import "../../controlsUit" 1.0 as HifiControls
 import "../../stylesUit" 1.0
@@ -45,6 +45,16 @@ Item {
             PropertyChanges { target: path; color: pressedTextColor }
         }
     ]
+
+    CpuControls.CpuDropShadow {
+        id: shadow
+        anchors.fill: background
+        radius: 4
+        horizontalOffset: 0
+        verticalOffset: 4
+        color: Qt.rgba(0, 0, 0, 0.25)
+        source: background
+    }
 
     Rectangle {
         id: background
@@ -103,13 +113,5 @@ Item {
         }
     }
 
-    DropShadow {
-        id: shadow
-        anchors.fill: background
-        radius: 4
-        horizontalOffset: 0
-        verticalOffset: 4
-        color: Qt.rgba(0, 0, 0, 0.25)
-        source: background
-    }
+
 }

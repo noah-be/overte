@@ -1,5 +1,4 @@
 import QtQuick 2.3
-import QtGraphicalEffects 1.0
 
 import "."
 
@@ -8,46 +7,42 @@ Overlay {
 
     AnimatedImage {
         id: image
-        property bool scaleFix: true
+        // Zero extent means the remaining image, including after source replacement.
         property real xStart: 0
         property real yStart: 0
         property real xSize: 0
         property real ySize: 0
-        property real imageScale: 1.0
-        property var resizer: Timer {
-            interval: 50
-            repeat: false
-            running: false
-            onTriggered: {
-               recalculateMargins();
-            }
-        }
-
-        onSourceSizeChanged: {
-            if (sourceSize.width !== 0 && sourceSize.height !== 0 && progress === 1.0 && scaleFix) {
-                scaleFix = false;
-                resizer.start();
-            }
-        }
+        onSourceSizeChanged: root.recalculateMargins()
+        onStatusChanged: root.recalculateMargins()
 
         anchors.fill: parent
     }
 
-    function recalculateMargins() {
-        if (image.xSize === 0) {
-            image.xSize = image.sourceSize.width - image.xStart;
-        }
-        if (image.ySize === 0) {
-            image.ySize = image.sourceSize.height - image.yStart;
-        }
+    onWidthChanged: recalculateMargins()
+    onHeightChanged: recalculateMargins()
 
-        image.anchors.leftMargin = -image.xStart * root.width / image.xSize;
-        image.anchors.topMargin = -image.yStart * root.height / image.ySize;
-        image.anchors.rightMargin = (image.xStart + image.xSize - image.sourceSize.width) * root.width / image.xSize;
-        image.anchors.bottomMargin = (image.yStart + image.ySize - image.sourceSize.height) * root.height / image.ySize;
+    function recalculateMargins() {
+        if (!image) { return; }
+        var sourceWidth = image.sourceSize.width;
+        var sourceHeight = image.sourceSize.height;
+        var cropWidth = image.xSize === 0 ? sourceWidth - image.xStart : image.xSize;
+        var cropHeight = image.ySize === 0 ? sourceHeight - image.yStart : image.ySize;
+        if (image.status !== Image.Ready || sourceWidth <= 0 || sourceHeight <= 0 ||
+                !isFinite(cropWidth) || !isFinite(cropHeight) || cropWidth <= 0 || cropHeight <= 0 ||
+                !isFinite(image.xStart) || !isFinite(image.yStart)) {
+            image.anchors.leftMargin = 0;
+            image.anchors.topMargin = 0;
+            image.anchors.rightMargin = 0;
+            image.anchors.bottomMargin = 0;
+            return;
+        }
+        image.anchors.leftMargin = -image.xStart * root.width / cropWidth;
+        image.anchors.topMargin = -image.yStart * root.height / cropHeight;
+        image.anchors.rightMargin = (image.xStart + cropWidth - sourceWidth) * root.width / cropWidth;
+        image.anchors.bottomMargin = (image.yStart + cropHeight - sourceHeight) * root.height / cropHeight;
     }
 
-    ColorOverlay {
+    ItemTint {
         id: color
         anchors.fill: image
         source: image

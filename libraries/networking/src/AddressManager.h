@@ -248,6 +248,11 @@ public:
 
     QUrl getDomainURL() { return _domainURL; }
 
+    // Installed only by the full client, never by assignment clients. This
+    // C++-only method is not exposed as a script/QML override of visibility.
+    // It controls HTTP lookup work, not domain transport acceptance state.
+    void setClientLookupVisibility(bool foreground);
+
 public slots:
     /*@jsdoc
      * Takes you to a specified directory services address.
@@ -513,7 +518,7 @@ private:
     bool setHost(const QString& host, LookupTrigger trigger, quint16 port = 0);
     bool setDomainInfo(const QUrl& domainURL, LookupTrigger trigger);
 
-    const JSONCallbackParameters& apiCallbackParameters();
+    JSONCallbackParameters apiCallbackParameters();
 
     bool handleUrl(const QUrl& lookupUrl, LookupTrigger trigger = UserInput, const QString& lookupUrlInString = "");
 
@@ -521,7 +526,7 @@ private:
     void handlePath(const QString& path, LookupTrigger trigger, bool wasPathOnly = false);
     bool handleViewpoint(const QString& viewpointString, bool shouldFace, LookupTrigger trigger,
                          bool definitelyPathOnly = false, const QString& pathString = QString());
-    bool handleUsername(const QString& lookupString);
+    bool handleUsername(const QString& lookupString, const QUrl& lookupUrl, LookupTrigger trigger);
     bool handleDomainID(const QString& host);
 
     void attemptPlaceNameLookup(const QString& lookupString, const QString& overridePath, LookupTrigger trigger);
@@ -547,6 +552,10 @@ private:
     QString _newHostLookupPath;
 
     QUrl _previousAPILookup;
+    overte::network::RequestScope _lookupRequests;
+    bool _clientLookupPolicy { false };
+    bool _lookupForeground { true };
+    bool _lookupNeedsExplicitIntent { false };
 };
 
 Q_DECLARE_METATYPE(AddressManager::LookupTrigger)

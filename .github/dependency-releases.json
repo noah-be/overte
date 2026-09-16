@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "repository": "noah-be/overte",
+  "bundles": {
+    "phone": {
+      "tag": "android-phone-16k-deps-v3",
+      "tag_object": "a3d7b439ae4067d184d1335c50072687b9866c87",
+      "assets": {
+        "android-phone-16k-conan.tgz": "092fde910f2dcc3eb0c2d6cff819f2e6264de4e176750ed1f7625a9a21e926be"
+      }
+    },
+    "pico": {
+      "tag": "pico4-deps-v1",
+      "tag_object": "c38630073d0c0c20240a17ad18e29cbd114949e6",
+      "assets": {
+        "pico4-node-conan.tgz": "d568d1ab8b6b17b2852b84108e92dcfbbb750818a811a1a2622e81be16f8ef2f",
+        "pico4-qt-conan.tgz": "e9265b30ad84e1bba045e68fda0de380ab83776a65a339b9121eaee46073de25",
+        "pico4-runtime.tgz": "6ecf0b757cd94c5071aa1dfdee71d4c96bdf1054d4dc47d1abc7040777116e46"
+      }
+    }
+  }
+}

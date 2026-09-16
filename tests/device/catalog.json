@@ -198,7 +198,7 @@
       "description": "Reload the fixture and verify it restores a free grounded spawn before vertical locomotion.",
       "command": ["modules/scene_reload.py"],
       "suites": ["e2e-core", "e2e-recovery"],
-      "requires": ["probe.snapshot", "scene.reload"],
+      "requires": ["probe.snapshot", "scene.load", "scene.reload"],
       "timeoutSeconds": 120
     },
     {

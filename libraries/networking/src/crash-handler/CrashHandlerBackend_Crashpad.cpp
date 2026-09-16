@@ -42,7 +42,6 @@ Q_LOGGING_CATEGORY(crash_handler, "overte.crash_handler")
 #endif
 
 #include <BuildInfo.h>
-#include "../FingerprintUtils.h"
 #include "../UserActivityLogger.h"
 #include <UUID.h>
 
@@ -341,15 +340,15 @@ static QString findBinaryDir() {
     // Find outselves by looking at /proc/<PID>/exe
     pid_t ourPid = getpid();
     QString exeLink = QString("/proc/%1/exe").arg(ourPid);
-    qCDebug(crash_handler) << "Looking at" << exeLink;
+    qCDebug(crash_handler) << "Resolving executable link";
 
     QFileInfo exeLinkInfo(exeLink);
     if (exeLinkInfo.isSymLink()) {
         QFileInfo exeInfo(exeLinkInfo.symLinkTarget());
-        qCDebug(crash_handler) << "exe symlink points at" << exeInfo;
+        qCDebug(crash_handler) << "Executable link resolved";
         return exeInfo.absoluteDir().absolutePath();
     } else {
-        qCWarning(crash_handler) << exeLink << "isn't a symlink. /proc not mounted?";
+        qCWarning(crash_handler) << "Executable link unavailable";
     }
 
 #endif
@@ -376,13 +375,11 @@ bool startCrashHandler(std::string appPath, std::string crashURL, std::string cr
     std::vector<std::string> arguments;
 
     std::map<std::string, std::string> annotations;
-    annotations["sentry[release]"] = crashToken;
+    annotations["sentry[release]"] = BuildInfo::VERSION;
     annotations["sentry[contexts][app][app_version]"] = BuildInfo::VERSION;
     annotations["sentry[contexts][app][app_build]"] = BuildInfo::BUILD_NUMBER;
     annotations["build_type"] = BuildInfo::BUILD_TYPE_STRING;
 
-    auto machineFingerPrint = uuidStringWithoutCurlyBraces(FingerprintUtils::getMachineFingerprint());
-    annotations["machine_fingerprint"] = machineFingerPrint.toStdString();
 
     arguments.push_back("--no-rate-limit");
 
@@ -410,13 +407,13 @@ bool startCrashHandler(std::string appPath, std::string crashURL, std::string cr
     }
 
     if (!interfaceDir.exists(CRASHPAD_HANDLER_NAME)) {
-        qCCritical(crash_handler) << "Failed to find" << CRASHPAD_HANDLER_NAME << "in" << interfaceDir << ", can't start crash handler";
+        qCCritical(crash_handler) << "Crash handler executable unavailable";
         return false;
     }
 
     const std::string CRASHPAD_HANDLER_PATH = interfaceDir.filePath(CRASHPAD_HANDLER_NAME).toStdString();
 
-    qCDebug(crash_handler) << "Crashpad handler found at" << QString::fromStdString(CRASHPAD_HANDLER_PATH);
+    qCDebug(crash_handler) << "Crashpad handler found";
 
     // Setup different file paths
     base::FilePath::StringType dbPath;
@@ -427,10 +424,10 @@ bool startCrashHandler(std::string appPath, std::string crashURL, std::string cr
     base::FilePath db(dbPath);
     base::FilePath handler(handlerPath);
 
-    qCDebug(crash_handler) << "Opening crashpad database" << QString::fromStdString(crashpadDbPath);
+    qCDebug(crash_handler) << "Opening crashpad database";
     crashpadDatabase = crashpad::CrashReportDatabase::Initialize(db);
     if (crashpadDatabase == nullptr || crashpadDatabase->GetSettings() == nullptr) {
-        qCCritical(crash_handler) << "Failed to open crashpad database" << QString::fromStdString(crashpadDbPath);
+        qCCritical(crash_handler) << "Failed to open crashpad database";
         return false;
     }
 
@@ -483,7 +480,7 @@ void setCrashReportingEnabled(bool enabled) {
             qCWarning(crash_handler) << "Failed to get pending reports";
         } else {
             for (const auto& report : pendingReports) {
-                qCDebug(crash_handler) << "Deleted crash report" << QString::fromStdString(report.uuid.ToString());
+                qCDebug(crash_handler) << "Deleted crash report";
                 crashpadDatabase->DeleteReport(report.uuid);
             }
         }
