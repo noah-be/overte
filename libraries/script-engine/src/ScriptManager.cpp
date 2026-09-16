@@ -2205,6 +2205,32 @@ bool ScriptManager::rejectEntityScriptWithoutConsent(const EntityItemID& entityI
         default:
             break;
     }
+    // qrc resources are immutable files embedded in the signed application package. They are
+    // client code, rather than code supplied by a world, and are required by bundled serverless
+    // interactions such as the tutorial portal. Keep the same scoped callback token and identity
+    // checks used by reviewed scripts, while exempting only this non-network, non-file scheme.
+    const QUrl sourceURL(scriptURL);
+    if (_context == ENTITY_CLIENT_SCRIPT &&
+        sourceURL.scheme().compare(QStringLiteral("qrc"), Qt::CaseInsensitive) == 0) {
+        if (isStopping() || _isFinished) { return true; }
+        auto existing = _entityScriptConsentRequests.value(entityID).value(scriptURL);
+        if (existing) { return !existing->allowed(); }
+        // Late callbacks cannot manufacture a new authorization, even for
+        // bundled resources. Only a current load request can create one.
+        if (!requestConsent) { return true; }
+        if (!_entityScriptConsentScope) {
+            _entityScriptConsentScope = std::make_shared<EntityScriptConsentScope>(QStringLiteral("qrc:///"));
+            const auto weakManager = weak_from_this();
+            _entityScriptConsentScope->onInvalidated([weakManager] {
+                if (const auto manager = weakManager.lock()) { manager->stop(); }
+            });
+        }
+        auto bundled = std::make_shared<EntityScriptConsentRequest>(
+            _entityScriptConsentScope, scriptURL, forceRedownload);
+        if (!bundled->resolve(true)) { return true; }
+        _entityScriptConsentRequests[entityID][scriptURL] = bundled;
+        return false;
+    }
     if (_context != ENTITY_CLIENT_SCRIPT || !_entityScriptConsentScope ||
         !_entityScriptConsentScope->active() || !_entityScriptConsentPrompt || isStopping() || _isFinished) {
         updateEntityScriptStatus(entityID, scriptURL, EntityScriptStatus::ERROR_LOADING_SCRIPT,

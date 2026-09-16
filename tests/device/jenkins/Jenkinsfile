@@ -135,6 +135,11 @@ def runDeviceSuite(String suite, int timeoutMinutes, String resultName = '') {
         configuration.add("OVERTE_APPIUM_TARGETS=${env.OVERTE_IOS_JOB_TARGET_CONFIG}")
         configuration.add("OVERTE_IOS_JOB_TARGET_CONFIG=${env.OVERTE_IOS_JOB_TARGET_CONFIG}")
         configuration.add("OVERTE_IOS_DDI_ROOT=${params.IOS_DDI_ROOT.trim()}")
+    } else if (profile == 'appium-android') {
+        configuration.add("OVERTE_APPIUM_TARGETS=${env.OVERTE_ANDROID_JOB_TARGET_CONFIG}")
+        configuration.add(
+            "OVERTE_ANDROID_JOB_TARGET_CONFIG=${env.OVERTE_ANDROID_JOB_TARGET_CONFIG}"
+        )
     }
     if (suite == 'accessibility') {
         configuration.add('OVERTE_E2E_TABLET_OPEN_ACCESSIBILITY_ID=OverteTabletOpen')
@@ -483,8 +488,34 @@ pipeline {
                         "${env.OVERTE_EXTERNAL_RESULT_ROOT}/private-ios-artifacts"
                     env.OVERTE_IOS_JOB_TARGET_CONFIG =
                         "${env.OVERTE_EXTERNAL_RESULT_ROOT}/private-ios-targets.json"
+                    env.OVERTE_ANDROID_JOB_TARGET_CONFIG =
+                        "${env.OVERTE_EXTERNAL_RESULT_ROOT}/private-android-targets.json"
                     env.OVERTE_BUILD_ISOLATION_ROOT =
                         "${pwd(tmp: true)}/overte-e2e-isolation/${env.BUILD_TAG}"
+                }
+            }
+        }
+
+        stage('Freeze Android Phone target') {
+            when { expression { resolvedProfile() == 'appium-android' } }
+            steps {
+                withEnv([
+                    "OVERTE_CI_WORKSPACE=${env.WORKSPACE}",
+                    "OVERTE_EXTERNAL_RESULT_ROOT=${env.OVERTE_EXTERNAL_RESULT_ROOT}",
+                    "OVERTE_ANDROID_JOB_TARGET_CONFIG=${env.OVERTE_ANDROID_JOB_TARGET_CONFIG}",
+                ]) {
+                    lock(resource: "overte-e2e-profile-${resolvedProfile()}",
+                         inversePrecedence: true) {
+                        lock(resource: deviceResource(resolvedProfile()),
+                             inversePrecedence: true) {
+                            withCredentials([string(
+                                credentialsId: targetCredential(resolvedProfile()),
+                                variable: 'OVERTE_DEVICE_TARGET_SELECTOR'
+                            )]) {
+                                script { ciPython('android-target-sync') }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -662,6 +693,10 @@ pipeline {
                             cleanupEnvironment.add(
                                 "OVERTE_APPIUM_TARGETS=${env.OVERTE_IOS_JOB_TARGET_CONFIG}"
                             )
+                        } else if (profile == 'appium-android') {
+                            cleanupEnvironment.add(
+                                "OVERTE_APPIUM_TARGETS=${env.OVERTE_ANDROID_JOB_TARGET_CONFIG}"
+                            )
                         }
                         withEnv(cleanupEnvironment) {
                             lock(resource: deviceResource(profile), inversePrecedence: true) {
@@ -678,6 +713,20 @@ pipeline {
                         }
                     }
                 } finally {
+                    if (resolvedProfile() == 'appium-android' &&
+                            env.OVERTE_EXTERNAL_RESULT_ROOT?.trim()) {
+                        withEnv([
+                            "OVERTE_CI_WORKSPACE=${env.WORKSPACE}",
+                            "OVERTE_EXTERNAL_RESULT_ROOT=${env.OVERTE_EXTERNAL_RESULT_ROOT}",
+                            "OVERTE_ANDROID_JOB_TARGET_CONFIG=${env.OVERTE_ANDROID_JOB_TARGET_CONFIG}",
+                        ]) {
+                            int privateCleanupStatus = ciPython(
+                                'cleanup-android-private', true)
+                            if (privateCleanupStatus != 0) {
+                                error("Private Android target cleanup failed with exit code ${privateCleanupStatus}")
+                            }
+                        }
+                    }
                     if (resolvedProfile() == 'appium-ios' &&
                             env.OVERTE_EXTERNAL_RESULT_ROOT?.trim()) {
                         withEnv([
