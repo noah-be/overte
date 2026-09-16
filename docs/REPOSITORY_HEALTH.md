@@ -7,7 +7,7 @@ workflow checks out the trusted default branch.
 
 The audit checks these independently reported areas:
 
-- all eight parent-to-child edges in the permanent branch hierarchy from
+- all six parent-to-child edges in the permanent branch hierarchy from
   [the branch policy](../.github/branch-policy.json);
 - the GitHub Issue task SSOT, workflow-label rules, Ready and Active WIP limits,
   blocked-task details, and pinned reference Issue #599;
@@ -38,7 +38,7 @@ tracks daylight saving time; GitHub can still delay/drop scheduled invocations
 The next nightly invocation retries; an integrator can explicitly dispatch after
 finishing propagation. No automatic midnight completion or retry-time guarantee.
 
-Admission checks all nine permanent heads, exact-SHA ancestry, same-repository
+Admission checks all seven permanent heads, exact-SHA ancestry, same-repository
 open governed propagation PRs and all nonterminal parent-qualification runs.
 Active propagation yields `DEFERRED_PROPAGATION`, with every audit area `NOT_RUN`.
 Recent unresolved hierarchy drift has a30-minute grace bridging the gap between

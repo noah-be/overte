@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "repository": "noah-be/overte",
+  "repository_id": 1319052603,
+  "permanent_branches": [
+    "main",
+    "android-main",
+    "android-phone",
+    "android-vr",
+    "android-vr-pico",
+    "apple-main",
+    "apple-ios"
+  ],
+  "holds": {
+    "ci/ios/parity-runner-v003": "ongoing_local_work_review"
+  },
+  "keep_label": "keep-branch",
+  "artifact_retention_days": 30
+}

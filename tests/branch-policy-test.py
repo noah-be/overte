@@ -132,8 +132,7 @@ class BranchPolicyTests(unittest.TestCase):
             set(self.branches),
             {
                 "main", "android-main", "android-phone", "android-vr",
-                "android-vr-pico", "apple-main", "apple-ios", "linux-main",
-                "windows-main",
+                "android-vr-pico", "apple-main", "apple-ios",
             },
         )
 
@@ -172,16 +171,27 @@ class BranchPolicyTests(unittest.TestCase):
             update["parameters"], {"update_allows_fetch_and_merge": False}
         )
 
-    def test_desktop_operating_system_branches_are_direct_main_children(self):
-        self.assertEqual(self.branches["linux-main"].parent, "main")
-        self.assertEqual(self.branches["windows-main"].parent, "main")
-        self.assertEqual(self.branches["linux-main"].scope, "linux")
-        self.assertEqual(self.branches["windows-main"].scope, "windows")
-        for target in ("linux-main", "windows-main"):
+    def test_desktop_changes_target_main_without_dedicated_branch_scopes(self):
+        for platform in ("linux", "windows"):
             self.assertEqual(
-                BRANCH_POLICY.classify_pull_request(self.branches, target, "main"),
-                "downstream-sync",
+                BRANCH_POLICY.classify_pull_request(
+                    self.branches, "main", f"fix/main/{platform}-build"
+                ),
+                "scoped-change",
             )
+            retired = platform + "-main"
+            self.assertNotIn(retired, self.branches)
+            for head in ("main", f"fix/{platform}/build", f"reconcile/{platform}/refresh"):
+                with self.subTest(base=retired, head=head):
+                    with self.assertRaises(BRANCH_POLICY.PolicyError):
+                        BRANCH_POLICY.classify_pull_request(self.branches, retired, head)
+            for base in self.branches:
+                for head in (retired, f"fix/{platform}/build", f"task/{platform}/123-build",
+                             f"sync/{platform}/refresh", f"reconcile/{platform}/refresh",
+                             f"promote/{platform}/build"):
+                    with self.subTest(base=base, head=head):
+                        with self.assertRaises(BRANCH_POLICY.PolicyError):
+                            BRANCH_POLICY.classify_pull_request(self.branches, base, head)
 
     def test_every_child_accepts_its_direct_parent(self):
         for branch in self.branches.values():
@@ -404,8 +414,7 @@ class BranchPolicyTests(unittest.TestCase):
             ("android-vr-pico", "android-phone"),
             ("apple-main", "apple-ios"),
             ("main", "android-main"),
-            ("main", "linux-main"),
-            ("linux-main", "windows-main"),
+            ("android-phone", "apple-ios"),
         )
         for base, head in blocked:
             with self.subTest(base=base, head=head):

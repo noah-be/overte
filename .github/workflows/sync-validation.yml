@@ -65,16 +65,25 @@ jobs:
           python3 trusted/tools/sync-test-reuse/differential.py
           --candidate candidate --profile "$PROFILE"
           --changed-paths changed-paths.txt
-      - name: Set up full-fallback Python
-        if: inputs.mode == 'fallback'
+      - name: Set up candidate Python
+        if: inputs.mode == 'fallback' || inputs.profile != 'documentation'
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
-      - name: Set up full-fallback Node.js
-        if: inputs.mode == 'fallback'
+      - name: Set up candidate Node.js
+        if: inputs.mode == 'fallback' || inputs.profile != 'documentation'
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: "22"
+      - name: Run product suites not covered by shared parent qualification
+        if: inputs.mode == 'reuse' && inputs.profile != 'documentation'
+        working-directory: candidate
+        env:
+          GH_TOKEN: ""
+          GITHUB_TOKEN: ""
+        run: >-
+          python3 tests/run-project-tests.py --platform-only --timeout 240
+          --junit build/test-results/sync-platform-tests.xml
       - name: Install full-fallback QML runtime
         if: inputs.mode == 'fallback'
         run: |

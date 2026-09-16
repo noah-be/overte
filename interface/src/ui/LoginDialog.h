@@ -16,6 +16,7 @@
 #define hifi_LoginDialog_h
 
 #include <OffscreenQmlDialog.h>
+#include <RequestCancellation.h>
 
 class QNetworkReply;
 
@@ -43,6 +44,7 @@ public:
 signals:
     void handleLoginCompleted();
     void handleLoginFailed();
+    void handleDomainLoginFailed(const QString& reason);
 
     void handleLinkCompleted();
     void handleLinkFailed(QString error);
@@ -98,6 +100,9 @@ protected slots:
 
     Q_INVOKABLE bool getDomainLoginRequested() const;
     Q_INVOKABLE QString getDomainLoginDomain() const;
+
+private:
+    mutable overte::network::RequestTicket _domainLoginRequest;
 
 };
 

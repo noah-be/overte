@@ -10,7 +10,7 @@
 the documentation merge SHA and its mandatory final forward propagation were
 created.
 
-## Final remote structure
+## Historical remote structure at the facts freeze
 
 - exactly nine permanent branches:
   `main`, `android-main`, `android-phone`, `android-vr`, `android-vr-pico`,
@@ -22,15 +22,22 @@ created.
   documentation commit is propagated through the same 4 + 3 + 1 waves before
   Session 53X closes.
 
-The nine branches are the complete live branch set. Platform work moves only
+Those nine branches were the complete live branch set at that historical
+freeze. The current hierarchy has seven permanent branches and six direct
+edges; Linux and Windows work is maintained on `main`. See the current
+[branch workflow](BRANCH_WORKFLOW.md). Platform work moves only
 from parent to direct child; no child-to-parent or sibling merge is permitted.
 
 ## Retired branch recovery
 
 The final 13 non-permanent branches were deleted only after exact tip and
-consumer checks. Each tip remains reachable from a protected annotated tag:
+consumer checks. At the facts freeze, each tip was reachable from a protected
+annotated tag.
+The table records those historical names; it is not a current remote-tag
+inventory. Archive marker tags were subsequently removed on 2026-09-16 after
+independent bundle preservation:
 
-| Retired branch | Recovery tag |
+| Retired branch | Historical recovery tag |
 | --- | --- |
 | `android-vr-quest` | `archive/android-vr-quest-2026-08-28` |
 | `apple-macos` | `archive/apple-macos-2026-08-28` |
@@ -46,9 +53,10 @@ consumer checks. Each tip remains reachable from a protected annotated tag:
 | `test/universal-touch-ui-apple-validation` | `archive/universal-touch-ui-apple-validation-2026-09-03` |
 | `tests/unify-interfaces` | `archive/tests-unify-interfaces-2026-09-03` |
 
-The immutable archive-tag ruleset protects `archive/**` against deletion and
-non-fast-forward updates without bypass. A second recovery path is the
-externally stored and verified bundle whose SHA-256 is
+At the facts freeze, the immutable archive-tag ruleset protected `archive/**`
+against deletion and non-fast-forward updates without bypass. The historical
+record also identified an externally stored and verified bundle whose SHA-256
+is
 `407bae393314005e145232242e66d54ed2858e5c25e31537b2ff2085c5ef2257`.
 It contains all 13 deleted tips.
 
@@ -84,7 +92,7 @@ It contains all 13 deleted tips.
   legacy payload digests and historical attestation binding remain separate
   E37/E40 work.
 
-## Exit criteria
+## Historical exit criteria (Session 53X)
 
 - [x] exactly nine permanent remote branches remain;
 - [x] all retired branch tips have a protected tag and recovery-bundle path;

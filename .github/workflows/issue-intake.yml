@@ -1,0 +1,51 @@
+name: Issue intake
+
+on:
+  issues:
+    types: [opened, edited, reopened, closed, labeled, unlabeled, milestoned, demilestoned]
+  milestone:
+    types: [created, edited, opened, closed]
+  schedule:
+    - cron: "43 */6 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/issue-policy.json"
+      - ".github/workflows/issue-intake.yml"
+      - "tools/issue-intake/**"
+      - "tests/issue-intake-test.py"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-intake-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'repository' }}
+  cancel-in-progress: false
+
+jobs:
+  contracts:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 tests/issue-intake-test.py
+
+  reconcile:
+    if: github.repository == 'noah-be/overte' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Validate and reconcile issue structure
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/issue-intake/guard.py --apply

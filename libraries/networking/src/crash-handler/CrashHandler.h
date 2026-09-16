@@ -31,7 +31,7 @@
  * things should be set up in such a way that startup is only done after those are set.
  *
  * start() will be automatically called when setEnabled() is called with true.
- * setAnnotation() can only be called after start.
+ * Allowed annotations set before start are queued until backend initialization.
  *
  *
  * To use, follow this general pattern in an application:
@@ -42,7 +42,7 @@
  * ch.setUrl("https://server.com/crash-reports");
  * ch.setToken("1.2beta");
  * ch.setEnabled(true);
- * ch.setAnnotation("version", "1.3"); // Needs a started handler to work
+ * ch.setAnnotation("program", "interface"); // Closed annotation vocabulary
  * @endcode
  *
  * For an assignment client, there are two potential ways to start, through the command-line
@@ -162,8 +162,8 @@ public slots:
     /**
      * @brief Set an annotation to be added to a crash
      *
-     * Annotations add extra information, such as the application's version number,
-     * the current user, or any other information of interest.
+     * Only the closed runtime annotation schema is retained. Arbitrary text,
+     * identity fields, URLs and unknown keys are ignored before storage.
      *
      * @note Annotations made before the crash handler are remembered, and sent to the
      * crash handler as soon as it's initialized.
@@ -176,8 +176,8 @@ public slots:
     /**
      * @brief Set an annotation to be added to a crash
      *
-     * Annotations add extra information, such as the application's version number,
-     * the current user, or any other information of interest.
+     * Only the closed runtime annotation schema is retained. Arbitrary text,
+     * identity fields, URLs and unknown keys are ignored before storage.
      *
      * @note Annotations made before the crash handler are remembered, and sent to the
      * crash handler as soon as it's initialized.
@@ -190,8 +190,8 @@ public slots:
     /**
      * @brief Set an annotation to be added to a crash
      *
-     * Annotations add extra information, such as the application's version number,
-     * the current user, or any other information of interest.
+     * Only the closed runtime annotation schema is retained. Arbitrary text,
+     * identity fields, URLs and unknown keys are ignored before storage.
      *
      * @note Annotations made before the crash handler are remembered, and sent to the
      * crash handler as soon as it's initialized.

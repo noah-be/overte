@@ -9,7 +9,7 @@
     "main": {
       "parent": null,
       "scope": "main",
-      "children": ["android-main", "apple-main", "linux-main", "windows-main"]
+      "children": ["android-main", "apple-main"]
     },
     "android-main": {
       "parent": "main",
@@ -39,16 +39,6 @@
     "apple-ios": {
       "parent": "apple-main",
       "scope": "ios",
-      "children": []
-    },
-    "linux-main": {
-      "parent": "main",
-      "scope": "linux",
-      "children": []
-    },
-    "windows-main": {
-      "parent": "main",
-      "scope": "windows",
       "children": []
     }
   }

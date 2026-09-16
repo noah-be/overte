@@ -31,7 +31,7 @@ class ScriptSyntaxCheckResultV8Wrapper final : public ScriptSyntaxCheckResult {
 public: // construction
     inline ScriptSyntaxCheckResultV8Wrapper() : _errorColumnNumber(0), _errorLineNumber(0), _errorMessage("Not compiled"), _state(ScriptSyntaxCheckResult::Error) {}
     inline ScriptSyntaxCheckResultV8Wrapper(State state, int columnNumber = 0, int lineNumber = 0, const QString &message = QString(""), const QString &errorBacktrace = QString("")) :
-        _errorColumnNumber(columnNumber), _errorLineNumber(lineNumber), _errorMessage(message), _state(state) {}
+        _errorColumnNumber(columnNumber), _errorLineNumber(lineNumber), _errorMessage(message), _errorBacktrace(errorBacktrace), _state(state) {}
 
 public: // ScriptSyntaxCheckResult implementation
     virtual int errorColumnNumber() const override {return _errorColumnNumber;}

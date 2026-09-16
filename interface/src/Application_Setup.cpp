@@ -14,9 +14,13 @@
 //
 
 #include "Application.h"
+#include "ApplicationLifecycle.h"
 
+#if defined(OVERTE_PICO_SETUP)
+#else
 #include <algorithm>
 #include <cstdint>
+#endif
 #include <functional>
 
 #include <QDesktopServices>
@@ -26,13 +30,20 @@
 #include <QtQml/QQmlContext>
 #include <QtQuick/QQuickWindow>
 
+#if defined(OVERTE_PICO_SETUP)
+#else
 #if defined(ANDROID_APP_PHONE_INTERFACE)
 #include "ui/PhoneGraphicsPolicy.h"
 #include <android/log.h>
 #include <sys/system_properties.h>
 #endif
 
+#endif
 #include <AccountManager.h>
+#if defined(OVERTE_PICO_SETUP)
+#include "../../android/vr/pico/apps/picoInterface/security/PicoAccountStore.h"
+#else
+#endif
 #include <AddressManager.h>
 #include <AnimationCacheScriptingInterface.h>
 #include <AvatarBookmarks.h>
@@ -96,6 +107,10 @@
 #include <SceneScriptingInterface.h>
 #include <ScriptEngines.h>
 #include <ScriptEntityItem.h>
+#if defined(OVERTE_PICO_SETUP)
+#include <shared/FileUtils.h>
+#else
+#endif
 #include <scripting/Audio.h>
 #include <scripting/AssetMappingsScriptingInterface.h>
 #include <scripting/ControllerScriptingInterface.h>
@@ -155,6 +170,12 @@
 #include "SpeechRecognizer.h"
 #endif
 #include "Util.h"
+#if defined(OVERTE_PICO_SETUP)
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+#include "../../android/vr/pico/apps/picoInterface/e2e/PicoE2eTabletBridge.h"
+#endif
+#else
+#endif
 
 #if defined(Q_OS_WIN)
 #include <VersionHelpers.h>
@@ -242,12 +263,20 @@ static const int ENTITY_SERVER_ADDED_TIMEOUT = 5000;
 // we will never drop below the 'min' value
 static const int MIN_PROCESSING_THREAD_POOL_SIZE = 2;
 
+#if defined(OVERTE_PICO_SETUP)
+#if !defined(Q_OS_ANDROID)
+static const uint32_t MAX_CONCURRENT_RESOURCE_DOWNLOADS = 16;
+#else
+static const uint32_t MAX_CONCURRENT_RESOURCE_DOWNLOADS = 4;
+#endif
+#else
 #if !defined(Q_OS_ANDROID)
 static const uint32_t MAX_CONCURRENT_RESOURCE_DOWNLOADS = 16;
 #else
 // Avoid letting model, texture, script, and audio decode jobs overwhelm the
 // Pico's shared-memory system while a content-heavy domain is streaming.
 static const uint32_t MAX_CONCURRENT_RESOURCE_DOWNLOADS = 2;
+#endif
 #endif
 
 #if defined(Q_OS_ANDROID)
@@ -262,16 +291,40 @@ static const int WATCHDOG_TIMER_TIMEOUT = 100;
 static const QString TESTER_FILE = "/sdcard/_hifi_test_device.txt";
 #endif
 
+#if defined(OVERTE_PICO_SETUP)
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+// The Debug-only Android launcher copies this exact repository probe into the
+// app-private directory. While it is the active --testScript, expose a
+// deterministic controller mapping state without changing MyAvatar/QSettings.
+static bool picoE2eInputMappingOverrideActive() {
+    const QUrl testScript = qApp->property(hifi::properties::TEST).toUrl();
+    if (!testScript.isLocalFile()) {
+        return false;
+    }
+    const QString activeProbe = QFileInfo(testScript.toLocalFile()).canonicalFilePath();
+    const QString expectedProbe = QFileInfo(QStringLiteral(
+        "/data/user/0/org.overte.pico/files/overte-e2e/overte_e2e_probe.js"))
+        .canonicalFilePath();
+    return !activeProbe.isEmpty() && !expectedProbe.isEmpty()
+        && activeProbe == expectedProbe;
+}
+#endif
+
+#else
+#endif
 bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted) {
     const int listenPort = parser.isSet("listenPort") ? parser.value("listenPort").toInt() : INVALID_PORT;
 
     bool suppressPrompt = parser.isSet("suppress-settings-reset");
+#if defined(OVERTE_PICO_SETUP)
+#else
 #if defined(ANDROID_APP_PHONE_INTERFACE)
     // The crash recovery UI is a native desktop QDialog which is neither
     // sized nor styled for the Android activity. Keep the crash marker result
     // (checkForResetSettings returns it when prompts are suppressed), but do
     // not interrupt phone startup with desktop settings/reset controls.
     suppressPrompt = true;
+#endif
 #endif
 
     // set the OCULUS_STORE property so the oculus plugin can know if we ran from the Oculus Store
@@ -285,6 +338,10 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
 
     bool previousSessionCrashed { false };
     if (!inTestMode) {
+#if defined(OVERTE_PICO_SETUP)
+        // TODO: FIX
+        previousSessionCrashed = CrashRecoveryHandler::checkForResetSettings(runningMarkerExisted, suppressPrompt);
+#else
 #if defined(ANDROID_APP_PHONE_INTERFACE)
         // CrashRecoveryHandler presents a desktop QWidget dialog before the
         // Android surface has reached its final size. Besides being unusable
@@ -296,6 +353,7 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
         // TODO: FIX
         previousSessionCrashed = CrashRecoveryHandler::checkForResetSettings(runningMarkerExisted, suppressPrompt);
 #endif
+#endif
     }
 
     // get dir to use for cache
@@ -305,6 +363,15 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
 
     {
         QString resourcesBinaryFile = PathUtils::getRccPath();
+#if defined(OVERTE_PICO_SETUP)
+#if defined(Q_OS_ANDROID)
+        if (resourcesBinaryFile == "/resources.rcc") {
+            resourcesBinaryFile =
+                qApp->property(hifi::properties::APP_LOCAL_DATA_PATH).toString() +
+                "/resources.rcc";
+        }
+#endif
+#else
 #if defined(Q_OS_ANDROID)
         // Android extracts the generated RCC beside the application's cache.
         // Qt can otherwise resolve the resource path to the filesystem root,
@@ -315,6 +382,7 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
                 "/resources.rcc";
         }
 #endif
+#endif
         qCInfo(interfaceapp) << "Loading primary resources from" << resourcesBinaryFile;
 
         if (!QFile::exists(resourcesBinaryFile)) {
@@ -323,6 +391,18 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
         if (!QResource::registerResource(resourcesBinaryFile)) {
             throw std::runtime_error(QString("Unable to load primary resources from '%1'").arg(resourcesBinaryFile).toStdString());
         }
+#if defined(OVERTE_PICO_SETUP)
+#if defined(Q_OS_ANDROID)
+        const QString androidQmlResources =
+            qApp->property(hifi::properties::APP_LOCAL_DATA_PATH).toString() +
+            "/android_rcc_bundle.rcc";
+        if (!QResource::registerResource(androidQmlResources)) {
+            throw std::runtime_error(QString("Unable to load Android QML resources from '%1'")
+                                         .arg(androidQmlResources).toStdString());
+        }
+#endif
+#else
+#endif
     }
 
     DependencyManager::set<ScriptInitializers>();
@@ -354,10 +434,21 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     DependencyManager::set<Cursor::Manager>();
     DependencyManager::set<VirtualPad::Manager>();
     DependencyManager::set<DesktopPreviewProvider>();
+#if defined(OVERTE_PICO_SETUP)
+#if defined(Q_OS_ANDROID)
+    if (!AccountManager::installProtectedAccountStore(overte::pico::protectedAccountStore())) {
+        qWarning("OVT_STORAGE_UNAVAILABLE");
+    }
+    DependencyManager::set<AccountManager>(true); // use the default user agent getter
+#else
+    DependencyManager::set<AccountManager>(true, std::bind(&Application::getUserAgent, qApp));
+#endif
+#else
 #if defined(Q_OS_ANDROID)
     DependencyManager::set<AccountManager>(true); // use the default user agent getter
 #else
     DependencyManager::set<AccountManager>(true, std::bind(&Application::getUserAgent, qApp));
+#endif
 #endif
     DependencyManager::set<DomainAccountManager>();
     DependencyManager::set<StatTracker>();
@@ -367,6 +458,7 @@ bool setupEssentials(const QCommandLineParser& parser, bool runningMarkerExisted
     DependencyManager::set<recording::Recorder>();
     DependencyManager::set<AddressManager>();
     DependencyManager::set<NodeList>(NodeType::Agent, listenPort);
+    overte::lifecycle::observeQtVisibility(QGuiApplication::applicationState() == Qt::ApplicationActive);
     DependencyManager::set<recording::ClipCache>();
     DependencyManager::set<GeometryCache>();
     DependencyManager::set<ModelFormatRegistry>(); // ModelFormatRegistry must be defined before ModelCache. See the ModelCache constructor.
@@ -588,11 +680,14 @@ void Application::initialize(const QCommandLineParser &parser) {
             _useSystemCursor = true;
         }
 
+#if defined(OVERTE_PICO_SETUP)
+#else
 #if defined(ANDROID_APP_PHONE_INTERFACE)
         // ResourceCacheSharedItems defaults to the desktop request count. Set
         // the phone baseline explicitly; --concurrent-downloads below remains
         // the intentional escape hatch for profiling and troubleshooting.
         ResourceCache::setRequestLimit(MAX_CONCURRENT_RESOURCE_DOWNLOADS);
+#endif
 #endif
         if (parser.isSet("concurrent-downloads")) {
             bool success;
@@ -633,6 +728,25 @@ void Application::initialize(const QCommandLineParser &parser) {
             _overrideDefaultScriptsLocation = false;
         }
 
+#if defined(OVERTE_PICO_SETUP)
+        // If launched from Steam, let it handle updates
+        bool buildCanUpdate = BuildInfo::BUILD_TYPE == BuildInfo::BuildType::Stable
+            || BuildInfo::BUILD_TYPE == BuildInfo::BuildType::Nightly;
+        if (!parser.isSet("no-updater") && buildCanUpdate) {
+            constexpr auto INSTALLER_TYPE_CLIENT_ONLY = "client_only";
+
+            auto applicationUpdater = DependencyManager::set<AutoUpdater>();
+
+            AutoUpdater::InstallerType type = installerType == INSTALLER_TYPE_CLIENT_ONLY
+                ? AutoUpdater::InstallerType::CLIENT_ONLY : AutoUpdater::InstallerType::FULL;
+
+            applicationUpdater->setInstallerType(type);
+            applicationUpdater->setInstallerCampaign(installerCampaign);
+            auto dialogsManager = DependencyManager::get<DialogsManager>();
+            connect(applicationUpdater.data(), &AutoUpdater::newVersionIsAvailable, dialogsManager.data(), &DialogsManager::showUpdateDialog);
+            applicationUpdater->checkForUpdate();
+        }
+#else
         // If launched from Steam, let it handle updates. Android packages are
         // updated by their installer/store and must not launch the desktop
         // updater UI during startup.
@@ -653,6 +767,7 @@ void Application::initialize(const QCommandLineParser &parser) {
             connect(applicationUpdater.data(), &AutoUpdater::newVersionIsAvailable, dialogsManager.data(), &DialogsManager::showUpdateDialog);
             applicationUpdater->checkForUpdate();
         }
+#endif
 #endif
 
         // setup the stats interval depending on if the 1s faster hearbeat was requested
@@ -797,6 +912,13 @@ void Application::initialize(const QCommandLineParser &parser) {
     DependencyManager::get<MessagesClient>()->startThread();
 
     nodeList->getDomainHandler().setErrorDomainURL(QUrl(REDIRECT_HIFI_ADDRESS));
+#if defined(OVERTE_PICO_SETUP)
+    // Pico users cannot safely interact with a partially streamed world. Keep
+    // Overte's existing interstitial/safe-landing path enabled so the loading
+    // frame remains visible until visual assets and collision data are ready.
+    nodeList->getDomainHandler().setInterstitialModeEnabled(true);
+#else
+#endif
 
     // Inititalize sample before registering
     _sampleSound = DependencyManager::get<SoundCache>()->getSound(PathUtils::resourcesUrl("sounds/sample.wav"));
@@ -828,6 +950,10 @@ void Application::initialize(const QCommandLineParser &parser) {
     _window->setCentralWidget(_vkWindowWrapper);
 #endif
 
+#if defined(OVERTE_PICO_SETUP)
+    _window->restoreGeometry();
+    _window->setVisible(true);
+#else
 #if defined(ANDROID_APP_PHONE_INTERFACE)
     // Do not restore desktop window geometry on Android. The Activity owns
     // the fullscreen landscape bounds.
@@ -835,6 +961,7 @@ void Application::initialize(const QCommandLineParser &parser) {
 #else
     _window->restoreGeometry();
     _window->setVisible(true);
+#endif
 #endif
 
     _primaryWidget->setFocusPolicy(Qt::StrongFocus);
@@ -855,6 +982,20 @@ void Application::initialize(const QCommandLineParser &parser) {
     initializeGL();
     qCDebug(interfaceapp, "Initialized GL");
 
+#if defined(OVERTE_PICO_SETUP)
+#ifdef Q_OS_ANDROID
+    // GLES cannot query a useful dedicated-memory budget on standalone
+    // headsets, so "Automatic" effectively leaves texture residency
+    // unbounded. Large desktop domains can otherwise consume well over
+    // 500 MB of GL textures and nearly 1 GB of native texture/model storage,
+    // starving the simulation thread. Keep enough room for 100% eye buffers
+    // while forcing streamed world textures onto lower mip levels.
+    constexpr gpu::Texture::Size PICO_TEXTURE_BUDGET = 256 * 1024 * 1024;
+    gpu::Texture::setAllowedGPUMemoryUsage(PICO_TEXTURE_BUDGET);
+    qCInfo(interfaceapp) << "PICO_RESOURCE_LIMIT textureBudgetMB"
+                         << (PICO_TEXTURE_BUDGET / (1024 * 1024));
+#endif
+#else
 #if defined(ANDROID_APP_PHONE_INTERFACE)
     // Android GPUs use shared memory and do not expose a reliable dedicated
     // texture budget. Bound residency to reduce low-memory kills in complex
@@ -877,10 +1018,31 @@ void Application::initialize(const QCommandLineParser &parser) {
     __android_log_print(ANDROID_LOG_INFO, "OvertePhoneGraphics",
         "texture_budget_mb=%u", phoneTextureBudgetMB);
 #endif
+#endif
 
     // Initialize the display plugin architecture
     initializeDisplayPlugins();
     qCDebug(interfaceapp, "Initialized Display");
+#if defined(OVERTE_PICO_SETUP)
+
+#ifdef Q_OS_ANDROID
+    // Pico's OpenXR runtime abandons Qt's regular SurfaceView once it takes
+    // ownership of XR presentation.  The main window is only a context host
+    // from this point on; later QWidget repaints would make QBackingStore call
+    // ANativeWindow_lock() on that abandoned surface.  OpenXR rendering and
+    // the offscreen QML surfaces use their own render paths.
+    _window->setUpdatesEnabled(false);
+    const auto windowWidgets = _window->findChildren<QWidget*>();
+    for (auto widget : windowWidgets) {
+        widget->setUpdatesEnabled(false);
+        QCoreApplication::removePostedEvents(widget, QEvent::UpdateRequest);
+        QCoreApplication::removePostedEvents(widget, QEvent::UpdateLater);
+    }
+    QCoreApplication::removePostedEvents(_window, QEvent::UpdateRequest);
+    QCoreApplication::removePostedEvents(_window, QEvent::UpdateLater);
+#endif
+#else
+#endif
 
     if (_displayPlugin && !_displayPlugin->isHmd()) {
         showCursor(Cursor::Manager::lookupIcon(_preferredCursor.get()));
@@ -998,6 +1160,19 @@ void Application::initialize(const QCommandLineParser &parser) {
     auto userInputMapper = DependencyManager::get<UserInputMapper>();
     _applicationStateDevice = userInputMapper->getStateDevice();
 
+#if defined(OVERTE_PICO_SETUP)
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+    // Runtime-only: the getter used by the controller mappings and avatar
+    // motor observes this flag, while the persistent Setting::Handle is never
+    // mutated. A normal or Release session constructs the flag as false.
+    qApp->getMyAvatar()->setE2eAdvancedMovementControlsOverride(
+        picoE2eInputMappingOverrideActive());
+    qApp->getMyAvatar()->setE2eFlyingEnabledOverride(
+        picoE2eInputMappingOverrideActive());
+#endif
+
+#else
+#endif
     _applicationStateDevice->setInputVariant(STATE_IN_HMD, []() -> float {
         return qApp->isHMDMode() ? 1 : 0;
     });
@@ -1035,12 +1210,38 @@ void Application::initialize(const QCommandLineParser &parser) {
         return qApp->getMyAvatar()->useAdvancedMovementControls() ? 1 : 0;
     });
     _applicationStateDevice->setInputVariant(STATE_LEFT_HAND_DOMINANT, []() -> float {
+#if defined(OVERTE_PICO_SETUP)
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+        return picoE2eInputMappingOverrideActive() ? 0 :
+            (qApp->getMyAvatar()->getDominantHand() == "left" ? 1 : 0);
+#else
         return qApp->getMyAvatar()->getDominantHand() == "left" ? 1 : 0;
+#endif
+#else
+        return qApp->getMyAvatar()->getDominantHand() == "left" ? 1 : 0;
+#endif
     });
     _applicationStateDevice->setInputVariant(STATE_RIGHT_HAND_DOMINANT, []() -> float {
+#if defined(OVERTE_PICO_SETUP)
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+        return picoE2eInputMappingOverrideActive() ? 1 :
+            (qApp->getMyAvatar()->getDominantHand() == "right" ? 1 : 0);
+#else
         return qApp->getMyAvatar()->getDominantHand() == "right" ? 1 : 0;
+#endif
+#else
+        return qApp->getMyAvatar()->getDominantHand() == "right" ? 1 : 0;
+#endif
     });
     _applicationStateDevice->setInputVariant(STATE_STRAFE_ENABLED, []() -> float {
+#if defined(OVERTE_PICO_SETUP)
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+        if (picoE2eInputMappingOverrideActive()) {
+            return 1;
+        }
+#endif
+#else
+#endif
         return qApp->getMyAvatar()->getStrafeEnabled() ? 1 : 0;
     });
 
@@ -1293,6 +1494,23 @@ void Application::initialize(const QCommandLineParser &parser) {
         };
         properties["gpu_used_memory"] = (int)BYTES_TO_MB(gpu::Context::getUsedGPUMemSize());
         properties["gpu_free_memory"] = (int)BYTES_TO_MB(gpu::Context::getFreeGPUMemSize());
+#if defined(OVERTE_PICO_SETUP)
+        properties["gpu_frame_time"] = (float)(qApp->getGPUContext()->getFrameTimerGPUAverage());
+        properties["batch_frame_time"] = (float)(qApp->getGPUContext()->getFrameTimerBatchAverage());
+        properties["ideal_thread_count"] = QThread::idealThreadCount();
+
+#if defined(ANDROID_APP_PICO_INTERFACE) && !defined(NDEBUG)
+        qInfo() << "PICO_GPU_BENCH"
+                << "render" << getRenderLoopRate()
+                << "present" << displayPlugin->presentRate()
+                << "newPresent" << displayPlugin->newFramePresentRate()
+                << "dropped" << displayPlugin->droppedFrameRate()
+                << "stutter" << displayPlugin->stutterRate()
+                << "game" << getGameLoopRate()
+                << "gpuMs" << qApp->getGPUContext()->getFrameTimerGPUAverage()
+                << "batchMs" << qApp->getGPUContext()->getFrameTimerBatchAverage();
+#endif
+#else
         const float gpuFrameTime = (float)(qApp->getGPUContext()->getFrameTimerGPUAverage());
         const float batchFrameTime = (float)(qApp->getGPUContext()->getFrameTimerBatchAverage());
         properties["gpu_frame_time"] = gpuFrameTime;
@@ -1303,6 +1521,7 @@ void Application::initialize(const QCommandLineParser &parser) {
             static_cast<double>(gpuFrameTime), static_cast<double>(batchFrameTime));
 #endif
         properties["ideal_thread_count"] = QThread::idealThreadCount();
+#endif
 
         auto hmdHeadPose = getHMDSensorPose();
         properties["hmd_head_pose_changed"] = isHMDMode() && (hmdHeadPose != lastHMDHeadPose);
@@ -1447,10 +1666,23 @@ void Application::setupSignalsAndOperators() {
     auto nodeList = DependencyManager::get<NodeList>();
     const DomainHandler& domainHandler = nodeList->getDomainHandler();
 
+#if defined(OVERTE_PICO_SETUP)
+#if defined(OVERTE_E2E_OPENXR_INPUT_V1)
+    overte::pico::e2e::installTabletBridge(this);
+#endif
+
+#else
+#endif
     // General
     {
         connect(this, SIGNAL(aboutToQuit()), this, SLOT(onAboutToQuit()));
         connect(this, &Application::applicationStateChanged, this, &Application::activeChanged);
+#if defined(OVERTE_PICO_SETUP)
+#else
+        // Seed the same full-client gate: an already active Qt application may
+        // not emit another state change after this connection is installed.
+#endif
+        activeChanged(applicationState());
         connect(_window, SIGNAL(windowMinimizedChanged(bool)), this, SLOT(windowMinimizedChanged(bool)));
 
         auto discoverabilityManager = DependencyManager::get<DiscoverabilityManager>();
@@ -1527,6 +1759,16 @@ void Application::setupSignalsAndOperators() {
         connect(nodeList.data(), &NodeList::packetVersionMismatch, this, &Application::notifyPacketVersionMismatch);
 
         auto accountManager = DependencyManager::get<AccountManager>();
+#if defined(OVERTE_PICO_SETUP)
+#if defined(Q_OS_ANDROID)
+        connect(accountManager.data(), &AccountManager::authRequired, this, []() {
+            auto addressManager = DependencyManager::get<AddressManager>();
+            AndroidHelper::instance().showLoginDialog(addressManager->currentAddress());
+        });
+#else
+        connect(accountManager.data(), &AccountManager::authRequired, dialogsManager.data(), &DialogsManager::showLoginDialog);
+#endif
+#else
 #if defined(Q_OS_ANDROID) && !defined(ANDROID_APP_PHONE_INTERFACE)
         connect(accountManager.data(), &AccountManager::authRequired, this, []() {
             auto addressManager = DependencyManager::get<AddressManager>();
@@ -1535,13 +1777,22 @@ void Application::setupSignalsAndOperators() {
 #else
         connect(accountManager.data(), &AccountManager::authRequired, dialogsManager.data(), &DialogsManager::showLoginDialog);
 #endif
+#endif
         connect(accountManager.data(), &AccountManager::usernameChanged, this, &Application::updateWindowTitle);
+        connect(accountManager.data(), &AccountManager::authEndpointChanged, this, &Application::invalidateEntityScriptConsent);
+        connect(accountManager.data(), &AccountManager::usernameChanged, this, &Application::invalidateEntityScriptConsent);
+        connect(accountManager.data(), &AccountManager::loginComplete, this, &Application::invalidateEntityScriptConsent);
+        connect(accountManager.data(), &AccountManager::logoutComplete, this, &Application::invalidateEntityScriptConsent);
 
         auto domainAccountManager = DependencyManager::get<DomainAccountManager>();
         connect(domainAccountManager.data(), &DomainAccountManager::authRequired, dialogsManager.data(),
                 &DialogsManager::showDomainLoginDialog);
         connect(domainAccountManager.data(), &DomainAccountManager::authRequired, this, &Application::updateWindowTitle);
         connect(domainAccountManager.data(), &DomainAccountManager::loginComplete, this, &Application::updateWindowTitle);
+        connect(domainAccountManager.data(), &DomainAccountManager::authRequired, this, &Application::invalidateEntityScriptConsent);
+        connect(domainAccountManager.data(), &DomainAccountManager::loginComplete, this, &Application::invalidateEntityScriptConsent);
+        connect(domainAccountManager.data(), &DomainAccountManager::logoutComplete, this, &Application::invalidateEntityScriptConsent);
+        connect(&domainHandler, &DomainHandler::disconnectedFromDomain, this, &Application::invalidateEntityScriptConsent);
         // ####### TODO: Connect any other signals from domainAccountManager.
 
         auto addressManager = DependencyManager::get<AddressManager>();
@@ -1900,6 +2151,20 @@ void Application::setupSignalsAndOperators() {
                         delete webSurface;
                     });
                 });
+#if defined(OVERTE_PICO_SETUP)
+                // Install the context properties on the exact child context that
+                // will evaluate the component, immediately before it is created.
+                webSurface->loadInNewContext(
+                    url,
+                    hifi::qml::OffscreenSurface::DEFAULT_CONTEXT_OBJECT_CALLBACK,
+                    [url, isTablet](QQmlContext* context) {
+                        Application::setupQmlSurface(
+                            context,
+                            isTablet || url == LOGIN_DIALOG.toString() ||
+                                url == AVATAR_INPUTS_BAR_QML.toString() ||
+                                url == BUBBLE_ICON_QML.toString());
+                    });
+#else
                 auto rootItemLoadedFunctor = [webSurface, url, isTablet] {
                     Application::setupQmlSurface(webSurface->getSurfaceContext(), isTablet || url == LOGIN_DIALOG.toString() || url == AVATAR_INPUTS_BAR_QML.toString() ||
                        url == BUBBLE_ICON_QML.toString());
@@ -1910,6 +2175,7 @@ void Application::setupSignalsAndOperators() {
                     QObject::connect(webSurface.data(), &hifi::qml::OffscreenSurface::rootContextCreated, rootItemLoadedFunctor);
                 }
                 webSurface->load(url);
+#endif
                 cachedWebSurface = false;
             }
             const uint8_t DEFAULT_MAX_FPS = 10;

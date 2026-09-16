@@ -21,6 +21,8 @@ FocusScope {
 
     property alias model: comboBox.model;
     property alias editable: comboBox.editable
+    property alias editText: comboBox.editText
+    readonly property alias popup: comboBox.popup
     property alias comboBox: comboBox
     readonly property alias currentText: comboBox.currentText;
     property alias displayText: comboBox.displayText;
@@ -39,6 +41,10 @@ FocusScope {
 
     signal accepted();
 
+    function showList() { if (visible && enabled) { comboBox.popup.open(); } }
+    onVisibleChanged: { if (!visible) { comboBox.popup.close(); } }
+    onEnabledChanged: { if (!enabled) { comboBox.popup.close(); } }
+
     implicitHeight: comboBox.height;
     focus: true
 
@@ -50,16 +56,39 @@ FocusScope {
         height: Math.max(hifi.fontSizes.textFieldInput + 13,
             touchMetrics.adaptiveMinimumControlHeight)
 
-        function previousItem() { root.currentHighLightedIndex = (root.currentHighLightedIndex + comboBox.count - 1) % comboBox.count; }
-        function nextItem() { root.currentHighLightedIndex = (root.currentHighLightedIndex + comboBox.count + 1) % comboBox.count; }
-        function selectCurrentItem() { root.currentIndex = root.currentHighLightedIndex; /*hideList();*/ }
-        function selectSpecificItem(index) { root.currentIndex = index; /*hideList();*/ }
+        function previousItem() {
+            root.currentHighLightedIndex = count <= 0 ? -1 :
+                (root.currentHighLightedIndex <= 0 || root.currentHighLightedIndex >= count ? count - 1 : root.currentHighLightedIndex - 1);
+        }
+        function nextItem() {
+            root.currentHighLightedIndex = count <= 0 ? -1 :
+                (root.currentHighLightedIndex < 0 || root.currentHighLightedIndex >= count - 1 ? 0 : root.currentHighLightedIndex + 1);
+        }
+        function selectCurrentItem() { selectSpecificItem(root.currentHighLightedIndex); }
+        function selectSpecificItem(index) {
+            if (index < 0 || index >= count || Math.floor(index) !== index) { return; }
+            root.currentIndex = index;
+            comboBox.popup.close();
+            root.accepted();
+        }
+        // Native delegate activation and editable Return are commits; closing
+        // a popup (Escape/outside click/visibility teardown) is not a commit.
+        onActivated: root.accepted()
+        onAccepted: root.accepted()
+        onCurrentIndexChanged: root.currentHighLightedIndex = currentIndex
+
 
         Keys.onUpPressed: previousItem();
         Keys.onDownPressed: nextItem();
-        Keys.onSpacePressed: selectCurrentItem();
-        Keys.onRightPressed: selectCurrentItem();
-        Keys.onReturnPressed: selectCurrentItem();
+        Keys.onSpacePressed: {
+            if (comboBox.editable) { event.accepted = false; } else { selectCurrentItem(); }
+        }
+        Keys.onRightPressed: {
+            if (comboBox.editable) { event.accepted = false; } else { selectCurrentItem(); }
+        }
+        Keys.onReturnPressed: {
+            if (comboBox.editable) { event.accepted = false; } else { selectCurrentItem(); }
+        }
 
         background: Rectangle {
             gradient: Gradient {
@@ -98,17 +127,36 @@ FocusScope {
             }
         }
 
-        contentItem: FiraSansSemiBold {
+        contentItem: TextInput {
             id: textField
             anchors {
                 left: parent.left
                 leftMargin: hifi.dimensions.textPadding
+                right: dropIcon.left
+                rightMargin: hifi.dimensions.textPadding
                 verticalCenter: parent.verticalCenter
             }
-            size: Math.round(hifi.fontSizes.textFieldInput * touchMetrics.textScale)
-            text: comboBox.displayText ? comboBox.displayText : comboBox.currentText
-            elide: Text.ElideRight
-            color: comboBox.hovered || comboBox.popup.visible ? hifi.colors.baseGray : (isLightColorScheme ? hifi.colors.lightGray : hifi.colors.lightGrayText )
+            font.family: "Fira Sans"
+            font.weight: Font.DemiBold
+            font.pixelSize: Math.round(hifi.fontSizes.textFieldInput * touchMetrics.textScale)
+            verticalAlignment: TextInput.AlignVCenter
+            readOnly: !comboBox.editable
+            selectByMouse: comboBox.editable
+            clip: true
+            text: comboBox.editable ? comboBox.editText : comboBox.displayText
+            color: comboBox.editable ? displayColor : "transparent"
+            readonly property color displayColor: comboBox.hovered || comboBox.popup.visible ? hifi.colors.baseGray :
+                (isLightColorScheme ? hifi.colors.lightGray : hifi.colors.lightGrayText)
+            // Preserve the existing elided label when editing is disabled.
+            Text {
+                anchors.fill: parent
+                visible: !comboBox.editable
+                text: textField.text
+                font: textField.font
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
+                color: textField.displayColor
+            }
         }
 
         delegate: ItemDelegate {
@@ -144,6 +192,7 @@ FocusScope {
             }
         }
         popup: Popup {
+            focus: true
             y: comboBox.height - 1
             width: comboBox.width
             implicitHeight: listView.contentHeight > dropdownHeight ? dropdownHeight
@@ -151,12 +200,18 @@ FocusScope {
             padding: 0
             topPadding: 1
 
-            onClosed: {
-                root.accepted()
-            }
+            onAboutToShow: root.currentHighLightedIndex = comboBox.currentIndex
+            onClosed: root.currentHighLightedIndex = comboBox.currentIndex
 
             contentItem: ListView {
                 id: listView
+                focus: true
+                Keys.onUpPressed: comboBox.previousItem()
+                Keys.onDownPressed: comboBox.nextItem()
+                Keys.onReturnPressed: comboBox.selectCurrentItem()
+                Keys.onEnterPressed: comboBox.selectCurrentItem()
+                Keys.onSpacePressed: comboBox.selectCurrentItem()
+                Keys.onEscapePressed: comboBox.popup.close()
                 clip: true
                 model: comboBox.popup.visible ? comboBox.delegateModel : null
                 currentIndex: root.currentHighLightedIndex

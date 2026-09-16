@@ -12,6 +12,7 @@ HifiControls.TouchUiMetrics {
     // profile for the compiled Android target explicitly enables them.
     readonly property bool showPicoInteractionSettings: false
 
+
     function admitsSemanticControl(controlId) {
         if (controlId === "settings.general" || controlId === "settings.audio"
                 || controlId === "settings.security") {

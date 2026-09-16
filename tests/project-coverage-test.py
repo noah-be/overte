@@ -35,7 +35,7 @@ class ProjectCoverageTests(unittest.TestCase):
         hardware = {item for area in MATRIX["areas"] for item in area["hardware"]}
         self.assertEqual(hardware, {
             "audio-device-acceptance", "distributed-system-acceptance",
-            "gpu-driver-acceptance", "pico4-headset-acceptance",
+            "gpu-driver-acceptance",
         })
 
     def test_area_identifiers_are_unique(self):

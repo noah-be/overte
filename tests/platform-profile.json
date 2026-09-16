@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "platform": "android",
+  "suites": [
+    {
+      "name": "pico4-device-free",
+      "entrypoint": "android/vr/pico/tests/pico-device-free-test.sh",
+      "interpreter": "bash"
+    },
+    {
+      "name": "android-source-boundary",
+      "entrypoint": "android/common/tests/source-boundary-test.py",
+      "interpreter": "python"
+    },
+    {
+      "name": "android-build-workspace",
+      "entrypoint": "tests/device/jenkins/test_android_build_workspace.py",
+      "interpreter": "python"
+    },
+    {
+      "name": "android-conan-cache",
+      "entrypoint": "tests/device/jenkins/test_conan_cache_manager.py",
+      "interpreter": "python"
+    },
+    {
+      "name": "android-build-evidence",
+      "entrypoint": "tests/device/schema/test_android_build_evidence.py",
+      "interpreter": "python"
+    }
+  ]
+}

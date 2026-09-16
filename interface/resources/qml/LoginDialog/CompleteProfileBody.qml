@@ -507,7 +507,7 @@ Item {
                 "withOculus": completeProfileBody.withOculus, "linkOculus": false });
         }
         function onHandleCreateFailed() {
-            console.log("Create Failed: " + error);
+            console.log("Create Failed");
             if (completeProfileBody.withSteam || completeProfileBody.withOculus) {
                 if (completeProfileBody.loginDialogPoppedUp) {
                     var action = completeProfileBody.withSteam ? "Steam" : "Oculus";

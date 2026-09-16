@@ -15,6 +15,9 @@
 #include <QJsonObject>
 #include <QReadWriteLock>
 #include <QString>
+#include <algorithm>
+#include <limits>
+#include <stdexcept>
 
 class AccountSettings {
 public:
@@ -27,20 +30,34 @@ public:
 
     void loggedOut();
     void startedLoading();
-    quint64 lastChangeTimestamp() const { return _lastChangeTimestamp; }
+    bool beginDownload(quint64& requestedTimestamp);
+    void downloadFailed(quint64 requestedTimestamp);
+    void acknowledgeSnapshot(quint64 timestamp);
+    quint64 lastChangeTimestamp() const { QReadLocker lock(&_settingsLock); return _lastChangeTimestamp; }
+
+    struct Snapshot {
+        QJsonObject data;
+        quint64 timestamp;
+    };
+    Snapshot snapshot() const;
 
     QJsonObject pack();
     void unpack(QJsonObject data);
+    bool unpackIfUnchanged(const QJsonObject& data, quint64 expectedTimestamp, quint64& appliedTimestamp);
 
     State homeLocationState() const { QReadLocker lock(&_settingsLock); return _homeLocationState; }
     QString getHomeLocation() const { QReadLocker lock(&_settingsLock); return _homeLocation; }
     void setHomeLocation(QString homeLocation);
 
 private:
+    void advanceTimestampLocked();
+    void unpackLocked(const QJsonObject& data);
     mutable QReadWriteLock _settingsLock;
     quint64 _lastChangeTimestamp { 0 };
+    bool _hasLocalChanges { false };
 
     State _homeLocationState { LoggedOut };
+    State _stateBeforeDownload { LoggedOut };
     QString _homeLocation;
 };
 

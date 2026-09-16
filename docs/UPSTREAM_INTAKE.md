@@ -99,3 +99,10 @@ Add area-specific tests based on the actual diff. Once a reviewed intake
 reaches `main`, propagate it only from parent branches to their direct children
 as documented in [`BRANCH_WORKFLOW.md`](BRANCH_WORKFLOW.md). An upstream intake
 does not bypass branch protection, required review, or platform validation.
+
+## Platform source boundary
+
+Reviewed upstream intake must preserve the [shared/Android source boundary](SOURCE_LAYOUT.md).
+Separate Android application, toolchain, selector, and product-test changes from
+shared changes; integrate the Android portion on `android-main`. The shared
+source-layout gate must remain enabled during upstream intake.

@@ -36,7 +36,7 @@ and ownership boundary.
 | Projects | Enabled | Keep enabled until an owner or API with project-read access proves that no project content or consumer needs preservation. [`ROADMAP.md`](ROADMAP.md) remains the portfolio source of truth. The current credential cannot make that proof. |
 | Wiki | Enabled at facts freeze; remote wiki repository confirmed uninitialized | Disable after this documentation merge. Versioned documentation under `docs/` is authoritative. |
 | Private vulnerability reporting | Enabled | Keep enabled. [`../SECURITY.md`](../SECURITY.md) links the live private reporting route. |
-| Actions | Enabled; selected exact-SHA allowlist; SHA pinning required | Keep the exact inventory synchronized with all nine branch trees; provider-wide wildcards remain disabled. |
+| Actions | Enabled; selected exact-SHA allowlist; SHA pinning required | Keep the exact inventory synchronized with all seven permanent branch trees; provider-wide wildcards remain disabled. |
 | Dependabot alerts | Enabled | Keep alert metadata visible and triage the recorded backlog without suppressing unresolved findings. |
 | Dependabot security updates | Disabled after safety rollback | Re-enable only after generated bot PRs cannot start prohibited native product builds. |
 | Advanced CodeQL | Active for JavaScript/TypeScript and Python; default setup not configured | Keep the governed GitHub-hosted workflow and do not enable default setup concurrently. |

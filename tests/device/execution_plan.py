@@ -71,6 +71,15 @@ def module_capabilities(catalog: Path, suite: str) -> tuple[list[str], list[str]
     selected = [module for module in modules if suite in module["suites"]]
     if not selected:
         raise ValueError(f"suite {suite!r} selects no modules")
+    for module in selected:
+        command = module.get("command")
+        if not isinstance(command, list) or not command or not all(isinstance(item, str) and item for item in command):
+            raise ValueError("module command must be a nonempty string list: " + module["id"])
+        executable = Path(command[0])
+        if not executable.is_absolute():
+            executable = catalog.parent / executable
+        if not executable.is_file():
+            raise ValueError("module command source is missing: " + module["id"])
     return ([module["id"] for module in selected],
             sorted({capability for module in selected for capability in module["requires"]}))
 

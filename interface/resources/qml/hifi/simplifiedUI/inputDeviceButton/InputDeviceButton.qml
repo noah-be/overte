@@ -10,8 +10,7 @@
 //
 
 import QtQuick 2.10
-import QtGraphicalEffects 1.0
-import stylesUit 1.0
+import "../../audio" as SharedAudio
 import TabletScriptingInterface 1.0
 import "../simplifiedConstants" as SimplifiedConstants
 
@@ -22,13 +21,16 @@ Rectangle {
         id: simplifiedUI
     }
 
-    readonly property var level: AudioScriptingInterface.inputLevel
+    readonly property real level: isFinite(AudioScriptingInterface.inputLevel) ?
+        Math.max(0, Math.min(1, AudioScriptingInterface.inputLevel)) : 0
     readonly property var clipping: AudioScriptingInterface.clipping
     property var muted: AudioScriptingInterface.muted
     property var pushToTalk: AudioScriptingInterface.pushToTalk
     property var pushingToTalk: AudioScriptingInterface.pushingToTalk
     readonly property var userSpeakingLevel: 0.4
     property bool gated: false
+    onPushToTalkChanged: if (!pushToTalk && mouseArea) mouseArea.finishPushToTalk(false)
+    onVisibleChanged: if (!visible && mouseArea) mouseArea.finishPushToTalk(false)
 
     readonly property string unmutedIcon: "images/mic-unmute-i.svg"
     readonly property string mutedIcon: "images/mic-mute-i.svg"
@@ -54,6 +56,13 @@ Rectangle {
 
     MouseArea {
         id: mouseArea
+        property bool pushToTalkHeld: false
+        function finishPushToTalk(withSound) {
+            if (!pushToTalkHeld) return
+            pushToTalkHeld = false
+            AudioScriptingInterface.pushingToTalk = false
+            if (withSound) Tablet.playSound(TabletEnums.ButtonClick)
+        }
         
         anchors.fill: parent
 
@@ -70,17 +79,15 @@ Rectangle {
 
         onPressed: {
             if (pushToTalk) {
+                pushToTalkHeld = true;
                 AudioScriptingInterface.pushingToTalk = true;
                 Tablet.playSound(TabletEnums.ButtonClick);
             }
         }
 
-        onReleased: {
-            if (pushToTalk) {
-                AudioScriptingInterface.pushingToTalk = false;
-                Tablet.playSound(TabletEnums.ButtonClick);
-            }
-        }
+        onReleased: finishPushToTalk(true)
+
+        onCanceled: finishPushToTalk(true)
         
         onContainsMouseChanged: {
             if (containsMouse) {
@@ -111,80 +118,30 @@ Rectangle {
         width: pushToTalk ? (clipping && pushingToTalk ? 4 : 16) : (muted ? 20 : 16)
         height: 22
 
-        Item {
+        Image {
+            id: image
+            visible: false
+            source: pushToTalk ? (clipping && pushingToTalk ? pushToTalkClippingIcon : pushToTalkIcon) : muted ? mutedIcon :
+                clipping ? clippingIcon : gated ? gatedIcon : unmutedIcon
             anchors.fill: parent
-            Image {
-                id: image
-                visible: false
-                source: pushToTalk ? (clipping && pushingToTalk ? pushToTalkClippingIcon : pushToTalkIcon) : muted ? mutedIcon :
-                    clipping ? clippingIcon : gated ? gatedIcon : unmutedIcon
-                anchors.fill: parent
-            }
-
-            ColorOverlay {
-                opacity: mouseArea.containsMouse ? 1.0 : 0.7
-                visible: level === 0 || micBar.muted || micBar.clipping
-                id: imageOverlay
-                anchors { fill: image }
-                source: image
-                color: pushToTalk ? (pushingToTalk ? colors.icon : colors.mutedColor) : colors.icon
-            }
-
-            OpacityMask {
-                id: bar
-                visible: level > 0 && !micBar.muted && !micBar.clipping
-                anchors.fill: meterGradient
-                source: meterGradient
-                maskSource: image
-            }
-
-            LinearGradient {
-                id: meterGradient
-                anchors { fill: parent }
-                visible: false
-                start: Qt.point(0, 0)
-                end: Qt.point(0, parent.height)
-                rotation: 180
-                gradient: Gradient {
-                    GradientStop {
-                        position: 1.0
-                        color: colors.greenStart
-                    }
-                    GradientStop {
-                        position: 0.5
-                        color: colors.greenEnd
-                    }
-                    GradientStop {
-                        position: 0.0
-                        color: colors.yellow
-                    }
-                }
-            }
         }
 
-        Item {
-            width: parent.width
-            height: parent.height - parent.height * level
-            anchors.top: parent.top
-            anchors.left: parent.left
-            clip:true
-            Image {
-                id: maskImage
-                visible: false
-                source: image.source
-                anchors.top: parent.top
-                anchors.left: parent.left
-                width: parent.width
-                height: parent.parent.height
-                mipmap: true
-            }
-            
-            ColorOverlay {
-                visible: level > 0 && !micBar.muted && !micBar.clipping
-                anchors { fill: maskImage }
-                source: maskImage
-                color: "#b2b2b2"
-            }
+        SharedAudio.TintedImage {
+            opacity: mouseArea.containsMouse ? 1.0 : 0.7
+            visible: level === 0 || micBar.muted || micBar.clipping
+            anchors.fill: image
+            source: image.source
+            color: pushToTalk ? (pushingToTalk ? colors.icon : colors.mutedColor) : colors.icon
+        }
+
+        SharedAudio.LevelImage {
+            visible: level > 0 && !micBar.muted && !micBar.clipping
+            anchors.fill: image
+            source: image.source
+            level: micBar.level
+            low: colors.greenStart
+            middle: colors.greenEnd
+            high: colors.yellow
         }
     }
 }

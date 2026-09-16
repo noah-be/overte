@@ -1,6 +1,6 @@
 # Repository ruleset manifests
 
-The six top-level ruleset manifests are complete GitHub REST update payloads,
+The five top-level ruleset manifests are complete GitHub REST update payloads,
 apart from the server-owned ruleset ID. They are the persistent desired state
 after the archived branch refs are retired. Do not apply a manifest by name
 alone: map it to the reviewed live ruleset ID and retain a rollback export.
@@ -16,8 +16,8 @@ by the Android/canonical/archive tag ruleset throughout.
 
 Required status checks are strict and bound to GitHub Actions integration ID
 `15368`. A check with the same display name from another integration does not
-satisfy the rule. The Desktop workflow job, manifest, and contract all use the
-context `Enforce main desktop sync path`. Permanent branch governance also
+satisfy the rule. Linux and Windows work targets `main`; dedicated desktop
+branch protection and synchronization are retired. Permanent branch governance
 requires `sync-test-reuse`; it is an always-terminal trusted gate, so path
 filters cannot leave a required status pending. It reports ordinary pull
 requests without delegating their existing checks and authorizes a sync fast

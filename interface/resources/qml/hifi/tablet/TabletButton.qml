@@ -1,5 +1,5 @@
 import QtQuick 2.1
-import QtGraphicalEffects 1.0
+import "../../controls" as CpuControls
 import TabletScriptingInterface 1.0
 
 Item {
@@ -104,6 +104,18 @@ Item {
         anchors.topMargin: 0
     }
 
+    CpuControls.CpuDropShadow {
+        id: glow
+        visible: false
+        anchors.fill: parent
+        horizontalOffset: 0
+        verticalOffset: 0
+        color: "#ffffff"
+        radius: 20
+        z: -1
+        source: buttonOutline
+    }
+
     Rectangle {
         id: buttonOutline
         color: "#00000000"
@@ -122,18 +134,7 @@ Item {
         anchors.topMargin: 0
     }
 
-    DropShadow {
-        id: glow
-        visible: false
-        anchors.fill: parent
-        horizontalOffset: 0
-        verticalOffset: 0
-        color: "#ffffff"
-        radius: 20
-        z: -1
-        samples: 41
-        source: buttonOutline
-    }
+
 
     function urlHelper(src) {
         if (src.match(/\bhttp/) || src.match(/\bfile:/)) {

@@ -61,7 +61,7 @@ acceptance policy; this package does not embed historical acceptance values.
 ## Isolation and publication
 
 Android build entry points use job-private workspaces and Conan state as
-described in `CONAN_CACHE_ISOLATION.md`. The helpers refuse unsafe roots and do
+described on the [Android branch](https://github.com/noah-be/overte/blob/android-main/tests/device/jenkins/CONAN_CACHE_ISOLATION.md). The helpers refuse unsafe roots and do
 not repair or delete a shared cache.
 
 `run_ci.py stage-results` treats the target selector as a quarantine sentinel.

@@ -97,7 +97,7 @@ Item {
         }
 
         if (WebEngineView.LoadFailedStatus === loadRequest.status) {
-            console.log("Tablet WebEngineView failed to load url: " + loadRequest.url.toString());
+            console.log("Tablet WebEngineView failed to load.");
         }
 
         if (WebEngineView.LoadSucceededStatus === loadRequest.status) {

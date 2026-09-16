@@ -19,7 +19,6 @@
 #include <QtCore/QDataStream>
 #include <QtCore/QCryptographicHash>
 
-#include <UUID.h>
 
 #include "NetworkLogging.h"
 #include "WarningsSuppression.h"
@@ -68,7 +67,7 @@ void DataServerAccountInfo::setUsername(const QString& username) {
     if (_username != username) {
         _username = username;
 
-        qCDebug(networking) << "Username changed to" << username;
+        qCDebug(networking) << "Account username changed.";
     }
 }
 
@@ -101,8 +100,7 @@ QByteArray DataServerAccountInfo::getUsernameSignature(const QUuid& connectionTo
 
     auto signature = signPlaintext(plaintext);
     if (!signature.isEmpty()) {
-        qDebug(networking) << "Returning username" << _username
-            << "signed with connection UUID" << uuidStringWithoutCurlyBraces(connectionToken);
+        qCDebug(networking) << "Account username signature created.";
     } else {
         qCDebug(networking) << "Error signing username with connection token";
         qCDebug(networking) << "Will re-attempt on next domain-server check in.";
@@ -136,7 +134,8 @@ QByteArray DataServerAccountInfo::signPlaintext(const QByteArray& plaintext) {
             // free the private key RSA struct now that we are done with it
             RSA_free(rsaPrivateKey);
 
-            if (encryptReturn != -1) {
+            if (encryptReturn == 1) {
+                signature.resize(static_cast<int>(signatureBytes));
                 return signature;
             }
         } else {

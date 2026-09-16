@@ -29,7 +29,7 @@ namespace render {
         RenderContext() : task::JobContext() {}
         virtual ~RenderContext() {}
 
-        RenderArgs* args;
+        RenderArgs* args { nullptr };
         ScenePointer _scene;
     };
     using RenderContextPointer = std::shared_ptr<RenderContext>;

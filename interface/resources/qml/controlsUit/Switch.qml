@@ -15,9 +15,11 @@ import "../stylesUit"
 
 Item {
     id: rootSwitch;
+    HifiConstants { id: hifi }
 
     implicitWidth: Math.max(switchWidth, touchMetrics.adaptiveMinimumControlHeight)
-    implicitHeight: touchMetrics.adaptiveMinimumControlHeight
+    implicitHeight: Math.max(hifi.dimensions.controlLineHeight,
+        touchMetrics.adaptiveMinimumControlHeight)
 
     property int colorScheme: hifi.colorSchemes.light;
     readonly property bool isLightColorScheme: colorScheme == hifi.colorSchemes.light;
@@ -38,9 +40,19 @@ Item {
 
     TouchUiMetrics { id: touchMetrics }
 
+    function chooseCheckedByUser(value) {
+        if (!rootSwitch.visible || !rootSwitch.enabled) { return; }
+        originalSwitch.forceActiveFocus(Qt.MouseFocusReason);
+        originalSwitch.checked = value;
+        rootSwitch.clicked(); // Label actions must reach existing onClicked consumers.
+    }
+
     Original.Switch {
         id: originalSwitch;
-        focusPolicy: Qt.ClickFocus
+        focusPolicy: visible && enabled ? Qt.StrongFocus : Qt.NoFocus
+        onVisibleChanged: { if (!visible) { focus = false; } }
+        onEnabledChanged: { if (!enabled) { focus = false; } }
+        Accessible.name: rootSwitch.labelTextOn || rootSwitch.labelTextOff
         anchors.top: rootSwitch.top;
         anchors.left: rootSwitch.left;
         anchors.leftMargin: rootSwitch.width/2 - rootSwitch.switchWidth/2;
@@ -122,7 +134,7 @@ Item {
             anchors.left: labelGlyphOff.left;
             anchors.right: labelOff.right;
             onClicked: {
-                originalSwitch.checked = false;
+                rootSwitch.chooseCheckedByUser(false);
             }
         }
     }
@@ -161,7 +173,7 @@ Item {
             anchors.left: labelOn.left;
             anchors.right: labelGlyphOn.right;
             onClicked: {
-                originalSwitch.checked = true;
+                rootSwitch.chooseCheckedByUser(true);
             }
         }
     }

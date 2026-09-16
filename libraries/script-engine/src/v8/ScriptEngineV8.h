@@ -20,6 +20,7 @@
 #define hifi_ScriptEngineV8_h
 
 #include <memory>
+#include <atomic>
 
 #include <QtCore/QByteArray>
 #include <QtCore/QHash>
@@ -86,6 +87,7 @@ public:  // ScriptEngine implementation
 
     std::unique_ptr<ScriptEngineScopeGuard> getScopeGuard() override;
     virtual void abortEvaluation() override;
+    bool isEvaluationAborted() const { return _abortRequested.load(); }
     virtual void clearExceptions() override;
     virtual ScriptContext* currentContext() const override;
     Q_INVOKABLE virtual ScriptValue evaluate(const QString& program, const QString& fileName = QString()) override;
@@ -224,7 +226,7 @@ public: // not for public use, but I don't like how Qt strings this along with p
 
     ScriptContextV8Pointer pushContext(v8::Local<v8::Context> context);
     void popContext();
-    void storeGlobalObjectContents();
+    bool storeGlobalObjectContents();
 #ifdef OVERTE_V8_MEMORY_DEBUG
     void incrementScriptValueCounter() { scriptValueCount++; };
     void decrementScriptValueCounter() { scriptValueCount--; };
@@ -251,6 +253,7 @@ protected:
 
 
     // V8TODO: clean up isolate when script engine is destroyed?
+    std::atomic<bool> _abortRequested { false };
     v8::Isolate* _v8Isolate;
 
     struct CustomMarshal {
