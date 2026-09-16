@@ -33,6 +33,28 @@ class PolicyTests(unittest.TestCase):
     def test_repository_resolves_all_consumers(self):
         self.assertEqual(check.local_check(check.ROOT), self.policy)
 
+    def test_shared_profile_requires_absent_android_consumers_and_safe_registration(self):
+        def read(path):
+            if path == "tests/platform-profile.json":
+                return '{"platform":"shared"}'
+            if path.startswith("android/"):
+                raise FileNotFoundError(path)
+            return "select-platform-ref:\n  run: exit 1\n"
+        check.check_sources(read, [])
+        with self.assertRaisesRegex(check.PolicyError, "unexpectedly present"):
+            check.check_sources(lambda path: "unexpected" if path.startswith("android/") else read(path), [])
+        with self.assertRaisesRegex(check.PolicyError, "registration-only"):
+            check.check_sources(lambda path: "uses: actions/checkout" if path.endswith(".yml") else read(path), [])
+
+    def test_android_profile_requires_all_resolver_consumers(self):
+        def read(path):
+            if path == "tests/platform-profile.json":
+                return '{"platform":"android"}'
+            return "tools/dependency-releases/check.py get " + check.CONSUMERS[path] + " tag"
+        check.check_sources(read, [])
+        with self.assertRaisesRegex(check.PolicyError, "central resolver"):
+            check.check_sources(lambda path: "obsolete downloader" if path.startswith("android/") else read(path), [])
+
     def test_rejects_wrong_repository_mutable_tag_and_bad_digest(self):
         for field, value in [("tag", "latest"), ("tag_object", "123"),
                              ("assets", {"../outside": "0" * 64})]:

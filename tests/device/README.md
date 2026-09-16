@@ -1,4 +1,4 @@
-# Overte device E2E harness
+# Overte physical-device E2E harness
 
 The lifecycle policy, common CI flow, evidence contracts, stability campaign,
 and portable suite frontier are documented in
@@ -25,7 +25,7 @@ matrix         -> selector-free policy evaluation
 The runner reserves exactly one target for a complete run, applies module
 timeouts to process groups, always calls idempotent cleanup, redacts private
 selectors, and stores diagnostics outside the source tree. Exit code `0`
-passes, `77` skips a missing optional capability, `75` reports device-lab
+passes, `77` skips for a missing optional capability, `75` reports device-lab
 infrastructure failure, and other non-zero codes report an application
 assertion failure.
 
@@ -62,12 +62,14 @@ assertion failure.
   bounded flight with observed active ascent. Adapters lacking either input
   capability skip only the corresponding module unless `--require-complete`
   is selected.
-- `accessibility`: native-tree audit against explicitly configured stable UI
-  accessibility identifiers.
-- `stability`: idle process and foreground health, with strict battery,
-  memory, and thermal samples when the adapter advertises telemetry.
-- `lifecycle-stability`: repeated background and activation cycles with a
-  stable process identity on targets that support lifecycle automation.
+- `accessibility`: Appium native-tree audit against explicitly configured
+  stable QML accessibility labels.
+- `stability`: idle process/foreground health on every target, with strict
+  battery, memory, and thermal samples when the adapter advertises telemetry.
+- `lifecycle-stability`: repeated background/activation cycles with a stable
+  process identity on Android and iOS.
+
+Enable long suites only after the short suites are reliable on the target.
 
 Modules that assert in-client effects use `OverteSession` and verify those
 effects through fresh schema-v2 `probe.snapshot` samples. A successful input
@@ -85,13 +87,12 @@ An adapter manifest uses schema version 1:
 ```json
 {
   "schemaVersion": 1,
-  "id": "mock-device",
-  "command": ["adapter.py"]
+  "id": "android-phone-adb",
+  "command": ["adapter.py", "--kind", "phone"]
 }
 ```
 
-Relative commands are resolved against the manifest directory. The executable
-receives one command and writes exactly one JSON value:
+The executable receives one command and writes exactly one JSON value:
 
 ```text
 adapter discover
@@ -102,10 +103,9 @@ adapter cleanup --target TARGET
 
 `discover` returns `selector`, `displayName`, `platform`, `physical`, and a
 sorted `capabilities` list. Selectors are private transport identifiers and
-must never appear in descriptions or persisted output. Supported operation
-names and results are versioned in [`capabilities.json`](capabilities.json).
-Machine-readable catalog, manifest, and probe schemas are in
-[`schemas/`](schemas/).
+must never appear in descriptions or persisted output. Supported names and
+operation results are versioned in [`capabilities.json`](capabilities.json).
+Machine-readable catalog, manifest, and probe schemas are in [`schemas/`](schemas/).
 
 The common input and lifecycle contract is deliberately small:
 
@@ -152,6 +152,11 @@ long-running listener:
 python3 tests/device/fixture/serve.py --check
 ```
 
+The Android debug E2E APK embeds the same scene and probe and can use
+`OVERTE_E2E_SCENE_URL=overte-e2e://fixture/scene`; its shell-protected launcher
+maps that logical request to the fixed local asset. Release APKs contain neither
+the launcher nor the two E2E assets.
+
 The server exposes the repository-owned probe at `/overte_e2e_probe.js` and the
 pinned texture plus per-request telemetry used by `asset-smoke`, together with
 the deterministic sound described in [`SOUND_E2E.md`](SOUND_E2E.md). The
@@ -192,7 +197,7 @@ List the common suite against the deterministic adapter:
 
 ```bash
 python3 tests/device/run.py \
-  --adapter-manifest tests/device/adapters/mock/adapter.json \
+  --adapter-manifest tests/device/adapters/android/phone.json \
   --catalog tests/device/catalog.json --suite e2e-core --list
 ```
 
@@ -214,6 +219,19 @@ OVERTE_MOCK_TABLET_UI_PROFILE=flat python3 tests/device/run.py \
   --output-dir "$run_root/tablet" --allow-virtual --require-complete
 ```
 
+Run on one discovered physical target and keep results outside the checkout:
+
+```bash
+python3 tests/device/run.py \
+  --adapter-manifest tests/device/adapters/android/phone.json \
+  --catalog tests/device/catalog.json --suite smoke \
+  --output-dir /tmp/overte-device-run
+```
+
+Jenkins runs suites with `--require-complete`, so a target that lacks any
+capability required by the selected suite is an infrastructure error instead of
+a misleading partial pass. Use that flag for manual acceptance runs as well.
+
 Use `--target` only when discovery yields multiple targets. The value is never
 persisted, but shell tracing must still be disabled around it in CI.
 
@@ -230,6 +248,8 @@ Inspect the reusable adapter verifier without selecting or contacting a target:
 python3 tests/device/verify_adapter.py --help
 ```
 
-See [`E2E_STRATEGY.md`](E2E_STRATEGY.md) for the shared behavior contract,
-failure classification, and hardware acceptance gates. Platform-specific
-setup, pins, and runbooks live with the relevant product adapter.
+See [`E2E_STRATEGY.md`](E2E_STRATEGY.md) for rollout, target ownership, Jenkins,
+tooling decisions, and the hardware acceptance matrix.
+Exact open-source tool versions, artifact checksums, and the offline validation
+workflow are in [`TOOLCHAIN.md`](TOOLCHAIN.md) and
+[`toolchain.lock.json`](toolchain.lock.json).
