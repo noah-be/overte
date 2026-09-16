@@ -20,6 +20,7 @@ CHANGE_PREFIXES = (
     "feature", "fix", "docs", "refactor", "test", "tests", "ci", "sync"
 )
 PRIVILEGED_PATHS = (
+    ".github/platform-source-policy.json",
     ".github/branch-policy.json",
     ".github/branch-cleanup.json",
     ".github/maintenance-policy.json",

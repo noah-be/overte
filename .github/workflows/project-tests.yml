@@ -1,9 +1,8 @@
-name: Pico 4 device-free CI
+name: Shared project CI
 
 on:
   pull_request:
     paths:
-      - "android/**"
       - "interface/**"
       - "libraries/**"
       - "scripts/**"
@@ -16,7 +15,13 @@ on:
       - "!**/*.md"
   push:
     branches:
+      - main
+      - android-main
+      - android-phone
+      - android-vr
       - android-vr-pico
+      - apple-main
+      - apple-ios
       - "ci/**"
       - "test/**"
     paths-ignore:

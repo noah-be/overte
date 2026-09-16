@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Actual retained radial callers and CPU renderer, Qt software pixel checks."""
 import os
+import json
 from pathlib import Path
 import shlex
 import subprocess
@@ -25,7 +26,11 @@ class RadialGradient(unittest.TestCase):
             (temp / 'controls').mkdir()
             (temp / 'controls/CpuRadialGradient.qml').write_text(component)
             (temp / 'controls/qmldir').write_text((ROOT / 'interface/resources/qml/controls/qmldir').read_text())
-            for caller in ['windows/Frame.qml', '+android_interface/Web3DSurfaceAndroid.qml']:
+            callers = ['windows/Frame.qml']
+            profile = json.loads((ROOT / 'tests/platform-profile.json').read_text())
+            if profile['platform'] == 'android':
+                callers.append('+android_interface/Web3DSurfaceAndroid.qml')
+            for caller in callers:
                 source = (ROOT / 'interface/resources/qml' / caller).read_text()
                 start = source.index('    CpuControls.CpuRadialGradient {')
                 end = source.index('{', start) + 1

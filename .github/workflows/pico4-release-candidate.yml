@@ -9,132 +9,17 @@ on:
         default: false
         type: boolean
 
+# Default-branch registration only. Select the owning Android branch or release
+# tag in Run workflow; that ref retains the complete implementation and gates.
 permissions:
   contents: read
 
-concurrency:
-  group: pico4-release-${{ github.ref }}
-  cancel-in-progress: false
-
-defaults:
-  run:
-    shell: bash
-
 jobs:
-  release-candidate:
-    # The former path created a draft from an explicitly incomplete legacy
-    # inventory. Keep it fail-closed until the complete inventory and NOTICE
-    # materializers can feed release-bundle-attest-draft.yml in the release
-    # pilot authorized separately from this hardening change.
-    if: ${{ inputs.release_pilot_authorized }}
-    # Approval and secrets are owned by this protected environment. Never add
-    # pull_request, push, or a mutable branch path to this workflow.
-    environment: pico4-release-candidate
-    runs-on: [self-hosted, linux, x64, overte-android-release]
-    timeout-minutes: 300
-    permissions:
-      contents: read
-    env:
-      PICO_APK: android/vr/pico/apps/picoInterface/build/outputs/apk/release/picoInterface-release.apk
+  select-platform-ref:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 1
     steps:
-      - name: Check out selected tag without credentials
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Reject mutable refs and derive release coordinates
-        id: release
+      - name: Require the owning platform revision
         run: |
-          set -euo pipefail
-          [[ "$GITHUB_REF_TYPE" == tag ]] || {
-            echo "Release candidates must be dispatched from an existing tag" >&2
-            exit 2
-          }
-          [[ "$(git rev-list -n 1 "$GITHUB_REF")" == "$GITHUB_SHA" ]] || {
-            echo "Checked-out revision does not match the selected tag" >&2
-            exit 2
-          }
-          android/vr/pico/ci/pico4-release.py \
-            --tag "$GITHUB_REF_NAME" \
-            --github-ref "$GITHUB_REF" \
-            --revision "$GITHUB_SHA" \
-            --github-output "$GITHUB_OUTPUT"
-
-      - name: Run device-free regression suite
-        run: tests/run-project-tests.py --timeout 240 --junit build/test-results/project-tests.xml
-
-      - name: Verify build environment and restore pinned dependencies
-        working-directory: android
-        run: |
-          set -euo pipefail
-          ./vr/pico/build.sh doctor
-          ./vr/pico/build.sh deps --download
-          ./vr/pico/build.sh prepare
-
-      - name: Materialize protected signing key
-        id: signing
-        env:
-          PICO_RELEASE_KEYSTORE_BASE64: ${{ secrets.PICO_RELEASE_KEYSTORE_BASE64 }}
-        run: |
-          set -euo pipefail
-          key_store="$RUNNER_TEMP/pico4-release-${GITHUB_RUN_ID}.jks"
-          umask 077
-          printf '%s' "$PICO_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$key_store"
-          [[ -s "$key_store" ]] || { echo "Protected keystore is empty" >&2; exit 2; }
-          echo "key_store=$key_store" >> "$GITHUB_OUTPUT"
-
-      - name: Build signed Pico release candidate
-        working-directory: android
-        env:
-          ORG_GRADLE_PROJECT_VERSION_CODE: ${{ steps.release.outputs.version_code }}
-          ORG_GRADLE_PROJECT_RELEASE_NUMBER: ${{ steps.release.outputs.version_name }}
-          ORG_GRADLE_PROJECT_RELEASE_TYPE: RC
-          ORG_GRADLE_PROJECT_STABLE_BUILD: "0"
-          ORG_GRADLE_PROJECT_PICO_RELEASE_STORE_FILE: ${{ steps.signing.outputs.key_store }}
-          ORG_GRADLE_PROJECT_PICO_RELEASE_STORE_PASSWORD: ${{ secrets.PICO_RELEASE_STORE_PASSWORD }}
-          ORG_GRADLE_PROJECT_PICO_RELEASE_KEY_ALIAS: ${{ secrets.PICO_RELEASE_KEY_ALIAS }}
-          ORG_GRADLE_PROJECT_PICO_RELEASE_KEY_PASSWORD: ${{ secrets.PICO_RELEASE_KEY_PASSWORD }}
-        run: ./vr/pico/build.sh release --stacktrace
-
-      - name: Verify APK identity, version, signature and provenance
-        env:
-          EXPECTED_VERSION_CODE: ${{ steps.release.outputs.version_code }}
-          EXPECTED_VERSION_NAME: ${{ steps.release.outputs.version_name }}
-          PICO_RELEASE_CERT_SHA256: ${{ secrets.PICO_RELEASE_CERT_SHA256 }}
-        run: |
-          set -euo pipefail
-          android/vr/pico/ci/verify-pico-apk.py "$PICO_APK" \
-            --aapt "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt" \
-            --apksigner "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" \
-            --source-revision "$GITHUB_SHA" \
-            --expected-version-code "$EXPECTED_VERSION_CODE" \
-            --expected-version-name "$EXPECTED_VERSION_NAME" \
-            --expected-signer-sha256 "$PICO_RELEASE_CERT_SHA256" \
-            --output build/pico4/apk-manifest.json
-          android/vr/pico/ci/pico4-release.py \
-            --tag "$GITHUB_REF_NAME" --revision "$GITHUB_SHA" \
-            --apk-manifest build/pico4/apk-manifest.json \
-            --dependency-checksums android/common/conan/prebuilt/pico4-deps-v1.sha256 \
-            --output-dir build/pico4
-
-      - name: Upload locally verifiable reports
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: pico4-release-reports-${{ github.run_id }}
-          path: |
-            build/test-results/project-tests.xml
-            build/pico4/apk-manifest.json
-            build/pico4/pico4-release-manifest.json
-            build/pico4/pico4-sbom.cdx.json
-            build/pico4/SHA256SUMS
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Remove signing material
-        if: always()
-        env:
-          PICO_KEY_STORE: ${{ steps.signing.outputs.key_store }}
-        run: |
-          set -euo pipefail
-          [[ -z "$PICO_KEY_STORE" ]] || rm -f -- "$PICO_KEY_STORE"
+          echo "::error::Select the owning Android product branch or approved release tag. main contains no Android build implementation."
+          exit 1

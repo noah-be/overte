@@ -250,18 +250,6 @@ class ConanCacheManagerTest(unittest.TestCase):
                             MANAGER.CacheError, "default Conan cache.*symbolic-link"):
                         MANAGER.CacheManager(temporary / "otherwise-safe")
 
-    def test_android_conan_entrypoints_inherit_conan_home(self):
-        pico = (ROOT / "android/vr/pico/build.sh").read_text(encoding="utf-8")
-        phone_entry = (ROOT / "android/phone/build.sh").read_text(encoding="utf-8")
-        phone = (ROOT / "android/phone/build-phone-qt-16k.sh").read_text(encoding="utf-8")
-        non_qt = (ROOT / "android/phone/prepare-phone-16k-conan-deps.sh").read_text(
-            encoding="utf-8")
-        for source in (pico, phone, non_qt):
-            self.assertIn('conan_home="${CONAN_HOME:-${HOME}/.conan2}"', source)
-        self.assertIn('${CONAN_HOME:-${HOME}/.conan2}/p', phone_entry)
-        self.assertIn('PHONE_SHARED_CONAN_HOME:-${HOME}/.conan2', phone_entry)
-        self.assertNotIn("env -i", pico)
-        self.assertNotIn("unset CONAN_HOME", pico + phone_entry + phone + non_qt)
 
 
 if __name__ == "__main__":

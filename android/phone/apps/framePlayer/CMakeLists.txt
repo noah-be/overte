@@ -1,5 +1,0 @@
-set(TARGET_NAME framePlayer)
-setup_hifi_library(AndroidExtras)
-link_hifi_libraries(shared ktx shaders qml gpu gl ${PLATFORM_GL_BACKEND})
-target_link_libraries(${TARGET_NAME} android log m)
-target_opengl()
