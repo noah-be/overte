@@ -672,6 +672,8 @@ if binary_uuid != symbol_uuid:
 print(binary_uuid)
 PY
 )" || fail "Release integrated client dSYM does not match the packaged executable"
+        python3 "$script_dir/tools/verify-dsym-content.py" "$dsym_binary" \
+            || fail "Release integrated client dSYM has no usable compilation units/line tables"
     fi
 
     local artifact_dir="$source_root/build-ios/artifacts"

@@ -443,7 +443,13 @@ void TabletProxy::setToolbarMode(bool toolbarMode) {
         closeDialog();
         // create new desktop window
         auto tabletRootWindow = new TabletRootWindow();
+#if defined(Q_OS_IOS)
+        // Set initial visibility before QML completion; hiding afterwards fades
+        // out an already visible, empty desktop tablet frame at startup.
+        tabletRootWindow->initQml(QVariantMap{{ QStringLiteral("visible"), false }});
+#else
         tabletRootWindow->initQml(QVariantMap());
+#endif
         auto quickItem = tabletRootWindow->asQuickItem();
         _desktopWindow = tabletRootWindow;
         QMetaObject::invokeMethod(quickItem, "setShown", Q_ARG(const QVariant&, QVariant(false)));

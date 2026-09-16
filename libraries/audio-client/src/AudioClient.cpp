@@ -62,6 +62,7 @@
 #include "AudioHelpers.h"
 #if defined(Q_OS_IOS)
 #include "IOSAudioPermission.h"
+#include <shared/IOSRuntimeLogging.h>
 #endif
 
 #if defined(Q_OS_ANDROID)
@@ -1207,7 +1208,10 @@ void AudioClient::start() {
 #endif
 #if defined(Q_OS_IOS)
     overte::audio::setIOSAudioStateCallback([this] {
-        QMetaObject::invokeMethod(this, [this] { refreshIOSAudioInput(); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, [this] {
+            refreshIOSAudioInput();
+            refreshIOSAudioOutput();
+        }, Qt::QueuedConnection);
     });
     overteIOSSetAudioMuted(_isMuted);
     if (!overteIOSActivateAudioSession()) {
@@ -2567,8 +2571,46 @@ void AudioClient::refreshIOSAudioInput() {
         emit deviceChanged(HifiAudioDeviceMode::Input, HifiAudioDeviceInfo());
         emit inputLoudnessChanged(0.0f, false);
     } else {
-        switchInputToAudioDevice(defaultAudioDeviceForMode(HifiAudioDeviceMode::Input, QString()));
+        const auto device = defaultAudioDeviceForMode(HifiAudioDeviceMode::Input, QString());
+        const auto revision = overteIOSAudioOutputRevision();
+        if (_audioInput && _inputDevice && _iosInputRevision == revision &&
+                _inputDeviceInfo.getDevice() == device.getDevice() &&
+                _audioInput->error() == QAudio::NoError &&
+                _audioInput->state() != QAudio::StoppedState &&
+                _audioInput->state() != QAudio::SuspendedState) {
+            return;
+        }
+        _iosInputRevision = revision;
+        switchInputToAudioDevice(device);
     }
+}
+
+void AudioClient::refreshIOSAudioOutput() {
+    Q_ASSERT(QThread::currentThread() == thread());
+    {
+        Lock lock(_checkDevicesMutex);
+        if (!_audioLifecycleRunning) { return; }
+    }
+    if (!overteIOSAudioPlaybackAllowed()) {
+        if (_audioOutput) { switchOutputToAudioDevice(HifiAudioDeviceInfo(), true); }
+        return;
+    }
+    const auto revision = overteIOSAudioOutputRevision();
+    const bool changed = _iosOutputRevision != revision;
+    if (changed) {
+        _iosOutputRevision = revision;
+        _iosOutputRecoveryAttempts = 0;
+    }
+    if (!changed && _audioOutput && _audioOutputInitialized.load(std::memory_order_acquire) &&
+            _audioOutput->error() == QAudio::NoError &&
+            (_audioOutput->state() == QAudio::ActiveState || _audioOutput->state() == QAudio::IdleState)) {
+        return;
+    }
+    // Bound retries for a broken sink. A native activation or route change
+    // permits another attempt, without retrying indefinitely on stateChanged.
+    if (_iosOutputRecoveryAttempts >= 2) { return; }
+    ++_iosOutputRecoveryAttempts;
+    switchOutputToAudioDevice(defaultAudioDeviceForMode(HifiAudioDeviceMode::Output, QString()));
 }
 #endif
 
@@ -2891,6 +2933,10 @@ bool AudioClient::switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDevi
     
     qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     bool supportedFormat = false;
+#if defined(Q_OS_IOS)
+    const bool blockedStart = !isShutdownRequest && !overteIOSAudioPlaybackAllowed();
+    isShutdownRequest = isShutdownRequest || blockedStart;
+#endif
 
     // NOTE: device start() uses the Qt internal device list
     Lock lock(_deviceMutex);
@@ -2906,9 +2952,12 @@ bool AudioClient::switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDevi
 
     // cleanup any previously initialized device
     if (_audioOutput) {
-        _audioOutputIODevice.close();
-        _audioOutput->stop();
         _audioOutputInitialized = false;
+        // Stop the backend before closing its pull source. Retired sink events
+        // must not act on the replacement device.
+        disconnect(_audioOutput, nullptr, this, nullptr);
+        _audioOutput->stop();
+        _audioOutputIODevice.close();
 
         //must be deleted in next eventloop cycle when its called from notify()
         _audioOutput->deleteLater();
@@ -2916,8 +2965,11 @@ bool AudioClient::switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDevi
 
         _loopbackOutputDevice = NULL;
         //must be deleted in next eventloop cycle when its called from notify()
-        _loopbackAudioOutput->deleteLater();
-        _loopbackAudioOutput = NULL;
+        if (_loopbackAudioOutput) {
+            _loopbackAudioOutput->stop();
+            _loopbackAudioOutput->deleteLater();
+            _loopbackAudioOutput = NULL;
+        }
         _loopbackPendingAudio.clear();
 
         delete[] _outputMixBuffer;
@@ -2950,7 +3002,11 @@ bool AudioClient::switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDevi
 
     if (isShutdownRequest) {
         qCDebug(audioclient) << "The audio output device has shut down.";
+#if defined(Q_OS_IOS)
+        return !blockedStart;
+#else
         return true;
+#endif
     }
 
     if (!outputDeviceInfo.getDevice().isNull()) {
@@ -2998,16 +3054,38 @@ bool AudioClient::switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDevi
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
             connect(_audioOutput, &HifiAudioSink::notify, this, &AudioClient::outputNotify);
 #else
-            connect(_audioOutput, &HifiAudioSink::stateChanged, this, [this](QAudio::State state) {
+            connect(_audioOutput, &HifiAudioSink::stateChanged, this,
+                    [this, sink = QPointer<HifiAudioSink>(_audioOutput)](QAudio::State state) {
+                if (!sink || sink.data() != _audioOutput) { return; }
                 qCDebug(audioclient) << "Qt 6 audio sink state changed:" << state;
                 outputNotify();
-            });
+#if defined(Q_OS_IOS)
+                if (state == QAudio::StoppedState || state == QAudio::SuspendedState) {
+                    refreshIOSAudioOutput();
+                }
+#endif
+            }, Qt::QueuedConnection);
 #endif
 
             // start the output device
             _audioOutputIODevice.start();
             _audioOutput->start(&_audioOutputIODevice);
+#if defined(Q_OS_IOS)
+            logIOSRuntimeMarker("OVERTE_IOS_AUDIO_OUTPUT stage=sink-start",
+                "state=", static_cast<int>(_audioOutput->state()),
+                "error=", static_cast<int>(_audioOutput->error()),
+                "buffer_bytes=", _audioOutput->bufferSize(),
+                "sample_rate=", _outputFormat.sampleRate(),
+                "channels=", _outputFormat.channelCount(),
+                "gain=", _outputGain.load(std::memory_order_acquire),
+                "system_gain=", _systemInjectorGain.load(std::memory_order_acquire));
+#endif
 
+#if defined(Q_OS_IOS)
+            if (_audioOutput->error() != QAudio::NoError || _audioOutput->state() == QAudio::StoppedState) {
+                return false;
+            }
+#endif
             // initialize mix buffers
 
             // restrict device callback to _outputPeriod samples
@@ -3056,6 +3134,12 @@ bool AudioClient::switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDevi
         }
     }
 
+#if defined(Q_OS_IOS)
+    logIOSRuntimeMarker("OVERTE_IOS_AUDIO_OUTPUT stage=selection-result",
+        "device_present=", !outputDeviceInfo.getDevice().isNull(),
+        "supported_format=", supportedFormat,
+        "initialized=", _audioOutputInitialized.load(std::memory_order_acquire));
+#endif
     return supportedFormat;
 }
 

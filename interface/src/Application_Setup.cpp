@@ -15,6 +15,10 @@
 
 #include "Application.h"
 #include "ApplicationLifecycle.h"
+#if defined(Q_OS_IOS)
+#include "../../ios/performance/FullClientMemoryGuard.h"
+#include <material-networking/ShaderCache.h>
+#endif
 
 #include <algorithm>
 #include <cstdint>
@@ -632,8 +636,26 @@ void Application::initialize(const QCommandLineParser &parser) {
             if (!success) {
                 concurrentDownloads = MAX_CONCURRENT_RESOURCE_DOWNLOADS;
             }
+#if defined(Q_OS_IOS)
+            concurrentDownloads = std::min(concurrentDownloads, uint32_t(2));
+#endif
             ResourceCache::setRequestLimit(concurrentDownloads);
         }
+
+#if defined(Q_OS_IOS)
+        // These are unused-cache accounting limits, not physical allocation quotas.
+        // Active resources stay referenced; the guard also samples native headroom.
+        constexpr uint64_t iosCacheMiB = 1024ULL * 1024ULL;
+        overte::ios::installFullClientMemoryGuard(this, {
+            { DependencyManager::get<ModelCache>().data(), 64 * iosCacheMiB },
+            { DependencyManager::get<SoundCache>().data(), 8 * iosCacheMiB },
+            { DependencyManager::get<AnimationCache>().data(), 8 * iosCacheMiB },
+            { DependencyManager::get<MaterialCache>().data(), 8 * iosCacheMiB },
+            { DependencyManager::get<recording::ClipCache>().data(), 8 * iosCacheMiB },
+            { DependencyManager::get<TextureCache>().data(), 0 },
+            { &ShaderCache::instance(), 8 * iosCacheMiB }
+        });
+#endif
 
         // perhaps override the avatar url.  Since we will test later for validity
         // we don't need to do so here.

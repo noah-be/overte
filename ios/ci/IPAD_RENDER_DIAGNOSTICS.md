@@ -13,6 +13,11 @@ must be visible before treating a run as valid.
 
 ## Tablet QML without rebuilding
 
+For complete QML/client-script revisions on the next E2E foundation IPA, use
+[the development sync protocol](../development/README.md). It includes dependent
+QML, JS imports, restart selection and rollback. The individual-file mechanism
+below remains available on older IPAs.
+
 A reviewed top-level `qrc:/...` QML file can be replaced temporarily through
 the app container at `Documents/OverteQmlOverrides/<qrc path>`. Overrides are
 disabled unless the regular file `Documents/OverteQmlOverrides/.enabled`
@@ -81,3 +86,20 @@ not implemented and `Stutter: n/a` when the display plugin returns its
 unsupported sentinel. `Processing/pending: 0/0 (idle)` is a valid idle state.
 `OVERTE_IOS_STATS_SAMPLE` logs the raw counters and byte values every
 `statsTraceIntervalMs` (default 5000 ms).
+
+## Device-loss evidence
+
+On an iOS presentation exception, `OVT_IOS_GPU_FAILURE_V1` reports the pending
+submit ID, total attempted draws and retained count. Up to the last 128 attempts
+are emitted as `OVT_IOS_GPU_DRAW_V1` with process-local batch/draw ordinals,
+compiled shader IDs and actual input-validation results. The snapshot is taken
+before queue submission and retired only after its fence succeeds. Encoding a
+later frame does not replace the pending snapshot.
+
+These fixed numeric records contain no resource addresses, asset URLs or user
+identities. Recording uses bounded memory; the success path adds no diagnostic
+file writes or per-draw log output. `checked=0` means validation was not reached,
+not that the input was valid. Attempts do not prove execution or culpability;
+`attempts > retained` explicitly means earlier draws are absent. Shader IDs must
+be resolved against the exact IPA source/build. An OS kill that bypasses the
+presentation exception cannot flush this in-memory evidence.

@@ -3,10 +3,19 @@
 #include "NativeMetrics.h"
 #import <Foundation/Foundation.h>
 #import <mach/mach.h>
+#include <os/proc.h>
 
 namespace overte::ios {
-NativeMetrics sampleNativeMetrics() noexcept {
+NativeMetrics sampleAvailableMemory() noexcept {
     NativeMetrics result;
+    if (@available(iOS 13.0, *)) {
+        result.availableMemoryBytes = os_proc_available_memory();
+        result.availableMemoryAvailable = true;
+    }
+    return result;
+}
+NativeMetrics sampleNativeMetrics() noexcept {
+    NativeMetrics result = sampleAvailableMemory();
     task_vm_info_data_t vm {};
     mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
     if (task_info(mach_task_self(), TASK_VM_INFO, reinterpret_cast<task_info_t>(&vm), &count) == KERN_SUCCESS &&

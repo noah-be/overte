@@ -340,11 +340,17 @@ void AudioDeviceList::onDevicesChanged(HifiAudioDeviceMode mode, const QList<Hif
 
         if (deviceInfo.isDefault()) {
             if (deviceInfo.getDeviceType() == HifiAudioDeviceInfo::desktop || deviceInfo.getDeviceType() == HifiAudioDeviceInfo::both) {
+#if defined(Q_OS_IOS)
+                device.display = deviceInfo.getMode() == HifiAudioDeviceMode::Input
+                    ? tr("Default microphone (recommended)")
+                    : tr("Default audio output (recommended)");
+#else
                 if (deviceInfo.getMode() == HifiAudioDeviceMode::Input) {
                     device.display = "Computer's default microphone (recommended)";
                 } else {
                     device.display = "Computer's default audio (recommended)";
                 }
+#endif
             } else if (deviceInfo.getDeviceType() == HifiAudioDeviceInfo::hmd) {
                 if (deviceInfo.getMode() == HifiAudioDeviceMode::Input) {
                     device.display = "Headset's default mic (recommended)";

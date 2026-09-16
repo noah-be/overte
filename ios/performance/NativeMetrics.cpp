@@ -12,6 +12,7 @@ void recordNativeMetrics(const NativeMetrics& metrics) {
     std::lock_guard guard(metricsMutex);
     latest = metrics;
     if (!latest.footprintAvailable) { latest.footprintBytes = 0; }
+    if (!latest.availableMemoryAvailable) { latest.availableMemoryBytes = 0; }
     if (!latest.lowPowerAvailable) { latest.lowPower = false; }
 }
 NativeMetrics latestNativeMetrics() {

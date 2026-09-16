@@ -95,7 +95,16 @@ class WorkflowStorageContracts(unittest.TestCase):
                     1,
                     f"{workflow.name}: each artifact upload needs one retention-days value",
                 )
-                self.assertLessEqual(retentions[0], 30, workflow.name)
+                # This digest-verified source bundle is a reusable build input,
+                # not a diagnostic report. Keep the exception scoped to its
+                # exact workflow and artifact contents.
+                checkpoint_paths = {
+                    "build-ios/qt-source-checkpoint/checkpoint.tar.gz",
+                    "build-ios/qt-source-checkpoint/manifest.json",
+                }
+                source_checkpoint = (workflow.name == "ios-qt-source.yml" and
+                                     checkpoint_paths <= {line.strip() for line in block})
+                self.assertLessEqual(retentions[0], 90 if source_checkpoint else 30, workflow.name)
                 self.assertGreaterEqual(retentions[0], 1, workflow.name)
         self.assertGreater(upload_count, 0)
 

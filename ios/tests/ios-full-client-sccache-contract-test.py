@@ -54,7 +54,7 @@ def main() -> None:
         if forbidden in integrated:
             raise AssertionError(f"disk-only compiler caching retains forbidden GHA state: {forbidden}")
     require(r"SCCACHE_DIR:\s*\$\{\{ github\.workspace \}\}/build-ios/client-sccache", integrated, "the cache must stay in the bounded workspace path")
-    require(r"SCCACHE_CACHE_SIZE:\s*512M", integrated, "the client cache must leave room for validated toolchain checkpoints")
+    require(r"SCCACHE_CACHE_SIZE:\s*4G", integrated, "the client working set must not cycle through the exhausted 512 MiB limit")
     require(r'SCCACHE_IDLE_TIMEOUT:\s*"0"', integrated, "the cache server must survive long non-compiler Xcode phases")
     for disk_setting in (
         'SCCACHE_CLIENT_SIDE: "1"',
@@ -64,10 +64,23 @@ def main() -> None:
         if disk_setting not in integrated:
             raise AssertionError(f"disk-only object persistence omits {disk_setting}")
     require(r"SCCACHE_BASEDIRS:\s*\$\{\{ github\.workspace \}\}", integrated, "workspace paths must be normalized")
-    require(r"SCCACHE_C_CUSTOM_CACHE_BUSTER=.*namespace", integrated, "toolchain identity must enter compiler keys")
-    for identity in ("QT_HOST_KEY", "QT_IOS_KEY", "CONAN_KEY", "V8_KEY", "MOLTENVK_KEY"):
-        if identity not in integrated[namespace:restore]:
-            raise AssertionError(f"compiler namespace omits {identity}")
+    namespace_slice = integrated[namespace:integrated.index("Restore durable full-client compiler checkpoint")]
+    require(r"python3 ios/ci/client-compiler-cache-key\.py", namespace_slice,
+            "compiler identity must use the tested compatibility helper")
+    for argument in ("--compiler", "--arch", "--xcode-build", "--sdk-build", "--sdk-version", "--run-id", "--run-attempt"):
+        if argument not in namespace_slice:
+            raise AssertionError(f"compiler identity omits native input {argument}")
+    require(r'--github-env "\$GITHUB_ENV"', namespace_slice,
+            "compiler identity must actually reach the compiler environment")
+    require(r'--github-output "\$GITHUB_OUTPUT"', namespace_slice,
+            "checkpoint selection must share the compiler identity")
+    key_helper = (ROOT / "ios/ci/client-compiler-cache-key.py").read_text(encoding="utf-8")
+    require(r"SCCACHE_C_CUSTOM_CACHE_BUSTER=.*result\['namespace'\]", key_helper,
+            "the environment exporter must use exactly the selected namespace")
+    for identity in ("QT_HOST_KEY", "QT_IOS_KEY", "CONAN_KEY", "V8_KEY", "MOLTENVK_KEY",
+                     "ios/build-ios.sh", "cmake/compiler.cmake", "cmake/init.cmake", "policy_hash"):
+        if identity in namespace_slice:
+            raise AssertionError(f"packaging/dependency receipts must not invalidate all compiler objects: {identity}")
     if "SCCACHE_GHA_VERSION" in integrated[namespace:restore]:
         raise AssertionError("the deterministic toolchain namespace must not enable a GHA backend")
 
@@ -146,11 +159,20 @@ def main() -> None:
     require(r"select\(\.ref == env\.GITHUB_REF\)", free_slice, "pre-save cleanup must remain branch-local")
 
     save_slice = integrated[save:prune]
-    require(r"actions/cache/save@[0-9a-f]{40}", save_slice, "compiler save action must be immutable")
+    require(r"actions/upload-artifact@[0-9a-f]{40}", save_slice, "compiler artifact upload must be immutable")
     require(r"!cancelled\(\).*full-client-build\.outcome != 'skipped'", save_slice, "successful and failed builds must save, while cancellation must not")
     require(r"client-sccache-verify\.outcome == 'success'", save_slice, "empty or corrupt compiler checkpoints must never be archived")
     require(r"continue-on-error: true", save_slice, "cache upload must not mask the compiler result")
-    require(r"path: \$\{\{ github\.workspace \}\}/build-ios/client-sccache", save_slice, "save path must equal restore path")
+    require(r'--prefix "\$SCCACHE_DIR"', save_slice, "snapshot must archive the active object cache")
+    require(r"--kind client-sccache", save_slice, "objects need their own bounded archive kind")
+    assert "actions/cache/save@" not in save_slice, "large objects must not evict Qt/Conan caches"
+    assert "compiler-cache-before.json" in integrated and "compiler-cache-after.json" in integrated
+    assert "Restored compiler objects produced zero hits" in integrated
+    durable = integrated[integrated.index("Restore durable full-client compiler checkpoint"):restore]
+    for token in ('--expected-repository-id "$OVERTE_CHECKPOINT_REPOSITORY_ID"',
+                  '--expected-branch "$OVERTE_CHECKPOINT_BRANCH"', '--cache-key',
+                  '--kind client-sccache', 'merge-compiler-checkpoint.py'):
+        assert token in durable
 
     prune_slice = integrated[prune:package]
     require(r"client-sccache-key\.outputs\.prune_prefix", prune_slice, "pruning must cover obsolete compiler namespaces")

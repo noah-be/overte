@@ -29,7 +29,8 @@ def load_stats(path: pathlib.Path) -> dict:
     stats = payload.get("stats", payload)
     if not isinstance(stats, dict):
         raise ValueError("statistics payload is not an object")
-    return stats
+    # sccache 0.17 emits counters inside stats and metadata beside it.
+    return {**stats, **{key: payload[key] for key in ("version", "cache_size", "max_cache_size") if key in payload}}
 
 
 def local_cache_usage(path: pathlib.Path) -> tuple[int, int]:
@@ -60,6 +61,8 @@ def summarize(stats: dict, cache_dir: pathlib.Path, phase: str) -> dict:
             }
         )
     total_lookups = hits + misses
+    reported_bytes = int(stats.get("cache_size", 0))
+    capacity_bytes = int(stats.get("max_cache_size", 0))
     return {
         "phase": phase,
         "version": str(stats.get("version", "unknown")),
@@ -69,7 +72,9 @@ def summarize(stats: dict, cache_dir: pathlib.Path, phase: str) -> dict:
         "hitRatePercent": round((100.0 * hits / total_lookups), 2) if total_lookups else 0.0,
         "writes": writes,
         "writeErrors": write_errors,
-        "reportedCacheBytes": int(stats.get("cache_size", 0)),
+        "reportedCacheBytes": reported_bytes,
+        "maxCacheBytes": capacity_bytes,
+        "cacheCapacityPercent": round(100.0 * reported_bytes / capacity_bytes, 2) if capacity_bytes > 0 else None,
         "localCacheFiles": file_count,
         "localCacheBytes": local_bytes,
         "levels": levels,
@@ -80,13 +85,27 @@ def validate_activity(
     summary: dict,
     max_remote_write_failure_rate: float = 0.05,
     max_remote_write_failures: int = 32,
+    cache_mode: str = "gha",
 ) -> None:
+    if cache_mode not in ("disk", "gha"):
+        raise ValueError(f"unsupported compiler cache mode: {cache_mode}")
     if summary["requests"] < 1:
         raise ValueError("build produced no sccache compiler requests")
     if summary["hits"] + summary["misses"] < 1:
         raise ValueError("build produced no cacheable compiler requests")
     if summary["localCacheFiles"] < 1 or summary["localCacheBytes"] < 4096:
         raise ValueError("build left no reusable local compiler checkpoint")
+    if cache_mode == "disk":
+        # A plain disk backend may omit multi_level entirely. When present,
+        # check its local failures as well as the aggregate write counter.
+        levels = summary["levels"]
+        if any("disk" not in level["name"].lower() for level in levels):
+            raise ValueError("disk-only compiler checkpoint contains a non-disk cache level")
+        if summary["writeErrors"] or any(level["writeFailures"] for level in levels):
+            raise ValueError("local compiler checkpoint writes failed")
+        if summary["misses"] and summary["writes"] < 1:
+            raise ValueError("cache misses produced no local compiler checkpoint writes")
+        return
     remote = [level for level in summary["levels"] if "gha" in level["name"].lower()]
     if not remote:
         raise ValueError("build did not configure the remote GitHub cache level")
@@ -112,6 +131,8 @@ def main() -> int:
     parser.add_argument("--cache-dir", type=pathlib.Path, required=True)
     parser.add_argument("--phase", choices=("before", "after"), required=True)
     parser.add_argument("--require-activity", action="store_true")
+    parser.add_argument("--cache-mode", choices=("disk", "gha"), default="gha",
+                        help="expected backend for activity validation (default: gha)")
     parser.add_argument("--max-remote-write-failure-rate", type=float, default=0.05)
     parser.add_argument("--max-remote-write-failures", type=int, default=32)
     args = parser.parse_args()
@@ -126,12 +147,17 @@ def main() -> int:
                 summary,
                 args.max_remote_write_failure_rate,
                 args.max_remote_write_failures,
+                cache_mode=args.cache_mode,
             )
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"report-sccache-stats: {exc}", file=sys.stderr)
         return 1
     line = json.dumps(summary, sort_keys=True, separators=(",", ":"))
     print(f"sccache summary: {line}")
+    if summary["maxCacheBytes"] > 0 and summary["reportedCacheBytes"] * 10 >= summary["maxCacheBytes"] * 9:
+        print("::warning::Local compiler cache is at least 90% full "
+              f"({summary['reportedCacheBytes']}/{summary['maxCacheBytes']} bytes); "
+              "eviction may reduce reuse. Review capacity and measured cache hits.")
     return 0
 
 

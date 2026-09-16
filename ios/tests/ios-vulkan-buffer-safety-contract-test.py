@@ -35,7 +35,7 @@ for token in (
 ):
     assert token in backend or token in backend_header, f"DrawCallInfo safety missing {token}"
 
-update_transform = backend[backend.index("void VKBackend::updateTransform"):]
+update_transform = backend[backend.index("bool VKBackend::updateTransform"):]
 assert "_currentDraw * sizeof(gpu::Batch::DrawCallInfo)" not in update_transform, (
     "unnamed DrawCallInfo must use the replicated per-draw offset table"
 )

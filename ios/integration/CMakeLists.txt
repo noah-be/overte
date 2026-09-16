@@ -73,3 +73,12 @@ target_sources(Overte PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/../performance/FullClientMetrics.mm"
     "${CMAKE_CURRENT_LIST_DIR}/../performance/SharedMetricsPublisher.cpp"
 )
+
+# Full-client memory pressure uses the existing resource scheduler/cache owners.
+target_sources(Overte PRIVATE
+    "${CMAKE_CURRENT_LIST_DIR}/../performance/FullClientMemoryGuard.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../performance/MemoryWarningHandler.mm"
+)
+set_source_files_properties("${CMAKE_CURRENT_LIST_DIR}/../performance/MemoryWarningHandler.mm"
+    TARGET_DIRECTORY Overte
+    PROPERTIES COMPILE_OPTIONS "-fobjc-arc")

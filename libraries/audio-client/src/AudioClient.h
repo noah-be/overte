@@ -115,6 +115,16 @@ public:
             _audio(audio), _unfulfilledReads(0) {}
 
         void start() { open(QIODevice::ReadOnly | QIODevice::Unbuffered); }
+#if defined(Q_OS_IOS) && QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        // Qt's Darwin pull backend checks bytesAvailable() before readData().
+        // This is a continuous PCM generator (including silence), not an empty
+        // random-access file. Advertise a bounded chunk even during sink startup;
+        // readData() already supplies silence while the mix buffers are unavailable.
+        bool isSequential() const override { return true; }
+        qint64 bytesAvailable() const override {
+            return isOpen() ? AudioConstants::NETWORK_FRAME_BYTES_STEREO + QIODevice::bytesAvailable() : 0;
+        }
+#endif
         qint64 readData(char* data, qint64 maxSize) override;
         qint64 writeData(const char* data, qint64 maxSize) override { return 0; }
         int getRecentUnfulfilledReads() { return _unfulfilledReads.exchange(0); }
@@ -499,6 +509,9 @@ private:
     bool switchInputToAudioDevice(const HifiAudioDeviceInfo inputDeviceInfo, bool isShutdownRequest = false);
 #if defined(Q_OS_IOS)
     void refreshIOSAudioInput();
+    void refreshIOSAudioOutput();
+    std::uint64_t _iosInputRevision { 0 }, _iosOutputRevision { 0 };
+    unsigned _iosOutputRecoveryAttempts { 0 };
 #endif
     bool switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDeviceInfo, bool isShutdownRequest = false);
 

@@ -3,6 +3,9 @@
 #include "../audio/IOSAudioAdapter.h"
 #include <cassert>
 #include <stdexcept>
+#include <future>
+#include <thread>
+#include <chrono>
 using namespace overte::ios;
 using namespace overte::audio;
 struct Native final : NativeAudioOperations {
@@ -26,6 +29,47 @@ struct Native final : NativeAudioOperations {
         completion = callback;
     }
 };
+struct HeldNative final : NativeAudioOperations {
+    std::promise<void> entered, release;
+    std::shared_future<void> released { release.get_future() };
+    std::atomic<bool> hold { false }, busy { false }, overlap { false };
+    std::function<bool()> validity;
+    bool activate(bool, std::function<bool()> current) override {
+        if (busy.exchange(true)) { overlap = true; return false; }
+        if (hold.exchange(false)) {
+            validity = current;
+            entered.set_value();
+            released.wait();
+        }
+        const bool result = current();
+        busy = false;
+        return result;
+    }
+    bool deactivate() override { return !busy; }
+    Permission permission() override { return Permission::Granted; }
+    void requestPermission(std::function<bool()>, std::function<void(Permission)>) override {}
+};
+
+void concurrentActivation() {
+    auto native = std::make_shared<HeldNative>();
+    auto adapter = std::make_shared<IOSAudioAdapter>(native);
+    adapter->foreground(true);
+    assert(adapter->activate());
+    native->hold = true;
+    auto first = std::async(std::launch::async, [&] { return adapter->activate(); });
+    assert(native->entered.get_future().wait_for(std::chrono::seconds(2)) == std::future_status::ready);
+    auto second = std::async(std::launch::async, [&] { adapter->muted(true); });
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (native->validity() && std::chrono::steady_clock::now() < deadline) { std::this_thread::yield(); }
+    assert(!native->validity()); // newer state invalidates even while waiting for native execution
+    native->release.set_value();
+    assert(!first.get());
+    second.get();
+    assert(!native->overlap);
+    assert(adapter->outcome() == Outcome::Muted && adapter->playbackAllowed());
+    assert(!adapter->microphonePermissionGranted());
+}
+
 int main() {
     auto native = std::make_shared<Native>();
     auto adapter = std::make_shared<IOSAudioAdapter>(native);
@@ -43,9 +87,11 @@ int main() {
             assert(native->captures == (notified == Outcome::Capturing));
         }
     });
+    assert(!adapter->playbackAllowed());
     assert(!adapter->activate() && native->starts == 0);
     adapter->foreground(true);
     assert(adapter->activate() && !adapter->microphonePermissionGranted());
+    assert(adapter->playbackAllowed());
     adapter->requestMicrophonePermission();
     assert(native->completion);
     auto stale = native->completion;
@@ -62,18 +108,27 @@ int main() {
     assert(notified == Outcome::Capturing);
     assert(adapter->microphonePermissionGranted() && native->captures);
     adapter->muted(true);
+    assert(adapter->playbackAllowed());
     assert(!adapter->microphonePermissionGranted() && !native->captures);
     adapter->muted(false);
     assert(adapter->microphonePermissionGranted());
     auto priorActivation = native->lastValidity;
     adapter->foreground(false);
     assert(notified == Outcome::Suspended);
+    assert(!adapter->playbackAllowed());
     assert(!priorActivation() && !adapter->microphonePermissionGranted() && !native->captures);
     adapter->foreground(true);
+    assert(adapter->playbackAllowed());
+    const auto beforeInterruption = adapter->outputRevision();
+    adapter->interruption(true);
+    assert(!adapter->playbackAllowed());
+    adapter->interruption(false, true);
+    assert(adapter->playbackAllowed() && adapter->outputRevision() > beforeInterruption);
     adapter->interruption(true);
     assert(!adapter->microphonePermissionGranted());
     adapter->interruption(false, false);
     assert(adapter->outcome() == Outcome::Stopped && !native->captures);
+    assert(!adapter->playbackAllowed());
     assert(adapter->activate());
     native->granted = Permission::Denied;
     assert(!adapter->microphonePermissionGranted() && !native->captures);
@@ -92,6 +147,7 @@ int main() {
     native->failStart = true;
     assert(!adapter->activate() && !adapter->microphonePermissionGranted());
     assert(adapter->outcome() == Outcome::Failed);
+    assert(!adapter->playbackAllowed());
     native->failStart = false;
     assert(adapter->activate());
     native->throwPermission = true;
@@ -104,7 +160,9 @@ int main() {
     assert(adapter->activate()); // only explicit restart leaves Failed
     const auto beforeRoute = notifications;
     const auto beforeRouteStarts = native->starts;
+    const auto beforeRouteRevision = adapter->outputRevision();
     adapter->routeChanged();
+    assert(adapter->outputRevision() > beforeRouteRevision && adapter->playbackAllowed());
     assert(notifications == beforeRoute + 1 && native->starts == beforeRouteStarts);
     adapter->interruption(true);
     adapter->interruption(false, false);
@@ -118,4 +176,5 @@ int main() {
     setIOSAudioStateCallback({});
     adapter->routeChanged();
     assert(notifications == beforeUnregister);
+    concurrentActivation();
 }

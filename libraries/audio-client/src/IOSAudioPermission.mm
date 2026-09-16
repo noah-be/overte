@@ -49,3 +49,12 @@ void overteIOSSetAudioMuted(bool muted) {
     auto value = std::atomic_load(&adapter);
     if (value) { value->muted(muted); }
 }
+
+bool overteIOSAudioPlaybackAllowed() {
+    auto value = std::atomic_load(&adapter);
+    return value && value->playbackAllowed();
+}
+std::uint64_t overteIOSAudioOutputRevision() {
+    auto value = std::atomic_load(&adapter);
+    return value ? value->outputRevision() : 0;
+}
