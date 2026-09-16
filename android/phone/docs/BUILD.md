@@ -174,7 +174,7 @@ before the dependency build; there is intentionally no unbounded fallback.
    ```
 
    This command downloads only the complete pinned Phone Conan graph from
-   [the current dependency policy](../../../../.github/dependency-releases.json).
+   [the current dependency policy](../../../.github/dependency-releases.json).
    Phone dependency transport is independent from
    Pico release assets and cannot silently enter Pico's `--build=missing`
    producer phase.
@@ -217,7 +217,7 @@ needed after the current Phone delta has been published:
    ```
 
    Publish the generated archive under a new immutable dependency release tag.
-   Follow the [replacement procedure](../../../../docs/DEPENDENCY_RELEASES.md)
+   Follow the [replacement procedure](../../../docs/DEPENDENCY_RELEASES.md)
    to update the central policy, synchronize branches, and retire the old bundle.
 
 6. Build the APK from the verified graph:
