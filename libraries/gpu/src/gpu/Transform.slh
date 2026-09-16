@@ -128,7 +128,9 @@ TransformObject getTransformObject() {
 #ifdef GPU_VERTEX_SHADER
     _drawCallInfo = _inDrawCallInfo;
 #endif
-    TransformObject transformObject = _object[_drawCallInfo.x];
+    // Signed 16-bit vertex attributes preserve the CPU uint16 index bits.
+    // Decode only the object index; user/mesh flags retain their existing ABI.
+    TransformObject transformObject = _object[_drawCallInfo.x & 0xffff];
     return transformObject;
 }
 #else
@@ -143,7 +145,7 @@ TransformObject getTransformObject() {
 #ifdef GPU_VERTEX_SHADER
     _drawCallInfo = _inDrawCallInfo;
 #endif
-    int offset = 16 * _drawCallInfo.x;
+    int offset = 16 * (_drawCallInfo.x & 0xffff);
     TransformObject object;
     object._model[0] = texelFetch(transformObjectBuffer, offset);
     object._model[1] = texelFetch(transformObjectBuffer, offset + 1);

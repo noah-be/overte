@@ -10,6 +10,7 @@
 //
 
 #include "OpenEXRReader.h"
+#include "DecodeLimits.h"
 
 #include "TextureProcessing.h"
 #include "ImageLogging.h"
@@ -55,15 +56,21 @@ private:
     QIODevice&  _device;
 };
 
-image::Image image::readOpenEXR(QIODevice& content, const std::string& filename) {
+image::Image image::readOpenEXR(QIODevice& content, const std::string& filename, std::uint64_t maxDecodedPixels) {
     QIODeviceImfStream device(content, filename);
 
     if (Imf::isOpenExrFile(device)) {
         Imf::RgbaInputFile file(device);
         Imath::Box2i viewport = file.dataWindow();
         Imf::Array2D<Imf::Rgba> pixels;
-        int width = viewport.max.x - viewport.min.x + 1;
-        int height = viewport.max.y - viewport.min.y + 1;
+        const std::int64_t width64 = std::int64_t(viewport.max.x) - viewport.min.x + 1;
+        const std::int64_t height64 = std::int64_t(viewport.max.y) - viewport.min.y + 1;
+        if (!decodedImageFits(width64, height64, maxDecodedPixels)) {
+            qWarning(imagelogging) << "IMAGE_DECODE_REJECT dimensions" << width64 << height64;
+            return QImage();
+        }
+        const int width = static_cast<int>(width64);
+        const int height = static_cast<int>(height64);
 
         pixels.resizeErase(height, width);
 
