@@ -332,11 +332,7 @@ TabBar {
                 blurOnCtrlShift: false
             }
         }
-        property Component picoProperties: Component {
-            PicoProperties {
-            }
-        }
-        property Component visualItem: Qt.platform.os === "android" ? picoProperties : webProperties
+        property Component visualItem: webProperties
     }
 
     EditTabButton {

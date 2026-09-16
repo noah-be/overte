@@ -23,7 +23,7 @@ for path in (str(REPOSITORY), str(DEVICE_ROOT)):
     if path not in sys.path:
         sys.path.insert(0, path)
 
-from android.common.device_tests.adb_transport import AdbTransport  # noqa: E402
+from adb_transport import AdbTransport  # noqa: E402
 from adapters.common import (EMBEDDED_FIXTURE_URL, emit, fail,  # noqa: E402
                              parse_operation_arguments,
                              require_fresh_snapshot)
