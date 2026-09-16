@@ -107,7 +107,11 @@
     "tests/device/schema/test_android_build_evidence.py",
     "tests/device/contracts/lifecycle/test_mobile_domain_recovery.py",
     "tests/device/contracts/lifecycle/mobile-domain-recovery.qml",
-    "tests/device/contracts/lifecycle/mobile-domain-recovery-test.cpp"
+    "tests/device/contracts/lifecycle/mobile-domain-recovery-test.cpp",
+    "tests/device/jenkins/conan_cache_manager.py",
+    "tests/device/jenkins/test_conan_cache_manager.py",
+    "tests/device/jenkins/CONAN_CACHE_ISOLATION.md",
+    "scripts/system/create/qml/PicoProperties.qml"
   ],
   "android_required": [
     "android/README.md",
