@@ -20,6 +20,7 @@ CHANGE_PREFIXES = (
     "feature", "fix", "docs", "refactor", "test", "tests", "ci", "sync"
 )
 PRIVILEGED_PATHS = (
+    ".github/platform-source-policy.json",
     ".github/dependency-releases.json",
     ".github/workflows/dependency-releases.yml",
     "tools/dependency-releases/",

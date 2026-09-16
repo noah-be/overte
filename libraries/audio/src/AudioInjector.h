@@ -63,7 +63,9 @@ public:
     int getCurrentSendOffset() const { return _currentSendOffset; }
     void setCurrentSendOffset(int currentSendOffset) { _currentSendOffset = currentSendOffset; }
 
-    QSharedPointer<AudioInjectorLocalBuffer> getLocalBuffer() const { return _localBuffer; }
+    QSharedPointer<AudioInjectorLocalBuffer> getLocalBuffer() const {
+        return resultWithReadLock<QSharedPointer<AudioInjectorLocalBuffer>>([&] { return _localBuffer; });
+    }
     AudioHRTF& getLocalHRTF() { return _localHRTF; }
     AudioFOA& getLocalFOA() { return _localFOA; }
 

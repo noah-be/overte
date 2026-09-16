@@ -721,10 +721,10 @@ void EntityRenderer::onAddToScene(const EntityItemPointer& entity) {
     _changeHandlerId = entity->registerChangeHandler([](const EntityItemID& changedEntity) {
         auto renderer = DependencyManager::get<EntityTreeRenderer>();
         if (renderer) {
-            auto renderable = renderer->renderableForEntityId(changedEntity);
-            if (renderable && renderable->needsRenderUpdate()) {
-                renderer->onEntityChanged(changedEntity);
-            }
+            // Model bounds updates invoke this on RenderThread, concurrently with
+            // scene-map insertion/removal. Queue only the ID; the scene owner
+            // will resolve it and check whether a render update is still needed.
+            renderer->onEntityChanged(changedEntity, false);
         }
     });
 }

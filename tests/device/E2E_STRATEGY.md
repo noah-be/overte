@@ -1,8 +1,8 @@
-# Device and desktop E2E test strategy
+# Physical-device E2E test strategy
 
 ## Objective
 
-Write observable Overte behavior once and implement only transport and input
+Write observable Overte behavior once and implement only transport/input
 operations per target. The initial behavior contract is deliberately small:
 
 1. start Overte once;
@@ -22,13 +22,11 @@ operations per target. The initial behavior contract is deliberately small:
 13. evaluate process identity, probe state, errors, and artifacts; and
 14. clean up the application session and target transport.
 
-The baseline runs in one application session after the initial controlled
-launch. Shared modules own expectations. Product adapters own target discovery,
-process lifecycle, launch arguments, UI and input translation, probe transport,
-diagnostics, and cleanup. CI orchestration owns neither behavior nor platform
-logic.
+The shared modules own expectations. Adapters own device discovery, process
+lifecycle, UI/input translation, probe transport, and cleanup. Jenkins owns
+neither behavior nor platform logic.
 
-## Shared implementation
+## Implementation sequence and status
 
 - The portable runner works on POSIX and Windows, launches adapter commands
   portably, validates the versioned registry, and distinguishes assertion,
@@ -48,17 +46,43 @@ logic.
   `navigation.enter-domain` only when their configured transport implements
   it; acceptance remains separate.
 
+Android adds an embedded debug fixture, Appium/ADB transports, and the gated
+Pico OpenXR input transport without changing those shared behavior contracts.
 Concrete transports, package formats, signing rules, system services, device
 selectors, accessibility mappings, and toolchain locks belong to product
-branches. A transport is promoted to a parent branch only when every child of
-that parent can use the same implementation without importing a child backend.
+branches.
+
+## Target matrix
+
+| Target | Automation owner | Common verification | Host requirement |
+|---|---|---|---|
+| Android Phone | Appium UiAutomator2; ADB lifecycle | Overte probe | Linux/macOS/Windows with USB access |
+| Pico/Android VR | ADB lifecycle; test-only OpenXR API-layer prototype | Overte probe | Host with authorized ADB |
+| iPhone/iPad | Appium XCUITest + RemoteXPC | Lifecycle and test-build/probe contract; physical behavior after signed artifact acceptance | Protected macOS build/sign producer; Fedora physical-device agent on iOS 18+ |
+
+Pico/Quest head pose and tracked-controller input cannot honestly be emulated
+by ordinary ADB. [`openxr_input/`](openxr_input/) now defines and validates a
+bounded, nonce-protected, test-only OpenXR API-layer protocol, but the adapter
+still must not advertise `input.look`, `input.move`, or tablet input until that
+layer is packaged in the E2E debug APK and accepted on physical hardware.
+Capability-based skipping keeps that gate visible instead of manufacturing a
+false pass.
+
+One physical Android phone can therefore have two Jenkins jobs without
+duplicating scenarios: Appium owns core input/accessibility, while its ADB
+process observer supplies identity and telemetry; a pure ADB profile remains
+useful for fast smoke and soak jobs. Both jobs lock the same Jenkins device
+resource.
 
 ## Pass criteria
 
-- Scene: the requested controlled scene is observed, all fixture markers
-  exist, and the nearby entity count is stable for consecutive probe samples.
-- Spawn: the avatar position is finite and above the fixture ground within the
-  declared tolerance.
+- Scene: for a network fixture the requested URL is observed; for an embedded
+  Android fixture the adapter declares marker verification. In both cases all
+  four fixture markers exist and the nearby entity count is stable for
+  consecutive probe samples.
+- Spawn: the canonical avatar feet position is finite and on the fixture floor
+  within the declared tolerance, the body position is above the floor, and both
+  `inAir=false` and `flying=false`.
 - Look: each signed camera-orientation delta crosses a configurable minimum in
   the requested left, right, up, or down direction.
 - Move: the avatar baseline is neutral before input, then displacement crosses
@@ -104,41 +128,56 @@ that parent can use the same implementation without importing a child backend.
   exact boundaries are in
   [`PORTABLE_EXTENDED_E2E.md`](PORTABLE_EXTENDED_E2E.md).
 
-Every module retains its last, before, and after probe snapshots. Target
-adapters may add redacted screenshots, accessibility trees, or private device
-logs. Raw user content, visited production locations, account identifiers,
-and transport selectors must not be archived. Every snapshot includes platform
-and build identity so an archived result identifies the tested binary.
+Every module retains its last/before/after probe snapshots. Target adapters can
+add screenshots, native accessibility XML, Appium logs, or private device logs.
+Raw user content, visited production locations, account identifiers, and
+transport selectors must not be archived.
+Every probe snapshot includes `About.platform`, build version, and build date so
+an archived result identifies the Overte binary that produced the evidence.
 
 ## Failure classification
 
-- **Passed:** the expected product behavior was observed.
-- **Skipped:** the target truthfully lacks an optional declared capability.
-- **Assertion failure:** Overte ran but did not exhibit required behavior.
-- **Infrastructure error:** the device, automation transport, fixture, or
-  probe was unavailable or invalid.
+- **Passed:** expectation observed; module exit `0`.
+- **Skipped:** target truthfully lacks the declared capability; runner result
+  `skipped`, not passed.
+- **Assertion failure:** Overte ran but did not exhibit the required behavior.
+- **Infrastructure error:** disconnected device, Appium/ADB failure, stale
+  probe, or automation transport error; module
+  exit `75`, JUnit `<error>`.
 
-This distinction prevents an offline target from being counted as a product
-regression and prevents an unsupported operation from being counted as a pass.
-CI acceptance uses `--require-complete`, so the baseline cannot silently skip a
-required capability.
+This distinction prevents an offline phone from being counted as a product
+regression and prevents an unsupported operation from being counted as success.
+
+## Open-source tooling boundary
+
+The harness and probe are Apache-2.0 with Overte. Jenkins and its Lockable
+Resources/JUnit plugins, Appium, UiAutomator2, Appium XCUITest driver, ADB, and
+Java runtimes all have open-source implementations.
+
+iOS has an unavoidable producer exception: builds and signatures require
+Apple's proprietary Xcode toolchain, device signing, and provisioning. The
+runtime controller does not have to be macOS. On physical iOS 18+ targets,
+Fedora runs the open-source Appium/RemoteXPC stack with an exact, prebuilt and
+signed WebDriverAgent. Therefore iOS cannot satisfy a literal end-to-end “only
+open-source software” constraint, but all test orchestration, transport,
+monitoring, assertions, and reporting remain on the Fedora lab.
 
 ## Hardware acceptance gates
 
-Repository tests can prove contracts, protocol translation, failure handling,
-redaction, and reporting without hardware. Before a target receives a regular
-schedule, record evidence for:
+The repository can prove contracts, failure handling, protocol translation and
+reporting without hardware. It cannot autonomously grant OS permissions,
+unlock devices, accept trust prompts, sign WDA, or demonstrate a real sensor/UI
+effect. Before a target receives a Jenkins schedule, record evidence for:
 
-- discovery of the intended physical or interactive target;
-- idempotent cleanup before and after failures;
-- fixture reachability from the target;
-- an audited accessibility tree when native selectors are used;
-- every advertised input effect observed through the probe;
-- diagnostics that contain no private selector or credential leakage;
+- discovery and idempotent cleanup on the intended physical target;
+- a real Accessibility tree where Appium is used;
+- fixture reachability from the device network;
+- all advertised operation effects observed through the probe;
+- screenshot/log collection with no private selector leakage where the target
+  advertises capture;
 - repeatability of at least 20 short `e2e-core` runs;
-- recovery after transport loss, automation restart, application crash, and
-  timeout; and
-- required operating-system permissions in the same context as the CI agent.
+- recovery after cable removal, Appium restart, application crash, and timeout;
+- OS-specific permissions in the same login context as the Jenkins agent.
 
 Matrix promotion additionally requires selector-free manifests and complete
 physical `platform:suite` evidence. The current checked-in evidence registry is

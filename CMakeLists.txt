@@ -6,6 +6,14 @@
 # As the official CMake documentation is pretty bad for non-experts, Craig Scott's "Professional CMake: A Practical Guide" is a worthwhile investment,
 # both as a guide and as a reference manual. https://crascit.com/professional-cmake/
 
+# Android applications and toolchains are owned by the Android branch family.
+# Keep the common platform-selection contract, but fail before probing tools when
+# a shared checkout is accidentally configured as an Android application.
+if ((ANDROID OR CMAKE_SYSTEM_NAME STREQUAL "Android") AND
+    NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/android/README.md")
+    message(FATAL_ERROR "Android sources are not present; use android-main or an Android product branch.")
+endif()
+
 # This should allow using long paths on Windows
 SET(CMAKE_NINJA_FORCE_RESPONSE_FILE 1 CACHE INTERNAL "")
 # The legacy Android Gradle graph still uses CMake's server protocol, which was

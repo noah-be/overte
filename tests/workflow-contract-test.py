@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Security and reproducibility contracts for the Pico 4 CI workflow."""
+"""Security and reproducibility contracts for shared repository workflows."""
 
 import json
 from pathlib import Path
@@ -56,7 +56,6 @@ class LightweightWorkflowContracts(unittest.TestCase):
 
     def test_triggered_app_test_workflows_exclude_markdown(self):
         for workflow in (
-            ANDROID_TESTS_WORKFLOW,
             WORKFLOW,
             IOS_WORKFLOW,
             MACOS_WORKFLOW,
@@ -264,9 +263,14 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
         self.assertIn("cancel-in-progress: false", source)
         self.assertIn("retention-days: 4", source)
 
+    def test_reused_shared_qualification_still_runs_product_suites(self):
+        source = SYNC_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("inputs.mode == 'reuse' && inputs.profile != 'documentation'", source)
+        self.assertIn("tests/run-project-tests.py --platform-only --timeout 240", source)
+        self.assertIn("working-directory: candidate", source)
+
     def test_common_suites_delegate_only_governed_same_repository_sync_shapes(self):
         for path in (
-            ROOT / ".github/workflows/android-tests.yml",
             ROOT / ".github/workflows/project-tests.yml",
         ):
             source = path.read_text(encoding="utf-8")
@@ -275,11 +279,7 @@ class BranchGovernanceWorkflowContracts(unittest.TestCase):
             self.assertIn("needs.route.outputs.run_full == 'true'", source)
             pull_request = source.split("  pull_request:", 1)[1].split("  push:", 1)[0]
             self.assertNotIn("paths-ignore:", pull_request)
-        android = (ROOT / ".github/workflows/android-tests.yml").read_text(
-            encoding="utf-8"
-        )
-        route = android.split("- id: route", 1)[1].split("\n\n  fast:", 1)[0]
-        self.assertIn("working-directory: .", route)
+
 
 
 
@@ -456,7 +456,7 @@ class ArchivedRefRetirementContracts(unittest.TestCase):
         self.assertEqual([len(batch) for batch in batches], [4, 4, 4, 1])
         self.assertEqual([source for batch in batches for source in batch], sources)
 
-class PicoWorkflowContracts(unittest.TestCase):
+class ProjectWorkflowContracts(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.source = WORKFLOW.read_text(encoding="utf-8")
@@ -503,85 +503,8 @@ class PicoWorkflowContracts(unittest.TestCase):
         self.assertIn("device-e2e-control-plane.xml", self.source)
 
 
-class PicoBuildWorkflowContracts(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.source = BUILD_WORKFLOW.read_text(encoding="utf-8")
-
-    def test_build_is_manual_and_cannot_run_untrusted_pull_request_code(self):
-        self.assertRegex(self.source, r"(?m)^  workflow_dispatch:$")
-        self.assertNotRegex(self.source, r"(?m)^  pull_request(?:_target)?:$")
-        self.assertNotRegex(self.source, r"(?m)^  push:$")
-        self.assertRegex(self.source, r"(?m)^permissions:\n  contents: read$")
-
-    def test_build_uses_dedicated_self_hosted_runner_and_bounded_job(self):
-        self.assertIn("runs-on: [self-hosted, linux, x64, overte-android-build]", self.source)
-        self.assertIn("timeout-minutes: 240", self.source)
-        self.assertIn("cancel-in-progress: false", self.source)
-
-    def test_build_actions_are_immutable_and_checkout_is_credential_free(self):
-        actions = ACTION_USE.findall(self.source)
-        self.assertGreaterEqual(len(actions), 2)
-        self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
-        self.assertIn("persist-credentials: false", self.source)
-
-    def test_build_runs_tests_and_fail_closed_apk_verification(self):
-        self.assertIn("Reject untrusted build refs", self.source)
-        self.assertIn("refs/heads/android-vr-pico", self.source)
-        self.assertIn("refs/tags/pico4-preview-[0-9]+", self.source)
-        self.assertIn("tests/run-project-tests.py", self.source)
-        self.assertIn("./vr/pico/build.sh doctor", self.source)
-        self.assertIn("./vr/pico/build.sh deps --download", self.source)
-        self.assertIn("./vr/pico/build.sh build --stacktrace", self.source)
-        self.assertIn("android/vr/pico/ci/verify-pico-apk.py", self.source)
-        self.assertIn('--source-revision "$GITHUB_SHA"', self.source)
-
-    def test_large_apk_is_not_uploaded_to_actions_storage(self):
-        upload = self.source.split("uses: actions/upload-artifact@", 1)[1]
-        self.assertNotRegex(upload, r"(?i)\.apk(?:\s|$)")
-        self.assertIn("apk-manifest.json", upload)
-        self.assertIn("retention-days: 7", upload)
 
 
-class PicoReleaseWorkflowContracts(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.source = RELEASE_WORKFLOW.read_text(encoding="utf-8")
-
-    def test_release_is_manual_only_and_tag_fail_closed(self):
-        self.assertRegex(self.source, r"(?m)^  workflow_dispatch:$")
-        self.assertNotRegex(self.source, r"(?m)^  (pull_request|pull_request_target|push):$")
-        self.assertIn('[[ "$GITHUB_REF_TYPE" == tag ]]', self.source)
-        self.assertIn("pico4-release.py", self.source)
-        self.assertNotIn("refs/heads/android-vr-pico", self.source)
-
-    def test_release_has_protected_boundary_and_dedicated_runner(self):
-        self.assertIn("environment: pico4-release-candidate", self.source)
-        self.assertIn("runs-on: [self-hosted, linux, x64, overte-android-release]", self.source)
-        self.assertRegex(self.source, r"(?m)^permissions:\n  contents: read$")
-        self.assertNotIn("contents: write", self.source)
-        self.assertIn("if: ${{ inputs.release_pilot_authorized }}", self.source)
-        self.assertIn("default: false", self.source)
-
-    def test_release_actions_are_pinned_and_checkout_has_no_credentials(self):
-        actions = ACTION_USE.findall(self.source)
-        self.assertGreaterEqual(len(actions), 2)
-        self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
-        self.assertIn("persist-credentials: false", self.source)
-
-    def test_legacy_release_reuses_gates_but_cannot_create_a_draft(self):
-        for contract in ("tests/run-project-tests.py", "./vr/pico/build.sh deps --download",
-                         "android/vr/pico/ci/verify-pico-apk.py", "--expected-version-code",
-                         "--expected-version-name", "--expected-signer-sha256"):
-            self.assertIn(contract, self.source)
-        self.assertNotIn("gh release create", self.source)
-        self.assertNotIn("--draft --verify-tag", self.source)
-        self.assertNotIn("gh release edit", self.source)
-
-    def test_release_prepares_auditable_outputs_without_device_access(self):
-        for output in ("pico4-release-manifest.json", "pico4-sbom.cdx.json", "SHA256SUMS"):
-            self.assertIn(output, self.source)
-        self.assertNotRegex(self.source, r"(?m)^\s+run:.*\badb\b")
 
 
 class SharedReleaseBundleWorkflowContracts(unittest.TestCase):
@@ -641,39 +564,6 @@ class SharedReleaseBundleWorkflowContracts(unittest.TestCase):
         self.assertNotIn("gh release upload", publish)
 
 
-class PicoDeviceAcceptanceWorkflowContracts(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.source = DEVICE_WORKFLOW.read_text(encoding="utf-8")
-
-    def test_device_stage_is_manual_only_and_immutable_tag_only(self):
-        self.assertRegex(self.source, r"(?m)^  workflow_dispatch:$")
-        self.assertNotRegex(self.source, r"(?m)^  (pull_request|pull_request_target|push):$")
-        self.assertIn('[[ "$GITHUB_REF_TYPE" == tag ]]', self.source)
-        self.assertIn("pico4-release.py", self.source)
-
-    def test_default_verification_job_cannot_invoke_adb(self):
-        verify = self.source.split("  verify-candidate:", 1)[1].split("  device-acceptance:", 1)[0]
-        self.assertNotRegex(verify, r"(?m)^\s+run:.*\badb\b")
-        self.assertNotIn("--execute", verify)
-        self.assertIn("runs-on: ubuntu-24.04", verify)
-
-    def test_device_write_requires_boolean_confirmation_environment_and_lock(self):
-        self.assertIn("if: inputs.execute_device_install", self.source)
-        self.assertIn("environment: pico4-device-acceptance", self.source)
-        self.assertIn("runs-on: [self-hosted, linux, x64, overte-pico4-device]", self.source)
-        self.assertIn('INSTALL $GITHUB_REF_NAME', self.source)
-        self.assertIn("pico-device-lock.sh run", self.source)
-        self.assertIn("--execute", self.source)
-        self.assertIn("--expected-signer-sha256", self.source)
-        self.assertIn("PICO_RELEASE_CERT_SHA256", self.source)
-        self.assertNotIn('"${{ inputs.confirmation }}"', self.source)
-
-    def test_actions_are_pinned_and_checkout_is_credential_free(self):
-        actions = ACTION_USE.findall(self.source)
-        self.assertGreaterEqual(len(actions), 4)
-        self.assertEqual([action for action in actions if not FULL_SHA_ACTION.fullmatch(action)], [])
-        self.assertEqual(self.source.count("persist-credentials: false"), 2)
 
 
 if __name__ == "__main__":

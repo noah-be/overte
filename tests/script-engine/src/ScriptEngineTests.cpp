@@ -95,6 +95,27 @@ ScriptManagerPointer ScriptEngineTests::makeManager(const QString &scriptSource,
     return sm;
 }
 
+void ScriptEngineTests::testOwnedQObjectTeardown() {
+    // Destroying the engine must release script-owned objects without holding
+    // the wrapper registry mutex across their direct destroyed callbacks.
+    for (int cycle = 0; cycle < 3; ++cycle) {
+        auto engine = newScriptEngine();
+        QPointer<QObject> owned = new QObject;
+        QObject external;
+        QSignalSpy destroyed(owned.data(), &QObject::destroyed);
+        {
+            auto guard = engine->getScopeGuard();
+            engine->registerGlobalObject(guard.get(), "owned", owned.data(), ScriptEngine::ScriptOwnership);
+            engine->registerGlobalObject(guard.get(), "external", &external, ScriptEngine::QtOwnership);
+        }
+        engine.reset();
+        QVERIFY(owned.isNull());
+        QCOMPARE(destroyed.count(), 1);
+        // external is still alive and will be destroyed exactly once on return.
+        QCOMPARE(external.thread(), QThread::currentThread());
+    }
+}
+
 void ScriptEngineTests::testTrivial() {
     auto sm = makeManager("print(\"script works!\"); Script.stop(true);", "testTrivial.js");
     auto scopeGuard = sm->engine()->getScopeGuard();
