@@ -302,7 +302,7 @@ class TopologyContracts(unittest.TestCase):
         }
         self.assertEqual(gate.compare_merge_base(MappingApi({endpoint: document}), REPOSITORY, PARENT, BASE), HEAD)
         with self.assertRaises(gate.GateError):
-            gate.compare_files(MappingApi({endpoint: document}), REPOSITORY, PARENT, BASE)
+            gate.compare_files(MappingApi({endpoint: document, f"repos/{REPOSITORY}/git/commits/{HEAD}": {}}), REPOSITORY, PARENT, BASE)
 
     def test_ordinary_development_dependabot_fork_and_promotion_stay_ordinary(self):
         for head, repo_id in (
@@ -364,6 +364,54 @@ class DifferentialContracts(unittest.TestCase):
             "apple-family", "apple-ios",
         })
         self.assertTrue(all(differential.PROFILES[name] for name in differential.PROFILES if name != "documentation"))
+
+
+class LargeComparisonTests(unittest.TestCase):
+    def documents(self, truncated=False):
+        old_tree, new_tree = "a" * 40, "b" * 40
+        old = [entry(f"old/{i}") for i in range(301)]
+        new = [entry(f"new/{i}") for i in range(301)]
+        old.append({"path": "submodule", "mode": "160000", "type": "commit", "sha": BASE})
+        new.append({"path": "submodule", "mode": "160000", "type": "commit", "sha": PARENT})
+        return {
+            f"repos/{REPOSITORY}/compare/{BASE}...{HEAD}": {
+                "base_commit": {"sha": BASE}, "merge_base_commit": {"sha": BASE},
+                "files": [{"filename": f"new/{i}"} for i in range(300)]},
+            f"repos/{REPOSITORY}/git/commits/{BASE}": {"sha": BASE, "tree": {"sha": old_tree}},
+            f"repos/{REPOSITORY}/git/commits/{HEAD}": {"sha": HEAD, "tree": {"sha": new_tree}},
+            f"repos/{REPOSITORY}/git/trees/{old_tree}?recursive=1": {"sha": old_tree, "truncated": truncated, "tree": old},
+            f"repos/{REPOSITORY}/git/trees/{new_tree}?recursive=1": {"sha": new_tree, "truncated": False, "tree": new},
+        }
+
+    def test_full_tree_fallback_includes_deletions_and_gitlinks(self):
+        base, files = gate.compare_files(MappingApi(self.documents()), REPOSITORY, BASE, HEAD)
+        self.assertEqual(base, BASE)
+        self.assertEqual(len(files), 603)
+        self.assertIn("old/300", files)
+        self.assertIn("new/300", files)
+        self.assertIn("submodule", files)
+
+    def test_truncated_full_tree_still_fails_closed(self):
+        with self.assertRaises(gate.GateError):
+            gate.compare_files(MappingApi(self.documents(True)), REPOSITORY, BASE, HEAD)
+
+    def test_retirement_exception_requires_exact_blob_and_actual_deletion(self):
+        path = "android/common/conan/prebuilt/obsolete.sha256"
+        settings = {"retired_parent_paths": {path: WORKFLOW_BLOB}}
+        original = {"mode": "100644", "type": "blob", "sha": WORKFLOW_BLOB}
+        for variant in ("valid", "unlisted", "modified", "different-blob", "parent-present", "merge-present"):
+            with self.subTest(variant=variant):
+                cfg = settings if variant != "unlisted" else {}
+                changes = [{"filename": path, "status": "modified" if variant == "modified" else "removed"}]
+                before = {path: dict(original, sha=BASE)} if variant == "different-blob" else {path: original}
+                parent = {path: original} if variant == "parent-present" else {}
+                merged = {path: original} if variant == "merge-present" else {}
+                with mock.patch.object(gate, "comparison_entries", side_effect=[before, parent, merged]):
+                    if variant == "valid":
+                        gate.authorize_retired_paths(MappingApi(), REPOSITORY, cfg, [path], changes, BASE, PARENT, MERGE)
+                    else:
+                        with self.assertRaises(gate.GateError):
+                            gate.authorize_retired_paths(MappingApi(), REPOSITORY, cfg, [path], changes, BASE, PARENT, MERGE)
 
 
 if __name__ == "__main__":

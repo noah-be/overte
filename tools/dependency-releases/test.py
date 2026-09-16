@@ -76,6 +76,13 @@ class PolicyTests(unittest.TestCase):
         with self.assertRaises(check.PolicyError):
             check.check_checksum_paths(["android/common/conan/prebuilt/obsolete.sha256"])
 
+    def test_live_scan_pattern_is_compatible_with_git_extended_regex(self):
+        result = subprocess.run(["git", "grep", "-l", "-I", "-E", check.TAG_PATTERN,
+                                 "HEAD", "--", check.POLICY], cwd=check.ROOT,
+                                text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(check.POLICY, result.stdout)
+
     def test_remote_audit_rejects_stale_topic_and_moving_branches(self):
         releases, tags = self.inventory()
         heads = {"main": "a" * 40, "feature/android-phone/test": "b" * 40}

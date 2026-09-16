@@ -84,3 +84,11 @@ After merging the workflow on `main` and observing a successful
 15368) to the existing permanent-branch ruleset. Preserve the other checks and
 all branch protections. Propagate the policy to every active branch before
 retiring any old bundle. Release/tag protection remains active after cleanup.
+
+The initial rollout also retires the exact legacy Phone checksum file that
+existed only on Android branches. The trusted synchronization configuration
+records that file's old blob identity. Its exception permits only deletion of
+that exact blob when the current parent and resulting merge both omit the path;
+it cannot authorize edits, replacement content, or unrelated deletions. Large
+parent deltas use complete immutable Git trees when GitHub caps comparison file
+lists; truncated tree responses still fail closed.
