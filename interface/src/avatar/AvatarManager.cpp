@@ -178,7 +178,7 @@ AvatarManager::~AvatarManager() {
 
 void AvatarManager::init() {
     _myAvatar->init();
-#if defined(Q_OS_ANDROID)
+#if defined(Q_OS_ANDROID) && !defined(ANDROID_APP_PHONE_INTERFACE)
     // The Pico client is first-person only.  Do not submit the local body to
     // the render scene; its rig/IK work is also skipped in MyAvatar::simulate.
     // World motion, collision and avatar network position remain active.

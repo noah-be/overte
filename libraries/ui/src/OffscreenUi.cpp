@@ -1125,6 +1125,14 @@ bool OffscreenUi::eventFilter(QObject* originalDestination, QEvent* event) {
 
     // let the parent class do it's work
     bool result = OffscreenQmlSurface::eventFilter(originalDestination, event);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // OffscreenSurface already delivered this transaction to the focused
+    // QML item. A second delivery commits the preedit a second time.
+    if (event->type() == QEvent::InputMethod || event->type() == QEvent::InputMethodQuery) {
+        return result;
+    }
+#endif
+
 
     switch (event->type()) {
         // Fall through

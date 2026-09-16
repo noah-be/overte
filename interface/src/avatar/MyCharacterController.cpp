@@ -225,6 +225,81 @@ void MyCharacterController::handleChangedCollisionMask() {
     }
 }
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+void MyCharacterController::beginSpawnHold() {
+    _spawnGate.begin(static_cast<double>(usecTimestampNow()) / USECS_PER_SECOND);
+    qInfo() << "PHONE_SPAWN_HOLD waiting for supporting collision";
+}
+
+bool MyCharacterController::hasSpawnSupport() const {
+    if (!_physicsEngine || !_rigidBody || !isEnabledAndReady()) {
+        return false;
+    }
+    // Query the registered Bullet world, not render meshes or entity bounds.
+    // Limit the search to just below the feet: a distant seabed cannot certify
+    // the still-unloaded jetty at the requested spawn position.
+    const btVector3 from = _position;
+    const btVector3 to = from - (_halfHeight + _radius + btScalar(0.75) * _scaleFactor) * _currentUp;
+    class SupportRay : public btCollisionWorld::ClosestRayResultCallback {
+    public:
+        SupportRay(const btVector3& from, const btVector3& to, const btCollisionObject* me, int mask) :
+            ClosestRayResultCallback(from, to), _me(me) {
+            m_collisionFilterGroup = BULLET_COLLISION_GROUP_MY_AVATAR;
+            m_collisionFilterMask = mask & ~BULLET_COLLISION_GROUP_OTHER_AVATAR;
+        }
+        bool needsCollision(btBroadphaseProxy* proxy) const override {
+            const auto object = static_cast<const btCollisionObject*>(proxy->m_clientObject);
+            return object != _me && object->hasContactResponse() &&
+                ClosestRayResultCallback::needsCollision(proxy);
+        }
+    private:
+        const btCollisionObject* _me;
+    } result(from, to, _rigidBody, computeCollisionMask());
+    _physicsEngine->getDynamicsWorld()->rayTest(from, to, result);
+    return result.hasHit() && result.m_hitNormalWorld.dot(_currentUp) >= _minFloorNormalDotUp;
+}
+
+bool MyCharacterController::updateSpawnHold(bool physicsReady) {
+    const bool wasHeld = _spawnGate.held();
+    const bool notifyFailure = _spawnGate.update(
+        static_cast<double>(usecTimestampNow()) / USECS_PER_SECOND,
+        physicsReady, physicsReady && hasSpawnSupport());
+    if (_rigidBody) {
+        if (_spawnGate.held()) {
+            if (!_spawnBodyHeld) {
+                _spawnLinearFactor = _rigidBody->getLinearFactor();
+                _spawnBodyHeld = true;
+            }
+            _rigidBody->setLinearFactor(btVector3(0, 0, 0));
+            _rigidBody->setGravity(btVector3(0, 0, 0));
+            _rigidBody->setLinearVelocity(btVector3(0, 0, 0));
+            _rigidBody->setAngularVelocity(btVector3(0, 0, 0));
+            _rigidBody->clearForces();
+        } else if (_spawnBodyHeld) {
+            _rigidBody->setLinearFactor(_spawnLinearFactor);
+            _rigidBody->setLinearVelocity(btVector3(0, 0, 0));
+            _rigidBody->clearForces();
+            updateCurrentGravity();
+            _spawnBodyHeld = false;
+            recomputeFlying();
+        }
+    }
+    if (wasHeld && !_spawnGate.held()) {
+        qInfo() << "PHONE_SPAWN_HOLD released: supporting Bullet collision ready";
+    }
+    return notifyFailure;
+}
+
+void MyCharacterController::playerStep(btCollisionWorld* world, btScalar dt) {
+    if (_spawnGate.held()) {
+        // Motors and gravity must not accumulate velocity during the wait.
+        if (_rigidBody) { _rigidBody->setLinearVelocity(btVector3(0, 0, 0)); }
+        return;
+    }
+    CharacterController::playerStep(world, dt);
+}
+#endif
+
 bool MyCharacterController::needsSafeLandingSupport() const {
     return _isStuck && _numStuckSubsteps >= NUM_SUBSTEPS_FOR_SAFE_LANDING_RETRY;
 }

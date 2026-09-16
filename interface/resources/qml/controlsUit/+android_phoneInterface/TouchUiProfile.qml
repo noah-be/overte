@@ -18,6 +18,7 @@ SharedControls.TouchUiProfileBase {
     hardwareKeyboardSupported: runtimeMetricsAvailable
         ? runtimeMetrics.hardwareKeyboardSupported === true : false
     systemImeAvailable: true
+    stackedTabletHeader: true
     screenSpacePresentation: true
 
     // Live Android measurements replace these conservative startup defaults
@@ -40,6 +41,9 @@ SharedControls.TouchUiProfileBase {
     vrAudioAvailable: false
     pushToTalkAvailable: false
     avatarAudioToolsAvailable: false
+    systemManagedAudioInput: true
+    systemManagedAudioOutput: true
+    recordedVoiceTest: true
 
     dominantHandSettingsAvailable: false
     hmdAlignmentAvailable: false
@@ -50,6 +54,9 @@ SharedControls.TouchUiProfileBase {
     controllerSettingsAvailable: false
     picoResolutionSettingsAvailable: false
 
+    // iOS intentionally reuses this presentation selector; its native
+    // preferences registry remains separate until its target audit.
+    touchCameraPreferencesAvailable: Qt.platform.os === "android"
     navigationPreferencesAvailable: true
     userInterfacePreferencesAvailable: false
     hmdPreferencesAvailable: false

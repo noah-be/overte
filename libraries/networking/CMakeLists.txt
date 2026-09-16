@@ -28,3 +28,8 @@ elseif(UNIX)
     # libcrypto uses dlopen in libdl
     target_link_libraries(${TARGET_NAME} ${CMAKE_DL_LIBS})
 endif ()
+
+if (HIFI_ANDROID AND HIFI_ANDROID_APP STREQUAL "phoneInterface")
+    # Bounded Phone runtime diagnostics use Android logcat directly.
+    target_link_libraries(${TARGET_NAME} log)
+endif()

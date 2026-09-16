@@ -135,6 +135,37 @@ public final class PhoneTouchUiMetricsPolicy {
         return Math.max(minimum, Math.min(maximum, finiteValue));
     }
 
+    /** Latest-only delivery state for layout/IME measurements crossing JNI. */
+    static final class Delivery {
+        private Snapshot pending;
+        private Snapshot published;
+
+        boolean offer(Snapshot snapshot) {
+            if (!snapshot.valid) {
+                return false;
+            }
+            Snapshot next = snapshot.equals(published) ? null : snapshot;
+            boolean changed = !Objects.equals(next, pending);
+            pending = next;
+            return changed;
+        }
+
+        Snapshot pending() {
+            return pending;
+        }
+
+        void accepted(Snapshot snapshot) {
+            published = snapshot;
+            if (snapshot.equals(pending)) {
+                pending = null;
+            }
+        }
+
+        void dropPending() {
+            pending = null;
+        }
+    }
+
     public static final class LegacyInsets {
         public final int left;
         public final int top;

@@ -12,6 +12,9 @@
 #include <regex>
 #include <sstream>
 #include <unordered_map>
+#include <unordered_set>
+#include <QElapsedTimer>
+#include <PhoneLoadingDiagnostics.h>
 
 #include <QtCore/QFileInfo>
 #include <QtCore/QFile>
@@ -130,6 +133,46 @@ Source& Source::operator=(const Source& other) {
 }
 
 const Source& Source::get(uint32_t shaderId) {
+#if defined(OVERTE_ANDROID_PHONE_SHADER_PAYLOAD)
+    // A Phone startup needs only a subset of the packaged shaders. Loading all
+    // source/reflection records at the first request blocks the startup thread.
+    // Keep returned references stable through shared ownership and serialize
+    // first loads; subsequent requests reuse the same immutable Source.
+    static std::once_flag once;
+    static std::mutex mutex;
+    static std::unordered_map<uint32_t, Source::Pointer> shadersById;
+    static const std::unordered_set<uint32_t> validIds(allShaders().begin(), allShaders().end());
+    static const Source EMPTY_SHADER;
+    std::call_once(once, [] {
+        initShadersResources();
+        // Same-APK control for the original eager strategy, without data resets.
+        bool eager = false;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        if (phoneLoadingDiagnosticsEnabled()) {
+            char mode[PROP_VALUE_MAX] {};
+            eager = __system_property_get("debug.overte.loading.shader_eager", mode) == 1 && mode[0] == '1';
+        }
+#endif
+        PHONE_LOADING("phase=shader_sources eager=%d available=%d", eager ? 1 : 0, (int)validIds.size());
+        if (eager) {
+            for (const auto& id : allShaders()) {
+                shadersById.emplace(id, loadSource(id));
+            }
+        }
+    });
+    if (!validIds.count(shaderId)) {
+        return EMPTY_SHADER;
+    }
+    std::lock_guard<std::mutex> guard(mutex);
+    auto found = shadersById.find(shaderId);
+    if (found == shadersById.end()) {
+        QElapsedTimer timer; timer.start();
+        found = shadersById.emplace(shaderId, loadSource(shaderId)).first;
+        PHONE_LOADING("phase=shader_source id=%u ms=%lld loaded=%d", shaderId,
+            (long long)timer.elapsed(), (int)shadersById.size());
+    }
+    return *found->second;
+#else
     static std::once_flag once;
     static const std::unordered_map<uint32_t, Source::Pointer> shadersById;
     std::call_once(once, [] {
@@ -145,6 +188,7 @@ const Source& Source::get(uint32_t shaderId) {
         return EMPTY_SHADER;
     }
     return *(itr->second);
+#endif
 }
 
 bool Source::doReplacement(String& source) const {

@@ -10,6 +10,8 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 
+#include <PhoneLoadingDiagnostics.h>
+#include <QElapsedTimer>
 #include "GeometryCache.h"
 
 #include <qmath.h>
@@ -697,8 +699,12 @@ QHash<SimpleProgramKey, gpu::PipelinePointer> GeometryCache::_simplePrograms;
 GeometryCache::GeometryCache() :
 _nextID(0) {
     // Let's register its special shapePipeline factory:
+    QElapsedTimer geometryTimer; geometryTimer.start();
     initializeShapePipelines();
+    PHONE_LOADING("phase=geometry_startup part=pipelines ms=%lld", (long long)geometryTimer.elapsed());
+    geometryTimer.restart();
     buildShapes();
+    PHONE_LOADING("phase=geometry_startup part=shapes ms=%lld", (long long)geometryTimer.elapsed());
 }
 
 GeometryCache::~GeometryCache() {

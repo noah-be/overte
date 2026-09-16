@@ -13,6 +13,10 @@
 //
 
 #include "Application.h"
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include <material-networking/PhoneKtxProbePool.h>
+#endif
+#include <QRegularExpression>
 #include "ApplicationLifecycle.h"
 
 overte::lifecycle::Gate& overte::lifecycle::applicationGate() {
@@ -175,8 +179,13 @@ extern "C" {
 static AppNapDisabler appNapDisabler;   // disabled, while in scope
 #endif
 
+#include <PhoneLoadingDiagnostics.h>
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include <QPointer>
+#endif
 #if defined(Q_OS_ANDROID)
 #include "AndroidStartupUrlPolicy.h"
+#include "AndroidHelper.h"
 #include "ui/PhoneGraphicsPolicy.h"
 #include <android/log.h>
 #endif
@@ -206,8 +215,65 @@ const QString DEFAULT_CURSOR_NAME = "SYSTEM";
 
 Setting::Handle<int> sessionRunTime { "sessionRunTime", 0 };
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+extern "C" void overtePhoneQmlFatalSnapshot() noexcept;
+#endif
+
 void messageHandler(QtMsgType type, const QMessageLogContext& context, const QString& message) {
     Q_UNUSED(context);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (type == QtFatalMsg) overtePhoneQmlFatalSnapshot();
+    if (message.size() < 1024 && message.startsWith("OVT_PHONE_LOADING ") &&
+        QRegularExpression("^OVT_PHONE_LOADING [a-z0-9_= .-]+$").match(message).hasMatch()) {
+        __android_log_write(ANDROID_LOG_INFO, "OvertePhoneLoading", message.toLatin1().constData());
+    }
+    if (message.startsWith("OVT_PHONE_TABLET_") && message.size() < 100 &&
+        QRegularExpression("^OVT_PHONE_TABLET_[A-Z_]+( -?[0-9]+)*$").match(message).hasMatch()) {
+        __android_log_write(ANDROID_LOG_INFO, "OvertePhoneRuntime", message.toLatin1().constData());
+    }
+    if (message.startsWith("OVT_PHONE_GL_ERROR ") && message.size() < 100 &&
+        QRegularExpression("^OVT_PHONE_GL_ERROR [0-9]+ [A-Za-z0-9_:]+$").match(message).hasMatch()) {
+        __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", message.toLatin1().constData());
+    }
+    // Closed classifications only: never disclose QML text, URLs or user data.
+    if (type == QtWarningMsg || type == QtCriticalMsg) {
+        if (message.contains("Unauthorized QML")) {
+            __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=url_rejected");
+        }
+        if (message.contains("Cannot override FINAL property")) {
+            __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=final_property_override");
+        }
+        const auto localLocation = QRegularExpression("qrc:/+(qml/[A-Za-z0-9_./-]+\\.qml):([0-9]+)").match(message);
+        if (localLocation.hasMatch() && QFile::exists(":" + QString("/") + localLocation.captured(1))) {
+            __android_log_print(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_local_warning file=%s line=%d", localLocation.captured(1).toLatin1().constData(), localLocation.captured(2).toInt());
+        }
+        if (message.contains("Cannot assign")) {
+            __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=cannot_assign");
+            const auto location = QRegularExpression("qrc:/+(qml/[A-Za-z0-9_./-]+\\.qml):([0-9]+)").match(message);
+            if (location.hasMatch() && QFile::exists(":/" + location.captured(1))) {
+                __android_log_print(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_local_error file=%s line=%d", location.captured(1).toLatin1().constData(), location.captured(2).toInt());
+            }
+            const auto property = QRegularExpression("Cannot assign to non-existent property \"([A-Za-z_][A-Za-z0-9_]*)\"").match(message);
+            if (property.hasMatch()) {
+                __android_log_print(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_missing_property=%s", property.captured(1).toLatin1().constData());
+            }
+        } else if (message.contains("is not a function")) {
+            __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=not_function");
+        } else if (message.contains("ReferenceError")) {
+            __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=reference_error");
+        } else if (message.contains("TypeError")) {
+            __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=type_error");
+        } else if ((message.contains("No such file") || message.contains("File not found"))) {
+            __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=file_missing");
+        } else if (message.contains("is not installed")) {
+            __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=module_not_installed");
+        } else if (message.contains("is not a type")) {
+            __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=unknown_type");
+        } else if (message.contains("unavailable")) {
+            __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "qml_error=type_unavailable");
+        }
+    }
+#endif
     // Never forward dynamic Qt context, source path, category or arbitrary text.
     // Closed event constants carry useful outcomes without reversible fragments.
     const QByteArray input = message.size() <= 32 ? message.toUtf8() : QByteArray();
@@ -296,6 +362,7 @@ Application::Application(
     _cameraClippingEnabled("cameraClippingEnabled", false)
 {
 #ifdef Q_OS_ANDROID
+    PHONE_LOADING("phase=startup_step step=constructor_body elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
     // Queued networking signals use the standard-library spelling. Qt knows
     // quint64, but requires this exact name when resolving uint64_t signals.
     qRegisterMetaType<uint64_t>("uint64_t");
@@ -317,6 +384,7 @@ Application::Application(
     qInfo() << "Loaded Android system CA certificates:" << androidSystemCAs.size();
 #endif
 
+    PHONE_LOADING("phase=startup_step step=certificates_done elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
     setProperty(hifi::properties::CRASHED, _previousSessionCrashed);
 
     LogHandler::getInstance().moveToThread(thread());
@@ -879,10 +947,26 @@ void Application::updateThreadPoolCount() const {
     auto reservedThreads = UI_RESERVED_THREADS + OS_RESERVED_THREADS + _displayPlugin->getRequiredThreadCount();
     auto availableThreads = QThread::idealThreadCount() - reservedThreads;
     auto threadPoolSize = std::max(MIN_PROCESSING_THREAD_POOL_SIZE, availableThreads);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    int requestedThreads = 0;
+    if (phoneLoadingDiagnosticsEnabled()) {
+        char value[PROP_VALUE_MAX] {};
+        if (__system_property_get("debug.overte.loading.workers", value) == 1 &&
+                (value[0] == '2' || value[0] == '4')) {
+            requestedThreads = value[0] - '0';
+            threadPoolSize = requestedThreads;
+        }
+    }
+#endif
     qCDebug(interfaceapp) << "Ideal Thread Count " << QThread::idealThreadCount();
     qCDebug(interfaceapp) << "Reserved threads " << reservedThreads;
     qCDebug(interfaceapp) << "Setting thread pool size to " << threadPoolSize;
     QThreadPool::globalInstance()->setMaxThreadCount(threadPoolSize);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    PHONE_LOADING("phase=worker_pool ideal=%d reserved=%d requested=%d actual=%d",
+        QThread::idealThreadCount(), reservedThreads, requestedThreads,
+        QThreadPool::globalInstance()->maxThreadCount());
+#endif
 }
 
 void Application::gotoTutorial() {
@@ -1058,6 +1142,20 @@ void Application::setIsServerlessMode(bool serverlessDomain) {
 
 bool Application::prepareServerlessDomainContents(const QUrl& domainURL, const QByteArray& data,
                                                    std::map<QString, QString>& namedPaths) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    return prepareServerlessDomainContentsWithTicket(domainURL, data, namedPaths,
+        DependencyManager::get<NodeList>()->getDomainHandler().snapshotNavigationTicket(),
+        _phoneServerlessLoadRequests.snapshot());
+}
+
+bool Application::prepareServerlessDomainContentsWithTicket(const QUrl& domainURL, const QByteArray& data,
+        std::map<QString, QString>& namedPaths, const overte::network::RequestTicket& navigationTicket,
+        const overte::network::RequestTicket& loadTicket) {
+    if (!navigationTicket.scoped() || !navigationTicket.current() || !loadTicket.scoped() || !loadTicket.current()) {
+        PHONE_LOADING("phase=serverless_stale stage=prepare");
+        return false;
+    }
+#endif
     // FIXME: Lock the main tree and import directly into it.
     EntityTreePointer tmpTree(std::make_shared<EntityTree>());
     tmpTree->setIsServerlessMode(true);
@@ -1070,6 +1168,16 @@ bool Application::prepareServerlessDomainContents(const QUrl& domainURL, const Q
         return false;
     }
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Parsing can overlap a domain reset on the networking thread. Reject the
+    // old scene before it changes the session, permissions or live entity tree.
+    if (!navigationTicket.current() || !loadTicket.current()) {
+        tmpTree->eraseAllOctreeElements(false);
+        namedPaths.clear();
+        PHONE_LOADING("phase=serverless_stale stage=parsed");
+        return false;
+    }
+#endif
     const QUuid serverlessSessionID = QUuid::createUuid();
     myAvatar->setSessionUUID(serverlessSessionID);
     auto nodeList = DependencyManager::get<NodeList>();
@@ -1093,16 +1201,47 @@ bool Application::prepareServerlessDomainContents(const QUrl& domainURL, const Q
 }
 
 void Application::loadServerlessDomain(QUrl domainURL) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Direct callers represent a new load now; signal deliveries instead pass
+    // the ticket captured at their original emission into the overload below.
+    loadServerlessDomainWithTicket(domainURL,
+        DependencyManager::get<NodeList>()->getDomainHandler().snapshotNavigationTicket());
+}
+
+void Application::loadServerlessDomainWithTicket(QUrl domainURL,
+        const overte::network::RequestTicket& navigationTicket) {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, [this, domainURL, navigationTicket] {
+            loadServerlessDomainWithTicket(domainURL, navigationTicket);
+        }, Qt::QueuedConnection);
+        return;
+    }
+    if (!navigationTicket.scoped() || !navigationTicket.current() ||
+            !_phoneServerlessLoadRequests.snapshot().current()) {
+        PHONE_LOADING("phase=serverless_stale stage=request");
+        return;
+    }
+#else
     if (QThread::currentThread() != thread()) {
         QMetaObject::invokeMethod(this, "loadServerlessDomain", Q_ARG(QUrl, domainURL));
         return;
     }
+#endif
 
     // Resource requests may complete out of order when navigation changes
     // quickly. Only the newest requested destination may mutate the entity
     // tree, session, permissions, or DomainHandler state. An empty destination
     // is also a navigation/reset boundary and must retire an in-flight request.
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Also retire a pending owner-thread handoff when a direct local reload
+    // replaces this request without changing the DomainHandler destination.
+    const auto loadTicket = _phoneServerlessLoadRequests.next();
+#endif
     const quint64 requestGeneration = ++_serverlessDomainRequestGeneration;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    __android_log_print(ANDROID_LOG_INFO, "OvertePhoneRuntime",
+        "world_request local=%d empty=%d", domainURL.isLocalFile(), domainURL.isEmpty());
+#endif
     if (domainURL.isEmpty()) {
         return;
     }
@@ -1187,6 +1326,16 @@ void Application::loadServerlessDomain(QUrl domainURL) {
     }
 
     connect(request, &ResourceRequest::finished, this, [=, this]() {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        if (!navigationTicket.current() || !loadTicket.current()) {
+            PHONE_LOADING("phase=serverless_stale stage=result");
+            request->deleteLater();
+            return;
+        }
+        __android_log_print(ANDROID_LOG_INFO, "OvertePhoneRuntime",
+            "world_result code=%d bytes=%d current=%d", static_cast<int>(request->getResult()),
+            request->getData().size(), requestGeneration == _serverlessDomainRequestGeneration);
+#endif
         if (requestGeneration != _serverlessDomainRequestGeneration) {
             qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE staleRequestIgnored"
                 << domainURL;
@@ -1202,7 +1351,17 @@ void Application::loadServerlessDomain(QUrl domainURL) {
             _picoServerlessSceneURL = domainURL;
             _picoServerlessSceneImportInProgress = true;
 #endif
-            if (!prepareServerlessDomainContents(domainURL, request->getData(), namedPaths)) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+            const bool prepared = prepareServerlessDomainContentsWithTicket(domainURL, request->getData(), namedPaths, navigationTicket, loadTicket);
+#else
+            const bool prepared = prepareServerlessDomainContents(domainURL, request->getData(), namedPaths);
+#endif
+            if (!prepared) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+                if (navigationTicket.current() && loadTicket.current()) {
+                    __android_log_write(ANDROID_LOG_WARN, "OvertePhoneRuntime", "world_parse_ok=0");
+                }
+#endif
 #if defined(ANDROID_APP_PICO_INTERFACE)
                 _picoServerlessSceneURL = QUrl();
                 finishPicoServerlessImport();
@@ -1213,7 +1372,39 @@ void Application::loadServerlessDomain(QUrl domainURL) {
                 request->deleteLater();
                 return;
             }
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+            __android_log_write(ANDROID_LOG_INFO, "OvertePhoneRuntime", "world_parse_ok=1");
+#endif
             auto nodeList = DependencyManager::get<NodeList>();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+            // Serialize the final connected flag with hardReset on its owner
+            // thread. A check on this thread alone would leave a check/use race.
+            QPointer<Application> application(this);
+            QMetaObject::invokeMethod(&nodeList->getDomainHandler(),
+                [application, nodeList, namedPaths, navigationTicket, loadTicket, requestGeneration] {
+                    if (!navigationTicket.current() || !loadTicket.current()) {
+                        PHONE_LOADING("phase=serverless_stale stage=handoff");
+                        return;
+                    }
+                    if (!application) { return; }
+                    auto& handler = nodeList->getDomainHandler();
+                    PHONE_LOADING("phase=serverless_handoff online=%d serverless=%d uuid_present=%d",
+                        handler.getScheme() == URL_SCHEME_OVERTE ? 1 : 0,
+                        handler.isServerless() ? 1 : 0, handler.getUUID().isNull() ? 0 : 1);
+                    handler.connectedToServerless(namedPaths);
+                    QMetaObject::invokeMethod(application.data(), [application, navigationTicket, loadTicket, requestGeneration] {
+                        if (!application) { return; }
+                        if (!navigationTicket.current() || !loadTicket.current() ||
+                                requestGeneration != application->_serverlessDomainRequestGeneration) {
+                            PHONE_LOADING("phase=serverless_stale stage=ack");
+                            return;
+                        }
+                        application->setIsServerlessMode(true);
+                        application->_octreeProcessor->getFullSceneReceivedCounter()++;
+                        PHONE_LOADING("phase=serverless_committed");
+                    }, Qt::QueuedConnection);
+                }, Qt::QueuedConnection);
+#else
             nodeList->getDomainHandler().connectedToServerless(namedPaths);
             // connectedToServerless() emits the domain transition that clears
             // the old Octree and marks it as waiting for its new serverless
@@ -1222,6 +1413,7 @@ void Application::loadServerlessDomain(QUrl domainURL) {
             // RECEIVING_WORLD indefinitely.
             setIsServerlessMode(true);
             _octreeProcessor->getFullSceneReceivedCounter()++;
+#endif
 #if defined(ANDROID_APP_PICO_INTERFACE)
             _picoServerlessSceneURL = domainURL;
             _picoServerlessSceneImportCommitted = true;
@@ -1398,6 +1590,9 @@ void Application::resetPhysicsReadyInformation() {
     _gpuTextureMemSizeStabilityCount = 0;
     _gpuTextureMemSizeAtLastCheck = 0;
     _physicsEnabled = false;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    getMyAvatar()->getCharacterController()->beginSpawnHold();
+#endif
     _octreeProcessor->stopSafeLanding();
 }
 
@@ -1827,6 +2022,19 @@ void Application::setSessionUUID(const QUuid& sessionUUID) const {
 }
 
 void Application::domainURLChanged(QUrl domainURL) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    domainURLChangedWithTicket(domainURL,
+        DependencyManager::get<NodeList>()->getDomainHandler().snapshotNavigationTicket());
+}
+
+void Application::domainURLChangedWithTicket(QUrl domainURL,
+        const overte::network::RequestTicket& navigationTicket) {
+    if (!navigationTicket.scoped() || !navigationTicket.current() ||
+            !_phoneServerlessLoadRequests.snapshot().current()) {
+        PHONE_LOADING("phase=serverless_stale stage=delivery");
+        return;
+    }
+#endif
     // An online navigation does not call loadServerlessDomain(), so it must
     // explicitly invalidate any older local/HTTP/ATP scene request.
     if (domainURL.scheme() == URL_SCHEME_OVERTE) {
@@ -1908,7 +2116,11 @@ void Application::domainURLChanged(QUrl domainURL) {
     // disable physics until we have enough information about our new location to not cause craziness.
     setIsServerlessMode(domainURL.scheme() != URL_SCHEME_OVERTE);
     if (isServerlessMode()) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        loadServerlessDomainWithTicket(domainURL, navigationTicket);
+#else
         loadServerlessDomain(domainURL);
+#endif
     }
     updateWindowTitle();
 }
@@ -2136,7 +2348,12 @@ void Application::nodeKilled(SharedNodePointer node) {
     }
 }
 
-void Application::handleSandboxStatus(QNetworkReply* reply) {
+void Application::handleSandboxStatus(QNetworkReply* reply
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        , bool acceptedStartupUrl
+#endif
+        ) {
+    PHONE_LOADING("phase=startup_destination_begin");
     PROFILE_RANGE(render, __FUNCTION__);
 
     bool sandboxIsRunning = SandboxUtils::readStatus(reply->readAll());
@@ -2234,6 +2451,17 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
 
     QString sentTo;
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // An accepted early destination (or its subsequent replacement) must
+    // never be overwritten by this older sandbox callback. If startup had
+    // no accepted link, give the existing owner one final checkpoint.
+    const bool acceptedPendingStartupUrl = acceptedStartupUrl ||
+        AndroidHelper::instance().dispatchPendingStartupUrl();
+    PHONE_LOADING("phase=startup_pending_dispatch accepted=%d", acceptedPendingStartupUrl ? 1 : 0);
+    if (acceptedPendingStartupUrl) {
+        sentTo = SENT_TO_PREVIOUS_LOCATION;
+    } else {
+#endif
 #ifdef Q_OS_ANDROID
     const auto startupDestination = android::startup::selectDestination(
         _firstRun.get(), hasExplicitAndroidStartupUrl,
@@ -2300,6 +2528,10 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
         sentTo = SENT_TO_PREVIOUS_LOCATION;
     }
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    }
+#endif
+
     UserActivityLogger::getInstance().logAction("startup_sent_to", {
         { "sent_to", sentTo },
         { "sandbox_is_running", sandboxIsRunning },
@@ -2310,10 +2542,21 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
         { "content_version", contentVersion }
     });
 
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
     _connectionMonitor.init();
+#endif
+    PHONE_LOADING("phase=startup_destination_end");
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    AndroidHelper::instance().notifyStartupNavigationReady();
+#endif
 }
 
 void Application::cleanupBeforeQuit() {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Retire queued scene commits before disconnecting and tearing down the UI.
+    _phoneServerlessLoadRequests.setActive(false);
+    stopPhoneKtxHeaderProbes();
+#endif
     invalidateEntityScriptConsent();
     // add a logline indicating if QTWEBENGINE_REMOTE_DEBUGGING is set or not
     QString webengineRemoteDebugging = QProcessEnvironment::systemEnvironment().value("QTWEBENGINE_REMOTE_DEBUGGING", "false");
@@ -3911,6 +4154,13 @@ void Application::update(float deltaTime) {
 
                 myAvatar->prepareForPhysicsSimulation();
                 myAvatar->getCharacterController()->preSimulation();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+                if (myAvatar->getCharacterController()->updateSpawnHold(_physicsEnabled)) {
+                    OffscreenUi::asyncWarning(tr("World entry paused"),
+                        tr("The ground at your destination is not ready. You are being held safely in place. "
+                           "Use Go To to retry or choose another destination."));
+                }
+#endif
             }
         }
         if (_physicsEnabled) {
@@ -4373,6 +4623,11 @@ void Application::tryToEnablePhysics() {
 #endif
             _octreeProcessor->resetSafeLanding();
             _physicsEnabled = true;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+            // Authoritative movement gate; independent of background downloads
+            // and not a claim that every visible resource has finished loading.
+            PHONE_LOADING("phase=physics_enabled enabled=1");
+#endif
 #if defined(ANDROID_APP_PICO_INTERFACE)
             if (enableInterstitial && _graphicsEngine) {
                 _picoLoadingPhysicsEnabledAt = physicsNow;

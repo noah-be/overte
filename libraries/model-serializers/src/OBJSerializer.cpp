@@ -21,12 +21,15 @@
 #include <QtCore/QBuffer>
 #include <QtCore/QIODevice>
 #include <QtCore/QEventLoop>
+#include <QtCore/QElapsedTimer>
+#include <QtCore/QCryptographicHash>
 #include <QtNetwork/QNetworkAccessManager>
 #include <QtNetwork/QNetworkRequest>
 
 #include <shared/NsightHelpers.h>
 #include <NetworkAccessManager.h>
 #include <ResourceManager.h>
+#include <PhoneLoadingDiagnostics.h>
 
 #include "FBXSerializer.h"
 #include <hfm/ModelFormatLogging.h>
@@ -667,6 +670,7 @@ std::unique_ptr<hfm::Serializer::Factory> OBJSerializer::getFactory() const {
 
 HFMModel::Pointer OBJSerializer::read(const hifi::ByteArray& data, const hifi::VariantHash& mapping, const hifi::URL& url) {
     PROFILE_RANGE_EX(resource_parse, __FUNCTION__, 0xffff0000, nullptr);
+    QElapsedTimer loadingPhaseTimer;
     QBuffer buffer { const_cast<hifi::ByteArray*>(&data) };
     buffer.open(QIODevice::ReadOnly);
 
@@ -685,7 +689,13 @@ HFMModel::Pointer OBJSerializer::read(const hifi::ByteArray& data, const hifi::V
     try {
         // call parseOBJGroup as long as it's returning true.  Each successful call will
         // add a new meshPart to the model's single mesh.
+        loadingPhaseTimer.start();
         while (parseOBJGroup(tokenizer, mapping, hfmModel, scaleGuess, combineParts)) {}
+        PHONE_LOADING("phase=obj_parse ms=%lld url_hash=%s bytes=%d groups=%d vertices=%d normals=%d uvs=%d",
+            (long long)loadingPhaseTimer.elapsed(),
+            QCryptographicHash::hash(url.toEncoded(), QCryptographicHash::Md5).toHex().constData(),
+            data.size(), faceGroups.size(), vertices.size(), normals.size(), textureUVs.size());
+        loadingPhaseTimer.restart();
 
         HFMMesh& mesh = hfmModel.meshes[0];
         mesh.meshIndex = 0;
@@ -759,6 +769,11 @@ HFMModel::Pointer OBJSerializer::read(const hifi::ByteArray& data, const hifi::V
         int unmodifiedMeshPartCount = mesh.parts.count();
         mesh.parts.clear();
         mesh.parts = QVector<HFMMeshPart>(hfmMeshParts);
+        PHONE_LOADING("phase=obj_material_groups ms=%lld url_hash=%s parts=%d",
+            (long long)loadingPhaseTimer.elapsed(),
+            QCryptographicHash::hash(url.toEncoded(), QCryptographicHash::Md5).toHex().constData(),
+            mesh.parts.size());
+        loadingPhaseTimer.restart();
 
         for (int i = 0, meshPartCount = 0; i < unmodifiedMeshPartCount; i++, meshPartCount++) {
             FaceGroup faceGroup = faceGroups[meshPartCount];
@@ -833,12 +848,19 @@ HFMModel::Pointer OBJSerializer::read(const hifi::ByteArray& data, const hifi::V
             mesh.meshExtents.addPoint(vertex);
             hfmModel.meshExtents.addPoint(vertex);
         }
+        PHONE_LOADING("phase=obj_mesh ms=%lld url_hash=%s vertices=%d",
+            (long long)loadingPhaseTimer.elapsed(),
+            QCryptographicHash::hash(url.toEncoded(), QCryptographicHash::Md5).toHex().constData(),
+            mesh.vertices.size());
 
         // hfmDebugDump(hfmModel);
     } catch(const std::exception& e) {
+        PHONE_LOADING("phase=obj_parse_error url_hash=%s",
+            QCryptographicHash::hash(url.toEncoded(), QCryptographicHash::Md5).toHex().constData());
         qCDebug(modelformat) << "OBJSerializer fail: " << e.what();
     }
 
+    loadingPhaseTimer.restart();
     QString queryPart = _url.query();
     bool suppressMaterialsHack = queryPart.contains("hifiusemat"); // If this appears in query string, don't fetch mtl even if used.
     OBJMaterial& preDefinedMaterial = materials[SMART_DEFAULT_MATERIAL_NAME];
@@ -889,6 +911,11 @@ HFMModel::Pointer OBJSerializer::read(const hifi::ByteArray& data, const hifi::V
             }
         }
     }
+    PHONE_LOADING("phase=obj_material_fetch ms=%lld url_hash=%s libraries=%d needed=%d",
+        (long long)loadingPhaseTimer.elapsed(),
+        QCryptographicHash::hash(url.toEncoded(), QCryptographicHash::Md5).toHex().constData(),
+        librariesSeen.size(), int(needsMaterialLibrary));
+    loadingPhaseTimer.restart();
 
     foreach (QString materialID, materials.keys()) {
         OBJMaterial& objMaterial = materials[materialID];
@@ -999,6 +1026,10 @@ HFMModel::Pointer OBJSerializer::read(const hifi::ByteArray& data, const hifi::V
 
         modelMaterial->setOpacity(hfmMaterial.opacity);
     }
+    PHONE_LOADING("phase=obj_material_apply ms=%lld url_hash=%s materials=%d",
+        (long long)loadingPhaseTimer.elapsed(),
+        QCryptographicHash::hash(url.toEncoded(), QCryptographicHash::Md5).toHex().constData(),
+        materials.size());
 
     return hfmModelPtr;
 }

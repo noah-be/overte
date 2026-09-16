@@ -66,16 +66,32 @@ test("production emote app rejects unknown and unavailable animations", () => {
     assert.equal(unavailable.Script.timers.size, 0);
 });
 
-test("production emote app stops playback when closed and cleans up on shutdown", () => {
+test("production emote app finishes playback after chooser closure and cleans up on shutdown", () => {
     const { Script, avatarCalls, tablet } = start();
     const button = openApp(tablet);
     tablet.fromQml.emit({ method: "phoneEmote.play", name: "Crying" });
+    assert.equal(tablet.presentationCalls.at(-1).action, "hide");
+    const timer = [...Script.timers.keys()][0];
     tablet.screenChanged.emit("Home", "");
 
+    assert.equal(avatarCalls.at(-1)[0], "override");
+    assert.equal(Script.timers.size, 1);
+    tablet.fromQml.emit({ method: "phoneEmote.play", name: "Waving" });
+    assert.equal(avatarCalls.length, 1, "closed chooser cannot issue another animation");
+    assert.equal(Script.runTimer(timer), true);
     assert.equal(avatarCalls.at(-1)[0], "restore");
     assert.equal(Script.timers.size, 0);
+
+    openApp(tablet);
+    tablet.fromQml.emit({ method: "phoneEmote.play", name: "Waving" });
+    const shutdownTimer = [...Script.timers.keys()][0];
     Script.end();
+    assert.equal(avatarCalls.at(-1)[0], "restore");
+    assert.equal(Script.timers.size, 0);
+    assert.ok(Script.clearedTimers.includes(shutdownTimer));
+    assert.equal(Script.runTimer(shutdownTimer), false);
     assert.equal(tablet.buttons.length, 0);
     assert.equal(button.clicked.listenerCount, 0);
     assert.equal(tablet.fromQml.listenerCount, 0);
+    assert.equal(tablet.screenChanged.listenerCount, 0);
 });

@@ -100,7 +100,8 @@ preflight() {
   route_lines=$(wc -l < /proc/net/route)
   [ "$route_lines" -le 1 ] || { echo "preflight: network route is available" >&2; exit 1; }
   available=$(df -B1 --output=avail "$OVERTE_ATTEMPT_ROOT" | awk 'NR==2 {print $1}')
-  [ "$available" -ge 60000000000 ] || { echo "preflight: less than 60 GB free" >&2; exit 1; }
+  # User disabled the additional start reserve; runtime resource protection remains.
+  [ "$available" -ge 0 ] || { echo "preflight: invalid available-space reading" >&2; exit 1; }
   echo "cold-build preflight: PASS (jobs=$jobs available_bytes=$available)"
 }
 
@@ -165,6 +166,9 @@ if ! valid_checkpoint target "$OVERTE_ATTEMPT_ROOT/target-result.json"; then
     -c "tools.build:jobs=$jobs" --format=json > "$OVERTE_ATTEMPT_ROOT/target-result.json"
   checkpoint target "$OVERTE_ATTEMPT_ROOT/target-result.json"
 fi
+
+python3 "$repo_root/android/phone/fdroid/conan/stage_host_tools.py" \
+  --attempt-root "$OVERTE_ATTEMPT_ROOT" --source-commit "$OVERTE_SOURCE_COMMIT"
 
 "$repo_root/android/phone/tests/verify-phone-16k-dependencies.sh" --write-sentinel \
   "$OVERTE_ATTEMPT_ROOT/target" "$OVERTE_ATTEMPT_ROOT/target" "$OVERTE_ATTEMPT_ROOT/target/.phone-16k-dependencies.ready"

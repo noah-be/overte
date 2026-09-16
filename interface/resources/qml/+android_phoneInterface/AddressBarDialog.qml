@@ -18,8 +18,15 @@ FocusScope {
         availableHeight: root.height
     }
 
-    function closeDialog() {
+    function releaseEditor() {
+        addressField.deselect()
+        addressField.focus = false
+        Qt.inputMethod.reset()
         Qt.inputMethod.hide()
+    }
+
+    function closeDialog() {
+        releaseEditor()
         DialogsManager.hideAddressBar()
     }
 
@@ -50,6 +57,16 @@ FocusScope {
     Flickable {
         id: viewport
         anchors.fill: parent
+        // This dialog lives on the full offscreen surface. Android's IME does
+        // not resize that surface, so reserve its real occluded area here.
+        anchors.bottomMargin: touchMetrics.keyboardVisible
+            ? Math.min(Math.max(0, touchMetrics.keyboardInsetBottom), Math.max(0, root.height - 1))
+            : 0
+        onHeightChanged: Qt.callLater(function() {
+            if (addressField.activeFocus) {
+                touchMetrics.ensureVisible(viewport, addressField)
+            }
+        })
         contentWidth: width
         contentHeight: Math.max(height, panel.height + 2 * touchMetrics.spacingLarge)
         clip: true
@@ -65,7 +82,10 @@ FocusScope {
             Math.min(viewport.width - 2 * touchMetrics.spacingLarge, 720))
         height: content.implicitHeight + 48
         x: Math.max(touchMetrics.spacingLarge, (viewport.width - width) / 2)
-        y: Math.max(touchMetrics.spacingLarge, (viewport.height - height) / 2)
+        // Start above the keyboard from the first frame. The IME may shrink
+        // the scrollable viewport, but must not move the focused editor.
+        y: Math.max(2 * touchMetrics.spacingLarge,
+                    touchMetrics.profile.safeInsetTop + touchMetrics.spacingLarge)
         radius: 18
         color: "#e6282d33"
         border.color: "#6679858e"
@@ -203,7 +223,7 @@ FocusScope {
             addressField.selectAll()
             addressField.forceActiveFocus()
         } else {
-            Qt.inputMethod.hide()
+            releaseEditor()
         }
     }
 

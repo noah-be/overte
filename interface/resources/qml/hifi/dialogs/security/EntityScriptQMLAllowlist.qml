@@ -190,7 +190,8 @@ Rectangle {
             anchors.bottom: parent.bottom;
             anchors.margins: 10;
             height: touchConfiguration.buttonHeight;
-            width: 160;
+            width: touchConfiguration.directTouch
+                ? Math.min(parent.width - 20, Math.max(160, implicitWidth)) : 160;
             text: "Save Changes";
             Accessible.name: qsTr("Save entity allowlist")
             Accessible.description: qsTr("Store the edited entity script and QML allowlist")

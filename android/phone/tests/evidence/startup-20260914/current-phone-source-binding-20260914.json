@@ -1,0 +1,16 @@
+{
+  "time_unix": 1789400404.1081328,
+  "installed_apk_sha256": "e1109ae463acbc277f84d9f1da21a3a0785f34a9970e171f58544696e6e2c3d0",
+  "artifact": "artifacts/etc-rgba-image-only-20260914/signed.apk",
+  "build_source_base": "820dead3a963e7973db577e186f0a75589960979",
+  "note": "Codec candidate accepted locally after Pixel ABBA, full ARM output comparisons and cold world ABA. Only libimage replaced relative to exact94ec baseline. Commit includes builder source-inventory hardening after native build; that script-only addition does not alter installed archive.",
+  "remaining_diff_sha256": "a9e96d70fbbc7f39238accf39a87e9a15e2f5aa716c6feabf8b1bebc61354d40",
+  "collision_mode": 0,
+  "animation_full": 1,
+  "next": "Today requested ETC point concluded. Optional dependency archive override active in isolated build; canonical Phone recipe/lock integration remains future work.",
+  "previous_installed_apk_sha256": "94ec7a20cec01157d59187706b895b1c5ada60b2aba21a6fd1a24e87f6ddc06f",
+  "post_validation_commit": "c582528d3d",
+  "ktx_header_first": 0,
+  "cache_namespace": 0,
+  "codec_archive_sha256": "054d4c0616f38b81089768286efde14b6be60c0acade3cc10d06c3b9a7d739b6"
+}

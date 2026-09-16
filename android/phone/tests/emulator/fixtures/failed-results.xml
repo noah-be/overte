@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite tests="7" failures="1" errors="0" skipped="0">
+  <testcase classname="org.overte.phone.EmulatorPackagingTest" name="emulatorRunsX86_64PackageWithNativeInterface"/>
+  <testcase classname="org.overte.phone.PhoneColdLaunchInstrumentedTest" name="launcherStartsAndKeepsRealNativeActivityResumed"/>
+  <testcase classname="org.overte.phone.PhoneParityPreparationInstrumentedTest" name="unsupportedWebSchemeIsNotExported"/>
+  <testcase classname="org.overte.phone.PhoneParityPreparationInstrumentedTest" name="rawWhitespaceDeepLinkIsRejected">
+    <failure message="serial=private-device url=https://secret.example">private stack trace</failure>
+  </testcase>
+  <testcase classname="org.overte.phone.PhoneParityPreparationInstrumentedTest" name="microphoneDenialStillAllowsInterfaceLaunch"/>
+  <testcase classname="org.overte.phone.PhoneParityPreparationInstrumentedTest" name="tabletWindowMetricsRemainUsable"/>
+  <testcase classname="org.overte.phone.PhoneParityPreparationInstrumentedTest" name="legacyImeInsetIsSeparatedFromNavigationInset"/>
+</testsuite>

@@ -1,0 +1,206 @@
+{
+  "runs": [
+    {
+      "run": "etc-rgba-world-baseline",
+      "apk_sha256": "94ec7a20cec01157d59187706b895b1c5ada60b2aba21a6fd1a24e87f6ddc06f",
+      "namespace": "14",
+      "fresh_cache": [
+        {
+          "phase": "file_cache_scan",
+          "cache": "2",
+          "exists": "0",
+          "listed": "0",
+          "created": "1",
+          "elapsed": 4.445
+        },
+        {
+          "phase": "file_cache_init",
+          "cache": "2",
+          "scanned_files": "0",
+          "scanned_bytes": "0",
+          "indexed_files": "0",
+          "indexed_bytes": "0",
+          "unused_files": "0",
+          "unused_bytes": "0",
+          "max_bytes": "5368709120",
+          "min_free_bytes": "1073741824",
+          "elapsed": 4.445
+        }
+      ],
+      "thermal": {
+        "start": {
+          "soc_therm": 41.387,
+          "VIRTUAL-SKIN": 36.37645,
+          "battery": 37.2
+        },
+        "navigation": {
+          "soc_therm": 41.387,
+          "VIRTUAL-SKIN": 36.37645,
+          "battery": 37.2
+        },
+        "end": {
+          "soc_therm": 45.915,
+          "VIRTUAL-SKIN": 38.382504,
+          "battery": 37.9
+        }
+      },
+      "images": 83,
+      "cache_hits": {
+        "0": 78,
+        "1": 5
+      },
+      "image_job_ms_sum": 144595,
+      "etc_ms_sum": 113723,
+      "etc_scopes": 187,
+      "last_image_s": 106.005,
+      "last_texture_s": 106.005,
+      "last_animation_s": 100.693,
+      "last_http_s": 51.965,
+      "first_empty_sample_s": 107.576
+    },
+    {
+      "run": "etc-rgba-world-candidate",
+      "apk_sha256": "e1109ae463acbc277f84d9f1da21a3a0785f34a9970e171f58544696e6e2c3d0",
+      "namespace": "15",
+      "fresh_cache": [
+        {
+          "phase": "file_cache_scan",
+          "cache": "2",
+          "exists": "0",
+          "listed": "0",
+          "created": "1",
+          "elapsed": 3.603
+        },
+        {
+          "phase": "file_cache_init",
+          "cache": "2",
+          "scanned_files": "0",
+          "scanned_bytes": "0",
+          "indexed_files": "0",
+          "indexed_bytes": "0",
+          "unused_files": "0",
+          "unused_bytes": "0",
+          "max_bytes": "5368709120",
+          "min_free_bytes": "1073741824",
+          "elapsed": 3.603
+        }
+      ],
+      "thermal": {
+        "start": {
+          "soc_therm": 38.45,
+          "VIRTUAL-SKIN": 35.66161,
+          "battery": 37.300003
+        },
+        "navigation": {
+          "soc_therm": 38.45,
+          "VIRTUAL-SKIN": 35.66161,
+          "battery": 37.300003
+        },
+        "end": {
+          "soc_therm": 45.486004,
+          "VIRTUAL-SKIN": 38.22246,
+          "battery": 38.0
+        }
+      },
+      "images": 83,
+      "cache_hits": {
+        "0": 78,
+        "1": 5
+      },
+      "image_job_ms_sum": 105242,
+      "etc_ms_sum": 74541,
+      "etc_scopes": 187,
+      "last_image_s": 77.131,
+      "last_texture_s": 77.15,
+      "last_animation_s": 78.374,
+      "last_http_s": 47.371,
+      "first_empty_sample_s": 86.262
+    },
+    {
+      "run": "etc-rgba-world-baseline-2",
+      "apk_sha256": "94ec7a20cec01157d59187706b895b1c5ada60b2aba21a6fd1a24e87f6ddc06f",
+      "namespace": "16",
+      "fresh_cache": [
+        {
+          "phase": "file_cache_scan",
+          "cache": "2",
+          "exists": "0",
+          "listed": "0",
+          "created": "1",
+          "elapsed": 3.284
+        },
+        {
+          "phase": "file_cache_init",
+          "cache": "2",
+          "scanned_files": "0",
+          "scanned_bytes": "0",
+          "indexed_files": "0",
+          "indexed_bytes": "0",
+          "unused_files": "0",
+          "unused_bytes": "0",
+          "max_bytes": "5368709120",
+          "min_free_bytes": "1073741824",
+          "elapsed": 3.284
+        }
+      ],
+      "thermal": {
+        "start": {
+          "soc_therm": 39.251003,
+          "VIRTUAL-SKIN": 36.84692,
+          "battery": 37.4
+        },
+        "navigation": {
+          "soc_therm": 39.251003,
+          "VIRTUAL-SKIN": 36.84692,
+          "battery": 37.4
+        },
+        "end": {
+          "soc_therm": 47.347004,
+          "VIRTUAL-SKIN": 39.941322,
+          "battery": 38.300003
+        }
+      },
+      "images": 83,
+      "cache_hits": {
+        "0": 78,
+        "1": 5
+      },
+      "image_job_ms_sum": 177653,
+      "etc_ms_sum": 140832,
+      "etc_scopes": 187,
+      "last_image_s": 119.891,
+      "last_texture_s": 119.906,
+      "last_animation_s": 113.844,
+      "last_http_s": 55.896,
+      "first_empty_sample_s": 125.849
+    }
+  ],
+  "reductions": {
+    "image_job_ms_sum": {
+      "absolute": 39353,
+      "fraction": 0.2721601715135378
+    },
+    "etc_ms_sum": {
+      "absolute": 39182,
+      "fraction": 0.3445389235247047
+    },
+    "last_image_s": {
+      "absolute": 28.873999999999995,
+      "fraction": 0.27238337814254043
+    },
+    "last_texture_s": {
+      "absolute": 28.85499999999999,
+      "fraction": 0.2722041413140889
+    },
+    "first_empty_sample_s": {
+      "absolute": 21.313999999999993,
+      "fraction": 0.19812969435561834
+    }
+  },
+  "limits": [
+    "Single cold-cache app pair. Both derived caches proven fresh; HTTP caches retained.",
+    "World online and thermal variation remain; repeated cold pair needed for precise gain estimate.",
+    "First empty sample is a10second sampling bound, not exact visual readiness.",
+    "Screenshots separately inspected; input usability validation follows normal-cache restoration."
+  ]
+}

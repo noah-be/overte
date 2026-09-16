@@ -75,3 +75,21 @@ test("production tablet router disconnects handlers and removes buttons on shutd
         assert.equal(button.clicked.listenerCount, 0);
     }
 });
+
+test("production settings Back returns only from an allowlisted child surface", () => {
+    const { Script, tablet } = start();
+    const settings = "resolved:../settings/Settings.qml";
+    tablet.screenChanged.emit("QML", "hifi/tablet/TabletGeneralPreferences.qml");
+    tablet.fromQml.emit({ type: "settings.back" });
+    assert.equal(tablet.navigation.at(-1).args[0], settings);
+
+    const acceptedCount = tablet.navigation.length;
+    for (const source of ["unrelated.qml", "__proto__", "constructor", settings]) {
+        tablet.screenChanged.emit("QML", source);
+        tablet.fromQml.emit({ type: "settings.back" });
+    }
+    tablet.screenChanged.emit("Closed", "hifi/tablet/TabletGeneralPreferences.qml");
+    tablet.fromQml.emit({ type: "settings.back" });
+    assert.equal(tablet.navigation.length, acceptedCount);
+    Script.end();
+});

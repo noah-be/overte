@@ -336,7 +336,6 @@ Rig::~Rig() {
 }
 
 void Rig::overrideAnimation(const QString& url, float fps, bool loop, float firstFrame, float lastFrame) {
-
     UserAnimState::ClipNodeEnum clipNodeEnum;
     if (_userAnimState.clipNodeEnum == UserAnimState::None || _userAnimState.clipNodeEnum == UserAnimState::B) {
         clipNodeEnum = UserAnimState::A;

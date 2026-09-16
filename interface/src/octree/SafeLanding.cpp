@@ -219,6 +219,9 @@ SafeLanding::LoadingStatus SafeLanding::loadingStatus() {
     Locker lock(_lock);
 
     LoadingStatus status;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    status.trackingActive = _trackingEntities;
+#endif
     status.trackedEntityCount = static_cast<int32_t>(_trackedEntities.size());
     status.maximumTrackedEntityCount = _maxTrackedEntityCount;
     if (_entityTreeRenderer) {

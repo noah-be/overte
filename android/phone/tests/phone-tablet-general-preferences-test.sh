@@ -11,7 +11,7 @@ readonly phone_profile="$repo_root/interface/resources/qml/controlsUit/+android_
 readonly tablet_preferences_dialog="$repo_root/interface/resources/qml/hifi/tablet/tabletWindows/TabletPreferencesDialog.qml"
 readonly preference_source="$repo_root/interface/src/ui/PreferencesDialog.cpp"
 readonly phone_gradle="$repo_root/android/phone/apps/phoneInterface/build.gradle"
-readonly discord_stub="$repo_root/android/common/cmake/pico-modules/discord_rpc.h"
+readonly discord_stub="$repo_root/android/common/cmake/android-modules/discord_rpc.h"
 
 require() {
     local file="$1" pattern="$2" description="$3"
@@ -33,8 +33,16 @@ reject() {
 
 require "$shared_policy" 'profile[.]navigationPreferencesAvailable' \
     'General Settings admit Navigation only through an explicit capability'
-require "$shared_policy" 'categories[.]push\("Mouse Sensitivity"\)' \
-    'General Settings retain the shared look-sensitivity category'
+require "$shared_policy" 'categories[.]push\(profile[.]touchCameraPreferencesAvailable' \
+    'General Settings select look sensitivity through the touch capability'
+require "$shared_policy" '[?][[:space:]]*"Touch Camera Sensitivity"[[:space:]]*:[[:space:]]*"Mouse Sensitivity"' \
+    'General Settings retain both touch and desktop look-sensitivity categories'
+require "$phone_profile" 'touchCameraPreferencesAvailable:[[:space:]]*Qt[.]platform[.]os === "android"' \
+    'Phone selects touch-camera preferences only on Android'
+require "$base_profile" 'property bool touchCameraPreferencesAvailable:[[:space:]]*false' \
+    'desktop retains mouse-camera preferences by default'
+require "$preference_source" 'static const QString AVATAR_CAMERA\{ "Touch Camera Sensitivity" \}' \
+    'native Phone touch preferences match the QML category'
 require "$shared_preferences" 'showCategories:[[:space:]]*preferencesPolicy[.]allowedCategories' \
     'phone General Settings consume the tested fail-closed category policy'
 require "$phone_profile" 'navigationPreferencesAvailable:[[:space:]]*true' \
@@ -57,7 +65,7 @@ require "$preference_source" '#if defined\(ANDROID_APP_PHONE_INTERFACE\)' \
 require "$preference_source" '"android/phone/pinchZoomEnabled"' \
     'phone Navigation retains the touch-specific pinch setting'
 require "$preference_source" 'static const QString AVATAR_CAMERA\{ "Mouse Sensitivity" \}' \
-    'touch look sensitivity retains its shared runtime category'
+    'desktop look sensitivity retains its established runtime category'
 require "$phone_gradle" 'USE_BREAKPAD=OFF' \
     'phone build keeps crash reporting disabled'
 require "$discord_stub" 'static inline void Discord_UpdatePresence' \

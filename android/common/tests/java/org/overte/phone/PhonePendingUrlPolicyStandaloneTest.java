@@ -8,6 +8,18 @@ public final class PhonePendingUrlPolicyStandaloneTest {
     }
 
     public static void main(String[] args) {
+        for (boolean restored : new boolean[] { false, true }) {
+            for (boolean fromHistory : new boolean[] { false, true }) {
+                String destination = PhonePendingUrlPolicy.initialDestination(
+                        "hifi://explicit-navigation", restored, fromHistory);
+                check(restored || fromHistory
+                        ? destination == null
+                        : "hifi://explicit-navigation".equals(destination));
+                check(PhonePendingUrlPolicy.initialDestination(
+                        null, restored, fromHistory) == null);
+            }
+        }
+
         check(!PhonePendingUrlPolicy.canAttempt(null, false));
         check(!PhonePendingUrlPolicy.canAttempt(null, true));
         check(!PhonePendingUrlPolicy.canAttempt("hifi://pending", false));

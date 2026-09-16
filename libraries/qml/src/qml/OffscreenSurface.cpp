@@ -243,9 +243,24 @@ bool OffscreenSurface::eventFilter(QObject* originalDestination, QEvent* event) 
                         QInputMethodQueryEvent *imqEvent = static_cast<QInputMethodQueryEvent *>(event);
                         // this block disables the selection cursor in android which appears in
                         // the top-left corner of the screen
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
                         if (imqEvent->queries() & Qt::ImEnabled) {
                             imqEvent->setValue(Qt::ImEnabled, QVariant(false));
                         }
+#else
+                        // Queries sent directly to the editor return item-local
+                        // rectangles. Android needs their position in the GL
+                        // viewport, which shares the Phone QML scene coordinates.
+                        auto focusItem = window->activeFocusItem();
+                        for (auto query : { Qt::ImCursorRectangle, Qt::ImAnchorRectangle }) {
+                            if (imqEvent->queries() & query) {
+                                const auto value = imqEvent->value(query);
+                                if (value.canConvert<QRectF>()) {
+                                    imqEvent->setValue(query, focusItem->mapRectToScene(value.toRectF()));
+                                }
+                            }
+                        }
+#endif
                     }
                     return eventAccepted;
                 }

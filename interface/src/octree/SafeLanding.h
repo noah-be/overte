@@ -37,6 +37,9 @@ public:
         uint32_t receivedSequenceCount { 0 };
         uint32_t expectedSequenceCount { 0 };
         bool completionReceived { false };
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        bool trackingActive { false };
+#endif
     };
 
     static constexpr OCTREE_PACKET_SEQUENCE MAX_SEQUENCE = std::numeric_limits<OCTREE_PACKET_SEQUENCE>::max();

@@ -145,6 +145,12 @@ public:
     void activateICEPublicSocket();
 
     bool isConnected() const { return _isConnected; }
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Capture at signal emission, before crossing to the application queue.
+    // Unlike DNS discovery, scene ownership survives background/foreground and
+    // soft reconnects. Only a hard destination reset invalidates these tickets.
+    overte::network::RequestTicket snapshotNavigationTicket() const { return _navigationScope.snapshot(); }
+#endif
     void setIsConnected(bool isConnected);
 
     void setCanConnectWithoutAvatarEntities(bool canConnect);
@@ -340,6 +346,9 @@ private:
 
     // domain connection error upon connection refusal.
     int _lastDomainConnectionError{ -1 };
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    overte::network::RequestScope _navigationScope;
+#endif
 };
 
 const QString DOMAIN_SPAWNING_POINT { "/0, -10, 0" };

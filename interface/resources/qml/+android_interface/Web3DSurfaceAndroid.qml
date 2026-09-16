@@ -9,7 +9,7 @@
 //
 
 import QtQuick 2.5
-import QtGraphicalEffects 1.0
+import "../controls" as CpuControls
 
 Item {
 
@@ -18,12 +18,12 @@ Item {
     property bool useBackground
     property string userAgent
 
-    RadialGradient {
+    CpuControls.CpuRadialGradient {
         anchors.fill: parent
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: "#262626" }
-            GradientStop { position: 1.0; color: "#000000" }
-        }
+        stops: [
+            { position: 0.0, color: "#262626" },
+            { position: 1.0, color: "#000000" }
+        ]
     }
 
     function destroy() { }

@@ -14,6 +14,9 @@
 //
 
 #include "Application.h"
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include "AndroidHelper.h"
+#endif
 
 #include <QtQml/QQmlContext>
 #include <QStyle>
@@ -53,6 +56,7 @@
 #include <raypick/PointerScriptingInterface.h>
 #include <recording/RecordingScriptingInterface.h>
 #include <SandboxUtils.h>
+#include <PhoneLoadingDiagnostics.h>
 #include <SceneScriptingInterface.h>
 #include <ScriptEngines.h>
 #include <scripting/AccountServicesScriptingInterface.h>
@@ -1357,8 +1361,14 @@ void Application::pauseUntilLoginDetermined() {
         menu->getMenu("Developer")->setVisible(false);
     }
     _previousCameraMode = _myCamera.getMode();
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
     _myCamera.setMode(CAMERA_MODE_FIRST_PERSON_LOOK_AT);
     cameraModeChanged();
+#endif
+    // Phone resumes directly when its UI is ready; preserve its chosen camera
+    // instead of exposing the temporary desktop login view during startup.
+    PHONE_LOADING("phase=startup_camera_pause elapsed_ms=%lld mode=%d previous_mode=%d",
+        (long long)_sessionRunTimer.elapsed(), (int)_myCamera.getMode(), (int)_previousCameraMode);
 
     // disconnect domain handler.
     nodeList->getDomainHandler().disconnect("Pause until login determined");
@@ -1373,6 +1383,7 @@ void Application::pauseUntilLoginDetermined() {
 }
 
 void Application::resumeAfterLoginDialogActionTaken() {
+    PHONE_LOADING("phase=startup_resume_begin elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
     if (QThread::currentThread() != qApp->thread()) {
         QMetaObject::invokeMethod(this, "resumeAfterLoginDialogActionTaken");
         return;
@@ -1418,6 +1429,7 @@ void Application::resumeAfterLoginDialogActionTaken() {
 
     const auto& nodeList = DependencyManager::get<NodeList>();
     nodeList->getDomainHandler().setInterstitialModeEnabled(_interstitialModeEnabled);
+    PHONE_LOADING("phase=startup_scripts_begin elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
     {
         auto scriptEngines = DependencyManager::get<ScriptEngines>().data();
         // this will force the model the look at the correct directory (weird order of operations issue)
@@ -1439,6 +1451,9 @@ void Application::resumeAfterLoginDialogActionTaken() {
         }
     }
 
+    // The script-loading API has returned; this is not script execution completion.
+    PHONE_LOADING("phase=startup_scripts_api_return elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+
     auto accountManager = DependencyManager::get<AccountManager>();
     auto addressManager = DependencyManager::get<AddressManager>();
 
@@ -1450,15 +1465,31 @@ void Application::resumeAfterLoginDialogActionTaken() {
         const auto testScript = property(hifi::properties::TEST).toUrl();
         // Set last parameter to exit interface when the test script finishes, if so requested
         DependencyManager::get<ScriptEngines>()->loadScript(testScript, false, false, false, false, _quitWhenFinished);
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
         // This is done so we don't get a "connection time-out" message when we haven't passed in a URL.
         if (!_urlParam.isEmpty()) {
+            PHONE_LOADING("phase=startup_sandbox_submit elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
             auto reply = SandboxUtils::getStatus();
-            connect(reply, &QNetworkReply::finished, this, [this, reply] { handleSandboxStatus(reply); });
+            connect(reply, &QNetworkReply::finished, this, [this, reply] {
+                PHONE_LOADING("phase=startup_sandbox_callback elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+                handleSandboxStatus(reply);
+                PHONE_LOADING("phase=startup_sandbox_callback_return elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+            });
         }
-    } else {
-        auto reply = SandboxUtils::getStatus();
-        connect(reply, &QNetworkReply::finished, this, [this, reply] { handleSandboxStatus(reply); });
+#endif
     }
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
+    else {
+        PHONE_LOADING("phase=startup_sandbox_submit elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+        auto reply = SandboxUtils::getStatus();
+        connect(reply, &QNetworkReply::finished, this, [this, reply] {
+            PHONE_LOADING("phase=startup_sandbox_callback elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+            handleSandboxStatus(reply);
+            PHONE_LOADING("phase=startup_sandbox_callback_return elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+        });
+    }
+
+#endif
 
     auto menu = Menu::getInstance();
     menu->getMenu("Edit")->setVisible(true);
@@ -1466,10 +1497,37 @@ void Application::resumeAfterLoginDialogActionTaken() {
     menu->getMenu("Navigate")->setVisible(true);
     menu->getMenu("Settings")->setVisible(true);
     menu->getMenu("Developer")->setVisible(_developerMenuVisible);
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
     _myCamera.setMode(_previousCameraMode);
     cameraModeChanged();
+#endif
+    PHONE_LOADING("phase=startup_camera_restore elapsed_ms=%lld mode=%d previous_mode=%d",
+        (long long)_sessionRunTimer.elapsed(), (int)_myCamera.getMode(), (int)_previousCameraMode);
     _startUpFinished = true;
     getRefreshRateManager().setRefreshRateRegime(RefreshRateManager::RefreshRateRegime::FOCUS_ACTIVE);
+    PHONE_LOADING("phase=startup_resume_end elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Resume, avatar/settings restoration and DomainHandler::resetting are
+    // complete. Sandbox status is telemetry, not a prerequisite for an
+    // explicit Android destination. Keep test mode without a URL unchanged.
+    if (!testProperty.isValid() || !_urlParam.isEmpty()) {
+        _connectionMonitor.init();
+        const bool acceptedStartupUrl = AndroidHelper::instance().dispatchPendingStartupUrl();
+        PHONE_LOADING("phase=startup_early_dispatch accepted=%d", acceptedStartupUrl ? 1 : 0);
+        if (acceptedStartupUrl) {
+            AndroidHelper::instance().notifyStartupNavigationReady();
+        }
+        // Submit only after synchronous dispatch returns: even a reentrant
+        // URL handler cannot run this callback before its outcome is known.
+        PHONE_LOADING("phase=startup_sandbox_submit elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+        auto reply = SandboxUtils::getStatus();
+        connect(reply, &QNetworkReply::finished, this, [this, reply, acceptedStartupUrl] {
+            PHONE_LOADING("phase=startup_sandbox_callback elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+            handleSandboxStatus(reply, acceptedStartupUrl);
+            PHONE_LOADING("phase=startup_sandbox_callback_return elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+        });
+    }
+#endif
 }
 
 QSharedPointer<OffscreenUi> Application::getOffscreenUI() {

@@ -110,7 +110,7 @@ by contracts rather than a test-only imitation of that backend.
 
 The Qt Quick tests require `qmltestrunner`, Qt Quick Test and Qt Quick Controls
 2. They were executed in an isolated Linux / Qt 5.15 environment. All
-52 explicit `test_*` functions pass (68 QtTest result rows when suite
+53 explicit `test_*` functions pass (69 QtTest result rows when suite
 initialization and cleanup rows are included). The fast CI job installs the same package set and requires
 the QML tier to execute; a missing tool is a failure there. Local hosts without
 Qt still receive an explicit skip. This host evidence does not replace Android

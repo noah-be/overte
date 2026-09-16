@@ -23,6 +23,9 @@
 #include "ModelNetworkingLogging.h"
 #include <Trace.h>
 #include <StatTracker.h>
+#include <PhoneLoadingDiagnostics.h>
+#include <QElapsedTimer>
+#include <QCryptographicHash>
 #include <hfm/ModelFormatRegistry.h>
 #include <FBXSerializer.h>
 #include <OBJSerializer.h>
@@ -87,12 +90,14 @@ public:
                    const QByteArray& data, bool combineParts, const QString& webMediaType) :
         _modelLoader(modelLoader), _resource(resource), _url(url), _mapping(mapping), _data(data), _combineParts(combineParts), _webMediaType(webMediaType) {
 
+        _queued.start();
         DependencyManager::get<StatTracker>()->incrementStat("PendingProcessing");
     }
 
     virtual void run() override;
 
 private:
+    QElapsedTimer _queued;
     ModelLoader _modelLoader;
     QWeakPointer<Resource> _resource;
     QUrl _url;
@@ -103,6 +108,12 @@ private:
 };
 
 void GeometryReader::run() {
+    QElapsedTimer loadingTimer; loadingTimer.start();
+    PHONE_LOADING("phase=model_start url_hash=%s queue_ms=%lld bytes=%d",
+        QCryptographicHash::hash(_url.toEncoded(), QCryptographicHash::Md5).toHex().constData(),
+        (long long)_queued.elapsed(), _data.size());
+    Finally loadingRecord([&] { PHONE_LOADING("phase=model ms=%lld url_hash=%s", (long long)loadingTimer.elapsed(),
+        QCryptographicHash::hash(_url.toEncoded(), QCryptographicHash::Md5).toHex().constData()); });
     DependencyManager::get<StatTracker>()->decrementStat("PendingProcessing");
     CounterStat counter("Processing");
     PROFILE_RANGE_EX(resource_parse_geometry, "GeometryReader::run", 0xFF00FF00, 0, { { "url", _url.toString() } });
@@ -140,6 +151,8 @@ void GeometryReader::run() {
         serializerMapping.replace("combineParts",_combineParts);
         serializerMapping.replace("deduplicateIndices", true);
 
+        QElapsedTimer deserializeTimer;
+        deserializeTimer.start();
         if (_url.path().toLower().endsWith(".gz")) {
             QByteArray uncompressedData;
             if (!gunzip(_data, uncompressedData)) {
@@ -153,6 +166,10 @@ void GeometryReader::run() {
         } else {
             hfmModel = _modelLoader.load(_data, serializerMapping, _url, _webMediaType.toStdString());
         }
+        PHONE_LOADING("phase=model_deserialize ms=%lld url_hash=%s ok=%d",
+            (long long)deserializeTimer.elapsed(),
+            QCryptographicHash::hash(_url.toEncoded(), QCryptographicHash::Md5).toHex().constData(),
+            int(bool(hfmModel)));
 
         if (!hfmModel) {
             throw QString("unsupported format");
@@ -171,8 +188,13 @@ void GeometryReader::run() {
         }
 
         // Do processing on the model
+        QElapsedTimer bakeTimer;
+        bakeTimer.start();
         baker::Baker modelBaker(hfmModel, _mapping.second, _mapping.first);
         modelBaker.run();
+        PHONE_LOADING("phase=model_bake ms=%lld url_hash=%s",
+            (long long)bakeTimer.elapsed(),
+            QCryptographicHash::hash(_url.toEncoded(), QCryptographicHash::Md5).toHex().constData());
 
         auto processedHFMModel = modelBaker.getHFMModel();
         auto materialMapping = modelBaker.getMaterialMapping();
@@ -284,7 +306,19 @@ void GeometryResource::downloadFinished(const QByteArray& data) {
             _url = _effectiveBaseURL;
             _textureBaseURL = _effectiveBaseURL;
         }
-        QThreadPool::globalInstance()->start(new GeometryReader(_modelLoader, _self, _effectiveBaseURL, _mappingPair, data, _combineParts, _request->getWebMediaType()));
+        // Parsing geometry discovers its material and texture dependencies.
+        // On Phone, do not put that discovery behind bulk ETC image encoding.
+        int priority = 0;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        priority = 1;
+        if (phoneLoadingDiagnosticsEnabled()) {
+            char value[PROP_VALUE_MAX] {};
+            if (__system_property_get("debug.overte.loading.model_priority", value) == 1 && value[0] == '0') {
+                priority = 0;
+            }
+        }
+#endif
+        QThreadPool::globalInstance()->start(new GeometryReader(_modelLoader, _self, _effectiveBaseURL, _mappingPair, data, _combineParts, _request->getWebMediaType()), priority);
     }
 }
 

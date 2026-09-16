@@ -71,6 +71,7 @@
 #include <TextureCache.h>
 #if defined(ANDROID_APP_PHONE_INTERFACE) && defined(Q_OS_ANDROID)
 #include <PhoneFramebufferTelemetry.h>
+#include <PhoneLoadingDiagnostics.h>
 #endif
 #include "CompositorHelper.h"
 #include "Logging.h"
@@ -316,6 +317,126 @@ private:
 };
 
 PhonePresentTelemetry phonePresentTelemetry;
+
+// Loading diagnostics retain long stalls that the general graphics telemetry
+// treats as discontinuities. These are swap-return intervals, not compositor
+// scanout timestamps. All state belongs to the calling presentation thread.
+struct PhoneLoadingIntervalHistogram {
+    static constexpr uint64_t BIN_USEC { 1000 };
+    static constexpr size_t LAST_FINITE_BIN { 1000 };
+    std::array<uint64_t, LAST_FINITE_BIN + 2> bins {};
+    uint64_t count { 0 };
+    uint64_t maximum { 0 };
+    uint64_t over50ms { 0 };
+    uint64_t over100ms { 0 };
+    uint64_t over250ms { 0 };
+    uint64_t over1000ms { 0 };
+
+    void add(uint64_t interval) {
+        // Ceil to the bucket's upper bound; avoid interval + BIN_USEC overflow.
+        const uint64_t bucket = interval / BIN_USEC + (interval % BIN_USEC != 0);
+        ++bins[static_cast<size_t>(std::min<uint64_t>(bucket, LAST_FINITE_BIN + 1))];
+        ++count;
+        maximum = std::max(maximum, interval);
+        over50ms += interval > 50000;
+        over100ms += interval > 100000;
+        over250ms += interval > 250000;
+        over1000ms += interval > 1000000;
+    }
+
+    uint64_t percentileUpperUsec(unsigned percentile) const {
+        if (count == 0) { return 0; }
+        const uint64_t rank = (count * percentile + 99) / 100;
+        uint64_t cumulative = 0;
+        for (size_t bin = 0; bin <= LAST_FINITE_BIN; ++bin) {
+            cumulative += bins[bin];
+            if (cumulative >= rank) { return bin * BIN_USEC; }
+        }
+        // The overflow bucket has no finite boundary. The observed maximum
+        // remains a valid upper bound, with the overflow count logged explicitly.
+        return maximum;
+    }
+
+    void report(const char* stream, uint64_t window) const {
+        PHONE_LOADING("phase=frame_interval stream=%s window=%llu samples=%llu p50_upper_us=%llu p95_upper_us=%llu p99_upper_us=%llu max_us=%llu over_50ms=%llu over_100ms=%llu over_250ms=%llu over_1000ms=%llu",
+            stream, static_cast<unsigned long long>(window), static_cast<unsigned long long>(count),
+            static_cast<unsigned long long>(percentileUpperUsec(50)),
+            static_cast<unsigned long long>(percentileUpperUsec(95)),
+            static_cast<unsigned long long>(percentileUpperUsec(99)),
+            static_cast<unsigned long long>(maximum), static_cast<unsigned long long>(over50ms),
+            static_cast<unsigned long long>(over100ms), static_cast<unsigned long long>(over250ms),
+            static_cast<unsigned long long>(over1000ms));
+    }
+};
+
+struct PhoneLoadingPresentIntervals {
+    using Clock = std::chrono::steady_clock;
+    bool initialized { false };
+    bool hasLastNew { false };
+    Clock::time_point windowStart {};
+    Clock::time_point lastSwap {};
+    Clock::time_point lastNew {};
+    uint64_t window { 0 };
+    uint64_t swaps { 0 };
+    uint64_t newFrames { 0 };
+    PhoneLoadingIntervalHistogram all;
+    PhoneLoadingIntervalHistogram newSwap;
+    PhoneLoadingIntervalHistogram repeatSwap;
+    PhoneLoadingIntervalHistogram newGap;
+
+    static uint64_t elapsedUsec(Clock::time_point start, Clock::time_point end) {
+        return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
+    }
+
+    void record(bool hasNewFrame) {
+        const auto now = Clock::now();
+        if (!initialized) {
+            initialized = true;
+            windowStart = now;
+        } else {
+            const uint64_t interval = elapsedUsec(lastSwap, now);
+            all.add(interval);
+            (hasNewFrame ? newSwap : repeatSwap).add(interval);
+        }
+        lastSwap = now;
+        ++swaps;
+        if (hasNewFrame) {
+            if (hasLastNew) { newGap.add(elapsedUsec(lastNew, now)); }
+            lastNew = now;
+            hasLastNew = true;
+            ++newFrames;
+        }
+        const uint64_t elapsed = elapsedUsec(windowStart, now);
+        if (elapsed < PHONE_PRESENT_REPORT_INTERVAL_USEC) { return; }
+        ++window;
+        PHONE_LOADING("phase=frame_window window=%llu elapsed_us=%llu swaps=%llu new_frames=%llu repeated_swaps=%llu new_anchor=%d new_age_us=%llu",
+            static_cast<unsigned long long>(window), static_cast<unsigned long long>(elapsed),
+            static_cast<unsigned long long>(swaps), static_cast<unsigned long long>(newFrames),
+            static_cast<unsigned long long>(swaps - newFrames), hasLastNew ? 1 : 0,
+            static_cast<unsigned long long>(hasLastNew ? elapsedUsec(lastNew, now) : 0));
+        // new_swap/repeat_swap classify the ending swap; new_gap measures time
+        // between successive new frames even when repeated swaps intervene.
+        all.report("all", window);
+        newSwap.report("new_swap", window);
+        repeatSwap.report("repeat_swap", window);
+        newGap.report("new_gap", window);
+        all = {};
+        newSwap = {};
+        repeatSwap = {};
+        newGap = {};
+        windowStart = now;
+        swaps = 0;
+        newFrames = 0;
+        // Keep interval anchors across report boundaries. A long stall or
+        // suspend remains visible in max/gap counts and the actual elapsed time.
+    }
+};
+
+void recordPhoneLoadingPresentInterval(bool hasNewFrame) {
+    if (!phoneLoadingDiagnosticsEnabled()) { return; }
+    static thread_local PhoneLoadingPresentIntervals intervals;
+    intervals.record(hasNewFrame);
+}
 }
 #endif
 
@@ -1080,6 +1201,7 @@ void OpenGLDisplayPlugin::swapBuffers() {
 #endif
     context->swapBuffers();
 #if defined(ANDROID_APP_PHONE_INTERFACE)
+    recordPhoneLoadingPresentInterval(_phonePresentHasNewFrame);
     phonePresentTelemetry.record(_phonePresentHasNewFrame);
     _phonePresentHasNewFrame = false;
 #endif
