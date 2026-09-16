@@ -180,7 +180,7 @@ before the dependency build; there is intentionally no unbounded fallback.
    ```
 
    This command downloads only the complete pinned Phone Conan graph from
-   [`android-phone-16k-deps-v3`](https://github.com/noah-be/overte/releases/tag/android-phone-16k-deps-v3).
+   [the current dependency policy](../../../.github/dependency-releases.json).
    Phone dependency transport is independent from
    Pico release assets and cannot silently enter Pico's `--build=missing`
    producer phase.
@@ -222,9 +222,8 @@ needed after the current Phone delta has been published:
    ./phone-prebuilt-16k-deps.sh export /absolute/output/directory
    ```
 
-   Publish the generated `android-phone-16k-conan.tgz` under the
-   `android-phone-16k-deps-v3` release tag, then review and commit the generated
-   `android-phone-16k-deps-v3.sha256`.
+   Publish the archive under a new immutable tag and follow the
+   [dependency replacement procedure](../../../docs/DEPENDENCY_RELEASES.md).
 
 6. Build the APK from the verified graph:
 
