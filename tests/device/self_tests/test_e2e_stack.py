@@ -9,13 +9,20 @@ import unittest
 
 
 DEVICE_ROOT = Path(__file__).resolve().parents[1]
-IOS_TARGET_ROOT = DEVICE_ROOT / "ios"
+NATIVE_IOS_MANIFEST = DEVICE_ROOT / "adapters/appium/ios-bound.json"
+SHARED_APPIUM_ROOT = DEVICE_ROOT / "adapters/shared_appium"
+NATIVE_IOS = NATIVE_IOS_MANIFEST.is_file()
+ADAPTER_ROOT = (
+    DEVICE_ROOT / "adapters/appium"
+    if NATIVE_IOS or not (SHARED_APPIUM_ROOT / "adapter.py").is_file()
+    else SHARED_APPIUM_ROOT
+)
 
 
 class E2EStackTest(unittest.TestCase):
     def test_examples_are_disabled_and_keep_physical_transport_target_owned(self):
         payload = json.loads(
-            (DEVICE_ROOT / "adapters/appium/targets.example.json").read_text())
+            (ADAPTER_ROOT / "targets.example.json").read_text())
         self.assertEqual(1, payload["schemaVersion"])
         virtual_targets = [item for item in payload["targets"] if not item["physical"]]
         physical_targets = [item for item in payload["targets"] if item["physical"]]
@@ -34,7 +41,7 @@ class E2EStackTest(unittest.TestCase):
             self.assertNotIn("appium:udid", item["capabilities"])
 
         physical_by_platform = {item["platform"]: item for item in physical_targets}
-        expected_physical_platforms = {"ios"} if IOS_TARGET_ROOT.is_dir() else set()
+        expected_physical_platforms = {"ios"} if NATIVE_IOS else set()
         self.assertEqual(expected_physical_platforms, set(physical_by_platform))
         self.assertEqual(len(physical_targets), len(physical_by_platform))
         for item in physical_by_platform.values():
@@ -74,18 +81,25 @@ class E2EStackTest(unittest.TestCase):
             )
 
     def test_docs_separate_device_free_and_physical_commands(self):
-        overview = (DEVICE_ROOT / "adapters/appium/README.md").read_text(
+        overview = (ADAPTER_ROOT / "README.md").read_text(
             encoding="utf-8"
         )
         documentation = (DEVICE_ROOT / "adapters/appium/IOS_TABLET_E2E.md").read_text(
             encoding="utf-8"
         )
-        for device_free_command in ("test_appium_adapter", "verify_adapter.py --help"):
-            self.assertIn(device_free_command, overview)
-            self.assertIn(device_free_command, documentation)
+        if NATIVE_IOS:
+            for device_free_command in ("test_appium_adapter", "verify_adapter.py --help"):
+                self.assertIn(device_free_command, overview)
+                self.assertIn(device_free_command, documentation)
+        else:
+            shared_commands = overview + "\n" + documentation
+            protocol_test = ("test_shared_appium_adapter"
+                             if (SHARED_APPIUM_ROOT / "adapter.py").is_file() else "test_appium_adapter")
+            self.assertIn(protocol_test, shared_commands)
+            self.assertIn("verify_adapter.py --help", shared_commands)
         self.assertNotIn("--target", overview)
         has_physical_section = "## Physical acceptance" in documentation
-        self.assertEqual(IOS_TARGET_ROOT.is_dir(), has_physical_section)
+        self.assertEqual(NATIVE_IOS, has_physical_section)
         if not has_physical_section:
             self.assertNotIn("--target", documentation)
             return
