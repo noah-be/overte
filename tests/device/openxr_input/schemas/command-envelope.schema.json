@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://overte.org/schemas/e2e/openxr-input-command-envelope-v1.json",
+  "$defs": {
+    "lookCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "durationSeconds": { "maximum": 8.0, "minimum": 0.1, "type": "number" },
+            "horizontal": { "maximum": 0.45, "minimum": -0.45, "type": "number" },
+            "vertical": { "maximum": 0.45, "minimum": -0.45, "type": "number" }
+          },
+          "required": ["horizontal"],
+          "type": "object"
+        },
+        "id": { "pattern": "^[a-z][a-z0-9-]{0,63}$", "type": "string" },
+        "operation": { "const": "input.look" }
+      },
+      "required": ["id", "operation", "arguments"],
+      "type": "object"
+    },
+    "moveCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "direction": { "enum": ["backward", "forward", "left", "right"] },
+            "durationSeconds": { "maximum": 8.0, "minimum": 0.1, "type": "number" },
+            "strength": { "maximum": 1.0, "minimum": 0.2, "type": "number" }
+          },
+          "required": ["direction", "durationSeconds"],
+          "type": "object"
+        },
+        "id": { "pattern": "^[a-z][a-z0-9-]{0,63}$", "type": "string" },
+        "operation": { "const": "input.move" }
+      },
+      "required": ["id", "operation", "arguments"],
+      "type": "object"
+    },
+    "tabletCloseCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "holdMilliseconds": { "maximum": 8000, "minimum": 100, "type": "integer" }
+          },
+          "type": "object"
+        },
+        "id": { "pattern": "^[a-z][a-z0-9-]{0,63}$", "type": "string" },
+        "operation": { "const": "tablet.close" }
+      },
+      "required": ["id", "operation", "arguments"],
+      "type": "object"
+    },
+    "tabletOpenCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "arguments": {
+          "additionalProperties": false,
+          "properties": {
+            "holdMilliseconds": { "maximum": 8000, "minimum": 100, "type": "integer" }
+          },
+          "type": "object"
+        },
+        "id": { "pattern": "^[a-z][a-z0-9-]{0,63}$", "type": "string" },
+        "operation": { "const": "tablet.open" }
+      },
+      "required": ["id", "operation", "arguments"],
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "commands": {
+      "items": {
+        "oneOf": [
+          { "$ref": "#/$defs/lookCommand" },
+          { "$ref": "#/$defs/moveCommand" },
+          { "$ref": "#/$defs/tabletCloseCommand" },
+          { "$ref": "#/$defs/tabletOpenCommand" }
+        ]
+      },
+      "maxItems": 16,
+      "minItems": 1,
+      "type": "array"
+    },
+    "issuedEpochMs": { "minimum": 1, "type": "integer" },
+    "schemaVersion": { "const": 1 },
+    "sequence": { "minimum": 1, "type": "integer" },
+    "sessionNonce": { "pattern": "^[0-9a-f]{32,128}$", "type": "string" }
+  },
+  "required": ["schemaVersion", "sessionNonce", "sequence", "issuedEpochMs", "commands"],
+  "title": "Overte OpenXR E2E semantic input envelope",
+  "type": "object"
+}

@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "id": "android-pico-adb",
+  "command": ["adapter.py", "--kind", "pico"]
+}
