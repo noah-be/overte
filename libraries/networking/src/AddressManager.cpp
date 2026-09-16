@@ -13,6 +13,9 @@
 //
 
 #include "AddressManager.h"
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include <android/log.h>
+#endif
 
 #include <QGuiApplication>
 #include <QClipboard>
@@ -250,6 +253,12 @@ JSONCallbackParameters AddressManager::apiCallbackParameters() {
 }
 
 bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, const QString& lookupUrlInString) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    __android_log_print(ANDROID_LOG_INFO, "OvertePhoneRuntime",
+        "lookup local=%d trigger=%d policy=%d foreground=%d explicit=%d current=%d",
+        lookupUrlIn.isLocalFile(), static_cast<int>(trigger), _clientLookupPolicy,
+        _lookupForeground, _lookupNeedsExplicitIntent, _lookupRequests.snapshot().current());
+#endif
     if (_clientLookupPolicy) {
         if (!_lookupForeground) { return false; }
         if (_lookupNeedsExplicitIntent) {
@@ -263,6 +272,13 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
     static QString URL_TYPE_NETWORK_ADDRESS = "network_address";
 
     QUrl lookupUrl = lookupUrlIn;
+    // The native/network address format is still hifi://. Accept the public
+    // overte:// alias here too, so scripts, portals and direct lookups have
+    // the same compatibility as the Android intent adapter. Changing only
+    // the scheme preserves the authority and encoded path/query payload.
+    if (lookupUrl.scheme().compare(QStringLiteral("overte"), Qt::CaseInsensitive) == 0) {
+        lookupUrl.setScheme(URL_SCHEME_OVERTE);
+    }
 
     if (!lookupUrl.host().isEmpty() && !lookupUrl.path().isEmpty()) {
         // Assignment clients ping for empty url until assigned. Don't spam.
@@ -438,7 +454,15 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
         QUrlQuery queryArgs(lookupUrl);
         const QString LOCATION_QUERY_KEY = "location";
         if (queryArgs.hasQueryItem(LOCATION_QUERY_KEY)) {
+#ifdef Q_OS_ANDROID
+            // Android Uri builders encode reserved viewpoint separators such
+            // as '/' and ','. PrettyDecoded intentionally retains them, so
+            // fully decode the value before passing it to the existing path
+            // parser. The URL and its trust boundary are otherwise unchanged.
+            path = queryArgs.queryItemValue(LOCATION_QUERY_KEY, QUrl::FullyDecoded);
+#else
             path = queryArgs.queryItemValue(LOCATION_QUERY_KEY);
+#endif
         } else {
             path = DEFAULT_NAMED_PATH;
         }
@@ -1020,7 +1044,14 @@ void AddressManager::refreshPreviousLookup() {
     if (!_previousAPILookup.isEmpty()) {
         handleUrl(_previousAPILookup, LookupTrigger::AttemptedRefresh);
     } else {
-        handleUrl(currentAddress(), LookupTrigger::AttemptedRefresh);
+        const QUrl address = currentAddress();
+        // The DomainHandler retry timer exists to recover an online domain or
+        // Directory Services lookup. Replaying a serverless file/HTTP URL
+        // reapplies its location query every 2.5 seconds and teleports a
+        // moving avatar back to the scene spawn.
+        if (address.scheme() == URL_SCHEME_OVERTE) {
+            handleUrl(address, LookupTrigger::AttemptedRefresh);
+        }
     }
 }
 

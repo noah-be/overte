@@ -139,6 +139,7 @@ class DomainFixtureTest(unittest.TestCase):
             self.assertTrue((output / "domain-config.json").is_file())
             self.assertTrue((output / "domain-server.log").is_file())
             self.assertTrue((output / "assignment-client.log").is_file())
+            self.assertTrue((output / "assignment-agent.log").is_file())
 
 
 if __name__ == "__main__":

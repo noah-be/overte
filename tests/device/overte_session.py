@@ -25,6 +25,7 @@ class OverteSession:
     def __init__(self) -> None:
         self.poll_seconds = self._float_environment("OVERTE_E2E_POLL_SECONDS", 0.5, 0.05, 5.0)
         self.timeout_seconds = self._float_environment("OVERTE_E2E_TIMEOUT_SECONDS", 45.0, 1.0, 600.0)
+        self.pico_openxr = os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1"
         self._last_sample_sequence: int | None = None
 
     FIXTURE_MARKERS = (
@@ -107,6 +108,47 @@ class OverteSession:
 
     def load_controlled_scene(self) -> dict:
         return self.load_scene(os.environ.get("OVERTE_E2E_SCENE_URL", ""))
+
+    def verify_pico_fixture(self, initial: dict) -> list[dict]:
+        """Record the Pico fixture geometry and five fresh stable samples."""
+        if not self.pico_openxr:
+            return [initial]
+        scene = initial["scene"]
+        feet_position = initial["avatar"].get("feetPosition")
+        if not isinstance(feet_position, dict):
+            fail("Pico fixture probe did not expose the canonical feet position")
+        if scene.get("fixtureMarkerCount") != len(self.FIXTURE_MARKERS):
+            fail("Pico fixture did not expose all five markers")
+        if (not isinstance(scene.get("floorTopY"), (int, float))
+                or abs(float(scene["floorTopY"])) > 0.02):
+            fail("Pico fixture floor top is not y=0")
+        if scene.get("spawnValidated") is not True:
+            fail("Pico fixture spawn was not validated")
+        expected = {"x": 0.0, "y": 0.0, "z": 4.0}
+        spawn_tolerance = self._float_environment(
+            "OVERTE_E2E_SPAWN_TOLERANCE_METERS", 0.75, 0.05, 5.0)
+        if self._distance(feet_position, expected) > spawn_tolerance:
+            fail("Pico avatar did not stabilize near the fixture spawn")
+        if (initial["avatar"].get("inAir") is not False
+                or initial["avatar"].get("flying") is not False):
+            fail("Pico avatar did not start grounded at the fixture spawn")
+
+        tolerance = self._float_environment(
+            "OVERTE_E2E_MAX_BASELINE_DRIFT_METERS", 0.03, 0.001, 1.0)
+        samples = [initial]
+        deadline = time.monotonic() + self.timeout_seconds
+        while len(samples) < 5 and time.monotonic() < deadline:
+            candidate = self.snapshot()
+            if self._distance(samples[-1]["avatar"]["position"],
+                              candidate["avatar"]["position"]) <= tolerance:
+                samples.append(candidate)
+            else:
+                samples = [candidate]
+            time.sleep(self.poll_seconds)
+        if len(samples) < 5:
+            fail("Pico avatar did not provide five stable fresh samples")
+        write_json("fixture-stable-samples.json", samples)
+        return samples
 
     def reload_controlled_scene(self) -> dict:
         url = os.environ.get("OVERTE_E2E_SCENE_URL", "")
@@ -420,7 +462,9 @@ class OverteSession:
             fail("look direction is unsupported")
         horizontal, vertical, axis, sign = self.LOOK_INPUTS[direction]
         before = self.input_neutral_snapshot(f"look-{direction}-before.json")
-        self._invoke("input.look", {"horizontal": horizontal, "vertical": vertical})
+        command = self._invoke(
+            "input.look", {"horizontal": horizontal, "vertical": vertical})
+        write_json(f"look-{direction}-command.json", command)
         minimum = self._float_environment(
             "OVERTE_E2E_MIN_LOOK_DEGREES", 5.0, 0.1, 90.0)
         after = self.wait_until(
@@ -837,6 +881,7 @@ class OverteSession:
 
     def jump(self) -> tuple[dict, dict, dict]:
         before = self.stable_ground_snapshot("jump-before.json")
+        identity = process_identity()
         before_events = before.get("verticalEvents")
         if before_events is None:
             fail("probe does not provide vertical event history")
@@ -873,10 +918,12 @@ class OverteSession:
             and abs(self._height(value) - self._height(before)) <= landing_tolerance,
         )
         write_json("jump-landed.json", landed)
+        assert_process(identity, "jump and landing")
         return before, airborne, landed
 
     def fly(self, duration_seconds: float = 2.0) -> tuple[dict, dict]:
         before = self.stable_ground_snapshot("fly-before.json")
+        identity = process_identity()
         if before["avatar"]["flyingEnabled"] is not True:
             fail("avatar flying is not enabled")
         before_events = before.get("verticalEvents")
@@ -895,6 +942,7 @@ class OverteSession:
             and value["avatar"]["flyingEnabled"] is True,
         )
         write_json("fly-active.json", flying)
+        assert_process(identity, "active flight")
         return before, flying
 
     def set_tablet(self, opened: bool) -> dict:
@@ -909,13 +957,13 @@ class OverteSession:
         return after
 
     def assert_tablet_input_isolation(self) -> tuple[dict, dict]:
-        self.set_tablet(True)
-        before = self.input_neutral_snapshot("tablet-isolation-before.json")
-        maximum_drift = self._float_environment(
-            "OVERTE_E2E_MAX_TABLET_WORLD_DRIFT_METERS", 0.08, 0.001, 1.0)
-        maximum_speed = self._float_environment(
-            "OVERTE_E2E_MAX_NEUTRAL_SPEED_MPS", 0.08, 0.001, 2.0)
         try:
+            self.set_tablet(True)
+            before = self.input_neutral_snapshot("tablet-isolation-before.json")
+            maximum_drift = self._float_environment(
+                "OVERTE_E2E_MAX_TABLET_WORLD_DRIFT_METERS", 0.08, 0.001, 1.0)
+            maximum_speed = self._float_environment(
+                "OVERTE_E2E_MAX_NEUTRAL_SPEED_MPS", 0.08, 0.001, 2.0)
             self._invoke("input.move", {"direction": "forward", "durationSeconds": 1.0})
             after = self.snapshot()
             for _ in range(2):
