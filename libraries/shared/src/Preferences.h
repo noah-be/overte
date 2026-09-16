@@ -11,6 +11,7 @@
 #define hifi_Shared_Preferences_h
 
 #include <functional>
+#include <limits>
 #include <QtCore/QObject>
 #include <QtCore/QVariant>
 #include <QtCore/QList>
@@ -18,6 +19,7 @@
 #include <QtCore/QVariantMap>
 
 #include "DependencyManager.h"
+#include "../../ui/src/ConfiguredCapabilityProfile.h"
 
 class Preference;
 
@@ -44,6 +46,7 @@ class Preference : public QObject {
     Q_PROPERTY(QString name READ getName CONSTANT)
     Q_PROPERTY(Type type READ getType CONSTANT)
     Q_PROPERTY(bool enabled READ isEnabled NOTIFY enabledChanged)
+    Q_PROPERTY(bool profileAllowed READ isProfileAllowed CONSTANT)
     Q_ENUMS(Type)
 
 public:
@@ -65,13 +68,16 @@ public:
 
     explicit Preference(QObject* parent = nullptr) : QObject(parent) {}
     Preference(const QString& category, const QString& name, QObject* parent = nullptr)
-        : QObject(parent), _category(category), _name(name) { }
+        : QObject(parent), _category(category), _name(name),
+          _profileAllowed(overte::ui::preferenceAllowed(overte::ui::configuredProduct(),
+              category.toStdString(), name.toStdString())) { }
 
     const QString& getCategory() const { return _category; }
     const QString& getName() const { return _name; }
     bool isEnabled() const {
-        return _enabled;
+        return _profileAllowed && _enabled;
     }
+    bool isProfileAllowed() const { return _profileAllowed; }
 
     void setEnabled(bool enabled) {
         if (enabled != _enabled) {
@@ -98,6 +104,7 @@ protected:
     BoolPreference* _enabler { nullptr };
     const QString _category;
     const QString _name;
+    const bool _profileAllowed { false };
     bool _enabled { true };
     bool _enablerInverted { false };
 };
@@ -109,7 +116,7 @@ public:
     ButtonPreference(const QString& category, const QString& name, Lambda triggerHandler)
         : Preference(category, name), _triggerHandler(triggerHandler) { }
     Type getType() override { return Button; }
-    Q_INVOKABLE void trigger() { _triggerHandler(); }
+    Q_INVOKABLE void trigger() { if (isProfileAllowed()) { _triggerHandler(); } }
 
 protected:
     const Lambda _triggerHandler;
@@ -128,8 +135,9 @@ public:
 
     bool getValue() const { return _value; }
     void setValue(const bool& value) { if (_value != value) { _value = value; emitValueChanged(); } }
-    void load() override { _value = _getter(); }
+    void load() override { if (isProfileAllowed()) { _value = _getter(); } }
     void save() const override {
+        if (!isProfileAllowed()) { return; }
         bool oldValue = _getter();
         if (_value != oldValue) {
             _setter(_value);
@@ -140,7 +148,7 @@ signals:
     void valueChanged();
 
 protected:
-    bool _value;
+    bool _value { false };
     const Getter _getter;
     const Setter _setter;
 
@@ -164,8 +172,9 @@ public:
 
     float getValue() const { return _value; }
     void setValue(const float& value) { if (_value != value) { _value = value; emitValueChanged(); } }
-    void load() override { _value = _getter(); }
+    void load() override { if (isProfileAllowed()) { _value = _getter(); } }
     void save() const override {
+        if (!isProfileAllowed()) { return; }
         float oldValue = _getter();
         if (_value != oldValue) {
             _setter(_value);
@@ -190,7 +199,7 @@ signals:
 protected:
     void emitValueChanged() override { emit valueChanged(); }
 
-    float _value;
+    float _value { 0.0f };
     const Getter _getter;
     const Setter _setter;
 
@@ -217,8 +226,9 @@ public:
 
     int getValue() const { return _value; }
     void setValue(const int& value) { if (_value != value) { _value = value; emitValueChanged(); } }
-    void load() override { _value = _getter(); }
+    void load() override { if (isProfileAllowed()) { _value = _getter(); } }
     void save() const override {
+        if (!isProfileAllowed()) { return; }
         int oldValue = _getter();
         if (_value != oldValue) {
             _setter(_value);
@@ -241,7 +251,7 @@ signals:
     void valueChanged();
 
 protected:
-    int _value;
+    int _value { 0 };
     const Getter _getter;
     const Setter _setter;
 
@@ -267,8 +277,9 @@ public:
 
     QString getValue() const { return _value; }
     void setValue(const QString& value) { if (_value != value) { _value = value; emitValueChanged(); } }
-    void load() override { _value = _getter(); }
+    void load() override { if (isProfileAllowed()) { _value = _getter(); } }
     void save() const override {
+        if (!isProfileAllowed()) { return; }
         QString oldValue = _getter();
         if (_value != oldValue) {
             _setter(_value);
@@ -428,5 +439,4 @@ protected:
     bool _indented { false };
 };
 #endif
-
 

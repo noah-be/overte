@@ -301,6 +301,11 @@ Menu::Menu() {
 		}
     });
 
+    action = addActionToQMenuAndActionHash(settingsMenu, "Entity Scripts: Review");
+    connect(action, &QAction::triggered, qApp, &Application::beginEntityScriptConsentReview);
+    action = addActionToQMenuAndActionHash(settingsMenu, "Entity Scripts: Revoke");
+    connect(action, &QAction::triggered, qApp, &Application::invalidateEntityScriptConsent);
+
     // Settings > Entity Script / QML Allowlist
     action = addActionToQMenuAndActionHash(settingsMenu, "Entity Script / QML Allowlist");
     connect(action, &QAction::triggered, [] {

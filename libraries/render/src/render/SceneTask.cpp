@@ -9,6 +9,7 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 #include "SceneTask.h"
+#include "Args.h"
 
 
 using namespace render;
@@ -17,5 +18,9 @@ void PerformSceneTransaction::configure(const Config& config) {
 }
 
 void PerformSceneTransaction::run(const RenderContextPointer& renderContext) {
+    if (renderContext->args && renderContext->args->_sceneTransactionsProcessed &&
+            renderContext->args->_scene == renderContext->_scene) {
+        return;
+    }
     renderContext->_scene->processTransactionQueue();
 }

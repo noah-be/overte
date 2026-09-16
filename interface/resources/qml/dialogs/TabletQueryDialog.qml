@@ -37,7 +37,7 @@ TabletModalWindow {
     property var items;
     property string label: "" 
     property var result;
-    property alias current: textResult.text 
+    property var current: ""
 
     // For text boxes
     property alias placeholderText: textResult.placeholderText
@@ -77,7 +77,7 @@ TabletModalWindow {
             function resize() {
                 var targetWidth = Math.max(titleWidth, modalWindowItem.width)
                 var targetHeight = (items ? comboBox.controlHeight : textResult.controlHeight) + 5 * hifi.dimensions.contentSpacing.y + buttons.height
-                modalWindowItem.width = (targetWidth < d.minWidth) ? d.minWidth : ((targetWidth > d.maxWdith) ? d.maxWidth : targetWidth);
+                modalWindowItem.width = (targetWidth < d.minWidth) ? d.minWidth : ((targetWidth > d.maxWidth) ? d.maxWidth : targetWidth);
                 modalWindowItem.height = ((targetHeight < d.minHeight) ? d.minHeight : ((targetHeight > d.maxHeight) ? d.maxHeight : targetHeight)) + modalWindowItem.frameMarginTop
                 modalWindowItem.y = (root.height - (modalWindowItem.height + ((keyboardEnabled && keyboardRaised) ? (keyboard.raisedHeight + 2 * hifi.dimensions.contentSpacing.y) : 0))) / 2
             }
@@ -97,6 +97,7 @@ TabletModalWindow {
             // FIXME make a text field type that can be bound to a history for autocompletion
             TextField {
                 id: textResult
+                text: root.items ? "" : (root.current === undefined || root.current === null ? "" : String(root.current))
                 label: root.label
                 focus: items ? false : true
                 visible: items ? false : true
@@ -121,6 +122,8 @@ TabletModalWindow {
                     rightMargin: 5
                 }
                 model: items ? items : []
+                editable: root.editable
+                currentIndex: typeof root.current === "number" ? root.current : 0
             }
         }
         
@@ -155,7 +158,7 @@ TabletModalWindow {
             text: qsTr("OK")
             shortcut: "Return"
             onTriggered: {
-                root.result = items ? comboBox.currentText : textResult.text
+                root.result = items ? (comboBox.editable ? comboBox.editText : comboBox.currentText) : textResult.text
                 root.selected(root.result);
                 root.destroy();
             }
@@ -196,6 +199,6 @@ TabletModalWindow {
        keyboardEnabled = HMD.active;
        updateIcon();
        d.resize();
-       textResult.forceActiveFocus();
+       if (items) { comboBox.forceActiveFocus(); } else { textResult.forceActiveFocus(); }
    }
 }

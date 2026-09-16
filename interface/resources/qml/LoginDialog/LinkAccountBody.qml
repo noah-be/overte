@@ -133,7 +133,7 @@ Item {
             emailField.text = keepMeLoggedInCheckbox.checked ? savedUsername === "Unknown user" ? "" : savedUsername : "";
 
             var metaverseServer = Settings.getValue("private/selectedMetaverseURL", "");
-            console.log("Saved directory server:", metaverseServer);
+            console.log("Directory server preference loaded");
             metaverseServerField.text = metaverseServer;
         } else {
             // ####### TODO
@@ -407,7 +407,7 @@ Item {
                             event.accepted = true;
                             if (!isLoggingInToDomain) {
                                 var url = metaverseServerField.text;
-                                console.log("Setting directory server to", url);
+                                console.log("Directory server preference changed");
                                 Settings.setValue("private/selectedMetaverseURL", url);
                                 if(AccountServices.isLoggedIn()){
                                     AccountServices.logOut();
@@ -426,7 +426,7 @@ Item {
                         var url = metaverseServerField.text;
                         if(!(url == Settings.getValue("private/selectedMetaverseURL")) && !(url == "")){
                             if (!isLoggingInToDomain) {
-                                console.log("Setting directory server to", url);
+                                console.log("Directory server preference changed");
                                 Settings.setValue("private/selectedMetaverseURL", url);
                                 if(AccountServices.isLoggedIn()){
                                     AccountServices.logOut();
