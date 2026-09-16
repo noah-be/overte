@@ -14,10 +14,7 @@
     "windows-main"
   ],
   "holds": {
-    "reconcile/ios/610-sync-reuse-e08-final": "ongoing_local_work_review",
-    "fix/main/589-task-namespace-bridge": "ongoing_local_work_review",
-    "ci/ios/parity-runner-v003": "ongoing_local_work_review",
-    "build/ios-parity-runner-v003": "ongoing_local_work_review"
+    "ci/ios/parity-runner-v003": "ongoing_local_work_review"
   },
   "keep_label": "keep-branch",
   "archive_tag_prefix": "archive/merged/",
