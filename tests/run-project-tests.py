@@ -6,6 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import argparse
+import json
 import os
 import signal
 import subprocess
@@ -43,9 +44,45 @@ SUITES = (
         "--junit", "build/test-results/device-e2e-contracts.xml")),
     Suite("documentation", "documentation", (
         sys.executable, "tests/check-documentation.py", "--base", "HEAD^1")),
-    Suite("pico4-device-free", "quick", ("bash", "android/vr/pico/tests/pico-device-free-test.sh")),
+    Suite("source-layout", "quick", (sys.executable, "tests/source-layout-test.py")),
+    Suite("shared-script-behavior", "quick", ("node", "--test", *tuple(
+        str(path.relative_to(ROOT)) for path in sorted((ROOT / "tests/javascript/test").glob("*.test.js"))))),
     Suite("native-ctest", "native", ("bash", "tests/project-native-test.sh")),
 )
+
+def platform_suites() -> tuple[Suite, ...]:
+    """Load explicit branch-owned suites; malformed or missing entries fail closed."""
+    profile = json.loads((ROOT / "tests/platform-profile.json").read_text(encoding="utf-8"))
+    if set(profile) != {"schema", "platform", "suites"} or profile["schema"] != 1:
+        raise ValueError("invalid platform test profile")
+    if profile["platform"] not in {"shared", "android"} or not isinstance(profile["suites"], list):
+        raise ValueError("invalid platform test profile")
+    if profile["platform"] == "shared" and profile["suites"]:
+        raise ValueError("shared profile cannot own product suites")
+    if profile["platform"] == "android" and not profile["suites"]:
+        raise ValueError("Android profile must retain its product suites")
+    names = {suite.name for suite in SUITES}
+    suites = []
+    for entry in profile["suites"]:
+        if set(entry) != {"name", "entrypoint", "interpreter"}:
+            raise ValueError("invalid platform suite")
+        name, path, interpreter = entry["name"], entry["entrypoint"], entry["interpreter"]
+        if not isinstance(name, str) or not name or name in names:
+            raise ValueError("duplicate or invalid platform suite name")
+        relative = Path(path)
+        if relative.is_absolute() or ".." in relative.parts or not (ROOT / relative).is_file():
+            raise ValueError("missing or unsafe platform suite entrypoint")
+        if not (ROOT / relative).resolve().is_relative_to(ROOT.resolve()):
+            raise ValueError("platform suite escapes checkout")
+        if interpreter not in {"python", "bash"}:
+            raise ValueError("invalid platform suite interpreter")
+        names.add(name)
+        suites.append(Suite(name, "quick", (sys.executable if interpreter == "python" else "bash", path)))
+    return tuple(suites)
+
+
+PLATFORM_SUITES = platform_suites()
+SUITES += PLATFORM_SUITES
 
 SUITE_ALIASES = {"device-control-plane": "device-e2e-contracts"}
 
@@ -56,6 +93,8 @@ def arguments() -> argparse.Namespace:
                         help="quick is dependency-light; full also requires a configured native build")
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--suite", action="append", default=[])
+    parser.add_argument("--platform-only", action="store_true",
+                        help="run declared product suites when reusing shared parent qualification")
     parser.add_argument("--timeout", type=int, default=180)
     parser.add_argument("--junit", type=Path)
     parser.add_argument("--fail-fast", action="store_true")
@@ -63,10 +102,14 @@ def arguments() -> argparse.Namespace:
     args = parser.parse_args()
     if args.timeout <= 0:
         parser.error("--timeout must be positive")
+    if args.platform_only and args.suite:
+        parser.error("--platform-only cannot be combined with --suite")
     return args
 
 
 def select(args: argparse.Namespace) -> list[Suite]:
+    if args.platform_only:
+        return list(PLATFORM_SUITES)
     requested = set(args.suite)
     known = {suite.name for suite in SUITES}
     unknown = sorted(requested - known - set(SUITE_ALIASES))

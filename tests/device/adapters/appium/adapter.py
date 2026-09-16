@@ -656,7 +656,7 @@ class AppiumAdapter:
         device = target.get("capabilities", {}).get("appium:udid")
         if not isinstance(device, str) or not device or device.startswith("REPLACE_"):
             fail("physical Android Phone attestation requires a private ADB selector")
-        from android.common.device_tests.adb_transport import AdbTransport
+        from adb_transport import AdbTransport
         adb = AdbTransport()
         adb.require_connected(device)
         identity = " ".join(adb.prop(device, name) for name in (
@@ -989,7 +989,7 @@ class AppiumAdapter:
             if (process.get("kind") != "adb" or not isinstance(device, str) or not device
                     or device.startswith("REPLACE_")):
                 fail("Android run-as probe requires a private ADB device selector")
-            from android.common.device_tests.adb_transport import AdbTransport
+            from adb_transport import AdbTransport
             adb = AdbTransport()
             adb.require_connected(device)
             raw = adb.read_debug_app_file(
@@ -1025,7 +1025,7 @@ class AppiumAdapter:
             device = process.get("selector") or target["capabilities"].get("appium:udid")
             if not isinstance(device, str) or not device or device.startswith("REPLACE_"):
                 fail("Android ADB process observation requires a private device selector")
-            from android.common.device_tests.adb_transport import AdbTransport
+            from adb_transport import AdbTransport
             adb = AdbTransport()
             adb.require_connected(device)
             return adb.process_state(device, target["appId"])
@@ -1068,7 +1068,7 @@ class AppiumAdapter:
         device = process.get("selector") or target["capabilities"].get("appium:udid")
         if not isinstance(device, str) or not device or device.startswith("REPLACE_"):
             fail("Android client command requires a private ADB device selector")
-        from android.common.device_tests.adb_transport import AdbTransport
+        from adb_transport import AdbTransport
         adb = AdbTransport()
         adb.require_connected(device)
         before = adb.process_state(device, target["appId"])
@@ -1084,7 +1084,7 @@ class AppiumAdapter:
             fail("Android client process changed before the in-client command")
         process = target["process"]
         device = process.get("selector") or target["capabilities"].get("appium:udid")
-        from android.common.device_tests.adb_transport import AdbTransport
+        from adb_transport import AdbTransport
         adb = AdbTransport()
         adb.require_connected(device)
         adb.write_debug_app_file(
@@ -1242,7 +1242,7 @@ class AppiumAdapter:
             device = process.get("selector") or target["capabilities"].get("appium:udid")
             if not isinstance(device, str) or not device or device.startswith("REPLACE_"):
                 fail("Android telemetry requires a private ADB device selector")
-            from android.common.device_tests.adb_transport import AdbTransport
+            from adb_transport import AdbTransport
             adb = AdbTransport()
             adb.require_connected(device)
             return adb.telemetry_snapshot(device, target["appId"])

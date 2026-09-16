@@ -460,7 +460,7 @@ class AppiumAdapterTest(unittest.TestCase):
         self.assertEqual({
             "__future__", "adapters", "argparse", "base64", "contracts", "ipaddress",
             "json", "math", "os", "pathlib", "stat", "sys", "tempfile", "time",
-            "urllib", "xml", "android", "hashlib", "uuid", "re",
+            "urllib", "xml", "adb_transport", "hashlib", "uuid", "re",
         }, roots)
 
 
