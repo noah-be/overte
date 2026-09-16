@@ -1733,7 +1733,8 @@ void AudioClient::handleLocalEchoAndReverb(QByteArray& inputByteArray) {
 #endif
     // If there is server echo, reverb will be applied to the recieved audio stream so no need to have it here.
     bool hasReverb = _reverb || _receivedAudioStream.hasReverb();
-    if ((_isMuted && !_shouldEchoLocally) || !_audioOutput ||
+    if ((_isMuted && !_shouldEchoLocally) || !_audioOutput || !_loopbackAudioOutput ||
+            !_audioOutputInitialized.load(std::memory_order_acquire) ||
             (!_shouldEchoLocally && !hasReverb) || (!_shouldEchoLocally && !_audioGateOpen)) {
         _loopbackPendingAudio.clear();
         return;
@@ -3154,10 +3155,14 @@ qint64 AudioClient::AudioOutputIODevice::readData(char * data, qint64 maxSize) {
         }
     }
     
-    // prepare injectors for the next callback
-     _audio->_localPrepInjectorFuture = QtConcurrent::run(QThreadPool::globalInstance(), [this] {
-        _audio->prepareLocalAudioInjectors();
-    });
+    // Keep one tracked preparation job. The device mutex serializes this
+    // submission with switching/stop, which waits for that exact future before
+    // replacing buffers. Overwriting a pending future loses that lifetime fence.
+    if (_audio->_localPrepInjectorFuture.isFinished()) {
+        _audio->_localPrepInjectorFuture = QtConcurrent::run(QThreadPool::globalInstance(), [this] {
+            _audio->prepareLocalAudioInjectors();
+        });
+    }
 
     int samplesPopped = std::max(networkSamplesPopped, injectorSamplesPopped);
     if (samplesPopped == 0) {
@@ -3198,7 +3203,10 @@ qint64 AudioClient::AudioOutputIODevice::readData(char * data, qint64 maxSize) {
     // send output buffer for recording
     if (_audio->_isRecording) {
         Lock lock(_recordMutex);
-        _audio->_audioFileWav.addRawAudioChunk(data, bytesWritten);
+        // stopRecording may have closed the file while this callback waited.
+        if (_audio->_isRecording) {
+            _audio->_audioFileWav.addRawAudioChunk(data, bytesWritten);
+        }
     }
 
     int bytesAudioOutputUnplayed = _audio->_audioOutput->bufferSize() - _audio->_audioOutput->bytesFree();
@@ -3213,6 +3221,11 @@ qint64 AudioClient::AudioOutputIODevice::readData(char * data, qint64 maxSize) {
 }
 
 bool AudioClient::startRecording(const QString& filepath) {
+    // Same lock order as the output callback; the device lock also stabilizes
+    // the format while the recording header is created.
+    Lock deviceLock(_deviceMutex);
+    Lock recordLock(_recordMutex);
+    _isRecording = false;
     if (!_audioFileWav.create(_outputFormat, filepath)) {
         qDebug() << "Error creating audio file: " + filepath;
         return false;
@@ -3222,6 +3235,7 @@ bool AudioClient::startRecording(const QString& filepath) {
 }
 
 void AudioClient::stopRecording() {
+    Lock recordLock(_recordMutex);
     if (_isRecording) {
         _isRecording = false;
         _audioFileWav.close();

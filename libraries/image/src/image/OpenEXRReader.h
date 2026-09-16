@@ -13,11 +13,12 @@
 #define hifi_image_OpenEXRReader_h
 
 #include "Image.h"
+#include <cstdint>
 
 namespace image {
 
     // TODO Move this into a plugin that QImageReader can use
-    Image readOpenEXR(QIODevice& contents, const std::string& filename);
+    Image readOpenEXR(QIODevice& contents, const std::string& filename, std::uint64_t maxDecodedPixels = 0);
 
 }
 
