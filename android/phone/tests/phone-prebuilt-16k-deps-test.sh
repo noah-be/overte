@@ -5,9 +5,6 @@ android_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 subject="$android_dir/phone-prebuilt-16k-deps.sh"
 fixture="$(mktemp -d "${TMPDIR:-/tmp}/overte-phone-prebuilt-test.XXXXXXXX")"
 trap 'rm -rf -- "$fixture"' EXIT
-grep -Fq "tag='android-phone-16k-deps-v3'" "$subject"
-grep -Eq '^[0-9a-f]{64}  android-phone-16k-conan\.tgz$' \
-    "$android_dir/../common/conan/prebuilt/android-phone-16k-deps-v3.sha256"
 mkdir -p "$fixture/source" "$fixture/bin"
 printf 'deterministic Phone dependency fixture\n' >"$fixture/source/android-phone-16k-conan.tgz"
 (cd "$fixture/source" && sha256sum android-phone-16k-conan.tgz) >"$fixture/manifest.sha256"
@@ -76,6 +73,25 @@ PHONE_PREBUILT_BASE_URL='https://invalid.example.test/release' \
 PHONE_PREBUILT_TMPDIR="$fixture/absent-revision-temp" \
     "$subject" download >/dev/null
 ! grep -Fq 'remove ' "$fixture/calls"
+
+# Exercise the normal resolver path, without a manifest or URL override.
+mkdir -p "$fixture/repo/android/phone" "$fixture/repo/tools/dependency-releases" "$fixture/repo/.github"
+cp "$subject" "$fixture/repo/android/phone/phone-prebuilt-16k-deps.sh"
+cp "$android_dir/../../tools/dependency-releases/check.py" "$fixture/repo/tools/dependency-releases/"
+python3 - "$android_dir/../../.github/dependency-releases.json" "$fixture" <<'PY'
+import json, pathlib, sys
+data = json.loads(pathlib.Path(sys.argv[1]).read_text())
+root = pathlib.Path(sys.argv[2])
+data['bundles']['phone']['assets']['android-phone-16k-conan.tgz'] = (root / 'manifest.sha256').read_text().split()[0]
+(root / 'repo/.github/dependency-releases.json').write_text(json.dumps(data))
+PY
+MOCK_ASSET="$fixture/source/android-phone-16k-conan.tgz" \
+MOCK_CALLS="$fixture/calls" MOCK_READY="$fixture/default-ready" \
+PHONE_CURL="$fixture/bin/curl" PHONE_CONAN="$fixture/bin/conan" \
+PHONE_PREBUILT_FINALIZER="$fixture/bin/finalize" \
+PHONE_PREBUILT_READY_MARKER="$fixture/default-ready" \
+    "$fixture/repo/android/phone/phone-prebuilt-16k-deps.sh" download >/dev/null
+[[ -f "$fixture/default-ready" ]]
 
 printf '0  unexpected.tgz\n' >"$fixture/bad-manifest"
 if PHONE_PREBUILT_MANIFEST="$fixture/bad-manifest" \

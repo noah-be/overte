@@ -12,7 +12,9 @@ Item {
 
 	width: parent.width;
 	height: Math.max(60, touchMetrics.adaptiveMinimumControlHeight);
-	activeFocusOnTab: true;
+	activeFocusOnTab: visible && enabled;
+	onVisibleChanged: { if (!visible) { focus = false; } }
+	onEnabledChanged: { if (!enabled) { focus = false; } }
 	Accessible.role: Accessible.Button
 	Accessible.name: pageName
 	Accessible.description: qsTr("Open %1 settings").arg(pageName)
@@ -21,12 +23,13 @@ Item {
 	HifiControls.TouchUiMetrics { id: touchMetrics }
 
 	function activate() {
+		if (!root.visible || !root.enabled) { return false; }
 		Tablet.playSound(TabletEnums.ButtonClicked);
 		if (targetPage !== "") {
 			toScript({type:"switchApp", appUrl: targetPage});
 			return;
 		}
-		currentPage = pageName;
+		return openLocalPage(pageName);
 	}
 
 	Rectangle {

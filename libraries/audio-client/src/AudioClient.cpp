@@ -13,6 +13,7 @@
 //
 
 #include "AudioClient.h"
+#include "../../../security/redaction/SafeDiagnostics.h"
 
 #include <atomic>
 #include <cmath>
@@ -507,8 +508,7 @@ QList<HifiAudioDeviceInfo> getAvailableDevices(QAudio::Mode mode, const QString&
 
     if (defaultDesktopDevice.getDevice().isNull()) {
         if (devices.size() > 0) {
-            qCDebug(audioclient) << __FUNCTION__ << "Default device not found in list:" << defDeviceName
-                << "Setting Default to: " << devices.first().deviceName();
+            qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             newDevices.push_front(HifiAudioDeviceInfo(devices.first(), true, mode, HifiAudioDeviceInfo::both));
         } else {
             //current audio list is empty for some reason.
@@ -735,7 +735,7 @@ AudioClient::AudioClient() {
     connect(&_receivedAudioStream, &MixedProcessedAudioStream::processSamples,
 	    this, &AudioClient::processReceivedSamples, Qt::DirectConnection);
     connect(this, &AudioClient::changeDevice, this, [=, this](const HifiAudioDeviceInfo& outputDeviceInfo) {
-        qCDebug(audioclient)<< "got AudioClient::changeDevice signal, about to call switchOutputToAudioDevice() outputDeviceInfo: ["<< outputDeviceInfo.deviceName() << "]";
+        qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         switchOutputToAudioDevice(outputDeviceInfo);
     });
 
@@ -989,7 +989,7 @@ QString defaultAudioDeviceName(QAudio::Mode mode) {
             //Use the received manufacturer id to get the device's real name
             waveInGetDevCaps(wic.wMid, &wic, sizeof(wic));
 #if !defined(NDEBUG) 
-            qCDebug(audioclient) << "input device:" << wic.szPname;
+            qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 #endif
             deviceName = wic.szPname;
         } else {
@@ -999,7 +999,7 @@ QString defaultAudioDeviceName(QAudio::Mode mode) {
             //Use the received manufacturer id to get the device's real name
             waveOutGetDevCaps(woc.wMid, &woc, sizeof(woc));
 #if !defined(NDEBUG) 
-            qCDebug(audioclient) << "output device:" << woc.szPname;
+            qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 #endif
             deviceName = woc.szPname;
         }
@@ -1024,8 +1024,7 @@ QString defaultAudioDeviceName(QAudio::Mode mode) {
     }
 
 #if !defined(NDEBUG) 
-    qCDebug(audioclient) << "defaultAudioDeviceForMode mode: " << (mode == QAudio::AudioOutput ? "Output" : "Input") 
-	<< " [" << deviceName << "] [" << "]";
+    qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
 #endif
 
 #endif
@@ -1449,8 +1448,7 @@ void AudioClient::selectAudioFormat(const QString& selectedCodecName) {
 bool AudioClient::switchAudioDevice(QAudio::Mode mode, const HifiAudioDeviceInfo& deviceInfo) {
     auto device = deviceInfo;
     if (deviceInfo.getDevice().isNull()) {
-        qCDebug(audioclient) << __FUNCTION__ << " switching to null device :" 
-            << deviceInfo.deviceName() << " : " << deviceInfo.getDevice().deviceName();
+        qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     }
 
 #if defined(ANDROID_APP_PICO_INTERFACE)
@@ -1462,7 +1460,7 @@ bool AudioClient::switchAudioDevice(QAudio::Mode mode, const HifiAudioDeviceInfo
         Lock lock(_deviceMutex);
         _inputDeviceInfo = deviceInfo;
         emit deviceChanged(QAudio::AudioInput, _inputDeviceInfo);
-        qInfo() << "PICO_MIC_INPUT_REUSED" << _inputDeviceInfo.deviceName()
+        qInfo() << "PICO_MIC_INPUT_REUSED" << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted)
             << "backend AudioRecord state ActiveState";
         return true;
     }
@@ -1478,7 +1476,7 @@ bool AudioClient::switchAudioDevice(QAudio::Mode mode, const HifiAudioDeviceInfo
         Lock lock(_deviceMutex);
         _inputDeviceInfo = deviceInfo;
         emit deviceChanged(QAudio::AudioInput, _inputDeviceInfo);
-        qInfo() << "PICO_MIC_INPUT_REUSED" << _inputDeviceInfo.deviceName()
+        qInfo() << "PICO_MIC_INPUT_REUSED" << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted)
             << "state" << _audioInput->state();
         return true;
     }
@@ -1888,7 +1886,7 @@ void AudioClient::handleAudioInput(QByteArray& audioBuffer) {
             const quint64 now = usecTimestampNow();
             if (now - gateTraceStart >= USECS_PER_SECOND) {
                 qInfo() << "PICO_MIC_GATE"
-                    << "device" << _inputDeviceInfo.deviceName()
+                    << "device" << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted)
                     << "blocks" << gateTraceBlocks
                     << "openBlocks" << gateTraceOpenBlocks
                     << "openRatio" << (gateTraceBlocks > 0
@@ -2013,10 +2011,10 @@ void AudioClient::processMicAudioInput(QByteArray& inputByteArray) {
             _picoMicCaptureActive = _picoMicCaptureFile.create(_inputFormat, path);
             if (_picoMicCaptureActive) {
                 _picoMicCaptureEnd = now + captureSeconds * USECS_PER_SECOND;
-                qInfo() << "PICO_MIC_CAPTURE_STARTED" << path << "seconds" << captureSeconds;
+                qInfo() << "PICO_MIC_CAPTURE_STARTED" << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted) << "seconds" << captureSeconds;
             } else {
                 _picoMicCaptureComplete = true;
-                qWarning() << "PICO_MIC_CAPTURE_FAILED" << path;
+                qWarning() << "PICO_MIC_CAPTURE_FAILED" << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             }
         }
         if (_picoMicCaptureActive) {
@@ -2026,7 +2024,7 @@ void AudioClient::processMicAudioInput(QByteArray& inputByteArray) {
                 _picoMicCaptureFile.close();
                 _picoMicCaptureActive = false;
                 _picoMicCaptureComplete = true;
-                qInfo() << "PICO_MIC_CAPTURE_COMPLETE" << picoMicCapturePath();
+                qInfo() << "PICO_MIC_CAPTURE_COMPLETE" << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
             }
         }
     }
@@ -2084,7 +2082,7 @@ void AudioClient::processMicAudioInput(QByteArray& inputByteArray) {
             const quint64 now = usecTimestampNow();
             if (now - traceStart >= USECS_PER_SECOND) {
                 qInfo() << "PICO_MIC_LEVEL"
-                    << "device" << _inputDeviceInfo.deviceName()
+                    << "device" << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted)
                     << "frames" << traceFrames
                     << "mean" << (traceFrames > 0 ? traceLoudnessTotal / traceFrames : 0.0)
                     << "peak" << traceLoudnessPeak
@@ -2375,8 +2373,17 @@ void AudioClient::sendMuteEnvironmentPacket() {
 }
 
 void AudioClient::setMuted(bool muted, bool emitSignal) {
+#if defined(Q_OS_IOS)
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this, [this, muted, emitSignal] { setMuted(muted, emitSignal); }, Qt::QueuedConnection);
+        return;
+    }
+#endif
     if (_isMuted != muted) {
         _isMuted = muted;
+#if defined(Q_OS_IOS)
+        overteIOSSetAudioMuted(muted);
+#endif
         if (emitSignal) {
             emit muteToggled(_isMuted);
         }
@@ -2495,8 +2502,7 @@ void AudioClient::outputFormatChanged() {
 bool AudioClient::switchInputToAudioDevice(const HifiAudioDeviceInfo inputDeviceInfo, bool isShutdownRequest) {
     Q_ASSERT_X(QThread::currentThread() == thread(), Q_FUNC_INFO, "Function invoked on wrong thread");
 
-    qCDebug(audioclient) << __FUNCTION__ << "_inputDeviceInfo: [" << _inputDeviceInfo.deviceName() << ":" << _inputDeviceInfo.getDevice().deviceName() 
-        << "-- inputDeviceInfo:" << inputDeviceInfo.deviceName() << ":" << inputDeviceInfo.getDevice().deviceName() << "]";
+    qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     bool supportedFormat = false;
 
     // NOTE: device start() uses the Qt internal device list
@@ -2558,7 +2564,7 @@ bool AudioClient::switchInputToAudioDevice(const HifiAudioDeviceInfo inputDevice
     }
 
     if (!inputDeviceInfo.getDevice().isNull()) {
-        qCDebug(audioclient) << "The audio input device" << inputDeviceInfo.deviceName() << ":" << inputDeviceInfo.getDevice().deviceName() << "is available.";
+        qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
       
         //do not update UI that we're changing devices if default or same device
         _inputDeviceInfo = inputDeviceInfo;
@@ -2568,7 +2574,7 @@ bool AudioClient::switchInputToAudioDevice(const HifiAudioDeviceInfo inputDevice
             qCDebug(audioclient) << "The format to be used for audio input is" << _inputFormat;
 #if defined(Q_OS_ANDROID)
             qInfo() << "PICO_MIC_INPUT"
-                << "device" << _inputDeviceInfo.deviceName()
+                << "device" << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted)
                 << "rate" << _inputFormat.sampleRate()
                 << "channels" << _inputFormat.channelCount()
                 << "sampleBits" << _inputFormat.sampleSize();
@@ -2679,7 +2685,7 @@ void AudioClient::audioInputStateChanged(QAudio::State state) {
             // Stopped on purpose
             if (_shouldRestartInputSetup) {
                 if (picoMicTraceEnabled()) {
-                    qInfo() << "PICO_MIC_STATE_RESTART" << _inputDeviceInfo.deviceName()
+                    qInfo() << "PICO_MIC_STATE_RESTART" << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted)
                         << "error" << _audioInput->error();
                 }
                 Lock lock(_deviceMutex);
@@ -2706,7 +2712,7 @@ void AudioClient::checkInputTimeout() {
 #endif
     if (picoMicTraceEnabled()) {
         qInfo() << "PICO_MIC_WATCHDOG"
-            << "device" << _inputDeviceInfo.deviceName()
+            << "device" << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted)
             << "reads" << _inputReadsSinceLastCheck
             << "backend"
 #if defined(ANDROID_APP_PICO_INTERFACE)
@@ -2730,7 +2736,7 @@ void AudioClient::checkInputTimeout() {
 #endif
     if (_audioInput && _inputReadsSinceLastCheck < MIN_READS_TO_CONSIDER_INPUT_ALIVE) {
         if (picoMicTraceEnabled()) {
-            qInfo() << "PICO_MIC_WATCHDOG_RESTART" << _inputDeviceInfo.deviceName()
+            qInfo() << "PICO_MIC_WATCHDOG_RESTART" << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted)
                 << "reads" << _inputReadsSinceLastCheck;
         }
         _audioInput->stop();
@@ -2802,8 +2808,7 @@ void AudioClient::noteAwakening() {
 bool AudioClient::switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDeviceInfo, bool isShutdownRequest) {
     Q_ASSERT_X(QThread::currentThread() == thread(), Q_FUNC_INFO, "Function invoked on wrong thread");
     
-    qCDebug(audioclient) << __FUNCTION__ << "_outputdeviceInfo: [" << _outputDeviceInfo.deviceName() << ":" << _outputDeviceInfo.getDevice().deviceName()
-        << "-- outputDeviceInfo:" << outputDeviceInfo.deviceName() << ":" << outputDeviceInfo.getDevice().deviceName() << "]";
+    qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
     bool supportedFormat = false;
 
     // NOTE: device start() uses the Qt internal device list
@@ -2868,7 +2873,7 @@ bool AudioClient::switchOutputToAudioDevice(const HifiAudioDeviceInfo outputDevi
     }
 
     if (!outputDeviceInfo.getDevice().isNull()) {
-        qCDebug(audioclient) << "The audio output device" << outputDeviceInfo.deviceName() << ":" << outputDeviceInfo.getDevice().deviceName() << "is available.";
+        qCDebug(audioclient) << overte::security::diagnosticEvent(overte::security::DiagnosticEvent::Redacted);
         
         //do not update UI that we're changing devices if default or same device
         _outputDeviceInfo = outputDeviceInfo;
