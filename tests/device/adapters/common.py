@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import stat
 import tempfile
 import time
 from typing import NoReturn
@@ -48,13 +49,35 @@ def private_key(adapter_id: str, selector: str) -> str:
 
 
 def state_directory(adapter_id: str, selector: str) -> Path:
-    root = Path(os.environ.get(
+    account_uid = os.geteuid() if hasattr(os, "geteuid") else None
+    state_suffix = str(account_uid) if account_uid is not None else "account"
+    raw_root = Path(os.environ.get(
         "OVERTE_DEVICE_STATE_ROOT",
-        str(Path(tempfile.gettempdir()) / "overte-device-adapter-state"),
-    )).resolve()
+        str(Path(tempfile.gettempdir()) / f"overte-device-adapter-state-{state_suffix}"),
+    )).expanduser()
+    absolute = raw_root.absolute()
+    current = Path(absolute.anchor)
+    for component in absolute.parts[1:]:
+        current /= component
+        if current.is_symlink():
+            fail("adapter state path must not contain symbolic links")
+        if not current.exists():
+            break
+    root = absolute.resolve()
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    root_metadata = root.lstat()
+    if (not stat.S_ISDIR(root_metadata.st_mode)
+            or account_uid is not None and root_metadata.st_uid != account_uid):
+        fail("adapter state root must be an account-owned directory")
+    root.chmod(0o700)
     directory = root / private_key(adapter_id, selector)
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    metadata = directory.lstat()
+    if (not stat.S_ISDIR(metadata.st_mode)
+            or account_uid is not None and metadata.st_uid != account_uid
+            or directory.is_symlink()):
+        fail("adapter target state must be an account-owned directory")
+    directory.chmod(0o700)
     return directory
 
 
