@@ -64,15 +64,28 @@ TestCase {
     function test_layoutValuesStayInsideTheirPhoneBounds() {
         configuration.availableWidth = 320
         configuration.availableHeight = 180
-        compare(configuration.topBarHeight, 64)
+        compare(configuration.topBarHeight, 116)
         compare(configuration.horizontalMargin, 8)
 
         configuration.availableWidth = 2000
         configuration.availableHeight = 1000
-        compare(configuration.topBarHeight, 90)
+        compare(configuration.topBarHeight, 116)
         compare(configuration.horizontalMargin, 24)
         compare(configuration.minimumTouchTarget, 48)
         compare(configuration.maximumButtonExtent, 120)
         compare(configuration.closeButtonBottomMargin, 28)
+
+        // The stacked header reserves separate title and touch-control rows.
+        phoneProfile.fontScale = 1.5
+        compare(configuration.topBarHeight, 140)
+        verify(configuration.topBarHeight >= 72 + configuration.minimumTouchTarget + 20)
+        phoneProfile.fontScale = 3
+        compare(configuration.topBarHeight, 140)
+
+        // Non-stacked direct-touch profiles retain their bounded legacy header.
+        phoneProfile.stackedTabletHeader = false
+        compare(configuration.topBarHeight, 90)
+        configuration.availableHeight = 180
+        compare(configuration.topBarHeight, 64)
     }
 }

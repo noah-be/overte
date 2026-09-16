@@ -8,6 +8,19 @@ import org.junit.Test;
 
 public final class PhonePendingUrlPolicyTest {
     @Test
+    public void initialDestinationRequiresFreshExplicitNavigation() {
+        for (boolean restored : new boolean[] { false, true }) {
+            for (boolean fromHistory : new boolean[] { false, true }) {
+                assertEquals(restored || fromHistory ? null : "hifi://explicit-navigation",
+                        PhonePendingUrlPolicy.initialDestination(
+                                "hifi://explicit-navigation", restored, fromHistory));
+                assertEquals(null, PhonePendingUrlPolicy.initialDestination(
+                        null, restored, fromHistory));
+            }
+        }
+    }
+
+    @Test
     public void attemptRequiresBothPendingUrlAndResumedActivity() {
         assertFalse(PhonePendingUrlPolicy.canAttempt(null, false));
         assertFalse(PhonePendingUrlPolicy.canAttempt(null, true));
