@@ -392,9 +392,9 @@ class Doctor:
             if state:
                 counts[state] += 1
             if state in ("workflow: ready", "workflow: active"):
-                if "type: task" not in names:
-                    self.fail("issues", "TASK_LABEL_MISSING", f"issue #{issue['number']} is {state} without type: task")
-                sections = self.sections(issue.get("body") or "", "Next physical action")
+                if not {"type: task", "bug", "acceptance"}.intersection(names):
+                    self.fail("issues", "TASK_LABEL_MISSING", f"issue #{issue['number']} is {state} without a concrete work type")
+                sections = self.sections(issue.get("body") or "", "Next physical action") + self.sections(issue.get("body") or "", "Next action")
                 if len(sections) != 1 or not sections[0]:
                     self.fail("issues", "NEXT_ACTION_INVALID", f"issue #{issue['number']} must contain exactly one nonempty Next physical action section")
             if state == "workflow: blocked":
@@ -436,6 +436,19 @@ class Doctor:
             if number not in self.api.pinned_issue_numbers(owner, repository):
                 self.fail("issues", "REFERENCE_NOT_PINNED", f"reference issue #{number} is not pinned")
         self.data["issues"] = {"open_issue_count": len(open_issues), "workflow_counts": dict(sorted(counts.items())), "reference_issue": number}
+        # The same validator handles structured intake; legacy issues remain visible
+        # as migration work without silently redefining their historical contract.
+        spec = importlib.util.spec_from_file_location("overte_issue_intake", self.root / "tools/issue-intake/intake.py")
+        if spec and spec.loader:
+            intake = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(intake)
+            policy = intake.load_policy(path=self.root / ".github/issue-policy.json")
+            structured = [intake.inspect_issue(item, policy) for item in issues]
+            for item in structured:
+                for error in item["errors"]:
+                    self.fail("issues", "ISSUE_STRUCTURE", f"issue #{item['number']}: {error}")
+            self.data["issues"]["legacy_issue_count"] = sum(item["status"] == "legacy" for item in structured)
+            self.data["issues"]["structured_issue_count"] = sum(item["status"] in ("valid", "invalid") for item in structured)
 
     def check_labels(self) -> None:
         labels = {item["name"]: item for item in self.api.pages(f"repos/{self.config['repository']}/labels")}
@@ -570,12 +583,12 @@ class Doctor:
 
     def check_contracts(self) -> None:
         policy = self.policy()
-        expected = {"main", "android-main", "apple-main", "linux-main", "windows-main", "android-phone", "android-vr", "android-vr-pico", "apple-ios"}
+        expected = {"main", "android-main", "apple-main", "android-phone", "android-vr", "android-vr-pico", "apple-ios"}
         if set(policy) != expected:
-            self.fail("repository_contracts", "PERMANENT_BRANCH_SET", "branch policy must contain exactly the nine permanent branches")
+            self.fail("repository_contracts", "PERMANENT_BRANCH_SET", "branch policy must contain exactly the seven permanent branches")
         edges = [(branch.parent, branch.name) for branch in policy.values() if branch.parent]
-        if len(edges) != 8 or len(edges) != len(set(edges)):
-            self.fail("repository_contracts", "DUPLICATE_BRANCH_EDGE", "branch policy must define eight unique edges")
+        if len(edges) != 6 or len(edges) != len(set(edges)):
+            self.fail("repository_contracts", "DUPLICATE_BRANCH_EDGE", "branch policy must define six unique edges")
         for json_path in (self.root / ".github/branch-policy.json", self.root / ".github/repository-health.json"):
             try:
                 load_json_strict(json_path)

@@ -4,9 +4,10 @@
 > This roadmap describes an unofficial, AI-assisted hobby fork. It is not an
 > Overte project commitment or a statement of official platform support.
 
-- **Updated:** 2026-09-08
-- **Repository baseline:** Session 53X final-state documentation and mandatory
-  4 + 3 + 1 forward propagation
+- **Updated:** 2026-09-16
+- **Repository baseline:** Seven permanent branches and six synchronization
+  edges; Linux and Windows support and tests maintained on `main`. Session 53X
+  records remain historical evidence.
 - **Current primary milestone:** `PHONE-P1`
 - **Current maintenance milestone:** `R0`
 
@@ -89,8 +90,8 @@ the product surface.
   retired using the [`R0 cleanup record`](BRANCH_CLEANUP.md); local workspace
   cleanup is deliberately post-review and is not a repository exit criterion.
 
-**Maintenance handoff:** Keep the nine-branch topology, required checks,
-workflow pins, archive tags, and security settings consistent. Review local
+**Maintenance handoff:** Keep the seven-branch topology, required checks,
+workflow pins, recovery bundles, and security settings consistent. Review local
 worktrees separately before any local deletion.
 
 ## LATER
@@ -102,11 +103,11 @@ worktrees separately before any local deletion.
 
 ## ARCHIVED
 
-- **Meta Quest.** Quest is not a development target for this fork. The frozen
+- **Meta Quest.** Quest is not a development target for this fork. The retired
   `android-vr-quest` branch and its hardware-unverified preview evidence are
   retained for history only. There is no resume milestone or synchronization
   path from `android-vr`.
-- **macOS.** macOS is not a development target for this fork. The frozen
+- **macOS.** macOS is not a development target for this fork. The retired
   `apple-macos` branch, hosted Intel evidence, and unfinished diagnostic work
   are retained for history only. There is no resume milestone or
   synchronization path from `apple-main`.
@@ -118,14 +119,14 @@ does not imply that a target is actively being developed.
 
 | Interface or area | Priority | Current maturity | Development branch | Last reviewed evidence | Next gate |
 | --- | --- | --- | --- | --- | --- |
-| Repository baseline | MAINTENANCE | Structurally verified; remote cleanup complete | `main` | Session 53X: 9 branches, 143 tags, policy/security audits and device-free checks | Preserve the verified baseline |
+| Repository baseline | MAINTENANCE | Structurally verified; remote cleanup complete | `main` | Historical Session 53X: 9 branches, 143 tags and device-free checks; current hierarchy has 7 permanent branches | Preserve the verified baseline |
 | Android phones | NOW | Host-verified and build-ready; physical-device coverage incomplete | `android-phone` | Session 53X device-free contracts and selective fixes | `PHONE-P1` |
 | Pico 4 | NEXT 1 | Host-verified and build-ready; device acceptance incomplete | `android-vr-pico` | Session 53X device-free contracts and selective fixes | `PICO-P1` after Android Phone |
 | iPhone and iPad | NEXT 2 | Host-verified bootstrap; integrated client experimental | `apple-ios` | Session 53X device-free contracts and selective fixes | `IOS-P1` after Pico |
-| macOS | ARCHIVED | Historical hosted Intel evidence; never accepted on owned physical hardware | `archive/apple-macos-2026-08-28` | Protected archival tag verified 2026-09-03 | None; not a project target |
-| Meta Quest | ARCHIVED | Historical experimental code; never accepted on physical hardware | `archive/android-vr-quest-2026-08-28` | Protected archival tag verified 2026-09-03 | None; not a project target |
-| Linux desktop | OUT OF SCOPE product; E2E MAINTENANCE | Inherited client baseline; dedicated adapter branch retained | `linux-main` | Session 53X policy and topology checks | Repeatable Linux `e2e-core` target evidence |
-| Windows desktop | OUT OF SCOPE product; E2E MAINTENANCE | Inherited client baseline; dedicated adapter branch retained | `windows-main` | Session 53X policy and topology checks | Hardware-free adapter contracts, then an interactive target |
+| macOS | ARCHIVED | Historical hosted Intel evidence; never accepted on owned physical hardware | None (retired) | Historical archival evidence verified 2026-09-03; [cleanup record](BRANCH_CLEANUP.md) | None; not a project target |
+| Meta Quest | ARCHIVED | Historical experimental code; never accepted on physical hardware | None (retired) | Historical archival evidence verified 2026-09-03; [cleanup record](BRANCH_CLEANUP.md) | None; not a project target |
+| Linux desktop | OUT OF SCOPE product; E2E MAINTENANCE | Inherited client support and tests maintained on main | `main` | Historical Session 53X checks; branch ownership simplified 2026-09-16 | Repeatable Linux `e2e-core` target evidence |
+| Windows desktop | OUT OF SCOPE product; E2E MAINTENANCE | Inherited client support and tests maintained on main | `main` | Historical Session 53X checks; branch ownership simplified 2026-09-16 | Hardware-free adapter contracts, then an interactive target |
 
 Detailed technical facts and evidence remain authoritative in the interface
 documentation on each named product branch. This table records only portfolio

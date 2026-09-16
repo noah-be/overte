@@ -12,9 +12,7 @@
         "refs/heads/android-vr",
         "refs/heads/android-vr-pico",
         "refs/heads/apple-main",
-        "refs/heads/apple-ios",
-        "refs/heads/linux-main",
-        "refs/heads/windows-main"
+        "refs/heads/apple-ios"
       ],
       "exclude": []
     }
@@ -46,6 +44,10 @@
       "parameters": {
         "do_not_enforce_on_create": false,
         "required_status_checks": [
+          {
+            "context": "dependency-release-policy",
+            "integration_id": 15368
+          },
           {
             "context": "branch-policy",
             "integration_id": 15368

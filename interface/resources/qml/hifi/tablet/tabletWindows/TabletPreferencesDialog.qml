@@ -85,7 +85,6 @@ Item {
     }
 
     function cancelToTabletHome() {
-        console.info("PICO_TABLET_PREFERENCES_CANCEL category=" + showCategories);
         for (var i = 0; i < sections.length; ++i) {
             sections[i].restoreAll();
         }
@@ -306,10 +305,12 @@ Item {
                 fontSize: preferencesLayout.compactFooter
                     ? preferencesLayout.buttonFontSize : hifi.fontSizes.buttonLabel
                 androidClickAction: function() {
-                    console.info("PICO_TABLET_PREFERENCES_SAVE category=" + showCategories);
                     dialog.saveAll();
                 }
-                onClicked: dialog.saveAll()
+                onClicked: {
+                    // Follow the actual base dispatch, including Apple's variant.
+                    if (!usesAndroidClickAction) { dialog.saveAll(); }
+                }
             }
 
             HifiControls.Button {
@@ -333,7 +334,11 @@ Item {
                     keyboard.raised = false;
                     dialog.parent.sendToScript({ type: "settings.back" });
                 }
-                onClicked: dialog.restoreAll()
+                onClicked: {
+                    // Preserve each platform's existing intended back route,
+                    // without running a second restore/navigation via the base.
+                    if (!usesAndroidClickAction) { dialog.restoreAll(); }
+                }
             }
         }
     }

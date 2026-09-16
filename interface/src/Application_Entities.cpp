@@ -443,6 +443,7 @@ void Application::resettingDomain() {
         return;
     }
 #endif
+    invalidateEntityScriptConsent();
     clearDomainOctreeDetails(false);
 }
 
