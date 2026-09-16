@@ -380,7 +380,7 @@ class AppiumAdapterTest(unittest.TestCase):
         for platform in ("android", "ios"):
             result = subprocess.run([
                 sys.executable, str(VERIFIER), "--adapter-manifest",
-                str(ROOT / "adapters/appium" / f"{platform}.json"), "--check-cleanup",
+                str(ROOT / "adapters/shared_appium" / f"{platform}.json"), "--check-cleanup",
             ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                env=self.environment, check=False)
             self.assertEqual(0, result.returncode, result.stdout)
