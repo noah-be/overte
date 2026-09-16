@@ -8,20 +8,18 @@ main
 │   ├── android-phone
 │   └── android-vr
 │       └── android-vr-pico
-├── apple-main
-│   └── apple-ios
-├── linux-main
-└── windows-main
+└── apple-main
+    └── apple-ios
 ```
 
 The machine-readable source of truth is
 [`../.github/branch-policy.json`](../.github/branch-policy.json). Changes to the
 hierarchy, CI policy, and this document must be reviewed together.
 
-`android-vr-quest` and `apple-macos` are deliberately outside the active
-hierarchy. They are kept as frozen historical branches under
-`.github/rulesets/archived-branches.json`: updates, force-pushes, and deletion
-are prohibited, and the synchronization bot does not enumerate them.
+The seven permanent branches have six parent-to-child edges. Linux and Windows
+implementation, tests, desktop adapters, and target matrices belong on `main`.
+The retired desktop, Quest, and macOS branch names do not designate active
+synchronization targets.
 
 ## Required flow
 
@@ -43,8 +41,8 @@ Examples:
 feature/android-pico/controller-mapping -> android-vr-pico
 fix/android-vr/openxr-logging           -> android-vr
 promote/apple/qt-event-fix              -> apple-main
-feature/linux/wayland-input             -> linux-main
-feature/windows/desktop-adapter         -> windows-main
+feature/main/wayland-input              -> main
+feature/main/windows-desktop-adapter    -> main
 android-vr                              -> android-vr-pico
 sync/android-pico/android-vr-refresh    -> android-vr-pico
 ```
@@ -88,14 +86,14 @@ different: its head must directly merge the current target and current parent.
 Pull-request workflows still test GitHub's merge result, and merge conflicts,
 required checks, and every direction rule continue to fail closed.
 Drift-detection runs are serialized per parent branch, so simultaneous Android,
-Apple, Linux, and Windows checks cannot cancel or replace one another.
+Apple, and shared-parent checks cannot cancel or replace one another.
 If GitHub cannot compare a configured pair, it reports a warning and continues
 checking the remaining children instead of aborting the complete sync run.
 
-The Android, Apple, and desktop target rulesets remain complementary and
-mandatory. Their topology checks validate real Git ancestry and protected path
-ownership; the general `branch-policy` check validates branch ownership and
-direction. This policy does not replace any platform topology check.
+The Android and Apple target rulesets remain complementary and mandatory.
+Their topology checks validate real Git ancestry and protected path ownership;
+the general `branch-policy` check validates branch ownership and direction.
+Desktop work uses the `main` rules and its applicable product checks.
 
 ## Enforcement bootstrap
 
@@ -106,22 +104,18 @@ system in this order:
 2. Confirm that the `Branch policy` workflow has produced the
    `branch-policy` check at least once.
 3. Create the repository rulesets from
-   `.github/rulesets/permanent-branches.json` and
-   `.github/rulesets/archived-branches.json` using the GitHub Rulesets API or
-   repository settings.
-4. After `desktop-branch-topology` has run successfully on both desktop
-   branches, create `.github/rulesets/desktop-branches.json` as a second
-   mandatory ruleset.
-5. Confirm with deliberately invalid draft PRs that `branch-policy` and the
-   desktop topology check prevent merging.
-6. Synchronize the policy commit from `main` down through every permanent
-   branch.
+   `.github/rulesets/permanent-branches.json` using the GitHub Rulesets API or
+   repository settings; retain the Android and Apple target rulesets.
+4. Confirm with local negative fixtures that ownership and topology checks
+   reject invalid branch relationships.
+5. Synchronize the policy commit from `main` down through every permanent
+   child branch.
 
 With GitHub CLI authenticated for the repository, an administrator can create
 the prepared ruleset with:
 
 ```bash
-gh api --method POST "repos/{owner}/{repo}/rulesets" \
+gh api --method POST "repos/noah-be/overte/rulesets" \
   --input .github/rulesets/permanent-branches.json
 ```
 

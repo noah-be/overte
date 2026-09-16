@@ -1,0 +1,7 @@
+interface:
+  display_name: "Overte Issue Intake"
+  short_description: "Create and maintain structured Overte fork issues"
+  default_prompt: "Use $overte-issue-intake to record or update this Overte issue with the current repository rules."
+
+policy:
+  allow_implicit_invocation: true
