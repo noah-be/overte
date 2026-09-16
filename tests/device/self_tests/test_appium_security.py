@@ -334,6 +334,59 @@ class AppiumAdapterTest(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "symbolic links"):
                     adapter.state_path("shared-android")
 
+    def test_gesture_and_tap_reject_invalid_window_before_input(self):
+        adapter = self.load("android", [target("android")])
+        valid = {"x": 0, "y": 0, "width": 100, "height": 100}
+        invalid = [{key: value for key, value in valid.items() if key != missing}
+                   for missing in valid]
+        for key in valid:
+            for value in (True, "100", float("inf"), float("nan")):
+                invalid.append(dict(valid, **{key: value}))
+        for key in ("width", "height"):
+            for value in (0, -1):
+                invalid.append(dict(valid, **{key: value}))
+        for rect in invalid:
+            for operation in ("gesture", "tap"):
+                client = mock.Mock()
+                client.call.return_value = rect
+                with self.subTest(rect=rect, operation=operation):
+                    with self.assertRaisesRegex(RuntimeError, "invalid window size"):
+                        if operation == "gesture":
+                            adapter.gesture(client, "session", {
+                                "start": [.2, .8], "end": [.2, .6], "durationSeconds": .5})
+                        else:
+                            adapter.tap_fractional_point(client, "session", [.2, .8], "tap")
+                    client.call.assert_called_once_with("GET", "/session/session/window/rect")
+                    client.execute.assert_not_called()
+
+    def test_empty_session_identifier_is_never_persisted(self):
+        adapter = self.load("android", [target("android")])
+        client = mock.Mock()
+        client.call.return_value = {"sessionId": ""}
+        with tempfile.TemporaryDirectory() as state_root, mock.patch.dict(
+                os.environ, {"OVERTE_DEVICE_STATE_ROOT": state_root}), mock.patch.object(
+                    APPIUM, "WebDriver", return_value=client):
+            with self.assertRaisesRegex(RuntimeError, "did not create"):
+                adapter.ensure_session("shared-android")
+            self.assertFalse(adapter.state_path("shared-android").exists())
+
+    def test_empty_element_identifier_never_sends_click(self):
+        adapter = self.load("android", [target("android")])
+        for operation in ("accessibility", "semantic"):
+            client = mock.Mock()
+            client.call.return_value = {"element-6066-11e4-a52e-4f735466cecf": "", "ELEMENT": ""}
+            with self.subTest(operation=operation), mock.patch.object(
+                    adapter, "ensure_session", return_value=(client, "session", {})), mock.patch.object(
+                    adapter, "semantic_snapshot", return_value=({}, {"app.settings": ("id", "settings")})):
+                with self.assertRaisesRegex(RuntimeError, "element reference is invalid"):
+                    if operation == "accessibility":
+                        adapter.click_accessibility(client, "session", "settings")
+                    else:
+                        adapter.invoke("shared-android", "tablet.activate", {
+                            "contractVersion": 1, "controlId": "app.settings"})
+                self.assertEqual(1, client.call.call_count)
+                self.assertEqual("/session/session/element", client.call.call_args.args[1])
+
     def semantic_adapter(self, platform: str) -> APPIUM.AppiumAdapter:
         adapter = APPIUM.AppiumAdapter.__new__(APPIUM.AppiumAdapter)
         adapter.platform = platform
