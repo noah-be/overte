@@ -11,14 +11,17 @@
   "edges": {
     "android-main": {"parent": "main", "scope": "android", "differential": "android-family"},
     "apple-main": {"parent": "main", "scope": "apple", "differential": "apple-family"},
-    "linux-main": {"parent": "main", "scope": "linux", "differential": "linux-desktop"},
-    "windows-main": {"parent": "main", "scope": "windows", "differential": "windows-desktop"},
     "android-phone": {"parent": "android-main", "scope": "android-phone", "differential": "android-phone"},
     "android-vr": {"parent": "android-main", "scope": "android-vr", "differential": "android-vr"},
     "android-vr-pico": {"parent": "android-vr", "scope": "android-pico", "differential": "android-pico"},
     "apple-ios": {"parent": "apple-main", "scope": "ios", "differential": "apple-ios"}
   },
+  "retired_parent_paths": {
+    "android/common/conan/prebuilt/android-phone-16k-deps-v3.sha256": "4376bfdaa8a83681a01d714c57cfe5b3f3e5f666"
+  },
   "qualified_inputs": [
+    ".github/dependency-releases.json",
+    "tools/dependency-releases/**",
     ".github/actions/**",
     ".github/workflows/**",
     ".github/branch-policy.json",

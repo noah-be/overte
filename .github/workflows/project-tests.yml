@@ -9,6 +9,9 @@ on:
       - "scripts/**"
       - "tests/**"
       - "tools/release/**"
+      - "tools/branch-cleanup/**"
+      - ".github/branch-cleanup.json"
+      - ".github/workflows/branch-cleanup.yml"
       - ".github/workflows/project-tests.yml"
       - "!**/*.md"
   push:
@@ -51,8 +54,8 @@ jobs:
           run_full=true
           if [[ "$EVENT" == pull_request && "$SAME_REPOSITORY" == true ]]; then
             case "$BASE:$HEAD" in
-              android-main:main|apple-main:main|linux-main:main|windows-main:main|android-phone:android-main|android-vr:android-main|android-vr-pico:android-vr|apple-ios:apple-main) run_full=false ;;
-              android-main:reconcile/android/*|apple-main:reconcile/apple/*|linux-main:reconcile/linux/*|windows-main:reconcile/windows/*|android-phone:reconcile/android-phone/*|android-vr:reconcile/android-vr/*|android-vr-pico:reconcile/android-pico/*|apple-ios:reconcile/ios/*) run_full=false ;;
+              android-main:main|apple-main:main|android-phone:android-main|android-vr:android-main|android-vr-pico:android-vr|apple-ios:apple-main) run_full=false ;;
+              android-main:reconcile/android/*|apple-main:reconcile/apple/*|android-phone:reconcile/android-phone/*|android-vr:reconcile/android-vr/*|android-vr-pico:reconcile/android-pico/*|apple-ios:reconcile/ios/*) run_full=false ;;
             esac
           fi
           echo "run_full=$run_full" >> "$GITHUB_OUTPUT"
