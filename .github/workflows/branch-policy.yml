@@ -11,8 +11,6 @@ on:
       - android-vr-pico
       - apple-main
       - apple-ios
-      - linux-main
-      - windows-main
 
 permissions:
   contents: read
