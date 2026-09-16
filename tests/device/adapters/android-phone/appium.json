@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "id": "appium-android",
+  "command": ["appium_adapter.py"]
+}

@@ -21,6 +21,9 @@ CHANGE_PREFIXES = (
 )
 PRIVILEGED_PATHS = (
     ".github/platform-source-policy.json",
+    ".github/dependency-releases.json",
+    ".github/workflows/dependency-releases.yml",
+    "tools/dependency-releases/",
     ".github/branch-policy.json",
     ".github/branch-cleanup.json",
     ".github/maintenance-policy.json",

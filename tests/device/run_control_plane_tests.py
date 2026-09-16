@@ -37,6 +37,14 @@ def commands(profile: str) -> list[tuple[str, list[str], bool]]:
             "python-self-tests",
             [sys.executable, "-m", "unittest", "discover", "-s",
              "tests/device/self_tests", "-p", "test_*.py"], False))
+        # These production C++ regressions require only the host compiler;
+        # Qt-dependent lifecycle harnesses need separate prepared-host validation.
+        for name, path in (
+            ("phone-voice-buffer", "audio/test_phone_voice_buffer.py"),
+            ("phone-spawn-gate", "world-entry/test_phone_spawn_gate.py"),
+            ("remote-avatar-keyframes", "world-entry/test_remote_avatar_keyframes.py"),
+        ):
+            checks.append((name, [sys.executable, str(ROOT / "contracts" / path)], False))
     else:
         patterns = [
             "test_common_contracts.py", "test_governance_and_frontier.py",

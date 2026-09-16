@@ -1,389 +1,804 @@
 #!/usr/bin/env python3
-"""Device-free tests for the shared Android/iOS Appium transport."""
+"""Device-free W3C protocol tests for the Android/iOS Appium adapter."""
 
 from __future__ import annotations
 
-import importlib.util
-import ast
+import base64
+import copy
+import hashlib
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
-from unittest import mock
 
 
-DEVICE_ROOT = Path(__file__).resolve().parents[1]
-ADAPTER_PATH = DEVICE_ROOT / "adapters/appium/adapter.py"
-SPEC = importlib.util.spec_from_file_location("overte_shared_appium", ADAPTER_PATH)
-assert SPEC and SPEC.loader
-APPIUM = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(APPIUM)
+ROOT = Path(__file__).resolve().parents[1]
+ADAPTER = ROOT / "adapters" / "appium" / "adapter.py"
+VERIFIER = ROOT / "verify_adapter.py"
 
 
-def target(platform: str, *, enabled: bool = True, physical: bool = False) -> dict:
-    platform_name = "Android" if platform == "android" else "iOS"
-    automation = "UiAutomator2" if platform == "android" else "XCUITest"
-    return {
-        "selector": f"shared-{platform}",
-        "displayName": f"Shared {platform}",
-        "platform": platform,
-        "physical": physical,
-        "enabled": enabled,
-        "serverUrl": "http://127.0.0.1:4723",
-        "appId": "org.overte.example",
-        "capabilities": {
-            "platformName": platform_name,
-            "appium:automationName": automation,
-            "appium:autoLaunch": False,
-        },
-        "controls": {
-            "look": {"start": [.7, .4], "end": [.3, .4],
-                     "mode": "swipe", "durationSeconds": .5},
-            "move": {
-                "forward": {"start": [.2, .8], "end": [.2, .6],
-                            "mode": "hold", "durationSeconds": .5},
-            },
-            "tablet": {
-                "openAccessibilityId": "TabletOpen",
-                "closeAccessibilityId": "TabletClose",
-                "semanticUi": {"contractVersion": 1},
-            },
-        },
+MOCK_ADB = r'''#!/usr/bin/env python3
+import json,os,shlex,sys
+a=sys.argv[1:]
+target = a[1] if len(a) > 2 and a[0] == "-s" else None
+cmd = a[2:] if target else a
+if cmd == ["get-state"]:
+    print("device")
+elif len(cmd) == 3 and cmd[:2] == ["shell", "getprop"]:
+    defaults = {
+        "ro.product.manufacturer": "Example",
+        "ro.product.model": "Phone",
+        "ro.product.device": "phone",
+        "ro.product.name": "phone",
+        "ro.build.characteristics": "default",
+        "ro.product.cpu.abilist": "arm64-v8a,armeabi-v7a",
+        "ro.build.version.sdk": "35",
+        "ro.opengles.version": "196610",
+        "ro.kernel.qemu": "0",
     }
+    override = "OVERTE_MOCK_ADB_PROP_" + cmd[2].upper().replace(".", "_")
+    print(os.environ.get(override, defaults.get(cmd[2], "")))
+elif cmd == ["shell", "pm", "list", "features"]:
+    print(os.environ.get("OVERTE_MOCK_ADB_FEATURES",
+                         "feature:android.hardware.touchscreen"))
+elif cmd == ["shell", "run-as", "org.overte.phone", "cat",
+             "files/overte-e2e/overte-probe.json"]:
+    with open(os.environ["OVERTE_MOCK_ANDROID_PROBE"], encoding="utf-8") as source:
+        print(source.read(), end="")
+elif cmd == ["shell", "run-as", "org.overte.phone", "cat",
+             "files/overte-e2e/e2e-client-command.json"]:
+    path = os.environ["OVERTE_MOCK_ANDROID_COMMAND_FILE"]
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as source:
+            print(source.read(), end="")
+elif cmd == ["shell", "pidof", "-s", "org.overte.phone"]:
+    print("2468")
+elif cmd == ["shell", "cat", "/proc/2468/stat"]:
+    changed = os.path.exists(os.environ["OVERTE_MOCK_ANDROID_RESTART_MARKER"])
+    print("2468 (overte) S " + " ".join(["0"] * 18) + (" 101" if changed else " 100"))
+elif (len(cmd) == 2 and cmd[0] == "shell"
+      and shlex.split(cmd[1])[:3] == ["run-as", "org.overte.phone", "sh"]
+      and shlex.split(cmd[1])[-1] == "files/overte-e2e/e2e-client-command.json"):
+    remote_arguments = shlex.split(cmd[1])
+    if remote_arguments[3] != "-c" or remote_arguments[5] != "overte-e2e-write":
+        raise SystemExit(8)
+    content = sys.stdin.read()
+    with open(os.environ["OVERTE_MOCK_ANDROID_COMMAND_FILE"], "w", encoding="utf-8") as sink:
+        sink.write(content)
+    with open(os.environ["OVERTE_MOCK_ANDROID_COMMAND_LOG"], "a", encoding="utf-8") as sink:
+        sink.write(json.dumps(json.loads(content), sort_keys=True) + "\n")
+    if os.environ.get("OVERTE_MOCK_ANDROID_RESTART_AFTER_WRITE") == "1":
+        open(os.environ["OVERTE_MOCK_ANDROID_RESTART_MARKER"], "w").close()
+'''
 
 
-class FakeClient:
-    def __init__(self, source: str = "") -> None:
-        self.source = source
-        self.calls: list[tuple] = []
+class AppiumHandler(BaseHTTPRequestHandler):
+    calls: list[tuple[str, str]] = []
+    executions: list[tuple[str, dict]] = []
+    action_payloads: list[dict] = []
+    probe_content = b""
+    test_build_attested = True
+    app_state = 1
+    sound_commands: list[dict] = []
+    reject_sound = False
+    reject_webdriver = False
+    page_source = '<hierarchy><node content-desc="OverteTablet"/></hierarchy>'
 
-    def call(self, method: str, path: str, body=None):
-        self.calls.append((method, path, body))
-        if path.endswith("/source"):
-            return self.source
-        if path.endswith("/window/rect"):
-            return {"x": 10, "y": 20, "width": 1000, "height": 500}
-        if path.endswith("/screenshot"):
-            return "c2NyZWVuc2hvdA=="
-        if method == "POST" and path == "/session":
-            return {"sessionId": "shared-session"}
-        if method == "POST" and path.endswith("/element"):
-            return {"element-6066-11e4-a52e-4f735466cecf": "element"}
-        return {}
+    def response(self, value: object) -> None:
+        content = json.dumps({"value": value}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(content)))
+        self.end_headers()
+        self.wfile.write(content)
 
-    def execute(self, session: str, script: str, arguments: dict):
-        self.calls.append(("EXECUTE", session, script, arguments))
-        return 4 if script == "mobile: queryAppState" else None
+    def do_GET(self) -> None:  # noqa: N802
+        self.calls.append(("GET", self.path))
+        if self.path.endswith("/window/rect"):
+            self.response({"x": 0, "y": 0, "width": 1000, "height": 500})
+        elif self.path.endswith("/source"):
+            self.response(type(self).page_source)
+        elif self.path.endswith("/screenshot"):
+            self.response(base64.b64encode(b"mock-png").decode())
+        else:
+            self.response({"sessionId": "session-private", "capabilities": {}})
+
+    def do_POST(self) -> None:  # noqa: N802
+        self.calls.append(("POST", self.path))
+        length = int(self.headers.get("Content-Length", "0"))
+        payload = json.loads(self.rfile.read(length) or b"{}")
+        if self.path == "/sound-command.json":
+            if self.reject_sound:
+                self.send_error(503)
+                return
+            self.sound_commands.append(payload)
+            content = json.dumps(payload).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(content)))
+            self.end_headers()
+            self.wfile.write(content)
+        elif self.path == "/session":
+            self.response({"sessionId": "session-private", "capabilities": {}})
+        elif self.path.endswith("/execute/sync") and self.reject_webdriver:
+            self.response({"error": "unknown error"})
+        elif self.path.endswith("/execute/sync") and payload.get("script") == "mobile: queryAppState":
+            arguments = payload.get("args", [{}])[0]
+            self.response(4 if "appId" in arguments else self.app_state)
+        elif self.path.endswith("/execute/sync"):
+            script = payload.get("script")
+            arguments = payload.get("args", [{}])[0]
+            self.executions.append((script, arguments))
+            if script == "mobile: deviceInfo":
+                self.response({"isSimulator": False})
+            elif script == "mobile: listApps":
+                attributes = {
+                    "CFBundleIdentifier": "org.overte.interface.dev",
+                    "UIFileSharingEnabled": True,
+                    "OverteE2ETestBuildContractVersion": 1,
+                }
+                if not self.test_build_attested:
+                    attributes.pop("OverteE2ETestBuildContractVersion")
+                self.response({"org.overte.interface.dev": attributes})
+            elif script == "mobile: activeAppInfo":
+                self.response({"pid": 4321, "bundleId": "org.overte.interface.dev"})
+            elif script == "mobile: pullFile":
+                self.response(base64.b64encode(self.probe_content).decode("ascii"))
+            else:
+                if script == "mobile: terminateApp":
+                    type(self).app_state = 1
+                elif script in {"mobile: launchApp", "mobile: activateApp",
+                                "mobile: startActivity"}:
+                    type(self).app_state = 4
+                elif script == "mobile: backgroundApp":
+                    type(self).app_state = 2
+                self.response(None)
+        elif self.path.endswith("/element"):
+            self.response({"element-6066-11e4-a52e-4f735466cecf": "element-private"})
+        elif self.path.endswith("/actions"):
+            self.action_payloads.append(payload)
+            self.response(None)
+        else:
+            self.response(None)
+
+    def do_DELETE(self) -> None:  # noqa: N802
+        self.calls.append(("DELETE", self.path))
+        self.response(None)
+
+    def log_message(self, format_string: str, *arguments: object) -> None:
+        pass
 
 
 class AppiumAdapterTest(unittest.TestCase):
-    def load(self, platform: str, targets: list[object]) -> APPIUM.AppiumAdapter:
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "targets.json"
-            path.write_text(json.dumps({"schemaVersion": 1, "targets": targets}))
-            path.chmod(0o600)
-            with mock.patch.dict(os.environ, {"OVERTE_APPIUM_TARGETS": str(path)}):
-                return APPIUM.AppiumAdapter(platform)
-
-    def run_with_payload(self, payload: object) -> subprocess.CompletedProcess[str]:
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "targets.json"
-            path.write_text(json.dumps(payload))
-            path.chmod(0o600)
-            environment = os.environ.copy()
-            environment["OVERTE_APPIUM_TARGETS"] = str(path)
-            return subprocess.run(
-                [sys.executable, str(ADAPTER_PATH), "--platform", "android", "discover"],
-                text=True, capture_output=True, check=False, env=environment)
-
-    def test_manifests_share_one_implementation(self):
-        for platform in ("android", "ios"):
-            manifest = json.loads((DEVICE_ROOT / f"adapters/appium/{platform}.json").read_text())
-            self.assertEqual(1, manifest["schemaVersion"])
-            self.assertEqual(["adapter.py", "--platform", platform], manifest["command"])
-
-    def test_peer_platform_entries_are_ignored_before_validation(self):
-        peer = {"platform": "ios", "unexpected": "stale peer value"}
-        adapter = self.load("android", [peer, target("android")])
-        self.assertEqual(["shared-android"], list(adapter.targets))
-
-    def test_platform_specific_fields_fail_closed(self):
-        configured = target("ios")
-        configured["unexpectedPlatformField"] = {}
-        with self.assertRaisesRegex(RuntimeError, "unsupported fields"):
-            self.load("ios", [configured])
-
-    def test_non_object_json_root_exits_cleanly(self):
-        result = self.run_with_payload([])
-        self.assertEqual(2, result.returncode)
-        self.assertIn("unsupported Appium target configuration schema", result.stderr)
-        self.assertNotIn("Traceback", result.stderr)
-
-    def test_enabled_is_required(self):
-        configured = target("android")
-        configured.pop("enabled")
-        with self.assertRaisesRegex(RuntimeError, "enabled flags"):
-            self.load("android", [configured])
-
-    def test_private_configuration_permissions_and_location_are_enforced(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "targets.json"
-            path.write_text(json.dumps({"schemaVersion": 1, "targets": []}))
-            path.chmod(0o644)
-            with mock.patch.dict(os.environ, {"OVERTE_APPIUM_TARGETS": str(path)}):
-                with self.assertRaisesRegex(RuntimeError, "mode 0600"):
-                    APPIUM.AppiumAdapter("android")
-            path.chmod(0o600)
-            link = Path(directory) / "targets-link.json"
-            link.symlink_to(path)
-            with mock.patch.dict(os.environ, {"OVERTE_APPIUM_TARGETS": str(link)}):
-                with self.assertRaisesRegex(RuntimeError, "symbolic links"):
-                    APPIUM.AppiumAdapter("android")
-            hardlink = Path(directory) / "targets-hardlink.json"
-            os.link(path, hardlink)
-            with mock.patch.dict(os.environ, {"OVERTE_APPIUM_TARGETS": str(path)}):
-                with self.assertRaisesRegex(RuntimeError, "ordinary private file"):
-                    APPIUM.AppiumAdapter("android")
-        with mock.patch.dict(os.environ, {
-                "OVERTE_APPIUM_TARGETS": str(
-                    DEVICE_ROOT / "adapters/appium/targets.example.json")}):
-            with self.assertRaisesRegex(RuntimeError, "outside the repository"):
-                APPIUM.AppiumAdapter("android")
-
-    def test_private_configuration_path_must_already_be_absolute(self):
-        with mock.patch.dict(os.environ, {"OVERTE_APPIUM_TARGETS": "targets.json"}):
-            with self.assertRaisesRegex(RuntimeError, "absolute private path"):
-                APPIUM.AppiumAdapter("android")
-
-    def test_transport_requires_https_away_from_loopback(self):
-        for accepted in ("http://127.0.0.1:4723", "http://[::1]:4723",
-                         "http://localhost:4723", "https://appium.example.invalid"):
-            with self.subTest(accepted=accepted):
-                self.assertEqual(accepted, APPIUM.WebDriver(accepted).server_url)
-        with self.assertRaisesRegex(RuntimeError, "restricted to loopback"):
-            APPIUM.WebDriver("http://appium.example.invalid")
-
-    def test_points_and_configured_durations_are_bounded(self):
-        for value in ([1.0, .5], [float("nan"), .5]):
-            with self.subTest(value=value), self.assertRaises(RuntimeError):
-                APPIUM.require_point(value, "point")
-        for value in (0, 10.1, float("inf")):
-            with self.subTest(value=value), self.assertRaises(RuntimeError):
-                APPIUM.bounded_seconds(value, "duration")
-
-    def test_physical_session_fails_before_network_access(self):
-        adapter = self.load("android", [target("android", physical=True)])
-        with mock.patch.object(APPIUM, "WebDriver") as webdriver:
-            with self.assertRaisesRegex(RuntimeError, "platform integration"):
-                adapter.ensure_session("shared-android")
-            webdriver.assert_not_called()
-
-    def test_discovery_advertises_only_configured_shared_operations(self):
-        configured = target("android")
-        configured["controls"].pop("move")
-        adapter = self.load("android", [configured])
-        discovered = adapter.discover()[0]
-        self.assertNotIn("input.move", discovered["capabilities"])
-        self.assertIn("tablet.snapshot", discovered["capabilities"])
-        self.assertNotIn("app.process", discovered["capabilities"])
-        self.assertNotIn("probe.snapshot", discovered["capabilities"])
-
-    def test_unadvertised_operation_fails_before_session_creation(self):
-        configured = target("android")
-        adapter = self.load("android", [configured])
-        with mock.patch.object(adapter, "ensure_session") as ensure:
-            with self.assertRaisesRegex(RuntimeError, "direction is not configured"):
-                adapter.invoke("shared-android", "input.move", {
-                    "direction": "backward", "durationSeconds": .5,
-                })
-            ensure.assert_not_called()
-
-    def test_every_advertised_invoke_path_performs_its_w3c_operation(self):
-        adapter = self.load("android", [target("android")])
-        configured = adapter.targets["shared-android"]
-        source = """<hierarchy>
-          <node resource-id="tablet.home" enabled="true"/>
-          <node content-desc="app.settings" clickable="true" enabled="true"/>
-        </hierarchy>"""
-        client = FakeClient(source)
-        invoked: set[str] = set()
-        with tempfile.TemporaryDirectory() as directory:
-            artifact = Path(directory) / "application.bin"
-            artifact.write_bytes(b"application")
-            environment = {"OVERTE_DEVICE_ARTIFACT_DIR": directory}
-            with mock.patch.dict(os.environ, environment), mock.patch.object(
-                    adapter, "ensure_session",
-                    return_value=(configured, client, "shared-session")):
-                operations = {
-                    "app.foreground": {},
-                    "app.install": {"path": str(artifact)},
-                    "app.launch": {},
-                    "artifact.screenshot": {},
-                    "input.look": {"horizontal": .5, "vertical": 0},
-                    "input.move": {"direction": "forward", "durationSeconds": .5},
-                    "tablet.close": {},
-                    "tablet.open": {},
-                    "tablet.snapshot": {},
-                    "tablet.activate": {"contractVersion": 1,
-                                        "controlId": "app.settings"},
-                }
-                for operation, arguments in operations.items():
-                    with self.subTest(operation=operation):
-                        self.assertIsInstance(
-                            adapter.invoke("shared-android", operation, arguments), dict)
-                        invoked.add(operation)
-        self.assertEqual(set(adapter.capabilities(configured)), invoked)
-        self.assertTrue(any(call[0] == "EXECUTE" for call in client.calls))
-        self.assertTrue(any(call[1].endswith("/actions") for call in client.calls
-                            if len(call) >= 2 and isinstance(call[1], str)))
-        action_body = next(call[2] for call in client.calls
-                           if len(call) >= 3 and isinstance(call[1], str)
-                           and call[1].endswith("/actions")
-                           and call[2]["actions"][0]["id"] == "overte-touch"
-                           and any(action["type"] == "pause"
-                                   for action in call[2]["actions"][0]["actions"]))
-        actions = action_body["actions"][0]["actions"]
-        self.assertEqual(
-            {"type": "pointerMove", "duration": 0, "origin": "viewport",
-             "x": 209, "y": 419}, actions[0])
-        self.assertEqual(
-            {"type": "pointerMove", "duration": 150, "origin": "viewport",
-             "x": 209, "y": 319}, actions[2])
-        self.assertEqual({"type": "pause", "duration": 500}, actions[3])
-
-    def test_session_state_is_reused_and_cleanup_is_idempotent(self):
-        adapter = self.load("android", [target("android")])
-        client = FakeClient()
-        with tempfile.TemporaryDirectory() as state_root, mock.patch.dict(
-                os.environ, {"OVERTE_DEVICE_STATE_ROOT": state_root}), mock.patch.object(
-                    APPIUM, "WebDriver", return_value=client):
-            first = adapter.ensure_session("shared-android")
-            second = adapter.ensure_session("shared-android")
-            self.assertEqual("shared-session", first[2])
-            self.assertEqual(first[2], second[2])
-            self.assertEqual(1, sum(call[:2] == ("POST", "/session")
-                                    for call in client.calls))
-            self.assertEqual({"cleaned": True}, adapter.cleanup("shared-android"))
-            self.assertEqual({"cleaned": True}, adapter.cleanup("shared-android"))
-            self.assertEqual(1, sum(call[0] == "DELETE" for call in client.calls))
-
-    def test_cleanup_failure_retains_private_session_state(self):
-        adapter = self.load("android", [target("android")])
-
-        class FailingDeleteClient(FakeClient):
-            def call(self, method: str, path: str, body=None):
-                if method == "DELETE":
-                    raise RuntimeError("simulated transport failure")
-                return super().call(method, path, body)
-
-        with tempfile.TemporaryDirectory() as state_root, mock.patch.dict(
-                os.environ, {"OVERTE_DEVICE_STATE_ROOT": state_root}):
-            adapter.save_session("shared-android", "shared-session")
-            state_path = adapter.state_path("shared-android")
-            with mock.patch.object(APPIUM, "WebDriver", return_value=FailingDeleteClient()):
-                with self.assertRaisesRegex(RuntimeError, "simulated transport failure"):
-                    adapter.cleanup("shared-android")
-            self.assertTrue(state_path.is_file())
-            self.assertEqual("shared-session", adapter.read_session("shared-android")["sessionId"])
-
-    def test_session_state_rejects_symlinks_and_hardlinks(self):
-        adapter = self.load("android", [target("android")])
-        with tempfile.TemporaryDirectory() as state_root, mock.patch.dict(
-                os.environ, {"OVERTE_DEVICE_STATE_ROOT": state_root}):
-            path = adapter.state_path("shared-android")
-            path.write_text('{"sessionId":"shared-session"}')
-            path.chmod(0o600)
-            second = path.with_name("session-hardlink.json")
-            os.link(path, second)
-            with self.assertRaisesRegex(RuntimeError, "private ordinary file"):
-                adapter.read_session("shared-android")
-            second.unlink()
-            path.unlink()
-            target_path = path.with_name("session-target.json")
-            target_path.write_text('{"sessionId":"shared-session"}')
-            target_path.chmod(0o600)
-            path.symlink_to(target_path)
-            with self.assertRaisesRegex(RuntimeError, "symbolic link"):
-                adapter.read_session("shared-android")
-
-    def semantic_adapter(self, platform: str) -> APPIUM.AppiumAdapter:
-        adapter = APPIUM.AppiumAdapter.__new__(APPIUM.AppiumAdapter)
-        adapter.platform = platform
-        return adapter
-
-    def test_android_semantic_tree_uses_only_contract_ids(self):
-        source = """<hierarchy>
-          <node resource-id="tablet.home" enabled="true"/>
-          <node content-desc="app.settings" clickable="true" enabled="true"
-                elementId="settings-element"/>
-          <node content-desc="unrelated.private.text"/>
-        </hierarchy>"""
-        snapshot, actionable = self.semantic_adapter("android").semantic_snapshot(
-            FakeClient(source), "session")
-        self.assertEqual("tablet.home", snapshot["screenId"])
-        self.assertEqual(["app.settings"], snapshot["visibleControlIds"])
-        self.assertEqual({"app.settings": ("accessibility id", "app.settings")}, actionable)
-
-    def test_ios_prefixed_semantic_tree_is_reduced_to_contract(self):
-        source = """<AppiumAUT>
-          <XCUIElementTypeOther name="OverteTabletScreen.settings.home" visible="true"/>
-          <XCUIElementTypeButton name="OverteTabletControl.settings.audio"
-                 visible="true" enabled="true"/>
-          <XCUIElementTypeOther name="OverteTabletReady.settings.home" visible="true"/>
-        </AppiumAUT>"""
-        snapshot, actionable = self.semantic_adapter("ios").semantic_snapshot(
-            FakeClient(source), "session")
-        self.assertTrue(snapshot["ready"])
-        self.assertEqual(["settings.audio"], snapshot["visibleControlIds"])
-        self.assertEqual({"settings.audio": (
-            "accessibility id", "OverteTabletControl.settings.audio")}, actionable)
-
-    def test_ios_retries_only_a_known_transient_tree_shape(self):
-        sources = [
-            "<AppiumAUT/>",
-            """<AppiumAUT>
-              <XCUIElementTypeOther name="OverteTabletScreen.tablet.home" visible="true"/>
-              <XCUIElementTypeOther name="OverteTabletReady.tablet.home" visible="true"/>
-            </AppiumAUT>""",
-        ]
-        client = FakeClient()
-        client.call = lambda *_args: sources.pop(0)
-        with mock.patch.object(APPIUM.time, "sleep") as pause:
-            snapshot, _ = self.semantic_adapter("ios").semantic_snapshot(client, "session")
-        self.assertEqual("tablet.home", snapshot["screenId"])
-        pause.assert_called_once_with(0.1)
-
-    def test_ios_unknown_marker_is_not_retried(self):
-        source = ('<AppiumAUT><XCUIElementTypeOther '
-                  'name="OverteTabletScreen.unknown.screen" visible="true"/></AppiumAUT>')
-        with mock.patch.object(APPIUM.time, "sleep") as pause:
-            with self.assertRaisesRegex(RuntimeError, "unknown screen"):
-                self.semantic_adapter("ios").semantic_snapshot(FakeClient(source), "session")
-        pause.assert_not_called()
-
-    def test_semantic_parser_rejects_ambiguous_and_declared_xml(self):
-        adapter = self.semantic_adapter("android")
-        for source in ("<root><node resource-id='tablet.home'/><node resource-id='settings.home'/></root>",
-                       "<!DOCTYPE root><root/>"):
-            with self.subTest(source=source), self.assertRaises(RuntimeError):
-                adapter.semantic_snapshot(FakeClient(source), "session")
-
-    def test_import_closure_is_standard_library_and_shared_device_code(self):
-        tree = ast.parse(ADAPTER_PATH.read_text(encoding="utf-8"))
-        roots = {
-            node.module.split(".")[0]
-            for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) and node.module
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="appium-adapter-test-")
+        self.root = Path(self.temporary.name)
+        AppiumHandler.calls = []
+        AppiumHandler.executions = []
+        AppiumHandler.action_payloads = []
+        AppiumHandler.test_build_attested = True
+        AppiumHandler.app_state = 1
+        AppiumHandler.sound_commands = []
+        AppiumHandler.reject_sound = False
+        AppiumHandler.reject_webdriver = False
+        AppiumHandler.page_source = (
+            '<hierarchy><node content-desc="OverteTablet"/></hierarchy>')
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), AppiumHandler)
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+        self.probe = self.root / "probe.json"
+        self.write_probe()
+        self.adb = self.root / "adb"
+        self.adb.write_text(MOCK_ADB, encoding="utf-8")
+        self.adb.chmod(0o700)
+        url = f"http://127.0.0.1:{self.server.server_address[1]}"
+        targets = {
+            "schemaVersion": 1,
+            "targets": [
+                {
+                    "selector": "phone-alias", "displayName": "Phone", "platform": "android",
+                    "physical": False, "enabled": True, "serverUrl": url,
+                    "appId": "org.overte.phone",
+                    "capabilities": {"platformName": "Android", "appium:automationName": "UiAutomator2",
+                                     "appium:autoLaunch": False},
+                    "process": {"kind": "adb", "selector": "phone-mock"},
+                    "scene": {"kind": "android-debug-e2e"},
+                    "controls": {
+                        "look": {"start": [0.8, 0.5], "end": [0.2, 0.5],
+                                 "durationSeconds": 0.7},
+                        "move": {"forward": {"mode": "hold", "start": [0.2, 0.8],
+                                                "end": [0.2, 0.5],
+                                                "durationSeconds": 1.5}},
+                        "tablet": {"toggleAccessibilityId": "OverteTablet"},
+                    },
+                    "probe": {"kind": "host-file", "path": str(self.probe)},
+                },
+                {
+                    "selector": "ipad-alias", "displayName": "iPad", "platform": "ios",
+                    "physical": True, "enabled": True, "serverUrl": url,
+                    "appId": "org.overte.interface.dev",
+                    "capabilities": {"platformName": "iOS", "appium:automationName": "XCUITest",
+                                     "appium:bundleId": "org.overte.interface.dev",
+                                     "appium:udid": "private-mock-udid",
+                                     "appium:platformVersion": "26.2.1",
+                                     "appium:usePreinstalledWDA": True,
+                                     "appium:updatedWDABundleId":
+                                         "org.overte.WebDriverAgentRunner",
+                                     "appium:autoLaunch": False},
+                    "testBuild": {
+                        "contract": "overte-ios-e2e-v1",
+                        "contractVersion": 1,
+                        "fixtureOrigin": url,
+                        "probeScriptPath": "/overte_e2e_probe.js",
+                        "resultsDirectory": "overte-e2e",
+                        "launchArguments": ["--no-updater", "--no-login-suggestion"],
+                        "launchEnvironment": {
+                            "OVERTE_E2E_TEST_BUILD": "1",
+                            "OVERTE_E2E_LOCALE": "en_US",
+                        },
+                    },
+                    "scene": {"kind": "ios-test-build"},
+                    "controls": {
+                        "look": {"start": [0.8, 0.5], "end": [0.2, 0.5],
+                                 "durationSeconds": 0.7},
+                        "move": {"forward": {"mode": "hold", "start": [0.2, 0.8],
+                                                "end": [0.2, 0.5],
+                                                "durationSeconds": 1.5}},
+                        "tablet": {"toggleAccessibilityId": "OverteTablet"},
+                    },
+                    "probe": {"kind": "ios-documents"},
+                },
+            ],
         }
-        roots.update(alias.name.split(".")[0] for node in ast.walk(tree)
-                     if isinstance(node, ast.Import) for alias in node.names)
-        self.assertEqual({
-            "__future__", "adapters", "argparse", "base64", "contracts", "ipaddress",
-            "json", "math", "os", "pathlib", "stat", "sys", "tempfile", "time",
-            "urllib", "xml",
-        }, roots)
+        self.targets = targets
+        self.config = self.root / "targets.json"
+        self.config.write_text(json.dumps(targets), encoding="utf-8")
+        self.config.chmod(0o600)
+        self.environment = os.environ.copy()
+        self.environment.update({
+            "OVERTE_APPIUM_TARGETS": str(self.config),
+            "OVERTE_DEVICE_STATE_ROOT": str(self.root / "state"),
+            "OVERTE_DEVICE_ARTIFACT_DIR": str(self.root / "artifacts"),
+            "OVERTE_E2E_CAPTURE_ARTIFACTS": "1",
+            "OVERTE_ANDROID_ADB": str(self.adb),
+            "OVERTE_MOCK_ANDROID_PROBE": str(self.probe),
+            "OVERTE_MOCK_ANDROID_COMMAND_LOG": str(self.root / "android-commands.jsonl"),
+            "OVERTE_MOCK_ANDROID_COMMAND_FILE": str(self.root / "android-command.json"),
+            "OVERTE_MOCK_ANDROID_RESTART_MARKER": str(self.root / "android-restarted"),
+        })
+        (self.root / "artifacts").mkdir()
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=2)
+        self.temporary.cleanup()
+
+    def write_probe(self):
+        payload = json.dumps({
+            "schemaVersion": 1, "sampleEpochMs": int(time.time() * 1000),
+            "build": {"platform": "Mock", "version": "appium-contract",
+                      "date": "1970-01-01"},
+            "application": {"running": True, "foreground": True},
+            "scene": {"url": "http://fixture/scene.json", "ready": True, "entityCount": 4},
+            "avatar": {"position": {"x": 0, "y": 1, "z": 4}},
+            "view": {"orientation": {"x": 0, "y": 0, "z": 0}},
+            "tablet": {"open": False},
+        })
+        self.probe.write_text(payload, encoding="utf-8")
+        AppiumHandler.probe_content = payload.encode("utf-8")
+
+    def call(self, platform: str, action: str, *arguments: str) -> subprocess.CompletedProcess:
+        self.write_probe()
+        return subprocess.run([
+            sys.executable, str(ADAPTER), "--platform", platform, action, *arguments,
+        ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+           env=self.environment, check=False)
+
+    def configure_controlled_android(self) -> dict:
+        payload = copy.deepcopy(self.targets)
+        target = payload["targets"][0]
+        target["physical"] = True
+        target["capabilities"]["appium:udid"] = "phone-mock"
+        target["process"]["selector"] = "phone-mock"
+        target["probe"] = {
+            "kind": "android-run-as",
+            "relativePath": "files/overte-e2e/overte-probe.json",
+        }
+        target["clientControl"] = {
+            "kind": "android-run-as-command",
+            "relativePath": "files/overte-e2e/e2e-client-command.json",
+        }
+        self.config.write_text(json.dumps(payload), encoding="utf-8")
+        return target
+
+    def android_commands(self) -> list[dict]:
+        path = self.root / "android-commands.jsonl"
+        return ([json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+                if path.exists() else [])
+
+    def test_physical_android_attestation_accepts_only_supported_touch_phones(self):
+        self.configure_controlled_android()
+        accepted = self.call("android", "discover")
+        self.assertEqual(0, accepted.returncode, accepted.stdout)
+
+        rejected = (
+            ("OVERTE_MOCK_ADB_PROP_RO_KERNEL_QEMU", "1"),
+            ("OVERTE_MOCK_ADB_PROP_RO_PRODUCT_MANUFACTURER", "Pico"),
+            ("OVERTE_MOCK_ADB_PROP_RO_PRODUCT_MODEL", "ByteDance headset"),
+            ("OVERTE_MOCK_ADB_PROP_RO_BUILD_CHARACTERISTICS", "watch"),
+            ("OVERTE_MOCK_ADB_PROP_RO_BUILD_CHARACTERISTICS", "default,tv"),
+            ("OVERTE_MOCK_ADB_PROP_RO_BUILD_CHARACTERISTICS", "automotive"),
+            ("OVERTE_MOCK_ADB_PROP_RO_BUILD_CHARACTERISTICS", "default,vr"),
+            ("OVERTE_MOCK_ADB_PROP_RO_PRODUCT_CPU_ABILIST", "x86_64"),
+            ("OVERTE_MOCK_ADB_PROP_RO_BUILD_VERSION_SDK", "25"),
+            ("OVERTE_MOCK_ADB_PROP_RO_OPENGLES_VERSION", "196609"),
+            ("OVERTE_MOCK_ADB_FEATURES", "feature:android.hardware.camera"),
+        )
+        for variable, value in rejected:
+            with self.subTest(variable=variable, value=value):
+                self.environment[variable] = value
+                result = self.call("android", "discover")
+                self.environment.pop(variable)
+                self.assertEqual(2, result.returncode, result.stdout)
+                self.assertIn("not a supported Phone", result.stdout)
+
+    def test_physical_android_install_rechecks_phone_and_uses_appium(self):
+        self.configure_controlled_android()
+        candidate = self.root / "phone-candidate.apk"
+        candidate.write_bytes(b"device-free-phone-candidate")
+        result = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "app.install",
+            "--arguments", json.dumps({"path": str(candidate)}))
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertIn(("mobile: installApp", {"appPath": str(candidate)}),
+                      AppiumHandler.executions)
+
+    def test_rejected_phone_never_creates_session_or_installs(self):
+        self.configure_controlled_android()
+        candidate = self.root / "rejected-phone.apk"
+        candidate.write_bytes(b"device-free-rejected-candidate")
+        self.environment["OVERTE_MOCK_ADB_PROP_RO_BUILD_CHARACTERISTICS"] = "vr"
+        result = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "app.install",
+            "--arguments", json.dumps({"path": str(candidate)}))
+        self.assertEqual(2, result.returncode, result.stdout)
+        self.assertIn("not a supported Phone", result.stdout)
+        self.assertNotIn(("POST", "/session"), AppiumHandler.calls)
+        self.assertFalse(any(script == "mobile: installApp"
+                             for script, _arguments in AppiumHandler.executions))
+
+    def test_both_platform_manifests_satisfy_adapter_contract(self):
+        for platform in ("android", "ios"):
+            result = subprocess.run([
+                sys.executable, str(VERIFIER), "--adapter-manifest",
+                str(ROOT / "adapters/appium" / f"{platform}.json"), "--check-cleanup",
+            ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+               env=self.environment, check=False)
+            self.assertEqual(0, result.returncode, result.stdout)
+            self.assertIn("for 1 target(s)", result.stdout)
+
+        discovered = self.call("android", "discover")
+        capabilities = json.loads(discovered.stdout)[0]["capabilities"]
+        self.assertIn("telemetry.snapshot", capabilities)
+
+    def test_android_operations_use_standard_webdriver_endpoints(self):
+        target = ("--target", "phone-alias")
+        for operation, values in (
+            ("app.launch", {}), ("input.look", {"horizontal": 0.25, "vertical": 0.0}),
+            ("scene.load", {"url": "overte-e2e://fixture/scene"}),
+            ("input.move", {"direction": "forward", "durationSeconds": 0.1}),
+            ("tablet.open", {}), ("accessibility.snapshot", {}),
+            ("probe.snapshot", {}), ("artifact.screenshot", {}),
+        ):
+            result = self.call("android", "invoke", *target, "--operation", operation,
+                               "--arguments", json.dumps(values))
+            self.assertEqual(0, result.returncode, f"{operation}: {result.stdout}")
+            self.assertNotIn("session-private", result.stdout)
+        self.assertTrue((self.root / "artifacts/accessibility.xml").is_file())
+        self.assertEqual(b"mock-png", (self.root / "artifacts/screenshot.png").read_bytes())
+        paths = {path for _, path in AppiumHandler.calls}
+        self.assertIn("/session/session-private/actions", paths)
+        self.assertIn("/session/session-private/source", paths)
+        self.assertIn(("mobile: startActivity", {
+            "intent": "org.overte.phone/.E2eLauncherActivity", "stop": True, "wait": False,
+        }), AppiumHandler.executions)
+        self.assertIn(("mobile: activateApp", {"appId": "org.overte.phone"}),
+                      AppiumHandler.executions)
+        cleanup = self.call("android", "cleanup", *target)
+        self.assertEqual(0, cleanup.returncode, cleanup.stdout)
+
+    def test_android_debug_launcher_rejects_arbitrary_scene_urls(self):
+        result = self.call(
+            "android", "invoke", "--target", "phone-alias", "--operation", "scene.load",
+            "--arguments", json.dumps({"url": "https://production.invalid/scene.json"}))
+        self.assertEqual(2, result.returncode, result.stdout)
+        self.assertIn("only the embedded fixture URL", result.stdout)
+
+    def test_android_controlled_channel_gates_and_delivers_new_operations(self):
+        uncontrolled = self.call("android", "discover")
+        advertised = json.loads(uncontrolled.stdout)[0]["capabilities"]
+        for capability in ("navigation.enter-domain", "asset.load", "sound.play"):
+            self.assertNotIn(capability, advertised)
+
+        self.configure_controlled_android()
+        controlled = self.call("android", "discover")
+        self.assertEqual(0, controlled.returncode, controlled.stdout)
+        advertised = json.loads(controlled.stdout)[0]["capabilities"]
+        for capability in ("navigation.enter-domain", "asset.load", "sound.play"):
+            self.assertIn(capability, advertised)
+
+        fixture = f"http://127.0.0.1:{self.server.server_address[1]}"
+        operations = (
+            ("navigation.enter-domain", {"url": "hifi://domain.example:40102"}),
+            ("asset.load", {"assetId": "fixture.image", "url": fixture + "/image.png",
+                            "entityName": "OVERTE_E2E_ASSET_LOAD_IMAGE"}),
+            ("sound.play", {"schemaVersion": 1, "commandId": "sound-123",
+                            "url": fixture + "/sound.wav",
+                            "commandUrl": fixture + "/sound-command.json"}),
+        )
+        for operation, arguments in operations:
+            result = self.call("android", "invoke", "--target", "phone-alias",
+                               "--operation", operation,
+                               "--arguments", json.dumps(arguments))
+            self.assertEqual(0, result.returncode, f"{operation}: {result.stdout}")
+        commands = self.android_commands()
+        self.assertEqual("navigation-enter-domain", commands[0]["action"])
+        self.assertEqual("hifi://domain.example:40102", commands[0]["url"])
+        self.assertEqual({"action": "asset-load", "assetId": "fixture.image",
+                          "entityName": "OVERTE_E2E_ASSET_LOAD_IMAGE",
+                          "schemaVersion": 1, "url": fixture + "/image.png"},
+                         {key: value for key, value in commands[1].items()
+                          if key != "commandId"})
+        self.assertEqual({"schemaVersion": 1, "commandId": "sound-123",
+                          "action": "play", "soundUrl": fixture + "/sound.wav"},
+                         AppiumHandler.sound_commands[-1])
+        self.assertEqual({"schemaVersion": 1, "commandId": "sound-channel-sound-123",
+                          "action": "sound-channel",
+                          "url": fixture + "/sound-command.json"}, commands[2])
+
+    def test_android_new_operations_fail_closed(self):
+        invalid = self.call("android", "invoke", "--target", "phone-alias",
+                            "--operation", "navigation.enter-domain", "--arguments",
+                            json.dumps({"url": "https://domain.example:40102"}))
+        self.assertEqual(2, invalid.returncode, invalid.stdout)
+        self.assertIn("credential-free hifi URL", invalid.stdout)
+
+        self.configure_controlled_android()
+        AppiumHandler.reject_webdriver = True
+        webdriver = self.call("android", "invoke", "--target", "phone-alias",
+                              "--operation", "asset.load", "--arguments", json.dumps({
+                                  "assetId": "fixture.image", "url": "http://fixture/image.png",
+                                  "entityName": "OVERTE_E2E_ASSET_LOAD_IMAGE"}))
+        self.assertEqual(2, webdriver.returncode, webdriver.stdout)
+        self.assertEqual([], self.android_commands())
+        AppiumHandler.reject_webdriver = False
+
+        self.environment["OVERTE_MOCK_ANDROID_RESTART_AFTER_WRITE"] = "1"
+        restarted = self.call("android", "invoke", "--target", "phone-alias",
+                              "--operation", "navigation.enter-domain", "--arguments",
+                              json.dumps({"url": "hifi://domain.example:40102"}))
+        self.assertEqual(2, restarted.returncode, restarted.stdout)
+        self.assertIn("process changed", restarted.stdout)
+
+    def test_android_sound_rejects_wrong_or_failed_control_endpoint(self):
+        self.configure_controlled_android()
+        fixture = f"http://127.0.0.1:{self.server.server_address[1]}"
+        arguments = {"schemaVersion": 1, "commandId": "sound-456",
+                     "url": fixture + "/sound.wav", "commandUrl": fixture + "/wrong.json"}
+        wrong = self.call("android", "invoke", "--target", "phone-alias",
+                          "--operation", "sound.play", "--arguments", json.dumps(arguments))
+        self.assertEqual(2, wrong.returncode, wrong.stdout)
+        self.assertIn("controlled fixture origin and command path", wrong.stdout)
+        arguments["commandUrl"] = fixture + "/sound-command.json"
+        AppiumHandler.reject_sound = True
+        rejected = self.call("android", "invoke", "--target", "phone-alias",
+                             "--operation", "sound.play", "--arguments", json.dumps(arguments))
+        self.assertEqual(2, rejected.returncode, rejected.stdout)
+        self.assertEqual([], self.android_commands())
+
+    def test_physical_android_debug_probe_uses_fixed_private_run_as_path(self):
+        payload = copy.deepcopy(self.targets)
+        target = payload["targets"][0]
+        target["physical"] = True
+        target["capabilities"]["appium:udid"] = "phone-mock"
+        target["process"]["selector"] = "phone-mock"
+        target["probe"] = {
+            "kind": "android-run-as",
+            "relativePath": "files/overte-e2e/overte-probe.json",
+        }
+        self.config.write_text(json.dumps(payload), encoding="utf-8")
+        result = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "probe.snapshot")
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertEqual(1, json.loads(result.stdout)["schemaVersion"])
+
+        target["probe"]["relativePath"] = "../shared_prefs/private.xml"
+        self.config.write_text(json.dumps(payload), encoding="utf-8")
+        rejected = self.call("android", "discover")
+        self.assertEqual(2, rejected.returncode, rejected.stdout)
+        self.assertIn("fixed app-private debug path", rejected.stdout)
+
+    def test_android_tablet_can_use_audited_fractional_touch_fallback(self):
+        payload = copy.deepcopy(self.targets)
+        payload["targets"][0]["controls"]["tablet"] = {
+            "openPoint": [0.045, 0.25],
+            "closePoint": [0.5, 0.965],
+        }
+        self.config.write_text(json.dumps(payload), encoding="utf-8")
+        result = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "tablet.open")
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertIn(("mobile: clickGesture", {"x": 44, "y": 124}),
+                      AppiumHandler.executions)
+        result = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "tablet.close")
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertIn(("mobile: clickGesture", {"x": 499, "y": 481}),
+                      AppiumHandler.executions)
+
+        payload["targets"][0]["controls"]["tablet"]["closePoint"] = [1.0, 0.25]
+        self.config.write_text(json.dumps(payload), encoding="utf-8")
+        rejected = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "tablet.open")
+        self.assertEqual(2, rejected.returncode, rejected.stdout)
+        self.assertIn("finite fractions", rejected.stdout)
+
+    def test_shared_install_and_semantic_tablet_contracts_are_preserved(self):
+        candidate = self.root / "candidate.apk"
+        candidate.write_bytes(b"device-free-appium-candidate")
+        installed = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "app.install",
+            "--arguments", json.dumps({"path": str(candidate)}))
+        self.assertEqual(0, installed.returncode, installed.stdout)
+        self.assertEqual({"installed": True}, json.loads(installed.stdout))
+        self.assertIn(("mobile: installApp", {"appPath": str(candidate)}),
+                      AppiumHandler.executions)
+
+        payload = copy.deepcopy(self.targets)
+        payload["targets"][0]["controls"]["tablet"]["semanticUi"] = {
+            "contractVersion": 1}
+        self.config.write_text(json.dumps(payload), encoding="utf-8")
+        AppiumHandler.page_source = (
+            '<hierarchy><node resource-id="tablet.home" enabled="true">'
+            '<node resource-id="app.settings" clickable="true" enabled="true"/>'
+            '</node></hierarchy>')
+        snapshot = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "tablet.snapshot")
+        self.assertEqual(0, snapshot.returncode, snapshot.stdout)
+        self.assertEqual("tablet.home", json.loads(snapshot.stdout)["screenId"])
+        activated = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "tablet.activate", "--arguments", json.dumps({
+                "contractVersion": 1, "controlId": "app.settings"}))
+        self.assertEqual(0, activated.returncode, activated.stdout)
+        self.assertEqual({"performed": True}, json.loads(activated.stdout))
+
+    @unittest.skipIf(os.name == "nt", "POSIX private-file modes are unavailable")
+    def test_shared_private_configuration_hardening_is_preserved(self):
+        self.config.chmod(0o644)
+        public = self.call("android", "discover")
+        self.assertEqual(2, public.returncode, public.stdout)
+        self.assertIn("mode 0600", public.stdout)
+        self.config.chmod(0o600)
+        relative_environment = self.environment.copy()
+        relative_environment["OVERTE_APPIUM_TARGETS"] = "targets.json"
+        relative = subprocess.run([
+            sys.executable, str(ADAPTER), "--platform", "android", "discover",
+        ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+           env=relative_environment, check=False)
+        self.assertEqual(2, relative.returncode, relative.stdout)
+        self.assertIn("absolute private path", relative.stdout)
+
+    def test_ios_initial_launch_sets_arguments_and_background_preserves_process(self):
+        target = ("--target", "ipad-alias")
+        identities = []
+        for operation in ("app.launch", "app.process", "lifecycle.background",
+                          "app.launch", "app.process"):
+            result = self.call("ios", "invoke", *target, "--operation", operation)
+            self.assertEqual(0, result.returncode, f"{operation}: {result.stdout}")
+            if operation == "app.process":
+                identities.append(json.loads(result.stdout)["identity"])
+        self.assertEqual(["4321", "4321"], identities)
+        self.assertIn(("mobile: launchApp", {
+            "bundleId": "org.overte.interface.dev",
+            "arguments": ["--no-updater", "--no-login-suggestion"],
+            "environment": {"OVERTE_E2E_TEST_BUILD": "1", "OVERTE_E2E_LOCALE": "en_US"},
+        }), AppiumHandler.executions)
+        self.assertNotIn(("mobile: terminateApp", {"bundleId": "org.overte.interface.dev"}),
+                         AppiumHandler.executions)
+        self.assertIn(("mobile: activateApp", {"bundleId": "org.overte.interface.dev"}),
+                      AppiumHandler.executions)
+        self.assertEqual(1, sum(script == "mobile: launchApp"
+                                for script, _ in AppiumHandler.executions))
+        self.assertIn(("mobile: activeAppInfo", {}), AppiumHandler.executions)
+        self.assertIn(("mobile: backgroundApp", {"seconds": -1}),
+                      AppiumHandler.executions)
+
+    def test_ios_test_build_relaunches_with_controlled_probe_and_pulls_documents(self):
+        target = ("--target", "ipad-alias")
+        scene_url = f"http://127.0.0.1:{self.server.server_address[1]}/scene.json"
+        loaded = self.call(
+            "ios", "invoke", *target, "--operation", "scene.load",
+            "--arguments", json.dumps({"url": scene_url}))
+        self.assertEqual(0, loaded.returncode, loaded.stdout)
+        self.assertEqual("fixture-markers", json.loads(loaded.stdout)["verification"])
+        self.assertIn(("mobile: terminateApp", {"bundleId": "org.overte.interface.dev"}),
+                      AppiumHandler.executions)
+        self.assertIn(("mobile: launchApp", {
+            "bundleId": "org.overte.interface.dev",
+            "arguments": [
+                "--no-updater", "--no-login-suggestion",
+                "--url", scene_url,
+                "--testScript", f"http://127.0.0.1:{self.server.server_address[1]}"
+                                "/overte_e2e_probe.js",
+                "--testResultsLocation", "overte-e2e",
+            ],
+            "environment": {"OVERTE_E2E_TEST_BUILD": "1", "OVERTE_E2E_LOCALE": "en_US"},
+        }), AppiumHandler.executions)
+
+        snapshot = self.call("ios", "invoke", *target, "--operation", "probe.snapshot")
+        self.assertEqual(0, snapshot.returncode, snapshot.stdout)
+        self.assertEqual(1, json.loads(snapshot.stdout)["schemaVersion"])
+        self.assertIn(("mobile: pullFile", {
+            "remotePath": "@org.overte.interface.dev:documents/"
+                          "overte-e2e/overte-probe.json",
+        }), AppiumHandler.executions)
+
+    def test_ios_test_build_rejects_non_fixture_scene_before_launch(self):
+        result = self.call(
+            "ios", "invoke", "--target", "ipad-alias", "--operation", "scene.load",
+            "--arguments", json.dumps({"url": "https://production.invalid/scene.json"}))
+        self.assertEqual(2, result.returncode, result.stdout)
+        self.assertIn("configured fixtureOrigin", result.stdout)
+        self.assertFalse(any(script == "mobile: launchApp"
+                             for script, _ in AppiumHandler.executions))
+
+    def test_ios_behavior_configuration_fails_closed_without_exact_contract(self):
+        invalid_cases = (
+            (lambda value: value.pop("testBuild"), "fail-closed testBuild contract"),
+            (lambda value: value["testBuild"].__setitem__("contractVersion", 2),
+             "contractVersion must be 1"),
+            (lambda value: value["capabilities"].__setitem__("appium:autoLaunch", True),
+             "autoLaunch=false"),
+            (lambda value: value["probe"].__setitem__("kind", "appium-pull-file"),
+             "probe.kind=ios-documents"),
+            (lambda value: value["testBuild"]["launchArguments"].append("--url"),
+             "must not override --url"),
+            (lambda value: value["testBuild"].__setitem__("probeUrl", "https://invalid"),
+             "unsupported fields"),
+        )
+        for mutation, expected in invalid_cases:
+            with self.subTest(expected=expected):
+                payload = copy.deepcopy(self.targets)
+                mutation(payload["targets"][1])
+                self.config.write_text(json.dumps(payload), encoding="utf-8")
+                result = self.call("ios", "discover")
+                self.assertEqual(2, result.returncode, result.stdout)
+                self.assertIn(expected, result.stdout)
+        self.config.write_text(json.dumps(self.targets), encoding="utf-8")
+
+    def test_linux_ios_configuration_requires_remotexpc_session_strategy(self):
+        invalid_cases = (
+            (lambda caps: caps.pop("appium:udid"), "explicit private appium:udid"),
+            (lambda caps: caps.__setitem__("appium:platformVersion", "17.7"),
+             "platformVersion 18 or newer"),
+            (lambda caps: caps.pop("appium:usePreinstalledWDA"),
+             "preinstalled or external WDA"),
+            (lambda caps: caps.pop("appium:updatedWDABundleId"),
+             "updatedWDABundleId"),
+            (lambda caps: caps.__setitem__("appium:xcodeOrgId", "TEAM"),
+             "Xcode-only capabilities"),
+        )
+        for mutation, expected in invalid_cases:
+            with self.subTest(expected=expected):
+                payload = copy.deepcopy(self.targets)
+                mutation(payload["targets"][1]["capabilities"])
+                self.config.write_text(json.dumps(payload), encoding="utf-8")
+                result = self.call("ios", "discover")
+                self.assertEqual(2, result.returncode, result.stdout)
+                self.assertIn(expected, result.stdout)
+        self.config.write_text(json.dumps(self.targets), encoding="utf-8")
+
+    def test_linux_ios_artifact_receipt_binds_both_signed_install_paths(self):
+        payload = copy.deepcopy(self.targets)
+        target = payload["targets"][1]
+        overte = self.root / "Overte-E2E-signed.ipa"
+        wda = self.root / "WebDriverAgentRunner-signed.ipa"
+        overte.write_bytes(b"signed overte fixture")
+        wda.write_bytes(b"signed wda fixture")
+        target["capabilities"].update({
+            "appium:app": str(overte),
+            "appium:prebuiltWDAPath": str(wda),
+        })
+        receipt = self.root / "fedora-artifacts-receipt.json"
+        receipt.write_text(json.dumps({
+            "schemaVersion": 1,
+            "contract": "overte-ios-fedora-e2e-receipt-v1",
+            "sourceRevision": "a" * 40,
+            "overte": {
+                "path": str(overte),
+                "sha256": hashlib.sha256(overte.read_bytes()).hexdigest(),
+                "bundleId": "org.overte.interface.dev",
+            },
+            "wda": {
+                "path": str(wda),
+                "sha256": hashlib.sha256(wda.read_bytes()).hexdigest(),
+                "bundleId": "org.overte.WebDriverAgentRunner.xctrunner",
+            },
+            "toolchain": {
+                "xcuitestDriver": "12.8.0",
+                "remoteXpc": "5.15.3",
+                "webdriverAgent": "16.8.0",
+            },
+        }), encoding="utf-8")
+        target["artifactReceipt"] = str(receipt)
+        self.config.write_text(json.dumps(payload), encoding="utf-8")
+        try:
+            result = self.call(
+                "ios", "invoke", "--target", "ipad-alias", "--operation", "app.launch"
+            )
+            self.assertEqual(0, result.returncode, result.stdout)
+            receipt_value = json.loads(receipt.read_text(encoding="utf-8"))
+            receipt_value["wda"]["sha256"] = "0" * 64
+            receipt.write_text(json.dumps(receipt_value), encoding="utf-8")
+            result = self.call("ios", "discover")
+            self.assertEqual(0, result.returncode, result.stdout)
+            state = self.root / "state" / "appium-ios" / hashlib.sha256(
+                b"ipad-alias"
+            ).hexdigest()
+            # A changed receipt invalidates the target fingerprint. Removing the
+            # prior session forces the next invocation through the byte gate.
+            for session_file in state.parent.rglob("session.json"):
+                session_file.unlink()
+            result = self.call(
+                "ios", "invoke", "--target", "ipad-alias", "--operation", "app.launch"
+            )
+            self.assertEqual(2, result.returncode, result.stdout)
+            self.assertIn("failed its receipt SHA-256", result.stdout)
+        finally:
+            self.config.write_text(json.dumps(self.targets), encoding="utf-8")
+
+    def test_plain_ios_target_remains_lifecycle_only(self):
+        payload = copy.deepcopy(self.targets)
+        target = payload["targets"][1]
+        target.pop("testBuild")
+        target.pop("scene")
+        target.pop("probe")
+        target["controls"] = {}
+        target["capabilities"].pop("appium:autoLaunch")
+        self.config.write_text(json.dumps(payload), encoding="utf-8")
+        try:
+            result = self.call("ios", "discover")
+            self.assertEqual(0, result.returncode, result.stdout)
+            capabilities = json.loads(result.stdout)[0]["capabilities"]
+            self.assertIn("app.launch", capabilities)
+            for unavailable in ("scene.load", "probe.snapshot", "input.look",
+                                "input.move", "tablet.open", "tablet.close"):
+                self.assertNotIn(unavailable, capabilities)
+        finally:
+            self.config.write_text(json.dumps(self.targets), encoding="utf-8")
+
+    def test_physical_ios_test_build_requires_runtime_plist_attestation(self):
+        AppiumHandler.test_build_attested = False
+        result = self.call(
+            "ios", "invoke", "--target", "ipad-alias", "--operation", "app.launch")
+        self.assertEqual(2, result.returncode, result.stdout)
+        self.assertIn("does not attest the E2E test-build contract", result.stdout)
 
 
 if __name__ == "__main__":

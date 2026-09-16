@@ -110,3 +110,12 @@ portion before integrating it on `main`.
 The historical Android ownership report described integration lanes that could
 all contain every application. This source-boundary policy supersedes that part
 of the report; historical evidence remains available on its original revisions.
+
+## Device control plane imports
+
+The shared ADB primitive lives in `tests/device/adb_transport.py`, next to the
+portable device control plane that uses it. Shared adapters must not import
+Android application modules. Product-specific candidate adapters remain usable
+only from their owning branches. Central dependency policy validates consumers
+according to the explicit source profile; shared branches retain registration
+stubs, while Android branches must keep the real resolver-backed consumers.

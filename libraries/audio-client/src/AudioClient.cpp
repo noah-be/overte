@@ -1724,6 +1724,13 @@ void AudioClient::processWebrtcNearEnd(int16_t* samples, int numFrames, int numC
 #endif // WEBRTC_AUDIO
 
 void AudioClient::handleLocalEchoAndReverb(QByteArray& inputByteArray) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    const auto voiceTestGeneration = _phoneVoiceTestGeneration.load();
+    if (voiceTestGeneration != _phoneVoiceTestObservedGeneration || !_shouldEchoLocally) {
+        _phoneVoiceTest.reset();
+        _phoneVoiceTestObservedGeneration = voiceTestGeneration;
+    }
+#endif
     // If there is server echo, reverb will be applied to the recieved audio stream so no need to have it here.
     bool hasReverb = _reverb || _receivedAudioStream.hasReverb();
     if ((_isMuted && !_shouldEchoLocally) || !_audioOutput ||
@@ -1773,13 +1780,37 @@ void AudioClient::handleLocalEchoAndReverb(QByteArray& inputByteArray) {
 
     loopBackByteArray.resize(numLoopbackSamples * AudioConstants::SAMPLE_SIZE);
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (_shouldEchoLocally) {
+        static quint64 lastVoiceDiagnostic { 0 };
+        const auto now = usecTimestampNow();
+        if (now - lastVoiceDiagnostic >= USECS_PER_SECOND) {
+            lastVoiceDiagnostic = now;
+            int peak = 0;
+            for (int i = 0; i < numLoopbackSamples; ++i) {
+                peak = std::max(peak, std::abs(static_cast<int>(loopbackSamples[i])));
+            }
+            // Closed numeric diagnostics only; no audio, names or routes.
+            qCWarning(audioclient) << "OVT_PHONE_TABLET_VOICE"
+                << static_cast<int>(_isMuted) << static_cast<int>(_audioGateOpen)
+                << peak << static_cast<int>(_phoneVoiceTest.capturedBytes())
+                << static_cast<int>(_phoneVoiceTest.playedBytes())
+                << _inputFormat.sampleRate() << _outputFormat.sampleRate()
+                << static_cast<int>(_loopbackAudioOutput->state())
+                << static_cast<int>(_loopbackAudioOutput->error());
+        }
+    }
+#endif
+
     // Keep the loopback output active while the noise gate is closed. Starting
     // and starving a push-mode QAudioOutput at every speech boundary produces
     // audible clicks on Android. Silence preserves the gate behavior without
     // repeatedly underrunning the output device.
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
     if (_shouldEchoLocally && !_audioGateOpen) {
         loopBackByteArray.fill(0);
     }
+#endif
 
     // apply stereo reverb at the source, to the loopback audio
     if (!_shouldEchoLocally && hasReverb) {
@@ -1811,7 +1842,17 @@ void AudioClient::handleLocalEchoAndReverb(QByteArray& inputByteArray) {
     // Android capture delivery can be batched when the main thread is busy.
     // QAudioOutput may then accept only part of a push-mode write. Retain the
     // remainder instead of dropping it and introducing a discontinuity.
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (_shouldEchoLocally) {
+        const auto testOutput = _phoneVoiceTest.process(outputBytes->constData(),
+            outputBytes->size(), _outputFormat.bytesForDuration(3 * USECS_PER_SECOND), true);
+        _loopbackPendingAudio.append(testOutput.data(), static_cast<int>(testOutput.size()));
+    } else {
+        _loopbackPendingAudio.append(*outputBytes);
+    }
+#else
     _loopbackPendingAudio.append(*outputBytes);
+#endif
 
     const int frameBytes = deviceChannelCount * AudioConstants::SAMPLE_SIZE;
     const int maxPendingBytes = static_cast<int>(_outputFormat.bytesForDuration(250 * USECS_PER_MSEC));
