@@ -21,6 +21,8 @@ for setting in (
     'SCCACHE_CLIENT_SIDE: "1"',
     'SCCACHE_MULTILEVEL_CHAIN: disk',
     'SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY: l0',
+    'SCCACHE_CACHE_SIZE: 2G',
+    'SCCACHE_IDLE_TIMEOUT: "0"',
 ):
     if setting not in WORKFLOW:
         raise SystemExit(f"missing fail-closed disk-only checkpoint setting: {setting}")
@@ -40,10 +42,10 @@ if "SCCACHE_GHA_VERSION" in key_slice or "remote_namespace=" in key_slice:
     raise SystemExit("deterministic cache keys must not enable a remote sccache backend")
 
 probe_start = WORKFLOW.index("Verify local compiler cache before the long build")
-probe_end = WORKFLOW.index("Restore validated Qt host tools")
+probe_end = WORKFLOW.index("Install source-build prerequisites")
 probe_slice = WORKFLOW[probe_start:probe_end]
-if not key_start < probe_start < probe_end:
-    raise SystemExit("local cache probe must run after key selection and before long work")
+if not key_start < WORKFLOW.index("Select validated restored components") < probe_start < probe_end:
+    raise SystemExit("local cache probe must run after restore selection and before long work")
 for invariant in (
     "GITHUB_RUN_ID",
     "GITHUB_RUN_ATTEMPT",
@@ -68,17 +70,27 @@ report = WORKFLOW.index("Report compiler-cache statistics")
 verify = WORKFLOW.index("Verify successful Qt build used the local compiler cache")
 diagnostics = WORKFLOW.index("Upload compiler stall diagnostics")
 stop = WORKFLOW.index("Stop compiler-cache server before recovery snapshot")
-save = WORKFLOW.index("Save compiler recovery cache after a build failure")
+save = WORKFLOW.index("Save durable Qt compiler recovery checkpoint")
 if not report < verify < diagnostics < stop < save:
     raise SystemExit("checkpoint verification/diagnostics/local recovery ordering drifted")
 verify_slice = WORKFLOW[verify:diagnostics]
 for invariant in (
     "report-sccache-stats.py",
     "--require-activity",
+    "--cache-mode disk",
 ):
     if invariant not in verify_slice:
         raise SystemExit(f"local checkpoint verification omits {invariant}")
 if "--max-remote" in verify_slice:
     raise SystemExit("local checkpoint verification retains a remote threshold")
 
-print("Qt per-object checkpoint contract valid: disk-only activity plus local failure recovery")
+recovery = WORKFLOW[save:WORKFLOW.index("Prune superseded Qt compiler recovery caches")]
+for invariant in ("--kind qt-sccache", "--producer-repository-id", "--producer-branch",
+                  "steps.qt-compiler-create.outcome == 'success'", "actions/upload-artifact@",
+                  "compression-level: 0"):
+    if invariant not in recovery:
+        raise SystemExit(f"durable Qt compiler recovery omits {invariant}")
+if "actions/cache/save@" in recovery:
+    raise SystemExit("large compiler snapshots must not consume validated SDK cache quota")
+
+print("Qt per-object checkpoint contract valid: bounded disk-only activity and durable compiler recovery")

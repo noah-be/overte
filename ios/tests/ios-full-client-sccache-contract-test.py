@@ -64,10 +64,23 @@ def main() -> None:
         if disk_setting not in integrated:
             raise AssertionError(f"disk-only object persistence omits {disk_setting}")
     require(r"SCCACHE_BASEDIRS:\s*\$\{\{ github\.workspace \}\}", integrated, "workspace paths must be normalized")
-    require(r"SCCACHE_C_CUSTOM_CACHE_BUSTER=.*namespace", integrated, "toolchain identity must enter compiler keys")
-    for identity in ("QT_HOST_KEY", "QT_IOS_KEY", "CONAN_KEY", "V8_KEY", "MOLTENVK_KEY"):
-        if identity not in integrated[namespace:restore]:
-            raise AssertionError(f"compiler namespace omits {identity}")
+    namespace_slice = integrated[namespace:integrated.index("Restore durable full-client compiler checkpoint")]
+    require(r"python3 ios/ci/client-compiler-cache-key\.py", namespace_slice,
+            "compiler identity must use the tested compatibility helper")
+    for argument in ("--compiler", "--arch", "--xcode-build", "--sdk-build", "--sdk-version", "--run-id", "--run-attempt"):
+        if argument not in namespace_slice:
+            raise AssertionError(f"compiler identity omits native input {argument}")
+    require(r'--github-env "\$GITHUB_ENV"', namespace_slice,
+            "compiler identity must actually reach the compiler environment")
+    require(r'--github-output "\$GITHUB_OUTPUT"', namespace_slice,
+            "checkpoint selection must share the compiler identity")
+    key_helper = (ROOT / "ios/ci/client-compiler-cache-key.py").read_text(encoding="utf-8")
+    require(r"SCCACHE_C_CUSTOM_CACHE_BUSTER=.*result\['namespace'\]", key_helper,
+            "the environment exporter must use exactly the selected namespace")
+    for identity in ("QT_HOST_KEY", "QT_IOS_KEY", "CONAN_KEY", "V8_KEY", "MOLTENVK_KEY",
+                     "ios/build-ios.sh", "cmake/compiler.cmake", "cmake/init.cmake", "policy_hash"):
+        if identity in namespace_slice:
+            raise AssertionError(f"packaging/dependency receipts must not invalidate all compiler objects: {identity}")
     if "SCCACHE_GHA_VERSION" in integrated[namespace:restore]:
         raise AssertionError("the deterministic toolchain namespace must not enable a GHA backend")
 

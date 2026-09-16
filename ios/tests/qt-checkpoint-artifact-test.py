@@ -7,6 +7,7 @@
 import importlib.util
 import io
 import json
+import lzma
 import os
 from pathlib import Path
 import subprocess
@@ -14,6 +15,7 @@ import sys
 import tarfile
 import tempfile
 import warnings
+from unittest import mock
 import zipfile
 import datetime as dt
 
@@ -216,6 +218,88 @@ with tempfile.TemporaryDirectory(prefix="qt-checkpoint-test-") as temporary_name
             except SystemExit:
                 pass
 
+        qt_compiler_payload = temporary / "qt-compiler-payload"
+        run("create", "--prefix", prefix, "--kind", "qt-sccache", "--cache-key", "compiler-key",
+            "--producer-repository-id", "42", "--producer-branch", "apple-ios", "--output-dir", qt_compiler_payload)
+        qt_compiler_zip = temporary / "qt-compiler.zip"
+        artifact_zip(qt_compiler_payload, qt_compiler_zip)
+        module.download_latest = lambda artifact_prefix, repository_id, branch, destination, kind: (
+            destination.write_bytes(qt_compiler_zip.read_bytes()) and selected)
+        qt_compiler_args = type("Args", (), dict(
+            artifact_prefix="compiler", kind="qt-sccache", cache_key="compiler-key",
+            install_root=str(temporary / "qt-compiler-restored"), github_output=str(temporary / "qt-compiler-output"),
+            expected_repository_id=42, expected_branch="apple-ios", max_age_days=21))()
+        module.restore(qt_compiler_args)
+        assert (temporary / "qt-compiler-restored/qt-sccache/.qt-hidden").read_text() == "hidden"
+        # The new object kind must retain the exact same provenance/key gates.
+        for field, value in (("expected_repository_id", 43), ("expected_branch", "other"), ("cache_key", "other")):
+            bad_args = type("Args", (), {})()
+            for key in ("artifact_prefix", "kind", "cache_key", "install_root", "github_output",
+                        "expected_repository_id", "expected_branch", "max_age_days"):
+                setattr(bad_args, key, getattr(qt_compiler_args, key))
+            setattr(bad_args, field, value)
+            bad_args.install_root = str(temporary / ("bad-qt-compiler-" + field))
+            try:
+                module.restore(bad_args)
+                raise AssertionError("compiler checkpoint accepted mismatching " + field)
+            except SystemExit:
+                pass
+
+        source_prefix = temporary / "source-downloads"
+        source_prefix.mkdir()
+        source_name = "qt-everywhere-src-6.11.1.tar.xz"
+        source_bytes = lzma.compress(b"pinned Qt source archive fixture")
+        (source_prefix / source_name).write_bytes(source_bytes)
+        source_payload = temporary / "source-payload"
+        run("create", "--prefix", source_prefix, "--kind", "qt-source", "--cache-key", "source-sha-key",
+            "--producer-repository-id", "42", "--producer-branch", "apple-ios", "--output-dir", source_payload)
+        source_zip = temporary / "source.zip"
+        artifact_zip(source_payload, source_zip)
+        source_install = temporary / "qt-work"
+        module.download_latest = lambda artifact_prefix, repository_id, branch, destination, kind: (
+            destination.write_bytes(source_zip.read_bytes()) and selected)
+        source_args = type("Args", (), dict(
+            artifact_prefix="source", kind="qt-source", cache_key="source-sha-key",
+            install_root=str(source_install), github_output=str(temporary / "source-output"),
+            expected_repository_id=42, expected_branch="apple-ios", max_age_days=21))()
+        module.restore(source_args)
+        restored_source = source_install / "downloads" / source_name
+        assert restored_source.read_bytes() == source_bytes
+        assert module.sha256(restored_source) == module.sha256(source_prefix / source_name)
+        assert list((source_install / "downloads").iterdir()) == [restored_source]
+        source_manifest = json.loads((source_payload / "manifest.json").read_text())
+        assert source_manifest["kind"] == "qt-source"
+        assert source_manifest["cacheKey"] == "source-sha-key"
+        assert source_manifest["sha256"] == module.sha256(source_payload / "checkpoint.tar.gz")
+        # Retain the checkpoint digest gate before the existing source consumer
+        # independently verifies the pinned upstream XZ SHA-256.
+        with (source_payload / "checkpoint.tar.gz").open("ab") as damaged:
+            damaged.write(b"corrupt")
+        try:
+            module.validate_manifest(source_payload, "qt-source", "source-sha-key")
+            raise AssertionError("Qt source checkpoint accepted corrupt payload")
+        except SystemExit:
+            pass
+
+        # The Qt object kind retains extraction safety and its own size limit.
+        qt_unsafe_target = temporary / "qt-unsafe"
+        qt_unsafe_target.mkdir()
+        try:
+            module.safe_extract(traversal, qt_unsafe_target, "qt-sccache")
+            raise AssertionError("Qt compiler checkpoint accepted path traversal")
+        except SystemExit:
+            pass
+        qt_limit = module.EXPANDED_LIMITS["qt-sccache"]
+        module.EXPANDED_LIMITS["qt-sccache"] = 1
+        try:
+            try:
+                module.safe_extract(qt_compiler_payload / "checkpoint.tar.gz", qt_unsafe_target, "qt-sccache")
+                raise AssertionError("Qt compiler checkpoint ignored expanded-size limit")
+            except SystemExit:
+                pass
+        finally:
+            module.EXPANDED_LIMITS["qt-sccache"] = qt_limit
+
         for bad_name in ("nested/manifest.json", "extra"):
             invalid_zip = temporary / (bad_name.replace("/", "-") + ".zip")
             with zipfile.ZipFile(invalid_zip, "w") as archive:
@@ -291,6 +375,69 @@ assert module.select_artifact(artifacts, "qt-host", 42, "apple-ios")["id"] == 4
 assert module.select_artifact(artifacts, "qt-host", 99, "apple-ios")["id"] == 5
 assert module.select_artifact(artifacts, "qt-host", 42, "other")["id"] == 6
 assert module.select_artifact(artifacts, "absent", 42, "apple-ios") is None
+
+# The opt-in index reuses only complete, recent repository listings. Selection
+# still runs for each request, including every repository/branch provenance gate.
+with tempfile.TemporaryDirectory(prefix="artifact-index-test-") as index_temp:
+    index = Path(index_temp) / "index.json"
+    env = {"GITHUB_TOKEN": "test-token", "GITHUB_REPOSITORY": "noah-be/overte",
+           "OVERTE_ARTIFACT_INDEX_CACHE": str(index)}
+    with mock.patch.dict(os.environ, env), mock.patch.object(module.time, "time", return_value=1000):
+        response = json.dumps({"artifacts": artifacts}).encode()
+        with mock.patch.object(module, "_github_request", return_value=response) as api:
+            assert module.find_latest("qt-host", 42, "apple-ios")[0]["id"] == 4
+            assert module.find_latest("qt-host", 42, "other")[0]["id"] == 6
+            assert module.find_latest("qt-host", 99, "apple-ios")[0]["id"] == 5
+            assert module.find_latest("missing", 42, "apple-ios")[0] is None
+            assert api.call_count == 1
+        good = json.loads(index.read_text())
+        for bad in (
+            {**good, "fetchedAt": 879}, {**good, "fetchedAt": 1001},
+            {**good, "repository": "another/repository"}, {**good, "schema": 99},
+            {**good, "artifacts": [None]}, {**good, "artifacts": [{"name": 42}]},
+            {**good, "artifacts": [{"name": "qt-host-1", "workflow_run": None}]},
+            {**good, "artifacts": [{**artifacts[0], "id": "not-an-id"}]},
+            {**good, "artifacts": [{**artifacts[0], "created_at": []}]},
+            {**good, "artifacts": [{**artifacts[0], "expired": "false"}]},
+            [], "invalid JSON",
+        ):
+            index.write_text(bad if isinstance(bad, str) else json.dumps(bad))
+            with mock.patch.object(module, "_github_request", return_value=response) as api:
+                assert module.find_latest("qt-host", 42, "apple-ios")[0]["id"] == 4
+                assert api.call_count == 1
+                assert json.loads(index.read_text()) == good
+
+        # No configured path means no cache and preserves fresh-list behavior.
+        with mock.patch.dict(os.environ, {"OVERTE_ARTIFACT_INDEX_CACHE": ""}), \
+             mock.patch.object(module, "_github_request", return_value=response) as api:
+            module.find_latest("qt-host", 42, "apple-ios")
+            module.find_latest("qt-host", 42, "apple-ios")
+            assert api.call_count == 2
+
+        # Failed second-page fetch must not overwrite even an expired index.
+        expired = json.dumps({**good, "fetchedAt": 1})
+        index.write_text(expired)
+        page = json.dumps({"artifacts": [artifacts[0]] * 100}).encode()
+        error = module.urllib.error.HTTPError("https://api.github.com/test", 503, "unavailable", {}, None)
+        with mock.patch.object(module, "_github_request", side_effect=[page, error]) as api:
+            try:
+                module.find_latest("qt-host", 42, "apple-ios")
+                raise AssertionError("API failure was ignored")
+            except module.urllib.error.HTTPError:
+                pass
+            assert api.call_count == 2
+            assert index.read_text() == expired
+        with mock.patch.object(module, "_github_request", side_effect=[page, response]) as api:
+            assert module.find_latest("qt-host", 42, "apple-ios")[0]["id"] == 4
+            assert api.call_count == 2
+            assert len(json.loads(index.read_text())["artifacts"]) == 106
+
+        # Preserve the existing 100-page bound but never cache a truncated index.
+        index.write_text(expired)
+        with mock.patch.object(module, "_github_request", return_value=page) as api:
+            assert module.find_latest("qt-host", 42, "apple-ios")[0]["id"] == 1
+            assert api.call_count == 100
+            assert index.read_text() == expired
 
 for step_name in (
     "Probe validated Qt host artifact fallback",

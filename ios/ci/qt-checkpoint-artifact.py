@@ -29,12 +29,16 @@ SCHEMA = 1
 ARCHIVE_NAME = "checkpoint.tar.gz"
 MANIFEST_NAME = "manifest.json"
 API_JSON_LIMIT = 16 * 1024 * 1024
+ARTIFACT_INDEX_SCHEMA = 1
+ARTIFACT_INDEX_TTL_SECONDS = 120
 DOWNLOAD_LIMITS = {
     "host": 512 * 1024 * 1024,
     "ios": 512 * 1024 * 1024,
     "v8": 512 * 1024 * 1024,
     "conan": 2 * 1024 * 1024 * 1024,
     "client-sccache": 6 * 1024 * 1024 * 1024,
+    "qt-sccache": 6 * 1024 * 1024 * 1024,
+    "qt-source": 3 * 1024 * 1024 * 1024,
 }
 MANIFEST_LIMIT = 64 * 1024
 ARCHIVE_LIMITS = {
@@ -43,14 +47,18 @@ ARCHIVE_LIMITS = {
     "v8": 384 * 1024 * 1024,
     "conan": 1536 * 1024 * 1024,
     "client-sccache": 5 * 1024 * 1024 * 1024,
+    "qt-sccache": 5 * 1024 * 1024 * 1024,
+    "qt-source": 2 * 1024 * 1024 * 1024,
 }
-MEMBER_LIMITS = {"host": 100_000, "ios": 100_000, "v8": 100_000, "conan": 500_000, "client-sccache": 100_000}
+MEMBER_LIMITS = {"host": 100_000, "ios": 100_000, "v8": 100_000, "conan": 500_000, "client-sccache": 100_000, "qt-sccache": 100_000, "qt-source": 1}
 EXPANDED_LIMITS = {
     "host": 2 * 1024 * 1024 * 1024,
     "ios": 2 * 1024 * 1024 * 1024,
     "v8": 2 * 1024 * 1024 * 1024,
     "conan": 10 * 1024 * 1024 * 1024,
     "client-sccache": 5 * 1024 * 1024 * 1024,
+    "qt-sccache": 5 * 1024 * 1024 * 1024,
+    "qt-source": 2 * 1024 * 1024 * 1024,
 }
 
 
@@ -90,10 +98,11 @@ def create_archive(prefix: Path, archive: Path, kind: str) -> None:
     archive.parent.mkdir(parents=True, exist_ok=True)
     temporary = archive.with_suffix(archive.suffix + ".tmp")
     with temporary.open("wb") as raw:
-        # Compiler objects are already compressed by sccache. Avoid spending
-        # macOS runner CPU recompressing them at gzip's default maximum level.
+        # Qt source is already XZ-compressed; store it without recompression.
+        # Compiler objects are also compressed, so use only a light gzip pass.
+        compression = 0 if kind == "qt-source" else (1 if kind in ("client-sccache", "qt-sccache") else 9)
         with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0,
-                           compresslevel=1 if kind == "client-sccache" else 9) as compressed:
+                           compresslevel=compression) as compressed:
             with tarfile.open(fileobj=compressed, mode="w") as output:
                 paths = sorted(prefix.rglob("*"), key=lambda item: item.relative_to(prefix).as_posix())
                 if len(paths) > MEMBER_LIMITS[kind]:
@@ -231,20 +240,86 @@ def download_artifact(url: str, token: str, destination: Path, limit: int, opene
         _read_limited(response, limit, output)
 
 
+def _read_artifact_index(path: Path, repository: str) -> list[dict] | None:
+    try:
+        if path.stat().st_size > API_JSON_LIMIT:
+            return None
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            return None
+        if payload.get("schema") != ARTIFACT_INDEX_SCHEMA or payload.get("repository") != repository:
+            return None
+        fetched_at = payload.get("fetchedAt")
+        if not isinstance(fetched_at, (int, float)) or isinstance(fetched_at, bool):
+            return None
+        if not 0 <= time.time() - fetched_at <= ARTIFACT_INDEX_TTL_SECONDS:
+            return None
+        artifacts = payload.get("artifacts")
+        if not isinstance(artifacts, list) or len(artifacts) > 10_000:
+            return None
+        for artifact in artifacts:
+            if not isinstance(artifact, dict) or not isinstance(artifact.get("name"), str):
+                return None
+            if not isinstance(artifact.get("workflow_run", {}), dict):
+                return None
+            if not isinstance(artifact.get("id"), int) or isinstance(artifact["id"], bool):
+                return None
+            if not isinstance(artifact.get("created_at", ""), str):
+                return None
+            if not isinstance(artifact.get("expired", False), bool):
+                return None
+        return artifacts
+    except (OSError, ValueError):
+        return None
+
+
+def _write_artifact_index(path: Path, repository: str, artifacts: list[dict]) -> None:
+    # This opt-in index is job-local metadata, never a replacement for artifact
+    # provenance selection or archive/manifest validation. Publish only complete
+    # API results atomically so failed pagination cannot poison later probes.
+    temporary = None
+    try:
+        data = json.dumps({"schema": ARTIFACT_INDEX_SCHEMA, "repository": repository,
+                           "fetchedAt": time.time(), "artifacts": artifacts})
+        if len(data.encode("utf-8")) > API_JSON_LIMIT:
+            return
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
+                                         prefix=path.name + ".", delete=False) as output:
+            temporary = Path(output.name)
+            output.write(data)
+        os.replace(temporary, path)
+    except OSError:
+        # A metadata cache failure must not prevent a validated native build.
+        pass
+    finally:
+        if temporary is not None:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
 def find_latest(prefix: str, expected_repository_id: int, expected_branch: str) -> tuple[dict | None, str]:
     token = os.environ.get("GITHUB_TOKEN", "") or os.environ.get("GH_TOKEN", "")
     repository = os.environ.get("GITHUB_REPOSITORY", "")
     if not token or repository.count("/") != 1:
         fail("GITHUB_TOKEN (or GH_TOKEN) and owner/repository GITHUB_REPOSITORY are required")
-    encoded_repo = "/".join(urllib.parse.quote(part, safe="") for part in repository.split("/"))
-    artifacts: list[dict] = []
-    for page in range(1, 101):
-        url = f"https://api.github.com/repos/{encoded_repo}/actions/artifacts?per_page=100&page={page}"
-        payload = json.loads(_github_request(url, token))
-        batch = payload.get("artifacts", [])
-        artifacts.extend(batch)
-        if len(batch) < 100:
-            break
+    cache_setting = os.environ.get("OVERTE_ARTIFACT_INDEX_CACHE", "")
+    cache_path = Path(cache_setting) if cache_setting else None
+    artifacts = _read_artifact_index(cache_path, repository) if cache_path else None
+    if artifacts is None:
+        encoded_repo = "/".join(urllib.parse.quote(part, safe="") for part in repository.split("/"))
+        artifacts = []
+        for page in range(1, 101):
+            url = f"https://api.github.com/repos/{encoded_repo}/actions/artifacts?per_page=100&page={page}"
+            payload = json.loads(_github_request(url, token))
+            batch = payload.get("artifacts", [])
+            artifacts.extend(batch)
+            if len(batch) < 100:
+                if cache_path is not None:
+                    _write_artifact_index(cache_path, repository, artifacts)
+                break
     artifact = select_artifact(artifacts, prefix, expected_repository_id, expected_branch)
     return artifact, token
 
@@ -388,7 +463,8 @@ def restore(args: argparse.Namespace) -> None:
     install_root = Path(args.install_root)
     target_name = {
         "host": "macos", "ios": "ios", "v8": "v8-ios", "conan": "conan-home",
-        "client-sccache": "client-sccache",
+        "client-sccache": "client-sccache", "qt-sccache": "qt-sccache",
+        "qt-source": "downloads",
     }[args.kind]
     target_root = install_root / target_name
     with tempfile.TemporaryDirectory(prefix="overte-qt-checkpoint-") as temporary_name:

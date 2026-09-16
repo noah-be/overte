@@ -63,8 +63,13 @@ def relative_file(root, value):
     return root / value
 
 
-def validate(candidate_path, source_sha, artifact_sha256):
+def validate(candidate_path, source_sha, artifact_sha256, *,
+             expected_normalized_inputs_sha256=None, expected_toolchain_sha256=None):
     require(hex_value(source_sha, 40) and hex_value(artifact_sha256, 64), 'INVALID_EXPECTED_IDENTITY')
+    expected_inputs = {'normalizedInputsSha256': expected_normalized_inputs_sha256,
+                       'toolchainSha256': expected_toolchain_sha256}
+    for value in expected_inputs.values():
+        require(value is None or hex_value(value, 64), 'INVALID_EXPECTED_INPUT_IDENTITY')
     candidate_path = Path(candidate_path)
     candidate, candidate_raw = read_document(candidate_path)
     require(candidate.get('contract') == 'overte-ios-io001-candidate-v1', 'CANDIDATE_CONTRACT')
@@ -81,6 +86,8 @@ def validate(candidate_path, source_sha, artifact_sha256):
     require(evidence['candidateSha256'] == digest(candidate_raw), 'CANDIDATE_BYTES_MISMATCH')
     for key in ('toolchainSha256', 'normalizedInputsSha256'):
         require(hex_value(evidence[key], 64), 'INVALID_INPUT_IDENTITY')
+        require(expected_inputs[key] is None or evidence[key] == expected_inputs[key],
+                'EXPECTED_BUILD_INPUT_MISMATCH')
     receipts = evidence['receipts']
     require(type(receipts) is list and len(receipts) == len(TIERS), 'MISSING_MANDATORY_TIER')
     seen, paths = set(), set()
@@ -117,4 +124,6 @@ def validate(candidate_path, source_sha, artifact_sha256):
             require(provenance == {}, 'UNEXPECTED_PROVENANCE')
     require(seen == set(TIERS), 'MISSING_MANDATORY_TIER')
     return {'contract': evidence['contract'], 'status': 'BOUND',
-            'sourceRevision': source_sha, 'artifactSha256': artifact_sha256}
+            'sourceRevision': source_sha, 'artifactSha256': artifact_sha256,
+            'normalizedInputsSha256': evidence['normalizedInputsSha256'],
+            'toolchainSha256': evidence['toolchainSha256']}

@@ -20,20 +20,28 @@ CHANGE_PREFIXES = (
     "feature", "fix", "docs", "refactor", "test", "tests", "ci", "sync"
 )
 PRIVILEGED_PATHS = (
+    ".github/platform-source-policy.json",
+    ".github/dependency-releases.json",
+    ".github/workflows/dependency-releases.yml",
+    "tools/dependency-releases/",
     ".github/branch-policy.json",
+    ".github/branch-cleanup.json",
     ".github/maintenance-policy.json",
     ".github/workflows/branch-policy.yml",
     ".github/workflows/branch-sync.yml",
+    ".github/workflows/branch-cleanup.yml",
     ".github/workflows/parent-qualification.yml",
     ".github/workflows/sync-test-reuse.yml",
     ".github/workflows/sync-validation.yml",
     ".github/sync-test-reuse.json",
     "tools/branch-policy/",
+    "tools/branch-cleanup/",
     "tools/sync-test-reuse/",
     "tools/maintenance/",
     "tools/workflow-security/",
     "tests/maintenance/",
     "tests/workflow-action-pin-test.py",
+    "tests/branch-cleanup-test.py",
 )
 
 

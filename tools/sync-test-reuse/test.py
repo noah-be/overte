@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from dataclasses import replace
+from types import SimpleNamespace
 from pathlib import Path
 from unittest import mock
 import hashlib
@@ -255,7 +257,8 @@ class TopologyContracts(unittest.TestCase):
             },
         }
 
-    def test_all_eight_edges_classify_with_the_configured_differential(self):
+    def test_all_six_edges_classify_with_the_configured_differential(self):
+        self.assertEqual(len(config()["edges"]), 6)
         for base, edge in config()["edges"].items():
             with self.subTest(base=base), \
                  mock.patch.object(gate, "branch_sha", side_effect=[BASE, PARENT, BASE, PARENT]), \
@@ -268,6 +271,28 @@ class TopologyContracts(unittest.TestCase):
                 self.assertEqual(result.parent, edge["parent"])
                 self.assertEqual(result.profile, "documentation")
 
+    def test_retired_desktop_targets_and_scopes_cannot_receive_sync_reuse(self):
+        for platform in ("linux", "windows"):
+            for base, head in ((platform + "-main", "main"),
+                               (platform + "-main", f"reconcile/{platform}/refresh"),
+                               ("android-main", platform + "-main"),
+                               ("android-main", f"reconcile/{platform}/refresh")):
+                with self.subTest(base=base, head=head):
+                    self.assertIsNone(gate.classify_event(self.event(base, head), config(), MappingApi()))
+
+    def test_executable_docs_and_code_renames_keep_full_qualification(self):
+        for change in ({"filename": "docs/helper.py"},
+                       {"filename": "docs/helper.md", "previous_filename": "tools/helper.py"}):
+            with self.subTest(change=change), \
+                 mock.patch.object(gate, "branch_sha", side_effect=[BASE, PARENT, BASE, PARENT]), \
+                 mock.patch.object(gate, "commit", side_effect=[{"sha": PARENT}, {"sha": MERGE, "parents": [{"sha": BASE}, {"sha": PARENT}]}]), \
+                 mock.patch.object(gate, "compare_merge_base", return_value=HEAD), \
+                 mock.patch.object(gate, "compare_files", return_value=(HEAD, {change["filename"]})), \
+                 mock.patch.object(gate, "paginate_pull_files", return_value=[change]):
+                api = MappingApi({f"repos/{REPOSITORY}/pulls/610": {"state": "open", "mergeable": True, "merge_commit_sha": MERGE}})
+                result = gate.classify_event(self.event("android-main", "main"), config(), api)
+                self.assertEqual(result.profile, "android-family")
+
     def test_merge_base_lookup_ignores_only_the_unneeded_capped_file_list(self):
         endpoint = f"repos/{REPOSITORY}/compare/{PARENT}...{BASE}"
         document = {
@@ -277,7 +302,7 @@ class TopologyContracts(unittest.TestCase):
         }
         self.assertEqual(gate.compare_merge_base(MappingApi({endpoint: document}), REPOSITORY, PARENT, BASE), HEAD)
         with self.assertRaises(gate.GateError):
-            gate.compare_files(MappingApi({endpoint: document}), REPOSITORY, PARENT, BASE)
+            gate.compare_files(MappingApi({endpoint: document, f"repos/{REPOSITORY}/git/commits/{HEAD}": {}}), REPOSITORY, PARENT, BASE)
 
     def test_ordinary_development_dependabot_fork_and_promotion_stay_ordinary(self):
         for head, repo_id in (
@@ -294,18 +319,99 @@ class TopologyContracts(unittest.TestCase):
             gate.classify_event(self.event("android-main", "main", repo_id=44), config(), MappingApi())
 
 
+class InspectionContracts(unittest.TestCase):
+    def inspect_request(self, sync_request, evidence_error=None):
+        with mock.patch.object(gate, "load_config", return_value=config()), \
+             mock.patch.object(gate, "GitHubApi"), \
+             mock.patch.object(gate, "classify_event", return_value=sync_request), \
+             mock.patch.object(gate, "verify_evidence", side_effect=evidence_error) as verify, \
+             mock.patch.object(gate, "write_outputs") as output:
+            event = mock.Mock()
+            event.read_text.return_value = "{}"
+            self.assertEqual(gate.inspect(SimpleNamespace(config=None, event=event, output=None)), 0)
+            return verify.call_count, output.call_args.args[1]
+
+    def test_markdown_sync_needs_no_parent_evidence(self):
+        calls, result = self.inspect_request(replace(request(), profile="documentation", changed_paths=("docs/ROADMAP.md",)))
+        self.assertEqual(calls, 0)
+        self.assertEqual(result["mode"], "reuse")
+        self.assertEqual(result["profile"], "documentation")
+        self.assertEqual(result["evidence_run_id"], "")
+
+    def test_code_sync_still_falls_back_without_evidence(self):
+        calls, result = self.inspect_request(request(), gate.EvidenceError("missing evidence"))
+        self.assertEqual(calls, 1)
+        self.assertEqual(result["mode"], "fallback")
+
+
 class DifferentialContracts(unittest.TestCase):
+    def test_retired_desktop_differential_profiles_are_rejected(self):
+        for profile in ("linux-desktop", "windows-desktop"):
+            with self.subTest(profile=profile):
+                with self.assertRaisesRegex(ValueError, "unknown differential profile"):
+                    differential.required_roots(Path("."), profile, [])
+
     def test_documentation_never_selects_an_android_suite(self):
         self.assertEqual(differential.PROFILES["documentation"], ())
         with self.assertRaises(ValueError):
             differential.required_roots(Path("."), "documentation", ["android/source.cpp"])
+        with self.assertRaises(ValueError):
+            differential.required_roots(Path("."), "documentation", ["docs/helper.py"])
 
     def test_each_non_documentation_profile_has_a_minimal_owned_root(self):
         self.assertEqual(set(differential.PROFILES) - {"documentation"}, {
             "android-family", "android-phone", "android-vr", "android-pico",
-            "apple-family", "apple-ios", "linux-desktop", "windows-desktop",
+            "apple-family", "apple-ios",
         })
         self.assertTrue(all(differential.PROFILES[name] for name in differential.PROFILES if name != "documentation"))
+
+
+class LargeComparisonTests(unittest.TestCase):
+    def documents(self, truncated=False):
+        old_tree, new_tree = "a" * 40, "b" * 40
+        old = [entry(f"old/{i}") for i in range(301)]
+        new = [entry(f"new/{i}") for i in range(301)]
+        old.append({"path": "submodule", "mode": "160000", "type": "commit", "sha": BASE})
+        new.append({"path": "submodule", "mode": "160000", "type": "commit", "sha": PARENT})
+        return {
+            f"repos/{REPOSITORY}/compare/{BASE}...{HEAD}": {
+                "base_commit": {"sha": BASE}, "merge_base_commit": {"sha": BASE},
+                "files": [{"filename": f"new/{i}"} for i in range(300)]},
+            f"repos/{REPOSITORY}/git/commits/{BASE}": {"sha": BASE, "tree": {"sha": old_tree}},
+            f"repos/{REPOSITORY}/git/commits/{HEAD}": {"sha": HEAD, "tree": {"sha": new_tree}},
+            f"repos/{REPOSITORY}/git/trees/{old_tree}?recursive=1": {"sha": old_tree, "truncated": truncated, "tree": old},
+            f"repos/{REPOSITORY}/git/trees/{new_tree}?recursive=1": {"sha": new_tree, "truncated": False, "tree": new},
+        }
+
+    def test_full_tree_fallback_includes_deletions_and_gitlinks(self):
+        base, files = gate.compare_files(MappingApi(self.documents()), REPOSITORY, BASE, HEAD)
+        self.assertEqual(base, BASE)
+        self.assertEqual(len(files), 603)
+        self.assertIn("old/300", files)
+        self.assertIn("new/300", files)
+        self.assertIn("submodule", files)
+
+    def test_truncated_full_tree_still_fails_closed(self):
+        with self.assertRaises(gate.GateError):
+            gate.compare_files(MappingApi(self.documents(True)), REPOSITORY, BASE, HEAD)
+
+    def test_retirement_exception_requires_exact_blob_and_actual_deletion(self):
+        path = "android/common/conan/prebuilt/obsolete.sha256"
+        settings = {"retired_parent_paths": {path: WORKFLOW_BLOB}}
+        original = {"mode": "100644", "type": "blob", "sha": WORKFLOW_BLOB}
+        for variant in ("valid", "unlisted", "modified", "different-blob", "parent-present", "merge-present"):
+            with self.subTest(variant=variant):
+                cfg = settings if variant != "unlisted" else {}
+                changes = [{"filename": path, "status": "modified" if variant == "modified" else "removed"}]
+                before = {path: dict(original, sha=BASE)} if variant == "different-blob" else {path: original}
+                parent = {path: original} if variant == "parent-present" else {}
+                merged = {path: original} if variant == "merge-present" else {}
+                with mock.patch.object(gate, "comparison_entries", side_effect=[before, parent, merged]):
+                    if variant == "valid":
+                        gate.authorize_retired_paths(MappingApi(), REPOSITORY, cfg, [path], changes, BASE, PARENT, MERGE)
+                    else:
+                        with self.assertRaises(gate.GateError):
+                            gate.authorize_retired_paths(MappingApi(), REPOSITORY, cfg, [path], changes, BASE, PARENT, MERGE)
 
 
 if __name__ == "__main__":

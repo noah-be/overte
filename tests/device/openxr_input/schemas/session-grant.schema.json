@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://overte.org/schemas/e2e/openxr-input-session-grant-v1.json",
+  "additionalProperties": false,
+  "properties": {
+    "bindingProfileSha256": { "pattern": "^[0-9a-f]{64}$", "type": "string" },
+    "buildMarker": { "const": "OVERTE_E2E_OPENXR_INPUT_V1" },
+    "channel": { "const": "app-private-file" },
+    "consumer": { "const": "XR_APILAYER_OVERTE_e2e_input" },
+    "expiresEpochMs": { "minimum": 1, "type": "integer" },
+    "runtimeOptIn": { "const": true },
+    "schemaVersion": { "const": 1 },
+    "sequence": { "minimum": 1, "type": "integer" },
+    "sessionNonce": { "pattern": "^[0-9a-f]{32,128}$", "type": "string" },
+    "testBuild": { "const": true }
+  },
+  "required": [
+    "schemaVersion",
+    "buildMarker",
+    "testBuild",
+    "runtimeOptIn",
+    "channel",
+    "consumer",
+    "bindingProfileSha256",
+    "sessionNonce",
+    "sequence",
+    "expiresEpochMs"
+  ],
+  "title": "Overte OpenXR E2E input session grant",
+  "type": "object"
+}

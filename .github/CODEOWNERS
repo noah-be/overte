@@ -8,8 +8,12 @@
 # Repository policy and enforcement contracts
 /.github/CODEOWNERS @noah-be
 /.github/branch-policy.json @noah-be
+/.github/branch-cleanup.json @noah-be
 /.github/rulesets/ @noah-be
 /tools/branch-policy/ @noah-be
+/tools/branch-cleanup/ @noah-be
+/tests/branch-cleanup-test.py @noah-be
+/docs/AUTOMATIC_BRANCH_CLEANUP.md @noah-be
 /tests/branch-policy-test.py @noah-be
 /tools/workflow-security/ @noah-be
 /tests/workflow-action-pin-test.py @noah-be

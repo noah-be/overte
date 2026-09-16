@@ -6,6 +6,18 @@ set -euo pipefail
 
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 python3 "$script_dir/port-contract-test.py"
+python3 "$script_dir/performance/memory-pressure-policy-test.py"
+if pkg-config --exists Qt6Gui; then
+    python3 "$script_dir/performance/full-client-memory-guard-test.py"
+    python3 "$script_dir/image-decode-qt-codec-test.py"
+else
+    echo "SKIP executable memory guard test: host Qt6Gui unavailable"
+fi
+if pkg-config --exists Qt6Core || pkg-config --exists Qt5Core; then
+    python3 "$script_dir/ktx-allocation-budget-test.py"
+else
+    echo "SKIP executable KTX allocation test: host Qt Core unavailable"
+fi
 python3 "$script_dir/render-observations-test.py"
 python3 "$script_dir/build-cli-test.py"
 python3 "$script_dir/dsym-content-test.py"
@@ -39,6 +51,7 @@ python3 "$script_dir/device-results-validator-test.py"
 python3 "$script_dir/conan-graph-audit-test.py"
 python3 "$script_dir/entity-conan-contract-test.py"
 python3 "$script_dir/entity-dynamic-qt6-variant-contract-test.py"
+python3 "$script_dir/entity-change-thread-test.py"
 python3 "$script_dir/fbx-reader-qt6-contract-test.py"
 python3 "$script_dir/fbx-writer-qt6-variant-contract-test.py"
 python3 "$script_dir/ios-script-bridge-qt6-contract-test.py"
@@ -49,6 +62,8 @@ python3 "$script_dir/core5compat-cmake-contract-test.py"
 python3 "$script_dir/ios-static-codec-plugin-contract-test.py"
 python3 "$script_dir/ios-static-runtime-linkage-test.py"
 python3 "$script_dir/static-qml-plugin-link-test.py"
+python3 "$script_dir/client-compiler-cache-key-test.py"
+python3 "$script_dir/integrated-host-gate-test.py"
 python3 "$script_dir/ios-full-client-sccache-contract-test.py"
 python3 "$script_dir/compiler-watchdog-test.py"
 python3 "$script_dir/qt-per-object-checkpoint-contract-test.py"
@@ -141,17 +156,31 @@ readonly rendering_contracts=(
     resource-image-item-ios-contract-test.py
     vk-ios-gl-interop-helper-contract-test.py
     vk-qt-public-api-contract-test.py
+    vulkan-descriptor-snapshot-test.py
     vulkan-display-ios-context-restore-test.py
     vulkan-display-ios-gl-helper-isolation-test.py
     vulkan-display-ios-ktx-capture-gate-test.py
     vulkan-display-ios-main-thread-resize-test.py
     vulkan-display-ios-output-pending-test.py
+    draw-info-object-index-test.py
+    gpu-draw-breadcrumbs-test.py
+    vulkan-draw-info-binding-test.py
+    vulkan-framebuffer-blit-test.py
+    vulkan-framebuffer-lifetime-test.py
+    vulkan-index-range-test.py
+    vulkan-input-binding-test.py
     vulkan-ios-frame-recycling-test.py
     vulkan-ios-surface-contract-test.py
+    vulkan-submit-progress-test.py
+    image-decode-budget-test.py
+    vulkan-texture-upload-sync-test.py
 )
 for contract in "${rendering_contracts[@]}"; do
     python3 "$script_dir/$contract"
 done
+
+python3 "$script_dir/vulkan-index-range-test.py" --mutation
+OVERTE_INDEX_RANGE_MUTATION=1 python3 "$script_dir/vulkan-input-binding-test.py"
 
 python3 "$script_dir/sbom-test.py"
 python3 "$script_dir/windows-handoff-test.py"

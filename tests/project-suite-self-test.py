@@ -19,7 +19,8 @@ class ProjectSuiteCliTests(unittest.TestCase):
         result = self.run_cli("--list")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("repository-health", result.stdout)
-        self.assertIn("pico4-device-free", result.stdout)
+        self.assertIn("source-layout", result.stdout)
+        self.assertIn("shared-script-behavior", result.stdout)
         self.assertIn("device-e2e-contracts", result.stdout)
         self.assertNotIn("native-ctest", result.stdout)
 

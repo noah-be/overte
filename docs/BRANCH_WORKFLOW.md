@@ -13,17 +13,16 @@ main
 │   ├── android-phone
 │   └── android-vr
 │       └── android-vr-pico
-├── apple-main
-│   └── apple-ios
-├── linux-main
-└── windows-main
+└── apple-main
+    └── apple-ios
 ```
 
-`main` owns platform-neutral code. `android-main`, `apple-main`, `linux-main`,
-and `windows-main` own code shared by their operating-system families. Product
-branches own adapters, packaging, runtime integration and policy that apply
-only to that product. Linux distributions and Windows releases are CI and lab
-targets within their operating-system branch, not permanent child branches.
+`main` owns platform-neutral code and Linux and Windows support, including
+desktop adapters, packaging, tests, and lab integration. `android-main` and
+`apple-main` own code shared by their operating-system families. Product
+branches own adapters, packaging, runtime integration and policy specific to
+that product. Linux distributions and Windows releases are CI and lab targets
+maintained on `main`. There are seven permanent branches and six direct edges.
 
 The common device-test harness under `tests/device/` is parent-owned by
 default. `tests/apple-branch-path-ownership.json` lists the narrow paths that a
@@ -31,6 +30,13 @@ specific Apple child may own inside that tree. The current iOS adapter,
 RemoteXPC transport, signing and artifact handoff, product toolchain, and local
 device-lab pipeline are `apple-ios`-owned; they do not propagate through
 `apple-main` into `apple-macos`.
+
+## Source ownership
+
+The [source layout policy](SOURCE_LAYOUT.md) separates Android application
+implementation from `main`. During its one-time migration, retain Android-owned
+files and the branch test profile on the Android side of the merge. Subsequent
+synchronization uses the same forward-merge topology.
 
 ## Propagation order
 
@@ -42,21 +48,19 @@ After a reviewed change reaches `main`, synchronize it in this order:
 4. `android-vr` → `android-vr-pico`
 5. `main` → `apple-main`
 6. `apple-main` → `apple-ios`
-7. `main` → `linux-main`
-8. `main` → `windows-main`
 
-The Android, Apple, Linux, and Windows lines are independent after their
-respective `main` merge, but each parent must be merged before its children.
+The Android and Apple lines are independent after their respective `main`
+merge, but each parent must be merged before its children. Desktop changes
+are reviewed and tested on `main` without a separate desktop synchronization edge.
 Use normal pull requests so branch protection and target-specific CI run at
 every boundary. The synchronization bot reads these direct relationships from
 `.github/branch-policy.json`. The current synchronization workflow reports
 parent-to-child drift without writing to the repository; a maintainer opens or
 refreshes each required synchronization pull request manually.
 
-`android-vr-quest` and `apple-macos` are frozen archival branches, not children
+The retired Quest and macOS branches are historical records, not children
 in this hierarchy. They must not receive synchronization PRs or new product
-work. Their last commits are retained as historical evidence under the
-dedicated archived-branch ruleset.
+work.
 
 ## Reconciliation merges
 
@@ -96,12 +100,13 @@ executes code from the pull request. Other governance changes remain owned by
 ## Adapter ownership
 
 Universal touch layout and capability defaults belong on `main`. Native and
-selector-backed adapters remain in their product branch:
+selector-backed mobile adapters remain in their product branch; desktop
+adapters are maintained on `main`:
 
 - Android Phone adapter: `android-phone`
 - iPhone and iPad adapter: `apple-ios`
-- Linux desktop adapter: `linux-main`
-- Windows desktop adapter: `windows-main`
+- Linux desktop adapter: `main`
+- Windows desktop adapter: `main`
 
 VR branches do not inherit Phone touch adapters. A new adapter starts on its
 product branch and must not be promoted to a parent unless the implementation
@@ -113,12 +118,12 @@ change by weakening its own copy of the rule. Changes to parent-owned harness
 paths must go through `apple-main`; explicitly listed product-owned paths may
 differ only on their matching target branch.
 
-Desktop adapter implementations must not be owned by `main`, `android-main`,
-or an Android product branch. Only the portable adapter protocol, behavior
-modules, fixtures, and in-client probe remain on `main`. Fedora, Ubuntu,
+Desktop adapter implementations, the portable adapter protocol, behavior
+modules, fixtures, and in-client probe belong on `main`. Fedora, Ubuntu,
 openSUSE, display-server, desktop-environment, and Windows-version differences
-are expressed as private target configuration and CI matrices inside the
-owning operating-system branch.
+are expressed as private target configuration and CI matrices maintained from
+`main`. Retiring separate desktop branches does not remove desktop product
+support or tests.
 
 ## Verification
 
@@ -133,8 +138,6 @@ git merge-base --is-ancestor origin/android-main origin/android-vr
 git merge-base --is-ancestor origin/android-vr origin/android-vr-pico
 git merge-base --is-ancestor origin/main origin/apple-main
 git merge-base --is-ancestor origin/apple-main origin/apple-ios
-git merge-base --is-ancestor origin/main origin/linux-main
-git merge-base --is-ancestor origin/main origin/windows-main
 ```
 
 Each command must exit successfully. Also use `git branch -r --contains` for a
@@ -144,7 +147,8 @@ branch unless a later reviewed propagation deliberately changes that scope.
 ## Exact-parent test reuse
 
 The four permanent branches that have children (`main`, `android-main`,
-`android-vr`, and `apple-main`) qualify each exact pushed commit once. The
+`android-vr`, and `apple-main`) qualify each exact pushed commit once, except
+for Markdown-only pushes. The
 qualification runs the shared project and complete device-control-plane suites,
 then uploads a short-lived machine-readable artifact. The artifact binds the
 repository numeric ID and name, parent commit and tree, qualification workflow
@@ -154,7 +158,7 @@ validity interval. Its canonical JSON digest makes accidental or malicious
 content changes detectable.
 
 The trusted `sync-test-reuse` check is loaded only from the default branch. For
-one of the eight direct edges it re-reads the current base and parent refs,
+one of the six direct edges it re-reads the current base and parent refs,
 validates the exact merge parents and merge tree, rejects paths outside the
 parent delta, and accepts exactly one matching non-expired qualification from a
 successful `push` run of the expected workflow. It re-reads both permanent refs
@@ -164,8 +168,12 @@ When all bindings match, a separate read-only validation workflow runs only the
 edge-specific hardware-free differential profile. The redundant Android and
 project-wide suites delegate to this required check, while topology, policy,
 workflow-security, documentation, and relevant Android VR or iOS checks remain
-independent. A documentation-only sync selects only documentation and contract
-validation.
+independent. A Markdown-only sync selects only documentation and contract
+validation after the same topology and identity checks, without requiring
+parent qualification evidence or selecting the full fallback. Rename sources
+must also be Markdown; executable files under `docs/` are not exempt.
+Markdown-only pushes skip parent qualification and the project-wide suite.
+CodeQL also skips Markdown-only pushes and pull requests; scheduled scans remain.
 
 Missing, stale, duplicated, incomplete, foreign, or otherwise mismatched
 evidence selects the complete shared fallback in the isolated read-only

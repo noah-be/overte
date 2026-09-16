@@ -173,8 +173,55 @@ def compare_files(api: GitHubApi, repository: str, base: str, head: str) -> tupl
     if any(not isinstance(path, str) for path in files):
         raise GateError("GitHub API returned an invalid comparison path")
     if len(files) >= 300:
-        raise GateError("ancestry comparison reached the GitHub changed-file cap")
+        if value.get("base_commit", {}).get("sha") != base:
+            raise GateError("GitHub API returned a mismatched comparison base")
+        # The compare endpoint caps file lists. Compare complete immutable
+        # trees instead; never treat the truncated list as authorization.
+        before = comparison_entries(api, repository, merge_base)
+        after = comparison_entries(api, repository, head)
+        files = {path for path in before.keys() | after.keys()
+                 if before.get(path) != after.get(path)}
     return merge_base, files
+
+
+def comparison_entries(api: GitHubApi, repository: str, sha: str) -> dict:
+    tree_sha = commit_tree(commit(api, repository, sha))
+    value = api.json(f"repos/{repository}/git/trees/{tree_sha}?recursive=1")
+    if (not isinstance(value, dict) or value.get("sha") != tree_sha
+            or value.get("truncated") is not False or not isinstance(value.get("tree"), list)):
+        raise GateError("GitHub API returned an incomplete comparison tree")
+    entries = {}
+    for item in value["tree"]:
+        if not isinstance(item, dict):
+            raise GateError("GitHub API returned a malformed comparison entry")
+        if item.get("type") == "tree":
+            continue
+        path = item.get("path")
+        if (not isinstance(path, str) or not path or path.startswith("/")
+                or ".." in path.split("/") or path in entries
+                or item.get("type") not in ("blob", "commit")
+                or item.get("mode") not in ("100644", "100755", "120000", "160000")):
+            raise GateError("GitHub API returned an invalid comparison entry")
+        entries[path] = {key: item[key] for key in ("mode", "type", "sha")}
+        validate_sha(item.get("sha"), "comparison blob SHA")
+    return entries
+
+
+def authorize_retired_paths(api, repository, config, unexpected, changed_documents,
+                            base_sha, parent_sha, merge_sha):
+    """Allow only a named, exact legacy blob to disappear under parent policy."""
+    retired = config.get("retired_parent_paths", {})
+    changes = {item["filename"]: item for item in changed_documents}
+    if any(path not in retired or changes[path].get("status") != "removed" for path in unexpected):
+        raise GateError("sync changes paths absent from the exact parent delta: " + ", ".join(unexpected[:10]))
+    base = comparison_entries(api, repository, base_sha)
+    parent = comparison_entries(api, repository, parent_sha)
+    merged = comparison_entries(api, repository, merge_sha)
+    for path in unexpected:
+        expected = {"mode": "100644", "type": "blob", "sha": retired[path]}
+        validate_sha(retired[path], "retired parent-owned blob SHA")
+        if base.get(path) != expected or path in parent or path in merged:
+            raise GateError("retired parent-owned path does not match its exact deletion contract: " + path)
 
 
 def compare_merge_base(api: GitHubApi, repository: str, base: str, head: str) -> str:
@@ -255,10 +302,16 @@ def classify_event(event: dict, config: dict, api: GitHubApi) -> SyncRequest | N
         raise GateError("pull request contains malformed changed paths") from error
     unexpected = sorted(set(changed) - parent_delta)
     if unexpected:
-        raise GateError("sync changes paths absent from the exact parent delta: " + ", ".join(unexpected[:10]))
+        authorize_retired_paths(api, repository, config, unexpected, changed_documents,
+                                current_base, current_parent, merge_sha)
+        parent_delta.update(unexpected)
     if branch_sha(api, repository, base) != current_base or branch_sha(api, repository, parent) != current_parent:
         raise GateError("target or parent head moved during topology validation")
-    doc_only = bool(changed) and all(path.endswith(".md") or path.startswith("docs/") for path in changed)
+    doc_only = bool(changed) and all(
+        item["filename"].endswith(".md")
+        and item.get("previous_filename", item["filename"]).endswith(".md")
+        for item in changed_documents
+    )
     return SyncRequest(
         repository=repository, repository_id=repository_id, number=number,
         base=base, base_sha=current_base, head=head, head_sha=head_sha,
@@ -426,11 +479,14 @@ def inspect(args: argparse.Namespace) -> int:
         write_outputs(args.output, {"classification": "ordinary", "mode": "ordinary"})
         return 0
     mode, reason, evidence_run = "reuse", "exact qualification accepted", ""
-    try:
-        evidence = verify_evidence(api, config, request)
-        evidence_run = str(evidence["workflow"]["run_id"])
-    except EvidenceError as error:
-        mode, reason = "fallback", str(error).replace("\n", " ")
+    if request.profile == "documentation":
+        reason = "documentation-only delta; no executable inputs require qualification"
+    else:
+        try:
+            evidence = verify_evidence(api, config, request)
+            evidence_run = str(evidence["workflow"]["run_id"])
+        except EvidenceError as error:
+            mode, reason = "fallback", str(error).replace("\n", " ")
     values = {
         "classification": request.classification,
         "mode": mode,

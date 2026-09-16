@@ -66,7 +66,14 @@ void setupEssentialsScope() {
         self.assertIn("callbackParams.requestTicket = _lookupRequests.next()", address)
         for method, argument in (("handleAPIResponse", "requestReply"), ("handleAPIError", "errorReply")):
             body = address.split("void AddressManager::" + method + "(", 1)[1].split("\n}", 1)[0]
-            self.assertTrue(body.split("{", 1)[1].lstrip().startswith("if (!overte::network::replyCurrent(" + argument))
+            entry = body.split("{", 1)[1]
+            self.assertIn("QPointer<QNetworkReply> guardedReply(" + argument + ");", entry)
+            self.assertIn("const auto lookup = _lookupRequests.snapshot();", entry)
+            self.assertIn("guardedReply && lookup.current() &&", entry)
+            self.assertIn("overte::network::replyCurrent(guardedReply.data())", entry)
+            self.assertIn("if (!current()) { return; }", entry)
+            self.assertLess(entry.index("if (!current()) { return; }"),
+                            entry.index("QJsonObject" if method == "handleAPIResponse" else "qCDebug"))
         self.assertIn("if (!_lookupForeground) { return false; }", address)
         self.assertIn("trigger != UserInput && trigger != Back && trigger != Forward && trigger != Suggestions", address)
 

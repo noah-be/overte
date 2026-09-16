@@ -31,27 +31,23 @@ main
 │   ├── Android phones (android-phone)
 │   └── VR headsets (android-vr)
 │       └── Pico 4 (android-vr-pico)
-├── Apple (apple-main)
-│   └── iPhone and iPad (apple-ios)
-├── Linux desktop (linux-main)
-└── Windows desktop (windows-main)
+└── Apple (apple-main)
+    └── iPhone and iPad (apple-ios)
 ```
 
-The Android source tree mirrors the same ownership boundaries inside
-[`android/`](android/README.md): shared infrastructure lives in `common`, Phone
-code in `phone`, and the active headset target below `vr/pico`. Historical
-Quest source remains below `vr/quest`, but Quest is not an active development
-or synchronization target. The `vr/common` directory is reserved for reusable
-Android VR implementation.
+Android application sources live on [`android-main`](https://github.com/noah-be/overte/tree/android-main/android)
+and its Phone and Pico descendants. This shared branch contains the portable
+client, libraries, resources, and repository control plane. See the
+[source ownership boundary](docs/SOURCE_LAYOUT.md) before synchronizing a
+platform branch or importing upstream changes.
 
-The frozen `android-vr-quest` and `apple-macos` branches are retained only as
-historical evidence. They are outside the active branch hierarchy, reject
-updates and deletion, and receive no automatic synchronization from their
-former parents.
+The retired Quest and macOS branches are historical evidence only. They are
+outside the active hierarchy and receive no synchronization or new product work.
 
-Linux distributions and Windows releases are execution targets rather than
-permanent child branches. Their desktop adapters, lab integration, and target
-matrices are owned by `linux-main` and `windows-main`, respectively.
+Linux and Windows support, desktop adapters, lab integration, tests, and target
+matrices are owned by `main`. Distributions and OS releases are execution targets;
+they do not require separate permanent branches. The hierarchy has seven
+permanent branches and six parent-to-child synchronization edges.
 
 Changes are propagated from shared branches to increasingly specific branches;
 the reviewed order and merge rules are documented in

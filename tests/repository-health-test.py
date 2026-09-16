@@ -114,10 +114,10 @@ def doctor(api=None):
 
 
 class BranchFixtures(unittest.TestCase):
-    def test_all_eight_edges_are_valid(self):
+    def test_all_six_edges_are_valid(self):
         subject = doctor()
         subject.check_branches()
-        self.assertEqual(subject.data["branches"]["valid_edges"], 8)
+        self.assertEqual(subject.data["branches"]["valid_edges"], 6)
         self.assertEqual(subject.findings["branches"], [])
 
     def test_missing_branch_and_api_error_fail_without_stopping_other_edges(self):
@@ -125,7 +125,7 @@ class BranchFixtures(unittest.TestCase):
         api.fail_contains["android-phone"] = HEALTH.AuditError("simulated API failure")
         subject = doctor(api)
         subject.check_branches()
-        self.assertEqual(len(subject.data["branches"]["edges"]), 7)
+        self.assertEqual(len(subject.data["branches"]["edges"]), 5)
         self.assertEqual(subject.findings["branches"][0].code, "BRANCH_API_ERROR")
 
     def test_behind_and_diverged_edges_fail(self):

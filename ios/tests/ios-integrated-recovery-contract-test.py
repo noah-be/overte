@@ -6,6 +6,7 @@ import re
 import os
 import subprocess
 import textwrap
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/ios-integrated.yml"
@@ -36,8 +37,37 @@ def main() -> None:
                 env[group[choice]] = "true"
         result = subprocess.run(["bash", "-e", "-c", admission], env=env, timeout=5)
         assert (result.returncode == 0) == all(choice >= 0 for choice in choices), choices
-    assert 'if [ "$PRESERVE_REUSABLE_DATA" = false ]; then\n            conan cache clean "*" --build --temp\n          fi' in workflow
     assert "PRESERVE_REUSABLE_DATA: ${{ inputs.preserve_reusable_data }}" in workflow
+    integrity_step = workflow.split("      - name: Validate and compact audited device dependencies\n", 1)[1].split("\n      - name:", 1)[0]
+    integrity_shell = textwrap.dedent(integrity_step.split("        run: |\n", 1)[1])
+    # Run the actual workflow script with an instrumented Conan command. This
+    # proves preservation removes the duplicate check without dropping the
+    # post-clean validation or swallowing a failed check/cleanup.
+    with tempfile.TemporaryDirectory(prefix="ios-conan-integrity-test-") as temporary:
+        directory = Path(temporary)
+        activate = directory / "build-ios/tooling-venv/bin/activate"
+        activate.parent.mkdir(parents=True)
+        activate.write_text('''conan() {
+  printf '%s\\n' "$*" >> "$CONAN_TEST_LOG"
+  calls=$(wc -l < "$CONAN_TEST_LOG")
+  if [ "$calls" -eq "$CONAN_TEST_FAIL_AT" ]; then return 19; fi
+  return 0
+}
+''')
+        check, clean = 'cache check-integrity *', 'cache clean * --build --temp'
+        cases = [('true', 0, [check]), ('false', 0, [check, clean, check]),
+                 ('', 0, [check]), ('true', 1, [check]),
+                 ('false', 1, [check]), ('false', 2, [check, clean]),
+                 ('false', 3, [check, clean, check])]
+        for index, (preserve, fail_at, expected) in enumerate(cases):
+            log = directory / f'calls-{index}.log'
+            env = dict(os.environ, PRESERVE_REUSABLE_DATA=preserve,
+                       CONAN_TEST_LOG=str(log), CONAN_TEST_FAIL_AT=str(fail_at))
+            result = subprocess.run(['bash', '-e', '-c', integrity_shell],
+                                    cwd=directory, env=env, capture_output=True,
+                                    text=True, timeout=5)
+            assert log.read_text().splitlines() == expected, (preserve, fail_at)
+            assert result.returncode == (19 if fail_at else 0), result.stderr
     integrated = workflow[workflow.index("  integrated-configure:"):]
     names = [
         "Restore validated Conan package cache",

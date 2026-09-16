@@ -1,0 +1,39 @@
+{
+  "actions": {
+    "locomotion": {
+      "applicationPreconditions": {
+        "advancedMovement": true,
+        "dominantHand": "right",
+        "strafeEnabled": true
+      },
+      "forwardRuntimeY": 1,
+      "name": "left_thumbstick",
+      "supportedDirections": [
+        "backward",
+        "forward",
+        "left",
+        "right"
+      ],
+      "type": "vector2f"
+    },
+    "tabletToggle": {
+      "name": "menu_click",
+      "pulseMilliseconds": 120,
+      "type": "boolean"
+    }
+  },
+  "consumer": "XR_APILAYER_OVERTE_e2e_input",
+  "interactionProfile": "/interaction_profiles/bytedance/pico4_controller",
+  "profileId": "overte-pico4-openxr",
+  "prototypeOnly": true,
+  "schemaVersion": 1,
+  "viewInjection": {
+    "intercepts": [
+      "xrLocateSpace",
+      "xrLocateViews"
+    ],
+    "maxPitchDegrees": 30,
+    "maxYawDegrees": 45,
+    "mode": "reference-space-offset"
+  }
+}

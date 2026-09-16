@@ -1,2 +1,0 @@
-#pragma once
-#include "../../android-compat/QtAndroidExtras/QAndroidJniObject"
