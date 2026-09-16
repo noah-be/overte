@@ -25,6 +25,7 @@ class Suite:
 
 
 SUITES = (
+    Suite("dependency-releases", "quick", (sys.executable, "tools/dependency-releases/test.py")),
     Suite("project-runner", "quick", (sys.executable, "tests/project-suite-self-test.py")),
     Suite("branch-policy", "quick", (sys.executable, "tests/branch-policy-test.py")),
     Suite("sync-test-reuse", "quick", (sys.executable, "tools/sync-test-reuse/test.py")),
