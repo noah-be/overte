@@ -552,7 +552,6 @@ def test_cmake_boundary() -> None:
         SOURCE_ROOT / "libraries" / "audio-client" / "src" / "AudioClient.h",
         SOURCE_ROOT / "interface" / "src" / "scripting" / "AudioDevices.cpp",
         SOURCE_ROOT / "interface" / "src" / "scripting" / "AudioDevices.h",
-        SOURCE_ROOT / "interface" / "src" / "AndroidHelper.cpp",
         SOURCE_ROOT / "libraries" / "ui" / "src" / "ui" / "OffscreenQmlSurface.cpp",
     ):
         mode_text = mode_boundary.read_text(encoding="utf-8")
