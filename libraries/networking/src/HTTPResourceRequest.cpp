@@ -19,6 +19,10 @@
 
 #include <SharedUtil.h>
 #include <StatTracker.h>
+#include <PhoneLoadingDiagnostics.h>
+#include <QElapsedTimer>
+#include <QCryptographicHash>
+#include <atomic>
 
 #include "NetworkAccessManager.h"
 #include "NetworkLogging.h"
@@ -55,10 +59,15 @@ void HTTPResourceRequest::doSend() {
     DependencyManager::get<StatTracker>()->incrementStat(STAT_HTTP_REQUEST_STARTED);
 
     QNetworkRequest networkRequest(_url);
-    networkRequest.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    networkRequest.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+        _failOnRedirect ? QNetworkRequest::ManualRedirectPolicy : QNetworkRequest::NoLessSafeRedirectPolicy);
+    if (_failOnRedirect) {
+        // A shared HTTP cache entry has no per-request redirect provenance.
+        networkRequest.setAttribute(QNetworkRequest::CacheSaveControlAttribute, false);
+    }
     networkRequest.setHeader(QNetworkRequest::UserAgentHeader, NetworkingConstants::OVERTE_USER_AGENT);
 
-    if (_cacheEnabled) {
+    if (_cacheEnabled && !_failOnRedirect) {
         networkRequest.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
     } else {
         networkRequest.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
@@ -77,6 +86,28 @@ void HTTPResourceRequest::doSend() {
     networkRequest.setAttribute(QNetworkRequest::HttpPipeliningAllowedAttribute, false);
 
     _reply = NetworkAccessManager::getInstance().get(networkRequest);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (phoneLoadingDiagnosticsEnabled()) {
+        static std::atomic<quint64> nextId { 0 };
+        const auto id = ++nextId;
+        const auto hash = QCryptographicHash::hash(_url.toEncoded(), QCryptographicHash::Md5).toHex();
+        QElapsedTimer elapsed;
+        elapsed.start();
+        PHONE_LOADING("phase=http_start id=%llu url_hash=%s range=%d from=%lld to=%lld cache_allowed=%d",
+            (unsigned long long)id, hash.constData(), _byteRange.isSet() ? 1 : 0,
+            (long long)_byteRange.fromInclusive, (long long)_byteRange.toExclusive, _cacheEnabled ? 1 : 0);
+        // Observe before onRequestFinished consumes/deletes the reply. No URL,
+        // response body, credentials or endpoint selector is logged.
+        connect(_reply, &QNetworkReply::finished, this, [reply = _reply, elapsed, id] {
+            PHONE_LOADING("phase=http_end id=%llu ms=%lld cached=%d status=%d error=%d bytes=%lld",
+                (unsigned long long)id, (long long)elapsed.elapsed(),
+                reply->attribute(QNetworkRequest::SourceIsFromCacheAttribute).toBool() ? 1 : 0,
+                reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt(),
+                (int)reply->error(), (long long)reply->bytesAvailable());
+        });
+    }
+#endif
+
     
     connect(_reply, &QNetworkReply::finished, this, &HTTPResourceRequest::onRequestFinished);
     connect(_reply, &QNetworkReply::downloadProgress, this, &HTTPResourceRequest::onDownloadProgress);
@@ -127,7 +158,15 @@ void HTTPResourceRequest::onRequestFinished() {
     };
 
     switch(_reply->error()) {
-        case QNetworkReply::NoError:
+        case QNetworkReply::NoError: {
+            const auto status = _reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (_failOnRedirect && (_reply->attribute(QNetworkRequest::RedirectionTargetAttribute).isValid() ||
+                (status >= 300 && status < 400) || _reply->url() != _url ||
+                _reply->attribute(QNetworkRequest::SourceIsFromCacheAttribute).toBool())) {
+                _data.clear();
+                _result = RedirectFail;
+                break;
+            }
             _data = _reply->readAll();
             _loadedFromCache = _reply->attribute(QNetworkRequest::SourceIsFromCacheAttribute).toBool();
             _result = Success;
@@ -165,6 +204,8 @@ void HTTPResourceRequest::onRequestFinished() {
             recordBytesDownloadedInStats(STAT_HTTP_RESOURCE_TOTAL_BYTES, _data.size());
 
             break;
+
+        }
 
         case QNetworkReply::TimeoutError:
             _result = Timeout;

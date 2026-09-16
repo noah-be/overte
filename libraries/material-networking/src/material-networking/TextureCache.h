@@ -99,6 +99,10 @@ protected:
 
     void startMipRangeRequest(uint16_t low, uint16_t high);
     void handleFinishedInitialLoad();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    void probeInitialKtxCache();
+    bool _phoneProbeInitialKtxCache { false };
+#endif
 
 private:
     friend class KTXReader;

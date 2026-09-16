@@ -20,6 +20,7 @@
 #include <PathUtils.h>
 #include "SettingHandle.h"
 #include "ScreenName.h"
+#include <PhoneLoadingDiagnostics.h>
 
 
 const QString Basic2DWindowOpenGLDisplayPlugin::NAME("Desktop");
@@ -38,7 +39,8 @@ constexpr Sampler::Filter VIRTUAL_PAD_FILTER { Sampler::FILTER_MIN_MAG_MIP_LINEA
 
 void Basic2DWindowOpenGLDisplayPlugin::customizeContext() {
 #if defined(Q_OS_ANDROID)
-    qreal dpi = getFullscreenTarget()->physicalDotsPerInch();
+    QScreen* virtualPadScreen = getFullscreenTarget();
+    qreal dpi = virtualPadScreen->physicalDotsPerInch();
     _virtualPadPixelSize = dpi * VirtualPad::Manager::BASE_DIAMETER_PIXELS / VirtualPad::Manager::DPI;
 
     if (!_virtualPadStickTexture) {
@@ -48,7 +50,9 @@ void Basic2DWindowOpenGLDisplayPlugin::customizeContext() {
             image = image.convertToFormat(QImage::Format_ARGB32);
         }
         if ((image.width() > 0) && (image.height() > 0)) {
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
             image = image.scaled(_virtualPadPixelSize, _virtualPadPixelSize, Qt::KeepAspectRatio);
+#endif
 
             _virtualPadStickTexture = gpu::Texture::createStrict(
                     gpu::Element(gpu::VEC4, gpu::NUINT8, gpu::RGBA),
@@ -73,7 +77,9 @@ void Basic2DWindowOpenGLDisplayPlugin::customizeContext() {
             image = image.convertToFormat(QImage::Format_ARGB32);
         }
         if ((image.width() > 0) && (image.height() > 0)) {
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
             image = image.scaled(_virtualPadPixelSize, _virtualPadPixelSize, Qt::KeepAspectRatio);
+#endif
 
             _virtualPadStickBaseTexture = gpu::Texture::createStrict(
                     gpu::Element(gpu::VEC4, gpu::NUINT8, gpu::RGBA),
@@ -101,6 +107,32 @@ void Basic2DWindowOpenGLDisplayPlugin::customizeContext() {
                 PathUtils::resourcesPath() + "images/handshake.png",
                 VirtualPad::Manager::Button::HANDSHAKE));
     }
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (phoneLoadingDiagnosticsEnabled()) {
+        // Context setup can precede Android's final screen metrics. Record the
+        // actual cached button sizes as well as the freshly calculated size.
+        static thread_local QString previousMetrics;
+        static thread_local unsigned metricCount { 0 };
+        if (metricCount < 32) {
+            const auto pixels = virtualPadScreen->size();
+            const auto available = virtualPadScreen->availableSize();
+            const auto millimeters = virtualPadScreen->physicalSize();
+            const QString metrics = QString::asprintf(
+                "phase=controls_display_metrics dpi=%.5f screen_w=%d screen_h=%d available_w=%d available_h=%d physical_w_mm=%.5f physical_h_mm=%.5f dpr=%.5f pad_px=%.5f desired_button_px=%.5f jump_px=%.5f handshake_px=%.5f pad_texture_w=%d pad_texture_h=%d",
+                double(dpi), pixels.width(), pixels.height(), available.width(), available.height(),
+                double(millimeters.width()), double(millimeters.height()), double(virtualPadScreen->devicePixelRatio()),
+                double(_virtualPadPixelSize), double(dpi * VirtualPad::Manager::BTN_FULL_PIXELS / VirtualPad::Manager::DPI),
+                double(_virtualPadButtons.at(0)._pixelSize), double(_virtualPadButtons.at(1)._pixelSize),
+                _virtualPadStickBaseTexture ? int(_virtualPadStickBaseTexture->getWidth()) : 0,
+                _virtualPadStickBaseTexture ? int(_virtualPadStickBaseTexture->getHeight()) : 0);
+            if (metricCount == 0 || metrics != previousMetrics) {
+                ++metricCount;
+                PHONE_LOADING("%s sample=%u cap_reached=%d", qPrintable(metrics), metricCount, metricCount == 32);
+                previousMetrics = metrics;
+            }
+        }
+    }
+#endif
 #endif
     Parent::customizeContext();
 }
@@ -129,12 +161,44 @@ bool Basic2DWindowOpenGLDisplayPlugin::internalActivate() {
 void Basic2DWindowOpenGLDisplayPlugin::compositeExtra() {
 #if defined(Q_OS_ANDROID)
     auto& virtualPadManager = VirtualPad::Manager::instance();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Input publishes a complete layout after updating its hit targets. Never
+    // sample QScreen on the presentation thread or retain startup fallback DPI.
+    const auto phoneLayout = virtualPadManager.getPhoneLayout();
+    const bool phoneLayoutReady = phoneLayout.revision != 0;
+    if (phoneLayoutReady) {
+        _virtualPadPixelSize = phoneLayout.padDiameter;
+        for (auto& button : _virtualPadButtons) {
+            button._pixelSize = phoneLayout.buttonDiameter;
+        }
+        if (phoneLoadingDiagnosticsEnabled()) {
+            static thread_local uint64_t previousRevision { 0 };
+            static thread_local unsigned sampleCount { 0 };
+            if (sampleCount < 32 && previousRevision != phoneLayout.revision) {
+                ++sampleCount;
+                PHONE_LOADING("phase=controls_applied_metrics revision=%llu pad_px=%.5f button_px=%.5f button_radius_px=%.5f buttons_visible=%d sample=%u cap_reached=%d",
+                    (unsigned long long)phoneLayout.revision, double(phoneLayout.padDiameter),
+                    double(phoneLayout.buttonDiameter), double(phoneLayout.buttonRadius),
+                    phoneLayout.buttonsVisible, sampleCount, sampleCount == 32);
+                previousRevision = phoneLayout.revision;
+            }
+        }
+    }
+    if (phoneLayoutReady && virtualPadManager.getLeftVirtualPad()->isShown()) {
+        const glm::vec2 center(phoneLayout.centerX, phoneLayout.centerY);
+        const auto stickPosition = virtualPadManager.getLeftVirtualPad()->getCurrentTouch();
+        auto stickBaseTransform = DependencyManager::get<CompositorHelper>()->getPoint2DTransform(
+            center, _virtualPadPixelSize, _virtualPadPixelSize);
+        auto stickTransform = DependencyManager::get<CompositorHelper>()->getPoint2DTransform(
+            stickPosition, _virtualPadPixelSize, _virtualPadPixelSize);
+#else
     if(virtualPadManager.getLeftVirtualPad()->isShown()) {
         // render stick base
         auto stickBaseTransform = DependencyManager::get<CompositorHelper>()->getPoint2DTransform(virtualPadManager.getLeftVirtualPad()->getFirstTouch(),
                                                                                                     _virtualPadPixelSize, _virtualPadPixelSize);
         auto stickTransform = DependencyManager::get<CompositorHelper>()->getPoint2DTransform(virtualPadManager.getLeftVirtualPad()->getCurrentTouch(),
                                                                                               _virtualPadPixelSize, _virtualPadPixelSize);
+#endif
 
         render([&](gpu::Batch& batch) {
             batch.enableStereo(false);
@@ -152,7 +216,14 @@ void Basic2DWindowOpenGLDisplayPlugin::compositeExtra() {
             batch.draw(gpu::TRIANGLE_STRIP, 4);
 
             foreach(VirtualPadButton virtualPadButton, _virtualPadButtons) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+                if (phoneLayout.buttonsVisible) {
+                    virtualPadButton.draw(batch, glm::vec2(phoneLayout.buttonX,
+                        virtualPadButton._button == VirtualPad::Manager::Button::JUMP ? phoneLayout.jumpY : phoneLayout.secondaryY));
+                }
+#else
                 virtualPadButton.draw(batch, virtualPadManager.getButtonPosition(virtualPadButton._button));
+#endif
             }
         });
     }
@@ -203,7 +274,9 @@ Basic2DWindowOpenGLDisplayPlugin::VirtualPadButton::VirtualPadButton(qreal pixel
             image = image.convertToFormat(QImage::Format_ARGB32);
         }
         if ((image.width() > 0) && (image.height() > 0)) {
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
             image = image.scaled(_pixelSize, _pixelSize, Qt::KeepAspectRatio);
+#endif
             image = image.mirrored();
 
             _texture = gpu::Texture::createStrict(

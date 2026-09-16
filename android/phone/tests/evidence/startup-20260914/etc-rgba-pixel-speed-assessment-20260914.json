@@ -1,0 +1,123 @@
+{
+  "median_ms": {
+    "baseline": 4948.969999999999,
+    "candidate": 4037.8
+  },
+  "reduction_fraction": 0.18411305786860688,
+  "digest_consistent": true,
+  "runs": [
+    {
+      "run": "etc-rgba-pixel-0-baseline",
+      "variant": "baseline",
+      "start_temperatures": {
+        "soc_therm": 40.542004,
+        "VIRTUAL-SKIN": 37.018513,
+        "battery": 38.5
+      },
+      "samples": [
+        {
+          "profile": "parallel",
+          "repeat": 0,
+          "milliseconds": 4813.57,
+          "fixtures": 2,
+          "digest": "1026573256148587360",
+          "output_bytes": 2097640
+        },
+        {
+          "profile": "parallel",
+          "repeat": 1,
+          "milliseconds": 4734.5,
+          "fixtures": 2,
+          "digest": "1026573256148587360",
+          "output_bytes": 2097640
+        }
+      ]
+    },
+    {
+      "run": "etc-rgba-pixel-1-candidate",
+      "variant": "candidate",
+      "start_temperatures": {
+        "soc_therm": 41.204002,
+        "VIRTUAL-SKIN": 37.07281,
+        "battery": 38.2
+      },
+      "samples": [
+        {
+          "profile": "parallel",
+          "repeat": 0,
+          "milliseconds": 4011.8,
+          "fixtures": 2,
+          "digest": "1026573256148587360",
+          "output_bytes": 2097640
+        },
+        {
+          "profile": "parallel",
+          "repeat": 1,
+          "milliseconds": 3868.63,
+          "fixtures": 2,
+          "digest": "1026573256148587360",
+          "output_bytes": 2097640
+        }
+      ]
+    },
+    {
+      "run": "etc-rgba-pixel-2-candidate",
+      "variant": "candidate",
+      "start_temperatures": {
+        "soc_therm": 41.456,
+        "VIRTUAL-SKIN": 37.154938,
+        "battery": 38.100002
+      },
+      "samples": [
+        {
+          "profile": "parallel",
+          "repeat": 0,
+          "milliseconds": 4341.91,
+          "fixtures": 2,
+          "digest": "1026573256148587360",
+          "output_bytes": 2097640
+        },
+        {
+          "profile": "parallel",
+          "repeat": 1,
+          "milliseconds": 4063.8,
+          "fixtures": 2,
+          "digest": "1026573256148587360",
+          "output_bytes": 2097640
+        }
+      ]
+    },
+    {
+      "run": "etc-rgba-pixel-3-baseline",
+      "variant": "baseline",
+      "start_temperatures": {
+        "soc_therm": 41.158,
+        "VIRTUAL-SKIN": 36.989227,
+        "battery": 38.0
+      },
+      "samples": [
+        {
+          "profile": "parallel",
+          "repeat": 0,
+          "milliseconds": 5084.37,
+          "fixtures": 2,
+          "digest": "1026573256148587360",
+          "output_bytes": 2097640
+        },
+        {
+          "profile": "parallel",
+          "repeat": 1,
+          "milliseconds": 5649.62,
+          "fixtures": 2,
+          "digest": "1026573256148587360",
+          "output_bytes": 2097640
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Four measured samples per variant; final baseline slower than initial; device drift present despite similar starting temperatures.",
+    "Charging retained. Initial40C target unattainable consistently; batch intentionally relaunched at41.5C threshold before any timed benchmark.",
+    "Synthetic isolated two-texture test; full world speedup not established."
+  ]
+}

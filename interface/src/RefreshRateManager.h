@@ -17,6 +17,7 @@
 #include <map>
 #include <string>
 #include <functional>
+#include <atomic>
 
 #include <QTimer>
 
@@ -89,7 +90,7 @@ public:
     static bool isValidUXMode(UXMode value) { return (value >= UXMode::DESKTOP && value <= UXMode::VR); }
 
     RefreshRateManager();
-    ~RefreshRateManager() = default;
+    ~RefreshRateManager();
 
     void setRefreshRateProfile(RefreshRateProfile refreshRateProfile);
     RefreshRateProfile getRefreshRateProfile() const;
@@ -119,6 +120,7 @@ public:
     static std::string refreshRateRegimeToString(RefreshRateRegime refreshRateRegime);
 
 private:
+    std::atomic<bool> _metricsRefreshQueued { false };
     mutable int _activeRefreshRate { 20 };
     RefreshRateProfile _refreshRateProfile { RefreshRateProfile::INTERACTIVE};
     RefreshRateRegime _refreshRateRegime { RefreshRateRegime::STARTUP };

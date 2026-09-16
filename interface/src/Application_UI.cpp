@@ -14,6 +14,9 @@
 //
 
 #include "Application.h"
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include "AndroidHelper.h"
+#endif
 
 #include <QtQml/QQmlContext>
 #include <QStyle>
@@ -26,6 +29,11 @@
 #endif
 
 #include <AddressManager.h>
+#include <EntityScriptConsent.h>
+#include <EntityTreeRenderer.h>
+#include <NodeList.h>
+#include <QCryptographicHash>
+#include <QQuickItem>
 #include <AnimationCacheScriptingInterface.h>
 #include <audio/AudioScope.h>
 #include <AudioScriptingInterface.h>
@@ -48,6 +56,7 @@
 #include <raypick/PointerScriptingInterface.h>
 #include <recording/RecordingScriptingInterface.h>
 #include <SandboxUtils.h>
+#include <PhoneLoadingDiagnostics.h>
 #include <SceneScriptingInterface.h>
 #include <ScriptEngines.h>
 #include <scripting/AccountServicesScriptingInterface.h>
@@ -1051,6 +1060,149 @@ bool Application::askToSetAvatarUrl(const QString& url) {
     return true;
 }
 
+void Application::invalidateEntityScriptConsent() {
+    ++_entityScriptConsentUiGeneration;
+    const auto scope = std::move(_entityScriptConsentScope);
+    const auto dialog = _entityScriptConsentDialog;
+    _entityScriptConsentDialog.clear();
+    auto decision = std::move(_activeEntityScriptConsentDecision);
+    _activeEntityScriptConsentDecision = {};
+    _activeEntityScriptConsentRequest.reset();
+    std::deque<PendingEntityScriptConsent> pending;
+    pending.swap(_pendingEntityScriptConsents);
+    _entityScriptConsentDispatch.reset();
+    if (scope) { scope->invalidate(); }
+    if (decision) { decision(false); }
+    for (auto& item : pending) { item.decide(false); }
+    if (dialog) {
+        if (auto item = dialog->getDialogItem()) { item->setVisible(false); item->deleteLater(); }
+        dialog->deleteLater();
+    }
+    if (scope) {
+        const auto renderer = getEntities();
+        const auto weakRenderer = renderer.toWeakRef();
+        QMetaObject::invokeMethod(renderer.data(), [weakRenderer, scope] {
+            if (const auto renderer = weakRenderer.toStrongRef()) {
+                if (renderer->_entityScriptConsentScope == scope) { renderer->endEntityScriptConsent(); }
+            }
+        }, Qt::QueuedConnection);
+    }
+}
+
+void Application::beginEntityScriptConsentReview() {
+    const auto expectedGeneration = _entityScriptConsentUiGeneration + 1;
+    invalidateEntityScriptConsent();
+    if (_entityScriptConsentUiGeneration != expectedGeneration) { return; }
+    if (_aboutToQuit || !_startUpFinished || !_isForeground) { return; }
+    const auto nodes = DependencyManager::get<NodeList>();
+    if (!nodes->getDomainHandler().isConnected() && !isServerlessMode()) {
+        OffscreenUi::asyncInformation(tr("Entity scripts"), tr("Finish connecting to a world before reviewing its scripts."));
+        return;
+    }
+    const QUrl origin(DependencyManager::get<AddressManager>()->currentAddress(true));
+    if (!origin.isValid() || origin.isEmpty()) { return; }
+    const auto scope = std::make_shared<EntityScriptConsentScope>(origin.toString(QUrl::FullyEncoded));
+    _entityScriptConsentScope = scope;
+    // A weakly referenced dispatcher keeps cross-thread posts independent of
+    // Application destruction. Application is inspected only on its UI thread.
+    _entityScriptConsentDispatch = QSharedPointer<QObject>(new QObject, [](QObject* object) { object->deleteLater(); });
+    const auto weakDispatch = _entityScriptConsentDispatch.toWeakRef();
+    const QPointer<Application> application(this);
+    const auto renderer = getEntities();
+    const auto weakRenderer = renderer.toWeakRef();
+    QMetaObject::invokeMethod(renderer.data(), [weakRenderer, weakDispatch, application, scope] {
+        const auto renderer = weakRenderer.toStrongRef();
+        if (!renderer || !scope->active()) { return; }
+        renderer->beginEntityScriptConsent(scope,
+            [weakDispatch, application, scope](const EntityItemID&,
+                const std::shared_ptr<EntityScriptConsentRequest>& request, std::function<void(bool)> decide) {
+                const auto dispatch = weakDispatch.toStrongRef();
+                if (!dispatch || !request->active()) { decide(false); return; }
+                QMetaObject::invokeMethod(dispatch.data(), [application, scope, request, decide] {
+                    if (!application || application->_entityScriptConsentScope != scope || !scope->active()) {
+                        decide(false); return;
+                    }
+                    application->enqueueEntityScriptConsent(request, decide);
+                }, Qt::QueuedConnection);
+            });
+    }, Qt::QueuedConnection);
+}
+
+void Application::enqueueEntityScriptConsent(const std::shared_ptr<EntityScriptConsentRequest>& request,
+                                            std::function<void(bool)> complete) {
+    const auto completed = std::make_shared<std::atomic<bool>>(false);
+    const auto decide = [completed, complete = std::move(complete)](bool allow) {
+        if (!completed->exchange(true)) { complete(allow); }
+    };
+    if (_aboutToQuit || !_isForeground || !request || !request->active() ||
+        !request->belongsTo(_entityScriptConsentScope) || _pendingEntityScriptConsents.size() >= 64) {
+        decide(false); return;
+    }
+    _pendingEntityScriptConsents.push_back({ request, std::move(decide) });
+    showNextEntityScriptConsent();
+}
+
+void Application::showNextEntityScriptConsent() {
+    if (_entityScriptConsentDialog || _activeEntityScriptConsentRequest || _aboutToQuit || !_isForeground) { return; }
+    while (!_pendingEntityScriptConsents.empty()) {
+        auto pending = std::move(_pendingEntityScriptConsents.front());
+        _pendingEntityScriptConsents.pop_front();
+        const auto request = pending.request;
+        if (!request->active() || !request->belongsTo(_entityScriptConsentScope)) {
+            pending.decide(false); continue;
+        }
+        const auto displaySource = [](const QString& value) {
+            const QUrl url(value);
+            if (url.isValid() && !url.scheme().isEmpty() && url.scheme() != QStringLiteral("javascript")) {
+                return url.adjusted(QUrl::RemoveUserInfo | QUrl::RemoveQuery | QUrl::RemoveFragment)
+                    .toDisplayString().left(512).toHtmlEscaped();
+            }
+            return QStringLiteral("Embedded script");
+        };
+        const QString fingerprint = QString::fromLatin1(QCryptographicHash::hash(request->source().toUtf8(),
+            QCryptographicHash::Sha256).toHex());
+        const QString message = tr("<p>Allow this entity script to run in the current world?</p>"
+            "<p>World: %1<br>Source: %2<br>Source reference: %3</p>"
+            "<p>Scripts can interact with your avatar and world and use the client APIs, including loading more code. "
+            "Only allow sources you trust. URL credentials and parameters are hidden above.</p>"
+            "<p>This permission ends when you leave the world, change accounts, put the app in the background, "
+            "or choose Entity Scripts: Revoke. Already completed actions cannot be undone.</p>")
+            .arg(displaySource(request->origin()), displaySource(request->source()), fingerprint);
+        const auto decide = pending.decide;
+        _activeEntityScriptConsentDecision = decide;
+        _activeEntityScriptConsentRequest = request;
+        auto* dialog = OffscreenUi::asyncQuestion(tr("Allow entity script"), message,
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        if (!dialog || _activeEntityScriptConsentRequest != request || !request->active() ||
+            !request->belongsTo(_entityScriptConsentScope) || _aboutToQuit || !_isForeground) {
+            if (_activeEntityScriptConsentRequest == request) {
+                _activeEntityScriptConsentDecision = {};
+                _activeEntityScriptConsentRequest.reset();
+            }
+            if (dialog) {
+                if (auto item = dialog->getDialogItem()) { item->setVisible(false); item->deleteLater(); }
+                dialog->deleteLater();
+            }
+            decide(false); continue;
+        }
+        _entityScriptConsentDialog = dialog;
+        const QPointer<ModalDialogListener> heldDialog(dialog);
+        connect(dialog, &ModalDialogListener::response, this, [this, request, decide, heldDialog](const QVariant& answer) {
+            if (_entityScriptConsentDialog != heldDialog || _activeEntityScriptConsentRequest != request) { return; }
+            const bool allow = !_aboutToQuit && _isForeground && request->active() && request->belongsTo(_entityScriptConsentScope) &&
+                answer.toInt() == int(QMessageBox::Yes);
+            if (_entityScriptConsentDialog == heldDialog && _activeEntityScriptConsentRequest == request) {
+                _entityScriptConsentDialog.clear();
+                _activeEntityScriptConsentDecision = {};
+                _activeEntityScriptConsentRequest.reset();
+            }
+            decide(allow);
+            QMetaObject::invokeMethod(this, [this] { showNextEntityScriptConsent(); }, Qt::QueuedConnection);
+        });
+        return;
+    }
+}
+
 bool Application::askToLoadScript(const QString& scriptFilenameOrURL) {
     QString shortName = scriptFilenameOrURL;
 
@@ -1209,8 +1361,14 @@ void Application::pauseUntilLoginDetermined() {
         menu->getMenu("Developer")->setVisible(false);
     }
     _previousCameraMode = _myCamera.getMode();
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
     _myCamera.setMode(CAMERA_MODE_FIRST_PERSON_LOOK_AT);
     cameraModeChanged();
+#endif
+    // Phone resumes directly when its UI is ready; preserve its chosen camera
+    // instead of exposing the temporary desktop login view during startup.
+    PHONE_LOADING("phase=startup_camera_pause elapsed_ms=%lld mode=%d previous_mode=%d",
+        (long long)_sessionRunTimer.elapsed(), (int)_myCamera.getMode(), (int)_previousCameraMode);
 
     // disconnect domain handler.
     nodeList->getDomainHandler().disconnect("Pause until login determined");
@@ -1225,6 +1383,7 @@ void Application::pauseUntilLoginDetermined() {
 }
 
 void Application::resumeAfterLoginDialogActionTaken() {
+    PHONE_LOADING("phase=startup_resume_begin elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
     if (QThread::currentThread() != qApp->thread()) {
         QMetaObject::invokeMethod(this, "resumeAfterLoginDialogActionTaken");
         return;
@@ -1270,6 +1429,7 @@ void Application::resumeAfterLoginDialogActionTaken() {
 
     const auto& nodeList = DependencyManager::get<NodeList>();
     nodeList->getDomainHandler().setInterstitialModeEnabled(_interstitialModeEnabled);
+    PHONE_LOADING("phase=startup_scripts_begin elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
     {
         auto scriptEngines = DependencyManager::get<ScriptEngines>().data();
         // this will force the model the look at the correct directory (weird order of operations issue)
@@ -1291,6 +1451,9 @@ void Application::resumeAfterLoginDialogActionTaken() {
         }
     }
 
+    // The script-loading API has returned; this is not script execution completion.
+    PHONE_LOADING("phase=startup_scripts_api_return elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+
     auto accountManager = DependencyManager::get<AccountManager>();
     auto addressManager = DependencyManager::get<AddressManager>();
 
@@ -1302,15 +1465,31 @@ void Application::resumeAfterLoginDialogActionTaken() {
         const auto testScript = property(hifi::properties::TEST).toUrl();
         // Set last parameter to exit interface when the test script finishes, if so requested
         DependencyManager::get<ScriptEngines>()->loadScript(testScript, false, false, false, false, _quitWhenFinished);
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
         // This is done so we don't get a "connection time-out" message when we haven't passed in a URL.
         if (!_urlParam.isEmpty()) {
+            PHONE_LOADING("phase=startup_sandbox_submit elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
             auto reply = SandboxUtils::getStatus();
-            connect(reply, &QNetworkReply::finished, this, [this, reply] { handleSandboxStatus(reply); });
+            connect(reply, &QNetworkReply::finished, this, [this, reply] {
+                PHONE_LOADING("phase=startup_sandbox_callback elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+                handleSandboxStatus(reply);
+                PHONE_LOADING("phase=startup_sandbox_callback_return elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+            });
         }
-    } else {
-        auto reply = SandboxUtils::getStatus();
-        connect(reply, &QNetworkReply::finished, this, [this, reply] { handleSandboxStatus(reply); });
+#endif
     }
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
+    else {
+        PHONE_LOADING("phase=startup_sandbox_submit elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+        auto reply = SandboxUtils::getStatus();
+        connect(reply, &QNetworkReply::finished, this, [this, reply] {
+            PHONE_LOADING("phase=startup_sandbox_callback elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+            handleSandboxStatus(reply);
+            PHONE_LOADING("phase=startup_sandbox_callback_return elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+        });
+    }
+
+#endif
 
     auto menu = Menu::getInstance();
     menu->getMenu("Edit")->setVisible(true);
@@ -1318,10 +1497,37 @@ void Application::resumeAfterLoginDialogActionTaken() {
     menu->getMenu("Navigate")->setVisible(true);
     menu->getMenu("Settings")->setVisible(true);
     menu->getMenu("Developer")->setVisible(_developerMenuVisible);
+#if !defined(ANDROID_APP_PHONE_INTERFACE)
     _myCamera.setMode(_previousCameraMode);
     cameraModeChanged();
+#endif
+    PHONE_LOADING("phase=startup_camera_restore elapsed_ms=%lld mode=%d previous_mode=%d",
+        (long long)_sessionRunTimer.elapsed(), (int)_myCamera.getMode(), (int)_previousCameraMode);
     _startUpFinished = true;
     getRefreshRateManager().setRefreshRateRegime(RefreshRateManager::RefreshRateRegime::FOCUS_ACTIVE);
+    PHONE_LOADING("phase=startup_resume_end elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Resume, avatar/settings restoration and DomainHandler::resetting are
+    // complete. Sandbox status is telemetry, not a prerequisite for an
+    // explicit Android destination. Keep test mode without a URL unchanged.
+    if (!testProperty.isValid() || !_urlParam.isEmpty()) {
+        _connectionMonitor.init();
+        const bool acceptedStartupUrl = AndroidHelper::instance().dispatchPendingStartupUrl();
+        PHONE_LOADING("phase=startup_early_dispatch accepted=%d", acceptedStartupUrl ? 1 : 0);
+        if (acceptedStartupUrl) {
+            AndroidHelper::instance().notifyStartupNavigationReady();
+        }
+        // Submit only after synchronous dispatch returns: even a reentrant
+        // URL handler cannot run this callback before its outcome is known.
+        PHONE_LOADING("phase=startup_sandbox_submit elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+        auto reply = SandboxUtils::getStatus();
+        connect(reply, &QNetworkReply::finished, this, [this, reply, acceptedStartupUrl] {
+            PHONE_LOADING("phase=startup_sandbox_callback elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+            handleSandboxStatus(reply, acceptedStartupUrl);
+            PHONE_LOADING("phase=startup_sandbox_callback_return elapsed_ms=%lld", (long long)_sessionRunTimer.elapsed());
+        });
+    }
+#endif
 }
 
 QSharedPointer<OffscreenUi> Application::getOffscreenUI() {

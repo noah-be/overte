@@ -9,7 +9,10 @@
 //  See the accompanying file LICENSE or http://www.apache.org/licenses/LICENSE-2.0.html
 //
 #include "AndroidHelper.h"
+#include <PhoneLoadingDiagnostics.h>
 #include <QDebug>
+#include <QScopedValueRollback>
+#include <QThread>
 #include <AccountManager.h>
 #include <AudioClient.h>
 #include <src/ui/LoginDialog.h>
@@ -34,9 +37,30 @@ void AndroidHelper::requestActivity(const QString &activityName, const bool back
 }
 
 void AndroidHelper::notifyLoadComplete() {
+    PHONE_LOADING("phase=url_load_complete");
     _loadComplete = true;
     emit qtAppLoadComplete();
 }
+
+void AndroidHelper::notifyStartupNavigationReady() {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (_startupUrlDispatching) { return; }
+#endif
+    if (_startupNavigationReady) { return; }
+    _startupNavigationReady = true;
+    emit startupNavigationReady();
+}
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+bool AndroidHelper::dispatchPendingStartupUrl() {
+    Q_ASSERT(QThread::currentThread() == thread());
+    if (_startupNavigationReady || _startupUrlDispatching || !_loadComplete) { return false; }
+    QScopedValueRollback<bool> dispatching(_startupUrlDispatching, true);
+    bool accepted = false;
+    emit startupUrlDispatchRequested(accepted);
+    return accepted;
+}
+#endif
 
 void AndroidHelper::notifyEnterForeground() {
     emit enterForeground();

@@ -15,7 +15,6 @@
 import QtQuick 2.10
 import QtQuick.Controls 2.2
 import QtQuick.Layouts 1.3
-import QtGraphicalEffects 1.0
 
 import stylesUit 1.0
 import controlsUit 1.0 as HifiControlsUit
@@ -160,7 +159,8 @@ Rectangle {
         anchors.bottom: parent.bottom;
         width: parent.width;
         contentWidth: parent.width;
-        contentHeight: contentItem.childrenRect.height;
+        // The last content row defines the extent; exclude scrollbar geometry.
+        contentHeight: outputView.y + outputView.height;
         boundsBehavior: Flickable.DragOverBounds;
         flickableDirection: Flickable.VerticalFlick;
         pressDelay: touchConfiguration.pressDelay
@@ -766,41 +766,13 @@ Rectangle {
                         AudioScriptingInterface.inputLevelChanged.disconnect(onInputLevelChanged);
                     }
 
-                    Rectangle { // base
-                        radius: 4;
-                        anchors { fill: parent }
-                        color: colors.gutter;
-                    }
-
-                    Rectangle { // noiseMask
-                        id: noiseMask;
-                        width: parent.width * noiseBar.level;
-                        radius: 5;
-                        anchors {
-                            bottom: parent.bottom;
-                            bottomMargin: 0;
-                            top: parent.top;
-                            topMargin: 0;
-                            left: parent.left;
-                            leftMargin: 0;
-                        }
-                    }
-
-                    LinearGradient {
-                        anchors { fill: noiseMask }
-                        source: noiseMask
-                        start: Qt.point(0, 0);
-                        end: Qt.point(noiseBar.width, 0);
-                        gradient: Gradient {
-                            GradientStop {
-                                position: 0;
-                                color: noiseBar.gated ? "#E2334D" : "#39A38F";
-                            }
-                            GradientStop {
-                                position: 1;
-                                color: noiseBar.gated ? "#E2334D" : "#39A38F";
-                            }
-                        }
+                    LevelMeter {
+                        anchors.fill: parent
+                        level: noiseBar.level
+                        vertical: false
+                        low: noiseBar.gated ? "#E2334D" : "#39A38F"
+                        middle: low
+                        high: low
                     }
                 }
             }
@@ -837,7 +809,8 @@ Rectangle {
                 anchors.leftMargin: margins.sizeCheckBox;
                 size: Math.round(22 * touchConfiguration.textScale);
                 color: hifi.colors.white;
-                text: qsTr("Choose input device");
+                text: touchConfiguration.systemManagedAudioInput
+                    ? qsTr("Microphone") : qsTr("Choose input device");
             }
         }
 
@@ -858,10 +831,19 @@ Rectangle {
             anchors.topMargin: 10;
             x: margins.paddings
             interactive: false;
-            height: contentHeight;
+            height: touchConfiguration.systemManagedAudioInput ? 60 : contentHeight;
 
             clip: true;
-            model: AudioScriptingInterface.devices.input;
+            model: touchConfiguration.systemManagedAudioInput ? null : AudioScriptingInterface.devices.input;
+            RalewayRegular {
+                anchors.fill: parent
+                visible: touchConfiguration.systemManagedAudioInput
+                text: qsTr("Android uses the active microphone on your phone or connected headset.")
+                color: hifi.colors.white
+                size: Math.round(16 * touchConfiguration.textScale)
+                wrapMode: Text.WordWrap
+                verticalAlignment: Text.AlignVCenter
+            }
             delegate: Item {
                 width: rightMostInputLevelPos - margins.paddings*2
                 height: ((type != "hmd" && bar.currentIndex === 0) || (type != "desktop" && bar.currentIndex === 1)) ?
@@ -931,7 +913,8 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter;
                 size: Math.round(22 * touchConfiguration.textScale);
                 color: hifi.colors.white;
-                text: qsTr("Choose output device");
+                text: touchConfiguration.systemManagedAudioOutput
+                    ? qsTr("Audio output") : qsTr("Choose output device");
             }
         }
 
@@ -947,11 +930,20 @@ Rectangle {
             width: parent.width - margins.paddings*2
             x: margins.paddings;
             interactive: false;
-            height: contentHeight + 10;
+            height: touchConfiguration.systemManagedAudioOutput ? 60 : contentHeight + 10;
             anchors.top: playSampleSound.bottom;
             anchors.topMargin: 10;
             clip: true;
-            model: AudioScriptingInterface.devices.output;
+            model: touchConfiguration.systemManagedAudioOutput ? null : AudioScriptingInterface.devices.output;
+            RalewayRegular {
+                anchors.fill: parent
+                visible: touchConfiguration.systemManagedAudioOutput
+                text: qsTr("Android plays sound through your phone speaker or connected audio device.")
+                color: hifi.colors.white
+                size: Math.round(16 * touchConfiguration.textScale)
+                wrapMode: Text.WordWrap
+                verticalAlignment: Text.AlignVCenter
+            }
             delegate: Item {
                 width: rightMostInputLevelPos
                 height: ((type != "hmd" && bar.currentIndex === 0) || (type != "desktop" && bar.currentIndex === 1)) ?

@@ -1,0 +1,8 @@
+{
+  "baseline_sha256": "94ec7a20cec01157d59187706b895b1c5ada60b2aba21a6fd1a24e87f6ddc06f",
+  "candidate_sha256": "e1109ae463acbc277f84d9f1da21a3a0785f34a9970e171f58544696e6e2c3d0",
+  "changed_entries": [
+    "lib/arm64-v8a/libimage.so"
+  ],
+  "note": "Exact installed baseline retained, including optimizedQtCore and all accepted native/assets changes. Earlier six-library repack is not installed."
+}

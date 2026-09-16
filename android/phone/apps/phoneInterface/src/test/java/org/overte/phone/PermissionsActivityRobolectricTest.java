@@ -170,6 +170,33 @@ public final class PermissionsActivityRobolectricTest {
         controller.destroy();
     }
 
+    @Test
+    public void cancelledLauncherIgnoresLatePermissionResult() {
+        ActivityController<PermissionsActivity> controller = create(
+                viewIntent("hifi://example.com"));
+        PermissionsActivity activity = controller.get();
+        applicationShadow().getNextStartedActivity();
+        activity.finish();
+        activity.onRequestPermissionsResult(PhonePermissionFlow.RECORD_AUDIO_REQUEST,
+                new String[] { Manifest.permission.RECORD_AUDIO },
+                new int[] { PackageManager.PERMISSION_DENIED });
+        assertNull(applicationShadow().getNextStartedActivity());
+        controller.destroy();
+    }
+
+    @Test
+    public void destroyedLauncherIgnoresLatePermissionResult() {
+        ActivityController<PermissionsActivity> controller = create(
+                viewIntent("hifi://example.com"));
+        PermissionsActivity activity = controller.get();
+        applicationShadow().getNextStartedActivity();
+        controller.pause().stop().destroy();
+        activity.onRequestPermissionsResult(PhonePermissionFlow.RECORD_AUDIO_REQUEST,
+                new String[] { Manifest.permission.RECORD_AUDIO },
+                new int[] { PackageManager.PERMISSION_DENIED });
+        assertNull(applicationShadow().getNextStartedActivity());
+    }
+
     private static ActivityController<PermissionsActivity> create(Intent intent) {
         return Robolectric.buildActivity(PermissionsActivity.class, intent)
                 .create().start().resume().visible();

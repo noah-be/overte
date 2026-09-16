@@ -10,8 +10,13 @@
 //
 
 #include "TextureCache.h"
+#include "PhoneKtxProbePool.h"
 
 #include <mutex>
+#include <cstring>
+#include <stdexcept>
+#include <QPointer>
+#include <QCoreApplication>
 
 #include <QtConcurrent/QtConcurrentRun>
 
@@ -50,6 +55,8 @@
 #include <MetaverseAPI.h>
 #include <Trace.h>
 #include <StatTracker.h>
+#include <PhoneLoadingDiagnostics.h>
+#include <QElapsedTimer>
 
 #include <TextureMeta.h>
 
@@ -60,6 +67,79 @@ Q_LOGGING_CATEGORY(trace_resource_parse_image_raw, "trace.resource.parse.image.r
 Q_LOGGING_CATEGORY(trace_resource_parse_image_ktx, "trace.resource.parse.image.ktx")
 
 const std::string TextureCache::KTX_EXT { "ktx" };
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+static PhoneKtxProbePool& phoneKtxProbePool() {
+    static PhoneKtxProbePool pool;
+    return pool;
+}
+
+void stopPhoneKtxHeaderProbes() {
+    // Resource results and Application cleanup share the qApp thread. This
+    // serializes stop with owner callbacks without a reentrancy-prone lock.
+    Q_ASSERT(QCoreApplication::instance() && QThread::currentThread() == QCoreApplication::instance()->thread());
+    phoneKtxProbePool().stop();
+}
+
+static bool queuePhoneKtxProbeTask(std::function<void()> work, const QUrl& url) {
+    QElapsedTimer queued;
+    queued.start();
+    return phoneKtxProbePool().start([work = std::move(work), queued, url] {
+        const auto wait = queued.elapsed();
+        QElapsedTimer running;
+        running.start();
+        const auto hash = QCryptographicHash::hash(url.toEncoded(), QCryptographicHash::Md5).toHex();
+        PHONE_LOADING("phase=ktx_probe_start url_hash=%s queue_ms=%lld", hash.constData(), (long long)wait);
+        try {
+            work();
+        } catch (...) {
+            qWarning("Texture cache probe task failed");
+        }
+        PHONE_LOADING("phase=ktx_probe_end url_hash=%s work_ms=%lld", hash.constData(), (long long)running.elapsed());
+    });
+}
+#endif
+// Already-compressed texture uploads must not sit behind minutes of raw-image
+// encoding on Phone's shared pool. Keep the worker count and OS priority intact.
+static void queueKtxTask(std::function<void()> work, const QUrl& url, int kind) {
+    int priority = 0;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    priority = 1;
+    // Opt-in A/B control; a normal session always uses the production priority.
+    if (phoneLoadingDiagnosticsEnabled()) {
+        char value[PROP_VALUE_MAX] {};
+        if (__system_property_get("debug.overte.loading.ktx_priority", value) == 1 && value[0] == '0') {
+            priority = 0;
+        }
+    }
+#endif
+    QElapsedTimer queued;
+    queued.start();
+    auto task = [work = std::move(work), queued, url, kind, priority]() {
+        const auto wait = queued.elapsed();
+        QElapsedTimer running;
+        running.start();
+        PHONE_LOADING("phase=ktx_start url_hash=%s kind=%d priority=%d queue_ms=%lld",
+            QCryptographicHash::hash(url.toEncoded(), QCryptographicHash::Md5).toHex().constData(),
+            kind, priority, (long long)wait);
+        // Match the old ignored QtConcurrent future: isolate a malformed
+        // task's exception instead of unwinding through QThreadPool.
+        try {
+            work();
+        } catch (...) {
+            qWarning("Texture streaming task failed");
+            PHONE_LOADING("phase=ktx_exception kind=%d", kind);
+        }
+        PHONE_LOADING("phase=ktx_end url_hash=%s kind=%d work_ms=%lld",
+            QCryptographicHash::hash(url.toEncoded(), QCryptographicHash::Md5).toHex().constData(),
+            kind, (long long)running.elapsed());
+    };
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    QThreadPool::globalInstance()->start(QRunnable::create(std::move(task)), priority);
+#else
+    QtConcurrent::run(QThreadPool::globalInstance(), std::move(task));
+#endif
+}
+
 
 /*@jsdoc
  * <p>The views that may be visible on the PC display.</p>
@@ -96,6 +176,22 @@ static const float HIGH_MIPS_LOAD_PRIORITY { 9.0f }; // Make sure high mips load
 
 std::function<gpu::TexturePointer(const QUuid&)> Texture::_unboundTextureForUUIDOperator { nullptr };
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+static int phoneLoadingCacheNamespace(const char* value, int length) {
+    if ((length != 1 && length != 2) || value[0] < '1' || value[0] > '9') {
+        return 0;
+    }
+    int result = value[0] - '0';
+    if (length == 2) {
+        if (value[1] < '0' || value[1] > '9') {
+            return 0;
+        }
+        result = result * 10 + value[1] - '0';
+    }
+    return result;
+}
+#endif
+
 TextureCache::TextureCache() {
     std::string KTX_DIRNAME = "ktx_cache";
     auto backendApi = hifi::properties::getGraphicsAPI();
@@ -103,7 +199,23 @@ TextureCache::TextureCache() {
         KTX_DIRNAME = "ktx_cache_gles";
     }
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    int cacheNamespace = 0;
+    // Separate derived-cache namespaces for controlled cold/warm comparisons.
+    // Never delete or replace the user's normal cache. Only active with diagnostics.
+    if (phoneLoadingDiagnosticsEnabled()) {
+        char run[PROP_VALUE_MAX] {};
+        const int length = __system_property_get("debug.overte.loading.cache_run", run);
+        cacheNamespace = phoneLoadingCacheNamespace(run, length);
+        if (cacheNamespace != 0) {
+            KTX_DIRNAME += std::string("_loading_") + std::to_string(cacheNamespace);
+        }
+    }
+#endif
     _ktxCache = std::make_shared<KTXCache>(KTX_DIRNAME, KTX_EXT);
+    PHONE_LOADING("phase=ktx_cache_select gles=%d namespace=%d",
+        int(backendApi == hifi::properties::GraphicsAPI::GLES32),
+        cacheNamespace);
     _ktxCache->initialize();
 #if defined(DISABLE_KTX_CACHE)
     _ktxCache->wipe();
@@ -468,6 +580,12 @@ void NetworkTexture::setExtra(void* extra) {
 void NetworkTexture::setImage(gpu::TexturePointer texture, int originalWidth,
                               int originalHeight) {
 
+    PHONE_LOADING("phase=texture_set url_hash=%s ok=%d type=%d format=%d width=%d height=%d min_mip=%d mips=%d",
+        QCryptographicHash::hash(_url.toEncoded(), QCryptographicHash::Md5).toHex().constData(),
+        texture ? 1 : 0, (int)_currentlyLoadingResourceType,
+        texture ? (int)texture->getTexelFormat().getSemantic() : -1,
+        texture ? texture->getWidth() : 0, texture ? texture->getHeight() : 0,
+        texture ? texture->minAvailableMipLevel() : -1, texture ? texture->getNumMips() : 0);
     // Passing ownership
     _textureSource->resetTexture(texture);
 
@@ -539,7 +657,7 @@ void NetworkTexture::makeRequest() {
 
     if (isLocalUrl(_activeUrl)) {
         auto self = _self;
-        QtConcurrent::run(QThreadPool::globalInstance(), [self] {
+        queueKtxTask([self] {
             auto resource = self.lock();
             if (!resource) {
                 return;
@@ -547,7 +665,7 @@ void NetworkTexture::makeRequest() {
 
             NetworkTexture* networkTexture = static_cast<NetworkTexture*>(resource.data());
             networkTexture->makeLocalRequest();
-        });
+        }, _url, 0);
         return;
     }
 
@@ -582,8 +700,17 @@ void NetworkTexture::makeRequest() {
 
         _bytesReceived = _bytesTotal = _bytes = 0;
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        char probeValue[PROP_VALUE_MAX] {};
+        const bool headerFirst = phoneLoadingDiagnosticsEnabled() &&
+            __system_property_get("debug.overte.loading.ktx_header_first", probeValue) == 1 && probeValue[0] == '1';
+        _phoneProbeInitialKtxCache = headerFirst;
+#endif
         _ktxHeaderRequest->send();
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        if (!headerFirst)
+#endif
         startMipRangeRequest(NULL_MIP_LEVEL, NULL_MIP_LEVEL);
     } else if (_ktxResourceState == PENDING_MIP_REQUEST) {
         if (_lowestKnownPopulatedMip > 0) {
@@ -750,8 +877,166 @@ void NetworkTexture::startMipRangeRequest(uint16_t low, uint16_t high) {
     _ktxMipRequest->send();
 }
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+void NetworkTexture::probeInitialKtxCache() {
+    if (phoneKtxProbePool().isStopping()) {
+        return;
+    }
+    const auto self = _self;
+    const QPointer<ResourceRequest> request = _ktxHeaderRequest;
+    const auto activeUrl = _activeUrl;
+    const auto url = _url;
+    const auto data = request->getResult() == ResourceRequest::Success ? request->getData() : QByteArray();
+    DependencyManager::get<StatTracker>()->incrementStat("PendingProcessing");
+    const bool accepted = queuePhoneKtxProbeTask([self, request, activeUrl, url, data] {
+        DependencyManager::get<StatTracker>()->decrementStat("PendingProcessing");
+        if (phoneKtxProbePool().isStopping()) {
+            return;
+        }
+        CounterStat processing("Processing");
+        QElapsedTimer timer;
+        timer.start();
+        std::pair<gpu::TexturePointer, glm::ivec2> cached;
+        std::shared_ptr<ktx::KTXDescriptor> descriptor;
+        // Keep the admitted request alive until the owner-thread decision.
+        // A failed probe must always reach the existing tail/error path.
+        try {
+            if (data.size() >= int(ktx::KTX_HEADER_SIZE)) {
+                ktx::Header header;
+                std::memcpy(&header, data.constData(), sizeof(header));
+                if (ktx::checkIdentifier(header.identifier) && header.endianness == ktx::Header::ENDIAN_TEST &&
+                        header.bytesOfKeyValueData <= data.size() - ktx::KTX_HEADER_SIZE &&
+                        header.getNumberOfLevels() <= 32) {
+                    const auto keyData = reinterpret_cast<const ktx::Byte*>(data.constData()) + ktx::KTX_HEADER_SIZE;
+                    // The legacy parser assumes each record has a size word
+                    // and a terminated non-empty key; check those bounds first.
+                    size_t offset = 0;
+                    while (offset < header.bytesOfKeyValueData) {
+                        const auto remaining = header.bytesOfKeyValueData - offset;
+                        uint32_t length;
+                        if (remaining < sizeof(length)) {
+                            throw std::runtime_error("short KTX key size");
+                        }
+                        std::memcpy(&length, keyData + offset, sizeof(length));
+                        if (length < 2 || length > remaining - sizeof(length) || keyData[offset + sizeof(length)] == 0 ||
+                                !std::memchr(keyData + offset + sizeof(length) + 1, 0, length - 1)) {
+                            throw std::runtime_error("invalid KTX key");
+                        }
+                        const auto recordSize = sizeof(length) + ((length + 3u) & ~3u);
+                        if (recordSize > remaining) {
+                            throw std::runtime_error("short KTX key padding");
+                        }
+                        offset += recordSize;
+                    }
+                    auto keyValues = ktx::KTX::parseKeyValues(header.bytesOfKeyValueData, keyData);
+                    auto found = std::find_if(keyValues.begin(), keyValues.end(), [](const ktx::KeyValue& value) {
+                        return value._key == gpu::SOURCE_HASH_KEY && value._value.size() == gpu::SOURCE_HASH_BYTES;
+                    });
+                    if (found != keyValues.end()) {
+                        const auto hash = QByteArray(reinterpret_cast<const char*>(found->_value.data()),
+                            gpu::SOURCE_HASH_BYTES).toHex().toStdString();
+                        auto cache = DependencyManager::get<TextureCache>();
+                        cached = cache->getTextureByHash(hash);
+                        if (!cached.first) {
+                            auto file = cache->_ktxCache->getFile(hash);
+                            if (file) {
+                                cached = gpu::Texture::unserialize(file);
+                                if (cached.first) {
+                                    cached = cache->cacheTextureByHash(hash, cached);
+                                    if (cached.first->source().empty()) {
+                                        cached.first->setSource(url.toString().toStdString());
+                                    }
+                                }
+                            }
+                        }
+                        if (cached.first && cached.first->minAvailableMipLevel() == 0) {
+                            auto images = header.generateImageDescriptors();
+                            if (!images.empty()) {
+                                descriptor = std::make_shared<ktx::KTXDescriptor>(header, keyValues, images);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (...) {
+            descriptor.reset();
+        }
+        const auto elapsed = timer.elapsed();
+        auto resource = self.lock();
+        if (!resource) {
+            return;
+        }
+        QMetaObject::invokeMethod(resource.data(), [self, request, activeUrl, url, cached, descriptor, elapsed] {
+            if (phoneKtxProbePool().isStopping()) {
+                return;
+            }
+            auto resource = self.lock();
+            if (!resource) {
+                return;
+            }
+            auto texture = static_cast<NetworkTexture*>(resource.data());
+            if (!request || texture->_ktxHeaderRequest != request.data() ||
+                    texture->_ktxResourceState != LOADING_INITIAL_DATA ||
+                    texture->_currentlyLoadingResourceType != ResourceType::KTX || texture->_activeUrl != activeUrl) {
+                return;
+            }
+            const auto hash = QCryptographicHash::hash(url.toEncoded(), QCryptographicHash::Md5).toHex();
+            PHONE_LOADING("phase=ktx_header_probe url_hash=%s hit=%d ms=%lld",
+                hash.constData(), descriptor ? 1 : 0, (long long)elapsed);
+            if (!descriptor) {
+                texture->startMipRangeRequest(NULL_MIP_LEVEL, NULL_MIP_LEVEL);
+                if (!texture->_ktxMipRequest && texture->_ktxHeaderRequest == request.data()) {
+                    request->disconnect(texture);
+                    request->deleteLater();
+                    texture->_ktxHeaderRequest = nullptr;
+                    texture->_ktxResourceState = FAILED_TO_LOAD;
+                    const auto failedRequestID = texture->_requestID;
+                    PROFILE_ASYNC_END(resource, "Resource:" + texture->getType(), QString::number(texture->_requestID));
+                    TextureCache::requestCompleted(self);
+                    if (!phoneKtxProbePool().isStopping() &&
+                            texture->_ktxResourceState == FAILED_TO_LOAD && texture->_activeUrl == activeUrl &&
+                            texture->_requestID == failedRequestID && !texture->_ktxHeaderRequest && !texture->_ktxMipRequest) {
+                        texture->Resource::handleFailedRequest(ResourceRequest::Error);
+                    }
+                }
+                return;
+            }
+            // Retire the sentinel before completion can dispatch more work.
+            request->disconnect(texture);
+            request->deleteLater();
+            texture->_ktxHeaderRequest = nullptr;
+            texture->_originalKtxDescriptor = std::make_unique<ktx::KTXDescriptor>(*descriptor);
+            const auto installedDescriptor = texture->_originalKtxDescriptor.get();
+            texture->_ktxResourceState = WAITING_FOR_MIP_REQUEST;
+            texture->_lowestKnownPopulatedMip = 0;
+            PROFILE_ASYNC_END(resource, "Resource:" + texture->getType(), QString::number(texture->_requestID));
+            texture->setSize(texture->_bytesTotal);
+            TextureCache::requestCompleted(self);
+            if (phoneKtxProbePool().isStopping() || texture->_ktxResourceState != WAITING_FOR_MIP_REQUEST ||
+                    texture->_originalKtxDescriptor.get() != installedDescriptor || texture->_activeUrl != activeUrl) {
+                return;
+            }
+            // Complete-only hits require no follow-up mip requests. Avoid a
+            // callback after setImage: its signals can synchronously refresh.
+            texture->setImage(cached.first, cached.second.x, cached.second.y);
+        }, Qt::QueuedConnection);
+    }, url);
+    if (!accepted) {
+        DependencyManager::get<StatTracker>()->decrementStat("PendingProcessing");
+    }
+}
+#endif
+
 // This is called when the header or top mips have been loaded
 void NetworkTexture::ktxInitialDataRequestFinished() {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (_phoneProbeInitialKtxCache && _ktxHeaderRequest &&
+            _ktxHeaderRequest->getState() == ResourceRequest::Finished) {
+        _phoneProbeInitialKtxCache = false;
+        probeInitialKtxCache();
+        return;
+    }
+#endif
     if (!_ktxHeaderRequest || _ktxHeaderRequest->getState() != ResourceRequest::Finished ||
         !_ktxMipRequest ||  _ktxMipRequest->getState() != ResourceRequest::Finished) {
         // Wait for both request to be finished
@@ -834,7 +1119,7 @@ void NetworkTexture::ktxMipRequestFinished() {
             auto mipLevel = _ktxMipLevelRangeInFlight.first;
             auto texture = _textureSource->getGPUTexture();
             DependencyManager::get<StatTracker>()->incrementStat("PendingProcessing");
-            QtConcurrent::run(QThreadPool::globalInstance(), [self, data, mipLevel, url, texture] {
+            queueKtxTask([self, data, mipLevel, url, texture] {
                 PROFILE_RANGE_EX(resource_parse_image, "NetworkTexture - Processing Mip Data", 0xffff0000, 0, { { "url", url.toString() } });
                 DependencyManager::get<StatTracker>()->decrementStat("PendingProcessing");
                 CounterStat counter("Processing");
@@ -868,7 +1153,7 @@ void NetworkTexture::ktxMipRequestFinished() {
                     Q_ARG(int, texture->getHeight()));
 
                 QMetaObject::invokeMethod(resource.data(), "startRequestForNextMipLevel");
-            });
+            }, url, 1);
         } else {
             qWarning(networking) << "Mip request finished in an unexpected state: " << _ktxResourceState;
             finishedLoading(false);
@@ -902,7 +1187,7 @@ void NetworkTexture::handleFinishedInitialLoad() {
     auto self = _self;
     auto url = _url;
     DependencyManager::get<StatTracker>()->incrementStat("PendingProcessing");
-    QtConcurrent::run(QThreadPool::globalInstance(), [self, ktxHeaderData, ktxHighMipData, url] {
+    queueKtxTask([self, ktxHeaderData, ktxHighMipData, url] {
         PROFILE_RANGE_EX(resource_parse_image, "NetworkTexture - Processing Initial Data", 0xffff0000, 0, { { "url", url.toString() } });
         DependencyManager::get<StatTracker>()->decrementStat("PendingProcessing");
         CounterStat counter("Processing");
@@ -976,12 +1261,18 @@ void NetworkTexture::handleFinishedInitialLoad() {
         auto textureCache = DependencyManager::get<TextureCache>();
 
         std::pair<gpu::TexturePointer, glm::ivec2> textureAndSize = textureCache->getTextureByHash(hash);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        int initialCacheHit = textureAndSize.first ? 1 : 0;
+#endif
 
         if (!textureAndSize.first) {
             auto ktxFile = textureCache->_ktxCache->getFile(hash);
             if (ktxFile) {
                 textureAndSize = gpu::Texture::unserialize(ktxFile);
                 if (textureAndSize.first) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+                    initialCacheHit = 2;
+#endif
                     textureAndSize = textureCache->cacheTextureByHash(hash, textureAndSize);
                     if (textureAndSize.first->source().empty()) {
                         textureAndSize.first->setSource(url.toString().toStdString());
@@ -989,6 +1280,19 @@ void NetworkTexture::handleFinishedInitialLoad() {
                 }
             }
         }
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        if (phoneLoadingDiagnosticsEnabled()) {
+            // A cache hit bypasses the tail-data import below, including for
+            // partial cached textures whose missing mips are requested later.
+            const auto loadingHash = QCryptographicHash::hash(url.toEncoded(), QCryptographicHash::Md5).toHex();
+            PHONE_LOADING("phase=ktx_initial_cache url_hash=%s hit=%d tail_bytes=%d source_mips=%u cached_min_mip=%d cached_mips=%d",
+                loadingHash.constData(), initialCacheHit, ktxHighMipData.size(),
+                (unsigned int)header->numberOfMipmapLevels,
+                textureAndSize.first ? int(textureAndSize.first->minAvailableMipLevel()) : -1,
+                textureAndSize.first ? int(textureAndSize.first->getNumMips()) : 0);
+        }
+#endif
 
         if (!textureAndSize.first) {
             auto memKtx = ktx::KTX::createBare(*header, keyValues);
@@ -1049,7 +1353,7 @@ void NetworkTexture::handleFinishedInitialLoad() {
             Q_ARG(int, textureAndSize.second.y));
 
         QMetaObject::invokeMethod(resource.data(), "startRequestForNextMipLevel");
-    });
+    }, url, 2);
 }
 
 void NetworkTexture::downloadFinished(const QByteArray& data) {
@@ -1159,6 +1463,9 @@ void NetworkTexture::refresh() {
     }
 
     _ktxResourceState = PENDING_INITIAL_LOAD;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    _phoneProbeInitialKtxCache = false;
+#endif
     Resource::refresh();
 }
 
@@ -1217,6 +1524,13 @@ void ImageReader::run() {
 }
 
 void ImageReader::read() {
+    QElapsedTimer loadingTimer;
+    loadingTimer.start();
+    int loadingCacheHit = 0;
+    std::string loadingId { "0" };
+    Finally loadingRecord([&] {
+        PHONE_LOADING("phase=image id=%s total_ms=%lld cache_hit=%d", loadingId.c_str(), (long long)loadingTimer.elapsed(), loadingCacheHit);
+    });
     auto resource = _resource.lock(); // to ensure the resource is still needed
     if (!resource) {
         return;
@@ -1230,6 +1544,10 @@ void ImageReader::read() {
         hasher.addData(_content);
         hasher.addData(std::to_string(_extraHash).c_str());
         hash = hasher.result().toHex().toStdString();
+        loadingId = hash;
+        PHONE_LOADING("phase=image_source id=%s url_hash=%s bytes=%d type=%d", hash.c_str(),
+            QCryptographicHash::hash(_url.toEncoded(), QCryptographicHash::Md5).toHex().constData(),
+            _content.size(), (int)networkTexture->getTextureType());
     }
 
     // Maybe load from cache
@@ -1238,13 +1556,17 @@ void ImageReader::read() {
         // If we already have a live texture with the same hash, use it
         auto textureAndSize = textureCache->getTextureByHash(hash);
 
+        loadingCacheHit = textureAndSize.first ? 1 : 0;
+
         // If there is no live texture, check if there's an existing KTX file
         if (!textureAndSize.first) {
             auto ktxFile = textureCache->_ktxCache->getFile(hash);
             if (ktxFile) {
                 textureAndSize = gpu::Texture::unserialize(ktxFile, _url.toString().toStdString());
+                PHONE_LOADING("phase=ktx_cache_read id=%s valid=%d", hash.c_str(), textureAndSize.first ? 1 : 0);
                 if (textureAndSize.first) {
                     textureAndSize = textureCache->cacheTextureByHash(hash, textureAndSize);
+                    loadingCacheHit = 2;
                 } else {
                     qCWarning(materialnetworking) << "Invalid cached KTX " << _url << " under hash " << hash.c_str() << ", recreating...";
                 }
@@ -1273,7 +1595,9 @@ void ImageReader::read() {
         const bool shouldCompress = hifi::properties::getGraphicsAPI() ==
                                         hifi::properties::GraphicsAPI::GLES32;
         auto target = getBackendTarget();
+        QElapsedTimer processTimer; processTimer.start();
         textureAndSize = image::processImage(std::move(buffer), _url.toString().toStdString(), _sourceChannel, _maxNumPixels, networkTexture->getTextureType(), shouldCompress, target);
+        PHONE_LOADING("phase=image_process ms=%lld width=%d height=%d ok=%d", (long long)processTimer.elapsed(), textureAndSize.second.x, textureAndSize.second.y, textureAndSize.first ? 1 : 0);
 
         if (!textureAndSize.first) {
             QMetaObject::invokeMethod(resource.data(), "setImage",
@@ -1297,6 +1621,8 @@ void ImageReader::read() {
             size_t length = memKtx->_storage->size();
             auto& ktxCache = textureCache->_ktxCache;
             auto file = ktxCache->writeFile(data, KTXCache::Metadata(hash, length));
+            PHONE_LOADING("phase=ktx_cache_write id=%s ok=%d bytes=%llu", hash.c_str(),
+                file ? 1 : 0, (unsigned long long)length);
             if (file) {
                 textureAndSize.first->setKtxBacking(file);
             }

@@ -99,6 +99,9 @@
             activeName = "";
             sendState("Choose an emote");
         }, MSEC_PER_SEC * frames.length / FPS);
+        // Show the actual avatar performing the selected one-shot animation.
+        // Hiding the tablet preserves this app and its completion timer.
+        tablet.hideAndroidTablet();
     }
 
     function onClicked() {
@@ -110,11 +113,10 @@
     }
 
     function onScreenChanged(type, source) {
-        var wasOpen = appOpen;
         appOpen = type === "QML" && source === APP_SOURCE;
-        if (wasOpen && !appOpen) {
-            stopActive(false);
-        }
+        // A selected one-shot belongs to the avatar, not the visibility of
+        // its chooser. Its timer (or script shutdown) restores the rig.
+
     }
 
     function fromQml(message) {

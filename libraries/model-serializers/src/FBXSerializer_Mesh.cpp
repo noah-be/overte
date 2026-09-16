@@ -38,6 +38,8 @@
 #include <QtEndian>
 #include <QFileInfo>
 #include <QHash>
+#include <QElapsedTimer>
+#include <PhoneLoadingDiagnostics.h>
 #include <LogHandler.h>
 #include <hfm/ModelFormatLogging.h>
 
@@ -375,7 +377,10 @@ ExtractedMesh FBXSerializer::extractMesh(const FBXNode& object, unsigned int& me
             hifi::ByteArray dracoArray = child.properties.at(0).value<hifi::ByteArray>();
             decodedBuffer.Init(dracoArray.data(), dracoArray.size());
 
+            QElapsedTimer decodeTimer; decodeTimer.start();
             auto statusOr = decoder.DecodeMeshFromBuffer(&decodedBuffer);
+            PHONE_LOADING("phase=draco_decode ms=%lld bytes=%lld ok=%d", (long long)decodeTimer.elapsed(),
+                (long long)dracoArray.size(), statusOr.ok() ? 1 : 0);
             if (!statusOr.ok()) {
                 qWarning(modelformat) << "Draco Error:" << statusOr.status().error_msg();
                 continue;

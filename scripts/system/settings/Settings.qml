@@ -92,11 +92,24 @@ Rectangle {
 		// Templates
 	}
 
+	function openLocalPage(name) {
+		if (typeof name !== "string") { return false; }
+		if (name === "Settings") { currentPage = name; return true; }
+		for (var i = 0; i < pages.length; ++i) {
+			if (pages[i].name === name && pages[i].targetPage === "") {
+				currentPage = name;
+				return true;
+			}
+		}
+		return false;
+	}
+
 	// Messages from script
 	function fromScript(message) {
+		if (!message || typeof message !== "object") { return false; }
 		switch (message.type){
 			case "loadPage":
-				currentPage = message.page;
+				return openLocalPage(message.page);
 				break;
 		}
 	}

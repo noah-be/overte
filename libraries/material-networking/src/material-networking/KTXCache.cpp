@@ -13,6 +13,7 @@
 
 #include <SettingHandle.h>
 #include <ktx/KTX.h>
+#include <PhoneLoadingDiagnostics.h>
 
 using File = cache::File;
 using FilePointer = cache::FilePointer;
@@ -30,10 +31,18 @@ void KTXCache::initialize() {
     FileCache::initialize();
     Setting::Handle<int> cacheVersionHandle(SETTING_VERSION_NAME, INVALID_VERSION);
     auto cacheVersion = cacheVersionHandle.get();
+    PHONE_LOADING("phase=ktx_cache_version edge=0 stored=%d expected=%d reset=%d indexed_files=%llu indexed_bytes=%llu unused_files=%llu unused_bytes=%llu",
+        cacheVersion, CURRENT_VERSION, int(cacheVersion != CURRENT_VERSION),
+        (unsigned long long)getNumTotalFiles(), (unsigned long long)getSizeTotalFiles(),
+        (unsigned long long)getNumCachedFiles(), (unsigned long long)getSizeCachedFiles());
     if (cacheVersion != CURRENT_VERSION) {
         wipe();
         cacheVersionHandle.set(CURRENT_VERSION);
     }
+    PHONE_LOADING("phase=ktx_cache_version edge=1 stored=%d expected=%d reset=%d indexed_files=%llu indexed_bytes=%llu unused_files=%llu unused_bytes=%llu",
+        cacheVersionHandle.get(), CURRENT_VERSION, int(cacheVersion != CURRENT_VERSION),
+        (unsigned long long)getNumTotalFiles(), (unsigned long long)getSizeTotalFiles(),
+        (unsigned long long)getNumCachedFiles(), (unsigned long long)getSizeCachedFiles());
 }
 
 

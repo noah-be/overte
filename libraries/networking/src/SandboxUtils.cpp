@@ -16,6 +16,12 @@
 #include <QJsonObject>
 #include <QNetworkReply>
 #include <QProcess>
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include <QElapsedTimer>
+#include <QThread>
+#include <atomic>
+#include <PhoneLoadingDiagnostics.h>
+#endif
 
 #if !defined(Q_OS_WIN)
 #include <QMessageBox>
@@ -33,11 +39,38 @@
 namespace SandboxUtils {
 
 QNetworkReply* getStatus() {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    const bool measureStartup = phoneLoadingDiagnosticsEnabled();
+    QElapsedTimer requestTimer;
+    quint64 requestId = 0;
+    if (measureStartup) {
+        static std::atomic<quint64> nextRequest { 0 };
+        requestId = ++nextRequest;
+        requestTimer.start();
+        PHONE_LOADING("phase=sandbox_request_begin id=%llu", (unsigned long long)requestId);
+    }
+#endif
     auto& networkAccessManager = NetworkAccessManager::getInstance();
     QNetworkRequest sandboxStatus(SANDBOX_STATUS_URL);
     sandboxStatus.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
     sandboxStatus.setHeader(QNetworkRequest::UserAgentHeader, NetworkingConstants::OVERTE_USER_AGENT);
-    return networkAccessManager.get(sandboxStatus);
+    auto reply = networkAccessManager.get(sandboxStatus);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (measureStartup) {
+        // The reply is the connection context: measure finished on its owning
+        // thread before Application's potentially queued delivery. No body read.
+        QObject::connect(reply, &QNetworkReply::finished, reply, [reply, requestTimer, requestId] {
+            PHONE_LOADING("phase=sandbox_request_finished id=%llu elapsed_ms=%lld error=%d status=%d owner_thread=%d",
+                (unsigned long long)requestId, (long long)requestTimer.elapsed(), int(reply->error()),
+                reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt(),
+                QThread::currentThread() == reply->thread() ? 1 : 0);
+        });
+        PHONE_LOADING("phase=sandbox_request_created id=%llu elapsed_ms=%lld finished=%d owner_thread=%d",
+            (unsigned long long)requestId, (long long)requestTimer.elapsed(), reply->isFinished() ? 1 : 0,
+            QThread::currentThread() == reply->thread() ? 1 : 0);
+    }
+#endif
+    return reply;
 }
 
 bool readStatus(QByteArray statusData) {

@@ -58,6 +58,9 @@
 #include "AudioIOStats.h"
 #include "AudioFileWav.h"
 #include "HifiAudioDeviceInfo.h"
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include "PhoneVoiceTestBuffer.h"
+#endif
 
 #if defined(WEBRTC_AUDIO)
 #  define WEBRTC_APM_DEBUG_DUMP 0
@@ -212,6 +215,7 @@ public slots:
     void handleMicAudioInput();
 #if defined(ANDROID_APP_PICO_INTERFACE)
     void drainAndroidAudioInput();
+    void refreshAndroidAudioInput();
 #endif
     void audioInputStateChanged(QAudio::State state);
     void checkInputTimeout();
@@ -242,8 +246,13 @@ public slots:
     bool isAcousticEchoCancellationEnabled() const { return _isAECEnabled; }
 
     virtual bool getLocalEcho() override { return _shouldEchoLocally; }
-    virtual void setLocalEcho(bool localEcho) override { _shouldEchoLocally = localEcho; }
-    virtual void toggleLocalEcho() override { _shouldEchoLocally = !_shouldEchoLocally; }
+    virtual void setLocalEcho(bool localEcho) override {
+        _shouldEchoLocally = localEcho;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        ++_phoneVoiceTestGeneration;
+#endif
+    }
+    virtual void toggleLocalEcho() override { setLocalEcho(!_shouldEchoLocally); }
 
     virtual bool getServerEcho() override { return _shouldEchoToServer; }
     virtual void setServerEcho(bool serverEcho) override { _shouldEchoToServer = serverEcho; }
@@ -337,7 +346,7 @@ private:
 
     void outputFormatChanged();
     void handleAudioInput(QByteArray& audioBuffer);
-    void processMicAudioInput(QByteArray& inputByteArray);
+    void processMicAudioInput(QByteArray& inputByteArray, quint64 policyTicket = 0);
     void prepareLocalAudioInjectors(std::unique_ptr<Lock> localAudioLock = nullptr);
     bool mixLocalAudioInjectors(float* mixBuffer);
     float azimuthForSource(const glm::vec3& relativePosition);
@@ -349,6 +358,7 @@ private:
     bool _isHeadsetPluggedIn { false };
 #if defined(ANDROID_APP_PICO_INTERFACE)
     bool _androidAudioInputActive { false };
+    quint64 _picoInputPolicyTicket { 0 };
     float _androidAudioInputVolume { 1.0f };
 #endif
 #endif
@@ -395,6 +405,11 @@ private:
     QAudioOutput* _loopbackAudioOutput{ nullptr };
     QIODevice* _loopbackOutputDevice{ nullptr };
     QByteArray _loopbackPendingAudio;
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    PhoneVoiceTestBuffer _phoneVoiceTest;
+    std::atomic<unsigned> _phoneVoiceTestGeneration { 0 };
+    unsigned _phoneVoiceTestObservedGeneration { 0 };
+#endif
     AudioRingBuffer _inputRingBuffer{ 0 };
     LocalInjectorsStream _localInjectorsStream{ 0 , 1 };
     // In order to use _localInjectorsStream as a lock-free pipe,

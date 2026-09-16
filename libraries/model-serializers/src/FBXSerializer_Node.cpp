@@ -175,7 +175,8 @@ QVariant parseBinaryFBXProperty(QDataStream& in, int& position) {
     }
 }
 
-FBXNode parseBinaryFBXNode(QDataStream& in, int& position, bool has64BitPositions = false) {
+FBXNode parseBinaryFBXNode(QDataStream& in, int& position, bool has64BitPositions = false,
+                           bool skipUnusedAnimationCurveData = false, bool animationCurveChild = false) {
     qint64 endOffset;
     quint64 propertyCount;
     quint64 propertyListLength;
@@ -214,12 +215,24 @@ FBXNode parseBinaryFBXNode(QDataStream& in, int& position, bool has64BitPosition
     node.name = in.device()->read(nameLength);
     position += nameLength;
 
+    // The HFM animation importer consumes only KeyValueFloat from a curve.
+    // Preserve the complete parse for all other callers and node contexts.
+    if (skipUnusedAnimationCurveData && animationCurveChild &&
+            (node.name == "KeyTime" || node.name == "KeyAttrFlags" ||
+             node.name == "KeyAttrDataFloat" || node.name == "KeyAttrRefCount") &&
+            !in.device()->isSequential() && endOffset >= position &&
+            endOffset <= in.device()->size() && endOffset <= std::numeric_limits<int>::max() &&
+            in.device()->seek(endOffset)) {
+        position = static_cast<int>(endOffset);
+        return FBXNode();
+    }
+
     for (quint32 i = 0; i < propertyCount; i++) {
         node.properties.append(parseBinaryFBXProperty(in, position));
     }
 
     while (endOffset > position) {
-        FBXNode child = parseBinaryFBXNode(in, position, has64BitPositions);
+        FBXNode child = parseBinaryFBXNode(in, position, has64BitPositions, skipUnusedAnimationCurveData, node.name == "AnimationCurve");
         if (!child.name.isNull()) {
             node.children.append(child);
         }
@@ -352,6 +365,10 @@ FBXNode parseTextFBXNode(Tokenizer& tokenizer) {
 }
 
 FBXNode FBXSerializer::parseFBX(QIODevice* device) {
+    return parseFBX(device, false);
+}
+
+FBXNode FBXSerializer::parseFBX(QIODevice* device, bool skipUnusedAnimationCurveData) {
     PROFILE_RANGE_EX(resource_parse, __FUNCTION__, 0xff0000ff, device);
     // verify the prolog
     if (device->peek(FBX_BINARY_PROLOG.size()) != FBX_BINARY_PROLOG) {
@@ -390,7 +407,7 @@ FBXNode FBXSerializer::parseFBX(QIODevice* device) {
     // parse the top-level node
     FBXNode top;
     while (device->bytesAvailable()) {
-        FBXNode next = parseBinaryFBXNode(in, position, has64BitPositions);
+        FBXNode next = parseBinaryFBXNode(in, position, has64BitPositions, skipUnusedAnimationCurveData);
         if (next.name.isNull()) {
             return top;
 

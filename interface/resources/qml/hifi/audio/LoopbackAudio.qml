@@ -18,11 +18,15 @@ import stylesUit 1.0
 import controlsUit 1.0 as HifiControlsUit
 
 RowLayout {
+    HifiControlsUit.TouchUiMetrics { id: voiceMetrics }
+    property bool playingRecording: false
     property bool audioLoopedBack: AudioScriptingInterface.getLocalEcho();
     function startAudioLoopback() {
         if (!audioLoopedBack) {
             audioLoopedBack = true;
             AudioScriptingInterface.setLocalEcho(true);
+            playingRecording = false;
+            if (voiceMetrics.profile.recordedVoiceTest) { recordingTimer.restart(); }
         }
     }
     function stopAudioLoopback() {
@@ -30,6 +34,14 @@ RowLayout {
             audioLoopedBack = false;
             AudioScriptingInterface.setLocalEcho(false);
         }
+        recordingTimer.stop();
+        playingRecording = false;
+    }
+
+    Timer {
+        id: recordingTimer
+        interval: 3000
+        onTriggered: playingRecording = true
     }
 
     HifiConstants { id: hifi; }
@@ -66,7 +78,9 @@ RowLayout {
         size: 18;
         color: "white";
         font.italic: true
-        text: audioLoopedBack ? qsTr("Speak in your input") : "";
+        text: !audioLoopedBack ? "" : voiceMetrics.profile.recordedVoiceTest
+            ? (playingRecording ? qsTr("Listen to your recording") : qsTr("Recording: speak now"))
+            : qsTr("Speak in your input");
     }
 
     Component.onDestruction: {

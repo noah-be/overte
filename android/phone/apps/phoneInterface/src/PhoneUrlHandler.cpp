@@ -15,9 +15,12 @@
 #include <QVariantMap>
 
 #include "AndroidHelper.h"
+#include <PhoneLoadingDiagnostics.h>
 #include "PhoneLifecycleHandoff.h"
 #include "PhonePendingHandoff.h"
+#include "PhonePendingNavigation.h"
 #include "PhoneTouchUiMetrics.h"
+#include "RequestCancellation.h"
 #include "ui/PhoneDialogRouter.h"
 
 namespace {
@@ -43,35 +46,70 @@ QString fromJavaString(JNIEnv* env, jstring value) {
 
 // One application-owned delivery object preserves "latest pending URL" while
 // native startup is incomplete. AndroidHelper's load-complete notification is
-// emitted only after Application has installed its Android connections and
-// startup services, making it a stronger boundary than dependency existence.
+// emitted after Android connections exist. Navigation also waits for the later
+// asynchronous destination checkpoint, which may accept the pending link first.
+overte::network::RequestScope& urlRequests() {
+    static overte::network::RequestScope requests;
+    return requests;
+}
+
 class PendingUrlDelivery final : public QObject {
 public:
-    explicit PendingUrlDelivery(QCoreApplication* application) : QObject(application) {
+    explicit PendingUrlDelivery(QCoreApplication* application)
+        : QObject(application), _pending(overte::lifecycle::applicationGate()) {
         auto& helper = AndroidHelper::instance();
         connect(&helper, &AndroidHelper::qtAppLoadComplete,
                 this, [this]() { deliverIfReady(); });
+        connect(&helper, &AndroidHelper::startupNavigationReady,
+                this, [this]() { deliverIfReady(); });
+        // Both objects live on the application thread. The reference is only
+        // valid during this synchronous checkpoint; never queue this signal.
+        connect(&helper, &AndroidHelper::startupUrlDispatchRequested,
+                this, [this](bool& accepted) {
+                    Q_ASSERT(QThread::currentThread() == thread());
+                    accepted = deliverIfReady(true);
+                },
+                Qt::DirectConnection);
     }
 
-    void submit(QString url) {
+    void submit(QString url, const overte::network::RequestTicket& request) {
+        if (!request.current()) { return; }
+        PHONE_LOADING("phase=url_submit ready=%d", AndroidHelper::instance().isLoadComplete() ? 1 : 0);
+        _request = request;
         const bool valid = !url.isEmpty();
         _pending.replace(std::move(url), valid);
         deliverIfReady();
     }
 
+    void cancel() { PHONE_LOADING("phase=url_cancel"); _pending.clear(); }
+
 private:
-    void deliverIfReady() {
-        QString url;
-        if (!_pending.takeIfReady(AndroidHelper::instance().isLoadComplete(), url)) {
-            return;
+    bool deliverIfReady(bool startupCheckpoint = false) {
+        // A newer Android intent can invalidate this buffered delivery before
+        // Qt processes its queued replacement/cancellation.
+        if (!_request.current()) {
+            _pending.clear();
+            return false;
         }
+        QString url;
+        auto& helper = AndroidHelper::instance();
+        if (!_pending.takeIfReady(helper.isLoadComplete() &&
+                (startupCheckpoint || helper.isStartupNavigationReady()), url)) {
+            return false;
+        }
+        // Recheck after the lifecycle owner handed off its value; JNI may
+        // have superseded this ticket concurrently with that operation.
+        if (!_request.current()) { return false; }
         // Keep the established Application canAcceptURL/acceptURL policy as
         // the sole navigation boundary. Supported phone links have already
         // been normalized to the native hifi scheme by Java.
-        AndroidHelper::instance().processURL(url);
+        const bool accepted = AndroidHelper::instance().processURL(url);
+        PHONE_LOADING("phase=url_deliver accepted=%d", accepted ? 1 : 0);
+        return accepted;
     }
 
-    phone::PendingHandoff<QString> _pending;
+    phone::PendingNavigation<QString> _pending;
+    overte::network::RequestTicket _request;
 };
 
 PendingUrlDelivery* urlDelivery(QCoreApplication* application) {
@@ -192,6 +230,14 @@ public:
     }
 
     void submit(bool foreground) {
+        // Publish native input to Shared's single Qt/native arbiter, even
+        // before AndroidHelper is ready. Native true cannot override Qt false.
+        // Local URL cancellation below is separate from Shared HTTP policy.
+        PHONE_LOADING("phase=url_visibility foreground=%d", foreground ? 1 : 0);
+        overte::lifecycle::observeNativeVisibility(foreground);
+        if (!foreground) {
+            urlDelivery(QCoreApplication::instance())->cancel();
+        }
         apply(_handoff.setForeground(foreground));
     }
 
@@ -227,18 +273,42 @@ extern "C" JNIEXPORT jboolean JNICALL
 Java_org_overte_phone_PhoneInterfaceActivity_nativeProcessUrl(
         JNIEnv* env, jclass /* activityClass */, jstring value) {
     const QString url = fromJavaString(env, value).trimmed();
+    // Supersede ownership on the Android ingress thread, not only when Qt
+    // eventually dispatches the callback. Empty input is cancellation only.
+    const auto request = urlRequests().next();
     auto* application = QCoreApplication::instance();
-    if (url.isEmpty() || !application) {
+    if (!application) {
         return JNI_FALSE;
     }
+    if (url.isEmpty()) {
+        QMetaObject::invokeMethod(application, [application, request]() {
+            if (request.current()) { urlDelivery(application)->cancel(); }
+        }, Qt::QueuedConnection);
+        return JNI_FALSE;
+    }
+
+    // Queue ownership of native foreground is not an applied Qt-active receipt.
+    // Leave an early URL in Java's bounded retry until the Shared gate is active.
+    // Capture freshness BEFORE queueing so suspend/resume cannot revive it.
+    const auto snapshot = overte::lifecycle::applicationGate().snapshot();
+    if (!snapshot.foreground) {
+        return JNI_FALSE;
+    }
+    const auto generation = snapshot.generation;
+    PHONE_LOADING("phase=url_queue generation=%llu", (unsigned long long)generation);
 
     // Transfer ownership to Qt instead of blocking Android's UI thread during
     // native startup. The native owner retains only the latest pending URL and
     // waits for Application's established load-complete boundary.
     const bool ownedByNative = QMetaObject::invokeMethod(
         application,
-        [application, url]() {
-            urlDelivery(application)->submit(url);
+        [application, url, generation, request]() {
+            const auto current = overte::lifecycle::applicationGate().snapshot();
+            if (!request.current() || !current.foreground || current.generation != generation) {
+                PHONE_LOADING("phase=url_drop current=%d foreground=%d same_generation=%d", request.current() ? 1 : 0, current.foreground ? 1 : 0, current.generation == generation ? 1 : 0);
+                return;
+            }
+            urlDelivery(application)->submit(url, request);
         },
         Qt::QueuedConnection);
     return ownedByNative ? JNI_TRUE : JNI_FALSE;

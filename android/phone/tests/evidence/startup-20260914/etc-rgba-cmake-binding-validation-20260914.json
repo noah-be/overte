@@ -1,0 +1,26 @@
+[
+  {
+    "case": "default",
+    "passed": true
+  },
+  {
+    "case": "valid",
+    "passed": true
+  },
+  {
+    "case": "bad-hash",
+    "passed": true
+  },
+  {
+    "case": "non-phone",
+    "passed": true
+  },
+  {
+    "case": "wrong-config",
+    "passed": true
+  },
+  {
+    "case": "missing-target",
+    "passed": true
+  }
+]

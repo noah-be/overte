@@ -52,17 +52,17 @@ class ProjectHealthTests(unittest.TestCase):
         )
         self.assertIn("HifiConstants { id: hifi }", source)
 
-    def test_qt6_tablet_components_do_not_fail_before_use(self):
+    def test_tablet_components_support_qt5_and_qt6_without_eager_dialogs(self):
         setting_number = (
             ROOT / "scripts/system/settings/qml/SettingNumber.qml"
         ).read_text(encoding="utf-8")
-        self.assertTrue(setting_number.startswith("import QtQuick\nimport QtQuick.Controls\n"))
+        self.assertRegex(setting_number, r"\Aimport QtQuick(?: 2\.15)?\nimport QtQuick.Controls(?: 2\.15)?\n")
         self.assertIn("RegularExpressionValidator", setting_number)
 
         custom_query = (
             ROOT / "interface/resources/qml/dialogs/TabletCustomQueryDialog.qml"
         ).read_text(encoding="utf-8")
-        self.assertIn("import QtQuick.Dialogs as OriginalDialogs", custom_query)
+        self.assertNotIn("OriginalDialogs.", custom_query)
         self.assertNotRegex(custom_query, r"import QtQuick\.Dialogs\s+[0-9]")
 
         tablet_root = (
@@ -211,8 +211,18 @@ class ProjectHealthTests(unittest.TestCase):
         seen_allowlist = set()
         for source in tracked("*.js"):
             relative = source.relative_to(ROOT)
-            result = subprocess.run(["node", "--check", str(source)], text=True,
-                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            if relative == Path("interface/resources/qml/controls/CpuShadowPixels.js"):
+                # QML's module directive is not JavaScript syntax. Retain line
+                # numbers and check the complete JS body rather than exempting
+                # this production pixel algorithm from syntax validation.
+                contents = source.read_text(encoding="utf-8")
+                self.assertEqual(contents.splitlines().count(".pragma library"), 1)
+                contents = "\n".join("" if line == ".pragma library" else line for line in contents.splitlines())
+                result = subprocess.run(["node", "--check", "-"], input=contents, text=True,
+                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            else:
+                result = subprocess.run(["node", "--check", str(source)], text=True,
+                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             if result.returncode:
                 if relative in allowlist:
                     seen_allowlist.add(relative)

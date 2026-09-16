@@ -10,6 +10,7 @@
 //
 
 #include "OAuthAccessToken.h"
+#include "OAuthTokenValidation.h"
 
 #include <QtCore/QDataStream>
 
@@ -23,12 +24,15 @@ OAuthAccessToken::OAuthAccessToken() :
 }
 
 OAuthAccessToken::OAuthAccessToken(const QJsonObject& jsonObject) :
-    token(jsonObject["access_token"].toString()),
-    refreshToken(jsonObject["refresh_token"].toString()),
-    expiryTimestamp(QDateTime::currentMSecsSinceEpoch() + (jsonObject["expires_in"].toDouble() * 1000)),
-    tokenType(jsonObject["token_type"].toString())
+    OAuthAccessToken()
 {
-    
+    if (!overte::network::validOAuthTokenResponse(jsonObject)) {
+        return;
+    }
+    token = jsonObject["access_token"].toString();
+    refreshToken = jsonObject["refresh_token"].toString();
+    expiryTimestamp = QDateTime::currentMSecsSinceEpoch() + qint64(jsonObject["expires_in"].toInt()) * 1000;
+    tokenType = QStringLiteral("Bearer");
 }
 
 OAuthAccessToken::OAuthAccessToken(const OAuthAccessToken& otherToken) : QObject() {

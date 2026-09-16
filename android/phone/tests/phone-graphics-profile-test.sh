@@ -69,8 +69,15 @@ done
 # The profile remains compile-time phone policy, with bounded developer
 # properties for controlled graphics A/B comparisons.
 if awk '
-    /#if defined\(ANDROID_APP_PHONE_INTERFACE\)/ { phone = 1; next }
-    phone && /^#endif/ { exit found ? 0 : 1 }
+    !phone && /#if defined\(ANDROID_APP_PHONE_INTERFACE\)/ {
+        phone = 1; depth = 1; scale = fps = forward = aa = found = 0; next
+    }
+    phone && /^#if/ { depth++; next }
+    phone && /^#(else|elif)/ && depth == 1 { phone = 0; next }
+    phone && /^#endif/ {
+        if (--depth == 0) { passed = passed || found; phone = 0 }
+        next
+    }
     phone && /PHONE_DEFAULT_VIEWPORT_RESOLUTION_SCALE/ { scale = 1 }
     phone && /PHONE_TARGET_FPS/ { fps = 1 }
     phone && /setRenderMethod\(RenderScriptingInterface::RenderMethod::FORWARD\)/ { forward = 1 }
@@ -78,7 +85,7 @@ if awk '
     phone && /setViewportResolutionScale\(phoneViewportResolutionScale\)/ {
         found = scale && fps && forward && aa
     }
-    END { if (!phone || !found) exit 1 }
+    END { if (!passed) exit 1 }
 ' "$application"; then
     pass 'phone profile is compile-time scoped and applies its deterministic render baseline'
 else

@@ -285,6 +285,14 @@
       "description": "Pico C++/Java microphone source, format and JNI transport contracts"
     },
     {
+      "id": "phone-startup-host-regression",
+      "kind": "native",
+      "tiers": ["host", "prepared-host"],
+      "command": ["phone/tests/phone-startup-host-test.py"],
+      "timeoutSeconds": 1800,
+      "description": "Device-free startup, navigation and disabled-experiment harnesses; requires C++, Qt6Core, Java and Node. Pinned ETC source test is separately opt-in."
+    },
+    {
       "id": "phone-device-free-regression",
       "kind": "integration",
       "tiers": ["regression"],

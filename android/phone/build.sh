@@ -39,7 +39,7 @@ find_compatible_jdk() {
 
 usage() {
     cat <<'EOF'
-Usage: ./build-phone.sh [doctor|deps|prepare|build|install|all|deploy|setup] [option]
+Usage: ./build.sh [doctor|deps|prepare|build|install|all|deploy|setup|fdroid] [option]
 
   doctor   Check the shared Android/Pico development environment
   deps     Install Phone dependencies; use --download for prebuilt artifacts
@@ -50,6 +50,7 @@ Usage: ./build-phone.sh [doctor|deps|prepare|build|install|all|deploy|setup] [op
   all      Prepare dependencies and build the APK (default)
   deploy   Prepare, build, install, and start the client
   setup    Download shared and Phone 16 KiB dependencies, prepare, and build
+  fdroid   Enter the isolated source-only F-Droid preflight/build adapter
 
 Phone builds require the verified 16 KiB dependency sentinel. For temporary
 local migration work only, PHONE_ALLOW_LEGACY_4K_DEPS=1 enables the old graph.
@@ -281,6 +282,10 @@ case "$command_name" in
         fi
         prepare
         build
+        ;;
+    fdroid)
+        shift
+        exec "$script_dir/fdroid/scripts/build-release.sh" "$@"
         ;;
     help|-h|--help) usage ;;
     *) usage >&2; fail "unknown command: $command_name" ;;

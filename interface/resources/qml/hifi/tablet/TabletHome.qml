@@ -1,6 +1,5 @@
 import QtQuick 2.7
 import QtQuick.Controls 2.2
-import QtGraphicalEffects 1.0
 import QtQuick.Layouts 1.3
 
 import TabletScriptingInterface 1.0
@@ -128,7 +127,7 @@ Item {
                 height: clockTimeTextMetrics.height
                 anchors {
                     top: parent.top
-                    topMargin: -10
+                    topMargin: presentation.profile.stackedTabletHeader ? 0 : -10
                     right: clockAmPmItem.left
                     rightMargin: 5
                 }
@@ -314,6 +313,12 @@ Item {
                                 anchors.centerIn: parent
                                 width: gridView.buttonExtent
                                 height: gridView.buttonExtent
+                                iconExtent: presentation.profile.stackedTabletHeader
+                                    ? Math.min(50, height * 0.42) : 50
+                                captionPixelSize: presentation.profile.stackedTabletHeader
+                                    ? Math.min(18, width / 7.5) : 18
+                                captionBottomMargin: presentation.profile.stackedTabletHeader
+                                    ? Math.min(20, height * 0.12) : 20
                                 hoverEnabled: !presentation.touchOptimized
                                 prioritizeTap: presentation.touchOptimized
                                 gridView: wrapper.GridView.view
@@ -449,7 +454,6 @@ Item {
                 anchors.fill: parent
                 objectName: "OverteTabletClose"
                 activeFocusOnTab: visible
-                Accessible.id: objectName
                 Accessible.role: Accessible.Button
                 Accessible.name: qsTr("Close tablet")
                 Accessible.description: qsTr("Return to the world controls")

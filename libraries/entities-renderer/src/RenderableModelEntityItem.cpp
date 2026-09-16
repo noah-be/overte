@@ -13,6 +13,7 @@
 #include "RenderableModelEntityItem.h"
 
 #include <set>
+#include <cmath>
 
 #include <glm/gtx/quaternion.hpp>
 #include <glm/gtx/transform.hpp>
@@ -33,6 +34,27 @@
 
 #include "EntityTreeRenderer.h"
 #include "EntitiesRendererLogging.h"
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include <PhoneLoadingDiagnostics.h>
+#include <QCryptographicHash>
+namespace {
+int phoneCollisionPriorityMode() {
+    if (!phoneLoadingDiagnosticsEnabled()) {
+        return 0;
+    }
+    static const int mode = [] {
+        char value[PROP_VALUE_MAX] {};
+        if (__system_property_get("debug.overte.loading.collision_priority", value) > 0 && value[1] == '\0') {
+            if (value[0] == '1') { return 1; }
+            if (value[0] == '2') { return 2; }
+        }
+        return 0;
+    }();
+    return mode;
+}
+}
+#endif
 
 
 void ModelEntityWrapper::setModel(const ModelPointer& model) {
@@ -267,7 +289,55 @@ QString RenderableModelEntityItem::getCollisionShapeURL() const {
 }
 
 void RenderableModelEntityItem::fetchCollisionGeometryResource() {
-    _collisionGeometryResource = DependencyManager::get<ModelCache>()->getCollisionGeometryResource(getCollisionShapeURL());
+    const auto collisionShapeURL = getCollisionShapeURL();
+    _collisionGeometryResource = DependencyManager::get<ModelCache>()->getCollisionGeometryResource(collisionShapeURL);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Phone collision priority experiment: never query the replaceable global
+    // entity-priority function or wait for an entity lock from the scheduler.
+    const int collisionPriorityMode = phoneCollisionPriorityMode();
+    if (collisionPriorityMode && _collisionGeometryResource) {
+        const std::weak_ptr<RenderableModelEntityItem> weakEntity =
+            std::static_pointer_cast<RenderableModelEntityItem>(getThisPointer());
+        const auto weakResource = _collisionGeometryResource.toWeakRef();
+        const auto collisionShapeType = getShapeType();
+        QMetaObject::invokeMethod(_collisionGeometryResource.get(),
+            [weakEntity, weakResource, collisionShapeURL, collisionShapeType, collisionPriorityMode] {
+                const auto resource = weakResource.toStrongRef();
+                const auto entity = weakEntity.lock();
+                if (!resource || !entity || resource->isLoaded() || resource->isFailed()) {
+                    return;
+                }
+                // Registration and its existing failure gate run on the
+                // resource thread; neither queued closure retains the entity.
+                resource->setLoadPriorityOperator(entity.get(),
+                    [weakEntity, collisionShapeURL, collisionShapeType, collisionPriorityMode] {
+                        float priority = 0.0f;
+                        if (const auto entity = weakEntity.lock()) {
+                            entity->withTryReadLock([&] {
+                                const auto shapeType = entity->getShapeType();
+                                if ((shapeType != SHAPE_TYPE_COMPOUND && shapeType != SHAPE_TYPE_SIMPLE_COMPOUND) ||
+                                        shapeType != collisionShapeType || !entity->isDomainEntity() ||
+                                        entity->getCollisionless() || entity->getCollisionShapeURL() != collisionShapeURL) {
+                                    return;
+                                }
+                                const float explicitPriority = entity->getLoadPriority();
+                                if (std::isfinite(explicitPriority)) {
+                                    // Mode 2 is a measured trial between initial
+                                    // KTX (9) and skybox/animation graph (10).
+                                    priority = fabs(explicitPriority) > EPSILON ? explicitPriority :
+                                        (collisionPriorityMode == 2 ? 9.5f : 0.0f);
+                                }
+                            });
+                        }
+                        return priority;
+                    });
+                PHONE_LOADING("phase=collision_priority_registered mode=%d url_hash=%s",
+                    collisionPriorityMode,
+                    QCryptographicHash::hash(QUrl(collisionShapeURL).toEncoded(), QCryptographicHash::Md5).toHex().constData());
+            }, Qt::QueuedConnection);
+    }
+    // End Phone collision priority experiment.
+#endif
     if (_collisionGeometryResource) {
         if (_collisionGeometryResource->isLoaded()) {
             markDirtyFlags(Simulation::DIRTY_SHAPE | Simulation::DIRTY_MASS);

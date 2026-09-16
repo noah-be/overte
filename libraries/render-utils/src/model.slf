@@ -61,7 +61,12 @@
     <@endif@>
 <@endif@>
 
-#ifdef GPU_GLES
+// Phone uses the complete material path; the legacy headset fallback remains
+// scoped to the other GLES applications.
+<@if HIFI_USE_PHONE@>
+#define OVERTE_PHONE_MATERIALS
+<@endif@>
+#if defined(GPU_GLES) && !defined(OVERTE_PHONE_MATERIALS)
 
 <@if not HIFI_USE_SHADOW@>
 OUTPUT(0, vec4, _fragColor0);

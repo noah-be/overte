@@ -21,7 +21,10 @@ require "$handler" 'GetStringChars\(value, nullptr\)' 'JNI string content is acq
 require "$handler" 'if \(!characters\)' 'pending JNI exceptions stop further string work'
 require "$handler" 'GetStringLength\(value\)' 'JNI conversion preserves UTF-16 length'
 require "$handler" 'ReleaseStringChars\(value, characters\)' 'acquired JNI string content is released'
-require "$handler" 'if \(url\.isEmpty\(\) \|\| !application\)' 'URL bridge rejects invalid startup state'
+require "$handler" 'if \(!application\)' 'URL bridge rejects missing application'
+require "$handler" 'if \(url\.isEmpty\(\)\)' 'empty URL enters cancellation without navigating'
+require "$handler" 'const auto request = urlRequests\(\)\.next\(\)' 'URL ingress supersedes queued ownership'
+require "$handler" '!request.current\(\)' 'queued URL requires current request ownership'
 require "$handler" 'Qt::QueuedConnection' 'URL handoff never blocks the Android UI thread'
 require "$handler" 'QThread::currentThread\(\) == application->thread\(\)' 'Back avoids self-deadlock on the Qt thread'
 require "$handler" 'Qt::BlockingQueuedConnection' 'cross-thread Back returns the synchronous routing result'
@@ -58,18 +61,14 @@ if awk '/PhoneInterfaceActivity_nativeSetE2eFlyingOverride/ { inside = 1 } insid
 fi
 printf 'PASS: E2E flying setup never blocks Android Activity startup\n'
 readonly phone_activity="$android_root/phone/apps/phoneInterface/src/main/java/org/overte/phone/PhoneInterfaceActivity.java"
-if ! awk '
-        /setRequestedOrientation\(PhoneE2eLaunchState\.isActive\(\)/ { inside = 1 }
-        inside && /SCREEN_ORIENTATION_LANDSCAPE/ { found = 1; exit }
-        END { exit !found }
-    ' "$phone_activity"; then
-    printf 'FAIL: E2E Phone startup must hold the production virtual pad in landscape\n' >&2
+require "$phone_activity" \
+    'setRequestedOrientation\(ActivityInfo\.SCREEN_ORIENTATION_LANDSCAPE\)' \
+    'Production and E2E Phone startup use the same landscape orientation'
+if grep -q 'SCREEN_ORIENTATION_FULL_SENSOR' "$phone_activity"; then
+    printf 'FAIL: E2E cleanup must not re-enable unsupported Phone sensor rotation\n' >&2
     exit 1
 fi
-printf 'PASS: E2E Phone startup holds the production virtual pad in landscape\n'
-require "$phone_activity" \
-    'setRequestedOrientation\(ActivityInfo\.SCREEN_ORIENTATION_FULL_SENSOR\)' \
-    'E2E cleanup restores the normal adaptive Phone orientation'
+printf 'PASS: E2E cleanup preserves the landscape Phone policy\n'
 require "$my_avatar" \
     'phoneE2eFlyingEnabledOverrideActive\(\) \? false : _hoverWhenUnsupported' \
     'Phone E2E suppresses automatic hover without changing the stored preference'

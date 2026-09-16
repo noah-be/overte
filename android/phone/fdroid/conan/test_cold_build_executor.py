@@ -37,7 +37,7 @@ class ColdBuildExecutorTest(unittest.TestCase):
         self.assertIn("/proc/net/route", preflight)
         self.assertIn("Conan cache is not empty", preflight)
         self.assertIn("stale binary output exists", preflight)
-        self.assertIn("less than 60 GB free", preflight)
+        self.assertIn("invalid available-space reading", preflight)
 
     def test_outer_executor_pins_image_and_dual_network_isolation(self):
         self.assertIn("localhost/overte-sh001-fdroid-toolchain:three-gates", self.outer)
@@ -46,7 +46,7 @@ class ColdBuildExecutorTest(unittest.TestCase):
         self.assertIn("12884901888", self.outer)
         self.assertIn("--offline", self.outer)
 
-    def test_user_authorized_decimal_start_floor_at_exact_boundaries(self):
+    def test_user_authorized_no_additional_start_reserve(self):
         manifest = json.loads((ROOT / "android/phone/fdroid/manifests/recipe-source.lock.json").read_text())
         # Locate the actual original admission expressions, not a replacement
         # arithmetic implementation. No executor, container or build is launched.
@@ -54,16 +54,16 @@ class ColdBuildExecutorTest(unittest.TestCase):
                      if line.strip().startswith('[ "$available" -ge '))
         outer = next(line.strip() for line in self.outer.splitlines()
                      if line.strip().startswith('(( available >= '))
-        self.assertEqual(60000000000, manifest["cold_build"]["minimum_free_bytes"])
+        self.assertEqual(0, manifest["cold_build"]["minimum_free_bytes"])
         for shell, expression in (("sh", inner), ("bash", outer)):
-            for available in (0, 59999999999, 60000000000, 60000000001, 85899345920):
+            for available in (-1, 0, 1, 50000000000, 59999999999, 60000000000):
                 with self.subTest(shell=shell, available=available):
                     result = subprocess.run(
                         [shell, "-c", 'available="$1"\n' + expression, "floor-test", str(available)],
                         capture_output=True, text=True, timeout=5)
-                    self.assertEqual(0 if available >= 60000000000 else 1, result.returncode)
-                    if available < 60000000000:
-                        self.assertIn("less than 60 GB free", result.stderr)
+                    self.assertEqual(0 if available >= 0 else 1, result.returncode)
+                    if available < 0:
+                        self.assertIn("invalid available-space reading", result.stderr)
 
     def test_resume_is_bound_to_the_same_protected_attempt(self):
         for binding in (

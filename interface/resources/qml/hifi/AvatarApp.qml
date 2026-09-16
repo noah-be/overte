@@ -2,7 +2,6 @@ import QtQuick 2.6
 import QtQuick.Controls 2.2
 import QtQuick.Layouts 1.3
 import QtQml.Models 2.1
-import QtGraphicalEffects 1.0
 import controlsUit 1.0 as HifiControls
 import stylesUit 1.0
 import "avatarapp"
@@ -551,7 +550,7 @@ Rectangle {
     Rectangle {
         id: favoritesBlock
         height: touchConfiguration.favoritesFillBelowHeader
-            ? Math.max(0, root.height - header.height)
+            ? Math.max(0, root.height - header.height - 270)
             : 407
 
         anchors.left: parent.left

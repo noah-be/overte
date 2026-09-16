@@ -1,0 +1,23 @@
+[
+  {
+    "run": "etc-rgba-world-baseline",
+    "fatal_signal_lines": 0,
+    "fatal_exception_lines": 0,
+    "phone_anr_lines": 0,
+    "qml_assertion_signature": false
+  },
+  {
+    "run": "etc-rgba-world-candidate",
+    "fatal_signal_lines": 0,
+    "fatal_exception_lines": 0,
+    "phone_anr_lines": 0,
+    "qml_assertion_signature": false
+  },
+  {
+    "run": "etc-rgba-world-baseline-2",
+    "fatal_signal_lines": 0,
+    "fatal_exception_lines": 0,
+    "phone_anr_lines": 0,
+    "qml_assertion_signature": false
+  }
+]

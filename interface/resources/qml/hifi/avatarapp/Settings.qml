@@ -50,7 +50,6 @@ Rectangle {
 
     property real avatarScaleBackup;
     function open(settings, avatarScale) {
-        console.debug('Settings.qml: open: ', JSON.stringify(settings, 0, 4));
         avatarScaleBackup = avatarScale;
 
         scaleSlider.notify = false;

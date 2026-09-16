@@ -1,0 +1,67 @@
+{
+  "status": "Locally validated and installed; scoped ETC improvement complete, broader startup goal not declared complete.",
+  "commit": "c582528d3d",
+  "branch": "investigate/phone-world-loading-20260913",
+  "installed_apk_sha256": "e1109ae463acbc277f84d9f1da21a3a0785f34a9970e171f58544696e6e2c3d0",
+  "cause": "Repeated out-of-line RGBA error evaluation in block encoder. Small inline RGBA path lets compiler remove calls while retaining arithmetic and all assertions.",
+  "isolated_pixel_median_ms": {
+    "baseline": 4948.97,
+    "candidate": 4037.8
+  },
+  "cold_world_last_texture_seconds": {
+    "baseline_a": 106.005,
+    "candidate": 77.15,
+    "baseline_b": 119.906
+  },
+  "same_workload": {
+    "images_each": 83,
+    "ETC_scopes_each": 187,
+    "cold_image_cache_misses_each": 78
+  },
+  "validation": [
+    "110 full ARM mip chains byte-identical",
+    "100000 actual ARM numeric cases plus border behavior identical",
+    "Host negative/NaN-alpha assertions preserved",
+    "15 codec object machine-code sections identical between tested and application archives",
+    "Phone-only CMake binding checks and full source inventory rejection test passed",
+    "Native build and APK16KiB gates passed",
+    "Textured world visually confirmed; camera swipe and reverse responded."
+  ],
+  "normal_cache": {
+    "namespace": 0,
+    "files_retained": 208,
+    "image_cache_hits": {
+      "2": 74,
+      "1": 6,
+      "0": 3
+    },
+    "last_texture_s": 44.179,
+    "last_animation_s": 52.824,
+    "first_empty_sample_s": 61.48,
+    "online_navigation_s": 16.687,
+    "visual_note": "20s screenshot still shows pre-world scene;50s screenshot textured Hub. Warm start not a demonstrated new speed gain."
+  },
+  "normal_observed_fatal_markers": 0,
+  "limits": [
+    "One candidate cold world run bracketed by two controls;27\u201336percent observed improvement is not a universal bound.",
+    "World, OS scheduling and charging/thermal variation remain.",
+    "Last texture completion and empty-work sampling do not alone establish exact complete visible/interactable time.",
+    "Optional Phone archive override and reproducible source patch committed; default canonical Conan recipe/lock still unmodified.",
+    "Rare earlier QML assertion root cause remains a separate open item. No new occurrence observed here."
+  ],
+  "license": "Existing Apache-2.0 Etc2Comp; no new/proprietary library added.",
+  "preserved": [
+    "Normal app data/cache",
+    "Other local dirty work",
+    "Static avatar and saved controls/FPS profile",
+    "Charging awake setting15",
+    "Header-first experiment remains off"
+  ],
+  "evidence": [
+    "etc-rgba-world-comparison-20260914.json",
+    "etc-rgba-pixel-speed-assessment-20260914.json",
+    "etc-rgba-arm-identity-20260914.json",
+    "etc-rgba-final-input-20260914.json",
+    "etc-rgba-image-only-apk-delta-20260914.json"
+  ]
+}

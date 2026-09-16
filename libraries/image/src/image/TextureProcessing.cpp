@@ -23,6 +23,8 @@
 #include <Finally.h>
 #include <Profile.h>
 #include <StatTracker.h>
+#include <PhoneLoadingDiagnostics.h>
+#include <QElapsedTimer>
 #include <GLMHelpers.h>
 
 #include "TGAReader.h"
@@ -816,6 +818,7 @@ void convertImageToLDRTexture(gpu::Texture* texture, Image&& image, BackendTarge
             localCopy = localCopy.getConvertedToFormat(Image::Format_RGBAF);
         }
 
+        QElapsedTimer encodeTimer; encodeTimer.start();
         Etc::EncodeMipmaps(
             (float *)localCopy.editBits(), width, height,
             etcFormat, errorMetric, effort,
@@ -823,6 +826,27 @@ void convertImageToLDRTexture(gpu::Texture* texture, Image&& image, BackendTarge
             numMips, Etc::FILTER_WRAP_NONE,
             mipMaps, &encodingTime
         );
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        // Etc2Comp stops when either dimension reaches zero. Rectangular
+        // textures still need the remaining Nx1 / 1xN levels through 1x1;
+        // otherwise the serialized KTX has fewer images than its header.
+        for (int mip = 0; mip < numMips; ++mip) {
+            if (mipMaps[mip].paucEncodingBits) {
+                continue;
+            }
+            const int mipWidth = std::max(1, width >> mip);
+            const int mipHeight = std::max(1, height >> mip);
+            std::vector<float> pixels(mipWidth * mipHeight * 4);
+            if (Etc::FilterTwoPass((float*)localCopy.editBits(), width, height,
+                    pixels.data(), mipWidth, mipHeight, Etc::FILTER_WRAP_NONE, Etc::FilterLanczos3)) {
+                int tailEncodingTime;
+                Etc::EncodeMipmaps(pixels.data(), mipWidth, mipHeight,
+                    etcFormat, errorMetric, effort, numEncodeThreads, numEncodeThreads,
+                    1, Etc::FILTER_WRAP_NONE, &mipMaps[mip], &tailEncodingTime);
+            }
+        }
+#endif
+        PHONE_LOADING("phase=etc_encode ms=%lld width=%d height=%d mips=%d threads=%d", (long long)encodeTimer.elapsed(), width, height, numMips, numEncodeThreads);
 
         for (int i = 0; i < numMips; i++) {
             if (mipMaps[i].paucEncodingBits.get()) {

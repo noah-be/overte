@@ -16,6 +16,12 @@
 #define hifi_Application_h
 
 #include <QtWidgets/QApplication>
+#include <deque>
+#include <functional>
+#include <memory>
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include <RequestCancellation.h>
+#endif
 
 #include <AbstractScriptingServicesInterface.h>
 #include <AbstractUriHandler.h>
@@ -60,6 +66,8 @@ class KeyboardMouseDevice;
 class LogDialog;
 class MainWindow;
 class ModalDialogListener;
+class EntityScriptConsentScope;
+class EntityScriptConsentRequest;
 class OffscreenUi;
 class TouchscreenDevice;
 class TouchscreenVirtualPadDevice;
@@ -552,7 +560,11 @@ private slots:
     void nodeActivated(SharedNodePointer node);
     void nodeKilled(SharedNodePointer node);
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    void handleSandboxStatus(QNetworkReply* reply, bool acceptedStartupUrl = false);
+#else
     void handleSandboxStatus(QNetworkReply* reply);
+#endif
 
 
     // UI
@@ -604,6 +616,31 @@ private slots:
     void setShowTrackedObjects(bool value) { _showTrackedObjects = value; }
 
 private:
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    void domainURLChangedWithTicket(QUrl domainURL, const overte::network::RequestTicket& navigationTicket);
+    void loadServerlessDomainWithTicket(QUrl domainURL, const overte::network::RequestTicket& navigationTicket);
+    bool prepareServerlessDomainContentsWithTicket(const QUrl& domainURL, const QByteArray& data,
+        std::map<QString, QString>& namedPaths, const overte::network::RequestTicket& navigationTicket,
+        const overte::network::RequestTicket& loadTicket);
+    overte::network::RequestScope _phoneServerlessLoadRequests;
+#endif
+    friend class Menu;
+    void beginEntityScriptConsentReview();
+    void invalidateEntityScriptConsent();
+    void enqueueEntityScriptConsent(const std::shared_ptr<EntityScriptConsentRequest>& request,
+        std::function<void(bool)> decide);
+    void showNextEntityScriptConsent();
+    struct PendingEntityScriptConsent {
+        std::shared_ptr<EntityScriptConsentRequest> request;
+        std::function<void(bool)> decide;
+    };
+    std::shared_ptr<EntityScriptConsentScope> _entityScriptConsentScope;
+    QSharedPointer<QObject> _entityScriptConsentDispatch;
+    std::deque<PendingEntityScriptConsent> _pendingEntityScriptConsents;
+    QPointer<ModalDialogListener> _entityScriptConsentDialog;
+    std::function<void(bool)> _activeEntityScriptConsentDecision;
+    std::shared_ptr<EntityScriptConsentRequest> _activeEntityScriptConsentRequest;
+    quint64 _entityScriptConsentUiGeneration { 0 };
     void cleanupBeforeQuit();
 
     void idle();

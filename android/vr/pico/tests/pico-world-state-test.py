@@ -88,7 +88,8 @@ class PicoWorldStateTests(unittest.TestCase):
             "void Application::loadServerlessDomain",
             "void Application::loadErrorDomain",
         )
-        failure = body.index("if (!prepareServerlessDomainContents(domainURL, request->getData(), namedPaths))")
+        parse = body.index("const bool prepared = prepareServerlessDomainContents(domainURL, request->getData(), namedPaths);")
+        failure = body.index("if (!prepared)", parse)
         failure_return = body.index("return;", failure)
         connect = body.index("connectedToServerless(namedPaths)", failure)
         commit = body.index("_picoServerlessSceneImportCommitted = true", failure)

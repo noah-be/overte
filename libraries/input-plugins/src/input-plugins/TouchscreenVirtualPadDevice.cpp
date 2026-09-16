@@ -22,6 +22,7 @@
 #include <NumericalConstants.h>
 #include <SettingHandle.h>
 #include "VirtualPadManager.h"
+#include <PhoneLoadingDiagnostics.h>
 
 #include <cmath>
 
@@ -44,6 +45,13 @@ void TouchscreenVirtualPadDevice::init() {
     _fixedPosition = true; // This should be config
     _viewTouchUpdateCount = 0;
 
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // DPI updates need not change the window rectangle. The QObject receiver
+    // keeps metric refreshes on the input object's thread.
+    auto screen = qApp->primaryScreen();
+    connect(screen, &QScreen::physicalDotsPerInchChanged, this, &TouchscreenVirtualPadDevice::resize, Qt::UniqueConnection);
+    connect(screen, &QScreen::availableGeometryChanged, this, &TouchscreenVirtualPadDevice::resize, Qt::UniqueConnection);
+#endif
     resize();
 
     auto& virtualPadManager = VirtualPad::Manager::instance();
@@ -57,6 +65,9 @@ void TouchscreenVirtualPadDevice::init() {
 
 void TouchscreenVirtualPadDevice::resize() {
     QScreen* eventScreen = qApp->primaryScreen();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    _screenWidthCenter = eventScreen->availableSize().width() / 2;
+#endif
     if (_screenDPIProvided != eventScreen->physicalDotsPerInch()) {
         _screenWidthCenter = eventScreen->availableSize().width() / 2;
         _screenDPIScale.x = (float)eventScreen->physicalDotsPerInchX();
@@ -72,6 +83,33 @@ void TouchscreenVirtualPadDevice::resize() {
 
     auto& virtualPadManager = VirtualPad::Manager::instance();
     setupControlsPositions(virtualPadManager, true);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (phoneLoadingDiagnosticsEnabled()) {
+        // Compare the input metrics with context-time drawing metrics without
+        // logging touch positions or changing either control layout.
+        static thread_local QString previousMetrics;
+        static thread_local unsigned metricCount { 0 };
+        if (metricCount < 32) {
+            const auto pixels = eventScreen->size();
+            const auto available = eventScreen->availableSize();
+            const auto millimeters = eventScreen->physicalSize();
+            const QString metrics = QString::asprintf(
+                "phase=controls_input_metrics dpi=%.5f screen_dpi=%.5f screen_w=%d screen_h=%d available_w=%d available_h=%d physical_w_mm=%.5f physical_h_mm=%.5f dpr=%.5f pad_radius_px=%.5f travel_radius_px=%.5f button_radius_px=%.5f desired_button_px=%.5f bottom_margin_px=%d button_count=%d enabled=%d hidden=%d actual_button_radius_px=%.5f layout_revision=%llu",
+                double(_screenDPI), double(eventScreen->physicalDotsPerInch()), pixels.width(), pixels.height(),
+                available.width(), available.height(), double(millimeters.width()), double(millimeters.height()),
+                double(eventScreen->devicePixelRatio()), double(_fixedRadius), double(_fixedRadiusForCalc),
+                double(_buttonRadius), double(_screenDPI * VirtualPad::Manager::BTN_FULL_PIXELS / VirtualPad::Manager::DPI),
+                _extraBottomMargin, int(_buttonsManager.buttonsCount()), virtualPadManager.isEnabled(), virtualPadManager.isHidden(),
+                _buttonsManager.buttons.isEmpty() ? 0.0 : double(_buttonsManager.buttons.first().buttonRadius),
+                (unsigned long long)virtualPadManager.getPhoneLayout().revision);
+            if (metricCount == 0 || metrics != previousMetrics) {
+                ++metricCount;
+                PHONE_LOADING("%s sample=%u cap_reached=%d", qPrintable(metrics), metricCount, metricCount == 32);
+                previousMetrics = metrics;
+            }
+        }
+    }
+#endif
 }
 
 void TouchscreenVirtualPadDevice::setupControlsPositions(VirtualPad::Manager& virtualPadManager, bool force) {
@@ -85,6 +123,11 @@ void TouchscreenVirtualPadDevice::setupControlsPositions(VirtualPad::Manager& vi
     _fixedCenterPosition = glm::vec2( _fixedRadius + margin, eventScreen->availableSize().height() - margin - _fixedRadius - _extraBottomMargin);
     _moveRefTouchPoint = _fixedCenterPosition;
     virtualPadManager.getLeftVirtualPad()->setFirstTouch(_moveRefTouchPoint);
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    if (!virtualPadManager.getLeftVirtualPad()->isBeingTouched()) {
+        virtualPadManager.getLeftVirtualPad()->setCurrentTouch(_fixedCenterPosition);
+    }
+#endif
 
     // Jump button
     float btnPixelSize = _screenDPI * VirtualPad::Manager::BTN_FULL_PIXELS / VirtualPad::Manager::DPI;
@@ -101,6 +144,28 @@ void TouchscreenVirtualPadDevice::setupControlsPositions(VirtualPad::Manager& vi
         virtualPadManager.setButtonPosition(VirtualPad::Manager::Button::JUMP, jumpButtonPosition);
         virtualPadManager.setButtonPosition(VirtualPad::Manager::Button::HANDSHAKE, rbButtonPosition);
     }
+
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    // Retain contact ownership and pressed state while refreshing the actual
+    // hit targets; rebuilding buttons would lose an in-progress touch.
+    for (auto& button : _buttonsManager.buttons) {
+        button.buttonRadius = _buttonRadius;
+        button.buttonPosition = button.channel == JUMP ? jumpButtonPosition : rbButtonPosition;
+    }
+    virtualPadManager.setButtonPosition(VirtualPad::Manager::Button::JUMP, jumpButtonPosition);
+    virtualPadManager.setButtonPosition(VirtualPad::Manager::Button::HANDSHAKE, rbButtonPosition);
+    VirtualPad::PhoneLayout layout;
+    layout.padDiameter = 2.0f * _fixedRadius;
+    layout.buttonDiameter = btnPixelSize;
+    layout.buttonRadius = _buttonRadius;
+    layout.centerX = _fixedCenterPosition.x;
+    layout.centerY = _fixedCenterPosition.y;
+    layout.buttonX = jumpButtonPosition.x;
+    layout.jumpY = jumpButtonPosition.y;
+    layout.secondaryY = rbButtonPosition.y;
+    layout.buttonsVisible = !_buttonsManager.buttons.isEmpty();
+    virtualPadManager.publishPhoneLayout(layout);
+#endif
 
 }
 

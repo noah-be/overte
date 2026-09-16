@@ -27,6 +27,7 @@ from android.common.device_tests.adb_transport import AdbTransport  # noqa: E402
 from adapters.common import (EMBEDDED_FIXTURE_URL, emit, fail,  # noqa: E402
                              parse_operation_arguments,
                              require_fresh_snapshot)
+from adapters.native_binding import PrivateParser, attach_binding, create_adapter  # noqa: E402
 from contracts import (validate_operation_arguments,  # noqa: E402
                        validate_tablet_ui_snapshot)
 from openxr_input.adapter_session import (  # noqa: E402
@@ -64,14 +65,18 @@ ANDROID_CONTROL_CONTRACT = {
 }
 
 
-def cli() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
+def cli(argv=None):
+    parser = PrivateParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("--kind", choices=tuple(PROFILES), required=True)
     parser.add_argument("action", choices=("discover", "describe", "invoke", "cleanup"))
     parser.add_argument("--target")
     parser.add_argument("--operation")
     parser.add_argument("--arguments", default="{}")
-    return parser.parse_args()
+    parser.add_argument("--native-binding", action="store_true")
+    product_parser = PrivateParser(add_help=False, allow_abbrev=False)
+    product_parser.add_argument("--kind", choices=tuple(PROFILES))
+    provisional, _ = product_parser.parse_known_args(argv)
+    return attach_binding(parser, provisional.kind, argv)
 
 
 class AndroidAdapter:
@@ -862,9 +867,11 @@ class AndroidAdapter:
         return {"cleaned": True}
 
 
-def main() -> int:
-    args = cli()
-    adapter = AndroidAdapter(args.kind)
+def main(argv=None) -> int:
+    args, binding = cli(argv)
+    adapter = create_adapter(args, binding, AndroidAdapter, args.kind)
+    if adapter.kind != args.kind or adapter.profile != PROFILES[args.kind]:
+        fail("OVT_NATIVE_BINDING_PROFILE_REJECTED")
     if args.action == "discover":
         emit(adapter.discover())
         return 0
@@ -885,6 +892,9 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (OSError, RuntimeError) as error:
-        print(f"error: {error}", file=sys.stderr)
+    except (OSError, RuntimeError, ValueError, TypeError, ImportError, AttributeError) as error:
+        # Bound mode accepts private candidate inputs. Preserve legacy diagnostic
+        # messages outside this mode until their separate PX-16 migration.
+        print("OVT_ANDROID_ADAPTER_REJECTED" if "--native-binding" in sys.argv
+              else f"error: {error}", file=sys.stderr)
         raise SystemExit(2)

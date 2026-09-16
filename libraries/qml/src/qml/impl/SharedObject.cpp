@@ -30,6 +30,7 @@
 #include "RenderEventHandler.h"
 #include "TextureCache.h"
 #include <ThreadHelpers.h>
+#include "PhoneQmlFatalDiagnostics.h"
 
 // Time between receiving a request to render the offscreen UI actually triggering
 // the render.  Could possibly be increased depending on the framerate we expect to
@@ -241,12 +242,18 @@ QQmlEngine* SharedObject::acquireEngine(OffscreenSurface* surface) {
     if (!globalEngine) {
         Q_ASSERT(0 == globalEngineRefCount);
         globalEngine = new QQmlEngine();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        phoneRegisterQmlEngine(globalEngine);
+#endif
         surface->initializeEngine(result);
     }
     ++globalEngineRefCount;
     result = globalEngine;
 #else
     result = new QQmlEngine();
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    phoneRegisterQmlEngine(result);
+#endif
     surface->initializeEngine(result);
 #endif
 
@@ -258,10 +265,16 @@ void SharedObject::releaseEngine(QQmlEngine* engine) {
 #if SINGLE_QML_ENGINE
     Q_ASSERT(0 != globalEngineRefCount);
     if (0 == --globalEngineRefCount) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+        phoneUnregisterQmlEngine(globalEngine);
+#endif
         globalEngine->deleteLater();
         globalEngine = nullptr;
     }
 #else
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    phoneUnregisterQmlEngine(engine);
+#endif
     engine->deleteLater();
 #endif
 }

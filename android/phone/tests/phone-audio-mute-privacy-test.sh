@@ -13,7 +13,7 @@ import sys
 
 source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
 match = re.search(
-    r"void AudioClient::processMicAudioInput\(QByteArray& inputByteArray\) \{"
+    r"void AudioClient::processMicAudioInput\(QByteArray& inputByteArray, quint64 policyTicket\) \{"
     r"(?P<body>.*?)"
     r"\n\}\n\nvoid AudioClient::handleDummyAudioInput",
     source,
