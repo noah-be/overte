@@ -1,5 +1,9 @@
 # Appium Android and iOS adapters
 
+The [shared implementation](../shared_appium/README.md) lives outside the
+iOS-owned adapter directory. This entrypoint remains compatible on `main`;
+`apple-ios` retains its native implementation here.
+
 The adapter talks directly to Appium's W3C HTTP protocol using the Python
 standard library. No proprietary device cloud or language-specific Appium
 client is required.
