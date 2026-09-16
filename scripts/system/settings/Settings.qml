@@ -40,8 +40,7 @@ Rectangle {
 		return (!page.semanticId || touchConfiguration.admitsSemanticControl(page.semanticId))
 			&& (!page.requiresControllerSettings || touchConfiguration.showControllerSettings)
 			&& (!page.requiresGraphicsSettings || touchConfiguration.showGraphicsSettings)
-			&& (!page.requiresPicoInteractionSettings
-				|| touchConfiguration.showPicoInteractionSettings);
+			&& (!page.requiresPicoInteractionSettings || touchConfiguration.showPicoInteractionSettings);
 	})
 
 	ColumnLayout {

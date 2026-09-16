@@ -72,6 +72,27 @@ Rectangle {
             root.sendToScript({ type: "settings.back" });
         }
     }
+
+    QuickControls.Dialog {
+        id: helpDialog
+        objectName: "settings.security.help"
+        property string helpText: ""
+        modal: true
+        focus: true
+        width: Math.min(420, Math.max(0, root.width - 32))
+        x: (root.width - width) / 2
+        y: Math.max(0, (root.height - height) / 2)
+        standardButtons: QuickControls.Dialog.Ok
+        closePolicy: QuickControls.Popup.CloseOnEscape
+        contentItem: Text {
+            text: helpDialog.helpText
+            wrapMode: Text.WordWrap
+            font.pixelSize: Math.round(16 * touchConfiguration.textScale)
+            Accessible.role: Accessible.StaticText
+            Accessible.name: text
+        }
+    }
+
     
     QtObject {
         id: margins

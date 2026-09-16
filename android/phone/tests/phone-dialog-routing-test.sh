@@ -150,10 +150,11 @@ require "$body" 'username[.]text[[:space:]]*=[[:space:]]*""' \
 require "$login" 'phoneLoginState[.]beginRequest\(\)' \
     'phone login rejects a competing request at the C++ boundary'
 require "$login" 'bindAccountLoginState\(phoneLoginState, phoneAccountLoginBinding, accountManager[.]data\(\), qApp\)' \
-    'phone request ownership binds to the application lifetime'
-for terminal_signal in loginComplete loginFailed; do
-    require "$repo_root/interface/src/ui/AccountLoginStateBinding.h" "&Manager::$terminal_signal, this,.*state[.]finishRequest\\(\\)" \
-        "$terminal_signal releases the C++ request guard through the lifetime binding"
+    'terminal authentication responses use the application-owned request guard binding'
+binding="$repo_root/interface/src/ui/AccountLoginStateBinding.h"
+for terminal in loginComplete loginFailed destroyed; do
+    require "$binding" "connect\\(manager, &[^:]+::$terminal, this,.*state[.]finishRequest\\(\\)" \
+        "application-owned $terminal handler releases the request guard"
 done
 require "$body" 'waiting:[[:space:]]*loginDialog[.]isPhoneLoginRequestPending\(\)' \
     'a reopened login waits for an older in-flight request'

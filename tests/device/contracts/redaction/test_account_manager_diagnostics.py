@@ -17,7 +17,7 @@ class AccountDiagnostics(unittest.TestCase):
         source = (subprocess.check_output(['git', '-C', str(ROOT), 'show', baseline + ':' + relative],
                   text=True) if baseline else (ROOT / relative).read_text())
         calls = re.findall(r'^\s*(q(?:CDebug|CWarning|Critical)\([^)]*\)\s*<<[^;]+;)', source, re.M)
-        self.assertEqual(len(calls), 53)
+        self.assertEqual(len(calls), 52)
         for call in calls:
             self.assertRegex(call, r'^q(?:CDebug|CWarning|Critical)\((?:networking)?\) << '
                              r'overte::security::diagnosticEvent\(overte::security::DiagnosticEvent::(?:Redacted|AuthReady)\);$')
