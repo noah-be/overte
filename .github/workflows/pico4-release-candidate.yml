@@ -104,6 +104,7 @@ jobs:
           PICO_RELEASE_CERT_SHA256: ${{ secrets.PICO_RELEASE_CERT_SHA256 }}
         run: |
           set -euo pipefail
+          python3 tools/dependency-releases/check.py checksums pico > "$RUNNER_TEMP/pico-dependencies.sha256"
           android/vr/pico/ci/verify-pico-apk.py "$PICO_APK" \
             --aapt "$ANDROID_SDK_ROOT/build-tools/36.0.0/aapt" \
             --apksigner "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" \
@@ -116,7 +117,7 @@ jobs:
           android/vr/pico/ci/pico4-release.py \
             --tag "$GITHUB_REF_NAME" --revision "$GITHUB_SHA" \
             --apk-manifest build/pico4/apk-manifest.json \
-            --dependency-checksums android/common/conan/prebuilt/pico4-deps-v1.sha256 \
+            --dependency-checksums "$RUNNER_TEMP/pico-dependencies.sha256" \
             --output-dir build/pico4
 
       - name: Upload locally verifiable reports

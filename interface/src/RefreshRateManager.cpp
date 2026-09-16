@@ -13,6 +13,7 @@
 
 
 #include "RefreshRateManager.h"
+#include "metrics/NativeMetrics.h"
 
 #include <array>
 #include <ScriptEngineCast.h>
@@ -139,6 +140,21 @@ std::string RefreshRateManager::uxModeToString(RefreshRateManager::RefreshRateMa
 }
 
 RefreshRateManager::RefreshRateManager() {
+#if defined(Q_OS_IOS)
+    overte::metrics::setNativeMetricsChangedCallback([this] {
+        bool expected = false;
+        if (_metricsRefreshQueued.compare_exchange_strong(expected, true)) {
+            if (!QMetaObject::invokeMethod(this, [this] {
+                    _metricsRefreshQueued.store(false);
+                    updateRefreshRateController();
+                }, Qt::QueuedConnection)) { _metricsRefreshQueued.store(false); }
+        }
+    });
+    auto* freshnessTimer = new QTimer(this);
+    freshnessTimer->setInterval(5000);
+    QObject::connect(freshnessTimer, &QTimer::timeout, this, [this] { updateRefreshRateController(); });
+    freshnessTimer->start();
+#endif
     _refreshRateProfile = (RefreshRateManager::RefreshRateProfile) _refreshRateProfileSetting.get();
     for (size_t i = 0; i < _customRefreshRateSettings.size(); i++) {
         REFRESH_RATE_PROFILES[CUSTOM][i] = _customRefreshRateSettings[i].get();
@@ -149,6 +165,12 @@ RefreshRateManager::RefreshRateManager() {
     QObject::connect(_inactiveTimer.get(), &QTimer::timeout, [&] {
         toggleInactive();
     });
+}
+
+RefreshRateManager::~RefreshRateManager() {
+#if defined(Q_OS_IOS)
+    overte::metrics::setNativeMetricsChangedCallback({});
+#endif
 }
 
 void RefreshRateManager::resetInactiveTimer() {
@@ -233,6 +255,11 @@ int RefreshRateManager::queryRefreshRateTarget(RefreshRateProfile profile, Refre
     int targetRefreshRate = VR_TARGET_RATE;
     if (uxMode == RefreshRateManager::UXMode::DESKTOP) {
         targetRefreshRate = REFRESH_RATE_PROFILES[profile][regime];
+#if defined(Q_OS_IOS)
+        // Transient cap, never rewrite the user's persisted custom profile.
+        // Never apply mobile 15/30-Hz degradation to a VR presentation path.
+        targetRefreshRate = overte::metrics::iosFrameLimit(targetRefreshRate, overte::metrics::latestNativeSample());
+#endif
     }
     return targetRefreshRate;
 }

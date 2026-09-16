@@ -8,7 +8,7 @@ conan_home="${CONAN_HOME:-${HOME}/.conan2}"
 jobs="${PICO_BUILD_JOBS:-$(nproc)}"
 command_name="${1:-all}"
 command_option="${2:-}"
-prebuilt_tag="pico4-deps-v1"
+dependency_policy="$android_root/../tools/dependency-releases/check.py"
 qt_reference='qt/5.15.18-2026.01.04@overte/stable#d59ba2a04fe9ede772b05b0bb0865eb0'
 android_cmake_version="3.31.6"
 android_tools_url="https://developer.android.com/studio"
@@ -664,17 +664,19 @@ install_dependencies() {
 }
 
 download_prebuilt_dependencies() {
-    local checksums="$android_root/common/conan/prebuilt/${prebuilt_tag}.sha256"
-    local base_url="https://github.com/noah-be/overte/releases/download/${prebuilt_tag}"
+    local checksums
+    local base_url
+    base_url="$(python3 "$dependency_policy" get pico base-url)"
     local download_dir asset qt_source_dir
     local legacy_runtime_dir="$script_dir/apps/picoInterface/src/main/runtime-overrides/arm64-v8a"
     local shared_runtime_dir="$script_dir/../../common/runtime-overrides/arm64-v8a"
 
     find_conan >/dev/null || fail "Conan 2 was not found (install: $conan_install_url)"
     command -v curl >/dev/null || fail "curl is not installed or not in PATH"
-    [[ -f "$checksums" ]] || fail "prebuilt checksum manifest not found: $checksums"
     download_dir="$(mktemp -d)"
     trap 'rm -rf -- "$download_dir"' RETURN
+    checksums="$download_dir/dependencies.sha256"
+    python3 "$dependency_policy" checksums pico > "$checksums"
 
     while read -r _ asset; do
         [[ -n "$asset" ]] || continue
@@ -687,7 +689,7 @@ download_prebuilt_dependencies() {
     run_conan cache restore "$download_dir/pico4-qt-conan.tgz"
     run_conan cache restore "$download_dir/pico4-node-conan.tgz"
     tar -xzf "$download_dir/pico4-runtime.tgz" -C "$script_dir"
-    # pico4-deps-v1 predates the shared Android runtime directory. Keep that
+    # The original Pico bundle predates the shared Android runtime directory. Keep that
     # immutable release usable while new archives adopt the shared layout.
     if [[ -f "$legacy_runtime_dir/.prebuilt-runtime" ]]; then
         install -d "$shared_runtime_dir"

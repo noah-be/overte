@@ -25,14 +25,16 @@ class Suite:
 
 
 SUITES = (
+    Suite("dependency-releases", "quick", (sys.executable, "tools/dependency-releases/test.py")),
     Suite("project-runner", "quick", (sys.executable, "tests/project-suite-self-test.py")),
     Suite("branch-policy", "quick", (sys.executable, "tests/branch-policy-test.py")),
+    Suite("branch-cleanup", "quick", (sys.executable, "tests/branch-cleanup-test.py")),
     Suite("sync-test-reuse", "quick", (sys.executable, "tools/sync-test-reuse/test.py")),
     Suite("workflow-action-pins", "quick", (sys.executable, "tests/workflow-action-pin-test.py")),
     Suite("release-bundle", "quick", (sys.executable, "tools/release/tests/release-bundle-test.py")),
-    Suite("desktop-topology", "quick", (sys.executable, "tests/desktop-branch-topology-test.py")),
     Suite("workflow-contracts", "quick", (sys.executable, "tests/workflow-contract-test.py")),
     Suite("repository-health", "quick", (sys.executable, "tests/project-health-test.py")),
+    Suite("issue-intake", "quick", (sys.executable, "tests/issue-intake-test.py")),
     Suite("project-coverage", "quick", (sys.executable, "tests/project-coverage-test.py")),
     Suite("codeql-remediation", "quick", ("node", "--test", "tests/codeql-remediation-test.js")),
     Suite("javascript-behavior", "quick", ("node", "tests/mocha/test/testVirtualBaton.js")),

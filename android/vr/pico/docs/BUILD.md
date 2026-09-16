@@ -215,9 +215,9 @@ resolved normally through Conan. The script automatically configures Overte's
 public official Conan repository for Overte-specific packages.
 
 The files are published in the
-[Pico 4 prebuilt dependencies v1 release](https://github.com/noah-be/overte/releases/tag/pico4-deps-v1).
+[release selected by the central policy](../../../../.github/dependency-releases.json).
 Their SHA-256 checksums are versioned in
-`conan/prebuilt/pico4-deps-v1.sha256` and verified before extraction.
+the central dependency policy and verified before extraction.
 
 The staged runtime fixes originate from
 `conan/patches/qt-pico-android-runtime.patch`. Generated runtime libraries and
