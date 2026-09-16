@@ -2,7 +2,7 @@
 
 `main` contains the portable client, libraries, shared resources, desktop support,
 tests, and repository control plane. Android applications and their toolchains,
-platform resource selectors, native backends, packaging, and device-specific
+Android-only resource selectors, native backends, packaging, and device-specific
 checks belong to `android-main` and its product descendants. The physical paths
 on the Android branches remain unchanged.
 
@@ -29,6 +29,16 @@ shared dialog manager. `PicoPlaces.qml` is the shared non-WebEngine fallback,
 selected by the absence of 3D HTML support. Shared tablet placement, property
 validation, and controller scripts also retain existing public names. Renaming
 these interfaces is not part of the Android application source migration.
+
+The `+android_interface` and `+android_phoneInterface` selectors are also shared
+mobile interfaces, despite their historical names. The iOS capability profile
+explicitly selects both; its accessibility, Qt 6 bridge, login, and touch tests
+consume these QML and script files. They and `touchscreenvirtualpad-phone.json`
+remain on `main`, together with their mobile recovery and behavior tests. They
+are inventoried as shared dependencies in the source policy. The Android-only
+Pico/Quest selectors and native Android implementations leave `main`. Changing
+the shared selector names would require a separate coordinated iOS/Phone API
+migration; deleting them would break iOS.
 
 ## Test boundaries
 

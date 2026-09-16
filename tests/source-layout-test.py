@@ -23,11 +23,15 @@ class SourceLayoutTests(unittest.TestCase):
         profile = json.loads((ROOT / "tests/platform-profile.json").read_text())
         policy = json.loads((ROOT / ".github/platform-source-policy.json").read_text())
         self.assertIn(profile["platform"], ("shared", "android"))
+        for path in policy["shared_mobile_files"]:
+            self.assertTrue((ROOT / path).is_file(), "shared iOS/Phone dependency: " + path)
         if profile["platform"] == "shared":
             for path in policy["android_roots"] + policy["android_files"]:
                 self.assertFalse((ROOT / path).exists(), path)
             for directory in ("interface", "scripts", "tests-manual"):
-                self.assertEqual(list((ROOT / directory).rglob("+android*")), [])
+                unexpected = [str(path.relative_to(ROOT)) for path in (ROOT / directory).rglob("+android*")
+                              if path.name not in policy["shared_mobile_selectors"]]
+                self.assertEqual(unexpected, [])
         else:
             for path in policy["android_required"]:
                 self.assertTrue((ROOT / path).is_file(), path)
