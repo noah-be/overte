@@ -22,6 +22,13 @@ cat >"$fixture/bin/conan" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >>"$MOCK_CALLS"
+if [[ "${1:-}" == list ]]; then
+    if [[ "${MOCK_LIBNODE_REVISION_PRESENT:-0}" == 1 ]]; then
+        printf '%s\n' '{"Local Cache":{"libnode/22.22.3@overte/stable":{"revisions":{"261cd4344c058c7f08a0fb892519880a":{}}}}}'
+    else
+        printf '%s\n' '{"Local Cache":{}}'
+    fi
+fi
 MOCK
 cat >"$fixture/bin/finalize" <<'MOCK'
 #!/usr/bin/env bash
@@ -34,6 +41,7 @@ chmod +x "$fixture/bin/curl" "$fixture/bin/conan" "$fixture/bin/finalize"
 MOCK_ASSET="$fixture/source/android-phone-16k-conan.tgz" \
 MOCK_CALLS="$fixture/calls" \
 MOCK_READY="$fixture/ready/.phone-16k-dependencies.ready" \
+MOCK_LIBNODE_REVISION_PRESENT=1 \
 PHONE_CURL="$fixture/bin/curl" PHONE_CONAN="$fixture/bin/conan" \
 PHONE_PREBUILT_FINALIZER="$fixture/bin/finalize" \
 PHONE_PREBUILT_READY_MARKER="$fixture/ready/.phone-16k-dependencies.ready" \
@@ -43,10 +51,47 @@ PHONE_PREBUILT_TMPDIR="$fixture/large-download-temp" \
     "$subject" download >/dev/null
 
 grep -Fq 'cache restore' "$fixture/calls"
+grep -Fq 'remove libnode/22.22.3@overte/stable#261cd4344c058c7f08a0fb892519880a --confirm' \
+    "$fixture/calls"
+remove_line="$(grep -n '^remove libnode/' "$fixture/calls" | cut -d: -f1)"
+restore_line="$(grep -n '^cache restore ' "$fixture/calls" | cut -d: -f1)"
+[[ "$remove_line" -lt "$restore_line" ]]
 [[ "$(grep -c 'install ' "$fixture/calls")" == 2 ]]
 grep -Fq -- '--build=never' "$fixture/calls"
 [[ -d "$fixture/large-download-temp" ]]
 [[ -z "$(find "$fixture/large-download-temp" -mindepth 1 -print -quit)" ]]
+
+: >"$fixture/calls"
+MOCK_ASSET="$fixture/source/android-phone-16k-conan.tgz" \
+MOCK_CALLS="$fixture/calls" \
+MOCK_READY="$fixture/ready-absent/.phone-16k-dependencies.ready" \
+PHONE_CURL="$fixture/bin/curl" PHONE_CONAN="$fixture/bin/conan" \
+PHONE_PREBUILT_FINALIZER="$fixture/bin/finalize" \
+PHONE_PREBUILT_READY_MARKER="$fixture/ready-absent/.phone-16k-dependencies.ready" \
+PHONE_PREBUILT_MANIFEST="$fixture/manifest.sha256" \
+PHONE_PREBUILT_BASE_URL='https://invalid.example.test/release' \
+PHONE_PREBUILT_TMPDIR="$fixture/absent-revision-temp" \
+    "$subject" download >/dev/null
+! grep -Fq 'remove ' "$fixture/calls"
+
+# Exercise the normal resolver path, without a manifest or URL override.
+mkdir -p "$fixture/repo/android/phone" "$fixture/repo/tools/dependency-releases" "$fixture/repo/.github"
+cp "$subject" "$fixture/repo/android/phone/phone-prebuilt-16k-deps.sh"
+cp "$android_dir/../../tools/dependency-releases/check.py" "$fixture/repo/tools/dependency-releases/"
+python3 - "$android_dir/../../.github/dependency-releases.json" "$fixture" <<'PY'
+import json, pathlib, sys
+data = json.loads(pathlib.Path(sys.argv[1]).read_text())
+root = pathlib.Path(sys.argv[2])
+data['bundles']['phone']['assets']['android-phone-16k-conan.tgz'] = (root / 'manifest.sha256').read_text().split()[0]
+(root / 'repo/.github/dependency-releases.json').write_text(json.dumps(data))
+PY
+MOCK_ASSET="$fixture/source/android-phone-16k-conan.tgz" \
+MOCK_CALLS="$fixture/calls" MOCK_READY="$fixture/default-ready" \
+PHONE_CURL="$fixture/bin/curl" PHONE_CONAN="$fixture/bin/conan" \
+PHONE_PREBUILT_FINALIZER="$fixture/bin/finalize" \
+PHONE_PREBUILT_READY_MARKER="$fixture/default-ready" \
+    "$fixture/repo/android/phone/phone-prebuilt-16k-deps.sh" download >/dev/null
+[[ -f "$fixture/default-ready" ]]
 
 printf '0  unexpected.tgz\n' >"$fixture/bad-manifest"
 if PHONE_PREBUILT_MANIFEST="$fixture/bad-manifest" \

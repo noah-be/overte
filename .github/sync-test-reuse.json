@@ -17,6 +17,8 @@
     "apple-ios": {"parent": "apple-main", "scope": "ios", "differential": "apple-ios"}
   },
   "qualified_inputs": [
+    ".github/dependency-releases.json",
+    "tools/dependency-releases/**",
     ".github/actions/**",
     ".github/workflows/**",
     ".github/branch-policy.json",
