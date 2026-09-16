@@ -68,6 +68,11 @@ endforeach()
                 # namespace, then drop privilege before executing fixture CMake.
                 isolation = ['sudo', '-n', 'unshare', '--net',
                              '--setgid', str(os.getgid()), '--setuid', str(os.getuid()), '--']
+                # sudo clears the environment. Reintroduce only fixture inputs
+                # after dropping privilege, including an intentionally empty graph.
+                isolation += ['env', 'PICO_BUILD_JOBS=' + env['PICO_BUILD_JOBS']]
+                if 'OVERTE_FDROID_CONAN_DIR' in env:
+                    isolation.append('OVERTE_FDROID_CONAN_DIR=' + env['OVERTE_FDROID_CONAN_DIR'])
             return subprocess.run(isolation + ['cmake', '-S', str(temp), '-B', str(temp / 'out'), '-G', 'Unix Makefiles',
                 '-DEXPECTED_HOST=' + str(expected)], env=env,
                 capture_output=True, text=True, timeout=15)
