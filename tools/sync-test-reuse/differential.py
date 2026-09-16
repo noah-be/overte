@@ -19,8 +19,6 @@ PROFILES = {
     "android-pico": ("android/vr/pico", "android/vr", "android/common"),
     "apple-family": ("ios", "interface", "libraries"),
     "apple-ios": ("ios", "interface"),
-    "linux-desktop": ("cmake", "interface", "libraries"),
-    "windows-desktop": ("cmake", "interface", "libraries"),
 }
 
 
