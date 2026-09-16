@@ -1,63 +1,96 @@
-# Shared Appium adapter
+# Appium Android and iOS adapters
 
-This directory provides one device-free Appium W3C transport for Android and
-iOS. It uses only the Python standard library plus the checked-in device
-contracts. The two manifests select a platform while sharing `adapter.py`.
+The [shared implementation](../shared_appium/README.md) lives outside the
+iOS-owned adapter directory. This entrypoint remains compatible on `main`;
+`apple-ios` retains its native implementation here.
 
-The adapter supports common session creation, application installation and
-launch, foreground observation, screenshots, touch gestures, and semantic
-tablet controls. Capabilities are advertised only when the corresponding
-control is configured. The semantic result contains only identifiers from
-`tablet-ui-contract.json`; raw page source and arbitrary accessibility text are
-never returned or persisted.
+The adapter talks directly to Appium's W3C HTTP protocol using the Python
+standard library. No proprietary device cloud or language-specific Appium
+client is required.
 
-## Configuration
+Copy `targets.example.json` outside the repository, insert private UDIDs and
+verified control identifiers, protect the file, and export
+`OVERTE_APPIUM_TARGETS=/absolute/private/targets.json`. Capabilities are
+advertised only when their corresponding control or probe transport exists.
+The path must already be absolute, must not cross symlinks or point back into
+the checkout, and on POSIX the ordinary current-user-owned file must have mode
+`0600`. Session metadata is stored through an equally private atomic file.
 
-Copy `targets.example.json` outside the repository, make it account-private,
-and set:
+The shared `app.install` operation accepts only an absolute regular artifact
+path and invokes Appium's standard `mobile: installApp` command. Unsupported
+operations and malformed arguments are rejected before creating or contacting
+a WebDriver session.
 
-```bash
-cp tests/device/adapters/appium/targets.example.json /absolute/private/targets.json
-chmod 600 /absolute/private/targets.json
-export OVERTE_APPIUM_TARGETS=/absolute/private/targets.json
-```
+An enabled physical Android target is attested as an authorized ARM64 touch
+phone before Appium creates a session. The gate rejects emulators and Android
+watch, TV, automotive, VR, Pico, or ByteDance identities, and requires the
+minimum API and OpenGL ES levels used by the phone client. Jenkins freezes only
+the credential-selected Phone entry into a mode-0600 per-build target file so
+another lab job cannot change its ADB, probe, or controlled-command contract
+between fresh sessions. `app.install` repeats the same phone attestation before
+invoking Appium's install command.
 
-The adapter rejects configurations inside the repository, symbolic links,
-non-regular files, files owned by another account, and any group or other
-permission bits. Plain HTTP Appium endpoints are accepted only on loopback;
-remote endpoints must use HTTPS.
+For Android, `process.kind=adb` obtains a real PID/start-time identity from the
+physical device selected by `appium:udid`. Appium alone does not expose a
+trustworthy Android process identity. The same observer supplies Android
+battery, memory, and thermal telemetry for the stability suite. On iOS the
+adapter uses XCUITest's
+active-app PID and attests that a target marked `physical` is not a simulator.
+The configured iOS `appId` must equal `appium:bundleId`.
 
-The checked-in examples are intentionally disabled, contain no device
-selector, and are not evidence that any target is usable. Enable only a target
-whose generic simulator/emulator capabilities and control identifiers have
-been audited locally.
+Run the `accessibility` suite before enabling `e2e-core`. Its artifact records
+the actual native tree exposed by QML. Replace the example tablet identifiers
+only after that audit; placeholder identifiers are not acceptance evidence.
+If a target's Qt build exposes no actionable QML nodes, configure the audited
+normalized `togglePoint`, or distinct `openPoint` and `closePoint`, instead.
+This touch fallback can verify tablet behavior through the probe, but it does
+not make the separate Accessibility gate pass.
 
-Physical targets fail closed in this shared layer. Their independent identity,
-artifact, signing, process, and probe checks belong to later platform-specific
-integrations and are not emulated here. Platform-only configuration fields are
-rejected rather than accepted without their required checks.
+After the native tree has been audited against `tablet-ui-contract.json`, a
+target may opt into `tablet.snapshot` and `tablet.activate` with exactly
+`"semanticUi": {"contractVersion": 1}`. The adapter reduces Android resource
+IDs/content descriptions or iOS prefixed accessibility identifiers to the
+closed shared vocabulary, rejects ambiguous trees, and activates only a
+visible enabled control. Merely configuring open/close coordinates does not
+advertise the semantic operations.
 
-## Semantic tablet contract
+The Android example uses `scene.kind=android-debug-e2e`. This starts the
+shell-protected launcher that exists only in debug APKs; the launcher copies
+the repository-owned scene and probe assets into app-private storage and never
+accepts raw argv or an external scene URL. The fresh probe result stays in
+app-private storage and is read through Android's debug-only `run-as` boundary;
+the adapter does not grant broad storage access. Keep this scene and probe
+configuration absent for release APKs.
 
-After auditing that Appium exposes the checked-in semantic IDs, opt in with:
+The three domain, asset, and sound capabilities are advertised on Android only
+when the physical debug target also configures the fixed
+`clientControl.kind=android-run-as-command` path shown in the example. Commands
+are atomically written inside the app sandbox. The adapter checks the exact ADB
+PID/start-time identity, foreground state, and Appium session before and after
+delivery. `sound.play` additionally requires the exact fixture
+`/sound-command.json` endpoint on the same origin as the sound resource; the
+probe observes the real client audio state rather than an adapter simulation.
 
-```json
-"semanticUi": {"contractVersion": 1}
-```
+The disabled iOS example implements the fail-closed
+`overte-ios-e2e-v1` contract described in [`../../ios/`](../../ios/). For a
+physical target the adapter checks the installed app's test-only plist marker
+and `UIFileSharingEnabled` before executing any command. It accepts a scene only
+from the configured fixture origin. An initial `app.launch` supplies only the
+audited test-build arguments; after backgrounding, `app.launch` merely
+reactivates the existing process so lifecycle tests retain the PID. `scene.load`
+is the explicit restart boundary: it terminates the app so new scene arguments
+take effect, supplies Interface's existing `--url`, `--testScript`, and
+`--testResultsLocation` arguments, and pulls the fresh result from the derived
+`@bundle-id:documents/...` path. A normal iOS target without that exact contract
+may advertise lifecycle and Accessibility capture, but configuration of scene,
+probe, or behavioral controls is rejected.
 
-Android accepts contract IDs from `resource-id` or `content-desc`. iOS accepts
-the versioned `OverteTabletScreen.`, `OverteTabletControl.`, and
-`OverteTabletReady.` prefixes. The ready suffix repeats the visible screen ID.
-A snapshot must expose exactly one known screen.
-Activation requires a currently visible, enabled element and uses its W3C
-element identity.
-
-Run the device-free checks from the repository root:
-
-```bash
-python3 -m unittest \
-  tests.device.self_tests.test_appium_adapter \
-  tests.device.self_tests.test_e2e_stack \
-  tests.device.self_tests.test_portable_smoke_contract
-python3 tests/device/verify_adapter.py --help
-```
+Android requires Appium plus the open-source UiAutomator2 driver. For iOS 18+
+the Fedora adapter uses the pinned open-source RemoteXPC transport and a
+prebuilt signed WDA; it requires explicit `udid`, `platformVersion`,
+`usePreinstalledWDA`, and `updatedWDABundleId` capabilities. Supplying local
+Overte/WDA artifact paths additionally requires the private, hash-bound receipt
+created by [`../../ios/verify_fedora_artifacts.py`](../../ios/verify_fedora_artifacts.py).
+The app and WDA are still built and signed with Apple's proprietary Xcode and
+provisioning stack on the protected macOS producer, but no local macOS test
+agent is required.

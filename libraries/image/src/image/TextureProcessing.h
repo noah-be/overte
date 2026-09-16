@@ -18,6 +18,7 @@
 #include <gpu/Texture.h>
 
 #include "Image.h"
+#include <cstdint>
 #include <nvtt/nvtt.h>
 
 namespace image {
@@ -126,7 +127,7 @@ const QStringList getSupportedFormats();
 
 std::pair<gpu::TexturePointer, glm::ivec2> processImage(std::shared_ptr<QIODevice> content, const std::string& url, ColorChannel sourceChannel,
                                                         int maxNumPixels, TextureUsage::Type textureType,
-                                                        bool compress, gpu::BackendTarget target, const std::atomic<bool>& abortProcessing = false);
+                                                        bool compress, gpu::BackendTarget target, const std::atomic<bool>& abortProcessing = false, std::uint64_t maxDecodedPixels = 0);
 
 void convertToTextureWithMips(gpu::Texture* texture, Image&& image, gpu::BackendTarget target, const std::atomic<bool>& abortProcessing = false, int face = -1);
 void convertToTexture(gpu::Texture* texture, Image&& image, gpu::BackendTarget target, const std::atomic<bool>& abortProcessing = false, int face = -1, int mipLevel = 0);

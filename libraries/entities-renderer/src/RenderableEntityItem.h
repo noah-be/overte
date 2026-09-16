@@ -53,6 +53,8 @@ public:
 
     // Handlers for rendering events... executed on the main thread, only called by EntityTreeRenderer, 
     // cannot be overridden or accessed by subclasses
+    // Queried by EntityTreeRenderer on the scene owner thread before updateInScene.
+    virtual bool needsRenderUpdate() const;
     virtual void updateInScene(const ScenePointer& scene, Transaction& transaction) final;
     virtual bool addToScene(const ScenePointer& scene, Transaction& transaction) final;
     virtual void removeFromScene(const ScenePointer& scene, Transaction& transaction);
@@ -105,9 +107,6 @@ protected:
     virtual void render(RenderArgs* args) override final;
     virtual render::hifi::Tag getTagMask() const;
     virtual render::hifi::Layer getHifiRenderLayer() const;
-
-    // Returns true if the item in question needs to have updateInScene called because of internal rendering state changes
-    virtual bool needsRenderUpdate() const;
 
     // Returns true if the item in question needs to have updateInScene called because of changes in the entity
     virtual bool needsRenderUpdateFromEntity(const EntityItemPointer& entity) const;

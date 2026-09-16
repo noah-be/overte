@@ -1,5 +1,0 @@
-include(../../profiles/linux-x86_64-bootstrap)
-
-[conf]
-tools.system.package_manager:mode=report
-tools.system.package_manager:sudo=False

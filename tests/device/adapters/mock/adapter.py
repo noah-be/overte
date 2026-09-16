@@ -63,18 +63,21 @@ def state_path() -> Path:
 
 
 def initial_state() -> dict:
+    pico = os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1"
     return {
         "running": False, "foreground": False, "sceneUrl": "", "sceneReady": False,
         "sceneCommandId": "",
         "launchCount": 0, "sceneLoadCount": 0, "domainEnterCount": 0,
         "domainConnected": False, "domainHost": "", "domainId": "",
-        "position": {"x": 0.0, "y": 1.0, "z": 4.0},
+        "position": {"x": 0.0, "y": 2.0 if pico else 1.0, "z": 4.0},
+        "groundY": 2.0 if pico else 1.0,
         "velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
         "bodyYawDegrees": 0.0,
-        "groundY": 1.0, "inAir": False, "flying": False, "flyingEnabled": True,
+        "inAir": False, "flying": False, "flyingEnabled": True,
         "locomotion": None, "locomotionSamples": 0,
         "orientation": {"x": 0.0, "y": 0.0, "z": 0.0}, "tablet": False,
         "orientationHistory": [], "pendingOrientationSample": None,
+        "picoRouteActive": False, "inputSequence": 0,
         "tabletScreen": "tablet.home",
         "interactionCount": 0, "interactionLastEntityName": "",
         "interactionLastPointerId": None,
@@ -93,6 +96,7 @@ def initial_state() -> dict:
         "nativeFrameSequence": 0,
         "processRevision": 0, "asset": None,
         "sampleSequence": 0, "sampleEpochMs": 0,
+        "soundObservationCount": 0,
         "verticalEvents": {
             "jumpCount": 0, "jumpCompletedCount": 0,
             "lastJumpStartY": None, "lastJumpPeakY": None,
@@ -141,7 +145,8 @@ def reset_scene(state: dict, url: str) -> None:
         "domainConnected": False,
         "domainHost": "",
         "domainId": "",
-        "position": {"x": 0.0, "y": -1.0 if "floor-fall-through" in failures() else 1.0,
+        "position": {"x": 0.0, "y": (-1.0 if "floor-fall-through" in failures()
+                                      else state["groundY"]),
                      "z": 4.0},
         "velocity": {"x": 0.0, "y": 0.0, "z": 0.0},
         "bodyYawDegrees": 0.0,
@@ -514,6 +519,8 @@ def invoke(operation: str, arguments: dict) -> dict:
             state["orientation"] = before_orientation
         result = {"performed": True}
     elif operation == "input.move":
+        state["inputSequence"] += 1
+        state["picoRouteActive"] = True
         apply_move(state, arguments["direction"], float(arguments["durationSeconds"]))
         result = {"performed": True}
     elif operation == "input.primary":
@@ -554,15 +561,23 @@ def invoke(operation: str, arguments: dict) -> dict:
             state["locomotionSamples"] = 0
         result = {"performed": True}
     elif operation == "tablet.open":
+        state["inputSequence"] += 1
         if "tablet-transition" not in failures():
             state["tablet"] = True
             state["tabletScreen"] = "tablet.home"
-        result = {"performed": True}
+        result = {"performed": True, "sequence": state["inputSequence"]}
+        if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
+            result.update({"openXrBooleanApplied": True,
+                           "openXrLeftSecondaryApplied": True})
     elif operation == "tablet.close":
+        state["inputSequence"] += 1
         if "tablet-transition" not in failures():
             state["tablet"] = False
             state["tabletScreen"] = "tablet.home"
-        result = {"performed": True}
+        result = {"performed": True, "sequence": state["inputSequence"]}
+        if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
+            result.update({"openXrBooleanApplied": True,
+                           "openXrLeftSecondaryApplied": True})
     elif operation == "tablet.snapshot":
         return observed_tablet_ui(state)
     elif operation == "tablet.activate":
@@ -615,6 +630,10 @@ def invoke(operation: str, arguments: dict) -> dict:
             "frameSequence": state["nativeFrameSequence"],
         }
     elif operation == "probe.snapshot":
+        after = arguments.get("afterSampleSequence")
+        if (after is not None and (not isinstance(after, int) or isinstance(after, bool)
+                                   or after < 0)):
+            raise RuntimeError("afterSampleSequence must be a non-negative integer")
         if state["locomotion"] == "jump":
             state["locomotionSamples"] += 1
             jump_is_flight = "jump-as-flight" in failures()
@@ -678,6 +697,11 @@ def invoke(operation: str, arguments: dict) -> dict:
                     state["peerObservationCount"] % 10) * 0.12
         failure = os.environ.get("OVERTE_MOCK_SOUND_FAILURE", "")
         sound_active = bool(state.get("sound", {}).get("commandObserved"))
+        if sound_active:
+            state["soundObservationCount"] = state.get("soundObservationCount", 0) + 1
+            if (failure == "end-after-two-active-samples"
+                    and state["soundObservationCount"] > 2):
+                state["sound"]["playbackEndEpochMs"] = 0
         fixture_markers = (FIXTURE_MARKERS[:-1] if "missing-markers" in failures()
                            else FIXTURE_MARKERS)
         stale_common = "stale-sequence" in failures() and state["sampleSequence"] > 0
@@ -742,7 +766,13 @@ def invoke(operation: str, arguments: dict) -> dict:
                                          and len(fixture_markers) == len(FIXTURE_MARKERS)),
                       "collisionWall": (COLLISION_WALL if state["sceneReady"]
                                         and not state["domainConnected"] else None)},
-            "avatar": {"position": state["position"], "velocity": state["velocity"],
+            "avatar": {"position": state["position"],
+                       "feetPosition": {
+                           "x": state["position"]["x"],
+                           "y": state["position"]["y"] - state["groundY"],
+                           "z": state["position"]["z"],
+                       },
+                       "velocity": state["velocity"],
                        "bodyYawDegrees": state["bodyYawDegrees"], "inAir": state["inAir"],
                        "flying": state["flying"], "flyingEnabled": state["flyingEnabled"]},
             "verticalEvents": copy.deepcopy(state["verticalEvents"]),
@@ -793,6 +823,43 @@ def invoke(operation: str, arguments: dict) -> dict:
             "asset": copy.deepcopy(state.get("asset")),
             "sound": observed_sound(state),
         }
+        if os.environ.get("OVERTE_PICO_OPENXR_INPUT") == "1":
+            route_value = 0.8 if state["picoRouteActive"] else 0.0
+            snapshot["input"] = {
+                "dominantHand": "right", "advancedMovementControls": True,
+            }
+            snapshot["scene"].update({
+                "fixtureMarkerCount": len(FIXTURE_MARKERS) if state["sceneReady"] else 0,
+                "floorTopY": 0.0 if state["sceneReady"] else None,
+                "spawnValidated": state["sceneReady"],
+            })
+            snapshot["controller"] = {
+                "route": {
+                    "openxrAxes": {"lx": 0.0, "ly": route_value,
+                                   "rx": 0.0, "ry": 0.0},
+                    "standardLy": route_value,
+                    "translateZAction": route_value,
+                    # The avatar drive-key API exposes TranslateZ with the
+                    # opposite sign from the OpenXR/controller action axes.
+                    "rawTranslateZDriveKey": -route_value,
+                    "translateZDriveKeyDisabled": False,
+                },
+                "axes": {
+                    "lx": 0.0, "ly": route_value, "rx": 0.0, "ry": 0.0,
+                    "leftTrigger": 0.0, "rightTrigger": 0.0,
+                    "leftGrip": 0.0, "rightGrip": 0.0,
+                },
+                "buttons": {
+                    "menu": False, "leftPrimary": False, "leftSecondary": False,
+                    "leftThumbstick": False, "leftTrigger": False,
+                    "rightPrimary": False, "rightSecondary": False,
+                    "rightThumbstick": False, "rightTrigger": False,
+                },
+                "poses": {
+                    "left": {"valid": False, "translation": None, "rotation": None},
+                    "right": {"valid": False, "translation": None, "rotation": None},
+                },
+            }
         save(state)
         if snapshot["asset"] is not None:
             if os.environ.get("OVERTE_MOCK_ASSET_WRONG_ID") == "1":
