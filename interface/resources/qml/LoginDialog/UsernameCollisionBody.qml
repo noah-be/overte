@@ -285,7 +285,7 @@ Item {
                 "withOculus": usernameCollisionBody.withOculus, "linkSteam": false, "linkOculus": false })
         }
         function onHandleCreateFailed() {
-            console.log("Create Failed: " + error)
+            console.log("Create Failed")
             if (usernameCollisionBody.loginDialogPoppedUp) {
                 var data = {
                     "action": "user failed to create account from the username collision screen"

@@ -106,13 +106,39 @@ Rectangle {
         anchors.right: parent.right;
         anchors.bottom: parent.bottom;
 
+        Row {
+            id: consentActions
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.margins: 10
+            spacing: 8
+            height: touchConfiguration.buttonHeight
+            HiFiControls.Button {
+                text: qsTr("Review")
+                width: (parent.width - parent.spacing) / 2
+                height: parent.height
+                Accessible.name: qsTr("Review entity scripts for this world")
+                androidClickAction: function () { Menu.triggerOption("Entity Scripts: Review") }
+                onClicked: if (Qt.platform.os !== "android") { Menu.triggerOption("Entity Scripts: Review") }
+            }
+            HiFiControls.Button {
+                text: qsTr("Revoke")
+                width: (parent.width - parent.spacing) / 2
+                height: parent.height
+                Accessible.name: qsTr("Revoke entity script permissions")
+                androidClickAction: function () { Menu.triggerOption("Entity Scripts: Revoke") }
+                onClicked: if (Qt.platform.os !== "android") { Menu.triggerOption("Entity Scripts: Revoke") }
+            }
+        }
+
         Text {
             id: descriptionText;
-            text: "One trusted URL or QML file per line. Changes apply when content reloads.";
+            text: qsTr("Review entity scripts before allowing them. Revoke stops this session. The allowlist is an additional restriction; use one trusted URL or QML file per line.");
             color: "white";
             font.pixelSize: Math.round(14 * touchConfiguration.textScale);
             wrapMode: Text.WordWrap;
-            anchors.top: parent.top;
+            anchors.top: consentActions.bottom;
             anchors.left: parent.left;
             anchors.right: parent.right;
             anchors.margins: 10;
