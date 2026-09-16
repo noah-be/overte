@@ -13,6 +13,13 @@ locking, explicit startup-link selection, and cancellation of superseded
 navigation. Platform guards keep Phone scheduling and startup choices scoped to
 the Phone build.
 
+Integration preserves the current shared authentication, consent-lifetime, and
+device-test security checks. Incomplete Pico capture-policy hooks from the
+investigation were removed because the current Java implementation does not
+provide their required callbacks. Existing capture behavior is retained, while
+raw microphone WAV capture remains disabled and JNI exception details remain
+suppressed. The independent Phone voice-test buffer is retained.
+
 ## Optional experiments
 
 Animation-curve shortcuts, KTX header-first probing, and collision-priority
