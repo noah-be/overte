@@ -13,7 +13,7 @@ import sys
 
 source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
 match = re.search(
-    r"void AudioClient::processMicAudioInput\(QByteArray& inputByteArray, quint64 policyTicket\) \{"
+    r"void AudioClient::processMicAudioInput\(QByteArray& inputByteArray\) \{"
     r"(?P<body>.*?)"
     r"\n\}\n\nvoid AudioClient::handleDummyAudioInput",
     source,
@@ -21,6 +21,12 @@ match = re.search(
 )
 if match is None:
     raise SystemExit("FAIL: processMicAudioInput implementation was not found")
+
+capture = re.search(r"static int picoMicCaptureSeconds\(\) \{(?P<body>.*?)\n\}", source, re.DOTALL)
+if capture is None or not re.fullmatch(r"(?:\s|//[^\n]*\n)*return 0;\s*", capture.group("body")):
+    raise SystemExit("FAIL: raw microphone recording must remain unconditionally disabled")
+if "ExceptionDescribe()" in source:
+    raise SystemExit("FAIL: native microphone exceptions must not disclose private details")
 
 body = match.group("body")
 mute_guard = re.search(

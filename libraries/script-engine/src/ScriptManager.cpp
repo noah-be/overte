@@ -2212,8 +2212,12 @@ bool ScriptManager::rejectEntityScriptWithoutConsent(const EntityItemID& entityI
     const QUrl sourceURL(scriptURL);
     if (_context == ENTITY_CLIENT_SCRIPT &&
         sourceURL.scheme().compare(QStringLiteral("qrc"), Qt::CaseInsensitive) == 0) {
+        if (isStopping() || _isFinished) { return true; }
         auto existing = _entityScriptConsentRequests.value(entityID).value(scriptURL);
         if (existing) { return !existing->allowed(); }
+        // Late callbacks cannot manufacture a new authorization, even for
+        // bundled resources. Only a current load request can create one.
+        if (!requestConsent) { return true; }
         if (!_entityScriptConsentScope) {
             _entityScriptConsentScope = std::make_shared<EntityScriptConsentScope>(QStringLiteral("qrc:///"));
             const auto weakManager = weak_from_this();

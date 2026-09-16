@@ -116,6 +116,18 @@ int main(int argc, char** argv) {
         assert(manager->afterLoadFence == 1);
         manager->entityScriptContentAvailable(entity, bundled, "", true, true, "");
         assert(manager->afterCallbackFence == 1);
+        manager->stop();
+        assert(manager->rejectEntityScriptWithoutConsent(entity, bundled, true));
+    }
+    {
+        const QString bundled = QStringLiteral("qrc:///serverless/Scripts/portal.js");
+        auto late = std::make_shared<ScriptManager>(ScriptManager::ENTITY_CLIENT_SCRIPT);
+        assert(late->rejectEntityScriptWithoutConsent(entity, bundled, false));
+        assert(late->_entityScriptConsentRequests.isEmpty());
+        auto finished = std::make_shared<ScriptManager>(ScriptManager::ENTITY_CLIENT_SCRIPT);
+        finished->_isFinished = true;
+        assert(finished->rejectEntityScriptWithoutConsent(entity, bundled, true));
+        assert(finished->_entityScriptConsentRequests.isEmpty());
     }
     {
         auto manager = std::make_shared<ScriptManager>(ScriptManager::ENTITY_CLIENT_SCRIPT);
