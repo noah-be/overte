@@ -153,9 +153,6 @@ class FakeGithubOwner:
         self.events.append(("verify_owner",))
         return {"full_name": FORK, "id": 1319052603}
 
-    def verify_archive_protection(self):
-        self.events.append(("verify_archive_protection",))
-
 
 class PolicyAndSelectionTests(unittest.TestCase):
     @classmethod
@@ -198,7 +195,7 @@ class PolicyAndSelectionTests(unittest.TestCase):
         self.assertEqual(validated["repository"], FORK)
         self.assertEqual(validated["repository_id"], 1319052603)
         self.assertEqual(set(validated["permanent_branches"]), PERMANENT)
-        self.assertEqual(validated["archive_tag_prefix"], "archive/merged/")
+        self.assertNotIn("archive_tag_prefix", validated)
 
     def test_foreign_repository_or_repository_id_is_rejected(self):
         for key, value in (("repository", "overte-org/overte"), ("repository", "someone/overte"),
@@ -216,9 +213,8 @@ class PolicyAndSelectionTests(unittest.TestCase):
                 with self.assertRaises(self.module.CleanupError):
                     self.module.validate_policy(policy)
 
-    def test_archive_prefix_and_retention_cannot_be_redirected(self):
-        for key, value in (("archive_tag_prefix", "release/"), ("artifact_retention_days", 0),
-                           ("artifact_retention_days", 31)):
+    def test_backup_retention_cannot_be_changed(self):
+        for key, value in (("artifact_retention_days", 0), ("artifact_retention_days", 31)):
             with self.subTest(key=key, value=value):
                 with self.assertRaises(self.module.CleanupError):
                     self.module.validate_policy({**self.policy, key: value})
@@ -306,6 +302,23 @@ class PolicyAndSelectionTests(unittest.TestCase):
         self.branches.append(dict(self.branches[-1]))
         with self.assertRaises(self.module.CleanupError):
             self.select()
+
+    def test_plan_requires_protected_target_history_without_reading_tag_rules(self):
+        github = mock.Mock(spec=self.module.Github)
+        github.branches.return_value = self.branches
+        github.open_pr_holds.return_value = {}
+        github.comparisons.return_value = self.comparisons
+        github.activity_holds.return_value = {}
+        github.workflow_holds.return_value = {}
+        github.get.return_value = [{"type": "deletion"}, {"type": "non_fast_forward"}]
+        plan = self.module.make_plan(github, self.policy)
+        self.assertEqual(plan["candidate_count"], 1)
+        github.get.assert_called_once_with("rules/branches/main")
+        for rules in ([], [{"type": "deletion"}], [{"type": "non_fast_forward"}]):
+            with self.subTest(rules=rules):
+                github.get.return_value = rules
+                with self.assertRaisesRegex(self.module.CleanupError, "target_history_not_protected"):
+                    self.module.make_plan(github, self.policy)
 
 
 class GithubActivityTests(unittest.TestCase):
@@ -559,7 +572,6 @@ class GitBackupsAndDeletionTests(unittest.TestCase):
             "base": "main", "base_sha": self.fixture.main_sha,
         }]
         self.store.fetch(self.candidates)
-        self.tag = "archive/merged/" + self.fixture.merged_sha
 
     def pushes(self):
         return [event[2] for event in self.events if event[:2] == ("git", "push")]
@@ -570,26 +582,24 @@ class GitBackupsAndDeletionTests(unittest.TestCase):
             sha or self.fixture.merged_sha,
         )
 
-    def test_annotated_remote_archive_is_verified_before_exact_leased_deletion(self):
-        self.store.backup_tags(self.candidates, self.github)
-        tag_ref = "refs/tags/" + self.tag
-        self.assertEqual(self.fixture.git(self.fixture.remote, "cat-file", "-t", tag_ref).stdout.strip(), "tag")
-        self.assertEqual(self.fixture.rev(self.fixture.remote, tag_ref + "^{}"), self.fixture.merged_sha)
+    def test_exact_leased_deletion_creates_no_tags_and_preserves_existing_tags(self):
+        self.fixture.git(self.fixture.remote, "tag", "-a", "existing-release",
+                         self.fixture.initial, "-m", "Existing release")
+        before = self.fixture.git(self.fixture.remote, "show-ref", "--tags").stdout
         deleted = self.store.delete(self.candidates, self.github)
         self.assertEqual(deleted, [self.fixture.merged_branch])
         self.assertIsNone(self.fixture.remote_ref("refs/heads/" + self.fixture.merged_branch))
-        # Recovery reads a real archived file after the branch itself has gone.
-        recovered = self.fixture.git(self.fixture.remote, "show", tag_ref + ":integrated.txt").stdout
-        self.assertEqual(recovered, "integrated.txt\n")
-        delete_push = self.pushes()[-1]
+        self.assertEqual(self.fixture.git(self.fixture.remote, "show-ref", "--tags").stdout, before)
+        self.assertEqual(len(self.pushes()), 1)
+        delete_push = self.pushes()[0]
         self.assertIn("--atomic", delete_push)
         self.assertIn(
             "--force-with-lease=refs/heads/" + self.fixture.merged_branch + ":" + self.fixture.merged_sha,
             delete_push,
         )
+        self.assertFalse(any("refs/tags/" in value for value in delete_push))
 
     def test_owner_is_reverified_before_every_mutating_push(self):
-        self.store.backup_tags(self.candidates, self.github)
         self.store.delete(self.candidates, self.github)
         previous_push = -1
         push_count = 0
@@ -600,50 +610,22 @@ class GitBackupsAndDeletionTests(unittest.TestCase):
             self.assertIn(("verify_owner",), self.events[previous_push + 1:index])
             self.assertTrue("cleanup" in event[2] or FORK_URL in event[2])
             previous_push = index
-        self.assertGreaterEqual(push_count, 2)
+        self.assertEqual(push_count, 1)
 
     def test_concurrent_new_work_is_preserved_by_the_real_remote_lease(self):
-        self.store.backup_tags(self.candidates, self.github)
         new_sha = self.fixture.advance_remote_branch(self.fixture.merged_branch)
         with self.assertRaises(self.module.CleanupError):
             self.store.delete(self.candidates, self.github)
         self.assert_branch_exists(new_sha)
 
-    def test_missing_archive_prevents_deletion(self):
-        before = len(self.pushes())
-        with self.assertRaises(self.module.CleanupError):
-            self.store.delete(self.candidates, self.github)
-        self.assertEqual(len(self.pushes()), before)
-        self.assert_branch_exists()
-
-    def test_lightweight_tag_is_not_accepted_as_a_recovery_archive(self):
-        self.fixture.git(self.fixture.remote, "update-ref", "refs/tags/" + self.tag, self.fixture.merged_sha)
-        with self.assertRaises(self.module.CleanupError):
-            self.store.delete(self.candidates, self.github)
-        self.assert_branch_exists()
-
-    def test_archive_pointing_to_a_different_commit_prevents_deletion(self):
-        self.fixture.git(self.fixture.remote, "tag", "-a", self.tag, self.fixture.initial, "-m", "wrong recovery commit")
-        with self.assertRaises(self.module.CleanupError):
-            self.store.delete(self.candidates, self.github)
-        self.assert_branch_exists()
-
-    def test_archive_protection_failure_prevents_archive_push(self):
-        self.github.verify_archive_protection = mock.Mock(side_effect=self.module.CleanupError("protection unavailable"))
-        with self.assertRaises(self.module.CleanupError):
-            self.store.backup_tags(self.candidates, self.github)
-        self.assertFalse(self.pushes())
-        self.assert_branch_exists()
-
     def test_effective_push_url_rewrite_to_upstream_is_rejected(self):
         self.store.git("config", "url.https://github.com/overte-org/overte.git.pushInsteadOf", FORK_URL)
         with self.assertRaises(self.module.CleanupError):
-            self.store.backup_tags(self.candidates, self.github)
+            self.store.delete(self.candidates, self.github)
         self.assertFalse(self.pushes())
         self.assert_branch_exists()
 
     def test_push_url_change_after_backup_is_rejected_before_delete(self):
-        self.store.backup_tags(self.candidates, self.github)
         before = len(self.pushes())
         self.store.git("remote", "set-url", "--push", "cleanup", "https://github.com/overte-org/overte.git")
         with self.assertRaises(self.module.CleanupError):
@@ -689,8 +671,7 @@ class GitBackupsAndDeletionTests(unittest.TestCase):
             self.module.verify_bundle(bundle, wrong, self.fixture.root / "wrong-restore.git")
         self.assert_branch_exists()
 
-    def test_rerun_after_deletion_is_a_noop_and_preserves_the_archive(self):
-        self.store.backup_tags(self.candidates, self.github)
+    def test_rerun_after_deletion_is_a_noop(self):
         self.store.delete(self.candidates, self.github)
         branches = [{"name": branch, "sha": self.fixture.rev(self.fixture.remote, branch), "protected": True}
                     for branch in sorted(PERMANENT)]
@@ -700,18 +681,15 @@ class GitBackupsAndDeletionTests(unittest.TestCase):
         before = len(self.pushes())
         self.assertEqual(self.store.delete(candidates, self.github), [])
         self.assertEqual(len(self.pushes()), before)
-        self.assertEqual(self.fixture.rev(self.fixture.remote, "refs/tags/" + self.tag + "^{}"), self.fixture.merged_sha)
 
-    def test_two_branch_names_at_the_same_commit_share_one_valid_archive(self):
+    def test_two_branch_names_at_the_same_commit_are_deleted_atomically(self):
         alias = "fix/main/integrated-alias"
         self.fixture.git(self.fixture.seed, "branch", alias, self.fixture.merged_sha)
         self.fixture.git(self.fixture.seed, "push", "-q", "fixture", f"refs/heads/{alias}:refs/heads/{alias}")
         candidates = self.candidates + [{**self.candidates[0], "branch": alias}]
         self.store.fetch(candidates)
-        self.store.backup_tags(candidates, self.github)
         self.assertEqual(set(self.store.delete(candidates, self.github)), {self.fixture.merged_branch, alias})
         self.assertIsNone(self.fixture.remote_ref("refs/heads/" + alias))
-        self.assertEqual(self.fixture.rev(self.fixture.remote, "refs/tags/" + self.tag + "^{}"), self.fixture.merged_sha)
 
     def test_incremental_bundle_requiring_missing_history_is_rejected(self):
         bundle = self.fixture.root / "incremental.bundle"
@@ -757,6 +735,110 @@ class GitBackupsAndDeletionTests(unittest.TestCase):
             self.module.verify_checkout(self.fixture.seed, self.fixture.initial)
 
 
+class ApplyRecoveryTests(unittest.TestCase):
+    """Exercise the entry point and real Git operations with an offline API."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.module = load_cleanup()
+
+    setUp = GitBackupsAndDeletionTests.setUp
+    pushes = GitBackupsAndDeletionTests.pushes
+    assert_branch_exists = GitBackupsAndDeletionTests.assert_branch_exists
+
+    def prepare_apply(self):
+        policy = json.loads(POLICY_PATH.read_text())
+        self.plan = dict(schema=1, repository=FORK, repository_id=1319052603,
+                         source_sha=self.fixture.main_sha, candidates=self.candidates,
+                         policy_sha256=hashlib.sha256(json.dumps(policy, sort_keys=True).encode()).hexdigest(),
+                         held={}, candidate_count=1)
+        self.plan_path = self.fixture.root / "plan.json"
+        self.report_path = self.fixture.root / "report.json"
+        self.module.write_json(self.plan_path, self.plan)
+        self.bundle = self.fixture.root / "recovery.bundle"
+        self.module.create_bundle(self.store_dir, self.candidates, self.bundle)
+        verified = self.module.verify_bundle(self.bundle, self.candidates, self.fixture.root / "verified.git")
+        self.manifest = dict(verified, repository=FORK, candidates=self.candidates,
+                             plan_sha256=self.module.digest(self.plan_path), source_sha=self.plan["source_sha"])
+        self.module.write_json(self.fixture.root / "manifest.json", self.manifest)
+        self.artifact = dict(workflow_run={"id": 123}, name="branch-cleanup-backup-123-1",
+                             expired=False, size_in_bytes=100, digest="sha256:" + "c" * 64)
+
+    def apply(self, artifact=None, plans=None):
+        def get(endpoint):
+            self.assertEqual(endpoint, "actions/artifacts/456")
+            self.events.append(("verify_artifact",))
+            return self.artifact if artifact is None else artifact
+
+        self.github.get = get
+        argv = [str(SCRIPT), "apply", "--plan", str(self.plan_path),
+                "--report", str(self.report_path), "--backup-dir", str(self.fixture.root),
+                "--backup-artifact-id", "456", "--backup-artifact-digest", "c" * 64]
+        with mock.patch.object(sys, "argv", argv), \
+                mock.patch.object(self.module, "Github", return_value=self.github), \
+                mock.patch.object(self.module, "trusted_runtime"), \
+                mock.patch.object(self.module, "verify_checkout"), \
+                mock.patch.object(self.module, "make_plan", side_effect=plans or [self.plan, self.plan]), \
+                mock.patch.dict(os.environ, {"GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "1",
+                                             "GITHUB_STEP_SUMMARY": ""}):
+            result = self.module.main()
+        return result, json.loads(self.report_path.read_text())
+
+    def test_uploaded_independent_bundle_allows_deletion_without_any_tag_operations(self):
+        self.prepare_apply()
+        result, report = self.apply()
+        self.assertEqual(result, 0)
+        self.assertEqual(report["deleted"], [self.fixture.merged_branch])
+        self.assertEqual(report["backup_artifact_id"], 456)
+        self.assertNotIn("archive_tags", report)
+        self.assertEqual(len(self.pushes()), 1)
+        self.assertFalse(any("tag" in event[2] or any("refs/tags/" in arg for arg in event[2])
+                             for event in self.events if event[0] == "git"))
+        self.assertEqual(self.fixture.git(self.fixture.remote, "for-each-ref", "refs/tags").stdout, "")
+        # The same uploaded bundle remains sufficient after the remote ref is gone.
+        self.module.verify_bundle(self.bundle, self.candidates, self.fixture.root / "recovery-after-delete.git")
+
+    def test_missing_backup_blocks_apply_before_remote_mutation(self):
+        self.prepare_apply()
+        self.bundle.unlink()
+        result, _ = self.apply()
+        self.assertEqual(result, 1)
+        self.assertFalse(self.pushes())
+        self.assert_branch_exists()
+
+    def test_expired_wrong_run_or_digest_artifact_blocks_apply(self):
+        self.prepare_apply()
+        for change in ({"expired": True}, {"workflow_run": {"id": 124}},
+                       {"digest": "sha256:" + "d" * 64}, {"name": "wrong"}, {"size_in_bytes": 0}):
+            with self.subTest(change=change):
+                result, report = self.apply(artifact={**self.artifact, **change})
+                self.assertEqual(result, 1)
+                self.assertEqual(report["error"], "uploaded_backup_not_verified")
+                self.assertFalse(self.pushes())
+                self.assert_branch_exists()
+
+    def test_corruption_with_updated_manifest_still_fails_independent_restore(self):
+        self.prepare_apply()
+        data = bytearray(self.bundle.read_bytes())
+        data[-12] ^= 1
+        self.bundle.write_bytes(data)
+        self.manifest["sha256"] = self.module.digest(self.bundle)
+        self.module.write_json(self.fixture.root / "manifest.json", self.manifest)
+        result, _ = self.apply()
+        self.assertEqual(result, 1)
+        self.assertFalse(self.pushes())
+        self.assert_branch_exists()
+
+    def test_new_activity_before_delete_blocks_apply(self):
+        self.prepare_apply()
+        changed = {**self.plan, "candidates": [], "held": {self.fixture.merged_branch: ["open_pull_request_head"]}}
+        result, report = self.apply(plans=[self.plan, changed])
+        self.assertEqual(result, 1)
+        self.assertEqual(report["error"], "activity_changed_before_delete")
+        self.assertFalse(self.pushes())
+        self.assert_branch_exists()
+
+
 class WorkflowSafetyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -778,17 +860,17 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn("cancel-in-progress: false", self.source)
 
     def test_artifact_upload_must_succeed_before_any_delete_step(self):
-        archive = self.source.index("cleanup.py archive")
+        backup = self.source.index("cleanup.py backup")
         upload = self.source.index("- name: Persist verified backup before any branch deletion")
         apply = self.source.index("cleanup.py apply")
-        self.assertLess(archive, upload)
+        self.assertLess(backup, upload)
         self.assertLess(upload, apply)
         self.assertIn("if-no-files-found: error", self.source[upload:apply])
         self.assertNotIn("continue-on-error", self.source)
         self.assertIn("steps.backup.outputs.artifact-id", self.source[upload:apply])
         self.assertIn('--backup-dir "$RUNNER_TEMP/branch-cleanup/backup"', self.source[apply:])
 
-    def test_report_mode_does_not_run_archive_or_apply(self):
+    def test_report_mode_does_not_run_backup_or_apply(self):
         self.assertEqual(self.source.count("inputs.mode == 'apply'"), 3)
         self.assertIn("default: report", self.source)
 

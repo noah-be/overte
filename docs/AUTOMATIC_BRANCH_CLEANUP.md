@@ -73,17 +73,19 @@ Before deleting any planned branches, the workflow:
    repository.
 3. Uploads the verified files as
    `branch-cleanup-backup-<run-id>-<run-attempt>` and checks the artifact receipt.
-4. Creates and verifies annotated recovery tags under
-   `archive/merged/<full-commit-SHA>` before deleting their corresponding branch
-   references.
+4. Restores and verifies the bundle independently again, then rechecks current
+   ownership, activity, ancestry, and permanent-target protection before deleting
+   the exact recorded branch heads.
 
-The existing `archive/**` rules protect recovery tags against deletion and
-replacement. These tags have no expiry and are excluded from branch cleanup.
-The downloadable bundle artifact is retained for 30 days; reports are retained
-for 14 days. The plan, manifest, and tag metadata identify the original branches
-and commits. A backup upload failure prevents deletion.
+Automatic cleanup creates no tags and does not require archive-tag rules. The
+integrated commits remain reachable through their protected permanent target.
+Existing historical tags are unchanged. The downloadable bundle artifact is
+retained for 30 days; reports are retained for 14 days. The plan and manifest
+identify the original branches and commits. A backup upload failure prevents
+deletion. Download the recovery artifact during its retention period if you need
+to retain the branch-name mapping for longer.
 
-To recover a branch, first read the run's report or the relevant recovery tag and
+To recover a branch, first read the retained run report or backup manifest and
 confirm its original name and full commit SHA. Creating the branch again points
 to that same commit; it does not alter an existing branch. For example, after
 substituting the verified values:
@@ -108,7 +110,7 @@ with the plan and outcome. Retained branches carry reasons; successful deletions
 record their recovery information. Failures remain visible in the workflow run.
 
 Manual dispatch defaults to `report`. It performs the assessment without creating
-recovery tags or deleting branches:
+backups or deleting branches:
 
 ```bash
 gh workflow run branch-cleanup.yml --repo noah-be/overte -f mode=report
