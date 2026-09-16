@@ -8,5 +8,13 @@
 #
 macro(TARGET_OPENSSL)
     find_package(OpenSSL QUIET REQUIRED)
-    target_link_libraries(${TARGET_NAME} OpenSSL::SSL OpenSSL::Crypto)
+    if (TARGET OpenSSL::SSL AND TARGET OpenSSL::Crypto)
+        target_link_libraries(${TARGET_NAME} OpenSSL::SSL OpenSSL::Crypto)
+    elseif (TARGET openssl::openssl)
+        # The pinned source-only Conan provider exports one aggregate target
+        # carrying both canonical Android libraries and their system links.
+        target_link_libraries(${TARGET_NAME} openssl::openssl)
+    else()
+        message(FATAL_ERROR "OpenSSL provider exports no supported CMake target")
+    endif()
 endmacro()

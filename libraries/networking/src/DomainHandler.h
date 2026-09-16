@@ -34,6 +34,7 @@
 #include "ReceivedMessage.h"
 #include "NetworkingConstants.h"
 #include "MetaverseAPI.h"
+#include "ScopedHostnameLookup.h"
 
 const unsigned short DEFAULT_DOMAIN_SERVER_PORT =
     QProcessEnvironment::systemEnvironment()
@@ -109,6 +110,9 @@ public:
 
     QString getScheme() const { return _domainURL.scheme(); }
     QString getHostname() const { return _domainURL.host(); }
+    // C++ full-client lifecycle only. Invalidates DNS generations immediately;
+    // Qt cancellation/restart runs in this object's event-loop thread.
+    void setClientDiscoveryVisibility(bool foreground);
 
     QUrl getErrorDomainURL(){ return _errorDomainURL; }
     void setErrorDomainURL(const QUrl& url);
@@ -290,12 +294,18 @@ private:
     bool reasonSuggestsDomainLogin(ConnectionRefusedReason reasonCode);
     void sendDisconnectPacket();
     void hardReset(QString reason);
+    void resolveDomainHostname();
+    void resolveIceHostname();
 
     bool isHardRefusal(int reasonCode);
 
     QUuid _uuid;
     Node::LocalID _localID;
     QUrl _domainURL;
+    overte::network::ScopedHostnameLookup _hostnameLookup;
+    overte::network::ScopedHostnameLookup _iceHostnameLookup;
+    overte::network::RequestScope _discoveryScope;
+    QString _iceServerHostname;
     QUrl _errorDomainURL;
     SockAddr _sockAddr;
     QUuid _assignmentUUID;

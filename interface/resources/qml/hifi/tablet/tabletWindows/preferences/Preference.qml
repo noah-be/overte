@@ -16,10 +16,13 @@ Item {
     property var preference;
     property string label: preference ? preference.name : "";
     property bool isFirstCheckBox;
+    readonly property bool profileAllowed: !preference || preference.profileAllowed === true
+    visible: profileAllowed
+    enabled: profileAllowed && (!preference || preference.enabled)
+    activeFocusOnTab: false
     Component.onCompleted: {
-        if (preference) {
+        if (preference && profileAllowed) {
             preference.load();
-            enabled = Qt.binding(function() { return preference.enabled; } );
         }
     }
 
