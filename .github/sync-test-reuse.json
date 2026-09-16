@@ -11,8 +11,6 @@
   "edges": {
     "android-main": {"parent": "main", "scope": "android", "differential": "android-family"},
     "apple-main": {"parent": "main", "scope": "apple", "differential": "apple-family"},
-    "linux-main": {"parent": "main", "scope": "linux", "differential": "linux-desktop"},
-    "windows-main": {"parent": "main", "scope": "windows", "differential": "windows-desktop"},
     "android-phone": {"parent": "android-main", "scope": "android-phone", "differential": "android-phone"},
     "android-vr": {"parent": "android-main", "scope": "android-vr", "differential": "android-vr"},
     "android-vr-pico": {"parent": "android-vr", "scope": "android-pico", "differential": "android-pico"},

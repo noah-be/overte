@@ -24,14 +24,13 @@ REMOTE = "https://github.com/noah-be/overte.git"
 WORKFLOW = ".github/workflows/branch-cleanup.yml"
 PERMANENT = {
     "main", "android-main", "android-phone", "android-vr", "android-vr-pico",
-    "apple-main", "apple-ios", "linux-main", "windows-main",
+    "apple-main", "apple-ios",
 }
 SCOPES = {
     "main": "main", "android": "android-main", "android-main": "android-main",
     "android-phone": "android-phone", "android-vr": "android-vr",
     "android-pico": "android-vr-pico", "android-vr-pico": "android-vr-pico",
-    "apple": "apple-main", "ios": "apple-ios", "linux": "linux-main",
-    "windows": "windows-main",
+    "apple": "apple-main", "ios": "apple-ios",
 }
 KINDS = {"feature", "fix", "docs", "refactor", "test", "tests", "task", "ci", "sync", "reconcile", "promote", "build"}
 SHA = re.compile(r"^[0-9a-f]{40}$")

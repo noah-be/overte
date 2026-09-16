@@ -57,6 +57,9 @@ test/android-phone/lifecycle
 fix/ios/tablet-focus
 ```
 
+Linux and Windows product support, desktop adapters, and their tests are
+maintained on `main`; use the `main` scope for that work.
+
 Shared changes flow only from a parent branch to its children. Do not merge a
 product branch into its parent or sibling.
 

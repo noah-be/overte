@@ -24,7 +24,7 @@ FORK = "noah-be/overte"
 FORK_URL = "https://github.com/noah-be/overte.git"
 PERMANENT = {
     "main", "android-main", "android-phone", "android-vr", "android-vr-pico",
-    "apple-main", "apple-ios", "linux-main", "windows-main",
+    "apple-main", "apple-ios",
 }
 
 
@@ -190,7 +190,7 @@ class PolicyAndSelectionTests(unittest.TestCase):
             return
         self.assertNotIn(self.candidate, [item["branch"] for item in candidates])
 
-    def test_valid_policy_binds_exact_fork_and_nine_permanent_branches(self):
+    def test_valid_policy_binds_exact_fork_and_seven_permanent_branches(self):
         validated = self.module.validate_policy(self.policy)
         self.assertEqual(validated["repository"], FORK)
         self.assertEqual(validated["repository_id"], 1319052603)
@@ -224,12 +224,17 @@ class PolicyAndSelectionTests(unittest.TestCase):
             "main": "main", "android": "android-main", "android-main": "android-main",
             "android-phone": "android-phone", "android-vr": "android-vr",
             "android-pico": "android-vr-pico", "apple": "apple-main",
-            "ios": "apple-ios", "linux": "linux-main", "windows": "windows-main",
+            "ios": "apple-ios",
         }
         for scope, target in scopes.items():
             with self.subTest(scope=scope):
                 self.assertEqual(self.module.scope_target(f"task/{scope}/100-work"), target)
         self.assertIsNone(self.module.scope_target("mystery/unknown/work"))
+
+    def test_retired_desktop_scopes_do_not_authorize_automatic_cleanup(self):
+        for scope in ("linux", "windows"):
+            self.assertIsNone(self.module.scope_target(f"fix/{scope}/old-work"))
+        self.assertEqual(self.module.scope_target("fix/main/desktop-work"), "main")
 
     def test_integrated_current_head_is_eligible_without_an_age_delay(self):
         candidates, _ = self.select()
@@ -238,7 +243,7 @@ class PolicyAndSelectionTests(unittest.TestCase):
             "base": "main", "base_sha": self.base_sha,
         }])
 
-    def test_nine_permanent_branches_are_always_excluded(self):
+    def test_seven_permanent_branches_are_always_excluded(self):
         comparisons = {
             item["name"]: {"status": "identical", "behind_by": 0,
                            "merge_base_commit": {"sha": item["sha"]}}

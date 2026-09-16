@@ -257,7 +257,8 @@ class TopologyContracts(unittest.TestCase):
             },
         }
 
-    def test_all_eight_edges_classify_with_the_configured_differential(self):
+    def test_all_six_edges_classify_with_the_configured_differential(self):
+        self.assertEqual(len(config()["edges"]), 6)
         for base, edge in config()["edges"].items():
             with self.subTest(base=base), \
                  mock.patch.object(gate, "branch_sha", side_effect=[BASE, PARENT, BASE, PARENT]), \
@@ -269,6 +270,15 @@ class TopologyContracts(unittest.TestCase):
                 result = gate.classify_event(self.event(base, edge["parent"]), config(), api)
                 self.assertEqual(result.parent, edge["parent"])
                 self.assertEqual(result.profile, "documentation")
+
+    def test_retired_desktop_targets_and_scopes_cannot_receive_sync_reuse(self):
+        for platform in ("linux", "windows"):
+            for base, head in ((platform + "-main", "main"),
+                               (platform + "-main", f"reconcile/{platform}/refresh"),
+                               ("android-main", platform + "-main"),
+                               ("android-main", f"reconcile/{platform}/refresh")):
+                with self.subTest(base=base, head=head):
+                    self.assertIsNone(gate.classify_event(self.event(base, head), config(), MappingApi()))
 
     def test_executable_docs_and_code_renames_keep_full_qualification(self):
         for change in ({"filename": "docs/helper.py"},
@@ -335,6 +345,12 @@ class InspectionContracts(unittest.TestCase):
 
 
 class DifferentialContracts(unittest.TestCase):
+    def test_retired_desktop_differential_profiles_are_rejected(self):
+        for profile in ("linux-desktop", "windows-desktop"):
+            with self.subTest(profile=profile):
+                with self.assertRaisesRegex(ValueError, "unknown differential profile"):
+                    differential.required_roots(Path("."), profile, [])
+
     def test_documentation_never_selects_an_android_suite(self):
         self.assertEqual(differential.PROFILES["documentation"], ())
         with self.assertRaises(ValueError):
@@ -345,7 +361,7 @@ class DifferentialContracts(unittest.TestCase):
     def test_each_non_documentation_profile_has_a_minimal_owned_root(self):
         self.assertEqual(set(differential.PROFILES) - {"documentation"}, {
             "android-family", "android-phone", "android-vr", "android-pico",
-            "apple-family", "apple-ios", "linux-desktop", "windows-desktop",
+            "apple-family", "apple-ios",
         })
         self.assertTrue(all(differential.PROFILES[name] for name in differential.PROFILES if name != "documentation"))
 

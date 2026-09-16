@@ -16,20 +16,19 @@ deletions must pass the cleanup's checks and backup sequence.
 
 The workflow uses the trusted configuration in
 [`.github/branch-cleanup.json`](../.github/branch-cleanup.json). Its repository name
-and numeric repository ID must both match this fork. The nine permanent branches
+and numeric repository ID must both match this fork. The seven permanent branches
 are always excluded:
 
 - `main`
 - `android-main`, `android-phone`, `android-vr`, `android-vr-pico`
 - `apple-main`, `apple-ios`
-- `linux-main`, `windows-main`
 
 A working branch must be fully contained in a permanent branch. A merged PR by
 itself is insufficient: later commits on its source branch must also be
 integrated. Protected branches, configuration holds, PR keep requests, open PR
 relationships, active GitHub Actions runs on the candidate or its target, and deployment or release references
 prevent deletion. The cleanup also checks open issue descriptions, comments on
-explicitly active issues, and the GitHub workflow YAML files at the nine permanent
+explicitly active issues, and the GitHub workflow YAML files at the seven permanent
 branch commits for branch references. Workflow reads use those exact commits;
 plain and URL-encoded branch names are recognized. Even a historical mention in a
 workflow may conservatively keep a branch. This does not inspect every source
@@ -54,9 +53,11 @@ There are two ways to record that a branch must remain available on GitHub:
 An open PR is itself a hold. Remove an explicit hold or keep label only after the
 branch's ongoing work has finished. Holds do not expire automatically.
 
-The configuration initially preserves the nine branches identified during the
-2026-09-10 local-work review. The reason `ongoing_local_work_review` records that
-decision without publishing local workspace paths or machine information.
+The configuration originally held nine working branches during the 2026-09-10
+local-work review; this was a historical hold list, not the permanent hierarchy.
+The current `holds` object is authoritative. The reason
+`ongoing_local_work_review` records unresolved local work without publishing
+workspace paths or machine information.
 
 **GitHub cannot inspect unpublished commits or worktrees on an offline computer.**
 Before continuing local work on a remote branch that is already fully integrated,
