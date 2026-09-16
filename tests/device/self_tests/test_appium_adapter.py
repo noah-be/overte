@@ -32,7 +32,7 @@ from contracts import validate_tablet_product_policy  # noqa: E402
 # Import the TestCase into discovery so the full control-plane gate retains
 # every native-binding positive/negative case after the ownership relocation.
 NATIVE_SPEC = importlib.util.spec_from_file_location(
-    "overte_ios_native_binding_contract", DEVICE_ROOT / "ios/test_native_binding.py")
+    "overte_ios_native_binding_contract", DEVICE_ROOT / "ios/test_ios_native_binding_contract.py")
 assert NATIVE_SPEC and NATIVE_SPEC.loader
 NATIVE_CONTRACT = importlib.util.module_from_spec(NATIVE_SPEC)
 NATIVE_SPEC.loader.exec_module(NATIVE_CONTRACT)
@@ -43,7 +43,7 @@ def snapshot(*, orientation_y: float = 0.0, position_y: float = 2.0,
              position_z: float = 4.0, in_air: bool = False,
              flying: bool = False, tablet_open: bool = False,
              sampled: int | None = None) -> dict:
-    return {
+    value = {
         "schemaVersion": 2,
         "sampleEpochMs": sampled if sampled is not None else int(time.time() * 1000),
         "sampleSequence": 1,
@@ -90,6 +90,12 @@ def snapshot(*, orientation_y: float = 0.0, position_y: float = 2.0,
             "finished": False, "finishReason": "none",
         },
     }
+    # Match the exact parent schema before and after its governed propagation.
+    schema = json.loads((DEVICE_ROOT / "schemas/probe-snapshot.schema.json").read_text())
+    if "feetPosition" in schema["properties"]["avatar"]["required"]:
+        value["avatar"]["feetPosition"] = {"x": 0.0, "y": position_y - 2.0, "z": position_z}
+    return value
+
 
 
 def ios_target(*, enabled: bool = True) -> dict:

@@ -9,7 +9,6 @@ LEGACY = re.compile(r"\b(?:QRegExp|QRegExpValidator|QTextCodec|QTextDecoder|QTex
 SUFFIXES = {".cpp", ".h", ".hpp", ".mm", ".in", ".tmpl", ".template", ".inc", ".ipp"}
 SKIP = {".git", "build", "build-ios", "node_modules", "vendor"}
 EXPECTED = {
-    "android/phone/apps/interface/src/main/cpp/native.cpp",
     "assignment-client/src/assets/AssetServer.cpp",
     "domain-server/src/ContentSettingsBackupHandler.cpp",
     "domain-server/src/DomainContentBackupManager.cpp",
@@ -20,6 +19,11 @@ EXPECTED = {
     "tools/nitpick/src/AWSInterface.cpp",
     "tools/nitpick/src/TestRunnerMobile.cpp",
 }
+# The legacy Android tree is removed when the shared source boundary arrives.
+# Keep exact coverage while that older tree is still present during propagation.
+LEGACY_ANDROID = "android/phone/apps/interface/src/main/cpp/native.cpp"
+if (ROOT / "android").exists():
+    EXPECTED.add(LEGACY_ANDROID)
 TEST_ADAPTER = "tests/device/contracts/lifecycle/address-reentrancy-test.cpp"
 
 def require(condition: bool, message: str) -> None:
@@ -60,11 +64,12 @@ require("set(PLATFORM_QT_COMPONENTS WebView Xml Core5Compat)" not in (ROOT / "CM
 contracts = {
     "assignment-client/CMakeLists.txt": "setup_hifi_project(Core Gui Network Quick WebSockets Core5Compat)",
     "domain-server/CMakeLists.txt": "setup_hifi_project(Network Core5Compat)",
-    "android/phone/apps/interface/CMakeLists.txt": "setup_hifi_library(Core5Compat)",
     "tests-manual/render-perf/CMakeLists.txt": "setup_hifi_project(Quick Gui Core5Compat)",
     "plugins/JSAPIExample/CMakeLists.txt": "overte_link_qt_modules(${TARGET_NAME} Core5Compat)",
     "tools/nitpick/CMakeLists.txt": "overte_link_qt_modules(${TARGET_NAME} Widgets Core5Compat)",
 }
+if (ROOT / "android").exists():
+    contracts["android/phone/apps/interface/CMakeLists.txt"] = "setup_hifi_library(Core5Compat)"
 for relative, marker in contracts.items():
     require(marker in (ROOT / relative).read_text(), f"missing explicit Core5Compat opt-in: {relative}")
 qt_compat = (ROOT / "cmake/QtCompat.cmake").read_text()
