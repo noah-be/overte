@@ -112,6 +112,26 @@ int main(int argc,char**argv){
  {AddressManager m;Reply r(payload());int finish=0;QObject::connect(&m,&AddressManager::lookupResultsFinished,[&]{++finish;});m.handleAPIResponse(&r);assert(finish==1&&m.paths==1&&m._domainURL.host()=="oldplace"&&!m._rootPlaceID.isNull()&&m._backStack.size()==1);}
  {AddressManager m;Reply r(payload());auto ticket=m._lookupRequests.next();r.setProperty("_overte_request_ticket",QVariant::fromValue(ticket));m._lookupRequests.next();m.handleAPIResponse(&r);assert(m.paths==0&&m._rootPlaceID.isNull());}
 #ifdef OVERTE_ADDRESS_ENTRY_TEST
+ for (QString scheme : {"hifi", "overte", "HiFi", "OvErTe"}) {
+  for (bool suppliedText : {false, true}) {
+   QString input = scheme + "://normal.test:40103/path%20name?key=a%2Fb#part";
+   AddressManager m;
+   assert(m.handleUrl(QUrl(input), AddressManager::UserInput, suppliedText ? input : QString()));
+   assert(m.paths == 1 && m._domainURL.host() == "normal.test" && m._domainURL.port() == 40103);
+   assert(m._lastVisitedURL.scheme() == URL_SCHEME_OVERTE);
+   assert(m._lastVisitedURL.path(QUrl::FullyEncoded) == "/path%20name");
+   assert(m._lastVisitedURL.query(QUrl::FullyEncoded) == "key=a%2Fb");
+   assert(m._lastVisitedURL.fragment() == "part");
+   AddressManager place;
+   assert(place.handleUrl(QUrl(scheme + "://overte_hub/"), AddressManager::UserInput));
+   assert(place.places == 1 && place._previousAPILookup.scheme() == URL_SCHEME_OVERTE);
+   AddressManager blocked;
+   blocked._clientLookupPolicy = true; blocked._lookupForeground = false;
+   assert(!blocked.handleUrl(QUrl(input), AddressManager::UserInput));
+   assert(blocked.paths == 0 && blocked.places == 0);
+  }
+ }
+ {AddressManager m;assert(!m.handleUrl(QUrl("unrecognized://normal.test/path"),AddressManager::UserInput));assert(m.paths==0&&m.places==0);}
  for(auto signal:{0,1}){AddressManager m;int finish=0;auto jump=[&]{m._lookupRequests.next();m._domainURL=QUrl("hifi://newplace.test");};if(signal==0)QObject::connect(&m,&AddressManager::hostChanged,jump);else QObject::connect(&m,&AddressManager::lookupResultsFinished,jump);QObject::connect(&m,&AddressManager::lookupResultsFinished,[&]{++finish;});assert(m.handleUrl(QUrl("https://old.test/world?location=/old"),AddressManager::UserInput));assert(m.paths==0&&m._domainURL.host()=="newplace.test");assert(finish==(signal==0?0:1));}
  {AddressManager m;int finish=0;m.pathHook=[&]{m._lookupRequests.next();};QObject::connect(&m,&AddressManager::lookupResultsFinished,[&]{++finish;});assert(m.handleUrl(QUrl("/old/path"),AddressManager::UserInput));assert(m.paths==1&&finish==0);}
  for(QString host:{"127.0.0.1","old.test"}){AddressManager m;QObject::connect(&m,&AddressManager::lookupResultsFinished,[&]{m._lookupRequests.next();m._domainURL=QUrl("hifi://newplace.test");});assert(m.handleUrl(QUrl("hifi://"+host+"/old"),AddressManager::UserInput));assert(m.paths==0&&m._domainURL.host()=="newplace.test"&&m._lastVisitedURL.isEmpty());}

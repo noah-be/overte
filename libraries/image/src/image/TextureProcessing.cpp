@@ -10,6 +10,7 @@
 //
 
 #include "TextureProcessing.h"
+#include "DecodeLimits.h"
 
 #include <cmath>
 #include <glm/gtc/packing.hpp>
@@ -260,7 +261,18 @@ std::function<glm::vec3(gpu::uint32)> getHDRUnpackingFunction() {
     return getHDRUnpackingFunction(GPU_CUBEMAP_HDR_FORMAT);
 }
 
-Image processRawImageData(QIODevice& content, const std::string& filename) {
+Image readBoundedImage(QImageReader& reader, std::uint64_t maxDecodedPixels) {
+    if (maxDecodedPixels) {
+        const auto size = reader.size();
+        if (!decodedImageFits(size.width(), size.height(), maxDecodedPixels)) {
+            qCWarning(imagelogging) << "IMAGE_DECODE_REJECT dimensions" << size.width() << size.height();
+            return Image();
+        }
+    }
+    return Image(reader.read());
+}
+
+Image processRawImageData(QIODevice& content, const std::string& filename, std::uint64_t maxDecodedPixels) {
     // Help the Image loader by extracting the image file format from the url filename ext.
     // Some tga are not created properly without it.
     auto filenameExtension = filename.substr(filename.find_last_of('.') + 1);
@@ -273,14 +285,14 @@ Image processRawImageData(QIODevice& content, const std::string& filename) {
     }
 
     if (filenameExtension == "tga") {
-        Image image = image::readTGA(content);
+        Image image = image::readTGA(content, maxDecodedPixels);
         if (!image.isNull()) {
             return image;
         }
         content.reset();
     } 
     else if (filenameExtension == "exr") {
-        Image image = image::readOpenEXR(content, filename);
+        Image image = image::readOpenEXR(content, filename, maxDecodedPixels);
         if (!image.isNull()) {
             return image;
         }
@@ -289,7 +301,7 @@ Image processRawImageData(QIODevice& content, const std::string& filename) {
     QImageReader imageReader(&content, filenameExtension.c_str());
 
     if (imageReader.canRead()) {
-        return Image(imageReader.read());
+        return readBoundedImage(imageReader, maxDecodedPixels);
     } else {
         // Extension could be incorrect, try to detect the format from the content
         QImageReader newImageReader;
@@ -298,7 +310,7 @@ Image processRawImageData(QIODevice& content, const std::string& filename) {
         newImageReader.setDevice(&content);
 
         if (newImageReader.canRead()) {
-            return Image(newImageReader.read());
+            return readBoundedImage(newImageReader, maxDecodedPixels);
         }
     }
 
@@ -345,9 +357,9 @@ void mapToRedChannel(Image& image, ColorChannel sourceChannel) {
 
 std::pair<gpu::TexturePointer, glm::ivec2> processImage(std::shared_ptr<QIODevice> content, const std::string& filename, ColorChannel sourceChannel,
                                                         int maxNumPixels, TextureUsage::Type textureType,
-                                                        bool compress, BackendTarget target, const std::atomic<bool>& abortProcessing) {
+                                                        bool compress, BackendTarget target, const std::atomic<bool>& abortProcessing, std::uint64_t maxDecodedPixels) {
 
-    Image image = processRawImageData(*content.get(), filename);
+    Image image = processRawImageData(*content.get(), filename, maxDecodedPixels);
     // Texture content can take up a lot of memory. Here we release our ownership of that content
     // in case it can be released.
     content.reset();
@@ -363,8 +375,8 @@ std::pair<gpu::TexturePointer, glm::ivec2> processImage(std::shared_ptr<QIODevic
     }
 
     // Validate the image is less than _maxNumPixels, and downscale if necessary
-    if (imageWidth * imageHeight > maxNumPixels) {
-        float scaleFactor = sqrtf(maxNumPixels / (float)(imageWidth * imageHeight));
+    if (std::int64_t(imageWidth) * imageHeight > maxNumPixels) {
+        float scaleFactor = sqrtf(maxNumPixels / (float)(std::int64_t(imageWidth) * imageHeight));
         int originalWidth = imageWidth;
         int originalHeight = imageHeight;
         imageWidth = std::lround(scaleFactor * (float)imageWidth);

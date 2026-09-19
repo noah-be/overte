@@ -44,6 +44,7 @@ class EntityConsentFence(unittest.TestCase):
         self.assertIn("const Context _context;", header)
         self.assertIn("rejectEntityScriptWithoutConsent(entityID, entityScript, true, forceRedownload)", loader)
         self.assertIn("rejectEntityScriptWithoutConsent(entityID, scriptOrURL)", callback)
+        self.assertIn('sourceURL.scheme().compare(QStringLiteral("qrc"), Qt::CaseInsensitive) == 0', denial)
         self.assertNotIn("contents <<", callback)
         flags = shlex.split(subprocess.check_output(["pkg-config", "--cflags", "--libs", "Qt6Core"], text=True))
         with tempfile.TemporaryDirectory(prefix="sh005-consent-fence-") as temporary:

@@ -1,3 +1,6 @@
+import org.gradle.api.attributes.Usage
+import org.gradle.api.attributes.java.TargetJvmEnvironment
+
 plugins {
     id 'com.android.application' version '8.13.2' apply false
 }
@@ -8,15 +11,30 @@ if (acquisitionBuildDir == null) {
 }
 layout.buildDirectory.set(file(acquisitionBuildDir))
 
-configurations { fdroidAcquisition }
+configurations {
+    fdroidAcquisition
+    fdroidLint {
+        attributes {
+            attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+            attribute(TargetJvmEnvironment.TARGET_JVM_ENVIRONMENT_ATTRIBUTE,
+                objects.named(TargetJvmEnvironment, TargetJvmEnvironment.STANDARD_JVM))
+        }
+    }
+}
+dependencyLocking { lockAllConfigurations() }
 dependencies {
     fdroidAcquisition 'com.google.guava:guava:23.0'
+    // AGP resolves release lint lazily, outside the application dependency
+    // graph. Acquire it before entering the network-isolated build.
+    fdroidLint 'com.android.tools.lint:lint-gradle:31.13.2'
 }
 
 tasks.register('resolveFdroidAcquisition') {
     doLast {
-        configurations.fdroidAcquisition.files.each { file ->
-            if (!file.isFile()) throw new GradleException("unresolved artifact: ${file}")
+        [configurations.fdroidAcquisition, configurations.fdroidLint].each { configuration ->
+            configuration.files.each { file ->
+                if (!file.isFile()) throw new GradleException("unresolved artifact: ${file}")
+            }
         }
     }
 }
