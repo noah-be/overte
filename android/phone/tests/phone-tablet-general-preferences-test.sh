@@ -10,7 +10,7 @@ readonly base_profile="$repo_root/interface/resources/qml/controlsUit/TouchUiPro
 readonly tablet_preferences_dialog="$repo_root/interface/resources/qml/hifi/tablet/tabletWindows/TabletPreferencesDialog.qml"
 readonly preference_source="$repo_root/interface/src/ui/PreferencesDialog.cpp"
 readonly phone_gradle="$repo_root/android/phone/apps/phoneInterface/build.gradle"
-readonly discord_stub="$repo_root/android/common/cmake/pico-modules/discord_rpc.h"
+readonly discord_stub="$repo_root/android/common/cmake/android-modules/discord_rpc.h"
 
 require() {
     local file="$1" pattern="$2" description="$3"

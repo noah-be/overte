@@ -25,6 +25,7 @@
     ".github/actions/**",
     ".github/workflows/**",
     ".github/branch-policy.json",
+    ".github/platform-source-policy.json",
     ".github/sync-test-reuse.json",
     "tools/sync-test-reuse/**",
     "tools/branch-policy/**",
@@ -57,6 +58,7 @@
     "conanfile.txt"
   ],
   "required_qualified_inputs": [
+    ".github/platform-source-policy.json",
     ".github/workflows/parent-qualification.yml",
     ".github/workflows/sync-test-reuse.yml",
     ".github/workflows/sync-validation.yml",

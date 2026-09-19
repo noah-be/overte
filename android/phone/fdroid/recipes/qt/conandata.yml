@@ -8,3 +8,6 @@ patches:
     - base_path: "qt5/qtdeclarative"
       patch_file: "patches/Fix-error-uintptr_t-does-not-name-a-type-in-QtDeclarative.patch"
       patch_sha256: "33d389780c86d24d6de3f9bed8a5fa28379ad45eddcb508c365bb9f24d1aa9d7"
+    - base_path: "qt5"
+      patch_file: "patches/qt-pico-android-runtime.patch"
+      patch_sha256: "ee87070ce3b613ca5d9111dcd6d21679e2b292329b572d93ae2f6ed2add6a9b3"

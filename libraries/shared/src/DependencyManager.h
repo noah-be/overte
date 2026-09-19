@@ -98,7 +98,10 @@ private:
 template <typename T>
 QSharedPointer<T> DependencyManager::get() {
     static size_t hashCode = manager().getHashCode<T>();
-    static QWeakPointer<T> instance;
+    // QWeakPointer's reference count is atomic, but the pointer object itself
+    // cannot be read and assigned concurrently. Keep the weak fast-path cache
+    // private to each calling thread; the registry remains protected by safeGet.
+    thread_local QWeakPointer<T> instance;
 
     if (instance.isNull()) {
         instance = qSharedPointerCast<T>(manager().safeGet(hashCode));

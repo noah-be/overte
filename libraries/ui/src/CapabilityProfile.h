@@ -52,6 +52,8 @@ inline Support controlSupport(Product product, const std::string& id) {
 inline bool preferenceAllowed(Product product, const std::string& category, const std::string& name) {
     if (product == Product::Desktop) { return true; }
     if (product == Product::Unknown) { return false; }
+    if (category == "Touch Camera Sensitivity") { return product == Product::Phone; }
+    if (category == "Mouse Sensitivity" && product == Product::Phone) { return false; }
     if (category == "HMD" || category == "VR Movement") {
         return controlSupport(product, "settings.hmd-preferences") == Support::Supported;
     }

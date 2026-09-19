@@ -82,8 +82,29 @@ def relevant(path: str) -> bool:
 
 
 def check_sources(read, matches: list[str]) -> None:
+    try:
+        profile_text = read("tests/platform-profile.json")
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        profile_text = None  # Branches predating source ownership keep all consumers.
+    try:
+        profile = json.loads(profile_text) if profile_text is not None else {"platform": "android"}
+        platform = profile["platform"]
+        if platform not in ("shared", "android"):
+            raise ValueError("Unknown platform")
+    except (ValueError, KeyError, TypeError) as error:
+        raise PolicyError("Invalid source ownership profile") from error
     for path, family in CONSUMERS.items():
+        if platform == "shared" and path.startswith("android/"):
+            try:
+                read(path)
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                continue
+            raise PolicyError(f"Android consumer unexpectedly present on shared profile: {path}")
         source = read(path)
+        if platform == "shared" and path.endswith("pico4-release-candidate.yml"):
+            if "select-platform-ref:" not in source or "exit 1" not in source or "uses:" in source:
+                raise PolicyError("Shared workflow must remain a registration-only stub")
+            continue
         if "tools/dependency-releases/check.py" not in source:
             raise PolicyError(f"{path} does not use the central resolver")
         if f"get {family} " not in source and f"checksums {family}" not in source:

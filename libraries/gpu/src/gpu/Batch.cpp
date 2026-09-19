@@ -12,6 +12,7 @@
 #include "Batch.h"
 
 #include <string.h>
+#include <limits>
 
 #include <QDebug>
 #include "ShaderConstants.h"
@@ -166,25 +167,27 @@ void Batch::validateDrawState() const {
 }
 
 void Batch::draw(Primitive primitiveType, uint32 numVertices, uint32 startVertex) {
+    if (!captureDrawCallInfo()) {
+        return;
+    }
     validateDrawState();
     ADD_COMMAND(draw);
 
     _params.emplace_back(startVertex);
     _params.emplace_back(numVertices);
     _params.emplace_back(primitiveType);
-
-    captureDrawCallInfo();
 }
 
 void Batch::drawIndexed(Primitive primitiveType, uint32 numIndices, uint32 startIndex) {
+    if (!captureDrawCallInfo()) {
+        return;
+    }
     validateDrawState();
     ADD_COMMAND(drawIndexed);
 
     _params.emplace_back(startIndex);
     _params.emplace_back(numIndices);
     _params.emplace_back(primitiveType);
-
-    captureDrawCallInfo();
 }
 
 void Batch::drawInstanced(uint32 numInstances,
@@ -192,6 +195,9 @@ void Batch::drawInstanced(uint32 numInstances,
                           uint32 numVertices,
                           uint32 startVertex,
                           uint32 startInstance) {
+    if (!captureDrawCallInfo()) {
+        return;
+    }
     validateDrawState();
     ADD_COMMAND(drawInstanced);
 
@@ -200,8 +206,6 @@ void Batch::drawInstanced(uint32 numInstances,
     _params.emplace_back(numVertices);
     _params.emplace_back(primitiveType);
     _params.emplace_back(numInstances);
-
-    captureDrawCallInfo();
 }
 
 void Batch::drawIndexedInstanced(uint32 numInstances,
@@ -209,6 +213,9 @@ void Batch::drawIndexedInstanced(uint32 numInstances,
                                  uint32 numIndices,
                                  uint32 startIndex,
                                  uint32 startInstance) {
+    if (!captureDrawCallInfo()) {
+        return;
+    }
     validateDrawState();
     ADD_COMMAND(drawIndexedInstanced);
 
@@ -217,26 +224,26 @@ void Batch::drawIndexedInstanced(uint32 numInstances,
     _params.emplace_back(numIndices);
     _params.emplace_back(primitiveType);
     _params.emplace_back(numInstances);
-
-    captureDrawCallInfo();
 }
 
 void Batch::multiDrawIndirect(uint32 numCommands, Primitive primitiveType) {
+    if (!captureDrawCallInfo()) {
+        return;
+    }
     validateDrawState();
     ADD_COMMAND(multiDrawIndirect);
     _params.emplace_back(numCommands);
     _params.emplace_back(primitiveType);
-
-    captureDrawCallInfo();
 }
 
 void Batch::multiDrawIndexedIndirect(uint32 nbCommands, Primitive primitiveType) {
+    if (!captureDrawCallInfo()) {
+        return;
+    }
     validateDrawState();
     ADD_COMMAND(multiDrawIndexedIndirect);
     _params.emplace_back(nbCommands);
     _params.emplace_back(primitiveType);
-
-    captureDrawCallInfo();
 }
 
 void Batch::setInputFormat(const Stream::FormatPointer& format) {
@@ -684,7 +691,21 @@ const Batch::DrawCallInfoBuffer& Batch::getDrawCallInfoBuffer() const {
     }
 }
 
-void Batch::captureDrawCallInfoImpl() {
+bool Batch::captureDrawCallInfoImpl() {
+    // The GPU ABI stores exactly 16 index bits. Never wrap a new object's
+    // index onto an unrelated transform, including in release builds.
+    if ((_invalidModel && _objects.size() > std::numeric_limits<DrawCallInfo::Index>::max()) ||
+            (!_invalidModel && (_objects.empty() ||
+                _objects.size() - 1 > std::numeric_limits<DrawCallInfo::Index>::max()))) {
+        // One warning per thread; a full scene may reject many draws per frame.
+        static thread_local bool reported = false;
+        if (!reported) {
+            reported = true;
+            qCWarning(gpulogging) << "Draw rejected: transform index cannot be represented";
+        }
+        _drawcallUniform = _drawcallUniformReset;
+        return false;
+    }
     if (_invalidModel) {
         TransformObject object;
         _currentModel.getMatrix(object._model);
@@ -705,22 +726,25 @@ void Batch::captureDrawCallInfoImpl() {
     }
 
     auto& drawCallInfos = getDrawCallInfoBuffer();
-    drawCallInfos.emplace_back((uint16)_objects.size() - 1, _drawcallUniform);
+    drawCallInfos.emplace_back(static_cast<DrawCallInfo::Index>(_objects.size() - 1), _drawcallUniform);
     _drawcallUniform = _drawcallUniformReset;
+    return true;
 }
 
-void Batch::captureDrawCallInfo() {
+bool Batch::captureDrawCallInfo() {
     if (!_currentNamedCall.empty()) {
         // If we are processing a named call, we don't want to register the raw draw calls
-        return;
+        return true;
     }
 
-    captureDrawCallInfoImpl();
+    return captureDrawCallInfoImpl();
 }
 
 void Batch::captureNamedDrawCallInfo(std::string name) {
     std::swap(_currentNamedCall, name);  // Set and save _currentNamedCall
-    captureDrawCallInfoImpl();
+    if (!captureDrawCallInfoImpl()) {
+        _namedData[_currentNamedCall].invalidTransformIndex = true;
+    }
     std::swap(_currentNamedCall, name);  // Restore _currentNamedCall
 }
 

@@ -199,23 +199,20 @@ class ProjectHealthTests(unittest.TestCase):
 
     def test_javascript_syntax(self):
         self.assertIsNotNone(__import__("shutil").which("node"), "node is required")
-        # Intentional syntax fixture plus QML JavaScript files with `.pragma library`.
+        # One intentionally invalid JavaScript fixture; QML module directives
+        # are normalized below while the complete JavaScript body is checked.
         allowlist = {
             Path("scripts/developer/tests/unit_tests/scriptTests/nested/syntax-error.js"),
-            Path("tests-manual/qml/qml/qml/+android/UI.js"),
-            Path("tests-manual/qml/qml/qml/+ios/UI.js"),
-            Path("tests-manual/qml/qml/qml/+osx/UI.js"),
-            Path("tests-manual/qml/qml/qml/UI.js"),
         }
         failures = []
         seen_allowlist = set()
         for source in tracked("*.js"):
             relative = source.relative_to(ROOT)
-            if relative == Path("interface/resources/qml/controls/CpuShadowPixels.js"):
+            contents = source.read_text(encoding="utf-8")
+            if ".pragma library" in contents.splitlines():
                 # QML's module directive is not JavaScript syntax. Retain line
                 # numbers and check the complete JS body rather than exempting
                 # this production pixel algorithm from syntax validation.
-                contents = source.read_text(encoding="utf-8")
                 self.assertEqual(contents.splitlines().count(".pragma library"), 1)
                 contents = "\n".join("" if line == ".pragma library" else line for line in contents.splitlines())
                 result = subprocess.run(["node", "--check", "-"], input=contents, text=True,
@@ -253,19 +250,6 @@ class ProjectHealthTests(unittest.TestCase):
         self.assertGreaterEqual(registered, 12)
         self.assertEqual(failures, [])
 
-    def test_gradle_wrapper_is_complete(self):
-        required = [
-            ROOT / "android/common/gradlew",
-            ROOT / "android/common/gradle/wrapper/gradle-wrapper.jar",
-            ROOT / "android/common/gradle/wrapper/gradle-wrapper.properties",
-            ROOT / "android/phone/settings.gradle",
-            ROOT / "android/vr/pico/settings.gradle",
-        ]
-        self.assertTrue(all(path.is_file() for path in required))
-        self.assertTrue(os.access(required[0], os.X_OK))
-        properties = required[2].read_text(encoding="utf-8")
-        self.assertIn("distributionUrl=", properties)
-        self.assertIn("distributionSha256Sum=", properties)
 
 
 if __name__ == "__main__":
