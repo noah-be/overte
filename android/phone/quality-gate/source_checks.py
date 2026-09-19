@@ -170,13 +170,37 @@ def licenses(g):
         g.fail('root-license', 'Root license is absent.', fdroid=True)
     if g.tool('scancode'):
         report = g.out / 'scancode.json'
-        rc, _ = g.run('scancode', ['scancode', '--license', '--copyright', '--package', '--info',
+        rc, _ = g.run('scancode', ['scancode', '--processes', str(g.config.get('scancode_processes', 2)),
+                                 '--license', '--copyright', '--package', '--info',
                                  '--json-pp', report, g.out / 'source-scope'])
-        if rc == 0 and report.is_file():
+        if rc in (0, 1) and report.is_file():
             scanned = json.loads(report.read_text())
             files = scanned.get('files')
             if not isinstance(files, list) or not files:
                 raise ValueError('License scan report has no file inventory')
+            primary_paths = {r.get('path', '').removeprefix(str(g.out / 'source-scope') + '/').removeprefix('source-scope/')
+                             for r in files if r.get('type') == 'file'}
+            # ScanCode deliberately skips VCS metadata while walking directories.
+            # Explicit single-file inputs retain it; never silently waive coverage.
+            supplemental = []
+            for index, relative in enumerate(sorted(set(g.source_hashes) - primary_paths)):
+                if Path(relative).name not in {'.gitignore', '.gitattributes', '.gitmodules'}:
+                    continue
+                extra = g.out / f'scancode-vcs-{index}.json'
+                status, _ = g.run(f'scancode-vcs-{index}', ['scancode', '--processes', '1',
+                    '--license', '--copyright', '--package', '--info', '--json-pp', extra,
+                    g.out / 'source-scope' / relative])
+                if status not in (0, 1) or not extra.is_file():
+                    continue
+                records = json.loads(extra.read_text()).get('files', [])
+                if (len(records) != 1 or records[0].get('type') != 'file'
+                        or Path(records[0].get('path', '')).name != Path(relative).name):
+                    g.fail('license-supplement-report', 'Single-file license report is inconsistent.', relative, True)
+                    continue
+                row = dict(records[0], path=relative)
+                files.append(row)
+                supplemental.append(dict(path=relative, report=extra.name, sha256=g.source_hashes[relative]))
+            write_json(g.out / 'license-supplemental.json', supplemental)
             scanned_paths = set()
             for row in files:
                 relative = row.get('path', '').removeprefix(str(g.out / 'source-scope') + '/').removeprefix('source-scope/')
@@ -203,7 +227,7 @@ def dependencies(g):
         for n, line in enumerate(text.splitlines(), 1):
             for value in re.findall(r'[\w.-]+:[\w.-]+:[\w.+-]+|[\w.-]+/[\w.+-]+(?:@[\w/.-]+)?#[a-f0-9]+', line):
                 rows.append(dict(path=rel, line=n, coordinate=value))
-            if re.search(r"[\w.-]+:[\w.-]+:[^\s'\"]*(?:\+|SNAPSHOT)|\b(?:latest.release|latest.integration)\b", line):
+            if re.search(r"(?<![\w.-])[A-Za-z_][\w.-]*:[A-Za-z_][\w.-]*:[^\s'\"]*(?:\+|SNAPSHOT)|\b(?:latest.release|latest.integration)\b", line):
                 g.finding('dynamic-dependency', 'FAIL', rel, 'Mutable dependency version.', 'Pin and lock a reviewed immutable version.', n, True)
             if re.search(r'(?i)https?://|\b(?:curl|wget|FetchContent|ExternalProject|download)\b', line):
                 rows.append(dict(path=rel, line=n, kind='repository-or-download'))

@@ -61,6 +61,9 @@ class Gate:
             if k not in {'GRYPE_DB_CACHE_DIR', 'JAVA_HOME', 'ANDROID_SDK_ROOT', 'ANDROID_HOME'}:
                 raise ValueError('Unsupported tool_environment key')
             self.env[k] = str(v)
+        processes = config.get('scancode_processes', 2)
+        if type(processes) is not int or not 1 <= processes <= 8:
+            raise ValueError('ScanCode processes must be between 1 and 8')
         db_age = config.get('vulnerability_database_max_age_hours', 120)
         if type(db_age) is not int or not 1 <= db_age <= 120:
             raise ValueError('Vulnerability database age must be between 1 and 120 hours')

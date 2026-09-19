@@ -13,9 +13,9 @@ import zipfile
 
 sys.dont_write_bytecode = True
 from core import Gate
-from evidence import regular_file
+from evidence import regular_file, write_receipt, validate_receipt, FIXED_FILES, MODULE
 from runtime_checks import archive_members
-from source_checks import materialize, secrets
+from source_checks import materialize, secrets, dependencies, licenses
 
 
 class GateContracts(unittest.TestCase):
@@ -109,6 +109,74 @@ class GateContracts(unittest.TestCase):
             stream.seek(0)
             with zipfile.ZipFile(stream) as z, self.assertRaises(ValueError):
                 archive_members(self.g, z)
+
+    def test_timestamp_is_not_a_dynamic_dependency(self):
+        self.g.files = ['recipe.lock.json']
+        (self.out / 'source-scope/recipe.lock.json').write_text(
+            '{"measured_at": "2026-09-05T11:09:58+02:00"}')
+        with patch.object(self.g, 'review'):
+            dependencies(self.g)
+        self.assertFalse(any(r['rule']=='dynamic-dependency' for r in self.g.findings))
+
+    def test_real_dynamic_dependencies_still_block(self):
+        self.g.files = ['build.gradle']
+        (self.out / 'source-scope/build.gradle').write_text(
+            "implementation 'org.example:library:1.+'\nimplementation 'org.example:other:2-SNAPSHOT'")
+        with patch.object(self.g, 'review'):
+            dependencies(self.g)
+        self.assertEqual(len([r for r in self.g.findings if r['rule']=='dynamic-dependency']), 2)
+
+    def test_receipt_rejects_changed_build_evidence(self):
+        self.g.attempt = self.out / 'attempt'
+        self.g.attempt.mkdir()
+        extra = [MODULE + 'build/outputs/bundle/release/app.aab',
+                 MODULE + 'build/outputs/logs/manifest-merger-release-report.txt',
+                 MODULE + '.cxx/Release/fixture/arm64-v8a/compile_commands.json']
+        for rel in [*FIXED_FILES.values(), *extra]:
+            path = self.g.attempt / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('fixture')
+        self.g.artifact = self.g.attempt / FIXED_FILES['apk']
+        self.g.config.update(builder_image='sha256:' + '1'*64, version_code=2, version_name='test')
+        write_receipt(self.g)
+        self.assertEqual(validate_receipt(self.g), self.g.artifact)
+        (self.g.attempt / FIXED_FILES['gradle']).write_text('changed dependency evidence')
+        with self.assertRaises(ValueError):
+            validate_receipt(self.g)
+
+    def test_scanner_resource_limit_rejects_invalid_values(self):
+        for value in (0, 9, True, '2'):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                Gate(self.root, self.out, {'scancode_processes': value}, self.g.policy)
+
+    def test_failed_license_scan_keeps_file_diagnostics(self):
+        def fake_run(label, argv, **kwargs):
+            report = Path(argv[argv.index('--json-pp') + 1])
+            report.write_text(json.dumps({'files': [{'path': 'source-scope/input.txt',
+                'type': 'file', 'scan_errors': ['synthetic per-file failure'],
+                'detected_license_expression_spdx': None}]}))
+            return 1, self.out / 'unused'
+        with patch.object(self.g, 'tool', return_value=True), patch.object(self.g, 'run', side_effect=fake_run), patch.object(self.g, 'review'):
+            licenses(self.g)
+        errors = [r for r in self.g.findings if r['rule']=='license-scan-error']
+        self.assertEqual([r['path'] for r in errors], ['input.txt'])
+        self.assertEqual(errors[0]['status'], 'FAIL')
+
+    def test_vcs_license_metadata_is_scanned_explicitly(self):
+        self.g.source_hashes['.gitignore'] = 'fixture-hash'
+        (self.out / 'source-scope/.gitignore').write_text('build/\n')
+        calls = []
+        def fake_run(label, argv, **kwargs):
+            calls.append(label)
+            path = 'source-scope/input.txt' if label=='scancode' else '.gitignore'
+            Path(argv[argv.index('--json-pp') + 1]).write_text(json.dumps({'files': [
+                {'path': path, 'type': 'file', 'scan_errors': [],
+                 'detected_license_expression_spdx': 'Apache-2.0'}]}))
+            return 0, self.out / 'unused'
+        with patch.object(self.g, 'tool', return_value=True), patch.object(self.g, 'run', side_effect=fake_run), patch.object(self.g, 'review'):
+            licenses(self.g)
+        self.assertIn('scancode-vcs-0', calls)
+        self.assertFalse(any(r['rule']=='license-scan-coverage' for r in self.g.findings))
 
     def test_nested_failure_keeps_correct_category(self):
         self.g.category = 'build'

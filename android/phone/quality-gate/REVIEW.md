@@ -65,3 +65,38 @@ instrumentation, E2E and long-running test commands were not run.
 
 No PASS release-readiness report, F-Droid submission, device acceptance, runtime
 performance result or reproducibility claim is produced by this review.
+
+## First authorized source qualification
+
+The user subsequently authorized offline self-tests and source scanners. Eighteen
+synthetic contract tests now pass, including changed dependency receipt rejection.
+The first source run completed on commit 357c12f100. It reported history/source
+secret candidates and missing manual evidence; it did not establish release
+readiness. No matched credential values are included in repository documentation.
+
+Qualification corrections:
+
+- Restrict dynamic coordinate recognition so an ISO-8601 timestamp with a positive
+  timezone does not become a mutable Maven dependency. Preserve tests for real
+  plus and SNAPSHOT dependencies.
+- Bound ScanCode worker count to two by default, configurable from one to eight.
+  The first default-concurrency attempt was explicitly interrupted due to memory
+  pressure and correctly produced a failing report.
+- Record one exact hash-bound SC2071 exception for the Phone benchmark's validated,
+  length-guarded decimal string boundary comparisons. Signed shell arithmetic is
+  unsuitable for its uint64 boundary. Product/test implementation is unchanged.
+
+Historical credentials, provenance, revocation and mandatory human reviews remain
+open. No Android builds, artifact acceptance or physical device tests were run.
+
+Source-only exceptions additionally cover four detector/file pairs whose hits
+are source SHA-256 maps and pinned Jenkins plugin versions. No historical
+finding, credential fixture or unverified secret is waived by these exceptions.
+
+License reports with exit status 1 retain their per-file scanner diagnostics;
+they continue to block the gate instead of being mislabeled as absent reports.
+
+The initial complete ScanCode directory scan covered 5,434 files without scanner
+errors, but omitted three .gitignore files by its built-in VCS policy. The gate
+now scans omitted VCS metadata as explicit single-file inputs and retains their
+separate JSON evidence. Unexpected gaps still fail.

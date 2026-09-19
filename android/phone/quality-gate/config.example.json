@@ -22,5 +22,6 @@
   "long_seconds": 14400,
   "command_timeout_seconds": 21600,
   "build_timeout_seconds": 172800,
-  "vulnerability_database_max_age_hours": 120
+  "vulnerability_database_max_age_hours": 120,
+  "scancode_processes": 2
 }

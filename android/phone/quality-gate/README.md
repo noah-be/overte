@@ -3,7 +3,7 @@
 This local, modular gate is owned by `android-phone`. It does not publish, sign,
 upload, create a release, change the application, or connect to a SaaS scanner.
 The initial implementation was reviewed statically. Subsequent qualification
-now includes twelve passing offline contract tests. Scanner and build/device
+now includes eighteen passing offline contract tests. Scanner and build/device
 qualification are separate; no release readiness is implied by these tests.
 
 ## Run later
@@ -82,6 +82,8 @@ names remain relevant when the Phone graph imports them.
   **not the complete JVM test runtime**. Provision and lock JUnit/Robolectric/
   AndroidX test dependencies before qualifying the offline JVM test step; do not
   turn on build networking or treat missing offline dependencies as a skip.
+- `scancode_processes`: defaults to 2; integer range 1–8. Each worker can use
+  substantial memory. Keep this low on shared workers.
 - `tool_versions`: map executable names to one exact reviewed version-output line.
   No unverified release versions are invented in the template. Missing/mismatched
   versions block the relevant checks. Freeze the provisioned worker/image as
@@ -191,7 +193,10 @@ publish raw logs, screenshots, memory dumps or scanner outputs without redaction
 
 ## False positives and manual evidence
 
-`allowlist.json` starts empty. An exception requires exact `rule`, relative
+`allowlist.json` contains reviewed, hash-bound exceptions for intentional
+length-guarded integer string comparisons, source checksum maps and Jenkins
+plugin version declarations. Historical findings are not suppressed.
+An exception requires exact `rule`, relative
 `path`, current file `sha256`, `reason`, `owner`, and ISO `expires` date. No glob
 or directory-wide suppression is supported. The finding remains WARNING and
 includes its reviewed exception. Source changes/expiration invalidate it. Missing
@@ -255,3 +260,8 @@ timeouts, command failures, partial readiness, source mutation, missing and
 inconsistent secret reports, exact exceptions, required manual review, unsafe
 evidence paths, archive limits and failure-category attribution. These are not
 a substitute for real scanner, build or device qualification.
+
+The first source qualification detected an ISO timestamp misclassified as a
+dynamic dependency. Regression cases now distinguish timestamps from real
+`+` and `SNAPSHOT` dependency coordinates. Scanner concurrency is explicitly
+bounded after the initial ScanCode default exhausted much of the worker memory.
