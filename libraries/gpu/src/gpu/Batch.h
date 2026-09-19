@@ -107,6 +107,10 @@ public:
          */
         DrawCallInfoBuffer drawCallInfos;
 
+        // Reject the entire group if a transform cannot be encoded: removing
+        // one instance would misalign its parallel color/fade buffers.
+        bool invalidTransformIndex { false };
+
         size_t count() const { return drawCallInfos.size(); }
 
         /**
@@ -114,7 +118,7 @@ public:
          * @param batch Batch to which commands will be added to.
          */
         void process(Batch& batch) {
-            if (function) {
+            if (function && !invalidTransformIndex) {
                 function(batch, *this);
             }
         }
@@ -159,8 +163,9 @@ public:
      * @brief Adds a new TransformObject to batch if needed and stores DrawCallInfo with its index for the draw call.
      * It's called from inside the functions that add a draw call command to the batch.
      * Returns immediately without doing anything in case of named calls (used for instancing shapes).
+     * @return False if the transform index cannot be encoded; the caller must not add its draw command.
      */
-    void captureDrawCallInfo();
+    bool captureDrawCallInfo();
 
     /**
      * @brief Adds a new TransformObject to batch if needed and stores DrawCallInfo with its index for the draw call.
@@ -1462,7 +1467,7 @@ protected:
      *
      * For details see `captureDrawCallInfo`
      */
-    void captureDrawCallInfoImpl();
+    bool captureDrawCallInfoImpl();
 };
 
 /**
