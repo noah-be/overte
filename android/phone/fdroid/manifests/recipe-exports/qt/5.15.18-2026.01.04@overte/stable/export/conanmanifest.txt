@@ -1,5 +1,6 @@
-1788701578
-conandata.yml: d4bb7f2776544700fb12ecb1ed259d19
+1788770410
+conandata.yml: 2643f916654c13eb84aee74d599d346e
 conanfile.py: 5aefcd947a1f2665bfab1b36c8c2fa5c
 export_source/patches/Fix-error-uintptr_t-does-not-name-a-type-in-QtDeclarative.patch: c3fd518815e4e546756c8c4f8f91efd3
+export_source/patches/qt-pico-android-runtime.patch: 861741f925b6ad9dadf0bda361d164af
 qtmodules5.15.18-2026.01.04.conf: c5bdf645623d9c82e9817a8b0cc2e85d

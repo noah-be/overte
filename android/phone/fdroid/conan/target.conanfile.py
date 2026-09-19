@@ -14,7 +14,7 @@ class OverteAndroidTarget(_module.PicoOverte):
     name = "OverteAndroidSourceTarget"
     qt_ref = (
         "qt/5.15.18-2026.01.04@overte/stable"
-        "#b573e9e65fe29366102c09d5ec013c09"
+        "#d75aeab99c3d3426df7ec9b39bc73aa8"
     )
     default_options = dict(_module.PicoOverte.default_options)
     default_options.update(
@@ -30,7 +30,7 @@ class OverteAndroidTarget(_module.PicoOverte):
     def build_requirements(self):
         self.tool_requires(
             "qt/5.15.18-2026.01.04@overte/stable"
-            "#b573e9e65fe29366102c09d5ec013c09",
+            "#d75aeab99c3d3426df7ec9b39bc73aa8",
             run=True,
         )
         self.tool_requires("glslang/1.4.350.0", run=True)

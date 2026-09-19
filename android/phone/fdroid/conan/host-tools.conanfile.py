@@ -6,7 +6,7 @@ from conan.errors import ConanInvalidConfiguration
 
 QT_REF = (
     "qt/5.15.18-2026.01.04@overte/stable"
-    "#b573e9e65fe29366102c09d5ec013c09"
+    "#d75aeab99c3d3426df7ec9b39bc73aa8"
 )
 
 
