@@ -1,9 +1,11 @@
-name: Pico 4 device-free CI
+name: Shared project CI
 
 on:
   pull_request:
     paths:
+      # A reintroduced product tree must run the shared source-boundary gate.
       - "android/**"
+      - ".github/platform-source-policy.json"
       - "interface/**"
       - "libraries/**"
       - "scripts/**"
@@ -16,7 +18,13 @@ on:
       - "!**/*.md"
   push:
     branches:
+      - main
+      - android-main
+      - android-phone
+      - android-vr
       - android-vr-pico
+      - apple-main
+      - apple-ios
       - "ci/**"
       - "test/**"
     paths-ignore:
