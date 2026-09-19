@@ -14,6 +14,7 @@
 #ifndef hifi_AudioInjectorManager_h
 #define hifi_AudioInjectorManager_h
 
+#include <atomic>
 #include <condition_variable>
 #include <queue>
 #include <mutex>
@@ -68,7 +69,7 @@ private:
     using Lock = std::unique_lock<Mutex>;
 
     bool threadInjector(const AudioInjectorPointer& injector);
-    void notifyInjectorReadyCondition() { _injectorReady.notify_one(); }
+    void notifyInjectorReadyCondition();
     bool wouldExceedLimits();
 
     AudioInjectorManager() { createThread(); }
@@ -77,7 +78,8 @@ private:
     void createThread();
 
     QThread* _thread { nullptr };
-    bool _shouldStop { false };
+    std::atomic<bool> _shouldStop { false };
+    bool _pendingEvents { false }; // guarded by _injectorsMutex
     InjectorQueue _injectors;
     Mutex _injectorsMutex;
     std::condition_variable _injectorReady;
