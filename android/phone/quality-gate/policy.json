@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "application_id": "org.overte.phone",
+  "min_sdk": 26,
+  "target_sdk_minimum": 36,
+  "source_roots": ["android/phone/", "android/common/", "interface/", "libraries/", "cmake/", "scripts/", "security/", "provenance/", "tools/sbom/", "tools/release/", "tests/device/"],
+  "source_files": ["CMakeLists.txt", "conanfile.py", "LICENSE", ".gitignore", ".gitmodules"],
+  "exclude_roots": ["android/phone/apps/interface/", "android/phone/apps/framePlayer/", "android/common/legacy/", "scripts/developer/", "scripts/tutorials/", "scripts/communityScripts/", "scripts/simplifiedUI/"],
+  "binary_extensions": [".jar", ".aar", ".so", ".a", ".dll", ".exe", ".apk", ".aab", ".zip", ".tgz", ".rcc"],
+  "media_extensions": [".png", ".jpg", ".jpeg", ".webp", ".svg", ".ttf", ".otf", ".wav", ".ogg", ".mp3", ".fbx", ".glb", ".gltf", ".obj"],
+  "permissions": {
+    "android.permission.INTERNET": "Domain connections and remote asset delivery.",
+    "android.permission.ACCESS_NETWORK_STATE": "Connection state and recovery.",
+    "android.permission.RECORD_AUDIO": "Optional microphone voice chat; runtime denial must work.",
+    "android.permission.MODIFY_AUDIO_SETTINGS": "Voice/audio routing.",
+    "android.permission.VIBRATE": "Touch feedback; review whether still necessary."
+  },
+  "exported_components": ["org.overte.phone.PermissionsActivity"],
+  "deep_link_schemes": ["overte", "hifi"],
+  "large_file_bytes": 20000000,
+  "max_archive_bytes": 4294967296,
+  "max_archive_member_bytes": 536870912,
+  "max_archive_members": 100000,
+  "functional_suites": ["smoke", "domain-smoke", "asset-smoke", "e2e-core", "sound-smoke", "tablet-e2e", "text-input-smoke", "e2e-recovery"],
+  "robustness_suites": ["network-fault-recovery", "permission-recovery", "lifecycle-stability", "lifecycle-under-load", "domain-recovery", "render-health"],
+  "long_suites": ["stability", "domain-recovery", "tablet-e2e", "lifecycle-stability"],
+  "long_seconds_minimum": 14400,
+  "manual_reviews": {
+    "licenses": ["asset-license-attribution", "license-compatibility", "complete-native-gradle-notices"],
+    "dependencies": ["maintenance-and-unused-dependencies", "native-vulnerability-coverage"],
+    "fdroid": ["public-source-and-build-inputs", "fdroid-policy-and-antifeatures"],
+    "artifact": ["screenshots-and-personal-data", "rcc-and-nested-resource-coverage"],
+    "functional": ["installation-clean-data", "upgrade-previous-release", "physical-touch-and-audio"],
+    "robustness": ["lock-unlock", "wifi-network-switch", "unreachable-domain-missing-assets", "slow-unstable-network", "low-storage"],
+    "long": ["memory-leak-cpu-gpu-battery-thermal"]
+  }
+}

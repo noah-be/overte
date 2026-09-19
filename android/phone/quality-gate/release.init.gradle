@@ -1,0 +1,43 @@
+// SPDX-License-Identifier: Apache-2.0
+// Applied only to the isolated quality-gate build, never to normal Phone/Pico builds.
+gradle.beforeProject { app ->
+    if (app.path == ':phoneInterface') {
+        app.pluginManager.withPlugin('com.android.application') {
+            // Register before project evaluation; projectsEvaluated is too late
+            // to change AGP's finalized DSL and native variant model.
+            app.androidComponents.finalizeDsl { android ->
+                android.lint.abortOnError = true
+                android.lint.checkReleaseBuilds = true
+                android.lint.xmlReport = true
+                android.lint.htmlReport = true
+                android.defaultConfig.externalNativeBuild.cmake.arguments.add(
+                    '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON')
+            }
+            app.tasks.register('qualityGateDependencies') {
+                // The generated source-built Qt JAR is a local file dependency.
+                dependsOn ':phoneInterface:preparePhoneQtAndroidJar'
+                doLast {
+                    def configuration = app.configurations.getByName('releaseRuntimeClasspath')
+                    def identified = configuration.resolvedConfiguration.resolvedArtifacts.collectEntries { artifact ->
+                        def id = artifact.moduleVersion.id
+                        [(artifact.file.canonicalPath): [group: id.group, name: id.name, version: id.version]]
+                    }
+                    def artifacts = configuration.files.collect { file ->
+                        def id = identified[file.canonicalPath]
+                        def hash = java.security.MessageDigest.getInstance('SHA-256')
+                        file.withInputStream { stream ->
+                            byte[] buffer = new byte[65536]
+                            int n
+                            while ((n = stream.read(buffer)) > 0) hash.update(buffer, 0, n)
+                        }
+                        [group: id?.group, name: id?.name ?: file.name, version: id?.version,
+                         kind: id ? 'maven' : 'local', file: file.name,
+                         sha256: hash.digest().encodeHex().toString()]
+                    }
+                    def output = new File('/attempt/gradle-runtime.json')
+                    output.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(artifacts)) + '\n'
+                }
+            }
+        }
+    }
+}

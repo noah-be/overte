@@ -1,0 +1,44 @@
+{
+  "entries": [
+    {
+      "rule": "shellcheck-SC2071",
+      "path": "android/phone/tests/phone-graphics-benchmark.sh",
+      "sha256": "ee090d6b587af4f1aa4ebbdeaf6cfc941db8aa59aefd07393f0d06e05bb77bd7",
+      "owner": "Android quality gate qualification review",
+      "reason": "valid_nonnegative_int64, valid_u64 and valid_u32 validate decimal-only values and compare length before lexical boundary checks. Numeric shell comparisons can overflow at uint64 limits. All three reported comparisons deliberately use string ordering. Re-review if the file changes.",
+      "expires": "2026-12-18"
+    },
+    {
+      "rule": "gitleaks-generic-api-key",
+      "path": "android/phone/fdroid/manifests/source-graph-slice.lock.json",
+      "sha256": "fb174d1322fbb7e0edd70d61993d75cfb0f73271bb429e0dcf44b774392eaadf",
+      "reason": "The flagged value is a SHA-256 source-file digest in a source-closure path-to-digest map, not a credential.",
+      "owner": "Android quality gate qualification review",
+      "expires": "2026-12-18"
+    },
+    {
+      "rule": "gitleaks-generic-api-key",
+      "path": "android/phone/fdroid/manifests/recipe-source.lock.json",
+      "sha256": "6eca8a5ddbbc5dfebc2603b0095fb7b24aadd4058f1da82a18d8d5e54237ae3d",
+      "reason": "The flagged value is a SHA-256 source-file digest in a source-closure path-to-digest map, not a credential.",
+      "owner": "Android quality gate qualification review",
+      "expires": "2026-12-18"
+    },
+    {
+      "rule": "gitleaks-discord-api-token",
+      "path": "android/phone/fdroid/manifests/recipe-source.lock.json",
+      "sha256": "6eca8a5ddbbc5dfebc2603b0095fb7b24aadd4058f1da82a18d8d5e54237ae3d",
+      "reason": "Both hits are SHA-256 values for discord-rpc source paths in a source-closure digest map, not Discord authentication tokens.",
+      "owner": "Android quality gate qualification review",
+      "expires": "2026-12-18"
+    },
+    {
+      "rule": "gitleaks-generic-api-key",
+      "path": "tests/device/jenkins/plugins.lock.txt",
+      "sha256": "46d5f0ed7643956a3e88c588f355b185ccdc6d22ea19bbd84708037f985f8e81",
+      "reason": "All flagged lines are Jenkins plugin ID:version declarations in the pinned plugin inventory. No credential assignments occur in these matched lines.",
+      "owner": "Android quality gate qualification review",
+      "expires": "2026-12-18"
+    }
+  ]
+}

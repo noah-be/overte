@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "source_commit": "REPLACE_WITH_REVIEWED_40_CHARACTER_COMMIT",
+  "artifact_sha256": "REPLACE_WITH_CLEAN_BUILD_APK_SHA256",
+  "reviews": {
+    "asset-license-attribution": {
+      "status": "WARNING",
+      "reviewer": "",
+      "reason": "Review fonts, textures, sounds, icons, models, avatars and generated RCC contents against their upstream notices.",
+      "evidence_file": "",
+      "evidence_sha256": ""
+    }
+  }
+}
