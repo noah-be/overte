@@ -334,8 +334,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--keep-running", action="store_true")
     parser.add_argument("--require-complete", action="store_true",
                         help="treat missing module capabilities as infrastructure errors")
-    parser.add_argument("--fail-fast", action="store_true",
-                        help="stop after the first failed or errored module")
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--candidate-artifact", type=Path,
                         help="exact candidate bytes; requires both expected identity flags")

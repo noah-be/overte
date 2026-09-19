@@ -50,6 +50,7 @@ updates:
 
   - package-ecosystem: gradle
     directory: /android/common/tests/robolectric
+    target-branch: android-main
     schedule:
       interval: monthly
     open-pull-requests-limit: 3

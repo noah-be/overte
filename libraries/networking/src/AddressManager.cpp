@@ -13,6 +13,9 @@
 //
 
 #include "AddressManager.h"
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+#include <android/log.h>
+#endif
 
 #include <QGuiApplication>
 #include <QClipboard>
@@ -250,6 +253,12 @@ JSONCallbackParameters AddressManager::apiCallbackParameters() {
 }
 
 bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, const QString& lookupUrlInString) {
+#if defined(ANDROID_APP_PHONE_INTERFACE)
+    __android_log_print(ANDROID_LOG_INFO, "OvertePhoneRuntime",
+        "lookup local=%d trigger=%d policy=%d foreground=%d explicit=%d current=%d",
+        lookupUrlIn.isLocalFile(), static_cast<int>(trigger), _clientLookupPolicy,
+        _lookupForeground, _lookupNeedsExplicitIntent, _lookupRequests.snapshot().current());
+#endif
     if (_clientLookupPolicy) {
         if (!_lookupForeground) { return false; }
         if (_lookupNeedsExplicitIntent) {
@@ -263,6 +272,13 @@ bool AddressManager::handleUrl(const QUrl& lookupUrlIn, LookupTrigger trigger, c
     static QString URL_TYPE_NETWORK_ADDRESS = "network_address";
 
     QUrl lookupUrl = lookupUrlIn;
+    // The native/network address format is still hifi://. Accept the public
+    // overte:// alias here too, so scripts, portals and direct lookups have
+    // the same compatibility as the Android intent adapter. Changing only
+    // the scheme preserves the authority and encoded path/query payload.
+    if (lookupUrl.scheme().compare(QStringLiteral("overte"), Qt::CaseInsensitive) == 0) {
+        lookupUrl.setScheme(URL_SCHEME_OVERTE);
+    }
 
     if (!lookupUrl.host().isEmpty() && !lookupUrl.path().isEmpty()) {
         // Assignment clients ping for empty url until assigned. Don't spam.

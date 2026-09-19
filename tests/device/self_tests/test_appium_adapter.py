@@ -30,8 +30,23 @@ target = a[1] if len(a) > 2 and a[0] == "-s" else None
 cmd = a[2:] if target else a
 if cmd == ["get-state"]:
     print("device")
-elif cmd == ["shell", "getprop", "ro.kernel.qemu"]:
-    print("0")
+elif len(cmd) == 3 and cmd[:2] == ["shell", "getprop"]:
+    defaults = {
+        "ro.product.manufacturer": "Example",
+        "ro.product.model": "Phone",
+        "ro.product.device": "phone",
+        "ro.product.name": "phone",
+        "ro.build.characteristics": "default",
+        "ro.product.cpu.abilist": "arm64-v8a,armeabi-v7a",
+        "ro.build.version.sdk": "35",
+        "ro.opengles.version": "196610",
+        "ro.kernel.qemu": "0",
+    }
+    override = "OVERTE_MOCK_ADB_PROP_" + cmd[2].upper().replace(".", "_")
+    print(os.environ.get(override, defaults.get(cmd[2], "")))
+elif cmd == ["shell", "pm", "list", "features"]:
+    print(os.environ.get("OVERTE_MOCK_ADB_FEATURES",
+                         "feature:android.hardware.touchscreen"))
 elif cmd == ["shell", "run-as", "org.overte.phone", "cat",
              "files/overte-e2e/overte-probe.json"]:
     with open(os.environ["OVERTE_MOCK_ANDROID_PROBE"], encoding="utf-8") as source:
@@ -307,6 +322,59 @@ class AppiumAdapterTest(unittest.TestCase):
         path = self.root / "android-commands.jsonl"
         return ([json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
                 if path.exists() else [])
+
+    def test_physical_android_attestation_accepts_only_supported_touch_phones(self):
+        self.configure_controlled_android()
+        accepted = self.call("android", "discover")
+        self.assertEqual(0, accepted.returncode, accepted.stdout)
+
+        rejected = (
+            ("OVERTE_MOCK_ADB_PROP_RO_KERNEL_QEMU", "1"),
+            ("OVERTE_MOCK_ADB_PROP_RO_PRODUCT_MANUFACTURER", "Pico"),
+            ("OVERTE_MOCK_ADB_PROP_RO_PRODUCT_MODEL", "ByteDance headset"),
+            ("OVERTE_MOCK_ADB_PROP_RO_BUILD_CHARACTERISTICS", "watch"),
+            ("OVERTE_MOCK_ADB_PROP_RO_BUILD_CHARACTERISTICS", "default,tv"),
+            ("OVERTE_MOCK_ADB_PROP_RO_BUILD_CHARACTERISTICS", "automotive"),
+            ("OVERTE_MOCK_ADB_PROP_RO_BUILD_CHARACTERISTICS", "default,vr"),
+            ("OVERTE_MOCK_ADB_PROP_RO_PRODUCT_CPU_ABILIST", "x86_64"),
+            ("OVERTE_MOCK_ADB_PROP_RO_BUILD_VERSION_SDK", "25"),
+            ("OVERTE_MOCK_ADB_PROP_RO_OPENGLES_VERSION", "196609"),
+            ("OVERTE_MOCK_ADB_FEATURES", "feature:android.hardware.camera"),
+        )
+        for variable, value in rejected:
+            with self.subTest(variable=variable, value=value):
+                self.environment[variable] = value
+                result = self.call("android", "discover")
+                self.environment.pop(variable)
+                self.assertEqual(2, result.returncode, result.stdout)
+                self.assertIn("not a supported Phone", result.stdout)
+
+    def test_physical_android_install_rechecks_phone_and_uses_appium(self):
+        self.configure_controlled_android()
+        candidate = self.root / "phone-candidate.apk"
+        candidate.write_bytes(b"device-free-phone-candidate")
+        result = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "app.install",
+            "--arguments", json.dumps({"path": str(candidate)}))
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertIn(("mobile: installApp", {"appPath": str(candidate)}),
+                      AppiumHandler.executions)
+
+    def test_rejected_phone_never_creates_session_or_installs(self):
+        self.configure_controlled_android()
+        candidate = self.root / "rejected-phone.apk"
+        candidate.write_bytes(b"device-free-rejected-candidate")
+        self.environment["OVERTE_MOCK_ADB_PROP_RO_BUILD_CHARACTERISTICS"] = "vr"
+        result = self.call(
+            "android", "invoke", "--target", "phone-alias",
+            "--operation", "app.install",
+            "--arguments", json.dumps({"path": str(candidate)}))
+        self.assertEqual(2, result.returncode, result.stdout)
+        self.assertIn("not a supported Phone", result.stdout)
+        self.assertNotIn(("POST", "/session"), AppiumHandler.calls)
+        self.assertFalse(any(script == "mobile: installApp"
+                             for script, _arguments in AppiumHandler.executions))
 
     def test_both_platform_manifests_satisfy_adapter_contract(self):
         for platform in ("android", "ios"):

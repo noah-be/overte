@@ -35,12 +35,11 @@ main
     └── iPhone and iPad (apple-ios)
 ```
 
-The Android source tree mirrors the same ownership boundaries inside
-[`android/`](android/README.md): shared infrastructure lives in `common`, Phone
-code in `phone`, and the active headset target below `vr/pico`. Historical
-Quest source remains below `vr/quest`, but Quest is not an active development
-or synchronization target. The `vr/common` directory is reserved for reusable
-Android VR implementation.
+Android application sources live on [`android-main`](https://github.com/noah-be/overte/tree/android-main/android)
+and its Phone and Pico descendants. This shared branch contains the portable
+client, libraries, resources, and repository control plane. See the
+[source ownership boundary](docs/SOURCE_LAYOUT.md) before synchronizing a
+platform branch or importing upstream changes.
 
 The retired Quest and macOS branches are historical evidence only. They are
 outside the active hierarchy and receive no synchronization or new product work.

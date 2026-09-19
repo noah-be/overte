@@ -558,13 +558,20 @@ class AppiumAdapter:
         return float(value)
 
     def discover(self) -> list[dict]:
-        return [{
-            "selector": selector,
-            "displayName": target.get("displayName", f"Appium {self.platform}"),
-            "platform": self.platform,
-            "physical": target.get("physical") is True,
-            "capabilities": self.advertised_capabilities(target),
-        } for selector, target in sorted(self.targets.items()) if target.get("enabled", True)]
+        discovered = []
+        for selector, target in sorted(self.targets.items()):
+            if not target.get("enabled", True):
+                continue
+            if self.platform == "android" and target.get("physical") is True:
+                self.attest_android_phone_profile(target)
+            discovered.append({
+                "selector": selector,
+                "displayName": target.get("displayName", f"Appium {self.platform}"),
+                "platform": self.platform,
+                "physical": target.get("physical") is True,
+                "capabilities": self.advertised_capabilities(target),
+            })
+        return discovered
 
     def target(self, selector: str) -> dict:
         target = self.targets.get(selector)
@@ -643,6 +650,45 @@ class AppiumAdapter:
             except FileNotFoundError:
                 pass
 
+    @staticmethod
+    def attest_android_phone_profile(target: dict) -> None:
+        """Require the selected ADB target to be an authorized physical Phone."""
+        device = target.get("capabilities", {}).get("appium:udid")
+        if not isinstance(device, str) or not device or device.startswith("REPLACE_"):
+            fail("physical Android Phone attestation requires a private ADB selector")
+        from adb_transport import AdbTransport
+        adb = AdbTransport()
+        adb.require_connected(device)
+        identity = " ".join(adb.prop(device, name) for name in (
+            "ro.product.manufacturer", "ro.product.model",
+            "ro.product.device", "ro.product.name",
+        )).casefold()
+        characteristics = {
+            value.strip().casefold()
+            for value in adb.prop(device, "ro.build.characteristics").split(",")
+            if value.strip()
+        }
+        abis = {
+            value.strip()
+            for value in adb.prop(device, "ro.product.cpu.abilist").split(",")
+            if value.strip()
+        }
+        sdk = adb.prop(device, "ro.build.version.sdk")
+        gles = adb.prop(device, "ro.opengles.version")
+        features = set(adb.shell(
+            device, "pm", "list", "features", check=False).splitlines())
+        supported = (
+            adb.prop(device, "ro.kernel.qemu") != "1"
+            and not ({"watch", "tv", "automotive", "vr"} & characteristics)
+            and "pico" not in identity and "bytedance" not in identity
+            and "arm64-v8a" in abis
+            and sdk.isdigit() and int(sdk) >= 26
+            and gles.isdigit() and int(gles) >= 196610
+            and "feature:android.hardware.touchscreen" in features
+        )
+        if not supported:
+            fail("configured physical Android target is not a supported Phone")
+
     def attest_physical_target(self, client: WebDriver, session: str, target: dict) -> None:
         if not target.get("physical"):
             return
@@ -663,15 +709,12 @@ class AppiumAdapter:
                         or installed.get(self.IOS_TEST_BUILD_PLIST_KEY) != 1):
                     fail("installed iOS application does not attest the E2E test-build contract")
         else:
-            from android.common.device_tests.adb_transport import AdbTransport
-            device = target["capabilities"]["appium:udid"]
-            adb = AdbTransport()
-            adb.require_connected(device)
-            if adb.prop(device, "ro.kernel.qemu") == "1":
-                fail("configured physical Android target is an emulator")
+            self.attest_android_phone_profile(target)
 
     def ensure_session(self, selector: str) -> tuple[WebDriver, str, dict]:
         target = self.target(selector)
+        if self.platform == "android" and target.get("physical") is True:
+            self.attest_android_phone_profile(target)
         client = WebDriver(target["serverUrl"])
         state = self.read_session(selector)
         fingerprint = hashlib.sha256(json.dumps(target, sort_keys=True,
@@ -692,7 +735,8 @@ class AppiumAdapter:
         value = client.call("POST", "/session", {
             "capabilities": {"alwaysMatch": target["capabilities"], "firstMatch": [{}]},
         })
-        if not isinstance(value, dict) or not isinstance(value.get("sessionId"), str):
+        if (not isinstance(value, dict) or not isinstance(value.get("sessionId"), str)
+                or not value["sessionId"]):
             fail("Appium did not create a WebDriver session")
         generation = previous_generation + 1
         state = {"sessionId": value["sessionId"], "generation": generation,
@@ -718,13 +762,22 @@ class AppiumAdapter:
             return [AppiumAdapter.expand(item, variables) for item in value]
         return value
 
+    @staticmethod
+    def window_rect(client: WebDriver, session: str) -> dict:
+        value = client.call("GET", f"/session/{session}/window/rect")
+        fields = ("x", "y", "width", "height")
+        if (not isinstance(value, dict)
+                or not all(isinstance(value.get(field), (int, float))
+                           and not isinstance(value[field], bool)
+                           and math.isfinite(float(value[field])) for field in fields)
+                or value["width"] <= 0 or value["height"] <= 0):
+            fail("Appium returned an invalid window size")
+        return value
+
     def gesture(self, client: WebDriver, session: str, definition: dict,
                 duration_override: float | None = None,
                 end_override: list[float] | None = None) -> None:
-        rect = client.call("GET", f"/session/{session}/window/rect")
-        if not isinstance(rect, dict) or not all(isinstance(rect.get(key), (int, float))
-                                                 for key in ("width", "height")):
-            fail("Appium window rectangle is invalid")
+        rect = self.window_rect(client, session)
         start, end = definition.get("start"), end_override or definition.get("end")
         if not (isinstance(start, list) and isinstance(end, list) and
                 len(start) == len(end) == 2 and all(isinstance(item, (int, float))
@@ -774,10 +827,7 @@ class AppiumAdapter:
     def tap_fractional_point(self, client: WebDriver, session: str,
                              value: object, label: str) -> None:
         point = self.validate_fractional_point(value, label)
-        rect = client.call("GET", f"/session/{session}/window/rect")
-        if not isinstance(rect, dict) or not all(isinstance(rect.get(key), (int, float))
-                                                 for key in ("width", "height")):
-            fail("Appium window rectangle is invalid")
+        rect = self.window_rect(client, session)
         x = int(rect.get("x", 0)) + int((rect["width"] - 1) * point[0])
         y = int(rect.get("y", 0)) + int((rect["height"] - 1) * point[1])
         if self.platform == "android":
@@ -801,7 +851,7 @@ class AppiumAdapter:
         if not isinstance(value, dict):
             fail("Appium did not return an element reference")
         element = value.get("element-6066-11e4-a52e-4f735466cecf") or value.get("ELEMENT")
-        if not isinstance(element, str):
+        if not isinstance(element, str) or not element:
             fail("Appium element reference is invalid")
         client.call("POST", f"/session/{session}/element/{element}/click", {})
 
@@ -939,7 +989,7 @@ class AppiumAdapter:
             if (process.get("kind") != "adb" or not isinstance(device, str) or not device
                     or device.startswith("REPLACE_")):
                 fail("Android run-as probe requires a private ADB device selector")
-            from android.common.device_tests.adb_transport import AdbTransport
+            from adb_transport import AdbTransport
             adb = AdbTransport()
             adb.require_connected(device)
             raw = adb.read_debug_app_file(
@@ -975,7 +1025,7 @@ class AppiumAdapter:
             device = process.get("selector") or target["capabilities"].get("appium:udid")
             if not isinstance(device, str) or not device or device.startswith("REPLACE_"):
                 fail("Android ADB process observation requires a private device selector")
-            from android.common.device_tests.adb_transport import AdbTransport
+            from adb_transport import AdbTransport
             adb = AdbTransport()
             adb.require_connected(device)
             return adb.process_state(device, target["appId"])
@@ -1018,7 +1068,7 @@ class AppiumAdapter:
         device = process.get("selector") or target["capabilities"].get("appium:udid")
         if not isinstance(device, str) or not device or device.startswith("REPLACE_"):
             fail("Android client command requires a private ADB device selector")
-        from android.common.device_tests.adb_transport import AdbTransport
+        from adb_transport import AdbTransport
         adb = AdbTransport()
         adb.require_connected(device)
         before = adb.process_state(device, target["appId"])
@@ -1034,7 +1084,7 @@ class AppiumAdapter:
             fail("Android client process changed before the in-client command")
         process = target["process"]
         device = process.get("selector") or target["capabilities"].get("appium:udid")
-        from android.common.device_tests.adb_transport import AdbTransport
+        from adb_transport import AdbTransport
         adb = AdbTransport()
         adb.require_connected(device)
         adb.write_debug_app_file(
@@ -1158,6 +1208,8 @@ class AppiumAdapter:
             source = Path(arguments["path"])
             if not source.is_file() or source.is_symlink():
                 fail("application artifact must be a regular file")
+            if self.platform == "android" and target.get("physical") is True:
+                self.attest_android_phone_profile(target)
             client.execute(session, "mobile: installApp", {"appPath": str(source)})
             return {"installed": True}
         if operation == "app.launch":
@@ -1190,7 +1242,7 @@ class AppiumAdapter:
             device = process.get("selector") or target["capabilities"].get("appium:udid")
             if not isinstance(device, str) or not device or device.startswith("REPLACE_"):
                 fail("Android telemetry requires a private ADB device selector")
-            from android.common.device_tests.adb_transport import AdbTransport
+            from adb_transport import AdbTransport
             adb = AdbTransport()
             adb.require_connected(device)
             return adb.telemetry_snapshot(device, target["appId"])
