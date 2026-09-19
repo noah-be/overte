@@ -17,6 +17,7 @@ from urllib.parse import urlsplit
 import xml.etree.ElementTree as ET
 
 from common import HERE, ROOT, digest, git, json_read, write_json
+from licensing import ASSET_SUFFIXES, attribution_problems, is_license_file
 
 PRIVACY_RULES = [
     ("private-key", "FAIL", r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY-----"),
@@ -168,24 +169,23 @@ def hygiene(ctx, scope):
 
 
 def licenses(ctx, scope):
-    license_files = [p for p in scope.paths if re.search(r"(?i)(?:license|copying|notice|attribution|copyright)", Path(p).name)]
+    license_files = [p for p in scope.paths if is_license_file(Path(p).name)]
     ctx.need("LICENSE" in scope.paths and (ROOT / "LICENSE").is_file(), "root-license", "Overte license must exist.")
     root_license = "Apache-2.0" if "Apache License version 2.0" in scope.texts.get("LICENSE", "") else "UNKNOWN"
     ctx.need(root_license != "UNKNOWN", "root-license-review", "Root license declaration differs from the reviewed Overte baseline.")
     assets, rows, branding = [], [], []
-    asset_ext = {".png", ".jpg", ".jpeg", ".svg", ".ktx", ".ttf", ".otf", ".wav", ".mp3", ".ogg", ".fbx", ".gltf", ".glb", ".obj", ".fst"}
     attributions = json_read(HERE / "attributions.json")["entries"]
     for name in scope.paths:
         path = Path(name)
-        if path.suffix.lower() not in asset_ext:
+        if path.suffix.lower() not in ASSET_SUFFIXES:
             continue
         record = attributions.get(name, {})
-        valid = (record.get("sha256") == scope.hashes.get(name) and record.get("license")
-                 and record.get("source") and record.get("copyright") and record.get("noticeFile")
-                 and record["noticeFile"] in scope.paths)
+        problems = attribution_problems(record, name, scope.hashes)
+        valid = not problems
         row = {"file": name, "sha256": scope.hashes.get(name), "status": "PASS" if valid else "WARNING",
                "license": record.get("license", "UNKNOWN"), "provenance": record.get("source", "UNKNOWN"),
                "copyright": record.get("copyright", "UNKNOWN"), "noticeFile": record.get("noticeFile"),
+               "attributionProblems": problems,
                "nearbyLicenseCandidates": [p for p in license_files if Path(p).parent == path.parent]}
         assets.append(row)
         if re.search(r"(?i)overte|hifi|high.?fidelity|vircadia|apple|logo|icon|brand", name):

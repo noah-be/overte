@@ -1,7 +1,9 @@
 """Conservative pre-build scope plus a Release CMake File API dependency closure."""
 # SPDX-License-Identifier: Apache-2.0
 from pathlib import Path
+import os
 import platform
+import stat
 from common import ROOT, git, json_read, digest
 
 PREFIXES = ("ios/", "interface/", "libraries/", "cmake/", "scripts/", "plugins/opusCodec/",
@@ -10,7 +12,7 @@ FILES = {"CMakeLists.txt", "conanfile.py", "LICENSE", ".gitignore", ".gitmodules
 SOURCE_SUFFIXES = {".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".m", ".mm", ".swift",
                    ".metal", ".qml", ".js", ".py", ".sh", ".cmake", ".json", ".env",
                    ".in", ".plist", ".xcprivacy", ".entitlements", ".xml", ".txt", ".md",
-                   ".yml", ".yaml", ".qrc", ".pro", ".pri", ".frag", ".vert", ".slh"}
+                   ".yml", ".yaml", ".qrc", ".pro", ".pri", ".frag", ".vert", ".slh", ".license"}
 
 
 def swift_scope(paths):
@@ -30,19 +32,39 @@ def relevant(name):
             or name.startswith("macos/conan/"))
 
 
+def current_paths():
+    tracked = git("ls-files", "-z").split("\0")[:-1]
+    untracked = git("ls-files", "--others", "--exclude-standard", "-z").split("\0")
+    return sorted({p for p in tracked + untracked if p and relevant(p)})
+
+
+def path_state(path):
+    try:
+        mode = path.lstat().st_mode
+    except FileNotFoundError:
+        return {"kind": "missing"}
+    if stat.S_ISLNK(mode):
+        # Keep private absolute link targets out of normalized inventories.
+        import hashlib
+        return {"kind": "symlink", "targetSha256": hashlib.sha256(os.fsencode(os.readlink(path))).hexdigest()}
+    if stat.S_ISREG(mode):
+        return {"kind": "file", "sha256": digest(path), "executable": bool(mode & 0o111)}
+    return {"kind": "other"}
+
+
 class Scope:
     def __init__(self, ctx):
         self.tracked = git("ls-files", "-z").split("\0")[:-1]
-        self.paths = [p for p in self.tracked if relevant(p)]
-        # New gate files must also be inspected before they have been committed.
-        self.paths = sorted(set(self.paths) | {p for p in git("ls-files", "--others", "--exclude-standard", "-z").split("\0") if p and relevant(p)})
+        self.paths = current_paths()
         self.texts = {}
         self.hashes = {}
+        self.states = {}
         for name in self.paths:
             path = ROOT / name
-            if path.is_symlink() or not path.is_file():
+            state = self.states[name] = path_state(path)
+            if state["kind"] != "file":
                 continue
-            self.hashes[name] = digest(path)
+            self.hashes[name] = state["sha256"]
             if (path.suffix in SOURCE_SUFFIXES or path.name in {"CMakeLists.txt", "LICENSE", ".gitignore"}) and path.stat().st_size <= 8 * 1024 * 1024:
                 try:
                     self.texts[name] = path.read_text(encoding="utf-8")
@@ -50,6 +72,14 @@ class Scope:
                     pass
         ctx.inventories["scope"] = {"mode": "conservative", "paths": self.paths,
             "sha256": self.hashes, "note": "May include platform-conditional shared code; not proof of linked reachability."}
+
+    def verify_unchanged(self, ctx):
+        final = set(current_paths())
+        for name in sorted(set(self.paths) | final):
+            if name not in self.states or name not in final or path_state(ROOT / name) != self.states[name]:
+                ctx.add("source-changed", "FAIL", name,
+                        message="Scoped path set, file bytes, executable mode or symlink changed during inspection.",
+                        next_step="Freeze the source checkout and repeat the affected inspection.", critical=True)
 
     def production_texts(self):
         return {p: text for p, text in self.texts.items()

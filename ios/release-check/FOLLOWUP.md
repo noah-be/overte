@@ -64,3 +64,23 @@ Team, Fedora producer, world-runtime and host-handoff contracts pass locally.
 No merge, release, signing or device mutation has occurred. A local report or
 cached production build must not be treated as release approval while the cold
 build, artifact and physical acceptance prerequisites remain missing.
+
+## Parallel work while the hosted build runs
+
+- Added exact records for eight fonts whose family-specific OFL notices already
+  exist in the repository. Both asset and notice hashes and an immutable source
+  reference are recorded. Unrelated nearby fonts are not assigned those licenses.
+- Expanded the inventory to include artery/web fonts, compressed textures and
+  additional media/model formats; recognize family-specific `*-OFL.txt` notices.
+  Missing or changed notice hashes now invalidate attribution evidence.
+- Extended source consistency checks to include added tracked/untracked paths,
+  deleted files, executable-mode changes and file-to-symlink substitution.
+  Six tests exercise real Git index/worktree transitions. Five additional tests
+  cover attribution evidence. All 26 Python gate tests pass locally.
+- Exercised all six evidence-dependent groups without candidate inputs; each
+  rejects incomplete evidence and invokes no build/device command. This is a
+  fail-closed boundary check, not physical-device or build acceptance.
+
+These follow-up changes are separate from the already running build revision.
+The run remains bound to its original commit; later gate changes cannot be
+represented as having been executed by that run.

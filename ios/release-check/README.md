@@ -305,7 +305,12 @@ Do not suppress an exposed credential merely because it is now revoked.
 
 Asset provenance lives in [attributions.json](attributions.json), keyed by exact
 repository-relative asset path. Each entry needs `sha256`, `source`, `license`,
-`copyright` and a tracked `noticeFile`. Never infer media ownership from Overte's
+`copyright`, a tracked `noticeFile`, and its `noticeSha256`. Changing either the
+asset or its notice invalidates the record. Eight existing Anonymous Pro, Fira
+Sans and Raleway font declarations are recorded; these are evidence records,
+not compatibility opinions. Webfonts, artery fonts, compressed textures and
+additional audio/video/model formats are included in the inventory.
+Never infer media ownership from Overte's
 root Apache license or remove legitimate contributor attribution as a privacy fix.
 
 ## Reports and privacy
@@ -341,12 +346,15 @@ Parse external results and fail on missing/invalid data. Add focused regression
 cases to [test_gate.py](test_gate.py). Local regression invocation:
 
 ```bash
-python3 -m unittest discover -s ios/release-check -p test_gate.py
+python3 -m unittest discover -s ios/release-check -p 'test_*.py'
 ```
 
 These tests have passed locally and cover unsafe archives, private artifact
 identity, partial/full result semantics, stale reviews, expired exceptions and
-scanner boundaries. Real macOS cold build, Appium capability coverage and resource
+scanner boundaries. Source identity also detects paths added during a run,
+deletions, executable-mode changes and file/symlink substitution; independent
+Android-only changes do not expand the iOS source scope. Real macOS cold build,
+Appium capability coverage and resource
 collection still need qualification before adoption as a trusted recurring gate.
 
 ## GitHub-hosted builds

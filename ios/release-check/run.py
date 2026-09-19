@@ -115,9 +115,7 @@ def main():
         ctx.group = selected[-1]
         if git("rev-parse", "HEAD").strip() != ctx.revision:
             ctx.add("source-changed", "FAIL", message="Source revision changed while checks were running.", critical=True)
-        for path, sha in scope.hashes.items():
-            if not (ROOT / path).is_file() or digest(ROOT / path) != sha:
-                ctx.add("source-changed", "FAIL", path, message="Scoped source bytes changed during inspection.", critical=True)
+        scope.verify_unchanged(ctx)
         return ctx.finish()
     except Exception as error:
         if ctx:

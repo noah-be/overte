@@ -13,13 +13,14 @@ fork after explicit user approval; no merge or release was performed.
 | [scope.py](scope.py) | Conservative iOS/shared inventory and actual Release target dependency closure |
 | [source_checks.py](source_checks.py) | Secrets, hygiene/cleanup, license/branding, supply chain, syntax/analyzers, configuration, permission/privacy and source signing checks |
 | [linting.py](linting.py) | Structured scoped diagnostics, annotation classification and isolated linter configuration |
+| [licensing.py](licensing.py) | Expanded asset/notice recognition and binding of both asset and notice hashes |
 | [artifacts.py](artifacts.py) | Safe IPA extraction, app snapshot, binary/file/privacy/signature inspection and distribution checks |
 | [build.py](build.py) | Cold unsigned Full Client build, host contracts, Xcode analyzer/settings/targets/schemes and dSYM evidence |
 | [device.py](device.py) | Existing physical iOS suites, exact result verification, campaign and resource-budget evaluation |
 | [config.example.json](config.example.json) | Private release-input configuration template; no real credentials or device selectors |
 | [test-plan.json](test-plan.json) | Reused suites, four-hour campaign budgets and concrete manual procedures |
 | [allowlist.json](allowlist.json) | Reviewed exact, expiring negative-fixture exceptions |
-| [attributions.json](attributions.json) | Initially empty, hash-bound asset provenance/notice records |
+| [attributions.json](attributions.json) | Eight reviewed existing font declarations with immutable source and asset/notice hashes |
 | [gitleaks.toml](gitleaks.toml) | Default secret detectors plus private path/address/email/MAC history candidates |
 | [grype.yaml](grype.yaml) | Vulnerability severity, database freshness and no-ignore policy |
 | [eslint.config.mjs](eslint.config.mjs) | Focused shipped-script checks without runtime-global noise |
@@ -27,6 +28,8 @@ fork after explicit user approval; no merge or release was performed.
 | [QUALIFICATION.md](QUALIFICATION.md) | Authorized local qualification results and remaining release prerequisites |
 | [FOLLOWUP.md](FOLLOWUP.md) | Subsequent autonomous triage, fixes, validation and handoff blockers |
 | [test_tablet_users.cjs](test_tablet_users.cjs) | Real bundled event-handler regression with native boundaries stubbed |
+| [test_scope_integrity.py](test_scope_integrity.py) | Actual Git worktree/index mutations, symlink replacement and executable changes |
+| [test_licensing.py](test_licensing.py) | Reject stale/missing asset/notice evidence and cover additional font/media formats |
 | [ios-release-build.yml](../../.github/workflows/ios-release-build.yml) | Reuse existing production build on standard GitHub-hosted macOS |
 | [README.md](README.md) | Commands, tools, prerequisites, statuses, evidence, exceptions, limitations and extension |
 | [ANALYSIS.md](ANALYSIS.md) | Repository/build/test/CI analysis and iOS/shared scope rationale |
