@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import math
+import hashlib
+import json
 import os
 from pathlib import Path
 import sys
@@ -12,7 +14,26 @@ from artifacts import select_artifact
 from common import HERE, ROOT, digest, json_read, write_json
 
 
-def verify_result(ctx, directory, suite, sha):
+def bind_result_use(ctx, directory, suite, form):
+    """Copied result folders cannot stand in for independent physical runs."""
+    directory = Path(directory).resolve()
+    identity = json_read(directory / "result-identity.json")
+    run = json_read(directory / "run-manifest.json")
+    if not ctx.need(run.get("suite") == suite, "device-suite-identity",
+                    "The recorded suite must match the requested suite, not only its module set."):
+        return False
+    fingerprint = hashlib.sha256(json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    uses = getattr(ctx, "device_result_uses", {})
+    ctx.device_result_uses = uses
+    use = (str(directory), suite, form)
+    if not ctx.need(fingerprint not in uses or uses[fingerprint] == use, "copied-device-result",
+                    "Identical result evidence cannot count as a different run or form factor."):
+        return False
+    uses[fingerprint] = use
+    return True
+
+
+def verify_result(ctx, directory, suite, sha, form):
     catalog = json_read(ROOT / "tests/device/catalog.json")
     modules = [x["id"] for x in catalog["modules"] if suite in x["suites"]]
     if not ctx.need(modules, "device-suite", "Requested suite must exist in the shared catalog."):
@@ -23,7 +44,7 @@ def verify_result(ctx, directory, suite, sha):
     for module in modules:
         command += ["--required-module", module]
     result = ctx.command("verify-" + suite + "-" + str(len(ctx.findings)), command)
-    return result is not None and result.returncode == 0
+    return result is not None and result.returncode == 0 and bind_result_use(ctx, directory, suite, form)
 
 
 def run_suite(ctx, target, suite, dest, sha, *, soak=False):
@@ -49,7 +70,7 @@ def run_suite(ctx, target, suite, dest, sha, *, soak=False):
     if soak:
         argv.append("--keep-running")
     result = ctx.command("run-" + suite + "-" + dest.name, argv, env=env, timeout=7200)
-    return result is not None and result.returncode == 0 and verify_result(ctx, dest, suite, sha)
+    return result is not None and result.returncode == 0 and verify_result(ctx, dest, suite, sha, target["formFactor"])
 
 
 def device(ctx, scope):
@@ -85,7 +106,7 @@ def device(ctx, scope):
                 if not ctx.need(dest not in used, "reused-device-result", "One device result cannot stand in for multiple form factors/suites."):
                     continue
                 used.add(dest)
-                passed = verify_result(ctx, dest, suite, sha)
+                passed = verify_result(ctx, dest, suite, sha, form)
             coverage.append({"formFactor": form, "suite": suite, "status": "PASS" if passed else "FAIL"})
         for case in plan[ctx.group]["manualCases"]:
             review_name = f"{form}-{case['id']}"
@@ -126,7 +147,7 @@ def run_soak(ctx, target, sha, plan):
             continue
         seen.add(directory)
         global_seen.add(directory)
-        if verify_result(ctx, directory, suite, sha):
+        if verify_result(ctx, directory, suite, sha, form):
             run = json_read(directory / "run-manifest.json")
             intervals.append((run["startedEpochMs"], run["finishedEpochMs"]))
             total += run["durationSeconds"]

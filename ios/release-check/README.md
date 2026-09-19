@@ -349,13 +349,22 @@ cases to [test_gate.py](test_gate.py). Local regression invocation:
 python3 -m unittest discover -s ios/release-check -p 'test_*.py'
 ```
 
-These tests have passed locally and cover unsafe archives, private artifact
+The 38 Python regression tests have passed locally and cover unsafe archives, private artifact
 identity, partial/full result semantics, stale reviews, expired exceptions and
 scanner boundaries. Source identity also detects paths added during a run,
 deletions, executable-mode changes and file/symlink substitution; independent
 Android-only changes do not expand the iOS source scope. Real macOS cold build,
 Appium capability coverage and resource
 collection still need qualification before adoption as a trusted recurring gate.
+
+Device evidence is checked by the existing shared verifier, then additionally
+bound to the exact suite and coverage slot. Copying a result directory, changing
+its JSON formatting or assigning it to another form factor cannot manufacture
+another test run. Physical model/form-factor identification still requires the
+private device-coverage review; the shared result schema deliberately omits UDIDs.
+Synthetic telemetry tests cover stale artifacts, timestamp mismatch, sparse or
+nonfinite samples, process restarts, charging, and resource-budget violations.
+Passing these tests does not substitute for the real four-hour campaign.
 
 ## GitHub-hosted builds
 

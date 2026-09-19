@@ -30,6 +30,8 @@ fork after explicit user approval; no merge or release was performed.
 | [test_tablet_users.cjs](test_tablet_users.cjs) | Real bundled event-handler regression with native boundaries stubbed |
 | [test_scope_integrity.py](test_scope_integrity.py) | Actual Git worktree/index mutations, symlink replacement and executable changes |
 | [test_licensing.py](test_licensing.py) | Reject stale/missing asset/notice evidence and cover additional font/media formats |
+| [test_result_reuse.py](test_result_reuse.py) | Reject copied/reformatted device evidence, wrong suites and cross-form-factor reuse |
+| [test_metrics.py](test_metrics.py) | Reject incomplete/stale/sparse/nonfinite telemetry and resource-budget violations |
 | [ios-release-build.yml](../../.github/workflows/ios-release-build.yml) | Reuse existing production build on standard GitHub-hosted macOS |
 | [README.md](README.md) | Commands, tools, prerequisites, statuses, evidence, exceptions, limitations and extension |
 | [ANALYSIS.md](ANALYSIS.md) | Repository/build/test/CI analysis and iOS/shared scope rationale |

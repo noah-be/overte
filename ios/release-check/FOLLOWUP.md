@@ -84,3 +84,13 @@ build, artifact and physical acceptance prerequisites remain missing.
 These follow-up changes are separate from the already running build revision.
 The run remains bound to its original commit; later gate changes cannot be
 represented as having been executed by that run.
+
+Further inspection showed that different result paths could contain copies of
+the same physical-device evidence. The gate now checks canonical result identity,
+actual recorded suite and coverage slot after the existing shared verifier.
+Repeated validation of the same slot remains valid, while copied results and
+cross-form-factor reuse fail. Four focused regressions cover this boundary.
+Eight synthetic telemetry regressions exercise stale artifact/time identity,
+sample gaps, nonfinite values, process restart, charging and resource budgets.
+All 38 Python gate regressions and the five existing shared result-binding tests
+pass locally. These are checker tests, not device-performance acceptance.
