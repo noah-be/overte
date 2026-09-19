@@ -600,6 +600,12 @@
       "reason": "Reviewed generated vendor parser final return follows unconditional parsing loop whose exits already return/throw; redundant return retained as vendor-maintenance warning.",
       "owner": "iOS release gate maintainers",
       "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "8830c871c2958b481af1bdf4063e0ae784a10b94a6c2e32834b04a4d0144f785",
+      "reason": "Reviewed historical DEFAULT_NODE_AUTH_OAUTH_CLIENT_ID: its value is stored in the client-ID map and sent as the OAuth client_id form field, not as client_secret or an authentication token. Public client identifier misclassified by generic detector.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
     }
   ]
 }

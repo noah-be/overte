@@ -1,8 +1,9 @@
 # Autonomous qualification follow-up — 2026-09-19
 
 The user authorized completing remaining steps autonomously and specified that
-builds must use free standard GitHub-hosted runners. The earlier prohibition on
-publication remains relevant to putting the new local source on the public fork.
+builds must use free standard GitHub-hosted runners. The user subsequently
+authorized pushing this task branch to `noah-be/overte` and running the prepared
+workflow. This does not authorize a merge, release or distribution upload.
 
 ## Completed local work
 
@@ -31,13 +32,16 @@ publication remains relevant to putting the new local source on the public fork.
 
 ## Still blocking full acceptance
 
-Eleven historical secret candidates remain across six source paths: the Google
-Poly integration, snapshot sharing, AccountManager, the two picture-frame
+Ten historical secret candidates remain across five source paths: the Google
+Poly integration, snapshot sharing, the two picture-frame
 tutorial locations, and EntityItem's embedded historical RSA private key.
 These are actual embedded credential/key candidates, not demonstrated detector
 false positives. They have not been tested against services, claimed revoked,
 allowlisted or removed by rewriting shared history. Credential-owner evidence is
-required for disposition; raw values remain private.
+required for disposition; raw values remain private. A further exact historical
+AccountManager finding was verified as a public OAuth client identifier: the code
+sends it as `client_id`, not `client_secret`. This brings reviewed exceptions to
+101, without treating a real exposed credential as a false positive.
 
 Production build and cold-build evidence remain distinct. The existing integrated
 workflow uses compiler/Conan caches; it cannot satisfy the isolated cold receipt.
@@ -45,7 +49,18 @@ Resolved graph/SBOM completeness, SDK provenance, media attribution, privacy and
 network behavior reviews, and candidate-bound physical-device acceptance still
 need their actual evidence. No human approval records are fabricated.
 
-No GitHub dispatch, source push, release, signing or device mutation has occurred
-in this follow-up. The new GitHub route needs its reviewed source revision in the
-fork before it can be dispatched. A local report must not be treated as release
-approval while those prerequisites are missing.
+## GitHub qualification
+
+The task branch was pushed to the authorized fork and the prepared production
+workflow dispatched. Run [35466963156](https://github.com/noah-be/overte/actions/runs/35466963156)
+failed in host contracts before any macOS build: the existing exhaustive
+workflow-job classification did not yet include the new dispatch-only job.
+The existing contract now includes that job and verifies its fork restriction,
+production mode and standard runner choice. The guard was extended, not removed.
+Local follow-up also found an outdated assertion limiting dispatch inputs to 10.
+It now follows GitHub.com's documented limit of 25. The existing port, Personal
+Team, Fedora producer, world-runtime and host-handoff contracts pass locally.
+
+No merge, release, signing or device mutation has occurred. A local report or
+cached production build must not be treated as release approval while the cold
+build, artifact and physical acceptance prerequisites remain missing.

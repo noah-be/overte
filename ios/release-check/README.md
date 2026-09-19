@@ -8,8 +8,9 @@ of the default command. Android and Pico workflows are unchanged.
 authorized Linux qualification exercised regression tests and source scanners.
 See [QUALIFICATION.md](QUALIFICATION.md) for evidence and remaining blockers.
 The follow-up in [FOLLOWUP.md](FOLLOWUP.md) records additional triage, fixes and
-the prepared GitHub-hosted production build route. No iOS build, signing, device
-operation or publication has been performed.
+the GitHub-hosted production build qualification. The task branch was published
+with user authorization; no successful iOS build, signing, device acceptance or
+release is claimed.
 No release PASS is claimed.
 
 Read [ANALYSIS.md](ANALYSIS.md) for the actual build graph, resource packaging,

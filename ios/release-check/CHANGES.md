@@ -2,8 +2,9 @@
 
 The initial additions and subsequent qualification fixes are on the local
 `task/ios/prerelease-quality-gate` branch, based on `apple-ios`. The follow-up
-modifies two existing files, listed below. Android/Pico workflows and Jenkins
-configuration are unchanged. Nothing was published.
+modifies four existing files, listed below. Android/Pico workflows and Jenkins
+configuration are unchanged. The task branch was published to the authorized
+fork after explicit user approval; no merge or release was performed.
 
 | New file | Purpose |
 | --- | --- |
@@ -36,6 +37,8 @@ configuration are unchanged. Nothing was published.
 | --- | --- |
 | [ios-bootstrap.yml](../../.github/workflows/ios-bootstrap.yml) | Add explicit production qualification dispatch mode; preserve other modes |
 | [tablet-users.js](../../scripts/system/tablet-users.js) | Correct two ineffective typeof guards so absent fields do not trigger navigation or overwrite visibility |
+| [port-contract-test.py](../tests/port-contract-test.py) | Extend exhaustive dispatch-job classification and production-mode assertions for the new hosted route |
+| [personal-team-e2e-kit-contract-test.py](../tests/personal-team-e2e-kit-contract-test.py) | Update the input-count assertion to GitHub.com's documented limit of 25 |
 
 ## Original source-only implementation
 
