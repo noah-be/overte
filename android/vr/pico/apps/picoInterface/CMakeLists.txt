@@ -1,53 +1,20 @@
 set(TARGET_NAME picoOpenXR)
 setup_hifi_library()
-# Conan's cross-compiled Qt package exposes host tools without a
-# RelWithDebInfo-specific location. Android release variants use that
-# configuration, so copy the checksum-pinned host-tool locations explicitly.
-foreach(PICO_QT_TOOL moc rcc qmake uic)
-    if(TARGET Qt5::${PICO_QT_TOOL})
-        get_target_property(PICO_QT_TOOL_LOCATION Qt5::${PICO_QT_TOOL} IMPORTED_LOCATION)
-        if(PICO_QT_TOOL_LOCATION)
-            set_property(TARGET Qt5::${PICO_QT_TOOL} PROPERTY
-                IMPORTED_LOCATION_RELWITHDEBINFO "${PICO_QT_TOOL_LOCATION}")
-        endif()
-    endif()
-endforeach()
-get_target_property(PICO_QT_MOC Qt5::moc IMPORTED_LOCATION)
-if(PICO_QT_MOC)
-    set_property(TARGET picoOpenXR PROPERTY AUTOMOC_EXECUTABLE "${PICO_QT_MOC}")
-endif()
-get_target_property(PICO_QT_RCC Qt5::rcc IMPORTED_LOCATION)
-if(PICO_QT_RCC)
-    set_property(TARGET picoOpenXR PROPERTY AUTORCC_EXECUTABLE "${PICO_QT_RCC}")
-endif()
-get_target_property(PICO_QT_UIC Qt5::uic IMPORTED_LOCATION)
-if(PICO_QT_UIC)
-    set_property(TARGET picoOpenXR PROPERTY AUTOUIC_EXECUTABLE "${PICO_QT_UIC}")
-endif()
+include("${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/pico-qt-host-tools.cmake")
+pico_bind_qt_host_tools(picoOpenXR)
 target_openxr()
 target_link_libraries(${TARGET_NAME} android log)
+target_sources(picoOpenXR PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/security/PicoAccountStore.cpp")
+target_sources(picoOpenXR PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/audio/PicoAudioLifecycle.cpp")
 
 set(TARGET_NAME picoInterface)
 setup_hifi_library()
-# Reapply after the second Qt discovery and bind the host tools to this target.
-foreach(PICO_QT_TOOL moc rcc qmake uic)
-    get_target_property(PICO_QT_TOOL_LOCATION Qt5::${PICO_QT_TOOL} IMPORTED_LOCATION)
-    if(PICO_QT_TOOL_LOCATION)
-        set_property(TARGET Qt5::${PICO_QT_TOOL} PROPERTY
-            IMPORTED_LOCATION_RELWITHDEBINFO "${PICO_QT_TOOL_LOCATION}")
-    endif()
-endforeach()
-set_target_properties(Qt5::moc PROPERTIES IMPORTED_LOCATION_RELWITHDEBINFO "${PICO_QT_MOC}")
-set_target_properties(Qt5::rcc PROPERTIES IMPORTED_LOCATION_RELWITHDEBINFO "${PICO_QT_RCC}")
-set_target_properties(Qt5::uic PROPERTIES IMPORTED_LOCATION_RELWITHDEBINFO "${PICO_QT_UIC}")
-set_property(TARGET Qt5::moc PROPERTY MAP_IMPORTED_CONFIG_RELWITHDEBINFO "")
-set_property(TARGET Qt5::rcc PROPERTY MAP_IMPORTED_CONFIG_RELWITHDEBINFO "")
-set_property(TARGET Qt5::uic PROPERTY MAP_IMPORTED_CONFIG_RELWITHDEBINFO "")
-set_property(TARGET picoInterface PROPERTY AUTOMOC_EXECUTABLE "${PICO_QT_MOC}")
-set_property(TARGET picoInterface PROPERTY AUTORCC_EXECUTABLE "${PICO_QT_RCC}")
-set_property(TARGET picoInterface PROPERTY AUTOUIC_EXECUTABLE "${PICO_QT_UIC}")
+pico_bind_qt_host_tools(picoInterface)
 get_target_property(PICO_INTERFACE_SOURCES picoInterface SOURCES)
 list(FILTER PICO_INTERFACE_SOURCES EXCLUDE REGEX "PicoWebViewItem\\.(cpp|h)$")
+# The Activity loads picoOpenXR before invoking these JNI methods. Keep its
+# OpenXR VM/Activity state and JNI exports in that single owning library.
+list(FILTER PICO_INTERFACE_SOURCES EXCLUDE REGEX "OpenXRLoader\\.(cpp|h)$")
 set_property(TARGET picoInterface PROPERTY SOURCES "${PICO_INTERFACE_SOURCES}")
 target_sources(picoInterface PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../../../../common/src/QtInputConnectionCompat.cpp"
@@ -63,7 +30,7 @@ link_hifi_libraries(
     picoOpenXR
 )
 target_include_directories(model-serializers SYSTEM PRIVATE
-    "${HIFI_ANDROID_PRECOMPILED}/draco/include"
+    "${PICO_DRACO_INCLUDE}"
 )
 get_target_property(PICO_GPU_GL_LINK_LIBRARIES gpu-gl LINK_LIBRARIES)
 list(REMOVE_ITEM PICO_GPU_GL_LINK_LIBRARIES pthread)
@@ -96,7 +63,11 @@ list(FILTER PICO_INTERFACE_SOURCES EXCLUDE REGEX "Application_Setup\\.cpp$")
 set_property(TARGET interface PROPERTY SOURCES "${PICO_INTERFACE_SOURCES}")
 target_sources(interface PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/overrides/Application_Setup.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/lifecycle/PicoClientVisibility.cpp"
 )
+# Application setup consumes the single account-store instance in picoOpenXR.
+# Link its owning library directly so libinterface resolves that symbol.
+target_link_libraries(interface picoOpenXR)
 if(OVERTE_PICO_E2E_OPENXR_INPUT)
     target_compile_definitions(interface PRIVATE OVERTE_E2E_OPENXR_INPUT_V1=1)
     target_sources(interface PRIVATE

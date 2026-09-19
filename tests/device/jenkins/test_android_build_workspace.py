@@ -202,9 +202,9 @@ done
         self.assertIn('"android-phone": "android/phone/build.sh"', manager)
         self.assertIn('"android-pico": "android/vr/pico/build.sh"', manager)
         self.assertIn("apps/phoneInterface/build", phone)
-        self.assertIn('runtime_dir="${script_dir}/../../common/runtime-overrides',
-                      pico_prepare)
-        self.assertIn('host_tools_dir="${script_dir}/pico-host-tools"', pico_prepare)
+        self.assertIn('exec python3 "$script_dir/release/pico-source-inputs.py" --pico-root "$script_dir"', pico_prepare)
+        self.assertNotIn('cp ', pico_prepare)
+        self.assertNotIn('mkdir ', pico_prepare)
         self.assertIn('-of "$android_root/common/conan/pico4-debug"', pico)
         self.assertIn('apps/picoInterface/build/outputs/apk/debug', pico)
 

@@ -10,7 +10,7 @@
 #include <QString>
 #include <QStringList>
 
-#include <android/log.h>
+#include "../../security/RedactingDiagnostics.h"
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -47,8 +47,8 @@ struct FileIdentity {
     std::int64_t size { 0 };
 };
 
-void logWarning(const char* message) {
-    __android_log_print(ANDROID_LOG_WARN, "OverteE2eOpenXR", "%s", message);
+void logWarning(const char*) {
+    overte::pico::diagnosticWarning(overte::security::DiagnosticEvent::CallbackDiscarded);
 }
 
 bool validIdentifier(const QString& value) {

@@ -15,10 +15,15 @@
 
 #include "Application.h"
 #include "ApplicationLifecycle.h"
+#if defined(ANDROID_APP_PICO_INTERFACE)
+#include "PicoQtVisibility.h"
+#endif
+#include "../../security/redaction/SafeDiagnostics.h"
 
 #include <QtCore/QMimeData>
 #include <QtCore/QCoreApplication>
 #include <QtCore/QThread>
+#include <AddressManager.h>
 #include <DomainAccountManager.h>
 
 #include <controllers/InputRecorder.h>
@@ -314,7 +319,11 @@ void publishClientVisibility(bool native, bool foreground) {
         }, Qt::QueuedConnection);
         return;
     }
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    static overte::pico::VisibilityInputs inputs;
+#else
     static overte::lifecycle::VisibilityInputs inputs;
+#endif
     const bool requested = native ? inputs.observeNative(foreground) : inputs.observeQt(foreground);
     const bool effective = overte::lifecycle::applicationGate().visible(requested).snapshot.foreground;
     // Native callbacks may precede setupEssentials. Do not create dependencies
@@ -328,20 +337,52 @@ void publishClientVisibility(bool native, bool foreground) {
     if (DependencyManager::isSet<DomainAccountManager>()) {
         DependencyManager::get<DomainAccountManager>()->setClientAuthVisibility(effective);
     }
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    static int lastReportedVisibility = -1;
+    if (lastReportedVisibility != static_cast<int>(effective)) {
+        lastReportedVisibility = static_cast<int>(effective);
+        qWarning("%s", overte::security::diagnosticEvent(effective
+            ? overte::security::DiagnosticEvent::LifecycleResumed
+            : overte::security::DiagnosticEvent::LifecycleSuspended));
+    }
+    if (effective && app->property("picoPendingStartupNavigation").toBool()) {
+        // Queue after all visibility consumers have observed the new state.
+        // QObject context cancels this continuation on application destruction.
+        QMetaObject::invokeMethod(app, [app] {
+            if (app->property("picoPendingStartupNavigation").toBool() &&
+                    overte::lifecycle::applicationGate().snapshot().foreground) {
+                QMetaObject::invokeMethod(app, "handleSandboxStatus", Qt::DirectConnection,
+                    Q_ARG(QNetworkReply*, nullptr));
+            }
+        }, Qt::QueuedConnection);
+    }
+#endif
 }
 } // namespace
 
 void overte::lifecycle::observeQtVisibility(bool foreground) {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    qWarning("%s", overte::security::diagnosticEvent(foreground
+        ? overte::security::DiagnosticEvent::QtVisible : overte::security::DiagnosticEvent::QtHidden));
+#endif
     publishClientVisibility(false, foreground);
 }
 
 void overte::lifecycle::observeNativeVisibility(bool foreground) {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    qWarning("%s", overte::security::diagnosticEvent(foreground
+        ? overte::security::DiagnosticEvent::NativeResumed : overte::security::DiagnosticEvent::NativePaused));
+#endif
     publishClientVisibility(true, foreground);
 }
 
 void Application::activeChanged(Qt::ApplicationState state) {
     if (state != Qt::ApplicationActive) { invalidateEntityScriptConsent(); }
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    overte::lifecycle::observeQtVisibility(overte::pico::qtVisible(state));
+#else
     overte::lifecycle::observeQtVisibility(state == Qt::ApplicationActive);
+#endif
     switch (state) {
         case Qt::ApplicationActive:
             _isForeground = true;

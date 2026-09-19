@@ -17,6 +17,9 @@
         android:src="@drawable/ic_launcher" />
 
     <TextView
+        android:id="@+id/startup_status"
+        android:importantForAccessibility="yes"
+        android:accessibilityLiveRegion="polite"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="20dp"
@@ -27,6 +30,7 @@
         android:textStyle="bold" />
 
     <ProgressBar
+        android:importantForAccessibility="no"
         style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="320dp"
         android:layout_height="8dp"

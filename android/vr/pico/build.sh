@@ -5,6 +5,7 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 android_root="$(cd -- "$script_dir/../.." && pwd)"
 source "$android_root/common/scripts/with-temporary-git-patch.sh"
 conan_home="${CONAN_HOME:-${HOME}/.conan2}"
+source_graph_compatibility="$script_dir/release/pico-source-graph-compatibility.py"
 jobs="${PICO_BUILD_JOBS:-$(nproc)}"
 command_name="${1:-all}"
 command_option="${2:-}"
@@ -67,10 +68,13 @@ Usage: ./build-pico.sh [doctor|bootstrap|deps|prepare|build|install|all|deploy|s
   doctor   Check the development environment and print installation help
   bootstrap [--check|--system-packages|--with-deps]
            Install as many missing build requirements as possible
-  deps     Install dependencies; use --download for prebuilt Qt and Node
-  prepare  Locate and stage the existing Conan/Qt dependencies
+  deps     Install dependencies; use --download for legacy prebuilt Qt and Node
+           or --source-graph for an explicitly supplied source-only graph
+  prepare  Verify and resolve explicit source inputs without modifying them
   build [--stacktrace]
            Build the Pico debug APK; optionally include Gradle failure details
+  unsigned [--stacktrace]
+           Build an unsigned release APK for offline static verification
   release [--stacktrace]
            Build a signed Pico release APK (requires protected Gradle properties)
   install  Install the existing APK on a connected Pico via ADB
@@ -78,9 +82,9 @@ Usage: ./build-pico.sh [doctor|bootstrap|deps|prepare|build|install|all|deploy|s
   deploy   Prepare, build, and install the APK
   setup    Install dependencies, prepare them, and build the APK
 
-Detected paths can be overridden with ANDROID_SDK_ROOT, JAVA_HOME,
-PICO_QT_SOURCE_DIR, PICO_QT_BUILD_DIR, PICO_TBB_PACKAGE_DIR,
-PICO_DRACO_PACKAGE_DIR, PICO_CONAN, and the PICO_* host-tool variables.
+Source preparation and builds require PICO_SOURCE_GRAPH_ROOT, PICO_SOURCE_INPUTS,
+PICO_SOURCE_INPUTS_SHA256 and PICO_EXPECTED_SOURCE_SHA. See
+release/SOURCE_INPUTS.md. SDK/JDK paths use ANDROID_SDK_ROOT and JAVA_HOME.
 EOF
 }
 
@@ -663,6 +667,16 @@ install_dependencies() {
     echo "Installed Pico dependencies"
 }
 
+consume_source_graph_dependencies() {
+    # Only the in-tree adapter consumes the explicitly pinned source inputs.
+    if [[ -n "${PICO_SHARED_GRAPH_ADAPTER:-}" &&
+          "$(readlink -f -- "$PICO_SHARED_GRAPH_ADAPTER")" != "$script_dir/release/pico-source-inputs.py" ]]; then
+        fail "Use the in-tree Pico source-input adapter"
+    fi
+    python3 "$script_dir/release/pico-source-inputs.py" --pico-root "$script_dir"
+
+}
+
 download_prebuilt_dependencies() {
     local checksums
     local base_url
@@ -720,8 +734,7 @@ download_prebuilt_dependencies() {
 }
 
 prepare() {
-    detect_dependencies
-    PICO_BUILD_JOBS="$jobs" "$script_dir/prepare-deps.sh"
+    consume_source_graph_dependencies
 }
 
 build() {
@@ -733,6 +746,7 @@ build() {
     elif [[ -n "$option" ]]; then
         fail "unsupported build option: $option"
     fi
+    consume_source_graph_dependencies
     detect_sdk
     detect_jdk
     # The Gradle wrapper lives below android/common while the Pico settings
@@ -740,7 +754,11 @@ build() {
     # discover android/common/gradle.properties and otherwise falls back to a
     # 512 MiB daemon, which cannot package the large native Pico debug APK.
     gradle_jvm_args="${PICO_GRADLE_JVM_ARGS:--Xms2g -Xmx4g}"
-    if [[ "$variant" == "release" ]]; then
+    if [[ "$variant" == "unsigned" ]]; then
+        task=assembleRelease
+        output="$script_dir/apps/picoInterface/build/outputs/apk/release/picoInterface-release-unsigned.apk"
+        gradle_diagnostics+=(-PPICO_UNSIGNED=1)
+    elif [[ "$variant" == "release" ]]; then
         task=assembleRelease
         output="$script_dir/apps/picoInterface/build/outputs/apk/release/picoInterface-release.apk"
     else
@@ -818,6 +836,8 @@ case "$command_name" in
     deps)
         if [[ "$command_option" == "--download" ]]; then
             download_prebuilt_dependencies
+        elif [[ "$command_option" == "--source-graph" ]]; then
+            consume_source_graph_dependencies
         elif [[ -z "$command_option" ]]; then
             install_dependencies
         else
@@ -827,6 +847,7 @@ case "$command_name" in
     prepare) prepare ;;
     build) build "$command_option" debug ;;
     release) build "$command_option" release ;;
+    unsigned) build "$command_option" unsigned ;;
     install) install_apk ;;
     all) prepare; build ;;
     deploy) prepare; build; install_apk ;;

@@ -54,22 +54,26 @@ class PicoPackageContractTests(unittest.TestCase):
         self.assertIn('"${CMAKE_CURRENT_SOURCE_DIR}/openxr"', CMAKE)
         self.assertIn("set(TARGET_NAME openxr)", PLUGIN_CMAKE)
         self.assertIn("setup_hifi_plugin(", PLUGIN_CMAKE)
-        self.assertIn("libplugins_libopenxr.so", GRADLE)
-        self.assertIn("exclude { androidPatchedQtPlatform.exists() }", GRADLE)
-        self.assertIn("delete picoQtRuntimeDir.map { it.file('arm64-v8a/libopenxr.so') }", GRADLE)
+        self.assertIn('OUTPUT_NAME "plugins_libopenxr"', PLUGIN_CMAKE)
+        self.assertIn("targets 'picoInterface', 'openxr'", GRADLE)
+        self.assertNotIn("androidPatchedQtPlatform", GRADLE)
 
     def test_native_build_uses_pico_bootstrap_and_disables_breakpad(self):
         self.assertIn("-DHIFI_ANDROID_APP=picoInterface", GRADLE)
         self.assertIn("-DCMAKE_PROJECT_INCLUDE_BEFORE=", GRADLE)
-        self.assertIn("common/cmake/overte-android-bootstrap.cmake", GRADLE)
+        self.assertIn("cmake/pico-source-bootstrap.cmake", GRADLE)
+        bootstrap = (ANDROID / "vr/pico/cmake/pico-source-bootstrap.cmake").read_text()
+        self.assertIn("common/cmake/overte-android-bootstrap.cmake", bootstrap)
         self.assertIn("-DUSE_BREAKPAD=OFF", GRADLE)
 
-    def test_runtime_overrides_are_owned_by_shared_android(self):
-        build_script = (ANDROID / "vr/pico/build.sh").read_text(encoding="utf-8")
-        self.assertIn("../../../../common/runtime-overrides/arm64-v8a", GRADLE)
-        self.assertIn('../../common/runtime-overrides/arm64-v8a', build_script)
-        self.assertIn('legacy_runtime_dir', build_script)
-        self.assertIn('cp -a "$legacy_runtime_dir/." "$shared_runtime_dir/"', build_script)
+    def test_runtime_comes_from_verified_source_inputs(self):
+        self.assertIn("picoInputs", GRADLE)
+        self.assertIn("release/source-inputs.groovy", GRADLE)
+        self.assertNotIn("runtime-overrides", GRADLE)
+        self.assertNotIn("androidPatchedQtPlatform", GRADLE)
+        binding = (ANDROID / "vr/pico/release/source-inputs.groovy").read_text()
+        self.assertIn("PICO_INPUT_BYTES_BOUND_NATIVE_VERIFICATION_PENDING", binding)
+        self.assertIn("PICO_SOURCE_INPUTS_REJECTED", binding)
 
     def test_pico_conan_recipe_inherits_the_repository_recipe(self):
         recipe_path = ANDROID / "common/conan/conanfile-pico.py"
@@ -120,7 +124,6 @@ class PicoPackageContractTests(unittest.TestCase):
         self.assertIn("file.commit()", save_object)
         for relative in (
             "interface/src/Application_Setup.cpp",
-            "android/vr/pico/apps/picoInterface/overrides/Application_Setup.cpp",
         ):
             source = (ROOT / relative).read_text(encoding="utf-8")
             self.assertIn("FileUtils::computeDocumentPath(path)", source)
@@ -128,7 +131,7 @@ class PicoPackageContractTests(unittest.TestCase):
 
     def test_movement_override_is_native_runtime_only_and_nonpersistent(self):
         pico_setup = (
-            APP / "overrides/Application_Setup.cpp"
+            ROOT / "interface/src/Application_Setup.cpp"
         ).read_text(encoding="utf-8")
         self.assertIn("picoE2eInputMappingOverrideActive", pico_setup)
         self.assertIn(
@@ -199,7 +202,6 @@ class PicoPackageContractTests(unittest.TestCase):
     def test_hmd_tablet_blocks_standard_world_locomotion_routes(self):
         for relative in (
             "interface/src/Application_Setup.cpp",
-            "android/vr/pico/apps/picoInterface/overrides/Application_Setup.cpp",
         ):
             source = (ROOT / relative).read_text(encoding="utf-8")
             self.assertIn('STATE_TABLET_SHOWN = "TabletShown"', source)

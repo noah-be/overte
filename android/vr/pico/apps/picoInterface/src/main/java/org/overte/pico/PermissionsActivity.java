@@ -50,6 +50,11 @@ public final class PermissionsActivity extends Activity {
     }
 
     private void launchInterface() {
+        // Permission delivery may outlive Back or Activity destruction. That
+        // callback no longer owns permission to bring the client foreground.
+        if (isFinishing() || isDestroyed()) {
+            return;
+        }
         if (interfaceLaunched) {
             return;
         }

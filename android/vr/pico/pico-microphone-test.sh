@@ -237,7 +237,7 @@ else
     ready_status=1
     for _ in {1..140}; do
         ready_log="$("$ADB_BIN" -s "$PICO_SERIAL" logcat -d -t 250 -v brief -s Interface \
-            | grep -Em1 "PICO_MIC_(INPUT device|INPUT_REUSED) \"$SOURCE\"" || true)"
+            | grep -Em1 'PICO_MIC_(INPUT device|INPUT_REUSED) OVT_REDACTED( |$)' || true)"
         if [[ -n "$ready_log" ]]; then
             ready_status=0
             break
@@ -371,11 +371,13 @@ later_input_starts="$(printf '%s\n' "$measurement_log" \
 startup_input_starts=$((later_input_starts + 1))
 startup_input_reuses="$(printf '%s\n' "$measurement_log" \
     | grep -Fc 'PICO_MIC_INPUT_REUSED' || true)"
+# Closed diagnostics are not device identity. The independent Android source
+# check above remains mandatory; these samples belong only to the marked window.
 samples="$(printf '%s\n' "$measurement_log" \
-    | grep -F "PICO_MIC_LEVEL device \"$SOURCE\"" || true)"
+    | grep -F 'PICO_MIC_LEVEL device OVT_REDACTED frames ' || true)"
 [[ -n "$samples" ]] || { echo "no microphone level samples captured" >&2; exit 1; }
 gate_samples="$(printf '%s\n' "$measurement_log" \
-    | grep -F "PICO_MIC_GATE device \"$SOURCE\"" || true)"
+    | grep -F 'PICO_MIC_GATE device OVT_REDACTED blocks ' || true)"
 [[ -n "$gate_samples" ]] || { echo "no microphone gate samples captured" >&2; exit 1; }
 read -r gate_blocks gate_open_blocks <<< "$(printf '%s\n' "$gate_samples" | awk '
     {

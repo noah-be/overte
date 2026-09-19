@@ -5,7 +5,7 @@
 
 #include <openxr/openxr_loader_negotiation.h>
 
-#include <android/log.h>
+#include "../../security/RedactingDiagnostics.h"
 
 #include <chrono>
 #include <cmath>
@@ -84,8 +84,8 @@ std::int64_t monotonicMilliseconds() {
         std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
-void logError(const char* message) {
-    __android_log_print(ANDROID_LOG_ERROR, "OverteE2eOpenXR", "%s", message);
+void logError(const char*) {
+    overte::pico::diagnosticError(overte::security::DiagnosticEvent::CallbackDiscarded);
 }
 
 template<typename Function>
