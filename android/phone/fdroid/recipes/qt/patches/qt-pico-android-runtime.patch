@@ -1,0 +1,123 @@
+diff --git a/qtbase/src/corelib/time/qtimezoneprivate_android.cpp b/qtbase/src/corelib/time/qtimezoneprivate_android.cpp
+index 3609c65d550..96ae9fdab9e 100644
+--- a/qtbase/src/corelib/time/qtimezoneprivate_android.cpp
++++ b/qtbase/src/corelib/time/qtimezoneprivate_android.cpp
+@@ -44,6 +44,24 @@
+
+ QT_BEGIN_NAMESPACE
+
++static QJNIObjectPrivate callTimeZoneStatic(const char *method, const char *signature,
++                                            jobject argument = nullptr)
++{
++    QJNIEnvironmentPrivate env;
++    jclass clazz = env->FindClass("java/util/TimeZone");
++    if (!clazz)
++        return QJNIObjectPrivate();
++    jmethodID methodId = env->GetStaticMethodID(clazz, method, signature);
++    jobject object = methodId
++        ? env->CallStaticObjectMethod(clazz, methodId, argument)
++        : nullptr;
++    env->DeleteLocalRef(clazz);
++    QJNIObjectPrivate result(object);
++    if (object)
++        env->DeleteLocalRef(object);
++    return result;
++}
++
+ /*
+     Private
+
+@@ -59,8 +77,7 @@ QAndroidTimeZonePrivate::QAndroidTimeZonePrivate()
+     : QTimeZonePrivate()
+ {
+     // Keep in sync with systemTimeZoneId():
+-    androidTimeZone = QJNIObjectPrivate::callStaticObjectMethod(
+-        "java.util.TimeZone", "getDefault", "()Ljava/util/TimeZone;");
++    androidTimeZone = callTimeZoneStatic("getDefault", "()Ljava/util/TimeZone;");
+     const QJNIObjectPrivate id = androidTimeZone.callObjectMethod("getID", "()Ljava/lang/String;");
+     m_id = id.toString().toUtf8();
+ }
+@@ -99,9 +116,9 @@ static QJNIObjectPrivate getDisplayName(QJNIObjectPrivate zone, jint style, jboo
+ void QAndroidTimeZonePrivate::init(const QByteArray &ianaId)
+ {
+     const QString iana = QString::fromUtf8(ianaId);
+-    androidTimeZone = QJNIObjectPrivate::callStaticObjectMethod(
+-        "java.util.TimeZone", "getTimeZone", "(Ljava/lang/String;)Ljava/util/TimeZone;",
+-        static_cast<jstring>(QJNIObjectPrivate::fromString(iana).object()));
++    const QJNIObjectPrivate zoneName = QJNIObjectPrivate::fromString(iana);
++    androidTimeZone = callTimeZoneStatic(
++        "getTimeZone", "(Ljava/lang/String;)Ljava/util/TimeZone;", zoneName.object());
+
+     // The ID or display name of the zone we've got, if it looks like what we asked for:
+     const auto match = [iana](const QJNIObjectPrivate &jname) -> QByteArray {
+@@ -243,8 +260,8 @@ QTimeZonePrivate::Data QAndroidTimeZonePrivate::previousTransition(qint64 before
+ QByteArray QAndroidTimeZonePrivate::systemTimeZoneId() const
+ {
+     // Keep in sync with default constructor:
+-    QJNIObjectPrivate androidSystemTimeZone = QJNIObjectPrivate::callStaticObjectMethod(
+-        "java.util.TimeZone", "getDefault", "()Ljava/util/TimeZone;");
++    QJNIObjectPrivate androidSystemTimeZone =
++        callTimeZoneStatic("getDefault", "()Ljava/util/TimeZone;");
+     const QJNIObjectPrivate id = androidSystemTimeZone.callObjectMethod<jstring>("getID");
+     return id.toString().toUtf8();
+ }
+@@ -252,21 +269,38 @@ QByteArray QAndroidTimeZonePrivate::systemTimeZoneId() const
+ QList<QByteArray> QAndroidTimeZonePrivate::availableTimeZoneIds() const
+ {
+     QList<QByteArray> availableTimeZoneIdList;
+-    QJNIObjectPrivate androidAvailableIdList = QJNIObjectPrivate::callStaticObjectMethod("java.util.TimeZone", "getAvailableIDs", "()[Ljava/lang/String;");
+-
+     QJNIEnvironmentPrivate jniEnv;
+-    int androidTZcount = jniEnv->GetArrayLength( static_cast<jarray>(androidAvailableIdList.object()) );
++    // Pico OS 5.11's application class loader fails Qt's loadClass() path for
++    // this boot class while QML is being initialized. Use JNI's boot class
++    // lookup directly; qtMainLoopThread is attached from Java.
++    jclass timeZoneClass = jniEnv->FindClass("java/util/TimeZone");
++    if (!timeZoneClass)
++        return availableTimeZoneIdList;
++    jmethodID getAvailableIDs = jniEnv->GetStaticMethodID(
++        timeZoneClass, "getAvailableIDs", "()[Ljava/lang/String;");
++    if (!getAvailableIDs) {
++        jniEnv->DeleteLocalRef(timeZoneClass);
++        return availableTimeZoneIdList;
++    }
++    jobjectArray androidAvailableIdList = static_cast<jobjectArray>(
++        jniEnv->CallStaticObjectMethod(timeZoneClass, getAvailableIDs));
++    jniEnv->DeleteLocalRef(timeZoneClass);
++    if (!androidAvailableIdList)
++        return availableTimeZoneIdList;
++
++    int androidTZcount = jniEnv->GetArrayLength(androidAvailableIdList);
+
+     // need separate jobject and QAndroidJniObject here so that we can delete (DeleteLocalRef) the reference to the jobject
+     // (or else the JNI reference table fills after 512 entries from GetObjectArrayElement)
+     jobject androidTZobject;
+     QJNIObjectPrivate androidTZ;
+     for (int i=0; i<androidTZcount; i++ ) {
+-        androidTZobject = jniEnv->GetObjectArrayElement( static_cast<jobjectArray>( androidAvailableIdList.object() ), i );
++        androidTZobject = jniEnv->GetObjectArrayElement(androidAvailableIdList, i);
+         androidTZ = androidTZobject;
+         availableTimeZoneIdList.append( androidTZ.toString().toUtf8() );
+         jniEnv->DeleteLocalRef(androidTZobject);
+     }
++    jniEnv->DeleteLocalRef(androidAvailableIdList);
+
+     return availableTimeZoneIdList;
+ }
+diff --git a/qtbase/src/plugins/platforms/android/qandroidplatformscreen.cpp b/qtbase/src/plugins/platforms/android/qandroidplatformscreen.cpp
+index b2ca70ce455..fc4689e2a92 100644
+--- a/qtbase/src/plugins/platforms/android/qandroidplatformscreen.cpp
++++ b/qtbase/src/plugins/platforms/android/qandroidplatformscreen.cpp
+@@ -421,7 +421,11 @@ void QAndroidPlatformScreen::doRedraw(QImage* screenGrabImage)
+
+     int ret;
+     if ((ret = ANativeWindow_lock(m_nativeSurface, &nativeWindowBuffer, &nativeWindowRect)) < 0) {
+-        qWarning() << "ANativeWindow_lock() failed! error=" << ret;
++        if (ret == -ENODEV) {
++            releaseSurface();
++        } else {
++            qWarning() << "ANativeWindow_lock() failed! error=" << ret;
++        }
+         return;
+     }
+

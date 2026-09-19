@@ -11,9 +11,7 @@
     "apple-main",
     "apple-ios"
   ],
-  "holds": {
-    "ci/ios/parity-runner-v003": "ongoing_local_work_review"
-  },
+  "holds": {},
   "keep_label": "keep-branch",
   "artifact_retention_days": 30
 }

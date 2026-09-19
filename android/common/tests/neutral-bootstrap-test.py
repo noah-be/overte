@@ -61,8 +61,19 @@ endforeach()
                     (sourcegraph / 'fdroid-host-tools.cmake').write_text(''.join(
                         f'set(ENV{{{tool}_DIR}} "{expected}")\n'
                         for tool in ['SCRIBE', 'GLSLANG', 'SPIRV_CROSS', 'SPIRV_TOOLS']))
-            return subprocess.run(['unshare', '--user', '--map-root-user', '--net',
-                'cmake', '-S', str(temp), '-B', str(temp / 'out'), '-G', 'Unix Makefiles',
+            isolation = ['unshare', '--user', '--map-root-user', '--net']
+            if (os.environ.get('GITHUB_ACTIONS') == 'true' and
+                    os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted'):
+                # Hosted Ubuntu restricts user namespaces. Create a network
+                # namespace, then drop privilege before executing fixture CMake.
+                isolation = ['sudo', '-n', 'unshare', '--net',
+                             '--setgid', str(os.getgid()), '--setuid', str(os.getuid()), '--']
+                # sudo clears the environment. Reintroduce only fixture inputs
+                # after dropping privilege, including an intentionally empty graph.
+                isolation += ['env', 'PICO_BUILD_JOBS=' + env['PICO_BUILD_JOBS']]
+                if 'OVERTE_FDROID_CONAN_DIR' in env:
+                    isolation.append('OVERTE_FDROID_CONAN_DIR=' + env['OVERTE_FDROID_CONAN_DIR'])
+            return subprocess.run(isolation + ['cmake', '-S', str(temp), '-B', str(temp / 'out'), '-G', 'Unix Makefiles',
                 '-DEXPECTED_HOST=' + str(expected)], env=env,
                 capture_output=True, text=True, timeout=15)
 

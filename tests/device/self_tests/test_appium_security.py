@@ -16,7 +16,7 @@ from unittest import mock
 
 
 DEVICE_ROOT = Path(__file__).resolve().parents[1]
-ADAPTER_PATH = DEVICE_ROOT / "adapters/appium/adapter.py"
+ADAPTER_PATH = DEVICE_ROOT / "adapters/shared_appium/adapter.py"
 SPEC = importlib.util.spec_from_file_location("overte_shared_appium", ADAPTER_PATH)
 assert SPEC and SPEC.loader
 APPIUM = importlib.util.module_from_spec(SPEC)
@@ -101,7 +101,7 @@ class AppiumAdapterTest(unittest.TestCase):
 
     def test_manifests_share_one_implementation(self):
         for platform in ("android", "ios"):
-            manifest = json.loads((DEVICE_ROOT / f"adapters/appium/{platform}.json").read_text())
+            manifest = json.loads((DEVICE_ROOT / f"adapters/shared_appium/{platform}.json").read_text())
             self.assertEqual(1, manifest["schemaVersion"])
             self.assertEqual(["adapter.py", "--platform", platform], manifest["command"])
 
@@ -149,7 +149,7 @@ class AppiumAdapterTest(unittest.TestCase):
                     APPIUM.AppiumAdapter("android")
         with mock.patch.dict(os.environ, {
                 "OVERTE_APPIUM_TARGETS": str(
-                    DEVICE_ROOT / "adapters/appium/targets.example.json")}):
+                    DEVICE_ROOT / "adapters/shared_appium/targets.example.json")}):
             with self.assertRaisesRegex(RuntimeError, "outside the repository"):
                 APPIUM.AppiumAdapter("android")
 
@@ -460,7 +460,7 @@ class AppiumAdapterTest(unittest.TestCase):
         self.assertEqual({
             "__future__", "adapters", "argparse", "base64", "contracts", "ipaddress",
             "json", "math", "os", "pathlib", "stat", "sys", "tempfile", "time",
-            "urllib", "xml", "android", "hashlib", "uuid", "re",
+            "urllib", "xml", "adb_transport", "hashlib", "uuid", "re",
         }, roots)
 
 

@@ -296,6 +296,7 @@ android {
                     '-DHIFI_ANDROID_APP=phoneInterface',
                     '-DHIFI_ANDROID_HOST_TOOLS=' + file('../../../vr/pico/pico-host-tools').absolutePath,
                     '-DHIFI_ANDROID_PRECOMPILED=' + file('../../../vr/pico/pico-precompiled-compat').absolutePath,
+                    '-DHIFI_ANDROID_HOST_TOOLS=' + (System.getenv('HIFI_ANDROID_HOST_TOOLS') ?: file('../../../vr/pico/pico-host-tools').absolutePath),
                     '-DANDROID_STL=c++_shared',
                     '-DCMAKE_C_FLAGS=-O2 -falign-functions=32 -fPIC',
                     '-DCMAKE_CXX_FLAGS=-O2 -falign-functions=32 -fPIC',

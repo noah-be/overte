@@ -197,14 +197,11 @@ done
     def test_production_entrypoints_are_covered_by_the_isolated_role_contract(self):
         manager = MANAGER.read_text(encoding="utf-8")
         phone = (ROOT / "android/phone/build.sh").read_text(encoding="utf-8")
-        pico_prepare = (ROOT / "android/vr/pico/prepare-deps.sh").read_text(encoding="utf-8")
         pico = (ROOT / "android/vr/pico/build.sh").read_text(encoding="utf-8")
         self.assertIn('"android-phone": "android/phone/build.sh"', manager)
         self.assertIn('"android-pico": "android/vr/pico/build.sh"', manager)
         self.assertIn("apps/phoneInterface/build", phone)
-        self.assertIn('runtime_dir="${script_dir}/../../common/runtime-overrides',
-                      pico_prepare)
-        self.assertIn('host_tools_dir="${script_dir}/pico-host-tools"', pico_prepare)
+        # Runtime preparation internals belong to the Pico source-input tests.
         self.assertIn('-of "$android_root/common/conan/pico4-debug"', pico)
         self.assertIn('apps/picoInterface/build/outputs/apk/debug', pico)
 
