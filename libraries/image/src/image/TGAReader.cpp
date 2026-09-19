@@ -10,13 +10,14 @@
 //
 
 #include "TGAReader.h"
+#include "DecodeLimits.h"
 
 #include "ImageLogging.h"
 
 #include <QIODevice>
 #include <QDebug>
 
-image::Image image::readTGA(QIODevice& content) {
+image::Image image::readTGA(QIODevice& content, std::uint64_t maxDecodedPixels) {
     enum class TGAImageType : uint8_t {
         NoImageData = 0,
         UncompressedColorMapped = 1,
@@ -77,6 +78,11 @@ image::Image image::readTGA(QIODevice& content) {
     content.read((char*)&header.height, 2);
     content.read((char*)&header.pixelDepth, 1);
     content.read((char*)&header.imageDescriptor, 1);
+
+    if (!decodedImageFits(header.width, header.height, maxDecodedPixels)) {
+        qWarning(imagelogging) << "IMAGE_DECODE_REJECT dimensions" << header.width << header.height;
+        return QImage();
+    }
 
     if (WANT_DEBUG) {
         qDebug(imagelogging) << "Id Length: " << (int)header.idLength;

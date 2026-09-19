@@ -8,7 +8,8 @@ enum class DiagnosticEvent {
     Redacted, AuthRequired, AuthCancelled, AuthFailed, AuthReady, StorageUnavailable,
     StorageCorrupt, StorageCleared, PermissionDenied, PermissionGranted,
     AudioStopped, AudioInterrupted, LifecycleSuspended, LifecycleResumed,
-    ConnectionFailed, ConnectionReady, UrlRejected, CallbackDiscarded
+    ConnectionFailed, ConnectionReady, UrlRejected, CallbackDiscarded,
+    WorldStartup, WorldTutorialImported, WorldOtherImported, WorldImportFailed, WorldPhysicsReady, WorldFrameSubmitted, WorldTutorialSelected, WorldRedirectImported, WorldNavigationBlocked, WorldEmptyImported, QtVisible, QtHidden, NativeResumed, NativePaused
 };
 
 inline const char* diagnosticEvent(DiagnosticEvent event) noexcept {
@@ -30,6 +31,20 @@ inline const char* diagnosticEvent(DiagnosticEvent event) noexcept {
         case DiagnosticEvent::ConnectionReady: return "OVT_CONNECTION_READY";
         case DiagnosticEvent::UrlRejected: return "OVT_URL_REJECTED";
         case DiagnosticEvent::CallbackDiscarded: return "OVT_CALLBACK_DISCARDED";
+        case DiagnosticEvent::WorldStartup: return "OVT_WORLD_STARTUP";
+        case DiagnosticEvent::WorldTutorialImported: return "OVT_WORLD_TUTORIAL_IMPORTED";
+        case DiagnosticEvent::WorldOtherImported: return "OVT_WORLD_OTHER_IMPORTED";
+        case DiagnosticEvent::WorldImportFailed: return "OVT_WORLD_IMPORT_FAILED";
+        case DiagnosticEvent::WorldPhysicsReady: return "OVT_WORLD_PHYSICS_READY";
+        case DiagnosticEvent::WorldFrameSubmitted: return "OVT_WORLD_FRAME_SUBMITTED";
+        case DiagnosticEvent::WorldTutorialSelected: return "OVT_WORLD_TUTORIAL_SELECTED";
+        case DiagnosticEvent::WorldRedirectImported: return "OVT_WORLD_REDIRECT_IMPORTED";
+        case DiagnosticEvent::WorldNavigationBlocked: return "OVT_WORLD_NAVIGATION_BLOCKED";
+        case DiagnosticEvent::WorldEmptyImported: return "OVT_WORLD_EMPTY_IMPORTED";
+        case DiagnosticEvent::QtVisible: return "OVT_QT_VISIBLE";
+        case DiagnosticEvent::QtHidden: return "OVT_QT_HIDDEN";
+        case DiagnosticEvent::NativeResumed: return "OVT_NATIVE_RESUMED";
+        case DiagnosticEvent::NativePaused: return "OVT_NATIVE_PAUSED";
         default: return "OVT_REDACTED";
     }
 }
@@ -38,7 +53,7 @@ inline const char* diagnosticEvent(DiagnosticEvent event) noexcept {
 // is a static constant, independent of input lifetime. No dynamic configuration.
 inline const char* sanitizeDiagnostic(const char* bytes, std::size_t size) noexcept {
     if (!bytes || size > 32) { return diagnosticEvent(DiagnosticEvent::Redacted); }
-    for (int i = 0; i <= static_cast<int>(DiagnosticEvent::CallbackDiscarded); ++i) {
+    for (int i = 0; i <= static_cast<int>(DiagnosticEvent::NativePaused); ++i) {
         const char* safe = diagnosticEvent(static_cast<DiagnosticEvent>(i));
         if (std::strlen(safe) == size && std::memcmp(bytes, safe, size) == 0) { return safe; }
     }
