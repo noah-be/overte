@@ -2,8 +2,9 @@
 
 This local, modular gate is owned by `android-phone`. It does not publish, sign,
 upload, create a release, change the application, or connect to a SaaS scanner.
-The implementation was prepared without executing the gate, builds, scanners,
-or tests. Runtime qualification is still required before relying on it.
+The initial implementation was reviewed statically. Subsequent qualification
+now includes twelve passing offline contract tests. Scanner and build/device
+qualification are separate; no release readiness is implied by these tests.
 
 ## Run later
 
@@ -244,3 +245,13 @@ is a successful release check.
 The initial static review, its corrections and the remaining execution-dependent
 checks are recorded in [REVIEW.md](REVIEW.md). Static parsing does not validate
 Gradle's runtime API, scanner behavior, source-build success or device support.
+
+## Offline contract tests
+
+Run `python3 -B android/phone/quality-gate/test_gate.py` from the repository root.
+The tests use temporary Git fixtures and synthetic reports; they never invoke
+scanners, Android builds, network services or devices. They cover missing tools,
+timeouts, command failures, partial readiness, source mutation, missing and
+inconsistent secret reports, exact exceptions, required manual review, unsafe
+evidence paths, archive limits and failure-category attribution. These are not
+a substitute for real scanner, build or device qualification.
