@@ -1,5 +1,9 @@
 # Appium Android and iOS adapters
 
+The [shared implementation](../shared_appium/README.md) lives outside the
+iOS-owned adapter directory. This entrypoint remains compatible on `main`;
+`apple-ios` retains its native implementation here.
+
 The adapter talks directly to Appium's W3C HTTP protocol using the Python
 standard library. No proprietary device cloud or language-specific Appium
 client is required.
@@ -16,6 +20,15 @@ The shared `app.install` operation accepts only an absolute regular artifact
 path and invokes Appium's standard `mobile: installApp` command. Unsupported
 operations and malformed arguments are rejected before creating or contacting
 a WebDriver session.
+
+An enabled physical Android target is attested as an authorized ARM64 touch
+phone before Appium creates a session. The gate rejects emulators and Android
+watch, TV, automotive, VR, Pico, or ByteDance identities, and requires the
+minimum API and OpenGL ES levels used by the phone client. Jenkins freezes only
+the credential-selected Phone entry into a mode-0600 per-build target file so
+another lab job cannot change its ADB, probe, or controlled-command contract
+between fresh sessions. `app.install` repeats the same phone attestation before
+invoking Appium's install command.
 
 For Android, `process.kind=adb` obtains a real PID/start-time identity from the
 physical device selected by `appium:udid`. Appium alone does not expose a
