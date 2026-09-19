@@ -1,14 +1,13 @@
 #define XR_USE_PLATFORM_ANDROID
 
 #include <jni.h>
-#include <android/log.h>
+#include "../../../security/RedactingDiagnostics.h"
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
 
 #include <mutex>
 
 namespace {
-constexpr const char* LOG_TAG = "OvertePico";
 JavaVM* loaderJavaVm = nullptr;
 jobject loaderApplicationContext = nullptr;
 jobject loaderActivity = nullptr;
@@ -30,13 +29,12 @@ Java_org_overte_pico_PicoInterfaceActivity_initializeOpenXRLoader(
         JNIEnv* env, jobject activity) {
     JavaVM* vm = nullptr;
     if (env->GetJavaVM(&vm) != JNI_OK) {
-        __android_log_write(ANDROID_LOG_ERROR, LOG_TAG, "Could not obtain JavaVM");
+        overte::pico::diagnosticError(overte::security::DiagnosticEvent::Redacted);
         return JNI_FALSE;
     }
     jobject newActivity = env->NewGlobalRef(activity);
     if (!newActivity) {
-        __android_log_write(
-                ANDROID_LOG_ERROR, LOG_TAG, "Could not retain Android Activity");
+        overte::pico::diagnosticError(overte::security::DiagnosticEvent::Redacted);
         return JNI_FALSE;
     }
 
@@ -58,8 +56,7 @@ Java_org_overte_pico_PicoInterfaceActivity_initializeOpenXRLoader(
     jclass activityClass = env->GetObjectClass(activity);
     if (!activityClass) {
         env->DeleteGlobalRef(newActivity);
-        __android_log_write(
-                ANDROID_LOG_ERROR, LOG_TAG, "Could not inspect Android Activity");
+        overte::pico::diagnosticError(overte::security::DiagnosticEvent::Redacted);
         return JNI_FALSE;
     }
     jmethodID getApplicationContext = env->GetMethodID(
@@ -72,8 +69,7 @@ Java_org_overte_pico_PicoInterfaceActivity_initializeOpenXRLoader(
             env->ExceptionClear();
         }
         env->DeleteGlobalRef(newActivity);
-        __android_log_write(
-                ANDROID_LOG_ERROR, LOG_TAG, "Could not find getApplicationContext");
+        overte::pico::diagnosticError(overte::security::DiagnosticEvent::Redacted);
         return JNI_FALSE;
     }
 
@@ -84,8 +80,7 @@ Java_org_overte_pico_PicoInterfaceActivity_initializeOpenXRLoader(
             env->DeleteLocalRef(context);
         }
         env->DeleteGlobalRef(newActivity);
-        __android_log_write(
-                ANDROID_LOG_ERROR, LOG_TAG, "Could not obtain application Context");
+        overte::pico::diagnosticError(overte::security::DiagnosticEvent::Redacted);
         return JNI_FALSE;
     }
 
@@ -93,8 +88,7 @@ Java_org_overte_pico_PicoInterfaceActivity_initializeOpenXRLoader(
     env->DeleteLocalRef(context);
     if (!newApplicationContext) {
         env->DeleteGlobalRef(newActivity);
-        __android_log_write(
-                ANDROID_LOG_ERROR, LOG_TAG, "Could not retain application Context");
+        overte::pico::diagnosticError(overte::security::DiagnosticEvent::Redacted);
         return JNI_FALSE;
     }
 
@@ -104,8 +98,7 @@ Java_org_overte_pico_PicoInterfaceActivity_initializeOpenXRLoader(
             "xrInitializeLoaderKHR",
             reinterpret_cast<PFN_xrVoidFunction*>(&initializeLoader));
     if (XR_FAILED(result) || !initializeLoader) {
-        __android_log_write(
-                ANDROID_LOG_ERROR, LOG_TAG, "xrInitializeLoaderKHR is unavailable");
+        overte::pico::diagnosticError(overte::security::DiagnosticEvent::Redacted);
         env->DeleteGlobalRef(newApplicationContext);
         env->DeleteGlobalRef(newActivity);
         return JNI_FALSE;
@@ -123,11 +116,7 @@ Java_org_overte_pico_PicoInterfaceActivity_initializeOpenXRLoader(
     if (XR_FAILED(result)) {
         env->DeleteGlobalRef(newApplicationContext);
         env->DeleteGlobalRef(newActivity);
-        __android_log_print(
-                ANDROID_LOG_ERROR,
-                LOG_TAG,
-                "xrInitializeLoaderKHR failed: %d",
-                result);
+        overte::pico::diagnosticError(overte::security::DiagnosticEvent::Redacted);
         return JNI_FALSE;
     }
 

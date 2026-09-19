@@ -61,7 +61,7 @@ class PicoTabletE2EAdapterTest(unittest.TestCase):
 
     def test_bridge_is_debug_only_and_app_private(self):
         cmake = (APP / "CMakeLists.txt").read_text(encoding="utf-8")
-        setup = (APP / "overrides/Application_Setup.cpp").read_text(encoding="utf-8")
+        setup = (ROOT / "interface/src/Application_Setup.cpp").read_text(encoding="utf-8")
         self.assertIn("if(OVERTE_PICO_E2E_OPENXR_INPUT)", cmake)
         self.assertIn("PicoE2eTabletBridge.cpp", cmake)
         self.assertIn("OVERTE_E2E_OPENXR_INPUT_V1", setup)

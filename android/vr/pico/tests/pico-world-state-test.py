@@ -94,19 +94,10 @@ class PicoWorldStateTests(unittest.TestCase):
         self.assertNotIn(
             "handleUrl(currentAddress(), LookupTrigger::AttemptedRefresh);", body)
 
-    def test_startup_fallback_import_preserves_explicit_serverless_url(self):
-        fallback = APPLICATION.index("static bool picoStartupImportRequested")
-        load = APPLICATION.index("loadServerlessDomain(startupWorld);", fallback)
-        body = APPLICATION[fallback:load]
-        self.assertIn("const auto explicitStartupScheme = _urlParam.scheme();", body)
-        self.assertIn("!_urlParam.isEmpty() && _urlParam.isValid()", body)
-        self.assertIn("explicitStartupScheme == HIFI_URL_SCHEME_FILE", body)
-        self.assertIn("explicitStartupScheme == HIFI_URL_SCHEME_HTTP", body)
-        self.assertIn("explicitStartupScheme == HIFI_URL_SCHEME_HTTPS", body)
-        self.assertIn("const QUrl startupWorld = hasExplicitServerlessStartupUrl", body)
-        self.assertIn("? _urlParam", body)
-        self.assertIn("overte-hub-pico4-optimized-spawn.json", body)
-        self.assertLess(body.index("const QUrl startupWorld"), body.index("updateStartupImport"))
+    def test_physics_does_not_choose_or_import_a_startup_world(self):
+        self.assertNotIn("picoStartupImportRequested", APPLICATION)
+        self.assertNotIn("loadServerlessDomain(startupWorld)", APPLICATION)
+        self.assertNotIn("overte-hub-pico4-optimized-spawn.json", APPLICATION)
 
     def test_reentrant_serverless_url_does_not_restart_active_import(self):
         load_body = function_body(
@@ -143,7 +134,7 @@ class PicoWorldStateTests(unittest.TestCase):
         self.assertEqual(APPLICATION.count('cache/serverless-status'), 3)
         self.assertGreaterEqual(APPLICATION.count("QDateTime::currentMSecsSinceEpoch()"), 3)
         self.assertIn("_picoInitialServerlessHandoffComplete = true;", APPLICATION)
-        self.assertIn("if (!_picoInitialServerlessHandoffComplete)", changed_body)
+        self.assertNotIn("if (!_picoInitialServerlessHandoffComplete)", changed_body)
 
     def test_remote_parse_failure_cannot_commit_or_connect(self):
         body = function_body(

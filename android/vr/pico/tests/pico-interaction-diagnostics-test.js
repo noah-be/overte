@@ -112,11 +112,8 @@ assert.ok(!stationSource.includes('Script.load(Script.resolvePath("pico4ObjectIn
 assert.ok(!stationSource.includes("Pico4-Interaction-Diagnostics"),
     "the fixture station must not automatically enable interaction tracing");
 assert.match(applicationSource,
-    /if \(!picoInteractionTestStationRequested &&\s*_picoServerlessSceneImportCommitted && _physicsEnabled\)/,
-    "the Pico fixture station must load whenever the local acceptance scene is ready");
-assert.doesNotMatch(applicationSource,
-    /if \(picoTestMode && !picoInteractionTestStationRequested/,
-    "the fixture station must not depend on the diagnostics property");
+    /if \(!picoInteractionTestStationRequested &&\s*QCoreApplication::arguments\(\)\.contains\(QStringLiteral\("--pico-interaction-test-station"\)\) &&\s*_picoServerlessSceneImportCommitted && _physicsEnabled\)/,
+    "the Pico fixture station requires explicit opt-in and a playable local scene");
 assert.ok(!stationSource.includes("picoWebEntityTest.js"),
     "the fixture station must not mix unrelated Web Entity tests into grab tests");
 assert.ok(dispatcherSource.includes("PICO4_DISPATCHER"),

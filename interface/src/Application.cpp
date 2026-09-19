@@ -1085,7 +1085,28 @@ bool Application::prepareServerlessDomainContents(const QUrl& domainURL, const Q
     nodeList->setPermissions(permissions);
 
     tmpTree->reaverageOctreeElements();
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    const auto importedEntities = tmpTree->sendEntities(
+        _entityEditSender.get(), getEntities()->getTree(), "domain", 0, 0, 0);
+    // Compare packaged scene bytes, not URL spelling: Android cache aliases
+    // must not misclassify a successfully imported tutorial.
+    const auto matchesBundledScene = [&data](const QString& address) {
+        QFile file(PathUtils::expandToLocalDataAbsolutePath(QUrl(address)).toLocalFile());
+        return file.open(QIODevice::ReadOnly) && file.readAll() == data;
+    };
+    const bool isTutorial = matchesBundledScene(NetworkingConstants::DEFAULT_OVERTE_ADDRESS);
+    const bool isRedirect = !isTutorial && matchesBundledScene(NetworkingConstants::REDIRECT_HIFI_ADDRESS);
+    qWarning("%s", overte::security::diagnosticEvent(isTutorial
+        ? overte::security::DiagnosticEvent::WorldTutorialImported
+        : (isRedirect ? overte::security::DiagnosticEvent::WorldRedirectImported
+                      : overte::security::DiagnosticEvent::WorldOtherImported)));
+    if (importedEntities.isEmpty()) {
+        qWarning("%s", overte::security::diagnosticEvent(
+            overte::security::DiagnosticEvent::WorldEmptyImported));
+    }
+#else
     tmpTree->sendEntities(_entityEditSender.get(), getEntities()->getTree(), "domain", 0, 0, 0);
+#endif
     namedPaths = tmpTree->getNamedPaths();
 
     // we must manually eraseAllOctreeElements(false) else the tmpTree will mem-leak
@@ -1133,6 +1154,8 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         QFile domainFile(localDomainURL.toLocalFile());
         if (!domainFile.open(QIODevice::ReadOnly)) {
             _picoServerlessLoadFailed = true;
+            qWarning("%s", overte::security::diagnosticEvent(
+                overte::security::DiagnosticEvent::WorldImportFailed));
             qCWarning(interfaceapp) << "PICO_SERVERLESS_TRACE localOpenFailed"
                 << localDomainURL << domainFile.errorString();
             return;
@@ -1147,6 +1170,8 @@ void Application::loadServerlessDomain(QUrl domainURL) {
             _picoServerlessSceneURL = QUrl();
             finishPicoServerlessImport();
             _picoServerlessLoadFailed = true;
+            qWarning("%s", overte::security::diagnosticEvent(
+                overte::security::DiagnosticEvent::WorldImportFailed));
             qCWarning(interfaceapp) << "PICO_SERVERLESS_TRACE localParseFailed"
                 << localDomainURL;
             return;
@@ -1209,6 +1234,8 @@ void Application::loadServerlessDomain(QUrl domainURL) {
                 _picoServerlessSceneURL = QUrl();
                 finishPicoServerlessImport();
                 _picoServerlessLoadFailed = true;
+            qWarning("%s", overte::security::diagnosticEvent(
+                overte::security::DiagnosticEvent::WorldImportFailed));
 #endif
                 qCWarning(interfaceapp) << "PICO_SERVERLESS_TRACE requestParseFailed"
                     << domainURL;
@@ -1245,6 +1272,8 @@ void Application::loadServerlessDomain(QUrl domainURL) {
         } else {
 #if defined(ANDROID_APP_PICO_INTERFACE)
             _picoServerlessLoadFailed = true;
+            qWarning("%s", overte::security::diagnosticEvent(
+                overte::security::DiagnosticEvent::WorldImportFailed));
 #endif
         }
         request->deleteLater();
@@ -1888,16 +1917,6 @@ void Application::domainURLChanged(QUrl domainURL) {
             updateWindowTitle();
             return;
         }
-        if (!_picoInitialServerlessHandoffComplete) {
-            // Startup always belongs to the bundled serverless test scene.
-            // Ignore a remembered/late online destination until that scene's
-            // render handoff is complete; later user navigation remains valid.
-            qCWarning(interfaceapp) << "Pico ignored competing startup domain"
-                << domainURL;
-            setIsServerlessMode(true);
-            updateWindowTitle();
-            return;
-        }
         // resettingDomain() deliberately preserved the committed local scene.
         // A genuinely different URL now owns the transition and clears it.
         invalidateEntityScriptConsent();
@@ -2139,9 +2158,28 @@ void Application::nodeKilled(SharedNodePointer node) {
 }
 
 void Application::handleSandboxStatus(QNetworkReply* reply) {
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    qWarning("%s", overte::security::diagnosticEvent(
+        overte::security::DiagnosticEvent::WorldStartup));
+#endif
     PROFILE_RANGE(render, __FUNCTION__);
 
+#if defined(ANDROID_APP_PICO_INTERFACE)
+    // The first native/Qt foreground observations can arrive after startup UI
+    // completion. Do not consume firstRun or lose the selected address while
+    // AddressManager still rejects navigation. Replay this one initial decision
+    // only after the existing combined visibility gate admits it.
+    const bool sandboxIsRunning = reply ? SandboxUtils::readStatus(reply->readAll())
+        : property("picoPendingStartupSandboxRunning").toBool();
+    if (!overte::lifecycle::applicationGate().snapshot().foreground) {
+        setProperty("picoPendingStartupSandboxRunning", sandboxIsRunning);
+        setProperty("picoPendingStartupNavigation", true);
+        return;
+    }
+    setProperty("picoPendingStartupNavigation", false);
+#else
     bool sandboxIsRunning = SandboxUtils::readStatus(reply->readAll());
+#endif
 
     enum HandControllerType {
         Vive,
@@ -2182,14 +2220,6 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
 
     QString addressLookupString;
 
-#if defined(ANDROID_APP_PICO_INTERFACE)
-    // Keep the Pico development client independent of a remembered or LAN-only
-    // domain. Use the bundled, spawn-aligned Hub fixture for every ordinary
-    // launch (explicit command-line URLs still take precedence).
-    static const QString PICO_DEFAULT_STARTUP_ADDRESS =
-        QStringLiteral("file:///~/serverless/overte-hub-pico4-optimized-spawn.json");
-#endif
-
     // When --url is present on the command line, navigate to that location.
 #ifdef Q_OS_ANDROID
     const auto startupUrlScheme = _urlParam.scheme();
@@ -2216,21 +2246,6 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
         }
     }
 
-#if defined(ANDROID_APP_PICO_INTERFACE)
-    if (!hasExplicitAndroidStartupUrl) {
-        addressLookupString = PICO_DEFAULT_STARTUP_ADDRESS;
-        // Apply the packaged world's fixed spawn exactly once. Encoding this
-        // as an AddressManager location query replays it during later
-        // serverless handoffs and teleports a moving avatar back to spawn.
-        // The bridge static mesh resolves y=1.0 to y=1.097 after it loads.
-        // Start just above that surface so physics never has to push the
-        // avatar visibly out of the deck on the first simulated frame.
-        getMyAvatar()->goToLocation(glm::vec3(0.0f, 1.10f, 0.0f),
-            false, glm::quat(), false, false);
-        qCInfo(interfaceapp) << "Pico startup: initialized avatar at deck spawn";
-    }
-#endif
-
     static const QString SENT_TO_PREVIOUS_LOCATION = "previous_location";
     static const QString SENT_TO_ENTRY = "entry";
 
@@ -2238,8 +2253,7 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
 
 #ifdef Q_OS_ANDROID
     const auto startupDestination = android::startup::selectDestination(
-        _firstRun.get(), hasExplicitAndroidStartupUrl,
-        !addressLookupString.isEmpty());
+        _firstRun.get(), hasExplicitAndroidStartupUrl);
     const bool useFirstRunOrDefaultAddress =
         startupDestination == android::startup::Destination::FirstRunOrDefault;
 #else
@@ -2259,24 +2273,17 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
             // entry-point setting yet (or retain an empty one from an older
             // install). Always choose the packaged, known-good location.
 #if defined(ANDROID_APP_PICO_INTERFACE)
-            qCInfo(interfaceapp) << "Pico startup: loading bundled serverless test world"
-                << PICO_DEFAULT_STARTUP_ADDRESS;
-            DependencyManager::get<AddressManager>()->handleLookupString(
-                PICO_DEFAULT_STARTUP_ADDRESS);
-#else
+            qWarning("%s", overte::security::diagnosticEvent(
+                overte::security::DiagnosticEvent::WorldTutorialSelected));
+#endif
             DependencyManager::get<AddressManager>()->handleLookupString(
                 NetworkingConstants::DEFAULT_OVERTE_ADDRESS);
-#endif
 #else
             DependencyManager::get<AddressManager>()->goToEntry();
 #endif
             sentTo = SENT_TO_ENTRY;
         } else {
-#if defined(ANDROID_APP_PICO_INTERFACE)
-            DependencyManager::get<AddressManager>()->handleLookupString(addressLookupString);
-#else
             DependencyManager::get<AddressManager>()->loadSettings(addressLookupString);
-#endif
             sentTo = SENT_TO_PREVIOUS_LOCATION;
         }
        _firstRun.set(false);
@@ -2292,13 +2299,7 @@ void Application::handleSandboxStatus(QNetworkReply* reply) {
             }
         }
         qCDebug(interfaceapp) << "Not first run... going to" << qPrintable(!goingTo.isEmpty() ? goingTo : addressLookupString);
-#if defined(ANDROID_APP_PICO_INTERFACE)
-        qCInfo(interfaceapp) << "Pico startup: navigating to bundled serverless test world"
-            << addressLookupString;
-        DependencyManager::get<AddressManager>()->handleLookupString(addressLookupString);
-#else
         DependencyManager::get<AddressManager>()->loadSettings(addressLookupString);
-#endif
         sentTo = SENT_TO_PREVIOUS_LOCATION;
     }
 
@@ -3122,30 +3123,8 @@ void Application::update(float deltaTime) {
         bool serverlessImportReady { true };
 #if defined(ANDROID_APP_PICO_INTERFACE)
         physicsServerless = _picoServerlessSceneImportCommitted || physicsServerless;
-        static bool picoStartupImportRequested { false };
-        if (physicsDomainHandler.isServerless() &&
-                !_picoServerlessSceneImportCommitted &&
-                !picoStartupImportRequested && getEntities()->getTree()) {
-            picoStartupImportRequested = true;
-            const auto explicitStartupScheme = _urlParam.scheme();
-            const bool hasExplicitServerlessStartupUrl =
-                !_urlParam.isEmpty() && _urlParam.isValid() &&
-                (explicitStartupScheme == HIFI_URL_SCHEME_FILE ||
-                 explicitStartupScheme == HIFI_URL_SCHEME_HTTP ||
-                 explicitStartupScheme == HIFI_URL_SCHEME_HTTPS);
-            // AddressManager owns the NodeList thread, so its startup URL can
-            // still be queued when Pico's first update needs to begin the
-            // synchronous serverless import. Preserve that explicit URL here;
-            // otherwise the fallback imports the bundled Hub and the initial
-            // handoff rejects the requested world as a competing destination.
-            const QUrl startupWorld = hasExplicitServerlessStartupUrl
-                ? _urlParam
-                : QUrl(QStringLiteral(
-                    "file:///~/serverless/overte-hub-pico4-optimized-spawn.json"));
-            qCInfo(interfaceapp) << "PICO_SERVERLESS_TRACE updateStartupImport"
-                << startupWorld << "explicit" << hasExplicitServerlessStartupUrl;
-            loadServerlessDomain(startupWorld);
-        }
+        // Import begins only through the destination selected by normal
+        // navigation; physics must not inject an independent startup world.
         serverlessImportReady = _picoServerlessSceneImportCommitted;
         static int picoPhysicsBranchTraceCount { 0 };
         if (picoPhysicsBranchTraceCount < 20) {
@@ -3609,7 +3588,10 @@ void Application::update(float deltaTime) {
     // not instrumentation. Start them after the local scene is playable so
     // their avatar-relative positions survive the startup spawn handoff.
     static bool picoInteractionTestStationRequested { false };
+    // Device fixtures must be explicitly requested; ordinary startup must show
+    // only the selected world's authored content during tutorial acceptance.
     if (!picoInteractionTestStationRequested &&
+            QCoreApplication::arguments().contains(QStringLiteral("--pico-interaction-test-station")) &&
             _picoServerlessSceneImportCommitted && _physicsEnabled) {
         picoInteractionTestStationRequested = true;
         QUrl testStationURL = PathUtils::defaultScriptsLocation();
@@ -4389,6 +4371,10 @@ void Application::tryToEnablePhysics() {
 #endif
             _octreeProcessor->resetSafeLanding();
             _physicsEnabled = true;
+#if defined(ANDROID_APP_PICO_INTERFACE)
+            qWarning("%s", overte::security::diagnosticEvent(
+                overte::security::DiagnosticEvent::WorldPhysicsReady));
+#endif
 #if defined(ANDROID_APP_PICO_INTERFACE)
             if (enableInterstitial && _graphicsEngine) {
                 _picoLoadingPhysicsEnabledAt = physicsNow;

@@ -384,10 +384,18 @@ def print_summary(summary: Summary) -> None:
         print("  WARNING: auto-brightness state changed during the run")
 
 
-def main() -> int:
+def main(argv=None) -> int:
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments[:1] == ["--parity"]:
+        # Separate retained parity output from legacy exploratory CSV reports.
+        # Do not convert coarse device power into process energy or fabricate
+        # missing frame/memory/black-frame/checkpoint observations.
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "performance"))
+        from pico_metrics import main as analyze_parity
+        return analyze_parity(arguments[1:])
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("csv", nargs="+", type=Path, help="recorded power-test CSV")
-    args = parser.parse_args()
+    args = parser.parse_args(arguments)
     try:
         summaries = [summarize(path) for path in args.csv]
     except ValueError as error:

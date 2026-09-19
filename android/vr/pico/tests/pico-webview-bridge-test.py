@@ -270,7 +270,8 @@ class PicoWebViewBridgeTest(unittest.TestCase):
         self.assertIn('runCleanupStep("clear page", () -> old.view.loadUrl("about:blank"))', destroy)
         self.assertIn('runCleanupStep("destroy view", old.view::destroy)', destroy)
         helper = destroy.index("private static void runCleanupStep")
-        self.assertIn("catch (RuntimeException exception)", destroy[helper:])
+        self.assertIn("catch (RuntimeException | OutOfMemoryError exception)", destroy[helper:])
+        self.assertIn('runCleanupStep("remove frame callback", () -> MAIN.removeCallbacks(old.renderFrame))', destroy)
 
     def test_async_commands_share_instance_bound_failure_recovery(self):
         helper_start = self.java_source.index("private static void postCommand")
@@ -287,8 +288,8 @@ class PicoWebViewBridgeTest(unittest.TestCase):
             'postCommand(nativeHandle, "background update"',
             'postCommand(nativeHandle, "User-Agent update"',
             'postCommand(nativeHandle, "resize"',
-            'postCommand(nativeHandle, "pointer dispatch"',
-            'postCommand(nativeHandle, "scroll dispatch"',
+            'postInputCommand(nativeHandle, "pointer dispatch"',
+            'postInputCommand(nativeHandle, "scroll dispatch"',
         ]:
             self.assertIn(operation, self.java_source)
         self.assertIn('nativeHandle, instance, "scroll layout", exception', self.java_source)

@@ -197,6 +197,37 @@ class PicoApkVerifierTests(unittest.TestCase):
         self.assertEqual(wrong.returncode, 2)
         self.assertIn("does not match the test contract", wrong.stderr)
 
+    def test_rejected_payloads_and_tool_errors_are_not_echoed(self):
+        canary = "private-fixture-not-a-real-secret"
+        bad_tool = self._tool("failing-tool", "printf '" + canary + "' >&2\nexit 1\n")
+        cases = [
+            self._run(self._apk(extra="../" + canary)),
+            self._run(self._apk(extra="lib/" + canary + "/anything.so")),
+            self._run(self._apk(), {"MOCK_PACKAGE": canary}),
+            self._run(self._apk(), extra_args=("--apksigner", str(bad_tool))),
+            self._run(self._apk(), extra_args=("--unknown-option", canary)),
+            self._run(self.directory / canary),
+        ]
+        for result in cases:
+            self.assertEqual(result.returncode, 2)
+            self.assertNotIn(canary, result.stdout + result.stderr)
+            self.assertNotIn(str(self.directory), result.stdout + result.stderr)
+
+    def test_duplicate_layer_fields_and_symlink_entries_fail_closed(self):
+        duplicate = self._run(self._apk(e2e_layer=True,
+            layer_manifest=b'{"file_format_version":"1.0.0","file_format_version":"1.0.0","api_layer":{}}'))
+        self.assertEqual(duplicate.returncode, 2)
+        self.assertIn('duplicate E2E manifest field', duplicate.stderr)
+        apk = self._apk()
+        with zipfile.ZipFile(apk, 'a') as archive:
+            link = zipfile.ZipInfo('assets/unsafe-link')
+            link.create_system = 3
+            link.external_attr = (stat.S_IFLNK | 0o777) << 16
+            archive.writestr(link, 'private-fixture')
+        result = self._run(apk)
+        self.assertEqual(result.returncode, 2)
+        self.assertNotIn('private-fixture', result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

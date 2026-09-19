@@ -28,17 +28,37 @@ E2E_LAYER_MANIFEST = (
 E2E_LAYER_NAME = "XR_APILAYER_OVERTE_e2e_input"
 E2E_BUILD_MARKER = b"OVERTE_E2E_OPENXR_INPUT_V1"
 OPENXR_PLUGIN_PATH = f"lib/{EXPECTED_ABI}/libplugins_libopenxr.so"
+MAX_APK_BYTES = 2 * 1024 * 1024 * 1024
+MAX_UNCOMPRESSED_BYTES = 4 * 1024 * 1024 * 1024
+
+
+class VerificationError(RuntimeError):
+    """Only verifier-owned fixed descriptions may cross the CLI boundary."""
+
+
+class ClosedParser(argparse.ArgumentParser):
+    def error(self, message):
+        fail("invalid verifier arguments")
+
+
+def unique_fields(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            fail("duplicate E2E manifest field")
+        result[key] = value
+    return result
 
 
 def fail(message):
-    raise RuntimeError(message)
+    raise VerificationError(message)
 
 
 def resolve_tool(explicit, name):
     if explicit:
         path = Path(explicit)
         if not path.is_file() or not path.stat().st_mode & 0o111:
-            fail(f"{name} is not executable: {path}")
+            fail(f"{name} is not executable")
         return str(path)
     path = shutil.which(name)
     if not path:
@@ -47,41 +67,52 @@ def resolve_tool(explicit, name):
 
 
 def run_tool(command):
-    result = subprocess.run(command, text=True, capture_output=True, check=False)
+    result = subprocess.run(command, text=True, capture_output=True, check=False, timeout=60)
     if result.returncode:
-        detail = (result.stderr or result.stdout).strip()
-        fail(f"command failed ({result.returncode}): {' '.join(command)}: {detail}")
+        # Tool exceptions, commands and certificate descriptions can include
+        # private filenames or context. No raw tool text reaches retained logs.
+        fail("command failed")
+    if len(result.stdout) > 1024 * 1024:
+        fail("tool output exceeds verifier bound")
     return result.stdout
 
 
 def inspect_zip(apk):
     try:
         with zipfile.ZipFile(apk) as archive:
+            entries = archive.infolist()
+            if len(entries) > 50000 or sum(entry.file_size for entry in entries) > MAX_UNCOMPRESSED_BYTES:
+                fail("APK ZIP exceeds verifier bounds")
+            names = [entry.filename for entry in entries]
+            if len(names) != len(set(names)):
+                fail("APK contains duplicate ZIP entries")
+            for entry in entries:
+                path = PurePosixPath(entry.filename)
+                if (path.is_absolute() or ".." in path.parts or "\\" in entry.filename
+                        or any(ord(c) < 32 or ord(c) == 127 for c in entry.filename)
+                        or (entry.external_attr >> 16) & 0o170000 == 0o120000):
+                    fail("APK contains unsafe ZIP path")
+                if entry.filename == E2E_LAYER_MANIFEST and entry.file_size > 16384:
+                    fail("E2E manifest exceeds verifier bound")
+                if entry.filename == OPENXR_PLUGIN_PATH and entry.file_size > 128 * 1024 * 1024:
+                    fail("OpenXR plugin exceeds verifier bound")
             bad_member = archive.testzip()
             if bad_member:
-                fail(f"APK ZIP checksum failed for {bad_member}")
-            names = [entry.filename for entry in archive.infolist()]
+                fail("APK ZIP checksum failed")
             layer_manifest_bytes = (
                 archive.read(E2E_LAYER_MANIFEST) if E2E_LAYER_MANIFEST in names else None
             )
             openxr_plugin_bytes = (
                 archive.read(OPENXR_PLUGIN_PATH) if OPENXR_PLUGIN_PATH in names else b""
             )
-    except zipfile.BadZipFile as error:
-        fail(f"invalid APK ZIP: {error}")
-
-    if len(names) != len(set(names)):
-        fail("APK contains duplicate ZIP entries")
-    for name in names:
-        path = PurePosixPath(name)
-        if path.is_absolute() or ".." in path.parts:
-            fail(f"APK contains unsafe ZIP path: {name}")
+    except zipfile.BadZipFile:
+        fail("invalid APK ZIP")
 
     native = re.compile(r"^lib/([^/]+)/([^/]+\.so)$")
     libraries = {(match.group(1), match.group(2)) for name in names if (match := native.match(name))}
     abis = {abi for abi, _ in libraries}
     if abis != {EXPECTED_ABI}:
-        fail(f"expected only {EXPECTED_ABI} native libraries, found: {sorted(abis)}")
+        fail(f"expected only {EXPECTED_ABI} native libraries")
     present = {library for abi, library in libraries if abi == EXPECTED_ABI}
     missing = REQUIRED_LIBRARIES - present
     if missing:
@@ -95,9 +126,9 @@ def inspect_zip(apk):
         fail("E2E OpenXR input activation marker and layer package must match")
     if has_layer_manifest:
         try:
-            layer_manifest = json.loads(layer_manifest_bytes)
-        except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            fail(f"invalid E2E OpenXR input layer manifest: {error}")
+            layer_manifest = json.loads(layer_manifest_bytes, object_pairs_hook=unique_fields)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            fail("invalid E2E OpenXR input layer manifest")
         if not isinstance(layer_manifest, dict) or set(layer_manifest) != {
                 "file_format_version", "api_layer"}:
             fail("unexpected E2E OpenXR input layer manifest structure")
@@ -123,7 +154,7 @@ def parse_badging(output):
     if not package or not minimum or not target:
         fail("aapt badging output is missing package, minSdk, or targetSdk metadata")
     if package.group(1) != EXPECTED_PACKAGE:
-        fail(f"expected package {EXPECTED_PACKAGE}, found {package.group(1)}")
+        fail(f"expected package {EXPECTED_PACKAGE}")
     if int(minimum.group(1)) != 26:
         fail(f"expected minSdk 26, found {minimum.group(1)}")
     if int(target.group(1)) != 35:
@@ -147,15 +178,31 @@ def parse_signature(output):
     return digest.group(1)
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("apk", type=Path)
+def add_candidate_arguments(parser, *, native_binding=False):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'release'))
+    from pico_candidate_identity import EVIDENCE_KEYS
+    if native_binding:
+        parser.add_argument("--apk", type=Path)
+    else:
+        parser.add_argument("apk", type=Path, nargs="?")
+        parser.add_argument("--apk", dest="named_apk", type=Path,
+                            help="named form of the candidate APK input")
     parser.add_argument("--aapt", help="path to Android aapt")
     parser.add_argument("--apksigner", help="path to Android apksigner")
     parser.add_argument("--source-revision", help="40-character Git commit used for the APK build")
     parser.add_argument("--expected-version-code")
     parser.add_argument("--expected-version-name")
     parser.add_argument("--expected-signer-sha256")
+    parser.add_argument("--require-identity", action="store_true",
+                        help="require the complete pinned SH-009 internal-candidate binding")
+    parser.add_argument("--identity-record", type=Path)
+    parser.add_argument("--build-evidence", type=Path)
+    parser.add_argument("--expected-artifact-sha256",
+                        help="independent APK digest from the frozen candidate request")
+    parser.add_argument("--expected-inputs", type=Path)
+    parser.add_argument("--minimum-version", type=int)
+    for key in EVIDENCE_KEYS:
+        parser.add_argument('--' + key, type=Path)
     layer_expectation = parser.add_mutually_exclusive_group()
     layer_expectation.add_argument(
         "--expect-e2e-input-layer", action="store_true",
@@ -165,14 +212,36 @@ def main():
         "--forbid-e2e-input-layer", action="store_true",
         help="fail if the E2E OpenXR input layer or explicit manifest is packaged",
     )
-    parser.add_argument("--output", type=Path, help="write verification manifest as JSON")
-    args = parser.parse_args()
+    if not native_binding:
+        parser.add_argument("--output", type=Path, help="write verification manifest as JSON")
+
+
+def verify_candidate(args):
+    """Original verification implementation, without CLI output or device I/O."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'release'))
+    from pico_candidate_identity import EVIDENCE_KEYS, validate_candidate_identity
+    if args.apk is None:
+        fail("candidate APK is required")
+
+    identity_supplied = args.identity_record is not None
+    identity_inputs = [args.expected_inputs, args.minimum_version, args.build_evidence,
+                       args.expected_artifact_sha256, *[getattr(args, key) for key in EVIDENCE_KEYS]]
+    if args.require_identity and not identity_supplied:
+        fail("candidate requires SH-009 identity")
+    if identity_supplied:
+        if (not args.source_revision or not args.expected_version_name or not args.expected_signer_sha256
+                or any(value is None for value in identity_inputs)):
+            fail("candidate identity requires independently pinned inputs, version and signer")
+    elif any(value is not None for value in identity_inputs):
+        fail("partial candidate identity is forbidden")
 
     if args.source_revision and not re.fullmatch(r"[0-9a-f]{40}", args.source_revision):
         fail("source revision must be a lowercase 40-character Git commit")
 
     if not args.apk.is_file() or args.apk.is_symlink():
-        fail(f"APK is not a regular non-symlink file: {args.apk}")
+        fail("APK is not a regular non-symlink file")
+    if not 0 < args.apk.stat().st_size <= MAX_APK_BYTES:
+        fail("APK size exceeds verifier bound")
     aapt = resolve_tool(args.aapt, "aapt")
     apksigner = resolve_tool(args.apksigner, "apksigner")
     entries, native_libraries, e2e_input_layer = inspect_zip(args.apk)
@@ -195,11 +264,21 @@ def main():
         if signer_digest != expected_signer:
             fail("APK signer certificate does not match the protected release signer")
 
+    identity = validate_candidate_identity(args, metadata) if identity_supplied else None
+    build_evidence = None
+    if identity:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[4] / 'tests/device/schema'))
+        from android_build_evidence import validate as validate_build_evidence
+        build_evidence = validate_build_evidence(args.build_evidence, args.identity_record,
+            args.apk, args.expected_inputs, args.source_revision, args.expected_artifact_sha256, 'pico4')
+
     checksum = hashlib.sha256()
     with args.apk.open("rb") as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             checksum.update(chunk)
     digest = checksum.hexdigest()
+    if identity and identity['artifactSha256'] != digest:
+        fail("candidate bytes changed during verification")
     manifest = {
         **metadata,
         "abi": EXPECTED_ABI,
@@ -211,9 +290,25 @@ def main():
         "e2e_input_layer": e2e_input_layer,
         "signature_verified": True,
         "signer_certificate_sha256": signer_digest,
+        "identity_status": identity['status'] if identity else 'NOT_PROVIDED_VERIFICATION_PENDING',
     }
+    if identity:
+        manifest['identity'] = identity
+        manifest['build_evidence'] = build_evidence
     if args.source_revision:
         manifest["source_revision"] = args.source_revision
+    return manifest
+
+
+def main():
+    parser = ClosedParser(description=__doc__)
+    add_candidate_arguments(parser)
+    args = parser.parse_args()
+    if args.named_apk is not None:
+        if args.apk is not None:
+            fail("candidate APK was supplied twice")
+        args.apk = args.named_apk
+    manifest = verify_candidate(args)
     rendered = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -225,6 +320,9 @@ def main():
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except RuntimeError as error:
+    except VerificationError as error:
         print(f"error: {error}", file=sys.stderr)
+        sys.exit(2)
+    except (ImportError, OSError, ValueError, TypeError, KeyError, RuntimeError, subprocess.TimeoutExpired):
+        print("error: APK verification failed", file=sys.stderr)
         sys.exit(2)

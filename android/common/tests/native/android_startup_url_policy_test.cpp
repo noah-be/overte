@@ -8,25 +8,19 @@ int main() {
     using android::startup::Destination;
     using android::startup::selectDestination;
 
-    // A valid explicit URL wins on both fresh and initialized profiles.
-    OVERTE_EXPECT(selectDestination(true, true, true) == Destination::ExplicitUrl);
-    OVERTE_EXPECT(selectDestination(false, true, true) == Destination::ExplicitUrl);
+    // Explicit URLs override this launch without changing persistent first-run state.
+    OVERTE_EXPECT(selectDestination(true, true) == Destination::ExplicitUrl);
+    OVERTE_EXPECT(selectDestination(false, true) == Destination::ExplicitUrl);
 
-    // Empty and invalid URLs are both represented by hasExplicitUrl=false.
-    OVERTE_EXPECT(selectDestination(true, false, false) ==
-        Destination::FirstRunOrDefault);
-    OVERTE_EXPECT(selectDestination(true, false, true) ==
-        Destination::FirstRunOrDefault);
+    // Fresh profiles get the common Android tutorial entry point. Empty and
+    // invalid launch URLs are represented by hasExplicitUrl=false.
+    OVERTE_EXPECT(selectDestination(true, false) == Destination::FirstRunOrDefault);
 
-    // Android variants without a usable saved address retain their default
-    // target, while a non-first-run Pico fallback remains a saved address.
-    OVERTE_EXPECT(selectDestination(false, false, false) ==
-        Destination::FirstRunOrDefault);
-    OVERTE_EXPECT(selectDestination(false, false, true) ==
-        Destination::SavedAddress);
+    // Later launches use AddressManager's saved/home settings and its default
+    // address if the setting is absent. No Pico-only fixture is a fallback.
+    OVERTE_EXPECT(selectDestination(false, false) == Destination::SavedAddress);
 
-    // The selector has one destination and no mutable or persistent state.
-    static_assert(selectDestination(true, true, true) == Destination::ExplicitUrl,
+    static_assert(selectDestination(true, true) == Destination::ExplicitUrl,
         "an explicit URL must have exactly one startup destination");
 
     return 0;

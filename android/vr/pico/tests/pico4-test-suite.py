@@ -74,7 +74,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout", type=int, default=120, help="seconds allowed per test (default: 120)")
     parser.add_argument("--junit", type=Path, help="write a JUnit XML report")
     parser.add_argument("--fail-fast", action="store_true", help="stop after the first failure")
-    parser.add_argument("--skip-missing", action="store_true", help="report missing optional tools as skipped")
+    parser.add_argument("--skip-missing", action="store_true", help="report missing tools as skipped (the incomplete selection still exits nonzero)")
     args = parser.parse_args()
     if args.timeout <= 0:
         parser.error("--timeout must be positive")
@@ -105,6 +105,14 @@ def junit_report(path: Path, results: list[dict[str, object]], elapsed: float) -
     skipped = sum(result["status"] == "skipped" for result in results)
     suite = ET.Element("testsuite", name="pico4-device-free", tests=str(len(results)),
                        failures=str(failures), skipped=str(skipped), time=f"{elapsed:.3f}")
+    properties = ET.SubElement(suite, "properties")
+    complete = bool(results) and not failures and not skipped
+    full_catalog = {str(result["name"]) for result in results} == {item.name for item in TESTS}
+    for name, value in (("catalog_tests", str(len(TESTS))),
+                        ("selection_complete", str(complete).lower()),
+                        ("full_catalog_selected", str(full_catalog).lower()),
+                        ("full_catalog_passed", str(complete and full_catalog).lower())):
+        ET.SubElement(properties, "property", name=name, value=value)
     for result in results:
         case = ET.SubElement(suite, "testcase", name=str(result["name"]),
                              classname=f"pico4.{result['category']}", time=f"{result['time']:.3f}")
@@ -134,7 +142,12 @@ def main() -> int:
 
     results: list[dict[str, object]] = []
     started = time.monotonic()
+    stopped = False
     for item in chosen:
+        if stopped:
+            results.append(dict(name=item.name, category=item.category, status="skipped",
+                                message="not run after fail-fast", output="", time=0.0))
+            continue
         missing = [tool for tool in item.requires if shutil.which(tool) is None]
         if missing:
             message = "missing tools: " + ", ".join(missing)
@@ -142,8 +155,8 @@ def main() -> int:
             print(f"{status.upper():7} {item.name} ({message})")
             results.append(dict(name=item.name, category=item.category, status=status,
                                 message=message, output="", time=0.0))
-            if status == "failed" and args.fail_fast:
-                break
+            if args.fail_fast:
+                stopped = True
             continue
         command = list(item.command)
         if len(command) > 1 and not os.path.isabs(command[1]):
@@ -161,13 +174,18 @@ def main() -> int:
             duration = time.monotonic() - test_started
             output = (error.stdout or "") if isinstance(error.stdout, str) else ""
             status, message = "failed", f"timeout after {args.timeout}s"
+        except OSError:
+            duration = time.monotonic() - test_started
+            # Keep paths and environment details out of the diagnostic.
+            output = ""
+            status, message = "failed", "test process could not be started"
         print(f"{status.upper():7} {item.name:<26} {duration:7.3f}s")
         if status == "failed" and output:
             print(output.rstrip(), file=sys.stderr)
         results.append(dict(name=item.name, category=item.category, status=status,
                             message=message, output=output, time=duration))
         if status == "failed" and args.fail_fast:
-            break
+            stopped = True
 
     elapsed = time.monotonic() - started
     if args.junit:
@@ -176,8 +194,8 @@ def main() -> int:
     passed = sum(result["status"] == "passed" for result in results)
     failed = sum(result["status"] == "failed" for result in results)
     skipped = sum(result["status"] == "skipped" for result in results)
-    print(f"Pico 4 device-free suite: {passed} passed, {failed} failed, {skipped} skipped ({elapsed:.2f}s)")
-    return 1 if failed else 0
+    print(f"Pico 4 device-free selection ({len(results)}/{len(TESTS)} catalog cases): {passed} passed, {failed} failed, {skipped} skipped ({elapsed:.2f}s)")
+    return 1 if failed or skipped or not results else 0
 
 
 if __name__ == "__main__":

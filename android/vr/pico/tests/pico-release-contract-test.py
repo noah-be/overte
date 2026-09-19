@@ -11,6 +11,11 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[4]
 TOOL = ROOT / "android/vr/pico/ci/pico4-release.py"
 VALIDATOR = ROOT / "tools/release/validate-release-bundle.py"
+BUILD = ROOT / "android/vr/pico/build.sh"
+PREPARE = ROOT / "android/vr/pico/prepare-deps.sh"
+SOURCE_GRAPH_COMPATIBILITY = (
+    ROOT / "android/vr/pico/release/pico-source-graph-compatibility.py"
+)
 REVISION = "a" * 40
 
 
@@ -151,6 +156,149 @@ class PicoReleaseContractTests(unittest.TestCase):
         )
         self.assertEqual(2, result.returncode)
         self.assertIn("requires --complete-bundle-output-dir", result.stderr)
+
+
+class PicoSourceGraphCompatibilityTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.directory = Path(self.temporary.name)
+        self.graph = self.directory / "graph"
+        self.graph.mkdir()
+
+    def tearDown(self):
+        self.temporary.cleanup()
+
+    def adapter(self, body=None):
+        path = self.directory / "adapter.py"
+        if body is None:
+            body = """#!/usr/bin/env python3
+import json
+import os
+import sys
+
+assert sys.argv[1:] == [
+    "--graph-root", os.environ["PICO_SOURCE_GRAPH_ROOT"],
+    "--pico-root", os.environ["PICO_TEST_EXPECTED_ROOT"],
+]
+assert os.environ["PICO_SOURCE_GRAPH_MODE"] == "1"
+assert os.environ["PICO_SOURCE_GRAPH_VERIFIED"] == "1"
+assert os.environ["PICO_LEGACY_DEPENDENCY_PATHS"] == "forbidden"
+assert os.environ["PICO_CONAN_REMOTE_POLICY"] == "forbid"
+assert os.environ["PICO_CONAN_BUILD_POLICY"] == "source-only"
+assert os.environ["PICO_OPENSSL_POLICY"] == "3-only"
+assert "CONAN_USER_HOME" not in os.environ
+assert "PICO_PREBUILT_RESTORE_ONLY" not in os.environ
+assert "PICO_QT_FALLBACK_PATCH" not in os.environ
+with open(os.environ["PICO_TEST_RECORD"], "w", encoding="utf-8") as stream:
+    json.dump({"graph_root": sys.argv[2], "isolated_home": os.environ["CONAN_HOME"]}, stream)
+"""
+        path.write_text(body, encoding="utf-8")
+        path.chmod(0o755)
+        return path
+
+    def run_boundary(self, graph=None, adapter=None):
+        return subprocess.run([
+            str(SOURCE_GRAPH_COMPATIBILITY),
+            "--graph-root", str(graph or self.graph),
+            "--adapter", str(adapter or self.adapter()),
+        ], text=True, capture_output=True, check=False)
+
+    def run_build_boundary(self, graph=None, adapter=None, extra_env=None):
+        environment = os.environ.copy()
+        environment.update({
+            "PICO_SOURCE_GRAPH_ROOT": str(graph or self.graph),
+            "PICO_SHARED_GRAPH_ADAPTER": str(adapter or self.adapter()),
+            "PICO_TEST_EXPECTED_ROOT": str(ROOT / "android/vr/pico"),
+            "PICO_TEST_RECORD": str(self.directory / "adapter-result.json"),
+            "CONAN_USER_HOME": "/must/not/reach/adapter",
+            "PICO_PREBUILT_RESTORE_ONLY": "1",
+            "PICO_QT_FALLBACK_PATCH": "/must/not/reach/adapter.patch",
+        })
+        environment.update(extra_env or {})
+        return subprocess.run(
+            [str(BUILD), "deps", "--source-graph"],
+            text=True, capture_output=True, env=environment, check=False,
+        )
+
+    def test_external_adapter_cannot_replace_the_bound_consumer(self):
+        result = self.run_build_boundary()
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn("Use the in-tree Pico source-input adapter", result.stderr)
+        self.assertFalse((self.directory / "adapter-result.json").exists())
+
+    def test_source_graph_mode_requires_both_explicit_inputs(self):
+        environment = os.environ.copy()
+        environment.pop("PICO_SOURCE_GRAPH_ROOT", None)
+        environment.pop("PICO_SHARED_GRAPH_ADAPTER", None)
+        missing_root = subprocess.run(
+            [str(BUILD), "deps", "--source-graph"], text=True,
+            capture_output=True, env=environment, check=False,
+        )
+        self.assertEqual(2, missing_root.returncode)
+        self.assertIn("PICO_SOURCE_INPUTS_REJECTED", missing_root.stderr)
+        environment["PICO_SOURCE_GRAPH_ROOT"] = str(self.graph)
+        missing_adapter = subprocess.run(
+            [str(BUILD), "deps", "--source-graph"], text=True,
+            capture_output=True, env=environment, check=False,
+        )
+        self.assertEqual(2, missing_adapter.returncode)
+        self.assertIn("PICO_SOURCE_INPUTS_REJECTED", missing_adapter.stderr)
+
+    def test_historical_prebuilt_and_openssl_11_payloads_fail_closed(self):
+        fixtures = (
+            "pico4-qt-conan.tgz",
+            ".prebuilt-runtime",
+            "lib/libssl.so.1.1",
+            "openssl-1.1.1q/source.tar.gz",
+        )
+        for relative in fixtures:
+            with self.subTest(relative=relative):
+                path = self.graph / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"forbidden fixture")
+                result = self.run_boundary()
+                self.assertEqual(2, result.returncode)
+                self.assertIn("PICO_SOURCE_GRAPH_COMPATIBILITY=FAIL", result.stderr)
+                path.unlink()
+
+    def test_adapter_cannot_restore_legacy_or_resolve_dependencies(self):
+        forbidden = (
+            "curl artifact",
+            "wget artifact",
+            "git clone source destination",
+            "conan install .",
+            "--build=missing",
+            "-pr:h default",
+            "https://artifactory.overte.org/example",
+            "pico4-runtime.tgz",
+        )
+        for text in forbidden:
+            with self.subTest(text=text):
+                adapter = self.adapter(f"#!/usr/bin/env bash\n# {text}\nexit 0\n")
+                result = self.run_boundary(adapter=adapter)
+                self.assertEqual(2, result.returncode)
+                self.assertIn("adapter contains forbidden", result.stderr)
+
+    def test_relative_or_escaping_inputs_are_rejected(self):
+        relative = subprocess.run([
+            str(SOURCE_GRAPH_COMPATIBILITY), "--graph-root", "relative",
+            "--adapter", str(self.adapter()),
+        ], text=True, capture_output=True, check=False)
+        self.assertEqual(2, relative.returncode)
+        self.assertIn("must be absolute", relative.stderr)
+
+        outside = self.directory / "outside"
+        outside.write_text("outside", encoding="utf-8")
+        (self.graph / "escape").symlink_to(outside)
+        escaping = self.run_boundary()
+        self.assertEqual(2, escaping.returncode)
+        self.assertIn("escapes its root", escaping.stderr)
+
+    def test_prepare_defaults_to_read_only_in_tree_consumer(self):
+        source = PREPARE.read_text(encoding="utf-8")
+        self.assertIn('exec python3 "$script_dir/release/pico-source-inputs.py"', source)
+        self.assertNotIn('runtime_dir=', source)
+        self.assertNotIn('make ', source)
 
 
 if __name__ == "__main__":

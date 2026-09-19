@@ -1,0 +1,6 @@
+# Overlay after the frozen Android target profile. The NDK legacy CMake
+# toolchain initializes CMAKE_*_FLAGS before Conan's *_FLAGS_INIT additions,
+# dropping the required 16KiB flags. Scope this producer repair to OpenXR;
+# previously qualified other packages keep their original build inputs.
+[conf]
+openxr/*:tools.android:cmake_legacy_toolchain=False

@@ -60,6 +60,20 @@ run_failure_case multiple_devices 2 'expected exactly one authorized ADB device'
     env MOCK_DEVICE_COUNT=2 "$CONTROL_SCRIPT" mic 1 auto
 run_failure_case mismatched_android_source 1 'Android audio source mismatch' \
     env MOCK_AUDIO_SOURCE_MISMATCH=1 "$CONTROL_SCRIPT" voicecommunication 1 auto
+run_failure_case obsolete_raw_level 1 'no microphone level samples captured' \
+    env MOCK_RAW_LEVEL=1 "$CONTROL_SCRIPT" voicecommunication 1 auto
+
+closed_state="$TEST_ROOT/closed-no-capture"
+mkdir -p "$closed_state"
+if closed_output="$(env ADB_BIN="$MOCK_ADB" MOCK_MIC_STATE_DIR="$closed_state" \
+    PICO_DEVICE_LOCK_HELD=1 "$CONTROL_SCRIPT" voicecommunication 1 auto 2>&1)" && \
+    [[ "$closed_output" == *'ok,1,48000,2.000000,5.000000,100,30,0.300000'* ]]; then
+    PASSED=$((PASSED + 1))
+    printf 'PASS closed_diagnostics_without_capture\n'
+else
+    FAILED=$((FAILED + 1))
+    printf 'FAIL closed_diagnostics_without_capture\n' >&2
+fi
 
 success_state="$TEST_ROOT/success"
 capture_output="$TEST_ROOT/capture.wav"

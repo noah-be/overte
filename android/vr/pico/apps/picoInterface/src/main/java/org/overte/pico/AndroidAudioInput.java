@@ -7,24 +7,45 @@ import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.os.Process;
-import android.util.Log;
+import org.overte.security.SafeDiagnostics.Event;
+import android.Manifest;
+import android.content.pm.PackageManager;
 
 /** Uses Android's public microphone API instead of Qt 5's deprecated OpenSL ES input. */
 public final class AndroidAudioInput {
-    private static final String TAG = "OverteAudioInput";
     private static final Object LOCK = new Object();
+    private static final Object POLICY_LOCK = new Object();
+    private static final PicoAudioShutdown SHUTDOWN = new PicoAudioShutdown();
+    private static boolean foreground;
+    private static boolean muted;
+    private static volatile boolean nativeBridgeReady;
+    private static volatile boolean captureAllowed;
 
     private static volatile boolean running;
-    private static AudioRecord recorder;
+    private static volatile AudioRecord recorder;
     private static Thread captureThread;
 
     private AndroidAudioInput() {
     }
 
     /** Gives native audio code a stable app-class-loader reference. */
-    public static void initializeNativeBridge() {
-        nativeInitialize();
-        Log.i(TAG, "Initialized native microphone bridge");
+    public static synchronized void initializeNativeBridge() {
+        try {
+            nativeInitialize();
+            nativeBridgeReady = true;
+        } catch (LinkageError | RuntimeException error) {
+            // Reinitialization may fail while an earlier Activity still owns
+            // a recorder. Revoke its Shared epoch before disabling this bridge
+            // and retain the same bounded native cleanup path.
+            publishPolicy(false);
+            nativeBridgeReady = false;
+            captureAllowed = false;
+            stop();
+            RedactingDiagnostics.e(Event.AUDIO_INTERRUPTED);
+            return;
+        }
+        updateExternalPolicy();
+        RedactingDiagnostics.i(Event.REDACTED);
     }
 
     /** Applies Android's public audio priority to the calling native audio thread. */
@@ -32,11 +53,10 @@ public final class AndroidAudioInput {
         try {
             Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
             final int priority = Process.getThreadPriority(Process.myTid());
-            Log.i(TAG, "Prioritized native audio thread tid=" + Process.myTid()
-                + ", priority=" + priority);
+            RedactingDiagnostics.i(Event.REDACTED);
             return priority;
         } catch (IllegalArgumentException | SecurityException exception) {
-            Log.e(TAG, "Could not prioritize native audio thread", exception);
+            RedactingDiagnostics.e(Event.REDACTED);
             return Integer.MAX_VALUE;
         }
     }
@@ -44,6 +64,16 @@ public final class AndroidAudioInput {
     public static synchronized boolean start(
             String requestedSource, int sampleRate, int channelCount, int framesPerBuffer) {
         stop();
+        if (!SHUTDOWN.ready()) { PicoAudioLifecycle.failed(); return false; }
+        if (!nativeBridgeReady || !captureAllowed || !foreground || muted) return false;
+
+        if (!microphonePermissionGranted()) {
+            PicoAudioLifecycle.revoke();
+            publishPolicy(false);
+            RedactingDiagnostics.w(Event.PERMISSION_DENIED);
+            return false;
+        }
+        if (!PicoAudioLifecycle.begin(true)) return false;
 
         final AndroidAudioInputPolicy.Source source =
             AndroidAudioInputPolicy.resolveSource(requestedSource);
@@ -52,7 +82,8 @@ public final class AndroidAudioInput {
         final Integer requestedCallbackBytes = AndroidAudioInputPolicy.calculateCallbackBytes(
             sampleRate, channelCount, framesPerBuffer);
         if (source == null || channel == null || requestedCallbackBytes == null) {
-            Log.e(TAG, "Invalid audio source, channel count, sample rate, or frame buffer size");
+            PicoAudioLifecycle.failed();
+            RedactingDiagnostics.e(Event.REDACTED);
             return false;
         }
 
@@ -63,14 +94,16 @@ public final class AndroidAudioInput {
         final int minimumBytes = AudioRecord.getMinBufferSize(
             sampleRate, channelConfig, AudioFormat.ENCODING_PCM_16BIT);
         if (minimumBytes <= 0) {
-            Log.e(TAG, "Unsupported capture format; getMinBufferSize=" + minimumBytes);
+            PicoAudioLifecycle.failed();
+            RedactingDiagnostics.e(Event.REDACTED);
             return false;
         }
 
         final AndroidAudioInputPolicy.BufferPlan bufferPlan =
             AndroidAudioInputPolicy.calculateBufferPlan(requestedCallbackBytes, minimumBytes);
         if (bufferPlan == null) {
-            Log.e(TAG, "Capture buffer size is invalid or overflows");
+            PicoAudioLifecycle.failed();
+            RedactingDiagnostics.e(Event.REDACTED);
             return false;
         }
         final int callbackBytes = bufferPlan.callbackBytes;
@@ -84,21 +117,24 @@ public final class AndroidAudioInput {
                 AudioFormat.ENCODING_PCM_16BIT,
                 recorderBytes);
         } catch (IllegalArgumentException | SecurityException exception) {
-            Log.e(TAG, "Could not create AudioRecord", exception);
+            PicoAudioLifecycle.failed();
+            RedactingDiagnostics.e(Event.REDACTED);
             return false;
         }
 
         if (newRecorder.getState() != AudioRecord.STATE_INITIALIZED) {
-            Log.e(TAG, "AudioRecord was not initialized");
-            newRecorder.release();
+            PicoAudioLifecycle.failed();
+            RedactingDiagnostics.e(Event.REDACTED);
+            SHUTDOWN.run(newRecorder::release, 1000);
             return false;
         }
 
         try {
             newRecorder.startRecording();
         } catch (IllegalStateException | SecurityException exception) {
-            Log.e(TAG, "Could not start AudioRecord", exception);
-            newRecorder.release();
+            PicoAudioLifecycle.failed();
+            RedactingDiagnostics.e(Event.REDACTED);
+            SHUTDOWN.run(newRecorder::release, 1000);
             return false;
         }
 
@@ -108,7 +144,8 @@ public final class AndroidAudioInput {
                 () -> captureLoop(newRecorder, callbackBytes),
                 "Overte Android microphone");
         } catch (RuntimeException | OutOfMemoryError exception) {
-            Log.e(TAG, "Could not create microphone capture thread", exception);
+            PicoAudioLifecycle.failed();
+            RedactingDiagnostics.e(Event.REDACTED);
             stopAndRelease(newRecorder);
             return false;
         }
@@ -120,7 +157,8 @@ public final class AndroidAudioInput {
                 newCaptureThread.start();
             }
         } catch (RuntimeException | OutOfMemoryError exception) {
-            Log.e(TAG, "Could not start microphone capture thread", exception);
+            PicoAudioLifecycle.failed();
+            RedactingDiagnostics.e(Event.REDACTED);
             synchronized (LOCK) {
                 if (recorder == newRecorder) {
                     running = false;
@@ -133,13 +171,14 @@ public final class AndroidAudioInput {
             stopAndRelease(newRecorder);
             return false;
         }
-        Log.i(TAG, "Started AudioRecord source=" + source.name()
-            + "(" + audioSource + ") at " + sampleRate + " Hz, channels="
-            + channelCount + ", callbackBytes=" + callbackBytes);
+        RedactingDiagnostics.i(Event.REDACTED);
         return true;
     }
 
     public static synchronized void stop() {
+        // This is a Shared device effect, not an external policy transition.
+        // Publishing policy here would queue another refresh/start/stop loop.
+        PicoAudioLifecycle.invalidate();
         final AudioRecord oldRecorder;
         final Thread oldThread;
         synchronized (LOCK) {
@@ -151,26 +190,66 @@ public final class AndroidAudioInput {
         }
 
         if (oldRecorder == null) {
+            PicoAudioLifecycle.stopCompleted(SHUTDOWN.ready());
             return;
         }
-        try {
-            oldRecorder.stop();
-        } catch (RuntimeException exception) {
-            Log.w(TAG, "AudioRecord was already stopped", exception);
-        }
-        if (oldThread != null && oldThread != Thread.currentThread()) {
+        boolean stopped = SHUTDOWN.run(() -> {
+            boolean clean = true;
+            try { oldRecorder.stop(); }
+            catch (RuntimeException error) { clean = false; }
+            if (oldThread != null && oldThread != Thread.currentThread()) {
+                try { oldThread.join(1000); }
+                catch (InterruptedException error) { Thread.currentThread().interrupt(); clean = false; }
+                if (oldThread.isAlive()) clean = false;
+            }
+            try { oldRecorder.release(); }
+            catch (RuntimeException error) { clean = false; }
+            if (!clean) throw new IllegalStateException("microphone cleanup incomplete");
+        }, 1000);
+        PicoAudioLifecycle.stopCompleted(stopped);
+        if (stopped) RedactingDiagnostics.i(Event.AUDIO_STOPPED);
+        else RedactingDiagnostics.w(Event.AUDIO_INTERRUPTED);
+    }
+
+    /** Only Shared refresh owns reopening; Java never replays an old request. */
+    public static synchronized void setForeground(boolean active) {
+        foreground = active;
+        PicoAudioLifecycle.foreground(active);
+        // Even duplicate visibility callbacks recheck a permission revoked in
+        // Android settings. The Shared epoch gate itself coalesces duplicates.
+        updateExternalPolicy();
+    }
+
+    public static synchronized void setMuted(boolean value) {
+        muted = value;
+        updateExternalPolicy();
+    }
+
+    public static synchronized void permissionChanged() {
+        updateExternalPolicy();
+    }
+
+    private static void updateExternalPolicy() {
+        boolean allowed = nativeBridgeReady && foreground && !muted
+            && microphonePermissionGranted() && SHUTDOWN.ready();
+        publishPolicy(allowed);
+        // Invalidate native queued PCM BEFORE waiting for an Android driver.
+        if (!captureAllowed) stop();
+    }
+
+    private static void publishPolicy(boolean allowed) {
+        synchronized (POLICY_LOCK) {
+            captureAllowed = allowed;
+            if (!nativeBridgeReady) return;
             try {
-                oldThread.join(1000);
-            } catch (InterruptedException exception) {
-                Thread.currentThread().interrupt();
+                nativePolicyChanged(allowed);
+            } catch (LinkageError | RuntimeException error) {
+                nativeBridgeReady = false;
+                captureAllowed = false;
+                PicoAudioLifecycle.invalidate();
+                RedactingDiagnostics.e(Event.AUDIO_INTERRUPTED);
             }
         }
-        try {
-            oldRecorder.release();
-        } catch (RuntimeException exception) {
-            Log.w(TAG, "Could not release AudioRecord", exception);
-        }
-        Log.i(TAG, "Stopped AudioRecord");
     }
 
     private static int androidAudioSource(AndroidAudioInputPolicy.Source source) {
@@ -183,29 +262,33 @@ public final class AndroidAudioInput {
     }
 
     private static void stopAndRelease(AudioRecord activeRecorder) {
-        try {
-            activeRecorder.stop();
-        } catch (RuntimeException exception) {
-            Log.w(TAG, "AudioRecord was already stopped during startup rollback", exception);
-        }
-        try {
-            activeRecorder.release();
-        } catch (RuntimeException exception) {
-            Log.w(TAG, "Could not release AudioRecord during cleanup", exception);
-        }
+        boolean completed = SHUTDOWN.run(() -> {
+            boolean clean = true;
+            try { activeRecorder.stop(); }
+            catch (RuntimeException exception) { clean = false; }
+            try { activeRecorder.release(); }
+            catch (RuntimeException exception) { clean = false; }
+            if (!clean) throw new IllegalStateException("microphone cleanup incomplete");
+        }, 1000);
+        if (!completed) PicoAudioLifecycle.failed();
     }
 
     private static void captureLoop(AudioRecord activeRecorder, int callbackBytes) {
         prioritizeCurrentThreadForAudio();
+        byte[] audio = null;
         try {
-            final byte[] audio = new byte[callbackBytes];
+            audio = new byte[callbackBytes];
             while (running && recorder == activeRecorder) {
+                if (!microphonePermissionGranted()) { PicoAudioLifecycle.revoke(); publishPolicy(false); break; }
+                if (!captureAllowed || !PicoAudioLifecycle.mayCapture()) break;
                 final int bytesRead = activeRecorder.read(
                     audio, 0, audio.length, AudioRecord.READ_BLOCKING);
                 // stop() can unblock a pending read with a final positive buffer.
                 // Re-check recorder identity after the blocking call so an old
                 // source cannot enter a newly started source's native FIFO.
                 final boolean ownsRecorder = recorder == activeRecorder;
+                if (!microphonePermissionGranted()) { PicoAudioLifecycle.revoke(); publishPolicy(false); break; }
+                if (!captureAllowed || !PicoAudioLifecycle.mayCapture()) break;
                 if (AndroidAudioInputPolicy.shouldDeliverRead(bytesRead, running, ownsRecorder)
                         && PicoAudioCaptureState.shouldDeliver(
                             running, recorder, activeRecorder, bytesRead)) {
@@ -213,13 +296,14 @@ public final class AndroidAudioInput {
                 } else if (!running || recorder != activeRecorder) {
                     break;
                 } else {
-                    Log.e(TAG, "AudioRecord read failed: " + bytesRead);
+                    RedactingDiagnostics.e(Event.REDACTED);
                     break;
                 }
             }
         } catch (RuntimeException | OutOfMemoryError exception) {
-            Log.e(TAG, "AudioRecord capture loop failed", exception);
+            RedactingDiagnostics.e(Event.REDACTED);
         } finally {
+            if (audio != null) java.util.Arrays.fill(audio, (byte) 0);
             boolean releasedRecorder = false;
             synchronized (LOCK) {
                 // stop() may already own this recorder. Only an unexpected loop
@@ -227,6 +311,10 @@ public final class AndroidAudioInput {
                 // before publishing an empty slot so start() cannot overlap it.
                 if (recorder == activeRecorder) {
                     running = false;
+                    // A driver/read failure denies capture until an external
+                    // policy transition. It is never an automatic retry.
+                    publishPolicy(false);
+                    PicoAudioLifecycle.failed();
                     stopAndRelease(activeRecorder);
                     recorder = null;
                     if (captureThread == Thread.currentThread()) {
@@ -236,11 +324,23 @@ public final class AndroidAudioInput {
                 }
             }
             if (releasedRecorder) {
-                Log.w(TAG, "Released AudioRecord after capture-loop failure");
+                RedactingDiagnostics.w(Event.REDACTED);
             }
         }
     }
 
+    private static boolean microphonePermissionGranted() {
+        try {
+            PicoInterfaceActivity activity = PicoInterfaceActivity.getInstance();
+            return activity != null && activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                == PackageManager.PERMISSION_GRANTED;
+        } catch (RuntimeException error) {
+            RedactingDiagnostics.w(Event.PERMISSION_DENIED);
+            return false;
+        }
+    }
+
     private static native void nativeInitialize();
+    private static native void nativePolicyChanged(boolean captureAllowed);
     private static native void nativeOnAudioData(byte[] audio, int bytesRead);
 }

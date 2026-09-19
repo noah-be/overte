@@ -15,6 +15,7 @@ def picoJava = file('../../../vr/pico/apps/picoInterface/src/main/java')
 def picoTests = file('../../../vr/pico/apps/picoInterface/src/test/java')
 def questJava = file('../../../vr/quest/apps/questInterface/src/main/java')
 def questTests = file('../../../vr/quest/apps/questInterface/src/test/java')
+def sharedRedactionJava = file('../../../../security/redaction/java')
 
 sourceSets {
     boundary {
@@ -22,7 +23,8 @@ sourceSets {
     }
     main {
         java {
-            srcDirs phoneJava, interfaceJava, picoJava, questJava
+            srcDirs phoneJava, interfaceJava, picoJava, questJava, sharedRedactionJava
+            include 'org/overte/security/SafeDiagnostics.java'
             include 'org/overte/phone/PermissionsActivity.java'
             include 'org/overte/phone/PhoneDeepLink.java'
             include 'org/overte/phone/PhoneDeepLinkNormalizer.java'
@@ -34,6 +36,9 @@ sourceSets {
             include 'org/overte/pico/AndroidAudioInput.java'
             include 'org/overte/pico/AndroidAudioInputPolicy.java'
             include 'org/overte/pico/PicoAudioCaptureState.java'
+            include 'org/overte/pico/RedactingDiagnostics.java'
+            include 'org/overte/pico/PicoAudioLifecycle.java'
+            include 'org/overte/pico/PicoAudioShutdown.java'
             include 'io/highfidelity/questInterface/PermissionsChecker.java'
         }
         compileClasspath += sourceSets.boundary.output

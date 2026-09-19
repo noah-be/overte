@@ -89,15 +89,17 @@ class ShadergenJobTests(unittest.TestCase):
         self.assertIn("set(CMAKE_JOB_POOL_COMPILE android_compile)", CMAKE_BOOTSTRAP)
         self.assertIn("set(CMAKE_JOB_POOL_LINK android_link)", CMAKE_BOOTSTRAP)
 
-    def test_release_variant_reuses_checksum_pinned_dependency_configuration(self):
+    def test_release_variant_uses_bound_producer_configuration(self):
         gradle = (ROOT / "android/vr/pico/apps/picoInterface/build.gradle").read_text(encoding="utf-8")
-        self.assertIn("-DCMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO=Debug", gradle)
-        self.assertIn("RelWithDebInfo/plugins/libopenxr.so", gradle)
+        self.assertNotIn("-DCMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO=Debug", gradle)
+        self.assertIn("picoInputs.generators", gradle)
         pico_cmake = (ROOT / "android/vr/pico/apps/picoInterface/CMakeLists.txt").read_text(encoding="utf-8")
-        self.assertIn("IMPORTED_LOCATION_RELWITHDEBINFO", pico_cmake)
-        self.assertIn("AUTOMOC_EXECUTABLE", pico_cmake)
-        self.assertIn("AUTORCC_EXECUTABLE", pico_cmake)
-        self.assertIn("AUTOUIC_EXECUTABLE", pico_cmake)
+        self.assertIn("pico-qt-host-tools.cmake", pico_cmake)
+        host_tools = (ROOT / "android/vr/pico/cmake/pico-qt-host-tools.cmake").read_text()
+        self.assertIn("pico_bind_qt_host_tools(picoInterface)", pico_cmake)
+        self.assertIn("AUTOMOC_EXECUTABLE", host_tools)
+        self.assertIn("AUTORCC_EXECUTABLE", host_tools)
+        self.assertIn("AUTOUIC_EXECUTABLE", host_tools)
 
     def test_pico_build_rejects_invalid_worker_limit_before_building(self):
         variables = os.environ.copy()

@@ -1,5 +1,22 @@
 # Pico 4 Web entities
 
+## Revision 09 content boundary
+
+The production Java bridge now checks initial loads, replacement loads, link
+navigation and intercepted resource requests. HTTP(S) navigation may cross web
+origins using normal WebView same-origin rules; there is no JavaScript/native
+bridge. Local `data:text/html` documents remain supported. OS `file:` and
+`content:` resources, external intents, executable navigation and credential-
+bearing URLs are rejected. Invalid replacement content clears the prior page
+and cancels transient input. Third-party cookies, mixed content, file-origin
+cross-origin access, geolocation and browser media capture are disabled.
+TLS errors cancel; renderer loss retires only the matching instance and reports
+failure through the existing creation handshake. Local Java tests and API-26
+compilation cover this change; headset/browser-origin acceptance remains pending.
+
+Checks: `python3 android/vr/pico/tests/device/test_native_web_policy.py` and
+`python3 android/vr/pico/tests/pico-webview-bridge-test.py`.
+
 ## Root cause
 
 Desktop Web entities are rendered by Qt WebEngine. `Web3DSurface.qml` selects
