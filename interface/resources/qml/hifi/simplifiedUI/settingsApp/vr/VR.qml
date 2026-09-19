@@ -387,9 +387,12 @@ Flickable {
                 }
                 function playSound() {
                     if (sample === null && !isPlaying) {
+                        if (!sound) { return; }
                         sample = AudioScriptingInterface.playSystemSound(sound);
+                        if (!sample) { sample = null; return; }
                         isPlaying = true;
                         sample.finished.connect(reset);
+                        if (!sample.playing) { reset(); }
                     }
                 }
                 function stopSound() {
@@ -399,7 +402,7 @@ Flickable {
                 }
 
                 function reset() {
-                    sample.finished.disconnect(reset);
+                    if (sample) { sample.finished.disconnect(reset); }
                     isPlaying = false;
                     sample = null;
                 }
