@@ -61,7 +61,7 @@ acceptance policy; this package does not embed historical acceptance values.
 ## Isolation and publication
 
 Android build entry points use job-private workspaces and Conan state as
-described in `CONAN_CACHE_ISOLATION.md`. The helpers refuse unsafe roots and do
+described on the [Android branch](https://github.com/noah-be/overte/blob/android-main/tests/device/jenkins/CONAN_CACHE_ISOLATION.md). The helpers refuse unsafe roots and do
 not repair or delete a shared cache.
 
 `run_ci.py stage-results` treats the target selector as a quarantine sentinel.
@@ -76,3 +76,14 @@ Cleanup is bounded to marker-protected per-build paths and is idempotent. A
 cleanup failure remains a build failure and must not be hidden by a retry.
 Hardware runs, device jobs, and laboratory mutations are outside the scope of
 the device-free checks above.
+
+## Android Phone target isolation
+
+The canonical `android-device-e2e` job uses the same fixed profile and device
+locks as each suite. Before its first session it copies only the selected,
+enabled physical Android Phone entry from the long-lived private Appium file
+into the build's private result root. Every Android suite and final cleanup use
+that per-build copy; the copy and its marker are removed in `post` while the
+selector-free staged evidence remains available. This prevents concurrent lab
+provisioning from producing a mixed target contract and also prevents a Phone
+job from selecting the Pico target.

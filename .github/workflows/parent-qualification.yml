@@ -37,12 +37,12 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: "22"
-      - name: Install QML contract runtime
+      - name: Install QML and portable C++ contract prerequisites
         run: |
           set -euo pipefail
           sudo apt-get -o Acquire::Retries=4 update
           sudo apt-get -o Acquire::Retries=4 install --no-install-recommends -y \
-            qml-module-qttest qtdeclarative5-dev-tools
+            qml-module-qttest qtdeclarative5-dev-tools qt6-base-dev qt6-base-dev-tools
       - name: Run shared project qualification
         run: >-
           python3 tests/run-project-tests.py --profile quick --timeout 240

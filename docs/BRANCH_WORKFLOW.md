@@ -24,6 +24,13 @@ branches own adapters, packaging, runtime integration and policy specific to
 that product. Linux distributions and Windows releases are CI and lab targets
 maintained on `main`. There are seven permanent branches and six direct edges.
 
+## Source ownership
+
+The [source layout policy](SOURCE_LAYOUT.md) separates Android application
+implementation from `main`. During its one-time migration, retain Android-owned
+files and the branch test profile on the Android side of the merge. Subsequent
+synchronization uses the same forward-merge topology.
+
 ## Propagation order
 
 After a reviewed change reaches `main`, synchronize it in this order:

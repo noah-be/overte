@@ -14,7 +14,7 @@ SPDX-License-Identifier: Apache-2.0
 * [Build Windows](BUILD_WIN.md) - complete instructions for Windows.
 * [Build Linux](BUILD_LINUX.md) - additional instructions for Linux.
 * [Build OSX](BUILD_OSX.md) - additional instructions for OS X.
-* [Build Android](BUILD_ANDROID.md) - additional instructions for Android.
+* [Build Android](https://github.com/noah-be/overte/blob/android-main/BUILD_ANDROID.md) - additional instructions for Android.
 
 ## Dependencies
 - [git](https://git-scm.com/downloads): >= 1.6
