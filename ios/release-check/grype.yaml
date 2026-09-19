@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+# Local database scanning; no source or binary upload. Never ignore unfixed CVEs.
+check-for-app-update: false
+fail-on-severity: high
+ignore: []
+db:
+  auto-update: true
+  validate-age: true
+  max-allowed-built-age: 120h

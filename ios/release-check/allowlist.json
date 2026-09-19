@@ -1,0 +1,605 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "fingerprint": "c9cbb7267836ff9755f3b8d42f5639c56525599de7f8f30985cf4b8f6063c400",
+      "reason": "Reviewed intentional negative ScriptEngine fixture: throws before the completion marker or contains deliberately invalid function syntax. Preserve this exact fixture for engine regression coverage.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "d1919e7afc30ba3ca63d15c6ef5529e498704e4b6eed88bab08b5db5a7be4934",
+      "reason": "Reviewed intentional negative ScriptEngine fixture: throws before the completion marker or contains deliberately invalid function syntax. Preserve this exact fixture for engine regression coverage.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "5d57e50cbb5265eae0ceb15bc4c628e1023ce7764a44d9cf089e1f72e66a8805",
+      "reason": "Reviewed intentional negative ScriptEngine fixture: throws before the completion marker or contains deliberately invalid function syntax. Preserve this exact fixture for engine regression coverage.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "69870341f7a3abfc8b269e19e95735cf923817c05823922cb2ca5ac15ca1bda6",
+      "reason": "Reviewed regression assertion uses a synthetic literal to prove credential detection, not an account credential.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "e7b25922e6658ed9a209043b2651cdffd8b13e83a5eff9013d51ee70849d0580",
+      "reason": "Reviewed synthetic byte-string fixture verifies removal of authenticated URLs and tokens from logs; no network operation.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "fa4023d515851e8afe1008d64dbad932bc054ccebd8a0d8f18367a10f0aa65a0",
+      "reason": "Reviewed native-web rejection corpus deliberately includes an authenticated URL and asserts navigation is rejected.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "5bb304b5bf7103acbd49d6c63228c4d8d458001cd74af781b167e8a4b2652fc8",
+      "reason": "Reviewed entity-consent fixture supplies a synthetic URL to the test application boundary; no operational credential.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "12e285361e965524c17895f0bc6bc6c017197215279cd32f17155f2cd65928dd",
+      "reason": "Reviewed address diagnostics fixture uses a synthetic authenticated URL to assert logging redaction.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "e42455db84a809f0ffe5bd8c3318ed2250bd678b8be15434fe4b819b2351385e",
+      "reason": "Reviewed stub AccountManager uses synthetic inputs and asserts logging redaction; no real authentication.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "24f2740533377fdc476790457c33232aac2b90c51d83b029f0c207f02ed54e98",
+      "reason": "Reviewed mock p12 extraction writes a PEM envelope containing only the word fixture, not decodable private-key material.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "e7f0674b7b350253ae7416b9fc24cf583b9c2003bf235839b9908622c1ffb1f3",
+      "reason": "Reviewed Jenkins password uses a trim/readFile substitution; no password is embedded in the tracked YAML.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "2095c2259610a60fe6fc213b782b972bc9318a09a99fa78177f2b7574ffe7d5a",
+      "reason": "Reviewed synthetic redaction corpus. Historical variants are byte-identical to the reviewed current fixture. No operational credential.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "c73a0440b5f050030efda5fc73380a29af62ac0b1224206b5bfb1a35bd3cf842",
+      "reason": "Reviewed synthetic redaction corpus. Historical variants are byte-identical to the reviewed current fixture. No operational credential.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "2cdb0e9a694a44ef3369666fd616479d86fcc4054c331644c98514974f24bc5f",
+      "reason": "Reviewed synthetic redaction corpus. Historical variants are byte-identical to the reviewed current fixture. No operational credential.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "cdcdafa5a02a523446ef03fa20b6a8f2c33c6bf864774449e4575d6e9f6c95dd",
+      "reason": "Reviewed synthetic redaction corpus. Historical variants are byte-identical to the reviewed current fixture. No operational credential.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "2caf47fcabe94b028a57cc534d949fb674e3d9f724c395a70022f45b542a0d3d",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "d9ed87977749fb1b87ca571327f5d92a0b542a8f9d223fb9dbd40c30188f8e86",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "16103134aeb0d02258be863397902dea51cbed5408a1bacd3fc61e7d05353eb8",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "393bff1c2e50d920362357ca5ee0ef5ccedbb0c54202516dbf24a87dc73bd59f",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "a89841aea583b9371c647f42f056a242f184e32b143ab45c720338f868c9193e",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "0da469eb11592da1fd111ce2275b6ba26f8bd2a36cc45e8d797ba29c66a927b0",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "de1adeba1e1891ec4122f9b5ae6af810c0137f061394ef9ccdfe734e7ca239a9",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "bc04890272f965abe022b4d323c1755e4591463c33862e1543edaa4acdc38009",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "db63ebca10301e7085c011281bbfb767fcaf691d9b5c239943b4b676bb7bb910",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "a64fa51828829281914a0d3f81a036d5db3e0c0a07dc67b58180a6692915bbf6",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "583c7f7a15430cddba52ef89dae76ec052682556abc5132479dd2a832fe6229a",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "087c734828bd3b030ca0b553c5b02da90a7a3a7675e790b42cb08d5222e774b8",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "1aea856f1ac37b1d83d51057c6c28e5dc171b5c5eede6aa158ed1d0857fd7356",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "aa6babc32b6c631864a80be52cb61574a3b293cc97557429c0ac505992c55012",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "f13c1ee53f7a1db403263da7c52bc9412a9f03a1f75002fa9135d75eb9e9efa0",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "2fdbc080b8fa3aae11cd3f063ae883f357abd20b2f443c3b1d5f3ac2c9eb0184",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "1d6e139d5be0e5eab84589bb6ab1bd7035e5893f6159bf5ce841e68a6af2176b",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "1a11b3e6d1faafd1515ac1e4fca2e3b981c74a8df5d1fd71e19376a0dfdfafb8",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "b8005642d2639e9e1994e598b5982bc0b0369c3b93112c297a849eb25c9ec791",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "05ea023ff703414a000ff457e305f0f45563601c6fd7868dbaf1937112b5b580",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "5d7aed02b9f7875059ee33af2683b3ed46a10a39e983b22890a35a13870f4811",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "6a0e7120eb0acbeb111fbf3b2244467d5481a0c52bc958da0f0cc898b0178dbb",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "c79abee28b362e55aea9728412d3370c9f17f42707c227e526292311961a7ca3",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "04893aba420fed6182d4c0f3e5662ebb07403ffc61d1f613117689a6a99e34d6",
+      "reason": "Reviewed synthetic redaction corpus. Historical variants are byte-identical to the reviewed current fixture. No operational credential.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "6b13ab5d2ec893938282b8bf1def51b2d201500f4b2f701a892e658e5bd340da",
+      "reason": "Reviewed synthetic redaction corpus. Historical variants are byte-identical to the reviewed current fixture. No operational credential.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "b69b29d054093c4c071827c9256f3c8e84e241e34c711fc6b92c499313dc8708",
+      "reason": "Reviewed synthetic redaction corpus. Historical variants are byte-identical to the reviewed current fixture. No operational credential.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "2518689e55093e151f50d83695c89a2507616941add44705a9f4321248e52214",
+      "reason": "Reviewed synthetic redaction corpus. Historical variants are byte-identical to the reviewed current fixture. No operational credential.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "ca3a3f0a7d425a7f154aa388d5091d6139fa25273f75a0837d311cd423e53fb5",
+      "reason": "Reviewed synthetic redaction corpus. Historical variants are byte-identical to the reviewed current fixture. No operational credential.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "353b6fbd46baa702f141b49e450c7bdefb66f30226d35aa0fa1a0df418fb48fa",
+      "reason": "Reviewed synthetic redaction corpus. Historical variants are byte-identical to the reviewed current fixture. No operational credential.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "68660d82be4f8e1ad9a24c397f90f5c96a2c34dbe9981f8fdccb84fef42ad7c0",
+      "reason": "Reviewed synthetic redaction corpus. Historical variants are byte-identical to the reviewed current fixture. No operational credential.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "7128c6ca62795946b8edb2accd68ecf496a33f5e891b8dfd60bc0445f25c895f",
+      "reason": "Reviewed synthetic redaction corpus. Historical variants are byte-identical to the reviewed current fixture. No operational credential.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "b9394f5398f74b22dffbbc12ae7eaf77e58edb9220654f40f1ce957e92eb97f9",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "747437b3b1c4ed54fa0ae6f6d9e2ebb25225475660482012a6c38c1c3916ba93",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "f5ab8342a9575b5d370aef2e6acbed8e13199dbb148a3c748861c47846018a9e",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "dcf655bfbe62eb79cda2bdae92a0b395f676a946e875aced326f66dbc8d3aabe",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "070afe16c052d1eed71fdcc163b99d2837b643f0be3fec878015c95667e9b7c7",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "a69eeecd76b72e694883a05f891c4833c0d3f82da25f6c186103d14f805d70a0",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "9545cddd8ee5cb0a2e88f961dbc1a91487eb93aa66e3d559922747c00202ac15",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "6a18327e3f308705bfe8688911b41c7dc6c3a595a8f60c0db7c23bc05a4ee1a1",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "92d771451e6bc65ee2d538b52716883774ab35f02b318bc59b4ef5b474e85827",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "45a82d57caefe78e379b41fa8b5fe62ef6ea872c5da686df20855340b383033e",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "8ffea14756f7f88725ddf6f4fb5edc8bbaedc98eae2dfa861bc53c0715d3b7ac",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "b6e431b5f89e3b2ba6a3e1c2c19be4d0b797cdfa0347b2279abb71101cdaf8bc",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "d7663238ea534a8ebf2bcdc4398c883e68e3f1d249f8a3b3b2e267616980d72c",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "5fa19f8149395859707fdca57f4de9fb745256b4377f6b035c7cb337433206c9",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "b9f640f79088a6bca65021fd8ec7962ca91da28a037de267ec95bebe1e0a513d",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "642128469287e51b1ee275cd67b4e8907dd2a05d091581e9dc395956c2cc66e5",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "c142f6b5b1f97898a3f98a05e40d2ce0360e562c490571889d0046e298d5fb27",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "859bcf1eb50b5b08f4ee7fe7ebd124b606aadd3f7cac4233135ae4910987a38c",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "481c1fbc84e2cea80717ebd354f7c1332d827cedbe4b808a41e91c63005e0fed",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "ea0eec65a470b690a1764cee2bad93085d49ee84cbfd389b331e789b44e2ddcd",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "e0ea7231fe795dc7e05d7770806c400dee0eb019710c2817537ff4381ec7b74e",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "e792228a9bab094b1588c3479c7d87f3f948ea85d6af1e6ecddea6da04581bc1",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "3d97fae22fbc79d8070adccbb705e863c1fa1c6249f0c73210d9a49b544b88a2",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "76f5de777346a9d130e5efd4a19582200215eb6e48e0e899df1a694696aee085",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "7f687bba6bb366b52c0a5ba484a54d44b287c9193d83a86d64c2cb95a8839e5c",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "bc3ff23f5bd30ad2d3da2be41c378ad7d09b3d606fd0d55bf59a58094a9c8bc1",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "4a89ec49b52c20485e9986923387ecdc8b6b5a8d10fb23dcf19235b81e356720",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "f4b8fe76eb9507754e3d672d317e91ed946797ba2e61eaece731c60fb3cba8ef",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "82280e6e9a1e87a588604a57a7962e1f2f5be3c1a07640f9ca6a9b5274a8a641",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "43db8eda49db5d67689a3a739f83d3582f32852a030f77737fdcd4e88765bc09",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "0801245f0c238b11acdf07e827c58794766a59536c09ad037e964ef2622abb1e",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "d3c5f12981e226663c6a0134bcfbfc6aaccc2584fea277540d75b83e2cf93865",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "a2822cec708edf9dc10168374257119252fc7244b56aeeef7fe020b655e467df",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "34a2ca8990cf5856e0f6ec4c9e6f4c0f25444d2ee33d1e942f28c6ceb3d69270",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "a2928e60683379ead2af26f0e34ec9771f65d99136033338fc588e86f8aef1e9",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "8fb25a137e7bcf531e867a69f217a2bb342b6e05ff8e78eac0264c964b02a4c2",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "c76493d8e97b1090e5fec4a18b5a41b862e86e904c87dd9d5b07373313799f81",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "dc58977bc04b5b828a43f8f36e98498b9725bb183edae893ddda045d36e1081a",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "db8f9ab3b0007bdf22ed3d57e93c14766475e5bd37bf80331b369fd21f7d074a",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "b349e900ae09988019a1b8beff9796da519bbfe37fd756c1684eed18e62e3728",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "c35474e84c219d4bef2db4da8086640ed2a11fa21dbf22f5d8ea369d2e593186",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "056b7e22c831f4d55d6f3ec03ab19aea2940a6244cd3fb1cc222867d905a97d5",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "aaa23ea9714c02fb6e0cb8d401efdfe510c63da34e3fa38409874245aaf6ab24",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "dd08bb28dd7e14e3f7ba1a144d722bd5a3c53e001c8beb6dcef3c2c6aa16d1de",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "494928607113c38593285698d6ec5373b3b499b5b960249aa51404a6097ac540",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "45c914bd8ec9187d8c3eb83b5bd136d10ee0901c614a20aea3ffd6dd23de0ddf",
+      "reason": "Reviewed Jenkins plugin version coordinates, including historical syntax. Generic detector mistakes version hashes for API credentials.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "94154a20c717ee3aef866bee454f274648c5eb11dfb1f1e2c1a52d4e19c02978",
+      "reason": "Reviewed synthetic entity-gate parser fixture with deterministic example UUIDs and marker ordering, not a developer/device log.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "7500520fa0491489259c28c6c3b9186733dcde525c9becf12403728268767a0d",
+      "reason": "Reviewed synthetic entity-gate parser fixture with deterministic example UUIDs and marker ordering, not a developer/device log.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "0c6787ca02d513b54ebeb20b78ceea2ffb205d604ca7e864ad3b7c9d67368d43",
+      "reason": "Reviewed synthetic entity-gate parser fixture with deterministic example UUIDs and marker ordering, not a developer/device log.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "2f48edcf44ea6c8e9634d9894b8860307ca26b1e8b241a02c27879e5737fd485",
+      "reason": "Reviewed synthetic entity-gate parser fixture with deterministic example UUIDs and marker ordering, not a developer/device log.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "676e6dcdb391be6668605ac0ee219bb82c4a6fe8403b8b91348f17c4b43d616c",
+      "reason": "Reviewed synthetic entity-gate parser fixture with deterministic example UUIDs and marker ordering, not a developer/device log.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "b025264f66f198950af3e0a39391ab8d840d216a5e969c5a76050ff8d14cfd6d",
+      "reason": "Reviewed synthetic entity-gate parser fixture with deterministic example UUIDs and marker ordering, not a developer/device log.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "6911e7ebbe408fc12a40c1d0e3f7fee87b4471a1d6cf065ee7b81e3bc74f53f1",
+      "reason": "Reviewed vendor classifier handles RegExp through instanceof before impossible typeof regexp fallback; redundant dead condition retained as vendor-maintenance warning.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    },
+    {
+      "fingerprint": "ae36442e90eb110cb6f2a5968912807288f44246a2924c7b5c6a69af8576b783",
+      "reason": "Reviewed generated vendor parser final return follows unconditional parsing loop whose exits already return/throw; redundant return retained as vendor-maintenance warning.",
+      "owner": "iOS release gate maintainers",
+      "expires": "2026-12-19"
+    }
+  ]
+}

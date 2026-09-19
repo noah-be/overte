@@ -1,0 +1,77 @@
+name: iOS unsigned production build qualification
+
+# Called through the existing ios-bootstrap workflow, so a task-branch run does
+# not require installing a new dispatch entry point on the default branch.
+on:
+  workflow_call:
+    inputs:
+      validated_host_contracts_sha:
+        type: string
+        required: true
+      qt_host_cache_key:
+        type: string
+        default: ''
+      qt_ios_cache_key:
+        type: string
+        default: ''
+      qt_host_artifact_prefix:
+        type: string
+        default: ''
+      qt_ios_artifact_prefix:
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  gate-contracts:
+    if: github.repository == 'noah-be/overte'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify release gate and bundled users-event behavior
+        run: |
+          python3 -m unittest discover -s ios/release-check -p test_gate.py
+          node ios/release-check/test_tablet_users.cjs
+  provision-qt:
+    if: github.repository == 'noah-be/overte' && inputs.qt_host_cache_key == ''
+    needs: gate-contracts
+    uses: ./.github/workflows/ios-qt-source.yml
+    with:
+      preserve_reusable_data: true
+  production-after-qt:
+    if: github.repository == 'noah-be/overte' && inputs.qt_host_cache_key == ''
+    needs: provision-qt
+    uses: ./.github/workflows/ios-integrated.yml
+    with:
+      validated_host_contracts_sha: ${{ inputs.validated_host_contracts_sha }}
+      macos_runner: macos-26
+      preserve_reusable_data: true
+      e2e_test_build: false
+      qt_host_cache_key: ${{ needs.provision-qt.outputs.qt_host_cache_key }}
+      qt_ios_cache_key: ${{ needs.provision-qt.outputs.qt_ios_cache_key }}
+      qt_host_artifact_prefix: ${{ needs.provision-qt.outputs.qt_host_artifact_prefix }}
+      qt_ios_artifact_prefix: ${{ needs.provision-qt.outputs.qt_ios_artifact_prefix }}
+  production-from-checkpoints:
+    if: github.repository == 'noah-be/overte' && inputs.qt_host_cache_key != ''
+    needs: gate-contracts
+    uses: ./.github/workflows/ios-integrated.yml
+    with:
+      validated_host_contracts_sha: ${{ inputs.validated_host_contracts_sha }}
+      macos_runner: macos-26
+      preserve_reusable_data: true
+      e2e_test_build: false
+      qt_host_cache_key: ${{ inputs.qt_host_cache_key }}
+      qt_ios_cache_key: ${{ inputs.qt_ios_cache_key }}
+      qt_host_artifact_prefix: ${{ inputs.qt_host_artifact_prefix }}
+      qt_ios_artifact_prefix: ${{ inputs.qt_ios_artifact_prefix }}
+
+# Existing unsigned IPA/dSYM/checkpoint artifact uploads are inherited. There is
+# no release/store upload or signing. This cached build is NOT a clean-build
+# receipt and must never be imported as one by the release gate. Private source
+# scanner reports and device selectors are never passed to GitHub.

@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "functional": {
+    "suites": ["e2e-core", "domain-smoke", "asset-smoke", "sound-smoke", "tablet-e2e", "text-input-smoke", "e2e-recovery", "update-upgrade"],
+    "manualCases": [
+      {"id": "fresh-install", "procedure": "On a disposable test device/profile: install the signed candidate through the authorized local flow, remove prior app data, launch, verify onboarding, domain entry, asset loading and no retained account. Record exact artifact, OS and result. Do not erase personal device data."},
+      {"id": "production-smoke", "procedure": "Repeat first launch, movement, look, jump, sound, tablet and touch navigation on the uninstrumented production candidate; confirm no E2E/debug overlay."}
+    ]
+  },
+  "robustness": {
+    "suites": ["domain-recovery", "network-fault-recovery", "permission-recovery", "lifecycle-under-load", "crash-recovery-under-load", "render-health"],
+    "manualCases": [
+      {"id": "screen-lock", "procedure": "Lock/unlock the physical device during a controlled domain session; verify rendering, input, audio and reconnection after resume."},
+      {"id": "network-link", "procedure": "Disable and restore the actual device network; verify offline UI and recovery. The shared network-fault suite stops the fixture server and does not prove radio/link loss."},
+      {"id": "unreachable-domain", "procedure": "Navigate to a controlled unreachable domain; verify bounded timeout, responsive UI, no account leakage and recovery to a valid domain."},
+      {"id": "missing-assets", "procedure": "Use a fixture with deliberately missing and corrupt assets; verify bounded retries, usable UI and successful subsequent asset loading."},
+      {"id": "permission-matrix", "procedure": "Deny and later grant every permission actually used by the selected product. Verify explanations and behavior; shared permission-recovery covers microphone only."},
+      {"id": "low-storage", "procedure": "On a dedicated lab device with a controlled storage quota/filler, exercise asset loading and restart under low free storage, then remove only lab filler. Never fill the user's device implicitly."}
+    ]
+  },
+  "long-running": {
+    "minimumSeconds": 14400,
+    "suites": ["stability", "domain-recovery", "tablet-e2e", "lifecycle-stability"],
+    "maxRssMiB": 2048,
+    "maxRssGrowthMiB": 256,
+    "maxMeanCpuPercent": 200,
+    "maxBatteryDrainPerHour": 30,
+    "manualCases": [
+      {"id": "resource-budget", "procedure": "Review device-specific RAM/CPU/battery budgets in test-plan.json before acceptance. CPU uses percent of one logical core; RSS growth is a regression signal, not proof of no leaks."},
+      {"id": "memory-leaks", "procedure": "Record an Instruments Allocations/Leaks session on the same candidate and inspect retained growth across domain/tablet/lifecycle cycles. Attach private trace digest and conclusion."},
+      {"id": "slow-network", "procedure": "Repeat domain/asset/tablet cycles under a controlled slow network profile (record bandwidth, RTT, loss and duration); verify progress and bounded memory/retry behavior."},
+      {"id": "unstable-network", "procedure": "Repeat disconnect/reconnect cycles on a controlled network profile; verify recovery and no accumulating sessions/resources. Retain resource measurements privately."}
+    ]
+  }
+}

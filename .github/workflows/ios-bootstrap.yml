@@ -3,6 +3,11 @@ name: iOS bootstrap
 on:
   workflow_dispatch:
     inputs:
+      prerelease_build:
+        description: Build an unsigned production candidate on standard GitHub macOS runners; not release approval
+        required: false
+        type: boolean
+        default: false
       integrated:
         description: Provision validated Qt checkpoints and manually build the unsigned physical-device E2E client
         required: false
@@ -121,6 +126,7 @@ concurrency:
   # only; long Apple jobs require an explicit workflow dispatch.
   group: >-
     ios-bootstrap-${{ github.ref }}-${{
+      (github.event_name == 'workflow_dispatch' && inputs.prerelease_build && 'prerelease') ||
       (github.event_name == 'workflow_dispatch' && inputs.world_evidence && 'world') ||
       (github.event_name == 'workflow_dispatch' && inputs.fedora_e2e_producer && 'fedora-e2e') ||
       (github.event_name == 'workflow_dispatch' && inputs.personal_team_e2e_kit && 'personal-team-e2e') ||
@@ -130,6 +136,20 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  prerelease-build:
+    if: github.repository == 'noah-be/overte' && github.event_name == 'workflow_dispatch' && inputs.prerelease_build
+    needs: host-contracts
+    permissions:
+      actions: write
+      contents: read
+    uses: ./.github/workflows/ios-release-build.yml
+    with:
+      validated_host_contracts_sha: ${{ github.sha }}
+      qt_host_cache_key: ${{ inputs.qt_host_cache_key }}
+      qt_ios_cache_key: ${{ inputs.qt_ios_cache_key }}
+      qt_host_artifact_prefix: ${{ inputs.qt_host_artifact_prefix }}
+      qt_ios_artifact_prefix: ${{ inputs.qt_ios_artifact_prefix }}
+
   provision-qt-ios:
     if: github.event_name == 'workflow_dispatch' && inputs.integrated && inputs.qt_host_cache_key == ''
     needs: host-contracts
@@ -236,6 +256,7 @@ jobs:
       - name: Reject conflicting manual modes
         env:
           EVENT_NAME: ${{ github.event_name }}
+          RUN_PRERELEASE: ${{ inputs.prerelease_build || false }}
           RUN_INTEGRATED: ${{ inputs.integrated || false }}
           RUN_WORLD_EVIDENCE: ${{ inputs.world_evidence || false }}
           RUN_FEDORA_E2E: ${{ inputs.fedora_e2e_producer || false }}
@@ -251,7 +272,7 @@ jobs:
             exit 0
           fi
           selected=0
-          for value in "$RUN_INTEGRATED" "$RUN_WORLD_EVIDENCE" \
+          for value in "$RUN_PRERELEASE" "$RUN_INTEGRATED" "$RUN_WORLD_EVIDENCE" \
             "$RUN_FEDORA_E2E" "$RUN_PERSONAL_TEAM_E2E"; do
             if [[ "$value" == true ]]; then
               selected=$((selected + 1))
@@ -261,7 +282,7 @@ jobs:
             echo "select at most one manual iOS workflow mode" >&2
             exit 1
           fi
-          if [[ "$RUN_INTEGRATED" == true ]]; then
+          if [[ "$RUN_INTEGRATED" == true || "$RUN_PRERELEASE" == true ]]; then
             supplied=0
             for value in "$QT_HOST_KEY" "$QT_IOS_KEY" "$QT_HOST_PREFIX" "$QT_IOS_PREFIX"; do
               if [[ -n "$value" ]]; then supplied=$((supplied + 1)); fi
@@ -292,7 +313,8 @@ jobs:
       inputs.integrated != true &&
       inputs.world_evidence != true &&
       inputs.fedora_e2e_producer != true &&
-      inputs.personal_team_e2e_kit != true
+      inputs.personal_team_e2e_kit != true &&
+      inputs.prerelease_build != true
     needs: host-contracts
     runs-on: macos-26
     timeout-minutes: 35
@@ -357,7 +379,8 @@ jobs:
       inputs.integrated != true &&
       inputs.world_evidence != true &&
       inputs.fedora_e2e_producer != true &&
-      inputs.personal_team_e2e_kit != true
+      inputs.personal_team_e2e_kit != true &&
+      inputs.prerelease_build != true
     needs: host-contracts
     runs-on: macos-26
     timeout-minutes: 20
