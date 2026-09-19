@@ -397,16 +397,17 @@
       "timestamp": 1755505628.021
     },
     "qt/5.15.18-2026.01.04@overte/stable": {
-      "cache_folder": "qt47bb19961f59e",
+      "cache_folder": "qtcbbe61877a459",
       "files": {
-        "export/conandata.yml": "21c1c850b37b11fb2a36c0b19bd196abc08d5856e1e788ee19112c0ae616dcb2",
+        "export/conandata.yml": "b149bbcdc8005eb49cf327a26656e601bf48087aab28d51baa5bbf74a965bec8",
         "export/conanfile.py": "2a557393b0cb643c67f1df810bf5a90c12acf71dcd953571ece223fd3ba0b442",
-        "export/conanmanifest.txt": "be59babf256ab2164d8b5e6131c8120aa761ca282192a0fab63c76719fdbf8fc",
+        "export/conanmanifest.txt": "607b0571c3091af1b97d8be0c48990ea89716507afe49377ed182d1cf667977b",
         "export/qtmodules5.15.18-2026.01.04.conf": "98d8632bcfa4cc7e7dc1659770bca0a1da4397c762ef5a4f99eb413e5b756b70",
-        "export_sources/patches/Fix-error-uintptr_t-does-not-name-a-type-in-QtDeclarative.patch": "33d389780c86d24d6de3f9bed8a5fa28379ad45eddcb508c365bb9f24d1aa9d7"
+        "export_sources/patches/Fix-error-uintptr_t-does-not-name-a-type-in-QtDeclarative.patch": "33d389780c86d24d6de3f9bed8a5fa28379ad45eddcb508c365bb9f24d1aa9d7",
+        "export_sources/patches/qt-pico-android-runtime.patch": "ee87070ce3b613ca5d9111dcd6d21679e2b292329b572d93ae2f6ed2add6a9b3"
       },
-      "rrev": "b573e9e65fe29366102c09d5ec013c09",
-      "timestamp": 1788701578.080668
+      "rrev": "d75aeab99c3d3426df7ec9b39bc73aa8",
+      "timestamp": 1788770410.623351
     },
     "quazip/1.4": {
       "cache_folder": "quazi8728a2837d31c",
