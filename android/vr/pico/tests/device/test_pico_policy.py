@@ -3,7 +3,7 @@ import pathlib
 import subprocess
 import tempfile
 import unittest
-ROOT = pathlib.Path(__file__).resolve().parents[4]
+ROOT = pathlib.Path(__file__).resolve().parents[5]
 SOURCE = ROOT / 'libraries/audio-client/src/AudioClient.cpp'
 
 def body(signature):

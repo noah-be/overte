@@ -105,7 +105,7 @@ def inspect_zip(apk):
             openxr_plugin_bytes = (
                 archive.read(OPENXR_PLUGIN_PATH) if OPENXR_PLUGIN_PATH in names else b""
             )
-    except zipfile.BadZipFile as error:
+    except zipfile.BadZipFile:
         fail("invalid APK ZIP")
 
     native = re.compile(r"^lib/([^/]+)/([^/]+\.so)$")
@@ -127,7 +127,7 @@ def inspect_zip(apk):
     if has_layer_manifest:
         try:
             layer_manifest = json.loads(layer_manifest_bytes, object_pairs_hook=unique_fields)
-        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        except (UnicodeDecodeError, json.JSONDecodeError):
             fail("invalid E2E OpenXR input layer manifest")
         if not isinstance(layer_manifest, dict) or set(layer_manifest) != {
                 "file_format_version", "api_layer"}:

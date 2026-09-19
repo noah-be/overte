@@ -18,7 +18,7 @@ HERE = Path(__file__).parent
 class AudioPolicyBindingTest(unittest.TestCase):
     def test_actual_java_and_native_policy_callback(self):
         spec = importlib.util.spec_from_file_location('original_pico_policy_test',
-            ROOT / 'tests/device/contracts/audio/test_pico_policy.py')
+            ROOT / 'android/vr/pico/tests/device/test_pico_policy.py')
         contract = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(contract)
         callback = contract.body('Java_org_overte_pico_AndroidAudioInput_nativePolicyChanged(')
