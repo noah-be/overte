@@ -104,12 +104,12 @@ jobs:
           node --version
           java -version
 
-      - name: Install QML contract runtime
+      - name: Install QML and portable C++ contract prerequisites
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
-            qml-module-qttest qtdeclarative5-dev-tools
+            qml-module-qttest qtdeclarative5-dev-tools qt6-base-dev qt6-base-dev-tools
 
       - name: Run project suite
         run: |

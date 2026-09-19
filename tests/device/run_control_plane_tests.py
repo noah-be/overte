@@ -45,6 +45,24 @@ def commands(profile: str) -> list[tuple[str, list[str], bool]]:
             ("remote-avatar-keyframes", "world-entry/test_remote_avatar_keyframes.py"),
         ):
             checks.append((name, [sys.executable, str(ROOT / "contracts" / path)], False))
+        # Portable production regressions require Qt6 Core/Concurrent/Gui development
+        # packages and a host C++ compiler; no device or native client build.
+        for path in (
+            "audio/test_injector_buffer_publication.py",
+            "audio/test_injector_event_delivery.py",
+            "audio/test_injector_preparation_lifetime.py",
+            "audio/test_recording_safety.py",
+            "audio/test_sample_sound_controls.py",
+            "dependency/test_cache.py",
+            "lifecycle/test_domain_list_history.py",
+            "lifecycle/test_domain_list_receiver.py",
+            "lifecycle/test_v8_wrapper_teardown.py",
+            "graphics/entity-change-thread-test.py",
+            "graphics/image-decode-budget-test.py",
+            "graphics/image-decode-qt-codec-test.py",
+            "graphics/draw-info-object-index-test.py",
+        ):
+            checks.append((Path(path).stem, [sys.executable, str(ROOT / "contracts" / path)], False))
     else:
         patterns = [
             "test_common_contracts.py", "test_governance_and_frontier.py",
