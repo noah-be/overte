@@ -206,7 +206,7 @@
       "description": "Jump once, observe a non-flying ascent, and verify landing near the baseline.",
       "command": ["modules/jump.py"],
       "suites": ["e2e-core", "vertical-locomotion"],
-      "requires": ["input.jump", "probe.snapshot", "scene.load"],
+      "requires": ["app.process", "input.jump", "probe.snapshot", "scene.load"],
       "timeoutSeconds": 120
     },
     {
@@ -214,7 +214,7 @@
       "description": "Fly for a bounded duration and observe active flight with vertical ascent.",
       "command": ["modules/fly.py"],
       "suites": ["e2e-core", "vertical-locomotion"],
-      "requires": ["input.fly", "probe.snapshot", "scene.load"],
+      "requires": ["app.process", "input.fly", "probe.snapshot", "scene.load"],
       "timeoutSeconds": 120
     },
     {

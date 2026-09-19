@@ -104,7 +104,7 @@ monitor_pid "$build_pid"
 
 podman run "${container_args[@]}" --env OVERTE_FDROID_CONAN_DIR=/attempt/target \
   --env GRADLE_USER_HOME=/attempt/gradle-home "$image" /bin/sh -c \
-  "export PATH='$inner_path'; cd /attempt/source/android/common; ./gradlew --offline --no-daemon --stacktrace --settings-file /attempt/source/android/phone/settings.gradle -p /attempt/source/android/phone -PVERSION_CODE=1 -PRELEASE_NUMBER=0.1.0-fdroidproof :phoneInterface:assembleRelease --max-workers=\$(nproc)" \
+  "export PATH='$inner_path'; cd /attempt/source/android/common; ./gradlew --offline --no-daemon '-Dorg.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8' --stacktrace --settings-file /attempt/source/android/phone/settings.gradle -p /attempt/source/android/phone -PVERSION_CODE=1 -PRELEASE_NUMBER=0.1.0-fdroidproof -Pandroid.aapt2FromMavenOverride=/opt/android-sdk/build-tools/36.0.0/aapt2 :phoneInterface:assembleRelease --max-workers=\$(nproc)" \
   > "$OVERTE_ATTEMPT_ROOT/logs/gradle.log" 2>&1 &
 gradle_pid=$!
 monitor_pid "$gradle_pid"
