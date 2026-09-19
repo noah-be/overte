@@ -566,7 +566,7 @@ private:
     Mutex _checkPeakValuesMutex;
     QTimer* _checkPeakValuesTimer { nullptr };
 
-    bool _isRecording { false };
+    std::atomic<bool> _isRecording { false };
 };
 
 
