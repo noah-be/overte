@@ -1,0 +1,8 @@
+{
+  "sources": {
+    "3.2.11": {
+      "url": "https://codeload.github.com/AcademySoftwareFoundation/openexr/tar.gz/refs/tags/v3.2.11",
+      "sha256": "10f0f948321fa46f058e88afc292e6042e70158a9ce9206f344568189b849b1d"
+    }
+  }
+}

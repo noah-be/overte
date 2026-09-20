@@ -110,7 +110,7 @@ class ReproducibleGraphTest(unittest.TestCase):
         cmake_rrev = "cmake/3.31.12#2f6c0934c9dc141602cd279f67cfe048"
         qt_rrev = (
             "qt/5.15.18-2026.01.04@overte/stable"
-            "#b573e9e65fe29366102c09d5ec013c09"
+            "#4fd1f62ee1914f2f3ec4fe298a07c283"
         )
         self.assertIn(cmake_rrev, bootstrap)
         self.assertIn(qt_rrev, host)
@@ -147,7 +147,7 @@ class ReproducibleGraphTest(unittest.TestCase):
         target = load_json(LOCK_DIR / "android-arm64-v8a-api26-16k.lock")
         for lock, role in ((host, "requires"), (target, "build_requires")):
             for ref in ("freetype/2.13.3#75ca69fb4dc1a016c91b7f422ae58adc",
-                        "libpng/1.6.44#9e1aa08fb46946c7c91e4ae03bd49811",
+                        "libpng/1.6.58#f534fb581482e6cdd53f36e1602ccfb3",
                         "brotli/1.1.0#3f631ef77008f7b5eb388780116371a3"):
                 self.assertIn(ref, refs(lock, role))
         for ref in ("meson/1.10.2#9d2d10681fe7fe61c788c58626c89b25",
@@ -158,7 +158,7 @@ class ReproducibleGraphTest(unittest.TestCase):
     def test_directory_store_is_recipe_exports_only(self):
         store = ROOT / self.manifest["recipe_export_store"]["path"]
         index = load_json(store)
-        self.assertEqual(51, len(index["recipes"]))
+        self.assertEqual(52, len(index["recipes"]))
         self.assertFalse((store.parent.parent / "recipe-exports.tgz").exists())
         conanfiles = []
         for reference, entry in index["recipes"].items():
@@ -172,7 +172,7 @@ class ReproducibleGraphTest(unittest.TestCase):
                 any(name.endswith((".a", ".so", ".dll", ".exe", ".jar", ".dex")) for name in entry["files"]),
                 reference,
             )
-        self.assertEqual(51, len(conanfiles))
+        self.assertEqual(52, len(conanfiles))
 
     def test_source_identities_match_the_bound_recipe_data(self):
         identities = self.manifest["source_identities"]

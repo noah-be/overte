@@ -6,15 +6,15 @@
     },
     "host-tools": {
       "path": "android/phone/fdroid/locks/host-tools-linux-x86_64.lock",
-      "sha256": "df7d03ab04f7442ac0d17fb2153215d1961133accde01bcf1d6d1c97f7800c5b"
+      "sha256": "4d9df65dfb1ab00c21fcb1dc4e5baef2bd50ef9ab484ea4105392922bfbfe252"
     },
     "target": {
       "path": "android/phone/fdroid/locks/android-arm64-v8a-api26-16k.lock",
-      "sha256": "fb3860beeb527a9489120da0fd26f5db881f56f350e9e71c50071b10caa08112"
+      "sha256": "85236e6f45ac3b513bda1176c6524f6e0e6de55146936a77a5e113be61f0db0f"
     }
   },
   "node": "SH-001",
-  "node_count": 51,
+  "node_count": 52,
   "nodes": [
     {
       "classification": "source-bearing",
@@ -131,11 +131,11 @@
         },
         {
           "graph": "target",
-          "role": "build_requires"
+          "role": "requires"
         },
         {
           "graph": "target",
-          "role": "requires"
+          "role": "build_requires"
         }
       ],
       "lineage": {
@@ -245,11 +245,11 @@
         },
         {
           "graph": "target",
-          "role": "build_requires"
+          "role": "requires"
         },
         {
           "graph": "target",
-          "role": "requires"
+          "role": "build_requires"
         }
       ],
       "lineage": {
@@ -467,11 +467,11 @@
         },
         {
           "graph": "target",
-          "role": "build_requires"
+          "role": "requires"
         },
         {
           "graph": "target",
-          "role": "requires"
+          "role": "build_requires"
         }
       ],
       "lineage": {
@@ -635,18 +635,18 @@
         },
         {
           "graph": "target",
-          "role": "build_requires"
+          "role": "requires"
         },
         {
           "graph": "target",
-          "role": "requires"
+          "role": "build_requires"
         }
       ],
       "lineage": {
         "direct_dependencies": [
           "brotli/1.1.0",
           "bzip2/1.0.8",
-          "libpng/1.6.44",
+          "libpng/1.6.58",
           "meson/1.10.2",
           "pkgconf/2.2.0",
           "zlib/1.3.1"
@@ -915,11 +915,11 @@
         },
         {
           "graph": "target",
-          "role": "build_requires"
+          "role": "requires"
         },
         {
           "graph": "target",
-          "role": "requires"
+          "role": "build_requires"
         }
       ],
       "lineage": {
@@ -1241,11 +1241,11 @@
         },
         {
           "graph": "target",
-          "role": "build_requires"
+          "role": "requires"
         },
         {
           "graph": "target",
-          "role": "requires"
+          "role": "build_requires"
         }
       ],
       "lineage": {
@@ -1259,38 +1259,37 @@
       },
       "recipe": {
         "exported_files": {
-          "android/phone/fdroid/manifests/recipe-exports/libpng/1.6.44/export/conandata.yml": "4e94090f83b50883cc44b180f402a36631a1ceb7d03f834513fd16560e98c02f",
-          "android/phone/fdroid/manifests/recipe-exports/libpng/1.6.44/export/conanfile.py": "6aa88fb681bbe5cdaf5720b3c6a66ac79933a6ab43bf0c7d3bc35cbda6416fa8",
-          "android/phone/fdroid/manifests/recipe-exports/libpng/1.6.44/export/conanmanifest.txt": "af11906ef29db0eee0c3a7e528f4a36d7fe59629d3cadff64915de7dc2eb972d",
-          "android/phone/fdroid/manifests/recipe-exports/libpng/1.6.44/export_sources/src/conan_cmake_project_include.cmake": "40eeee643497197b1f024f66f44b97394c1a5f1053aba5eff6ae4d584736343a"
+          "android/phone/fdroid/manifests/recipe-exports/libpng/1.6.58/export/conandata.yml": "66c2423f1c72e75db1411c17803ff84eb8c9d144887ee7b9295495e42d5e174d",
+          "android/phone/fdroid/manifests/recipe-exports/libpng/1.6.58/export/conanfile.py": "6aa88fb681bbe5cdaf5720b3c6a66ac79933a6ab43bf0c7d3bc35cbda6416fa8",
+          "android/phone/fdroid/manifests/recipe-exports/libpng/1.6.58/export/conanmanifest.txt": "6c2f7ee293ea93c7aadb85a68a3d44ca89aafb0854407f9749f7ebbaabdf2dd4"
         },
-        "path": "android/phone/fdroid/manifests/recipe-exports/libpng/1.6.44/export/conanfile.py",
+        "path": "android/phone/fdroid/manifests/recipe-exports/libpng/1.6.58/export/conanfile.py",
         "sha256": "6aa88fb681bbe5cdaf5720b3c6a66ac79933a6ab43bf0c7d3bc35cbda6416fa8"
       },
-      "recipe_revision": "9e1aa08fb46946c7c91e4ae03bd49811",
-      "reference": "libpng/1.6.44",
+      "recipe_revision": "f534fb581482e6cdd53f36e1602ccfb3",
+      "reference": "libpng/1.6.58",
       "sources": [
         {
           "approved_redirect_hosts": [
-            ".sourceforge.net",
-            "sourceforge.net"
+            "sourceforge.net",
+            ".sourceforge.net"
           ],
           "archive_format": "tar.xz",
-          "canonical_url": "https://sourceforge.net/projects/libpng/files/libpng16/1.6.44/libpng-1.6.44.tar.xz",
+          "canonical_url": "https://sourceforge.net/projects/libpng/files/libpng16/1.6.58/libpng-1.6.58.tar.xz",
           "fdroid_exception": "none",
-          "id": "libpng/1.6.44",
-          "immutable_ref": "v1.6.44",
+          "id": "libpng/1.6.58",
+          "immutable_ref": "v1.6.58",
           "license": {
             "path": "LICENSE",
-            "public_source": "https://sourceforge.net/projects/libpng/files/libpng16/1.6.44/libpng-1.6.44.tar.xz#LICENSE",
-            "sha256": "7317e078e2d3b5d7ba5a6159e650945153262b44b76f6700f8e9edb261c5143e",
+            "public_source": "https://sourceforge.net/projects/libpng/files/libpng16/1.6.58/libpng-1.6.58.tar.xz#LICENSE",
+            "sha256": "bdb0a645ea18c60507d0368379b1ac5474b92255fcc2d115e07486a7672ba526",
             "spdx": "libpng-2.0"
           },
           "max_bytes": 2147483648,
           "redistribution": "allowed-foss-source",
           "retrieval": "https-archive",
-          "sha256": "60c4da1d5b7f0aa8d158da48e8f8afa9773c1c8baa5d21974df61f1886b8ce8e",
-          "store_path": "objects/sha256/60/60c4da1d5b7f0aa8d158da48e8f8afa9773c1c8baa5d21974df61f1886b8ce8e",
+          "sha256": "28eb403f51f0f7405249132cecfe82ea5c0ef97f1b32c5a65828814ae0d34775",
+          "store_path": "objects/sha256/28/28eb403f51f0f7405249132cecfe82ea5c0ef97f1b32c5a65828814ae0d34775",
           "strip_components": 1
         }
       ]
@@ -1304,11 +1303,11 @@
         },
         {
           "graph": "target",
-          "role": "build_requires"
+          "role": "requires"
         },
         {
           "graph": "target",
-          "role": "requires"
+          "role": "build_requires"
         }
       ],
       "lineage": {
@@ -1761,8 +1760,9 @@
       ],
       "lineage": {
         "direct_dependencies": [
+          "zlib/1.3.1",
           "imath/3.1.9",
-          "zlib/1.3.1"
+          "libdeflate/1.25"
         ],
         "graph_roots": [
           "target"
@@ -1770,39 +1770,37 @@
       },
       "recipe": {
         "exported_files": {
-          "android/phone/fdroid/manifests/recipe-exports/openexr/3.1.9/export/conandata.yml": "8276ead5c3e8687d793b4a6328682651dd7c097d433a3cfcffea388ef84956e6",
-          "android/phone/fdroid/manifests/recipe-exports/openexr/3.1.9/export/conanfile.py": "19ab94c52d3701209ce433bd5d4b535dd9d2f3d566007ad6845a99d0e63aba62",
-          "android/phone/fdroid/manifests/recipe-exports/openexr/3.1.9/export/conanmanifest.txt": "9e6381acf37794d200b521e88e1a3597feb84de51391a30e8255ec09bfad2e3f",
-          "android/phone/fdroid/manifests/recipe-exports/openexr/3.1.9/export_sources/patches/3.1.4-gcc5-bug-workaround.patch": "65cdaed30c21f16cf3287eaf59493b08bd3a2fe315b4a456ce29449455b72600"
+          "android/phone/fdroid/manifests/recipe-exports/openexr/3.2.11/export/conandata.yml": "96479a0984bde7f9030e9f277ce6b3e39121e70a2fcb51adb904c9327d02b3ca",
+          "android/phone/fdroid/manifests/recipe-exports/openexr/3.2.11/export/conanfile.py": "05f9d4eb441d960d5ba100b05d079b56a51b83833de0a14980e8b0959824edc5",
+          "android/phone/fdroid/manifests/recipe-exports/openexr/3.2.11/export/conanmanifest.txt": "24358ba5103fb0210ea077438bb4bc211c3f299525d01f1744d296927037accf"
         },
-        "path": "android/phone/fdroid/manifests/recipe-exports/openexr/3.1.9/export/conanfile.py",
-        "sha256": "19ab94c52d3701209ce433bd5d4b535dd9d2f3d566007ad6845a99d0e63aba62"
+        "path": "android/phone/fdroid/manifests/recipe-exports/openexr/3.2.11/export/conanfile.py",
+        "sha256": "05f9d4eb441d960d5ba100b05d079b56a51b83833de0a14980e8b0959824edc5"
       },
-      "recipe_revision": "cb853b3a9baee5f924ee5929ed94d55b",
-      "reference": "openexr/3.1.9",
+      "recipe_revision": "cb352646f9c77d213d4c448040a23953",
+      "reference": "openexr/3.2.11",
       "sources": [
         {
           "approved_redirect_hosts": [
-            ".githubusercontent.com",
-            "codeload.github.com",
-            "github.com"
+            "github.com",
+            "codeload.github.com"
           ],
           "archive_format": "tar.gz",
-          "canonical_url": "https://github.com/AcademySoftwareFoundation/openexr/archive/refs/tags/v3.1.9.tar.gz",
+          "canonical_url": "https://codeload.github.com/AcademySoftwareFoundation/openexr/tar.gz/refs/tags/v3.2.11",
           "fdroid_exception": "none",
-          "id": "openexr/3.1.9",
-          "immutable_ref": "v3.1.9",
+          "id": "openexr/3.2.11",
+          "immutable_ref": "v3.2.11",
           "license": {
             "path": "LICENSE.md",
-            "public_source": "https://github.com/AcademySoftwareFoundation/openexr/archive/refs/tags/v3.1.9.tar.gz#LICENSE.md",
-            "sha256": "1004bbac632fc4db96fc26ae79b6e2ceaf6f0e0910335545b0d9e9a267a8e24e",
+            "public_source": "https://codeload.github.com/AcademySoftwareFoundation/openexr/tar.gz/refs/tags/v3.2.11#LICENSE.md",
+            "sha256": "84853c91d4c2e0310741d4773469d98bb93e61029608e0ba0882a3fffdf330bd",
             "spdx": "BSD-3-Clause"
           },
           "max_bytes": 2147483648,
           "redistribution": "allowed-foss-source",
           "retrieval": "https-archive",
-          "sha256": "103e902d3902800ab07b5f3a298be7afd2755312737b2cdbfa01326ff99dac07",
-          "store_path": "objects/sha256/10/103e902d3902800ab07b5f3a298be7afd2755312737b2cdbfa01326ff99dac07",
+          "sha256": "10f0f948321fa46f058e88afc292e6042e70158a9ce9206f344568189b849b1d",
+          "store_path": "objects/sha256/10/10f0f948321fa46f058e88afc292e6042e70158a9ce9206f344568189b849b1d",
           "strip_components": 1
         }
       ]
@@ -2011,11 +2009,11 @@
         },
         {
           "graph": "target",
-          "role": "build_requires"
+          "role": "requires"
         },
         {
           "graph": "target",
-          "role": "requires"
+          "role": "build_requires"
         }
       ],
       "lineage": {
@@ -2145,11 +2143,11 @@
         },
         {
           "graph": "target",
-          "role": "build_requires"
+          "role": "requires"
         },
         {
           "graph": "target",
-          "role": "requires"
+          "role": "build_requires"
         }
       ],
       "lineage": {
@@ -2157,7 +2155,7 @@
           "double-conversion/3.3.0",
           "freetype/2.13.3",
           "libjpeg/9f",
-          "libpng/1.6.44",
+          "libpng/1.6.58",
           "md4c/0.5.2",
           "opengl/system",
           "openssl/3.5.8@overte/stable",
@@ -2174,16 +2172,16 @@
       "recipe": {
         "exported_files": {
           "android/phone/fdroid/manifests/recipe-exports/qt/5.15.18-2026.01.04@overte/stable/export/conandata.yml": "b149bbcdc8005eb49cf327a26656e601bf48087aab28d51baa5bbf74a965bec8",
-          "android/phone/fdroid/manifests/recipe-exports/qt/5.15.18-2026.01.04@overte/stable/export/conanfile.py": "2a557393b0cb643c67f1df810bf5a90c12acf71dcd953571ece223fd3ba0b442",
-          "android/phone/fdroid/manifests/recipe-exports/qt/5.15.18-2026.01.04@overte/stable/export/conanmanifest.txt": "607b0571c3091af1b97d8be0c48990ea89716507afe49377ed182d1cf667977b",
+          "android/phone/fdroid/manifests/recipe-exports/qt/5.15.18-2026.01.04@overte/stable/export/conanfile.py": "35950c13efdd89e805e355d6f3171ad1f500d8a8bc4bf8b209d4c9112e93d70b",
+          "android/phone/fdroid/manifests/recipe-exports/qt/5.15.18-2026.01.04@overte/stable/export/conanmanifest.txt": "4d069829e0c4bad94a4f44930ada4cc43e3738364ff7c8391da4a3339e43f183",
           "android/phone/fdroid/manifests/recipe-exports/qt/5.15.18-2026.01.04@overte/stable/export/qtmodules5.15.18-2026.01.04.conf": "98d8632bcfa4cc7e7dc1659770bca0a1da4397c762ef5a4f99eb413e5b756b70",
           "android/phone/fdroid/manifests/recipe-exports/qt/5.15.18-2026.01.04@overte/stable/export_sources/patches/Fix-error-uintptr_t-does-not-name-a-type-in-QtDeclarative.patch": "33d389780c86d24d6de3f9bed8a5fa28379ad45eddcb508c365bb9f24d1aa9d7",
           "android/phone/fdroid/manifests/recipe-exports/qt/5.15.18-2026.01.04@overte/stable/export_sources/patches/qt-pico-android-runtime.patch": "ee87070ce3b613ca5d9111dcd6d21679e2b292329b572d93ae2f6ed2add6a9b3"
         },
         "path": "android/phone/fdroid/manifests/recipe-exports/qt/5.15.18-2026.01.04@overte/stable/export/conanfile.py",
-        "sha256": "2a557393b0cb643c67f1df810bf5a90c12acf71dcd953571ece223fd3ba0b442"
+        "sha256": "35950c13efdd89e805e355d6f3171ad1f500d8a8bc4bf8b209d4c9112e93d70b"
       },
-      "recipe_revision": "d75aeab99c3d3426df7ec9b39bc73aa8",
+      "recipe_revision": "4fd1f62ee1914f2f3ec4fe298a07c283",
       "reference": "qt/5.15.18-2026.01.04@overte/stable",
       "sources": [
         {
@@ -2627,11 +2625,11 @@
         },
         {
           "graph": "target",
-          "role": "build_requires"
+          "role": "requires"
         },
         {
           "graph": "target",
-          "role": "requires"
+          "role": "build_requires"
         }
       ],
       "lineage": {
@@ -2688,11 +2686,11 @@
         },
         {
           "graph": "target",
-          "role": "build_requires"
+          "role": "requires"
         },
         {
           "graph": "target",
-          "role": "requires"
+          "role": "build_requires"
         }
       ],
       "lineage": {
@@ -2749,11 +2747,11 @@
         },
         {
           "graph": "target",
-          "role": "build_requires"
+          "role": "requires"
         },
         {
           "graph": "target",
-          "role": "requires"
+          "role": "build_requires"
         }
       ],
       "lineage": {
@@ -2810,11 +2808,11 @@
         },
         {
           "graph": "target",
-          "role": "build_requires"
+          "role": "requires"
         },
         {
           "graph": "target",
-          "role": "requires"
+          "role": "build_requires"
         }
       ],
       "lineage": {
@@ -2874,11 +2872,11 @@
         },
         {
           "graph": "target",
-          "role": "build_requires"
+          "role": "requires"
         },
         {
           "graph": "target",
-          "role": "requires"
+          "role": "build_requires"
         }
       ],
       "lineage": {
@@ -3147,11 +3145,11 @@
         },
         {
           "graph": "target",
-          "role": "build_requires"
+          "role": "requires"
         },
         {
           "graph": "target",
-          "role": "requires"
+          "role": "build_requires"
         }
       ],
       "lineage": {
@@ -3250,13 +3248,64 @@
           "strip_components": 1
         }
       ]
+    },
+    {
+      "classification": "source-bearing",
+      "contexts": [
+        {
+          "graph": "target",
+          "role": "requires"
+        }
+      ],
+      "lineage": {
+        "direct_dependencies": [],
+        "graph_roots": [
+          "target"
+        ]
+      },
+      "recipe": {
+        "exported_files": {
+          "android/phone/fdroid/manifests/recipe-exports/libdeflate/1.25/export/conandata.yml": "69dae2d27451cd9c00350511816eb35c6eda00703dd138a602a7d2ca81162175",
+          "android/phone/fdroid/manifests/recipe-exports/libdeflate/1.25/export/conanfile.py": "d8c220fb656db11968fe0d407a849deed53381baac824d36da0ee2a440c96784",
+          "android/phone/fdroid/manifests/recipe-exports/libdeflate/1.25/export/conanmanifest.txt": "31fd468e232a2cc963d42460e4e398fa52192bdb58d556d2c6ab91ae7635065b"
+        },
+        "path": "android/phone/fdroid/manifests/recipe-exports/libdeflate/1.25/export/conanfile.py",
+        "sha256": "d8c220fb656db11968fe0d407a849deed53381baac824d36da0ee2a440c96784"
+      },
+      "recipe_revision": "10964328ce2247995dc8d6add13a8ac5",
+      "reference": "libdeflate/1.25",
+      "sources": [
+        {
+          "approved_redirect_hosts": [
+            "github.com",
+            "codeload.github.com"
+          ],
+          "archive_format": "tar.gz",
+          "canonical_url": "https://github.com/ebiggers/libdeflate/archive/refs/tags/v1.25.tar.gz",
+          "fdroid_exception": "none",
+          "id": "libdeflate/1.25",
+          "immutable_ref": "v1.25",
+          "license": {
+            "path": "COPYING",
+            "public_source": "https://github.com/ebiggers/libdeflate/archive/refs/tags/v1.25.tar.gz#COPYING",
+            "sha256": "4ad69099cb4374836fd27583d9991e2838cd86b6e4666ab26b2d32582c91e73a",
+            "spdx": "MIT"
+          },
+          "max_bytes": 2147483648,
+          "redistribution": "allowed-foss-source",
+          "retrieval": "https-archive",
+          "sha256": "d11473c1ad4c57d874695e8026865e38b47116bbcb872bfc622ec8f37a86017d",
+          "store_path": "objects/sha256/d1/d11473c1ad4c57d874695e8026865e38b47116bbcb872bfc622ec8f37a86017d",
+          "strip_components": 1
+        }
+      ]
     }
   ],
   "recipe_export_index": {
     "path": "android/phone/fdroid/manifests/recipe-exports/index.json",
     "pkglist_path": "android/phone/fdroid/manifests/recipe-exports/pkglist.json",
-    "pkglist_sha256": "6598a6ab602e190187e4ed00fc20d8031d47fa9375fad7b52b55b49de8dfe5fd",
-    "sha256": "de8a9a8583f2d7a166a7a853fd0b804a5d8fdc978fd597aed8c586ba7ceda968"
+    "pkglist_sha256": "15e295283d41fb9588e1ae98dac78e3e0fe7d85ad557b49d0e9cbb0c7ae81425",
+    "sha256": "380321348ce4a23002705ac98a8c17101572a73d7a5489a13579981d04f4a49a"
   },
   "schema_version": 1,
   "status": "SOURCE_CLOSURE_GATE_PASS",

@@ -13,18 +13,18 @@
         "spirv-cross/1.4.350.0#904299c8c5fd6cbe677e09fb9ce8ff5f%1788770410.0248816",
         "scribe/2019.02@overte/stable#0c2eaba1220f4c3091a2d60773ee476a%1788770410.0141342",
         "quazip/1.4#b5b53ba941dd1da8e788f0c47b9ba8f5%1788770409.996887",
-        "qt/5.15.18-2026.01.04@overte/stable#d75aeab99c3d3426df7ec9b39bc73aa8%1788770410.623351",
+        "qt/5.15.18-2026.01.04@overte/stable#4fd1f62ee1914f2f3ec4fe298a07c283",
         "pcre2/10.42#a0b25dffca18f5987304619e9c93fb44%1788770409.9597633",
         "opus/1.5.2#18fcc73dcd16edae063173f3ceb3ed56%1788770409.9490554",
         "openxr/1.1.46@overte/stable#7ac70ec1fe70bb9c9cddeba10906b4dd%1788770409.9387352",
         "openssl/3.5.8@overte/stable#e2ab566b1c764e543d69c8a6fa0def5b%1788770409.9256852",
         "opengl/system#cfcf523b9d2bad75cbf377f56562634c%1788770409.9153252",
-        "openexr/3.1.9#cb853b3a9baee5f924ee5929ed94d55b%1788770409.902722",
+        "openexr/3.2.11#cb352646f9c77d213d4c448040a23953",
         "onetbb/2021.10.0#ee3f2e5539ab683fdaba561d89c9ecee%1788770409.8918905",
         "nvidia-texture-tools/2023.01@overte/stable#0619db1dd752cc6e324ee810f22d25c4%1788770409.8806076",
         "nlohmann_json/3.11.2#1ded6ae5d200a68ac17c51d528b945e2%1788770409.8698654",
         "md4c/0.5.2#3d7106721e458f9f799b87d4d50d02e0%1788770409.8133698",
-        "libpng/1.6.44#9e1aa08fb46946c7c91e4ae03bd49811%1788770409.8031867",
+        "libpng/1.6.58#f534fb581482e6cdd53f36e1602ccfb3",
         "libnode/22.22.3@overte/stable#a76ae5683eb20fbde3f88e16d8bea96e%1788770409.7927494",
         "libjpeg/9f#8b1b89da851ad9172565c35f14e23c4c%1788770409.7784605",
         "jsoncpp/1.9.6#c3730c7936aefa462eb6c6560a5e1fd8%1788770409.7686722",
@@ -44,7 +44,8 @@
         "bullet3/3.25#61b0be0c0f12810ee4f43437bd1785ad%1788770409.6083267",
         "brotli/1.1.0#3f631ef77008f7b5eb388780116371a3%1788770409.598412",
         "artery-font-format/1.0.1#23844a04de4e68fb711bf9585059886f%1788770409.5879455",
-        "abseil/20250127.0#e0dcc4b8a367edb49b062cb07ed8e9e6%1788770409.5768285"
+        "abseil/20250127.0#e0dcc4b8a367edb49b062cb07ed8e9e6%1788770409.5768285",
+        "libdeflate/1.25#10964328ce2247995dc8d6add13a8ac5"
     ],
     "build_requires": [
         "zlib/1.3.1#cac0f6daea041b0ccf42934163defb20%1788770410.1173842",
@@ -53,7 +54,7 @@
         "spirv-headers/1.4.350.0#e00d02f9314156c0d0afa8cecc7e43c7%1788770410.03555",
         "spirv-cross/1.4.350.0#904299c8c5fd6cbe677e09fb9ce8ff5f%1788770410.0248816",
         "scribe/2019.02@overte/stable#0c2eaba1220f4c3091a2d60773ee476a%1788770410.0141342",
-        "qt/5.15.18-2026.01.04@overte/stable#d75aeab99c3d3426df7ec9b39bc73aa8%1788770410.623351",
+        "qt/5.15.18-2026.01.04@overte/stable#4fd1f62ee1914f2f3ec4fe298a07c283",
         "pkgconf/2.2.0#4ac315b50ef734072b00ff3aacbf52bf%1788770409.9702342",
         "pcre2/10.42#a0b25dffca18f5987304619e9c93fb44%1788770409.9597633",
         "ninja/1.13.2#c8c5dc2a52ed6e4e42a66d75b4717ceb%1788770409.8565474",
@@ -61,7 +62,7 @@
         "meson/1.10.2#9d2d10681fe7fe61c788c58626c89b25%1788770409.8244052",
         "meson/1.6.0#df190c5b0592572e6f5a1b05999e7e6d%1788770409.8343263",
         "md4c/0.5.2#3d7106721e458f9f799b87d4d50d02e0%1788770409.8133698",
-        "libpng/1.6.44#9e1aa08fb46946c7c91e4ae03bd49811%1788770409.8031867",
+        "libpng/1.6.58#f534fb581482e6cdd53f36e1602ccfb3",
         "glslang/1.4.350.0#c4d9cb1ccdcdb314655e9648fe6cf5d0%1788770409.7396793",
         "freetype/2.13.3#75ca69fb4dc1a016c91b7f422ae58adc%1788770409.6903813",
         "double-conversion/3.3.0#6ad026cf92c316c476919f7f152072d7%1788770409.6568341",
@@ -84,7 +85,7 @@
             "glm/0.9.9.5"
         ],
         "qt/[~5.15]": [
-            "qt/5.15.18-2026.01.04@overte/stable#d75aeab99c3d3426df7ec9b39bc73aa8"
+            "qt/5.15.18-2026.01.04@overte/stable#4fd1f62ee1914f2f3ec4fe298a07c283"
         ],
         "openssl/[>=1.1 <4]": [
             "openssl/3.5.8@overte/stable"

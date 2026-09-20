@@ -40,7 +40,7 @@ def load_json(path: Path):
 
 def validate(index_path: Path):
     index = load_json(index_path)
-    if index.get("schema_version") != 1 or len(index.get("recipes", {})) != 51:
+    if index.get("schema_version") != 1 or len(index.get("recipes", {})) != 52:
         raise RecipeStoreError("recipe index schema/count mismatch")
     root = index_path.parent
     pkglist = load_json(root / "pkglist.json")

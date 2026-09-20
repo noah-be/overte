@@ -20,7 +20,7 @@ SPEC.loader.exec_module(MODULE)
 class RecipeExportStoreTest(unittest.TestCase):
     def test_committed_directory_store_is_complete_and_source_only(self):
         index, pkglist = MODULE.validate(INDEX)
-        self.assertEqual(51, len(index["recipes"]))
+        self.assertEqual(52, len(index["recipes"]))
         self.assertEqual(set(index["recipes"]), set(pkglist))
         self.assertFalse((INDEX.parent.parent / "recipe-exports.tgz").exists())
 
@@ -35,8 +35,8 @@ class RecipeExportStoreTest(unittest.TestCase):
             with MODULE.tarfile.open(first, "r:gz") as archive:
                 names = [member.name for member in archive.getmembers()]
             self.assertIn("pkglist.json", names)
-            self.assertEqual(51, len([name for name in names if name.endswith("/e/conanfile.py")]))
-            self.assertEqual(51, len([name for name in names if name.endswith("/es")]))
+            self.assertEqual(52, len([name for name in names if name.endswith("/e/conanfile.py")]))
+            self.assertEqual(52, len([name for name in names if name.endswith("/es")]))
             self.assertFalse([name for name in names if "p" in Path(name).parts or "s" in Path(name).parts])
             self.assertFalse(any(name.endswith((".a", ".apk", ".dex", ".jar", ".o", ".so")) for name in names))
 
