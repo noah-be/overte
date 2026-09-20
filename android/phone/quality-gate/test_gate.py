@@ -14,7 +14,7 @@ import zipfile
 sys.dont_write_bytecode = True
 from core import Gate, digest
 from evidence import regular_file, write_receipt, validate_receipt, FIXED_FILES, MODULE
-from runtime_checks import archive_members
+from runtime_checks import archive_members, analyze_telemetry, e2e
 from source_checks import materialize, secrets, dependencies, licenses, hygiene
 
 
@@ -250,6 +250,34 @@ class GateContracts(unittest.TestCase):
             raise ValueError('synthetic error')
         self.assertEqual(self.g.category, 'build')
         self.assertEqual(self.g.findings[-1]['category'], 'static')
+
+    def test_soak_requires_continuous_valid_measurements(self):
+        module = self.out / 'modules/idle-soak'
+        module.mkdir(parents=True)
+        valid = [dict(elapsedSeconds=t, memoryPssKb=100000, memoryRssKb=120000,
+                      batteryLevel=80, batteryTemperatureDeciC=300, thermalStatus=0)
+                 for t in range(0, 7200, 30)]
+        def check(samples):
+            (module / 'telemetry.jsonl').write_text('\n'.join(json.dumps(s) for s in samples))
+            (module / 'metrics.json').write_text(json.dumps(dict(durationSeconds=7200, samples=len(samples))))
+            return analyze_telemetry(self.g, self.out)
+        self.assertEqual(check(valid), 7200)
+        for samples in ([valid[0], valid[120], valid[-1]], valid[3:], valid[:-3],
+                        [valid[0], *valid], [dict(valid[0], elapsedSeconds=-1), *valid[1:]]):
+            with self.subTest(case='coverage'):
+                self.assertEqual(check(samples), 0)
+        for field, value in [('memoryPssKb', None), ('memoryRssKb', -1),
+                             ('batteryLevel', True), ('batteryTemperatureDeciC', float('nan')),
+                             ('thermalStatus', 6)]:
+            with self.subTest(field=field):
+                self.assertEqual(check([dict(valid[0], **{field: value}), *valid[1:]]), 0)
+
+    def test_device_groups_never_run_without_explicit_authorization(self):
+        for group in ('functional', 'robustness', 'long'):
+            with self.subTest(group=group), patch.object(self.g, 'run') as run:
+                with self.assertRaisesRegex(ValueError, 'explicitly enabled'):
+                    e2e(self.g, group)
+                run.assert_not_called()
 
 
 if __name__ == '__main__':

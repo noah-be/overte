@@ -508,13 +508,23 @@ def analyze_telemetry(g, output):
         g.fail('telemetry-duration', 'Idle-soak metrics do not prove the requested two-hour session.')
         return 0
     samples = [json.loads(line) for line in p.read_text().splitlines() if line.strip()]
-    if len(samples) < 3 or any('memoryPssKb' not in s for s in samples):
-        g.fail('telemetry-incomplete', 'Insufficient memory samples.')
+    fields = {'memoryPssKb': (1, 2 ** 63 - 1), 'memoryRssKb': (1, 2 ** 63 - 1),
+              'batteryLevel': (0, 100), 'batteryTemperatureDeciC': (-500, 2000),
+              'thermalStatus': (0, 6)}
+    if len(samples) < 3 or any(not isinstance(s, dict) or any(
+            type(s.get(key)) is not int or not low <= s[key] <= high
+            for key, (low, high) in fields.items()) for s in samples):
+        g.fail('telemetry-incomplete', 'Missing or invalid memory, battery or thermal samples.')
         return 0
     elapsed = [sample.get('elapsedSeconds') for sample in samples]
     if (any(type(value) is not int for value in elapsed) or elapsed != sorted(set(elapsed))
-            or elapsed[0] > 60 or elapsed[-1] < 7140 or len(samples) != metrics.get('samples')):
+            or not 0 <= elapsed[0] <= 60 or not 7140 <= elapsed[-1] <= 7260
+            or any(b - a > 90 for a, b in zip(elapsed, elapsed[1:]))
+            or type(metrics.get('samples')) is not int or len(samples) != metrics['samples']):
         g.fail('telemetry-coverage', 'Soak samples do not cover the recorded interval.')
+        return 0
+    if any(s['thermalStatus'] > 5 for s in samples):
+        g.fail('telemetry-thermal', 'Recorded thermal status exceeded the soak safety limit.')
         return 0
     growth = samples[-1]['memoryPssKb'] - samples[0]['memoryPssKb']
     write_json(output / 'memory-trend.json', dict(samples=len(samples), pss_growth_kb=growth,
