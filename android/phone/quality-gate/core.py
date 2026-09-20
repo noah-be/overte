@@ -102,10 +102,11 @@ class Gate:
         finally:
             self.category = previous
 
-    def finding(self, rule, status, path, message, action, line=None, fdroid=False, suppressible=True):
+    def finding(self, rule, status, path, message, action, line=None, fdroid=False, suppressible=True,
+                history_commit=None):
         # Only source-snapshot paths are eligible for source exceptions. An APK
         # member with the same name must never borrow an unrelated source hash.
-        sha = self.source_hashes.get(path) if self.category not in {'artifact', 'functional', 'robustness', 'long'} else None
+        sha = self.source_hashes.get(path) if history_commit is None and self.category not in {'artifact', 'functional', 'robustness', 'long'} else None
         waived = None
         if suppressible:
             for e in self.exceptions:
@@ -116,7 +117,7 @@ class Gate:
         self.findings.append(dict(category=self.category, rule=rule,
                                   status='WARNING' if waived else status, path=path, line=line,
                                   message=message, action=action, fdroid_critical=fdroid,
-                                  file_sha256=sha, exception=waived))
+                                  file_sha256=sha, history_commit=history_commit, exception=waived))
 
     def fail(self, rule, message, path='', fdroid=False):
         self.finding(rule, 'FAIL', path, message, 'Supply valid evidence or fix the failure and rerun.',
@@ -221,6 +222,8 @@ class Gate:
             lines += [f'### {name} ({len(rows)} findings)', '']
             for r in rows[:50]:
                 where = (r['path'] + (':' + str(r['line']) if r['line'] else '')).replace('|', '\\|')
+                if r.get('history_commit'):
+                    where += ' @ ' + r['history_commit']
                 lines.append(f"- **{r['status']}** {'[F-DROID CRITICAL] ' if r['fdroid_critical'] else ''}`{r['rule']}` {where}: {r['message']} Next: {r['action']}")
             lines.append('')
         (self.out / 'report.md').write_text('\n'.join(lines) + '\n')

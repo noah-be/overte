@@ -19,7 +19,7 @@
     {
       "rule": "gitleaks-generic-api-key",
       "path": "android/phone/fdroid/manifests/recipe-source.lock.json",
-      "sha256": "6eca8a5ddbbc5dfebc2603b0095fb7b24aadd4058f1da82a18d8d5e54237ae3d",
+      "sha256": "015d5a8bb8eeb39e5895147b6ba651cf226cdcb99c1798b819ee766f395d6690",
       "reason": "The flagged value is a SHA-256 source-file digest in a source-closure path-to-digest map, not a credential.",
       "owner": "Android quality gate qualification review",
       "expires": "2026-12-18"
@@ -27,7 +27,7 @@
     {
       "rule": "gitleaks-discord-api-token",
       "path": "android/phone/fdroid/manifests/recipe-source.lock.json",
-      "sha256": "6eca8a5ddbbc5dfebc2603b0095fb7b24aadd4058f1da82a18d8d5e54237ae3d",
+      "sha256": "015d5a8bb8eeb39e5895147b6ba651cf226cdcb99c1798b819ee766f395d6690",
       "reason": "Both hits are SHA-256 values for discord-rpc source paths in a source-closure digest map, not Discord authentication tokens.",
       "owner": "Android quality gate qualification review",
       "expires": "2026-12-18"
@@ -38,6 +38,86 @@
       "sha256": "46d5f0ed7643956a3e88c588f355b185ccdc6d22ea19bbd84708037f985f8e81",
       "reason": "All flagged lines are Jenkins plugin ID:version declarations in the pinned plugin inventory. No credential assignments occur in these matched lines.",
       "owner": "Android quality gate qualification review",
+      "expires": "2026-12-18"
+    },
+    {
+      "rule": "gitleaks-generic-api-key",
+      "path": "tests/device/contracts/redaction/SanitizerTest.java",
+      "sha256": "e359eaec4adaffb3edabdd364ffdd92367e4f1c64f743185c9da0e57da40be90",
+      "reason": "Reviewed synthetic canaries used to assert that private values never reach diagnostic output. These test fixtures do not authenticate against a service. Preserve the redaction assertions; any file change requires renewed review.",
+      "owner": "Android Phone remediation review",
+      "expires": "2026-12-18"
+    },
+    {
+      "rule": "gitleaks-generic-api-key",
+      "path": "tests/device/contracts/redaction/sanitizer-test.cpp",
+      "sha256": "2c10e7468a2d7ee811e25e087bd4b4de39188c1819ec75b90c32c7086f2a4395",
+      "reason": "Reviewed synthetic canaries used to assert that private values never reach diagnostic output. These test fixtures do not authenticate against a service. Preserve the redaction assertions; any file change requires renewed review.",
+      "owner": "Android Phone remediation review",
+      "expires": "2026-12-18"
+    },
+    {
+      "rule": "gitleaks-generic-api-key",
+      "path": "tests/device/schema/test_junit_privacy.py",
+      "sha256": "20fcd0838fd3475d2745344781fd37a2fa25384400a21d034e8400738eff660c",
+      "reason": "Reviewed synthetic canaries used to assert that private values never reach diagnostic output. These test fixtures do not authenticate against a service. Preserve the redaction assertions; any file change requires renewed review.",
+      "owner": "Android Phone remediation review",
+      "expires": "2026-12-18"
+    },
+    {
+      "rule": "credential-literal",
+      "path": "tests/device/contracts/redaction/crash-annotations-test.cpp",
+      "sha256": "c28179159dace6d8468622498e0dd6cb51a3ac865f2903cef47f48b3ac1b64cb",
+      "reason": "Reviewed synthetic canaries used to assert that private values never reach diagnostic output. These test fixtures do not authenticate against a service. Preserve the redaction assertions; any file change requires renewed review.",
+      "owner": "Android Phone remediation review",
+      "expires": "2026-12-18"
+    },
+    {
+      "rule": "credential-literal",
+      "path": "tests/device/contracts/redaction/login-dialog-diagnostics-test.cpp",
+      "sha256": "55139f90417de33b20b4fc16182f9cc67d1a41a27fe9b60cb28cb0887491530b",
+      "reason": "Reviewed synthetic canaries used to assert that private values never reach diagnostic output. These test fixtures do not authenticate against a service. Preserve the redaction assertions; any file change requires renewed review.",
+      "owner": "Android Phone remediation review",
+      "expires": "2026-12-18"
+    },
+    {
+      "rule": "credential-literal",
+      "path": "tests/device/contracts/redaction/qml-asset-diagnostics-test.js",
+      "sha256": "217902169ab31c3d97866327e0b976fda525886d5fbaf57b0c97b5465f3a0df5",
+      "reason": "Reviewed synthetic canaries used to assert that private values never reach diagnostic output. These test fixtures do not authenticate against a service. Preserve the redaction assertions; any file change requires renewed review.",
+      "owner": "Android Phone remediation review",
+      "expires": "2026-12-18"
+    },
+    {
+      "rule": "credential-literal",
+      "path": "tests/device/contracts/redaction/test_qml_asset_diagnostics.py",
+      "sha256": "ff2182947b782b7df244fc7ecfcde619dfa92f1bcf759248572318a9f2ce5ae0",
+      "reason": "Reviewed synthetic canaries used to assert that private values never reach diagnostic output. These test fixtures do not authenticate against a service. Preserve the redaction assertions; any file change requires renewed review.",
+      "owner": "Android Phone remediation review",
+      "expires": "2026-12-18"
+    },
+    {
+      "rule": "credential-literal",
+      "path": "libraries/ui/src/ui/OffscreenQmlSurface.cpp",
+      "sha256": "4873a4fbddfdb053deeac6b0c84d210bb9af803702dfc7a93dfc4764e63a26ed",
+      "reason": "Both matches are the RAISE_KEYBOARD_NUMERIC_PASSWORD and RAISE_KEYBOARD_PASSWORD event marker constants. They select the password keyboard mode and contain no authentication material.",
+      "owner": "Android Phone remediation review",
+      "expires": "2026-12-18"
+    },
+    {
+      "rule": "credential-literal",
+      "path": "tests/device/jenkins/jenkins.yaml",
+      "sha256": "d36d7bac9441c1b45e828cc46bca3fb9fbb0c9297c17ec7c26529aa29a42bb99",
+      "reason": "The password field is a JCasC trim/readFile substitution referencing an external administrator password file. No password value is embedded. Do not replace it with a literal.",
+      "owner": "Android Phone remediation review",
+      "expires": "2026-12-18"
+    },
+    {
+      "rule": "insecure-download",
+      "path": "tests/device/self_tests/test_toolchain_lock.py",
+      "sha256": "4246fac4c0ea092a356bf2e6b0ccc7d24216316c002f8b8f883050d7807080ab",
+      "reason": "The HTTP URL uses example.invalid in a negative test that asserts rejection of non-HTTPS downloads. It is not an acquisition endpoint; preserve that negative test.",
+      "owner": "Android Phone remediation review",
       "expires": "2026-12-18"
     }
   ]

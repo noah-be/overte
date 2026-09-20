@@ -90,12 +90,15 @@ def secrets(g):
                 if not isinstance(findings, list) or (rc == 1 and not findings):
                     raise ValueError('Secret scanner report is inconsistent with its exit status')
                 for row in findings:
+                    commit = row.get('Commit') if mode == 'git' else None
+                    if mode == 'git' and (not isinstance(commit, str) or not re.fullmatch(r'[0-9a-f]{40,64}', commit)):
+                        raise ValueError('Historical secret finding lacks a valid commit identity')
                     relative = row.get('File', '')
                     relative = relative.removeprefix(str(scope) + '/').removeprefix(str(g.root) + '/')
                     g.finding('gitleaks-' + row['RuleID'], 'FAIL', relative,
                               'Secret detector finding; value redacted in private evidence.',
                               'Rotate genuine secrets and investigate history; waive only reviewed false positives.',
-                              row.get('StartLine'), fdroid=True, suppressible=mode != 'git')
+                              row.get('StartLine'), fdroid=True, suppressible=mode != 'git', history_commit=commit)
             elif rc in (0, 1):
                 g.fail('gitleaks-report', 'Secret scan did not produce its required report.')
     shallow = subprocess.check_output(['git', 'rev-parse', '--is-shallow-repository'], cwd=g.root, text=True).strip()

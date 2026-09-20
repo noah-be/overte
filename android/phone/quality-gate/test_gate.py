@@ -12,7 +12,7 @@ from unittest.mock import patch
 import zipfile
 
 sys.dont_write_bytecode = True
-from core import Gate
+from core import Gate, digest
 from evidence import regular_file, write_receipt, validate_receipt, FIXED_FILES, MODULE
 from runtime_checks import archive_members
 from source_checks import materialize, secrets, dependencies, licenses
@@ -93,6 +93,38 @@ class GateContracts(unittest.TestCase):
         self.g.review('licenses')
         self.assertEqual(len(self.g.findings), 3)
         self.assertTrue(all(r['status']=='FAIL' for r in self.g.findings))
+
+    def test_reviewed_exceptions_require_unchanged_repository_files(self):
+        root = Path(__file__).resolve().parents[3]
+        for entry in self.g.exceptions:
+            with self.subTest(path=entry['path'], rule=entry['rule']):
+                self.assertEqual(digest(root / entry['path']), entry['sha256'],
+                                 'Changed exception input requires renewed review, not automatic rebinding')
+
+    def test_source_exception_cannot_waive_history_or_changed_input(self):
+        self.g.exceptions = [dict(rule='fixture', path='input.txt', sha256=self.g.source_hashes['input.txt'],
+                                 reason='Reviewed fixture', owner='Test', expires='2099-01-01')]
+        self.g.finding('fixture', 'FAIL', 'input.txt', 'candidate', 'review', history_commit='a' * 40)
+        self.assertEqual(self.g.findings[-1]['status'], 'FAIL')
+        self.assertIsNone(self.g.findings[-1]['file_sha256'])
+        self.assertEqual(self.g.findings[-1]['history_commit'], 'a' * 40)
+        self.g.source_hashes['input.txt'] = 'b' * 64
+        self.g.finding('fixture', 'FAIL', 'input.txt', 'candidate', 'review')
+        self.assertEqual(self.g.findings[-1]['status'], 'FAIL')
+
+    def test_history_scanner_retains_commit_and_rejects_missing_identity(self):
+        commit = 'a' * 40
+        def fake_run(label, argv, **kwargs):
+            rows = [] if label.endswith('-dir') else [dict(File='input.txt', RuleID='fixture', StartLine=3, Commit=commit)]
+            Path(argv[argv.index('--report-path') + 1]).write_text(json.dumps(rows))
+            return int(bool(rows)), self.out / 'unused'
+        with patch.object(self.g, 'tool', return_value=True), patch.object(self.g, 'run', side_effect=fake_run):
+            secrets(self.g)
+            self.assertEqual(self.g.findings[-1]['history_commit'], commit)
+            self.assertIsNone(self.g.findings[-1]['file_sha256'])
+            commit = None
+            with self.assertRaisesRegex(ValueError, 'commit identity'):
+                secrets(self.g)
 
     def test_evidence_escape_and_symlink_rejected(self):
         (self.out / 'link').symlink_to(self.root / 'input.txt')
