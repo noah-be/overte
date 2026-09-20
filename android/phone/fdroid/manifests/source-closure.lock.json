@@ -10,7 +10,7 @@
     },
     "target": {
       "path": "android/phone/fdroid/locks/android-arm64-v8a-api26-16k.lock",
-      "sha256": "f3b818f693581e864ef62e09082d6b93200c4ac400c95629175e03f4831518f2"
+      "sha256": "d21a74b01b523156ab0379f0e25f4268804f7cffad5b3c391fcbe9d1e4652cc8"
     }
   },
   "node": "SH-001",
@@ -1770,14 +1770,14 @@
       },
       "recipe": {
         "exported_files": {
-          "android/phone/fdroid/manifests/recipe-exports/openexr/3.2.12/export/conandata.yml": "662a099ee2568f78678709d83603981f997a56fa048ace104b5a4c913f1ea5d9",
+          "android/phone/fdroid/manifests/recipe-exports/openexr/3.2.12/export/conandata.yml": "08bd8217a9a43a610f0da44c120dee88194aa354386a1b68d4ee31d794b493b7",
           "android/phone/fdroid/manifests/recipe-exports/openexr/3.2.12/export/conanfile.py": "05f9d4eb441d960d5ba100b05d079b56a51b83833de0a14980e8b0959824edc5",
-          "android/phone/fdroid/manifests/recipe-exports/openexr/3.2.12/export/conanmanifest.txt": "fab6f666b21ba1d585880cf988b6980d029919738fc84dac0c20c27cd2160bb9"
+          "android/phone/fdroid/manifests/recipe-exports/openexr/3.2.12/export/conanmanifest.txt": "5d36fdb665c997439bb916562dafd26ed6b0eaeffcfff68a0535015d10d4b1a3"
         },
         "path": "android/phone/fdroid/manifests/recipe-exports/openexr/3.2.12/export/conanfile.py",
         "sha256": "05f9d4eb441d960d5ba100b05d079b56a51b83833de0a14980e8b0959824edc5"
       },
-      "recipe_revision": "fd3be9ce668b354f11e997c5ba771b4e",
+      "recipe_revision": "7d958a6cf728315cdefaa2768f7bf9ad",
       "reference": "openexr/3.2.12",
       "sources": [
         {
@@ -1786,13 +1786,13 @@
             "codeload.github.com"
           ],
           "archive_format": "tar.gz",
-          "canonical_url": "https://codeload.github.com/AcademySoftwareFoundation/openexr/tar.gz/refs/tags/v3.2.12",
+          "canonical_url": "https://github.com/AcademySoftwareFoundation/openexr/archive/refs/tags/v3.2.12.tar.gz",
           "fdroid_exception": "none",
           "id": "openexr/3.2.12",
           "immutable_ref": "v3.2.12",
           "license": {
             "path": "LICENSE.md",
-            "public_source": "https://codeload.github.com/AcademySoftwareFoundation/openexr/tar.gz/refs/tags/v3.2.12#LICENSE.md",
+            "public_source": "https://github.com/AcademySoftwareFoundation/openexr/archive/refs/tags/v3.2.12.tar.gz#LICENSE.md",
             "sha256": "84853c91d4c2e0310741d4773469d98bb93e61029608e0ba0882a3fffdf330bd",
             "spdx": "BSD-3-Clause"
           },
@@ -3304,8 +3304,8 @@
   "recipe_export_index": {
     "path": "android/phone/fdroid/manifests/recipe-exports/index.json",
     "pkglist_path": "android/phone/fdroid/manifests/recipe-exports/pkglist.json",
-    "pkglist_sha256": "842f15d4d7560710d936508d14d3f512e0bc31730689f4de3b42ea2d6465f326",
-    "sha256": "c8360aae097bf5a4f44bb3f6862e6a2f2bb13fe61a43906d2c8b1531d8004891"
+    "pkglist_sha256": "83876cb61679b0f5e0e05caf882bb503989355ffae074923cf6761e4d80d553a",
+    "sha256": "98b2e2b8fa4d45a603b3ad0820d988962156e3ca96101133c51fa95386ba04eb"
   },
   "schema_version": 1,
   "status": "SOURCE_CLOSURE_GATE_PASS",
