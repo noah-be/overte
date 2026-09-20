@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 sys.dont_write_bytecode = True
-from test_store import verify_inventory, write_inventory, stage_runtimes
+from test_store import verify_inventory, write_inventory, stage_runtimes, store_paths
 
 
 def main():
@@ -17,11 +17,8 @@ def main():
     parser.add_argument('--base-store', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
     args = parser.parse_args()
-    base, output = args.base_store, args.output
     root = Path(__file__).resolve().parents[3]
-    if (not base.is_absolute() or not output.is_absolute() or output.exists()
-            or root == output or root in output.parents or base.is_symlink()):
-        parser.error('Use an existing absolute base store and a new output outside the checkout')
+    base, output = store_paths(args.base_store, args.output, root)
     if any(p.is_symlink() for p in base.rglob('*')):
         raise ValueError('Base store must not contain symlinks')
     for name in ('gradle.properties', 'init.gradle', 'init.gradle.kts', 'init.d'):

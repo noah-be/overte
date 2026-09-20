@@ -17,7 +17,7 @@ from core import Gate, digest
 from evidence import regular_file, write_receipt, validate_receipt, FIXED_FILES, MODULE
 from runtime_checks import archive_members, analyze_telemetry, e2e, inspect_payload
 from source_checks import materialize, secrets, dependencies, licenses, hygiene, android_resource, android_manifest, fdroid
-from test_store import verify_inventory, write_inventory, stage_runtimes, RUNTIMES
+from test_store import verify_inventory, write_inventory, stage_runtimes, store_paths, RUNTIMES
 
 
 class GateContracts(unittest.TestCase):
@@ -342,6 +342,17 @@ class GateContracts(unittest.TestCase):
         artifact.unlink()
         with self.assertRaises(ValueError):
             verify_inventory(self.out)
+
+    def test_acquisition_cannot_overwrite_or_recursively_copy_its_base(self):
+        for output in (self.out, self.out / 'nested', self.root / 'cache', Path('relative')):
+            with self.subTest(output=output), self.assertRaises(ValueError):
+                store_paths(self.out, output, self.root)
+        alias = self.base / 'alias'
+        alias.symlink_to(self.root, target_is_directory=True)
+        with self.assertRaises(ValueError):
+            store_paths(self.out, alias / 'cache', self.root)
+        self.assertEqual(store_paths(self.out, self.base / 'new-store', self.root),
+                         (self.out, self.base / 'new-store'))
 
     def test_robolectric_requires_both_pinned_offline_sdks(self):
         destination = self.out / 'runtimes'

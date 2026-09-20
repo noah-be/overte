@@ -9,6 +9,16 @@ from core import digest
 RUNTIMES = ('8.0.0_r4-robolectric-r1-i7', '15-robolectric-13954326-i7')
 
 
+def store_paths(base, output, root):
+    if (not base.is_absolute() or not output.is_absolute() or not base.is_dir()
+            or base.is_symlink() or output.exists() or output.is_symlink()):
+        raise ValueError('Use an existing absolute base store and a new absolute output')
+    base, output, root = base.resolve(), output.resolve(), root.resolve()
+    if output == root or root in output.parents or output == base or base in output.parents:
+        raise ValueError('Output must be outside the checkout and base store')
+    return base, output
+
+
 def verify_inventory(store):
     inventory = store / 'ARTIFACT_SHA256SUMS'
     complete = store / 'COMPLETE'
