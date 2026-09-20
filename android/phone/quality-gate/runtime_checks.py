@@ -250,20 +250,14 @@ def unpack(g, archive, dest):
     return inventory
 
 
-def artifact(g):
-    apk = load_artifact(g)
-    if apk.suffix != '.apk':
-        raise ValueError('APK required for final manifest/device checks; AAB inventory is supplemental')
-    dest = g.out / 'apk-unpacked'
-    rows = unpack(g, apk, dest)
-    write_json(g.out / 'apk-files.json', rows)
+def inspect_payload(g, dest, rows, prefix=''):
     for row in rows:
-        rel = row['path']
+        rel = prefix + row['path']
         if re.search(r'(?i)\.map$|\.log$|\.bak$|\.jks$|\.keystore$|(?:^|/)(?:testdata|debug|screenshots)/|overte_e2e_probe|e2e_scene', rel):
             g.finding('unexpected-payload', 'FAIL', rel, 'Development/private payload in release.', 'Remove it from release packaging.', fdroid=True, suppressible=False)
         if row['size'] > g.policy['large_file_bytes']:
             g.finding('large-payload', 'WARNING', rel, 'Large packaged member.', 'Review compression, necessity, and duplicate resources.')
-        data = (dest / rel).read_bytes()
+        data = (dest / row['path']).read_bytes()
         # Includes printable ASCII and UTF-16 strings in DEX/ELF/resources, not only text assets.
         text = data.decode('utf-8', errors='replace')
         scan_text(g, rel, text, RULES)
@@ -271,6 +265,16 @@ def artifact(g):
             scan_text(g, rel, data.decode('utf-16-le', errors='replace'), RULES)
         if re.search(rb'com[/\.]google[/\.]android[/\.]gms|com[/\.]google[/\.]firebase|com[/\.]appsflyer|com[/\.]flurry', data):
             g.finding('packaged-sdk', 'FAIL', rel, 'Potential non-free/tracking SDK in shipped bytes.', 'Verify and remove prohibited runtime components.', fdroid=True, suppressible=False)
+
+
+def artifact(g):
+    apk = load_artifact(g)
+    if apk.suffix != '.apk':
+        raise ValueError('APK required for final manifest/device checks; AAB inventory is supplemental')
+    dest = g.out / 'apk-unpacked'
+    rows = unpack(g, apk, dest)
+    write_json(g.out / 'apk-files.json', rows)
+    inspect_payload(g, dest, rows)
     write_json(g.out / 'native-libraries.json', [r for r in rows if r['path'].endswith('.so')])
     if g.tool('gitleaks', ('version',)):
         g.run('gitleaks-artifact', ['gitleaks', 'dir', dest, '--redact=100', '--report-format=json',
@@ -315,8 +319,10 @@ def artifact(g):
             aab_dest = g.out / f'aab-unpacked-{n}'
             aab_rows = unpack(g, aab, aab_dest)
             write_json(g.out / f'aab-files-{n}.json', aab_rows)
-            for row in aab_rows:
-                scan_text(g, 'AAB/' + row['path'], (aab_dest / row['path']).read_bytes().decode('utf-8', errors='replace'), RULES)
+            inspect_payload(g, aab_dest, aab_rows, prefix='AAB/')
+            if g.tool('gitleaks', ('version',)):
+                g.run(f'gitleaks-aab-{n}', ['gitleaks', 'dir', aab_dest, '--redact=100',
+                      '--report-format=json', '--report-path', g.out / f'gitleaks-aab-{n}.json'])
             g.run(f'existing-aab-contents-{n}', [sys.executable, g.root / 'android/phone/tests/check-phone-apk-contents.py', aab])
         if not aabs:
             g.fail('aab-absent', 'Clean build did not produce the requested supplemental AAB.')

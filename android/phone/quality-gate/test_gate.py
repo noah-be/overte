@@ -14,7 +14,7 @@ import zipfile
 sys.dont_write_bytecode = True
 from core import Gate, digest
 from evidence import regular_file, write_receipt, validate_receipt, FIXED_FILES, MODULE
-from runtime_checks import archive_members, analyze_telemetry, e2e
+from runtime_checks import archive_members, analyze_telemetry, e2e, inspect_payload
 from source_checks import materialize, secrets, dependencies, licenses, hygiene, android_resource, android_manifest
 
 
@@ -307,6 +307,20 @@ class GateContracts(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'explicitly enabled'):
                     e2e(self.g, group)
                 run.assert_not_called()
+
+    def test_apk_and_aab_apply_the_same_payload_checks(self):
+        self.g.category = 'artifact'
+        dest = self.out / 'payload'
+        dest.mkdir()
+        name = 'debug/fixture.log'
+        (dest / 'debug').mkdir()
+        (dest / name).write_bytes(b'com/google/android/gms')
+        expected = {'unexpected-payload', 'packaged-sdk'}
+        for prefix in ('', 'AAB/'):
+            self.g.findings.clear()
+            inspect_payload(self.g, dest, [dict(path=name, size=22)], prefix)
+            self.assertEqual({r['rule'] for r in self.g.findings}, expected)
+            self.assertTrue(all(r['status']=='FAIL' and r['path']==prefix + name for r in self.g.findings))
 
 
 if __name__ == '__main__':
