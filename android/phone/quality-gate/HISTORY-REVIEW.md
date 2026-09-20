@@ -71,8 +71,9 @@ the fork owner obtain revocation certificates for all historical entries.
 
 No automatic F-Droid rejection has been established from these historical hits.
 Do not infer a release blocker solely from their presence in inherited history.
-The existing *local gate policy* still fails these sixteen because its only
-implemented exception class is exact false positives. That executable policy
-has not been silently weakened or replaced by this review. Distinguish that
-local policy result from a demonstrated current exposure or an F-Droid decision.
-Current-source and artifact scanning remain separate checks.
+The executable local gate now implements the user's decision: these sixteen
+become WARNING only after exact historical binding, expiry and current
+tracked-source absence checks. Their dispositions are in `history-risks.json`,
+separate from false positives. Reintroduction or changed/unavailable evidence
+retains FAIL. Current-source and artifact scans are unchanged. See the README
+for the implementation boundary and regression command.

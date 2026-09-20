@@ -31,8 +31,11 @@ and [Non-Free Assets documentation](https://f-droid.org/docs/Anti-Features/#non-
 
 Local manual-review requirements are not additional F-Droid admission rules.
 Review evidence may cover a documented asset family or collection; do not demand
-individual records without a concrete reason. This clarification changes no
-scanner behavior, review receipt or executable gate policy.
+individual records without a concrete reason. The executable asset-attribution review now reports WARNING when evidence is
+missing or inconclusive, accepts a digest-bound collection-level PASS/WARNING
+review, and keeps an explicitly negative review at FAIL. Unknown scanner license
+results remain WARNING. Required software-license compatibility and complete
+native/Gradle notice reviews remain blocking; scanner failures are not waived.
 
 ## Run later
 
@@ -270,8 +273,11 @@ clean unsigned APK digest. Evidence should contain procedures, observations,
 versions and limits, never a bare checkbox. This record is a trusted maintainer
 attestation, not cryptographic proof that its statements are true.
 
-License evidence must reconcile packaged assets and all native/Gradle/Qt/V8/
-OpenSSL components to source, SPDX expressions and distributed notice text.
+Asset evidence can document applicable project/directory/collection licenses
+without a separate SPDX assignment or dossier for every medium. Missing or
+inconclusive asset-attribution evidence warns; an explicit FAIL remains blocking.
+Native/Gradle/Qt/V8/OpenSSL license compatibility and required notice delivery
+still need the separate required reviews.
 Compare against the existing complete release inventory contract in
 `tools/release/README.md`; merely finding a LICENSE somewhere is insufficient.
 Dependency maintenance/necessity, legal compatibility, arbitrary personal data,
@@ -323,3 +329,28 @@ The first source qualification detected an ISO timestamp misclassified as a
 dynamic dependency. Regression cases now distinguish timestamps from real
 `+` and `SNAPSHOT` dependency coordinates. Scanner concurrency is explicitly
 bounded after the initial ScanCode default exhausted much of the worker memory.
+
+## Reviewed inherited historical credentials
+
+`history-risks.json` records only the 16 findings accepted by the fork owner as
+inherited history with no account/key adoption. They are separate from the
+public-identifier false-positive allowlist. At execution, each warning requires
+an exact commit/path/rule/line/blob binding, a current review expiry, and absence
+of the hash-bound literal fragments from both tracked working tree and index.
+Mismatch, unavailable evidence, a search error or reintroduction retains FAIL.
+No raw credentials are stored in this registry or printed by these checks.
+
+Only historical scanner findings use this disposition. Current-source and APK/
+AAB secret checks are unchanged. Unknown validity or revocation remains visible
+in the warning. This is neither a revocation claim nor a waiver of arbitrary
+historical findings. `history-review-input.json` records both registry digests.
+
+Regression command (no scanners, Android build or device operations):
+
+```sh
+cd android/phone/quality-gate
+python3 -B -m unittest -q test_gate test_history_public_identifiers test_history_risks
+```
+
+All 45 tests passed after this policy change. Exact bindings and current literal
+absence were also checked for all 16 actual historical records.

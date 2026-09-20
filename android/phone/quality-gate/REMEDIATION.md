@@ -3,8 +3,8 @@
 Current historical-secret assessment: [HISTORY-REVIEW.md](HISTORY-REVIEW.md).
 The original 27 unresolved hits now comprise 11 verified public identifiers and
 16 historical findings whose bound fragments are absent from current tracked
-source. The local gate still blocks those 16; that is not an established
-F-Droid admission decision or proof of a current secret leak.
+source. The local gate now reports those 16 as WARNING only after exact historical
+binding and current-source absence checks; current secrets remain blocking.
 
 Work starts from `android-phone` at `18368f8b2f77`. Earlier qualification
 reports describe older commits and are not acceptance evidence for this branch.
@@ -15,7 +15,7 @@ Keep credentials, scanner evidence, local paths and device identities outside Gi
 
 | Category | Work and regression protection | Completion evidence |
 |---|---|---|
-| Secrets & Privacy | Review current detector hits, bind synthetic fixtures and symbolic constants to exact hashes; keep genuine/history findings blocking. Test changed-file, rule, expiry and history isolation. | Fixed current source false positives; history still blocks. Commit identity, changed bytes and expiry are tested. |
+| Secrets & Privacy | Review current detector hits, bind synthetic fixtures and symbolic constants to exact hashes; keep genuine/history findings blocking. Test changed-file, rule, expiry and history isolation. | Fixed current source false positives; reviewed inherited history warns after exact validation; new or current secrets block. Commit identity, changed bytes and expiry are tested. |
 | Repository Hygiene / Production Cleanup | Review ignore coverage, debug/security markers and large resources; avoid bulk removal of upstream comments and functional assets. Test actual ignore behavior. | Fixed Phone-only log/dump ignore coverage and Git-semantic inspection. Existing maintenance/debug comments and large sky textures remain review warnings. |
 | Licenses & Branding | Inventory notice/media coverage and resource provenance; do not invent asset licenses or remove required attribution. Test inventory coverage. | Fixed missing texture, font and avatar inventory formats; inventory regression passes. Asset rights and full native notices require provenance review. |
 | Dependencies & Supply Chain | Review download findings and offline test closure; preserve immutable pins and integrity verification. Test negative dependency cases. | Fixed the negative HTTP-test false positive; added locked JVM/Android test acquisition and exact cache coverage. Resolved vulnerability/maintenance review awaits the release build. |

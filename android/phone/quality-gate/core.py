@@ -13,6 +13,7 @@ import signal
 import subprocess
 import time
 from history_review import load_reviews
+from history_risks import load_risks
 
 CATEGORIES = {
     'secrets': 'Secrets & Privacy', 'hygiene': 'Repository Hygiene',
@@ -51,6 +52,7 @@ class Gate:
         self.attempt = None
         self.exceptions = json.loads((Path(__file__).parent / 'allowlist.json').read_text())['entries']
         self.history_exceptions = load_reviews(Path(__file__).with_name('history-allowlist.json'))
+        self.history_risks = load_risks(Path(__file__).with_name('history-risks.json'))
         for e in self.exceptions:
             if (set(e) != {'rule', 'path', 'sha256', 'reason', 'owner', 'expires'}
                     or not re.fullmatch(r'[0-9a-f]{64}', e['sha256'])
@@ -179,7 +181,9 @@ class Gate:
         data = json.loads(Path(path).read_text()) if path else {}
         for name in ids:
             e = data.get('reviews', {}).get(name, {})
-            valid = (data.get('source_commit') == self.commit and e.get('status') == 'PASS'
+            advisory = category == 'licenses' and name == 'asset-license-attribution'
+            valid = (data.get('source_commit') == self.commit
+                     and e.get('status') in (('PASS', 'WARNING', 'FAIL') if advisory else ('PASS',))
                      and e.get('reviewer') and e.get('reason') and e.get('evidence_file')
                      and re.fullmatch(r'[0-9a-f]{64}', e.get('evidence_sha256', '')))
             if artifact:
@@ -187,10 +191,21 @@ class Gate:
             if valid:
                 evidence = Path(e['evidence_file'])
                 valid = evidence.is_file() and not evidence.is_symlink() and digest(evidence) == e['evidence_sha256']
-            if not valid:
+            if advisory and e.get('status') == 'FAIL':
+                self.finding('review-' + name, 'FAIL', '',
+                             'Asset review reports a license conflict or missing required notice.' if valid else
+                             'Negative asset review requires current supporting evidence; it has not been waived.',
+                             'Resolve the documented issue and supply an updated review.',
+                             fdroid=True, suppressible=False)
+            elif not valid and advisory:
+                self.finding('review-' + name, 'WARNING', '',
+                             'Asset license attribution is not fully documented; missing individual records do not establish a violation.',
+                             'Review applicable project, directory or collection terms and specific exceptions.',
+                             suppressible=False)
+            elif not valid:
                 self.fail('review-' + name, f'Missing current, digest-bound manual review: {name}.', fdroid=category in {'licenses','fdroid'})
             else:
-                self.finding('review-' + name, 'PASS', '', f'Manual review accepted: {name}.',
+                self.finding('review-' + name, e['status'], '', f'Manual review accepted: {name}.',
                              'Retain private supporting evidence.', suppressible=False)
 
     def report(self, selected):

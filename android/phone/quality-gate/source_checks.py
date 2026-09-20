@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 
 from core import digest, write_json
 from history_review import reviewed_exception
+from history_risks import reviewed_risk
 
 RULES = [
     ('private-key', 'FAIL', r'-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----', 'Remove the key and rotate it.'),
@@ -103,9 +104,15 @@ def secrets(g):
                     if mode == 'git':
                         exception = reviewed_exception(g, row, relative)
                         if exception:
-                            g.findings[-1].update(status='WARNING', exception=exception,
+                            g.findings[-1].update(status='WARNING', exception=exception, fdroid_critical=False,
                                 message='Exact historical false positive reviewed; see bound exception reason.',
                                 action='Retain review evidence; any identity mismatch or expiry blocks again.')
+                        else:
+                            risk = reviewed_risk(g, row, relative)
+                            if risk:
+                                g.findings[-1].update(status='WARNING', historical_risk=risk, fdroid_critical=False,
+                                    message='Reviewed inherited historical credential; validity unknown. Bound fragments absent from current tracked source.',
+                                    action='Keep historical risk visible. Reintroduction, changed identity or expired review blocks again; current-source and artifact checks remain unchanged.')
             elif rc in (0, 1):
                 g.fail('gitleaks-report', 'Secret scan did not produce its required report.')
     shallow = subprocess.check_output(['git', 'rev-parse', '--is-shallow-repository'], cwd=g.root, text=True).strip()
@@ -182,7 +189,7 @@ def licenses(g):
             branding.append(dict(path=rel, basis='source reference; confirm packaging in artifact inventory'))
     for rel in g.files:
         if Path(rel).suffix.lower() in g.policy['media_extensions']:
-            rows.append(dict(path=rel, sha256=digest(g.root / rel), kind='media', license='REQUIRES_RECONCILIATION'))
+            rows.append(dict(path=rel, sha256=digest(g.root / rel), kind='media', license='NOT_DETERMINED_BY_INVENTORY'))
             if re.search(r'(?i)logo|icon|launcher|overte|hifi|vircadia', rel):
                 branding.append(dict(path=rel, basis='brand-like resource name'))
     write_json(g.out / 'license-inventory.json', rows)
@@ -232,7 +239,7 @@ def licenses(g):
                     g.fail('license-scan-error', 'License scanner could not inspect a file.', relative, True)
                 expr = row.get('detected_license_expression_spdx')
                 if row.get('type') == 'file' and (not expr or 'LicenseRef' in expr):
-                    g.finding('license-unresolved', 'WARNING', relative, 'No definitive SPDX license assignment.', 'Reconcile file with component/asset license and notices.', fdroid=True)
+                    g.finding('license-unresolved', 'WARNING', relative, 'No definitive SPDX license assignment.', 'Review applicable project/component/collection license and notices; missing per-file metadata alone is not a violation.')
             if set(g.source_hashes) - scanned_paths:
                 g.fail('license-scan-coverage', 'License report does not cover every materialized source file.', fdroid=True)
         else:

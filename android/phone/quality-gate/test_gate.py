@@ -23,6 +23,25 @@ from history_review import load_reviews, reviewed_exception
 
 
 class GateContracts(unittest.TestCase):
+    def test_inherited_risk_only_changes_history_not_current_source(self):
+        def fake_run(label, argv, **kwargs):
+            rows = [dict(File='input.txt', RuleID='fixture', StartLine=3,
+                         EndLine=3, Commit='a' * 40)]
+            Path(argv[argv.index('--report-path') + 1]).write_text(json.dumps(rows))
+            return 1, self.out / 'unused'
+        risk = {'disposition': 'inherited-history-risk-accepted'}
+        with patch.object(self.g, 'tool', return_value=True), \
+                patch.object(self.g, 'run', side_effect=fake_run), \
+                patch('source_checks.reviewed_risk', return_value=risk) as reviewed:
+            secrets(self.g)
+        findings = [r for r in self.g.findings if r['rule'] == 'gitleaks-fixture']
+        self.assertEqual([r['status'] for r in findings], ['FAIL', 'WARNING'])
+        self.assertNotIn('historical_risk', findings[0])
+        self.assertEqual(findings[1]['historical_risk'], risk)
+        self.assertFalse(findings[1]['fdroid_critical'])
+        self.assertIsNone(findings[1]['exception'])
+        reviewed.assert_called_once()
+
     def history_fixture(self):
         row = dict(Commit=self.g.commit, File='input.txt', RuleID='fixture', StartLine=1, EndLine=1)
         entry = dict(commit=self.g.commit, path='input.txt', rule='gitleaks-fixture',
@@ -144,7 +163,41 @@ class GateContracts(unittest.TestCase):
     def test_unreviewed_manual_evidence_blocks(self):
         self.g.review('licenses')
         self.assertEqual(len(self.g.findings), 3)
-        self.assertTrue(all(r['status']=='FAIL' for r in self.g.findings))
+        self.assertEqual([r['status'] for r in self.g.findings], ['WARNING', 'FAIL', 'FAIL'])
+
+    def test_collection_asset_review_accepts_warnings_but_never_waives_a_conflict(self):
+        evidence = self.out / 'collection-review.txt'
+        evidence.write_text('Synthetic collection-level license and notice review.')
+        record = self.out / 'manual.json'
+        self.g.config['manual_evidence'] = str(record)
+        self.g.policy['manual_reviews']['licenses'] = ['asset-license-attribution']
+        for status in ('PASS', 'WARNING', 'FAIL'):
+            record.write_text(json.dumps(dict(source_commit=self.g.commit, reviews={
+                'asset-license-attribution': dict(status=status, reviewer='Fixture',
+                reason='Collection terms apply to the fixture media.', evidence_file=str(evidence),
+                evidence_sha256=digest(evidence))})))
+            self.g.findings.clear()
+            self.g.review('licenses')
+            self.assertEqual(self.g.findings[-1]['status'], status)
+        evidence.write_text('Changed evidence cannot waive a negative review.')
+        self.g.findings.clear()
+        self.g.review('licenses')
+        self.assertEqual(self.g.findings[-1]['status'], 'FAIL')
+
+    def test_unknown_license_and_missing_asset_record_warn_without_blocking(self):
+        (self.root / 'LICENSE').write_text('Synthetic project license fixture')
+        self.g.policy['manual_reviews']['licenses'] = ['asset-license-attribution']
+        def fake_run(label, argv, **kwargs):
+            Path(argv[argv.index('--json-pp') + 1]).write_text(json.dumps({'files': [
+                dict(path='source-scope/input.txt', type='file', scan_errors=[],
+                     detected_license_expression_spdx=None)]}))
+            return 0, self.out / 'unused'
+        with patch.object(self.g, 'tool', return_value=True), patch.object(self.g, 'run', side_effect=fake_run):
+            licenses(self.g)
+        self.assertEqual({r['rule'] for r in self.g.findings},
+                         {'license-unresolved', 'review-asset-license-attribution'})
+        self.assertTrue(all(r['status'] == 'WARNING' for r in self.g.findings))
+        self.assertTrue(all(not r['fdroid_critical'] for r in self.g.findings))
 
     def test_reviewed_exceptions_require_unchanged_repository_files(self):
         root = Path(__file__).resolve().parents[3]
@@ -276,7 +329,7 @@ class GateContracts(unittest.TestCase):
             licenses(self.g)
         rows = json.loads((self.out / 'license-inventory.json').read_text())
         self.assertEqual({r['path'] for r in rows}, set(names))
-        self.assertTrue(all(r['license']=='REQUIRES_RECONCILIATION' for r in rows if r['kind']=='media'))
+        self.assertTrue(all(r['license']=='NOT_DETERMINED_BY_INVENTORY' for r in rows if r['kind']=='media'))
         branding = json.loads((self.out / 'branding.json').read_text())
         self.assertIn('logo.svg', [r['path'] for r in branding])
 

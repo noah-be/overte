@@ -9,7 +9,10 @@ import subprocess
 
 
 def load_reviews(path):
-    data = json.loads(Path(path).read_text())
+    return validate_reviews(json.loads(Path(path).read_text()))
+
+
+def validate_reviews(data):
     if set(data) != {'schema', 'entries'} or data['schema'] != 1 or not isinstance(data['entries'], list):
         raise ValueError('Invalid historical review document')
     identities = set()
