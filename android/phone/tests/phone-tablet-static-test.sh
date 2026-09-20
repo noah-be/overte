@@ -49,6 +49,8 @@ for script in \
 done
 
 "$script_dir/phone-host-regression-test.sh"
+printf '\n[Android F-Droid quality-gate regression contracts]\n'
+python3 -B "$script_dir/../quality-gate/test_gate.py"
 git -C "$repo_root" diff --check
 
 printf '\nAndroid phone tablet static gate passed.\n'
