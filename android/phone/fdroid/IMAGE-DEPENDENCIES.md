@@ -32,3 +32,10 @@ losing the hash-bound sources, or changing Pico's default. The existing graph,
 recipe-export, and source-closure tests validate the linked lock metadata.
 Compilation and APK validation are separate requirements; these unit tests
 alone do not qualify a release.
+
+The vulnerability database used on 2026-09-20 still reports
+CVE-2025-12495, CVE-2025-12839 and CVE-2025-12840 against OpenEXR 3.2.x.
+Upstream's [version-specific security table](https://github.com/AcademySoftwareFoundation/openexr/blob/v3.2.12/SECURITY.md)
+limits all three to 3.3.0–3.3.5 and 3.4.0–3.4.2. They do not affect the
+selected 3.2.12 release. Keep the raw scanner evidence and this scoped
+assessment; do not globally suppress these advisories for other versions.
