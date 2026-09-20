@@ -10,7 +10,7 @@
     },
     "target": {
       "path": "android/phone/fdroid/locks/android-arm64-v8a-api26-16k.lock",
-      "sha256": "85236e6f45ac3b513bda1176c6524f6e0e6de55146936a77a5e113be61f0db0f"
+      "sha256": "f3b818f693581e864ef62e09082d6b93200c4ac400c95629175e03f4831518f2"
     }
   },
   "node": "SH-001",
@@ -1770,15 +1770,15 @@
       },
       "recipe": {
         "exported_files": {
-          "android/phone/fdroid/manifests/recipe-exports/openexr/3.2.11/export/conandata.yml": "96479a0984bde7f9030e9f277ce6b3e39121e70a2fcb51adb904c9327d02b3ca",
-          "android/phone/fdroid/manifests/recipe-exports/openexr/3.2.11/export/conanfile.py": "05f9d4eb441d960d5ba100b05d079b56a51b83833de0a14980e8b0959824edc5",
-          "android/phone/fdroid/manifests/recipe-exports/openexr/3.2.11/export/conanmanifest.txt": "24358ba5103fb0210ea077438bb4bc211c3f299525d01f1744d296927037accf"
+          "android/phone/fdroid/manifests/recipe-exports/openexr/3.2.12/export/conandata.yml": "662a099ee2568f78678709d83603981f997a56fa048ace104b5a4c913f1ea5d9",
+          "android/phone/fdroid/manifests/recipe-exports/openexr/3.2.12/export/conanfile.py": "05f9d4eb441d960d5ba100b05d079b56a51b83833de0a14980e8b0959824edc5",
+          "android/phone/fdroid/manifests/recipe-exports/openexr/3.2.12/export/conanmanifest.txt": "fab6f666b21ba1d585880cf988b6980d029919738fc84dac0c20c27cd2160bb9"
         },
-        "path": "android/phone/fdroid/manifests/recipe-exports/openexr/3.2.11/export/conanfile.py",
+        "path": "android/phone/fdroid/manifests/recipe-exports/openexr/3.2.12/export/conanfile.py",
         "sha256": "05f9d4eb441d960d5ba100b05d079b56a51b83833de0a14980e8b0959824edc5"
       },
-      "recipe_revision": "cb352646f9c77d213d4c448040a23953",
-      "reference": "openexr/3.2.11",
+      "recipe_revision": "fd3be9ce668b354f11e997c5ba771b4e",
+      "reference": "openexr/3.2.12",
       "sources": [
         {
           "approved_redirect_hosts": [
@@ -1786,21 +1786,21 @@
             "codeload.github.com"
           ],
           "archive_format": "tar.gz",
-          "canonical_url": "https://codeload.github.com/AcademySoftwareFoundation/openexr/tar.gz/refs/tags/v3.2.11",
+          "canonical_url": "https://codeload.github.com/AcademySoftwareFoundation/openexr/tar.gz/refs/tags/v3.2.12",
           "fdroid_exception": "none",
-          "id": "openexr/3.2.11",
-          "immutable_ref": "v3.2.11",
+          "id": "openexr/3.2.12",
+          "immutable_ref": "v3.2.12",
           "license": {
             "path": "LICENSE.md",
-            "public_source": "https://codeload.github.com/AcademySoftwareFoundation/openexr/tar.gz/refs/tags/v3.2.11#LICENSE.md",
+            "public_source": "https://codeload.github.com/AcademySoftwareFoundation/openexr/tar.gz/refs/tags/v3.2.12#LICENSE.md",
             "sha256": "84853c91d4c2e0310741d4773469d98bb93e61029608e0ba0882a3fffdf330bd",
             "spdx": "BSD-3-Clause"
           },
           "max_bytes": 2147483648,
           "redistribution": "allowed-foss-source",
           "retrieval": "https-archive",
-          "sha256": "10f0f948321fa46f058e88afc292e6042e70158a9ce9206f344568189b849b1d",
-          "store_path": "objects/sha256/10/10f0f948321fa46f058e88afc292e6042e70158a9ce9206f344568189b849b1d",
+          "sha256": "cdf6e291e658bb19670a17b6d0c2045b1dc13a72a17a0d62d70a66523a7efdac",
+          "store_path": "objects/sha256/cd/cdf6e291e658bb19670a17b6d0c2045b1dc13a72a17a0d62d70a66523a7efdac",
           "strip_components": 1
         }
       ]
@@ -3304,8 +3304,8 @@
   "recipe_export_index": {
     "path": "android/phone/fdroid/manifests/recipe-exports/index.json",
     "pkglist_path": "android/phone/fdroid/manifests/recipe-exports/pkglist.json",
-    "pkglist_sha256": "15e295283d41fb9588e1ae98dac78e3e0fe7d85ad557b49d0e9cbb0c7ae81425",
-    "sha256": "380321348ce4a23002705ac98a8c17101572a73d7a5489a13579981d04f4a49a"
+    "pkglist_sha256": "842f15d4d7560710d936508d14d3f512e0bc31730689f4de3b42ea2d6465f326",
+    "sha256": "c8360aae097bf5a4f44bb3f6862e6a2f2bb13fe61a43906d2c8b1531d8004891"
   },
   "schema_version": 1,
   "status": "SOURCE_CLOSURE_GATE_PASS",

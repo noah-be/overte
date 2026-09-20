@@ -1,6 +1,6 @@
 # Android image dependency security update
 
-The F-Droid source-build graph pins libpng 1.6.58 and OpenEXR 3.2.11.
+The F-Droid source-build graph pins libpng 1.6.58 and OpenEXR 3.2.12.
 OpenEXR 3.2 requires libdeflate; its source is pinned to 1.25, using the
 Conan Center recipe from commit `319023a7b852a005e96a38919588263b05a9d541`.
 The source closure records archive and license hashes for all three libraries.
@@ -14,7 +14,7 @@ Sources:
 
 - [libpng release and security notes](https://www.libpng.org/pub/png/libpng.html)
 - [OpenEXR security release notes](https://openexr.com/en/latest/news.html)
-- [OpenEXR 3.2.11 source](https://github.com/AcademySoftwareFoundation/openexr/releases/tag/v3.2.11)
+- [OpenEXR 3.2.12 source](https://github.com/AcademySoftwareFoundation/openexr/releases/tag/v3.2.12)
 
 The shared Pico recipe retains its `openexr/3.1.9` default. Only the Phone
 F-Droid subclass overrides that value; iOS and the normal Pico graph are not

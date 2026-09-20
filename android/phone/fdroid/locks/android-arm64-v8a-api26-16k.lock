@@ -19,7 +19,7 @@
         "openxr/1.1.46@overte/stable#7ac70ec1fe70bb9c9cddeba10906b4dd%1788770409.9387352",
         "openssl/3.5.8@overte/stable#e2ab566b1c764e543d69c8a6fa0def5b%1788770409.9256852",
         "opengl/system#cfcf523b9d2bad75cbf377f56562634c%1788770409.9153252",
-        "openexr/3.2.11#cb352646f9c77d213d4c448040a23953",
+        "openexr/3.2.12#fd3be9ce668b354f11e997c5ba771b4e",
         "onetbb/2021.10.0#ee3f2e5539ab683fdaba561d89c9ecee%1788770409.8918905",
         "nvidia-texture-tools/2023.01@overte/stable#0619db1dd752cc6e324ee810f22d25c4%1788770409.8806076",
         "nlohmann_json/3.11.2#1ded6ae5d200a68ac17c51d528b945e2%1788770409.8698654",

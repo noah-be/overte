@@ -23,8 +23,8 @@
     },
     "android-arm64-v8a-api26-16k": {
       "lock": "android/phone/fdroid/locks/android-arm64-v8a-api26-16k.lock",
-      "lock_sha256": "85236e6f45ac3b513bda1176c6524f6e0e6de55146936a77a5e113be61f0db0f",
-      "identity_sha256": "b2d7e0415d48422a120fccf4a53da29eab68a12f92a644570bdd37dab6839f9a",
+      "lock_sha256": "f3b818f693581e864ef62e09082d6b93200c4ac400c95629175e03f4831518f2",
+      "identity_sha256": "aba5e930623a1378512ba1e35ad033423942e95c7f240464143e562855a54945",
       "profile": "android/phone/fdroid/conan/profiles/android-arm64-v8a-api26-16k",
       "profile_sha256": "2c9804b83e8297b63390f35ef815def59f9194cfe12cc2f2de9c2ac5293b6bcb",
       "package_revision": "NOT_GENERATED_COLD_BUILD_NOT_STARTED"
@@ -32,9 +32,9 @@
   },
   "recipe_export_store": {
     "path": "android/phone/fdroid/manifests/recipe-exports/index.json",
-    "sha256": "380321348ce4a23002705ac98a8c17101572a73d7a5489a13579981d04f4a49a",
+    "sha256": "c8360aae097bf5a4f44bb3f6862e6a2f2bb13fe61a43906d2c8b1531d8004891",
     "pkglist_path": "android/phone/fdroid/manifests/recipe-exports/pkglist.json",
-    "pkglist_sha256": "15e295283d41fb9588e1ae98dac78e3e0fe7d85ad557b49d0e9cbb0c7ae81425",
+    "pkglist_sha256": "842f15d4d7560710d936508d14d3f512e0bc31730689f4de3b42ea2d6465f326",
     "recipe_count": 52,
     "remote_count": 0,
     "contains_sources_or_packages": false,
@@ -48,8 +48,8 @@
     "openssl/3.5.8@overte/stable": "e2ab566b1c764e543d69c8a6fa0def5b",
     "qt/5.15.18-2026.01.04@overte/stable": "4fd1f62ee1914f2f3ec4fe298a07c283",
     "libpng/1.6.58": "f534fb581482e6cdd53f36e1602ccfb3",
-    "openexr/3.2.11": "cb352646f9c77d213d4c448040a23953",
-    "libdeflate/1.25": "10964328ce2247995dc8d6add13a8ac5"
+    "libdeflate/1.25": "10964328ce2247995dc8d6add13a8ac5",
+    "openexr/3.2.12": "fd3be9ce668b354f11e997c5ba771b4e"
   },
   "targeted_recipe_package_revisions": {
     "gifcreator/2016.11@overte/stable": {
@@ -90,7 +90,7 @@
     "android/common/conan/recipes/openssl/conanfile.py": "ceb17e1299ea54d361b7b1b9bbd01940521a155d3dc071a9842f12c2521ffa66",
     "android/phone/fdroid/conan/bootstrap.conanfile.py": "20fef41ccc7451561045ddf970c61f40c07f941158954268aebd05d533da9c91",
     "android/phone/fdroid/conan/host-tools.conanfile.py": "c632ea12a831a4d5bab24fda3fcfae0bf9ffc69d95dfa08dfa35bab2988a8ad7",
-    "android/phone/fdroid/conan/target.conanfile.py": "0d90ce3cb257a066cf931d2c632fd927616db0e7f80bd5865e8aeb50b6259f2e",
+    "android/phone/fdroid/conan/target.conanfile.py": "3df91aaaff06df5d5fe5084b313309c131b0af594f6ff28a4e4913dac3aa99ef",
     "android/phone/fdroid/recipes/cmake/conandata.yml": "b2165ca064910fc7ce85843c42fbafd5a4e5b6a8918c2c1c73481ec95043f842",
     "android/phone/fdroid/recipes/cmake/conanfile.py": "422d2fbe96002a108bac893cd09944b758538922bc39eb0e535e945300410d81",
     "android/phone/fdroid/recipes/gifcreator/conandata.yml": "494f4c3a58f346400ba1d9395e1932db5d93f3aec6cac700faa167ec8faa27ce",
@@ -108,7 +108,7 @@
     "android/phone/fdroid/container/Containerfile": "4c5a1203ba2d125664428a98a03aa028a06805d5548948b2cbf7566719f8224b",
     "android/phone/fdroid/gradle-acquisition/build.gradle": "643ccc9c5264b7c46b4e90e4c2d3d67db41f0584c7da0fd66d23b2fa753bf7c9",
     "android/phone/fdroid/gradle-acquisition/settings.gradle": "347d3c618cd6441bd70ecfad7c83bd645702c5bf864526899e1e7e9c4ca9e071",
-    "android/phone/fdroid/manifests/source-closure.lock.json": "73cb021d1c73d46c1157ca1e7d4216918415feb0d25f64ad7305c532ec3df8a3",
+    "android/phone/fdroid/manifests/source-closure.lock.json": "9e99a0cdb0953565dac2283d9222d52e10bce11ca0d2c160be210f2cea201185",
     "android/phone/fdroid/manifests/toolchain-provisioning.lock.json": "0a5631cfd0e705fd325816e3313828cb83229e153ac79cd5d981cf41b8868bf2",
     "android/phone/fdroid/scripts/build-dependencies.sh": "b13e1ebe6eacb975a091f26f6e9bb47a410969881327d6936ad31b567f655873",
     "android/phone/fdroid/scripts/cold-build.sh": "7bcaa4b1eb2e35f5f444434388f5a6b69d0d15e768d93795f9f9a302fb90a246",

@@ -16,7 +16,7 @@ class OverteAndroidTarget(_module.PicoOverte):
         "qt/5.15.18-2026.01.04@overte/stable"
         "#4fd1f62ee1914f2f3ec4fe298a07c283"
     )
-    openexr_ref = "openexr/3.2.11"
+    openexr_ref = "openexr/3.2.12"
     default_options = dict(_module.PicoOverte.default_options)
     default_options.update(
         {
