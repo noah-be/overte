@@ -19,6 +19,7 @@ import zipfile
 from core import digest, write_json
 from evidence import role_paths, validate_receipt, write_receipt
 from source_checks import RULES, android_manifest, scan_text, texts
+from test_store import verify_inventory, stage_runtimes
 
 
 def static(g):
@@ -122,12 +123,20 @@ def build(g):
             raise ValueError('Gradle store contains undeclared initialization or user properties')
     if any(p.is_symlink() for p in gradle_store.rglob('*')):
         raise ValueError('Gradle acquisition store must not contain links outside its verified inventory')
+    verify_inventory(gradle_store)
     shutil.copytree(gradle_store, g.attempt / 'gradle-home', symlinks=False)
     for check in ('COMPLETE', 'ARTIFACT_SHA256SUMS'):
         rc, _ = g.run('gradle-store-' + check, ['sha256sum', '-c', check], cwd=g.attempt / 'gradle-home')
         if rc != 0:
             return
     base = container_command(g, g.attempt)
+    stage_runtimes(g.attempt / 'gradle-home', g.attempt / 'robolectric-sdk')
+    rc, _ = g.run('offline-test-dependency-preflight', [*base, '/usr/bin/env',
+        'GRADLE_USER_HOME=/attempt/gradle-home', '/attempt/source/android/common/gradlew',
+        '--offline', '--no-daemon', '-p', '/attempt/source/android/phone/quality-gate/gradle-tests',
+        'resolveGateTestInputs'], env=podman_env(g))
+    if rc != 0:
+        return
     rc, _ = g.run('source-release-build', [*base, '/bin/sh', '/attempt/source/android/phone/quality-gate/container-build.sh'],
                   timeout=g.config.get('build_timeout_seconds', 172800), env=podman_env(g))
     if rc != 0:

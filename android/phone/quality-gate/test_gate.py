@@ -10,12 +10,14 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import zipfile
+import re
 
 sys.dont_write_bytecode = True
 from core import Gate, digest
 from evidence import regular_file, write_receipt, validate_receipt, FIXED_FILES, MODULE
 from runtime_checks import archive_members, analyze_telemetry, e2e, inspect_payload
-from source_checks import materialize, secrets, dependencies, licenses, hygiene, android_resource, android_manifest
+from source_checks import materialize, secrets, dependencies, licenses, hygiene, android_resource, android_manifest, fdroid
+from test_store import verify_inventory, write_inventory, stage_runtimes, RUNTIMES
 
 
 class GateContracts(unittest.TestCase):
@@ -321,6 +323,60 @@ class GateContracts(unittest.TestCase):
             inspect_payload(self.g, dest, [dict(path=name, size=22)], prefix)
             self.assertEqual({r['rule'] for r in self.g.findings}, expected)
             self.assertTrue(all(r['status']=='FAIL' and r['path']==prefix + name for r in self.g.findings))
+
+    def test_gradle_store_rejects_unlisted_changed_and_missing_inputs(self):
+        directory = self.out / 'caches/modules-2/files-2.1/fixture'
+        directory.mkdir(parents=True)
+        artifact = directory / 'fixture.jar'
+        artifact.write_bytes(b'original')
+        write_inventory(self.out)
+        verify_inventory(self.out)
+        artifact.write_bytes(b'changed')
+        with self.assertRaisesRegex(ValueError, 'missing, changed'):
+            verify_inventory(self.out)
+        artifact.write_bytes(b'original')
+        (directory / 'undeclared.jar').write_bytes(b'added')
+        with self.assertRaisesRegex(ValueError, 'outside the inventory'):
+            verify_inventory(self.out)
+        (directory / 'undeclared.jar').unlink()
+        artifact.unlink()
+        with self.assertRaises(ValueError):
+            verify_inventory(self.out)
+
+    def test_robolectric_requires_both_pinned_offline_sdks(self):
+        destination = self.out / 'runtimes'
+        for index, version in enumerate(RUNTIMES):
+            with self.assertRaises(ValueError):
+                stage_runtimes(self.out, destination)
+            p = self.out / 'caches/modules-2/files-2.1/org.robolectric/android-all-instrumented' / version / 'fixture'
+            p.mkdir(parents=True)
+            (p / f'android-all-instrumented-{version}.jar').write_bytes(b'fixture')
+        stage_runtimes(self.out, destination)
+        self.assertEqual(len(list(destination.iterdir())), 2)
+
+    def test_acquisition_roots_track_phone_unit_test_dependencies(self):
+        root = Path(__file__).resolve().parents[3]
+        phone = (root / 'android/phone/apps/phoneInterface/build.gradle').read_text()
+        acquisition = Path(__file__).with_name('gradle-tests').joinpath('build.gradle').read_text()
+        self.assertEqual(set(re.findall(r"testImplementation '([^']+)'", phone)),
+                         set(re.findall(r"gateUnitTests '([^']+)'", acquisition)))
+
+    def test_wrapper_drift_blocks_without_claiming_fdroid_approval(self):
+        rel = 'android/common/gradle/wrapper/gradle-wrapper.jar'
+        wrapper = self.root / rel
+        wrapper.parent.mkdir(parents=True)
+        wrapper.write_bytes(b'PK\x03\x04fixture')
+        lock = self.root / 'android/phone/fdroid/manifests/toolchain-provisioning.lock.json'
+        lock.parent.mkdir(parents=True)
+        lock.write_text(json.dumps(dict(gradle_bindings={rel: digest(wrapper)})))
+        self.g.files = [rel]
+        with patch.object(self.g, 'review'):
+            fdroid(self.g)
+            self.assertFalse(any(r['rule']=='wrapper-integrity' for r in self.g.findings))
+            self.assertTrue(any(r['rule']=='binary-origin' for r in self.g.findings))
+            wrapper.write_bytes(b'changed')
+            fdroid(self.g)
+            self.assertTrue(any(r['rule']=='wrapper-integrity' and r['status']=='FAIL' for r in self.g.findings))
 
 
 if __name__ == '__main__':

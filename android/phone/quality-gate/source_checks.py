@@ -323,6 +323,9 @@ def android(g):
 
 def fdroid(g):
     blobs = []
+    wrapper = 'android/common/gradle/wrapper/gradle-wrapper.jar'
+    lock_path = g.root / 'android/phone/fdroid/manifests/toolchain-provisioning.lock.json'
+    bindings = json.loads(lock_path.read_text()).get('gradle_bindings', {}) if lock_path.is_file() else {}
     for rel in g.files:
         p = g.root / rel
         if not p.is_file() or p.is_symlink():
@@ -330,7 +333,16 @@ def fdroid(g):
         with p.open('rb') as stream:
             header = stream.read(4)
         if p.suffix.lower() in g.policy['binary_extensions'] or header.startswith((b'\x7fELF', b'PK\x03\x04', b'\xca\xfe\xba\xbe', b'MZ')):
-            blobs.append(dict(path=rel, sha256=digest(p), origin='REVIEW_REQUIRED', necessity='REVIEW_REQUIRED'))
+            sha = digest(p)
+            row = dict(path=rel, sha256=sha, origin='REVIEW_REQUIRED', necessity='REVIEW_REQUIRED')
+            if rel == wrapper:
+                if bindings.get(rel) != sha:
+                    g.fail('wrapper-integrity', 'Gradle wrapper differs from the reviewed toolchain binding.', rel, True)
+                else:
+                    row.update(origin='toolchain-provisioning.lock.json:gradle_bindings',
+                               necessity='Gradle command-line bootstrap; not application runtime',
+                               qualification='Integrity bound; F-Droid bootstrap policy review still required')
+            blobs.append(row)
             g.finding('binary-origin', 'WARNING', rel, 'Prebuilt/archive input requires provenance review.', 'Identify source, build recipe, license and actual Android usage.', fdroid=True)
     write_json(g.out / 'binary-origins.json', blobs)
     for rel, text in texts(g):

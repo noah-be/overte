@@ -3,7 +3,9 @@
 This local, modular gate is owned by `android-phone`. It does not publish, sign,
 upload, create a release, change the application, or connect to a SaaS scanner.
 The initial implementation was reviewed statically. Subsequent qualification
-now includes eighteen passing offline contract tests. Scanner and build/device
+includes offline regression contracts wired into the existing Phone contract
+suite. See [REMEDIATION.md](REMEDIATION.md) for fixes and outstanding decisions.
+Scanner and build/device
 qualification are separate; no release readiness is implied by these tests.
 
 ## Run later
@@ -77,11 +79,12 @@ names remain relevant when the Phone graph imports them.
   needs network access; the binary-producing build has `--network=none`.
 - `gradle_store_manifest_sha256`: independently freeze the SHA-256 of
   `ARTIFACT_SHA256SUMS` after reviewing the acquisition store. Personal Gradle
-  properties, initialization scripts and symlinks are rejected. The existing
-  acquisition project currently covers release runtime and Lint dependencies,
-  **not the complete JVM test runtime**. Provision and lock JUnit/Robolectric/
-  AndroidX test dependencies before qualifying the offline JVM test step; do not
-  turn on build networking or treat missing offline dependencies as a skip.
+  properties, initialization scripts, symlinks and undeclared artifact files are
+  rejected. Extend the release/Lint store with `prepare-test-store.py` below.
+  Its separate locked project acquires JUnit, Robolectric, AndroidX and the two
+  instrumented Android SDKs. The gate resolves that project offline before the
+  native build and forces Robolectric to use the staged local SDKs. Missing
+  inputs remain failures; the gate never enables build networking as a fallback.
 - `scancode_processes`: defaults to 2; integer range 1–8. Each worker can use
   substantial memory. Keep this low on shared workers.
 - `tool_versions`: map executable names to one exact reviewed version-output line.
@@ -128,6 +131,26 @@ builds from the locked closure; no personal build directories or Gradle home are
 mounted. The existing source-closure and toolchain checks remain responsible
 for acquisition provenance. Cold-build success is evidence of buildability,
 not proof of bit-for-bit reproducibility or F-Droid acceptance.
+
+### Acquire the test inputs once per dependency change
+
+Use the prepared OpenJDK 17 toolchain and public network access during acquisition:
+
+```sh
+python3 -B android/phone/quality-gate/prepare-test-store.py \
+  --base-store /absolute/private/release-lint-gradle-store \
+  --output /absolute/private/release-and-test-gradle-store
+sha256sum /absolute/private/release-and-test-gradle-store/ARTIFACT_SHA256SUMS
+```
+
+The base store is verified and copied, never modified. The output must be new.
+Set `gradle_store` to this new store and independently review/freeze the printed
+inventory hash in `gradle_store_manifest_sha256`. The acquisition command only
+resolves dependencies; it does not build the Android application or run tests.
+The checked-in `gradle-tests/gradle.lockfile` pins transitive versions. Dependency
+updates require deliberate lock regeneration and an offline resolution check.
+The regression suite rejects drift between Phone `testImplementation` roots and
+the acquisition project. A successful acquisition is not cold-build acceptance.
 
 ## Tools (all open source)
 
