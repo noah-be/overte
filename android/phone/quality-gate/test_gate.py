@@ -212,6 +212,22 @@ class GateContracts(unittest.TestCase):
         self.assertEqual([r['path'] for r in errors], ['input.txt'])
         self.assertEqual(errors[0]['status'], 'FAIL')
 
+    def test_license_inventory_includes_texture_font_and_avatar_formats(self):
+        names = ['sky.ktx', 'texture.dds', 'animation.gif', 'font.woff',
+                 'font.woff2', 'font.eot', 'avatar.fst', 'sound.raw', 'logo.svg',
+                 'FiraSans.license']
+        self.g.files = names
+        for name in names:
+            (self.root / name).write_text('fixture resource')
+            (self.out / 'source-scope' / name).write_text('fixture resource')
+        with patch.object(self.g, 'tool', return_value=False), patch.object(self.g, 'review'):
+            licenses(self.g)
+        rows = json.loads((self.out / 'license-inventory.json').read_text())
+        self.assertEqual({r['path'] for r in rows}, set(names))
+        self.assertTrue(all(r['license']=='REQUIRES_RECONCILIATION' for r in rows if r['kind']=='media'))
+        branding = json.loads((self.out / 'branding.json').read_text())
+        self.assertIn('logo.svg', [r['path'] for r in branding])
+
     def test_vcs_license_metadata_is_scanned_explicitly(self):
         self.g.source_hashes['.gitignore'] = 'fixture-hash'
         (self.out / 'source-scope/.gitignore').write_text('build/\n')

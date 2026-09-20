@@ -7,7 +7,7 @@
   "source_files": ["CMakeLists.txt", "conanfile.py", "LICENSE", ".gitignore", ".gitmodules"],
   "exclude_roots": ["android/phone/apps/interface/", "android/phone/apps/framePlayer/", "android/common/legacy/", "scripts/developer/", "scripts/tutorials/", "scripts/communityScripts/", "scripts/simplifiedUI/"],
   "binary_extensions": [".jar", ".aar", ".so", ".a", ".dll", ".exe", ".apk", ".aab", ".zip", ".tgz", ".rcc"],
-  "media_extensions": [".png", ".jpg", ".jpeg", ".webp", ".svg", ".ttf", ".otf", ".wav", ".ogg", ".mp3", ".fbx", ".glb", ".gltf", ".obj"],
+  "media_extensions": [".png", ".jpg", ".jpeg", ".webp", ".svg", ".ttf", ".otf", ".wav", ".ogg", ".mp3", ".fbx", ".glb", ".gltf", ".obj", ".ktx", ".dds", ".gif", ".eot", ".woff", ".woff2", ".fst", ".raw", ".mp4", ".webm", ".flac", ".opus", ".aac", ".blend", ".dae", ".tga", ".bmp", ".ico"],
   "permissions": {
     "android.permission.INTERNET": "Domain connections and remote asset delivery.",
     "android.permission.ACCESS_NETWORK_STATE": "Connection state and recovery.",
