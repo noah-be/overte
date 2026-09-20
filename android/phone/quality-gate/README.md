@@ -8,6 +8,32 @@ suite. See [REMEDIATION.md](REMEDIATION.md) for fixes and outstanding decisions.
 Scanner and build/device
 qualification are separate; no release readiness is implied by these tests.
 
+## Asset licenses: F-Droid requirements versus local review
+
+**A missing separate, explicit license record for an individual asset is not,
+by itself, an F-Droid inclusion blocker.** A project, directory or collection
+license can cover multiple assets. F-Droid does not generally require a separate
+license file, permission letter or forensic provenance dossier for every image,
+font, model or animation. An unknown scanner result or missing local inventory
+entry does not establish a license violation or justify replacing the asset.
+
+Applicable license and redistribution conditions still matter. Check existing
+project/collection notices and any specific third-party exceptions before
+classifying a finding. Concrete incompatible terms or missing required notices
+need resolution; genuinely unresolved redistribution permission is a review
+question, not evidence that the asset is nonfree or automatically acceptable.
+
+Non-code media are not invariably required to have a FLOSS license. F-Droid
+allows certain redistributable nonfree assets with the **Non-Free Assets**
+anti-feature. That label does not supply otherwise missing redistribution rights.
+See the official [Inclusion Policy](https://f-droid.org/en/docs/Inclusion_Policy/)
+and [Non-Free Assets documentation](https://f-droid.org/docs/Anti-Features/#non-free-assets).
+
+Local manual-review requirements are not additional F-Droid admission rules.
+Review evidence may cover a documented asset family or collection; do not demand
+individual records without a concrete reason. This clarification changes no
+scanner behavior, review receipt or executable gate policy.
+
 ## Run later
 
 Requires Python 3.12+, Linux, Git, the reviewed tools below, source/Gradle stores,
@@ -196,7 +222,7 @@ inputs exist; results are attributed to their original categories.
 |---|---|---|
 | Secrets & Privacy | Gitleaks source/full reachable history; credential/key, internal endpoint, IP/MAC, path/user/email and sensitive logging heuristics; artifact strings | Secret findings, incomplete history, scanner errors fail. Personal-data heuristics warn. Values are withheld from the common report. |
 | Repository Hygiene | Tracked artifacts, IDE/temp/local config, dumps/backups, size, ignore coverage; debug/log/mock/staging, TODO/FIXME/HACK and commented code | Security-bypass patterns fail subject to exact review; ordinary cleanup comments warn. |
-| Licenses & Branding | ScanCode, root notices, media inventory, branding names/resources, human and JSON reports | Unknown license/attribution cannot be accepted without mandatory component/media review. Branding is informational. |
+| Licenses & Branding | ScanCode, root notices, media inventory, branding names/resources, human and JSON reports | Local component/media review checks applicable licenses and notices, including project/collection coverage. Missing per-asset records are not automatic F-Droid blockers; see the asset-license clarification above. Branding is informational. |
 | Dependencies & Supply Chain | Declared versions/downloads, runtime Gradle graph, Conan graphs, Syft SBOM, Grype | Dynamic versions, high/critical CVEs, incomplete inventory/tool/database failures block. Maintenance and native CVE coverage require review. |
 | Static Analysis | ShellCheck errors, XML/Python parse review, Android Lint and JVM tests, Cppcheck from release compile database | Tool failures and substantive findings block; no global upstream baseline is silently accepted. |
 | Android Configuration | Manifest, exported components, permissions, deep links, provider paths, backup/cleartext/trust settings; final APK identity/version/SDK/debuggable | Unexpected permissions/exports, release metadata mismatch, debuggable/testOnly/cleartext/backup violations fail. Native networking needs separate review. |
