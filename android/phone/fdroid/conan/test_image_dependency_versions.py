@@ -41,6 +41,9 @@ class ImageDependencyVersionsTest(unittest.TestCase):
         for ref in ("libpng/1.6.58", "openexr/3.2.12", "libdeflate/1.25"):
             source, = nodes[ref]["sources"]
             self.assertTrue(source["canonical_url"].startswith("https://"))
+            # Conan get() chooses the archive decoder from the URL filename.
+            # A codeload URL ending in a tag is misidentified as a ZIP archive.
+            self.assertTrue(source["canonical_url"].endswith("." + source["archive_format"]))
             self.assertRegex(source["sha256"], r"^[0-9a-f]{64}$")
             self.assertRegex(source["license"]["sha256"], r"^[0-9a-f]{64}$")
             self.assertEqual("none", source["fdroid_exception"])
