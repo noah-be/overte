@@ -15,7 +15,7 @@ sys.dont_write_bytecode = True
 from core import Gate, digest
 from evidence import regular_file, write_receipt, validate_receipt, FIXED_FILES, MODULE
 from runtime_checks import archive_members
-from source_checks import materialize, secrets, dependencies, licenses
+from source_checks import materialize, secrets, dependencies, licenses, hygiene
 
 
 class GateContracts(unittest.TestCase):
@@ -131,6 +131,24 @@ class GateContracts(unittest.TestCase):
         for name in ('../repo/input.txt', 'link', '/etc/passwd'):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 regular_file(self.out, name)
+
+    def test_phone_ignore_rules_cover_outputs_without_hiding_source(self):
+        root = Path(__file__).resolve().parents[3]
+        (self.root / '.gitignore').write_bytes((root / '.gitignore').read_bytes())
+        phone = self.root / 'android/phone'
+        phone.mkdir(parents=True)
+        (phone / '.gitignore').write_bytes((root / 'android/phone/.gitignore').read_bytes())
+        hygiene(self.g)
+        self.assertFalse(any(r['rule'].startswith('ignore-') for r in self.g.findings))
+        # A later negation must be detected, even though '*.log' is still present.
+        with (phone / '.gitignore').open('a') as stream:
+            stream.write('!diagnostic.log\n')
+        hygiene(self.g)
+        self.assertTrue(any(r['path']=='android/phone/diagnostic.log' for r in self.g.findings))
+        for name in ('android/phone/quality-gate/test_gate.py', 'android/phone/config.example.json',
+                     'android/vr/pico/diagnostic.log', 'ios/diagnostic.log'):
+            self.assertEqual(subprocess.run(['git', 'check-ignore', '--no-index', name],
+                             cwd=self.root, capture_output=True).returncode, 1, name)
 
     def test_unsafe_and_oversize_archives_rejected(self):
         for name, size in [('../escape', 1), ('/absolute', 1), ('safe', 3)]:

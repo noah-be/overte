@@ -148,10 +148,22 @@ def hygiene(g):
     for rel, text in texts(g):
         if '/quality-gate/' not in rel:
             scan_text(g, rel, text, CLEANUP)
-    ignore = (g.root / '.gitignore').read_text()
-    for name in ('*.log', 'local.properties', '.gradle'):
-        if name not in ignore:
-            g.finding('ignore-coverage', 'WARNING', '.gitignore', f'Review ignore coverage for {name}.', 'Use a precise ignore pattern if appropriate.')
+    # Check Git semantics, including nested rules and negations, rather than
+    # searching for pattern substrings in one file.
+    probes = ['android/phone/diagnostic.log', 'android/phone/heap.hprof',
+              'android/phone/local.properties', 'android/phone/.gradle/cache.bin',
+              'android/phone/apps/phoneInterface/build/intermediates/output.bin']
+    checked = subprocess.run(['git', 'check-ignore', '--no-index', '-z', '--stdin'],
+                             cwd=g.root, input='\0'.join(probes) + '\0',
+                             text=True, capture_output=True)
+    if checked.returncode not in (0, 1):
+        g.fail('ignore-inspection', 'Git could not determine Android ignore coverage.')
+    else:
+        ignored = set(checked.stdout.split('\0'))
+        for name in probes:
+            if name not in ignored:
+                g.finding('ignore-coverage', 'WARNING', name, 'Local Android output is not ignored.',
+                          'Add a scoped ignore pattern; preserve intentionally tracked fixtures.')
 
 
 def licenses(g):
