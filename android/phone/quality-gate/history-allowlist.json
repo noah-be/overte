@@ -1,0 +1,422 @@
+{
+  "schema": 1,
+  "entries": [
+    {
+      "commit": "2b314fa0a796bbbc74755f894369ffde30f5a628",
+      "path": "android/phone/fdroid/manifests/recipe-source.lock.json",
+      "rule": "gitleaks-discord-api-token",
+      "blob_sha256": "4f2f36b29efa1a8b9c1da84de07042dcd1e643304cf4ae0c79cd3786bbaa0a3b",
+      "locations": [
+        [
+          125,
+          125
+        ],
+        [
+          126,
+          126
+        ]
+      ],
+      "reason": "Each matched SHA-256 was recomputed from its referenced source file at this historical commit and matched. Integrity metadata, not credentials.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "92304a6e9760e20b64828093773d6f99a9dd56df",
+      "path": "android/phone/fdroid/manifests/recipe-source.lock.json",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "99f3381da4bee49b4d263435b4fa7ddc1681949735aab58f504f30822fce5c93",
+      "locations": [
+        [
+          94,
+          94
+        ]
+      ],
+      "reason": "Each matched SHA-256 was recomputed from its referenced source file at this historical commit and matched. Integrity metadata, not credentials.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "ef356c9e91b78bb7477e5cde498ac87852e9f3cd",
+      "path": "android/phone/fdroid/manifests/recipe-source.lock.json",
+      "rule": "gitleaks-discord-api-token",
+      "blob_sha256": "28807a8f833b8669f67804fcbf6a98d841ab089a454fde80f0a1b3f29f530219",
+      "locations": [
+        [
+          125,
+          125
+        ],
+        [
+          126,
+          126
+        ]
+      ],
+      "reason": "Each matched SHA-256 was recomputed from its referenced source file at this historical commit and matched. Integrity metadata, not credentials.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "0364de632361b741636e085fac096a2325d1502a",
+      "path": "android/phone/fdroid/manifests/source-graph-slice.lock.json",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "655d325c5c9eab623f4a4a6cbfc8a8591f56d175afd67212d96aff7add4ed3eb",
+      "locations": [
+        [
+          25,
+          25
+        ]
+      ],
+      "reason": "Each matched SHA-256 was recomputed from its referenced source file at this historical commit and matched. Integrity metadata, not credentials.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "5c5c1d325eb4d5fa188ac196c54a5265b6a625a4",
+      "path": "android/phone/fdroid/manifests/source-graph-slice.lock.json",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "ff77708ea86f0fe2523f6803b6b6b61ca35b9be330bd71ce6221f76e7dd8a8ad",
+      "locations": [
+        [
+          25,
+          25
+        ]
+      ],
+      "reason": "Each matched SHA-256 was recomputed from its referenced source file at this historical commit and matched. Integrity metadata, not credentials.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "92304a6e9760e20b64828093773d6f99a9dd56df",
+      "path": "android/phone/fdroid/manifests/source-graph-slice.lock.json",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "11e4f945a7798c4f302dc051c023b550f9a2f94c12436224115f9ab76a45da26",
+      "locations": [
+        [
+          25,
+          25
+        ]
+      ],
+      "reason": "Each matched SHA-256 was recomputed from its referenced source file at this historical commit and matched. Integrity metadata, not credentials.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "ce3cc7e5c91a33e0899dc38dc38c51a4de92d89e",
+      "path": "libraries/shared/src/AccountManager.cpp",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "7f024fd3358ae2e69047057cf2416058cfc7107987c14daffea3b3e7ec470c15",
+      "locations": [
+        [
+          26,
+          26
+        ]
+      ],
+      "reason": "Reviewed public OAuth client identifier: this constant populates the client ID map and client_id request parameter, not a client secret. See https://www.rfc-editor.org/rfc/rfc6749#section-2.2",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "6f11d1bedf620b39a0c05d93e27fed64b85b1208",
+      "path": "tests/device/contracts/redaction/SanitizerTest.java",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "e359eaec4adaffb3edabdd364ffdd92367e4f1c64f743185c9da0e57da40be90",
+      "locations": [
+        [
+          7,
+          7
+        ]
+      ],
+      "reason": "Reviewed synthetic canary and encoded-canary inputs to diagnostic-redaction/JUnit assertions. No service authentication in these tests; retain the assertions.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "fb7e0d69f83eb7c9b7d875a453a34dd8a0639efe",
+      "path": "tests/device/contracts/redaction/SanitizerTest.java",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "e359eaec4adaffb3edabdd364ffdd92367e4f1c64f743185c9da0e57da40be90",
+      "locations": [
+        [
+          7,
+          7
+        ]
+      ],
+      "reason": "Reviewed synthetic canary and encoded-canary inputs to diagnostic-redaction/JUnit assertions. No service authentication in these tests; retain the assertions.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "6f11d1bedf620b39a0c05d93e27fed64b85b1208",
+      "path": "tests/device/contracts/redaction/sanitizer-test.cpp",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "dc6b8c676cf53ccdb3fae891ff614ea5e394bf7ecc4d3ac834d6a0fe793e2f2d",
+      "locations": [
+        [
+          10,
+          10
+        ],
+        [
+          11,
+          11
+        ]
+      ],
+      "reason": "Reviewed synthetic canary and encoded-canary inputs to diagnostic-redaction/JUnit assertions. No service authentication in these tests; retain the assertions.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "fb7e0d69f83eb7c9b7d875a453a34dd8a0639efe",
+      "path": "tests/device/contracts/redaction/sanitizer-test.cpp",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "dc6b8c676cf53ccdb3fae891ff614ea5e394bf7ecc4d3ac834d6a0fe793e2f2d",
+      "locations": [
+        [
+          10,
+          10
+        ],
+        [
+          11,
+          11
+        ]
+      ],
+      "reason": "Reviewed synthetic canary and encoded-canary inputs to diagnostic-redaction/JUnit assertions. No service authentication in these tests; retain the assertions.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "7064f225585cb68ee4ac1d4705aa04b91f9f6b9e",
+      "path": "tests/device/jenkins/plugins.lock.txt",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "46d5f0ed7643956a3e88c588f355b185ccdc6d22ea19bbd84708037f985f8e81",
+      "locations": [
+        [
+          5,
+          5
+        ],
+        [
+          6,
+          6
+        ],
+        [
+          7,
+          7
+        ],
+        [
+          8,
+          8
+        ],
+        [
+          9,
+          9
+        ],
+        [
+          10,
+          10
+        ],
+        [
+          11,
+          11
+        ],
+        [
+          13,
+          13
+        ],
+        [
+          14,
+          14
+        ],
+        [
+          18,
+          18
+        ],
+        [
+          21,
+          21
+        ],
+        [
+          28,
+          28
+        ],
+        [
+          32,
+          32
+        ],
+        [
+          35,
+          35
+        ],
+        [
+          36,
+          36
+        ],
+        [
+          41,
+          41
+        ],
+        [
+          42,
+          42
+        ],
+        [
+          55,
+          55
+        ],
+        [
+          57,
+          57
+        ],
+        [
+          58,
+          58
+        ],
+        [
+          59,
+          59
+        ],
+        [
+          64,
+          64
+        ],
+        [
+          71,
+          71
+        ]
+      ],
+      "reason": "Reviewed pinned Jenkins plugin ID:version declarations, not credentials.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "a0a921bbcb14512a5f1de01ac525268a7850e944",
+      "path": "tests/device/jenkins/plugins.lock.txt",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "46d5f0ed7643956a3e88c588f355b185ccdc6d22ea19bbd84708037f985f8e81",
+      "locations": [
+        [
+          5,
+          5
+        ],
+        [
+          6,
+          6
+        ],
+        [
+          7,
+          7
+        ],
+        [
+          8,
+          8
+        ],
+        [
+          9,
+          9
+        ],
+        [
+          10,
+          10
+        ],
+        [
+          11,
+          11
+        ],
+        [
+          13,
+          13
+        ],
+        [
+          14,
+          14
+        ],
+        [
+          18,
+          18
+        ],
+        [
+          21,
+          21
+        ],
+        [
+          28,
+          28
+        ],
+        [
+          32,
+          32
+        ],
+        [
+          35,
+          35
+        ],
+        [
+          36,
+          36
+        ],
+        [
+          41,
+          41
+        ],
+        [
+          42,
+          42
+        ],
+        [
+          55,
+          55
+        ],
+        [
+          57,
+          57
+        ],
+        [
+          58,
+          58
+        ],
+        [
+          59,
+          59
+        ],
+        [
+          64,
+          64
+        ],
+        [
+          71,
+          71
+        ]
+      ],
+      "reason": "Reviewed pinned Jenkins plugin ID:version declarations, not credentials.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "e4d9a9b5b37326129a81dded0c1d4c4ccf0f87fc",
+      "path": "tests/device/schema/test_junit_privacy.py",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "20fcd0838fd3475d2745344781fd37a2fa25384400a21d034e8400738eff660c",
+      "locations": [
+        [
+          19,
+          19
+        ]
+      ],
+      "reason": "Reviewed synthetic canary and encoded-canary inputs to diagnostic-redaction/JUnit assertions. No service authentication in these tests; retain the assertions.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "fb7e0d69f83eb7c9b7d875a453a34dd8a0639efe",
+      "path": "tests/device/schema/test_junit_privacy.py",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "20fcd0838fd3475d2745344781fd37a2fa25384400a21d034e8400738eff660c",
+      "locations": [
+        [
+          19,
+          19
+        ]
+      ],
+      "reason": "Reviewed synthetic canary and encoded-canary inputs to diagnostic-redaction/JUnit assertions. No service authentication in these tests; retain the assertions.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    }
+  ]
+}

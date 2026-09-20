@@ -11,6 +11,7 @@ import unittest
 from unittest.mock import patch
 import zipfile
 import re
+import copy
 
 sys.dont_write_bytecode = True
 from core import Gate, digest
@@ -18,9 +19,58 @@ from evidence import regular_file, write_receipt, validate_receipt, FIXED_FILES,
 from runtime_checks import archive_members, analyze_telemetry, e2e, inspect_payload
 from source_checks import materialize, secrets, dependencies, licenses, hygiene, android_resource, android_manifest, fdroid
 from test_store import verify_inventory, write_inventory, stage_runtimes, store_paths, RUNTIMES
+from history_review import load_reviews, reviewed_exception
 
 
 class GateContracts(unittest.TestCase):
+    def history_fixture(self):
+        row = dict(Commit=self.g.commit, File='input.txt', RuleID='fixture', StartLine=1, EndLine=1)
+        entry = dict(commit=self.g.commit, path='input.txt', rule='gitleaks-fixture',
+                     blob_sha256=digest(self.root / 'input.txt'), locations=[[1, 1]],
+                     owner='Fixture review', reason='Synthetic ordinary source', expires='2099-01-01')
+        self.g.history_exceptions = [entry]
+        return row, entry
+
+    def test_history_exception_requires_every_identity_field_and_current_review(self):
+        row, entry = self.history_fixture()
+        self.assertEqual(reviewed_exception(self.g, row, 'input.txt'), entry)
+        for key, value in [('Commit', 'b' * 40), ('RuleID', 'other'), ('StartLine', 2), ('EndLine', 2), ('StartLine', True)]:
+            with self.subTest(field=key):
+                self.assertIsNone(reviewed_exception(self.g, dict(row, **{key: value}), 'input.txt'))
+        self.assertIsNone(reviewed_exception(self.g, row, 'other.txt'))
+        for key, value in [('blob_sha256', 'f' * 64), ('expires', '2000-01-01')]:
+            self.g.history_exceptions = [dict(entry, **{key: value})]
+            self.assertIsNone(reviewed_exception(self.g, row, 'input.txt'))
+
+    def test_history_exception_does_not_waive_source_scan(self):
+        row, entry = self.history_fixture()
+        def fake_run(label, argv, **kwargs):
+            Path(argv[argv.index('--report-path') + 1]).write_text(json.dumps([row]))
+            return 1, self.out / 'unused'
+        with patch.object(self.g, 'tool', return_value=True), patch.object(self.g, 'run', side_effect=fake_run):
+            secrets(self.g)
+        findings = [r for r in self.g.findings if r['rule']=='gitleaks-fixture']
+        self.assertEqual([r['status'] for r in findings], ['FAIL', 'WARNING'])
+        self.assertIsNone(findings[0]['exception'])
+        self.assertEqual(findings[1]['exception'], entry)
+
+    def test_history_review_schema_rejects_broad_and_duplicate_exceptions(self):
+        _, entry = self.history_fixture()
+        path = self.out / 'reviews.json'
+        for key, value in [('commit', '*'), ('path', '../escape'), ('locations', []),
+                           ('locations', [[True, 1]]), ('locations', [[2, 1]]), ('owner', '')]:
+            path.write_text(json.dumps(dict(schema=1, entries=[dict(entry, **{key: value})])))
+            with self.subTest(field=key), self.assertRaises(ValueError):
+                load_reviews(path)
+        path.write_text(json.dumps(dict(schema=1, entries=[entry, copy.deepcopy(entry)])))
+        with self.assertRaises(ValueError):
+            load_reviews(path)
+
+    def test_unavailable_historical_object_cannot_be_waived(self):
+        row, entry = self.history_fixture()
+        row['Commit'] = entry['commit'] = 'f' * 40
+        self.assertIsNone(reviewed_exception(self.g, row, 'input.txt'))
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

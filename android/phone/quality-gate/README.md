@@ -218,7 +218,7 @@ publish raw logs, screenshots, memory dumps or scanner outputs without redaction
 
 `allowlist.json` contains reviewed, hash-bound exceptions for intentional
 length-guarded integer string comparisons, source checksum maps and Jenkins
-plugin version declarations. Historical findings are not suppressed.
+plugin version declarations and synthetic diagnostic fixtures.
 An exception requires exact `rule`, relative
 `path`, current file `sha256`, `reason`, `owner`, and ISO `expires` date. No glob
 or directory-wide suppression is supported. The finding remains WARNING and
@@ -226,6 +226,15 @@ includes its reviewed exception. Source changes/expiration invalidate it. Missin
 tools, incomplete scans, device failures, history secrets and runtime artifact
 SDK findings cannot be waived by this mechanism. Fix scanner configuration only
 after a focused review; do not blanket-baseline historical findings.
+
+`history-allowlist.json` is a separate, narrowly reviewed historical false-positive
+inventory. Each entry binds an exact commit, path, complete Git blob SHA-256,
+detector rule, start/end line pairs, reviewer, reason and expiry. The gate checks
+the actual historical blob before downgrading that exact finding to WARNING.
+These exceptions never apply to source or artifact scans. They document only
+demonstrated non-secrets, not expired/revoked credentials or unverified owner
+claims. Missing objects, changed identities and expired reviews remain failures.
+See [HISTORY-REVIEW.md](HISTORY-REVIEW.md) for the reviewed inventory and next steps.
 
 For every ID listed in `policy.json` → `manual_reviews`, add a review to a private
 copy of `manual-evidence.example.json`. Use status PASS only after the work is

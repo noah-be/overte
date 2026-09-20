@@ -12,6 +12,7 @@ import re
 import signal
 import subprocess
 import time
+from history_review import load_reviews
 
 CATEGORIES = {
     'secrets': 'Secrets & Privacy', 'hygiene': 'Repository Hygiene',
@@ -49,6 +50,7 @@ class Gate:
         self.artifact = None
         self.attempt = None
         self.exceptions = json.loads((Path(__file__).parent / 'allowlist.json').read_text())['entries']
+        self.history_exceptions = load_reviews(Path(__file__).with_name('history-allowlist.json'))
         for e in self.exceptions:
             if (set(e) != {'rule', 'path', 'sha256', 'reason', 'owner', 'expires'}
                     or not re.fullmatch(r'[0-9a-f]{64}', e['sha256'])

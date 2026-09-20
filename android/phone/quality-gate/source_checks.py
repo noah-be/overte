@@ -8,6 +8,7 @@ import subprocess
 import xml.etree.ElementTree as ET
 
 from core import digest, write_json
+from history_review import reviewed_exception
 
 RULES = [
     ('private-key', 'FAIL', r'-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----', 'Remove the key and rotate it.'),
@@ -99,6 +100,12 @@ def secrets(g):
                               'Secret detector finding; value redacted in private evidence.',
                               'Rotate genuine secrets and investigate history; waive only reviewed false positives.',
                               row.get('StartLine'), fdroid=True, suppressible=mode != 'git', history_commit=commit)
+                    if mode == 'git':
+                        exception = reviewed_exception(g, row, relative)
+                        if exception:
+                            g.findings[-1].update(status='WARNING', exception=exception,
+                                message='Exact historical false positive reviewed; see bound exception reason.',
+                                action='Retain review evidence; any identity mismatch or expiry blocks again.')
             elif rc in (0, 1):
                 g.fail('gitleaks-report', 'Secret scan did not produce its required report.')
     shallow = subprocess.check_output(['git', 'rev-parse', '--is-shallow-repository'], cwd=g.root, text=True).strip()
