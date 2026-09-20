@@ -297,6 +297,20 @@ def android_manifest(g, text, path, final=False):
     return permissions
 
 
+def android_resource(g, text, rel):
+    root = ET.fromstring(text)
+    for node in root.iter():
+        if node.tag in {'root-path', 'external-path'} and node.get('path', '').strip() in {'', '.', '/'}:
+            g.finding('fileprovider-broad-path', 'FAIL', rel, 'Broad file sharing path.',
+                      'Restrict FileProvider to dedicated export directories.')
+        if node.get('cleartextTrafficPermitted') == 'true':
+            g.finding('cleartext-config', 'FAIL', rel, 'Cleartext explicitly enabled.',
+                      'Remove or document a tightly scoped exception.')
+        if node.tag == 'certificates' and node.get('src') == 'user':
+            g.finding('user-certificate-trust', 'WARNING', rel, 'User CA trust enabled.',
+                      'Confirm this is not a debug policy in the release.')
+
+
 def android(g):
     path = 'android/phone/apps/phoneInterface/src/main/AndroidManifest.xml'
     permissions = android_manifest(g, (g.root / path).read_text(), path)
@@ -304,12 +318,7 @@ def android(g):
     (g.out / 'permissions.md').write_text('# Android permissions\n\n| Permission | Source | Reason |\n|---|---|---|\n' + '\n'.join(f"| {p['name']} | {p['origin']} | {p['reason']} |" for p in permissions) + '\n\nFinal manifest and merger provenance are checked after the clean build.\n')
     for rel, text in texts(g):
         if '/src/main/res/xml/' in rel:
-            if re.search(r'<(?:root-path|external-path)\b[^>]*path=["\'](?:\.|/)["\']', text):
-                g.finding('fileprovider-broad-path', 'FAIL', rel, 'Broad file sharing path.', 'Restrict FileProvider to dedicated export directories.')
-            if 'cleartextTrafficPermitted="true"' in text:
-                g.finding('cleartext-config', 'FAIL', rel, 'Cleartext explicitly enabled.', 'Remove or document a tightly scoped exception.')
-            if 'src="user"' in text:
-                g.finding('user-certificate-trust', 'WARNING', rel, 'User CA trust enabled.', 'Confirm this is not a debug policy in the release.')
+            android_resource(g, text, rel)
 
 
 def fdroid(g):

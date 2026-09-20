@@ -15,7 +15,7 @@ sys.dont_write_bytecode = True
 from core import Gate, digest
 from evidence import regular_file, write_receipt, validate_receipt, FIXED_FILES, MODULE
 from runtime_checks import archive_members, analyze_telemetry, e2e
-from source_checks import materialize, secrets, dependencies, licenses, hygiene
+from source_checks import materialize, secrets, dependencies, licenses, hygiene, android_resource, android_manifest
 
 
 class GateContracts(unittest.TestCase):
@@ -250,6 +250,35 @@ class GateContracts(unittest.TestCase):
             raise ValueError('synthetic error')
         self.assertEqual(self.g.category, 'build')
         self.assertEqual(self.g.findings[-1]['category'], 'static')
+
+    def test_android_resource_policies_use_xml_semantics(self):
+        android_resource(self.g, """<network-security-config>
+            <base-config cleartextTrafficPermitted = 'tr&#117;e'>
+              <trust-anchors><certificates src = 'user'/></trust-anchors>
+            </base-config></network-security-config>""", 'network.xml')
+        self.assertEqual({r['rule'] for r in self.g.findings}, {'cleartext-config', 'user-certificate-trust'})
+        self.g.findings.clear()
+        for attribute in ('', "path=''", "path='.'", "path='/'"):
+            android_resource(self.g, f'<paths><external-path name="shared" {attribute}/></paths>', 'paths.xml')
+        self.assertEqual(len(self.g.findings), 4)
+        self.g.findings.clear()
+        android_resource(self.g, """<paths><!-- <root-path path='/'/> -->
+            <files-path name='exports' path='exports/'/></paths>""", 'paths.xml')
+        self.assertFalse(self.g.findings)
+
+    def test_release_manifest_rejects_dangerous_mutations(self):
+        root = Path(__file__).resolve().parents[3]
+        source = (root / 'android/phone/apps/phoneInterface/src/main/AndroidManifest.xml').read_text()
+        android_manifest(self.g, source, 'manifest.xml', final=True)
+        self.assertFalse(any(r['status']=='FAIL' for r in self.g.findings))
+        for before, after, rule in [
+            ('android:allowBackup="false"', 'android:allowBackup="true"', 'manifest-allowBackup'),
+            ('android:hasCode="true"', 'android:debuggable="true"', 'manifest-debuggable'),
+            ('android:exported="false"', 'android:exported="true"', 'exported-component'),
+            ('android.permission.VIBRATE', 'android.permission.READ_CONTACTS', 'permission-unreviewed')]:
+            self.g.findings.clear()
+            android_manifest(self.g, source.replace(before, after), 'manifest.xml', final=True)
+            self.assertTrue(any(r['rule']==rule and r['status']=='FAIL' for r in self.g.findings), rule)
 
     def test_soak_requires_continuous_valid_measurements(self):
         module = self.out / 'modules/idle-soak'
