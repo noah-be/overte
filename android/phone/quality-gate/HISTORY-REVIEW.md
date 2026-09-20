@@ -1,54 +1,78 @@
-# Historical secret review, 2026-09-20
+# Historical secret review — 2026-09-20
 
-Reviewed all 90 findings from the full reachable-history Gitleaks scan of source
-revision `e895d142383e8a9c76704f11958cdc19310dcde3`. No credential was used to
-authenticate to any service. Git history was not rewritten. Raw values and
-detailed owner follow-up evidence remain outside the repository.
+## Current assessment of the original 90 findings
 
-## Demonstrated false positives
+The original Gitleaks report examined reachable history at
+`e895d142383e8a9c76704f11958cdc19310dcde3`. Its 90 findings now comprise:
 
-| Basis | Findings | Verification |
-|---|---:|---|
-| Jenkins plugin versions | 46 | Matched lines are plugin ID:version declarations. |
-| Source integrity digests | 8 | Recomputed each referenced file's SHA-256 at the exact historical commit. |
-| Diagnostic/JUnit canaries | 8 | Inspected synthetic inputs and assertions that private values never reach output; includes encoded canaries. |
-| OAuth client identifier | 1 | Traced the constant into the client ID map and `client_id` parameter; it is not a client secret. |
+- 63 previously reviewed false positives: 46 Jenkins plugin versions,
+  eight integrity digests, eight diagnostic/test canaries, one OAuth client ID.
+- 11 additionally verified public identifiers: eight Sentry public ingestion
+  keys and three OAuth client IDs. Exact historical exceptions have been restored
+  and revalidated after the branch reset.
+- 16 remaining historical credential-related findings. Their bound literal
+  fragments are absent from the current tracked working tree and Git index.
+  This does not establish revocation, harmlessness or synthetic origin.
 
-The OAuth distinction is specified in [RFC 6749 section 2.2](https://www.rfc-editor.org/rfc/rfc6749#section-2.2).
-Exceptions are exact, expiring historical records, not a baseline accepting
-every finding before this date. They remain visible as WARNING.
+This is targeted review of existing findings, not a fresh full scan. No service
+was authenticated to or probed, no credential value was printed, no owner was
+contacted and no history was rewritten. The fork owner has explicitly stated
+that only Git history was inherited, without adopting or reusing those accounts
+or keys.
 
-## Still blocking: 27 findings, not necessarily 27 distinct credentials
+## Eleven public identifiers
 
-| Group | Findings | Historical dates | Required evidence |
-|---|---:|---|---|
-| Crash-report ingestion tokens | 8 | 2020–2025 | Identify intended public-ingestion scope versus private capability, owner and current status. |
-| Legacy CI/upload credentials, including AWS ID | 4 | 2019 | Owner review of account/key pairing, scope, retirement or rotation. |
-| NASA API keys | 2 | 2016–2019 | Key owner and retirement/restriction evidence. |
-| Android build upload tokens | 2 | 2018 | Identify upload service account and revocation status. |
-| Google Poly API keys | 6 | 2017 | Identify cloud project, restrictions and key status; age/service name alone is insufficient. |
-| Embedded RSA private key | 1 | 2017 | Identify purpose, affected trust/signing use, retirement or replacement. |
-| Hardcoded API/access tokens | 2 | 2014–2016 | Owner and token lifetime/revocation evidence; test location alone is not proof of synthetic data. |
-| HipChat tokens | 2 | 2013 | Owner and retirement evidence. |
+Three assignments named OAUTH_CLIENT_ID/ANDROID_OAUTH_CLIENT_ID were traced
+through historical Gradle configuration into LoginFragment's client_id URL
+parameter. Client secrets are separate configuration values. OAuth client IDs
+are not secrets: [RFC 6749 section 2.2](https://www.rfc-editor.org/rfc/rfc6749#section-2.2).
 
-No activity, validity, exploitability or current ownership is inferred from a
-detector hit. A commented-out value remains exposed in history. Service
-retirement does not establish the status or reuse of a particular key.
+Eight Sentry minidump URL findings contain the public sentry_key field, not
+sentry_secret or a symbol-upload token. The pinned implementation constructs
+this URL from public_key:
+[Sentry project-key implementation](https://github.com/getsentry/sentry/blob/d5672c510a77e0d472eeb8b9eab1ea32ba7f6507/src/sentry/models/projectkey.py#L280).
+Public ingestion identifiers can still permit event spam; this classification
+is not a statement about server limits, ownership or key revocation.
 
-Next obtain owner/provenance information, prioritizing the RSA key and CI/upload
-credentials. For inherited project credentials whose owners are unknown, prepare
-a private, value-free inquiry for the user to approve; do not contact upstream
-or create public issues automatically. Keep unresolved findings blocking.
+The allowlist binds commit, path, blob hash, scanner rule, line range and expiry.
+No wildcard or current-source/artifact exception was added. Two offline tests in
+`test_history_public_identifiers.py` pass against the actual historical Git
+objects and reject changed finding identities. The existing static runner now
+includes these tests. Historical warnings remain visible.
 
-Revocation evidence needs its own explicit disposition review; it must not be
-misclassified as a false positive or silently added to this allowlist. Any later
-history cleanup is a separate decision and does not invalidate copied secrets.
+## Remaining sixteen findings
 
-## Regression protection
+| Historical group | Findings | Existing source evidence | Fork-relevant disposition |
+| --- | ---: | --- | --- |
+| RSA private key | 1 | Historical entity-certificate signing development code; later code removes the private key and local signing. | Historical exposure; whether any remaining trust system accepted it is unestablished. No current literal match. |
+| AWS access key ID | 1 | CI identifier; the corresponding secret is referenced through the CI secret store. | The ID alone is not an authentication secret. No current literal match; no claim about the paired credential's status. |
+| Backtrace upload token | 2 | Native symbol upload authentication, not public crash-ingestion identification. | Historical capability; no current literal match. |
+| Google Poly API key | 6 | Asset-listing/loading assignments repeat one historical value. | Historical API credential; no current literal match. |
+| NASA API key | 2 | Tutorial copies contain a value distinct from DEMO_KEY. | Historical API credential; no current literal match. |
+| Metaverse access token | 1 | QML test sends access_token. | A test location alone does not establish a fake token. No current literal match. |
+| Discourse API key | 1 | Snapshot sharing passes api_key to the forum. | Historical API credential; no current literal match. |
+| HipChat token | 2 | Historical Jenkins integration configuration. | Historical integration credential; no current literal match. |
 
-The existing Phone contract runner executes `test_gate.py`. Tests cover exact
-identity matching, expiry, changed blob digest, changed rule/line/commit/path,
-source/history isolation, malformed/broad/duplicate review entries and unavailable
-Git objects. The full-history scanner revalidates each matched blob binding
-against Git. Unit tests use temporary Git repositories and need no upstream
-history download; the actual secret gate still rejects shallow history.
+Absence was checked using previously hash-bound fragments from the exact
+historical blobs and fixed-string Git searches of both tracked working tree and
+index. Values were passed through stdin, with matched output suppressed. The
+[redacted review record](history-current-presence-review.json) identifies scope
+and findings. This does not cover untracked files, encoded/transformed values,
+future source changes, downloaded build inputs or the eventual APK.
+
+## What this means for the next action
+
+There is no demonstrated current literal secret to remove among these sixteen,
+and no established user-owned credential to rotate. Historical exposure remains
+an upstream security matter with unknown validity; do not relabel it as a false
+positive or claim revocation. Owner follow-up may help, particularly for the RSA
+trust question or upload capability, but is not automatically a requirement that
+the fork owner obtain revocation certificates for all historical entries.
+
+No automatic F-Droid rejection has been established from these historical hits.
+Do not infer a release blocker solely from their presence in inherited history.
+The existing *local gate policy* still fails these sixteen because its only
+implemented exception class is exact false positives. That executable policy
+has not been silently weakened or replaced by this review. Distinguish that
+local policy result from a demonstrated current exposure or an F-Droid decision.
+Current-source and artifact scanning remain separate checks.

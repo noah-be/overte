@@ -1,5 +1,11 @@
 # Android Phone finding remediation
 
+Current historical-secret assessment: [HISTORY-REVIEW.md](HISTORY-REVIEW.md).
+The original 27 unresolved hits now comprise 11 verified public identifiers and
+16 historical findings whose bound fragments are absent from current tracked
+source. The local gate still blocks those 16; that is not an established
+F-Droid admission decision or proof of a current secret leak.
+
 Work starts from `android-phone` at `18368f8b2f77`. Earlier qualification
 reports describe older commits and are not acceptance evidence for this branch.
 Each correction needs a regression test or an equivalent automated invariant.

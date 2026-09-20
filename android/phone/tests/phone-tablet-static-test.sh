@@ -51,6 +51,7 @@ done
 "$script_dir/phone-host-regression-test.sh"
 printf '\n[Android F-Droid quality-gate regression contracts]\n'
 python3 -B "$script_dir/../quality-gate/test_gate.py"
+python3 -B "$script_dir/../quality-gate/test_history_public_identifiers.py"
 python3 -B "$script_dir/../fdroid/conan/test_source_graph_slice.py"
 python3 -B "$script_dir/../fdroid/conan/test_cold_build_executor.py"
 git -C "$repo_root" diff --check

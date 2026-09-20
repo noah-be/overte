@@ -1,0 +1,185 @@
+{
+  "reviewed_revision": "3eb0b16c1e5cd68114eb773f5e6e96667ebba925",
+  "scope": "Bound literal fragments only; tracked working tree and index; no service probing or APK scan",
+  "result": "ABSENT",
+  "findings": [
+    {
+      "commit": "d4b3a9ba49f4e131065aa05ac90d70aeb2544da3",
+      "path": ".github/workflows/cmake.yml",
+      "group": "Legacy CI/upload credentials",
+      "locations": [
+        [
+          22,
+          22
+        ]
+      ]
+    },
+    {
+      "commit": "3334e06cf429b569abf0cc12abf85fd9e833e728",
+      "path": "scripts/simplifiedUI/tutorials/createPictureFrame.js",
+      "group": "NASA API keys",
+      "locations": [
+        [
+          23,
+          23
+        ]
+      ]
+    },
+    {
+      "commit": "ac533a391346554d9a47c9ecc5012c0512711de4",
+      "path": "android/build.gradle",
+      "group": "Android build upload tokens",
+      "locations": [
+        [
+          618,
+          618
+        ]
+      ]
+    },
+    {
+      "commit": "af29e10fe9715a23b40e53e28a231a5fa395deec",
+      "path": "android/build.gradle",
+      "group": "Android build upload tokens",
+      "locations": [
+        [
+          598,
+          598
+        ]
+      ]
+    },
+    {
+      "commit": "392f290dd62e1ba986af78bb6020dc83710184a0",
+      "path": "interface/src/scripting/GooglePolyScriptingInterface.cpp",
+      "group": "Google Poly API keys",
+      "locations": [
+        [
+          42,
+          42
+        ]
+      ]
+    },
+    {
+      "commit": "392f290dd62e1ba986af78bb6020dc83710184a0",
+      "path": "interface/src/scripting/GooglePolyScriptingInterface.cpp",
+      "group": "Google Poly API keys",
+      "locations": [
+        [
+          80,
+          80
+        ]
+      ]
+    },
+    {
+      "commit": "392f290dd62e1ba986af78bb6020dc83710184a0",
+      "path": "interface/src/scripting/GooglePolyScriptingInterface.cpp",
+      "group": "Google Poly API keys",
+      "locations": [
+        [
+          120,
+          120
+        ]
+      ]
+    },
+    {
+      "commit": "4ed689672ea2a9b0783b0eb516ac8facb9d2d73b",
+      "path": "interface/src/scripting/GooglePolyScriptingInterface.cpp",
+      "group": "Google Poly API keys",
+      "locations": [
+        [
+          42,
+          42
+        ]
+      ]
+    },
+    {
+      "commit": "4ed689672ea2a9b0783b0eb516ac8facb9d2d73b",
+      "path": "interface/src/scripting/GooglePolyScriptingInterface.cpp",
+      "group": "Google Poly API keys",
+      "locations": [
+        [
+          80,
+          80
+        ]
+      ]
+    },
+    {
+      "commit": "4ed689672ea2a9b0783b0eb516ac8facb9d2d73b",
+      "path": "interface/src/scripting/GooglePolyScriptingInterface.cpp",
+      "group": "Google Poly API keys",
+      "locations": [
+        [
+          120,
+          120
+        ]
+      ]
+    },
+    {
+      "commit": "d1350a03c2bf81cab25c3c44eb138239df25296c",
+      "path": "libraries/entities/src/EntityItem.cpp",
+      "group": "Embedded RSA private key",
+      "locations": [
+        [
+          1632,
+          1640
+        ]
+      ]
+    },
+    {
+      "commit": "50117e2ff400151e3c3652bfa2005d004fe52b70",
+      "path": "scripts/tutorials/createPictureFrame.js",
+      "group": "NASA API keys",
+      "locations": [
+        [
+          23,
+          23
+        ]
+      ]
+    },
+    {
+      "commit": "746c388f7ad62bb61ae538e4805fc9bf1b632f67",
+      "path": "tests/ui/qml/main.qml",
+      "group": "Hardcoded API/access tokens",
+      "locations": [
+        [
+          295,
+          295
+        ]
+      ]
+    },
+    {
+      "commit": "d93480458f0941281db882ee63db2f0b7fa461bd",
+      "path": "interface/src/ui/SnapshotShareDialog.cpp",
+      "group": "Hardcoded API/access tokens",
+      "locations": [
+        [
+          123,
+          123
+        ]
+      ]
+    },
+    {
+      "commit": "53d3eea0b1fcabc8bf1d7132b9df644b4befd77f",
+      "path": "jenkins/jobs.groovy",
+      "group": "HipChat tokens",
+      "locations": [
+        [
+          5,
+          5
+        ]
+      ]
+    },
+    {
+      "commit": "5945fbc32d756739d981a53e5607c150c25d225e",
+      "path": "jenkins/jobs.groovy",
+      "group": "HipChat tokens",
+      "locations": [
+        [
+          18,
+          18
+        ]
+      ]
+    }
+  ],
+  "revocation_status": "NOT_ESTABLISHED",
+  "owner_statement": "Only Git history inherited; accounts and keys not adopted or reused"
+}

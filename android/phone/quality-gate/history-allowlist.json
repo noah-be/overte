@@ -417,6 +417,171 @@
       "reason": "Reviewed synthetic canary and encoded-canary inputs to diagnostic-redaction/JUnit assertions. No service authentication in these tests; retain the assertions.",
       "owner": "Android Phone historical source review",
       "expires": "2026-12-18"
+    },
+    {
+      "commit": "a304cd7077289dbf7d2eeb656b4f21f7ce5352aa",
+      "path": ".github/workflows/pr_build.yml",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "7030d24365763370ab260cd4bdb88b3a4e2d27a3c40f7bd943f46d292212aff1",
+      "locations": [
+        [
+          23,
+          23
+        ]
+      ],
+      "reason": "Reviewed public Sentry minidump ingestion identifier (sentry_key), not an account/API secret. Exact historical URL matches Sentry public_key semantics in projectkey.py at d5672c510a77e0d472eeb8b9eab1ea32ba7f6507:284. Ingestion abuse remains possible; no revocation or current service status is asserted.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "a304cd7077289dbf7d2eeb656b4f21f7ce5352aa",
+      "path": ".github/workflows/linux_server_build.yml",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "ee90c1091dbea600de2b81b52e7879e22a4ef13cabcb0db3fddd2b0c6595330f",
+      "locations": [
+        [
+          242,
+          242
+        ]
+      ],
+      "reason": "Reviewed public Sentry minidump ingestion identifier (sentry_key), not an account/API secret. Exact historical URL matches Sentry public_key semantics in projectkey.py at d5672c510a77e0d472eeb8b9eab1ea32ba7f6507:284. Ingestion abuse remains possible; no revocation or current service status is asserted.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "d786308aab64b55f8a5401fc809e1c0ff310f080",
+      "path": ".github/workflows/linux_server_build.yml",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "721d4d90b7bfc14d374388ea0f29f1cc16ef1283df7d99a1e1bdef219b935c8f",
+      "locations": [
+        [
+          207,
+          207
+        ]
+      ],
+      "reason": "Reviewed public Sentry minidump ingestion identifier (sentry_key), not an account/API secret. Exact historical URL matches Sentry public_key semantics in projectkey.py at d5672c510a77e0d472eeb8b9eab1ea32ba7f6507:284. Ingestion abuse remains possible; no revocation or current service status is asserted.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "ee705d285e3b5e0d65accffdf8bfbfab9c6448f1",
+      "path": ".github/workflows/linux_server_build.yml",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "238d0c39d73c2faea471f6c0028299bd4ba9035b412137ccf1d40a90a68e5dba",
+      "locations": [
+        [
+          210,
+          210
+        ]
+      ],
+      "reason": "Reviewed public Sentry minidump ingestion identifier (sentry_key), not an account/API secret. Exact historical URL matches Sentry public_key semantics in projectkey.py at d5672c510a77e0d472eeb8b9eab1ea32ba7f6507:284. Ingestion abuse remains possible; no revocation or current service status is asserted.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "d09be20e7f3981b96b6dbeed3ecec8bc29ea5ada",
+      "path": ".github/workflows/linux_server_build.yml",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "901ed3fea509c2b3ea274b4d1fdb2e6911f892695dc8f576752a5a880dc0983a",
+      "locations": [
+        [
+          210,
+          210
+        ]
+      ],
+      "reason": "Reviewed public Sentry minidump ingestion identifier (sentry_key), not an account/API secret. Exact historical URL matches Sentry public_key semantics in projectkey.py at d5672c510a77e0d472eeb8b9eab1ea32ba7f6507:284. Ingestion abuse remains possible; no revocation or current service status is asserted.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "2780f375eabafa8591904bd4037edfbe98001874",
+      "path": ".github/workflows/pr_build.yml",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "cef1f5b88e2440561e858d43f699698d65753dc45a6f6b5147d33e53c05ad5db",
+      "locations": [
+        [
+          25,
+          25
+        ]
+      ],
+      "reason": "Reviewed public Sentry minidump ingestion identifier (sentry_key), not an account/API secret. Exact historical URL matches Sentry public_key semantics in projectkey.py at d5672c510a77e0d472eeb8b9eab1ea32ba7f6507:284. Ingestion abuse remains possible; no revocation or current service status is asserted.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "2780f375eabafa8591904bd4037edfbe98001874",
+      "path": ".github/workflows/linux_server_build.yml",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "330e7bea5ac32765f234d36c71c30d831285c2f3e64b241eab9cde24173707e9",
+      "locations": [
+        [
+          216,
+          216
+        ]
+      ],
+      "reason": "Reviewed public Sentry minidump ingestion identifier (sentry_key), not an account/API secret. Exact historical URL matches Sentry public_key semantics in projectkey.py at d5672c510a77e0d472eeb8b9eab1ea32ba7f6507:284. Ingestion abuse remains possible; no revocation or current service status is asserted.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "d9255eed953517a87c95cb9e3b10445e32e3f13e",
+      "path": ".github/workflows/pr_build.yml",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "2137b7a7ccf2498d2ebad0a5aac19f60948779d5193799d4b90dfc96d6abd256",
+      "locations": [
+        [
+          17,
+          17
+        ]
+      ],
+      "reason": "Reviewed public Sentry minidump ingestion identifier (sentry_key), not an account/API secret. Exact historical URL matches Sentry public_key semantics in projectkey.py at d5672c510a77e0d472eeb8b9eab1ea32ba7f6507:284. Ingestion abuse remains possible; no revocation or current service status is asserted.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "f39088fb0b72313a614e614660e5e97f6bb8cb90",
+      "path": ".github/workflows/master_build.yml",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "14a8d5505fbe13502caff44b3b3046862249d86ac8cd1ed0ea59855da0db8d47",
+      "locations": [
+        [
+          52,
+          52
+        ]
+      ],
+      "reason": "Reviewed OAuth client identifier, not a client secret. At this historical revision Android Gradle maps OAUTH_CLIENT_ID separately from OAUTH_CLIENT_SECRET; LoginFragment sends it as client_id. The commented ANDROID_OAUTH_CLIENT_ID declarations have the same explicit role. RFC 6749 section 2.2 defines client identifiers as public.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "f39088fb0b72313a614e614660e5e97f6bb8cb90",
+      "path": ".github/workflows/master_build.yml",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "14a8d5505fbe13502caff44b3b3046862249d86ac8cd1ed0ea59855da0db8d47",
+      "locations": [
+        [
+          57,
+          57
+        ]
+      ],
+      "reason": "Reviewed OAuth client identifier, not a client secret. At this historical revision Android Gradle maps OAUTH_CLIENT_ID separately from OAUTH_CLIENT_SECRET; LoginFragment sends it as client_id. The commented ANDROID_OAUTH_CLIENT_ID declarations have the same explicit role. RFC 6749 section 2.2 defines client identifiers as public.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
+    },
+    {
+      "commit": "d4b3a9ba49f4e131065aa05ac90d70aeb2544da3",
+      "path": ".github/workflows/cmake.yml",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "910fd3b36e767944002bdb12d2b90fe110bc08d23db66c5efff7f46d3e5fcef2",
+      "locations": [
+        [
+          61,
+          61
+        ]
+      ],
+      "reason": "Reviewed OAuth client identifier, not a client secret. At this historical revision Android Gradle maps OAUTH_CLIENT_ID separately from OAUTH_CLIENT_SECRET; LoginFragment sends it as client_id. The commented ANDROID_OAUTH_CLIENT_ID declarations have the same explicit role. RFC 6749 section 2.2 defines client identifiers as public.",
+      "owner": "Android Phone historical source review",
+      "expires": "2026-12-18"
     }
   ]
 }
