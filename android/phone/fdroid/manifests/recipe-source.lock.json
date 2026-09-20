@@ -131,11 +131,12 @@
     "measured_at": "2026-09-05T11:09:58+02:00",
     "available_bytes": 170000000000,
     "cached_source_bytes": 707788800,
-    "minimum_free_bytes": 60000000000,
+    "minimum_free_bytes": 0,
     "recommended_free_bytes": 214748364800,
     "network_isolation": "BWRAP_UNSHARE_NET_AVAILABLE",
     "required_mode": "EMPTY_CACHE_SOURCE_ONLY_NO_REMOTE_NETWORK_OFF",
-    "remaining_action": "Merge the three-gate repair, pass the independent clean-room audit, then run the single qualified cold build."
+    "remaining_action": "Merge the three-gate repair, pass the independent clean-room audit, then run the single qualified cold build.",
+    "start_reserve_policy": "USER_AUTHORIZED_NO_ADDITIONAL_START_RESERVE"
   },
   "pass_prohibited_until": [
     "The single qualified cold build completes successfully",

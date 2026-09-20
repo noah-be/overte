@@ -19,7 +19,7 @@
     {
       "rule": "gitleaks-generic-api-key",
       "path": "android/phone/fdroid/manifests/recipe-source.lock.json",
-      "sha256": "015d5a8bb8eeb39e5895147b6ba651cf226cdcb99c1798b819ee766f395d6690",
+      "sha256": "452f302246d23d3b9b6b32107655db2b646198b62cfeb6af25cbe9c770b503f1",
       "reason": "The flagged value is a SHA-256 source-file digest in a source-closure path-to-digest map, not a credential.",
       "owner": "Android quality gate qualification review",
       "expires": "2026-12-18"
@@ -27,7 +27,7 @@
     {
       "rule": "gitleaks-discord-api-token",
       "path": "android/phone/fdroid/manifests/recipe-source.lock.json",
-      "sha256": "015d5a8bb8eeb39e5895147b6ba651cf226cdcb99c1798b819ee766f395d6690",
+      "sha256": "452f302246d23d3b9b6b32107655db2b646198b62cfeb6af25cbe9c770b503f1",
       "reason": "Both hits are SHA-256 values for discord-rpc source paths in a source-closure digest map, not Discord authentication tokens.",
       "owner": "Android quality gate qualification review",
       "expires": "2026-12-18"
