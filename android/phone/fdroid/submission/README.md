@@ -126,8 +126,11 @@ English text lives under `android/phone/fastlane/metadata/android/en-US/` and is
 copied into the submission by the staging helper. The store icon is a 512-pixel
 rendering of the [maintainer-supplied Navy artwork](../../branding/README.md),
 matching the Phone launcher and splash drawable, with metadata stripped.
-No personal contact details or private device screenshots are
-included. Public screenshots can be selected after reviewing their content.
+Only the approved author name and public profile are included; no private
+contact details or private device screenshots are included. Two maintainer-created
+Phone screenshots are included in `images/phoneScreenshots/`: the beach view
+first, then the Overte sign. They were visually reviewed for private information;
+EXIF metadata was removed without changing image pixels.
 
 The maintainer approved the following release configuration:
 
@@ -144,8 +147,8 @@ The maintainer approved the following release configuration:
   the description requires OpenGL ES 3.2 and does not list jumping separately.
 - **Device support:** API 26 minimum, target/compile API 36, ARM64 and OpenGL ES
   3.2. SDK/NDK/CMake versions and the existing eight scanner deletions remain
-  unchanged. The supplied Navy artwork is used; screenshots will be selected
-  together with the maintainer later.
+  unchanged. The supplied Navy artwork and two maintainer-created Phone
+  screenshots are included.
 - **Signing:** normal F-Droid signing for the F-Droid release. The local Android
   debug key remains test-only. Signing for any separate distribution channel
   must be planned separately.
@@ -155,9 +158,16 @@ The maintainer approved the following release configuration:
   still pending. Maintainer notes will be refreshed before submission.
 
 The [earlier qualification record](VALIDATION.md) documents the old test identity
-and is historical evidence, not validation of the renamed APK. A new build and
-installation check are needed for this application ID. The complete buildserver
-check remains technical work, not an owner attestation. Nothing here publishes,
+and is historical evidence, not validation of the renamed APK. On 2026-09-21,
+the new identity passed incremental release assembly, APK content and 16-KiB
+checks, installation, and restart smoke testing. The first foreground check
+encountered the microphone permission dialog, as confirmed by the maintainer;
+the subsequent restart passed. This reused compiled dependencies and does not
+replace cold qualification of the final revision.
+
+The local F-Droid controller and VM configurations have passed configuration
+validation and metadata lint. VM provisioning and a complete `--server` build
+remain pending. These are technical checks, not owner attestations. Nothing here publishes,
 merges, tags, deletes branches or updates private device-lab configuration.
 
 ## Regression checks
