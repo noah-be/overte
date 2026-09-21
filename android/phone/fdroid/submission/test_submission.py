@@ -10,6 +10,7 @@ import shlex
 import subprocess
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from unittest.mock import patch
 import zipfile
 
@@ -28,6 +29,27 @@ builder, staging = load('build'), load('stage')
 
 
 class BuildContractTests(unittest.TestCase):
+    def test_phone_launcher_uses_supplied_navy_artwork(self):
+        phone = ROOT / 'android/phone'
+        source = ET.parse(phone / 'branding/launcher-navy.svg').getroot()
+        ns = {'svg': 'http://www.w3.org/2000/svg'}
+        android = '{http://schemas.android.com/apk/res/android}'
+        res = phone / 'apps/phoneInterface/src/main/res'
+        vector = ET.parse(res / 'drawable/ic_launcher.xml').getroot()
+        self.assertEqual(source.attrib['viewBox'].split()[2:],
+                         [vector.attrib[android + 'viewportWidth'], vector.attrib[android + 'viewportHeight']])
+        group = vector.find('group')
+        self.assertEqual('translate(' + group.attrib[android + 'translateX'] + ',' +
+                         group.attrib[android + 'translateY'] + ')', source.find('svg:g', ns).attrib['transform'])
+        self.assertEqual(source.find('.//svg:path', ns).attrib['d'],
+                         group.findall('path')[1].attrib[android + 'pathData'])
+        self.assertIn('fill:#2a4d85', source.find('.//svg:circle', ns).attrib['style'])
+        self.assertEqual('#2A4D85', group.findall('path')[0].attrib[android + 'fillColor'])
+        manifest = ET.parse(res.parent / 'AndroidManifest.xml').getroot()
+        self.assertEqual('@drawable/ic_launcher', manifest.find('application').attrib[android + 'icon'])
+        splash = ET.parse(res / 'values-v31/styles.xml').getroot()
+        self.assertEqual('@drawable/ic_launcher', splash.find(".//item[@name='android:windowSplashScreenAnimatedIcon']").text)
+
     def test_provisioning_runs_from_fdroid_home_before_source_preparation(self):
         # fdroidserver.build.build_local runs sudo from the builder home, not
         # the app checkout. Exercise that directory layout without root/APT.

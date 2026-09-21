@@ -117,8 +117,9 @@ that this complete recipe passed a cold build.
 
 English text lives under `android/phone/fastlane/metadata/android/en-US/` and is
 copied into the submission by the staging helper. The store icon is a 512-pixel
-rendering of the existing Phone `ic_launcher.xml`, with metadata stripped; it is
-not a new logo. No personal contact details or private device screenshots are
+rendering of the [maintainer-supplied Navy artwork](../../branding/README.md),
+matching the Phone launcher and splash drawable, with metadata stripped.
+No personal contact details or private device screenshots are
 included. Public screenshots can be selected after reviewing their content.
 
 Before submission, agree on:
