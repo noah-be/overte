@@ -7,7 +7,6 @@ import json
 import os
 from pathlib import Path
 import re
-import shlex
 import subprocess
 import tempfile
 import unittest
@@ -85,15 +84,16 @@ class BuildContractTests(unittest.TestCase):
         # fdroidserver.build.build_local runs sudo from the builder home, not
         # the app checkout. Exercise that directory layout without root/APT.
         template = (HERE / 'metadata/io.github.noah_be.overte.phone.yml.in').read_text()
-        command = next(line.strip()[6:] for line in template.splitlines()
-                       if line.strip().startswith('sudo: '))
+        sudo = template.split('    sudo:\n', 1)[1].split('    output:', 1)[0]
+        commands = [line.strip()[2:] for line in sudo.splitlines() if line.strip().startswith('- ')]
         with tempfile.TemporaryDirectory() as td:
             home = Path(td)
             script = home / 'build/io.github.noah_be.overte.phone' / staging.BASE / 'provision.sh'
             script.parent.mkdir(parents=True)
             script.write_text('set -eu\n[ "$1" = --fdroid-buildserver ]\nprintf ready > provisioned\n')
-            subprocess.run(shlex.split(command), cwd=home, check=True)
-            self.assertEqual('ready', (home / 'provisioned').read_text())
+            subprocess.run(['bash', '-e', '-u', '-o', 'pipefail', '-c', '; '.join(commands)],
+                           cwd=home, check=True)
+            self.assertEqual('ready', (home / 'build/io.github.noah_be.overte.phone/provisioned').read_text())
 
     def test_rejects_ambiguous_commit_and_invalid_versions(self):
         for commit, code, name in [('main', 1, '0.1.0'), ('a' * 40, 0, '0.1.0'),

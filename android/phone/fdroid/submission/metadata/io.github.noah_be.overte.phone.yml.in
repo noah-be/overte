@@ -19,7 +19,9 @@ Builds:
     disable: Draft pending public source commit and complete F-Droid buildserver validation
     commit: @COMMIT@
     timeout: 14400
-    sudo: sh build/io.github.noah_be.overte.phone/android/phone/fdroid/submission/provision.sh --fdroid-buildserver
+    sudo:
+      - cd build/io.github.noah_be.overte.phone
+      - sh android/phone/fdroid/submission/provision.sh --fdroid-buildserver
     output: android/phone/apps/phoneInterface/build/outputs/apk/release/*.apk
     prebuild: sdkmanager --sdk_root $$SDK$$ 'platforms;android-36' 'build-tools;36.0.0'
       'cmake;3.31.6'
