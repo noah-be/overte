@@ -66,7 +66,9 @@ No F-Droid upstream write or merge request is authorized by these instructions.
 
 `provision.sh --fdroid-buildserver` is for the disposable VM's privileged `sudo`
 stage **only**, not a workstation. It installs the existing qualified compiler
-versions and Conan. Debian's rolling mirror no longer serves all those exact
+versions and Conan. F-Droid executes this stage from the builder home before
+source preparation, so its metadata path includes `build/org.overte.phone/`.
+Debian's rolling mirror no longer serves all those exact
 versions, so the recipe uses its signed `20260904T000000Z` snapshot for unstable
 packages. Only archive expiry checking is disabled for this immutable snapshot;
 APT signature verification is retained. This does not change the existing local

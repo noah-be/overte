@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import tempfile
 import unittest
@@ -27,6 +28,20 @@ builder, staging = load('build'), load('stage')
 
 
 class BuildContractTests(unittest.TestCase):
+    def test_provisioning_runs_from_fdroid_home_before_source_preparation(self):
+        # fdroidserver.build.build_local runs sudo from the builder home, not
+        # the app checkout. Exercise that directory layout without root/APT.
+        template = (HERE / 'metadata/org.overte.phone.yml.in').read_text()
+        command = next(line.strip()[6:] for line in template.splitlines()
+                       if line.strip().startswith('sudo: '))
+        with tempfile.TemporaryDirectory() as td:
+            home = Path(td)
+            script = home / 'build/org.overte.phone' / staging.BASE / 'provision.sh'
+            script.parent.mkdir(parents=True)
+            script.write_text('set -eu\n[ "$1" = --fdroid-buildserver ]\nprintf ready > provisioned\n')
+            subprocess.run(shlex.split(command), cwd=home, check=True)
+            self.assertEqual('ready', (home / 'provisioned').read_text())
+
     def test_rejects_ambiguous_commit_and_invalid_versions(self):
         for commit, code, name in [('main', 1, '0.1.0'), ('a' * 40, 0, '0.1.0'),
                                     ('a' * 40, 2147483648, '0.1.0'),
