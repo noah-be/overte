@@ -110,7 +110,7 @@
     "android/phone/fdroid/gradle-acquisition/settings.gradle": "347d3c618cd6441bd70ecfad7c83bd645702c5bf864526899e1e7e9c4ca9e071",
     "android/phone/fdroid/manifests/source-closure.lock.json": "1d801b4ec6eabd992d3bcccb608103fd709720ab04249e2f98e635bfd8cd73f6",
     "android/phone/fdroid/manifests/toolchain-provisioning.lock.json": "0a5631cfd0e705fd325816e3313828cb83229e153ac79cd5d981cf41b8868bf2",
-    "android/phone/fdroid/scripts/build-dependencies.sh": "b13e1ebe6eacb975a091f26f6e9bb47a410969881327d6936ad31b567f655873",
+    "android/phone/fdroid/scripts/build-dependencies.sh": "68a4c6b42d5782492bfe5a3163fc2da6bcc055aec522533f936c1de0529a5897",
     "android/phone/fdroid/scripts/cold-build.sh": "7bcaa4b1eb2e35f5f444434388f5a6b69d0d15e768d93795f9f9a302fb90a246",
     "android/phone/fdroid/scripts/prepare-gradle-store.sh": "4e4c43889893cfa4a5ce51ec77af054f991a4181f18840b9aed93919d9e982c2",
     "android/phone/fdroid/scripts/prepare-sources.sh": "89c3a2739d00d3e24ed644c92628f5245d9af9ead3bdae8a4c42324fd3c2276a",

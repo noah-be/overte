@@ -103,6 +103,13 @@ handshake and no external network interfaces. Kernel policy must allow user and
 network namespaces; an unsupported host fails before acquisition. There is no
 network-enabled compilation fallback.
 
+Conan source extraction uses `tools.files.unzip:filter=data`. Archive owner IDs
+are deliberately not restored in the root-mapped namespace: those foreign IDs
+are unmapped, and a failed `chown` would otherwise prevent `tarfile` from applying
+executable modes (reproduced with NASM's `configure`). The filter preserves the
+required executable bits while retaining archive path/link safety checks. Do not
+repair this by granting blanket executable permissions to downloaded sources.
+
 The only optional reuse is `--source-store /absolute/verified-source-archives`:
 it still validates every input against the public source manifest and cannot
 supply compiled Conan packages. The submitted recipe does not use this option.

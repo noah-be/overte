@@ -1,6 +1,8 @@
 import json
 import re
+import shutil
 import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -31,6 +33,40 @@ class ColdBuildExecutorTest(unittest.TestCase):
             self.assertIn("--build='*'", command)
             self.assertNotIn("--build=missing", command)
             self.assertNotIn("-pr:b default", command)
+
+    def test_foreign_archive_owner_does_not_strip_executable_permissions(self):
+        # Exercise the tarfile behavior used by Conan in the real namespace
+        # type. The unfiltered control reproduces the NASM 2.15.05 failure.
+        self.assertIn("'tools.files.unzip:filter=data'", self.inner)
+        if not shutil.which('unshare'):
+            self.skipTest('Linux user namespaces unavailable')
+        prefix = ['unshare', '--user', '--map-root-user', '--net']
+        probe = subprocess.run(prefix + [sys.executable, '-c', 'pass'], capture_output=True)
+        if probe.returncode:
+            self.skipTest('host forbids user/network namespaces; build preflight rejects this host')
+        script = r'''
+import io, os, pathlib, subprocess, tarfile, tempfile
+os.umask(0o022)
+with tempfile.TemporaryDirectory() as td:
+    root = pathlib.Path(td)
+    archive = root / 'source.tar.xz'
+    with tarfile.open(archive, 'w:xz') as tar:
+        item = tarfile.TarInfo('configure')
+        body = b'#!/bin/sh\nprintf executable\n'
+        item.size, item.mode, item.uid, item.gid = len(body), 0o775, 802, 900
+        tar.addfile(item, io.BytesIO(body))
+    for name, filter_ in [('control', lambda member, _: member), ('fixed', 'data')]:
+        dest = root / name
+        with tarfile.open(archive) as tar:
+            tar.extractall(dest, filter=filter_)
+        executable = dest / 'configure'
+        if name == 'control':
+            assert not (executable.stat().st_mode & 0o111), 'control no longer reproduces the failure'
+        else:
+            assert executable.stat().st_mode & 0o100
+            assert subprocess.check_output([str(executable)]) == b'executable'
+'''
+        subprocess.run(prefix + [sys.executable, '-c', script], check=True, timeout=20)
 
     def test_network_and_cache_fail_closed_before_build(self):
         preflight = self.inner.split("preflight()", 1)[1].split("if [ \"$mode\" = --prepare ]", 1)[0]
