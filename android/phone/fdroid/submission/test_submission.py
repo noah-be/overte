@@ -95,6 +95,22 @@ class BuildContractTests(unittest.TestCase):
                            cwd=home, check=True)
             self.assertEqual('ready', (home / 'build/io.github.noah_be.overte.phone/provisioned').read_text())
 
+    def test_metadata_work_directory_is_outside_scanned_checkout(self):
+        # Exercise shell expansion in the actual metadata argument. The recipe
+        # export transport refuses an output nested under the scanned source.
+        template = (HERE / 'metadata/io.github.noah_be.overte.phone.yml.in').read_text()
+        argument = re.search(r'--work-dir ("[^"\n]+")', template).group(1)
+        with tempfile.TemporaryDirectory() as td:
+            checkout = Path(td) / 'build/io.github.noah_be.overte.phone'
+            checkout.mkdir(parents=True)
+            expanded = subprocess.check_output(
+                ['sh', '-c', 'printf "%s" ' + argument], cwd=checkout, text=True)
+            work = Path(expanded).resolve()
+            self.assertTrue(work.is_absolute())
+            self.assertNotEqual(checkout, work)
+            self.assertNotIn(checkout, work.parents)
+            self.assertEqual(checkout.parent, work.parent)
+
     def test_rejects_ambiguous_commit_and_invalid_versions(self):
         for commit, code, name in [('main', 1, '0.1.0'), ('a' * 40, 0, '0.1.0'),
                                     ('a' * 40, 2147483648, '0.1.0'),

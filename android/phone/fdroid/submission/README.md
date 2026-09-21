@@ -82,7 +82,8 @@ The metadata acquires SDK 36, Build-Tools 36.0.0, SDK CMake 3.31.6 and NDK
 15.3.0, CMake 3.31.6, Ninja 1.13.2, OpenJDK 17, Conan 2.25.2 and `unshare`/`ip`.
 The recipe targets ARM64 only, Android 8.0+ (API 26), versionCode 1/versionName
 0.1.0. The new workspace, Conan cache and Gradle home are isolated from developer
-caches. Acquired dependencies come from the existing public, version/hash-locked
+caches. The metadata places the work directory beside the checkout: recipe
+transport archives must stay outside the scanned source tree. Acquired dependencies come from the existing public, version/hash-locked
 source closure and locked Gradle project.
 
 `build.py --check` verifies the commit, tool versions, SDK files and working

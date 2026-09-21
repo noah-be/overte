@@ -37,7 +37,7 @@ Builds:
     build:
       - export PATH=/opt/overte-fdroid/conan/bin:$PATH
       - python3 android/phone/fdroid/submission/build.py --commit $$COMMIT$$ --version-code
-        $$VERCODE$$ --version-name $$VERSION$$ --sdk $$SDK$$ --work-dir "$PWD/.fdroid-build"
+        $$VERCODE$$ --version-name $$VERSION$$ --sdk $$SDK$$ --work-dir "$PWD/../.overte-phone-fdroid-build"
     ndk: 27.3.13750724
 
 MaintainerNotes: |
