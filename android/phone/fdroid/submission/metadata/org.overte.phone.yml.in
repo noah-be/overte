@@ -1,0 +1,55 @@
+Categories:
+  - Internet
+License: Apache-2.0
+SourceCode: https://github.com/noah-be/overte
+IssueTracker: https://github.com/noah-be/overte/issues
+
+AutoName: Overte Phone
+
+RepoType: git
+Repo: https://github.com/noah-be/overte.git
+
+Builds:
+  - versionName: 0.1.0
+    versionCode: 1
+    disable: Draft pending public source commit and complete F-Droid buildserver validation
+    commit: @COMMIT@
+    timeout: 14400
+    sudo: sh android/phone/fdroid/submission/provision.sh --fdroid-buildserver
+    output: android/phone/apps/phoneInterface/build/outputs/apk/release/*.apk
+    prebuild: sdkmanager --sdk_root $$SDK$$ 'platforms;android-36' 'build-tools;36.0.0'
+      'cmake;3.31.6'
+    scandelete:
+      - android/common/tests/javascript/package.json
+      - scripts/communityScripts/libraries/materialdesignicons/package.json
+      - scripts/developer/tests/unit_tests/package.json
+      - tests-manual/entities/packet.bin
+      - tests/mocha/package.json
+      - tools/nitpick/AppDataHighFidelity/assignment-client/entities/models.json.gz
+      - tools/nitpick/AppDataHighFidelity/domain-server/entities/models.json.gz
+      - unpublishedScripts/marketplace/doppleganger-attachments/package.json
+    build:
+      - export PATH=/opt/overte-fdroid/conan/bin:$PATH
+      - python3 android/phone/fdroid/submission/build.py --commit $$COMMIT$$ --version-code
+        $$VERCODE$$ --version-name $$VERSION$$ --sdk $$SDK$$ --work-dir "$PWD/.fdroid-build"
+    ndk: 27.3.13750724
+
+MaintainerNotes: |
+  Local packaging draft for the Android Phone fork, not the desktop or Pico app.
+  All native dependencies are built from the locked public source closure.
+  Acquisition precedes network-isolated compilation; no Conan binaries are used.
+  Gradle 8.13 is obtained from its official distribution with its pinned SHA-256.
+  F-Droid removes the checked-in wrapper; the build does not require that wrapper.
+  scandelete is restricted to unused test data and npm package manifests. The
+  referenced JavaScript, icons, licenses and runtime assets remain untouched.
+  Requires SDK 36, Build-Tools 36.0.0 and SDK CMake 3.31.6, plus the listed NDK.
+  Buildserver provisioning and a full cold build must pass before enablement.
+  Store text lives under android/phone/fastlane/metadata/android/en-US; the staging
+  helper also copies it beside this metadata file for reliable discovery.
+  Keep automatic updates disabled until Android-only release tags are defined.
+  Do not use the local Android debug signing certificate as an upstream release key.
+
+AutoUpdateMode: None
+UpdateCheckMode: None
+CurrentVersion: 0.1.0
+CurrentVersionCode: 1

@@ -1,0 +1,1 @@
+Initial Android Phone version with touch controls, avatar movement, jumping, voice chat and the in-app tablet.
