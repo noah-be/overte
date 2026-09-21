@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import subprocess
 import tempfile
@@ -29,6 +30,36 @@ builder, staging = load('build'), load('stage')
 
 
 class BuildContractTests(unittest.TestCase):
+    def test_approved_release_identity_is_consistent_across_app_and_store(self):
+        package = 'io.github.noah_be.overte.phone'
+        title = 'Overte Mobile (Unofficial)'
+        phone = ROOT / 'android/phone'
+        gradle = (phone / 'apps/phoneInterface/build.gradle').read_text()
+        self.assertIn("applicationId '" + package + "'", gradle)
+        self.assertIn("namespace 'org.overte.phone'", gradle)
+        policy = json.loads((phone / 'quality-gate/policy.json').read_text())
+        self.assertEqual(package, policy['application_id'])
+        strings = ET.parse(phone / 'apps/phoneInterface/src/main/res/values/strings.xml')
+        self.assertEqual(title, strings.find("string[@name='app_name']").text)
+        self.assertEqual(title, (ROOT / staging.STORE / 'title.txt').read_text().strip())
+        template = (HERE / ('metadata/' + package + '.yml.in')).read_text()
+        self.assertIn('AutoName: ' + title, template)
+        self.assertIn('AuthorName: Noah Frank', template)
+        self.assertIn('AuthorWebSite: https://github.com/noah-be', template)
+        categories = template.split('Categories:\n', 1)[1].split('License:', 1)[0]
+        self.assertEqual({'Internet', 'Social Network', 'Voice & Video Chat'},
+                         set(re.findall(r'^  - (.+)$', categories, re.M)))
+        # App ID differs from the Java/JNI namespace: relative component names
+        # in external launch commands would resolve to nonexistent classes.
+        android = '{http://schemas.android.com/apk/res/android}'
+        for variant in ('main', 'debug'):
+            source = phone / ('apps/phoneInterface/src/' + variant)
+            manifest = ET.parse(source / 'AndroidManifest.xml')
+            for activity in manifest.findall('.//activity'):
+                name = activity.attrib[android + 'name']
+                self.assertTrue(name.startswith('org.overte.phone.'))
+                self.assertTrue((source / 'java' / (name.replace('.', '/') + '.java')).is_file())
+
     def test_phone_launcher_uses_supplied_navy_artwork(self):
         phone = ROOT / 'android/phone'
         source = ET.parse(phone / 'branding/launcher-navy.svg').getroot()
@@ -53,12 +84,12 @@ class BuildContractTests(unittest.TestCase):
     def test_provisioning_runs_from_fdroid_home_before_source_preparation(self):
         # fdroidserver.build.build_local runs sudo from the builder home, not
         # the app checkout. Exercise that directory layout without root/APT.
-        template = (HERE / 'metadata/org.overte.phone.yml.in').read_text()
+        template = (HERE / 'metadata/io.github.noah_be.overte.phone.yml.in').read_text()
         command = next(line.strip()[6:] for line in template.splitlines()
                        if line.strip().startswith('sudo: '))
         with tempfile.TemporaryDirectory() as td:
             home = Path(td)
-            script = home / 'build/org.overte.phone' / staging.BASE / 'provision.sh'
+            script = home / 'build/io.github.noah_be.overte.phone' / staging.BASE / 'provision.sh'
             script.parent.mkdir(parents=True)
             script.write_text('set -eu\n[ "$1" = --fdroid-buildserver ]\nprintf ready > provisioned\n')
             subprocess.run(shlex.split(command), cwd=home, check=True)
@@ -142,7 +173,7 @@ class SourceBoundStagingTests(unittest.TestCase):
             subprocess.run(['git', 'init', '-q', str(root)], check=True)
             for relative, text in {
                 staging.BASE + '/build.py': '# fixture entry point\n',
-                staging.BASE + '/metadata/org.overte.phone.yml.in': 'commit: "@COMMIT@"\ndisable: draft\n',
+                staging.BASE + '/metadata/io.github.noah_be.overte.phone.yml.in': 'commit: "@COMMIT@"\ndisable: draft\n',
                 staging.STORE + '/title.txt': 'Committed title\n',
                 staging.STORE + '/short_description.txt': 'Description\n',
                 staging.STORE + '/full_description.txt': 'Full description\n',
@@ -157,8 +188,8 @@ class SourceBoundStagingTests(unittest.TestCase):
                 staging.stage(output, 'HEAD')
                 with self.assertRaisesRegex(ValueError, 'new directory'):
                     staging.stage(output, 'HEAD')
-            self.assertEqual('Committed title\n', (output / 'metadata/org.overte.phone/en-US/title.txt').read_text())
-            text = (output / 'metadata/org.overte.phone.yml').read_text()
+            self.assertEqual('Committed title\n', (output / 'metadata/io.github.noah_be.overte.phone/en-US/title.txt').read_text())
+            text = (output / 'metadata/io.github.noah_be.overte.phone.yml').read_text()
             self.assertNotIn('@COMMIT@', text)
             self.assertIn('disable: draft', text)
 

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "application_id": "org.overte.phone",
+  "application_id": "io.github.noah_be.overte.phone",
   "min_sdk": 26,
   "target_sdk_minimum": 36,
   "source_roots": ["android/phone/", "android/common/", "interface/", "libraries/", "cmake/", "scripts/", "security/", "provenance/", "tools/sbom/", "tools/release/", "tests/device/"],

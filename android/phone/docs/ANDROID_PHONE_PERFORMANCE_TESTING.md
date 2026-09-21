@@ -1,6 +1,6 @@
 # Android Phone world-loading performance tests
 
-This harness measures the regular `org.overte.phone` Android client on a
+This harness measures the regular `io.github.noah_be.overte.phone` Android client on a
 physical, non-VR phone. It does not run the Pico client and rejects known Pico,
 VR, emulator, TV, watch, and automotive targets. It also uses the repository's
 exclusive Phone device lock, so it cannot overlap another managed device run.
@@ -37,7 +37,7 @@ to restore the explicit position. Both the pre-correction and corrected values
 remain in `world-status.csv`; the final analyzer check still fails unless the
 client ends at the requested spawn.
 
-Use `--cold-cache` to remove only `org.overte.phone`'s cache before each run.
+Use `--cold-cache` to remove only `io.github.noah_be.overte.phone`'s cache before each run.
 This requires a debuggable APK but preserves account and preferences. Use
 `--perfetto` to add a system trace for CPU scheduling, frequencies, graphics,
 Binder, window/activity management, and power events.

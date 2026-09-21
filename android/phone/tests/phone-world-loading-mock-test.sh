@@ -28,32 +28,32 @@ case "$command" in
     'shell getprop ro.build.fingerprint') echo test/fingerprint ;;
     'shell settings get system screen_brightness') echo 128 ;;
     'shell settings get system screen_brightness_mode') echo 0 ;;
-    'shell pm path org.overte.phone') echo package:/data/app/org.overte.phone/base.apk ;;
-    'shell dumpsys package org.overte.phone') echo '  appId=10123' ;;
-    'shell run-as org.overte.phone cat cache/world-status') echo '1786300000|1|test.example|12345678-1234-1234-1234-123456789abc|1.000|2.000|3.000|1|20|12.500|42|1|0|0|1048576' ;;
+    'shell pm path io.github.noah_be.overte.phone') echo package:/data/app/io.github.noah_be.overte.phone/base.apk ;;
+    'shell dumpsys package io.github.noah_be.overte.phone') echo '  appId=10123' ;;
+    'shell run-as io.github.noah_be.overte.phone cat cache/world-status') echo '1786300000|1|test.example|12345678-1234-1234-1234-123456789abc|1.000|2.000|3.000|1|20|12.500|42|1|0|0|1048576' ;;
     'shell cat /proc/uid_stat/10123/tcp_rcv') echo 2097152 ;;
     'shell cat /proc/uid_stat/10123/tcp_snd') echo 1048576 ;;
     'shell dumpsys battery') printf '%s\n' '  AC powered: true' '  USB powered: false' '  Wireless powered: false' '  Dock powered: false' '  Max charging current: 2000000' '  Max charging voltage: 9000000' '  status: 2' '  level: 80' '  Charging state: 1' ;;
     'shell am start -W '*) printf 'Status: ok\nTotalTime: 321\n' ;;
-    'shell pidof org.overte.phone') echo 4242 ;;
-    'shell top -b -n 1 -p 4242') echo '4242 u0_a123 10 -10 3G 300M 200M S 25.0 3.0 0:01 org.overte.phone' ;;
-    'shell run-as org.overte.phone cat /proc/4242/smaps_rollup') printf '%s\n' 'Rss: 307200 kB' 'Pss: 204800 kB' 'SwapPss: 1024 kB' 'Private_Dirty: 100000 kB' 'Private_Clean: 100000 kB' ;;
-    'shell run-as org.overte.phone cat /proc/4242/smaps') printf '%s\n' '1000-2000 rw-p 0 00:00 0 [anon:libc_malloc]' 'Pss: 100 kB' '2000-3000 rw-p 0 00:00 0 [anon:dalvik-main space]' 'Pss: 200 kB' ;;
+    'shell pidof io.github.noah_be.overte.phone') echo 4242 ;;
+    'shell top -b -n 1 -p 4242') echo '4242 u0_a123 10 -10 3G 300M 200M S 25.0 3.0 0:01 io.github.noah_be.overte.phone' ;;
+    'shell run-as io.github.noah_be.overte.phone cat /proc/4242/smaps_rollup') printf '%s\n' 'Rss: 307200 kB' 'Pss: 204800 kB' 'SwapPss: 1024 kB' 'Private_Dirty: 100000 kB' 'Private_Clean: 100000 kB' ;;
+    'shell run-as io.github.noah_be.overte.phone cat /proc/4242/smaps') printf '%s\n' '1000-2000 rw-p 0 00:00 0 [anon:libc_malloc]' 'Pss: 100 kB' '2000-3000 rw-p 0 00:00 0 [anon:dalvik-main space]' 'Pss: 200 kB' ;;
     'shell cat /proc/4242/status') printf '%s\n' 'RssAnon: 200000 kB' 'RssFile: 106000 kB' 'RssShmem: 1200 kB' 'VmSwap: 2048 kB' ;;
-    "shell run-as org.overte.phone sh -c 'ls /proc/4242/fd 2>/dev/null | wc -l'") echo 42 ;;
-    'shell run-as org.overte.phone du -sk cache') echo '4096 cache' ;;
+    "shell run-as io.github.noah_be.overte.phone sh -c 'ls /proc/4242/fd 2>/dev/null | wc -l'") echo 42 ;;
+    'shell run-as io.github.noah_be.overte.phone du -sk cache') echo '4096 cache' ;;
     'shell dumpsys thermalservice') printf '%s\n' 'Thermal Status: 2' 'Current temperatures from HAL:' ' Temperature{mValue=42.0, mType=0, mName=BIG, mStatus=0}' ' Temperature{mValue=39.0, mType=1, mName=G3D, mStatus=0}' ' Temperature{mValue=33.0, mType=2, mName=battery, mStatus=0}' ' Temperature{mValue=35.0, mType=3, mName=skin, mStatus=0}' 'Current cooling devices from HAL:' ;;
     'shell printf "%s %s %s\n" "$(cat /sys/class/power_supply/battery/current_now 2>/dev/null || echo 0)" "$(cat /sys/class/power_supply/battery/voltage_now 2>/dev/null || echo 0)" "$(cat /sys/class/power_supply/battery/charge_counter 2>/dev/null || echo 0)"') echo '-100000 4100000 3000000' ;;
     'shell printf "%s %s " "$(settings get system screen_brightness)" "$(settings get system screen_brightness_mode)"; dumpsys display | sed -nE "s/^[[:space:]]*Display Brightness=([^[:space:]]+).*/\\1/p" | head -n1') echo '128 0 0.5' ;;
     'shell cmd wifi status') echo 'WifiInfo: RSSI: -55, Link speed: 600Mbps, Tx Link speed: 500Mbps, Rx Link speed: 700Mbps, Frequency: 5180MHz' ;;
     'shell for z in /sys/class/thermal/'*) echo '42000 39000' ;;
-    'shell dumpsys gfxinfo org.overte.phone framestats')
+    'shell dumpsys gfxinfo io.github.noah_be.overte.phone framestats')
         printf '%s\n' '---PROFILEDATA---' \
           'Flags,IntendedVsync,Vsync,OldestInputEvent,NewestInputEvent,HandleInputStart,AnimationStart,PerformTraversalsStart,DrawStart,FrameDeadline,FrameInterval,FrameStartTime,SyncQueued,FrameCompleted' \
           '0,1000000,0,0,0,0,0,0,0,0,0,0,0,11000000' \
           '0,20000000,0,0,0,0,0,0,0,0,0,0,0,50000000' '---PROFILEDATA---'
         ;;
-    'shell dumpsys meminfo org.overte.phone') echo 'TOTAL PSS: 204800 TOTAL RSS: 307200' ;;
+    'shell dumpsys meminfo io.github.noah_be.overte.phone') echo 'TOTAL PSS: 204800 TOTAL RSS: 307200' ;;
     'logcat --pid=4242 -v threadtime') printf '%s\n' 'I OvertePhoneGraphics: record=present window_id=1 window_seconds=10 present_fps=30 new_frame_fps=30 inter_present_p50_ms=33 inter_present_p95_ms=40 inter_present_max_ms=45 gpu_texture_resident_mib=1 texture_resource_mib=35' 'I OvertePhoneGraphics: render_gpu_ms=10 render_batch_ms=5' 'W Interface: PHONE_PERF record=script_heap epoch_ms=1786300000000 script=file%3A%2Ftest.js total_heap_bytes=1000 used_heap_bytes=500 available_bytes=2000 used_global_handles_bytes=10' ;;
     *) ;;
 esac

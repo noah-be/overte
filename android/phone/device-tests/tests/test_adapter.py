@@ -54,10 +54,10 @@ if shell[:1] == ["getprop"]:
     print(props.get(shell[1], ""))
 elif shell == ["pm", "list", "features"]:
     print("feature:android.hardware.touchscreen")
-elif shell == ["pm", "path", "org.overte.phone"]:
+elif shell == ["pm", "path", "io.github.noah_be.overte.phone"]:
     if os.environ.get("MOCK_PACKAGE_MISSING") != "1":
-        print("package:/data/app/mock/org.overte.phone/base.apk")
-elif shell == ["pidof", "-s", "org.overte.phone"]:
+        print("package:/data/app/mock/io.github.noah_be.overte.phone/base.apk")
+elif shell == ["pidof", "-s", "io.github.noah_be.overte.phone"]:
     if not state.exists() or state.read_text() != "stopped":
         print("4343" if state.exists() and state.read_text() == "restarted" else "4242")
 elif shell == ["cat", "/proc/4242/stat"]:
@@ -68,7 +68,7 @@ elif shell == ["dumpsys", "activity", "activities"]:
     foreground = (not state.exists()
                   or state.read_text() in {"foreground", "restarted", "spawned",
                                            "spawned-disabled", "spawned-restored"})
-    print("mResumedActivity: org.overte.phone/.PhoneInterfaceActivity" if foreground else
+    print("mResumedActivity: io.github.noah_be.overte.phone/org.overte.phone.PhoneInterfaceActivity" if foreground else
           "mResumedActivity: com.android.launcher/.Launcher")
 elif shell == ["dumpsys", "input"]:
     if os.environ.get("MOCK_PORTRAIT") == "1":
@@ -82,13 +82,13 @@ elif shell == ["wm", "density"]:
     print("Physical density: 420")
 elif shell == ["wm", "size"]:
     print("Physical size: 1080x2400")
-elif shell == ["dumpsys", "meminfo", "org.overte.phone"]:
+elif shell == ["dumpsys", "meminfo", "io.github.noah_be.overte.phone"]:
     print(" TOTAL 123456 234567 0 0")
 elif shell == ["dumpsys", "battery"]:
     print("  level: 81\n  temperature: 298")
 elif shell == ["dumpsys", "thermalservice"]:
     print("Thermal Status: 2")
-elif shell == ["run-as", "org.overte.phone", "cat", "files/overte-e2e/overte-probe.json"]:
+elif shell == ["run-as", "io.github.noah_be.overte.phone", "cat", "files/overte-e2e/overte-probe.json"]:
     if os.environ.get("MOCK_PROBE_MISSING") != "1":
         sampled = 1 if os.environ.get("MOCK_PROBE_STALE") == "1" else int(time.time() * 1000)
         markers = int(os.environ.get("MOCK_FIXTURE_MARKERS", "4"))
@@ -126,7 +126,7 @@ elif shell[:4] == ["am", "start", "-W", "-n"]:
         state.write_text("spawned-disabled"
                          if shell[4].endswith("E2eLauncherActivity")
                          else "foreground")
-elif shell == ["am", "force-stop", "org.overte.phone"]:
+elif shell == ["am", "force-stop", "io.github.noah_be.overte.phone"]:
     state.write_text("stopped")
 elif shell == ["am", "start", "-W", "-a", "android.intent.action.MAIN", "-c", "android.intent.category.HOME"]:
     state.write_text("background")
@@ -296,17 +296,17 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
         commands = self.commands()
         self.assertIn(
             ["am", "start", "-W", "-n",
-             "org.overte.phone/.E2eLauncherActivity"], commands)
+             "io.github.noah_be.overte.phone/org.overte.phone.E2eLauncherActivity"], commands)
         launches = [command for command in commands
                     if command[:3] == ["am", "start", "-W"]]
         self.assertEqual(
             [["am", "start", "-W", "-n",
-              "org.overte.phone/.E2eLauncherActivity"],
+              "io.github.noah_be.overte.phone/org.overte.phone.E2eLauncherActivity"],
              ["am", "start", "-W", "-n",
-              "org.overte.phone/.E2eFlightControlActivity", "--ei",
+              "io.github.noah_be.overte.phone/org.overte.phone.E2eFlightControlActivity", "--ei",
               "org.overte.phone.e2e.FLIGHT_MODE", "0"],
              ["am", "start", "-W", "-n",
-              "org.overte.phone/.E2eFlightControlActivity", "--ei",
+              "io.github.noah_be.overte.phone/org.overte.phone.E2eFlightControlActivity", "--ei",
               "org.overte.phone.e2e.FLIGHT_MODE", "1"]], launches)
         self.assertFalse(any(command[:3] == ["am", "start", "-W"]
                              and "android.intent.action.VIEW" in command
@@ -314,7 +314,7 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
         self.assertFalse(any(command[:2] == ["input", "text"]
                              for command in commands))
         probe_reads = [command for command in commands
-                       if command[:3] == ["run-as", "org.overte.phone", "cat"]]
+                       if command[:3] == ["run-as", "io.github.noah_be.overte.phone", "cat"]]
         self.assertGreaterEqual(len(probe_reads), 2)
         self.assertFalse(any(command[:1] == ["settings"] for command in commands))
 
@@ -334,7 +334,7 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
             [], list((self.root / "host-state").glob("*/debug-session.json")))
         self.assertIn(
             ["am", "start", "-W", "-n",
-             "org.overte.phone/.E2eFlightControlActivity", "--ei",
+             "io.github.noah_be.overte.phone/org.overte.phone.E2eFlightControlActivity", "--ei",
              "org.overte.phone.e2e.FLIGHT_MODE", "-1"],
             self.commands())
         self.assertFalse(any(command[:1] == ["settings"] for command in self.commands()))
@@ -370,7 +370,7 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
             debug | {"MOCK_RESTART_AFTER_PROBE_READ": "1"})
         self.assertEqual(2, changed.returncode)
         self.assertIn("process changed", changed.stderr)
-        self.assertTrue(any(command[:3] == ["run-as", "org.overte.phone", "cat"]
+        self.assertTrue(any(command[:3] == ["run-as", "io.github.noah_be.overte.phone", "cat"]
                             for command in self.commands()))
 
         if self.log.exists():
@@ -394,7 +394,7 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
             "scene.load", {"url": "overte-e2e://fixture/scene"}, environment)
         self.assertEqual(2, result.returncode)
         self.assertIn("controlled fixture did not become ready", result.stderr)
-        self.assertIn(["am", "force-stop", "org.overte.phone"], self.commands())
+        self.assertIn(["am", "force-stop", "io.github.noah_be.overte.phone"], self.commands())
         self.assertEqual(
             [], list((self.root / "host-state").glob("*/debug-session.json")))
         self.assertFalse(any(command[:1] == ["settings"] for command in self.commands()))
@@ -415,14 +415,14 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
                     if command[:3] == ["am", "start", "-W"]]
         self.assertEqual(
             [["am", "start", "-W", "-n",
-              "org.overte.phone/.E2eLauncherActivity"],
+              "io.github.noah_be.overte.phone/org.overte.phone.E2eLauncherActivity"],
              ["am", "start", "-W", "-n",
-              "org.overte.phone/.E2eFlightControlActivity", "--ei",
+              "io.github.noah_be.overte.phone/org.overte.phone.E2eFlightControlActivity", "--ei",
               "org.overte.phone.e2e.FLIGHT_MODE", "-1"]], launches)
         self.assertFalse(any(command[-1:] == ["1"]
                              and command[:4] == ["am", "start", "-W", "-n"]
                              for command in launches))
-        self.assertIn(["am", "force-stop", "org.overte.phone"], commands)
+        self.assertIn(["am", "force-stop", "io.github.noah_be.overte.phone"], commands)
         self.assertEqual(
             [], list((self.root / "host-state").glob("*/debug-session.json")))
         self.assertFalse(any(command[:1] in (["input"], ["settings"])
@@ -439,7 +439,7 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
             "scene.load", {"url": "overte-e2e://fixture/scene"}, environment)
         self.assertEqual(2, result.returncode)
         self.assertIn("process changed", result.stderr)
-        self.assertIn(["am", "force-stop", "org.overte.phone"], self.commands())
+        self.assertIn(["am", "force-stop", "io.github.noah_be.overte.phone"], self.commands())
         self.assertEqual(
             [], list((self.root / "host-state").glob("*/debug-session.json")))
 
@@ -475,7 +475,7 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
         self.assertEqual(["input", "touchscreen", "motionevent", "UP"],
                          jump_input[-1][:4])
         commands = self.commands()
-        self.assertEqual(1, commands.count(["pm", "path", "org.overte.phone"]))
+        self.assertEqual(1, commands.count(["pm", "path", "io.github.noah_be.overte.phone"]))
         self.assertEqual(1, commands.count(
             ["dumpsys", "activity", "activities"]))
 
@@ -531,7 +531,7 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
         commands = self.commands()
         flight_modes = [command[-1] for command in commands
                         if command[:5] == ["am", "start", "-W", "-n",
-                                           "org.overte.phone/.E2eFlightControlActivity"]]
+                                           "io.github.noah_be.overte.phone/org.overte.phone.E2eFlightControlActivity"]]
         self.assertEqual(["0", "1"], flight_modes)
         self.assertEqual(["DOWN", "MOVE", "UP"],
                          [command[3] for command in self.input_commands(commands)])
@@ -560,7 +560,7 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
                          input_commands[-2][:4])
         self.assertEqual(["input", "touchscreen", "motionevent", "UP"],
                          input_commands[-1][:4])
-        self.assertIn(["am", "force-stop", "org.overte.phone"], self.commands())
+        self.assertIn(["am", "force-stop", "io.github.noah_be.overte.phone"], self.commands())
 
     def test_successful_press_with_failed_release_force_stops_and_fails(self):
         environment = {"OVERTE_ANDROID_PHONE_E2E_INPUT": "1",
@@ -568,7 +568,7 @@ class AndroidPhoneAdapterTest(unittest.TestCase):
         result = self.invoke_failure("input.jump", {}, environment)
         self.assertEqual(2, result.returncode)
         self.assertIn("release failed closed", result.stderr)
-        self.assertIn(["am", "force-stop", "org.overte.phone"], self.commands())
+        self.assertIn(["am", "force-stop", "io.github.noah_be.overte.phone"], self.commands())
 
     def test_input_requires_expected_foreground_process_and_package(self):
         opt_in = {"OVERTE_ANDROID_PHONE_E2E_INPUT": "1"}

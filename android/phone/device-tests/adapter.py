@@ -19,10 +19,10 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPOSITORY_ROOT))
 from android.common.device_tests.adb_transport import AdbTransport  # noqa: E402
 
-PACKAGE = "org.overte.phone"
-LAUNCHER = "org.overte.phone/.PermissionsActivity"
-E2E_LAUNCHER = "org.overte.phone/.E2eLauncherActivity"
-E2E_FLIGHT_CONTROL = "org.overte.phone/.E2eFlightControlActivity"
+PACKAGE = "io.github.noah_be.overte.phone"
+LAUNCHER = "io.github.noah_be.overte.phone/org.overte.phone.PermissionsActivity"
+E2E_LAUNCHER = "io.github.noah_be.overte.phone/org.overte.phone.E2eLauncherActivity"
+E2E_FLIGHT_CONTROL = "io.github.noah_be.overte.phone/org.overte.phone.E2eFlightControlActivity"
 E2E_FLIGHT_MODE_EXTRA = "org.overte.phone.e2e.FLIGHT_MODE"
 BASE_CAPABILITIES = {
     "app.foreground", "app.launch", "app.process",

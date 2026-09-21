@@ -104,7 +104,7 @@
     "android/phone/fdroid/conan/recipe_export_store.py": "76b380d6ce6a3da3589336741559a30b65e6b9fede89fe4836d232fab8799125",
     "android/phone/fdroid/conan/source_closure_store.py": "5eb6f4d861a0fc6bec6c07aaa6890a7defb2665ba47ed65296a9cf9daa991157",
     "android/phone/fdroid/conan/toolchain_probe.py": "a302223442602e16804b7f2f9072d61a9989765bf20242705d05dbb30910f439",
-    "android/phone/apps/phoneInterface/build.gradle": "fac2a3b32dd064e87e48ef2534965ed25195acd463d2225c010f2626c8428872",
+    "android/phone/apps/phoneInterface/build.gradle": "8a150f1f984523969e7befd2c493131660272bdc90df5ab5788709293bf87748",
     "android/phone/fdroid/container/Containerfile": "4c5a1203ba2d125664428a98a03aa028a06805d5548948b2cbf7566719f8224b",
     "android/phone/fdroid/gradle-acquisition/build.gradle": "643ccc9c5264b7c46b4e90e4c2d3d67db41f0584c7da0fd66d23b2fa753bf7c9",
     "android/phone/fdroid/gradle-acquisition/settings.gradle": "347d3c618cd6441bd70ecfad7c83bd645702c5bf864526899e1e7e9c4ca9e071",

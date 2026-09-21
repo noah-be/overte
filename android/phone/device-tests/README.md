@@ -1,7 +1,7 @@
 # Android Phone device adapter
 
 This target adapter maps the universal harness operations to ADB for the
-regular `org.overte.phone` client. Discovery accepts only authorized physical
+regular `io.github.noah_be.overte.phone` client. Discovery accepts only authorized physical
 ARM64 touchscreen phones with Android API 26+, OpenGL ES 3.0+, and rejects
 emulators, watches, TVs, automotive, VR, Pico, and ByteDance targets.
 

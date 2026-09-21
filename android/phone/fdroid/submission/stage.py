@@ -22,7 +22,7 @@ def stage(output, revision):
     # Read the template AND store text from the selected revision, never a dirty
     # working copy. Reject a commit without the actual build entry point.
     git_file(commit, BASE + '/build.py')
-    template = git_file(commit, BASE + '/metadata/org.overte.phone.yml.in').decode()
+    template = git_file(commit, BASE + '/metadata/io.github.noah_be.overte.phone.yml.in').decode()
     if template.count('@COMMIT@') != 1:
         raise ValueError('metadata requires exactly one commit placeholder')
     if output.exists():
@@ -34,9 +34,9 @@ def stage(output, revision):
     output.mkdir(parents=True)
     metadata = output / 'metadata'
     metadata.mkdir()
-    (metadata / 'org.overte.phone.yml').write_text(template.replace('@COMMIT@', commit))
+    (metadata / 'io.github.noah_be.overte.phone.yml').write_text(template.replace('@COMMIT@', commit))
     for relative, content in contents.items():
-        target = metadata / 'org.overte.phone/en-US' / relative
+        target = metadata / 'io.github.noah_be.overte.phone/en-US' / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)
     print(f'Staged disabled submission draft for {commit}; nothing uploaded')

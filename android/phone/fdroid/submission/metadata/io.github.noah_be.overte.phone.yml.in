@@ -1,10 +1,14 @@
 Categories:
   - Internet
+  - Social Network
+  - Voice & Video Chat
 License: Apache-2.0
+AuthorName: Noah Frank
+AuthorWebSite: https://github.com/noah-be
 SourceCode: https://github.com/noah-be/overte
 IssueTracker: https://github.com/noah-be/overte/issues
 
-AutoName: Overte Phone
+AutoName: Overte Mobile (Unofficial)
 
 RepoType: git
 Repo: https://github.com/noah-be/overte.git
@@ -15,7 +19,7 @@ Builds:
     disable: Draft pending public source commit and complete F-Droid buildserver validation
     commit: @COMMIT@
     timeout: 14400
-    sudo: sh build/org.overte.phone/android/phone/fdroid/submission/provision.sh --fdroid-buildserver
+    sudo: sh build/io.github.noah_be.overte.phone/android/phone/fdroid/submission/provision.sh --fdroid-buildserver
     output: android/phone/apps/phoneInterface/build/outputs/apk/release/*.apk
     prebuild: sdkmanager --sdk_root $$SDK$$ 'platforms;android-36' 'build-tools;36.0.0'
       'cmake;3.31.6'

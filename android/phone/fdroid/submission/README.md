@@ -39,7 +39,7 @@ python3 android/phone/fdroid/submission/stage.py \
 ```
 
 The command reads both the recipe and store text from that exact commit, writes
-`metadata/org.overte.phone.yml` and `metadata/org.overte.phone/en-US/`, and refuses
+`metadata/io.github.noah_be.overte.phone.yml` and `metadata/io.github.noah_be.overte.phone/en-US/`, and refuses
 to overwrite an existing directory. An old commit without the build adapter is
 rejected. This does not make an unpublished commit publicly fetchable.
 
@@ -49,8 +49,8 @@ staged metadata directory into that checkout, then run:
 
 ```sh
 fdroid readmeta
-fdroid lint --format org.overte.phone
-fdroid rewritemeta org.overte.phone  # if formatting changes are reported
+fdroid lint --format io.github.noah_be.overte.phone
+fdroid rewritemeta io.github.noah_be.overte.phone  # if formatting changes are reported
 ```
 
 Do not treat a disabled build being skipped as a successful build. After the
@@ -58,7 +58,7 @@ source commit is public and buildserver prerequisites are verified, remove the
 build's `disable` field in the submission copy and run:
 
 ```sh
-fdroid build --server --test org.overte.phone:1
+fdroid build --server --test io.github.noah_be.overte.phone:1
 ```
 
 This requires a configured local F-Droid buildserver VM; metadata lint alone does
@@ -70,7 +70,7 @@ No F-Droid upstream write or merge request is authorized by these instructions.
 `provision.sh --fdroid-buildserver` is for the disposable VM's privileged `sudo`
 stage **only**, not a workstation. It installs the existing qualified compiler
 versions and Conan. F-Droid executes this stage from the builder home before
-source preparation, so its metadata path includes `build/org.overte.phone/`.
+source preparation, so its metadata path includes `build/io.github.noah_be.overte.phone/`.
 Debian's rolling mirror no longer serves all those exact
 versions, so the recipe uses its signed `20260904T000000Z` snapshot for unstable
 packages. Only archive expiry checking is disabled for this immutable snapshot;
@@ -129,27 +129,36 @@ matching the Phone launcher and splash drawable, with metadata stripped.
 No personal contact details or private device screenshots are
 included. Public screenshots can be selected after reviewing their content.
 
-Before submission, agree on:
+The maintainer approved the following release configuration:
 
-- **Fork identity:** draft title `Overte Phone`, clearly described as the
-  `noah-be/overte` fork. Recommendation: keep that distinction in store text;
-  do not describe it as an official upstream Android release.
-- **Application ID:** the tested build uses `org.overte.phone`. Recommendation:
-  decide once before the first public release whether to retain it or reserve a
-  fork-specific ID, avoiding future update/signature collisions. Changing it
-  requires a new build and installation test, not just a metadata edit.
-- **Signing:** recommend normal F-Droid signing initially. The locally used
-  Android debug key is only for device tests. Sharing one signing identity with
-  a separate distribution channel requires a deliberate reproducible-build and
-  release-key plan; no production key has been created here.
-- **Public source and submission:** recommend integrating the reviewed Phone
-  fixes and publishing an Android-specific version tag, then rendering metadata
-  from the resulting full commit SHA. Keep automatic updates disabled until the
-  tag convention is agreed. No branch is merged, deleted, or pushed by staging.
+- **Identity:** `Overte Mobile (Unofficial)`, application ID
+  `io.github.noah_be.overte.phone`, versionCode `1`, versionName `0.1.0`.
+  The internal Java/JNI namespace remains `org.overte.phone`; Android components
+  therefore use fully qualified class names. Earlier local test APKs used a
+  different application ID. They are separate installations, not upgrade inputs.
+- **Store:** categories `Internet`, `Social Network`, `Voice & Video Chat`;
+  license field `Apache-2.0`; author `Noah Frank`; author website
+  `https://github.com/noah-be`. Source and issue links target `noah-be/overte`.
+  No separate project website, public email or donation links are configured.
+  Store description and initial changelog use the approved unofficial name;
+  the description requires OpenGL ES 3.2 and does not list jumping separately.
+- **Device support:** API 26 minimum, target/compile API 36, ARM64 and OpenGL ES
+  3.2. SDK/NDK/CMake versions and the existing eight scanner deletions remain
+  unchanged. The supplied Navy artwork is used; screenshots will be selected
+  together with the maintainer later.
+- **Signing:** normal F-Droid signing for the F-Droid release. The local Android
+  debug key remains test-only. Signing for any separate distribution channel
+  must be planned separately.
+- **Publication:** disabled draft, full commit binding, unsigned release APK,
+  four-hour build timeout and manual update metadata. Public integration,
+  an Android-specific tag, complete server qualification and submission are
+  still pending. Maintainer notes will be refreshed before submission.
 
-These are release choices. The complete buildserver test remains technical work,
-not an owner attestation. The separate EXR skybox and temporary-scene dialog
-observations are not declared F-Droid policy blockers.
+The [earlier qualification record](VALIDATION.md) documents the old test identity
+and is historical evidence, not validation of the renamed APK. A new build and
+installation check are needed for this application ID. The complete buildserver
+check remains technical work, not an owner attestation. Nothing here publishes,
+merges, tags, deletes branches or updates private device-lab configuration.
 
 ## Regression checks
 

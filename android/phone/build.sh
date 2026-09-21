@@ -251,7 +251,7 @@ install_apk() {
     serial="$(select_phone_serial "$adb")"
     "$adb" -s "$serial" install -r "$apk"
     "$adb" -s "$serial" shell am start \
-        -n org.overte.phone/.PermissionsActivity
+        -n io.github.noah_be.overte.phone/org.overte.phone.PermissionsActivity
 }
 
 case "$command_name" in

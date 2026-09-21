@@ -14,7 +14,7 @@ if [[ "${MOCK_ANALYZER_FAILURE:-0}" == 1 && "$2" == target-sdk ]]; then
     exit 9
 fi
 case "$2" in
-    application-id) printf '%s\n' "${MOCK_ID:-org.overte.phone}" ;;
+    application-id) printf '%s\n' "${MOCK_ID:-io.github.noah_be.overte.phone}" ;;
     min-sdk) printf '%s\n' "${MOCK_MIN_SDK:-26}" ;;
     target-sdk) printf '%s\n' "${MOCK_TARGET_SDK:-36}" ;;
     version-code) printf '%s\n' "${MOCK_VERSION_CODE:-1}" ;;
@@ -52,9 +52,10 @@ if MOCK_ANALYZER_FAILURE=1 PHONE_APK_ANALYZER="$fixture/apkanalyzer" \
 fi
 grep -Fxq 'ERROR: could not read APK target SDK' "$fixture/analyzer-failure.out"
 ! grep -Fq '/private/sdk/tool' "$fixture/analyzer-failure.out"
-for scenario in wrong-id old-sdk bad-code bad-name permission debug-state; do
+for scenario in wrong-id previous-id old-sdk bad-code bad-name permission debug-state; do
     case "$scenario" in
         wrong-id) env_args=(MOCK_ID=example.invalid) ;;
+        previous-id) env_args=(MOCK_ID=org.overte.phone) ;;
         old-sdk) env_args=(MOCK_TARGET_SDK=35) ;;
         bad-code) env_args=(MOCK_VERSION_CODE=2147483648) ;;
         bad-name) env_args=('MOCK_VERSION_NAME=unsafe branch/name') ;;
