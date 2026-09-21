@@ -111,6 +111,21 @@ class BuildContractTests(unittest.TestCase):
             self.assertNotIn(checkout, work.parents)
             self.assertEqual(checkout.parent, work.parent)
 
+    def test_agp_default_build_tools_are_checked_before_acquisition(self):
+        template = (HERE / 'metadata/io.github.noah_be.overte.phone.yml.in').read_text()
+        self.assertIn("'build-tools;35.0.0'", template)
+        self.assertIn("'build-tools;36.0.0'", template)
+        with tempfile.TemporaryDirectory() as td:
+            sdk = Path(td)
+            platform = sdk / 'platforms/android-36/android.jar'
+            platform.parent.mkdir(parents=True)
+            platform.touch()
+            args = argparse.Namespace(commit='a' * 40, version_code=1,
+                                      version_name='0.1.0', sdk=sdk)
+            with patch.object(builder.subprocess, 'check_output', return_value='a' * 40):
+                with self.assertRaisesRegex(ValueError, 'build-tools/35.0.0/aapt2'):
+                    builder.preflight(args, {})
+
     def test_rejects_ambiguous_commit_and_invalid_versions(self):
         for commit, code, name in [('main', 1, '0.1.0'), ('a' * 40, 0, '0.1.0'),
                                     ('a' * 40, 2147483648, '0.1.0'),

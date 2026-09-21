@@ -92,7 +92,8 @@ def preflight(args, env):
     actual = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     if actual != args.commit:
         raise ValueError('checkout commit differs from metadata commit')
-    for relative in ['platforms/android-36/android.jar', 'build-tools/36.0.0/aapt2',
+    for relative in ['platforms/android-36/android.jar', 'build-tools/35.0.0/aapt2',
+                     'build-tools/36.0.0/aapt2',
                      'ndk/27.3.13750724/source.properties', 'cmake/3.31.6/bin/cmake']:
         if not (args.sdk / relative).is_file():
             raise ValueError('missing Android SDK input: ' + relative)
