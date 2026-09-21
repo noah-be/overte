@@ -6,6 +6,9 @@ The generated build is deliberately disabled until its **public commit** and
 complete F-Droid buildserver execution have been qualified. Passing metadata
 lint or a local APK test is not F-Droid admission.
 
+See [the local qualification record](VALIDATION.md) for completed checks,
+their limits, and the remaining publication decisions.
+
 ## What is reused
 
 `build.py` calls the existing source-closure acquisition/composition scripts,
