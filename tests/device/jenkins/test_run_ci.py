@@ -74,7 +74,7 @@ class JenkinsGlueTest(unittest.TestCase):
             "selector": "fixture-android-phone",
             "platform": "android",
             "physical": True,
-            "appId": "org.overte.phone",
+            "appId": "io.github.noah_be.overte.phone",
             "capabilities": {
                 "appium:udid": "fixture-phone-identity",
                 "appium:automationName": "UiAutomator2",
