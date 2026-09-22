@@ -76,7 +76,10 @@ def environment(args):
         GRADLE_USER_HOME=str(args.work_dir / 'gradle-home'),
         JAVA_HOME=str(args.java_home),
     )
-    env['PATH'] = str(args.java_home / 'bin') + os.pathsep + env.get('PATH', '')
+    env['PATH'] = os.pathsep.join([str(args.java_home / 'bin'),
+                                    str(args.sdk / 'cmdline-tools/22.0/bin'),
+                                    env.get('PATH', '')])
+    env['PHONE_APK_ANALYZER'] = str(args.sdk / 'cmdline-tools/22.0/bin/apkanalyzer')
     return env
 
 
@@ -94,9 +97,16 @@ def preflight(args, env):
         raise ValueError('checkout commit differs from metadata commit')
     for relative in ['platforms/android-36/android.jar', 'build-tools/35.0.0/aapt2',
                      'build-tools/36.0.0/aapt2',
-                     'ndk/27.3.13750724/source.properties', 'cmake/3.31.6/bin/cmake']:
+                     'ndk/27.3.13750724/source.properties', 'cmake/3.31.6/bin/cmake',
+                     'cmdline-tools/22.0/bin/apkanalyzer',
+                     'build-tools/36.0.0/zipalign',
+                     'ndk/27.3.13750724/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf']:
         if not (args.sdk / relative).is_file():
             raise ValueError('missing Android SDK input: ' + relative)
+    for tool in ('unzip', 'realpath'):
+        if shutil.which(tool, path=env.get('PATH')) is None:
+            raise ValueError('missing APK inspection tool: ' + tool)
+    run([env['PHONE_APK_ANALYZER'], '--help'], env=env)
     versions = [(['gcc', '-dumpfullversion'], '15.3.0'),
                 (['g++', '-dumpfullversion'], '15.3.0'),
                 (['cmake', '--version'], 'cmake version 3.31.6'),

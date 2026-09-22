@@ -78,7 +78,8 @@ APT signature verification is retained. This does not change the existing local
 builder image or its provenance lock.
 
 The metadata acquires SDK 36, Build-Tools 35.0.0 (the AGP default) and 36.0.0
-(the explicit aapt2 override), SDK CMake 3.31.6 and NDK
+(the explicit aapt2 override), Command-line Tools 22.0 (`apkanalyzer`),
+SDK CMake 3.31.6 and NDK
 27.3.13750724 through F-Droid's SDK tooling. Other required tools are GCC/G++
 15.3.0, CMake 3.31.6, Ninja 1.13.2, OpenJDK 17, Conan 2.25.2 and `unshare`/`ip`.
 The recipe targets ARM64 only, Android 8.0+ (API 26), versionCode 1/versionName
@@ -88,7 +89,9 @@ transport archives must stay outside the scanned source tree. Acquired dependenc
 source closure and locked Gradle project.
 
 `build.py --check` verifies the commit, tool versions, SDK files and working
-network namespaces without acquiring or compiling. `--acquire-only` additionally
+network namespaces without acquiring or compiling. It also checks the APK
+inspection tools and runs the pinned `apkanalyzer` before the expensive build,
+so a missing analyzer cannot first fail during release packaging. `--acquire-only` additionally
 acquires and prepares sources/Gradle dependencies, but does not compile the app.
 A direct check on an already provisioned buildserver looks like:
 

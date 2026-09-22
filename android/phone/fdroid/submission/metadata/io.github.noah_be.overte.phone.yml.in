@@ -24,7 +24,7 @@ Builds:
       - sh android/phone/fdroid/submission/provision.sh --fdroid-buildserver
     output: android/phone/apps/phoneInterface/build/outputs/apk/release/*.apk
     prebuild: sdkmanager --sdk_root $$SDK$$ 'platforms;android-36' 'build-tools;35.0.0'
-      'build-tools;36.0.0' 'cmake;3.31.6'
+      'build-tools;36.0.0' 'cmake;3.31.6' 'cmdline-tools;22.0'
     scandelete:
       - android/common/tests/javascript/package.json
       - scripts/communityScripts/libraries/materialdesignicons/package.json
@@ -49,6 +49,7 @@ MaintainerNotes: |
   scandelete is restricted to unused test data and npm package manifests. The
   referenced JavaScript, icons, licenses and runtime assets remain untouched.
   Requires SDK 36, Build-Tools 35.0.0 and 36.0.0 and SDK CMake 3.31.6, plus the listed NDK.
+  Command-line Tools 22.0 supply apkanalyzer for the release APK checks.
   Buildserver provisioning and a full cold build must pass before enablement.
   Store text lives under android/phone/fastlane/metadata/android/en-US; the staging
   helper also copies it beside this metadata file for reliable discovery.

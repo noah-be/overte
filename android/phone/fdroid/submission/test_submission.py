@@ -126,6 +126,23 @@ class BuildContractTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'build-tools/35.0.0/aapt2'):
                     builder.preflight(args, {})
 
+    def test_missing_apk_analyzer_fails_before_compilation(self):
+        template = (HERE / 'metadata/io.github.noah_be.overte.phone.yml.in').read_text()
+        self.assertIn("'cmdline-tools;22.0'", template)
+        with tempfile.TemporaryDirectory() as td:
+            sdk = Path(td)
+            for relative in ('platforms/android-36/android.jar',
+                             'build-tools/35.0.0/aapt2', 'build-tools/36.0.0/aapt2',
+                             'ndk/27.3.13750724/source.properties', 'cmake/3.31.6/bin/cmake'):
+                path = sdk / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.touch()
+            args = argparse.Namespace(commit='a' * 40, version_code=1,
+                                      version_name='0.1.0', sdk=sdk)
+            with patch.object(builder.subprocess, 'check_output', return_value='a' * 40):
+                with self.assertRaisesRegex(ValueError, 'cmdline-tools/22.0/bin/apkanalyzer'):
+                    builder.preflight(args, {})
+
     def test_rejects_ambiguous_commit_and_invalid_versions(self):
         for commit, code, name in [('main', 1, '0.1.0'), ('a' * 40, 0, '0.1.0'),
                                     ('a' * 40, 2147483648, '0.1.0'),
@@ -168,6 +185,8 @@ class BuildContractTests(unittest.TestCase):
         for key in dirty:
             self.assertNotIn(key, env)
         self.assertEqual('/work/new/gradle-home', env['GRADLE_USER_HOME'])
+        self.assertEqual('/sdk/cmdline-tools/22.0/bin/apkanalyzer', env['PHONE_APK_ANALYZER'])
+        self.assertIn('/sdk/cmdline-tools/22.0/bin', env['PATH'].split(os.pathsep))
 
     def test_release_command_survives_fdroid_wrapper_removal(self):
         args = argparse.Namespace(sdk=Path('/sdk'), version_code=1, version_name='0.1.0')
