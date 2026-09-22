@@ -3,6 +3,7 @@
 
 from pathlib import Path
 import unittest
+import xml.etree.ElementTree as ET
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -70,13 +71,13 @@ class AndroidStartupUrlPathTest(unittest.TestCase):
             "android/vr/pico/apps/picoInterface/src/main/AndroidManifest.xml",
         )
         for manifest in manifests:
-            source = (ROOT / manifest).read_text(encoding="utf-8")
-            self.assertRegex(
-                source,
-                r'android:name="\.(?:Phone|Pico)InterfaceActivity"[\s\S]*?'
-                r'android:exported="false"',
-                manifest,
-            )
+            android = '{http://schemas.android.com/apk/res/android}'
+            root = ET.parse(ROOT / manifest).getroot()
+            activities = [activity for activity in root.findall('./application/activity')
+                          if activity.get(android + 'name', '').rsplit('.', 1)[-1]
+                          in ('PhoneInterfaceActivity', 'PicoInterfaceActivity')]
+            self.assertEqual(len(activities), 1, manifest)
+            self.assertEqual(activities[0].get(android + 'exported'), 'false', manifest)
 
         quest_permissions = (
             ROOT / "android/vr/quest/apps/questInterface/src/main/java/"
