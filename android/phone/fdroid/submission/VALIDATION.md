@@ -23,7 +23,20 @@ with fresh binary caches; compilation used the recipe's network namespaces.
 The unsigned APK has application ID `io.github.noah_be.overte.phone`, versionCode
 `1`, versionName `0.1.0`, and SHA-256
 `a94a0ebf55d7d3b66d8d98e3e999914a1eecca64a091c55c743fad7161c6d192`.
-Its size is 216,302,821 bytes. This exact APK has not been installed on a device.
+Its size is 216,302,821 bytes. A copy was signed with the existing local test
+certificate and installed over the previous local candidate without clearing
+app data. Every original APK entry remained byte-identical; only signature
+metadata was added. The signed candidate SHA-256 is
+`465ba777ca89710148a9a4a84a2182ede17ea82216a79d423c22ee093f98146c`.
+The installed APK was read back and matched that hash.
+
+`PHONE_EXPECT_DEBUGGABLE=0 android/phone/tests/phone-device-test.sh <signed-apk>`
+passed release-state verification, launch stability, local deep-link delivery,
+three background/foreground cycles, and Back/recovery. Crash and page-size
+failure counters were zero. The unattended installer granted declared runtime
+permissions. The maintainer then confirmed world loading in `overte_hub`,
+movement, look, jump, audible sound, and Tablet open/close. This is a successful
+short test on one physical phone, not exhaustive device or long-duration coverage.
 
 Build fixes explicitly install AGP's Build-Tools 35.0.0 and Command-line Tools
 22.0, select the pinned APK analyzer, and check APK inspection prerequisites
@@ -39,7 +52,8 @@ provisioning after a permission failure. The base box checksum was verified.
 The tested source commit was supplied from an independent local Git clone with
 its canonical public origin retained. **Public fetchability remains unverified.**
 This is successful local VM qualification, not F-Droid admission, public-source
-qualification or bit-for-bit reproducibility. No APK was signed or published.
+qualification or bit-for-bit reproducibility. Only the local test copy was
+signed; no production signing or publication was performed.
 Private full logs and machine-readable evidence are retained outside Git. Public
 integration and submission still need the maintainer's authorization.
 
