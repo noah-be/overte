@@ -159,8 +159,8 @@ The maintainer approved the following release configuration:
   must be planned separately.
 - **Publication:** disabled draft, full commit binding, unsigned release APK,
   four-hour build timeout and manual update metadata. Public integration,
-  an Android-specific tag, complete server qualification and submission are
-  still pending. Maintainer notes will be refreshed before submission.
+  an Android-specific tag, qualification of the final public revision and
+  submission are still pending. Maintainer notes will be refreshed before submission.
 
 The [earlier qualification record](VALIDATION.md) documents the old test identity
 and is historical evidence, not validation of the renamed APK. On 2026-09-21,
@@ -171,8 +171,10 @@ the subsequent restart passed. This reused compiled dependencies and does not
 replace cold qualification of the final revision.
 
 The local F-Droid controller and VM configurations have passed configuration
-validation and metadata lint. VM provisioning and a complete `--server` build
-remain pending. These are technical checks, not owner attestations. Nothing here publishes,
+validation and metadata lint. A complete clean `--server --test --scan-binary` build passed on 2026-09-22
+for local commit `24075d829f6d3b5bdb694cf13b6494979689be85`; see VALIDATION.md
+for its APK hash and qualification limits. Public fetchability remains unverified.
+These are technical checks, not owner attestations. Nothing here publishes,
 merges, tags, deletes branches or updates private device-lab configuration.
 
 ## Regression checks

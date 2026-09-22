@@ -1,4 +1,53 @@
-# Local packaging qualification — 2026-09-21
+# F-Droid VM qualification — 2026-09-22
+
+A complete clean `fdroid build --server --test --stop --verbose --no-refresh
+--scan-binary io.github.noah_be.overte.phone:1` succeeded for local source commit
+`24075d829f6d3b5bdb694cf13b6494979689be85`. The disabled flag was removed only
+in the disposable test metadata. Repository metadata remains disabled.
+
+The run took approximately 113 minutes (04:18–06:11 UTC) on a Debian trixie VM
+with 16 vCPUs and 24 GiB RAM. Native libraries were built from the locked sources
+with fresh binary caches; compilation used the recipe's network namespaces.
+
+| Check | Result |
+| --- | --- |
+| SDK/tool and network-isolation preflight | PASS |
+| Complete source-only dependency build | PASS |
+| Android release assembly | PASS |
+| APK metadata and content contract | PASS |
+| Native/ZIP 16-KiB alignment (104 libraries, 370 LOAD segments) | PASS |
+| F-Droid source scan | PASS |
+| F-Droid APK class/signing-block scan | PASS |
+| Submission regression suite (15 tests) | PASS |
+
+The unsigned APK has application ID `io.github.noah_be.overte.phone`, versionCode
+`1`, versionName `0.1.0`, and SHA-256
+`a94a0ebf55d7d3b66d8d98e3e999914a1eecca64a091c55c743fad7161c6d192`.
+Its size is 216,302,821 bytes. This exact APK has not been installed on a device.
+
+Build fixes explicitly install AGP's Build-Tools 35.0.0 and Command-line Tools
+22.0, select the pinned APK analyzer, and check APK inspection prerequisites
+before compilation. The recipe work directory is outside the scanned checkout.
+No application behavior, iOS or Pico implementation changed for these fixes.
+
+The controller used fdroidserver commit
+`a35fdfddd9c66823987a410566a6101186e39c84` with a local bytearray log-collection
+patch to avoid quadratic output copying. Scanner/build decisions were unchanged.
+Official VM provisioning completed; local box packaging resumed without repeating
+provisioning after a permission failure. The base box checksum was verified.
+
+The tested source commit was supplied from an independent local Git clone with
+its canonical public origin retained. **Public fetchability remains unverified.**
+This is successful local VM qualification, not F-Droid admission, public-source
+qualification or bit-for-bit reproducibility. No APK was signed or published.
+Private full logs and machine-readable evidence are retained outside Git. Public
+integration and submission still need the maintainer's authorization.
+
+The following record is historical and describes an older identity and revision;
+its pending items and identity proposals are superseded by the result above and
+the approved configuration in README.md.
+
+## Historical local packaging qualification — 2026-09-21
 
 Recipe revision: `30a986c7867428606dff80c8a60ac3d9cf8d0921`.
 This records local evidence, not F-Droid admission or a completed server build.
