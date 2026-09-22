@@ -19,7 +19,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_GATE = ROOT / "android/phone/tests/check-phone-apk-16k.sh"
-EXPECTED_PACKAGE = "org.overte.phone"
+EXPECTED_PACKAGE = "io.github.noah_be.overte.phone"
 DEFAULT_TEMP_ROOT = ROOT / "android/build/apk-verification-tmp"
 DEFAULT_MANIFEST_LOCK_TIMEOUT_SECONDS = 600.0
 

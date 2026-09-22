@@ -296,7 +296,7 @@ if PHONE_ADB="$fixture/adb" MOCK_START_FAILURE=1 ANDROID_SERIAL=phone-secret \
 fi
 grep -Fxq 'ERROR: Phone Activity start failed' "$fixture/start-failure.out"
 ! grep -Eq 'phone-secret|private Activity failure' "$fixture/start-failure.out"
-[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' \
+[[ "$(grep -c 'shell am force-stop io[.]github[.]noah_be[.]overte[.]phone' \
     "$start_failure_commands" || true)" -eq 0 ]]
 
 touch "$fixture/automatic-failure-marker"
@@ -321,7 +321,7 @@ if PHONE_ADB="$fixture/adb" MOCK_FRAMESTATS_ADB_FAILURE=1 ANDROID_SERIAL=phone-s
 fi
 grep -Fxq 'ERROR: graphics frame statistics failed' "$fixture/framestats-failure.out"
 ! grep -Eq 'phone-secret|private framestats failure' "$fixture/framestats-failure.out"
-[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' \
+[[ "$(grep -c 'shell am force-stop io[.]github[.]noah_be[.]overte[.]phone' \
     "$framestats_failure_commands")" -eq 1 ]]
 [[ ! -e "$framestats_failure_report/summary.txt" ]]
 
@@ -406,7 +406,7 @@ if PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/final-cleanup-exits" 
 fi
 grep -Fxq 'ERROR: final Phone cleanup failed' "$fixture/final-cleanup.out"
 ! grep -Eq 'phone-secret|private cleanup failure' "$fixture/final-cleanup.out"
-[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' \
+[[ "$(grep -c 'shell am force-stop io[.]github[.]noah_be[.]overte[.]phone' \
     "$final_cleanup_commands")" -eq 2 ]]
 [[ ! -e "$final_cleanup_report/summary.txt" ]]
 
@@ -438,7 +438,7 @@ grep -Fxq 'ERROR: could not create aggregate benchmark summary' \
 ! grep -Fq 'private summary allocation failure' "$fixture/summary-failure.out"
 ! grep -Fq "$fixture" "$fixture/summary-failure.out"
 [[ ! -e "$summary_failure_report/summary.txt" ]]
-[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' \
+[[ "$(grep -c 'shell am force-stop io[.]github[.]noah_be[.]overte[.]phone' \
     "$fixture/summary-failure-commands")" -eq 1 ]]
 grep -q '^gpu_live_metrics_valid=1$' "$summary"
 grep -q '^gpu_buffer_count=123$' "$summary"
@@ -486,7 +486,7 @@ grep -q '^framebuffer_estimated_mib=10.93$' "$summary"
 [[ $(stat -c '%a' "$report") == 700 ]]
 [[ $(stat -c '%a' "$summary") == 600 ]]
 grep -q '^profile_target_fps=30$' "$summary"
-[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' "$command_log")" -eq 1 ]]
+[[ "$(grep -c 'shell am force-stop io[.]github[.]noah_be[.]overte[.]phone' "$command_log")" -eq 1 ]]
 
 signal_report="$fixture/signal-report"
 signal_commands="$fixture/signal-commands"
@@ -500,7 +500,7 @@ PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/signal-exits" \
 signal_status=$?
 set -e
 [[ "$signal_status" -eq 143 ]]
-[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' "$signal_commands")" -eq 1 ]]
+[[ "$(grep -c 'shell am force-stop io[.]github[.]noah_be[.]overte[.]phone' "$signal_commands")" -eq 1 ]]
 [[ ! -e "$signal_report/summary.txt" ]]
 
 interrupt_report="$fixture/interrupt-report"
@@ -515,7 +515,7 @@ PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/interrupt-exits" \
 interrupt_status=$?
 set -e
 [[ "$interrupt_status" -eq 130 ]]
-[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' "$interrupt_commands")" -eq 1 ]]
+[[ "$(grep -c 'shell am force-stop io[.]github[.]noah_be[.]overte[.]phone' "$interrupt_commands")" -eq 1 ]]
 [[ ! -e "$interrupt_report/summary.txt" ]]
 
 publish_signal_report="$fixture/publish-signal-report"
@@ -530,7 +530,7 @@ PHONE_ADB="$fixture/adb" MOCK_EXIT_COUNT_FILE="$fixture/publish-signal-exits" \
 publish_signal_status=$?
 set -e
 [[ "$publish_signal_status" -eq 143 ]]
-[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' \
+[[ "$(grep -c 'shell am force-stop io[.]github[.]noah_be[.]overte[.]phone' \
     "$publish_signal_commands")" -eq 1 ]]
 [[ ! -e "$publish_signal_report/summary.txt" ]]
 [[ -z "$(find "$publish_signal_report" -maxdepth 1 -name '.summary.txt.*' -print -quit)" ]]

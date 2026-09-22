@@ -3,8 +3,39 @@
 This local, modular gate is owned by `android-phone`. It does not publish, sign,
 upload, create a release, change the application, or connect to a SaaS scanner.
 The initial implementation was reviewed statically. Subsequent qualification
-now includes eighteen passing offline contract tests. Scanner and build/device
+includes offline regression contracts wired into the existing Phone contract
+suite. See [REMEDIATION.md](REMEDIATION.md) for fixes and outstanding decisions.
+Scanner and build/device
 qualification are separate; no release readiness is implied by these tests.
+
+## Asset licenses: F-Droid requirements versus local review
+
+**A missing separate, explicit license record for an individual asset is not,
+by itself, an F-Droid inclusion blocker.** A project, directory or collection
+license can cover multiple assets. F-Droid does not generally require a separate
+license file, permission letter or forensic provenance dossier for every image,
+font, model or animation. An unknown scanner result or missing local inventory
+entry does not establish a license violation or justify replacing the asset.
+
+Applicable license and redistribution conditions still matter. Check existing
+project/collection notices and any specific third-party exceptions before
+classifying a finding. Concrete incompatible terms or missing required notices
+need resolution; genuinely unresolved redistribution permission is a review
+question, not evidence that the asset is nonfree or automatically acceptable.
+
+Non-code media are not invariably required to have a FLOSS license. F-Droid
+allows certain redistributable nonfree assets with the **Non-Free Assets**
+anti-feature. That label does not supply otherwise missing redistribution rights.
+See the official [Inclusion Policy](https://f-droid.org/en/docs/Inclusion_Policy/)
+and [Non-Free Assets documentation](https://f-droid.org/docs/Anti-Features/#non-free-assets).
+
+Local manual-review requirements are not additional F-Droid admission rules.
+Review evidence may cover a documented asset family or collection; do not demand
+individual records without a concrete reason. The executable asset-attribution review now reports WARNING when evidence is
+missing or inconclusive, accepts a digest-bound collection-level PASS/WARNING
+review, and keeps an explicitly negative review at FAIL. Unknown scanner license
+results remain WARNING. Required software-license compatibility and complete
+native/Gradle notice reviews remain blocking; scanner failures are not waived.
 
 ## Run later
 
@@ -77,11 +108,12 @@ names remain relevant when the Phone graph imports them.
   needs network access; the binary-producing build has `--network=none`.
 - `gradle_store_manifest_sha256`: independently freeze the SHA-256 of
   `ARTIFACT_SHA256SUMS` after reviewing the acquisition store. Personal Gradle
-  properties, initialization scripts and symlinks are rejected. The existing
-  acquisition project currently covers release runtime and Lint dependencies,
-  **not the complete JVM test runtime**. Provision and lock JUnit/Robolectric/
-  AndroidX test dependencies before qualifying the offline JVM test step; do not
-  turn on build networking or treat missing offline dependencies as a skip.
+  properties, initialization scripts, symlinks and undeclared artifact files are
+  rejected. Extend the release/Lint store with `prepare-test-store.py` below.
+  Its separate locked project acquires JUnit, Robolectric, AndroidX and the two
+  instrumented Android SDKs. The gate resolves that project offline before the
+  native build and forces Robolectric to use the staged local SDKs. Missing
+  inputs remain failures; the gate never enables build networking as a fallback.
 - `scancode_processes`: defaults to 2; integer range 1–8. Each worker can use
   substantial memory. Keep this low on shared workers.
 - `tool_versions`: map executable names to one exact reviewed version-output line.
@@ -129,6 +161,26 @@ mounted. The existing source-closure and toolchain checks remain responsible
 for acquisition provenance. Cold-build success is evidence of buildability,
 not proof of bit-for-bit reproducibility or F-Droid acceptance.
 
+### Acquire the test inputs once per dependency change
+
+Use the prepared OpenJDK 17 toolchain and public network access during acquisition:
+
+```sh
+python3 -B android/phone/quality-gate/prepare-test-store.py \
+  --base-store /absolute/private/release-lint-gradle-store \
+  --output /absolute/private/release-and-test-gradle-store
+sha256sum /absolute/private/release-and-test-gradle-store/ARTIFACT_SHA256SUMS
+```
+
+The base store is verified and copied, never modified. The output must be new.
+Set `gradle_store` to this new store and independently review/freeze the printed
+inventory hash in `gradle_store_manifest_sha256`. The acquisition command only
+resolves dependencies; it does not build the Android application or run tests.
+The checked-in `gradle-tests/gradle.lockfile` pins transitive versions. Dependency
+updates require deliberate lock regeneration and an offline resolution check.
+The regression suite rejects drift between Phone `testImplementation` roots and
+the acquisition project. A successful acquisition is not cold-build acceptance.
+
 ## Tools (all open source)
 
 | Tool | Purpose / license |
@@ -173,7 +225,7 @@ inputs exist; results are attributed to their original categories.
 |---|---|---|
 | Secrets & Privacy | Gitleaks source/full reachable history; credential/key, internal endpoint, IP/MAC, path/user/email and sensitive logging heuristics; artifact strings | Secret findings, incomplete history, scanner errors fail. Personal-data heuristics warn. Values are withheld from the common report. |
 | Repository Hygiene | Tracked artifacts, IDE/temp/local config, dumps/backups, size, ignore coverage; debug/log/mock/staging, TODO/FIXME/HACK and commented code | Security-bypass patterns fail subject to exact review; ordinary cleanup comments warn. |
-| Licenses & Branding | ScanCode, root notices, media inventory, branding names/resources, human and JSON reports | Unknown license/attribution cannot be accepted without mandatory component/media review. Branding is informational. |
+| Licenses & Branding | ScanCode, root notices, media inventory, branding names/resources, human and JSON reports | Local component/media review checks applicable licenses and notices, including project/collection coverage. Missing per-asset records are not automatic F-Droid blockers; see the asset-license clarification above. Branding is informational. |
 | Dependencies & Supply Chain | Declared versions/downloads, runtime Gradle graph, Conan graphs, Syft SBOM, Grype | Dynamic versions, high/critical CVEs, incomplete inventory/tool/database failures block. Maintenance and native CVE coverage require review. |
 | Static Analysis | ShellCheck errors, XML/Python parse review, Android Lint and JVM tests, Cppcheck from release compile database | Tool failures and substantive findings block; no global upstream baseline is silently accepted. |
 | Android Configuration | Manifest, exported components, permissions, deep links, provider paths, backup/cleartext/trust settings; final APK identity/version/SDK/debuggable | Unexpected permissions/exports, release metadata mismatch, debuggable/testOnly/cleartext/backup violations fail. Native networking needs separate review. |
@@ -195,7 +247,7 @@ publish raw logs, screenshots, memory dumps or scanner outputs without redaction
 
 `allowlist.json` contains reviewed, hash-bound exceptions for intentional
 length-guarded integer string comparisons, source checksum maps and Jenkins
-plugin version declarations. Historical findings are not suppressed.
+plugin version declarations and synthetic diagnostic fixtures.
 An exception requires exact `rule`, relative
 `path`, current file `sha256`, `reason`, `owner`, and ISO `expires` date. No glob
 or directory-wide suppression is supported. The finding remains WARNING and
@@ -203,6 +255,15 @@ includes its reviewed exception. Source changes/expiration invalidate it. Missin
 tools, incomplete scans, device failures, history secrets and runtime artifact
 SDK findings cannot be waived by this mechanism. Fix scanner configuration only
 after a focused review; do not blanket-baseline historical findings.
+
+`history-allowlist.json` is a separate, narrowly reviewed historical false-positive
+inventory. Each entry binds an exact commit, path, complete Git blob SHA-256,
+detector rule, start/end line pairs, reviewer, reason and expiry. The gate checks
+the actual historical blob before downgrading that exact finding to WARNING.
+These exceptions never apply to source or artifact scans. They document only
+demonstrated non-secrets, not expired/revoked credentials or unverified owner
+claims. Missing objects, changed identities and expired reviews remain failures.
+See [HISTORY-REVIEW.md](HISTORY-REVIEW.md) for the reviewed inventory and next steps.
 
 For every ID listed in `policy.json` → `manual_reviews`, add a review to a private
 copy of `manual-evidence.example.json`. Use status PASS only after the work is
@@ -212,8 +273,11 @@ clean unsigned APK digest. Evidence should contain procedures, observations,
 versions and limits, never a bare checkbox. This record is a trusted maintainer
 attestation, not cryptographic proof that its statements are true.
 
-License evidence must reconcile packaged assets and all native/Gradle/Qt/V8/
-OpenSSL components to source, SPDX expressions and distributed notice text.
+Asset evidence can document applicable project/directory/collection licenses
+without a separate SPDX assignment or dossier for every medium. Missing or
+inconclusive asset-attribution evidence warns; an explicit FAIL remains blocking.
+Native/Gradle/Qt/V8/OpenSSL license compatibility and required notice delivery
+still need the separate required reviews.
 Compare against the existing complete release inventory contract in
 `tools/release/README.md`; merely finding a LICENSE somewhere is insufficient.
 Dependency maintenance/necessity, legal compatibility, arbitrary personal data,
@@ -265,3 +329,28 @@ The first source qualification detected an ISO timestamp misclassified as a
 dynamic dependency. Regression cases now distinguish timestamps from real
 `+` and `SNAPSHOT` dependency coordinates. Scanner concurrency is explicitly
 bounded after the initial ScanCode default exhausted much of the worker memory.
+
+## Reviewed inherited historical credentials
+
+`history-risks.json` records only the 16 findings accepted by the fork owner as
+inherited history with no account/key adoption. They are separate from the
+public-identifier false-positive allowlist. At execution, each warning requires
+an exact commit/path/rule/line/blob binding, a current review expiry, and absence
+of the hash-bound literal fragments from both tracked working tree and index.
+Mismatch, unavailable evidence, a search error or reintroduction retains FAIL.
+No raw credentials are stored in this registry or printed by these checks.
+
+Only historical scanner findings use this disposition. Current-source and APK/
+AAB secret checks are unchanged. Unknown validity or revocation remains visible
+in the warning. This is neither a revocation claim nor a waiver of arbitrary
+historical findings. `history-review-input.json` records both registry digests.
+
+Regression command (no scanners, Android build or device operations):
+
+```sh
+cd android/phone/quality-gate
+python3 -B -m unittest -q test_gate test_history_public_identifiers test_history_risks
+```
+
+All 45 tests passed after this policy change. Exact bindings and current literal
+absence were also checked for all 16 actual historical records.

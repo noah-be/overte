@@ -159,6 +159,14 @@
       }
     }
   },
+  "libdeflate/1.25": {
+    "revisions": {
+      "10964328ce2247995dc8d6add13a8ac5": {
+        "recipe_folder": "libde0dcff5ed3c0fa",
+        "timestamp": 1789929190.5494678
+      }
+    }
+  },
   "libjpeg/9f": {
     "revisions": {
       "8b1b89da851ad9172565c35f14e23c4c": {
@@ -175,11 +183,11 @@
       }
     }
   },
-  "libpng/1.6.44": {
+  "libpng/1.6.58": {
     "revisions": {
-      "9e1aa08fb46946c7c91e4ae03bd49811": {
-        "recipe_folder": "libpn96b6230f1a784",
-        "timestamp": 1726517437.225
+      "f534fb581482e6cdd53f36e1602ccfb3": {
+        "recipe_folder": "libpnc23128d5465c4",
+        "timestamp": 1789929190.101895
       }
     }
   },
@@ -247,11 +255,11 @@
       }
     }
   },
-  "openexr/3.1.9": {
+  "openexr/3.2.12": {
     "revisions": {
-      "cb853b3a9baee5f924ee5929ed94d55b": {
-        "recipe_folder": "openee487817fefaeb",
-        "timestamp": 1727884745.806
+      "7d958a6cf728315cdefaa2768f7bf9ad": {
+        "recipe_folder": "opene92b1c451ab9eb",
+        "timestamp": 1789930064.2451797
       }
     }
   },
@@ -305,9 +313,9 @@
   },
   "qt/5.15.18-2026.01.04@overte/stable": {
     "revisions": {
-      "d75aeab99c3d3426df7ec9b39bc73aa8": {
-        "recipe_folder": "qtcbbe61877a459",
-        "timestamp": 1788770410.623351
+      "4fd1f62ee1914f2f3ec4fe298a07c283": {
+        "recipe_folder": "qta14fd3d8f6023",
+        "timestamp": 1789929190.7788649
       }
     }
   },

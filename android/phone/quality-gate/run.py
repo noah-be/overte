@@ -40,6 +40,9 @@ def main():
     write_json(out / 'run-inputs.json', dict(source_commit=gate.commit,
                config_sha256=digest(args.config), policy_sha256=digest(Path(__file__).parent / 'policy.json'),
                allowlist_sha256=digest(Path(__file__).parent / 'allowlist.json')))
+    write_json(out / 'history-review-input.json', dict(
+        sha256=digest(Path(__file__).with_name('history-allowlist.json')),
+        risks_sha256=digest(Path(__file__).with_name('history-risks.json'))))
     selected = args.only or list(CATEGORIES)
     handlers = dict(secrets=source.secrets, hygiene=source.hygiene, licenses=source.licenses,
                     dependencies=source.dependencies, static=runtime.static, android=source.android,

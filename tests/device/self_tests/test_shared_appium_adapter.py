@@ -47,23 +47,23 @@ elif len(cmd) == 3 and cmd[:2] == ["shell", "getprop"]:
 elif cmd == ["shell", "pm", "list", "features"]:
     print(os.environ.get("OVERTE_MOCK_ADB_FEATURES",
                          "feature:android.hardware.touchscreen"))
-elif cmd == ["shell", "run-as", "org.overte.phone", "cat",
+elif cmd == ["shell", "run-as", "io.github.noah_be.overte.phone", "cat",
              "files/overte-e2e/overte-probe.json"]:
     with open(os.environ["OVERTE_MOCK_ANDROID_PROBE"], encoding="utf-8") as source:
         print(source.read(), end="")
-elif cmd == ["shell", "run-as", "org.overte.phone", "cat",
+elif cmd == ["shell", "run-as", "io.github.noah_be.overte.phone", "cat",
              "files/overte-e2e/e2e-client-command.json"]:
     path = os.environ["OVERTE_MOCK_ANDROID_COMMAND_FILE"]
     if os.path.exists(path):
         with open(path, encoding="utf-8") as source:
             print(source.read(), end="")
-elif cmd == ["shell", "pidof", "-s", "org.overte.phone"]:
+elif cmd == ["shell", "pidof", "-s", "io.github.noah_be.overte.phone"]:
     print("2468")
 elif cmd == ["shell", "cat", "/proc/2468/stat"]:
     changed = os.path.exists(os.environ["OVERTE_MOCK_ANDROID_RESTART_MARKER"])
     print("2468 (overte) S " + " ".join(["0"] * 18) + (" 101" if changed else " 100"))
 elif (len(cmd) == 2 and cmd[0] == "shell"
-      and shlex.split(cmd[1])[:3] == ["run-as", "org.overte.phone", "sh"]
+      and shlex.split(cmd[1])[:3] == ["run-as", "io.github.noah_be.overte.phone", "sh"]
       and shlex.split(cmd[1])[-1] == "files/overte-e2e/e2e-client-command.json"):
     remote_arguments = shlex.split(cmd[1])
     if remote_arguments[3] != "-c" or remote_arguments[5] != "overte-e2e-write":
@@ -204,7 +204,7 @@ class AppiumAdapterTest(unittest.TestCase):
                 {
                     "selector": "phone-alias", "displayName": "Phone", "platform": "android",
                     "physical": False, "enabled": True, "serverUrl": url,
-                    "appId": "org.overte.phone",
+                    "appId": "io.github.noah_be.overte.phone",
                     "capabilities": {"platformName": "Android", "appium:automationName": "UiAutomator2",
                                      "appium:autoLaunch": False},
                     "process": {"kind": "adb", "selector": "phone-mock"},
@@ -409,9 +409,9 @@ class AppiumAdapterTest(unittest.TestCase):
         self.assertIn("/session/session-private/actions", paths)
         self.assertIn("/session/session-private/source", paths)
         self.assertIn(("mobile: startActivity", {
-            "intent": "org.overte.phone/.E2eLauncherActivity", "stop": True, "wait": False,
+            "intent": "io.github.noah_be.overte.phone/org.overte.phone.E2eLauncherActivity", "stop": True, "wait": False,
         }), AppiumHandler.executions)
-        self.assertIn(("mobile: activateApp", {"appId": "org.overte.phone"}),
+        self.assertIn(("mobile: activateApp", {"appId": "io.github.noah_be.overte.phone"}),
                       AppiumHandler.executions)
         cleanup = self.call("android", "cleanup", *target)
         self.assertEqual(0, cleanup.returncode, cleanup.stdout)

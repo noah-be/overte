@@ -256,8 +256,8 @@ require_text settings-phone.gradle \
 
 require_text "$gradle" "namespace[[:space:]]+['\"]org\.overte\.phone['\"]" \
     'Gradle namespace is org.overte.phone'
-require_text "$gradle" "applicationId[[:space:]]+['\"]org\.overte\.phone['\"]" \
-    'application ID is org.overte.phone'
+require_text "$gradle" "applicationId[[:space:]]+['\"]io\.github\.noah_be\.overte\.phone['\"]" \
+    'application ID is io.github.noah_be.overte.phone'
 require_text "$gradle" 'minSdk[[:space:]]+26([^0-9]|$)' \
     'minimum Android API is 26'
 require_text "$gradle" 'targetSdk[[:space:]]+36([^0-9]|$)' \
@@ -384,7 +384,7 @@ require_text tests/phone-data-protection-test.py 'EXPECTED_ACTIVITIES' \
     'data protection gate enforces an exact exported-activity allowlist'
 require_text tests/phone-data-protection-test.py 'provider.*receiver.*service' \
     'data protection gate rejects unexpected Android components'
-require_text "$manifest" 'android:name="\.PermissionsActivity"' \
+require_text "$manifest" 'android:name="org\.overte\.phone\.PermissionsActivity"' \
     'manifest declares the permission launcher activity'
 require_text "$manifest" 'android\.intent\.action\.MAIN' \
     'manifest has a MAIN launcher action'
@@ -394,7 +394,7 @@ require_text "$manifest" 'android:scheme="overte"' \
     'manifest accepts overte deep links'
 require_text "$manifest" 'android:scheme="hifi"' \
     'manifest accepts legacy hifi deep links'
-require_text "$manifest" 'android:name="\.PhoneInterfaceActivity"' \
+require_text "$manifest" 'android:name="org\.overte\.phone\.PhoneInterfaceActivity"' \
     'manifest declares the Qt client activity'
 require_text "$manifest" 'android:screenOrientation="landscape"' \
     'manifest holds the Phone launcher and renderer in landscape'

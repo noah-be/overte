@@ -278,7 +278,7 @@ tasks.register('preparePhoneQtRuntime', Sync) {
 android {
     testBuildType isPhoneEmulatorBuild ? 'emulator' : 'debug'
     defaultConfig {
-        applicationId 'org.overte.phone'
+        applicationId 'io.github.noah_be.overte.phone'
         minSdk 26
         targetSdk 36
         versionCode rootProject.ext.appVersionCode

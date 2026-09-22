@@ -51,11 +51,11 @@ case "$*" in
             exit 10
         fi
         ;;
-    'shell pm path org.overte.phone')
-        printf 'package:/data/app/~~mock/org.overte.phone-mock/base.apk\n'
+    'shell pm path io.github.noah_be.overte.phone')
+        printf 'package:/data/app/~~mock/io.github.noah_be.overte.phone-mock/base.apk\n'
         ;;
     'shell date +%s.%3N') printf '1786212000.123\n' ;;
-    'exec-out cat /data/app/~~mock/org.overte.phone-mock/base.apk')
+    'exec-out cat /data/app/~~mock/io.github.noah_be.overte.phone-mock/base.apk')
         if [[ "${MOCK_INSTALLED_READ_FAILURE:-0}" == 1 ]]; then
             printf 'private installed path read failure for mock-phone\n' >&2
             exit 12
@@ -65,7 +65,7 @@ case "$*" in
             cat "$MOCK_ROOT/phone.apk"
         fi
         ;;
-    'shell am force-stop org.overte.phone')
+    'shell am force-stop io.github.noah_be.overte.phone')
         if [[ "${MOCK_FINAL_CLEANUP_FAILURE:-0}" == 1 ]]; then
             force_stop_count=0
             [[ ! -f "$MOCK_ROOT/force-stop-count" ]] || \
@@ -82,7 +82,7 @@ case "$*" in
         fi
         printf resumed >"$MOCK_ROOT/activity-state"
         ;;
-    'shell pidof -s org.overte.phone')
+    'shell pidof -s io.github.noah_be.overte.phone')
         if [[ "${MOCK_PROCESS_RESTART:-0}" == 1 &&
                 "$(<"$MOCK_ROOT/activity-state")" == background ]]; then
             printf '4343\n'
@@ -97,12 +97,12 @@ case "$*" in
         ;;
     'shell dumpsys activity activities')
         if [[ "$(<"$MOCK_ROOT/activity-state")" == resumed ]]; then
-            printf 'mResumedActivity: org.overte.phone/.PhoneInterfaceActivity\n'
+            printf 'mResumedActivity: io.github.noah_be.overte.phone/org.overte.phone.PhoneInterfaceActivity\n'
         else
             printf 'mResumedActivity: com.android.launcher/.Launcher\n'
         fi
         ;;
-    'shell dumpsys activity exit-info org.overte.phone')
+    'shell dumpsys activity exit-info io.github.noah_be.overte.phone')
         [[ "${MOCK_EXIT_INFO_FAILURE:-0}" != 1 ]] || exit 8
         if [[ "${MOCK_FINAL_EXIT_INFO_FAILURE:-0}" == 1 ]]; then
             exit_info_count=0
@@ -181,7 +181,7 @@ cat >"$test_root/bin/apkanalyzer" <<'MOCK_ANALYZER'
 set -euo pipefail
 [[ "$1" == manifest ]] || exit 3
 case "$2" in
-    application-id) printf '%s\n' "${MOCK_APK_ID:-org.overte.phone}" ;;
+    application-id) printf '%s\n' "${MOCK_APK_ID:-io.github.noah_be.overte.phone}" ;;
     min-sdk) printf '26\n' ;;
     target-sdk) printf '%s\n' "${MOCK_APK_TARGET_SDK:-36}" ;;
     permissions)
@@ -297,7 +297,7 @@ grep -Fxq 'test_status=failed' \
 ! grep -Fq 'installed_apk_verified=1' \
     "$test_root/late-summary-failure-report/summary.txt"
 [[ "$(grep -c ' install -r ' "$test_root/adb-commands")" -eq 1 ]]
-[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' \
+[[ "$(grep -c 'shell am force-stop io[.]github[.]noah_be[.]overte[.]phone' \
     "$test_root/adb-commands")" -eq 1 ]]
 
 mkdir "$test_root/chmod-failure-report"
@@ -353,7 +353,7 @@ grep -Fxq 'back_recovery_survived=1' "$summary"
 grep -Fxq 'crash_log_matches=0' "$summary"
 grep -Fxq 'test_status=passed' "$summary"
 grep -Fxq 'cleanup_force_stopped=1' "$summary"
-[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' "$test_root/adb-commands")" -eq 2 ]]
+[[ "$(grep -c 'shell am force-stop io[.]github[.]noah_be[.]overte[.]phone' "$test_root/adb-commands")" -eq 2 ]]
 [[ "$(stat -c %a "$summary")" == 600 ]]
 ! grep -Eq 'mock-phone|/data/app|4242' "$summary"
 
@@ -368,7 +368,7 @@ fi
 grep -Fq 'final app cleanup failed' "$test_root/cleanup-failure.out"
 grep -Fxq 'test_status=failed' "$test_root/cleanup-failure-report/summary.txt"
 ! grep -Fq 'cleanup_force_stopped=1' "$test_root/cleanup-failure-report/summary.txt"
-[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' "$test_root/adb-commands")" -eq 3 ]]
+[[ "$(grep -c 'shell am force-stop io[.]github[.]noah_be[.]overte[.]phone' "$test_root/adb-commands")" -eq 3 ]]
 
 mkdir "$test_root/mismatch-report"
 if run_smoke "$test_root/mismatch-report" env MOCK_APK_MISMATCH=1 \
@@ -501,7 +501,7 @@ grep -Fq 'launcher start failed' "$test_root/start-failure.out"
 ! grep -Fq 'private start failure for mock-phone' "$test_root/start-failure.out"
 ! grep -Fq 'launch_survived=1' "$test_root/start-failure-report/summary.txt"
 grep -Fxq 'test_status=failed' "$test_root/start-failure-report/summary.txt"
-[[ "$(grep -c 'shell am force-stop org[.]overte[.]phone' "$test_root/adb-commands")" -eq 2 ]]
+[[ "$(grep -c 'shell am force-stop io[.]github[.]noah_be[.]overte[.]phone' "$test_root/adb-commands")" -eq 2 ]]
 
 mkdir "$test_root/sticky-report"
 if run_smoke "$test_root/sticky-report" env MOCK_STICKY_FOREGROUND=1 \

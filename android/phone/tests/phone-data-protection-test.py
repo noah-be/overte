@@ -25,8 +25,8 @@ EXPECTED_PERMISSIONS = {
     "android.permission.VIBRATE",
 }
 EXPECTED_ACTIVITIES = {
-    ".PermissionsActivity": "true",
-    ".PhoneInterfaceActivity": "false",
+    "org.overte.phone.PermissionsActivity": "true",
+    "org.overte.phone.PhoneInterfaceActivity": "false",
 }
 EXPECTED_DEEP_LINK_SCHEMES = {"overte", "hifi"}
 
@@ -101,8 +101,8 @@ def main():
         element.get(ANDROID_NS + "name"): element
         for element in application.findall("activity")
     }
-    launcher = activity_elements[".PermissionsActivity"]
-    interface = activity_elements[".PhoneInterfaceActivity"]
+    launcher = activity_elements["org.overte.phone.PermissionsActivity"]
+    interface = activity_elements["org.overte.phone.PhoneInterfaceActivity"]
     if launcher.get(ANDROID_NS + "launchMode") != "singleTop":
         raise ValueError("exported permission launcher must remain singleTop")
     if interface.get(ANDROID_NS + "launchMode") != "singleTask":

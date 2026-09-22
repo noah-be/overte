@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-readonly PACKAGE="org.overte.phone"
-readonly ACTIVITY="org.overte.phone/.PermissionsActivity"
+readonly PACKAGE="io.github.noah_be.overte.phone"
+readonly ACTIVITY="io.github.noah_be.overte.phone/org.overte.phone.PermissionsActivity"
 readonly WARMUP_TARGET="file:///~/serverless/tutorial.json"
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly worktree_root="$(cd -- "$script_dir/../../.." && pwd)"
@@ -15,7 +15,7 @@ Usage: ANDROID_SERIAL=<serial> PHONE_PERF_CONFIRM_NON_VR=YES \
   ./tests/phone-world-loading-test.sh --target overte://example.com [options]
 
 Measures an online world load in the Overte Android Phone client. The script
-does not build or install an APK. It launches org.overte.phone through its
+does not build or install an APK. It launches io.github.noah_be.overte.phone through its
 public deep link and records one-second CPU, memory, network, thermal, battery,
 and process samples plus Android frame statistics.
 

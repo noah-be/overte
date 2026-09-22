@@ -1,0 +1,435 @@
+{
+  "schema": 1,
+  "entries": [
+    {
+      "commit": "d4b3a9ba49f4e131065aa05ac90d70aeb2544da3",
+      "path": ".github/workflows/cmake.yml",
+      "rule": "gitleaks-aws-access-token",
+      "blob_sha256": "910fd3b36e767944002bdb12d2b90fe110bc08d23db66c5efff7f46d3e5fcef2",
+      "locations": [
+        [
+          22,
+          22
+        ]
+      ],
+      "reason": "User accepted the review of inherited historical credentials without account/key adoption. Exact bound fragments are absent from tracked current source; validity and revocation remain unknown. Current-source and artifact findings are not waived.",
+      "owner": "Android Phone fork maintainer",
+      "expires": "2026-12-18",
+      "group": "Legacy CI/upload credentials",
+      "probes": [
+        {
+          "offset": 472,
+          "length": 20,
+          "sha256": "0098ff981bd426566743a81fe918746c81c442596ca3b03d28fe35fcdc83db4b"
+        }
+      ],
+      "disposition": "inherited-history-risk-accepted",
+      "reviewed_revision": "b6e04db20aed77248509d9eeba4c856836a0432d"
+    },
+    {
+      "commit": "3334e06cf429b569abf0cc12abf85fd9e833e728",
+      "path": "scripts/simplifiedUI/tutorials/createPictureFrame.js",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "b8b61859b42c40240ca92eba35ab9ece1d08e3d2d327a9c3930102c8d0316ced",
+      "locations": [
+        [
+          23,
+          23
+        ]
+      ],
+      "reason": "User accepted the review of inherited historical credentials without account/key adoption. Exact bound fragments are absent from tracked current source; validity and revocation remain unknown. Current-source and artifact findings are not waived.",
+      "owner": "Android Phone fork maintainer",
+      "expires": "2026-12-18",
+      "group": "NASA API keys",
+      "probes": [
+        {
+          "offset": 1007,
+          "length": 40,
+          "sha256": "c952009ae7e1f4d9e2c15b9a7feb23f807c91cbe8bdf9080e74f00f1ef54f455"
+        }
+      ],
+      "disposition": "inherited-history-risk-accepted",
+      "reviewed_revision": "b6e04db20aed77248509d9eeba4c856836a0432d"
+    },
+    {
+      "commit": "ac533a391346554d9a47c9ecc5012c0512711de4",
+      "path": "android/build.gradle",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "27864bf51583e40796c15df85fe9c6436615d0dc18b996c1d7cb5642d2916e64",
+      "locations": [
+        [
+          618,
+          618
+        ]
+      ],
+      "reason": "User accepted the review of inherited historical credentials without account/key adoption. Exact bound fragments are absent from tracked current source; validity and revocation remain unknown. Current-source and artifact findings are not waived.",
+      "owner": "Android Phone fork maintainer",
+      "expires": "2026-12-18",
+      "group": "Android build upload tokens",
+      "probes": [
+        {
+          "offset": 23189,
+          "length": 64,
+          "sha256": "da3686781e7b1631f2588809894b5bccafa3472a01b15021de235fa0f73d9653"
+        }
+      ],
+      "disposition": "inherited-history-risk-accepted",
+      "reviewed_revision": "b6e04db20aed77248509d9eeba4c856836a0432d"
+    },
+    {
+      "commit": "af29e10fe9715a23b40e53e28a231a5fa395deec",
+      "path": "android/build.gradle",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "faa547c91fdd90209122b6f12b96f7bf5abd2b5d7f56327ab86f6b17780c05bb",
+      "locations": [
+        [
+          598,
+          598
+        ]
+      ],
+      "reason": "User accepted the review of inherited historical credentials without account/key adoption. Exact bound fragments are absent from tracked current source; validity and revocation remain unknown. Current-source and artifact findings are not waived.",
+      "owner": "Android Phone fork maintainer",
+      "expires": "2026-12-18",
+      "group": "Android build upload tokens",
+      "probes": [
+        {
+          "offset": 22727,
+          "length": 64,
+          "sha256": "da3686781e7b1631f2588809894b5bccafa3472a01b15021de235fa0f73d9653"
+        }
+      ],
+      "disposition": "inherited-history-risk-accepted",
+      "reviewed_revision": "b6e04db20aed77248509d9eeba4c856836a0432d"
+    },
+    {
+      "commit": "392f290dd62e1ba986af78bb6020dc83710184a0",
+      "path": "interface/src/scripting/GooglePolyScriptingInterface.cpp",
+      "rule": "gitleaks-gcp-api-key",
+      "blob_sha256": "7b4469c4007896441820df5ce4fe2b60fc54a2b97f268f54f77af24c4335858a",
+      "locations": [
+        [
+          42,
+          42
+        ]
+      ],
+      "reason": "User accepted the review of inherited historical credentials without account/key adoption. Exact bound fragments are absent from tracked current source; validity and revocation remain unknown. Current-source and artifact findings are not waived.",
+      "owner": "Android Phone fork maintainer",
+      "expires": "2026-12-18",
+      "group": "Google Poly API keys",
+      "probes": [
+        {
+          "offset": 1124,
+          "length": 39,
+          "sha256": "83e877d617d29a405e0a71ae3e3bfb2b51bcc4a5aae4a38a39657bd67884c4a8"
+        }
+      ],
+      "disposition": "inherited-history-risk-accepted",
+      "reviewed_revision": "b6e04db20aed77248509d9eeba4c856836a0432d"
+    },
+    {
+      "commit": "392f290dd62e1ba986af78bb6020dc83710184a0",
+      "path": "interface/src/scripting/GooglePolyScriptingInterface.cpp",
+      "rule": "gitleaks-gcp-api-key",
+      "blob_sha256": "7b4469c4007896441820df5ce4fe2b60fc54a2b97f268f54f77af24c4335858a",
+      "locations": [
+        [
+          80,
+          80
+        ]
+      ],
+      "reason": "User accepted the review of inherited historical credentials without account/key adoption. Exact bound fragments are absent from tracked current source; validity and revocation remain unknown. Current-source and artifact findings are not waived.",
+      "owner": "Android Phone fork maintainer",
+      "expires": "2026-12-18",
+      "group": "Google Poly API keys",
+      "probes": [
+        {
+          "offset": 2549,
+          "length": 39,
+          "sha256": "83e877d617d29a405e0a71ae3e3bfb2b51bcc4a5aae4a38a39657bd67884c4a8"
+        }
+      ],
+      "disposition": "inherited-history-risk-accepted",
+      "reviewed_revision": "b6e04db20aed77248509d9eeba4c856836a0432d"
+    },
+    {
+      "commit": "392f290dd62e1ba986af78bb6020dc83710184a0",
+      "path": "interface/src/scripting/GooglePolyScriptingInterface.cpp",
+      "rule": "gitleaks-gcp-api-key",
+      "blob_sha256": "7b4469c4007896441820df5ce4fe2b60fc54a2b97f268f54f77af24c4335858a",
+      "locations": [
+        [
+          120,
+          120
+        ]
+      ],
+      "reason": "User accepted the review of inherited historical credentials without account/key adoption. Exact bound fragments are absent from tracked current source; validity and revocation remain unknown. Current-source and artifact findings are not waived.",
+      "owner": "Android Phone fork maintainer",
+      "expires": "2026-12-18",
+      "group": "Google Poly API keys",
+      "probes": [
+        {
+          "offset": 3900,
+          "length": 39,
+          "sha256": "83e877d617d29a405e0a71ae3e3bfb2b51bcc4a5aae4a38a39657bd67884c4a8"
+        }
+      ],
+      "disposition": "inherited-history-risk-accepted",
+      "reviewed_revision": "b6e04db20aed77248509d9eeba4c856836a0432d"
+    },
+    {
+      "commit": "4ed689672ea2a9b0783b0eb516ac8facb9d2d73b",
+      "path": "interface/src/scripting/GooglePolyScriptingInterface.cpp",
+      "rule": "gitleaks-gcp-api-key",
+      "blob_sha256": "7b4469c4007896441820df5ce4fe2b60fc54a2b97f268f54f77af24c4335858a",
+      "locations": [
+        [
+          42,
+          42
+        ]
+      ],
+      "reason": "User accepted the review of inherited historical credentials without account/key adoption. Exact bound fragments are absent from tracked current source; validity and revocation remain unknown. Current-source and artifact findings are not waived.",
+      "owner": "Android Phone fork maintainer",
+      "expires": "2026-12-18",
+      "group": "Google Poly API keys",
+      "probes": [
+        {
+          "offset": 1124,
+          "length": 39,
+          "sha256": "83e877d617d29a405e0a71ae3e3bfb2b51bcc4a5aae4a38a39657bd67884c4a8"
+        }
+      ],
+      "disposition": "inherited-history-risk-accepted",
+      "reviewed_revision": "b6e04db20aed77248509d9eeba4c856836a0432d"
+    },
+    {
+      "commit": "4ed689672ea2a9b0783b0eb516ac8facb9d2d73b",
+      "path": "interface/src/scripting/GooglePolyScriptingInterface.cpp",
+      "rule": "gitleaks-gcp-api-key",
+      "blob_sha256": "7b4469c4007896441820df5ce4fe2b60fc54a2b97f268f54f77af24c4335858a",
+      "locations": [
+        [
+          80,
+          80
+        ]
+      ],
+      "reason": "User accepted the review of inherited historical credentials without account/key adoption. Exact bound fragments are absent from tracked current source; validity and revocation remain unknown. Current-source and artifact findings are not waived.",
+      "owner": "Android Phone fork maintainer",
+      "expires": "2026-12-18",
+      "group": "Google Poly API keys",
+      "probes": [
+        {
+          "offset": 2549,
+          "length": 39,
+          "sha256": "83e877d617d29a405e0a71ae3e3bfb2b51bcc4a5aae4a38a39657bd67884c4a8"
+        }
+      ],
+      "disposition": "inherited-history-risk-accepted",
+      "reviewed_revision": "b6e04db20aed77248509d9eeba4c856836a0432d"
+    },
+    {
+      "commit": "4ed689672ea2a9b0783b0eb516ac8facb9d2d73b",
+      "path": "interface/src/scripting/GooglePolyScriptingInterface.cpp",
+      "rule": "gitleaks-gcp-api-key",
+      "blob_sha256": "7b4469c4007896441820df5ce4fe2b60fc54a2b97f268f54f77af24c4335858a",
+      "locations": [
+        [
+          120,
+          120
+        ]
+      ],
+      "reason": "User accepted the review of inherited historical credentials without account/key adoption. Exact bound fragments are absent from tracked current source; validity and revocation remain unknown. Current-source and artifact findings are not waived.",
+      "owner": "Android Phone fork maintainer",
+      "expires": "2026-12-18",
+      "group": "Google Poly API keys",
+      "probes": [
+        {
+          "offset": 3900,
+          "length": 39,
+          "sha256": "83e877d617d29a405e0a71ae3e3bfb2b51bcc4a5aae4a38a39657bd67884c4a8"
+        }
+      ],
+      "disposition": "inherited-history-risk-accepted",
+      "reviewed_revision": "b6e04db20aed77248509d9eeba4c856836a0432d"
+    },
+    {
+      "commit": "d1350a03c2bf81cab25c3c44eb138239df25296c",
+      "path": "libraries/entities/src/EntityItem.cpp",
+      "rule": "gitleaks-private-key",
+      "blob_sha256": "34d5fc89c199e550cfdd9285422a59b7f006eface8f7b0b627557e826e5ed6ac",
+      "locations": [
+        [
+          1632,
+          1640
+        ]
+      ],
+      "reason": "User accepted the review of inherited historical credentials without account/key adoption. Exact bound fragments are absent from tracked current source; validity and revocation remain unknown. Current-source and artifact findings are not waived.",
+      "owner": "Android Phone fork maintainer",
+      "expires": "2026-12-18",
+      "group": "Embedded RSA private key",
+      "probes": [
+        {
+          "offset": 75315,
+          "length": 64,
+          "sha256": "f24dda18d9767b2df8c35721e3ab5815c0a01262acd1e339b65154a77d14b3cd"
+        },
+        {
+          "offset": 75383,
+          "length": 64,
+          "sha256": "c0d0f11fbe731fce99ca0b534856f7ddecc96ac0b4ea54857c03a64af3474fa4"
+        },
+        {
+          "offset": 75451,
+          "length": 64,
+          "sha256": "dda18298ac8ab1e9e55886832d09452628e8a232dadc60d27b74723d800a331b"
+        },
+        {
+          "offset": 75519,
+          "length": 64,
+          "sha256": "6b0fa1203aca653afb2eaa2fdada9c0caf772ce6ad48bea7e0d990d172874fe6"
+        },
+        {
+          "offset": 75587,
+          "length": 64,
+          "sha256": "d63a55320fdcc7d14c4b9b471c0aeff1cc5b0e055bdc276c13b1c50ae587aba0"
+        },
+        {
+          "offset": 75655,
+          "length": 64,
+          "sha256": "82fc111038e67486b4d54b21701a87f6cb430846314675b4b351d1f38c61326a"
+        },
+        {
+          "offset": 75723,
+          "length": 40,
+          "sha256": "298a9ef19c345b99cab7834a25b6e49db3af32830dd27de62fc41316ed7ff8c9"
+        }
+      ],
+      "disposition": "inherited-history-risk-accepted",
+      "reviewed_revision": "b6e04db20aed77248509d9eeba4c856836a0432d"
+    },
+    {
+      "commit": "50117e2ff400151e3c3652bfa2005d004fe52b70",
+      "path": "scripts/tutorials/createPictureFrame.js",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "b18d013457816dc1223ffdd89af3e6b6856a320bb849a5215d8aaa95a66c3840",
+      "locations": [
+        [
+          23,
+          23
+        ]
+      ],
+      "reason": "User accepted the review of inherited historical credentials without account/key adoption. Exact bound fragments are absent from tracked current source; validity and revocation remain unknown. Current-source and artifact findings are not waived.",
+      "owner": "Android Phone fork maintainer",
+      "expires": "2026-12-18",
+      "group": "NASA API keys",
+      "probes": [
+        {
+          "offset": 1005,
+          "length": 40,
+          "sha256": "c952009ae7e1f4d9e2c15b9a7feb23f807c91cbe8bdf9080e74f00f1ef54f455"
+        }
+      ],
+      "disposition": "inherited-history-risk-accepted",
+      "reviewed_revision": "b6e04db20aed77248509d9eeba4c856836a0432d"
+    },
+    {
+      "commit": "746c388f7ad62bb61ae538e4805fc9bf1b632f67",
+      "path": "tests/ui/qml/main.qml",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "84af0018db5fbb558d2ae4cfacff5e54a24af3024a6e2e88828c8b78bf06b3f3",
+      "locations": [
+        [
+          295,
+          295
+        ]
+      ],
+      "reason": "User accepted the review of inherited historical credentials without account/key adoption. Exact bound fragments are absent from tracked current source; validity and revocation remain unknown. Current-source and artifact findings are not waived.",
+      "owner": "Android Phone fork maintainer",
+      "expires": "2026-12-18",
+      "group": "Hardcoded API/access tokens",
+      "probes": [
+        {
+          "offset": 10129,
+          "length": 64,
+          "sha256": "5ce46516502fd0a0e1b95e1e468c119638d6846d84b25f3370602ace8d38e57b"
+        }
+      ],
+      "disposition": "inherited-history-risk-accepted",
+      "reviewed_revision": "b6e04db20aed77248509d9eeba4c856836a0432d"
+    },
+    {
+      "commit": "d93480458f0941281db882ee63db2f0b7fa461bd",
+      "path": "interface/src/ui/SnapshotShareDialog.cpp",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "0e5ff2f5cb170b64200295c5da0a58bb0d8c4abab179e05a7e87c87bc0cf1639",
+      "locations": [
+        [
+          123,
+          123
+        ]
+      ],
+      "reason": "User accepted the review of inherited historical credentials without account/key adoption. Exact bound fragments are absent from tracked current source; validity and revocation remain unknown. Current-source and artifact findings are not waived.",
+      "owner": "Android Phone fork maintainer",
+      "expires": "2026-12-18",
+      "group": "Hardcoded API/access tokens",
+      "probes": [
+        {
+          "offset": 4204,
+          "length": 64,
+          "sha256": "e73f846168878651aa450a80f73e5608f3f855ce433538f06221592c48b9e88d"
+        }
+      ],
+      "disposition": "inherited-history-risk-accepted",
+      "reviewed_revision": "b6e04db20aed77248509d9eeba4c856836a0432d"
+    },
+    {
+      "commit": "53d3eea0b1fcabc8bf1d7132b9df644b4befd77f",
+      "path": "jenkins/jobs.groovy",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "2d9c39d611ab8ad01b5b82e3d720d072990bf4975fc789d8abb38b1a836abe3d",
+      "locations": [
+        [
+          5,
+          5
+        ]
+      ],
+      "reason": "User accepted the review of inherited historical credentials without account/key adoption. Exact bound fragments are absent from tracked current source; validity and revocation remain unknown. Current-source and artifact findings are not waived.",
+      "owner": "Android Phone fork maintainer",
+      "expires": "2026-12-18",
+      "group": "HipChat tokens",
+      "probes": [
+        {
+          "offset": 252,
+          "length": 30,
+          "sha256": "b39c15bd0666ffd4f81675a1d1dac40c0b855827aee9baac14fe42bebfbc7ee8"
+        }
+      ],
+      "disposition": "inherited-history-risk-accepted",
+      "reviewed_revision": "b6e04db20aed77248509d9eeba4c856836a0432d"
+    },
+    {
+      "commit": "5945fbc32d756739d981a53e5607c150c25d225e",
+      "path": "jenkins/jobs.groovy",
+      "rule": "gitleaks-generic-api-key",
+      "blob_sha256": "14defc656dc1ca105359a80f5d4e5c475ad1c6cd9ac4463a2034b3723262ebfb",
+      "locations": [
+        [
+          18,
+          18
+        ]
+      ],
+      "reason": "User accepted the review of inherited historical credentials without account/key adoption. Exact bound fragments are absent from tracked current source; validity and revocation remain unknown. Current-source and artifact findings are not waived.",
+      "owner": "Android Phone fork maintainer",
+      "expires": "2026-12-18",
+      "group": "HipChat tokens",
+      "probes": [
+        {
+          "offset": 415,
+          "length": 30,
+          "sha256": "b39c15bd0666ffd4f81675a1d1dac40c0b855827aee9baac14fe42bebfbc7ee8"
+        }
+      ],
+      "disposition": "inherited-history-risk-accepted",
+      "reviewed_revision": "b6e04db20aed77248509d9eeba4c856836a0432d"
+    }
+  ]
+}

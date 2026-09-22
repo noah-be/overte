@@ -30,7 +30,7 @@ class ObservedAdb:
     """Test-only Android boundary; never invokes a command."""
     def __init__(self, digest):
         self.digest = digest
-        self.path = "/data/app/~~test-only/org.overte.phone-test/base.apk"
+        self.path = "/data/app/~~test-only/io.github.noah_be.overte.phone-test/base.apk"
         self.paths = None
         self.events = []
         self.change_after_hash = False
@@ -40,7 +40,7 @@ class ObservedAdb:
 
     def shell(self, target, *arguments, **kwargs):
         self.events.append(arguments)
-        if arguments == ("pm", "path", "org.overte.phone"):
+        if arguments == ("pm", "path", "io.github.noah_be.overte.phone"):
             return self.paths if self.paths is not None else "package:" + self.path + "\n"
         if arguments == ("sha256sum", self.path):
             result = self.digest + "  " + self.path + "\n"
@@ -164,8 +164,8 @@ class InstalledIdentityTests(unittest.TestCase):
     def test_actual_description_satisfies_original_execution_contract(self):
         result = self.describe()
         ExecutionIdentity(self.args.artifact, "a" * 40, self.sha).verify_description(result)
-        self.assertEqual(self.adb.events, [("pm", "path", "org.overte.phone"),
-            ("sha256sum", self.adb.path), ("pm", "path", "org.overte.phone")])
+        self.assertEqual(self.adb.events, [("pm", "path", "io.github.noah_be.overte.phone"),
+            ("sha256sum", self.adb.path), ("pm", "path", "io.github.noah_be.overte.phone")])
         exported = json.dumps(result)
         self.assertNotIn("test-only-target", exported)
         self.assertNotIn("/data/app", exported)
@@ -187,7 +187,7 @@ class InstalledIdentityTests(unittest.TestCase):
             self.adb.events.clear()
             with self.assertRaises(ValueError):
                 self.describe()
-            self.assertEqual(self.adb.events, [("pm", "path", "org.overte.phone")])
+            self.assertEqual(self.adb.events, [("pm", "path", "io.github.noah_be.overte.phone")])
 
     def test_changed_installed_path_is_rejected(self):
         self.adb.change_after_hash = True
@@ -261,9 +261,9 @@ class InstalledIdentityTests(unittest.TestCase):
         self.assertEqual(json.loads(output.getvalue()), {"cleaned": True})
 
     def appium_instance(self):
-        target = dict(appId="org.overte.phone", physical=True, platform="android", enabled=True,
+        target = dict(appId="io.github.noah_be.overte.phone", physical=True, platform="android", enabled=True,
                       serverUrl="http://127.0.0.1:4723", process={"kind": "adb"},
-                      capabilities={"appium:udid": "test-only-native-target", "appium:appPackage": "org.overte.phone"})
+                      capabilities={"appium:udid": "test-only-native-target", "appium:appPackage": "io.github.noah_be.overte.phone"})
         with patch.object(appium.AppiumAdapter, "load_targets", return_value={"test-only-appium": target}):
             instance = appium.PhoneAppiumAdapter(adapter.VerifiedCandidate(self.args))
         for boundary in (patch.object(instance, "attest_android_phone_profile"),

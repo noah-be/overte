@@ -1,0 +1,48 @@
+// SPDX-License-Identifier: Apache-2.0
+// Acquisition only: no Android plugin, application build, test or device tasks.
+import org.gradle.api.attributes.Usage
+import org.gradle.api.attributes.java.TargetJvmEnvironment
+
+plugins { id 'java-base' }
+
+configurations {
+    gateUnitTests {
+        attributes {
+            attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+            attribute(TargetJvmEnvironment.TARGET_JVM_ENVIRONMENT_ATTRIBUTE,
+                objects.named(TargetJvmEnvironment, TargetJvmEnvironment.STANDARD_JVM))
+        }
+    }
+    gateAndroidUnitTests {
+        extendsFrom gateUnitTests
+        attributes {
+            attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+            attribute(TargetJvmEnvironment.TARGET_JVM_ENVIRONMENT_ATTRIBUTE,
+                objects.named(TargetJvmEnvironment, TargetJvmEnvironment.ANDROID))
+        }
+    }
+    gateAndroid26
+    gateAndroid35
+}
+dependencyLocking {
+    lockAllConfigurations()
+    lockMode = LockMode.STRICT
+}
+dependencies {
+    gateUnitTests 'junit:junit:4.13.2'
+    gateUnitTests 'org.robolectric:robolectric:4.16.1'
+    gateUnitTests 'androidx.test:core:1.6.1'
+    // Same runtime versions as the existing offline Phone launcher tests.
+    gateAndroid26 'org.robolectric:android-all-instrumented:8.0.0_r4-robolectric-r1-i7'
+    gateAndroid35 'org.robolectric:android-all-instrumented:15-robolectric-13954326-i7'
+}
+tasks.register('resolveGateTestInputs') {
+    doLast {
+        [configurations.gateUnitTests, configurations.gateAndroidUnitTests, configurations.gateAndroid26,
+         configurations.gateAndroid35].each { configuration ->
+            configuration.files.each { artifact ->
+                if (!artifact.isFile()) throw new GradleException('Missing test input')
+            }
+        }
+    }
+}

@@ -31,7 +31,7 @@ fi
 """)
         self.analyzer = self.tool("apkanalyzer", """
 case "$2" in
-  application-id) printf '%s\n' "${MOCK_PACKAGE:-org.overte.phone}" ;;
+  application-id) printf '%s\n' "${MOCK_PACKAGE:-io.github.noah_be.overte.phone}" ;;
   version-code) printf '7\n' ;;
   version-name) printf '0.4.0\n' ;;
   min-sdk) printf '26\n' ;;
@@ -73,7 +73,7 @@ printf 'Signer #1 certificate SHA-256 digest: %064d\n' 0
         result = self.run_verifier(None, "--expect-debuggable", "1", "--source-revision", revision)
         self.assertEqual(result.returncode, 0, result.stderr)
         manifest = json.loads(result.stdout)
-        self.assertEqual(manifest["package"], "org.overte.phone")
+        self.assertEqual(manifest["package"], "io.github.noah_be.overte.phone")
         self.assertEqual(manifest["target_sdk"], 36)
         self.assertEqual(manifest["page_size_bytes"], 16384)
         self.assertEqual(manifest["source_revision"], revision)
@@ -106,7 +106,7 @@ printf 'Signer #1 certificate SHA-256 digest: %064d\n' 0
         result = self.run_verifier(None, "--output", str(output))
 
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertEqual("org.overte.phone", json.loads(output.read_text())["package"])
+        self.assertEqual("io.github.noah_be.overte.phone", json.loads(output.read_text())["package"])
         self.assertEqual([], list(output.parent.glob(".apk-manifest.json.*.tmp")))
 
     def test_symlinked_output_is_rejected_before_gate(self):

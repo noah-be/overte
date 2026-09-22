@@ -3,6 +3,10 @@
 gradle.beforeProject { app ->
     if (app.path == ':phoneInterface') {
         app.pluginManager.withPlugin('com.android.application') {
+            app.tasks.withType(org.gradle.api.tasks.testing.Test).configureEach {
+                systemProperty 'robolectric.offline', 'true'
+                systemProperty 'robolectric.dependency.dir', '/attempt/robolectric-sdk'
+            }
             // Register before project evaluation; projectsEvaluated is too late
             // to change AGP's finalized DSL and native variant model.
             app.androidComponents.finalizeDsl { android ->

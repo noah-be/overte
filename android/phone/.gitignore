@@ -1,0 +1,3 @@
+# Local Phone diagnostic output; keep qualification evidence outside the checkout.
+*.log
+*.hprof

@@ -22,7 +22,7 @@ public class EmulatorPackagingTest {
     public void emulatorRunsX86_64PackageWithNativeInterface() throws Exception {
         Context target = InstrumentationRegistry.getInstrumentation().getTargetContext();
 
-        assertEquals("org.overte.phone", target.getPackageName());
+        assertEquals("io.github.noah_be.overte.phone", target.getPackageName());
         assertTrue("The emulator must advertise x86_64 as a supported ABI",
                 Arrays.asList(Build.SUPPORTED_ABIS).contains("x86_64"));
 

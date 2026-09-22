@@ -130,7 +130,11 @@ if [ "$resume" -eq 0 ]; then
   python3 "$repo_root/android/phone/fdroid/conan/recipe_export_store.py" restore \
     --index "$index" --scanned-root "$repo_root" \
     --output "$OVERTE_ATTEMPT_ROOT/recipe-transport.tgz" --conan-home "$conan_home"
-  printf '%s\n' "core.sources:download_cache=$OVERTE_ATTEMPT_ROOT/conan-source-cache" > "$conan_home/global.conf"
+  # Ignore archive owner IDs in the root-mapped build namespace. Otherwise
+  # tarfile's failed chown can skip chmod and leave configure scripts at 0644.
+  # The data filter retains executable bits and rejects unsafe archive paths.
+  printf '%s\n' "core.sources:download_cache=$OVERTE_ATTEMPT_ROOT/conan-source-cache" \
+    'tools.files.unzip:filter=data' > "$conan_home/global.conf"
 else
   [ -d "$conan_home" ] || { echo "build: resume cache is absent" >&2; exit 1; }
 fi

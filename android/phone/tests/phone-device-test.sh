@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-readonly PACKAGE="org.overte.phone"
-readonly LAUNCHER="org.overte.phone/.PermissionsActivity"
-readonly QT_ACTIVITY="org.overte.phone/.PhoneInterfaceActivity"
+readonly PACKAGE="io.github.noah_be.overte.phone"
+readonly LAUNCHER="io.github.noah_be.overte.phone/org.overte.phone.PermissionsActivity"
+readonly QT_ACTIVITY="io.github.noah_be.overte.phone/org.overte.phone.PhoneInterfaceActivity"
 readonly DEFAULT_APK="phone/apps/phoneInterface/build/outputs/apk/debug/phoneInterface-debug.apk"
 readonly -a EXPECTED_PERMISSIONS=(
     android.permission.ACCESS_NETWORK_STATE
@@ -273,14 +273,14 @@ require_stable_pid() {
 
 phone_activity_is_resumed() {
     adb_for shell dumpsys activity activities 2>/dev/null | \
-        grep -Eq '(mResumedActivity|topResumedActivity).*org\.overte\.phone/(\.PhoneInterfaceActivity|org\.overte\.phone\.PhoneInterfaceActivity)'
+        grep -Eq '(mResumedActivity|topResumedActivity).*io\.github\.noah_be\.overte\.phone/(\.PhoneInterfaceActivity|org\.overte\.phone\.PhoneInterfaceActivity)'
 }
 
 phone_activity_is_backgrounded() {
     local activity_state
     activity_state="$(adb_for shell dumpsys activity activities 2>/dev/null)" || return 1
     grep -Eq '(mResumedActivity|topResumedActivity)' <<<"$activity_state" &&
-        ! grep -Eq '(mResumedActivity|topResumedActivity).*org\.overte\.phone/' <<<"$activity_state"
+        ! grep -Eq '(mResumedActivity|topResumedActivity).*io\.github\.noah_be\.overte\.phone/' <<<"$activity_state"
 }
 
 printf '\nInstalling APK on the selected phone...\n'

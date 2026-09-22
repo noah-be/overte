@@ -1,0 +1,7 @@
+Overte Mobile (Unofficial) is an unofficial Android client for exploring Overte virtual worlds. Join a domain, move and look around using touch controls, and interact with other people through avatars and voice chat.
+
+This is an early version of the noah-be/overte fork. It includes touch navigation and an in-app tablet. Microphone access is optional; it is needed to transmit your voice.
+
+Requires a 64-bit ARM Android device running Android 8.0 or newer with OpenGL ES 3.2 support. World content is downloaded from the domains and asset servers you visit. Performance and compatibility vary with the world and device.
+
+Overte is free and open-source software. This phone client is developed in a separate fork; it is not a claim of an official upstream Android release.

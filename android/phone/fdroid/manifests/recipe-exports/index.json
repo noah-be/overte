@@ -209,6 +209,16 @@
       "rrev": "c3730c7936aefa462eb6c6560a5e1fd8",
       "timestamp": 1726135496.917
     },
+    "libdeflate/1.25": {
+      "cache_folder": "libde0dcff5ed3c0fa",
+      "files": {
+        "export/conandata.yml": "69dae2d27451cd9c00350511816eb35c6eda00703dd138a602a7d2ca81162175",
+        "export/conanfile.py": "d8c220fb656db11968fe0d407a849deed53381baac824d36da0ee2a440c96784",
+        "export/conanmanifest.txt": "31fd468e232a2cc963d42460e4e398fa52192bdb58d556d2c6ab91ae7635065b"
+      },
+      "rrev": "10964328ce2247995dc8d6add13a8ac5",
+      "timestamp": 1789929190.5494678
+    },
     "libjpeg/9f": {
       "cache_folder": "libjp3aee07793791a",
       "files": {
@@ -230,16 +240,15 @@
       "rrev": "a76ae5683eb20fbde3f88e16d8bea96e",
       "timestamp": 1788699903.7871914
     },
-    "libpng/1.6.44": {
-      "cache_folder": "libpn96b6230f1a784",
+    "libpng/1.6.58": {
+      "cache_folder": "libpnc23128d5465c4",
       "files": {
-        "export/conandata.yml": "4e94090f83b50883cc44b180f402a36631a1ceb7d03f834513fd16560e98c02f",
+        "export/conandata.yml": "66c2423f1c72e75db1411c17803ff84eb8c9d144887ee7b9295495e42d5e174d",
         "export/conanfile.py": "6aa88fb681bbe5cdaf5720b3c6a66ac79933a6ab43bf0c7d3bc35cbda6416fa8",
-        "export/conanmanifest.txt": "af11906ef29db0eee0c3a7e528f4a36d7fe59629d3cadff64915de7dc2eb972d",
-        "export_sources/src/conan_cmake_project_include.cmake": "40eeee643497197b1f024f66f44b97394c1a5f1053aba5eff6ae4d584736343a"
+        "export/conanmanifest.txt": "6c2f7ee293ea93c7aadb85a68a3d44ca89aafb0854407f9749f7ebbaabdf2dd4"
       },
-      "rrev": "9e1aa08fb46946c7c91e4ae03bd49811",
-      "timestamp": 1726517437.225
+      "rrev": "f534fb581482e6cdd53f36e1602ccfb3",
+      "timestamp": 1789929190.101895
     },
     "md4c/0.5.2": {
       "cache_folder": "md4c05e52f0325162",
@@ -323,16 +332,15 @@
       "rrev": "ee3f2e5539ab683fdaba561d89c9ecee",
       "timestamp": 1788266660.0963924
     },
-    "openexr/3.1.9": {
-      "cache_folder": "openee487817fefaeb",
+    "openexr/3.2.12": {
+      "cache_folder": "opene92b1c451ab9eb",
       "files": {
-        "export/conandata.yml": "8276ead5c3e8687d793b4a6328682651dd7c097d433a3cfcffea388ef84956e6",
-        "export/conanfile.py": "19ab94c52d3701209ce433bd5d4b535dd9d2f3d566007ad6845a99d0e63aba62",
-        "export/conanmanifest.txt": "9e6381acf37794d200b521e88e1a3597feb84de51391a30e8255ec09bfad2e3f",
-        "export_sources/patches/3.1.4-gcc5-bug-workaround.patch": "65cdaed30c21f16cf3287eaf59493b08bd3a2fe315b4a456ce29449455b72600"
+        "export/conandata.yml": "08bd8217a9a43a610f0da44c120dee88194aa354386a1b68d4ee31d794b493b7",
+        "export/conanfile.py": "05f9d4eb441d960d5ba100b05d079b56a51b83833de0a14980e8b0959824edc5",
+        "export/conanmanifest.txt": "5d36fdb665c997439bb916562dafd26ed6b0eaeffcfff68a0535015d10d4b1a3"
       },
-      "rrev": "cb853b3a9baee5f924ee5929ed94d55b",
-      "timestamp": 1727884745.806
+      "rrev": "7d958a6cf728315cdefaa2768f7bf9ad",
+      "timestamp": 1789930064.2451797
     },
     "opengl/system": {
       "cache_folder": "opengd32fdf9133620",
@@ -397,17 +405,17 @@
       "timestamp": 1755505628.021
     },
     "qt/5.15.18-2026.01.04@overte/stable": {
-      "cache_folder": "qtcbbe61877a459",
+      "cache_folder": "qta14fd3d8f6023",
       "files": {
         "export/conandata.yml": "b149bbcdc8005eb49cf327a26656e601bf48087aab28d51baa5bbf74a965bec8",
-        "export/conanfile.py": "2a557393b0cb643c67f1df810bf5a90c12acf71dcd953571ece223fd3ba0b442",
-        "export/conanmanifest.txt": "607b0571c3091af1b97d8be0c48990ea89716507afe49377ed182d1cf667977b",
+        "export/conanfile.py": "35950c13efdd89e805e355d6f3171ad1f500d8a8bc4bf8b209d4c9112e93d70b",
+        "export/conanmanifest.txt": "4d069829e0c4bad94a4f44930ada4cc43e3738364ff7c8391da4a3339e43f183",
         "export/qtmodules5.15.18-2026.01.04.conf": "98d8632bcfa4cc7e7dc1659770bca0a1da4397c762ef5a4f99eb413e5b756b70",
         "export_sources/patches/Fix-error-uintptr_t-does-not-name-a-type-in-QtDeclarative.patch": "33d389780c86d24d6de3f9bed8a5fa28379ad45eddcb508c365bb9f24d1aa9d7",
         "export_sources/patches/qt-pico-android-runtime.patch": "ee87070ce3b613ca5d9111dcd6d21679e2b292329b572d93ae2f6ed2add6a9b3"
       },
-      "rrev": "d75aeab99c3d3426df7ec9b39bc73aa8",
-      "timestamp": 1788770410.623351
+      "rrev": "4fd1f62ee1914f2f3ec4fe298a07c283",
+      "timestamp": 1789929190.7788649
     },
     "quazip/1.4": {
       "cache_folder": "quazi8728a2837d31c",

@@ -19,6 +19,7 @@ import zipfile
 from core import digest, write_json
 from evidence import role_paths, validate_receipt, write_receipt
 from source_checks import RULES, android_manifest, scan_text, texts
+from test_store import verify_inventory, stage_runtimes
 
 
 def static(g):
@@ -122,12 +123,20 @@ def build(g):
             raise ValueError('Gradle store contains undeclared initialization or user properties')
     if any(p.is_symlink() for p in gradle_store.rglob('*')):
         raise ValueError('Gradle acquisition store must not contain links outside its verified inventory')
+    verify_inventory(gradle_store)
     shutil.copytree(gradle_store, g.attempt / 'gradle-home', symlinks=False)
     for check in ('COMPLETE', 'ARTIFACT_SHA256SUMS'):
         rc, _ = g.run('gradle-store-' + check, ['sha256sum', '-c', check], cwd=g.attempt / 'gradle-home')
         if rc != 0:
             return
     base = container_command(g, g.attempt)
+    stage_runtimes(g.attempt / 'gradle-home', g.attempt / 'robolectric-sdk')
+    rc, _ = g.run('offline-test-dependency-preflight', [*base, '/usr/bin/env',
+        'GRADLE_USER_HOME=/attempt/gradle-home', '/attempt/source/android/common/gradlew',
+        '--offline', '--no-daemon', '-p', '/attempt/source/android/phone/quality-gate/gradle-tests',
+        'resolveGateTestInputs'], env=podman_env(g))
+    if rc != 0:
+        return
     rc, _ = g.run('source-release-build', [*base, '/bin/sh', '/attempt/source/android/phone/quality-gate/container-build.sh'],
                   timeout=g.config.get('build_timeout_seconds', 172800), env=podman_env(g))
     if rc != 0:
@@ -250,20 +259,14 @@ def unpack(g, archive, dest):
     return inventory
 
 
-def artifact(g):
-    apk = load_artifact(g)
-    if apk.suffix != '.apk':
-        raise ValueError('APK required for final manifest/device checks; AAB inventory is supplemental')
-    dest = g.out / 'apk-unpacked'
-    rows = unpack(g, apk, dest)
-    write_json(g.out / 'apk-files.json', rows)
+def inspect_payload(g, dest, rows, prefix=''):
     for row in rows:
-        rel = row['path']
+        rel = prefix + row['path']
         if re.search(r'(?i)\.map$|\.log$|\.bak$|\.jks$|\.keystore$|(?:^|/)(?:testdata|debug|screenshots)/|overte_e2e_probe|e2e_scene', rel):
             g.finding('unexpected-payload', 'FAIL', rel, 'Development/private payload in release.', 'Remove it from release packaging.', fdroid=True, suppressible=False)
         if row['size'] > g.policy['large_file_bytes']:
             g.finding('large-payload', 'WARNING', rel, 'Large packaged member.', 'Review compression, necessity, and duplicate resources.')
-        data = (dest / rel).read_bytes()
+        data = (dest / row['path']).read_bytes()
         # Includes printable ASCII and UTF-16 strings in DEX/ELF/resources, not only text assets.
         text = data.decode('utf-8', errors='replace')
         scan_text(g, rel, text, RULES)
@@ -271,6 +274,16 @@ def artifact(g):
             scan_text(g, rel, data.decode('utf-16-le', errors='replace'), RULES)
         if re.search(rb'com[/\.]google[/\.]android[/\.]gms|com[/\.]google[/\.]firebase|com[/\.]appsflyer|com[/\.]flurry', data):
             g.finding('packaged-sdk', 'FAIL', rel, 'Potential non-free/tracking SDK in shipped bytes.', 'Verify and remove prohibited runtime components.', fdroid=True, suppressible=False)
+
+
+def artifact(g):
+    apk = load_artifact(g)
+    if apk.suffix != '.apk':
+        raise ValueError('APK required for final manifest/device checks; AAB inventory is supplemental')
+    dest = g.out / 'apk-unpacked'
+    rows = unpack(g, apk, dest)
+    write_json(g.out / 'apk-files.json', rows)
+    inspect_payload(g, dest, rows)
     write_json(g.out / 'native-libraries.json', [r for r in rows if r['path'].endswith('.so')])
     if g.tool('gitleaks', ('version',)):
         g.run('gitleaks-artifact', ['gitleaks', 'dir', dest, '--redact=100', '--report-format=json',
@@ -315,8 +328,10 @@ def artifact(g):
             aab_dest = g.out / f'aab-unpacked-{n}'
             aab_rows = unpack(g, aab, aab_dest)
             write_json(g.out / f'aab-files-{n}.json', aab_rows)
-            for row in aab_rows:
-                scan_text(g, 'AAB/' + row['path'], (aab_dest / row['path']).read_bytes().decode('utf-8', errors='replace'), RULES)
+            inspect_payload(g, aab_dest, aab_rows, prefix='AAB/')
+            if g.tool('gitleaks', ('version',)):
+                g.run(f'gitleaks-aab-{n}', ['gitleaks', 'dir', aab_dest, '--redact=100',
+                      '--report-format=json', '--report-path', g.out / f'gitleaks-aab-{n}.json'])
             g.run(f'existing-aab-contents-{n}', [sys.executable, g.root / 'android/phone/tests/check-phone-apk-contents.py', aab])
         if not aabs:
             g.fail('aab-absent', 'Clean build did not produce the requested supplemental AAB.')
@@ -508,13 +523,23 @@ def analyze_telemetry(g, output):
         g.fail('telemetry-duration', 'Idle-soak metrics do not prove the requested two-hour session.')
         return 0
     samples = [json.loads(line) for line in p.read_text().splitlines() if line.strip()]
-    if len(samples) < 3 or any('memoryPssKb' not in s for s in samples):
-        g.fail('telemetry-incomplete', 'Insufficient memory samples.')
+    fields = {'memoryPssKb': (1, 2 ** 63 - 1), 'memoryRssKb': (1, 2 ** 63 - 1),
+              'batteryLevel': (0, 100), 'batteryTemperatureDeciC': (-500, 2000),
+              'thermalStatus': (0, 6)}
+    if len(samples) < 3 or any(not isinstance(s, dict) or any(
+            type(s.get(key)) is not int or not low <= s[key] <= high
+            for key, (low, high) in fields.items()) for s in samples):
+        g.fail('telemetry-incomplete', 'Missing or invalid memory, battery or thermal samples.')
         return 0
     elapsed = [sample.get('elapsedSeconds') for sample in samples]
     if (any(type(value) is not int for value in elapsed) or elapsed != sorted(set(elapsed))
-            or elapsed[0] > 60 or elapsed[-1] < 7140 or len(samples) != metrics.get('samples')):
+            or not 0 <= elapsed[0] <= 60 or not 7140 <= elapsed[-1] <= 7260
+            or any(b - a > 90 for a, b in zip(elapsed, elapsed[1:]))
+            or type(metrics.get('samples')) is not int or len(samples) != metrics['samples']):
         g.fail('telemetry-coverage', 'Soak samples do not cover the recorded interval.')
+        return 0
+    if any(s['thermalStatus'] > 5 for s in samples):
+        g.fail('telemetry-thermal', 'Recorded thermal status exceeded the soak safety limit.')
         return 0
     growth = samples[-1]['memoryPssKb'] - samples[0]['memoryPssKb']
     write_json(output / 'memory-trend.json', dict(samples=len(samples), pss_growth_kb=growth,

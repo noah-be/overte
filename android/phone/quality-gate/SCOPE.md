@@ -11,7 +11,7 @@ lives entirely below `android/phone/quality-gate/` on a Phone topic branch.
 |---|---|
 | `android/phone/settings.gradle` | Single `:phoneInterface` application; Google/Maven Central repositories. No Pico Gradle project is selected. |
 | `android/phone/build.gradle` | AGP 8.13.2, explicit release version validation. |
-| `android/phone/apps/phoneInterface/build.gradle` | `org.overte.phone`, min 26, target/compile 36, NDK 27.3.13750724, CMake 3.31.6, Java 17, ARM64 (separate x86 emulator mode). |
+| `android/phone/apps/phoneInterface/build.gradle` | `io.github.noah_be.overte.phone`, min 26, target/compile 36, NDK 27.3.13750724, CMake 3.31.6, Java 17, ARM64 (separate x86 emulator mode). |
 | Phone Java/C++/resources and manifest | Permissions/lifecycle/touch/deep links and native `phoneInterface` library. |
 | `android/common/libraries/qt/src/main/java` | Shared Qt Android Java runtime sources, compiled into Phone. |
 | `security/redaction/java` | Root-level shared sanitizer included through `../../../../security/redaction/java` from the application module. |

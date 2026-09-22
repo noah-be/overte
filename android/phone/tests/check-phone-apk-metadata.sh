@@ -25,7 +25,7 @@ permissions="$(manifest_value permissions | sed '/^[[:space:]]*$/d' | LC_ALL=C s
     metadata_error 'permissions'
 debuggable="$(manifest_value debuggable)" || metadata_error 'debuggable state'
 
-[[ "$application_id" == org.overte.phone ]] || { echo 'ERROR: unexpected APK application ID' >&2; exit 1; }
+[[ "$application_id" == io.github.noah_be.overte.phone ]] || { echo 'ERROR: unexpected APK application ID' >&2; exit 1; }
 [[ "$min_sdk" == 26 && "$target_sdk" == 36 ]] || { echo 'ERROR: unexpected APK SDK metadata' >&2; exit 1; }
 [[ "$version_code" =~ ^[1-9][0-9]{0,9}$ ]] &&
     ((10#$version_code <= 2147483647)) || {

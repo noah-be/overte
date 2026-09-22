@@ -22,7 +22,7 @@
         android:theme="@style/OverteStartupTheme">
 
         <activity
-            android:name=".PermissionsActivity"
+            android:name="org.overte.phone.PermissionsActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:screenOrientation="landscape"
@@ -41,7 +41,7 @@
         </activity>
 
         <activity
-            android:name=".PhoneInterfaceActivity"
+            android:name="org.overte.phone.PhoneInterfaceActivity"
             android:configChanges="orientation|uiMode|screenLayout|screenSize|smallestScreenSize|locale|fontScale|keyboard|keyboardHidden|navigation"
             android:exported="false"
             android:launchMode="singleTask"

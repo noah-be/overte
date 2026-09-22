@@ -10,7 +10,7 @@
 
 The `phoneInterface` module packages Overte's normal mono 2D renderer and
 touchscreen input for 64-bit Android phones. It deliberately has its own
-application ID (`org.overte.phone`) and does not package the Pico OpenXR
+application ID (`io.github.noah_be.overte.phone`) and does not package the Pico OpenXR
 runtime. The port currently targets ARM64 devices running Android 8 (API 26)
 or newer and targets Android 16 (API 36). Landscape is the primary qualified
 layout; the manifest's `fullSensor` policy also permits portrait as an
@@ -674,7 +674,7 @@ Play pre-launch testing on both 4 KiB and 16 KiB ARM64 devices.
 Gradle creates an Android App Bundle with `:phoneInterface:bundleRelease`.
 Every release invocation requires an explicit positive `VERSION_CODE` and an
 explicit `RELEASE_NUMBER`; select a code greater than every code previously uploaded for
-`org.overte.phone`. This local check cannot query Play, so CI or the release
+`io.github.noah_be.overte.phone`. This local check cannot query Play, so CI or the release
 operator remains responsible for monotonicity. The value must also fit
 Android's signed 32-bit version-code field (`1` through `2147483647`). The gate
 is attached to the release APK and bundle tasks themselves, so it also runs
@@ -758,5 +758,5 @@ ANDROID_SERIAL=<phone-serial> ./tests/phone-device-test.sh
 ```
 
 Do not capture or commit a global `adb logcat`; it can contain unrelated device,
-application, account, and user data. The package name is `org.overte.phone`,
+application, account, and user data. The package name is `io.github.noah_be.overte.phone`,
 and the launcher activity is `org.overte.phone.PermissionsActivity`.

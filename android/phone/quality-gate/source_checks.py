@@ -8,6 +8,8 @@ import subprocess
 import xml.etree.ElementTree as ET
 
 from core import digest, write_json
+from history_review import reviewed_exception
+from history_risks import reviewed_risk
 
 RULES = [
     ('private-key', 'FAIL', r'-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----', 'Remove the key and rotate it.'),
@@ -90,12 +92,27 @@ def secrets(g):
                 if not isinstance(findings, list) or (rc == 1 and not findings):
                     raise ValueError('Secret scanner report is inconsistent with its exit status')
                 for row in findings:
+                    commit = row.get('Commit') if mode == 'git' else None
+                    if mode == 'git' and (not isinstance(commit, str) or not re.fullmatch(r'[0-9a-f]{40,64}', commit)):
+                        raise ValueError('Historical secret finding lacks a valid commit identity')
                     relative = row.get('File', '')
                     relative = relative.removeprefix(str(scope) + '/').removeprefix(str(g.root) + '/')
                     g.finding('gitleaks-' + row['RuleID'], 'FAIL', relative,
                               'Secret detector finding; value redacted in private evidence.',
                               'Rotate genuine secrets and investigate history; waive only reviewed false positives.',
-                              row.get('StartLine'), fdroid=True, suppressible=mode != 'git')
+                              row.get('StartLine'), fdroid=True, suppressible=mode != 'git', history_commit=commit)
+                    if mode == 'git':
+                        exception = reviewed_exception(g, row, relative)
+                        if exception:
+                            g.findings[-1].update(status='WARNING', exception=exception, fdroid_critical=False,
+                                message='Exact historical false positive reviewed; see bound exception reason.',
+                                action='Retain review evidence; any identity mismatch or expiry blocks again.')
+                        else:
+                            risk = reviewed_risk(g, row, relative)
+                            if risk:
+                                g.findings[-1].update(status='WARNING', historical_risk=risk, fdroid_critical=False,
+                                    message='Reviewed inherited historical credential; validity unknown. Bound fragments absent from current tracked source.',
+                                    action='Keep historical risk visible. Reintroduction, changed identity or expired review blocks again; current-source and artifact checks remain unchanged.')
             elif rc in (0, 1):
                 g.fail('gitleaks-report', 'Secret scan did not produce its required report.')
     shallow = subprocess.check_output(['git', 'rev-parse', '--is-shallow-repository'], cwd=g.root, text=True).strip()
@@ -145,10 +162,22 @@ def hygiene(g):
     for rel, text in texts(g):
         if '/quality-gate/' not in rel:
             scan_text(g, rel, text, CLEANUP)
-    ignore = (g.root / '.gitignore').read_text()
-    for name in ('*.log', 'local.properties', '.gradle'):
-        if name not in ignore:
-            g.finding('ignore-coverage', 'WARNING', '.gitignore', f'Review ignore coverage for {name}.', 'Use a precise ignore pattern if appropriate.')
+    # Check Git semantics, including nested rules and negations, rather than
+    # searching for pattern substrings in one file.
+    probes = ['android/phone/diagnostic.log', 'android/phone/heap.hprof',
+              'android/phone/local.properties', 'android/phone/.gradle/cache.bin',
+              'android/phone/apps/phoneInterface/build/intermediates/output.bin']
+    checked = subprocess.run(['git', 'check-ignore', '--no-index', '-z', '--stdin'],
+                             cwd=g.root, input='\0'.join(probes) + '\0',
+                             text=True, capture_output=True)
+    if checked.returncode not in (0, 1):
+        g.fail('ignore-inspection', 'Git could not determine Android ignore coverage.')
+    else:
+        ignored = set(checked.stdout.split('\0'))
+        for name in probes:
+            if name not in ignored:
+                g.finding('ignore-coverage', 'WARNING', name, 'Local Android output is not ignored.',
+                          'Add a scoped ignore pattern; preserve intentionally tracked fixtures.')
 
 
 def licenses(g):
@@ -160,7 +189,7 @@ def licenses(g):
             branding.append(dict(path=rel, basis='source reference; confirm packaging in artifact inventory'))
     for rel in g.files:
         if Path(rel).suffix.lower() in g.policy['media_extensions']:
-            rows.append(dict(path=rel, sha256=digest(g.root / rel), kind='media', license='REQUIRES_RECONCILIATION'))
+            rows.append(dict(path=rel, sha256=digest(g.root / rel), kind='media', license='NOT_DETERMINED_BY_INVENTORY'))
             if re.search(r'(?i)logo|icon|launcher|overte|hifi|vircadia', rel):
                 branding.append(dict(path=rel, basis='brand-like resource name'))
     write_json(g.out / 'license-inventory.json', rows)
@@ -210,7 +239,7 @@ def licenses(g):
                     g.fail('license-scan-error', 'License scanner could not inspect a file.', relative, True)
                 expr = row.get('detected_license_expression_spdx')
                 if row.get('type') == 'file' and (not expr or 'LicenseRef' in expr):
-                    g.finding('license-unresolved', 'WARNING', relative, 'No definitive SPDX license assignment.', 'Reconcile file with component/asset license and notices.', fdroid=True)
+                    g.finding('license-unresolved', 'WARNING', relative, 'No definitive SPDX license assignment.', 'Review applicable project/component/collection license and notices; missing per-file metadata alone is not a violation.')
             if set(g.source_hashes) - scanned_paths:
                 g.fail('license-scan-coverage', 'License report does not cover every materialized source file.', fdroid=True)
         else:
@@ -282,6 +311,20 @@ def android_manifest(g, text, path, final=False):
     return permissions
 
 
+def android_resource(g, text, rel):
+    root = ET.fromstring(text)
+    for node in root.iter():
+        if node.tag in {'root-path', 'external-path'} and node.get('path', '').strip() in {'', '.', '/'}:
+            g.finding('fileprovider-broad-path', 'FAIL', rel, 'Broad file sharing path.',
+                      'Restrict FileProvider to dedicated export directories.')
+        if node.get('cleartextTrafficPermitted') == 'true':
+            g.finding('cleartext-config', 'FAIL', rel, 'Cleartext explicitly enabled.',
+                      'Remove or document a tightly scoped exception.')
+        if node.tag == 'certificates' and node.get('src') == 'user':
+            g.finding('user-certificate-trust', 'WARNING', rel, 'User CA trust enabled.',
+                      'Confirm this is not a debug policy in the release.')
+
+
 def android(g):
     path = 'android/phone/apps/phoneInterface/src/main/AndroidManifest.xml'
     permissions = android_manifest(g, (g.root / path).read_text(), path)
@@ -289,16 +332,14 @@ def android(g):
     (g.out / 'permissions.md').write_text('# Android permissions\n\n| Permission | Source | Reason |\n|---|---|---|\n' + '\n'.join(f"| {p['name']} | {p['origin']} | {p['reason']} |" for p in permissions) + '\n\nFinal manifest and merger provenance are checked after the clean build.\n')
     for rel, text in texts(g):
         if '/src/main/res/xml/' in rel:
-            if re.search(r'<(?:root-path|external-path)\b[^>]*path=["\'](?:\.|/)["\']', text):
-                g.finding('fileprovider-broad-path', 'FAIL', rel, 'Broad file sharing path.', 'Restrict FileProvider to dedicated export directories.')
-            if 'cleartextTrafficPermitted="true"' in text:
-                g.finding('cleartext-config', 'FAIL', rel, 'Cleartext explicitly enabled.', 'Remove or document a tightly scoped exception.')
-            if 'src="user"' in text:
-                g.finding('user-certificate-trust', 'WARNING', rel, 'User CA trust enabled.', 'Confirm this is not a debug policy in the release.')
+            android_resource(g, text, rel)
 
 
 def fdroid(g):
     blobs = []
+    wrapper = 'android/common/gradle/wrapper/gradle-wrapper.jar'
+    lock_path = g.root / 'android/phone/fdroid/manifests/toolchain-provisioning.lock.json'
+    bindings = json.loads(lock_path.read_text()).get('gradle_bindings', {}) if lock_path.is_file() else {}
     for rel in g.files:
         p = g.root / rel
         if not p.is_file() or p.is_symlink():
@@ -306,7 +347,16 @@ def fdroid(g):
         with p.open('rb') as stream:
             header = stream.read(4)
         if p.suffix.lower() in g.policy['binary_extensions'] or header.startswith((b'\x7fELF', b'PK\x03\x04', b'\xca\xfe\xba\xbe', b'MZ')):
-            blobs.append(dict(path=rel, sha256=digest(p), origin='REVIEW_REQUIRED', necessity='REVIEW_REQUIRED'))
+            sha = digest(p)
+            row = dict(path=rel, sha256=sha, origin='REVIEW_REQUIRED', necessity='REVIEW_REQUIRED')
+            if rel == wrapper:
+                if bindings.get(rel) != sha:
+                    g.fail('wrapper-integrity', 'Gradle wrapper differs from the reviewed toolchain binding.', rel, True)
+                else:
+                    row.update(origin='toolchain-provisioning.lock.json:gradle_bindings',
+                               necessity='Gradle command-line bootstrap; not application runtime',
+                               qualification='Integrity bound; F-Droid bootstrap policy review still required')
+            blobs.append(row)
             g.finding('binary-origin', 'WARNING', rel, 'Prebuilt/archive input requires provenance review.', 'Identify source, build recipe, license and actual Android usage.', fdroid=True)
     write_json(g.out / 'binary-origins.json', blobs)
     for rel, text in texts(g):

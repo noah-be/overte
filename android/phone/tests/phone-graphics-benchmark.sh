@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-readonly PACKAGE="org.overte.phone"
-readonly ACTIVITY="org.overte.phone/.PermissionsActivity"
+readonly PACKAGE="io.github.noah_be.overte.phone"
+readonly ACTIVITY="io.github.noah_be.overte.phone/org.overte.phone.PermissionsActivity"
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly worktree_root="$(cd -- "$script_dir/../../.." && pwd)"
 
