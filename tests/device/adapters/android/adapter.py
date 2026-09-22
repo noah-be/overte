@@ -40,8 +40,9 @@ from openxr_input.android_transport import AndroidOpenXrTransport  # noqa: E402
 PROFILES = {
     "phone": {
         "adapter": "android-phone-adb",
-        "package": "org.overte.phone",
-        "activity": "org.overte.phone/.PermissionsActivity",
+        "package": "io.github.noah_be.overte.phone",
+        "activity": "io.github.noah_be.overte.phone/org.overte.phone.PermissionsActivity",
+        "e2e_activity": "io.github.noah_be.overte.phone/org.overte.phone.E2eLauncherActivity",
         "display": "Overte Android Phone",
     },
     "pico": {
@@ -362,7 +363,7 @@ class AndroidAdapter:
         elif running:
             self.adb.shell(target, "am", "force-stop", package)
         self.adb.shell(target, "am", "start", "-W", "-n",
-                       f"{package}/.E2eLauncherActivity")
+                       self.profile.get("e2e_activity", f"{package}/.E2eLauncherActivity"))
         if not isolated_pico:
             return None
         identity = self.wait_for_process_identity(target)
@@ -708,7 +709,7 @@ class AndroidAdapter:
                         fail("Android controlled launch process identity changed")
                 if self.adb.foreground_package(target) != package:
                     self.adb.shell(target, "am", "start", "-W", "-n",
-                                   f"{package}/.E2eLauncherActivity")
+                                   self.profile.get("e2e_activity", f"{package}/.E2eLauncherActivity"))
                     self.require_same_process(
                         target, identity, "controlled foreground activation")
             else:
