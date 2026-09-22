@@ -37,6 +37,22 @@ def blob(commit, path):
 
 
 class HistoricalPublicIdentifiers(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # These integration assertions need the original historical objects.
+        # A shallow CI checkout cannot verify their contents. Keep this explicit
+        # rather than treating unavailable history as a changed disposition.
+        shallow = subprocess.check_output(
+            ['git', 'rev-parse', '--is-shallow-repository'], cwd=ROOT, text=True).strip()
+        if shallow == 'true':
+            for commit, path, _ in IDENTITIES:
+                available = subprocess.run(['git', 'cat-file', '-e', commit + ':' + path],
+                                           cwd=ROOT, capture_output=True)
+                if available.returncode:
+                    raise unittest.SkipTest(
+                        'Historical source-binding integration tests require a full Git checkout; '
+                        'source/artifact checks and synthetic exception tests remain enabled')
+
     def test_exact_source_binding_and_public_roles(self):
         entries = load_reviews(REVIEW)
         for (commit, path, line), role in IDENTITIES.items():

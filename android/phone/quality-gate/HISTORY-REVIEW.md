@@ -77,3 +77,13 @@ tracked-source absence checks. Their dispositions are in `history-risks.json`,
 separate from false positives. Reintroduction or changed/unavailable evidence
 retains FAIL. Current-source and artifact scans are unchanged. See the README
 for the implementation boundary and regression command.
+
+### Historical integration tests in CI
+
+`test_history_public_identifiers.py` validates the actual old Git objects in a
+full checkout. A shallow checkout without those objects explicitly skips this
+integration class; it cannot establish historical-source binding. Synthetic
+exception regression tests and current-source/artifact checks still run. The
+release history scanner itself is unchanged and does not accept missing objects
+as evidence for an exception. The full-checkout historical tests passed locally
+on 2026-09-22; use a full checkout to repeat that coverage.
