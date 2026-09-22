@@ -76,6 +76,22 @@ reset_incomplete_stage() {
   rm -f -- "$result"
 }
 
+# Only the submission adapter selects the standard Debian buildserver tools.
+# Override Linux settings in both Conan contexts; retain Android's NDK Clang.
+conan_install() {
+  context=$1
+  shift
+  if [ "${OVERTE_FDROID_STANDARD_TOOLCHAIN:-0}" = 1 ]; then
+    case "$context" in
+      linux) conan install "$@" -s:h compiler.version=14 -s:b compiler.version=14 ;;
+      android) conan install "$@" -s:b compiler.version=14 ;;
+      *) echo "unknown Conan context: $context" >&2; return 2 ;;
+    esac
+  else
+    conan install "$@"
+  fi
+}
+
 preflight() {
   closure verify >/dev/null
   [ -f "$OVERTE_ATTEMPT_ROOT/qt-composed/COMPOSITION.json" ] || { echo "preflight: composed Qt source is absent" >&2; exit 1; }
@@ -83,14 +99,18 @@ preflight() {
   [ -d "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin" ] || { echo "preflight: exact NDK is absent" >&2; exit 1; }
   [ -d "$ANDROID_SDK_ROOT/platforms/android-36" ] || { echo "preflight: SDK platform 36 is absent" >&2; exit 1; }
   [ -d "$ANDROID_SDK_ROOT/build-tools/36.0.0" ] || { echo "preflight: build-tools 36.0.0 are absent" >&2; exit 1; }
-  gcc --version | head -1 | grep -Eq ' 15[.]3[.]0$'
-  g++ --version | head -1 | grep -Eq ' 15[.]3[.]0$'
-  "$JAVA_HOME/bin/java" -version 2>&1 | head -1 | grep -Eq 'version "17[.]'
-  # Conan initializes CONAN_HOME even for a version query.  Keep that probe in
-  # the container tmpfs so the qualified attempt cache remains truly empty.
-  CONAN_HOME=/tmp/sh001-conan-version-probe conan --version | grep -Fx 'Conan version 2.25.2'
-  cmake --version | head -1 | grep -Fx 'cmake version 3.31.6'
-  ninja --version | grep -Fx '1.13.2'
+  if [ "${OVERTE_FDROID_STANDARD_TOOLCHAIN:-0}" = 1 ]; then
+    python3 "$repo_root/android/phone/fdroid/submission/toolchain.py"
+  else
+    gcc --version | head -1 | grep -Eq ' 15[.]3[.]0$'
+    g++ --version | head -1 | grep -Eq ' 15[.]3[.]0$'
+    "$JAVA_HOME/bin/java" -version 2>&1 | head -1 | grep -Eq 'version "17[.]'
+    # Conan initializes CONAN_HOME even for a version query.  Keep that probe in
+    # the container tmpfs so the qualified attempt cache remains truly empty.
+    CONAN_HOME=/tmp/sh001-conan-version-probe conan --version | grep -Fx 'Conan version 2.25.2'
+    cmake --version | head -1 | grep -Fx 'cmake version 3.31.6'
+    ninja --version | grep -Fx '1.13.2'
+  fi
   if [ "$resume" -eq 0 ]; then
     [ "$(find "$OVERTE_ATTEMPT_ROOT" -maxdepth 1 -type d \( -name bootstrap -o -name host-tools -o -name target \) | wc -l)" -eq 0 ] || { echo "preflight: stale binary output exists" >&2; exit 1; }
     [ ! -e "$conan_home" ] || [ -z "$(find "$conan_home" -mindepth 1 -print -quit)" ] || { echo "preflight: Conan cache is not empty" >&2; exit 1; }
@@ -146,7 +166,7 @@ fi
 cd "$repo_root"
 if ! valid_checkpoint bootstrap "$OVERTE_ATTEMPT_ROOT/bootstrap-result.json"; then
   reset_incomplete_stage "$OVERTE_ATTEMPT_ROOT/bootstrap" "$OVERTE_ATTEMPT_ROOT/bootstrap-result.json"
-  conan install android/phone/fdroid/conan/bootstrap.conanfile.py -of "$OVERTE_ATTEMPT_ROOT/bootstrap" \
+  conan_install linux android/phone/fdroid/conan/bootstrap.conanfile.py -of "$OVERTE_ATTEMPT_ROOT/bootstrap" \
     -pr:h android/phone/fdroid/conan/profiles/linux-x86_64-bootstrap -pr:b android/phone/fdroid/conan/profiles/linux-x86_64-bootstrap \
     --lockfile=android/phone/fdroid/locks/bootstrap-linux-x86_64.lock --no-remote --build='*' \
     -c "tools.build:jobs=$jobs" --format=json > "$OVERTE_ATTEMPT_ROOT/bootstrap-result.json"
@@ -155,7 +175,7 @@ fi
 
 if ! valid_checkpoint host-tools "$OVERTE_ATTEMPT_ROOT/host-tools-result.json"; then
   reset_incomplete_stage "$OVERTE_ATTEMPT_ROOT/host-tools" "$OVERTE_ATTEMPT_ROOT/host-tools-result.json"
-  conan install android/phone/fdroid/conan/host-tools.conanfile.py -of "$OVERTE_ATTEMPT_ROOT/host-tools" \
+  conan_install linux android/phone/fdroid/conan/host-tools.conanfile.py -of "$OVERTE_ATTEMPT_ROOT/host-tools" \
     -pr:h android/phone/fdroid/conan/profiles/linux-x86_64-hosttools -pr:b android/phone/fdroid/conan/profiles/linux-x86_64-bootstrap \
     --lockfile=android/phone/fdroid/locks/host-tools-linux-x86_64.lock --no-remote --build='*' \
     -c "tools.build:jobs=$jobs" --format=json > "$OVERTE_ATTEMPT_ROOT/host-tools-result.json"
@@ -164,7 +184,7 @@ fi
 
 if ! valid_checkpoint target "$OVERTE_ATTEMPT_ROOT/target-result.json"; then
   reset_incomplete_stage "$OVERTE_ATTEMPT_ROOT/target" "$OVERTE_ATTEMPT_ROOT/target-result.json"
-  conan install android/phone/fdroid/conan/target.conanfile.py -of "$OVERTE_ATTEMPT_ROOT/target" \
+  conan_install android android/phone/fdroid/conan/target.conanfile.py -of "$OVERTE_ATTEMPT_ROOT/target" \
     -pr:h android/phone/fdroid/conan/profiles/android-arm64-v8a-api26-16k -pr:b android/phone/fdroid/conan/profiles/linux-x86_64-hosttools \
     --lockfile=android/phone/fdroid/locks/android-arm64-v8a-api26-16k.lock --no-remote --build='*' \
     -c "tools.build:jobs=$jobs" --format=json > "$OVERTE_ATTEMPT_ROOT/target-result.json"

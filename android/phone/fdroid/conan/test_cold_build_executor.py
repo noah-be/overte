@@ -23,7 +23,7 @@ class ColdBuildExecutorTest(unittest.TestCase):
         subprocess.run(["bash", "-n", str(OUTER)], check=True)
 
     def test_all_graph_builds_are_exact_and_source_forced(self):
-        commands = re.findall(r"conan install .*?(?=\n\s*checkpoint)", self.inner, re.S)
+        commands = re.findall(r"^  conan_install (?:linux|android) .*?(?=\n\s*checkpoint)", self.inner, re.S | re.M)
         self.assertEqual(3, len(commands))
         for command in commands:
             self.assertIn("--lockfile=", command)

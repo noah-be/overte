@@ -16,7 +16,6 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 import urllib.request
 import zipfile
 
@@ -75,6 +74,7 @@ def environment(args):
         ANDROID_NDK_HOME=str(args.sdk / 'ndk/27.3.13750724'),
         GRADLE_USER_HOME=str(args.work_dir / 'gradle-home'),
         JAVA_HOME=str(args.java_home),
+        OVERTE_FDROID_STANDARD_TOOLCHAIN='1',
     )
     env['PATH'] = os.pathsep.join([str(args.java_home / 'bin'),
                                     str(args.sdk / 'cmdline-tools/22.0/bin'),
@@ -107,22 +107,7 @@ def preflight(args, env):
         if shutil.which(tool, path=env.get('PATH')) is None:
             raise ValueError('missing APK inspection tool: ' + tool)
     run([env['PHONE_APK_ANALYZER'], '--help'], env=env)
-    versions = [(['gcc', '-dumpfullversion'], '15.3.0'),
-                (['g++', '-dumpfullversion'], '15.3.0'),
-                (['cmake', '--version'], 'cmake version 3.31.6'),
-                (['ninja', '--version'], '1.13.2'),
-                (['conan', '--version'], 'Conan version 2.25.2')]
-    # Even `conan --version` initializes a home. Do not touch a personal cache
-    # or create the future build directory during the check-only operation.
-    with tempfile.TemporaryDirectory(prefix='overte-fdroid-probe-') as probe:
-        probe_env = dict(env, CONAN_HOME=probe)
-        for command, expected in versions:
-            output = subprocess.check_output(command, env=probe_env, text=True).splitlines()[0]
-            if output != expected:
-                raise ValueError(f'tool version mismatch: {command[0]} (expected {expected})')
-    java = subprocess.check_output([args.java_home / 'bin/java', '-version'], stderr=subprocess.STDOUT, text=True)
-    if not re.search(r'version "17\.', java):
-        raise ValueError('OpenJDK 17 is required')
+    run([sys.executable, FDROID / 'submission/toolchain.py'], env=env)
     run([*isolation_prefix(), sys.executable, '-c',
          'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); '
          's.listen(); c=socket.create_connection(s.getsockname(),timeout=3); '
@@ -171,7 +156,7 @@ def main():
     parser.add_argument('--version-code', required=True, type=int)
     parser.add_argument('--version-name', required=True)
     parser.add_argument('--sdk', required=True, type=Path)
-    parser.add_argument('--java-home', type=Path, default=Path('/usr/lib/jvm/java-17-openjdk-amd64'))
+    parser.add_argument('--java-home', type=Path, default=Path('/usr/lib/jvm/java-21-openjdk-amd64'))
     parser.add_argument('--work-dir', required=True, type=Path)
     parser.add_argument('--source-store', type=Path, help='optional existing hash-verified source archives, never binary packages')
     parser.add_argument('--check', action='store_true', help='check prerequisites only')
