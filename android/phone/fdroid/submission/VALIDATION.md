@@ -50,12 +50,15 @@ Official VM provisioning completed; local box packaging resumed without repeatin
 provisioning after a permission failure. The base box checksum was verified.
 
 The tested source commit was supplied from an independent local Git clone with
-its canonical public origin retained. **Public fetchability remains unverified.**
-This is successful local VM qualification, not F-Droid admission, public-source
-qualification or bit-for-bit reproducibility. Only the local test copy was
+its canonical public origin retained. After the maintainer authorized publication,
+the exact tested commit was fetched without credentials into an independent bare
+Git repository on 2026-09-22. **Public commit fetchability is now verified.**
+This is successful local VM qualification followed by public commit retrieval,
+not F-Droid admission, a repeated remote-only build or bit-for-bit reproducibility. Only the local test copy was
 signed; no production signing or publication was performed.
 Private full logs and machine-readable evidence are retained outside Git. Public
-integration and submission still need the maintainer's authorization.
+integration was authorized by the maintainer; F-Droid submission remains a
+separate authorization step.
 
 The following record is historical and describes an older identity and revision;
 its pending items and identity proposals are superseded by the result above and

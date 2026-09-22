@@ -173,7 +173,8 @@ replace cold qualification of the final revision.
 The local F-Droid controller and VM configurations have passed configuration
 validation and metadata lint. A complete clean `--server --test --scan-binary` build passed on 2026-09-22
 for local commit `24075d829f6d3b5bdb694cf13b6494979689be85`; see VALIDATION.md
-for its APK hash and qualification limits. Public fetchability remains unverified.
+for its APK hash and qualification limits. The exact tested commit was later
+fetched from the public fork after the maintainer authorized source publication.
 These are technical checks, not owner attestations. Nothing here publishes,
 merges, tags, deletes branches or updates private device-lab configuration.
 
