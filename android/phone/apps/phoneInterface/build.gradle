@@ -375,7 +375,7 @@ android {
             matchingFallbacks = ['debug']
         }
         release {
-            minifyEnabled false
+            minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
                 'proguard-rules.pro'
             buildConfigField 'String', 'BACKTRACE_URL', '""'
