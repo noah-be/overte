@@ -246,6 +246,10 @@ identical. Differences were concentrated in native libraries and Qt resources:
   dependency paths. A guarded build-hook adjustment to `tools/js2c.cc` normalizes
   only that informational embedded copy. Actual GYP include/link paths remain
   unchanged. The hook rejects an unexpected generator implementation.
+- The next full pair differed only in `libshaders.so`: Scribe inserted wall-clock
+  dates into generated shader comments. The isolated hook binds `_SCRIBE_DATE`
+  to the same commit epoch before compiling Scribe. Shader instructions and
+  copyright comments are preserved; unexpected Scribe implementations fail.
 
 The hook is installed only in the new, isolated submission Conan home. It does
 not modify global Conan configuration, recipes in the source export store,

@@ -92,6 +92,42 @@ int main() {
             with self.assertRaisesRegex(ValueError, 'Unexpected Node'):
                 hook.normalize_node_config(root, [])
 
+    def test_scribe_date_is_compiled_from_epoch_and_preserves_shader_text(self):
+        compiler = shutil.which('g++')
+        if not compiler:
+            self.skipTest('C++ compiler unavailable')
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / 'src').mkdir()
+            source = root / 'src/main.cpp'
+            original = '''#include <chrono>
+#include <ctime>
+#include <iostream>
+using namespace std;
+int main() {
+    time_t endTime = chrono::system_clock::to_time_t(chrono::system_clock::now());
+    std::cout << "// Generated on " << ctime(&endTime);
+    std::cout << "// Copyright preserved\\nvoid main() {}\\n";
+}
+'''
+            outputs = []
+            for name in ('first', 'second'):
+                source.write_text(original)
+                with patch.dict(os.environ, SOURCE_DATE_EPOCH='1790000000'):
+                    hook.normalize_scribe_date(root)
+                binary = root / name
+                subprocess.run([compiler, str(source), '-o', str(binary)], check=True)
+                outputs.append(subprocess.check_output([str(binary)], env=dict(os.environ, TZ='UTC')))
+            self.assertEqual(outputs[0], outputs[1])
+            self.assertIn(b'2026', outputs[0])
+            self.assertTrue(outputs[0].endswith(b'// Copyright preserved\nvoid main() {}\n'))
+            with patch.dict(os.environ, SOURCE_DATE_EPOCH='invalid'):
+                with self.assertRaisesRegex(ValueError, 'Invalid SOURCE_DATE_EPOCH'):
+                    hook.normalize_scribe_date(root)
+            with patch.dict(os.environ, SOURCE_DATE_EPOCH='1790000000'):
+                with self.assertRaisesRegex(ValueError, 'Unexpected Scribe'):
+                    hook.normalize_scribe_date(root)
+
     def test_legacy_executor_does_not_enable_hook(self):
         with patch.dict(os.environ, OVERTE_FDROID_STANDARD_TOOLCHAIN='0'):
             hook.pre_generate(None)

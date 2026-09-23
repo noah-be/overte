@@ -53,6 +53,20 @@ def normalize_node_config(source, mappings):
     path.write_text(text.replace(marker, '\n'.join(statements)))
 
 
+def normalize_scribe_date(source):
+    # Scribe overrides _SCRIBE_DATE with the wall clock, even when passed -D.
+    # Bind that informational shader-template variable to the source commit.
+    epoch = os.environ['SOURCE_DATE_EPOCH']
+    if not epoch.isascii() or not epoch.isdecimal() or not 0 <= int(epoch) <= 253402300799:
+        raise ValueError('Invalid SOURCE_DATE_EPOCH for Scribe')
+    path = Path(source) / 'src/main.cpp'
+    text = path.read_text()
+    marker = 'time_t endTime = chrono::system_clock::to_time_t(chrono::system_clock::now());'
+    if text.count(marker) != 1:
+        raise ValueError('Unexpected Scribe date generation implementation')
+    path.write_text(text.replace(marker, f'time_t endTime = static_cast<time_t>({int(epoch)}LL);'))
+
+
 def pre_generate(conanfile):
     if os.environ.get('OVERTE_FDROID_STANDARD_TOOLCHAIN') != '1':
         return
@@ -69,6 +83,8 @@ def pre_generate(conanfile):
                 conanfile.conf.append(option, flag)
     if conanfile.name == 'libnode':
         normalize_node_config(conanfile.source_folder, maps)
+    if conanfile.name == 'scribe':
+        normalize_scribe_date(conanfile.source_folder)
     # Capture mappings while the build folders still exist. Used by the final
     # app compiler for included dependency headers and DWARF build IDs.
     directory = Path(os.environ['OVERTE_ATTEMPT_ROOT']) / 'reproducible-paths'
