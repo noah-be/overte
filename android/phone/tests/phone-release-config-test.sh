@@ -33,6 +33,7 @@ if (( compile_sdk_line >= dependency_gate_line )); then
 fi
 require_text "$module_gradle" 'targetSdk 36' 'phone targetSdk must remain API 36'
 python3 "$script_dir/phone-r8-contract-test.py"
+python3 "$script_dir/phone-apk-repack-test.py"
 require_text "$module_gradle" "gradleProperty\('VERSION_CODE'\)" \
     'release configuration must require an explicit versionCode'
 require_text "$root_gradle" 'new BigInteger\(versionCodeProperty\)' \

@@ -203,10 +203,21 @@ def main():
     env['OVERTE_FDROID_CONAN_DIR'] = str(args.work_dir / 'target')
     isolation = isolation_prefix()
     run([*isolation, FDROID / 'scripts/build-dependencies.sh', '--build'], env=env)
+    # Qualify the lossless resource transform against this build's native Qt.
+    nodes = json.loads((args.work_dir / 'host-tools-result.json').read_text())['graph']['nodes'].values()
+    qt = [node for node in nodes if (node.get('ref') or '').startswith('qt/')
+          and node.get('context') == 'host' and node.get('settings', {}).get('os') == 'Linux']
+    if len(qt) != 1:
+        raise ValueError('expected one native Qt package for compaction regression tests')
+    run([*isolation, sys.executable, ROOT / 'android/phone/tests/phone-resource-compaction-test.py',
+         '--qt-root', qt[0]['package_folder']], env=env)
+    run([*isolation, sys.executable, ROOT / 'android/phone/tests/phone-apk-repack-test.py'], env=env)
     env['OVERTE_FDROID_REPRODUCIBLE_CMAKE'] = str(write_reproducible_cmake(args))
     run([*isolation, *release_command(args, gradle)], env=env)
     if not APK.is_file():
         raise ValueError('unsigned release APK is absent')
+    run([sys.executable, ROOT / 'android/phone/tools/repack_unsigned_apk.py', APK,
+         '--zipalign', args.sdk / 'build-tools/36.0.0/zipalign'], env=env)
     (args.work_dir / 'result.json').write_text(json.dumps({
         'source_commit': args.commit, 'apk_sha256': digest(APK),
         'version_code': args.version_code, 'version_name': args.version_name,

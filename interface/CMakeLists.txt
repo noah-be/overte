@@ -58,7 +58,19 @@ generate_qrc(
   GLOBS *
   EXCLUDES ${INTERFACE_QRC_EXCLUDES})
 
-if (ANDROID)
+if (HIFI_ANDROID AND HIFI_ANDROID_APP STREQUAL "phoneInterface")
+  # Preserve uncompressed runtime payloads and every alias; share identical bytes.
+  set(PHONE_RAW_RCC "${CMAKE_CURRENT_BINARY_DIR}/resources-uncompacted.rcc")
+  qt5_add_binary_resources(resources_raw "${RESOURCES_QRC}" DESTINATION "${PHONE_RAW_RCC}"
+    OPTIONS --format-version 3 -no-compress)
+  add_custom_command(OUTPUT "${RESOURCES_RCC}"
+    COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/android/phone/tools/compact_qt_resources.py"
+      binary "${PHONE_RAW_RCC}" "${RESOURCES_RCC}"
+    DEPENDS "${PHONE_RAW_RCC}" "${CMAKE_SOURCE_DIR}/android/phone/tools/compact_qt_resources.py"
+    VERBATIM)
+  add_custom_target(resources ALL DEPENDS "${RESOURCES_RCC}")
+  add_dependencies(resources resources_raw)
+elseif (ANDROID)
   # on Android, don't compress the rcc binary
   qt5_add_binary_resources(resources "${RESOURCES_QRC}" DESTINATION "${RESOURCES_RCC}" OPTIONS -no-compress)
 else ()

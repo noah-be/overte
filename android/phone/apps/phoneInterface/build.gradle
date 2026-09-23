@@ -476,11 +476,15 @@ android {
                 from new File(qtPackageDir, 'qml/QtQml')
                 into new File(mergedAssetsDir, 'qml/QtQml')
                 exclude '**/*.so'
+                // Qt Creator designer panels are editor-only, not runtime QML.
+                exclude '**/designer/**'
             }
             copy {
                 from new File(qtPackageDir, 'qml/QtQuick.2')
                 into new File(mergedAssetsDir, 'qml/QtQuick.2')
                 exclude '**/*.so'
+                // Qt Creator designer panels are editor-only, not runtime QML.
+                exclude '**/designer/**'
             }
             ['QtQuick/Controls', 'QtQuick/Controls.2', 'QtQuick/Dialogs',
              'QtQuick/PrivateWidgets', 'QtQuick/Templates.2', 'QtQuick/Layouts',
@@ -490,6 +494,8 @@ android {
                     from new File(qtPackageDir, "qml/${modulePath}")
                     into new File(mergedAssetsDir, "qml/${modulePath}")
                     exclude '**/*.so'
+                    // Qt Creator designer panels are editor-only, not runtime QML.
+                    exclude '**/designer/**'
                 }
             }
 
