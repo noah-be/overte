@@ -66,6 +66,25 @@ int main() {
             self.assertEqual('/random/cache/pkg/include unchanged\n/usr/src/dependency/include unchanged',
                              subprocess.check_output([str(binary)], text=True))
 
+    def test_post_generate_keeps_flags_after_ndk_and_qmake_initialization(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            feature = root / 'qt5/qtbase/mkspecs/features/default_post.prf'
+            feature.parent.mkdir(parents=True)
+            feature.write_text('# original feature\n')
+            toolchain = root / 'conan_toolchain.cmake'
+            toolchain.write_text('# original toolchain\n')
+            recipe = SimpleNamespace(name='qt', ref='qt/5.15.18@overte/stable',
+                source_folder=td, build_folder=td, package_folder=td+'/package',
+                generators_folder=td, dependencies={})
+            with patch.dict(os.environ, OVERTE_FDROID_STANDARD_TOOLCHAIN='1'):
+                hook.post_generate(recipe)
+            self.assertTrue(toolchain.read_text().startswith('# original toolchain'))
+            self.assertIn('add_compile_options("-ffile-prefix-map=', toolchain.read_text())
+            self.assertTrue(feature.read_text().startswith('# original feature'))
+            for variable in ('QMAKE_CFLAGS', 'QMAKE_CXXFLAGS'):
+                self.assertIn(variable + ' += -ffile-prefix-map=', feature.read_text())
+
     def test_changed_node_generator_is_rejected(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td); (root / 'tools').mkdir()

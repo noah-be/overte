@@ -258,3 +258,27 @@ build-info exception, and actual C++ compilation of the Node normalization.
 A real Conan/GCC test built the same small library in two distinct caches and
 obtained byte-identical output, including the build ID. Full Android rebuilds are
 still required; this small regression is not the release reproducibility proof.
+
+The first corrected full build (`16668521593`) passed but still contained random
+paths in Qt and CMake-built Android dependencies. A real NDK/CMake regression
+reproduced the problem: NDK initialization discarded Conan's initial compiler
+flags. The hook now also emits directory compile options after toolchain
+generation. Qt receives the flags in its late `default_post.prf` feature, after
+mkspec initialization. Node's embedded paths were already normalized correctly.
+The redundant comparison pipeline was stopped after this concrete evidence.
+
+Both corrections passed two-build regressions using the actual NDK and Qt5/qmake,
+respectively. They can be repeated in a disposable standard buildserver:
+
+```sh
+# Requires Conan 2.25.2, GCC 14, CMake, Ninja and the declared Android NDK.
+export ANDROID_NDK_HOME="$ANDROID_SDK_ROOT/ndk/27.3.13750724"
+python3 android/phone/fdroid/submission/verify_reproducible_ndk.py
+# Requires Qt5 qmake, GCC/G++ and make; override QMAKE if necessary.
+QMAKE=/usr/lib/qt5/bin/qmake python3 android/phone/fdroid/submission/verify_reproducible_qmake.py
+```
+
+These tests use fresh temporary Conan caches/build directories, no downloads or
+application assets, and compare complete ELF files. They fail on a surviving
+random build path or any binary difference. Full independent APK comparison is
+still the final gate.

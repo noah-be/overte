@@ -76,3 +76,33 @@ def pre_generate(conanfile):
     import hashlib
     key = hashlib.sha256((str(conanfile.ref) + str(conanfile.build_folder)).encode()).hexdigest()
     (directory / (key + '.json')).write_text(json.dumps(maps, indent=2) + '\n')
+
+
+def post_generate(conanfile):
+    if os.environ.get('OVERTE_FDROID_STANDARD_TOOLCHAIN') != '1' or not conanfile.package_folder:
+        return
+    if conanfile.name == 'openssl':
+        return
+    flags = [f'-ffile-prefix-map={old}={new}' for old, new in path_maps(conanfile)]
+    toolchain = Path(conanfile.generators_folder) / 'conan_toolchain.cmake'
+    if toolchain.exists():
+        # The NDK toolchain overwrites CMAKE_<LANG>_FLAGS_INIT, discarding Conan's
+        # extra flags. Directory compile options survive that initialization.
+        with toolchain.open('a') as stream:
+            stream.write('\n# Preserve reproducible paths across Android NDK flag initialization.\n')
+            for flag in flags:
+                if any(c in flag for c in ('"', ';', '$', '\\', '\n', '\r')):
+                    raise ValueError('unsafe CMake diagnostic path mapping')
+                stream.write(f'add_compile_options("{flag}")\n')
+    if conanfile.name == 'qt':
+        # Qt's configure/mkspec initialization also replaces command-line flag
+        # variables. default_post is loaded after each project is parsed.
+        feature = Path(conanfile.source_folder) / 'qt5/qtbase/mkspecs/features/default_post.prf'
+        if not feature.is_file():
+            raise ValueError('Qt default_post feature is absent')
+        if any(any(c.isspace() or c in '$#"\\' for c in flag) for flag in flags):
+            raise ValueError('unsafe qmake diagnostic path mapping')
+        with feature.open('a') as stream:
+            stream.write('\n# Stable diagnostic paths for the source-only Android submission.\n')
+            stream.write('QMAKE_CFLAGS += ' + ' '.join(flags) + '\n')
+            stream.write('QMAKE_CXXFLAGS += ' + ' '.join(flags) + '\n')
